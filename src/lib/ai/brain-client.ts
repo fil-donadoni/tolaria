@@ -9,6 +9,24 @@
 // In a non-Worker environment (SSR, tests), `consultBrain` falls back to running
 // the same ISMCTS search inline — so the driver never hard-depends on the
 // Worker being available.
+//
+// A Worker FAILURE used to be permanent (issue #3040). `onerror` left the
+// singleton installed, so every later consult posted into a dead handle, burned
+// the full consult timeout and settled with no move — which the driver's
+// fallback turns into a pass on an ordinary priority window. One transient
+// failure therefore made the bot pass every real decision for the rest of the
+// game: it kept its opening hand, never played a land, never attacked, and
+// nothing on screen said the AI was broken. Recovery has two stages, and the
+// caller is never handed "no move" while either can still answer:
+//
+//   1. terminate + clear the singleton, so the next consult constructs a FRESH
+//      Worker — bounded by MAX_BRAIN_WORKER_SPAWNS per game, or a permanently
+//      broken script would spin;
+//   2. once that budget is spent, consults run the SAME handler in-thread at
+//      BRAIN_FALLBACK_BUDGET. A weak move beats no move.
+//
+// And it is loud: a failure nobody is waiting on — the warm-up spawn — still
+// lands in the decision ring, so it reaches a bug report instead of vanishing.
 
 import type { PublicGameState } from "@convex/gameProjections";
 import type { Move, SearchBudget, DecisionTrace } from "@convex/gre";
@@ -20,6 +38,7 @@ import type {
     BrainRequest,
     BrainResponse,
 } from "./brain-request";
+import { recordAiDecision } from "./trace-store";
 
 /** The Brain's reply: the chosen move, the read-only DecisionTrace of what it
  *  weighed (null when there was no real decision to explain), and HOW the
@@ -30,7 +49,9 @@ import type {
  *  bare `move: null` the driver gets when the bot legitimately has nothing to
  *  do. Indistinguishable at the call site, and therefore invisible in a bug
  *  report: a bot failing every consult looks exactly like a bot passing every
- *  window (issue #2450). `via` says whether a Worker was involved at all. */
+ *  window (issue #2450). `via` says whether a Worker was involved at all — and
+ *  since issue #3040 a consult can START on the Worker and finish `inline`,
+ *  which is what a run of `via: "inline"` in the ring means. */
 export type BrainResult = {
     move: Move | null;
     trace: DecisionTrace | null;
@@ -41,6 +62,11 @@ export type BrainResult = {
 };
 
 type Pending = (result: BrainResult) => void;
+
+/** An in-flight consult. The REQUEST is kept beside its resolver, not just the
+ *  resolver: when a Worker dies with the respawn budget already spent, the
+ *  consult is re-run on this thread, and re-running it needs the arguments. */
+type InFlight = { resolve: Pending; request: BrainRequest };
 
 /** How long a Worker consult may run before the client gives up on it and
  *  resolves the same "no move" answer `worker.onerror` already resolves
@@ -67,44 +93,218 @@ type Pending = (result: BrainResult) => void;
  *  cache would be a ~1.4 MB download plus a 3,000 ms search inside 5,000 ms. */
 export const BRAIN_CONSULT_TIMEOUT_MS = 5000;
 
+/** How many Brain Workers ONE GAME may construct (issue #3040).
+ *
+ *  The respawn has to be bounded — a script that cannot load would otherwise be
+ *  re-spawned on every consult for the rest of the game — and the bound is
+ *  deliberately tight, because the alternative to spawning again is not
+ *  "nothing": it is the in-thread fallback, which answers.
+ *
+ *  Two spawns means ONE retry, sized against the real sequence: `useVsAiDriver`
+ *  calls {@link warmBrain} on mount, so the warm-up spawn is the first of the
+ *  two. A game whose Worker script cannot load therefore spends its second (and
+ *  last) spawn on the bot's FIRST real consult and reaches the in-thread
+ *  fallback inside that same consult — it plays its land instead of passing the
+ *  window. A larger cap buys nothing but repetitions of an identical failure,
+ *  each paid for with a window the bot passes.
+ *
+ *  Per GAME, not per tab: {@link disposeBrain} resets it, and `useVsAiDriver`
+ *  calls that when the bot seat goes away. */
+export const MAX_BRAIN_WORKER_SPAWNS = 2;
+
+/** The budget the in-thread FALLBACK searches at, once the Worker is out of
+ *  respawns (issue #3040).
+ *
+ *  This path runs on the main thread, so its cost is paid in dropped frames — a
+ *  full `hard` budget (3,000 ms) would freeze the tab for three seconds per
+ *  decision. It is deliberately a fraction of the weakest real think, and it is
+ *  a CEILING rather than a replacement: a caller already asking for less
+ *  (`easy`) keeps its own smaller numbers. Weak, but a weak move beats the
+ *  `move: null` this whole file exists to stop turning into a silent pass. */
+export const BRAIN_FALLBACK_BUDGET: SearchBudget = {
+    iterations: 120,
+    timeMs: 400,
+};
+
+/** Named in the failure text of a script-load failure, which carries no
+ *  filename of its own. NOT built with `new URL(..., import.meta.url)`: that
+ *  expression is what Vite's worker plugin pattern-matches inside the
+ *  `new Worker(...)` call below, and a second copy of it outside one is an
+ *  asset reference this message has no use for. */
+const BRAIN_WORKER_SCRIPT = "brain.worker.ts";
+
+/** The explicit marker for the one failure whose event says nothing at all.
+ *
+ *  Every throw INSIDE the Worker is caught and posted back as a structured
+ *  error (`search-error`), and a runtime crash that escapes reaches `onerror`
+ *  as an `ErrorEvent` carrying `message`. An event with NO `message` property
+ *  is what the spec fires when a module Worker's SCRIPT FAILS TO LOAD — and
+ *  reporting that as the bare fallback string `"worker error"` is why issue
+ *  #3040's report named neither the script nor the position. */
+export const WORKER_SCRIPT_LOAD_FAILURE = "worker script failed to load";
+
 let worker: Worker | null = null;
 let nextId = 1;
-const pending = new Map<number, Pending>();
+const pending = new Map<number, InFlight>();
+/** Workers constructed for the current game — see {@link MAX_BRAIN_WORKER_SPAWNS}. */
+let spawns = 0;
+/** Set once the spawn budget is spent: every later consult goes in-thread. */
+let exhausted = false;
 
 function getWorker(): Worker | null {
     if (typeof Worker === "undefined") return null;
+    // Out of respawns: the in-thread fallback owns the rest of this game. Fall
+    // through to `consultBrain`'s `!w` branch rather than handing back a handle
+    // known to die (issue #3040) — that is what made every later consult pay
+    // the full consult timeout for nothing.
+    if (exhausted) return null;
     if (worker) return worker;
+    spawns += 1;
     worker = new Worker(new URL("./brain.worker.ts", import.meta.url), {
         type: "module",
     });
     worker.onmessage = (e: MessageEvent<BrainResponse>) => {
-        const resolve = pending.get(e.data.id);
-        if (resolve) {
+        const entry = pending.get(e.data.id);
+        if (entry) {
             pending.delete(e.data.id);
-            resolve(fromResponse(e.data, "worker"));
+            entry.resolve(fromResponse(e.data, "worker"));
         }
     };
-    worker.onerror = (e) => {
-        // On a worker error, fail all in-flight consults to a safe null so the
-        // driver never hangs; the next state change re-consults. The reason is
-        // no longer dropped: `worker-error` is the one outcome that says the
-        // search may never have run at all (issue #2470).
-        const message =
-            typeof e === "object" && e !== null && "message" in e
-                ? String((e as { message?: unknown }).message)
-                : "worker error";
-        for (const [id, resolve] of pending) {
-            pending.delete(id);
-            resolve({
+    worker.onerror = handleWorkerFailure;
+    return worker;
+}
+
+/** A Worker `error` event: the handle is dead, and before issue #3040 it stayed
+ *  installed forever.
+ *
+ *  Terminate and clear it so the next `getWorker()` constructs a fresh one, and
+ *  never leave the caller with a bare "no move" while another stage can still
+ *  answer: with the spawn budget spent, the in-flight consults are re-run on
+ *  this thread instead of being reported as a dead end. */
+function handleWorkerFailure(e: unknown): void {
+    const reason = describeWorkerFailure(e);
+
+    const dead = worker;
+    worker = null;
+    // Terminate AFTER dropping the reference: a throw from `terminate()` must
+    // not leave the dead singleton installed.
+    try {
+        dead?.terminate();
+    } catch {
+        // A handle that cannot even be terminated is still gone from here.
+    }
+    if (spawns >= MAX_BRAIN_WORKER_SPAWNS) exhausted = true;
+
+    const inFlight = [...pending.values()];
+    pending.clear();
+
+    // Who reports the failure? An in-flight consult settling as `worker-error`
+    // already carries it to the driver's breadcrumb ring. The two cases where
+    // nobody would are exactly where the failure used to vanish: the warm-up
+    // spawn (no consult pending at all) and the exhausting failure (whose
+    // consults now report the INLINE outcome instead). Record it here for
+    // those, so it reaches a bug report either way (issue #3040).
+    if (exhausted || inFlight.length === 0) {
+        recordWorkerFailure(
+            exhausted
+                ? `${reason} — out of respawns, falling back to the in-thread search`
+                : reason
+        );
+    }
+
+    for (const entry of inFlight) {
+        if (exhausted) {
+            entry.resolve(
+                runInline({
+                    ...entry.request,
+                    budget: clampToFallback(
+                        entry.request.budget ?? DEFAULT_BUDGET
+                    ),
+                })
+            );
+        } else {
+            entry.resolve({
                 move: null,
                 trace: null,
                 outcome: "worker-error",
                 via: "worker",
-                message,
+                message: reason,
             });
         }
+    }
+}
+
+/** Write a Worker failure into the decision ring a bug report carries.
+ *
+ *  It has no owed-input window, no phase and no seq — the warm-up spawn fails
+ *  before the game is resting on the bot at all — and the record is left
+ *  honestly incomplete rather than padded with a plausible-looking default: a
+ *  breadcrumb whose `seq` names a version the failure never saw cannot be lined
+ *  up against the board snapshot beside it, which is the whole job of those
+ *  fields (`trace-store.ts`). */
+function recordWorkerFailure(message: string): void {
+    try {
+        recordAiDecision({ outcome: "worker-error", via: "worker", message });
+    } catch {
+        // An unrecordable breadcrumb is a lost diagnostic, never a lost move: a
+        // throwing store subscriber must not escape `onerror` and take the
+        // recovery above with it.
+    }
+}
+
+/** The failure text for a Worker `error` event, and the one place that tells a
+ *  script that never LOADED from one that crashed at RUNTIME (issue #3040).
+ *
+ *  A runtime crash arrives as an `ErrorEvent`: `message` is set, and
+ *  `filename`/`lineno`/`colno` usually are too — the position, which the old
+ *  one-line reason dropped on the floor. A script-load failure arrives as a
+ *  plain `Event` with no `message` property at all, and used to be reported as
+ *  the literal string `"worker error"`, which names nothing. */
+function describeWorkerFailure(e: unknown): string {
+    const ev = (typeof e === "object" && e !== null ? e : {}) as {
+        message?: unknown;
+        filename?: unknown;
+        lineno?: unknown;
+        colno?: unknown;
     };
-    return worker;
+    const at =
+        typeof ev.filename === "string" && ev.filename
+            ? ` (${ev.filename}${
+                  typeof ev.lineno === "number" ? `:${ev.lineno}` : ""
+              }${typeof ev.colno === "number" ? `:${ev.colno}` : ""})`
+            : "";
+    const message =
+        ev.message === undefined || ev.message === null
+            ? ""
+            : String(ev.message);
+    return message
+        ? `${message}${at}`
+        : `${WORKER_SCRIPT_LOAD_FAILURE}: ${BRAIN_WORKER_SCRIPT}${at}`;
+}
+
+/** Run one consult on THIS thread — the same handler the Worker runs, so the
+ *  two paths fail identically (a throw comes back as `search-error`, never
+ *  propagates). Used both where `Worker` is undefined (SSR, tests) and as the
+ *  fallback once the Worker is out of respawns. */
+function runInline(request: BrainRequest): BrainResult {
+    return fromResponse(handleBrainRequest(request), "inline");
+}
+
+/** Clamp a requested budget down to {@link BRAIN_FALLBACK_BUDGET} for the
+ *  in-thread fallback: a ceiling, per field, so a caller already asking for
+ *  less keeps its own smaller numbers. */
+function clampToFallback(requested: SearchBudget): SearchBudget {
+    return {
+        ...requested,
+        iterations: Math.min(
+            requested.iterations ?? BRAIN_FALLBACK_BUDGET.iterations!,
+            BRAIN_FALLBACK_BUDGET.iterations!
+        ),
+        timeMs: Math.min(
+            requested.timeMs ?? BRAIN_FALLBACK_BUDGET.timeMs!,
+            BRAIN_FALLBACK_BUDGET.timeMs!
+        ),
+    };
 }
 
 /**
@@ -124,6 +324,10 @@ function getWorker(): Worker | null {
  * Worker's fetch overlaps the game's own setup — and normally hits the
  * browser cache the main thread's gate already filled from the same
  * `immutable` URL. Idempotent; safe where `Worker` is undefined.
+ *
+ * It is also the FIRST of the game's {@link MAX_BRAIN_WORKER_SPAWNS}: a script
+ * that cannot load fails here, with no consult pending, which is why that
+ * failure has to be recorded rather than resolved (issue #3040).
  */
 export function warmBrain(): void {
     getWorker();
@@ -142,15 +346,21 @@ export function consultBrain(
 ): Promise<BrainResult> {
     const w = getWorker();
     if (!w) {
-        // No Worker (SSR, tests): the SAME handler, on this thread. It reports
-        // a throw as `error` rather than propagating, so the inline path and
-        // the Worker path fail identically.
+        // No Worker: the SAME handler, on this thread. It reports a throw as
+        // `error` rather than propagating, so the inline path and the Worker
+        // path fail identically. Two ways to get here, and they differ only in
+        // the budget — a native non-Worker environment (SSR, tests) keeps the
+        // caller's, while the issue #3040 FALLBACK clamps it, because there it
+        // is the game's UI thread paying for the search.
         const id = nextId++;
         return Promise.resolve(
-            fromResponse(
-                handleBrainRequest({ id, state, botId, budget, deckKnowledge }),
-                "inline"
-            )
+            runInline({
+                id,
+                state,
+                botId,
+                budget: exhausted ? clampToFallback(budget) : budget,
+                deckKnowledge,
+            })
         );
     }
 
@@ -169,9 +379,12 @@ export function consultBrain(
                     via: "worker",
                 });
         }, BRAIN_CONSULT_TIMEOUT_MS);
-        pending.set(id, (result) => {
-            clearTimeout(timer);
-            resolve(result);
+        pending.set(id, {
+            request,
+            resolve: (result) => {
+                clearTimeout(timer);
+                resolve(result);
+            },
         });
         w.postMessage(request);
     });
@@ -201,11 +414,18 @@ function fromResponse(
     };
 }
 
-/** Tear down the Worker (e.g. on leaving a game). Tests may call this too. */
+/** Tear the Brain down (e.g. on leaving a game). Tests may call this too.
+ *
+ *  Also resets the respawn budget, which is what makes
+ *  {@link MAX_BRAIN_WORKER_SPAWNS} a per-GAME cap rather than a per-tab one: a
+ *  game that exhausted its Worker must not hand the next game in the same tab
+ *  an already-dead Brain. */
 export function disposeBrain(): void {
     if (worker) {
         worker.terminate();
         worker = null;
     }
     pending.clear();
+    spawns = 0;
+    exhausted = false;
 }

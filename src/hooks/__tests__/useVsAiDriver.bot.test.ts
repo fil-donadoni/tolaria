@@ -270,6 +270,9 @@ const { useVsAiDriver, BOT_WATCHDOG_MS } = await import("../useVsAiDriver");
 // store IS the subject here.
 const { getAiDecisions, clearAiDecisions } =
     await import("~/lib/ai/trace-store");
+// Resets the Brain's per-game Worker respawn budget between the issue #3040
+// cases below, which deliberately spend it.
+const { disposeBrain } = await import("~/lib/ai/brain-client");
 
 /** Flush the driver's NORMAL decision path — the think beat, the inline search
  *  and the mutation promises — without reaching the liveness watchdog's deadline
@@ -992,6 +995,118 @@ describe("useVsAiDriver (issue #110)", () => {
         expect(consult).toMatchObject({ via: "inline", moveKind: "play-land" });
         // A healthy consult carries no failure text.
         expect(consult!.message).toBeUndefined();
+    });
+
+    // ── The Brain Worker died, and the bot must still play (issue #3040) ────
+    //
+    // The report this closes is a bot that kept a playable hand and then never
+    // played anything: four lands in hand at turn 4, an empty battlefield, and
+    // a decision ring holding one `worker-error` on its first main phase
+    // followed by nothing but `timeout`. The Worker was a module-level
+    // singleton whose `onerror` left the dead handle installed, so every later
+    // consult posted into it, burned the full consult timeout and settled with
+    // no move — which THIS driver turns into a pass on an ordinary priority
+    // window.
+    //
+    // The transport-level recovery has its own suite
+    // (`brain-worker-respawn.bot.test.ts`). What can only be asserted here is
+    // the end of the path: with a Worker that cannot load, the driver's warm-up
+    // spawn plus the bot's first real consult exhaust the respawn budget, the
+    // in-thread fallback answers, and a LAND REACHES THE SERVER.
+    describe("with a Brain Worker whose script cannot load", () => {
+        /** The spec fires a plain `Event` — no `message` — asynchronously, and
+         *  `postMessage` reaches nothing. Every construction fails the same
+         *  way, which is what a broken build looks like. */
+        class LoadFailingWorker {
+            onmessage: unknown = null;
+            onerror: ((e: unknown) => void) | null = null;
+            constructor() {
+                void Promise.resolve().then(() =>
+                    this.onerror?.({ type: "error" })
+                );
+            }
+            postMessage() {}
+            terminate() {}
+        }
+        const originalWorker = globalThis.Worker;
+
+        beforeEach(() => {
+            (globalThis as { Worker?: unknown }).Worker =
+                LoadFailingWorker as unknown as typeof Worker;
+        });
+        afterEach(() => {
+            (globalThis as { Worker?: unknown }).Worker = originalWorker;
+            disposeBrain();
+        });
+
+        it("still plays a land on the bot's own main phase", async () => {
+            currentState = botState({
+                priorityPlayerId: BOT,
+                players: [
+                    {
+                        ...player(BOT),
+                        hand: [
+                            makeInstance(MOUNTAIN, {
+                                controllerId: BOT,
+                                ownerId: BOT,
+                                id: "land1",
+                                zone: "hand",
+                            }),
+                        ],
+                    },
+                    player(HUMAN),
+                ],
+            });
+            renderHook(() => useVsAiDriver(GAME, BOT));
+            await settleDriver();
+
+            // Before the fix this window produced `passPriority` — the bot
+            // "chose" to pass, indistinguishably from a healthy pass.
+            expect(calls.map((c) => c.ref)).toContain("playCard");
+            expect(calls.find((c) => c.ref === "playCard")!.args).toMatchObject(
+                { gameId: GAME, playerId: BOT }
+            );
+        });
+
+        it("records the Worker failure AND the fallback that answered", async () => {
+            currentState = botState({
+                priorityPlayerId: BOT,
+                players: [
+                    {
+                        ...player(BOT),
+                        hand: [
+                            makeInstance(MOUNTAIN, {
+                                controllerId: BOT,
+                                ownerId: BOT,
+                                id: "land1",
+                                zone: "hand",
+                            }),
+                        ],
+                    },
+                    player(HUMAN),
+                ],
+            });
+            renderHook(() => useVsAiDriver(GAME, BOT));
+            await settleDriver();
+
+            const records = getAiDecisions();
+            // The warm-up spawn's failure reaches the ring with no window to
+            // name — it fails before the game rests on the bot at all, and it
+            // is the earliest evidence a bug report can carry that the AI is
+            // broken.
+            const warmUp = records.find(
+                (d) =>
+                    d.outcome === "worker-error" && d.expectedKind === undefined
+            );
+            expect(warmUp).toBeDefined();
+            expect(warmUp!.message).toContain("worker script failed to load");
+            // …and the consult itself is reported by what actually answered it.
+            const consult = records.find((d) => d.outcome === "move");
+            expect(consult).toMatchObject({
+                via: "inline",
+                moveKind: "play-land",
+            });
+        });
     });
 
     it("records a submission the server rejected", async () => {

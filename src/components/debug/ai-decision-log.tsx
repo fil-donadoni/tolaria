@@ -29,6 +29,23 @@ const OUTCOME: Record<AiDecisionOutcome, { label: string; bad: boolean }> = {
     unanswered: { label: "NO ANSWER FOR THIS WINDOW", bad: true },
 };
 
+/** The window a record was taken in, for the row prefix.
+ *
+ *  Almost every record names one. The exception is a Brain Worker that failed
+ *  at WARM-UP time (issue #3040): it fails before the game rests on the bot at
+ *  all, so it has no expected input, no phase and no seq — and those are left
+ *  absent rather than defaulted, because a plausible-looking `#0 …` here would
+ *  read as a board version the failure never saw. */
+function windowLabel(d: {
+    seq?: number;
+    phase?: string;
+    expectedKind?: string;
+}): string {
+    return d.expectedKind
+        ? `#${d.seq} ${d.phase} · ${d.expectedKind}`
+        : "no window (Brain warm-up)";
+}
+
 export default function AiDecisionLog() {
     const decisions = useAiDecisions();
     if (decisions.length === 0) return null;
@@ -64,8 +81,7 @@ export default function AiDecisionLog() {
                             OUTCOME[d.outcome].bad ? "text-warning" : undefined
                         }
                     >
-                        #{d.seq} {d.phase} · {d.expectedKind} →{" "}
-                        {OUTCOME[d.outcome].label}
+                        {windowLabel(d)} → {OUTCOME[d.outcome].label}
                         {d.moveKind || d.actionKind
                             ? ` (${d.moveKind ?? d.actionKind})`
                             : ""}

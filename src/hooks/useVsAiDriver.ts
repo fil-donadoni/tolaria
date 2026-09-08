@@ -88,7 +88,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { ExpectedInputKind } from "@convex/gre/expectedInput";
 import { shouldThink, budgetFor } from "@convex/gre";
 import type { Move, Phase } from "@convex/gre";
-import { consultBrain, warmBrain } from "~/lib/ai/brain-client";
+import { consultBrain, warmBrain, disposeBrain } from "~/lib/ai/brain-client";
 import {
     recordAiDecision,
     recordAiEscalation,
@@ -178,6 +178,14 @@ export function useVsAiDriver(
     // download instead of on the search.
     useEffect(() => {
         if (botId) warmBrain();
+        // Tear the Brain down when the bot seat goes away (issue #3040). It
+        // frees a thread that had no owner otherwise — `disposeBrain` had no
+        // caller in the app at all — and, more to the point, it resets the
+        // respawn budget: `MAX_BRAIN_WORKER_SPAWNS` is documented as a cap PER
+        // GAME, and without a dispose it was silently per TAB, so a game whose
+        // Worker died would hand the next game an already-exhausted Brain that
+        // never even tried to spawn one.
+        return () => disposeBrain();
     }, [botId]);
 
     const tick = useQuery(api.game.getGameTick, botId ? { gameId } : "skip");
