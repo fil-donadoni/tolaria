@@ -26,10 +26,10 @@ import { childOpArrays } from "./effectOpChildren";
 /** Bound on nested/chained mover-owned resolution choices one probe may answer.
  *
  *  MEASURED, not assumed: `catalogueChoiceDepth` over the shipped catalogue
- *  reports 5 (Word of Command's protocol closure), then 3 (Frantic Search,
- *  Sylvan Library, Transmute Artifact, Archon of Cruelty, Krovikan Sorcerer,
- *  Smuggler's Copter, Malcolm) and 2 (74 cards, Vision Charm's land-type mode
- *  among them). `choiceDepth.bot.test.ts` re-derives that number and fails when
+ *  reports 5 (Word of Command's protocol closure), then 3 (8 cards: Ponder,
+ *  Frantic Search, Sylvan Library, Transmute Artifact, Archon of Cruelty,
+ *  Krovikan Sorcerer, Smuggler's Copter, Malcolm) and 2 (77 cards, Vision
+ *  Charm's land-type mode among them). `choiceDepth.bot.test.ts` re-derives that number and fails when
  *  a card exceeds this bound. */
 export const MAX_CHOICE_DEPTH = 5;
 
@@ -51,9 +51,17 @@ export const MAX_CHOICE_BRANCH_WORK = 128;
  *
  *  A total `Record` over the Op union rather than a `Set`, so `tsc` reds on a
  *  new Op instead of silently classifying it as "raises nothing" — the same
- *  compiler-forced census `eval-term-labels.ts` uses. The `true` rows are the
- *  Ops whose `OP_EXECUTORS` handler calls a `ctx.request*` method
- *  (`effects/interpreter.ts`); everything else resolves without input. */
+ *  compiler-forced census `eval-term-labels.ts` uses.
+ *
+ *  The `true` rows are the Ops whose `OP_EXECUTORS` handler can
+ *  `return "suspend"` (`effects/interpreter.ts`). That is the mechanism, and
+ *  deriving the set from anything narrower gets it wrong: the first cut here
+ *  read the `ctx.request*` call sites and so missed `scryReorder` and
+ *  `explore`, which suspend through `ctx.orderTop` — 54 shipped card files use
+ *  the first of them. The two structural constructs that also carry a
+ *  `return "suspend"` (`if`, `forEach`) are propagating a nested Op's
+ *  suspension, not raising one, and are counted through `childOpArrays`
+ *  instead. */
 export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     // --- raises a choice -------------------------------------------------
     castDuringResolution: true,
@@ -70,6 +78,13 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     putBack: true,
     rangedTopdeck: true,
     revealAndCategorize: true,
+    // Both of these reach the same suspension through `ctx.orderTop` rather
+    // than a `ctx.request*` method — the reason the first cut of this census
+    // (derived from the `ctx.request*` call sites) had them on the wrong side.
+    // The MECHANISM is `return "suspend"`, and that is what the rows below are
+    // derived from.
+    explore: true,
+    scryReorder: true,
     // --- resolves without input -----------------------------------------
     addMana: false,
     addPlayerCounter: false,
@@ -97,7 +112,6 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     exileOnDeath: false,
     exileSelf: false,
     exileWithAttachments: false,
-    explore: false,
     extraCombat: false,
     extraTurn: false,
     forEach: false,
@@ -136,7 +150,6 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     revealTopAndRoute: false,
     revealUntilMatch: false,
     sacrifice: false,
-    scryReorder: false,
     setBasePT: false,
     setCardTypes: false,
     setColor: false,
@@ -177,9 +190,12 @@ export function scriptChoiceDepth(effects: readonly EffectOp[]): number {
 
 /** Every `ctx.request*` call a protocol-like closure makes (ADR 0045's escape
  *  hatch: `resolve` / `resolveSteps` / `effect`). Counted from the closure's own
- *  SOURCE — a static upper bound on one path, since a closure that branches
- *  takes at most all of them. There is no other way to see a `resolve()` card's
- *  choices without running it, and running it needs a position. */
+ *  SOURCE, which is neither a clean upper nor lower bound and should not be
+ *  read as one: it OVER-counts a closure whose calls sit on mutually exclusive
+ *  branches (Word of Command's 5) and UNDER-counts one that delegates its
+ *  request to a helper. It is a static approximation, deliberately on the
+ *  loud side — there is no way to see a `resolve()` card's choices without
+ *  running it, and running it needs a position. */
 const REQUEST_CALL = /ctx\s*\.\s*request[A-Z][A-Za-z]*\s*\(/g;
 
 function closureChoiceDepth(fn: unknown): number {
@@ -190,7 +206,11 @@ function closureChoiceDepth(fn: unknown): number {
 /** The deepest chain of resolution choices any one resolution of `def` takes:
  *  its spell script, each of its modes, and each of its abilities' scripts —
  *  every site that resolves independently, so the MAX across them, never the
- *  sum. */
+ *  sum. That is right for a "choose one" (CR 700.2), where exactly one mode
+ *  resolves; a "choose two or three" charm resolves its chosen modes in
+ *  sequence and their chains would ADD. Nothing shipped is one — every modal
+ *  card in the catalogue is choose-one — so the max stands, and this is the
+ *  line to revisit on the first choose-two card. */
 export function definitionChoiceDepth(def: CardDefinition): number {
     const sites: number[] = [];
     const script = (value: unknown): void => {
