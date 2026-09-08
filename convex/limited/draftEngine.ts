@@ -7,7 +7,10 @@
 // `submitPick` mutations stay thin DB-read/write shells around it.
 import { generateBooster } from "./boosterGenerator";
 import { makeRng } from "../gre/rng";
-import { pickTimerSecondsForCardsRemaining } from "./pickTimerSchedule";
+import {
+    autoPickTimeoutSecondsForCardsRemaining,
+    pickTimerSecondsForCardsRemaining,
+} from "./pickTimerSchedule";
 import {
     isCubeSource,
     dealCubeRoundPacks,
@@ -181,12 +184,19 @@ export interface TimerConfig {
  *  (issue #1114) — the mutation shell schedules exactly one
  *  `ctx.scheduler.runAfter` Auto-Pick timeout per entry, carrying `pickSeq`
  *  as the value `autoPickSeatTimeout` must still match when it fires, and
- *  `pickDeadline` (issue #1243) so the shell can compute THIS entry's own
- *  delay — no longer a single shared `timerSeconds` for the whole event. */
+ *  `timeoutAt` (issue #1243) so the shell can compute THIS entry's own
+ *  delay — no longer a single shared `timerSeconds` for the whole event.
+ *
+ *  `timeoutAt` is NOT the seat's displayed `pickDeadline` (issue #2278). For
+ *  a pack of 2+ cards the two instants coincide, but a 1-card pack schedules
+ *  a timeout while stamping no deadline: nothing is rendered, and the table
+ *  still advances without an absent Seat. Scheduling reads this field; the
+ *  client projection reads the seat row. Never collapse them again. */
 export interface SeatTimerUpdate {
     seatIndex: number;
     pickSeq: number;
-    pickDeadline: number;
+    /** Epoch ms at which `autoPickSeatTimeout` must fire for this pack. */
+    timeoutAt: number;
 }
 
 /** Stamps a seat that just received `pack` as its fresh `currentPack` (dealt
@@ -201,11 +211,21 @@ export interface SeatTimerUpdate {
  *  NEITHER field, so a timer-off event's seats stay byte-identical to
  *  pre-#1114 shape.
  *
- *  When the schedule returns `null` ("auto" — 1 card remaining, no real
- *  choice left to time) `pickSeq` is still bumped (invalidating any pending
- *  schedule from the seat's PREVIOUS pack) but no deadline is stamped and no
- *  `SeatTimerUpdate` is returned — the seat shows no countdown and nothing is
- *  scheduled for it; the player still submits the final pick manually. */
+ *  Two independent questions are asked of the schedule (issue #2278), and
+ *  conflating them is the bug this shape exists to prevent:
+ *
+ *  - DISPLAY — `pickTimerSecondsForCardsRemaining`. `null` at 1 card
+ *    remaining, so no `pickDeadline` is stamped on the seat row and the
+ *    client renders no countdown: with one card there is no choice to time.
+ *  - SCHEDULING — `autoPickTimeoutSecondsForCardsRemaining`. A number at 1
+ *    card too (the schedule's floor), so a `SeatTimerUpdate` IS returned and
+ *    an absent Seat stops stalling the whole table on the last card of every
+ *    pack. `null` only at 0 cards, where there is nothing to pick.
+ *
+ *  `pickSeq` is bumped in every timer-on case, including the unschedulable
+ *  one — that is what invalidates any pending schedule from the seat's
+ *  PREVIOUS pack, and what cancels this pack's own timeout when a present
+ *  Seat picks before it fires. */
 function assignFreshPack(
     seat: LimitedEventSeat,
     pack: DraftPackCard[],
@@ -215,21 +235,25 @@ function assignFreshPack(
         return { seat: { ...seat, currentPack: pack } };
     }
     const pickSeq = (seat.pickSeq ?? 0) + 1;
-    const seconds = pickTimerSecondsForCardsRemaining(pack.length);
-    if (seconds === null) {
-        return {
-            seat: {
-                ...seat,
-                currentPack: pack,
-                pickSeq,
-                pickDeadline: undefined,
-            },
-        };
-    }
-    const pickDeadline = timerConfig.now + seconds * 1000;
+    const displaySeconds = pickTimerSecondsForCardsRemaining(pack.length);
+    const timeoutSeconds = autoPickTimeoutSecondsForCardsRemaining(pack.length);
+    const stamped: LimitedEventSeat = {
+        ...seat,
+        currentPack: pack,
+        pickSeq,
+        pickDeadline:
+            displaySeconds === null
+                ? undefined
+                : timerConfig.now + displaySeconds * 1000,
+    };
+    if (timeoutSeconds === null) return { seat: stamped };
     return {
-        seat: { ...seat, currentPack: pack, pickSeq, pickDeadline },
-        update: { seatIndex: seat.seatIndex, pickSeq, pickDeadline },
+        seat: stamped,
+        update: {
+            seatIndex: seat.seatIndex,
+            pickSeq,
+            timeoutAt: timerConfig.now + timeoutSeconds * 1000,
+        },
     };
 }
 
@@ -626,7 +650,12 @@ export function runBotAutoPicks(
  *  With NO (or a stale) selection, falls back to the SAME `chooseBotPick` a
  *  real Bot Drafter seat uses (PRD #1107 story 14 / PRD #1241 story 24: "an
  *  expired timer with nothing selected Auto-Picks with the bot engine, never
- *  randomly, never position-1"). */
+ *  randomly, never position-1").
+ *
+ *  Forward constraint for the **Unattended Pick** marking seam (#2271, which
+ *  will hook in at this fallback): an Auto-Pick taken from a 1-card pack
+ *  (`seat.currentPack.length === 1`, the case issue #2278 made schedulable)
+ *  must NOT be marked unattended — there was no choice to deny the Seat. */
 export function resolveAutoPickTimeout(
     seats: readonly LimitedEventSeat[],
     seatIndex: number,

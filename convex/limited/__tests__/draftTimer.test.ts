@@ -14,6 +14,12 @@
 // hardcoded literal, so this file asserts the INTEGRATION — that
 // `assignFreshPack` calls the schedule with the right cards-remaining count —
 // without duplicating the table itself.
+//
+// Issue #2278 split the schedule's two meanings apart: the seat row's
+// `pickDeadline` is the DISPLAY claim (still unstamped at 1 card remaining —
+// nothing to time) while a `SeatTimerUpdate`'s `timeoutAt` is the SCHEDULING
+// one (a number at 1 card too, so an absent Seat never strands the table on
+// the last card of a pack). Assertions below name the field they mean.
 import { describe, it, expect, vi } from "vitest";
 import {
     applyPick,
@@ -23,7 +29,10 @@ import {
     type ChooseBotPick,
     type TimerConfig,
 } from "../draftEngine";
-import { pickTimerSecondsForCardsRemaining } from "../pickTimerSchedule";
+import {
+    AUTO_PICK_FLOOR_SECONDS,
+    pickTimerSecondsForCardsRemaining,
+} from "../pickTimerSchedule";
 import type { GetBoosterConfig, ResolveCardMeta } from "../eventLogic";
 import type { BoosterConfig } from "../boosterTypes";
 import type { DraftPackCard, LimitedEventSeat } from "../eventTypes";
@@ -83,6 +92,10 @@ function deadlineFor(cardsRemaining: number): number {
     return NOW + seconds * 1000;
 }
 
+/** Expected `SeatTimerUpdate.timeoutAt` for a 1-card pack (issue #2278): the
+ *  schedule's floor, scheduled even though no countdown is displayed. */
+const AUTO_PICK_FLOOR_AT = NOW + AUTO_PICK_FLOOR_SECONDS * 1000;
+
 describe("startDraft — timer stamping (issue #1114)", () => {
     it("stamps every non-bot seat with pickDeadline/pickSeq and returns one timerUpdate each", () => {
         const seats: LimitedEventSeat[] = [
@@ -113,8 +126,8 @@ describe("startDraft — timer stamping (issue #1114)", () => {
 
         expect(result.timerUpdates).toEqual(
             expect.arrayContaining([
-                { seatIndex: 0, pickSeq: 1, pickDeadline: deadlineFor(3) },
-                { seatIndex: 2, pickSeq: 1, pickDeadline: deadlineFor(3) },
+                { seatIndex: 0, pickSeq: 1, timeoutAt: deadlineFor(3) },
+                { seatIndex: 2, pickSeq: 1, timeoutAt: deadlineFor(3) },
             ])
         );
         expect(result.timerUpdates).toHaveLength(2);
@@ -213,7 +226,7 @@ describe("applyPick — timer stamping and clearing (issue #1114)", () => {
         expect(afterSeat0.seats[1].pickSeq).toBe(2); // round-0 deal (1) + this fresh pass (2)
         expect(afterSeat0.seats[1].pickDeadline).toBe(deadlineFor(2));
         expect(afterSeat0.timerUpdates).toEqual([
-            { seatIndex: 1, pickSeq: 2, pickDeadline: deadlineFor(2) },
+            { seatIndex: 1, pickSeq: 2, timeoutAt: deadlineFor(2) },
         ]);
     });
 
@@ -267,11 +280,11 @@ describe("applyPick — timer stamping and clearing (issue #1114)", () => {
         expect(result.seats[0].pickSeq).toBe(2);
         expect(result.seats[0].pickDeadline).toBe(deadlineFor(2));
         expect(result.timerUpdates).toEqual([
-            { seatIndex: 0, pickSeq: 2, pickDeadline: deadlineFor(2) },
+            { seatIndex: 0, pickSeq: 2, timeoutAt: deadlineFor(2) },
         ]);
     });
 
-    it("dequeues an already-queued 1-card pack as 'auto' (ADR 0060/#1243) — bumps pickSeq but stamps no deadline and returns no timerUpdate", () => {
+    it("dequeues an already-queued 1-card pack (issue #2278) — stamps no deadline (no countdown) but DOES return a floor timerUpdate", () => {
         const cardA: DraftPackCard = {
             scryfallId: "a",
             cardId: "a",
@@ -310,19 +323,24 @@ describe("applyPick — timer stamping and clearing (issue #1114)", () => {
         );
 
         expect(result.seats[0].currentPack).toEqual([cardB]);
-        // pickSeq still bumps — any stale schedule from before is invalidated
-        // regardless of whether this fresh pack gets its own timer.
+        // pickSeq still bumps — any stale schedule from before is invalidated,
+        // and this bump is what cancels the timeout below if the seat is
+        // present and picks the card by hand first.
         expect(result.seats[0].pickSeq).toBe(2);
+        // DISPLAY: still nothing to time with one card, so no countdown.
         expect(result.seats[0].pickDeadline).toBeUndefined();
-        expect(result.timerUpdates).toEqual([]);
+        // SCHEDULING: a timeout IS emitted (issue #2278) — an absent Seat
+        // must not strand the table on the last card of the pack.
+        expect(result.timerUpdates).toEqual([
+            { seatIndex: 0, pickSeq: 2, timeoutAt: AUTO_PICK_FLOOR_AT },
+        ]);
     });
 
-    it("re-stamps every non-bot seat on round advancement (1-card packs — 'auto', ADR 0060/#1243), leaving bot seats unstamped", () => {
-        // 1-card packs mean the round-1 re-deal lands squarely in the "auto"
-        // case (1 card remaining): pickSeq still bumps (invalidating the
-        // round-0 schedule), but no deadline is stamped and no timerUpdate is
-        // returned for it — proven separately with a real (non-auto)
-        // multi-card pack elsewhere in this file.
+    it("re-stamps every non-bot seat on round advancement (1-card packs, issue #2278): no deadline, but a floor timerUpdate — and bot seats still get neither", () => {
+        // 1-card packs mean the round-1 re-deal lands squarely on the
+        // display-"auto" case (1 card remaining): pickSeq bumps, no deadline
+        // is stamped — and since issue #2278 a floor-duration timerUpdate IS
+        // returned, so the round can advance without the human.
         const single: Record<string, BoosterConfig> = {
             r0: tinyConfig("r0", 1),
             r1: tinyConfig("r1", 1),
@@ -371,12 +389,17 @@ describe("applyPick — timer stamping and clearing (issue #1114)", () => {
         );
 
         expect(result.draftRound).toBe(1);
-        // "Auto" case (1 card remaining): pickSeq bumps, no deadline stamped.
+        // 1 card remaining: pickSeq bumps, no deadline stamped (no countdown).
         expect(result.seats[0].pickDeadline).toBeUndefined();
         expect(result.seats[0].pickSeq).toBe(2); // round-0 stamp (1) + round-1 stamp (2)
         expect(result.seats[1].pickDeadline).toBeUndefined(); // bot: never stamped
         expect(result.seats[1].pickSeq).toBeUndefined();
-        expect(result.timerUpdates.filter((u) => u.seatIndex === 0)).toEqual(
+        // The human seat's round-1 pack is schedulable (issue #2278); the bot
+        // seat contributes nothing, as it never does.
+        expect(result.timerUpdates.filter((u) => u.seatIndex === 0)).toEqual([
+            { seatIndex: 0, pickSeq: 2, timeoutAt: AUTO_PICK_FLOOR_AT },
+        ]);
+        expect(result.timerUpdates.filter((u) => u.seatIndex === 1)).toEqual(
             []
         );
     });
@@ -677,7 +700,7 @@ describe("runBotAutoPicks — timerConfig threaded through cascading bot picks (
         expect(result.seats[1].pickSeq).toBe(1);
         expect(result.seats[1].pickDeadline).toBe(deadlineFor(2));
         expect(result.timerUpdates).toEqual([
-            { seatIndex: 1, pickSeq: 1, pickDeadline: deadlineFor(2) },
+            { seatIndex: 1, pickSeq: 1, timeoutAt: deadlineFor(2) },
         ]);
     });
 });
