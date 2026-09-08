@@ -1,7 +1,7 @@
 // Protection keyword ability primitives (CR 702.16).
 //
 // Protection is stored on a card as `staticAbilities[]` entries of the form
-// `"protection from <quality>"`. FOUR quality families are modelled here, all
+// `"protection from <quality>"`. FIVE quality families are modelled here, all
 // behind ONE parser (`parseProtectionQuality`) and ONE predicate
 // (`isProtectedFrom`) so no consult site can honour a family the others drop:
 //
@@ -37,6 +37,17 @@
 //      a REQUIRED boolean rather than an optional one: no consult site may
 //      "forget" to say, and no default may answer for it.
 //
+//   5. EVERYTHING (CR 702.16j, issue #2386) — "protection from everything",
+//      the permanent-scoped variant (Hexdrinker's LEVEL 8+ band). The only
+//      family that reads NO field of the source at all: protection from each
+//      object regardless of its characteristic values, with no controller
+//      exception — unlike the CR 702.16k player quality, the protected
+//      permanent's OWN controller is barred too. Distinct from the
+//      PLAYER-scoped variant The One Ring grants
+//      (`playerHasProtectionFromEverything` below) — CR 702.16j itself
+//      covers both scopes: "A permanent OR PLAYER with protection from
+//      everything ...".
+//
 // The parser is TOTAL and FAILS CLOSED: an ability string that starts with
 // "protection from " but whose quality it cannot name returns `null` rather
 // than a quality that matches everything (or nothing). A catalogue-wide guard
@@ -48,11 +59,9 @@
 //
 // NOT parseable today, deliberately: a SUBTYPE quality ("protection from
 // Goblins") — this engine has no closed subtype vocabulary to fail closed
-// against, and no catalogue card needs one; and permanent-scoped "protection
-// from everything" (CR 702.16j) — the PLAYER-scoped variant The One Ring
-// grants is separate (`playerHasProtectionFromEverything` below, CR 115.4).
-// Both return `null` from the parser, so the catalogue guard turns either one
-// into a CI failure the moment a card wants it.
+// against, and no catalogue card needs one. It returns `null` from the parser,
+// so the catalogue guard turns it into a CI failure the moment a card wants
+// it.
 //
 // Consult sites — every DEBT clause of CR 702.16, server and client. The
 // trailing column is the CR 112.1 `isSpell` each site states (issue #2296);
@@ -113,6 +122,16 @@ export const PROTECTION_FROM_EACH_OPPONENT =
  *  approximated by this one. */
 export const PROTECTION_FROM_COLORED_SPELLS =
     "protection from spells that are one or more colors";
+
+/** CR 702.16j — the PERMANENT-scoped "protection from everything" string
+ *  (issue #2386, Hexdrinker's LEVEL 8+ band). Matched EXACTLY like the other
+ *  fixed-phrase families, so a near-miss phrasing reaches the catalogue guard
+ *  as an unparseable string rather than being silently approximated.
+ *
+ *  The PLAYER-scoped variant of the same rule is a separate authority
+ *  (`playerHasProtectionFromEverything`) — CR 702.16j names both scopes,
+ *  and a player is not a card: it carries no `staticAbilities[]` to parse. */
+export const PROTECTION_FROM_EVERYTHING = "protection from everything";
 
 /** CR 205.4a — every supertype a protection quality can name. Iterated to read
  *  a source's LIVE supertypes (`hasSupertypeLive`, so a Melting / Arcum's
@@ -182,7 +201,12 @@ export type ProtectionQuality =
      *  is a SPELL (CR 112.1 / 113.3) **and** it has at least one colour
      *  (CR 105.2). Carries no payload — "one or more colors" names every
      *  colour at once, so there is nothing to parametrize. */
-    | { kind: "colored-spell" };
+    | { kind: "colored-spell" }
+    /** CR 702.16j — "everything" (issue #2386). Reads no characteristic of the
+     *  source whatsoever and carries no payload: protection from EACH object,
+     *  regardless of its characteristic values and regardless of who controls
+     *  it. */
+    | { kind: "everything" };
 
 /** Everything about a SOURCE that a CR 702.16 quality can be keyed on. Every
  *  field is REQUIRED — an optional field would let a consult site omit it and
@@ -334,6 +358,12 @@ export function parseProtectionQuality(
     if (normalized === PROTECTION_FROM_COLORED_SPELLS) {
         return { kind: "colored-spell" };
     }
+    // CR 702.16j (issue #2386) — checked BEFORE the characteristic parser,
+    // which would reject "everything" word-by-word (it names neither a card
+    // type nor a supertype) and return null.
+    if (normalized === PROTECTION_FROM_EVERYTHING) {
+        return { kind: "everything" };
+    }
     const color = parseProtectionFromColor(normalized);
     if (color) return { kind: "color", color };
     if (!normalized.startsWith(PROTECTION_PREFIX)) return null;
@@ -374,8 +404,9 @@ function sameQuality(a: ProtectionQuality, b: ProtectionQuality): boolean {
             a.supertypes.every((s) => b.supertypes.includes(s))
         );
     }
-    // Both "each-opponent", or both "colored-spell" — neither carries a
-    // payload, so same kind means same quality (CR 702.16m redundancy).
+    // Both "each-opponent", both "colored-spell", or both "everything" — none
+    // carries a payload, so same kind means same quality (CR 702.16m
+    // redundancy).
     return true;
 }
 
@@ -452,6 +483,15 @@ export function isProtectedFrom(
                     return true;
                 }
                 break;
+            case "everything":
+                // CR 702.16j — "protection from each object regardless of that
+                // object's characteristic values". No field of `source` is
+                // read, and there is no same-controller exception (the CR
+                // 702.16k carve-out is a property of THAT quality, not of
+                // protection in general): the protected permanent's own
+                // controller cannot target it, enchant it, equip it, damage
+                // it or block it either.
+                return true;
         }
     }
     return false;
@@ -521,7 +561,8 @@ export function isProtectedFromSource(
 }
 
 /** True if `playerId` currently has PROTECTION FROM EVERYTHING (CR 702.16j
- *  applied to a player via CR 115.4 — The One Ring, issue #674).
+ *  — the rule names both scopes, "A permanent OR PLAYER with protection
+ *  from everything"; The One Ring, issue #674).
  *
  *  The SINGLE authority for the player-scoped variant: every consumer reads
  *  this one predicate — `getLegalTargets` (the offered set) and the
