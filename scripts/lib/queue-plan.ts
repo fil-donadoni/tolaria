@@ -877,6 +877,7 @@ export function planBatch(
         }
 
         const { model, ambiguity } = resolveModel(issue, config);
+        const lifted = inheritedBand(issue, port.priority);
         batch.push({
             number: issue.number,
             title: issue.title,
@@ -887,9 +888,7 @@ export function planBatch(
             ...(port.priority[issue.number]
                 ? { priority: port.priority[issue.number] }
                 : {}),
-            ...(inheritedBand(issue, port.priority)
-                ? { priorityBand: inheritedBand(issue, port.priority) }
-                : {}),
+            ...(lifted !== null ? { priorityBand: lifted } : {}),
             targetFiles: comparable,
             blastRadius,
             lane,
