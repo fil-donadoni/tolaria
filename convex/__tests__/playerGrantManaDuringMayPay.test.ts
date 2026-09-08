@@ -114,6 +114,22 @@ function mayPayWindowState(): { state: GameState; grantId: string } {
     return { state, grantId };
 }
 
+/** Same may-pay window, but with the `priorityPlayerId` field still pointing at
+ *  p1 — the shape a may-pay opened on p1's OWN turn leaves behind (priority is
+ *  frozen mid-resolution, CR 608.2, so the field keeps its pre-resolution
+ *  value). Used by the stack-grant negative: with priority present, the
+ *  `useStack: true` branch's own `!hasPriority` check can no longer be what
+ *  rejects, so the test bites on the pending-choice gate it is aimed at. */
+function ownTurnMayPayWindowState(): GameState {
+    const state = makeState({
+        activePlayerId: "p1",
+        priorityPlayerId: "p1",
+    });
+    grantChannel(state, "p1");
+    openMayPayAgainst(state, "p1");
+    return state;
+}
+
 describe("activatePlayerAbility during a may-pay window (issue #2911, CR 608.2g)", () => {
     it("the scenario really suspends on a may-pay owed to the grant holder", () => {
         const { state } = mayPayWindowState();
@@ -218,7 +234,11 @@ describe("activatePlayerAbility during a may-pay window (issue #2911, CR 608.2g)
     });
 
     it("REJECTS a STACK-using grant in the same window — the exception is for mana abilities only", async () => {
-        const { state } = mayPayWindowState();
+        const state = ownTurnMayPayWindowState();
+        // Fund the template's {G} leg: with an empty pool the activation would
+        // reject for "Not enough mana" whatever the gates did, and the test
+        // would prove nothing about `useStack`.
+        state.players[0].manaPool.G = 1;
         const stackGrant: GrantedAbilityInstance = {
             id: "grant-stack",
             sourceCardId: KAVU,
