@@ -314,7 +314,7 @@ export const GLOSSARY = {
     },
     pri: {
         label: "priority",
-        tip: "The issue's Priority field on the project board — P0, P1, P2 — which is the queue's first sort key. An em dash means the board has no priority set.",
+        tip: "The issue's Priority field on the project board — P0, P1, P2. The queue sorts on the BAND first (the stronger of this and the parent PRD's), then on this. An em dash means the board has no priority set.",
     },
     queue: {
         label: "queue depth",
@@ -569,19 +569,19 @@ export const GLOSSARY = {
     // Queue stat boxes
     "queue.P0": {
         label: "P0",
-        tip: "Unclaimed ready-for-agent issues whose board Priority is P0 — picked before anything else.",
+        tip: "Unclaimed ready-for-agent issues in the P0 BAND — their own Priority is P0, or their parent PRD's is. Picked before anything else.",
     },
     "queue.P1": {
         label: "P1",
-        tip: "Unclaimed ready-for-agent issues at board Priority P1.",
+        tip: "Unclaimed ready-for-agent issues in the P1 band — the stronger of their own Priority and their parent PRD's is P1.",
     },
     "queue.P2": {
         label: "P2",
-        tip: "Unclaimed ready-for-agent issues at board Priority P2.",
+        tip: "Unclaimed ready-for-agent issues in the P2 band — the stronger of their own Priority and their parent PRD's is P2.",
     },
     "queue.unprioritized": {
         label: "no priority",
-        tip: "Unclaimed ready-for-agent issues with no Priority set on the board — picked last, oldest first.",
+        tip: "Unclaimed ready-for-agent issues with no Priority set on the board and no prioritized parent PRD — picked last, oldest first.",
     },
     "queue.total": {
         label: "total waiting",
