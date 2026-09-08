@@ -183,8 +183,10 @@ describe("activatePlayerAbility during a may-pay window (issue #2911, CR 608.2g)
     });
 
     it("REJECTS the same call when the may-pay is owed to the opponent", async () => {
-        // p2's Channel grant, p1's Mana Tithe → the may-pay is p2's question,
-        // and p2 answering it does NOT open a payment window for p1.
+        // p1 holds the Channel grant AND casts the Mana Tithe, against p2's
+        // Bolt → the may-pay is p2's question. p2 answering it does NOT open a
+        // payment window for p1, whose own priority is beside the point: the
+        // gate rejects on the choice being owed to someone else.
         const state = makeState({
             activePlayerId: "p1",
             priorityPlayerId: "p1",
