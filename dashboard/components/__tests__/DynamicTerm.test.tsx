@@ -143,6 +143,7 @@ describe("a control with no visible label of its own keeps it that way (#2631/#2
                     item={{
                         number: 123,
                         title: "fix things",
+                        mergedAt: "2026-09-08T10:00:00.000Z",
                         left: 40,
                     }}
                 />
@@ -158,7 +159,7 @@ describe("a control with no visible label of its own keeps it that way (#2631/#2
     it("the section info mark keeps its own glyph and is not overwritten by its label", () => {
         render(
             <TooltipProvider>
-                <InfoMark id="section.driver" />
+                <InfoMark id="section.driver" what="the driver" />
             </TooltipProvider>
         );
         // `ⓘ` is the glyph the vanilla markup had to defend with its own

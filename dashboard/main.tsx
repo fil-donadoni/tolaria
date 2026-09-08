@@ -1,37 +1,31 @@
-import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { initTheme } from "./lib/theme";
 import "./index.css";
-// The legacy stylesheet, still the whole appearance of both view BODIES
-// until S2/S3 port them. Imported AFTER the Tailwind entry on purpose:
-// its rules are unlayered, so they win over `@layer base` and the port
-// cannot change how an un-ported section looks. It dies with the last
-// vanilla module (S4).
-import "../scripts/dashboard/dashboard.css";
 
 /**
- * The dashboard's Vite entry (ADR 0117, PRD #3148 S0).
+ * The dashboard's Vite entry (ADR 0117, PRD #3148).
  *
- * S0 moves the BUILD, not the components. The vanilla modules under
- * `scripts/dashboard/` are imported unchanged and still own every behaviour;
- * all this entry does is put their DOM on the page first and then hand over.
+ * S0 moved the BUILD and left every behaviour in `scripts/dashboard/`; S2 and
+ * S3 moved the two views; S4 deleted the directory. What is left is what an
+ * entry should be — mount the app, and set the theme before the first paint.
  *
- * ORDER IS THE WHOLE POINT. `scripts/dashboard/main.js` is a top-level
- * effectful module: it calls `initTabs` / `startLoopStatusPolling` /
- * `installTooltipEngine` at import time, and each of those resolves its
- * elements with `getElementById` immediately. So the render must be COMMITTED
- * before the module is evaluated:
+ * ── WHAT WENT AWAY, AND WHY IT WAS THERE ──────────────────────────────────
  *
- * - `flushSync` makes `root.render` synchronous — a concurrent render would
- *   commit after this module's last line, and every one of those lookups would
- *   see `null`.
- * - the legacy entry is reached through `await import(...)`, never a static
- *   `import`, because a static import evaluates BEFORE the first line of this
- *   file and would defeat the flush entirely.
+ * `flushSync` and `await import("../scripts/dashboard/main.js")`. The legacy
+ * entry was a top-level effectful module: it called `installTooltipEngine` at
+ * import time and that resolved its elements with `getElementById`
+ * immediately, so the render had to be COMMITTED before the module evaluated —
+ * `flushSync` forced that, and the handover had to be a dynamic import because
+ * a static one evaluates before this file's first line. With no vanilla module
+ * left to hand over to, a concurrent render is simply correct.
  *
- * `scripts/__tests__/telemetry-serve.test.ts` pins both halves.
+ * `import "../scripts/dashboard/dashboard.css"` went with it. It was imported
+ * AFTER the Tailwind entry on purpose — its rules are unlayered, so they won
+ * over `@layer base` and an un-ported section looked exactly as it had. Every
+ * section is ported, so the 1,602 lines it held are 1,602 lines nothing reads.
  */
+
 // The theme BEFORE the first paint: `data-theme` decides which token block
 // wins, and setting it after the render would flash the wrong palette.
 initTheme(new URLSearchParams(location.search));
@@ -39,6 +33,4 @@ initTheme(new URLSearchParams(location.search));
 const container = document.getElementById("root");
 if (!container) throw new Error("dashboard: no #root in the shell");
 
-flushSync(() => createRoot(container).render(<App />));
-
-await import("../scripts/dashboard/main.js");
+createRoot(container).render(<App />);

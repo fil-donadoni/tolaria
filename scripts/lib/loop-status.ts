@@ -265,7 +265,7 @@ export interface MergedPr {
 /** The Now timeline's window (#2631) — 24 hours, matching the issue's own
  *  title ("24-hour timeline"). Exported so both the gather layer
  *  (`scripts/loop-status.ts`, sizing its `gh pr list` fetch) and the
- *  dashboard (`scripts/dashboard/now-timeline.js`, positioning items on the
+ *  dashboard (`dashboard/lib/nowTimeline.ts`, positioning items on the
  *  axis) read the SAME number rather than two literal `24`s that could drift
  *  apart. */
 export const TIMELINE_WINDOW_HOURS = 24;

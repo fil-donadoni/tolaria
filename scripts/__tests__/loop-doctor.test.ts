@@ -115,7 +115,7 @@ describe("loop-doctor — classifyClaim", () => {
 
     it("defaults the age threshold to the EXPORTED constant, not a re-declared literal (#2632)", () => {
         // `DEFAULT_MIN_AGE_HOURS` is exported so the dashboard's claims-table
-        // amber band (`scripts/dashboard/now-claims-table.js`'s
+        // amber band (`dashboard/lib/nowClaims.ts`'s
         // `MIN_AGE_HOURS`) reuses the same number instead of a second `2`.
         // This pins that the DEFAULT parameter is actually driven by the
         // constant, not merely a coincidentally-equal literal beside it.

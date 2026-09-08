@@ -98,7 +98,7 @@ export type ClaimVerdict = { state: ClaimVerdictState; reason: string };
  * The classifier's own "too young to judge" cutoff — exported (#2632) so
  * every surface that needs the SAME number imports it instead of
  * re-declaring `2`. The dashboard's claims table amber-ages a claim past this
- * threshold (`scripts/dashboard/now-claims-table.js`'s `MIN_AGE_HOURS`, kept
+ * threshold (`dashboard/lib/nowClaims.ts`'s `MIN_AGE_HOURS`, kept
  * as a mirrored literal with its own drift-guard test, since a plain browser
  * `.js` module cannot import a `.ts` source at runtime — see
  * `TIMELINE_WINDOW_HOURS`/`WINDOW_HOURS` in `lib/loop-status.ts` /

@@ -409,7 +409,10 @@ describe("ConfirmDialog — the request it sends", () => {
         });
         fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
         await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-        const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+        const [url, init] = fetchMock.mock.calls[0] as unknown as [
+            string,
+            RequestInit,
+        ];
         expect(url).toBe("/api/action");
         expect(JSON.parse(init.body as string)).toEqual({
             action: "driver.stop",
@@ -423,7 +426,10 @@ describe("ConfirmDialog — the request it sends", () => {
         raise(2582);
         fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
         await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-        const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+        const [, init] = fetchMock.mock.calls[0] as unknown as [
+            string,
+            RequestInit,
+        ];
         expect(JSON.parse(init.body as string)).toEqual({
             action: "claim.release",
             issue: 2582,

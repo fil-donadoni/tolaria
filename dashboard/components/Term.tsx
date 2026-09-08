@@ -17,8 +17,9 @@ import { GLOSSARY, type TermId } from "../glossary";
  * never give: `id` is `TermId`, the literal union of the table's own keys, so
  * a typo is a compile error rather than a tooltip that silently never appears.
  *
- * The scanner stays alive until S4 for the views that still paint strings.
- * Both read the same table (`dashboard/glossary.ts`), so they cannot drift.
+ * The scanner is gone (S4 deleted `scripts/dashboard/`), and with it the
+ * failure mode it created: it FILLED an empty element's `textContent` with the
+ * glossary label, painting a 45px word over a 5px merge tick (#2842).
  *
  * `children` overrides the rendered text for the case where the surface shows
  * a glyph or an already-formatted value; the LABEL is the default, because the

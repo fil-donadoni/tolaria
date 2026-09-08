@@ -49,8 +49,10 @@ export default defineConfig(({ command }) => ({
         target: "es2023",
     },
     server: {
-        // `main.tsx` imports `../scripts/dashboard/*`, which is outside the
-        // Vite root — the dev server must be allowed to read it.
+        // The app's root is `dashboard/`, but it imports the shadcn primitives
+        // out of `src/` (the `@` alias above) and its Tailwind entry `@source`s
+        // that directory too — both outside the Vite root, so the dev server
+        // must be allowed to read them.
         fs: { allow: [path.resolve(__dirname)] },
         proxy: {
             "/api": {

@@ -20,7 +20,7 @@ const LABELS: Record<View, string> = { now: "Now", history: "History" };
  *
  * The state is READ from the URL through `useSyncExternalStore` rather than
  * held in a `useState` beside it. That is not ceremony: the keyboard layer
- * (`scripts/dashboard/shortcuts.js`, #2635) switches views on `1` / `2`
+ * (`dashboard/lib/shortcuts.ts`, #2635) switches views on `1` / `2`
  * without going through React at all, and a local copy would be the thing that
  * disagrees with the URL after a keystroke.
  */

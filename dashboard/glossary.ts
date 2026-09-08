@@ -13,21 +13,22 @@
  * ## Why this module is pure
  *
  * Zero DOM access, zero imports: `scripts/__tests__/dashboard-glossary.test.ts`
- * runs in the `node` vitest project and reaches this file through the bridge
- * `scripts/dashboard/glossary.js` still keeps for the vanilla modules, so the
- * completeness guard CALLS `lookupTerm` rather than grepping a string of
- * JavaScript. Rendering lives elsewhere: `dashboard/components/Term.tsx` for
- * the React chrome, `scripts/dashboard/tooltip.js` for whatever a vanilla view
- * still paints with `data-term`.
+ * runs in the `node` vitest project — it has to, because the vocabularies it
+ * checks this table against live in Node-typed server modules — and it imports
+ * this file directly, so the completeness guard CALLS `lookupTerm` rather than
+ * grepping a string of JavaScript. Rendering lives elsewhere:
+ * `dashboard/components/Term.tsx` for a key known at compile time,
+ * `DynamicTerm.tsx` for one composed at runtime.
  *
  * ## Typed keys (PRD #3148 S1)
  *
  * The table is `as const`, so `TermId` is the LITERAL union of its keys and a
  * `<Term id="live.orgin" />` typo is a compile error rather than a tooltip
- * that silently never appears. That covers every React call site. It cannot
- * cover a `data-term` string inside a vanilla module's `innerHTML` — those
- * stay guarded by `dashboard-glossary.test.ts`, which is why that test does
- * not go away with the port.
+ * that silently never appears. That covers every call site whose key is known
+ * at compile time. The rest — a receipt's `role`, a claim's `stage`, a
+ * dataset's metric — are composed at runtime and go through `DynamicTerm`,
+ * where the guarantee is the completeness suite instead: it walks the SERVER's
+ * own vocabularies and asserts each resolves here.
  *
  * ## Qualified keys
  *

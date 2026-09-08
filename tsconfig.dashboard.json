@@ -17,15 +17,6 @@
         "noEmit": true,
         "jsx": "react-jsx",
 
-        // The dashboard's React entry hands over to the vanilla modules under
-        // `scripts/dashboard/` (PRD #3148 S0 is the build seam, not the port),
-        // so the program has to be able to RESOLVE a `.js` import. `checkJs`
-        // stays off: those 37 files are unlinted, untyped legacy that S4
-        // deletes — type-checking them now would be work with a scheduled
-        // expiry date. Both settings go away with the directory.
-        "allowJs": true,
-        "checkJs": false,
-
         /* Linting */
         "strict": true,
         "noUnusedLocals": true,
