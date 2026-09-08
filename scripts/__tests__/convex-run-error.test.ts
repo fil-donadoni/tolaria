@@ -81,14 +81,15 @@ describe("convexRunErrorMessage — the thrown message, not the framing", () => 
         expect(convexRunErrorMessage("\n  \n")).toBe("unknown failure");
     });
 
-    it("keeps a bare transport line when it is all there is", () => {
-        // No inner throw to prefer — the operator still gets the only line
-        // that carries anything, rather than an empty string.
+    it("degrades to the transport line only when nothing was thrown", () => {
+        // No inner throw to prefer. `Server Error` is genuinely all the
+        // deployment said — but the request id, which identifies nothing to
+        // the operator, still goes.
         expect(
             convexRunErrorMessage(
                 '✖ Failed to run function "decks:seedPresetDirect":\nError: [Request ID: abc] Server Error'
             )
-        ).toBe('✖ Failed to run function "decks:seedPresetDirect":');
+        ).toBe("Server Error");
     });
 });
 
