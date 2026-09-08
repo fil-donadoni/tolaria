@@ -68,8 +68,19 @@ export const BESTOW_STATIC_EFFECTS: readonly StaticEffect[] = [
         kind: "type-remove",
         types: ["Creature"],
         applies: appliesToBestowedSelf,
+        // CR 702.103a — "bestow represents a static ability that functions in
+        // any zone from which you could play the card it's on", which is what
+        // lets the layer-4 derivation collect the object as a source while it
+        // is still on the stack. CR 604.3's default is battlefield-only, and
+        // the collection fails closed on it.
+        functionsInAllZones: true,
     },
-    { kind: "subtype-set", subtypes: ["Aura"], applies: appliesToBestowedSelf },
+    {
+        kind: "subtype-set",
+        subtypes: ["Aura"],
+        applies: appliesToBestowedSelf,
+        functionsInAllZones: true,
+    },
 ];
 
 /** The `StaticEffect.kind`s {@link BESTOW_STATIC_EFFECTS} injects. Read by

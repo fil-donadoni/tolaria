@@ -55,6 +55,8 @@ import { springheartNantuko } from "../../cards/sets/mh3/green";
 import { grizzlyBears } from "../../cards/sets/lea";
 import { unstableMutation } from "../../cards/sets/arn/blue";
 import { counterspell } from "../../cards/sets/lea/blue";
+import { conversion } from "../../cards/sets/lea/white";
+import { mountain as mountainCard } from "../../cards/sets/lea/colorless";
 import {
     applyBestowCharacteristics,
     hasLegalBestowHost,
@@ -331,6 +333,39 @@ describe("Bestow — the layer pipeline applies to objects on the STACK (CR 613.
         const plain = state.stack.find((s) => s.id === "bears-spell")!;
         expect(plain.types).toEqual([...grizzlyBears.types]);
         expect(plain.subtypes).toEqual([...(grizzlyBears.subtypes ?? [])]);
+    });
+
+    it("CONTROL — an ordinary enchantment SPELL does NOT apply its static effect from the stack (CR 604.3)", () => {
+        // The hazard the stack pass opens: entries collected from a stack
+        // object land in the same board-wide list every battlefield permanent
+        // is derived against. CR 604.3 — a static ability functions only while
+        // its source is on the battlefield, unless the ability itself says
+        // otherwise, and CR 702.103a's "functions in any zone from which you
+        // could play the card" is exactly such a clause. Conversion's is not:
+        // its "All Mountains are Plains" (CR 305.7) must do nothing while the
+        // spell is still on the stack.
+        const mountain = makeInstance(mountainCard.id, {
+            id: "mtn",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mountain] }),
+                makePlayer("p2"),
+            ],
+        });
+        const spell = makeInstance(conversion.id, {
+            id: "conversion-spell",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "stack",
+        });
+        state.stack.push({ ...spell, castById: "p1" });
+
+        syncLayers2to5(state);
+
+        expect(mountain.subtypes).toEqual(["Mountain"]);
     });
 });
 

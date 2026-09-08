@@ -7212,6 +7212,25 @@ export interface StaticTypeAdd {
  *  type-remove mid-attachment without also detaching). */
 export interface StaticTypeRemove {
     kind: "type-remove";
+    /** CR 604.3 / 702.103a — this effect functions in EVERY zone, not only
+     *  while its source is on the battlefield.
+     *
+     *  The default (absent) is CR 604.3's rule: a static ability functions only
+     *  while its source is a permanent on the battlefield, so the layer
+     *  derivation collects sources from the battlefield and the command zone
+     *  alone. Setting it opts the effect into the STACK collection as well
+     *  (`collectSourceEntries`, `gre/layers2to5.ts`).
+     *
+     *  Bestow is the one declarer today (ADR 0084): CR 702.103a — "bestow
+     *  represents a static ability that functions in any zone from which you
+     *  could play the card it's on" — and CR 702.103b makes the object an Aura
+     *  spell for the whole time it is on the stack.
+     *
+     *  Fail-closed by construction: an effect that does not say so cannot apply
+     *  from the stack, so an ordinary global enchantment (Conversion's "All
+     *  Mountains are Plains") does nothing while its spell is still waiting to
+     *  resolve. */
+    functionsInAllZones?: true;
     /** Predicate: does this removal apply to `target` given `source`? */
     applies: (
         target: PermanentView,
@@ -7701,6 +7720,25 @@ export interface StaticHandSizeOverride {
  *  previous source or to printed subtypes when none remain. */
 export interface StaticSubtypeSet {
     kind: "subtype-set";
+    /** CR 604.3 / 702.103a — this effect functions in EVERY zone, not only
+     *  while its source is on the battlefield.
+     *
+     *  The default (absent) is CR 604.3's rule: a static ability functions only
+     *  while its source is a permanent on the battlefield, so the layer
+     *  derivation collects sources from the battlefield and the command zone
+     *  alone. Setting it opts the effect into the STACK collection as well
+     *  (`collectSourceEntries`, `gre/layers2to5.ts`).
+     *
+     *  Bestow is the one declarer today (ADR 0084): CR 702.103a — "bestow
+     *  represents a static ability that functions in any zone from which you
+     *  could play the card it's on" — and CR 702.103b makes the object an Aura
+     *  spell for the whole time it is on the stack.
+     *
+     *  Fail-closed by construction: an effect that does not say so cannot apply
+     *  from the stack, so an ordinary global enchantment (Conversion's "All
+     *  Mountains are Plains") does nothing while its spell is still waiting to
+     *  resolve. */
+    functionsInAllZones?: true;
     /** Fixed-output form (Blood Moon): the static replaces every matching
      *  target's subtypes with `subtypes`. Provide `applies` + `subtypes`
      *  together. Mutually exclusive with `subtypesFor`. */

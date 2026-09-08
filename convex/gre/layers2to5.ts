@@ -516,7 +516,25 @@ function collectSourceEntries(state: LayerStateView): SourceEntries {
     for (const source of state.stack ?? []) {
         const cardId = (source.card as { id?: string } | undefined)?.id;
         if (!cardId || !declaresLayer2to5StaticEffect(cardId)) continue;
-        pushSourceEffects(source, sourceStaticEffects(source));
+        // CR 604.3 — and this is the whole reason the filter is here. A static
+        // ability functions only while its source is a permanent on the
+        // battlefield UNLESS the ability itself says otherwise, and the entries
+        // pushed here land in the same board-wide list every battlefield
+        // permanent is derived against. Without the gate, Conversion's "All
+        // Mountains are Plains" (CR 305.7) would turn every Mountain into a
+        // Plains while the SPELL was still waiting to resolve.
+        //
+        // Fail-closed: an effect that does not declare `functionsInAllZones` is
+        // dropped, so the default for every existing card is exactly the
+        // pre-stack behaviour. Bestow is the one declarer (CR 702.103a).
+        pushSourceEffects(
+            source,
+            sourceStaticEffects(source).filter(
+                (effect) =>
+                    (effect as { functionsInAllZones?: boolean })
+                        .functionsInAllZones === true
+            )
+        );
     }
     // CR 114 — command-zone emblems generate continuous effects like any other
     // object (issue #1221).
