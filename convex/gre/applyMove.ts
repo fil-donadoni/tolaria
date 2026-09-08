@@ -828,6 +828,16 @@ export function applyActivationCostsForSearch(
     if (ability.cost.exileThis && !ability.activateFromGraveyard) {
         removePermanentTo(state, src.id, "exile");
     }
+    // CR 602.1a / 601.2h — the "Return this permanent to its owner's hand"
+    // cost (Attunement): the source is off the battlefield and back in hand
+    // before the ability is ever on the stack. Applied in the search slice for
+    // the same reason the two legs above are — a line that kept the permanent
+    // on the board would evaluate a position live play never reaches. No
+    // graveyard twin to dispatch on: the leg is battlefield-source only, so
+    // `src` is always the whole answer here.
+    if (ability.cost.returnThisToHand) {
+        removePermanentTo(state, src.id, "hand");
+    }
     // CR 602.1 / 118 — the DEFERRED cost legs (sacrifice, tap-other,
     // exile-from-graveyard, discard). The payer is the ACTIVATING player, NOT
     // the source's controller — see the header note on CR 113.3c.

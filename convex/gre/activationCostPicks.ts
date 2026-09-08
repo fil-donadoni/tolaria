@@ -411,10 +411,16 @@ export const MAX_VICTIM_VARIANTS = 4;
  *
  *  Two costs are deliberately exempt, both because losing the source IS the
  *  intended price and the ability was designed around it (CR 118.1 / 601.2h):
- *  a fixed self-sacrifice (`cost.sacrifice` — "Sacrifice this creature:") and
- *  its exile twin (`cost.exileThis`). */
+ *  a fixed self-sacrifice (`cost.sacrifice` — "Sacrifice this creature:"),
+ *  its exile twin (`cost.exileThis`) and its bounce twin
+ *  (`cost.returnThisToHand` — Attunement). */
 function sacrificeMustSpareSource(ability: ActivatedAbility): boolean {
-    if (ability.cost.sacrifice || ability.cost.exileThis) return false;
+    if (
+        ability.cost.sacrifice ||
+        ability.cost.exileThis ||
+        ability.cost.returnThisToHand
+    )
+        return false;
     return abilityBenefitIsConfinedToSource(ability);
 }
 

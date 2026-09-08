@@ -109,6 +109,22 @@ function censusGrantedKeywords(
     }
 }
 
+/** CR 605.1a — activation-cost legs a MANA ability (`useStack: false`) has no
+ *  payment site for, so lowering one would emit free mana.
+ *
+ *  NOT the complement of what the mana path pays: `sacrificeFilter` and
+ *  `discardFilter` reach compiled mana abilities today (8 rows) through
+ *  `tapSourceIntoPayment`, and re-adjudicating those is a separate question
+ *  from this one. What earns a row here is a leg that removes the SOURCE from
+ *  the battlefield with no mana-path payer — `cost.returnThisToHand`
+ *  (issue #3204): `activateManaAbility` handles only `tap` / `sacrifice` /
+ *  `tapOtherFilter` / `mana` / `life`, and `applyActivationCostsForSearch` is
+ *  never reached for a stackless ability, so "Return this artifact to its
+ *  owner's hand: Add {C}" would tap for mana every priority window forever. */
+const MANA_ABILITY_UNPAYABLE_COST_LEGS: ReadonlySet<string> = new Set([
+    "returnThisToHand",
+]);
+
 function lowerLine(
     parsed: LineParse,
     card: OracleCard,
@@ -137,6 +153,21 @@ function lowerLine(
             // (CR 602.1a draws no distinction); only the EFFECT half differs.
             const cost = lowerActivationCost(ir.cost);
             if (!cost.ok) return cost.reason;
+            // CR 605.1a — a mana ability does NOT use the stack, so it is paid
+            // by `activateManaAbility` / `tapSourceIntoPayment`, not by the
+            // `PendingActivation` machinery every stack ability rides. A leg
+            // neither of those pays would be lowered into a definition that
+            // produces mana FOR FREE, forever — and dropping a cost atom is
+            // exactly the failure `grammar/shared/cost.ts`'s own header calls
+            // out (an unpayable cost silently becomes no cost). Fail CLOSED
+            // here, the way `lowerAdditionalCosts` and `flashbackLine` already
+            // do for the same atom stream, rather than emit the ability.
+            const unpayable = Object.keys(cost.value).filter((leg) =>
+                MANA_ABILITY_UNPAYABLE_COST_LEGS.has(leg)
+            );
+            if (unpayable.length > 0) {
+                return `mana ability cost leg "${unpayable[0]}" has no payment site on the CR 605.1a stackless path`;
+            }
             const ability: ActivatedAbility = {
                 id,
                 oracleText: parsed.line,

@@ -126,6 +126,7 @@ describe("COST_LEG_CLAIMS — the activation-cost leg census (issue #3007)", () 
                 "manaEqualToCounterCount",
                 "manaEqualToEnchantedCreatureCost",
                 "removeCounter",
+                "returnThisToHand",
                 "returnUnblockedAttacker",
                 "sacrifice",
                 "sacrificeFilter",

@@ -72,7 +72,11 @@ export type CostAtomIR =
           readonly owner?: "you";
       }
     /** CR 701.13a — exile: "Exile this artifact" as a cost (CR 118.1). */
-    | { readonly kind: "exile-self" };
+    | { readonly kind: "exile-self" }
+    /** CR 602.1a — "Return this enchantment to its owner's hand" as a cost
+     *  (Attunement). Self only: a return cost naming any OTHER object is a
+     *  different leg this grammar deliberately does not read. */
+    | { readonly kind: "return-self" };
 
 export interface ActivationCostIR {
     readonly atoms: readonly CostAtomIR[];
@@ -120,10 +124,10 @@ const EXILE_GRAVEYARD =
  *
  * Written as a single rule with an explicit cascade rather than as `oneOf` over
  * ten alternatives: the alternatives here are told apart by their FIRST WORD
- * ("Sacrifice", "Discard", "Pay", "Remove", "Exile"), so a unique-alternation
- * would run nine rules to reject nine first words and report the near-misses in
- * every gap reason. The cascade is still all-consuming — each branch matches an
- * anchored pattern or an exact phrase, never a prefix.
+ * ("Sacrifice", "Exile", "Return", "Pay", "Discard", "Remove"), so a
+ * unique-alternation would run every rule to reject every first word and report
+ * the near-misses in every gap reason. The cascade is still all-consuming —
+ * each branch matches an anchored pattern or an exact phrase, never a prefix.
  */
 const costAtom: Rule<CostAtomIR> = rule<CostAtomIR>(
     "cost atom",
@@ -177,6 +181,17 @@ const costAtom: Rule<CostAtomIR> = rule<CostAtomIR>(
             }
             if (match[3] === "your graveyard") atom.owner = "you";
             return ok(atom);
+        }
+
+        if (span.startsWith("Return ")) {
+            const object = span.slice("Return ".length);
+            const suffix = " to its owner's hand";
+            if (
+                object.endsWith(suffix) &&
+                isSelfPhrase(object.slice(0, -suffix.length))
+            )
+                return ok({ kind: "return-self" as const });
+            return fail("not a return cost this grammar knows", span);
         }
 
         if (span.startsWith("Pay ")) {
@@ -334,6 +349,9 @@ export function lowerActivationCost(
             }
             case "exile-self":
                 cost.exileThis = true;
+                break;
+            case "return-self":
+                cost.returnThisToHand = true;
                 break;
             default: {
                 const never: never = atom;
