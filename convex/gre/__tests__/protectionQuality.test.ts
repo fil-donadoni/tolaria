@@ -139,7 +139,9 @@ describe("parseProtectionQuality (CR 702.16a)", () => {
         // A quality that returned a match-everything (or match-nothing)
         // value here is the whole bug class — it must be `null`, which the
         // catalogue guard below turns into a CI failure.
-        expect(parseProtectionQuality("protection from everything")).toBeNull();
+        // "protection from everything" is NO LONGER on this list: CR 702.16j
+        // is a named family since issue #2386 (Hexdrinker's LEVEL 8+ band) —
+        // its own parse/consult rows are the CR 702.16j block further down.
         expect(parseProtectionQuality("protection from goblins")).toBeNull();
         expect(
             parseProtectionQuality("protection from legendary wizards")
