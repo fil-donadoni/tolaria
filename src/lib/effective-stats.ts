@@ -24,7 +24,7 @@ import type { ContinuousEffect } from "@convex/gre/continuousEffects";
  * activations on the client (see effective-stats.test.ts "wire-format
  * invariant").
  */
-function toPermanentView(card: CardInstance): PermanentView {
+export function toPermanentView(card: CardInstance): PermanentView {
     return {
         ...card,
         types: (card.types ?? []) as CardType[],
@@ -45,7 +45,7 @@ export type LayerPlayersInput = ReadonlyArray<{
     hand: ReadonlyArray<unknown>;
 }>;
 
-function toLayerState(
+export function toLayerState(
     players: LayerPlayersInput,
     emblems: EmblemInstance[] | undefined,
     continuousEffects: readonly ContinuousEffect[] | undefined
