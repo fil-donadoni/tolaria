@@ -223,6 +223,14 @@ _Avoid_: Adventure half, adventure mode, "the instant side"
 A card in **Exile** because a **Spell** cast as an **Adventure** resolved: instead of going to its owner's **Graveyard**, its controller exiles it and may play it from there for as long as it remains exiled (CR 715.3d) — the same open-ended shape as a **Foretold Card**, and unlike an impulse-exiled card's one-turn window. It may not be cast as an Adventure again _under that permission_, though another effect granting a cast may still allow one. A **Countered** Adventure never resolves and so is never adventured: it goes to the graveyard like any other spell, and the creature half is gone with it.
 _Avoid_: Exiled on an adventure, adventure exile, impulse-exiled card
 
+**Split Card**:
+One card printed with two castable **Halves** (CR 709.2 — drawing or discarding it draws or discards ONE card). In every zone except the **Stack** its characteristics are those of both halves **combined** (CR 709.4): two names, the summed **Mana Cost**, and every card type from either half — so Life // Death is a green and black card with mana value 3 in a **Graveyard**. The combination is DERIVED from the halves, never authored beside them (ADR 0121). A split card whose halves are **Permanent** cards sharing one type line is a **Room** (CR 709.5) and is out of scope: its halves lock and unlock on the battlefield, which the combined-definition shape does not model.
+_Avoid_: Double-faced card, **Inset Spell** (that is one card with a normal form, CR 715), "the two cards", modal card
+
+**Split Half**:
+One of the two castable objects a **Split Card** offers. A player chooses which half they are casting BEFORE the spell is put onto the **Stack** (CR 709.3), only that half is evaluated for legality (CR 709.3a), and while on the stack only its characteristics exist (CR 709.3b) — so the other half's cost, type and text are not merely unused, they do not exist. There is no cast that puts the combined card onto the stack. A copy of a split spell is still a split card with both halves (CR 709.3c).
+_Avoid_: Side, face, mode (a **Modal** spell is one object with chosen modes, CR 700.2), **Adventure**
+
 **Special Action**:
 Something a **Player** may do without using the **Stack** and without passing **Priority** (CR 116.2) — it cannot be responded to. Taken while they have priority. Playing a **Land** is one; so are summoning a companion, turning a **Manifested** permanent face up, and **Foretell**. Each carries its own timing window, and they differ: companion needs a main phase with an empty stack, foretell only needs priority during its player's own turn.
 _Avoid_: Activated Ability (uses the Stack), free action
