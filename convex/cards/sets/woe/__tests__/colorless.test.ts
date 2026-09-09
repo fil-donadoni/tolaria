@@ -12,7 +12,6 @@
 // to each other — the pile the `{T}` ability links is the pile the grant reads,
 // and the granted ability's coloured pip is one the scope actually reaches.
 import { describe, expect, it } from "vitest";
-import { getCardByName } from "../../..";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
 import {
@@ -25,18 +24,23 @@ import { getCardsExiledWith } from "../../../../gre/exileLinks";
 import { syncLayer6 } from "../../../../gre/layer6";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
-import { agathasSoulCauldron } from "../colorless";
 
-const CAULDRON = agathasSoulCauldron.id;
+// ADR 0046 seam (`card-test-seam-boundary.test.ts`): every subject is named by
+// its registry id, never reached by importing the set module or resolved
+// through `getCardByName` — both are blind to a `withTemporaryDefinition` swap.
+const CAULDRON = "019b51b0-e5c6-4208-922b-7736686dddcd"; // Agatha's Soul Cauldron, WOE 242
 const EXILE_ABILITY = "agathas-soul-cauldron-exile";
-/** `{B}: This creature gets +1/+1 until end of turn.` — a creature card whose
- *  activated ability carries a COLOURED pip, so the grant and the fixing are
- *  observable on the same activation. */
-const SHADE = getCardByName("Frozen Shade").id;
+/** Frozen Shade — `{B}: This creature gets +1/+1 until end of turn.` A creature
+ *  card whose activated ability carries a COLOURED pip, so the grant and the
+ *  fixing are observable on the same activation. */
+const SHADE = "d0bd76c8-4cff-4c15-9686-7a299b589814";
 const SHADE_PUMP = "frozen-shade-pump";
-const BEARS = getCardByName("Grizzly Bears").id;
-/** A noncreature card, for the reflexive trigger's negative case. */
-const LIGHTNING_BOLT = getCardByName("Lightning Bolt").id;
+/** Grizzly Bears — a vanilla 2/2 body with no printed activated ability, so
+ *  every ability the recipient offers is the Cauldron's doing. */
+const BEARS = "ce2d603a-3231-4a8c-bf39-1617586ea870";
+/** Lightning Bolt — a noncreature card, for the reflexive trigger's negative
+ *  case. */
+const LIGHTNING_BOLT = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
 
 /** p1 controls the Cauldron and a creature; `graveyard` seeds p2's graveyard
  *  (the Oracle says "a graveyard", so the opponent's is the interesting one —
