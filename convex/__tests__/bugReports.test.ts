@@ -1,10 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
+    applyDiagnosticsConsent,
     buildGameStateSection,
     buildIssuePayload,
     describeOwedInput,
     isGameParticipant,
 } from "../bugReports";
+import { BUG_REPORT_CONSENT_VERSION } from "../bugReportConsent";
 
 // Pure payload builder for the in-app bug-report button. The action wrapping it
 // only adds network/auth/storage — the title/body shaping and validation live
@@ -337,5 +339,43 @@ describe("buildIssuePayload — public-repo boundary", () => {
             reportId: "k57xyz",
         });
         expect(body.length).toBeLessThan(65536);
+    });
+});
+
+// issue #3255 — the disclosure gate's server-side half. The dialog withholds
+// the diagnostic fields on a decline; this is the cut that makes that true
+// whatever the client sends, and the single place the row, the issue body and
+// the game-state read all take it from.
+describe("applyDiagnosticsConsent (bug-report disclosure)", () => {
+    const fields = {
+        route: "/game/abc",
+        userAgent: "Mozilla/5.0",
+        gameId: "k17game" as never,
+        clientDiagnostics: { decisions: [{ outcome: "move" }] },
+    };
+
+    it("passes every diagnostic field through when consent was given", () => {
+        expect(applyDiagnosticsConsent(fields, true)).toEqual(fields);
+    });
+
+    it("drops every diagnostic field on a decline", () => {
+        expect(applyDiagnosticsConsent(fields, false)).toEqual({});
+    });
+
+    // The gameId is read through the CUT value, so a declined report never even
+    // triggers the server-side board read — the board is the heaviest thing the
+    // gate discloses, and not reading it is stronger than not storing it.
+    it("withholds the gameId, so no board is read for a declined report", () => {
+        expect(applyDiagnosticsConsent(fields, false).gameId).toBeUndefined();
+    });
+});
+
+// The version is the whole re-prompting mechanism: it is compared, never
+// remembered. A widening change edits this constant and every account whose
+// stored version is behind is asked again.
+describe("BUG_REPORT_CONSENT_VERSION", () => {
+    it("is a positive integer", () => {
+        expect(Number.isInteger(BUG_REPORT_CONSENT_VERSION)).toBe(true);
+        expect(BUG_REPORT_CONSENT_VERSION).toBeGreaterThan(0);
     });
 });
