@@ -121,11 +121,12 @@ export const emryLurkerOfTheLoch: CardDefinition = {
 // Transport, Stone Spirit, Hipparion, …) sits in Guard C's baseline. A new card
 // cannot be added to that baseline, so it names the fragment instead — the
 // fragment being the deliverable that ranks the next grammar rule (PRD #2693
-// user story 9). A compiled block restriction needs a fourth
-// `CompiledStaticEffect` kind (a JSON-pure predicate; a closure cannot reach a
-// serialized catalogue row), which is a mechanic of its own and belongs on its
-// own diff — the same split ADR 0120 §6 made for Bonecrusher Giant.
-// compiler-gap: "This creature can block only creatures with flying." (#2693)
+// user story 9). A compiled block restriction needs a NEW member on the closed
+// `CompiledStaticEffect` union — a JSON-pure descriptor, since a closure cannot
+// reach a serialized catalogue row — which is a mechanic of its own and belongs
+// on its own diff, the same split ADR 0120 §6 made for Bonecrusher Giant. That
+// work is issue #3315; this marker retires with it.
+// compiler-gap: "This creature can block only creatures with flying." (#3315)
 export const brazenBorrower: CardDefinition = {
     id: "c2089ec9-0665-448f-bfe9-d181de127814",
     rarity: "mythic",
