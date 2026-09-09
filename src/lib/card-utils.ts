@@ -688,7 +688,7 @@ export function hasFixedSacrificeManaAbility(card: CardInstance): boolean {
 }
 
 /** True when this source's mana ability has a FIXED output produced by TAPPING
- *  it and spanning 2+ distinct colours (CR 605.1a, issue #3263) — "{T},
+ *  it and spanning 2+ distinct mana types (CR 106.1b / 605.1a, issue #3263) — "{T},
  *  Sacrifice this land: Add {W}{B}." with no single-colour ability to fall back
  *  on, a granted "{T}: Add {U}{R}". Client mirror of the engine's
  *  `getFixedMultiColorTapManaAbility`, read by the same payment gate that asks

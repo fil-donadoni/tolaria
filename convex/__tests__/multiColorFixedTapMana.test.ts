@@ -85,6 +85,34 @@ const RESTRICTED_VENT: CardDefinition = {
     ],
 };
 
+/** The five Invasion "Vent" lands with their abilities printed in the OTHER
+ *  order: the multi-colour sacrifice leg FIRST, the single-colour "{T}: Add
+ *  {U}" second. `getActivatedManaColor` reads the FIRST matching ability, so it
+ *  answers null here even though the source has a perfectly good single-colour
+ *  option — which is what would let the probe hand the fixed branch a
+ *  `cost.sacrifice` ability and sacrifice the land for the player (issue #3263
+ *  review, finding 3). No catalogue card is printed this way. */
+const REVERSED_VENT: CardDefinition = {
+    ...PRISM_VENT,
+    id: "test-3263-reversed-vent",
+    name: "Test Reversed Vent",
+    oracleText: "{T}, Sacrifice this land: Add {W}{B}.\n{T}: Add {U}.",
+    activatedAbilities: [
+        {
+            ...PRISM_VENT.activatedAbilities![0],
+            id: "test-3263-reversed-vent-sacrifice",
+            cost: { tap: true, sacrifice: true },
+        },
+        {
+            id: "test-3263-reversed-vent-tap",
+            oracleText: "{T}: Add {U}.",
+            cost: { tap: true },
+            useStack: false,
+            manaProduced: { U: 1 },
+        },
+    ],
+};
+
 /** "{T}, Sacrifice this land: Add {W}{B}." with NO other mana ability — the
  *  {T}+sacrifice half of the shape, which `getFixedSacrificeManaAbility`
  *  deliberately does not claim (it requires `cost.tap !== true`). */
@@ -108,7 +136,12 @@ const SACRIFICE_VENT: CardDefinition = {
 // are test-only and shadow no catalogue card, so preloading them for the file
 // overwrites nothing and leaks nothing a later file in the worker looks up.
 beforeAll(() => {
-    preloadDefinitions([PRISM_VENT, RESTRICTED_VENT, SACRIFICE_VENT]);
+    preloadDefinitions([
+        PRISM_VENT,
+        RESTRICTED_VENT,
+        SACRIFICE_VENT,
+        REVERSED_VENT,
+    ]);
 });
 
 /** One permanent of `defId` on p1's battlefield, p1 active and with priority. */
@@ -203,6 +236,17 @@ describe("getFixedMultiColorTapManaAbility (CR 605.1a, issue #3263)", () => {
                 getFixedMultiColorTapManaAbility(player.battlefield[0])
             ).toBeNull();
         }
+    });
+
+    it("prefers the NON-destructive ability, so print order cannot make it sacrifice", () => {
+        // The probe mirrors `getManaTapOptionsDetailed`'s
+        // `nonSacrifice.length > 0 ? nonSacrifice : sacrifice` preference: with
+        // a plain "{T}: Add {U}" also on the card, the multi-colour SACRIFICE
+        // leg is not this source's tap output.
+        const { player } = boardWith(REVERSED_VENT.id);
+        expect(
+            getFixedMultiColorTapManaAbility(player.battlefield[0])
+        ).toBeNull();
     });
 
     it("does not claim a CHOICE ability or a tap-less sacrifice one", () => {
@@ -454,6 +498,28 @@ describe("existing shapes are untouched (issue #3263 regression guard)", () => {
         expect(player.manaPool.W ?? 0).toBe(0);
         expect(player.manaPool.B ?? 0).toBe(0);
         expect(player.battlefield.find((c) => c.id === "source")).toBeDefined();
+    });
+
+    it("a reversed-print Vent is refused, not silently sacrificed", () => {
+        // `getActivatedManaColor` reads the FIRST matching ability and so has
+        // no answer here; the probe declines because a non-sacrifice mana
+        // ability exists. The result is the SAFE pre-issue-#3263 rejection —
+        // never "sacrifice the land and add {W}{B}" on the player's behalf.
+        const { state, player } = boardWith(REVERSED_VENT.id);
+
+        expect(() =>
+            tapSourceIntoPayment(
+                state,
+                player,
+                player.battlefield[0],
+                undefined,
+                []
+            )
+        ).toThrow("Card does not produce mana");
+        expect(player.battlefield.find((c) => c.id === "source")).toBeDefined();
+        expect(player.graveyard).toEqual([]);
+        expect(player.manaPool.W ?? 0).toBe(0);
+        expect(player.manaPool.B ?? 0).toBe(0);
     });
 
     it("the sacrifice-ONLY multi-colour shape keeps its own branch (Morgue Toad)", () => {

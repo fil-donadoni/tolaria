@@ -2006,14 +2006,22 @@ export function tapSourceIntoPayment(
     if (!manaColor && !multiColorAbility) {
         throw new Error("Card does not produce mana");
     }
+    // CR 605.1a — the ability this activation actually pays for and runs the
+    // riders of. `ability` is `getActivatedManaAbility`'s answer, whose filter
+    // differs from the multi-colour probe's (it does not require `cost.tap` and
+    // accepts `manaChoices` / `manaColorSource`), so on a card carrying both
+    // shapes the two can name DIFFERENT abilities — paying one ability's cost
+    // while depositing another's output. Identical to `ability` whenever the
+    // multi-colour probe found nothing, so no existing shape moves.
+    const acting = multiColorAbility ?? ability;
     // ADR 0039 / CR 605.1a — a fixed-output "Sacrifice this" mana ability
     // (Basal Thrull) sacrifices the source instead of tapping it. One-way: the
     // sacrificed source is never in `tappedLandIds` as an untappable entry.
-    const isSacrifice = ability?.cost.sacrifice === true;
+    const isSacrifice = acting?.cost.sacrifice === true;
     // CR 605.1a / 601.2f — pay the mana portion of the activation cost FIRST,
     // before any source mutation, so an unaffordable activation throws with
     // nothing changed.
-    applyManaAbilityManaCost(state, player, ability, card);
+    applyManaAbilityManaCost(state, player, acting, card);
     if (!isSacrifice) card.isTapped = true;
     // CR 106.1 / 605.1a — board-conditional output (Urza trio) is computed from
     // the controller's battlefield now and snapshotted onto `chosenMana` so the
@@ -2044,9 +2052,8 @@ export function tapSourceIntoPayment(
     // `refundChosenManaOutput` reverses on undo, and the single-`Color`
     // `refundFixedManaOutput` fallback cannot express it.
     if (
-        !manaColor ||
-        dynamic ||
-        (manaColor && added[manaColor] === undefined)
+        !isSacrifice &&
+        (!manaColor || dynamic || added[manaColor] === undefined)
     ) {
         card.chosenMana = added;
     }
@@ -2054,7 +2061,7 @@ export function tapSourceIntoPayment(
     // `restrictedMana` pool when this FIXED mana ability is restricted
     // (Mishra's Workshop), instead of always crediting the fungible pool.
     // Mirrors `tapUntap`'s already-fixed fixed-ability tap branch. The
-    // multi-colour branch reads its restriction and CR 118.4 "can't be
+    // multi-colour branch reads its restriction and its CR 106.6 "can't be
     // countered" rider off the RESOLVED ability, because its refund always
     // routes through `refundChosenManaOutput`, which reverses with exactly
     // those two — a deposit that dropped the rider would not be reversed.
@@ -2081,7 +2088,7 @@ export function tapSourceIntoPayment(
     } else {
         // CR 603.7a / ADR 0040 — arm a control-change-on-tap rider when a
         // fixed-output tap mana source is tapped during a payment.
-        armDelayedTriggerOnTap(state, ability, card, player.id);
+        armDelayedTriggerOnTap(state, acting, card, player.id);
         tappedLandIds.push(card.id);
     }
     // CR 605.1a / 120 — unconditional fixed-mana self-damage rider (Ancient
@@ -2089,20 +2096,20 @@ export function tapSourceIntoPayment(
     // every tap regardless of the mana produced. Fires in the payment-tap
     // path too, so the ping applies whether tapped via priority (`tapUntap`)
     // or while paying a spell/ability cost (here).
-    applyUnconditionalTapSelfDamage(state, ability, card, player.id);
+    applyUnconditionalTapSelfDamage(state, acting, card, player.id);
     // CR 605.1a / 118.4 — tap mana ability life-payment cost. Fires in the
     // payment-tap path too, so the life is paid whether tapped via priority
     // (`tapUntap`) or while paying a spell/ability cost (here).
-    applyManaAbilityLifeCost(state, ability, player.id);
+    applyManaAbilityLifeCost(state, acting, player.id);
     // CR 605.1a / 118.3 — tap mana ability discard-at-random cost. Fires in
     // the payment-tap path too, so the discard applies whether tapped via
     // priority (`tapUntap`) or while paying a spell/ability cost (here).
-    applyManaAbilityDiscardCost(state, ability, player.id);
+    applyManaAbilityDiscardCost(state, acting, player.id);
     // CR 605.1a / 121.1 — mana-ability draw rider (Chromatic Sphere). Fires in
     // the payment-tap path too, whether tapped via priority (`tapUntap`) or
     // while paying a spell/ability cost (here). Unlike the riders above, this
     // one is NOT gated on `!isSacrifice` — it must fire on a sacrifice cost.
-    applyDrawCardOnTap(state, ability, player.id);
+    applyDrawCardOnTap(state, acting, player.id);
     // CR 106.4 / 605.1a — record the life paid to the inline riders (Ancient
     // Tomb, Mana Confluence) so untapForPayment can restore it. Skip on the
     // sacrifice path: the source is gone and has no untap branch.
@@ -15237,18 +15244,28 @@ export const tapUntap = mutation({
             // (Fire Sprites "{G}, {T}: Add {R}") FIRST, before any source
             // mutation, so an unaffordable activation throws with nothing
             // changed. Tap only — an untap toggle reverses the cost below.
-            if (!wasTapped)
-                applyManaAbilityManaCost(state, player, ability, card);
-            if (!isSacrifice) card.isTapped = !card.isTapped;
             const manaColor =
                 getBasicLandMana(card) ?? getActivatedManaColor(card);
             // CR 605.1a (issue #3263) — the multi-colour fixed TAP shape, which
             // `getActivatedManaColor` cannot name with a single `Color`. Before
             // this branch existed the `if (manaColor)` below was simply skipped:
-            // the source was tapped and NOTHING was added to the pool.
+            // the source was tapped and NOTHING was added to the pool. Resolved
+            // BEFORE the cost is paid, because it is the ability whose cost this
+            // activation owes — see `acting` below.
             const multiColorAbility = manaColor
                 ? null
                 : getFixedMultiColorTapManaAbility(card);
+            // CR 605.1a — the ability this activation pays for and runs the
+            // riders of. `ability` is `getActivatedManaAbility`'s answer, whose
+            // filter differs from the multi-colour probe's, so on a card
+            // carrying both shapes the two can name DIFFERENT abilities.
+            // Identical to `ability` whenever the probe found nothing, so no
+            // existing shape moves. Mirrors `tapSourceIntoPayment`.
+            const acting = multiColorAbility ?? ability;
+            if (!wasTapped)
+                applyManaAbilityManaCost(state, player, acting, card);
+            if (!isSacrifice) card.isTapped = !card.isTapped;
+            if (multiColorAbility) tapAbility = acting;
             if (manaColor) {
                 // CR 106.1 / 605.1a — board-conditional output (Urza trio) is
                 // computed from the controller's battlefield at tap time. On
@@ -15394,7 +15411,11 @@ export const tapUntap = mutation({
                         card,
                         produced
                     );
-                    card.chosenMana = added;
+                    // Not on the sacrifice path: the source is leaving the
+                    // battlefield, so there is no untap that could claim the
+                    // refund this snapshot exists for (the choice branch guards
+                    // the same way).
+                    if (!isSacrifice) card.chosenMana = added;
                     depositTappedMana(
                         player,
                         added,

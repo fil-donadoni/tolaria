@@ -636,24 +636,55 @@ export function getFixedSacrificeManaAbility(
  *  the exact path it had, and a source exposing both shapes as two options is
  *  routed to the choice branch by `manaTapNeedsChoice` before either probe runs.
  *
+ *  NON-DESTRUCTIVE FIRST, exactly like `getManaTapOptionsDetailed`'s
+ *  `nonSacrifice.length > 0 ? nonSacrifice : sacrifice` preference: a
+ *  `cost.sacrifice` ability is returned only when the source has no
+ *  non-sacrifice mana ability at all. Without that, a card printing its
+ *  "{T}, Sacrifice this: Add {W}{B}" leg BEFORE its single-colour "{T}: Add
+ *  {U}" would make `getActivatedManaColor` answer null (it reads the first
+ *  matching ability) while the option list still offered only the {U} — and the
+ *  fixed branch would have sacrificed the land for the player. No catalogue
+ *  card is printed in that order today; the guarantee should not depend on
+ *  print order (issue #3263 review).
+ *
+ *  "2+ distinct" is over MANA TYPES (CR 106.1b — the five colours plus
+ *  colourless), so "{T}: Add {C}{R}" is this shape too: `getActivatedManaColor`
+ *  has no single `Color` for it either.
+ *
  *  CR 113.1 / 611.2a — POST-LAYER effective set, like every other mana probe. */
 export function getFixedMultiColorTapManaAbility(
     card: CardInstanceState
 ): ActivatedAbility | null {
     if (abilitiesSuppressed(card)) return null;
-    return (
-        getEffectiveActivatedAbilities(card).find(
-            ({ ability: a }) =>
-                !a.useStack &&
-                a.cost.tap === true &&
-                !!a.manaProduced &&
-                !a.manaChoices &&
-                !a.getManaChoices &&
-                !a.manaColorSource &&
+    const effective = getEffectiveActivatedAbilities(card);
+    const isFixedTapMana = (a: ActivatedAbility): boolean =>
+        !a.useStack &&
+        a.cost.tap === true &&
+        !!a.manaProduced &&
+        !a.manaChoices &&
+        !a.getManaChoices &&
+        !a.manaColorSource;
+    const multiColor = effective
+        .map(({ ability }) => ability)
+        .filter(
+            (a) =>
+                isFixedTapMana(a) &&
                 MANA_COLORS.filter((c) => (a.manaProduced?.[c] ?? 0) > 0)
                     .length >= 2
-        )?.ability ?? null
+        );
+    if (multiColor.length === 0) return null;
+    const nonSacrifice = multiColor.find((a) => a.cost.sacrifice !== true);
+    if (nonSacrifice) return nonSacrifice;
+    const hasNonSacrificeManaAbility = effective.some(
+        ({ ability: a }) =>
+            !a.useStack &&
+            a.cost.sacrifice !== true &&
+            (a.manaProduced ||
+                a.manaChoices ||
+                a.getManaChoices ||
+                a.manaColorSource)
     );
+    return hasNonSacrificeManaAbility ? null : multiColor[0];
 }
 
 /** Amount of a single color produced by a card's fixed (non-choice) tap mana
