@@ -7238,6 +7238,14 @@
         "source": "compiled"
     },
     {
+        "name": "Damn",
+        "scryfallId": "efeae088-9ac5-4d2f-a15c-d8675a471ac5",
+        "oracleId": "b01d61cc-9844-4191-86a0-f2db6d42d6e5",
+        "firstSet": "mh2",
+        "firstPrintId": "efeae088-9ac5-4d2f-a15c-d8675a471ac5",
+        "firstPrintSet": "mh2"
+    },
+    {
         "name": "Damnation",
         "scryfallId": "26c68473-70ca-40ba-b5c6-71ec30f88a2c",
         "oracleId": "d57a8f0b-7989-4db5-8756-6f2690097252",
@@ -38674,6 +38682,14 @@
         "firstPrintSet": "ktk",
         "rarity": "common",
         "source": "compiled"
+    },
+    {
+        "name": "Winds of Abandon",
+        "scryfallId": "3bb17913-fe4d-4acd-9b75-71f5a90f898b",
+        "oracleId": "499a4715-6776-461b-bee4-22ed172d455e",
+        "firstSet": "mh1",
+        "firstPrintId": "3bb17913-fe4d-4acd-9b75-71f5a90f898b",
+        "firstPrintSet": "mh1"
     },
     {
         "name": "Winds of Change",

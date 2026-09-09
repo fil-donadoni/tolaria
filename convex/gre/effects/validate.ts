@@ -56,7 +56,11 @@ export type EffectScriptHost = Pick<
     // `CardDefinition.types` itself, which is required) so synthetic test
     // hosts (`host()` in `validate.test.ts`) that omit it are unaffected — an
     // absent `types` simply skips that one gate.
-    Partial<Pick<CardDefinition, "types">>;
+    Partial<Pick<CardDefinition, "types">> &
+    // CR 702.96 (issue #3215) — read ONLY by the Overload slot-reference gate
+    // below. Optional for the same reason `types` is: a synthetic test host
+    // that omits it simply skips that one check.
+    Partial<Pick<CardDefinition, "overload">>;
 
 /** Field schema for one Op: required fields (each must be present and valid)
  *  plus optional fields (validated only when present). Any field NOT listed
@@ -6937,7 +6941,48 @@ export function validateEffectScript(def: EffectScriptHost): string[] {
             );
         }
     }
+
+    // CR 702.96a/b (issue #3215) — an OVERLOAD card must reach its objects
+    // through `forEach { set: "targets" }`, never through a fixed `{ target: n }`
+    // slot. Overload replaces every "target" in the spell's text with "each",
+    // and this engine expresses that by swapping what `SpellContext.targets`
+    // CONTAINS (`overloadAffectedTargets`, `gre/overload.ts`) — a set of one in
+    // the printed mode, of every matching object when overloaded. A slot
+    // reference reads element 0 of that set and nothing else, so an overload
+    // card authored with `{ target: 0 }` destroys exactly one creature for its
+    // overload price: correct-looking in the printed mode, silently
+    // half-implemented in the mode the keyword exists for. Nothing else would
+    // catch it — the smoke sweep resolves the printed mode, and the overloaded
+    // mode has no announced target to make illegal.
+    if (def.overload) {
+        const slots: unknown[] = [];
+        findTargetSlotRefs(def.effects, slots);
+        if (slots.length > 0) {
+            errors.push(
+                `${label}: declares overload (CR 702.96) but its script uses ${slots.length} fixed { target: n } slot reference(s) — an overloaded cast announces no targets (CR 702.96b), so a slot reads only the first swept object; reach them with forEach { set: "targets" } instead`
+            );
+        }
+    }
     return errors;
+}
+
+/** Collects every `EffectTargetRef` (`{ target: <number> }`) anywhere in a
+ *  script tree, at any nesting depth and in any field position (`target`, `of`,
+ *  `cards`, `controllerOf`, …). Shape-matched rather than field-matched because
+ *  the slot ref is a VALUE the grammar accepts in many places, and a
+ *  field-name list would rot the next time an Op accepts one. */
+function findTargetSlotRefs(node: unknown, out: unknown[]): void {
+    if (Array.isArray(node)) {
+        for (const child of node) findTargetSlotRefs(child, out);
+        return;
+    }
+    if (node === null || typeof node !== "object") return;
+    const obj = node as Record<string, unknown>;
+    if (typeof obj.target === "number") {
+        out.push(obj);
+        return;
+    }
+    for (const value of Object.values(obj)) findTargetSlotRefs(value, out);
 }
 
 /** No implicit bindings — a spell site provides no `$source` (its source is

@@ -142,6 +142,7 @@ import {
     targetingSourceFromCard,
     protectionSourceFromTargeting,
 } from "./rules";
+import { overloadAffectedTargets } from "./overload";
 import {
     checkPermanentTargetFilters,
     checkPlayerTargetFilters,
@@ -1503,6 +1504,20 @@ export type CardInstanceState = {
      *  to decide whether the "sacrifice this when it enters" half of Evoke
      *  fires. See {@link PermanentView.evoked} for the full doc. */
     evoked?: boolean;
+    /** CR 702.96a (issue #3215) — true iff this spell was cast for its Overload
+     *  cost. Set on the stack item at cast commit (`convex/game.ts`, when the
+     *  chosen alternative cost === `CardDefinition.overload`) and by the
+     *  cast-mode census inside both search executors (`gre/castMode.ts`). It is
+     *  the whole of CR 702.96a's second static ability: the SpellContext built
+     *  for an overloaded item takes its `targets` from
+     *  `overloadAffectedTargets` (`gre/overload.ts`) instead of the announced
+     *  slots, so `forEach { set: "targets" }` — the script construct that means
+     *  "every object this spell is affecting" — sweeps each matching object
+     *  rather than the one announced target. The marker rides onto the
+     *  resulting permanent for free like `evoked`/`dashed`, where it is inert:
+     *  no overload card in the pool is a permanent spell, and nothing reads it
+     *  off the battlefield. */
+    overloaded?: boolean;
     /** CR 702.109a — true iff this permanent was cast for its Dash cost. Set
      *  on the stack item at cast commit (`convex/game.ts`, when the chosen
      *  alternative cost === `CardDefinition.dash`) and rides onto the
@@ -2540,6 +2555,15 @@ export type PendingCast = {
      *  `cardInstanceId`, and the card is still in the caster's HAND while the
      *  payment is open, where the opponent's projection nulls it. */
     morphed?: boolean;
+    /** CR 702.96a — true iff the alternative cost chosen for this cast is the
+     *  card's Overload cost (`isOverloadAlternativeCost` at announcement).
+     *  Carried through a parked cast for the same reason as `evoked`/`dashed`/
+     *  `bestowed`/`morphed`: the mode is chosen at announcement (CR 601.2b) but
+     *  the stack item is not built until commit, and without it the deferred
+     *  commit would build an item whose text was never changed — a spell that
+     *  cost the overload price and then affected the one thing it never
+     *  targeted. */
+    overloaded?: boolean;
     /** CR 601.2 / 307.1 / 117.1a / 601.3a (issue #2473) — the "a sorcery
      *  couldn't have been cast right now" snapshot, taken at ANNOUNCEMENT
      *  (`announceCast`, before any cost is paid) and carried here so the
@@ -13734,7 +13758,18 @@ export function buildSpellContext(
         // above; a batch-aware imperative `resolve()` reads it to enumerate the
         // whole set (Twilight Diviner's "copy one of them" choice).
         triggerEventBatch: item.triggerEventBatch,
-        targets: item.targets ?? [],
+        // CR 702.96a/b (issue #3215) — the text-changing half of Overload, and
+        // the ONE place it lives. An overloaded spell announced no targets, so
+        // `item.targets` is empty and the CR 608.2b legality gate already
+        // treated it as untargeted (it cannot fizzle); what its script's
+        // `forEach { set: "targets" }` must sweep instead is every object
+        // matching the card's printed requirement, targeting restrictions
+        // bypassed. Computed here, as the spell resolves, because 702.96a's
+        // second ability is a CONTINUOUS effect functioning while the spell is
+        // on the stack — not a set snapshotted at announcement.
+        targets: item.overloaded
+            ? overloadAffectedTargets(state, item, item.castById)
+            : (item.targets ?? []),
         allPlayerIds: state.players.map((p) => p.id),
 
         getAttachedToId(): string | undefined {

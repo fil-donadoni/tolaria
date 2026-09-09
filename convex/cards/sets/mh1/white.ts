@@ -76,21 +76,78 @@ export const ephemerate: CardDefinition = {
     ],
 };
 
-// TODO(issue #676 stub — Overload, CR 702.96, is `planned` in
-// mechanicsRegistry.ts: no alternative-cost "change target to each" primitive
-// exists. Winds of Abandon's overload mode is core to the card (mass exile
-// vs opponents), and its base mode's land-search tail ("its controller
-// searches... puts it onto the battlefield tapped") also has no moveZone
-// path from a library choice to the battlefield (only graveyard-card →
-// battlefield is modelled) — would need a resolve() justified by the
-// existing Nature's Lore precedent (ice/green.ts), but Overload blocks the
-// whole card regardless. Stop-and-issue; tracked stub.
-// export const windsOfAbandon: CardDefinition = {
-//     id: "3bb17913-fe4d-4acd-9b75-71f5a90f898b",
-//     name: "Winds of Abandon",
-//     rarity: "rare",
-//     manaCost: { X: 1, W: 1 },
-//     types: ["Sorcery"],
-// };
-
-export {};
+// Winds of Abandon — {1}{W} Sorcery (MH1 35, Vintage Cube). "Exile target
+// creature you don't control. For each creature exiled this way, its controller
+// searches their library for a basic land card. Those players put those cards
+// onto the battlefield tapped, then shuffle. Overload {4}{W}{W}."
+//
+// CR 702.96 (issue #3215). The whole card is ONE `forEach { set: "targets" }`:
+// printed, that set is the single announced target; overloaded it is every
+// creature the caster doesn't control, computed with targeting restrictions
+// bypassed (CR 702.96b), which is how an overloaded Winds exiles a hexproof
+// creature that could never have been its target.
+//
+// The second sentence is the same text in both modes — "for each creature
+// exiled this way" is already a fan-out — so it lives INSIDE the same
+// iteration: one basic land per creature exiled, which is what makes an
+// overloaded Winds a one-sided wrath that ramps its victim N times, not once.
+// The searching player is read off the exile's `bind` SNAPSHOT
+// (`{ ref: "$exiled.controller" }`), never off the card's live zone: by then it
+// is in exile, and CR 608.2h's "last known information" is exactly what the
+// snapshot holds.
+//
+// CR 701.23b — "a basic land card" is a stated quality in a hidden zone, so the
+// searcher isn't required to find one even though the search is mandatory:
+// `count: { min: 0, max: 1 }`, the Quirion Trailblazer shape.
+//
+// The grammar has no keyword-cost line rule for CR 702.96, and the
+// "for each creature exiled this way…" tail has no rule either, so neither
+// line round-trips yet (issue #3274):
+// compiler-gap: Overload {4}{W}{W} (#3274)
+export const windsOfAbandon: CardDefinition = {
+    id: "3bb17913-fe4d-4acd-9b75-71f5a90f898b",
+    name: "Winds of Abandon",
+    rarity: "rare",
+    oracleText:
+        'Exile target creature you don\'t control. For each creature exiled this way, its controller searches their library for a basic land card. Those players put those cards onto the battlefield tapped, then shuffle.\nOverload {4}{W}{W} (You may cast this spell for its overload cost. If you do, change "target" in its text to "each.")',
+    manaCost: { X: 1, W: 1 },
+    types: ["Sorcery"],
+    overload: {
+        id: "overload",
+        description: "Overload {4}{W}{W}",
+        mana: { X: 4, W: 2 },
+    },
+    targetRequirement: { type: "Creature", count: 1, controller: "opponent" },
+    effects: [
+        {
+            op: "forEach",
+            select: { set: "targets" },
+            effects: [
+                { op: "exile", target: { ref: "$each" }, bind: "$exiled" },
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: { ref: "$exiled.controller" },
+                    zone: "library",
+                    filter: { type: "Land", supertype: "Basic" },
+                    count: { min: 0, max: 1 },
+                    prompt: "Search your library for a basic land card.",
+                    bind: "$land",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$land" },
+                    player: { ref: "$exiled.controller" },
+                    from: "library",
+                    to: "battlefield",
+                    tapped: true,
+                },
+                {
+                    op: "libraryLook",
+                    action: "shuffle",
+                    player: { ref: "$exiled.controller" },
+                },
+            ],
+        },
+    ],
+};

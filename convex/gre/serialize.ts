@@ -270,6 +270,11 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "mustBlockAllThisTurn",
     "notedMana",
     "notedManaSpentOnCast",
+    // CR 702.96a — the Overload cast marker (issue #3215). Persisted for the
+    // same reason `evoked`/`dashed` are: a spell can sit on the stack across a
+    // save, and a reloaded overloaded item whose marker was dropped would
+    // resolve as its printed, single-target self.
+    "overloaded",
     "pileLabel",
     "power",
     "reboundExiled",

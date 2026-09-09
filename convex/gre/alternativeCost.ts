@@ -353,6 +353,10 @@ export function getAlternativeCost(
     // CR 702.103a — same treatment for `def.bestow` ("casting a spell using
     // its bestow ability follows the rules for paying alternative costs").
     if (def?.bestow?.id === altCostId) return def.bestow;
+    // CR 702.96a — same treatment for `def.overload` ("casting a spell using
+    // its overload ability follows the rules for paying alternative costs in
+    // rules 601.2b and 601.2f–h").
+    if (def?.overload?.id === altCostId) return def.overload;
     // CR 702.37a — the morph face-down cast ("pay {3} rather than pay its mana
     // cost … This follows the rules for paying alternative costs"). Unlike
     // every branch above it is SYNTHESIZED, not a field the card declares: the
@@ -397,6 +401,14 @@ export function affordableAlternativeCosts(
         // click would hard-reject at `announceCast`). `hasLegalBestowHost`
         // (`convex/gre/bestow.ts`) is that gate.
         ...(def.bestow && hasLegalBestowHost(state) ? [def.bestow] : []),
+        // CR 702.96a — Overload IS an alternative cost, offered on the same
+        // terms. It needs no legal-target gate of Bestow's kind: CR 702.96b
+        // says an overloaded spell "won't require any targets", so the mode is
+        // castable with an empty board — it simply affects nothing (CR 608.2 —
+        // the spell does as much as it can), exactly as a Wrath resolving into
+        // no creatures does. Its mana leg's affordability is the "cast"
+        // legality gate's job, like Dash's and morph's.
+        ...(def.overload ? [def.overload] : []),
         // CR 702.37a — the morph face-down cast, offered on the same terms.
         // Its {3} mana leg is not checked here for exactly the reason Dash's
         // isn't (see the doc above): affordability of a MANA leg is the "cast"

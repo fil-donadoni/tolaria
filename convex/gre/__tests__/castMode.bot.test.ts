@@ -60,6 +60,7 @@ function modeMarkersOf(card: CardInstanceState) {
         faceDown: card.faceDown === true,
         dashed: card.dashed === true,
         evoked: card.evoked === true,
+        overloaded: card.overloaded === true,
         types: [...(card.types ?? [])].sort(),
         subtypes: [...(card.subtypes ?? [])].sort(),
         power: card.power,
@@ -178,6 +179,23 @@ const MODE_FIXTURES: Record<CastMode, ModeFixture> = {
             expect(m.evoked).toBe(true);
         },
     },
+    // CR 702.96a — the marker `buildSpellContext` reads to swap the script's
+    // `forEach { set: "targets" }` member set from the announced targets to
+    // every matching object (CR 702.96b). Damn's printed cost is {B}{B} and its
+    // overload cost {2}{W}{W}, so a board of four Plains offers the OVERLOAD
+    // cast and nothing else — which is also the point of the mode: unstamped,
+    // an overloaded Damn resolves as the one-creature removal spell the
+    // printed cast already was, and the tree cannot tell a wrath from a Doom
+    // Blade.
+    overload: {
+        card: "Damn",
+        land: PLAINS,
+        landCount: 4,
+        enumerated: true,
+        assertStamped: (m) => {
+            expect(m.overloaded).toBe(true);
+        },
+    },
 };
 
 /** The enumerated cast of `subject` paying `mode`'s alternative cost. */
@@ -197,12 +215,15 @@ function modeCastMove(state: GameState, mode: CastMode): Move {
 }
 
 /** The `subject` object after `move` is applied, wherever it ended up — still
- *  on the stack (the ISMCTS executor leaves it there by design) or already on
- *  the battlefield (the greedy sandbox resolves it). */
+ *  on the stack (the ISMCTS executor leaves it there by design), already on the
+ *  battlefield (the greedy sandbox resolves a permanent spell), or in the
+ *  graveyard (CR 608.2m — the greedy sandbox resolving an INSTANT or SORCERY,
+ *  which is what an overload card is). */
 function subjectAfter(state: GameState): CardInstanceState {
     const everywhere: CardInstanceState[] = [
         ...state.stack,
         ...state.players.flatMap((p) => p.battlefield),
+        ...state.players.flatMap((p) => p.graveyard),
     ];
     const found = everywhere.find((c) => c.id === "subject");
     if (!found) throw new Error("subject vanished");
@@ -223,6 +244,8 @@ function altCostIdFor(def: CardDefinition, mode: CastMode): string {
             return def.dash?.id ?? "";
         case "evoke":
             return def.evoke?.id ?? "";
+        case "overload":
+            return def.overload?.id ?? "";
     }
 }
 
