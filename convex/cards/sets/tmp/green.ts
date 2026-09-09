@@ -175,6 +175,8 @@ export const harrow: CardDefinition = {
 // never lets a creature be cast at instant speed for its printed price.
 // Enforced once, at announcement, by `castPermissionRequiredFor`
 // (`convex/gre/rules.ts`).
+//
+// compiler-gap: Any player may cast creature spells with mana value 3 or less without paying their mana costs and as though they had flash. (#3268)
 export const aluren: CardDefinition = {
     id: "268403bc-733d-446e-a7c1-abc957c42bc2",
     name: "Aluren",
