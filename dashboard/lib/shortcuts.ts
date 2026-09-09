@@ -127,6 +127,28 @@ function focusVisibleSearchBox(doc: Document): void {
  * there. The header line already says the store is unavailable; pressing `r`
  * should be quiet, not a second error.
  */
+/**
+ * The most recent `r` refresh, kept so a test can await its REAL completion.
+ *
+ * `refreshVisibleView` reaches History's transport through a dynamic
+ * `import()`, which settles on a MODULE-LOAD tick, not a microtask — so
+ * `await Promise.resolve()`, however many times a test repeats it, can return
+ * while the import is still pending. The module graph then finishes loading
+ * after vitest has torn the environment down, and the resulting
+ * `EnvironmentTeardownError` is an UNHANDLED REJECTION: it fails the whole run
+ * without failing any single test, intermittently, under parallel load only.
+ *
+ * The `.catch` is the other half of the same class: `void promise` attaches no
+ * handler, so a refresh that REJECTS (an offline store, a fetch that throws)
+ * was an unhandled rejection too. The keyboard layer has nothing to report —
+ * the header line already says the store is unavailable — so it swallows it
+ * here rather than at the process level.
+ */
+let pendingRefresh: Promise<void> = Promise.resolve();
+
+/** The in-flight `r` refresh, for tests that must wait for it to finish. */
+export const refreshSettled = (): Promise<void> => pendingRefresh;
+
 async function refreshVisibleView(): Promise<void> {
     if (currentView() === "now") {
         void refreshLoopStatus();
@@ -194,7 +216,7 @@ export function handleKeydown(
             break;
         case "r":
             e.preventDefault();
-            void refreshVisibleView();
+            pendingRefresh = refreshVisibleView().catch(() => {});
             break;
         case "/":
             e.preventDefault();

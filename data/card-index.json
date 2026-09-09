@@ -17174,6 +17174,14 @@
         "source": "compiled"
     },
     {
+        "name": "Ivora, Insatiable Heir",
+        "scryfallId": "2ba70366-b6ae-423a-a8d8-29d2b8afd939",
+        "oracleId": "d847542b-7522-43ec-91b0-f0aba5d7dddd",
+        "firstSet": "j25",
+        "firstPrintId": "2ba70366-b6ae-423a-a8d8-29d2b8afd939",
+        "firstPrintSet": "j25"
+    },
+    {
         "name": "Ivory Cup",
         "scryfallId": "9964d8d8-dc97-4e5f-9f52-173f7e2c37fd",
         "oracleId": "8e2017c3-057d-4e30-bd60-f486fddbc6ca",
@@ -23956,6 +23964,14 @@
         "firstPrintSet": "eoe"
     },
     {
+        "name": "Oust",
+        "scryfallId": "07313dd3-d0dc-40ca-98a3-fa4d39e5bcae",
+        "oracleId": "efc12fda-054b-466a-a863-06cf54878172",
+        "firstSet": "roe",
+        "firstPrintId": "07313dd3-d0dc-40ca-98a3-fa4d39e5bcae",
+        "firstPrintSet": "roe"
+    },
+    {
         "name": "Outlaw Medic",
         "scryfallId": "2feaa51e-47fb-4849-b420-ee7278f3489a",
         "oracleId": "637be5f7-ab39-4e3a-a5eb-c6e48fca00a9",
@@ -25474,6 +25490,14 @@
         "firstSet": "leg",
         "firstPrintId": "a1dcf48c-2700-4024-807e-9244e4c649ac",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Prismari Charm",
+        "scryfallId": "8f6c2a5e-fe13-407c-aadd-c9caf2884ff1",
+        "oracleId": "c3c25a2c-f71c-4cb7-9117-0bcda9248bfd",
+        "firstSet": "sos",
+        "firstPrintId": "8f6c2a5e-fe13-407c-aadd-c9caf2884ff1",
+        "firstPrintSet": "sos"
     },
     {
         "name": "Prismatic Omen",
@@ -31434,6 +31458,14 @@
         "firstPrintSet": "exo",
         "rarity": "rare",
         "source": "compiled"
+    },
+    {
+        "name": "Spider-Woman, Stunning Savior",
+        "scryfallId": "bc9b2a76-3cce-4fd0-a4ef-932747cb11b2",
+        "oracleId": "be2b9c6d-4ecb-49ec-b276-4aa93c5dfc00",
+        "firstSet": "spm",
+        "firstPrintId": "bc9b2a76-3cce-4fd0-a4ef-932747cb11b2",
+        "firstPrintSet": "spm"
     },
     {
         "name": "Spiderwig Boggart",

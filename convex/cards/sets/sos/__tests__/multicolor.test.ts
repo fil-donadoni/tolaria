@@ -867,3 +867,162 @@ describe("Vicious Rivalry ({2}{B}{G} — pay X life, destroy all artifacts/creat
         ).toBeDefined();
     });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Prismari Charm (issue #3228)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const prismariCharm = getDefinition("8f6c2a5e-fe13-407c-aadd-c9caf2884ff1");
+// A 2/2 (Grizzly Bears): the damage-mode victim must SURVIVE 1 damage, or the
+// lethal-damage SBA removes it before the assertion can read it — the module's
+// shared `CREATURE_ID` is a 2/1.
+const PC_CREATURE_ID = "ce2d603a-3231-4a8c-bf39-1617586ea870";
+
+/** `n` filler library cards for p1, index 0 = the top. */
+const pcLib = (ids: string[]) =>
+    ids.map((id) =>
+        makeInstance(CREATURE_ID, {
+            id,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        })
+    );
+
+describe("Prismari Charm (CR 700.2 modal, 701.25 surveil, 601.2c one-or-two targets — issue #3228)", () => {
+    it("surveil-draw mode: surveil 2 (one binned, one kept) then draws the kept card", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: pcLib(["a", "b", "c"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, prismariCharm.id, "p1");
+        item.chosenModeId = "surveil-draw";
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on surveil
+
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("order-top");
+        expect(head.destination).toBe("graveyard");
+        // Surveil 2 looks at "a" and "b": bin "a", keep "b" on top.
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["b"],
+            secondZoneIds: ["a"],
+        });
+
+        expect(state.players[0].graveyard.some((c) => c.id === "a")).toBe(true);
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["b"]);
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["c"]);
+    });
+
+    it("damage mode with ONE target deals 1, once — not 2", () => {
+        const victim = makeInstance(PC_CREATURE_ID, {
+            id: "victim",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        const item = pushSpell(state, prismariCharm.id, "p1", [
+            { type: "permanent", id: "victim" },
+        ]);
+        item.chosenModeId = "damage-one-or-two";
+        resolveTopOfStack(state);
+
+        const live = state.players[1].battlefield.find(
+            (c) => c.id === "victim"
+        )!;
+        expect(live.damageMarked).toBe(1);
+    });
+
+    it("damage mode with TWO targets deals 1 to EACH, and a PLAYER target is not skipped", () => {
+        // The player half is the whole reason this mode is written as one
+        // `dealDamage` per announced slot: a `forEach { set: "targets" }`
+        // sweep keeps only permanent entries, so a targeted player would
+        // silently take nothing.
+        const victim = makeInstance(PC_CREATURE_ID, {
+            id: "victim",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        const item = pushSpell(state, prismariCharm.id, "p1", [
+            { type: "permanent", id: "victim" },
+            { type: "player", id: "p2" },
+        ]);
+        item.chosenModeId = "damage-one-or-two";
+        resolveTopOfStack(state);
+
+        const live = state.players[1].battlefield.find(
+            (c) => c.id === "victim"
+        )!;
+        expect(live.damageMarked).toBe(1);
+        expect(state.players[1].life).toBe(19);
+    });
+
+    it("bounce mode returns the targeted nonland permanent to its owner's hand", () => {
+        const victim = makeInstance(CREATURE_ID, {
+            id: "victim",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        const item = pushSpell(state, prismariCharm.id, "p1", [
+            { type: "permanent", id: "victim" },
+        ]);
+        item.chosenModeId = "bounce-nonland";
+        resolveTopOfStack(state);
+
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["victim"]);
+    });
+
+    it("bounce mode cannot target a land (CR 601.2c legality)", () => {
+        const land = makeInstance(forest.id, {
+            id: "land",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const creature = makeInstance(CREATURE_ID, {
+            id: "creature",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [land, creature] }),
+            ],
+        });
+        const mode = prismariCharm.modes!.find(
+            (m) => m.id === "bounce-nonland"
+        )!;
+        const legal = getLegalTargets(
+            state,
+            mode.targetRequirement!,
+            NO_TARGETING_SOURCE,
+            "p1"
+        );
+        const ids = legal.map((t) => (t as { id: string }).id);
+        expect(ids).toContain("creature");
+        expect(ids).not.toContain("land");
+    });
+});
