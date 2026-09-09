@@ -70,7 +70,7 @@ import {
     hasCastPermissionFlash,
 } from "./castPermissions";
 import { faceDownCastView, isMorphCastAlternativeCost } from "./morph";
-import { castSubjectView } from "./castMode";
+import { castSubjectDefinition, castSubjectView } from "./castMode";
 import { adventureCastOptionFor } from "./adventure";
 import { canPayAnyAdditionalCost } from "./additionalCost";
 import {
@@ -1386,46 +1386,73 @@ export function getLegalActions(
                     ? { extraMana: flashSurchargeOf(card) }
                     : {}),
             }) ||
-                castOptionAlternativeCosts(state, caster, card).some((alt) =>
-                    canPotentiallyPayCost(
-                        caster,
-                        // CR 702.37c / 707.2 (issue #2970 review) — a MORPH
-                        // variant is cast as "a 2/2 creature with no text, no
-                        // name, no subtypes, and no mana cost", so the
-                        // modifiers folded below (and any characteristic-keyed
-                        // mana restriction the solver reads) must be judged
-                        // against THOSE characteristics. Same view
-                        // `announceCast` and the Bot's morph variant price
-                        // against, so the three cannot disagree. Identity to
-                        // the real card is unchanged — the view is a spread,
-                        // so the instance id and any object-scoped exile tax
-                        // ride along.
-                        isMorphCastAlternativeCost(
-                            tryGetDefinition(
-                                (card.card as { id?: string }).id ?? ""
-                            ) ?? undefined,
-                            alt
-                        )
-                            ? faceDownCastView(card)
-                            : card,
-                        alt.mana ?? {},
-                        state,
-                        {
-                            // CR 601.3c / 601.2f — the surcharge buys the
-                            // TIMING, not the spell, so it joins an
-                            // alternative cost the same way it joins a
-                            // printed one; `announceCast`'s alt branch folds
-                            // it just above the modifiers. Inert today (no
-                            // shipped card carries both `alternativeCosts`
-                            // and `flashSurcharge`) — here so
-                            // the gate can never price a cast the commit path
-                            // prices differently.
-                            ...(flashSurchargeRequired(state, caster.id, card)
-                                ? { extraMana: flashSurchargeOf(card) }
-                                : {}),
-                        }
+                castOptionAlternativeCosts(state, caster, card)
+                    // CR 715.3a (ADR 0120 §4) — an option whose SUBJECT is not
+                    // this card is not an alternative price for THIS spell; it
+                    // is a different spell, with its own timing and its own
+                    // targets, and it gets its own conjunction above. Without
+                    // this filter an affordable Petty Theft made the 3/1
+                    // creature castable for a cost the caster cannot pay, on a
+                    // board where the Adventure has no legal target.
+                    //
+                    // Derived from the census rather than named per mode:
+                    // `subject` is the identity for every option that casts the
+                    // printed card (morph included — its face-down view is a
+                    // characteristics view, not a different definition), so
+                    // this drops exactly the ones that do not.
+                    .filter(
+                        (alt) =>
+                            castSubjectDefinition(
+                                tryGetDefinition(
+                                    (card.card as { id?: string }).id ?? ""
+                                ) ?? undefined,
+                                alt.id
+                            )?.id === (card.card as { id?: string }).id
                     )
-                )) &&
+                    .some((alt) =>
+                        canPotentiallyPayCost(
+                            caster,
+                            // CR 702.37c / 707.2 (issue #2970 review) — a MORPH
+                            // variant is cast as "a 2/2 creature with no text, no
+                            // name, no subtypes, and no mana cost", so the
+                            // modifiers folded below (and any characteristic-keyed
+                            // mana restriction the solver reads) must be judged
+                            // against THOSE characteristics. Same view
+                            // `announceCast` and the Bot's morph variant price
+                            // against, so the three cannot disagree. Identity to
+                            // the real card is unchanged — the view is a spread,
+                            // so the instance id and any object-scoped exile tax
+                            // ride along.
+                            isMorphCastAlternativeCost(
+                                tryGetDefinition(
+                                    (card.card as { id?: string }).id ?? ""
+                                ) ?? undefined,
+                                alt
+                            )
+                                ? faceDownCastView(card)
+                                : card,
+                            alt.mana ?? {},
+                            state,
+                            {
+                                // CR 601.3c / 601.2f — the surcharge buys the
+                                // TIMING, not the spell, so it joins an
+                                // alternative cost the same way it joins a
+                                // printed one; `announceCast`'s alt branch folds
+                                // it just above the modifiers. Inert today (no
+                                // shipped card carries both `alternativeCosts`
+                                // and `flashSurcharge`) — here so
+                                // the gate can never price a cast the commit path
+                                // prices differently.
+                                ...(flashSurchargeRequired(
+                                    state,
+                                    caster.id,
+                                    card
+                                )
+                                    ? { extraMana: flashSurchargeOf(card) }
+                                    : {}),
+                            }
+                        )
+                    )) &&
             hasEnoughLegalTargets(state, caster, card) &&
             hasPayableAdditionalCost(caster, card);
         if (
