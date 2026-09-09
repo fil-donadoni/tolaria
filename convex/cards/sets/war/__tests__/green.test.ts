@@ -25,6 +25,7 @@ import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
+import { tapManaBonusUnits } from "../../../../gre/tapManaBonus";
 import {
     getLegalTargets,
     targetingSourceFromCard,
@@ -39,7 +40,6 @@ const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 const mishrasFactory = getDefinition("a696c5b6-f216-454d-8029-74e84bbd1428");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
-const FOREST_MANA = "nissa-who-shakes-the-world-forest-mana";
 const PLUS1 = "nissa-who-shakes-the-world-plus1";
 const MINUS8 = "nissa-who-shakes-the-world-minus8";
 
@@ -145,14 +145,32 @@ describe("Nissa, Who Shakes the World — Forest mana doubling (CR 605.1b / 605.
     });
 
     it("declares the bonus to the PREDICTIVE potential-mana models (CR 605.4)", () => {
-        const trigger = (nissa.triggeredAbilities ?? []).find(
-            (a) => a.id === FOREST_MANA
+        // Asserted through the CONSUMER, not by reading the declaration back:
+        // `manaBonusForPotential` exists only so the castability gate and the
+        // auto-tap solver can see the extra {G} BEFORE it is produced, and the
+        // one reader is `gre/tapManaBonus.ts`.
+        const state = boardWithForest("p1");
+        const forestInst = state.players[0].battlefield.find(
+            (c) => c.id === "forest1"
         )!;
-        expect(trigger.manaAbility).toBe(true);
-        expect(trigger.manaBonusForPotential).toEqual({
-            appliesTo: { filter: { subtypes: "Forest" } },
-            amount: { kind: "fixed", mana: { G: 1 } },
+        const units = tapManaBonusUnits(
+            state.players[0].battlefield,
+            forestInst
+        );
+        expect(units).toHaveLength(1);
+        expect([...units[0]]).toEqual(["G"]);
+
+        // …and NOT for a non-Forest land, which is the half a declaration read
+        // could never see.
+        const factory = makeInstance(mishrasFactory.id, {
+            id: "factory",
+            controllerId: "p1",
+            ownerId: "p1",
         });
+        state.players[0].battlefield.push(factory);
+        expect(
+            tapManaBonusUnits(state.players[0].battlefield, factory)
+        ).toEqual([]);
     });
 });
 

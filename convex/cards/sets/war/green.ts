@@ -29,7 +29,7 @@ import { NISSA_WHO_SHAKES_THE_WORLD_EMBLEM_ID } from "../../emblems";
 // neither of which the script can reach (tracked-by: #2153). Nissa's recipient
 // is "you", the source's own controller, and the amount is a fixed {G}, so
 // `addMana { player: "controller" }` says exactly what the Oracle text says.
-// `scope: "yours"` is CR 109.2's "YOU tap"; `filter: { subtypes: "Forest" }`
+// `scope: "yours"` is CR 109.5's "YOU tap"; `filter: { subtypes: "Forest" }`
 // reads the LIVE subtype, so a Forest made by Prismatic Omen counts.
 //
 // +1 — "up to one target noncreature land you control", then three +1/+1
@@ -38,7 +38,8 @@ import { NISSA_WHO_SHAKES_THE_WORLD_EMBLEM_ID } from "../../emblems";
 // state-based actions could bury — and CR 704.3 does not check SBAs mid-
 // resolution anyway, so a 0/0 with three +1/+1 counters is simply a 3/3
 // (CR 613.4 — counters apply on top of the layer-7a base P/T).
-// `animate` with NO `duration` is the CR 611.2c indefinite change; it ADDS the
+// `animate` with NO `duration` is the CR 611.2a indefinite change ("if no
+// duration is stated, it lasts until the end of the game"); it ADDS the
 // Creature card type to the printed Land rather than replacing it, which is
 // CR 205.1b's "that's still a land" — the land keeps its Forest subtype and
 // keeps tapping for mana, and the two granted keywords share the animation's
@@ -106,7 +107,7 @@ export const nissaWhoShakesTheWorld: CardDefinition = {
                 },
                 // CR 701.26b — untap.
                 { op: "tapUntap", action: "untap", target: { target: 0 } },
-                // CR 205.1b / 611.2c — adds Creature to the printed Land
+                // CR 205.1b / 611.2a — adds Creature to the printed Land
                 // indefinitely; it is STILL a land.
                 {
                     op: "animate",

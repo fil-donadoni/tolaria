@@ -43,6 +43,27 @@ graveyard rather than an Aura's host, so `113.6b` fits those too.
 New code added by issue #3229 cites `CR 113.6k` / `CR 113.6` instead; the pre-existing
 sites were left alone deliberately (see below).
 
+**A second family, same class, found by the review of that same PR** — three ids
+that resolve but say something else, all of them propagated from pre-existing
+sites rather than invented:
+
+- **`CR 611.2c` for "indefinite duration"** (`convex/cards/emblems.ts:86`, and
+  the `animate` Op's own doc at `convex/cards/types.ts` says `611.2b`). 611.2c is
+  about the SET OF OBJECTS a resolution effect affects being fixed; 611.2b is
+  "for as long as …". The rule for a stated-nothing duration is **`CR 611.2a`**:
+  "If no duration is stated, it lasts until the end of the game." Corrected at
+  the three sites #3229 added; the two older ones remain.
+- **`CR 111.5` for the token-ness filter** — 111.5 is "the token is not created
+  if a rule stops a permanent with those characteristics entering". A token
+  simply BEING a token is **`CR 111.1`**.
+- **`CR 707.1` for "one effect creating two tokens"** — 707.1 is the copy-effects
+  preamble. Token creation is **`CR 111.1` / `111.2`**.
+- Weaker, judgement calls, also corrected in that PR: `CR 601.2b` for "without
+  paying their mana costs" (the rule that quotes the phrase verbatim is
+  **`CR 118.9`**), and `CR 109.2` for "you control" (109.2 is about zone-less
+  type descriptions; "you"/"your" is **`CR 109.5`**). `CR 109.2` is cited this
+  way across many set files.
+
 **Why this is invisible to the gate.** `bun run cr:lint` only asks whether an id
 _resolves_, and its keyword cross-check is scoped to the `701`/`702` blocks. A
 resolvable-but-wrong id outside those blocks is exactly the class the scan cannot

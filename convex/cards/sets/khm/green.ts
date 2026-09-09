@@ -25,8 +25,8 @@ import { CAT_TOKEN } from "../../sharedTokens";
 // ["Legendary"]` rides through the builder onto the definition; the crew
 // animation uses the PRINTED 4/4 (CR 301.7b).
 //
-// ETB: two Cats through ONE `createToken` Op with `count: 2` (CR 707.1 — one
-// effect creating two tokens), on the shared `CAT_TOKEN` spec
+// ETB: two Cats through ONE `createToken` Op with `count: 2` (CR 111.1 — one
+// effect creating two token markers), on the shared `CAT_TOKEN` spec
 // (`cards/sharedTokens.ts`) so every future Cat producer hashes to the same
 // synthesized `tokenDefinitionId`. Art is resolved per producer from
 // `generated/token-prints.json` — Esika's Chariot's own KHM printing
@@ -35,7 +35,7 @@ import { CAT_TOKEN } from "../../sharedTokens";
 // ATTACK trigger: "create a token that's a copy of target token you control."
 //   * "target token you control" is an ANNOUNCED target chosen as the trigger
 //     goes on the stack (CR 603.3d), declared as `targetRequirement` with
-//     `isToken: true` (CR 111.5's token-ness filter, issue #1195 — "true keeps
+//     `isToken: true` (CR 111.1's token-ness filter, issue #1195 — "true keeps
 //     ONLY tokens") and `controller: "you"`. `type: [...PERMANENT_TYPES]` because
 //     a token can be any permanent type — the Oracle text restricts token-ness
 //     and controller, nothing else. A token that has left the battlefield before

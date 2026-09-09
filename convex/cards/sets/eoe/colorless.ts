@@ -31,7 +31,7 @@ import { TEZZERET_CRUEL_CAPTAIN_EMBLEM_ID } from "../../emblems";
 // special case: `counters` with `counter: "loyalty"` writes the very field
 // `LOYALTY_COUNTER_KEY` (`gre/loyalty.ts`) names, so the gain is visible to the
 // 0-loyalty SBA (CR 704.5i) and to every `-N` cost check. `scope: "yours"` +
-// `filter: { types: "Artifact" }` is CR 109.2's "you control"; Tezzeret himself
+// `filter: { types: "Artifact" }` is CR 109.5's "you control"; Tezzeret himself
 // is a planeswalker, so his own entry never fires it.
 //
 // 0 — "Untap target artifact or creature. If it's an artifact creature, put a

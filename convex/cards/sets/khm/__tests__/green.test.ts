@@ -4,7 +4,7 @@
 // (`sets/kld/__tests__/colorless.test.ts`); what earns assertions here is the
 // pair the card introduces: an "any number of tokens in one Op" ETB, and an
 // attack trigger whose ANNOUNCED target is filtered by token-ness
-// (`TargetRequirement.isToken`, CR 111.5) — including the recursion that makes
+// (`TargetRequirement.isToken`, CR 111.1) — including the recursion that makes
 // the card what it is, a copy of a token being itself a token (CR 111.1), so
 // the Chariot can copy the Cat it made last turn.
 
@@ -115,7 +115,7 @@ function attackTargetIds(state: GameState): string[] {
         .sort();
 }
 
-describe("Esika's Chariot — ETB Cats (CR 707.1 / 111, issue #3229)", () => {
+describe("Esika's Chariot — ETB Cats (CR 111.1 / 111.2, issue #3229)", () => {
     it("creates TWO 2/2 green Cat tokens in one resolution", () => {
         const state = makeState({
             players: [

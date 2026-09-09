@@ -56,6 +56,17 @@ import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 // of colour (CR 105.2c), never a sixth colour, so the filter is "has none of
 // W/U/B/R/G", not "has colour C".
 //
+// One engine narrowing rides on that. `SpellCastEvent.spellColors` is derived
+// from the MANA COST alone (`emitSpellCastEvent`, `gre/state.ts`), and colour
+// indicators (CR 202.2b) are not modelled on `CardDefinition` — out of scope here,
+// the defect is in the three Kobold definitions rather than in this trigger (see
+// `cards/colors.ts` and
+// docs/findings/3229-colour-indicators-are-not-modelled-on-carddefinition.md).
+// Crimson Kobolds / Crookshank Kobolds / Kobolds of Kher Keep
+// (`sets/leg/colorless.ts`) are printed RED with an empty mana cost, so this
+// trigger fires on them where paper says it must not. The reverse direction is
+// safe: no devoid card ships.
+//
 // +2 / 0 are the plain shipped Op shapes (`gainLife` + `draw`; `addMana` with
 // `{ C: 3 }` — unrestricted colourless mana, CR 106.1, not a Powerstone's
 // spend-restricted mana).
@@ -69,7 +80,7 @@ import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 // FIRST pick only, which would silently drop every card after the first — the
 // difference matters precisely because this search is "any number".
 // `window: "this-turn"` is the printed "until end of turn"; the cast is free
-// (CR 601.2b — "without paying their mana costs").
+// (CR 118.9 — the rule that quotes "without paying its mana cost" verbatim).
 const UGIN_COLORED_PERMANENT: TargetRequirement = {
     type: [...PERMANENT_TYPES],
     count: { min: 0, max: 1 },

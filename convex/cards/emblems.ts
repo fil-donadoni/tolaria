@@ -392,7 +392,8 @@ registerEmblemDefinition({
  *  on the announced slot with `excludeType: "Creature"`, read against the LIVE
  *  layer-materialised type line (CR 613) — an artifact already animated by
  *  something else correctly skips the animation. `animate` with NO `duration` is
- *  the CR 611.2c indefinite change the Oracle text means; `subtype: "Robot"` is
+ *  the CR 611.2a indefinite change the Oracle text means ("if no duration is
+ *  stated, it lasts until the end of the game"); `subtype: "Robot"` is
  *  the creature type, and the Creature card type is what `animate` adds on top of
  *  the printed Artifact (CR 205.1b — "artifact creature" retains the prior
  *  types), so nothing has to re-state "artifact". */
