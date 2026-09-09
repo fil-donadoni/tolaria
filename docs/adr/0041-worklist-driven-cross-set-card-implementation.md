@@ -96,8 +96,12 @@ exists to diff against, so semantic judgment is required). Output per worklist i
   build the missing capability once, then uncomment every card it unlocks. Prioritized
   by _(cards unlocked ÷ build effort)_.
 - **out-of-scope** — cards whose **layout** isn't modeled (transform/MDFC/split/
-  adventure/meld/flip) or otherwise deferred. No stub; listed in the coverage report
+  meld/flip) or otherwise deferred. No stub; listed in the coverage report
   with a reason; one **`ready-for-human`** issue per layout (schema-level work).
+  **Adventure left this bucket** ([ADR 0120][adr-0120], issue #3223): CR 715.4 puts
+  the alternative characteristics on the stack and nowhere else, so an adventurer
+  card is a cast option over an **Inset Spell**, not schema-level layout work. The
+  same reading covers preparation cards (CR 722). Split, MDFC and meld stay here.
 
 ## Consequences
 
@@ -115,3 +119,5 @@ exists to diff against, so semantic judgment is required). Output per worklist i
 - The lockfile becomes a load-bearing committed artifact: forgetting to refresh it on
   import breaks the id-guard. That is the intended failure mode (loud, in CI) rather
   than silent art breakage.
+
+[adr-0120]: 0120-inset-spell-is-a-registered-twin-definition.md
