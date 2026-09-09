@@ -430,6 +430,12 @@ export type Move =
            *  `announcedTargetsNeedConfirm` against the LAST target group's
            *  resolved count, never "is the requirement variable-count". */
           confirmTargets: boolean;
+          /** CR 602.1 (issue #3081) — when the ability's cost declares `{T}`,
+           *  NO entry here may name the ability's own source: the {T} leg
+           *  spends that permanent, and the server re-checks it UNTAPPED at
+           *  commit (CR 302.1). A plan that tapped it for mana therefore paid
+           *  the mana leg in full and then had the whole activation dropped.
+           *  See `planManaPayment`'s `barredSourceId`. */
           tapPlan: ManaTap[];
           /** CR 602.1 / 118 — the cards named to pay the ability's DEFERRED
            *  cost legs (discard / exile-from-graveyard / tap-other). The
@@ -757,7 +763,42 @@ export function planManaPayment(
      *  pay here under EXACTLY the scoping `activateAbilityOnState` applies at
      *  commit. Omitting it is the morph / special-action case and yields the
      *  unscoped set, as before. */
-    abilitySource?: CardInstanceState
+    abilitySource?: CardInstanceState,
+    /** CR 602.1 / 601.2f (issue #3081) — the permanent BARRED from funding this
+     *  plan, because paying the cost this plan covers already taps it. An
+     *  activated ability whose cost declares `{T}` taps its own source as part
+     *  of that cost, so the source is not available to also produce mana for
+     *  the cost's MANA leg: the two legs are paid from the same physical
+     *  permanent and only one of them can have it.
+     *
+     *  Before this, the ability enumerator built its source list from every
+     *  untapped permanent the player controlled — the source included — so a
+     *  land with both a `{T}: Add <color>` mana ability and a
+     *  `<mana>, {T}: <effect>` ability funded its own activation. Two failures
+     *  followed, and the second is the visible one.
+     *
+     *  Affordability over-counts: the plan needs one fewer OTHER source than
+     *  the cost, so the Move is enumerated on a board that cannot complete it.
+     *
+     *  And the activation is then SILENTLY DROPPED. The Bot announces with an
+     *  empty pool, so the server takes its DEFERRED branch (`pendingActivation`,
+     *  game.ts): the {T} leg is NOT paid at announce — the source deliberately
+     *  stays untapped, to be re-checked untapped at commit (CR 302.1). The
+     *  executor then walks the tap plan, whose entry for the source taps it
+     *  FOR MANA; the pool is paid in full, and `tryAutoCommitPendingActivation`
+     *  reaches `pa.tapSource` with `card.isTapped` already true, reads that as
+     *  a benign double-commit race and discards the whole pending activation
+     *  without an error (game.ts, "Benign double-commit race"). The lands stay
+     *  tapped, the mana stays spent, nothing reaches the stack — the Bot
+     *  tapping four permanents a turn, every turn. A fifth land does not help:
+     *  the plan is minimum-cardinality and still selects the source itself.
+     *
+     *  Barred at the SOURCE-LIST level, so the exclusion reaches the `capacity`
+     *  early reject and the greedy selection by construction rather than by two
+     *  agreeing filters. The permanent stays available to fund a DIFFERENT
+     *  ability or a spell, exactly as before; only THIS plan cannot have it.
+     *  Cast, bestow, morph and dash pass nothing and are unchanged. */
+    barredSourceId?: string
 ): ManaTap[] | null {
     const totalRequired =
         (cost.X ?? 0) + MANA_COLORS.reduce((s, c) => s + (cost[c] ?? 0), 0);
@@ -821,6 +862,12 @@ export function planManaPayment(
     ) {
         const perm = player.battlefield[permIndex];
         if (perm.isTapped) continue;
+        // Issue #3081 — the ability's own `{T}` already spends this permanent.
+        // Skipped BEFORE `capacity` is credited and before the converter
+        // widening below, so neither the early reject nor the greedy selection
+        // can see it: a converter leg naming this permanent as its fodder is
+        // just as unpayable, since the fodder tap is the tap the cost took.
+        if (perm.id === barredSourceId) continue;
         // Issue #1754 — full both-players board view: covers Mox Opal /
         // Fanatic of Rhonas (self-referential) AND Fellwar Stone
         // (opponent-scanning), matching the gate's board visibility exactly.
@@ -2854,8 +2901,11 @@ function enumerateAbilityMoves(
             if (!canPayTapOtherCost(ability.cost.tapOtherFilter, available))
                 continue;
         }
-        // Mana cost: must be payable. The {T} part of the cost is paid by the
-        // activate mutation itself, not by the tap plan.
+        // Mana cost: must be payable. The {T} part of the cost is not paid by
+        // the tap plan — which is exactly why the source must be BARRED from
+        // it (issue #3081): the server re-checks the source UNTAPPED when it
+        // commits the activation (CR 302.1), so a plan that spent it for mana
+        // gets the whole activation dropped at commit.
         const manaCost: Record<string, number> = ability.cost.mana
             ? normalizeManaCost(ability.cost.mana)
             : {};
@@ -2904,7 +2954,11 @@ function enumerateAbilityMoves(
             player,
             manaCost,
             undefined,
-            perm
+            perm,
+            // CR 602.1 (issue #3081) — the ONLY caller that bars a source, and
+            // only when the cost really taps it. An ability with no `{T}` may
+            // still be funded by its own source, as before.
+            ability.cost.tap ? perm.id : undefined
         );
         if (tapPlan === null) continue;
 

@@ -5298,6 +5298,123 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: { moves: [{ kind: "cast-spell", card: "Grizzly Bears" }] },
         note: "Issue #2706 — the first `cast-permission` static. With landCount 0 the printed cost cannot be paid, so a `cast-spell` move at all IS the free cast; no other line exists.",
     },
+    {
+        // DISCRIMINATING PAIR, HALF 1 of 2 (issue #3081).
+        // PAIRED WITH: "self-tap source: pays a {T} ability entirely from the
+        // OTHER lands".
+        //
+        // Abandoned Air Temple carries BOTH a `{T}: Add {W}` mana ability and
+        // a `{3}{W}, {T}: Put a +1/+1 counter on each creature you control`
+        // ability. The {T} leg spends the land, so the mana leg has to come
+        // from somewhere else — and here there are only THREE other Plains
+        // against a four-mana cost. The activation is unpayable and must not
+        // be offered at all.
+        //
+        // Before this issue the planner built its source list from every
+        // untapped permanent the player controlled, the temple included, so
+        // the temple funded its own activation and the Move was enumerated on
+        // a board one source short. What followed was SILENT: the Bot
+        // announces with an empty pool, so the server defers and leaves the
+        // temple untapped (a {T} cost is re-checked untapped at commit,
+        // CR 302.1); the executor's tap plan then taps the temple FOR MANA,
+        // the mana leg is paid in full, and the commit finds the source
+        // already tapped, reads a benign double-commit race and discards the
+        // whole activation without an error. Observed live as "the Bot taps
+        // four permanents every turn and nothing reaches the stack" — and
+        // adding a fifth land did not change the count, because the plan is
+        // minimum-cardinality and still selected the source itself.
+        label: "self-tap source: does NOT activate a {T} ability its OTHER lands cannot pay",
+        spec: {
+            cards: [
+                {
+                    name: "Abandoned Air Temple",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: false,
+                },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                // Two creatures, so the payoff is real: the out-of-scope
+                // "should it WANT this at all on an empty board" question
+                // never enters the position.
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            // The three Plains above ARE the whole mana base — one short.
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "activate-ability", card: "Abandoned Air Temple" },
+            ],
+        },
+        note: 'Half 1 of the discriminating pair — PAIRED WITH "self-tap source: pays a {T} ability entirely from the OTHER lands". Neither half is meaningful alone: half 2 shares every line but ONE extra Plains, so a bot that had simply been taught to never activate this land would pass half 1 and fail half 2. The mana ability is deliberately left on the card — the temple stays a legal source for any OTHER cost, and only its own activation may not have it.',
+    },
+    {
+        // DISCRIMINATING PAIR, HALF 2 of 2 (issue #3081).
+        // PAIRED WITH: "self-tap source: does NOT activate a {T} ability its
+        // OTHER lands cannot pay". Identical position with a FOURTH Plains:
+        // {3}{W} is now payable from the other lands alone, so the activation
+        // must be taken — and its tap plan must name only those lands.
+        //
+        // This is the half that stops the fix from becoming "never activate a
+        // {T} ability on a permanent that also taps for mana": a bar that
+        // over-reached would pass half 1 and fail here.
+        label: "self-tap source: pays a {T} ability entirely from the OTHER lands",
+        spec: {
+            cards: [
+                {
+                    name: "Abandoned Air Temple",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: false,
+                },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2],
+        tier: "must",
+        expect: {
+            // A `moves` matcher would only say "it activated the temple". The
+            // acceptance criterion is stronger — the cost must be PAID from
+            // the other lands — and the tap plan is where that is observable,
+            // so the assertion reads the chosen Move's own plan.
+            predicate: (move, state) =>
+                move?.kind === "activate-ability" &&
+                state.players[0].battlefield.some(
+                    (c) =>
+                        c.id === move.cardInstanceId &&
+                        (c.card as { id?: string }).id ===
+                            getCardByName("Abandoned Air Temple").id
+                ) &&
+                move.tapPlan.length === 4 &&
+                move.tapPlan.every(
+                    (t) => t.cardInstanceId !== move.cardInstanceId
+                ),
+            describe:
+                "activates Abandoned Air Temple's {3}{W}, {T} ability with a four-tap plan that never names the temple itself",
+        },
+        note: 'Half 2 of the discriminating pair — PAIRED WITH "self-tap source: does NOT activate a {T} ability its OTHER lands cannot pay". One extra Plains is the ONLY difference between the halves. The predicate asserts the tap plan, not just the choice: before issue #3081 a plan on this board could still name the temple (minimum-cardinality selection prefers the source it is already committed to), and such a plan is exactly what got the activation discarded at commit for a source the plan itself had tapped.',
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the
