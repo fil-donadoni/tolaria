@@ -4,7 +4,7 @@ import type { Id } from "./_generated/dataModel";
  * The bug-report disclosure's version — issue #3255.
  *
  * A consent is a consent to a SPECIFIC payload. When the diagnostic payload
- * widens (issue #3256 is already queued to widen it), this number rises, and
+ * widens, this number rises, and
  * every account whose stored version is behind is shown the gate again before
  * its next report carries diagnostics. That is the whole mechanism: re-asking
  * is derived from a comparison, never remembered by hand.
@@ -14,7 +14,17 @@ import type { Id } from "./_generated/dataModel";
  * reach one side and not the other (ADR 0074: the frontend may import pure
  * modules from `convex/`, it just never holds authority).
  */
-export const BUG_REPORT_CONSENT_VERSION = 1;
+export const BUG_REPORT_CONSENT_VERSION = 2;
+
+// Version log — what each bump widened, so a row filed under an older version
+// can be read for what its reporter was actually told:
+//   1 (issue #3255) — route, user agent, game board, AI decision + escalation
+//                     rings.
+//   2 (issue #3256) — build identity, console ring (with uncaught errors and
+//                     unhandled rejections), failed backend requests, realtime
+//                     connection state, viewport/DPR/pointer, storage and
+//                     service-worker facts, allowlisted `tolaria:` preferences,
+//                     and the monitoring correlation id.
 
 /** Whether the gate must be shown un-pre-accepted: no stored consent at all,
  *  or one given against an older, narrower payload. */

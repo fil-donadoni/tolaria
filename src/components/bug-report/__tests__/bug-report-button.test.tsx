@@ -11,6 +11,16 @@ vi.mock("convex/react", () => ({
     useQuery: () => null,
     useMutation: () => vi.fn(),
     useAction: () => vi.fn(),
+    // The dialog reads the socket's state for its diagnostic payload (#3256).
+    useConvex: () => ({
+        connectionState: () => ({
+            isWebSocketConnected: true,
+            hasEverConnected: true,
+            connectionCount: 1,
+            connectionRetries: 0,
+            hasInflightRequests: false,
+        }),
+    }),
 }));
 vi.mock("@convex/_generated/api", () => ({
     api: {

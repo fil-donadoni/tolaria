@@ -1,6 +1,7 @@
 import { defineConfig } from "vitest/config";
 import path from "path";
 import { splitSrcTests } from "./scripts/test-env-split";
+import { buildDefine } from "./scripts/lib/build-define";
 
 // Shared resolve aliases — must match tsconfig paths so both projects resolve
 // `~`, `@`, and `@convex` identically.
@@ -200,6 +201,11 @@ const WORKERS = Math.max(1, Number(process.env.TOLARIA_VITEST_WORKERS ?? 2));
 
 export default defineConfig({
     resolve: { alias },
+    // The SAME build-identity substitution `vite.config.ts` applies (issue
+    // #3256). Without it `__BUILD_COMMIT__` is an undeclared global under test
+    // and the guard asserting the bug-report payload carries a build identity
+    // could only ever assert a fallback.
+    define: buildDefine(),
     test: {
         globals: true,
         maxWorkers: WORKERS,

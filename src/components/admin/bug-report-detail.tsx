@@ -146,14 +146,28 @@ export default function BugReportDetail({
                     </div>
                 )}
 
-                {/* issue #2470 — the bot's decision and escalation rings. The
-                    play bot is client-hosted (ADR 0074), so this is the ONLY
-                    record of why one of its decisions failed: the board
-                    snapshot above shows the position, this shows whether the
-                    Brain ever answered for it. */}
+                {/* issue #2470 / #3256 — everything the reporter's own tab
+                    knew and the server cannot reconstruct: the bot's decision
+                    and escalation rings (the play bot is client-hosted, ADR
+                    0074), the build the bundle came from, the console ring, the
+                    failed backend requests, the realtime connection state and
+                    the allowlisted preferences. The board snapshot above shows
+                    the POSITION; this shows the CLIENT that produced it. */}
                 {report.clientDiagnostics !== undefined && (
                     <div className="flex flex-col gap-2 border-t border-border-subtle pt-3">
-                        <span className="text-label">AI diagnostics</span>
+                        <span className="text-label">Client diagnostics</span>
+                        <p className="text-xs text-text-muted">
+                            Start at <code>build.commit</code> — it says which
+                            bundle produced this.{" "}
+                            <code>monitoring.traceId</code> is the join key to
+                            the continuously collected Sentry session: search{" "}
+                            <code>trace:&lt;id&gt;</code> there for the same
+                            session, or open <code>monitoring.lastEventId</code>{" "}
+                            directly when a crash is what was reported. Only
+                            allowlisted <code>tolaria:</code> preferences travel
+                            &mdash; auth tokens share that storage and are never
+                            read.
+                        </p>
                         <div className="max-h-[60vh] overflow-auto rounded-sm border border-border-subtle p-2 font-mono text-xs">
                             <JsonTreeView data={report.clientDiagnostics} />
                         </div>

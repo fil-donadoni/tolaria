@@ -643,6 +643,22 @@ _Avoid_: Threat level, aggro score, race
 The serialized form of **GameState** stored in Convex. Strips defaults, coalesces against **Card Definitions**, and compresses **Library** entries to `[instanceId, cardId]` tuples.
 _Avoid_: Blob, serialized state, stored state
 
+**Decision Ring**:
+The bounded, client-only history of every decision the **Bot** driver took — outcome, the **Expected Input** window it was resting on, phase and state version — oldest dropped at a fixed capacity. Its sibling, the _escalation ring_, records which liveness rung fired when the normal path produced nothing. Both exist because the **Brain** runs in the reporter's own tab: a decision that failed leaves no server-side trace, so without the ring a frozen **Bot** and a **Bot** that meant to pass look identical. Never persisted, never authoritative.
+_Avoid_: Trace (that is the **DecisionTrace**, one search), log, history
+
+**Client Diagnostics**:
+Everything a **Bug Report** carries about the reporter's own tab that the server cannot reconstruct: the build the bundle came from, the **Decision Ring**, the console ring with its uncaught errors, failed backend requests reduced to method/path-shape/status, the realtime connection state, viewport and pointer facts, storage and service-worker state, allowlisted `tolaria:` preferences, and the monitoring correlation id. Assembled by ONE module, on a key **allowlist** — never a denylist and never a wholesale dump of browser storage, which holds the auth tokens. Every section optional; absent means absent, not zero.
+_Avoid_: Telemetry (nothing here is collected continuously), analytics, client dump
+
+**Bug Report**:
+A report filed from the in-app button: the reporter's words and contact details, the authoritative board of the game they are seated in (read server-side), and — only behind the versioned **Disclosure Gate** — the **Client Diagnostics**. Stored as a row and mirrored to a PUBLIC GitHub issue that deliberately carries less: no email, no attachment, no board.
+_Avoid_: Ticket, issue (that is the public mirror), feedback
+
+**Disclosure Gate**:
+The versioned consent screen shown before a **Bug Report**'s diagnostic payload leaves the browser. Names each destination separately, states that a two-player report carries the opponent's hidden information, and discloses the third-party monitoring that runs continuously regardless. Recorded on the user record, not in browser storage; when the payload widens the version rises and the gate is shown once more. Declining still files the narrative report.
+_Avoid_: Consent banner, privacy notice, cookie banner
+
 ### Card System
 
 **Card Definition**:
