@@ -66,6 +66,7 @@ import {
     getActivatedManaAbility,
     getEffectiveManaChoices,
     getFixedSacrificeManaAbility,
+    getFixedMultiColorTapManaAbility,
     getManaTapOptions,
     hybridCostKey,
     isSpellStackItem,
@@ -683,6 +684,23 @@ export function hasFixedSacrificeManaAbility(card: CardInstance): boolean {
     return (
         getFixedSacrificeManaAbility(card as unknown as CardInstanceState) !==
         null
+    );
+}
+
+/** True when this source's mana ability has a FIXED output produced by TAPPING
+ *  it and spanning 2+ distinct colours (CR 605.1a, issue #3263) — "{T},
+ *  Sacrifice this land: Add {W}{B}." with no single-colour ability to fall back
+ *  on, a granted "{T}: Add {U}{R}". Client mirror of the engine's
+ *  `getFixedMultiColorTapManaAbility`, read by the same payment gate that asks
+ *  `getActivatedManaColor` about a tap source: a multi-colour output has no
+ *  single `Color`, so that probe answers null and without this the source is
+ *  not clickable while paying a cost even though `tapSourceIntoPayment` now
+ *  accepts it — the ADR 0068 offered-vs-accepted divergence, other way round. */
+export function hasFixedMultiColorTapManaAbility(card: CardInstance): boolean {
+    return (
+        getFixedMultiColorTapManaAbility(
+            card as unknown as CardInstanceState
+        ) !== null
     );
 }
 

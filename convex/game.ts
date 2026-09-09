@@ -403,6 +403,7 @@ import {
     getManaTapOptionsDetailed,
     getFixedManaAmount,
     getFixedSacrificeManaAbility,
+    getFixedMultiColorTapManaAbility,
     hasManaAbility,
     isCreature,
     isPlaneswalker,
@@ -1992,7 +1993,19 @@ export function tapSourceIntoPayment(
     }
 
     const manaColor = getBasicLandMana(card) ?? getActivatedManaColor(card);
-    if (!manaColor) throw new Error("Card does not produce mana");
+    // CR 605.1a (issue #3263) — a FIXED tap mana ability adding 2+ DISTINCT
+    // colours in one activation ("{T}, Sacrifice this land: Add {W}{B}", a
+    // granted "{T}: Add {U}{R}") has no single `Color` for
+    // `getActivatedManaColor` to return, so this site used to reject a source
+    // `getManaTapOptionsDetailed` had just offered the auto-tapper. Resolved
+    // only when there is no single-colour answer, so every existing shape keeps
+    // its exact path.
+    const multiColorAbility = manaColor
+        ? null
+        : getFixedMultiColorTapManaAbility(card);
+    if (!manaColor && !multiColorAbility) {
+        throw new Error("Card does not produce mana");
+    }
     // ADR 0039 / CR 605.1a — a fixed-output "Sacrifice this" mana ability
     // (Basal Thrull) sacrifices the source instead of tapping it. One-way: the
     // sacrificed source is never in `tappedLandIds` as an untappable entry.
@@ -2005,36 +2018,53 @@ export function tapSourceIntoPayment(
     // CR 106.1 / 605.1a — board-conditional output (Urza trio) is computed from
     // the controller's battlefield now and snapshotted onto `chosenMana` so the
     // untap/refund path returns the exact amount that was added.
-    const amount = getFixedManaAmount(
+    const dynamic = getDynamicManaProduced(
         card,
-        manaColor,
         player.battlefield,
         state.continuousEffects
     );
+    // CR 605.1a (issue #3263) — the multi-colour shape contributes its WHOLE
+    // `manaProduced` in one activation, exactly as
+    // `activateFixedSacrificeManaAbility` does for the tap-less sacrifice
+    // shape; the single-colour shape keeps its `getFixedManaAmount` arithmetic.
+    const base: ManaCost = manaColor
+        ? ({
+              [manaColor]: getFixedManaAmount(
+                  card,
+                  manaColor,
+                  player.battlefield,
+                  state.continuousEffects
+              ),
+          } as ManaCost)
+        : (dynamic ?? (multiColorAbility!.manaProduced as ManaCost));
     // CR 614 — Deep Water rewrites a land's produced mana to {U} (no-op for
     // non-lands / unaffected players).
-    const added = applyLandManaReplacement(state, player.id, card, {
-        [manaColor]: amount,
-    } as ManaCost);
+    const added = applyLandManaReplacement(state, player.id, card, base);
+    // CR 106.4 — the multi-colour output is ALWAYS snapshotted: it is what
+    // `refundChosenManaOutput` reverses on undo, and the single-`Color`
+    // `refundFixedManaOutput` fallback cannot express it.
     if (
-        getDynamicManaProduced(
-            card,
-            player.battlefield,
-            state.continuousEffects
-        ) ||
-        added[manaColor] === undefined
+        !manaColor ||
+        dynamic ||
+        (manaColor && added[manaColor] === undefined)
     ) {
         card.chosenMana = added;
     }
     // CR 106.6 (issue #1559 review) — deposit into the parallel
     // `restrictedMana` pool when this FIXED mana ability is restricted
     // (Mishra's Workshop), instead of always crediting the fungible pool.
-    // Mirrors `tapUntap`'s already-fixed fixed-ability tap branch.
+    // Mirrors `tapUntap`'s already-fixed fixed-ability tap branch. The
+    // multi-colour branch reads its restriction and CR 118.4 "can't be
+    // countered" rider off the RESOLVED ability, because its refund always
+    // routes through `refundChosenManaOutput`, which reverses with exactly
+    // those two — a deposit that dropped the rider would not be reversed.
     depositTappedMana(
         player,
         added,
-        getActivatedManaRestriction(card) ?? undefined,
-        undefined
+        (multiColorAbility
+            ? multiColorAbility.manaRestriction
+            : getActivatedManaRestriction(card)) ?? undefined,
+        multiColorAbility?.manaCantBeCounteredRider
     );
     // CR 605.2 — emit "tapped for mana" before the sacrifice moves the card off
     // the battlefield, so leaves-the-battlefield triggers see the mana added and
@@ -15212,6 +15242,13 @@ export const tapUntap = mutation({
             if (!isSacrifice) card.isTapped = !card.isTapped;
             const manaColor =
                 getBasicLandMana(card) ?? getActivatedManaColor(card);
+            // CR 605.1a (issue #3263) — the multi-colour fixed TAP shape, which
+            // `getActivatedManaColor` cannot name with a single `Color`. Before
+            // this branch existed the `if (manaColor)` below was simply skipped:
+            // the source was tapped and NOTHING was added to the pool.
+            const multiColorAbility = manaColor
+                ? null
+                : getFixedMultiColorTapManaAbility(card);
             if (manaColor) {
                 // CR 106.1 / 605.1a — board-conditional output (Urza trio) is
                 // computed from the controller's battlefield at tap time. On
@@ -15333,6 +15370,48 @@ export const tapUntap = mutation({
                     // CR 605.4 — also refund the Wild-Growth-style bonus mana
                     // this tap added (else it stays floating: the infinite-mana
                     // leak on tap/untap).
+                    refundTapBonusMana(player, card);
+                }
+            } else if (multiColorAbility) {
+                // CR 605.1a / 106.4 (issue #3263) — the whole `manaProduced`
+                // goes in on the tap and comes back out on the untap. The
+                // output is ALWAYS snapshotted onto `chosenMana`: it is what
+                // `refundChosenManaOutput` reverses (restriction- and
+                // rider-aware, CR 106.6), and the single-`Color` refund
+                // arithmetic the branch above uses cannot express it.
+                if (!wasTapped) {
+                    const produced =
+                        getDynamicManaProduced(
+                            card,
+                            player.battlefield,
+                            state.continuousEffects
+                        ) ?? (multiColorAbility.manaProduced as ManaCost);
+                    // CR 614 — Deep Water rewrites a land's produced mana to
+                    // {U} (no-op for non-lands / unaffected players).
+                    const added = applyLandManaReplacement(
+                        state,
+                        player.id,
+                        card,
+                        produced
+                    );
+                    card.chosenMana = added;
+                    depositTappedMana(
+                        player,
+                        added,
+                        multiColorAbility.manaRestriction,
+                        multiColorAbility.manaCantBeCounteredRider
+                    );
+                    producedThisActivation = added;
+                    emitPermanentTapped(
+                        state,
+                        card,
+                        true,
+                        producedThisActivation
+                    );
+                } else {
+                    refundChosenManaOutput(player, card);
+                    // CR 605.4 — and the Wild-Growth-style bonus this tap
+                    // added, exactly as the single-colour untap does.
                     refundTapBonusMana(player, card);
                 }
             }

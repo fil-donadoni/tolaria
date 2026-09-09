@@ -613,6 +613,49 @@ export function getFixedSacrificeManaAbility(
     );
 }
 
+/** The card's FIXED-output mana ability whose cost includes {T} and whose
+ *  `manaProduced` spans 2+ DISTINCT colours in ONE activation (CR 605.1a,
+ *  issue #3263), or null — "{T}, Sacrifice this land: Add {W}{B}." with no
+ *  other mana ability to fall back on, and every granted `{T}: Add {U}{R}`.
+ *
+ *  The third sibling of {@link getActivatedManaColor} /
+ *  {@link getFixedSacrificeManaAbility}, and a SEPARATE probe for the same
+ *  reason the sacrifice one is: `getActivatedManaColor` answers "which single
+ *  `Color` does tapping this source add", and a two-colour output has no such
+ *  answer — it returned null, so every tap site read the source as producing
+ *  NOTHING (`tapSourceIntoPayment` threw "Card does not produce mana" on a
+ *  source `getManaTapOptionsDetailed` had just offered, and the priority path
+ *  tapped it for zero mana). Unlike the sacrifice shape this one IS tap-shaped,
+ *  so its callers keep the whole untap/refund apparatus — they deposit the
+ *  ability's full `ManaCost` and snapshot it onto `chosenMana`, which is what
+ *  the existing restriction-aware refund (`refundChosenManaOutput`) reverses.
+ *
+ *  Deliberately NOT consulted before `getBasicLandMana ?? getActivatedManaColor`
+ *  at any call site: a source that HAS a single-colour answer (Ancient Spring's
+ *  "{T}: Add {U}" alongside its "{T}, Sacrifice this land: Add {W}{B}") keeps
+ *  the exact path it had, and a source exposing both shapes as two options is
+ *  routed to the choice branch by `manaTapNeedsChoice` before either probe runs.
+ *
+ *  CR 113.1 / 611.2a — POST-LAYER effective set, like every other mana probe. */
+export function getFixedMultiColorTapManaAbility(
+    card: CardInstanceState
+): ActivatedAbility | null {
+    if (abilitiesSuppressed(card)) return null;
+    return (
+        getEffectiveActivatedAbilities(card).find(
+            ({ ability: a }) =>
+                !a.useStack &&
+                a.cost.tap === true &&
+                !!a.manaProduced &&
+                !a.manaChoices &&
+                !a.getManaChoices &&
+                !a.manaColorSource &&
+                MANA_COLORS.filter((c) => (a.manaProduced?.[c] ?? 0) > 0)
+                    .length >= 2
+        )?.ability ?? null
+    );
+}
+
 /** Amount of a single color produced by a card's fixed (non-choice) tap mana
  *  ability. Basic lands and abilities without an explicit count default to 1;
  *  abilities like Sol Ring ({T}: Add {C}{C}) return 2.
