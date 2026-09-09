@@ -189,6 +189,14 @@ wrong-mental-model defect, see §1's escalation note.
   script is not prose. A `could not fast-forward local <base>` line from
   `land` is the whole handover — say so in §6 rather than fixing the user's
   checkout for them.
+- **A `convex/cards/sets/**`diff owes`bun run seed:preset --all`AFTER the
+merge** (issue #3254; the sweep's own header carries the derivation).`land`seeds the
+PR's preset SCENARIO and knows nothing about preset DECKS, and the slice that
+lands a decklist's LAST card has no idea it was the last one — which is how
+Parallax Replenish reached 21/21 and stayed unplayable as a preset. It is
+upsert-by-slug and idempotent, so running it on a slice that completed
+nothing costs one line of output. Not a gate:`presetDecks` is
+  deployment-local, so no deployment means nothing owed.
 - Issue not auto-closed by the merge → close it with a one-line comment.
   On abort: remove `in-progress`, remove the worktree.
 
