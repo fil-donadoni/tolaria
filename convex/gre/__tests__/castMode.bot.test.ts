@@ -515,4 +515,37 @@ describe("a cast mode is priced against its OWN characteristics (CR 601.2f)", ()
         expect(adventureCasts.length).toBeGreaterThan(0);
         expect(adventureCasts[0].tapPlan).toHaveLength(1);
     });
+
+    it("still prices a MORPH cast face down — the seam answers for every mode", () => {
+        // The regression the unification could introduce, and the reason this
+        // test exists at all: the three sites that price a cast used to carry
+        // their own `faceDownCastView` call, and they now share
+        // `castSubjectView`. If that seam ever stops composing morph in, morph
+        // silently reverts to being priced as the printed card — which is
+        // issue #2970's bug, not a new one, and nothing else here would catch
+        // it (measured: removing the branch left the whole suite green).
+        //
+        // Gloom ("White spells cost {3} more to cast", `lea/black.ts`) reads a
+        // COLOUR, and CR 702.37c strips it: a face-down spell is a colourless
+        // nameless 2/2. Six Plains cover the {3} morph cost taxed to {6}, and
+        // exactly cover the untaxed {3} with three to spare — so the tap plan's
+        // SIZE is what separates the two readings.
+        const state = positionFor("Exalted Angel", PLAINS, 6);
+        state.players[1].battlefield.push(
+            makeInstance(getCardByName("Gloom").id, {
+                id: "gloom",
+                controllerId: "p2",
+                ownerId: "p2",
+            })
+        );
+        const morphCasts = enumerateMoves(state, "p1").filter(
+            (m): m is Extract<Move, { kind: "cast-spell" }> =>
+                m.kind === "cast-spell" &&
+                m.cardInstanceId === "subject" &&
+                m.alternativeCostId === MORPH_CAST_ALT_COST_ID
+        );
+        expect(morphCasts.length).toBeGreaterThan(0);
+        // {3}, not {3} + Gloom's {3}.
+        expect(morphCasts[0].tapPlan).toHaveLength(3);
+    });
 });
