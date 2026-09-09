@@ -378,3 +378,41 @@ describe("CastCostDialog — plural kickers (CR 702.33, ADR 0079)", () => {
         expect(onConfirm).not.toHaveBeenCalled();
     });
 });
+
+// #2934 — CR 601.3c: the conditional-flash surcharge is a COST, so it renders
+// as mana symbols like every other cost surface in the app, not as the literal
+// characters the server sent.
+describe("CastCostDialog — flash surcharge symbols (#2934, CR 601.3c)", () => {
+    const surchargeSymbols = (attr: string) =>
+        Array.from(
+            screen
+                .getByTestId("cast-cost-flash-surcharge")
+                .querySelectorAll("img")
+        ).map((img) => img.getAttribute(attr));
+
+    it("renders a generic {2} surcharge as the mana symbol, not literal text", () => {
+        renderDialog({ flashSurcharge: "{2}" });
+        expect(surchargeSymbols("src")).toEqual(["/img/symbols/2.svg"]);
+        expect(
+            screen.getByTestId("cast-cost-flash-surcharge").textContent
+        ).not.toContain("{2}");
+    });
+
+    it("renders a mixed surcharge as one symbol per token, in order", () => {
+        renderDialog({ flashSurcharge: "{2}{R}" });
+        expect(surchargeSymbols("src")).toEqual([
+            "/img/symbols/2.svg",
+            "/img/symbols/R.svg",
+        ]);
+    });
+
+    it("gives every surcharge symbol accessible alt text carrying the cost", () => {
+        renderDialog({ flashSurcharge: "{2}{R}" });
+        expect(surchargeSymbols("alt")).toEqual(["{2}", "{R}"]);
+    });
+
+    it("renders no surcharge notice when the cast owes none", () => {
+        renderDialog({});
+        expect(screen.queryByTestId("cast-cost-flash-surcharge")).toBeNull();
+    });
+});

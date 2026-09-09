@@ -2,6 +2,7 @@ import type { AlternativeCost } from "@convex/cards/types";
 import AnchoredPicker, {
     AnchoredPickerRow,
 } from "@/components/ui/anchored-picker";
+import { formatOracleText } from "~/lib/oracle-text";
 
 type AltCostPickerProps = {
     /** The card's alternative casting costs (CR 118.9). */
@@ -47,7 +48,7 @@ export default function AltCostPicker({
                     onSelect={() => onSelect(alt.id)}
                 >
                     <span className="text-display text-sm text-text">
-                        {alt.description}
+                        {formatOracleText(alt.description)}
                     </span>
                     <span className="text-xs text-text-disabled">
                         {/* CR 702.109a — Dash still pays MANA, just a

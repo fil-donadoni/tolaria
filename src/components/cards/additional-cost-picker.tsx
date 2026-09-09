@@ -2,6 +2,7 @@ import type { AdditionalCostLeg } from "@convex/cards/types";
 import AnchoredPicker, {
     AnchoredPickerRow,
 } from "@/components/ui/anchored-picker";
+import { formatOracleText } from "~/lib/oracle-text";
 
 type AdditionalCostPickerProps = {
     /** The PAYABLE legs of the card's caster-chosen additional cost
@@ -49,7 +50,7 @@ export default function AdditionalCostPicker({
                     data-testid={`additional-cost-leg-${leg.id}`}
                 >
                     <span className="text-display text-sm text-text">
-                        {leg.label}
+                        {formatOracleText(leg.label)}
                     </span>
                     <span className="text-xs text-text-disabled">
                         Additional cost — paid as well as the mana cost

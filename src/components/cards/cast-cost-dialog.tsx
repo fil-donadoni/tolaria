@@ -4,6 +4,7 @@ import NumberStepper from "~/components/ui/number-stepper";
 import CastCostKickerField from "~/components/cards/cast-cost-kicker-field";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
+import { formatOracleText } from "~/lib/oracle-text";
 
 type CastCostDialogProps = {
     open: boolean;
@@ -206,9 +207,9 @@ export default function CastCostDialog({
                         data-testid="cast-cost-flash-surcharge"
                         className="text-sm font-medium text-text"
                     >
-                        Casting this now costs an additional {flashSurcharge} —
-                        you may cast it as though it had flash only if you pay
-                        that much more.
+                        Casting this now costs an additional{" "}
+                        {formatOracleText(flashSurcharge)} — you may cast it as
+                        though it had flash only if you pay that much more.
                     </p>
                 )}
 
