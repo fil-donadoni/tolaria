@@ -193,8 +193,7 @@ export const aluren: CardDefinition = {
             filter: { type: "Creature", manaValueAtMost: 3 },
             withoutPayingManaCost: true,
             asThoughFlash: true,
-            oracleText:
-                "Any player may cast creature spells with mana value 3 or less without paying their mana costs and as though they had flash.",
+            oracleText: "Cast with Aluren",
         },
     ],
 };
