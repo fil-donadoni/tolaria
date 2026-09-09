@@ -1389,7 +1389,7 @@ export function matchesSpellPendingTarget(
         return false;
     }
     // Two spell dimensions scan the board (`spellWouldDestroyLandYouControl`
-    // resolves the candidate's chosen land targets, `spellTargetsTypeFilter`
+    // resolves the candidate's chosen land targets, `spellTargetsPermanentFilter`
     // resolves its chosen permanent targets), so the synthetic `GameState`
     // carries the projected players — an empty board would fail both CLOSED.
     const state = {

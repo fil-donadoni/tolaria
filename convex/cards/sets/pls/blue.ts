@@ -899,7 +899,7 @@ export const waterspoutElemental: CardDefinition = {
 // Confound — {1}{U} Instant. "Counter target spell that targets a creature.
 // Draw a card." (CR 114.1 / 109.2, issue #1956, parent PRD #1935.) The
 // restriction is a genuine TARGETING restriction, so it is declared as a
-// registry filter (`spellTargetsTypeFilter`, ADR 0068) rather than checked at
+// registry filter (`spellTargetsPermanentFilter`, ADR 0068) rather than checked at
 // resolution: `getLegalTargets` and `selectTarget` both run the SAME
 // descriptor, so the stack items the client offers and the ones the mutation
 // accepts cannot diverge. "A creature" is a creature PERMANENT (CR 109.2) —
@@ -921,7 +921,7 @@ export const confound: CardDefinition = {
     targetRequirement: {
         type: "spell",
         count: 1,
-        spellTargetsTypeFilter: "Creature",
+        spellTargetsPermanentFilter: { types: "Creature" },
     },
     effects: [
         { op: "counter", target: { target: 0 } },

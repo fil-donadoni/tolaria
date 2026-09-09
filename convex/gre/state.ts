@@ -3483,12 +3483,17 @@ export type PendingTarget = {
      *  TargetRequirement.spellWouldDestroyLandYouControl. Used by Equinox's
      *  granted counter ability. Ignored for non-spell target types. */
     spellWouldDestroyLandYouControl?: boolean;
-    /** Restricts legal SPELL targets to spells that THEMSELVES target a
-     *  permanent of one of these types (CR 114.1 / 109.2). Propagated from
-     *  TargetRequirement.spellTargetsTypeFilter. Used by Confound ("counter
-     *  target spell that targets a creature"). Ignored for non-spell target
+    /** Restricts legal SPELL targets to stack objects that THEMSELVES target
+     *  a permanent matching EVERY clause at once (CR 114.1 / 109.2).
+     *  Propagated from TargetRequirement.spellTargetsPermanentFilter (already
+     *  LOWERED — `types` is normalized to an array). Used by Confound
+     *  ("counter target spell that targets a creature") and Teferi's Response
+     *  ("...that targets a land you control"). Ignored for non-spell target
      *  types. */
-    spellTargetsTypeFilter?: CardType[];
+    spellTargetsPermanentFilter?: {
+        types?: CardType[];
+        controller?: "you" | "opponent" | "any" | "active";
+    };
     /** Restricts legal SPELL targets by the candidate's own Kicker state
      *  (CR 702.33a — `true` = kicked only, `false` = unkicked only).
      *  Propagated from TargetRequirement.spellWasKicked. Used by Ertai's
@@ -3765,7 +3770,7 @@ export const PENDING_TARGET_FILTER_KEYS = {
     spellCreaturePtFilter: true,
     spellSingleTargetingController: true,
     spellWouldDestroyLandYouControl: true,
-    spellTargetsTypeFilter: true,
+    spellTargetsPermanentFilter: true,
     spellWasKicked: true,
 } satisfies Record<FilterKey & keyof PendingTarget, true> &
     Record<SpellFilterKey, true>;

@@ -687,19 +687,46 @@ export interface TargetRequirement {
      *  single target if that target is you", CR 114.1 / 115.10). Ignored for
      *  non-spell target types. */
     spellSingleTargetingController?: boolean;
-    /** Restricts legal SPELL targets (`type: "spell"`) to spells that THEMSELVES
-     *  target at least one PERMANENT of one of these card types (CR 114.1 —
-     *  Confound's "Counter target spell that targets a creature"). The filter
-     *  reads the candidate stack item's own chosen `targets`, resolves each
-     *  `"permanent"` selection against the battlefield, and requires at least
-     *  one hit whose `types` include a listed type. Fail-CLOSED by
-     *  construction: a spell with no targets, a spell whose targets are all
-     *  players / other spells / graveyard cards, and a spell whose permanent
-     *  target has already left the battlefield all fail. Non-permanent target
-     *  kinds are never counted — CR 109.2 makes "a creature" a creature
-     *  PERMANENT, not a creature card in another zone. Single string is
-     *  shorthand for one type. Ignored for non-spell target types. */
-    spellTargetsTypeFilter?: CardType | CardType[];
+    /** Restricts a stack-object target (`type: "spell"`) to objects that
+     *  THEMSELVES target at least one PERMANENT matching EVERY clause below
+     *  (CR 114.1 — Confound's "Counter target spell that targets a creature";
+     *  Teferi's Response's "target spell or ability an opponent controls that
+     *  targets a land you control"). The filter reads the candidate stack
+     *  item's own chosen `targets`, resolves each `"permanent"` selection
+     *  against the battlefield, and requires at least ONE witness satisfying
+     *  all clauses AT ONCE.
+     *
+     *  The conjunction is the whole point of the object shape, and the reason
+     *  `types` and `controller` are not two sibling keys on this interface:
+     *  the registry (ADR 0068) evaluates every filter key INDEPENDENTLY, so
+     *  two keys would ask "targets some land?" and "targets something you
+     *  control?" separately and admit a spell targeting your creature and an
+     *  opponent's land — fail-OPEN, the `project_effect_filter_fail_open`
+     *  class. One key, one existential witness, all clauses.
+     *
+     *  Fail-CLOSED by construction: a stack object with no targets, one whose
+     *  targets are all players / other stack objects / graveyard cards, and
+     *  one whose permanent target has already left the battlefield all fail.
+     *  Non-permanent target kinds are never counted — CR 109.2 makes "a
+     *  creature" a creature PERMANENT, not a creature card in another zone.
+     *
+     *  - `types` — the witness's `types` must include at least one listed
+     *    type (OR across the list). Single string is shorthand for one type.
+     *  - `controller` — the witness's LIVE controller, read the same way
+     *    every other `controller` filter reads it (`matchesBattlefieldController`,
+     *    CR 109.3): `"you"` / `"opponent"` are relative to the player CHOOSING
+     *    the target, not to the stack object's controller. Note the two
+     *    controllers are independent: Teferi's Response constrains the stack
+     *    object with the top-level `controller: "opponent"` and its TARGET
+     *    with `controller: "you"` here.
+     *
+     *  Kind eligibility (spell vs ability) is `spellStackKind`'s job, not
+     *  this filter's — an ability reaches here whenever that gate admitted
+     *  it. Ignored for non-spell target types. */
+    spellTargetsPermanentFilter?: {
+        types?: CardType | CardType[];
+        controller?: "you" | "opponent" | "any" | "active";
+    };
     /** Restricts legal SPELL targets (`type: "spell"`) to spells that were
      *  KICKED (CR 702.33a) — at least one Kicker cost was paid as the spell was
      *  cast. Read off the candidate stack item's `kickerPayments` record (the

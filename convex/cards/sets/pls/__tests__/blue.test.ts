@@ -1590,7 +1590,7 @@ describe("Confound — spell-property target filters (issue #1956)", () => {
         }
     }
 
-    // ── Confound: `spellTargetsTypeFilter` (row: getLegalTargets spell branch)
+    // ── Confound: `spellTargetsPermanentFilter` (row: getLegalTargets spell branch)
 
     it("Confound OFFERS a spell that targets a creature (CR 114.1)", () => {
         const state = board();
@@ -1720,7 +1720,7 @@ describe("Confound — spell-property target filters (issue #1956)", () => {
 
     it("the shared carry propagates both filters onto the PendingTarget", () => {
         const c = pendingTargetFiltersFromRequirement(CONFOUND_REQ, undefined);
-        expect(c.spellTargetsTypeFilter).toEqual(["Creature"]);
+        expect(c.spellTargetsPermanentFilter).toEqual({ types: ["Creature"] });
         const t = pendingTargetFiltersFromRequirement(KICKED_REQ, undefined);
         expect(t.spellWasKicked).toBe(true);
     });
@@ -1730,12 +1730,12 @@ describe("Confound — spell-property target filters (issue #1956)", () => {
             {
                 type: "Creature",
                 count: 1,
-                spellTargetsTypeFilter: "Creature",
+                spellTargetsPermanentFilter: { types: ["Creature"] },
                 spellWasKicked: true,
             },
             undefined
         );
-        expect(carried.spellTargetsTypeFilter).toBeUndefined();
+        expect(carried.spellTargetsPermanentFilter).toBeUndefined();
         expect(carried.spellWasKicked).toBeUndefined();
     });
 
@@ -1746,7 +1746,7 @@ describe("Confound — spell-property target filters (issue #1956)", () => {
             {
                 type: "Creature",
                 count: 1,
-                spellTargetsTypeFilter: "Creature",
+                spellTargetsPermanentFilter: { types: ["Creature"] },
                 spellWasKicked: true,
             },
             NO_TARGETING_SOURCE,
@@ -1772,7 +1772,7 @@ describe("Confound — spell-property target filters (issue #1956)", () => {
                 spellCreaturePtFilter: { maxPowerOrToughness: 2 },
                 spellSingleTargetingController: true,
                 spellWouldDestroyLandYouControl: true,
-                spellTargetsTypeFilter: "Creature",
+                spellTargetsPermanentFilter: { types: ["Creature"] },
                 spellWasKicked: true,
             },
             undefined

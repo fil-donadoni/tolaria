@@ -2776,7 +2776,7 @@ describe("target-filter registry — FilterKey exhaustiveness keystone (ADR 0068
         // (`requireAbilityAny` joined the permanent set with Minsc & Boo;
         // `sameController` joined it with Barrin's Spite, issue #1104;
         // `isToken` joined it with Satya, Aetherflux Genius / Dance of Many,
-        // issue #1195; `spellTargetsTypeFilter` + `spellWasKicked` joined the
+        // issue #1195; `spellTargetsPermanentFilter` + `spellWasKicked` joined the
         // spell-only set with Confound / Ertai's Trickery, issue #1956;
         // `controlledSinceTurnStart` joined the permanent set with Norritt /
         // Arcum's Whistle, issue #1824; `attachedToFilter` joined the

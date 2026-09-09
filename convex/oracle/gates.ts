@@ -374,7 +374,6 @@ const SHORTHAND_ARRAY_KEYS: ReadonlySet<string> = new Set([
     "combatRoleFilter",
     "spellTypeFilter",
     "spellExcludeTypeFilter",
-    "spellTargetsTypeFilter",
 ]);
 
 /**

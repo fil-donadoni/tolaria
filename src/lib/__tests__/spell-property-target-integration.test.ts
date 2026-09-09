@@ -243,7 +243,7 @@ describe("spell-property target filters — server offered set == client clickab
         expect(
             matchesSpellPendingTarget(
                 { id: "s1", card: { id: "x" } },
-                pt({ spellTargetsTypeFilter: ["Creature"] }),
+                pt({ spellTargetsPermanentFilter: { types: ["Creature"] } }),
                 ctx
             )
         ).toBe(false);
@@ -254,7 +254,7 @@ describe("spell-property target filters — server offered set == client clickab
                     card: { id: "x" },
                     targets: [{ type: "player", id: "p1" }],
                 },
-                pt({ spellTargetsTypeFilter: ["Creature"] }),
+                pt({ spellTargetsPermanentFilter: { types: ["Creature"] } }),
                 ctx
             )
         ).toBe(false);

@@ -1209,32 +1209,97 @@ const spellSingleTargetingControllerDescriptor = defineFilter<boolean>({
     },
 });
 
-// CR 114.1 / 109.2 — a SPELL-PROPERTY filter (issue #1956): the chosen spell
-// must itself target at least one permanent of a listed type ("Counter target
-// spell that targets a creature"). Reads the candidate's OWN chosen targets,
-// resolving each `"permanent"` selection against the live battlefield —
-// "a creature" is a creature PERMANENT (CR 109.2), so a `"player"` /
-// `"spell"` / graveyard-`"card"` selection never counts, and a permanent
-// target that has already left the battlefield stops counting the moment it
-// does (which is what makes Confound's own target go illegal, CR 608.2b).
+// CR 114.1 / 109.2 — a SPELL-PROPERTY filter (issue #1956, generalized to a
+// conjunction by issue #2708): the chosen stack object must itself target at
+// least one permanent matching EVERY clause AT ONCE — "Counter target spell
+// that targets a creature" (Confound), "counter target spell or ability an
+// opponent controls that targets a land you control" (Teferi's Response).
+//
+// The conjunction is the reason `types` and `controller` are ONE key rather
+// than two: `checkSpellTargetFilters` runs each registered key independently,
+// so two keys would ask "targets a land?" and "targets something you control?"
+// of the candidate SEPARATELY and admit a spell targeting your creature and an
+// opponent's land — fail-OPEN. One key, one witness, all clauses.
+//
+// Reads the candidate's OWN chosen targets, resolving each `"permanent"`
+// selection against the live battlefield — "a creature" is a creature
+// PERMANENT (CR 109.2), so a `"player"` / `"spell"` / graveyard-`"card"`
+// selection never counts, and a permanent target that has already left the
+// battlefield stops counting the moment it does (which is what makes
+// Confound's own target go illegal, CR 608.2b). The `controller` clause reads
+// the witness's LIVE `controllerId` through the same
+// `matchesBattlefieldController` predicate every other controller filter uses
+// (CR 109.3), relative to the CHOOSER — never to the candidate's own
+// controller, which the top-level `controller` filter constrains separately.
 // Fail-CLOSED: an untargeted spell has no targets and never qualifies.
-const spellTargetsTypeFilterDescriptor = defineFilter<CardType[]>({
-    lower: (req) => arr(req.spellTargetsTypeFilter),
+const spellTargetsPermanentFilterDescriptor = defineFilter<{
+    types?: CardType[];
+    controller?: TargetRequirement["controller"];
+}>({
+    lower: (req) => {
+        const f = req.spellTargetsPermanentFilter;
+        if (!f) return undefined;
+        const types = arr(f.types);
+        if (types === undefined && f.controller === undefined) return undefined;
+        return {
+            ...(types === undefined ? {} : { types }),
+            ...(f.controller === undefined ? {} : { controller: f.controller }),
+        };
+    },
     checks: {
         spell: (item, value, ctx) => {
             for (const t of item.targets ?? []) {
                 if (t.type !== "permanent") continue;
                 for (const p of ctx.state.players) {
                     const perm = p.battlefield.find((c) => c.id === t.id);
-                    if (perm && value.some((ty) => perm.types.includes(ty))) {
-                        return null;
+                    if (!perm) continue;
+                    if (
+                        value.types &&
+                        !value.types.some((ty) => perm.types.includes(ty))
+                    ) {
+                        continue;
                     }
+                    if (
+                        value.controller !== undefined &&
+                        !matchesBattlefieldController(
+                            perm.controllerId,
+                            ctx.chooserId,
+                            ctx.activePlayerId,
+                            value.controller
+                        )
+                    ) {
+                        continue;
+                    }
+                    return null;
                 }
             }
-            return `Target spell does not target ${value.join(" or ").toLowerCase()}`;
+            return `Target spell does not target ${describeTargetedPermanentClause(value)}`;
         },
     },
 });
+
+/** The human-readable tail of the `spellTargetsPermanentFilter` violation
+ *  message ("a land you control", "a creature"). Kept beside the descriptor
+ *  because the message is part of the filter's contract — `selectTarget`
+ *  returns it verbatim to the client. */
+function describeTargetedPermanentClause(value: {
+    types?: CardType[];
+    controller?: TargetRequirement["controller"];
+}): string {
+    const types = value.types?.length
+        ? value.types.join(" or ").toLowerCase()
+        : "a permanent";
+    switch (value.controller) {
+        case "you":
+            return `${types} you control`;
+        case "opponent":
+            return `${types} an opponent controls`;
+        case "active":
+            return `${types} the active player controls`;
+        default:
+            return types;
+    }
+}
 
 // CR 702.33a — a SPELL-PROPERTY filter (issue #1956): the chosen spell's own
 // Kicker state ("Counter target spell if it was kicked"). Read through the
@@ -1315,7 +1380,7 @@ export const SPELL_ONLY_FILTER_KEYS = [
     "spellWouldDestroyLandYouControl",
     // Spell-PROPERTY filters (issue #1956) — the candidate's own chosen
     // targets / Kicker state rather than its characteristics.
-    "spellTargetsTypeFilter",
+    "spellTargetsPermanentFilter",
     "spellWasKicked",
 ] as const;
 
@@ -1380,8 +1445,8 @@ export const REGISTRY = {
         spellSingleTargetingControllerDescriptor as FilterDescriptor<unknown>,
     spellWouldDestroyLandYouControl:
         spellWouldDestroyLandYouControlDescriptor as FilterDescriptor<unknown>,
-    spellTargetsTypeFilter:
-        spellTargetsTypeFilterDescriptor as FilterDescriptor<unknown>,
+    spellTargetsPermanentFilter:
+        spellTargetsPermanentFilterDescriptor as FilterDescriptor<unknown>,
     spellWasKicked: spellWasKickedDescriptor as FilterDescriptor<unknown>,
     playerAttackedThisTurn:
         playerAttackedThisTurnDescriptor as FilterDescriptor<unknown>,
@@ -1536,7 +1601,7 @@ export const SPELL_FILTER_KEYS = [
     "spellCreaturePtFilter",
     "spellSingleTargetingController",
     "spellWouldDestroyLandYouControl",
-    "spellTargetsTypeFilter",
+    "spellTargetsPermanentFilter",
     "spellWasKicked",
 ] as const;
 
@@ -1558,7 +1623,10 @@ export type SpellFilterValues = Partial<{
     spellCreaturePtFilter: { maxPowerOrToughness: number };
     spellSingleTargetingController: boolean;
     spellWouldDestroyLandYouControl: boolean;
-    spellTargetsTypeFilter: CardType[];
+    spellTargetsPermanentFilter: {
+        types?: CardType[];
+        controller?: TargetRequirement["controller"];
+    };
     spellWasKicked: boolean;
 }>;
 
