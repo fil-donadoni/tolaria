@@ -14930,11 +14930,12 @@ export type EffectOp =
            *  `zone: "battlefield"` with `EffectObjectSelector` entries (below —
            *  a public zone of live objects); `zone: "library"` with
            *  `kind: "choose-library-card"` and bare PICKS refs, where a
-           *  preceding `reveal` is what makes a hidden zone's set public
-           *  (CR 701.20a, issue #3205); and `zone: "graveyard"`/`"exile"` with
-           *  bare PICKS refs (issue #2600) — a public zone (CR 400.2), so
-           *  nothing has to be revealed, and the binding is what says WHICH of
-           *  its cards. That third shape is "from among them": `mill
+           *  preceding reveal is what makes a hidden zone's set public
+           *  (CR 701.20a reveal, issue #3205); and the two PUBLIC zones —
+           *  `zone: "graveyard"`/`"exile"` — with bare PICKS refs
+           *  (issue #2600), where CR 400.2 already makes the zone's contents
+           *  known, so nothing has to be revealed and the binding is only
+           *  saying WHICH of its cards. That third shape is "from among them": `mill
            *  { bindAll: "$milled" }` then `choice { zone: "graveyard",
            *  candidates: [{ ref: "$milled" }], filter: { type: "Land" } }`
            *  reaches the cards this script just milled and no other, where a
