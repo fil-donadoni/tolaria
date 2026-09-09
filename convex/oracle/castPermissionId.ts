@@ -55,22 +55,21 @@ import { canonicaliseShorthands, sortKeys } from "./gates";
 /**
  * A permission's TERMS — everything the id is derived from.
  *
- * Two fields are out, and only two. `id` because deriving an id from a value
- * containing itself is circular. `oracleText` because it is the LABEL the cast
- * picker renders (`AlternativeCost.description`), and an author may shorten
- * it: the catalogue writes "Cast with Aluren" where the compiler can only
- * offer the sentence it read. Folding a card-scoped label into a
- * clause-scoped identity is the split identity this module exists to prevent,
- * arriving through the one field that is not a term at all — two cards whose
- * permissions are identical and whose labels differ would stop collapsing to
- * one cast option, which is the whole point.
+ * Two fields are out, and only two. `id`, because deriving an id from a value
+ * containing itself is circular. And `label`, because it is UI COPY (issue
+ * #3284): the short row name the cast picker shows instead of the printed
+ * paragraph, which an author writes and no grammar can derive. Folding a
+ * card-scoped label into a clause-scoped identity would stop two cards
+ * offering the SAME permission under different copy from collapsing to one
+ * cast option, which is the whole point of deriving the id at all.
+ *
+ * `oracleText` stays IN, and the split #3284 made is what lets it: it is the
+ * printed sentence, card data, and the compiler emits exactly the sentence it
+ * read. Two cards printing one permission print one sentence.
  *
  * Everything else is in, by construction rather than by enumeration.
  */
-export type CastPermissionTerms = Omit<
-    StaticCastPermission,
-    "id" | "oracleText"
->;
+export type CastPermissionTerms = Omit<StaticCastPermission, "id" | "label">;
 
 /** The terms of a declared permission — see {@link CastPermissionTerms}. */
 export function castPermissionTerms(
@@ -81,11 +80,11 @@ export function castPermissionTerms(
     // to `StaticCastPermission` later is part of the digest without an edit
     // here — the same fail-closed shape `expandCompiledStatics` uses one field
     // over.
-    const terms: CastPermissionTerms & { id?: string; oracleText?: string } = {
+    const terms: CastPermissionTerms & { id?: string; label?: string } = {
         ...permission,
     };
     delete terms.id;
-    delete terms.oracleText;
+    delete terms.label;
     return terms;
 }
 

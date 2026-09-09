@@ -47,7 +47,7 @@ engine landed rather than written beside it.
 
     <grantee>-<primary class>-<fnv1a32 digest of the canonicalised clause>
 
-e.g. `any-player-creature-6221c861` (Aluren),
+e.g. `any-player-creature-f9f346f4` (Aluren),
 `controller-spell-a7736ca4` (Vedalken Orrery **and** High Fae Trickster — one
 id, because one sentence). The derivation is
 `convex/oracle/castPermissionId.ts`, and it is the only implementation.
@@ -56,16 +56,22 @@ Five things follow, and each is a decision rather than a detail:
 
 **0. The clause's TERMS, not the whole record.** Two fields are outside the
 identity. `id`, because deriving an id from a value containing itself is
-circular. And `oracleText`, because it is the LABEL the cast picker renders
-(`AlternativeCost.description`) rather than a term of the permission: an
-author may shorten it — the catalogue writes "Cast with Aluren" where the
-compiler can only offer the sentence it read — and folding a card-scoped
-label into a clause-scoped identity would stop two cards offering one
-permission from collapsing to one option, which is the whole point. The
-comparator excludes the same field for the same reason and by the same
+circular. And `label`, because it is UI COPY — the short row name the cast
+picker shows instead of the printed paragraph ("Cast with Aluren"), which an
+author writes and no grammar can derive. Folding a card-scoped label into a
+clause-scoped identity would stop two cards offering the SAME permission under
+different copy from collapsing to one option, which is the whole point. The
+comparator excludes the same field, for the same reason and by the same
 mechanism the modes' `label` already uses (`STATIC_DISPLAY_KEYS`,
 `oracle/gold.ts`); comparing it would make Guard C unsatisfiable for every
-card whose author writes a label, since no grammar can derive one. Everything
+card whose author writes one.
+
+`oracleText` stays IN, and that is only true because issue #3284 split the two
+jobs while this branch was open. Before it, one field held both the printed
+sentence and the picker's row name, and shortening the row name silently
+corrupted card data — the shape that made this ADR briefly claim `oracleText`
+was the label. It is the printed sentence, the compiler emits exactly what it
+read, and two cards printing one permission print one sentence. Everything
 else is in by construction rather than by enumeration.
 
 **1. A digest over the WHOLE of those terms, not a readable slug.** A slug builder has
@@ -109,19 +115,21 @@ construction.
 comparator never folds a field the engine reads" — and the engine reads this
 one twice (the dedupe, the `alternativeCostId`). Excluding it from
 `behaviouralProjection` was considered and refused. Aluren adopts the derived
-literal instead. The `oracleText` beside it is folded, per decision 0: it is
-the picker's label, no engine path decides on it, and `cast-permission` is the
-only static kind carrying the field, so the exclusion scopes itself.
+literal instead. The `label` beside it is folded, per decision 0: it is UI
+copy, no engine path decides on it, and `cast-permission` is the only static
+kind carrying the field, so the exclusion scopes itself.
 
 ## Consequences
 
 - Two cards printing one sentence collapse to one cast option, in the picker
   and in the Bot's enumeration, with no per-card coordination.
-- A permission's id CHANGES if its TERMS change — its grantee, its filter, or
-  either boolean. That is correct (it is a different offered option) and it is
+- A permission's id CHANGES if its TERMS change — its grantee, its filter,
+  either boolean, or its printed `oracleText`. That is correct (it is a different offered option) and it is
   not a persistence hazard: nothing stores an `alternativeCostId` across a
   save — it is announced and consumed inside one mutation. Re-wording the
-  picker LABEL changes nothing, which is the point of decision 0.
+  picker's `label` changes nothing, which is the point of decision 0;
+  re-wording `oracleText` changes the id, because the printed sentence is a
+  term.
 - The id is opaque. A log line reading `cast-permission:controller-spell-…`
   no longer names the card, which is the point; the prefix is what keeps it
   legible.

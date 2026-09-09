@@ -8655,10 +8655,15 @@ export interface StaticCastPermission {
      *
      *  It does NOT reach the card's rendered text (`getDisplayAbilities` has no
      *  `staticEffects` row — `shouldShowOracleText` falls back to the card's own
-     *  `oracleText` instead) and it does NOT reach the Oracle compiler
-     *  (`oracle/lowerStatic.ts` emits no `cast-permission`). Stated because the
-     *  first draft of this comment claimed both, and a docstring whose
-     *  checkable claims are false teaches a reader to discount the true one. */
+     *  `oracleText` instead). It DOES reach the Oracle compiler, which emits
+     *  the sentence it read (`oracle/lowerStatic.ts`, issue #3268) and derives
+     *  the permission's `id` from it among the other terms — so this field is
+     *  card data in the strongest sense: change it and the identity of the
+     *  offered cast option changes with it (ADR 0119). The row's short name is
+     *  `label`, below, which the compiler never emits. Stated because an
+     *  earlier draft of this comment claimed the compiler emitted no
+     *  `cast-permission` at all, and a docstring whose checkable claims are
+     *  false teaches a reader to discount the true one. */
     oracleText: string;
     /** UI COPY — the short name the cast-option row shows instead of the whole
      *  Oracle paragraph ("Cast with Aluren"). Optional and purely cosmetic:

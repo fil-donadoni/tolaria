@@ -193,7 +193,7 @@ export const aluren: CardDefinition = {
             // than Aluren (`oracle/castPermissionId.ts`, issue #3268). The
             // literal is asserted against that derivation catalogue-wide by
             // `cards/__tests__/castPermissionIds.test.ts`.
-            id: "any-player-creature-6221c861",
+            id: "any-player-creature-f9f346f4",
             grantee: "any-player",
             filter: { type: "Creature", manaValueAtMost: 3 },
             withoutPayingManaCost: true,

@@ -194,18 +194,16 @@ export function lowerStaticClause(
                 ...(clause.asThoughFlash === true
                     ? { asThoughFlash: true }
                     : {}),
+                // CARD DATA, and part of the identity: the printed sentence
+                // (issue #3284). The UI's short row name is `label`, which the
+                // compiler never emits — it is an author's copy, and no
+                // grammar derives one (`oracle/castPermissionId.ts`).
+                oracleText,
             };
             return {
                 ok: true,
                 lowered: {
-                    effect: {
-                        ...terms,
-                        id: deriveCastPermissionId(terms),
-                        // The LABEL, and not part of the identity: an author
-                        // may shorten it, and the compiler can only offer the
-                        // sentence it read (`oracle/castPermissionId.ts`).
-                        oracleText,
-                    },
+                    effect: { ...terms, id: deriveCastPermissionId(terms) },
                 },
             };
         }

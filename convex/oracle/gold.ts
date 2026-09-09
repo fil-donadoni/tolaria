@@ -164,22 +164,22 @@ const CLOSURE_VALUED_KEYS: ReadonlySet<string> = new Set(["effect"]);
  * (the cross-battlefield dedupe in `gre/castPermissions.ts`, and the
  * `alternativeCostId` the cast mutation resolves). It stays compared.
  *
- * `oracleText` on a static effect is the opposite kind of field, by the same
- * argument the modes' `label` earns its row above: it is the string the cast
- * picker RENDERS (`AlternativeCost.description`), and an author may shorten it
- * — the catalogue writes "Cast with Aluren" where the compiler can only offer
- * the sentence it read. Neither is more correct, and no engine path decides on
- * it. Comparing it would make Guard C unsatisfiable for every card whose
- * author writes a label, since no grammar can derive one from Oracle text.
+ * `label` is the opposite kind of field, and it is the SAME field the modes'
+ * `label` row above describes: UI copy the catalogue writes ("Cast with
+ * Aluren") in place of the printed paragraph. Issue #3284 split it out of
+ * `oracleText` precisely because one field was doing two jobs; comparing it
+ * would make Guard C unsatisfiable for every card whose author writes one,
+ * since no grammar can derive an author's copy. `oracleText` beside it is
+ * card data and IS compared — the compiler emits the sentence it read.
  *
- * `cast-permission` is the only static kind carrying the field, so the entry
- * scopes itself exactly as the modes' `label` does (issue #3268).
+ * `cast-permission` is the only static kind carrying either field, so the
+ * entry scopes itself exactly as the modes' `label` does (issue #3268).
  */
 const STATIC_ARRAY_KEYS: ReadonlySet<string> = new Set([
     "staticEffects",
     "compiledStaticEffects",
 ]);
-const STATIC_DISPLAY_KEYS: ReadonlySet<string> = new Set(["oracleText"]);
+const STATIC_DISPLAY_KEYS: ReadonlySet<string> = new Set(["label"]);
 
 /** Behavioural projection: everything the GRAMMAR is responsible for. */
 export function behaviouralProjection(

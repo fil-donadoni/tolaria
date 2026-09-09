@@ -38,7 +38,7 @@ import {
 import { getPlayer } from "../state";
 import type { CardInstanceState, GameState } from "../state";
 
-const ALUREN_ALT_COST_ID = `${CAST_PERMISSION_ALT_COST_PREFIX}any-player-creature-6221c861`;
+const ALUREN_ALT_COST_ID = `${CAST_PERMISSION_ALT_COST_PREFIX}any-player-creature-f9f346f4`;
 
 /** p1 controls `alurens` copies of Aluren; `handOf` names the card each player
  *  holds. Nobody has a land untapped by default — a cast that happens here
@@ -113,13 +113,13 @@ describe("cast-permission static (CR 601.3 / 118.9)", () => {
             collectCastPermissions(state, "p1", handCard(state, "p1")).map(
                 (p) => p.id
             )
-        ).toEqual(["any-player-creature-6221c861"]);
+        ).toEqual(["any-player-creature-f9f346f4"]);
         // The permission's SOURCE is p1's, but the grantee is "any-player".
         expect(
             collectCastPermissions(state, "p2", handCard(state, "p2")).map(
                 (p) => p.id
             )
-        ).toEqual(["any-player-creature-6221c861"]);
+        ).toEqual(["any-player-creature-f9f346f4"]);
     });
 
     it("filters by the declared EffectCardFilter — a creature over the mana-value ceiling and a cheap noncreature are both out (CR 202.3)", () => {

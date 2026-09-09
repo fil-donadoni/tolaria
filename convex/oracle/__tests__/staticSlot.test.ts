@@ -468,38 +468,39 @@ describe("board cast permission (CR 601.3)", () => {
         );
         // The id names the OPTION, not the card: the shipped Aluren prints the
         // same sentence and therefore carries the same literal.
-        expect(effect.id).toBe("any-player-creature-6221c861");
+        expect(effect.id).toBe("any-player-creature-f9f346f4");
         // The lockfile invariant: what the compiler emits IS its own JSON.
         expect(JSON.parse(JSON.stringify(definition))).toEqual(definition);
     });
 
     it("the picker LABEL is outside the identity (ADR 0119 decision 0)", () => {
-        // The property that survives an author shortening the label: Aluren's
-        // shipped permission reads "Cast with Aluren" and its compiled twin
-        // reads the whole sentence, and the two must still be ONE offered cast
-        // option. Asserted on the derivation directly, because no two shipped
-        // cards differ in label alone today — a data-driven version of this
-        // would be vacuous.
+        // The property that survives an author writing UI copy (issue #3284):
+        // Aluren's shipped permission carries `label: "Cast with Aluren"` and
+        // its compiled twin carries none, and the two must still be ONE
+        // offered cast option. Asserted on the derivation directly, because no
+        // two shipped cards differ in label alone today — a data-driven
+        // version of this would be vacuous.
         const terms = {
             kind: "cast-permission" as const,
             grantee: "any-player" as const,
             filter: { type: ["Creature"] as CardType[], manaValueAtMost: 3 },
             withoutPayingManaCost: true,
             asThoughFlash: true,
+            // Card data, and IN the terms — two cards printing one permission
+            // print one sentence (issue #3284's split is what lets it stay).
+            oracleText: "Any player may cast creature spells…",
         };
         expect(
             deriveCastPermissionId(
-                castPermissionTerms({ ...terms, id: "x", oracleText: "long" })
+                castPermissionTerms({ ...terms, id: "x", label: "short" })
             )
         ).toBe(
-            deriveCastPermissionId(
-                castPermissionTerms({ ...terms, id: "y", oracleText: "short" })
-            )
+            deriveCastPermissionId(castPermissionTerms({ ...terms, id: "y" }))
         );
         // …and a TERM still moves it, so the exclusion is one field wide.
         expect(
             deriveCastPermissionId(
-                castPermissionTerms({ ...terms, id: "x", oracleText: "long" })
+                castPermissionTerms({ ...terms, id: "x", label: "short" })
             )
         ).not.toBe(
             deriveCastPermissionId(
@@ -510,7 +511,7 @@ describe("board cast permission (CR 601.3)", () => {
                         manaValueAtMost: 4,
                     },
                     id: "x",
-                    oracleText: "long",
+                    label: "short",
                 })
             )
         );

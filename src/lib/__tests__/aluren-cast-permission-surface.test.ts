@@ -28,7 +28,7 @@ import { projectPublicState } from "@convex/gameProjections";
 import { affordableAltCostsForCard } from "../card-utils";
 import type { CardInstance, Player } from "~/types/game";
 
-const ALUREN_ALT_COST_ID = "cast-permission:any-player-creature-6221c861";
+const ALUREN_ALT_COST_ID = "cast-permission:any-player-creature-f9f346f4";
 
 /** p1 controls Aluren; p2 holds `handCardId` and has priority during p1's
  *  turn — the off-window seat where the permission is the only thing that
