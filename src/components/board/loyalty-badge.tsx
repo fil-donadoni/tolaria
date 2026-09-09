@@ -1,5 +1,5 @@
 import type { CardInstance } from "~/types/game";
-import { showsLoyalty } from "~/lib/card-utils";
+import { isCreature, showsLoyalty } from "~/lib/card-utils";
 
 /** Loyalty badge (CR 306.5b) shown on a battlefield permanent that HAS
  *  loyalty — its current loyalty, read from the generic `counters["loyalty"]`
@@ -18,14 +18,21 @@ import { showsLoyalty } from "~/lib/card-utils";
  *  Shape/placement (QA): it is drawn as the printed LOYALTY SHIELD and sits
  *  exactly ON the card's own printed shield in the bottom-right corner —
  *  scaled in % of the card, so it lines up at every board card size — instead
- *  of the old round chip floating beside it. */
+ *  of the old round chip floating beside it.
+ *
+ *  The bottom offset depends on WHAT is wearing it (QA). A planeswalker's own
+ *  printed shield is in that corner and nothing else occupies it, so the badge
+ *  sits at 1.5%, right on top of it. A CREATURE holding a granted loyalty
+ *  ability has its P/T box there instead, and at 1.5% the shield overflows it;
+ *  13.5% clears the box and leaves both readable. */
 export default function LoyaltyBadge({ card }: { card: CardInstance }) {
     if (!showsLoyalty(card)) return null;
     const loyalty = card.counters?.loyalty ?? 0;
+    const bottom = isCreature(card) ? "13.5%" : "1.5%";
     return (
         <div
-            className="pointer-events-none absolute bottom-[1.5%] right-[4%] z-10 flex w-[26%] items-center justify-center"
-            style={{ aspectRatio: "10 / 11" }}
+            className="pointer-events-none absolute right-[4%] z-10 flex w-[26%] items-center justify-center"
+            style={{ aspectRatio: "10 / 11", bottom }}
             aria-label={`${loyalty} loyalty`}
             data-loyalty-shield
         >

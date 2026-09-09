@@ -84,6 +84,36 @@ describe("LoyaltyBadge (CR 606.2 / 122.1e, issue #3299)", () => {
         ).toBe("0 loyalty");
     });
 
+    it("clears the P/T box on a creature and sits on the printed shield otherwise (QA)", () => {
+        // A planeswalker's own printed loyalty shield is the only thing in that
+        // corner, so the badge sits right on it. A CREATURE has its P/T box
+        // there instead, and at 1.5% the shield overflows it.
+        const pw = render(
+            <LoyaltyBadge
+                card={card({
+                    types: ["Planeswalker"],
+                    counters: { loyalty: 3 },
+                })}
+            />
+        );
+        expect(
+            (pw.container.querySelector("[data-loyalty-shield]") as HTMLElement)
+                .style.bottom
+        ).toBe("1.5%");
+
+        cleanup();
+        const creature = render(
+            <LoyaltyBadge card={card({ counters: { loyalty: 3 } })} />
+        );
+        expect(
+            (
+                creature.container.querySelector(
+                    "[data-loyalty-shield]"
+                ) as HTMLElement
+            ).style.bottom
+        ).toBe("13.5%");
+    });
+
     it("still renders a planeswalker's zero (CR 122.1e — the SBA has not run yet)", () => {
         const { container } = render(
             <LoyaltyBadge

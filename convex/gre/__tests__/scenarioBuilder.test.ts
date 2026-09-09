@@ -418,6 +418,76 @@ describe("buildStateFromScenario — library placement + libraryCount", () => {
 // own `createTokenPermanents`, resolving the shape from the token catalogue.
 // ---------------------------------------------------------------------------
 
+describe("buildStateFromScenario — a scenario starts a LIVE game (CR 104, issue #3314)", () => {
+    it("clears `gameOver` when loaded into a FINISHED game", () => {
+        const base = makeState();
+        // CR 104.3c — a solo game whose libraries have run out ends in a draw,
+        // and that is exactly the position a scenario is loaded to rescue.
+        base.players[0].library = [];
+        base.players[1].library = [];
+        base.gameOver = {
+            winnerId: "p1",
+            loserId: "p2",
+            reason: "decked",
+        };
+
+        const state = buildStateFromScenario(base, {
+            cards: [
+                { name: grizzlyBears.name, owner: "me", zone: "battlefield" },
+            ],
+            libraryCount: 10,
+        });
+
+        // Without the reset the board is right and the game is dead: every
+        // mutation dies on `assertGameNotOver` (`convex/game.ts`).
+        expect(state.gameOver).toBeUndefined();
+        // The board the spec named is still what was built ...
+        expect(state.players[0].battlefield).toHaveLength(1);
+        // ... and `libraryCount` is what refills the libraries, which is a
+        // SEPARATE axis: it removes the cause of the draw, it never revives a
+        // game the flag has already ended.
+        expect(state.players[0].library).toHaveLength(10);
+        expect(state.players[1].library).toHaveLength(10);
+    });
+
+    it("leaves a live game untouched, and does not mutate the base state", () => {
+        const base = makeState();
+        expect(base.gameOver).toBeUndefined();
+        const state = buildStateFromScenario(base, {
+            cards: [
+                { name: grizzlyBears.name, owner: "me", zone: "battlefield" },
+            ],
+        });
+        expect(state.gameOver).toBeUndefined();
+        expect(base.players[0].battlefield).toHaveLength(0);
+    });
+
+    it("does not carry a finished game through a capture/rebuild round trip", () => {
+        // `specFromState` reports `gameOver` as DROPPED rather than lowering it
+        // into the spec; clearing it in the builder is what makes that note
+        // true in BOTH directions — neither captured nor carried.
+        const finished = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [makeInstance(grizzlyBears.id, { id: "b1" })],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        finished.gameOver = {
+            winnerId: "p1",
+            loserId: "p2",
+            reason: "life",
+        };
+
+        const captured = specFromState(finished, { mySeatId: "p1" });
+        expect(captured.dropped.join(" ")).toContain("gameOver");
+        expect(
+            buildStateFromScenario(finished, captured.spec).gameOver
+        ).toBeUndefined();
+    });
+});
+
 describe("buildStateFromScenario — tokens (CR 111 / 707.2)", () => {
     it("creates a token permanent on the battlefield with the catalogue's characteristics", () => {
         const base = makeState();
