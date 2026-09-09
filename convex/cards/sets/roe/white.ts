@@ -18,7 +18,8 @@ import type { CardDefinition } from "../../types";
 // bottom). Teferi, Hero of Dominaria's −3 is the shipped precedent at
 // `position: 3` (`dom/multicolor.ts`); Oust is the same Op at `position: 2`.
 //
-// "Its controller" is the CREATURE's controller (CR 109.5), not Oust's, and
+// "Its controller" is the CREATURE's controller (CR 110.2 — every permanent
+// has a controller, by default the player it entered under), not Oust's, and
 // it must be read as LAST KNOWN INFORMATION (CR 608.2h): by the time the life
 // gain runs the creature is in a library and no longer has a controller, so
 // `{ controllerOf: { target: 0 } }` would resolve to nothing. The snapshot

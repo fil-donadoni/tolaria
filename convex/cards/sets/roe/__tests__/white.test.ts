@@ -1,7 +1,7 @@
 // ROE — white card behavior tests (ADR 0043 colour split). Oust separates two
 // player references the CR keeps apart and a naive reading collapses: the card
 // goes to its OWNER's library (CR 400.3) while its CONTROLLER gains the life
-// (CR 109.5), read as last known information (CR 608.2h) because the creature
+// (CR 110.2), read as last known information (CR 608.2h) because the creature
 // is already gone by the time the life gain runs.
 
 import { describe, it, expect } from "vitest";
@@ -31,7 +31,7 @@ function library(playerId: string, n: number) {
     );
 }
 
-describe("Oust (CR 400.3 owner's library, 109.5 'its controller', 608.2h LKI — issue #3228)", () => {
+describe("Oust (CR 400.3 owner's library, 110.2 'its controller', 608.2h LKI — issue #3228)", () => {
     it("puts the creature SECOND from the top of its owner's library and gives its controller 3 life", () => {
         const bear = makeInstance(grizzlyBears.id, {
             id: "bear",
@@ -66,7 +66,7 @@ describe("Oust (CR 400.3 owner's library, 109.5 'its controller', 608.2h LKI —
     });
 
     it("owner and controller diverge: the card goes to its OWNER's library, the CONTROLLER gains the life", () => {
-        // A stolen bear — owned by p2, controlled by p1 (CR 108.3 / 109.5).
+        // A stolen bear — owned by p2, controlled by p1 (CR 108.3 / 110.2).
         const bear = makeInstance(grizzlyBears.id, {
             id: "bear",
             controllerId: "p1",
