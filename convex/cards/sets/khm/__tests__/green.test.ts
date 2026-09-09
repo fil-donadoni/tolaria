@@ -155,6 +155,7 @@ describe("Esika's Chariot — ETB Cats (CR 707.1 / 111, issue #3229)", () => {
         // the client only ever sees the reducer's output.
         const wire = projectPublicState(
             state,
+            1,
             "p1"
         ).players[0].battlefield.find((c) => c.id === "chariot1")!;
         expect(after.types).toContain("Creature");

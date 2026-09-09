@@ -266,6 +266,7 @@ describe("Nissa, Who Shakes the World — +1 animates a noncreature land (CR 205
         // SURFACE assertion through the reducer the client actually reads.
         const wire = projectPublicState(
             state,
+            1,
             "p1"
         ).players[0].battlefield.find((c) => c.id === "forest1")!;
         expect(wire.types).toContain("Creature");
@@ -383,7 +384,7 @@ describe("Nissa, Who Shakes the World — −8 emblem + Forest fetch (CR 114 / 7
         });
         activate(state, MINUS8);
 
-        const wire = projectPublicState(state, "p1");
+        const wire = projectPublicState(state, 1, "p1");
         const mine = wire.players[0].battlefield.find(
             (c) => c.id === "myForest"
         )!;

@@ -342,7 +342,7 @@ describe("Ugin, Eye of the Storms — wire format (loyalty abilities reach the c
                 makePlayer("p2"),
             ],
         });
-        const view = projectPublicState(state, "p1");
+        const view = projectPublicState(state, 1, "p1");
         const wire = view.players[0].battlefield.find((c) => c.id === "ugin1")!;
         expect(wire.counters?.loyalty).toBe(7);
         expect(wire.types).toContain("Planeswalker");

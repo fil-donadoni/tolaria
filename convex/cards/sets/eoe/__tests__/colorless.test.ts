@@ -312,6 +312,7 @@ describe("Tezzeret, Cruel Captain — −7 emblem (phase-triggered emblem, CR 11
         // SURFACE assertion through the reducer the client actually reads.
         const wire = projectPublicState(
             state,
+            1,
             "p1"
         ).players[0].battlefield.find((c) => c.id === "icy")!;
         expect(wire.types).toContain("Creature");
@@ -336,6 +337,7 @@ describe("Tezzeret, Cruel Captain — −7 emblem (phase-triggered emblem, CR 11
         resolveTopOfStack(state);
         const wire = projectPublicState(
             state,
+            1,
             "p1"
         ).players[0].battlefield.find((c) => c.id === "thopter")!;
         // Ornithopter is a printed 0/2, so the counters make it 3/5 — proof the
