@@ -190,9 +190,12 @@ describe("Agatha's Soul Cauldron — ability copy (CR 607.2a / 613.1f, issue #29
         syncLayer6(state);
         expect(offeredAbilityIds(creature)).toEqual([]);
 
-        // `dependsOnCounters: true` is what makes this re-derivation happen at
-        // all for a MATERIALIZED kind (issue #1711) — without it the gate stays
-        // frozen at its entering-the-battlefield answer.
+        // The gate is live because layer 6 is DERIVED wholesale at every stable
+        // transition (ADR 0112), which is what `syncLayer6` stands in for here.
+        // In a real game a mid-turn counter also has to reach
+        // `recomputeContinuousEffects`, and THAT is what the card's
+        // `dependsOnCounters: true` enrols it in (issue #1711) — asserted
+        // catalogue-wide by `counterGatedStatics.test.ts`, not here.
         creature.counters = { "+1/+1": 1 };
         syncLayer6(state);
         expect(offeredAbilityIds(creature)).toEqual([SHADE_PUMP]);
