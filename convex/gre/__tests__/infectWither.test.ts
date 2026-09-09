@@ -520,14 +520,14 @@ describe("infect/wither survive the wire projection (visible outcome)", () => {
     });
 });
 
-// CR 702.90a-b / 702.9b — the PERMANENT-SOURCE damage sinks
+// CR 702.90b/c infect and CR 702.80a wither — the PERMANENT-SOURCE damage sinks
 // (`markDamageFromPermanentSource`, `dealDamageFromPermanentToPlayer`) are the
 // path a fight, a painland's coloured-tap rider and every `dealDamage { source }`
 // Op take. They wrote life loss and `damageMarked` unconditionally, so the whole
 // infect/wither leg was lost the moment the source was an arbitrary permanent
 // rather than the resolving stack item — a hole that only became reachable from
 // a card's announced target with issue #1565.
-describe("permanent-source damage sinks — infect/wither (CR 702.90a-b, issue #1565)", () => {
+describe("permanent-source damage sinks — infect and wither (CR 702.90b/c, CR 702.80a, issue #1565)", () => {
     function boardWith(staticAbilities: string[]): {
         state: GameState;
         item: StackItem;
@@ -588,7 +588,7 @@ describe("permanent-source damage sinks — infect/wither (CR 702.90a-b, issue #
             { type: "permanent", id: "bear" },
             1
         );
-        // CR 702.9b — wither damage is dealt as -1/-1 counters and is NEVER
+        // CR 702.80a — wither damage is dealt as -1/-1 counters and is NEVER
         // marked, so the 2/2 Bears is a 1/1 with no damage on it.
         expect(bear.counters?.["-1/-1"]).toBe(1);
         expect(bear.damageMarked ?? 0).toBe(0);
@@ -602,7 +602,8 @@ describe("permanent-source damage sinks — infect/wither (CR 702.90a-b, issue #
         expect(state.players[1].poisonCounters).toBe(2);
     });
 
-    it("resolveFight — a wither combatant deals its half as -1/-1 counters (CR 701.14)", () => {
+    // CR 701.14 — the fight itself; the counters leg is CR 702.80a wither.
+    it("resolveFight — a withering combatant deals its half as -1/-1 counters", () => {
         const { state } = boardWith(["wither"]);
         const bear = makeInstance(grizzlyBears.id, {
             id: "bear",

@@ -8959,10 +8959,10 @@ export function dealDamageFromPermanentToPlayer(
         ? reduced
         : applyTargetPrevention(state, "player", finalTarget.id, reduced);
     if (reduced <= 0) return;
-    // CR 702.90a — a source with infect deals its damage to a player as poison
-    // counters instead of life loss (CR 702.90c: it is still "damage" for every
-    // other purpose, so the bookkeeping below is unaffected — only the life loss
-    // and its trigger are skipped). Read off the PERMANENT source's effective
+    // CR 702.90b — a source with infect deals its damage to a player as poison
+    // counters instead of life loss; it is still "damage" for every other
+    // purpose, so the bookkeeping below is unaffected — only the life loss and
+    // its trigger are skipped. Read off the PERMANENT source's effective
     // abilities, exactly as the stack-item sink does (issue #1565).
     if (
         !markInfectPoisonDamage(
@@ -9093,7 +9093,7 @@ function markDamageFromPermanentSource(
             ? reduced
             : applyTargetPrevention(state, "player", finalTarget.id, reduced);
         if (reduced <= 0) return null;
-        // CR 702.90a — infect turns the redirected player damage into poison
+        // CR 702.90b — infect turns the redirected player damage into poison
         // counters (issue #1565: this sink used to lose the infect leg outright).
         if (
             !markInfectPoisonDamage(
@@ -9166,7 +9166,7 @@ function markDamageFromPermanentSource(
     if (pw) {
         removeLoyaltyForDamage(found.card, reduced);
     } else if (
-        // CR 702.90b / 702.9b — damage from a source with infect or wither is
+        // CR 702.90c infect / CR 702.80a wither — damage from such a source is
         // dealt to a creature as -1/-1 counters, never marked (issue #1565:
         // this sink wrote `damageMarked` unconditionally, so a fight, a
         // painland redirect and every `source`-bearing Op lost the whole
