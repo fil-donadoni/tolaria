@@ -212,6 +212,21 @@ describe("design tokens — WCAG contrast (phase 3)", () => {
         ).toBeGreaterThanOrEqual(4.5);
     });
 
+    it("zone-CTA labels pass: surface-base on accent-strong ≥4.5:1 (issue #3280)", () => {
+        // ADR 0103 retired `accent-strong` as a "brighter accent" and
+        // re-derived it off ivory, but the eight zone CTAs (exile Cast,
+        // graveyard/library Play, Flashback, Activate, companion Summon, Turn
+        // face up) kept a pre-v4 `text-white` on that plate: ~1.05:1, an
+        // invisible label while ENABLED, readable only once disabled. The
+        // shared recipe is `V4_ZONE_CTA_PLATE` (`src/lib/board-chrome-v4.ts`);
+        // this row is what keeps the pairing measured rather than eyeballed.
+        expect(
+            ratio(colors["surface-base"], colors["accent-strong"])
+        ).toBeGreaterThanOrEqual(4.5);
+        // The retired pairing, named so it can never come back quietly.
+        expect(ratio("#ffffff", colors["accent-strong"])).toBeLessThan(1.5);
+    });
+
     it("the retired values stay retired (the two original failures)", () => {
         // #6f6244 was text-disabled at 3.13:1; if it ever comes back this
         // test pair fails above — assert the token moved explicitly.

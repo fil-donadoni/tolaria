@@ -313,6 +313,16 @@ export interface CardInstance {
      *  X, no kicker and no buyback. Mirrors
      *  `SlimHandCard.flashSurchargeRequired` in `convex/gameProjections.ts`. */
     flashSurchargeRequired?: true;
+    /** CR 601.3c / 118.9b (issue #3280) — true when casting this own-hand card
+     *  RIGHT NOW is licensed ONLY by a board permission that waives its mana
+     *  cost (Aluren, off the caster's sorcery window), making that permission's
+     *  free cast MANDATORY and the printed-cost cast illegal. Derived
+     *  server-side by `castPermissionRequiredFor`, the same predicate
+     *  `announceCast` rejects on; absent (never `false`) when the printed cast
+     *  is available. `useHandCardCommit` drops the picker's "Pay mana cost" row
+     *  on it. Mirrors `SlimHandCard.printedCostCastUnavailable` in
+     *  `convex/gameProjections.ts`. */
+    printedCostCastUnavailable?: true;
     /** Two basic land types chosen as a permanent entered and stored for the
      *  rest of the game (CR 603.6b / 614.12 — Illusionary Terrain). Forwarded by
      *  `slimCard` (the projection only strips `card`/`knownTo`); read by the

@@ -882,6 +882,7 @@ const CARD_STATE_ALLOWLIST = new Set<string>([
     "seenByOpponent",
     "phyrexianOptions",
     "flashSurchargeRequired",
+    "printedCostCastUnavailable",
     "exiledByPermanentId",
     "castKind",
     "flashbackExileMaxX",

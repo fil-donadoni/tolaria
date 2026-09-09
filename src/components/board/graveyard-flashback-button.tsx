@@ -1,5 +1,6 @@
 import type { CardInstance } from "~/types/game";
 import { useHandCardCommit } from "~/hooks/useHandCardCommit";
+import { V4_ZONE_CTA } from "~/lib/board-chrome-v4";
 
 /** Flashback cast affordance (CR 702.34 — "You may cast this card from your
  *  graveyard by paying its flashback cost. Then exile it."). Rendered over a
@@ -90,7 +91,7 @@ export default function GraveyardFlashbackButton({
                     // the dialog survives the choice sequence.
                     onCastClick(e);
                 }}
-                className="absolute inset-x-0 bottom-0 z-30 rounded-b bg-accent-strong/90 px-1 py-1 text-xs font-bold text-white shadow hover:bg-accent-strong disabled:cursor-not-allowed disabled:bg-surface-elevated/80 disabled:text-text-muted disabled:shadow-none"
+                className={V4_ZONE_CTA}
             >
                 {label}
             </button>

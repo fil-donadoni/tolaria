@@ -17,7 +17,7 @@ import type {
 import type { CardAction } from "./types";
 import { findTriggeredAbility } from "./copy";
 import { computeExpectedInput } from "./expectedInput";
-import { isSorceryTiming, isSorceryTimingFor } from "./phases";
+import { isSorceryTimingFor } from "./phases";
 import {
     CASTABLE_PERMANENT_TYPES,
     DAMAGEABLE_PERMANENT_TYPES,
@@ -832,12 +832,26 @@ export function getLegalActions(
             // timing or remaining land drops. Suppressing the "play" action here
             // also blocks the server path: `assertLegalAction` rejects the
             // `playCard` mutation when "play" is absent.
-            const landsPlayed = player.landsPlayedThisTurn ?? 0;
-            const extraDrops = getExtraLandDrops(player);
+            //
+            // CR 305.2 / 307.1 (issue #3280) — the drop count, the extra drops
+            // and the sorcery window are all facts about the CASTER, never
+            // about the zone owner. Under a CROSS-PLAYER land-inclusive exile
+            // grant (Dauthi Voidwalker's opponent-exile land) the two differ,
+            // and reading `player` here answered about the wrong seat: the
+            // projection calls this with `player` = the exile's owner and
+            // `casterId` = the grant holder, so a caster who had already spent
+            // their land drop still got `"play"` projected while
+            // `assertLegalAction`'s own call (`player` = the caster) returned
+            // `none` — same function, two subjects, two answers, and an
+            // enabled CTA whose click threw. The zone-membership scans above
+            // keep reading `player`: those genuinely ask "whose zone is this
+            // card in".
+            const landsPlayed = caster.landsPlayedThisTurn ?? 0;
+            const extraDrops = getExtraLandDrops(caster);
             const maxDrops = LAND_DROPS_PER_TURN + extraDrops;
             if (
                 !landPlayLockActive(state) &&
-                isSorceryTiming(state) &&
+                isSorceryTimingFor(state, caster.id) &&
                 landsPlayed < maxDrops
             ) {
                 actions.push("play");

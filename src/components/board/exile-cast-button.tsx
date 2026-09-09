@@ -1,6 +1,7 @@
 import type { CardInstance } from "~/types/game";
 import { getDefinition } from "@convex/cards";
 import { useHandCardCommit } from "~/hooks/useHandCardCommit";
+import { V4_ZONE_CTA_DISABLED, V4_ZONE_CTA_PLATE } from "~/lib/board-chrome-v4";
 
 /** Play-from-exile affordance (CR 601.3 / 305.1-analog — Ice Cauldron: "You may cast that
  *  card for as long as it remains exiled"; Headliner Scarlett / Expressive
@@ -75,7 +76,7 @@ export default function ExileCastButton({
                     if (isLand) onPlayClick();
                     else onCastClick(e);
                 }}
-                className="absolute inset-x-1 bottom-1 z-30 rounded bg-accent-strong/90 px-2 py-1 text-xs font-bold text-white shadow hover:bg-accent-strong disabled:cursor-not-allowed disabled:bg-surface-elevated/80 disabled:text-text-muted disabled:shadow-none"
+                className={`absolute inset-x-1 bottom-1 z-30 rounded px-2 py-1 ${V4_ZONE_CTA_PLATE} ${V4_ZONE_CTA_DISABLED}`}
             >
                 {label}
             </button>

@@ -94,7 +94,14 @@ const ALUREN_ROW_LABEL = (() => {
  *  own main phase — enough mana for the printed cost, so the picker's two rows
  *  are a genuine choice rather than the only payable line. Run through the REAL
  *  wire projection. */
-function projected(cardId: string, instanceId: string) {
+function projected(
+    cardId: string,
+    instanceId: string,
+    /** CR 601.3b (issue #3280) — who is the ACTIVE player. `"them"` puts `me`
+     *  outside their own sorcery window, where Aluren's flash grant is the only
+     *  thing licensing the cast and CR 118.9b makes its free cost MANDATORY. */
+    activePlayer: "me" | "them" = "me"
+) {
     const state = makeState({
         players: [
             makePlayer("me", {
@@ -125,7 +132,7 @@ function projected(cardId: string, instanceId: string) {
             makePlayer("them"),
         ],
         phase: "PRECOMBAT_MAIN",
-        activePlayerId: "me",
+        activePlayerId: activePlayer,
         priorityPlayerId: "me",
     });
     const view = projectPublicState(state, 1, "me") as unknown as {
@@ -225,6 +232,54 @@ describe("cast-option picker under a board cast permission (CR 118.9, #2706)", (
             cardInstanceId: "bears1",
             alternativeCostId: ALUREN_ALT_COST_ID,
         });
+    });
+
+    // CR 601.3c / 118.9b (issue #3280) — the picker's OWN "Pay mana cost" row
+    // is an option, and off the caster's sorcery window it is an ILLEGAL one:
+    // the permission is what licenses the cast at all, so its free cost is
+    // mandatory and `announceCast` refuses a printed-cost announcement. The
+    // picker used to render the row anyway and turn a legal-looking click into
+    // a raw mutation rejection.
+    it("Grizzly Bears under Aluren, OFF the caster's window: no picker, the free cast dispatches straight through", () => {
+        const p = projected(grizzlyBears.id, "bears2", "them");
+        // The permission's flash grant is what makes it castable here at all.
+        expect(p.card.legalActions).toContain("cast");
+        // The server said so — the client re-derives no cast timing (ADR 0074).
+        expect(p.card.printedCostCastUnavailable).toBe(true);
+
+        renderCard(p);
+        fireEvent.click(el());
+
+        // One surviving option is not a choice: no picker opens, and the row
+        // the mutation would refuse is nowhere on screen.
+        expect(
+            screen.queryByRole("button", { name: "Pay mana cost" })
+        ).toBeNull();
+        expect(
+            screen.queryByRole("button", {
+                name: (accessibleName: string) =>
+                    accessibleName.startsWith(ALUREN_ROW_LABEL),
+            })
+        ).toBeNull();
+        expect(announceCast).toHaveBeenCalledTimes(1);
+        expect(announceCast.mock.calls[0][0]).toMatchObject({
+            cardInstanceId: "bears2",
+            alternativeCostId: ALUREN_ALT_COST_ID,
+        });
+    });
+
+    it("inside the caster's own window the printed cast stays legal — no flag, both rows", () => {
+        const p = projected(grizzlyBears.id, "bears3");
+        // Absent, never `false` — the same shape as `flashSurchargeRequired`.
+        expect(p.card.printedCostCastUnavailable).toBeUndefined();
+
+        renderCard(p);
+        fireEvent.click(el());
+
+        expect(
+            screen.getByRole("button", { name: "Pay mana cost" })
+        ).toBeTruthy();
+        expect(announceCast).not.toHaveBeenCalled();
     });
 
     it("Shivan Dragon (the must-NOT row): outside the filter, no picker and a plain announcement", () => {

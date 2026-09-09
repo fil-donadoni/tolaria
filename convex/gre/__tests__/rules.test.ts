@@ -166,6 +166,66 @@ describe("getLegalActions", () => {
             expect(actions).not.toContain("cast");
         });
 
+        // CR 305.2 / 307.1 (issue #3280) — a CROSS-PLAYER land-inclusive exile
+        // grant is the one shape where the zone owner and the caster differ,
+        // and the land-drop gate is a fact about the CASTER. Reading the zone
+        // owner's count projected `"play"` onto a caster who had already spent
+        // their drop, while `assertLegalAction`'s own call (`player` = the
+        // caster) said `none` — an enabled CTA whose click threw
+        // `Illegal action "play"`. Both call shapes must now agree.
+        describe("cross-player land-inclusive exile grant (issue #3280)", () => {
+            /** p1 holds a land-inclusive grant over a land sitting in p2's
+             *  exile. p1 is active, in their POSTCOMBAT_MAIN with an empty
+             *  stack and priority — the exact repro board. */
+            function crossPlayerGrant(casterLandsPlayed: number) {
+                const land = card(plains.id, {
+                    zone: "exile",
+                    castableFromExileBy: "p1",
+                    castableFromExileIncludesLand: true,
+                });
+                const caster = makePlayer({
+                    id: "p1",
+                    landsPlayedThisTurn: casterLandsPlayed,
+                });
+                // The zone OWNER has played no land this turn — the state that
+                // used to answer the question for the wrong seat.
+                const owner = makePlayer({
+                    id: "p2",
+                    exile: [land],
+                    landsPlayedThisTurn: 0,
+                });
+                const state = makeGameState({
+                    players: [caster, owner],
+                    phase: "POSTCOMBAT_MAIN",
+                    activePlayerId: "p1",
+                    priorityPlayerId: "p1",
+                });
+                return { land, caster, owner, state };
+            }
+
+            it('projects NO "play" when the CASTER has spent their land drop, though the zone owner has not', () => {
+                const { land, caster, owner, state } = crossPlayerGrant(1);
+                // The projection's call shape: `player` = the exile's owner,
+                // `casterId` = the grant holder.
+                expect(
+                    getLegalActions(state, owner, land, false, "p1")
+                ).not.toContain("play");
+                // The mutation's call shape (`assertLegalAction`): `player` =
+                // the caster, no separate `casterId`.
+                expect(getLegalActions(state, caster, land)).not.toContain(
+                    "play"
+                );
+            });
+
+            it('offers "play" in BOTH call shapes while the caster still has their land drop', () => {
+                const { land, caster, owner, state } = crossPlayerGrant(0);
+                expect(
+                    getLegalActions(state, owner, land, false, "p1")
+                ).toContain("play");
+                expect(getLegalActions(state, caster, land)).toContain("play");
+            });
+        });
+
         it('a land in an OPPONENT\'s hand has NO "play" action for the viewing player', () => {
             const land = card(plains.id, { zone: "hand" });
             const state = makeGameState();

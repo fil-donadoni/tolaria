@@ -55,6 +55,36 @@ export const V4_COUNT_BADGE =
 export const V4_CHIP =
     "inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--hairline-strong)] px-2 py-0.5 text-[10px] font-semibold leading-none text-text-muted";
 
+/** The ZONE-CTA plate: the one primary action a zone tile may offer — Cast
+ *  from exile, Play from the graveyard / library top, Flashback, Activate,
+ *  Summon a companion, Turn face up. ADR 0103 §3 gives the primary action the
+ *  monochrome ivory plate, and its foreground is `surface-base` graphite, the
+ *  SAME on-ivory pairing `V4_COUNT_BADGE` and `hand-card-confirm-pill` already
+ *  use.
+ *
+ *  Extracted on the eighth copy (issue #3280). All eight buttons carried the
+ *  identical hand-typed string with a pre-v4 `text-white` on it: ADR 0103
+ *  retired `accent-strong` as a "brighter accent" and re-derived it off ivory
+ *  (`--color-accent-strong: #f7f3ea`), so white-on-ivory measured ~1.05:1 and
+ *  every one of these labels was invisible while ENABLED — only the disabled
+ *  state, which overrides the colour, could be read. The pairing is asserted
+ *  in `src/__tests__/design-tokens.test.ts` rather than eyeballed. */
+export const V4_ZONE_CTA_PLATE =
+    "bg-accent-strong/90 text-xs font-bold text-surface-base shadow hover:bg-accent-strong";
+
+/** The disabled half of a zone CTA: a CTA whose action is not legal right now
+ *  stays visible and goes flat + muted rather than disappearing, so the tile
+ *  does not reflow as legality changes. Split from the plate because
+ *  `graveyard-activate-button` renders a menu row that is never disabled. */
+export const V4_ZONE_CTA_DISABLED =
+    "disabled:cursor-not-allowed disabled:bg-surface-elevated/80 disabled:text-text-muted disabled:shadow-none";
+
+/** The full bottom-edge zone CTA: the plate + its disabled state, pinned to the
+ *  bottom of the zone tile it belongs to. Six of the eight CTAs are exactly
+ *  this; the two that differ (exile's inset pill, the graveyard activate menu
+ *  row) compose the two halves above with their own box instead. */
+export const V4_ZONE_CTA = `absolute inset-x-0 bottom-0 z-30 rounded-b px-1 py-1 ${V4_ZONE_CTA_PLATE} ${V4_ZONE_CTA_DISABLED}`;
+
 /** Life at or below this reads as a LOW-LIFE plaque state (ADR 0103 §8 — the
  *  signal hues carry meaning, and "you are nearly dead" is the one life-total
  *  state worth a hue). Five is the conventional burn range; it is a display

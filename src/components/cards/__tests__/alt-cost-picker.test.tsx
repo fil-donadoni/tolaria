@@ -16,6 +16,7 @@ describe("AltCostPicker (#2919, CR 118.9)", () => {
         render(
             <AltCostPicker
                 altCosts={altCosts}
+                printedCostAvailable
                 cardName="Test Card"
                 position={{ x: 0, y: 0 }}
                 onSelect={() => {}}

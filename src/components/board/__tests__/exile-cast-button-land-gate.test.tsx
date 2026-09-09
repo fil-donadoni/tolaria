@@ -127,3 +127,65 @@ describe("ExileCastButton land gate (issue #1689, CR 305.9)", () => {
         expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
     });
 });
+
+// CR 305.2 / 307.1 (issue #3280) — a CROSS-PLAYER land-inclusive grant (Dauthi
+// Voidwalker's opponent-exile land) is the one shape where the zone owner and
+// the caster differ. `getLegalActions`' land branch read the ZONE OWNER's land
+// drop for the drop gate, so a caster who had already played their land still
+// got `"play"` projected and an ENABLED CTA — whose click threw
+// `Illegal action "play" on "Mountain". Legal actions: none` from
+// `assertLegalAction`, which asks the same function with the caster as
+// `player`. Full path: real GameState → `projectPublicState` → the rendered
+// button's disabled state.
+describe("ExileCastButton under a CROSS-PLAYER land grant (issue #3280)", () => {
+    beforeEach(() => {
+        playCard.mockClear();
+        announceCast.mockClear();
+        cleanup();
+    });
+
+    /** The Mountain sits in p2's exile under p1's land-inclusive grant. p1 is
+     *  the active player in POSTCOMBAT_MAIN with an empty stack and priority;
+     *  p2 (the zone owner) has played no land this turn. */
+    function projectedCrossPlayerLand(casterLandsPlayed: number) {
+        const exiled = makeInstance(MOUNTAIN, {
+            id: "exiled-mountain",
+            controllerId: "p1",
+            ownerId: "p2",
+            zone: "exile",
+            knownTo: ["p1", "p2"],
+            castableFromExileBy: "p1",
+            castableFromExileIncludesLand: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { landsPlayedThisTurn: casterLandsPlayed }),
+                makePlayer("p2", { exile: [exiled], landsPlayedThisTurn: 0 }),
+            ],
+            phase: "POSTCOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            turn: 1,
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        return projected.players[1].exile.find(
+            (c) => c.id === "exiled-mountain"
+        )!;
+    }
+
+    it('projects no "play" and disables the CTA once the CASTER has spent their land drop', () => {
+        const card = projectedCrossPlayerLand(1);
+        expect(card.legalActions ?? []).not.toContain("play");
+        renderButton(card);
+        const button = screen.getByRole("button", { name: "Play" });
+        expect(button.hasAttribute("disabled")).toBe(true);
+    });
+
+    it("keeps the CTA enabled while the caster still has their land drop", () => {
+        const card = projectedCrossPlayerLand(0);
+        expect(card.legalActions ?? []).toContain("play");
+        renderButton(card);
+        const button = screen.getByRole("button", { name: "Play" });
+        expect(button.hasAttribute("disabled")).toBe(false);
+    });
+});

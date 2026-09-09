@@ -25,6 +25,7 @@ import {
     getLegalActions,
     phyrexianLifePipOptions,
     flashSurchargeRequired,
+    castPermissionRequiredFor,
 } from "./gre/rules";
 import { canSummonCompanion } from "./gre/companion";
 import { canTurnFaceUp } from "./gre/morph";
@@ -75,6 +76,18 @@ export type SlimHandCard = SlimCardInstance & {
      *  (never `false`) when nothing is owed, so the dialog is not opened to
      *  offer a pointless {2} at sorcery speed. */
     flashSurchargeRequired?: true;
+    /** CR 601.3c / 118.9b (issue #3280) — true when casting THIS card from the
+     *  viewer's OWN hand right now is licensed ONLY by a board permission that
+     *  waives its mana cost (Aluren, off the caster's sorcery window), so the
+     *  printed-cost cast is NOT one of the options: the permission's
+     *  alternative cost is mandatory. Server-authoritative, from the same
+     *  `castPermissionRequiredFor` predicate `announceCast` rejects on and the
+     *  Bot's enumerator suppresses the printed-cost move on — the client never
+     *  re-derives cast timing (ADR 0074). Without it the cast-option picker
+     *  rendered an unconditional "Pay mana cost" row whose click was a
+     *  guaranteed mutation rejection. Absent (never `false`) when the printed
+     *  cast IS available, exactly like `flashSurchargeRequired`. */
+    printedCostCastUnavailable?: true;
 };
 
 /** Exile card in projected state: slim, plus `legalActions` when the viewer may
@@ -1420,6 +1433,19 @@ export function projectPublicState(
                         ...(legalActions.includes("cast") &&
                         flashSurchargeRequired(state, player.id, card)
                             ? { flashSurchargeRequired: true as const }
+                            : {}),
+                        // CR 601.3c / 118.9b (issue #3280) — the printed-cost
+                        // cast is off the table when a board permission is the
+                        // only thing licensing this cast right now. Same gate
+                        // and same hand-only scope as the surcharge above
+                        // (`castPermissionRequiredFor` is hand-only by
+                        // construction — it returns `false` for every other
+                        // `castFromZone`), so the picker can drop its
+                        // "Pay mana cost" row instead of offering a click the
+                        // mutation is guaranteed to refuse.
+                        ...(legalActions.includes("cast") &&
+                        castPermissionRequiredFor(state, player.id, card)
+                            ? { printedCostCastUnavailable: true as const }
                             : {}),
                     };
                 }),

@@ -3,6 +3,7 @@ import { api } from "@convex/_generated/api";
 import { useGameContext } from "~/hooks/useGameContext";
 import { extractMutationErrorMessage } from "~/lib/mutation-error";
 import { trackGameIntent } from "~/lib/pending-intent-store";
+import { V4_ZONE_CTA_PLATE } from "~/lib/board-chrome-v4";
 
 /** CR 113.6 / 602.5b — activation affordance for an activated ability whose
  *  source is a card in the viewer's OWN graveyard (Ashen Ghoul's "{B}: Return
@@ -54,7 +55,7 @@ export default function GraveyardActivateButton({
                         });
                         onCommitted?.();
                     }}
-                    className="rounded-b bg-accent-strong/90 px-1 py-1 text-xs font-bold text-white shadow hover:bg-accent-strong"
+                    className={`rounded-b px-1 py-1 ${V4_ZONE_CTA_PLATE}`}
                 >
                     Activate
                 </button>

@@ -42,9 +42,17 @@ type AltCostPickerState = {
     keepPriority: boolean | undefined;
     position: { x: number; y: number };
     /** The alternative costs the caster can currently afford (CR 118.9) — the
-     *  picker offers exactly these plus "Pay mana cost". Filtered at open time
-     *  so a condition-failing / unaffordable alt is never shown. */
+     *  picker offers exactly these, plus "Pay mana cost" when
+     *  {@link printedCostAvailable}. Filtered at open time so a
+     *  condition-failing / unaffordable alt is never shown. */
     altCosts: AlternativeCost[];
+    /** CR 601.3c / 118.9b (issue #3280) — whether paying the PRINTED mana cost
+     *  is a legal announcement right now. `false` under a board permission that
+     *  waives the mana cost off the caster's sorcery window (Aluren), where the
+     *  free cast is mandatory; the picker then omits its "Pay mana cost" row.
+     *  Read from the server-projected `printedCostCastUnavailable`, never
+     *  re-derived (ADR 0074). */
+    printedCostAvailable: boolean;
 };
 
 /** CR 601.2b / 118.8 — open state for the caster-chosen ADDITIONAL-cost picker
@@ -347,6 +355,21 @@ export function useHandCardCommit(
         // `castManaCostReplaced` stays: CR 601.2b — a library-top cast under a
         // cost-replacing permission (Bolas's Citadel) IS an alternative method
         // of casting, and no second one may ride along.
+        //
+        // CR 601.3c / 118.9b (issue #3280) — the printed-cost cast is itself
+        // one of the picker's OPTIONS, and it is not always legal. When a board
+        // permission (Aluren) is the only thing licensing this cast right now,
+        // its free cast is MANDATORY and paying the printed cost is illegal:
+        // the server says so through `printedCostCastUnavailable`, projected
+        // from the very predicate `announceCast` rejects on and the Bot's
+        // enumerator suppresses the printed-cost move on. The client reads that
+        // answer, it does not re-derive cast timing (ADR 0074).
+        //
+        // With the printed cost counted as an option, the rule the picker
+        // follows is the same one every other picker here follows: offer only
+        // what is legal, and never open for a decision that has ONE outcome. A
+        // single surviving option dispatches straight through, exactly as a
+        // card with no options at all casts on click today.
         if (!cardInstance.castManaCostReplaced) {
             const affordableAlts = affordableAltCostsForCard(
                 cardInstance,
@@ -354,7 +377,25 @@ export function useHandCardCommit(
                 allPlayers,
                 activePlayerId
             );
-            if (affordableAlts.length > 0) {
+            const printedCostAvailable =
+                !cardInstance.printedCostCastUnavailable;
+            const optionCount =
+                affordableAlts.length + (printedCostAvailable ? 1 : 0);
+            if (!printedCostAvailable && affordableAlts.length === 1) {
+                // The permission's free cast is the only legal announcement —
+                // no picker, no click on a row the mutation would refuse.
+                commitAnnounceCast({
+                    chosenX,
+                    keepPriority,
+                    chosenModeId: undefined,
+                    alternativeCostId: affordableAlts[0].id,
+                    kickerPayments,
+                    buyback,
+                    payFlashSurcharge,
+                });
+                return;
+            }
+            if (optionCount >= 2 && affordableAlts.length > 0) {
                 setAltCostPickerState({
                     chosenX,
                     kickerPayments,
@@ -363,9 +404,17 @@ export function useHandCardCommit(
                     keepPriority,
                     position,
                     altCosts: affordableAlts,
+                    printedCostAvailable,
                 });
                 return;
             }
+            // `optionCount === 0` (printed cost illegal and no alternative
+            // survived the affordability filter) falls through to the plain
+            // announcement below, where the server's own CR 118.9b rejection
+            // stands as defense-in-depth: the card should not have been
+            // castable at all, and inventing a client-side refusal here would
+            // be the second copy of the timing rules this field exists to
+            // avoid.
         }
         // CR 601.2b / 118.8 — a spell with a CASTER-CHOSEN additional cost
         // ("As an additional cost to cast this spell, discard a card or pay 3
@@ -559,6 +608,7 @@ export function useHandCardCommit(
         altCostPickerState && altCostPickerState.altCosts.length > 0 ? (
             <AltCostPicker
                 altCosts={altCostPickerState.altCosts}
+                printedCostAvailable={altCostPickerState.printedCostAvailable}
                 cardName={def.name}
                 position={altCostPickerState.position}
                 onSelect={(altCostId) => {

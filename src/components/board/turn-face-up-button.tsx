@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useGameContext } from "~/hooks/useGameContext";
+import { V4_ZONE_CTA } from "~/lib/board-chrome-v4";
 
 /** CR 116.2b / 702.37e (issue #2705) — the morph turn-face-up special action:
  *  "Any time you have priority, you may turn a face-down permanent you control
@@ -58,7 +59,7 @@ export default function TurnFaceUpButton({
                     setBusy(false);
                 }
             }}
-            className="absolute inset-x-0 bottom-0 z-30 rounded-b bg-accent-strong/90 px-1 py-1 text-xs font-bold text-white shadow hover:bg-accent-strong disabled:cursor-not-allowed disabled:bg-surface-elevated/80 disabled:text-text-muted disabled:shadow-none"
+            className={V4_ZONE_CTA}
         >
             Turn face up
         </button>
