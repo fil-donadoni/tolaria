@@ -34,7 +34,7 @@ import {
 } from "../../gre/castPermissions";
 import { getEffectivePower, getEffectiveToughness } from "../../gre/layers";
 import {
-    castPermissionClause,
+    castPermissionTerms,
     deriveCastPermissionId,
 } from "../castPermissionId";
 import { compileCard } from "../compile";
@@ -463,11 +463,11 @@ describe("board cast permission (CR 601.3)", () => {
         expect(effect?.kind).toBe("cast-permission");
         if (effect?.kind !== "cast-permission") return;
         expect(effect.id).toBe(
-            deriveCastPermissionId(castPermissionClause(effect))
+            deriveCastPermissionId(castPermissionTerms(effect))
         );
         // The id names the OPTION, not the card: the shipped Aluren prints the
         // same sentence and therefore carries the same literal.
-        expect(effect.id).toBe("any-player-creature-f9f346f4");
+        expect(effect.id).toBe("any-player-creature-6221c861");
         // The lockfile invariant: what the compiler emits IS its own JSON.
         expect(JSON.parse(JSON.stringify(definition))).toEqual(definition);
     });
@@ -816,7 +816,7 @@ describe("a compiled cast permission in the real engine (CR 601.3)", () => {
         expect(effect?.kind).toBe("cast-permission");
         if (effect?.kind !== "cast-permission")
             throw new Error("not a cast permission");
-        return deriveCastPermissionId(castPermissionClause(effect));
+        return deriveCastPermissionId(castPermissionTerms(effect));
     }
 
     function withCards<T>(fn: () => T): T {

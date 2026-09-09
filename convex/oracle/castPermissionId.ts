@@ -22,8 +22,8 @@
  * share an id. Under a dedupe keyed on that id the consequence is not an
  * error — it is the SILENT SUPPRESSION of the second permission, the same
  * fail-open shape `EffectCardFilter` itself was bitten by. A digest over the
- * whole canonicalised clause cannot forget a field: a new field changes the
- * digest by itself.
+ * whole of {@link CastPermissionTerms} cannot forget a field: a new field
+ * changes the digest by itself.
  *
  * The readable prefix in front of it (`any-player-creature-…`) is cosmetic —
  * it makes a log line legible and it cannot cause a collision, because the
@@ -31,7 +31,7 @@
  *
  * ── Canonicalised, so one permission has one id ───────────────────────────
  *
- * The clause is serialized through the SAME two canonicalisers the gold
+ * The terms are serialized through the SAME two canonicalisers the gold
  * harness compares definitions with (`gates.ts`): `sortKeys` for key ORDER,
  * `canonicaliseShorthands` for the "single X is shorthand for one X" fields.
  * Without the second, a hand-written `type: "Creature"` and the compiler's
@@ -52,21 +52,41 @@ import type { EffectCardFilter, StaticCastPermission } from "../cards/types";
 import { fnv1a32 } from "../lib/hash";
 import { canonicaliseShorthands, sortKeys } from "./gates";
 
-/** A permission WITHOUT its id — everything the id is derived from. */
-export type CastPermissionClause = Omit<StaticCastPermission, "id">;
+/**
+ * A permission's TERMS — everything the id is derived from.
+ *
+ * Two fields are out, and only two. `id` because deriving an id from a value
+ * containing itself is circular. `oracleText` because it is the LABEL the cast
+ * picker renders (`AlternativeCost.description`), and an author may shorten
+ * it: the catalogue writes "Cast with Aluren" where the compiler can only
+ * offer the sentence it read. Folding a card-scoped label into a
+ * clause-scoped identity is the split identity this module exists to prevent,
+ * arriving through the one field that is not a term at all — two cards whose
+ * permissions are identical and whose labels differ would stop collapsing to
+ * one cast option, which is the whole point.
+ *
+ * Everything else is in, by construction rather than by enumeration.
+ */
+export type CastPermissionTerms = Omit<
+    StaticCastPermission,
+    "id" | "oracleText"
+>;
 
-/** Drop the id from a declared permission, so a caller cannot accidentally
- *  derive an id from a clause that already contains one. */
-export function castPermissionClause(
+/** The terms of a declared permission — see {@link CastPermissionTerms}. */
+export function castPermissionTerms(
     permission: StaticCastPermission
-): CastPermissionClause {
-    // Copy-then-delete rather than a rest destructure: the clause must be
-    // "everything the permission carries EXCEPT the id", so a field added to
-    // `StaticCastPermission` later is part of the digest without an edit here
-    // — the same fail-closed shape `expandCompiledStatics` uses one field over.
-    const clause: CastPermissionClause & { id?: string } = { ...permission };
-    delete clause.id;
-    return clause;
+): CastPermissionTerms {
+    // Copy-then-delete rather than a rest destructure: the terms must be
+    // "everything the permission carries EXCEPT those two", so a field added
+    // to `StaticCastPermission` later is part of the digest without an edit
+    // here — the same fail-closed shape `expandCompiledStatics` uses one field
+    // over.
+    const terms: CastPermissionTerms & { id?: string; oracleText?: string } = {
+        ...permission,
+    };
+    delete terms.id;
+    delete terms.oracleText;
+    return terms;
 }
 
 /** A filter field as a slug fragment: lowercase, non-alphanumerics folded. */
@@ -101,8 +121,8 @@ function primaryClass(filter: EffectCardFilter): string {
 }
 
 /** The 32-bit digest, as eight lowercase hex characters. */
-function digest(clause: CastPermissionClause): string {
-    const canonical = JSON.stringify(canonicaliseShorthands(sortKeys(clause)));
+function digest(terms: CastPermissionTerms): string {
+    const canonical = JSON.stringify(canonicaliseShorthands(sortKeys(terms)));
     return (fnv1a32(canonical) >>> 0).toString(16).padStart(8, "0");
 }
 
@@ -110,6 +130,6 @@ function digest(clause: CastPermissionClause): string {
  * `<grantee>-<primary class>-<digest>` — the id a permission printing this
  * clause carries, on every card that prints it.
  */
-export function deriveCastPermissionId(clause: CastPermissionClause): string {
-    return `${clause.grantee}-${primaryClass(clause.filter)}-${digest(clause)}`;
+export function deriveCastPermissionId(terms: CastPermissionTerms): string {
+    return `${terms.grantee}-${primaryClass(terms.filter)}-${digest(terms)}`;
 }

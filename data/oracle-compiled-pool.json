@@ -4342,8 +4342,8 @@
                     ]
                 },
                 "withoutPayingManaCost": true,
-                "oracleText": "You may cast Dragon spells without paying their mana costs.",
-                "id": "controller-dragon-d1540a74"
+                "id": "controller-dragon-ac2c9af7",
+                "oracleText": "You may cast Dragon spells without paying their mana costs."
             }
         ],
         "id": "0d5674f9-22b2-45f9-902d-4fd245485c60",
@@ -14829,8 +14829,8 @@
                     ]
                 },
                 "asThoughFlash": true,
-                "oracleText": "Any player may cast Sliver spells as though they had flash.",
-                "id": "any-player-sliver-894fe0ee"
+                "id": "any-player-sliver-c4122eb6",
+                "oracleText": "Any player may cast Sliver spells as though they had flash."
             }
         ],
         "id": "30a60b2d-aeeb-4dbf-bf1a-20a274fe323f",
@@ -17765,8 +17765,8 @@
                     ]
                 },
                 "asThoughFlash": true,
-                "oracleText": "Any player may cast creature and enchantment spells as though they had flash.",
-                "id": "any-player-creature-dd0f00cb"
+                "id": "any-player-creature-d4b69bd3",
+                "oracleText": "Any player may cast creature and enchantment spells as though they had flash."
             }
         ],
         "id": "3bed69d2-f5fb-4173-b939-5abdb48b82b4",
@@ -20732,8 +20732,8 @@
                     ]
                 },
                 "asThoughFlash": true,
-                "oracleText": "You may cast artifact spells as though they had flash.",
-                "id": "controller-artifact-046ab4a6"
+                "id": "controller-artifact-80a713d1",
+                "oracleText": "You may cast artifact spells as though they had flash."
             }
         ],
         "id": "478c1a5b-237b-4ecb-be73-3c6dafd5ae53",
@@ -35535,8 +35535,8 @@
                 "grantee": "controller",
                 "filter": {},
                 "asThoughFlash": true,
-                "oracleText": "You may cast spells as though they had flash.",
-                "id": "controller-spell-a7736ca4"
+                "id": "controller-spell-295e7229",
+                "oracleText": "You may cast spells as though they had flash."
             }
         ],
         "id": "7f1b93ea-1ec1-4010-9343-765742f5088b",
@@ -36162,8 +36162,8 @@
                     ]
                 },
                 "asThoughFlash": true,
-                "oracleText": "You may cast green creature spells as though they had flash.",
-                "id": "controller-creature-dbc806db"
+                "id": "controller-creature-6b30385e",
+                "oracleText": "You may cast green creature spells as though they had flash."
             }
         ],
         "id": "80acb6dc-a9bd-4f12-9025-623416bdfc32",
@@ -41668,8 +41668,8 @@
                 "grantee": "controller",
                 "filter": {},
                 "asThoughFlash": true,
-                "oracleText": "You may cast spells as though they had flash.",
-                "id": "controller-spell-a7736ca4"
+                "id": "controller-spell-295e7229",
+                "oracleText": "You may cast spells as though they had flash."
             }
         ],
         "id": "94b546fa-af65-4afa-bb16-69b33674d3d1",
@@ -47053,8 +47053,8 @@
                     ]
                 },
                 "asThoughFlash": true,
-                "oracleText": "You may cast Spirit spells as though they had flash.",
-                "id": "controller-spirit-3a02bd16"
+                "id": "controller-spirit-30d2112c",
+                "oracleText": "You may cast Spirit spells as though they had flash."
             }
         ],
         "id": "a6fc4db9-a29c-4f50-8e41-105b45af0be9",
@@ -53307,8 +53307,8 @@
                     ]
                 },
                 "asThoughFlash": true,
-                "oracleText": "You may cast sorcery spells as though they had flash.",
-                "id": "controller-sorcery-a98ea814"
+                "id": "controller-sorcery-c382244c",
+                "oracleText": "You may cast sorcery spells as though they had flash."
             }
         ],
         "id": "ba617296-3cce-4933-8939-dde6445225e2",
@@ -57633,8 +57633,8 @@
                     ]
                 },
                 "asThoughFlash": true,
-                "oracleText": "You may cast Hero spells as though they had flash.",
-                "id": "controller-hero-4bdc5504"
+                "id": "controller-hero-d4126ba9",
+                "oracleText": "You may cast Hero spells as though they had flash."
             }
         ],
         "id": "ca94680f-d46c-4b0f-a40f-635a0fcb16f5",

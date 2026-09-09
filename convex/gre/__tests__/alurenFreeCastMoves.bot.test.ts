@@ -30,7 +30,7 @@ import {
     type Handler,
 } from "../../__tests__/gameMutationHarness";
 
-const ALUREN_ALT_COST_ID = `${CAST_PERMISSION_ALT_COST_PREFIX}any-player-creature-f9f346f4`;
+const ALUREN_ALT_COST_ID = `${CAST_PERMISSION_ALT_COST_PREFIX}any-player-creature-6221c861`;
 
 /** p1 always owns the Aluren; `forests` are the CASTER's, so a printed-cost
  *  cast is genuinely payable whenever the count is non-zero — without that the

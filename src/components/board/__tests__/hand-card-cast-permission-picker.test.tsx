@@ -75,7 +75,7 @@ import { grizzlyBears } from "@convex/cards/sets/lea/green";
 import { shivanDragon } from "@convex/cards/sets/lea/red";
 import { forest } from "@convex/cards/sets/lea/colorless";
 
-const ALUREN_ALT_COST_ID = "cast-permission:any-player-creature-f9f346f4";
+const ALUREN_ALT_COST_ID = "cast-permission:any-player-creature-6221c861";
 
 /** The cast-option row's accessible name, read from the DEFINITION rather than
  *  hard-coded (issue #3284): `altCostFor` renders `label ?? oracleText`, so this

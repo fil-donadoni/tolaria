@@ -34,13 +34,13 @@ import { describe, expect, it } from "vitest";
 import { registeredDefinitions } from "../registry";
 import { declaredCastPermissions } from "../../gre/castPermissions";
 import {
-    castPermissionClause,
+    castPermissionTerms,
     deriveCastPermissionId,
 } from "../../oracle/castPermissionId";
 import { sortKeys } from "../../oracle/gates";
 
 describe("cast-permission ids (CR 601.3)", () => {
-    it("every declared id is the derivation of its own clause", () => {
+    it("every declared id is the derivation of its own terms", () => {
         const wrong: string[] = [];
         let scanned = 0;
         let permissions = 0;
@@ -49,11 +49,11 @@ describe("cast-permission ids (CR 601.3)", () => {
             for (const permission of declaredCastPermissions(def)) {
                 permissions += 1;
                 const expected = deriveCastPermissionId(
-                    castPermissionClause(permission)
+                    castPermissionTerms(permission)
                 );
                 if (permission.id !== expected)
                     wrong.push(
-                        `${def.name}: declares "${permission.id}", clause derives "${expected}"`
+                        `${def.name}: declares "${permission.id}", terms derive "${expected}"`
                     );
             }
         }
@@ -70,11 +70,14 @@ describe("cast-permission ids (CR 601.3)", () => {
         expect(permissions).toBeGreaterThan(5);
     });
 
-    it("two permissions sharing an id have the same clause", () => {
+    it("two permissions sharing an id have the same terms", () => {
         // The replacement for the old bare-uniqueness assertion. A shared id
         // is now LEGAL — it is what makes two cards printing one sentence
-        // collapse to one cast option — but only when the clauses agree; a
-        // shared id over differing clauses is the silent-suppression bug.
+        // collapse to one cast option — but only when the TERMS agree; a
+        // shared id over differing terms is the silent-suppression bug. Terms,
+        // not the whole permission: the label is deliberately outside the
+        // identity, so two cards offering one permission under two labels are
+        // correct and must not red here.
         const clauses = new Map<string, { owner: string; json: string }>();
         const collisions: string[] = [];
         for (const def of registeredDefinitions()) {
@@ -85,7 +88,7 @@ describe("cast-permission ids (CR 601.3)", () => {
                 // clause compared as `filter: {}` — blinding this guard to the
                 // one field it exists to police.
                 const json = JSON.stringify(
-                    sortKeys(castPermissionClause(permission))
+                    sortKeys(castPermissionTerms(permission))
                 );
                 const seen = clauses.get(permission.id);
                 if (seen === undefined) {

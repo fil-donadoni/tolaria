@@ -184,7 +184,7 @@ export function lowerStaticClause(
             // id across both battlefields, so two cards printing the same
             // sentence must offer ONE cast option rather than two
             // (`oracle/castPermissionId.ts` carries the whole argument).
-            const permission = {
+            const terms = {
                 kind: "cast-permission" as const,
                 grantee: clause.grantee,
                 filter: clause.filter,
@@ -194,14 +194,17 @@ export function lowerStaticClause(
                 ...(clause.asThoughFlash === true
                     ? { asThoughFlash: true }
                     : {}),
-                oracleText,
             };
             return {
                 ok: true,
                 lowered: {
                     effect: {
-                        ...permission,
-                        id: deriveCastPermissionId(permission),
+                        ...terms,
+                        id: deriveCastPermissionId(terms),
+                        // The LABEL, and not part of the identity: an author
+                        // may shorten it, and the compiler can only offer the
+                        // sentence it read (`oracle/castPermissionId.ts`).
+                        oracleText,
                     },
                 },
             };

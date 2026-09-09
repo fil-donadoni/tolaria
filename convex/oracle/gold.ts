@@ -155,6 +155,32 @@ export type GoldBucket =
  */
 const CLOSURE_VALUED_KEYS: ReadonlySet<string> = new Set(["effect"]);
 
+/**
+ * Static-effect arrays, and the ONE display key their elements carry.
+ *
+ * Narrower than {@link ABILITY_DISPLAY_KEYS} in exactly the place that
+ * matters: `id` is NOT here. ADR 0114 §4 — the comparator never folds a field
+ * the engine reads to DECIDE — and a `cast-permission`'s id is read twice
+ * (the cross-battlefield dedupe in `gre/castPermissions.ts`, and the
+ * `alternativeCostId` the cast mutation resolves). It stays compared.
+ *
+ * `oracleText` on a static effect is the opposite kind of field, by the same
+ * argument the modes' `label` earns its row above: it is the string the cast
+ * picker RENDERS (`AlternativeCost.description`), and an author may shorten it
+ * — the catalogue writes "Cast with Aluren" where the compiler can only offer
+ * the sentence it read. Neither is more correct, and no engine path decides on
+ * it. Comparing it would make Guard C unsatisfiable for every card whose
+ * author writes a label, since no grammar can derive one from Oracle text.
+ *
+ * `cast-permission` is the only static kind carrying the field, so the entry
+ * scopes itself exactly as the modes' `label` does (issue #3268).
+ */
+const STATIC_ARRAY_KEYS: ReadonlySet<string> = new Set([
+    "staticEffects",
+    "compiledStaticEffects",
+]);
+const STATIC_DISPLAY_KEYS: ReadonlySet<string> = new Set(["oracleText"]);
+
 /** Behavioural projection: everything the GRAMMAR is responsible for. */
 export function behaviouralProjection(
     definition: CardDefinition | CompiledDefinition
@@ -164,6 +190,18 @@ export function behaviouralProjection(
         if (PASSTHROUGH_KEYS.has(key) || value === undefined) continue;
         if (CLOSURE_VALUED_KEYS.has(key)) {
             out[key] = sortKeys(() => undefined);
+            continue;
+        }
+        if (STATIC_ARRAY_KEYS.has(key) && Array.isArray(value)) {
+            out[key] = value.map((effect) => {
+                const record = effect as Record<string, unknown>;
+                const copy: Record<string, unknown> = {};
+                for (const [k, v] of Object.entries(record)) {
+                    if (STATIC_DISPLAY_KEYS.has(k)) continue;
+                    copy[k] = v;
+                }
+                return sortKeys(copy);
+            });
             continue;
         }
         if (ABILITY_ARRAY_KEYS.has(key) && Array.isArray(value)) {
