@@ -16,7 +16,10 @@ import {
     summarizeGameSnapshot,
     type GameSnapshot,
 } from "./bugReportSummary";
-import { BUG_REPORT_CONSENT_VERSION } from "./bugReportConsent";
+import {
+    BUG_REPORT_CONSENT_VERSION,
+    type BugReportDiagnostics,
+} from "./bugReportConsent";
 
 // Re-exported so existing importers (`convex/__tests__/bugReports.test.ts`)
 // keep working unchanged — the derivation itself now lives in
@@ -159,15 +162,6 @@ export function buildIssuePayload(input: IssueInput): {
     return { title, body: bodyLines.join("\n") };
 }
 
-/** The diagnostic fields of a report — everything beyond the reporter's own
- *  words, contact details and the file they chose themselves. */
-export type ReportDiagnosticFields = {
-    route?: string;
-    userAgent?: string;
-    gameId?: Id<"games">;
-    clientDiagnostics?: unknown;
-};
-
 /**
  * The cut the bug-report disclosure licenses (issue #3255), in ONE pure place
  * so it is unit-testable and so the row, the issue body and the game-state read
@@ -179,9 +173,9 @@ export type ReportDiagnosticFields = {
  * is not the authority on that (ADR 0074).
  */
 export function applyDiagnosticsConsent(
-    fields: ReportDiagnosticFields,
+    fields: BugReportDiagnostics,
     diagnosticsConsent: boolean
-): ReportDiagnosticFields {
+): BugReportDiagnostics {
     if (!diagnosticsConsent) return {};
     return fields;
 }

@@ -1,9 +1,7 @@
 import { Checkbox } from "@/components/ui/checkbox";
 import JsonTreeView from "@/components/ui/json-tree-view";
-import {
-    describeDiagnosticPayload,
-    type BugReportDiagnostics,
-} from "./diagnostic-payload";
+import type { BugReportDiagnostics } from "@convex/bugReportConsent";
+import { describeDiagnosticPayload } from "./diagnostic-payload";
 
 type BugReportConsentProps = {
     /** The payload about to be submitted — previewed here VERBATIM, never a
@@ -51,7 +49,7 @@ export default function BugReportConsent({
                 What this report sends
             </h3>
             <p className="text-sm text-text-muted">
-                {describeDiagnosticPayload(payload)}
+                {describeDiagnosticPayload(payload, accepted)}
             </p>
             <ul className="flex list-disc flex-col gap-1 pl-4 text-xs text-text-muted">
                 <li>

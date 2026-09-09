@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -10,10 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { bugReportConsentIsCurrent } from "@convex/bugReportConsent";
 import BugReportConsent from "./bug-report-consent";
-import {
-    collectDiagnosticPayload,
-    type BugReportDiagnostics,
-} from "./diagnostic-payload";
+import { collectDiagnosticPayload } from "./diagnostic-payload";
 import { describeSubmitError } from "./describe-submit-error";
 
 type BugReportDialogProps = {
@@ -49,14 +46,17 @@ export default function BugReportDialog({
     const [description, setDescription] = useState("");
     const [file, setFile] = useState<File | null>(null);
 
-    // The diagnostic payload, captured when the dialog OPENS. One value: the
-    // gate previews it and the submission sends it, so the two cannot disagree
-    // (issue #3255) — and the reporter consents to exactly what they were
-    // shown, not to whatever the rings had grown into by the time they clicked.
-    const [payload, setPayload] = useState<BugReportDiagnostics | null>(null);
-    useEffect(() => {
-        setPayload(open ? collectDiagnosticPayload() : null);
-    }, [open]);
+    // The diagnostic payload, captured when the dialog OPENS. One value per
+    // render: the gate previews it and the submission spreads it, so the two
+    // cannot disagree (issue #3255) — the reporter consents to exactly what
+    // they were shown. Keyed on `open` rather than read at submit time because
+    // this dialog is mounted at the router root for the whole session, so a
+    // value captured once would go stale the moment the user starts a
+    // different game.
+    const payload = useMemo(
+        () => (open ? collectDiagnosticPayload() : null),
+        [open]
+    );
 
     // Consent follows the same prefill idiom as name/email: the stored decision
     // rules until the reporter touches the box. It is read from the USER RECORD

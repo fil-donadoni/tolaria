@@ -339,6 +339,25 @@ describe("BugReportDialog", () => {
 
     // The preview is not a hand-written list of what we collect — it renders
     // the very object the submission spreads, so the two cannot disagree.
+    // The summary sits directly above "Decline and the report is still filed";
+    // one that keeps promising the board after the box is cleared contradicts
+    // the refusal it is explaining.
+    it("stops promising the payload once the reporter declines", () => {
+        sessionGameId = "game_7";
+        const ui = render(<BugReportDialog open onOpenChange={() => {}} />);
+        expect(
+            ui.getByText(/the full board of the game you are in/)
+        ).toBeTruthy();
+
+        fireEvent.click(ui.getByRole("checkbox", { name: CONSENT_LABEL }));
+        expect(
+            ui.queryByText(/the full board of the game you are in/)
+        ).toBeNull();
+        expect(
+            ui.getByText(/Sending: your description, your name and your email/)
+        ).toBeTruthy();
+    });
+
     it("previews the exact payload that is submitted", async () => {
         sessionGameId = "game_7";
         aiDiagnostics = { decisions: [{ outcome: "move" }], escalations: [] };
