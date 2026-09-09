@@ -1018,8 +1018,8 @@ describe("Prismari Charm (CR 700.2 modal, 701.25 surveil, 601.2c one-or-two targ
         const legal = getLegalTargets(
             state,
             mode.targetRequirement!,
-            "p1",
-            NO_TARGETING_SOURCE
+            NO_TARGETING_SOURCE,
+            "p1"
         );
         const ids = legal.map((t) => (t as { id: string }).id);
         expect(ids).toContain("creature");
