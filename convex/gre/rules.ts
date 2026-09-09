@@ -63,7 +63,11 @@ import { PHYREXIAN_LIFE_PER_PIP, phyrexianPipCount } from "./phyrexian";
 import { matchesPermanentFilter } from "../cards/filters";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { isExileCostEligible } from "../cards/exileCostEligibility";
-import { affordableAlternativeCosts } from "./alternativeCost";
+import {
+    castOptionAlternativeCosts,
+    castPermissionRequired,
+    hasCastPermissionFlash,
+} from "./castPermissions";
 import { faceDownCastView, isMorphCastAlternativeCost } from "./morph";
 import { canPayAnyAdditionalCost } from "./additionalCost";
 import {
@@ -488,7 +492,16 @@ export function castTimingBaseLegal(
     }
     if (
         hasInstantSpeed(card) ||
+        // CR 601.3b — the PLAYER-GRANT leg, in both of its shapes: the
+        // ephemeral per-player grant an effect wrote into the state (Teferi,
+        // Time Raveler's +1, `castTimingFlashGrants`) and the CONTINUOUS one a
+        // permanent's `cast-permission` static grants while it is on the
+        // battlefield (Aluren's "as though they had flash"). Both hand the
+        // permission to a PLAYER for a class of cards, so they share one leg
+        // rather than growing a fourth — the tier count this predicate keeps is
+        // intrinsic keyword -> player grant -> card self-permission.
         hasCastTimingFlashGrant(casterId, card, state) ||
+        hasCastPermissionFlash(state, casterId, card) ||
         // CR 601.3 / 601.3c — a card-level self-permission, in either of its
         // two declared shapes: the CONDITIONAL surcharge rider ("You may cast
         // this spell as though it had flash if you pay {2} more to cast it",
@@ -613,6 +626,32 @@ export function flashSurchargeRequired(
         return false;
     }
     return !isSorceryTimingFor(state, casterId);
+}
+
+/** CR 601.3c / 118.9b — `true` when `casterId` may cast `card` right now ONLY
+ *  under a board permission that waives its mana cost (Aluren), so the
+ *  permission's alternative cost is MANDATORY at announcement rather than one
+ *  option among several. The timing half of {@link castPermissionRequired},
+ *  supplied here because `rules.ts` is the timing authority and
+ *  `castPermissions.ts` must not grow a second copy of it.
+ *
+ *  Both facts are read exactly as `flashSurchargeRequired` reads them: a
+ *  sorcery-speed LOCK short-circuits to `false` (CR 101.2 — the restriction
+ *  beats the permission, and `castTimingBaseLegal` has already refused the
+ *  off-window cast, so nothing may be forced on a cast that cannot happen). */
+export function castPermissionRequiredFor(
+    state: GameState,
+    casterId: string,
+    card: CardInstanceState
+): boolean {
+    if (isCastTimingSorcerySpeedLocked(casterId, state)) return false;
+    return castPermissionRequired(state, casterId, card, {
+        otherwiseInstantSpeed:
+            hasInstantSpeed(card) ||
+            hasCastTimingFlashGrant(casterId, card, state) ||
+            hasCardSelfFlashPermission(card),
+        inOwnSorceryWindow: isSorceryTimingFor(state, casterId),
+    });
 }
 
 export function getLegalActions(
@@ -1202,7 +1241,7 @@ export function getLegalActions(
                     ? { extraMana: flashSurchargeOf(card) }
                     : {}),
             }) ||
-                affordableAlternativeCosts(state, caster, card).some((alt) =>
+                castOptionAlternativeCosts(state, caster, card).some((alt) =>
                     canPotentiallyPayCost(
                         caster,
                         // CR 702.37c / 707.2 (issue #2970 review) — a MORPH

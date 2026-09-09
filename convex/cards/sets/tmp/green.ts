@@ -139,3 +139,60 @@ export const harrow: CardDefinition = {
         { op: "libraryLook", action: "shuffle", player: "controller" },
     ],
 };
+
+// Aluren — {2}{G}{G} Enchantment. "Any player may cast creature spells with
+// mana value 3 or less without paying their mana costs and as though they had
+// flash."
+//
+// Pure DATA (ADR 0045): a single `cast-permission` static effect, the
+// grant-polarity sibling of `cast-restriction` (CR 601.3 — "A player can begin
+// to cast a spell only if a rule or effect allows that player to cast it").
+// Nothing here is Aluren-shaped — the class of cards is a declarative
+// `EffectCardFilter` read by the same hand-card matcher every CR 118.9 hand leg
+// uses, and the sentence's three clauses map one-to-one onto three independent
+// fields:
+//
+//   "Any player may cast"      -> grantee: "any-player" (CR 601.3 grants are
+//                                 player-scoped; the commoner "You may cast"
+//                                 is the same kind with grantee "controller")
+//   "creature spells with
+//    mana value 3 or less"     -> filter (CR 202.3; an {X} in a hand card's
+//                                 cost counts as 0, CR 202.3b)
+//   "without paying their
+//    mana costs"               -> withoutPayingManaCost (CR 118.9 — "a cost …
+//                                 applied to it from another effect that its
+//                                 controller may pay rather than paying the
+//                                 spell's mana cost"; announced per CR 601.2b,
+//                                 never applied silently, because CR 118.5 says
+//                                 even a {0} cost "is not automatically paid")
+//   "and as though they had
+//    flash"                    -> asThoughFlash (CR 601.3b, priced by CR 702.8a
+//                                 as "any time you could cast an instant")
+//
+// The two terms travel TOGETHER, which is what makes the free cast mandatory
+// off the caster's sorcery window (CR 118.9b — "An effect that allows you to
+// cast a spell may require a certain alternative cost to be paid"): Aluren
+// never lets a creature be cast at instant speed for its printed price.
+// Enforced once, at announcement, by `castPermissionRequiredFor`
+// (`convex/gre/rules.ts`).
+export const aluren: CardDefinition = {
+    id: "268403bc-733d-446e-a7c1-abc957c42bc2",
+    name: "Aluren",
+    rarity: "rare",
+    oracleText:
+        "Any player may cast creature spells with mana value 3 or less without paying their mana costs and as though they had flash.",
+    manaCost: { X: 2, G: 2 },
+    types: ["Enchantment"],
+    staticEffects: [
+        {
+            kind: "cast-permission",
+            id: "aluren-creature-permission",
+            grantee: "any-player",
+            filter: { type: "Creature", manaValueAtMost: 3 },
+            withoutPayingManaCost: true,
+            asThoughFlash: true,
+            oracleText:
+                "Any player may cast creature spells with mana value 3 or less without paying their mana costs and as though they had flash.",
+        },
+    ],
+};

@@ -8578,6 +8578,73 @@ export interface DependencyReads {
     reads?: readonly ContinuousRead[];
 }
 
+/** Battlefield-scanned, PLAYER-scoped casting PERMISSION (CR 601.3 / 118.9 /
+ *  702.8a) — the grant-polarity sibling of {@link StaticCastRestriction}, which
+ *  only ever FORBIDS. A permanent on the battlefield lets a class of cards be
+ *  cast that a player could not otherwise cast right now, on terms the
+ *  permission itself states: without paying the mana cost (CR 118.9 — "an
+ *  alternative cost … applied to it from another effect"), and/or as though the
+ *  card had flash (CR 601.3b, priced by CR 702.8a as "any time you could cast
+ *  an instant").
+ *
+ *  Aluren ("Any player may cast creature spells with mana value 3 or less
+ *  without paying their mana costs and as though they had flash") is the shape
+ *  this exists for, but nothing here is Aluren-shaped: the class of cards is a
+ *  declarative {@link EffectCardFilter} (the same matcher every hidden-zone
+ *  filter reads, `handCardMatchesFilter`), and the two terms are independent
+ *  booleans, so "You may cast creature spells as though they had flash"
+ *  (Vedalken Orrery's family, `asThoughFlash` alone) and "you may cast a
+ *  creature spell with mana value 3 or less from your hand without paying its
+ *  mana cost" (`withoutPayingManaCost` alone) are the same kind with different
+ *  fields.
+ *
+ *  Read-time only, exactly like `cast-restriction`/`cast-timing-lock`: it never
+ *  mutates a permanent (`beginApplyingStaticEffects` ignores the kind), carries
+ *  no per-instance flag, and auto-reverts the moment the source leaves the
+ *  battlefield (CR 603.10 has nothing to undo). Evaluated by the shared
+ *  authority `convex/gre/castPermissions.ts`, which both the timing gate
+ *  (`castTimingBaseLegal`) and the cost picker (`castOptionAlternativeCosts`)
+ *  call, so the GRE, the cast mutation, the Bot's enumerator and the client can
+ *  never disagree about which casts a permission licenses.
+ *
+ *  THE COST HALF IS AN ALTERNATIVE COST, not a waiver applied behind the
+ *  caster's back (CR 118.9 / 118.5): "without paying its mana cost" is an
+ *  alternative cost the caster ANNOUNCES (CR 601.2b), so a free cast is one
+ *  entry in the same cast-option list evoke/dash/bestow/morph occupy, it is
+ *  mutually exclusive with them (CR 118.9a — only one alternative cost per
+ *  spell), and the ordinary paid cast stays available alongside it whenever
+ *  the caster's own timing window allows one. */
+export interface StaticCastPermission {
+    kind: "cast-permission";
+    /** Stable id. The synthesized alternative cost this permission offers is
+     *  addressed as `` `cast-permission:${id}` `` on
+     *  `announceCast.alternativeCostId` / `Move.alternativeCostId`, so the id
+     *  must be unique across the catalogue (guarded by
+     *  `castPermissions.test.ts`) and stable across releases. */
+    id: string;
+    /** Who the permission is handed to. CR 601.3 grants are player-scoped:
+     *  `"any-player"` is Aluren's "Any player may cast…", `"controller"` the
+     *  far commoner "You may cast…". */
+    grantee: "any-player" | "controller";
+    /** WHICH cards the permission covers, matched against the candidate card's
+     *  registry characteristics by `handCardMatchesFilter`
+     *  (`convex/gre/alternativeCost.ts`) — the same hand-card matcher the
+     *  CR 118.9 hand leg and `discardFilter` read, never a private copy.
+     *  Aluren's is `{ type: "Creature", manaValueAtMost: 3 }`. */
+    filter: EffectCardFilter;
+    /** CR 118.9 — the permission replaces the card's mana cost entirely
+     *  ("without paying its mana cost"). Surfaces as a zero-mana
+     *  `AlternativeCost` the caster announces; CR 107.3b then locks an `{X}` in
+     *  the printed cost to 0. */
+    withoutPayingManaCost?: boolean;
+    /** CR 601.3b / 702.8a — the permission also widens the casting-timing
+     *  window to instant speed ("as though they had flash"). A sorcery-speed
+     *  LOCK still beats it (CR 101.2, `cast-timing-lock`). */
+    asThoughFlash?: boolean;
+    /** Oracle text shown as the cast option's label. */
+    oracleText: string;
+}
+
 export type StaticEffect = (
     | StaticPTBuff
     | StaticPTCDA
@@ -8617,6 +8684,7 @@ export type StaticEffect = (
     | StaticAbilityLoss
     | StaticCastRestriction
     | StaticCastTimingLock
+    | StaticCastPermission
 ) &
     CounterGatedStatic &
     DependencyReads;

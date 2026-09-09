@@ -73,11 +73,13 @@ import {
     genericManaShortfall,
     targetingSourceFromCard,
     pendingTargetingSource,
+    castPermissionRequiredFor,
     flashSurchargeOf,
     flashSurchargeRequired,
     foldFlashSurchargeCost,
     applySelfExclusion,
 } from "./rules";
+import { castPermissionAltCosts } from "./castPermissions";
 // issue #2283 — the origin classification that decides whether a live
 // `pendingTarget` is the bot's own half-built announcement (hands off) or a
 // selection the engine raised at it (must answer).
@@ -1775,10 +1777,43 @@ export function enumerateCastMoves(
      *  (`libraryTopCastLifeCost`, gre/rules.ts — the same single authority the
      *  server's commit sites read, so the enumerated Move and the mutation
      *  charge the identical amount). Absent for every ordinary cast. */
-    opts?: { lifeInsteadOfMana?: number; castFromZone?: CastFromZone }
+    opts?: {
+        lifeInsteadOfMana?: number;
+        castFromZone?: CastFromZone;
+    }
 ): Move[] {
     const castFromZone = opts?.castFromZone ?? "hand";
-    const moves = enumerateCastMovesFromZone(state, player, card, opts);
+    // CR 118.9 / 601.3 — a board `cast-permission` static (Aluren) offers this
+    // cast a zero-mana ALTERNATIVE cost. It is a real, separately-valued line
+    // for the Bot, not a discount on the printed one: it costs no mana at all
+    // and (with `asThoughFlash`) can be taken at instant speed, so the search
+    // must be able to choose it against the printed cast rather than inherit
+    // one of the two. Enumerated by re-entering the SAME builder with the cost
+    // replaced — so modes, kickers, buyback, additional-cost legs, X and target
+    // groups are all the machinery the printed branch already has, never a
+    // parallel copy that can drift (the `lifeInsteadOfMana` precedent).
+    const permissionMoves = castPermissionAltCosts(
+        state,
+        player.id,
+        card,
+        castFromZone
+    ).flatMap((alt) =>
+        enumerateCastMovesFromZone(state, player, card, {
+            ...opts,
+            freeCastAltCostId: alt.id,
+        }).map((m) =>
+            m.kind === "cast-spell" ? { ...m, alternativeCostId: alt.id } : m
+        )
+    );
+    // CR 601.3c / 118.9b — when the permission is the ONLY thing licensing the
+    // cast right now, its alternative cost is MANDATORY (`announceCast` rejects
+    // a paid announcement outright). Enumerating the printed-cost variants here
+    // would hand the executor a Move the mutation refuses — the #2283/#2284
+    // bot-freeze class — so they are dropped, not merely deprioritised.
+    const printedMoves = castPermissionRequiredFor(state, player.id, card)
+        ? []
+        : enumerateCastMovesFromZone(state, player, card, opts);
+    const moves = [...printedMoves, ...permissionMoves];
     if (castFromZone === "hand") return moves;
     // Stamp the zone once, here, rather than at each of the four `moves.push`
     // sites below (printed cost, bestow, morph, dash) — a new cast variant
@@ -1792,7 +1827,17 @@ function enumerateCastMovesFromZone(
     state: GameState,
     player: PlayerState,
     card: CardInstanceState,
-    opts?: { lifeInsteadOfMana?: number; castFromZone?: CastFromZone }
+    opts?: {
+        lifeInsteadOfMana?: number;
+        castFromZone?: CastFromZone;
+        /** CR 118.9 — this pass prices the cast under a board permission's
+         *  free cast (`castPermissionAltCosts`): the mana cost is replaced by
+         *  nothing, and no OTHER alternative cost may ride along (CR 118.9a —
+         *  only one alternative cost per spell), so the bestow / morph / dash
+         *  branches below are skipped for it. The caller stamps the id onto
+         *  every Move this pass returns. */
+        freeCastAltCostId?: string;
+    }
 ): Move[] {
     const cardId = (card.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
@@ -1811,8 +1856,9 @@ function enumerateCastMovesFromZone(
     // pays. Before this the enumerator had no way to reach those costs at all:
     // the helper lived in `convex/game.ts`, which imports this module.
     const castFromZone: CastFromZone = opts?.castFromZone ?? "hand";
+    const freeCastAltCostId = opts?.freeCastAltCostId;
     const rawCost =
-        lifeInsteadOfMana !== undefined
+        lifeInsteadOfMana !== undefined || freeCastAltCostId !== undefined
             ? {}
             : (castRawManaCost(state, card, castFromZone) ?? {});
 
@@ -2367,7 +2413,11 @@ function enumerateCastMovesFromZone(
     // mutation would reject for want of a target (the executor announces
     // first and taps afterwards, which is exactly the shape that strands it in
     // `pendingCast`).
-    if (def?.bestow && hasLegalBestowHost(state)) {
+    if (
+        def?.bestow &&
+        freeCastAltCostId === undefined &&
+        hasLegalBestowHost(state)
+    ) {
         const bestowCost = normalizeManaCost(def.bestow.mana ?? {}, {
             chosenX: 0,
         });
@@ -2426,7 +2476,7 @@ function enumerateCastMovesFromZone(
     // board state — a face-down creature, and the unmorph line that follows —
     // permanently out of reach.
     const morphCast = morphCastAlternativeCost(def ?? undefined);
-    if (morphCast) {
+    if (morphCast && freeCastAltCostId === undefined) {
         const morphCost = normalizeManaCost(morphCast.mana ?? {}, {
             chosenX: 0,
         });
@@ -2485,6 +2535,7 @@ function enumerateCastMovesFromZone(
     if (
         def?.dash &&
         lifeInsteadOfMana === undefined &&
+        freeCastAltCostId === undefined &&
         !def.targetRequirement &&
         !(def.modes && def.modes.length > 0)
     ) {
