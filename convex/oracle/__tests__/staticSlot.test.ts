@@ -18,6 +18,7 @@ import {
 import { withTemporaryDefinition } from "../../cards/registry";
 import type {
     CardDefinition,
+    CardType,
     PermanentView,
     StaticEffectContext,
 } from "../../cards/types";
@@ -482,7 +483,7 @@ describe("board cast permission (CR 601.3)", () => {
         const terms = {
             kind: "cast-permission" as const,
             grantee: "any-player" as const,
-            filter: { type: ["Creature"] as const, manaValueAtMost: 3 },
+            filter: { type: ["Creature"] as CardType[], manaValueAtMost: 3 },
             withoutPayingManaCost: true,
             asThoughFlash: true,
         };
@@ -504,7 +505,10 @@ describe("board cast permission (CR 601.3)", () => {
             deriveCastPermissionId(
                 castPermissionTerms({
                     ...terms,
-                    filter: { type: ["Creature"] as const, manaValueAtMost: 4 },
+                    filter: {
+                        type: ["Creature"] as CardType[],
+                        manaValueAtMost: 4,
+                    },
                     id: "x",
                     oracleText: "long",
                 })
