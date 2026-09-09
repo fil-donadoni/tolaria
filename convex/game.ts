@@ -6358,7 +6358,13 @@ export function assertFlashSurchargeDeclaration(
  *  A chosen modal mode's requirement still wins over both (modal never
  *  co-occurs with kicker or bestow on a shipped card, but the precedence is
  *  defined at the call site). */
-function castAdjustedTargetRequirement(
+/** Exported (issue #3215) for the same reason `buildCastSacrificeSelection`
+ *  and `assertKickerAnnouncementLegal` are: this project has no convex-test
+ *  harness for `game.ts` mutations (ADR 0001), and CR 702.96b's "an overloaded
+ *  spell won't require any targets" is a claim about THIS function, not about
+ *  the stack item that eventually results from it. Driving it directly is the
+ *  only way to assert the rule rather than one of its downstream shadows. */
+export function castAdjustedTargetRequirement(
     cardDef: CardDefinition,
     kickerPayments: KickerPayments | undefined,
     isBestowCost: boolean,

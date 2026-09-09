@@ -461,6 +461,55 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Harness end-to-end control. Guards the issue-#149 land-drop invariant.",
     },
     {
+        // OVERLOAD preference (CR 702.96, issue #3215). Damn's two cast modes
+        // are two different spells, not a cheap price and a dear one: printed
+        // ({B}{B}) it destroys ONE creature, overloaded ({2}{W}{W}) it destroys
+        // EACH of them. This position makes the choice unambiguous — the
+        // opponent has three Craw Wurms, the bot has no creature of its own, so
+        // the overload mode's one real cost (it hits your board too, CR 702.96a
+        // — "target" becomes "each" everywhere, with no "you don't control"
+        // clause on Damn) is priced at zero here.
+        //
+        // BOTH modes are affordable, which is what makes this a PREFERENCE
+        // entry rather than a reachability one: two Swamps cover the printed
+        // {B}{B} and four Plains cover the overload {2}{W}{W}. A tree that
+        // enumerated only the printed cast, or that enumerated both but
+        // stamped no `overloaded` marker (so the overload line resolved as the
+        // same one-creature removal spell — the exact erasure issue #2796
+        // documented for bestow), would take the printed cast or split on
+        // noise. Three-for-one against one-for-one is a wide enough gap that
+        // it needs no lookahead: the board after is visible at depth 1.
+        label: "overloads Damn to wrath three creatures instead of killing one",
+        spec: {
+            cards: [
+                { name: "Damn", owner: "me", zone: "hand" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Plains", owner: "me", zone: "battlefield" },
+                { name: "Craw Wurm", owner: "opp", zone: "battlefield" },
+                { name: "Craw Wurm", owner: "opp", zone: "battlefield" },
+                { name: "Craw Wurm", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                move.alternativeCostId === "overload",
+            describe: "casts Damn via its overload cost (not the printed cast)",
+        },
+        note: "CR 702.96 reachability AND preference in one position: three opposing Craw Wurms, no creature of the bot's own, both cast modes affordable. `MoveMatcher` has no field for `alternativeCostId` — the only thing distinguishing an overloaded cast from a printed one of the same card — hence the `predicate` shape, the same one the dash entry uses.",
+    },
+    {
         // NINJUTSU reachability (CR 702.49a, issue #2390). The bot attacks with
         // a lone 2/2, the defender declines to block, and the position lands in
         // the priority round after blocks are declared — the ONLY window in

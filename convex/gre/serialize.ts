@@ -694,6 +694,14 @@ function compactCard(
     if (card.bestowed) {
         out.bestowed = card.bestowed;
     }
+    // CR 702.96a — the Overload cast marker must survive a save/load while the
+    // spell sits on the stack: it is what `buildSpellContext` reads to decide
+    // whether the script's `forEach { set: "targets" }` sweeps the announced
+    // targets or every matching object, so a reloaded item that lost it
+    // resolves as the printed, single-target spell it was never cast as.
+    if (card.overloaded) {
+        out.overloaded = card.overloaded;
+    }
     // CR 307.1 / 117.1a / 601.3a (issue #2473) — the "cast when a sorcery
     // couldn't have been cast" timing snapshot must survive a save/load
     // between the cast committing and a later check-time predicate (e.g. a
@@ -1112,6 +1120,9 @@ function expandCard(
     // explicit `undefined` does not survive JSON, which makes the
     // `"power" in compact` fallback above hand back the printed 1/1 instead.
     // Re-clearing here keeps the round-trip exact.
+    if (compact.overloaded) {
+        result.overloaded = compact.overloaded as boolean;
+    }
     if (compact.bestowed) {
         result.bestowed = compact.bestowed as boolean;
         delete result.power;
