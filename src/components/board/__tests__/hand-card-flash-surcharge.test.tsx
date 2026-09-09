@@ -158,7 +158,15 @@ describe("cast-cost dialog gate for a card whose ONLY cost decision is the CR 60
         // silently surcharging the caster.
         expect(announceCast).not.toHaveBeenCalled();
         const notice = screen.getByTestId("cast-cost-flash-surcharge");
-        expect(notice.textContent).toContain("2");
+        // #2934 — the surcharge is a COST, so it reaches the player as a mana
+        // symbol; the amount lives in the image's alt text, never in
+        // `textContent`, which is what this line asserted while the raw
+        // `{2}` braces were still being printed.
+        expect(
+            Array.from(notice.querySelectorAll("img")).map((img) =>
+                img.getAttribute("alt")
+            )
+        ).toEqual(["{2}"]);
 
         fireEvent.click(screen.getByRole("button", { name: "Cast" }));
         expect(announceCast).toHaveBeenCalledTimes(1);
