@@ -105,7 +105,10 @@ exists to diff against, so semantic judgment is required). Output per worklist i
   ([ADR 0121][adr-0121], issue #3224): CR 709.4's combined characteristics are
   DERIVED from the two halves, so an instant/sorcery split card is one
   definition with two registered half twins. A **permanent** split card
-  (CR 709.5 — every Room) stays here, and so do MDFC and meld.
+  (CR 709.5 — every Room) stays here. **Modal double-faced cards left it**
+  ([ADR 0122][adr-0122], issue #3226): CR 712.8a leaves only the front face
+  outside the battlefield and the stack, so the card is a flat definition plus a
+  registered back twin reached by a play-time choice. Meld and flip stay here.
 
 ## Consequences
 
@@ -126,3 +129,4 @@ exists to diff against, so semantic judgment is required). Output per worklist i
 
 [adr-0120]: 0120-inset-spell-is-a-registered-twin-definition.md
 [adr-0121]: 0121-split-card-is-one-combined-definition.md
+[adr-0122]: 0122-modal-double-faced-card-is-a-front-face-with-a-back-twin.md
