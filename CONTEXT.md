@@ -213,7 +213,7 @@ _Avoid_: Manifest (the plain CR 701.40 keyword action — same face-down result,
 
 **Inset Spell**:
 A second, complete set of spell characteristics — its own name, **Mana Cost**, type line and rules text — printed in a smaller frame inset within a card's text box, defining what the object may be _while it is a spell_ (CR 715.2 / 722.2). One card, never two (CR 715.2c / 722.2c): drawing or discarding it draws or discards one card. Its existence and values are part of the object's **Copiable Values**, so a card "has" its Inset Spell even while not using it (CR 715.2a / 722.2a), and an effect asking a player to name a card accepts either name (CR 715.5 / 722.5). Two kinds exist, differing only in how the half becomes castable: an **Adventure**, cast from the card itself, and a _prepare spell_, which the card can never be cast as — a copy of it is created in **Exile** instead (CR 722.3).
-_Avoid_: Back face (that is a **Permanent** that transforms, CR 712), split half, second face, "the other side"
+_Avoid_: **Back Face** (a transforming or **Modal** second face, CR 712), split half, second face, "the other side"
 
 **Adventure**:
 The **Inset Spell** of an adventurer card (CR 715), and the cast option that uses it. Its **Controller** chooses at announcement whether they are casting the card normally or as an Adventure (CR 715.3); if as an Adventure, only the Inset Spell's characteristics are evaluated to decide whether the cast is legal — its type, its cost, its timing (CR 715.3a) — and while on the **Stack** the spell has _only_ those characteristics (CR 715.3b), so a copy of it is an Adventure too (CR 715.3c). Everywhere else, and on the stack when not cast as an Adventure, the card has only its normal characteristics (CR 715.4): an adventurer creature card in a **Graveyard** is an ordinary creature card.
@@ -230,6 +230,14 @@ _Avoid_: Double-faced card, **Inset Spell** (that is one card with a normal form
 **Split Half**:
 One of the two castable objects a **Split Card** offers. A player chooses which half they are casting BEFORE the spell is put onto the **Stack** (CR 709.3), only that half is evaluated for legality (CR 709.3a), and while on the stack only its characteristics exist (CR 709.3b) — so the other half's cost, type and text are not merely unused, they do not exist. There is no cast that puts the combined card onto the stack. A copy of a split spell is still a split card with both halves (CR 709.3c).
 _Avoid_: Side, face, mode (a **Modal** spell is one object with chosen modes, CR 700.2), **Adventure**
+
+**Modal Double-Faced Card (MDFC)**:
+A card with a Magic card face on each side whose faces are independent of one another (CR 712.3), unlike a transforming card, whose back face is reached by an ability. Outside the **Battlefield** and the **Stack** it has ONLY its front face's characteristics (CR 712.8a), so in a **Hand**, **Graveyard** or **Library** it is simply its front face — Sink into Stupor is a blue instant card with mana value 3, and no **Land** tutor can find its back face. Which face is up is decided by the player before the object exists: at announcement when casting (CR 712.11b) or before the permanent enters when playing it as a land (CR 712.12). Modelled as the flat front-face definition plus a registered **Back Face** twin (ADR 0122).
+_Avoid_: Transforming card, **Split Card** (that is one object with combined characteristics in every zone, CR 709.4), flip card, "double-sided card"
+
+**Back Face**:
+The second card face of a double-faced card, and the characteristics a **Permanent** has while that face is up (CR 712.8f). Two kinds, differing only in the door: a _nonmodal_ back face is turned up by transforming, or by an effect that casts or puts the card onto the battlefield transformed (CR 712.2 / 712.11a); a _modal_ back face is turned up by the player's own choice while playing the card (CR 712.11b / 712.12) and never flips. A card put onto the battlefield from anywhere but the stack enters front face up (CR 712.14), and a **Modal Double-Faced Card** whose front face is not a permanent card does not enter at all — it stays where it is (CR 712.14b).
+_Avoid_: **Inset Spell** (one card with a normal form, CR 715), **Split Half**, "the other side", reverse
 
 **Special Action**:
 Something a **Player** may do without using the **Stack** and without passing **Priority** (CR 116.2) — it cannot be responded to. Taken while they have priority. Playing a **Land** is one; so are summoning a companion, turning a **Manifested** permanent face up, and **Foretell**. Each carries its own timing window, and they differ: companion needs a main phase with an empty stack, foretell only needs priority during its player's own turn.
