@@ -47,6 +47,12 @@ const ZONE_LAND_ID = "00000000-0000-4000-8000-00002391f001";
 // `clearZoneCharacteristics` both write `types` in the same breath.
 const ZONE_REANIMATABLE_ID = "00000000-0000-4000-8000-00002391f002";
 
+// Grist's shape on a card whose printed type line is NOT a permanent type, so
+// `isPermanentCard` genuinely FLIPS between the printed line and the zone one
+// (issue #3278): a bug that read the definition would answer "no" in a
+// graveyard where the right answer is "yes".
+const ZONE_SORCERY_ID = "00000000-0000-4000-8000-00002391f003";
+
 preloadDefinitions([
     {
         id: ZONE_LAND_ID,
@@ -68,6 +74,19 @@ preloadDefinitions([
         manaCost: { generic: 2 },
         types: ["Artifact"],
         subtypes: ["Clue"],
+        offBattlefieldCharacteristics: {
+            addTypes: ["Creature"],
+            addSubtypes: ["Insect"],
+            power: 1,
+            toughness: 1,
+        },
+    } as CardDefinition,
+    {
+        id: ZONE_SORCERY_ID,
+        name: "Synthetic Zone-Conditional Sorcery",
+        rarity: "rare",
+        manaCost: { generic: 1 },
+        types: ["Sorcery"],
         offBattlefieldCharacteristics: {
             addTypes: ["Creature"],
             addSubtypes: ["Insect"],
@@ -191,5 +210,170 @@ describe("off-battlefield characteristics on battlefield entry (CR 113.6c)", () 
         expect(entered!.types).toEqual(["Land"]);
         expect(entered!.power).toBeUndefined();
         expect(entered!.toughness).toBeUndefined();
+    });
+});
+
+// The FAMILY A snapshot readers (`gre/zoneCharacteristics.ts` census): the two
+// `SpellContext` accessors that answer "what IS this object" for a
+// per-target-shape reference. Every `bind` snapshot goes through them
+// (`effects/interpreter.ts` `bindSnapshot` → SNAP_TYPES / SNAP_SUBTYPES /
+// SNAP_NAME / SNAP_IS_PERMANENT_CARD), so a hidden-zone card read off its
+// printed definition makes every "if it WAS a creature card" gate answer on
+// the wrong type line (issue #3278: Agatha's Soul Cauldron exiling Grist).
+//
+// These read the accessors DIRECTLY rather than through a card, deliberately:
+// the defect is a reader family, and the card-level proof (Agatha's Soul
+// Cauldron, `sets/woe/__tests__/colorless.test.ts`) exercises exactly one of
+// the four target shapes.
+describe("off-battlefield characteristics through the snapshot readers (CR 113.6c)", () => {
+    function contextFor(state: ReturnType<typeof makeState>) {
+        return buildSpellContext(state, pushSpell(state, ZONE_LAND_ID, "p1"));
+    }
+
+    it("getCharacteristics reports the ZONE types of a graveyard card", () => {
+        const card = makeInstance(ZONE_REANIMATABLE_ID, {
+            id: "gy-card",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [card] }),
+                makePlayer("p2"),
+            ],
+        });
+
+        // No SBA sweep in between — the accessor consults the registry itself
+        // (FAMILY A), so it must be right before anything materialises the
+        // characteristics onto the instance.
+        const chars = contextFor(state).getCharacteristics({
+            type: "graveyard-card",
+            id: "gy-card",
+            playerId: "p1",
+        });
+
+        expect(chars).toBeDefined();
+        expect(chars!.types).toContain("Creature");
+        expect(chars!.types).toContain("Artifact");
+        expect(chars!.subtypes).toContain("Insect");
+        expect(chars!.name).toBe("Synthetic Zone-Conditional Permanent");
+    });
+
+    it("getCharacteristics reports the PRINTED types of the same card on the battlefield", () => {
+        // CR 113.6c switches the ability off on the battlefield — the negative
+        // half of the pair, and what stops the fix from being "always add the
+        // off-battlefield types".
+        const card = makeInstance(ZONE_REANIMATABLE_ID, {
+            id: "bf-card",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [card] }),
+                makePlayer("p2"),
+            ],
+        });
+
+        const chars = contextFor(state).getCharacteristics({
+            type: "permanent",
+            id: "bf-card",
+        });
+
+        expect(chars).toBeDefined();
+        expect(chars!.types).not.toContain("Creature");
+        expect(chars!.subtypes).not.toContain("Insect");
+    });
+
+    it("getCharacteristics reports the ZONE types of a hand card", () => {
+        const card = makeInstance(ZONE_REANIMATABLE_ID, {
+            id: "hand-card",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { hand: [card] }), makePlayer("p2")],
+        });
+
+        const chars = contextFor(state).getCharacteristics({
+            type: "hand-card",
+            id: "hand-card",
+            playerId: "p1",
+        });
+
+        expect(chars!.types).toContain("Creature");
+        expect(chars!.subtypes).toContain("Insect");
+    });
+
+    it("isPermanentCard is TRUE for a non-permanent card that is a creature card in a graveyard", () => {
+        // The discriminating shape: printed `Sorcery` (not a permanent type),
+        // `Creature` in every zone but the battlefield (CR 110.1).
+        const card = makeInstance(ZONE_SORCERY_ID, {
+            id: "gy-sorcery",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [card] }),
+                makePlayer("p2"),
+            ],
+        });
+
+        expect(
+            contextFor(state).isPermanentCard({
+                type: "graveyard-card",
+                id: "gy-sorcery",
+                playerId: "p1",
+            })
+        ).toBe(true);
+    });
+
+    it("isPermanentCard is TRUE for the same card in hand, FALSE on the battlefield", () => {
+        const inHand = makeInstance(ZONE_SORCERY_ID, {
+            id: "hand-sorcery",
+            zone: "hand",
+        });
+        // A Sorcery never legitimately reaches the battlefield; the instance is
+        // placed there directly to assert the reader's battlefield BRANCH keeps
+        // reading the printed line.
+        const onBattlefield = makeInstance(ZONE_SORCERY_ID, {
+            id: "bf-sorcery",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [inHand],
+                    battlefield: [onBattlefield],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const ctx = contextFor(state);
+
+        expect(
+            ctx.isPermanentCard({
+                type: "hand-card",
+                id: "hand-sorcery",
+                playerId: "p1",
+            })
+        ).toBe(true);
+        expect(
+            ctx.isPermanentCard({ type: "permanent", id: "bf-sorcery" })
+        ).toBe(false);
+    });
+
+    it("a card on the STACK is read in its stack zone, not as a battlefield object", () => {
+        // CR 113.6c names the battlefield as the only zone the ability is off
+        // in — a spell on the stack still has the off-battlefield line, and a
+        // `spell`-shaped reference is the fourth target shape both readers
+        // dispatch on.
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const item = pushSpell(state, ZONE_SORCERY_ID, "p1");
+        const ctx = buildSpellContext(state, item);
+
+        expect(
+            ctx.getCharacteristics({ type: "spell", id: item.id })!.types
+        ).toContain("Creature");
+        expect(ctx.isPermanentCard({ type: "spell", id: item.id })).toBe(true);
     });
 });

@@ -20,11 +20,12 @@ import {
 import { grizzlyBears } from "../../cards/sets/lea/green";
 import { shivanDragon } from "../../cards/sets/lea/red";
 import { forest } from "../../cards/sets/lea/colorless";
-import { fear } from "../../cards/sets/lea/black";
+import { animateDead, fear } from "../../cards/sets/lea/black";
 import { tokenDefinitionId, tryGetDefinition } from "../../cards";
 import { findTokenSpec } from "../../cards/tokenCatalogue";
 import { projectFullState, projectPublicState } from "../../gameProjections";
 import { buildSpellContext } from "../state";
+import { NO_TARGETING_SOURCE, getLegalTargets } from "../rules";
 import type { GameState, PendingChoice } from "../state";
 import type { ScenarioSpec } from "../../debugScenarioSpec";
 import { removedKeywordRows } from "../../cards/__tests__/setup";
@@ -1339,5 +1340,78 @@ describe("specFromState (issue #2148)", () => {
         // The choice itself is genuinely unlowerable and SHOULD still be
         // reported — this test only guards against the spurious extra.
         expect(dropped.some((d) => d.startsWith("pendingChoices:"))).toBe(true);
+    });
+});
+
+// CR 113.6c (issue #3278) — a scenario-placed zone-conditional card.
+//
+// `debugSetupScenario` (`convex/game.ts`) PERSISTS whatever this builder
+// returns, with no action in between, so leaving the materialisation to the
+// next state-based-action sweep writes a wrong state to the database: a Grist
+// placed in a graveyard is a bare Planeswalker card there until something
+// happens to sweep, and the first thing a scenario is loaded to do is a READ.
+describe("scenario-placed off-battlefield characteristics (CR 113.6c)", () => {
+    const GRIST = "Grist, the Hunger Tide";
+
+    it("materialises the zone characteristics on a graveyard card, with no SBA entry in between", () => {
+        const state = buildStateFromScenario(makeState(), {
+            cards: [{ name: GRIST, owner: "me", zone: "graveyard" }],
+        });
+
+        const grist = state.players[0].graveyard.find(
+            (c) =>
+                tryGetDefinition((c.card as { id?: string }).id!)?.name ===
+                GRIST
+        );
+        expect(grist).toBeDefined();
+        // Printed Planeswalker — Grist; a 1/1 Insect creature everywhere but
+        // the battlefield, ADDITIVELY (CR 205.1b).
+        expect(grist!.types).toContain("Planeswalker");
+        expect(grist!.types).toContain("Creature");
+        expect(grist!.subtypes).toContain("Grist");
+        expect(grist!.subtypes).toContain("Insect");
+        expect(grist!.power).toBe(1);
+        expect(grist!.toughness).toBe(1);
+    });
+
+    it("makes it a legal Animate Dead target as the first read after setup", () => {
+        // The acceptance shape from the issue: "enchant creature card in a
+        // graveyard" offers a scenario-placed Grist immediately. This is the
+        // FAMILY B half — `getLegalTargets`' graveyard branch reads the
+        // INSTANCE's `types`, so it is right only if the builder wrote them.
+        const state = buildStateFromScenario(makeState(), {
+            cards: [{ name: GRIST, owner: "me", zone: "graveyard" }],
+        });
+        const gristId = state.players[0].graveyard.find(
+            (c) =>
+                tryGetDefinition((c.card as { id?: string }).id!)?.name ===
+                GRIST
+        )!.id;
+
+        const offered = getLegalTargets(
+            state,
+            animateDead.targetRequirement!,
+            NO_TARGETING_SOURCE,
+            state.players[0].id
+        );
+
+        expect(offered.map((t) => t.id)).toContain(gristId);
+    });
+
+    it("leaves a BATTLEFIELD copy on its printed line", () => {
+        // The negative half: CR 113.6c switches the ability off on the
+        // battlefield, so the sweep must not reach a battlefield permanent.
+        const state = buildStateFromScenario(makeState(), {
+            cards: [{ name: GRIST, owner: "me" }],
+        });
+
+        const grist = state.players[0].battlefield.find(
+            (c) =>
+                tryGetDefinition((c.card as { id?: string }).id!)?.name ===
+                GRIST
+        )!;
+        expect(grist.types).toEqual(["Planeswalker"]);
+        expect(grist.subtypes ?? []).not.toContain("Insect");
+        expect(grist.power).toBeUndefined();
     });
 });

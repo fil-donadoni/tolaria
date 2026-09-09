@@ -47,6 +47,11 @@ const LIGHTNING_BOLT = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
  *  exists. */
 const ICY = "29dc1596-a2e7-4d60-9f99-89babaef8a06";
 const ICY_TAP = "icy-manipulator-tap";
+/** Grist, the Hunger Tide — a PLANESWALKER card that is a 1/1 Insect creature
+ *  in every zone but the battlefield (CR 113.6c). The reflexive gate's
+ *  zone-conditional case (issue #3278): read off the printed type line it is
+ *  not a creature card and the counter never lands. */
+const GRIST = "69af2825-18c2-4463-b6ba-42eaa070ccc1";
 
 /** p1 controls the Cauldron and a creature; `graveyard` seeds p2's graveyard
  *  (the Oracle says "a graveyard", so the opponent's is the interesting one —
@@ -146,6 +151,38 @@ describe("Agatha's Soul Cauldron — {T} exile (CR 701.13 / 607.2a, issue #2945)
         const reflexive = state.stack.find((s) => s.reflexiveTrigger);
         expect(reflexive).toBeDefined();
         expect(creature.counters?.["+1/+1"] ?? 0).toBe(0);
+
+        expect(raiseTriggerTargetSelection(state)).toBe(true);
+        state.pendingTarget!.selected = [{ type: "permanent", id: "creature" }];
+        finalizeTargetSelection(
+            state,
+            state.pendingTarget!,
+            state.pendingTarget!.playerId
+        );
+        resolveTopOfStack(state);
+
+        expect(creature.counters?.["+1/+1"]).toBe(1);
+    });
+
+    it("fires the reflexive trigger for a card that is a creature card ONLY in the graveyard (CR 113.6c, issue #3278)", () => {
+        // Grist is a printed Planeswalker; "as long as Grist isn't on the
+        // battlefield, it's a 1/1 Insect creature in addition to its other
+        // types". The `bind` snapshot the gate reads is taken while it is
+        // still in the graveyard (CR 608.2h), so the gate must see Creature.
+        //
+        // NOTE the fixture runs NO state-based-action sweep: the graveyard
+        // instance still carries its printed `types`, so nothing but the
+        // snapshot reader itself can make this pass — which is the point.
+        const { state, cauldron, creature } = board({
+            graveyard: [{ id: "gy-grist", cardId: GRIST }],
+        });
+        getPlayer(state, "p1").battlefield.push(
+            makeInstance(BEARS, { id: "other", controllerId: "p1" })
+        );
+        activateExile(state, cauldron, "gy-grist");
+
+        const reflexive = state.stack.find((s) => s.reflexiveTrigger);
+        expect(reflexive).toBeDefined();
 
         expect(raiseTriggerTargetSelection(state)).toBe(true);
         state.pendingTarget!.selected = [{ type: "permanent", id: "creature" }];
