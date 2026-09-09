@@ -32,10 +32,14 @@ import type { CardDefinition } from "../../types";
 //     `abilitiesOf` the ABILITY half — the linked pile, re-read at every
 //     `syncLayer6` derivation, which is what makes a card exiled at instant
 //     speed grant its abilities on the next stable transition (ADR 0112).
-//     `dependsOnCounters: true` is mandatory for a MATERIALIZED kind whose
-//     predicate reads counters (`counterGatedStatics.test.ts`, issue #1711):
-//     without it `recomputeContinuousEffects` never re-evaluates the gate and
-//     a creature that gains its first +1/+1 counter mid-turn stays abilityless.
+//     `dependsOnCounters: true` is mandatory and its reason is the CENSUS, not
+//     liveness: `counterGatedStatics.test.ts` (issue #1711) reds on any
+//     MATERIALIZED-kind predicate that reads counters without declaring it.
+//     The gate is in fact live either way here, because
+//     `recomputeContinuousEffects` has been `syncLayers2to5` + `syncLayer6`
+//     since PRD #2064 S4 and layer 6 is re-derived per read — but the census
+//     classifies by KIND, and `activated-grant` is on its materialized list, so
+//     the declaration is what a reader of that list is entitled to see.
 //   - Clause 3, the exile. The announced-target `moveZone` + `linkToSource`
 //     shape Emperor of Bones already ships (`mh3/black.ts`, issues #1947 /
 //     #1323): "a graveyard" is `controller: "any"`, "target card" is
@@ -88,8 +92,12 @@ export const agathasSoulCauldron: CardDefinition = {
                 ctx.isCreature(target) &&
                 ctx.getCounterCount(target, "+1/+1") > 0,
             dependsOnCounters: true,
-            // CR 607.2a — the pile linked by this card's OWN {T} ability.
-            abilitiesOf: { exiledWithSource: true },
+            // CR 607.2a — the pile linked by this card's OWN {T} ability,
+            // CR 205.2 — narrowed to its CREATURE CARDS. The two halves are
+            // genuinely different sets here: the {T} ability exiles "target
+            // CARD from a graveyard", so an exiled Mishra's Factory or
+            // Skullclamp sits in the pile and must contribute nothing.
+            abilitiesOf: { exiledWithSource: true, types: ["Creature"] },
         },
     ],
     activatedAbilities: [

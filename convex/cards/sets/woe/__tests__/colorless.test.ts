@@ -41,6 +41,12 @@ const BEARS = "ce2d603a-3231-4a8c-bf39-1617586ea870";
 /** Lightning Bolt — a noncreature card, for the reflexive trigger's negative
  *  case. */
 const LIGHTNING_BOLT = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
+/** Icy Manipulator — a noncreature card that DOES carry an activated ability.
+ *  Lightning Bolt cannot prove the CR 205.2 half of the grant: a card with no
+ *  `activatedAbilities[]` contributes nothing whether or not the type filter
+ *  exists. */
+const ICY = "29dc1596-a2e7-4d60-9f99-89babaef8a06";
+const ICY_TAP = "icy-manipulator-tap";
 
 /** p1 controls the Cauldron and a creature; `graveyard` seeds p2's graveyard
  *  (the Oracle says "a graveyard", so the opponent's is the interesting one —
@@ -205,6 +211,42 @@ describe("Agatha's Soul Cauldron — ability copy (CR 607.2a / 613.1f, issue #29
         expect(offeredAbilityIds(creature)).toEqual([SHADE_PUMP]);
     });
 
+    it("grants NOTHING from a noncreature card in the pile (CR 205.2)", () => {
+        // The {T} ability exiles "target CARD from a graveyard", so the linked
+        // pile is wider than the clause that reads it. Without the selector's
+        // `types` half this is a free win: a countered creature you control
+        // picks up "{1}, {T}: Tap target artifact, creature, or land" from an
+        // Icy Manipulator nobody ever cast.
+        const { state, cauldron, creature } = board({
+            counters: { "+1/+1": 1 },
+            graveyard: [{ id: "gy-icy", cardId: ICY }],
+        });
+        activateExile(state, cauldron, "gy-icy");
+        syncLayer6(state);
+
+        // The exile and its CR 607.2a link still happened — only the grant is
+        // narrowed.
+        expect(getCardsExiledWith(state, "cauldron")).toHaveLength(1);
+        expect(offeredAbilityIds(creature)).toEqual([]);
+    });
+
+    it("grants from the CREATURE cards in a MIXED pile and nothing else", () => {
+        const { state, cauldron, creature } = board({
+            counters: { "+1/+1": 1 },
+            graveyard: [
+                { id: "gy-icy", cardId: ICY },
+                { id: "gy-shade", cardId: SHADE },
+            ],
+        });
+        activateExile(state, cauldron, "gy-icy");
+        activateExile(state, cauldron, "gy-shade");
+        syncLayer6(state);
+
+        expect(getCardsExiledWith(state, "cauldron")).toHaveLength(2);
+        expect(offeredAbilityIds(creature)).toEqual([SHADE_PUMP]);
+        expect(offeredAbilityIds(creature)).not.toContain(ICY_TAP);
+    });
+
     it("grants nothing while the linked pile is empty", () => {
         const { state, creature } = board({ counters: { "+1/+1": 1 } });
         syncLayer6(state);
@@ -212,8 +254,12 @@ describe("Agatha's Soul Cauldron — ability copy (CR 607.2a / 613.1f, issue #29
     });
 });
 
-describe("Agatha's Soul Cauldron — the fixing reaches the ability it granted (CR 609.4b / 602.1)", () => {
-    it("lets a creature you control pay the granted {B} with any colour", () => {
+// The fixing's PREDICATE, both halves. That it actually reaches an ability the
+// Cauldron GRANTED — the coupling between the two clauses — is a payment, and
+// is asserted where a payment happens:
+// `src/lib/__tests__/agathas-soul-cauldron.fullpath.test.ts`.
+describe("Agatha's Soul Cauldron — the fixing's predicate (CR 609.4b / 602.1)", () => {
+    it("offers every any-colour pair to a creature you control", () => {
         const { state, cauldron, creature } = board({
             counters: { "+1/+1": 1 },
             graveyard: [{ id: "gy-shade", cardId: SHADE }],

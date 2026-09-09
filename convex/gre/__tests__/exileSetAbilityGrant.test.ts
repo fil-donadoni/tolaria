@@ -52,7 +52,7 @@ const CAULDRON: CardDefinition = {
                 target.controllerId === source.controllerId &&
                 target.types.includes("Creature") &&
                 (target.counters?.["+1/+1"] ?? 0) > 0,
-            abilitiesOf: { exiledWithSource: true },
+            abilitiesOf: { exiledWithSource: true, types: ["Creature"] },
         },
     ],
 };

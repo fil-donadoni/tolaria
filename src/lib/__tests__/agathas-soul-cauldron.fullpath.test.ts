@@ -17,7 +17,6 @@ import { describe, it, expect } from "vitest";
 import { getDisplayAbilities, getStackAbilities } from "../card-utils";
 import type { CardInstance } from "~/types/game";
 import { projectPublicState } from "@convex/gameProjections";
-import { getCardByName } from "@convex/cards";
 import {
     makeInstance,
     makePlayer,
@@ -28,11 +27,16 @@ import { getPlayer, resolveTopOfStack } from "@convex/gre/state";
 import { getEffectivePower, getEffectiveToughness } from "@convex/gre/layers";
 import { syncLayer6 } from "@convex/gre/layer6";
 import { activateAbilityOnState } from "@convex/game";
-import { agathasSoulCauldron } from "@convex/cards/sets/woe/colorless";
 
-const BEARS = getCardByName("Grizzly Bears").id;
-/** `{B}: This creature gets +1/+1 until end of turn.` — the granted ability. */
-const SHADE = getCardByName("Frozen Shade").id;
+// Registry ids, not a set-module import and not `getCardByName` — the two
+// swap-blind readers `scripts/__tests__/card-test-seam-boundary.test.ts` bans
+// (ADR 0046). Its scan is scoped to `convex/cards/sets/**/__tests__`, so this
+// file is convention rather than enforcement; it follows the same rule anyway.
+const CAULDRON = "019b51b0-e5c6-4208-922b-7736686dddcd"; // Agatha's Soul Cauldron, WOE 242
+/** Grizzly Bears — a vanilla 2/2 with no printed activated ability. */
+const BEARS = "ce2d603a-3231-4a8c-bf39-1617586ea870";
+/** Frozen Shade — `{B}: This creature gets +1/+1 until end of turn.` */
+const SHADE = "d0bd76c8-4cff-4c15-9686-7a299b589814";
 const SHADE_PUMP = "frozen-shade-pump";
 
 /** p1: the Cauldron, a Bear carrying a `+1/+1` counter, a Frozen Shade card in
@@ -43,7 +47,7 @@ function board(): GameState {
         players: [
             makePlayer("p1", {
                 battlefield: [
-                    makeInstance(agathasSoulCauldron.id, {
+                    makeInstance(CAULDRON, {
                         id: "cauldron",
                         controllerId: "p1",
                         staticSeq: 1,
