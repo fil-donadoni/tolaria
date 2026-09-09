@@ -1076,4 +1076,28 @@ describe("identity v4 — zone CTA plate (ADR 0103 §3, issue #3280)", () => {
                 `(src/lib/board-chrome-v4.ts) instead of re-typing the string.`
         ).toEqual([]);
     });
+
+    it("no chrome RECIPE pairs them either", () => {
+        // The sweep above reads `className=` attributes, so a ninth CTA added
+        // as a new exported constant BESIDE `V4_ZONE_CTA_PLATE` would slip
+        // through it — the recipes are not in a `className`. This row reads the
+        // recipe module's own string literals instead, which is where a new
+        // shared skin would actually be written.
+        const recipes = readFileSync(
+            resolve(process.cwd(), "src/lib/board-chrome-v4.ts"),
+            "utf8"
+        );
+        const offenders = [...recipes.matchAll(/"([^"]*)"/g)]
+            .map((m) => m[1])
+            .filter(
+                (literal) =>
+                    literal.includes("bg-accent-strong") &&
+                    literal.includes("text-white")
+            );
+        expect(
+            offenders,
+            `A board-chrome recipe pairs white with the ivory \`accent-strong\` ` +
+                `plate (~1.05:1). The on-ivory foreground is \`text-surface-base\`.`
+        ).toEqual([]);
+    });
 });

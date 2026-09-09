@@ -843,9 +843,18 @@ export function getLegalActions(
             // their land drop still got `"play"` projected while
             // `assertLegalAction`'s own call (`player` = the caster) returned
             // `none` — same function, two subjects, two answers, and an
-            // enabled CTA whose click threw. The zone-membership scans above
-            // keep reading `player`: those genuinely ask "whose zone is this
-            // card in".
+            // enabled CTA whose click threw.
+            //
+            // The `player.hand` / `player.graveyard` / library-position scans
+            // above keep reading `player`: those genuinely ask "whose zone is
+            // this card in". The two PERMISSION legs beside them
+            // (`canPlayLandsFromGraveyard`, `isPlayableLibraryTopLand`) are
+            // subject-bearing questions like this one and would move too — but
+            // no call site passes a `casterId` differing from `player` for a
+            // graveyard or library card (only the two exile projections do,
+            // and the exile leg below is already caster-keyed), so moving them
+            // would be an untestable change. Left, and named here so the next
+            // cross-player permission does not have to rediscover them.
             const landsPlayed = caster.landsPlayedThisTurn ?? 0;
             const extraDrops = getExtraLandDrops(caster);
             const maxDrops = LAND_DROPS_PER_TURN + extraDrops;

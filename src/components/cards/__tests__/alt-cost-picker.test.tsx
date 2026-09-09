@@ -35,10 +35,16 @@ describe("AltCostPicker (#2919, CR 118.9)", () => {
     // permission (Aluren) it is an ILLEGAL one. The row used to be rendered
     // unconditionally, so a legal-looking click was a guaranteed `announceCast`
     // rejection.
+    //
+    // The fixture is TWO permission costs, not a permission plus an evoke: the
+    // card's own alternative costs are equally illegal under a permission
+    // (`announceCast` refuses every non-permission `alternativeCostId`) and
+    // `useHandCardCommit` filters them out before this component is rendered,
+    // so a mixed list here would be a shape the picker never receives.
     it('omits the "Pay mana cost" row when the printed-cost cast is not available', () => {
         const altCosts: AlternativeCost[] = [
-            { id: "cast-permission:x", description: "Cast with Aluren" },
-            { id: "evoke", description: "Evoke" },
+            { id: "cast-permission:aluren", description: "Cast with Aluren" },
+            { id: "cast-permission:orrery", description: "Cast with Orrery" },
         ];
         render(
             <AltCostPicker
@@ -53,9 +59,12 @@ describe("AltCostPicker (#2919, CR 118.9)", () => {
         expect(
             screen.queryByRole("button", { name: "Pay mana cost" })
         ).toBeNull();
-        // The alternatives themselves are untouched.
+        // Both legal rows survive — the row count is the real choice.
         expect(
             screen.getByRole("button", { name: /Cast with Aluren/ })
+        ).toBeTruthy();
+        expect(
+            screen.getByRole("button", { name: /Cast with Orrery/ })
         ).toBeTruthy();
     });
 
