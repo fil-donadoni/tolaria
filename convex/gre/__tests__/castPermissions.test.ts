@@ -20,6 +20,7 @@ import {
     makeState,
 } from "../../cards/__tests__/setup";
 import { withTemporaryDefinition } from "../../cards/registry";
+import { getAllCards } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
 import {
     CAST_PERMISSION_ALT_COST_PREFIX,
@@ -362,5 +363,75 @@ describe("the permission is HAND-scoped (CR 302.1 / 601.3)", () => {
             expect(castPermissionAltCosts(state, "p2", card, zone)).toEqual([]);
             expect(collectCastPermissions(state, "p2", card, zone)).toEqual([]);
         }
+    });
+});
+
+// The CLASS guard for issue #3284, not the instance. `StaticCastPermission`
+// carried ONE field doing two jobs — "Oracle text shown as the cast option's
+// label" — and `altCostFor` rendered it straight into the picker row's
+// accessible name. So the field LOOKED like UI copy, and an edit that made the
+// row read better ("Cast with Aluren") silently corrupted CARD DATA: the
+// catalogue artifact's content hash covers oracle text (ADR 0114 §2), so the
+// committed pack went stale, and the picker's own wiring test — which asserts
+// the permission's printed wording — went red. Both landed unnoticed.
+//
+// The instance fix restored the sentence and moved the short string to the new
+// `label`. Nothing about that stops the NEXT author reaching for `oracleText`
+// again, which is what this sweep is for: a cast permission's `oracleText` must
+// be part of its own card's printed text, so a UI-motivated edit reds here and
+// the failure message names `label`.
+describe("cast-permission `oracleText` is CARD DATA, never UI copy (issue #3284)", () => {
+    it("every shipped permission's `oracleText` appears in its own card's `oracleText`", () => {
+        const offenders: string[] = [];
+        let checked = 0;
+        for (const card of getAllCards()) {
+            for (const effect of card.staticEffects ?? []) {
+                if (effect.kind !== "cast-permission") continue;
+                checked += 1;
+                const printed = card.oracleText ?? "";
+                if (!printed.includes(effect.oracleText)) {
+                    offenders.push(
+                        `${card.name} :: ${effect.id} — "${effect.oracleText}" is not part of the card's own oracleText. ` +
+                            "A cast permission's `oracleText` is the PRINTED sentence (it feeds the card's rendered text, " +
+                            "the Oracle compiler round-trip and the catalogue artifact's content hash). Put the picker's " +
+                            "short row name in `label` instead."
+                    );
+                }
+            }
+        }
+        // Guard the guard: a sweep over zero permissions is vacuously green.
+        expect(checked).toBeGreaterThan(0);
+        expect(offenders).toEqual([]);
+    });
+
+    it("`label` is what the cast-option row shows, and `oracleText` is the fallback", () => {
+        const state = board({ p1Hand: [grizzlyBears.id] });
+        // Aluren declares both, so the row shows the SHORT label.
+        expect(
+            castPermissionAltCosts(state, "p1", handCard(state, "p1")).map(
+                (a) => a.description
+            )
+        ).toEqual(["Cast with Aluren"]);
+
+        // A permission with NO label falls back to the printed sentence —
+        // the behaviour every permission had before `label` existed.
+        const unlabelled: CardDefinition = {
+            ...aluren,
+            staticEffects: (aluren.staticEffects ?? []).map((effect) =>
+                effect.kind === "cast-permission"
+                    ? { ...effect, label: undefined }
+                    : effect
+            ),
+        };
+        withTemporaryDefinition(unlabelled, () => {
+            const fallback = board({ p1Hand: [grizzlyBears.id] });
+            expect(
+                castPermissionAltCosts(
+                    fallback,
+                    "p1",
+                    handCard(fallback, "p1")
+                ).map((a) => a.description)
+            ).toEqual([aluren.oracleText]);
+        });
     });
 });

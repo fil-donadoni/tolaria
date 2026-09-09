@@ -77,6 +77,23 @@ import { forest } from "@convex/cards/sets/lea/colorless";
 
 const ALUREN_ALT_COST_ID = "cast-permission:aluren-creature-permission";
 
+/** The cast-option row's accessible name, read from the DEFINITION rather than
+ *  hard-coded (issue #3284): `altCostFor` renders `label ?? oracleText`, so this
+ *  follows a relabelling instead of going red on one. */
+const ALUREN_ROW_LABEL = (() => {
+    const permission = (aluren.staticEffects ?? []).find(
+        (effect) => effect.kind === "cast-permission"
+    );
+    if (!permission || permission.kind !== "cast-permission") {
+        throw new Error("Aluren no longer declares a cast permission");
+    }
+    return permission.label ?? permission.oracleText;
+})();
+
+function escapeRegExp(literal: string): string {
+    return literal.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 /** `me` holds one copy of `cardId` with an Aluren and two Forests out, in their
  *  own main phase — enough mana for the printed cost, so the picker's two rows
  *  are a genuine choice rather than the only payable line. Run through the REAL
@@ -183,8 +200,14 @@ describe("cast-option picker under a board cast permission (CR 118.9, #2706)", (
         // CR 118.5 / 601.2b — nothing is announced until the caster picks; a
         // free cast is a cost they CHOOSE, never one applied behind their back.
         expect(announceCast).not.toHaveBeenCalled();
+        // issue #3284 — the row shows the permission's SHORT `label`, not its
+        // printed Oracle sentence. Read it from the definition rather than
+        // hard-coding the copy: the field is what the picker renders, so a
+        // relabelling can never make this assertion pass vacuously, and a
+        // permission that declares no label falls back to `oracleText` (asserted
+        // in `convex/gre/__tests__/castPermissions.test.ts`).
         const freeRow = screen.getByRole("button", {
-            name: /without paying their mana costs/,
+            name: new RegExp(escapeRegExp(ALUREN_ROW_LABEL)),
         });
         expect(
             screen.getByRole("button", { name: "Pay mana cost" })

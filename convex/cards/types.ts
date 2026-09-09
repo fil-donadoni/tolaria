@@ -8641,8 +8641,20 @@ export interface StaticCastPermission {
      *  window to instant speed ("as though they had flash"). A sorcery-speed
      *  LOCK still beats it (CR 101.2, `cast-timing-lock`). */
     asThoughFlash?: boolean;
-    /** Oracle text shown as the cast option's label. */
+    /** CARD DATA — the permission's own PRINTED Oracle sentence, verbatim
+     *  (CR 207.2). NOT a UI string: it is part of the card, so it feeds the
+     *  card's rendered text, the Oracle compiler's round-trip and the catalogue
+     *  artifact's content hash (ADR 0114 §2). Shortening it to read better in
+     *  the cast picker is what issue #3284 repaired — that is `label`'s job, and
+     *  a catalogue-wide sweep (`castPermissions.test.ts`) now reds when this
+     *  field is not a substring of its own card's `oracleText`. */
     oracleText: string;
+    /** UI COPY — the short name the cast-option row shows instead of the whole
+     *  Oracle sentence ("Cast with Aluren"). Optional and purely cosmetic:
+     *  `altCostFor` (`gre/castPermissions.ts`) renders `label ?? oracleText`, so
+     *  a permission that declares none behaves exactly as it did before this
+     *  field existed. Never read by a rules check. */
+    label?: string;
 }
 
 export type StaticEffect = (
