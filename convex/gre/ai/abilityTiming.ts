@@ -39,7 +39,10 @@
 // PURE: reads state, mutates nothing.
 
 import type { ActivatedAbility, EffectOp } from "../../cards/types";
-import type { CardInstanceState } from "../state";
+import type { CardInstanceState, GameState } from "../state";
+import { payRemoveCounterCost } from "../state";
+import { cloneGameState } from "../clone";
+import { checkStateBasedActions } from "../sba";
 import {
     getEffectiveActivatedAbilities,
     type EffectiveActivatedAbility,
@@ -168,11 +171,21 @@ export function isTransientOnlyAbility(ability: ActivatedAbility): boolean {
  *      holding preserves nothing that firing destroys. Prodigal Sorcerer's
  *      `{T}` ping is the shipped guard for that (issue #1890), and it must
  *      keep winning or losing on mean reward.
- *    * `life`, `removeCounter`, `discardThis`, `discardLastDrawn` — each is
- *      irreversible too, but none of them is a resource the OPPONENT's turn
- *      lets the bot use in the meantime, which is the whole argument here.
- *      Fail closed: this rule redirects a root pick, so a cost it cannot argue
- *      about is left alone.
+ *    * `life`, `discardThis`, `discardLastDrawn` — each is irreversible too,
+ *      but none of them is a resource the OPPONENT's turn lets the bot use in
+ *      the meantime, which is the whole argument here. Fail closed: this rule
+ *      redirects a root pick, so a cost it cannot argue about is left alone.
+ *    * `removeCounter` was in that list until issue #3296, on the same
+ *      argument — and the argument is false whenever THE COUNTERS ARE THE
+ *      BODY. Remove the last +1/+1 counter from a creature with printed
+ *      toughness 0 and CR 704.5f puts it into the graveyard: a permanent that
+ *      would have blocked all through the opponent's turn is gone, which is
+ *      exactly the forfeiture the sacrifice clause prices. So the key is not
+ *      promoted wholesale — `costDestroysSource` asks whether paying THIS
+ *      cost, on THIS board, ends with the source off the battlefield. The
+ *      distinction is POSITIONAL, not definitional: the same ability on the
+ *      same card is a sacrifice at its last counter and an ordinary cost at
+ *      three, which is why the predicate needs the state at all.
  *    * `tapOtherFilter` — the tapped creatures WOULD still be able to block if
  *      the cost were deferred, so the argument does apply; it is left out
  *      because whether those creatures matter is a combat judgement the
@@ -194,16 +207,63 @@ export function isTransientOnlyAbility(ability: ActivatedAbility): boolean {
  *  `docs/findings/2939-sac-for-mana-usestack-mislabel.md` rather than fixed
  *  here, and this clause is correct even after it is fixed.
  *
- *  Per-card-agnostic by construction: reads the cost shape and the Op
- *  vocabulary only (ADR 0102). */
-export function spendsStandingPermanent(ability: ActivatedAbility): boolean {
-    if (
-        ability.cost.sacrifice !== true &&
-        ability.cost.sacrificeFilter === undefined
-    ) {
+ *  Per-card-agnostic by construction: reads the cost shape, the resulting
+ *  board state and the Op vocabulary only — never a card name, never a
+ *  hardcoded counter type (ADR 0102). */
+export function spendsStandingPermanent(
+    state: GameState,
+    source: CardInstanceState,
+    ability: ActivatedAbility
+): boolean {
+    const givesUpAPermanent =
+        ability.cost.sacrifice === true ||
+        ability.cost.sacrificeFilter !== undefined ||
+        costDestroysSource(state, source, ability);
+    return givesUpAPermanent && !producesMana(ability);
+}
+
+/** Whether paying `ability`'s cost would, ON THIS BOARD, take its own source
+ *  off the battlefield — the positional half of `spendsStandingPermanent`
+ *  (issue #3296, surfaced by issue #3192).
+ *
+ *  Decided by SIMULATION rather than by a rule of its own: the cost is paid
+ *  through the engine's own `payRemoveCounterCost` chokepoint on a clone, the
+ *  real state-based-action sweep runs (CR 704.4 — so CR 704.5f's zero-toughness
+ *  check, and anything else the payment sets off, is the engine's answer and
+ *  not a second copy of it), and the question is simply whether the source is
+ *  still there. A creature whose toughness comes only from counters dies at its
+ *  LAST one and survives with counters to spare, and this reads that difference
+ *  off the board instead of off the definition.
+ *
+ *  Scoped to `removeCounter`, the one cost key whose payment can remove its own
+ *  source without the definition saying "sacrifice" anywhere. Every other key
+ *  is either already handled above (`sacrifice` / `sacrificeFilter`) or cannot
+ *  reach the source at all (`tap`, `mana`, `life`, `discardThis`).
+ *
+ *  Fail-closed at every step, matching the module's discipline: a source that
+ *  is not on the battlefield in `state`, or a payment the real chokepoint
+ *  refuses (too few counters), returns false and leaves the activation alone. */
+function costDestroysSource(
+    state: GameState,
+    source: CardInstanceState,
+    ability: ActivatedAbility
+): boolean {
+    const cost = ability.cost.removeCounter;
+    if (!cost) return false;
+    const probe = cloneGameState(state);
+    const card = probe.players
+        .flatMap((p) => p.battlefield)
+        .find((c) => c.id === source.id);
+    if (!card) return false;
+    try {
+        payRemoveCounterCost(probe, card, cost);
+    } catch {
         return false;
     }
-    return !producesMana(ability);
+    checkStateBasedActions(probe);
+    return !probe.players.some((p) =>
+        p.battlefield.some((c) => c.id === source.id)
+    );
 }
 
 /** Whether `ability`'s script can add mana (CR 106.4) — recursing through the
