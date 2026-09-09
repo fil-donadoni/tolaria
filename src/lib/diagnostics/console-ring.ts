@@ -51,18 +51,59 @@ export const CONSOLE_RING_LIMIT = 100;
  *  making the row unwritable. */
 export const MAX_ENTRY_CHARS = 400;
 
+/**
+ * Credential shapes, scrubbed on the way IN.
+ *
+ * The network ring can promise "no query strings, ever" because it never holds
+ * a URL; the console ring holds whatever the app logged, and an app logs URLs.
+ * A failed request logged with its `?token=…`, an SDK error whose message
+ * embeds a JWT, an `Authorization` header printed while debugging — each of
+ * those would otherwise ride into the report row verbatim, which is exactly the
+ * outcome the storage allowlist exists to prevent one door over.
+ *
+ * Scrubbed at RECORD time, not at send time: a value that never enters the ring
+ * cannot be forgotten on the way out, and every writer (console, uncaught
+ * error, unhandled rejection) goes through this one door.
+ */
+const SCRUBBERS: readonly [RegExp, string][] = [
+    // A JWT — the shape of both Convex auth tokens.
+    [
+        /eyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]+/g,
+        "[redacted-jwt]",
+    ],
+    // `Authorization: Bearer …`, however it was formatted.
+    [/(Bearer\s+)[A-Za-z0-9._~+/-]{8,}=*/gi, "$1[redacted]"],
+    // Any query parameter whose NAME says it carries a secret.
+    [
+        /([?&](?:token|access_token|refresh_token|id_token|auth|code|key|secret|password|sig|signature)=)[^&\s"'`]+/gi,
+        "$1[redacted]",
+    ],
+];
+
+/** Exported for its own test: the scrub is the security boundary of this ring,
+ *  and a boundary nothing can call directly is a boundary nothing can prove. */
+export function scrubSecrets(text: string): string {
+    let scrubbed = text;
+    for (const [pattern, replacement] of SCRUBBERS) {
+        scrubbed = scrubbed.replace(pattern, replacement);
+    }
+    return scrubbed;
+}
+
 let entries: ConsoleEntry[] = [];
 
 /** Push one entry. Exported for the installer below and for tests; nothing in
- *  the app writes the ring directly. */
+ *  the app writes the ring directly. Scrub first, THEN clamp: clamping first
+ *  could cut a token in half and leave the half that is still a token. */
 export function recordConsoleEntry(
     level: ConsoleEntryLevel,
     text: string
 ): void {
+    const scrubbed = scrubSecrets(text);
     const clamped =
-        text.length > MAX_ENTRY_CHARS
-            ? `${text.slice(0, MAX_ENTRY_CHARS)}…`
-            : text;
+        scrubbed.length > MAX_ENTRY_CHARS
+            ? `${scrubbed.slice(0, MAX_ENTRY_CHARS)}…`
+            : scrubbed;
     entries = [...entries, { level, text: clamped, at: Date.now() }].slice(
         -CONSOLE_RING_LIMIT
     );
@@ -87,16 +128,31 @@ export function formatConsoleArgs(args: readonly unknown[]): string {
     return args
         .map((arg) => {
             if (typeof arg === "string") return arg;
-            if (arg instanceof Error) {
-                return `${arg.name}: ${arg.message}`;
-            }
             try {
+                // Duck-typed, not `instanceof`: an Error thrown across a realm
+                // (the Brain Worker, an iframe) fails the prototype check and
+                // would otherwise stringify to `"{}"` — losing the message,
+                // which is the only part of it worth keeping. Inside the `try`
+                // because a subclass may define a THROWING getter, and a
+                // console wrapper that throws breaks the app's own logging.
+                if (isErrorLike(arg)) return `${arg.name}: ${arg.message}`;
                 return JSON.stringify(arg) ?? String(arg);
             } catch {
                 return "[unserializable]";
             }
         })
         .join(" ");
+}
+
+function isErrorLike(
+    value: unknown
+): value is { name: string; message: string } {
+    if (typeof value !== "object" || value === null) return false;
+    const candidate = value as { name?: unknown; message?: unknown };
+    return (
+        typeof candidate.name === "string" &&
+        typeof candidate.message === "string"
+    );
 }
 
 const PATCHED_LEVELS = ["log", "info", "warn", "error", "debug"] as const;
@@ -118,22 +174,27 @@ export function installConsoleRing(): () => void {
     installed = true;
 
     const originals = new Map<string, (...args: unknown[]) => void>();
+    const wrappers = new Map<string, (...args: unknown[]) => void>();
     for (const level of PATCHED_LEVELS) {
         const original = console[level].bind(console) as (
             ...args: unknown[]
         ) => void;
         originals.set(level, original);
-        console[level] = (...args: unknown[]) => {
+        const wrapper = (...args: unknown[]) => {
             recordConsoleEntry(level, formatConsoleArgs(args));
             original(...args);
         };
+        wrappers.set(level, wrapper);
+        console[level] = wrapper;
     }
 
     const onError = (event: ErrorEvent) => {
-        recordConsoleEntry(
-            "uncaught",
-            formatConsoleArgs([event.error ?? event.message])
-        );
+        const detail = event.error ?? event.message;
+        // An `error` event carrying neither is an event about nothing; a record
+        // reading `"undefined"` is worse than no record, because it looks like
+        // a crash whose message was lost.
+        if (detail === undefined || detail === null) return;
+        recordConsoleEntry("uncaught", formatConsoleArgs([detail]));
     };
     const onRejection = (event: PromiseRejectionEvent) => {
         recordConsoleEntry(
@@ -147,7 +208,12 @@ export function installConsoleRing(): () => void {
     return () => {
         for (const level of PATCHED_LEVELS) {
             const original = originals.get(level);
-            if (original) console[level] = original;
+            // Restore ONLY if nothing wrapped us in turn. Sentry's own console
+            // instrumentation installs after this one in `main.tsx`; blindly
+            // reassigning would discard it and silently stop its breadcrumbs.
+            if (original && console[level] === wrappers.get(level)) {
+                console[level] = original;
+            }
         }
         window.removeEventListener("error", onError);
         window.removeEventListener("unhandledrejection", onRejection);

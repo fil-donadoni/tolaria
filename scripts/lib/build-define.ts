@@ -17,12 +17,48 @@ import { execSync } from "child_process";
  * Shared by `vite.config.ts` and `vitest.config.ts` — the test suite asserts
  * these are present and non-empty, and it can only do that if the test build
  * defines them the same way the shipped build does.
+ *
+ * DETERMINISTIC on purpose: both values are derived from the commit, never from
+ * the wall clock. A `define` map that changes on every config load changes the
+ * dependency-optimizer's cache key on every load with it, and a timestamp that
+ * says when the bundler happened to start says nothing a maintainer can act on
+ * — the commit's own date does.
  */
 export function buildDefine(): Record<string, string> {
+    const { commit, committedAt } = buildIdentity();
     return {
-        __BUILD_COMMIT__: JSON.stringify(buildCommit()),
-        __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+        __BUILD_COMMIT__: JSON.stringify(commit),
+        __BUILD_COMMIT_AT__: JSON.stringify(committedAt),
     };
+}
+
+/** Memoised per process: `vitest` loads this config once, but a watch-mode
+ *  reload must not pay for another `git` spawn or produce a different map. */
+let cached: { commit: string; committedAt: string } | undefined;
+
+function buildIdentity(): { commit: string; committedAt: string } {
+    if (cached) return cached;
+    cached = {
+        commit: buildCommit(),
+        committedAt: commitDate(),
+    };
+    return cached;
+}
+
+/** The commit's own author date, ISO-8601. `"unknown"` when there is no git —
+ *  never a blank, and never `Date.now()`, which would be a timestamp about the
+ *  BUILD MACHINE dressed up as one about the code. */
+function commitDate(): string {
+    const fromEnv = process.env.VITE_BUILD_COMMIT_AT?.trim();
+    if (fromEnv) return fromEnv;
+    try {
+        return execSync("git show -s --format=%cI HEAD", {
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "ignore"],
+        }).trim();
+    } catch {
+        return "unknown";
+    }
 }
 
 /**

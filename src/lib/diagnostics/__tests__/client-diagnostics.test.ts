@@ -45,7 +45,7 @@ describe("client diagnostics (issue #3256)", () => {
         expect(build.commit.length).toBeGreaterThan(0);
         expect(build.mode).toBeTruthy();
         expect(build.deployment).toBeTruthy();
-        expect(build.builtAt).toBeTruthy();
+        expect(build.committedAt).toBeTruthy();
     });
 
     it("omits every empty section — a lobby report carries no scaffolding", () => {

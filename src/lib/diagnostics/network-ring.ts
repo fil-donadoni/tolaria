@@ -45,24 +45,28 @@ export function clearFailedRequests(): void {
     failures = [];
 }
 
-/** A segment that carries no information a maintainer can use, and might carry
- *  information they should not have: Convex ids, UUIDs, storage ids, numbers.
- *  Masked to `:id` so the SHAPE of the failing route survives and the instance
- *  does not. */
+/**
+ * A path segment survives only if it LOOKS LIKE A ROUTE WORD — an ALLOWLIST of
+ * shape, in the same direction as the storage allowlist and for the same
+ * reason. The first draft of this listed the id shapes to mask (digits, UUIDs,
+ * long lower-case runs), which is a denylist: a mixed-case, dotted or
+ * hyphenated token — a JWT or a base64url magic-link token sitting in a path —
+ * did not match any of them and travelled unmasked.
+ *
+ * A route word starts with a letter and is SHORT — 15 characters, which fits
+ * every segment this backend actually serves (`api`, `storage`, `mutation`,
+ * `prepare_auth`, `sw-cards.js`) and fits no id or token: a Convex id is 32, a
+ * UUID 36, a base64url token longer still. Everything else becomes `:id`, so
+ * the SHAPE of the failing route survives and the instance never does.
+ *
+ * The cost of the rule being too strict is a masked path segment in one report;
+ * the cost of it being too loose is a credential in a database row.
+ */
+const ROUTE_WORD = /^[A-Za-z][A-Za-z0-9._-]{0,14}$/;
+
 function maskSegment(segment: string): string {
     if (segment === "") return segment;
-    if (/^\d+$/.test(segment)) return ":id";
-    if (
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-            segment
-        )
-    ) {
-        return ":id";
-    }
-    // Convex ids and storage ids are long, lower-case alphanumeric and carry no
-    // separator — the shape nothing human-readable in this app has.
-    if (/^[a-z0-9]{16,}$/.test(segment)) return ":id";
-    return segment;
+    return ROUTE_WORD.test(segment) ? segment : ":id";
 }
 
 /** The path with its instance-identifying segments masked. Query string and

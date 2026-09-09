@@ -91,6 +91,15 @@ export function clearStorageFacts(): void {
  * and nothing else. Never rejects — a diagnostics probe that can fail the app
  * is worse than no probe.
  */
+function hasSubstance(facts: StorageFacts): boolean {
+    return (
+        facts.quotaBytes !== undefined ||
+        facts.usageBytes !== undefined ||
+        facts.serviceWorker !== undefined ||
+        facts.cardCachePresent !== undefined
+    );
+}
+
 export async function sampleStorageFacts(): Promise<StorageFacts> {
     const facts: StorageFacts = { sampledAt: Date.now() };
 
@@ -133,6 +142,10 @@ export async function sampleStorageFacts(): Promise<StorageFacts> {
         // Absent.
     }
 
-    sampled = facts;
+    // A section with nothing but its own timestamp is the empty scaffolding the
+    // issue forbids: it reads as "we looked at storage and this is what it
+    // said". On a browser that supports none of the three probes, the honest
+    // answer is silence.
+    sampled = hasSubstance(facts) ? facts : undefined;
     return facts;
 }

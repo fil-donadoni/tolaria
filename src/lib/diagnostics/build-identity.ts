@@ -15,8 +15,8 @@
 export type BuildIdentity = {
     /** Short commit the bundle was built from, or `"unknown"` — never blank. */
     commit: string;
-    /** ISO timestamp of the build. */
-    builtAt: string;
+    /** The commit's own date, ISO-8601 — not the build machine's clock. */
+    committedAt: string;
     /** Vite mode: `production`, `development`, `test`, … */
     mode: string;
     /** The Convex deployment this bundle talks to. */
@@ -26,7 +26,7 @@ export type BuildIdentity = {
 export function collectBuildIdentity(): BuildIdentity {
     return {
         commit: readDefine(() => __BUILD_COMMIT__),
-        builtAt: readDefine(() => __BUILD_TIME__),
+        committedAt: readDefine(() => __BUILD_COMMIT_AT__),
         mode: import.meta.env.MODE || "unknown",
         deployment: import.meta.env.VITE_CONVEX_URL || "unknown",
     };

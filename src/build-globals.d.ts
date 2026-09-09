@@ -4,4 +4,4 @@
 // values the BUILD knows and the client cannot: a client-computed commit is a
 // client-forgeable commit.
 declare const __BUILD_COMMIT__: string;
-declare const __BUILD_TIME__: string;
+declare const __BUILD_COMMIT_AT__: string;

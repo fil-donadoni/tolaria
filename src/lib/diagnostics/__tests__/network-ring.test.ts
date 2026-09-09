@@ -31,9 +31,19 @@ describe("network ring (issue #3256)", () => {
         clearFailedRequests();
     });
 
-    it("masks ids and drops the query string from a path", () => {
+    it("keeps route words and masks everything else, allowlist-wise", () => {
         expect(pathShape(`${BACKEND}/api/storage/k17abcdefghijklmnop`)).toBe(
             "/api/storage/:id"
+        );
+        // The shape a DENYLIST misses: mixed case, dots and hyphens, none of
+        // the id patterns a first draft would enumerate — and a credential.
+        expect(
+            pathShape(
+                `${BACKEND}/api/magic/eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.Xy-9_Zq`
+            )
+        ).toBe("/api/magic/:id");
+        expect(pathShape(`${BACKEND}/api/prepare_auth/sw-cards.js`)).toBe(
+            "/api/prepare_auth/sw-cards.js"
         );
         expect(
             pathShape(

@@ -54,6 +54,10 @@ describe("environment facts (issue #3256)", () => {
         expect("serviceWorker" in facts).toBe(false);
         expect("cardCachePresent" in facts).toBe(false);
         expect(typeof facts.sampledAt).toBe("number");
+        // …and a sample with nothing but its own timestamp is not published at
+        // all: a `storage` section saying only "we looked" is the empty
+        // scaffolding that reads as evidence.
+        expect(getStorageFacts()).toBeUndefined();
     });
 
     it("samples the quota, the service worker and the card cache when supported", async () => {

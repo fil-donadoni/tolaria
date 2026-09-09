@@ -6,6 +6,7 @@ import {
     getConsoleRing,
     installConsoleRing,
     recordConsoleEntry,
+    scrubSecrets,
 } from "../console-ring";
 
 // issue #3256 — the console ring. Bounded on BOTH axes on purpose: the whole
@@ -90,6 +91,64 @@ describe("console ring (issue #3256)", () => {
         ]);
         expect(ring.at(-2)?.text).toBe("Error: kaboom");
         expect(ring.at(-1)?.text).toBe("Error: nobody caught me");
+    });
+
+    // The network ring can promise "no query strings, ever" because it never
+    // holds a URL. This one holds whatever the app logged, and an app logs
+    // URLs — so the credential shapes are scrubbed on the way IN, at the one
+    // door every writer goes through.
+    it("scrubs a token out of anything logged", () => {
+        const jwt =
+            "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dBjftJeZ4CVPmB92K27uhbUJU1p1r_wW1gFWFOEjXk";
+        console.error(
+            `POST https://x.convex.cloud/api/run?token=${jwt} failed`,
+            { authorization: `Bearer ${jwt}` }
+        );
+
+        const text = getConsoleRing().at(-1)!.text;
+        expect(text).not.toContain(jwt);
+        expect(text).not.toContain("eyJhbGciOiJIUzI1NiJ9");
+        expect(text).toContain("[redacted");
+        expect(text).toContain("/api/run");
+    });
+
+    it("scrubs before clamping, so a clamp cannot leave half a token", () => {
+        const jwt = `eyJhbGciOi.${"a".repeat(MAX_ENTRY_CHARS)}.zzz`;
+        recordConsoleEntry("log", jwt);
+        expect(getConsoleRing().at(-1)!.text).not.toContain("eyJhbGciOi");
+    });
+
+    it("leaves ordinary output alone", () => {
+        expect(scrubSecrets("[sw-cards] registration failed")).toBe(
+            "[sw-cards] registration failed"
+        );
+    });
+
+    // An Error thrown across a realm (the Brain Worker, an iframe) fails
+    // `instanceof` — and stringifying it as JSON loses the message, the only
+    // part worth keeping.
+    it("keeps the message of a cross-realm error", () => {
+        console.error({ name: "WorkerError", message: "script failed" });
+        expect(getConsoleRing().at(-1)!.text).toBe(
+            "WorkerError: script failed"
+        );
+    });
+
+    it("does not throw when an error getter throws", () => {
+        const hostile = {
+            name: "Hostile",
+            get message(): string {
+                throw new Error("nope");
+            },
+        };
+        expect(() => console.error(hostile)).not.toThrow();
+        expect(getConsoleRing().at(-1)!.text).toBe("[unserializable]");
+    });
+
+    it("records nothing for an error event carrying neither error nor message", () => {
+        const before = getConsoleRing().length;
+        window.dispatchEvent(new Event("error"));
+        expect(getConsoleRing()).toHaveLength(before);
     });
 
     it("never throws on an unserializable argument", () => {
