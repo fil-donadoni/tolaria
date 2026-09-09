@@ -8959,9 +8959,23 @@ export function dealDamageFromPermanentToPlayer(
         ? reduced
         : applyTargetPrevention(state, "player", finalTarget.id, reduced);
     if (reduced <= 0) return;
-    getPlayer(state, finalTarget.id).life -= reduced;
-    // CR 119.3 — damage dealt to a player causes that player to lose life.
-    emitLifeLost(state, finalTarget.id, reduced, true);
+    // CR 702.90b — a source with infect deals its damage to a player as poison
+    // counters instead of life loss; it is still "damage" for every other
+    // purpose, so the bookkeeping below is unaffected — only the life loss and
+    // its trigger are skipped. Read off the PERMANENT source's effective
+    // abilities, exactly as the stack-item sink does (issue #1565).
+    if (
+        !markInfectPoisonDamage(
+            state,
+            finalTarget.id,
+            desc.staticAbilities,
+            reduced
+        )
+    ) {
+        getPlayer(state, finalTarget.id).life -= reduced;
+        // CR 119.3 — damage dealt to a player causes that player to lose life.
+        emitLifeLost(state, finalTarget.id, reduced, true);
+    }
     bumpDamageDealtToPlayer(state, finalTarget.id, reduced);
     recordSourceDamagedOpponent(state, source.id, finalTarget.id);
     bumpArtifactDamageToPlayer(state, finalTarget.id, reduced, desc.types);
@@ -9079,9 +9093,20 @@ function markDamageFromPermanentSource(
             ? reduced
             : applyTargetPrevention(state, "player", finalTarget.id, reduced);
         if (reduced <= 0) return null;
-        getPlayer(state, finalTarget.id).life -= reduced;
-        // CR 119.3 — damage dealt to a player causes that player to lose life.
-        emitLifeLost(state, finalTarget.id, reduced, true);
+        // CR 702.90b — infect turns the redirected player damage into poison
+        // counters (issue #1565: this sink used to lose the infect leg outright).
+        if (
+            !markInfectPoisonDamage(
+                state,
+                finalTarget.id,
+                desc.staticAbilities,
+                reduced
+            )
+        ) {
+            getPlayer(state, finalTarget.id).life -= reduced;
+            // CR 119.3 — damage dealt to a player causes it to lose life.
+            emitLifeLost(state, finalTarget.id, reduced, true);
+        }
         bumpDamageDealtToPlayer(state, finalTarget.id, reduced);
         recordSourceDamagedOpponent(state, source.id, finalTarget.id);
         bumpArtifactDamageToPlayer(state, finalTarget.id, reduced, desc.types);
@@ -9137,16 +9162,28 @@ function markDamageFromPermanentSource(
     // toughness). The 0-loyalty death is a separate SBA (`checkZeroLoyaltySBA`),
     // never a lethal-damage return here.
     const pw = isPlaneswalker(found.card);
+    const desc = describeDamageSource(state, source.id);
     if (pw) {
         removeLoyaltyForDamage(found.card, reduced);
-    } else {
+    } else if (
+        // CR 702.90c infect / CR 702.80a wither — damage from such a source is
+        // dealt to a creature as -1/-1 counters, never marked (issue #1565:
+        // this sink wrote `damageMarked` unconditionally, so a fight, a
+        // painland redirect and every `source`-bearing Op lost the whole
+        // infect/wither leg).
+        !markInfectWitherDamage(
+            state,
+            found.card,
+            desc.staticAbilities,
+            reduced
+        )
+    ) {
         found.card.damageMarked = (found.card.damageMarked ?? 0) + reduced;
     }
     found.card.damagedBySources = [
         ...(found.card.damagedBySources ?? []),
         source.id,
     ];
-    const desc = describeDamageSource(state, source.id);
     state.pendingEvents = [
         ...(state.pendingEvents ?? []),
         {
@@ -14071,29 +14108,68 @@ export function buildSpellContext(
         },
         dealDamageFromPermanent(
             sourceInstanceId: string,
-            playerId: string,
+            target: TargetSelection,
             amount: number,
             unpreventable = false,
             unredirectable = false
         ) {
-            // CR 120.1 — the CR-120.1 source is the named battlefield
-            // permanent, not the resolving stack item. Backlash: the tapped
-            // creature (LKI-snapshot `$c`) deals its power to its controller.
+            // CR 120.1 — "An object that deals damage is the source of that
+            // damage": the source is the named battlefield permanent, not the
+            // resolving stack item. Backlash: the tapped creature (LKI-snapshot
+            // `$c`) deals its power to its controller. Pyrogoyf (issue #1565):
+            // the ENTERING Lhurgoyf deals damage equal to its power to any
+            // target, so a rider that reads the source — deathtouch, lifelink,
+            // "damage from a red source", protection-by-colour — is evaluated
+            // against THAT creature and not against the Pyrogoyf whose trigger
+            // is resolving.
             // Delegates to the shared permanent-source pipeline (CR 614
             // replacement → CR 615 prevention → infect/lifelink/protection all
             // keyed off the permanent's identity via `describeDamageSource`).
             // No-op when the source has left the battlefield (CR 608.2b).
             const found = findOnBattlefield(state, sourceInstanceId);
             if (!found) return;
-            dealDamageFromPermanentToPlayer(
+            if (target.type === "player") {
+                dealDamageFromPermanentToPlayer(
+                    state,
+                    found.card,
+                    found.card.controllerId,
+                    target.id,
+                    amount,
+                    unpreventable,
+                    unredirectable
+                );
+                return;
+            }
+            // Permanent recipient (creature / planeswalker / battle, CR 120.1a).
+            // `markDamageFromPermanentSource` is marks-only by contract so a
+            // fight can mark both halves before either creature dies; a single
+            // damage event has no such simultaneity to protect, so the CR 704.5g
+            // lethal → destroy step runs here, exactly as `dealDamage` runs it
+            // for the stack-item source. CR 702.2b deathtouch is already marked
+            // inside the helper and is collected by the SBA pass.
+            const lethalId = markDamageFromPermanentSource(
                 state,
                 found.card,
                 found.card.controllerId,
-                playerId,
+                target.id,
                 amount,
                 unpreventable,
                 unredirectable
             );
+            if (lethalId) {
+                // CR 704.5g lethal → destroy replacement (CR 614, ADR 0020),
+                // then the regeneration shield gets its chance (CR 614.5,
+                // 701.19a). issue #1054 — the CAUSER is the controller of the
+                // resolving spell/ability, which is not necessarily the damage
+                // source's controller (Backlash points an opponent's creature at
+                // its own controller): its one consumer (`leftTrigger.ts`, the
+                // Karmic Justice shape) keys on who CAUSED the destruction, not
+                // on the damage source. `resolveFight` deliberately passes none
+                // — the three destroy sites differ on purpose.
+                destroyWithReplacements(state, lethalId, {
+                    causerControllerId: item.controllerId,
+                });
+            }
         },
         fight(target: TargetSelection) {
             // CR 701.14 mutual damage: the resolving ability's source permanent

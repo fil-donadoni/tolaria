@@ -6,7 +6,7 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
-import { resolveTopOfStack } from "../../../../gre/state";
+import { allocInstanceId, resolveTopOfStack } from "../../../../gre/state";
 import type {
     CardInstanceState,
     GameState,
@@ -51,14 +51,15 @@ function creature(
     owner: string,
     power: number,
     toughness: number,
-    subtypes: string[] = []
+    subtypes: string[] = [],
+    staticAbilities: string[] = []
 ): CardInstanceState {
     return {
         id,
         card: { id: `fake-${id}` },
         types: ["Creature"],
         subtypes,
-        staticAbilities: [],
+        staticAbilities,
         power,
         toughness,
         controllerId: owner,
@@ -80,6 +81,13 @@ function fireEnterTrigger(
 ): void {
     const item: StackItem = {
         ...source,
+        // The engine's `buildTriggerItem` (gre/triggers.ts) allocates a FRESH
+        // instance id for the trigger's stack item — spreading the permanent
+        // would leave the item sharing the permanent's id, so
+        // `describeDamageSource(item.id)` would find the battlefield permanent
+        // by accident and every source-attribution assertion below would be
+        // vacuous.
+        id: allocInstanceId(state),
         zone: "stack",
         castById: source.controllerId,
         triggeredAbilityId: "pyrogoyf-lhurgoyf-enters",
@@ -233,6 +241,126 @@ describe("Pyrogoyf (CR 604.3 all-graveyards CDA P/T, CR 603.3d targeted enter-da
         expect(getEffectivePower(state, goyf)).toBe(2);
         fireEnterTrigger(state, goyf, "other", { type: "player", id: "p2" });
         expect(state.players.find((p) => p.id === "p2")!.life).toBe(16);
+    });
+});
+
+// CR 120.1 — "An object that deals damage is the source of that damage."
+// Pyrogoyf's oracle says "THAT creature deals damage equal to its power", so
+// for the "another Lhurgoyf you control enters" branch the source is the
+// ENTERING creature, not the Pyrogoyf whose trigger is resolving (issue #1565).
+// The amount and the target were already right before the fix; what diverged
+// was the source IDENTITY, which is only observable through a source-keyed
+// rider — hence two discriminators that read the entering creature's own
+// abilities and would be silent on Pyrogoyf's.
+describe("Pyrogoyf enter-damage source attribution (CR 120.1, issue #1565)", () => {
+    it("lifelink on the ENTERING Lhurgoyf gains its controller life (CR 702.15b)", () => {
+        const goyf = makeInstance(pyrogoyf.id, {
+            id: "goyf",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // The entering Lhurgoyf has lifelink; Pyrogoyf does not. Under the old
+        // spell-item-sourced path the source was Pyrogoyf, so p1 gained nothing.
+        const other = creature("other", "p1", 4, 4, ["Lhurgoyf"], ["lifelink"]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    life: 20,
+                    battlefield: [goyf, other],
+                    graveyard: [deadCard("c1", "p1", ["Creature"])],
+                }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        fireEnterTrigger(state, goyf, "other", { type: "player", id: "p2" });
+        expect(state.players.find((p) => p.id === "p2")!.life).toBe(16);
+        expect(state.players.find((p) => p.id === "p1")!.life).toBe(24);
+    });
+
+    it("deathtouch on the ENTERING Lhurgoyf marks the damaged creature for destruction (CR 702.2b)", () => {
+        const goyf = makeInstance(pyrogoyf.id, {
+            id: "goyf",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // A 1/1 deathtouch Lhurgoyf: 1 damage is nowhere near the 5-toughness
+        // wall's lethal threshold, so ONLY the deathtouch mark can kill it —
+        // and only if the ENTERING creature is read as the damage source.
+        const other = creature(
+            "other",
+            "p1",
+            1,
+            1,
+            ["Lhurgoyf"],
+            ["deathtouch"]
+        );
+        const wall = creature("wall", "p2", 0, 5);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [goyf, other],
+                    graveyard: [deadCard("c1", "p1", ["Creature"])],
+                }),
+                makePlayer("p2", { battlefield: [wall] }),
+            ],
+        });
+        fireEnterTrigger(state, goyf, "other", {
+            type: "permanent",
+            id: "wall",
+        });
+        const damaged = state.players
+            .flatMap((p) => p.battlefield)
+            .find((c) => c.id === "wall")!;
+        expect(damaged.damageMarked).toBe(1);
+        // CR 702.2b — the SBA pass destroys it; the flag is the source-keyed
+        // signal, and it is set only when the entering creature is the source.
+        expect(damaged.dealtDeathtouchDamage).toBe(true);
+        // CR 120.1 — the recorded source IDENTITY is the entering creature, not
+        // the trigger's stack item. `damagedBySources` is what Sengir Vampire's
+        // shape reads back, so pin it directly.
+        expect(damaged.damagedBySources).toContain("other");
+        expect(damaged.damagedBySources).not.toContain("goyf");
+    });
+
+    it("Pyrogoyf's OWN enter records PYROGOYF as the source, not the trigger's stack item", () => {
+        // The self branch. The entering creature is the trigger's PERMANENT but
+        // not its STACK ITEM, which carries a freshly allocated id
+        // (gre/triggers.ts `buildTriggerItem`) — so `damagedBySources`
+        // discriminates here even though the abilities read off either object
+        // coincide. Under the old stack-item-sourced path this array held the
+        // trigger id, which no card can ever name.
+        const goyf = makeInstance(pyrogoyf.id, {
+            id: "goyf",
+            controllerId: "p1",
+            ownerId: "p1",
+            staticAbilities: ["lifelink"],
+        });
+        const wall = creature("wall", "p2", 0, 5);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    life: 20,
+                    battlefield: [goyf],
+                    graveyard: [
+                        deadCard("c1", "p1", ["Creature"]),
+                        deadCard("l1", "p1", ["Land"]),
+                    ],
+                }),
+                makePlayer("p2", { battlefield: [wall] }),
+            ],
+        });
+        expect(getEffectivePower(state, goyf)).toBe(2);
+        fireEnterTrigger(state, goyf, "goyf", {
+            type: "permanent",
+            id: "wall",
+        });
+        const damaged = state.players
+            .flatMap((p) => p.battlefield)
+            .find((c) => c.id === "wall")!;
+        expect(damaged.damageMarked).toBe(2);
+        expect(damaged.damagedBySources).toEqual(["goyf"]);
+        // CR 702.15b — lifelink on the entering permanent (itself, here).
+        expect(state.players.find((p) => p.id === "p1")!.life).toBe(22);
     });
 });
 

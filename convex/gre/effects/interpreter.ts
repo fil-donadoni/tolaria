@@ -1962,6 +1962,69 @@ function keepPromptFor(
     return `Choose which card(s) to put ${keepPhrase}, then ${restPhrase}.`;
 }
 
+/** CR 120.1 (issue #1416, generalised to every recipient shape by issue #1565)
+ *  — when a `dealDamage` Op carries `source`, THAT bound permanent is the
+ *  CR-120.1 source of the damage, not the resolving stack item. Backlash: the
+ *  tapped creature (`$c`) deals its power to its controller. Pyrogoyf: the
+ *  entering Lhurgoyf deals damage equal to its power to any target. Either way
+ *  infect/lifelink/deathtouch, source-colour prevention/protection (CR 702.16e)
+ *  and "a source deals damage" triggers key off the permanent, not the spell.
+ *
+ *  CR 615.12 / 614.9 (issue #2231) — both locks ride the permanent-source
+ *  branch too. It used to drop them silently, so a `source`-bearing Op carrying
+ *  either flag was quietly preventable AND redirectable.
+ *
+ *  CR 608.2b — a source that has left the battlefield deals no damage, so a
+ *  `source` that no longer resolves to a battlefield permanent is a no-op
+ *  rather than a silent fallback to the stack item (which would attribute the
+ *  damage to the WRONG object). */
+function dealDamageSourcedFrom(
+    ctx: SpellContext,
+    op: OpOf<"dealDamage"> & { source: EffectObjectSelector },
+    target: TargetSelection,
+    amount: number
+): void {
+    const src = resolveObjectRef(ctx, op.source);
+    if (src && src.type === "permanent") {
+        ctx.dealDamageFromPermanent(
+            src.id,
+            target,
+            amount,
+            op.unpreventable,
+            op.unredirectable
+        );
+        return;
+    }
+    // CR 113.7a / 608.2h — "The source can still perform the action even though
+    // it no longer exists": a `$source` that has left the battlefield is not an
+    // UNKNOWN source, it is the resolving ability's own object, which is exactly
+    // what the default `dealDamage` path stamps (the stack item is the engine's
+    // last-known clone of it). Sparkcaster's ping is the shipped case — its OWN
+    // first trigger bounces it, so `$source` routinely fails to resolve by the
+    // time the ping resolves, and dropping the damage there would be a
+    // regression on a card that has always dealt it.
+    //
+    // Deliberately NOT a blanket fallback: any other selector names a DIFFERENT
+    // object (Backlash's `$c` bind snapshot), and substituting the resolving
+    // spell for one we could not resolve would silently mis-attribute the
+    // damage. Those stay a no-op, as they were before issue #1565.
+    if (isSourceSelfRef(op.source)) {
+        ctx.dealDamage(target, amount, op.unpreventable, op.unredirectable);
+    }
+}
+
+/** True for the `{ ref: "$source" }` selector — the ONE selector that denotes
+ *  the resolving ability's own object, and therefore the one whose failure to
+ *  resolve is answered by the default stack-item damage path (CR 113.7a). */
+function isSourceSelfRef(selector: EffectObjectSelector): boolean {
+    return (
+        typeof selector === "object" &&
+        selector !== null &&
+        "ref" in selector &&
+        selector.ref === "$source"
+    );
+}
+
 /** One executor per Op, keyed by Op name. Each executor is a thin adapter
  *  from the declarative Op shape onto exactly one SpellContext primitive —
  *  no game logic lives here (ADR 0045 "one execution path"). Kept in exact
@@ -1981,29 +2044,13 @@ export const OP_EXECUTORS: {
         if ("player" in op.to) {
             const playerId = resolvePlayerRef(ctx, op.to.player);
             if (playerId === undefined) return;
-            // CR 120.1 (issue #1416) — when `source` names a bound permanent,
-            // THAT permanent is the damage source, not the resolving stack
-            // item. Backlash: the tapped creature (`$c`) deals its power to its
-            // controller — so infect/lifelink/source-colour prevention and
-            // "a source deals damage" triggers key off the creature, not the
-            // B/R spell. Routed through the permanent-source pipeline.
             if (op.source) {
-                const src = resolveObjectRef(ctx, op.source);
-                // CR 608.2b — a source that has left the battlefield deals no
-                // damage (the permanent-source primitive is player-only).
-                if (src && src.type === "permanent") {
-                    // CR 615.12 / 614.9 (issue #2231) — both locks ride the
-                    // permanent-source branch too. It used to drop them
-                    // silently, so a `source`-bearing Op carrying either flag
-                    // was quietly preventable AND redirectable.
-                    ctx.dealDamageFromPermanent(
-                        src.id,
-                        playerId,
-                        amount,
-                        op.unpreventable,
-                        op.unredirectable
-                    );
-                }
+                dealDamageSourcedFrom(
+                    ctx,
+                    { ...op, source: op.source },
+                    { type: "player", id: playerId },
+                    amount
+                );
                 return;
             }
             ctx.dealDamage(
@@ -2015,8 +2062,20 @@ export const OP_EXECUTORS: {
             return;
         }
         const target = resolveObjectRef(ctx, op.to);
-        if (target)
-            ctx.dealDamage(target, amount, op.unpreventable, op.unredirectable);
+        if (!target) return;
+        // CR 120.1 — `source` applies to a permanent recipient exactly as it
+        // does to a player one (issue #1565): the recipient shape says nothing
+        // about who the SOURCE of the damage is.
+        if (op.source) {
+            dealDamageSourcedFrom(
+                ctx,
+                { ...op, source: op.source },
+                target,
+                amount
+            );
+            return;
+        }
+        ctx.dealDamage(target, amount, op.unpreventable, op.unredirectable);
     },
     // CR 601.2d / 120.4 — deal `total` damage divided as chosen among the
     // announced target group (`ctx.targets`). The per-target split was chosen at

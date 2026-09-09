@@ -40,16 +40,14 @@ import { EFFECT_AFFECTS_SELF } from "../../types";
 // script to walk (PRD #1423 / issue #1519), since a bare `resolve()` ability
 // is otherwise AI-blind.
 //
-// DIVERGENCE (tracked-by: #2785) (source attribution): `SpellContext.dealDamage` always sources
-// the damage from the resolving ability's own permanent (Pyrogoyf) — there is
-// no per-call source override (`gre/state.ts` `dealDamage` reads the stack
-// item's source). For Pyrogoyf's own ETB this is exactly correct; for the
-// "another Lhurgoyf you control enters" branch the oracle attributes the
-// damage to THAT creature, so a source-dependent rider on the entering
-// creature (deathtouch / lifelink / "damage from a red source") is evaluated
-// against Pyrogoyf, not the entering Lhurgoyf. The damage amount and target
-// are correct; only the source identity diverges, and only for that branch.
-// tracked-by: #1565
+// SOURCE ATTRIBUTION (CR 120.1, issue #1565): "that creature deals damage" —
+// the ENTERING Lhurgoyf is the source, which for the "another Lhurgoyf you
+// control enters" branch is NOT the permanent whose trigger is resolving. So
+// the resolve() routes through `ctx.dealDamageFromPermanent`, stamping the
+// entering creature as the CR-120.1 source; every source-keyed rider —
+// deathtouch (CR 702.2b), lifelink (CR 702.15b), "damage from a red source",
+// protection-by-colour (CR 702.16e) — is then evaluated against THAT creature.
+// For Pyrogoyf's own ETB the two coincide and the same call is still correct.
 export const pyrogoyf: CardDefinition = {
     id: "f60be310-4461-4b84-95f0-b2095108bd79",
     name: "Pyrogoyf",
@@ -127,7 +125,9 @@ export const pyrogoyf: CardDefinition = {
                     id: event.instanceId,
                 });
                 if (power <= 0) return;
-                ctx.dealDamage(target, power);
+                // CR 120.1 — the entering creature is the source of the damage,
+                // not the resolving trigger's permanent (issue #1565).
+                ctx.dealDamageFromPermanent(event.instanceId, target, power);
             },
             // aiEffects (PRD #1423, issue #1431/#1519) — a bare `resolve()`
             // ability (the amount reads the firing event, no Op skin), so the
