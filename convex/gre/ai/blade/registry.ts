@@ -5415,6 +5415,85 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: 'Half 2 of the discriminating pair — PAIRED WITH "self-tap source: does NOT activate a {T} ability its OTHER lands cannot pay". One extra Plains is the ONLY difference between the halves. The predicate asserts the tap plan, not just the choice: before issue #3081 a plan on this board could still name the temple (minimum-cardinality selection prefers the source it is already committed to), and such a plan is exactly what got the activation discarded at commit for a source the plan itself had tapped.',
     },
+    {
+        // REACHABILITY — a spell whose TARGET is a stack object filtered by
+        // what THAT object targets (issue #2708). Nothing else in this
+        // registry casts a counter in response to an opponent's ACTIVATION,
+        // and nothing outside it would notice if the move stopped being
+        // enumerated: the app suite proves the targeting filter admits the
+        // ability, never that `enumerateMoves` ever offers the cast.
+        //
+        // The `setup` puts the opponent's Icy Manipulator activation on the
+        // stack through the real activation path, pinned to the Forest — the
+        // one land whose name is unambiguous here, since `landCount` gives
+        // both seats Islands. That makes the position exact: an opponent's
+        // ability, on the stack, targeting a land the bot controls, which is
+        // precisely Teferi's Response's target requirement.
+        //
+        // The claim is REACHABILITY, not judgement. Passing lets the ability
+        // resolve; casting counters it, destroys the Icy Manipulator (CR
+        // 113.7a — the permanent whose ability it was) and draws two. There is
+        // no line in which the pass is better, so it must hold on any seed.
+        label: "reachability: counters an opponent's land-targeting activation with Teferi's Response",
+        spec: {
+            cards: [
+                {
+                    name: "Icy Manipulator",
+                    owner: "opp",
+                    zone: "battlefield",
+                    // Explicit: the spec builder leaves an opponent's
+                    // permanents tapped, and a tapped source cannot pay the
+                    // {T} leg — the activation would never be enumerated and
+                    // `setup` would throw rather than silently build a
+                    // different position.
+                    tapped: false,
+                },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                { name: "Teferi's Response", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            // Two untapped Islands per seat: {1}{U} for Teferi's Response on
+            // one side, the {1} half of Icy Manipulator's cost on the other.
+            landCount: 2,
+            libraryCount: 20,
+        },
+        setup: [
+            // The bot is the active player, so the opponent cannot activate
+            // anything until priority reaches them (CR 117.3a). One pass is
+            // the whole setup: the activation itself resets the pass cycle and
+            // hands priority back, leaving the ability on the stack
+            // UNRESOLVED — exactly the response window a human would answer.
+            // A second pass would make it two consecutive passes and RESOLVE
+            // the ability (CR 117.4), building a different position entirely.
+            { kind: "pass", seat: "me" },
+            {
+                kind: "activate",
+                card: "Icy Manipulator",
+                controller: "opp",
+                target: "Forest",
+            },
+        ],
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        beyondBudget: {
+            cause: "valuation",
+            sweptTo: { iterations: 12000 },
+            note: "The MOVE is enumerated — `stack-target-reachability.bot.test.ts` asserts it deterministically, so this entry is not covering a missing seam. What is missing is a VALUATION term: `evaluate` scores no non-creature artifact an opponent controls, so destroying the Icy Manipulator is worth nothing to it, and the counter itself is worth nothing either (a countered ability leaves no trace the leaf can see). All the search can price is the two cards drawn against the mana spent, and a 0/5 that stays 0/5 at 200, 1000, 4000 and 12000 iterations is the signature of a mis-valued subtree rather than a compute shortfall.",
+        },
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Teferi's Response",
+                    target: "Icy Manipulator",
+                },
+            ],
+        },
+        note: "Issue #2708 — the first entry whose announced target is a stack ITEM chosen by a property of that item's OWN targets (`spellTargetsPermanentFilter`). Filed at `stretch` deliberately: the reachability half is proven green elsewhere, and raising a budget to turn an entry green is not a legitimate move (ADR 0070 §2).",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the
