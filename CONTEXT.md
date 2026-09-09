@@ -211,6 +211,18 @@ _Avoid_: Flip, unmorph, reveal
 Look at the top two cards of your **Library**, put one onto the **Battlefield** as a **Face-Down Permanent** and the other into your **Graveyard** (CR 701.62). A permanent that arrived this way is **Manifested**: unlike a Masked one, its **Controller** may **Turn It Face Up** for its **Mana Cost** if the card underneath is a creature card.
 _Avoid_: Manifest (the plain CR 701.40 keyword action — same face-down result, no look and no graveyard half; not implemented), morph
 
+**Inset Spell**:
+A second, complete set of spell characteristics — its own name, **Mana Cost**, type line and rules text — printed in a smaller frame inset within a card's text box, defining what the object may be _while it is a spell_ (CR 715.2 / 722.2). One card, never two (CR 715.2c / 722.2c): drawing or discarding it draws or discards one card. Its existence and values are part of the object's **Copiable Values**, so a card "has" its Inset Spell even while not using it (CR 715.2a / 722.2a), and an effect asking a player to name a card accepts either name (CR 715.5 / 722.5). Two kinds exist, differing only in how the half becomes castable: an **Adventure**, cast from the card itself, and a _prepare spell_, which the card can never be cast as — a copy of it is created in **Exile** instead (CR 722.3).
+_Avoid_: Back face (that is a **Permanent** that transforms, CR 712), split half, second face, "the other side"
+
+**Adventure**:
+The **Inset Spell** of an adventurer card (CR 715), and the cast option that uses it. Its **Controller** chooses at announcement whether they are casting the card normally or as an Adventure (CR 715.3); if as an Adventure, only the Inset Spell's characteristics are evaluated to decide whether the cast is legal — its type, its cost, its timing (CR 715.3a) — and while on the **Stack** the spell has _only_ those characteristics (CR 715.3b), so a copy of it is an Adventure too (CR 715.3c). Everywhere else, and on the stack when not cast as an Adventure, the card has only its normal characteristics (CR 715.4): an adventurer creature card in a **Graveyard** is an ordinary creature card.
+_Avoid_: Adventure half, adventure mode, "the instant side"
+
+**Adventured Card**:
+A card in **Exile** because a **Spell** cast as an **Adventure** resolved: instead of going to its owner's **Graveyard**, its controller exiles it and may play it from there for as long as it remains exiled (CR 715.3d) — the same open-ended shape as a **Foretold Card**, and unlike an impulse-exiled card's one-turn window. It may not be cast as an Adventure again _under that permission_, though another effect granting a cast may still allow one. A **Countered** Adventure never resolves and so is never adventured: it goes to the graveyard like any other spell, and the creature half is gone with it.
+_Avoid_: Exiled on an adventure, adventure exile, impulse-exiled card
+
 **Special Action**:
 Something a **Player** may do without using the **Stack** and without passing **Priority** (CR 116.2) — it cannot be responded to. Taken while they have priority. Playing a **Land** is one; so are summoning a companion, turning a **Manifested** permanent face up, and **Foretell**. Each carries its own timing window, and they differ: companion needs a main phase with an empty stack, foretell only needs priority during its player's own turn.
 _Avoid_: Activated Ability (uses the Stack), free action
