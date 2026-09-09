@@ -123,10 +123,31 @@ export function isCreature(card: CardInstance): boolean {
     return card.types?.includes("Creature") ?? false;
 }
 
-/** CR 306 — true iff this permanent is a planeswalker. Drives the on-card
- *  loyalty badge and mirrors the engine-side `isPlaneswalker`. */
+/** CR 306 — true iff this permanent is a planeswalker. Mirrors the engine-side
+ *  `isPlaneswalker`. */
 export function isPlaneswalker(card: CardInstance): boolean {
     return card.types?.includes("Planeswalker") ?? false;
+}
+
+/** CR 606.2 / 122.1e — whether the on-card loyalty badge has anything to say
+ *  about this permanent (issue #3299).
+ *
+ *  NOT `isPlaneswalker`. CR 606.2 is "Normally, only planeswalkers have loyalty
+ *  abilities" — normally, not only — and a permanent that is not a planeswalker
+ *  can hold loyalty counters: a creature granted a loyalty ability (Agatha's
+ *  Soul Cauldron copying Grist, the Hunger Tide's abilities out of exile) pays
+ *  `+N` onto ITSELF under CR 606.4. Gated on the type, those counters were
+ *  invisible, so the player could not tell whether a `-N` cost was affordable
+ *  under CR 606.6.
+ *
+ *  A planeswalker renders even at zero: CR 122.1e's state-based action puts it
+ *  into its owner's graveyard, so the zero is a real, if brief, board state and
+ *  a planeswalker whose shield blinks out mid-turn reads as a rendering bug.
+ *  A non-planeswalker at zero has nothing to show — CR 704.5i is a
+ *  PLANESWALKER state-based action, so that creature simply stays on the
+ *  battlefield with no loyalty. */
+export function showsLoyalty(card: CardInstance): boolean {
+    return isPlaneswalker(card) || (card.counters?.loyalty ?? 0) > 0;
 }
 
 /** CR 702.126 — true iff `card` declares the Improvise keyword. Used both to

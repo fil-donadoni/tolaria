@@ -81,8 +81,11 @@ export function getCounterDisplays(card: CardInstance): CounterDisplay[] {
     if (!counters) return [];
     return (
         Object.entries(counters)
-            // CR 306.5b — loyalty counters are shown by the dedicated planeswalker
-            // loyalty badge (bottom-right), not as a generic named-counter badge.
+            // CR 306.5b — loyalty counters are shown by the dedicated loyalty
+            // badge (bottom-right), not as a generic named-counter badge. That
+            // badge is no longer planeswalker-gated (issue #3299), so this
+            // exclusion still leaves nothing unrendered: any permanent HOLDING
+            // loyalty counters shows them there.
             .filter(
                 ([type, count]) =>
                     count > 0 && type !== "loyalty" && !isInternalCounter(type)

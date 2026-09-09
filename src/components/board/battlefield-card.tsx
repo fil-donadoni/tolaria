@@ -11,7 +11,7 @@ import { isCreature } from "~/lib/card-utils";
 import { getEffectiveColorDisplay } from "~/lib/color-override";
 import ActivatableAbilityMenu from "./activatable-ability-menu";
 import CounterBadges from "./counter-badges";
-import PlaneswalkerLoyaltyBadge from "./planeswalker-loyalty-badge";
+import LoyaltyBadge from "./loyalty-badge";
 import NotedManaBadge from "./noted-mana-badge";
 import SummoningSicknessBadge from "./summoning-sickness-badge";
 import { useAbilityCardClick } from "~/hooks/useAbilityCardClick";
@@ -169,7 +169,7 @@ export default function BattlefieldCard({
             <SummoningSicknessBadge card={card} />
             <NotedManaBadge card={card} />
             {ptDamageStack}
-            <PlaneswalkerLoyaltyBadge card={card} />
+            <LoyaltyBadge card={card} />
         </div>
     );
 

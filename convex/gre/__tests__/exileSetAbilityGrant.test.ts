@@ -29,6 +29,15 @@ import { buildSpellContext } from "../state";
 const SORCERER = getCardByName("Prodigal Sorcerer").id;
 const ELVES = getCardByName("Llanowar Elves").id;
 const BEARS = getCardByName("Grizzly Bears").id;
+/** Grist, the Hunger Tide — a printed PLANESWALKER that is a 1/1 Insect
+ *  creature in every zone but the battlefield (CR 113.6c). The whole point of
+ *  the #3299 half of this file: read off the printed line it is not a creature
+ *  card and contributes nothing. */
+const GRIST = getCardByName("Grist, the Hunger Tide").id;
+/** Sol Ring — an artifact with an activated (mana) ability and no
+ *  `offBattlefieldCharacteristics`: a creature card in NEITHER reading, so it
+ *  stays excluded however the type line is resolved. */
+const SOL_RING = getCardByName("Sol Ring").id;
 
 const CAULDRON_ID = "fixture-exile-set-grant";
 
@@ -259,6 +268,60 @@ describe("exile-set-driven activated-ability grant (CR 607.2a, issue #2943)", ()
             expect(
                 getManaTapOptionsDetailed(recipient, "p1").map((o) => o.mana)
             ).toEqual([{ G: 1 }]);
+        });
+    });
+});
+
+describe("the ability source is narrowed by the type line IN EXILE (CR 113.6c, issue #3299)", () => {
+    it("takes the abilities of a card that is a creature card only OFF the battlefield", () => {
+        withTemporaryDefinition(CAULDRON, () => {
+            const { state, recipient } = boardWithCauldron({
+                exiled: [GRIST],
+                counters: { "+1/+1": 1 },
+            });
+            syncLayer6(state);
+            // CR 113.6c — Grist's "as long as Grist isn't on the battlefield"
+            // static functions in exile, so the card sitting in the linked pile
+            // IS a creature card and CR 205.2's "all creature cards exiled with
+            // this" reaches it. Read off the printed Planeswalker line it would
+            // contribute nothing at all.
+            expect(offeredAbilityIds(recipient)).toEqual([
+                "grist-the-hunger-tide-minus2",
+                "grist-the-hunger-tide-minus5",
+                "grist-the-hunger-tide-plus1",
+            ]);
+        });
+    });
+
+    it("still excludes a card that is a creature card in NEITHER reading", () => {
+        withTemporaryDefinition(CAULDRON, () => {
+            const { state, recipient } = boardWithCauldron({
+                exiled: [SOL_RING],
+                counters: { "+1/+1": 1 },
+            });
+            syncLayer6(state);
+            // The fix widens the READ, never the selector: an artifact with no
+            // zone-conditional ability is narrowed away exactly as before, so
+            // its mana ability is not granted.
+            expect(offeredAbilityIds(recipient)).toEqual([]);
+        });
+    });
+
+    it("keeps the printed line authoritative for the ~100% of cards declaring no such ability", () => {
+        withTemporaryDefinition(CAULDRON, () => {
+            const { state, recipient } = boardWithCauldron({
+                exiled: [GRIST, SOL_RING, SORCERER],
+                counters: { "+1/+1": 1 },
+            });
+            syncLayer6(state);
+            // Mixed pile: the zone-resolved creature card and the ordinary
+            // printed one both contribute, the artifact does not.
+            expect(offeredAbilityIds(recipient)).toEqual([
+                "grist-the-hunger-tide-minus2",
+                "grist-the-hunger-tide-minus5",
+                "grist-the-hunger-tide-plus1",
+                "prodigal-sorcerer-zap",
+            ]);
         });
     });
 });

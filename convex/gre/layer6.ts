@@ -55,6 +55,7 @@ import type {
 import type { CardInstanceState, GameState } from "./state";
 import type { GrantedAbilityOrigin } from "./activatedAbilities";
 import { getCardsExiledWith } from "./exileLinks";
+import { resolveZoneCharacteristics } from "./zoneCharacteristics";
 
 /** The `StaticEffect` kinds layer 6 owns (CR 613.1f). Every other kind belongs
  *  to another layer (or, for the CR 611.3 rules-modifying kinds, outside the
@@ -795,7 +796,8 @@ function resolveLayer6Action(
  *    Every grant that shipped before #2943, and the only arm the 12 shipped
  *    lord-style cards use.
  *  - `abilitiesOf` — every activated ability of every card in the linked pile
- *    whose PRINTED type line matches the selector's `types` (CR 205.2). The
+ *    whose type line IN EXILE matches the selector's `types` (CR 205.2 /
+ *    CR 113.6c — the zone-resolved line, issue #3299, not the printed one). The
  *    pile and the qualifying subset differ whenever the linking ability exiles
  *    more broadly than the granting clause reads, which is Agatha's Soul
  *    Cauldron exactly: "{T}: Exile target CARD from a graveyard" feeding
@@ -835,14 +837,31 @@ function resolveActivatedGrant(
         const cardId = (card.card as { id?: string }).id;
         if (!cardId) continue;
         const def = tryGetDefinition(cardId);
+        // Fails CLOSED on a card the registry cannot resolve: an unreadable
+        // definition contributes nothing rather than everything.
+        if (!def) continue;
         // CR 205.2 — the selector's `types` half. The pile is every card the
         // linking ability exiled; the qualifying subset is the one the Oracle
         // names ("all activated abilities of all CREATURE CARDS exiled with
-        // this"). Read off the PRINTED type line (CR 110.1 / 613 — a card in
-        // exile is not a permanent, so no layer has rewritten its types), and
-        // fail CLOSED on a card the registry cannot resolve: an unreadable
-        // definition contributes nothing rather than everything.
-        if (!def?.types?.some((t) => effect.abilitiesOf!.types.includes(t))) {
+        // this").
+        //
+        // Read IN THE ZONE THE CARD OCCUPIES, not off the printed type line
+        // (issue #3299). No LAYER has rewritten these types — CR 110.1 / 613:
+        // a card in exile is not a permanent — but CR 113.6c does: a card
+        // whose static ability functions everywhere except the battlefield is
+        // whatever that ability says it is while it sits in exile, so Grist,
+        // the Hunger Tide is a creature card there and contributes its
+        // abilities. `resolveZoneCharacteristics` (`gre/zoneCharacteristics.ts`)
+        // is the single authority every other hidden-zone reader asks,
+        // including the state-level twin of THIS enumeration
+        // (`state.ts` `SpellContext.getCardsExiledWith`), so the resolving-
+        // ability reading of the pile and this continuous-effect one cannot
+        // disagree about what a card in exile is. `null` from it is the ~100%
+        // case of a definition declaring no such ability — the printed line
+        // then stands.
+        const types =
+            resolveZoneCharacteristics(def, "exile")?.types ?? def.types;
+        if (!types?.some((t) => effect.abilitiesOf!.types.includes(t))) {
             continue;
         }
         for (const ability of def.activatedAbilities ?? []) {

@@ -153,7 +153,7 @@ export function InputsChipsSections() {
                             </span>
                         </div>
                         <Where>
-                            counter-badges:5 · planeswalker-loyalty-badge:19 ·
+                            counter-badges:5 · loyalty-badge:23 ·
                             battlefield-card damage
                         </Where>
                     </Specimen>
