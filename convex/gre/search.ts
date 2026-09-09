@@ -1893,12 +1893,22 @@ function findActivationSource(
  *     lookahead: without it a ping deals no damage and a protection grants
  *     nothing at this depth, every activation is pure cost, and the board-side
  *     flexibility term would price an option the policy can never see spent.
- *     A resolution that SUSPENDS on a mid-resolution choice (CR 608.2 / 101.4 —
- *     Mother of Runes' colour pick) leaves the item on the stack and the choice
- *     queued; `resolveTopOfStack` already handles that, the probe is discarded
- *     right after, and the deeper tree answers the choice as an in-tree decision
- *     node. So the lookahead simply sees no payoff in that case — it never
- *     stalls the rollout, and needs no bail-out of its own.
+ *     A resolution that SUSPENDS on a mid-resolution choice (CR 608.2 / 101.4)
+ *     leaves the item on the stack and the choice queued, and issue #3293
+ *     measured what scoring it there costs: the probe sees "the creature has
+ *     ENTERED" without "and is then sacrificed", because the sacrifice is a
+ *     later Op of the same resolution. So a suspended resolution is now SETTLED
+ *     first (`settleStackForBreakdown`, issue #3194's seam — it answers only
+ *     choices the mover itself owns), and only when the probe can finish it in
+ *     ISOLATION: the suspended item must be the sole thing on the stack. With
+ *     another announcement underneath, finishing this one either resolves that
+ *     announcement too — which prices the move against a board it did not cause
+ *     — or commits a choice whose right answer depends on it (Mother of Runes'
+ *     colour pick under a Lightning Bolt is both at once, and both readings
+ *     rank `pass` above an activation the policy must be neutral on,
+ *     `activationTiming.bot.test.ts`, issue #1890). In that case the lookahead
+ *     still sees no payoff, exactly as before, and the deeper tree answers the
+ *     choice as an in-tree decision node.
  *   * A just-declared block is scored on the pre-damage snapshot, so every block
  *     assignment looks identical. `declaredBlockDelta` folds the actual exchange
  *     in so the policy can tell a sane block from a bad one (the attacker side
@@ -1913,7 +1923,8 @@ export function policyValue(
     probe: GameState,
     botId: string,
     move: Move,
-    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
+    moverId?: string
 ): number {
     if (
         (move.kind === "cast-spell" || move.kind === "activate-ability") &&
@@ -1921,14 +1932,62 @@ export function policyValue(
     ) {
         resolveTopOfStack(probe);
     }
-    let v = evaluate(probe, botId, weights);
-    const combat = probe.combat;
+    // Issue #3293 — a SUSPENDED resolution is not a ply boundary, and scoring
+    // one is how the policy learns to want a body that is already dead.
+    //
+    // A `choice`/`mayPay` Op suspends its stack item mid-resolution (CR 608.2,
+    // `resolutionStep`), so a state carrying a pending choice is one Op into an
+    // effect whose LATER Ops are the ones that pay for it. Flash is the shape
+    // that surfaced it: "put a creature onto the battlefield" has happened, the
+    // "sacrifice it unless you pay" has not, so the 1-ply probe scores a free
+    // creature — measured 234.5 against 233.95 for passing, on a line whose
+    // settled value is −24. The greedy policy takes that bait at the choice
+    // node AND, from the `pass` branch, casts the same spell later in the
+    // rollout for the same reason, so passing never looks better either.
+    //
+    // Settling is only ever through a choice THIS mover owns
+    // (`settleStackForBreakdown`, issue #3194 — the opponent's answer is not
+    // the mover's to assume), bounded by `MAX_CHOICE_DEPTH` and the shared
+    // branch-work budget, and it leaves a state with no pending choice exactly
+    // as it was: a resolution that already completed has nothing to settle, so
+    // every position that is not mid-resolution scores byte-identically.
+    let settled = probe;
+    // The settle applies to a resolution the probe can finish IN ISOLATION:
+    // the suspended item is the only thing on the stack. That is the whole
+    // shape this fix is for — the mover's own spell resolving with nothing
+    // underneath it — and the restriction is what keeps the probe from pricing
+    // a move against an announcement it did not cause. With another item below,
+    // finishing this one either resolves the opponent's spell too (measured:
+    // the policy then ranks `pass` above a Mother of Runes activation it must
+    // be neutral on) or commits a choice whose right answer depends on that
+    // spell resolving. Both are worse information than stopping.
+    const suspendedItemId = probe.pendingChoices?.[0]?.stackItemId;
+    const suspendedDepth =
+        probe.stack.length === 1 && suspendedItemId === probe.stack[0].id
+            ? 0
+            : -1;
+    if (moverId && suspendedDepth >= 0) {
+        settled = settleStackForBreakdown(
+            probe,
+            moverId,
+            weights,
+            0,
+            { left: MAX_CHOICE_BRANCH_WORK },
+            // THIS resolution and its consequences, never the stack under it:
+            // everything below the suspended item is somebody else's
+            // announcement, and settling it would price this move against a
+            // board the move did not cause.
+            suspendedDepth
+        );
+    }
+    let v = evaluate(settled, botId, weights);
+    const combat = settled.combat;
     if (
         combat &&
         combat.confirmed &&
         !combat.blockersConfirmed &&
         combat.attackerIds.length > 0 &&
-        hasCastableInstant(probe, probe.activePlayerId)
+        hasCastableInstant(settled, settled.activePlayerId)
     ) {
         // Don't PRE-JUDGE the attacker's combat while the attacker holds a
         // castable trick (ADR 0021 slice 3): the held instant may swing the
@@ -1939,7 +1998,7 @@ export function policyValue(
         // Strip it so the policy holds priority and lets the actual combat (with
         // the trick) resolve downstream. Policy-only, so the shared leaf
         // magnitudes / reward band are untouched.
-        v -= declaredCombatDelta(probe, botId, weights);
+        v -= declaredCombatDelta(settled, botId, weights);
     }
     // Fold the declared block exchange in for ANY move taken at a confirmed,
     // pre-damage block — `declaredBlockDelta` reads effective P/T, so it covers
@@ -1949,7 +2008,7 @@ export function policyValue(
     // `lethalUnblockedDelta` (issue #1489) reaches this sum EXACTLY ONCE, via
     // `evaluate` above: it is deliberately not inside `declaredBlockDelta`, so
     // this third consumer of the term cannot double it to ±2·WIN_SCORE.
-    return v + declaredBlockDelta(probe, botId, weights);
+    return v + declaredBlockDelta(settled, botId, weights);
 }
 
 /** The reactive-aware rollout DEFAULT POLICY (ADR 0021 slice 2, issue #222): the
@@ -1985,7 +2044,7 @@ export function selectRolloutMove(
         // `policyValue` is from the bot's view; flip for the opponent so each
         // mover greedily maximizes ITS own reward (a competent opponent).
         const r = rewardFromValue(
-            policyValue(probe, botId, move, weights),
+            policyValue(probe, botId, move, weights, pid),
             weights
         );
         let moverReward = moverIsBot ? r : 1 - r;
@@ -2291,7 +2350,7 @@ export function computeActionPriors(
         if (raw === undefined) {
             const probe = cloneGameState(state);
             applyMoveInSearch(probe, pid, k.move);
-            raw = policyValue(probe, botId, k.move, weights);
+            raw = policyValue(probe, botId, k.move, weights, pid);
             cache?.set(k.key, raw);
         }
         const r = rewardFromValue(raw, weights);
@@ -2711,10 +2770,25 @@ export function settleStackForBreakdown(
     moverId?: string,
     weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
     depth = 0,
-    budget: { left: number } = { left: MAX_CHOICE_BRANCH_WORK }
+    budget: { left: number } = { left: MAX_CHOICE_BRANCH_WORK },
+    floorDepth = 0
 ): GameState {
     let guard = 0;
     while (state.stack.length > 0 && guard++ < 16) {
+        // Issue #3293 — `floorDepth` bounds the settle to the items ABOVE a
+        // given stack depth: the resolution that suspended, plus whatever it
+        // puts on the stack on the way out (a dies trigger the sacrifice
+        // fires), and never the announcements that were already underneath it.
+        // Without the bound this drains the whole stack, so a probe finishing
+        // the mover's own suspended ability would go on to resolve the
+        // OPPONENT's spell sitting below — measured on Mother of Runes
+        // activating under a Lightning Bolt: the activation branch had the Bolt
+        // resolved against it while the `pass` branch (which suspends nothing,
+        // so never settles at all) did not, and the policy then ranked `pass`
+        // strictly above an activation it must be neutral on
+        // (`activationTiming.bot.test.ts`, issue #1890). Zero — the default and
+        // every pre-existing caller — is the old drain-the-stack behaviour.
+        if (state.stack.length <= floorDepth) break;
         if (
             state.pendingTarget ||
             state.pendingCast ||
@@ -2736,7 +2810,8 @@ export function settleStackForBreakdown(
                 moverId,
                 weights,
                 depth,
-                budget
+                budget,
+                floorDepth
             );
             if (!best) break;
             return best;
@@ -2756,7 +2831,8 @@ function bestBranchThroughChoice(
     moverId: string,
     weights: EvalWeights,
     depth: number,
-    budget: { left: number }
+    budget: { left: number },
+    floorDepth = 0
 ): GameState | null {
     const head = state.pendingChoices?.[0];
     if (!head) return null;
@@ -2779,7 +2855,8 @@ function bestBranchThroughChoice(
                 moverId,
                 weights,
                 depth + 1,
-                budget
+                budget,
+                floorDepth
             );
         } catch {
             continue;
@@ -4150,7 +4227,8 @@ function firingBeatsHolding(
     const probe = cloneGameState(state);
     applyMoveInSearch(probe, pid, move);
     return (
-        policyValue(probe, pid, move, weights) > evaluate(state, pid, weights)
+        policyValue(probe, pid, move, weights, pid) >
+        evaluate(state, pid, weights)
     );
 }
 
