@@ -16696,9 +16696,10 @@ export interface CardDefinition {
      *  instead of shipping a half-overloaded card.
      *
      *  `CardInstanceState.overloaded` marks the cast for the rest of the
-     *  resolution (the `evoked`/`dashed`/`bestowed` precedent), and CR 702.96b's
-     *  "won't require any targets" is `castAdjustedTargetRequirement` returning
-     *  `undefined`, exactly as a morph cast does.
+     *  resolution, on the same marker precedent `evoked` and `dashed` set.
+     *  CR 702.96b's "won't require any targets" is
+     *  `castAdjustedTargetRequirement` returning `undefined`, exactly as a
+     *  face-down cast does.
      *
      *  By convention this card's `AlternativeCost.id` is `"overload"`. Used by
      *  Damn (MH2) and Winds of Abandon (MH1). */

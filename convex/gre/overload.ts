@@ -30,8 +30,11 @@
  * chosen as legal targets if the spell were cast without its overload cost
  * being paid." So the sweep keeps every INTRINSIC filter the printed
  * requirement states (Winds of Abandon still only hits creatures you don't
- * control) and drops every TARGETING restriction (hexproof CR 702.11b, shroud
- * CR 702.18, protection CR 702.16b). That split is not invented here — it is the
+ * control) and drops every TARGETING restriction:
+ * hexproof (CR 702.11b),
+ * shroud (CR 702.18),
+ * and every protection quality (CR 702.16b).
+ * That split is not invented here — it is the
  * one `getLegalTargets` already draws internally between
  * `checkPermanentTargetFilters` and the guard/protection gates, exposed through
  * its `ignoreTargetingRestrictions` option so the offered set and this set stay

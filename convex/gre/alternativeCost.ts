@@ -402,8 +402,9 @@ export function affordableAlternativeCosts(
         // (`convex/gre/bestow.ts`) is that gate.
         ...(def.bestow && hasLegalBestowHost(state) ? [def.bestow] : []),
         // CR 702.96a — Overload IS an alternative cost, offered on the same
-        // terms. It needs no legal-target gate of Bestow's kind: CR 702.96b
-        // says an overloaded spell "won't require any targets", so the mode is
+        // terms. It needs no legal-target gate of the kind Bestow's entry above
+        // has, because CR 702.96b says an overloaded spell
+        // "won't require any targets": the mode is
         // castable with an empty board — it simply affects nothing (CR 608.2 —
         // the spell does as much as it can), exactly as a Wrath resolving into
         // no creatures does. Its mana leg's affordability is the "cast"

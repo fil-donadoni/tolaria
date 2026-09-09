@@ -17,11 +17,14 @@
 //   - CR 702.96b's second sentence — an overloaded spell reaches objects that
 //     could NOT have been targeted (hexproof), asserted against the very
 //     `getLegalTargets` call that refuses to offer them
-//   - CR 601.2f–h — cost increases apply to the OVERLOAD cost
 //   - CR 608.2b — an overloaded spell has no targets and so cannot fizzle
-//   - the Bot seam: `enumerateMoves` offers BOTH cast modes
 //   - serialization round-trip and the wire projection of `overloaded`
 //   - the authoring guard: an overload card reaching a `{ target: n }` slot
+//
+// The two seams that read `gre/moves.ts` — cost modifiers folded into the
+// OVERLOAD cost, and the Bot seeing both cast modes — live in the sibling
+// `overloadMoves.bot.test.ts`, because importing the enumerator puts a file in
+// the bot suite (`bot-suite-boundary.test.ts`).
 
 import { describe, it, expect } from "vitest";
 import {
@@ -39,7 +42,6 @@ import {
     overloadAffectedTargets,
     isOverloadAlternativeCost,
 } from "../overload";
-import { enumerateMoves } from "../moves";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 import { compactState, expandState } from "../serialize";
 import { validateEffectScript } from "../effects/validate";
@@ -59,10 +61,6 @@ const DAMN = getCardByName("Damn");
 const WINDS = getCardByName("Winds of Abandon");
 const BEAR = getCardByName("Grizzly Bears").id;
 const PLAINS = getCardByName("Plains").id;
-// CR 702.96b's contrast needs a permanent the printed cast could NOT target.
-// Thalia taxes noncreature spells by {1} — the CR 601.2f–h probe.
-const THALIA_ID = getCardByName("Thalia, Guardian of Thraben").id;
-
 /** A creature with hexproof, built as a registered probe so the test does not
  *  depend on which hexproof BODY happens to be in the catalogue — only on the
  *  keyword, which `isGuardedAgainst` reads off `staticAbilities`. */
@@ -243,9 +241,9 @@ describe("Damn — one script, two modes (CR 702.96a text change)", () => {
         });
         const item = damnOnStack(state, { overloaded: true });
         // The very same requirement, asked the ordinary way, refuses to offer
-        // the hexproof creature — this is the contrast CR 702.96b draws, and
-        // asserting it here is what makes the sweep below a rule rather than a
-        // coincidence of the board.
+        // that creature — this is the contrast CR 702.96b draws, and asserting
+        // it here is what makes the sweep below a rule rather than a
+        // coincidence of the board (hexproof, CR 702.11b).
         const offered = getLegalTargets(
             state,
             DAMN.targetRequirement!,
@@ -291,7 +289,7 @@ describe("Damn — one script, two modes (CR 702.96a text change)", () => {
     });
 });
 
-describe("Winds of Abandon — the exile fan-out in both modes (CR 702.96a/b)", () => {
+describe("Winds of Abandon — one script, two modes (CR 702.96a/b)", () => {
     function windsOnStack(
         state: GameState,
         opts: { overloaded: true } | { targetId: string }
@@ -358,7 +356,7 @@ describe("Winds of Abandon — the exile fan-out in both modes (CR 702.96a/b)", 
         answerSearches(state, ["lib0"]);
         expect(boardIds(state, 1)).toEqual(["lib0", "theirs1"]);
         expect(state.players[1].exile.map((c) => c.id)).toEqual(["theirs0"]);
-        // CR 701.23 — the fetched land arrives TAPPED.
+        // The fetched land arrives onto the battlefield tapped.
         expect(
             state.players[1].battlefield.find((c) => c.id === "lib0")!.isTapped
         ).toBe(true);
@@ -383,109 +381,6 @@ describe("Winds of Abandon — the exile fan-out in both modes (CR 702.96a/b)", 
         // Three creatures exiled → three basic lands, the "for each creature
         // exiled this way" fan-out.
         expect(boardIds(state, 1)).toEqual(["lib0", "lib1", "lib2"]);
-    });
-});
-
-describe("Overload — cost increases apply to the OVERLOAD cost (CR 601.2f–h / 702.96a)", () => {
-    /** p1 holds Damn and controls `plains` Plains; p2 optionally taxes. */
-    function castingBoard(plains: number, tax: boolean): GameState {
-        const state = makeState({
-            players: [
-                makePlayer("p1", {
-                    hand: [handCard(DAMN.id, "damn")],
-                    battlefield: Array.from({ length: plains }, (_, i) =>
-                        makeInstance(PLAINS, {
-                            id: `p${i}`,
-                            controllerId: "p1",
-                            ownerId: "p1",
-                        })
-                    ),
-                }),
-                makePlayer("p2", {
-                    battlefield: tax
-                        ? [creature(THALIA_ID, "tax", "p2")]
-                        : [creature(BEAR, "body", "p2")],
-                }),
-            ],
-            activePlayerId: "p1",
-            priorityPlayerId: "p1",
-            phase: "PRECOMBAT_MAIN",
-        });
-        return state;
-    }
-
-    const overloadMoves = (state: GameState) =>
-        enumerateMoves(state, "p1").filter(
-            (m) =>
-                m.kind === "cast-spell" &&
-                m.cardInstanceId === "damn" &&
-                m.alternativeCostId === "overload"
-        );
-
-    it("four Plains cast the {2}{W}{W} overload — five are needed once a 'costs {1} more' effect applies", () => {
-        expect(overloadMoves(castingBoard(4, false))).toHaveLength(1);
-        // Same four Plains, now taxed: the overload cost went up, so the mana
-        // plan no longer covers it. If the modifiers were being folded into the
-        // PRINTED cost instead, this would still enumerate.
-        expect(overloadMoves(castingBoard(4, true))).toHaveLength(0);
-        expect(overloadMoves(castingBoard(5, true))).toHaveLength(1);
-    });
-});
-
-describe("Overload — the Bot sees BOTH cast modes (bot reachability, gre/moves.ts)", () => {
-    it("enumerateMoves offers the printed cast AND the overload cast from one hand card", () => {
-        const state = makeState({
-            players: [
-                makePlayer("p1", {
-                    hand: [handCard(DAMN.id, "damn")],
-                    // Two Swamps for {B}{B}, four Plains for {2}{W}{W}.
-                    battlefield: [
-                        ...Array.from({ length: 2 }, (_, i) =>
-                            makeInstance(getCardByName("Swamp").id, {
-                                id: `s${i}`,
-                                controllerId: "p1",
-                                ownerId: "p1",
-                            })
-                        ),
-                        ...Array.from({ length: 4 }, (_, i) =>
-                            makeInstance(PLAINS, {
-                                id: `w${i}`,
-                                controllerId: "p1",
-                                ownerId: "p1",
-                            })
-                        ),
-                    ],
-                }),
-                makePlayer("p2", {
-                    battlefield: [creature(BEAR, "theirs", "p2")],
-                }),
-            ],
-            activePlayerId: "p1",
-            priorityPlayerId: "p1",
-            phase: "PRECOMBAT_MAIN",
-        });
-        const casts = enumerateMoves(state, "p1").filter(
-            (m) => m.kind === "cast-spell" && m.cardInstanceId === "damn"
-        );
-        const overload = casts.filter(
-            (m) => m.kind === "cast-spell" && m.alternativeCostId === "overload"
-        );
-        const printed = casts.filter(
-            (m) => m.kind === "cast-spell" && m.alternativeCostId === undefined
-        );
-        expect(overload).toHaveLength(1);
-        expect(printed.length).toBeGreaterThan(0);
-        // CR 702.96b — the overload variant announces nothing to target.
-        expect(overload[0]).toMatchObject({
-            targets: [],
-            confirmTargets: false,
-        });
-        // …while the printed variant does announce one.
-        expect(
-            printed.some(
-                (m) => m.kind === "cast-spell" && m.targets.length === 1
-            )
-        ).toBe(true);
     });
 });
 

@@ -218,9 +218,9 @@ export const boneShards: CardDefinition = {
 // than a `{ target: 0 }` slot: overload replaces "target" with "each"
 // (CR 702.96a) by swapping what that set CONTAINS, so ONE script is both the
 // printed removal spell and the wrath. Overloaded it destroys EVERY creature —
-// the caster's own board included, and hexproof ones too (CR 702.96b: the
-// spell targets nothing, so nothing can be shielded from it by a targeting
-// restriction).
+// the caster's own board included, and creatures with hexproof too
+// (CR 702.96b — the spell targets nothing, so no targeting restriction can
+// shield anything from it).
 //
 // `cantBeRegenerated` (ADR 0053) carries the second sentence in both modes;
 // indestructible still protects (CR 701.8 — "can't be regenerated" suppresses

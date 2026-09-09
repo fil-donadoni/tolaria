@@ -2900,10 +2900,13 @@ export function getLegalTargets(
      *  any targets. It may affect objects that couldn't be chosen as legal
      *  targets if the spell were cast without its overload cost being paid",
      *  so the sweep it resolves against keeps every INTRINSIC filter the
-     *  printed requirement states and drops every TARGETING restriction:
-     *  protection (CR 702.16b), permanent guards including hexproof and shroud
-     *  (CR 611 / 702.11b), player shroud (CR 702.18) and protection from
-     *  everything (CR 702.16i). Threaded as an option on THIS function rather
+     *  printed requirement states and drops every TARGETING restriction —
+     *  protection (CR 702.16b),
+     *  a CR 611 permanent guard,
+     *  hexproof (CR 702.11b),
+     *  shroud (CR 702.18)
+     *  and the from-everything quality (CR 702.16i).
+     *  Threaded as an option on THIS function rather
      *  than answered by a second scan of the board, so the "which objects match
      *  this requirement" derivation stays one authority (ADR 0068) and an
      *  overload sweep can never disagree with the targets the same card offers
