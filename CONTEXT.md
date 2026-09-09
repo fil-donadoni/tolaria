@@ -110,7 +110,7 @@ A **Permanent** type representing an ally with **Loyalty** rather than power/tou
 _Avoid_: Walker, PW (in prose)
 
 **Loyalty Counter**:
-The **Counter** type (CR 122) that measures a **Planeswalker**'s current loyalty. Stored in the same generic `counters` map as any other counter (key `"loyalty"`); damage removes them (CR 120.3) and **Loyalty Abilities** add/remove them.
+The **Counter** type (CR 122) that measures a permanent's current loyalty — a **Planeswalker**'s normally, but any permanent holding a **Loyalty Ability** can accumulate them (see that entry). Stored in the same generic `counters` map as any other counter (key `"loyalty"`); damage removes them (CR 120.3) and **Loyalty Abilities** add/remove them. Only on a **Planeswalker** does reaching 0 put the permanent into its owner's graveyard (CR 122.1e).
 _Avoid_: Loyalty point, life (a planeswalker doesn't have life)
 
 **Starting Loyalty**:

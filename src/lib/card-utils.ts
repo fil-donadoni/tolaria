@@ -140,14 +140,22 @@ export function isPlaneswalker(card: CardInstance): boolean {
  *  invisible, so the player could not tell whether a `-N` cost was affordable
  *  under CR 606.6.
  *
- *  A planeswalker renders even at zero: CR 122.1e's state-based action puts it
- *  into its owner's graveyard, so the zero is a real, if brief, board state and
- *  a planeswalker whose shield blinks out mid-turn reads as a rendering bug.
- *  A non-planeswalker at zero has nothing to show — CR 704.5i is a
- *  PLANESWALKER state-based action, so that creature simply stays on the
- *  battlefield with no loyalty. */
+ *  ZERO IS A VALUE, for anything that can hold loyalty at all. A planeswalker
+ *  renders its zero because CR 122.1e's state-based action is what removes it,
+ *  so the zero is a real if brief board state. A CREATURE at zero renders it
+ *  for a longer reason: CR 704.5i is a PLANESWALKER state-based action, so that
+ *  creature stays on the battlefield indefinitely and will pay a `+N` again
+ *  next turn — a shield that blinks out the moment a `-N` empties it, and
+ *  reappears a turn later, reads as a rendering bug and hides the very quantity
+ *  CR 606.6 makes the player budget. Hence the third clause: HAVING a loyalty
+ *  ability is enough, whatever the count. It reads the post-layer effective set
+ *  (`getEffectiveClientAbilities`), so a GRANTED loyalty ability counts — which
+ *  is the whole case this predicate exists for — and an ordinary creature,
+ *  whose abilities are none or unsigned, still renders nothing. */
 export function showsLoyalty(card: CardInstance): boolean {
-    return isPlaneswalker(card) || (card.counters?.loyalty ?? 0) > 0;
+    if (isPlaneswalker(card)) return true;
+    if ((card.counters?.loyalty ?? 0) > 0) return true;
+    return getEffectiveClientAbilities(card).some(isLoyaltyAbility);
 }
 
 /** CR 702.126 — true iff `card` declares the Improvise keyword. Used both to

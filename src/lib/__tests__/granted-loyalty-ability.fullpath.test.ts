@@ -167,13 +167,21 @@ describe("a loyalty ability granted to a creature (CR 606.2, issue #3299)", () =
         expect(recipient(funded).counters?.loyalty).toBe(0);
     });
 
-    it("never offers a cost no amount of loyalty on hand can pay yet", () => {
-        // CR 606.6 again, from the other end: `-5` stays out of the list at 2.
+    it("opens each cost EXACTLY at the loyalty CR 606.6 requires", () => {
+        // The boundary, from both sides, so the assertion cannot be satisfied
+        // by the grant simply vanishing: at 4 the `-5` is still refused and the
+        // `-2` is offered, at 5 the whole set is. A regression that dropped the
+        // grant entirely would empty both lists and fail here.
         expect(
             getStackAbilities(
-                projectedRecipient(board({ "+1/+1": 1, loyalty: 2 }))
+                projectedRecipient(board({ "+1/+1": 1, loyalty: 4 }))
             ).map((a) => a.id)
-        ).not.toContain(GRIST_MINUS5);
+        ).toEqual([GRIST_PLUS1, GRIST_MINUS2]);
+        expect(
+            getStackAbilities(
+                projectedRecipient(board({ "+1/+1": 1, loyalty: 5 }))
+            ).map((a) => a.id)
+        ).toEqual([GRIST_PLUS1, GRIST_MINUS2, GRIST_MINUS5]);
     });
 
     it("does NOT put the creature into a graveyard at 0 loyalty (CR 704.5i)", () => {
@@ -190,16 +198,36 @@ describe("a loyalty ability granted to a creature (CR 606.2, issue #3299)", () =
         expect(getPlayer(state, "p1").graveyard).toHaveLength(0);
     });
 
+    it("keeps the shield up at 0 loyalty, because the creature still HAS the ability", () => {
+        const state = board({ "+1/+1": 1, loyalty: 2 });
+        activateAbilityOnState(state, {
+            playerId: "p1",
+            cardInstanceId: "recipient",
+            abilityId: GRIST_MINUS2,
+        });
+        const projected = projectedRecipient(state);
+        expect(projected.counters?.loyalty).toBe(0);
+        // CR 704.5i does not remove this creature, so it will `+1` again next
+        // turn: a shield that blinked out here and back a turn later would read
+        // as a rendering bug and hide the quantity CR 606.6 makes the player
+        // budget.
+        expect(showsLoyalty(projected)).toBe(true);
+    });
+
     it("shows the loyalty counters to the player through the projection", () => {
         const state = board();
-        // Before the activation there is nothing to show ...
-        expect(showsLoyalty(projectedRecipient(state))).toBe(false);
+        // The shield is up from the moment the grant lands — the creature HOLDS
+        // a loyalty ability, so its zero is a budget the player must read
+        // (CR 606.6) rather than an absence.
+        const before = projectedRecipient(state);
+        expect(before.counters?.loyalty ?? 0).toBe(0);
+        expect(showsLoyalty(before)).toBe(true);
         activateAbilityOnState(state, {
             playerId: "p1",
             cardInstanceId: "recipient",
             abilityId: GRIST_PLUS1,
         });
-        // ... and after it the badge predicate reads the counter THROUGH
+        // ... and after the activation the counter it renders is read THROUGH
         // `projectPublicState`, which is the only shape the client ever sees.
         const projected = projectedRecipient(state);
         expect(projected.counters?.loyalty).toBe(1);
