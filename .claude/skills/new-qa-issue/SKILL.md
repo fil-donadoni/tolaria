@@ -145,11 +145,40 @@ If after Step 2's clarification round the answer is still "an agent could not
 execute this without asking someone", it is `needs-triage`. Otherwise it is
 `ready-for-agent`. Never hedge by applying both.
 
+### Step 6b — Decide the board Priority (P0/P1/P2)
+
+The GitHub Project board's `Priority` single-select (Project #2) is what
+`queue:plan` sorts on as its zeroth key
+(`docs/agents/issue-tracker.md` § Why the queue is sorted the way it is) — an
+issue with no value there sorts on the default heuristic (bug label, lineage,
+number), behind everything a human has actually flagged. This step seeds a
+STARTING value so a fresh QA issue does not silently fall to the bottom of a
+200+-item queue; it is a seed, not a lock — the maintainer's own edit on the
+board still overrides it at any time, exactly as before.
+
+1. **Explicit wins.** If the user's own message names a priority — `P0`/`P1`/
+   `P2` literally, or an unambiguous severity word (`critico`/`blocca tutto`/
+   `crash`/`urgente` → P0; `minore`/`cosmetico`/`nice to have` → P2) — use it
+   verbatim. Never override an explicit request with the heuristic below.
+2. **Otherwise, infer from the drafted Agent Brief:**
+    - **P0** — crashes or freezes a game, an uncaught server error, data
+      corruption, a security issue, or anything breaking the core play loop
+      for every user hitting the affected path (not just one card/one edge
+      case).
+    - **P1** — the default for a real, reproducible, scoped bug or
+      enhancement that does not halt the app. Most QA issues land here.
+    - **P2** — cosmetic/minor UX, a low-value enhancement, or an edge case
+      with an easy workaround.
+3. State the chosen priority and a one-line reason alongside the draft in
+   Step 7, so the user can correct it before creation — this is a proposal,
+   not a silent write.
+
 ### Step 7 — Confirm with user
 
 Present the full draft (title, body, labels including the queue label and the
-model label) and ask for approval. Accept edits. Do not create the issue until
-the user confirms.
+model label, and the Step 6b priority + its one-line reason) and ask for
+approval. Accept edits — including a priority override. Do not create the
+issue until the user confirms.
 
 ### Step 8 — Create the issue
 
@@ -195,6 +224,27 @@ WORK ticket, use `--add-blocked-by` / `--add-blocking` and leave `parent`
 unset: a parent edge asserts "my children fully discharge me", which is false
 for a work ticket that keeps its own scope.
 
+### Step 8c — Apply the Step 6b Priority to the board
+
+Add the new issue to the board and set its `Priority` to the value decided (or
+corrected) in Step 6b/7 — `<owner>`/`<project>` default to `fil-donadoni`/`2`
+(override with `TOLARIA_PROJECT_OWNER`/`TOLARIA_PROJECT_NUMBER`, matching
+`scripts/queue-plan.ts`), `<priority>` is one of `P0`/`P1`/`P2`:
+
+```sh
+gh project item-add <project> --owner <owner> --url <issue-url>
+gh project item-edit <project> --owner <owner> --url <issue-url> --field Priority --value <priority>
+```
+
+This is a convenience seed, not a gate: if either command fails (missing
+`project` scope, a transient API error), do NOT fail the issue creation over
+it — the issue already exists and is queued correctly by its labels
+regardless of Priority. Print the two commands above with the real URL/value
+filled in so the user (or a later session) can run them by hand, same
+degrade-with-an-escape-hatch shape as the board READ in
+`scripts/lib/board-priority.ts`. A missing `project` write scope is fixed with
+`gh auth refresh -s project`.
+
 ## Checklist
 
 - [ ] Title under 70 characters
@@ -206,6 +256,8 @@ for a work ticket that keeps its own scope.
 - [ ] Model label decided — **none** unless escalating (`model:opus` / `model:fable`)
 - [ ] If `area:game-bot`: acceptance criteria include the `Blade:` line
 - [ ] Queue label decided — **exactly one** of `ready-for-agent` / `needs-triage`, never both
+- [ ] Board Priority decided (explicit from the user, else severity heuristic) and shown for confirmation
 - [ ] User confirmed before creation
 - [ ] Labels applied: category + exactly one queue label (+ `model:*` only if escalated)
 - [ ] If cut from a `prd` umbrella: `--parent` wired and `subIssuesSummary.total` verified
+- [ ] Board Priority applied (`item-add` + `item-edit`), or the fallback commands printed if it failed
