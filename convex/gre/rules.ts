@@ -70,6 +70,8 @@ import {
     hasCastPermissionFlash,
 } from "./castPermissions";
 import { faceDownCastView, isMorphCastAlternativeCost } from "./morph";
+import { castSubjectView } from "./castMode";
+import { adventureCastOptionFor } from "./adventure";
 import { canPayAnyAdditionalCost } from "./additionalCost";
 import {
     getFlashbackCost,
@@ -495,13 +497,29 @@ export function castTimingBaseLegal(
      *  zone-agnostic — an instant is an instant wherever it is cast from — so
      *  the parameter defaults to the hand and only the non-hand branches of
      *  `getLegalActions` pass their own. */
-    castFromZone: CastFromZone = "hand"
+    castFromZone: CastFromZone = "hand",
+    /** CR 715.3a (ADR 0120 §3) — the cast option being announced. "When casting
+     *  an adventurer card as an Adventure, only the ALTERNATIVE characteristics
+     *  are evaluated to see if it can be cast", so an Instant printed on a
+     *  creature card is castable at instant speed. Routed through the cast-mode
+     *  census (`castSubjectView`), never through a bare `insetSpell` read: the
+     *  census is a `Record<CastMode, …>`, so a future mode that changes what may
+     *  legally be announced cannot compile without saying so here too.
+     *
+     *  Absent (the overwhelming default) means "the printed card", and the
+     *  subject view is then `card` itself — every existing caller is unchanged
+     *  by construction. */
+    alternativeCostId?: string
 ): boolean {
     if (isCastTimingSorcerySpeedLocked(casterId, state)) {
         return isSorceryTimingFor(state, casterId);
     }
+    // CR 715.3b — the object whose TYPES and keywords decide instant speed is
+    // the announced subject, not necessarily the printed card. Identity for
+    // every cast this engine had before Adventure.
+    const subject = castSubjectView(card, alternativeCostId);
     if (
-        hasInstantSpeed(card) ||
+        hasInstantSpeed(subject) ||
         // CR 601.3b — the PLAYER-GRANT leg, in both of its shapes: the
         // ephemeral per-player grant an effect wrote into the state (Teferi,
         // Time Raveler's +1, `castTimingFlashGrants`) and the CONTINUOUS one a
@@ -510,8 +528,8 @@ export function castTimingBaseLegal(
         // permission to a PLAYER for a class of cards, so they share one leg
         // rather than growing a fourth — the tier count this predicate keeps is
         // intrinsic keyword -> player grant -> card self-permission.
-        hasCastTimingFlashGrant(casterId, card, state) ||
-        hasCastPermissionFlash(state, casterId, card, castFromZone) ||
+        hasCastTimingFlashGrant(casterId, subject, state) ||
+        hasCastPermissionFlash(state, casterId, subject, castFromZone) ||
         // CR 601.3 / 601.3c — a card-level self-permission, in either of its
         // two declared shapes: the CONDITIONAL surcharge rider ("You may cast
         // this spell as though it had flash if you pay {2} more to cast it",
@@ -523,7 +541,7 @@ export function castTimingBaseLegal(
         // committed outside the caster's sorcery-speed window — see
         // `flashSurchargeRequired` below, which keys on the DECLARED surcharge
         // and so charges the unconditional grant nothing.
-        hasCardSelfFlashPermission(card)
+        hasCardSelfFlashPermission(subject)
     ) {
         return true;
     }
@@ -1292,7 +1310,45 @@ export function getLegalActions(
         // active player has priority; a sorcery-speed LOCK (Teferi's static)
         // forces the latter even for instants. See `castTimingBaseLegal`.
         const baseLegal = castTimingBaseLegal(state, caster.id, card);
-        if (
+        // CR 715.3 / 715.3a (ADR 0120 §4) — the ADVENTURE cast is a SECOND,
+        // independently legal option on the same card, and every question that
+        // decides it is asked of the inset half: "only the alternative
+        // characteristics are evaluated to see if it can be cast." So it gets
+        // its own conjunction rather than riding the printed card's — an
+        // Instant printed on a creature card is castable at instant speed
+        // (timing), for the half's own cost (affordability), and only when the
+        // half's own targets exist (CR 601.2c).
+        //
+        // Evaluated in full HERE rather than folded into the disjunction below
+        // because the two halves must not lend each other legality: a
+        // Brazen Borrower whose creature half is affordable must not make
+        // Petty Theft castable into an empty board, and a Petty Theft with
+        // legal targets must not make the creature castable at instant speed.
+        // What the two DO share is the whole-card gates: a cast prohibition
+        // (CR 601.3a) and a phase restriction apply to the card, not to a face.
+        const adventureAlt = adventureCastOptionFor(card);
+        const adventureSubject = adventureAlt
+            ? castSubjectView(card, adventureAlt.id)
+            : card;
+        const adventureCastLegal =
+            adventureAlt !== undefined &&
+            castTimingBaseLegal(
+                state,
+                caster.id,
+                card,
+                "hand",
+                adventureAlt.id
+            ) &&
+            canPotentiallyPayCost(
+                caster,
+                adventureSubject,
+                adventureAlt.mana ?? {},
+                state
+            ) &&
+            hasEnoughLegalTargets(state, caster, adventureSubject);
+        // The PRINTED cast's own conjunction, unchanged. The Adventure option
+        // is OR'd in below, never folded into it.
+        const printedCastLegal =
             baseLegal &&
             passesCastPhaseRestriction(state, card) &&
             // CR 601.3a — a player-scoped cast-type restriction (Brand of Ill
@@ -1371,6 +1427,16 @@ export function getLegalActions(
                     )
                 )) &&
             hasEnoughLegalTargets(state, caster, card) &&
+            hasPayableAdditionalCost(caster, card);
+        if (
+            (printedCastLegal || adventureCastLegal) &&
+            // CR 601.3a / CR 715.2c — the whole-card gates, shared by both
+            // options: a cast prohibition and a phase restriction are stated
+            // about the CARD, and one card is one card. `printedCastLegal`
+            // already carries them; re-asserting them here is what keeps the
+            // Adventure leg from bypassing them, and they are idempotent.
+            passesCastPhaseRestriction(state, card) &&
+            castProhibitionReason(caster.id, card, state) === undefined &&
             hasPayableAdditionalCost(caster, card)
         ) {
             actions.push("cast");

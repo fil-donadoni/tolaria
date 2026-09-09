@@ -227,6 +227,7 @@ import {
     foldFlashSurchargeCost,
     effectiveRequirementForSource,
     castPermissionRequiredFor,
+    castTimingBaseLegal,
 } from "./gre/rules";
 // issue #2283 — the raised-origin (`trigger`/`retarget`/`copy-retarget`)
 // finalization and its divide split live in one module shared with the bot's
@@ -449,6 +450,12 @@ import {
 } from "./gre/morph";
 import { isOverloadAlternativeCost } from "./gre/overload";
 import { turnFaceDown, turnFaceUp } from "./gre/faceDown";
+import {
+    adventureCastOptionFor,
+    castAsAdventure,
+    isAdventureCastAlternativeCost,
+} from "./gre/adventure";
+import { castSubjectDefinition } from "./gre/castMode";
 import {
     applyPlayLand,
     applyPlayLandFromExile,
@@ -3841,6 +3848,12 @@ export function tryAutoCommitPendingCast(
     // before `emitSpellCastEvent` below, so no viewer and no cast trigger ever
     // observes the face-up card on the stack.
     if (state.pendingCast.morphed) turnFaceDown(state, stackItem, "morph");
+    // CR 715.3b (ADR 0120) — the DEFERRED half of the Adventure commit: a cast
+    // whose mana was paid across a separate `tapForPayment` mutation lands
+    // here, and must become the inset half at exactly the same seam. The choice
+    // rode here on `PendingCast.castAsAdventure` (set at announcement, the
+    // `bestowed`/`morphed` shape).
+    if (state.pendingCast.castAsAdventure) castAsAdventure(stackItem);
     state.stack.push(stackItem);
 
     const cardName = (spellCard.card as { name?: string }).name;
@@ -7016,6 +7029,16 @@ export function finalizeTargetSelection(
     // `applyBestowCharacteristics` rewrites the resulting stack item into the
     // Aura enchantment CR 702.103b says it becomes.
     const isBestowCost = isBestowAlternativeCost(cardDef, chosenAltCost);
+    // CR 715.3 (ADR 0120) — the chosen alt cost IS the card's ADVENTURE cast.
+    // Like `bestowed` this is not a marker for a later trigger: the object put
+    // on the stack becomes the inset half (`castAsAdventure` below), and a
+    // targeted Adventure — Petty Theft is one — is announced through
+    // `pendingTarget` and commits here or, when a cost still owes a payment,
+    // through `tryAutoCommitPendingCast`.
+    const isAdventureCast = isAdventureCastAlternativeCost(
+        cardDef,
+        chosenAltCost
+    );
     // CR 601.2 / 307.1 / 117.1a / 601.3a (issue #2473) — the ANNOUNCEMENT-time
     // timing snapshot, taken in `announceCast` and ridden here on
     // `pendingTarget` (target selection is a separate mutation, so the board
@@ -7325,6 +7348,10 @@ export function finalizeTargetSelection(
             // characteristic change; same shape and same reason as
             // `evoked`/`dashed` above.
             ...(isBestowCost ? { bestowed: true } : {}),
+            // CR 715.3b — a parked Adventure cast carries the choice here so
+            // the deferred commit still puts the INSET HALF on the stack; same
+            // shape and same reason as `bestowed`/`morphed` above.
+            ...(isAdventureCast ? { castAsAdventure: true } : {}),
             // CR 601.2 (issue #2473) — carry the announcement-time timing
             // snapshot one more hop, to the deferred commit.
             ...(castOffSorceryTiming ? { castOffSorceryTiming: true } : {}),
@@ -7473,6 +7500,11 @@ export function finalizeTargetSelection(
         // stack — the CR 608.2b re-check, the wire projection, cast triggers —
         // sees the Aura and never the creature.
         if (isBestowCost) applyBestowCharacteristics(stackItem);
+        // CR 715.3b — "while on the stack as an Adventure, the spell has only
+        // its alternative characteristics." Swapped BEFORE the push and before
+        // `emitSpellCastEvent` below, so no viewer and no cast trigger ever
+        // observes the creature half on the stack.
+        if (isAdventureCast) castAsAdventure(stackItem);
         state.stack.push(stackItem);
         state.passCount = 0;
         state.priorityPlayerId = getOpponentId(state, playerId);
@@ -7527,6 +7559,11 @@ export function finalizeTargetSelection(
             // characteristic change; same shape and same reason as
             // `evoked`/`dashed` above.
             ...(isBestowCost ? { bestowed: true } : {}),
+            // CR 715.3b — a targeted Adventure whose mana isn't covered yet
+            // parks here (Petty Theft's {1}{U} tapped one land at a time); the
+            // flag rides to `tryAutoCommitPendingCast`, which performs the
+            // identity swap there.
+            ...(isAdventureCast ? { castAsAdventure: true } : {}),
             // CR 601.2 (issue #2473) — the announcement-time timing snapshot
             // rides through the payment park exactly like `dashed` above; it
             // must NOT be re-derived once `tapForPayment` has run (CR 605.4a).
@@ -8094,6 +8131,60 @@ export const announceCast = mutation({
             cardDef,
             chosenAltCost
         );
+        // CR 715.3 (ADR 0120) — the chosen alt cost IS this card's ADVENTURE
+        // cast. Like bestow and morph it is not a plain marker: the object put
+        // on the stack becomes the inset half (`castAsAdventure` at each commit
+        // below), and CR 715.3a makes the half — not the printed card — the
+        // subject of every legality question this mutation still has to ask.
+        const isAdventureCast = isAdventureCastAlternativeCost(
+            cardDef,
+            chosenAltCost
+        );
+        // CR 715.3d — "it can't be cast as an Adventure this way." The card
+        // exiled by its own Adventure carries the restriction on the PERMISSION
+        // (`castFromExileNotAsAdventure`), and `getAlternativeCost` above
+        // resolved the option off the DEFINITION, which cannot see it. Rejected
+        // here so no path can re-offer the very cast the card exiled itself
+        // for; `adventureCastOptionFor` is the same predicate every offering
+        // surface reads.
+        if (
+            isAdventureCast &&
+            adventureCastOptionFor(cardInHand) === undefined
+        ) {
+            throw new Error(
+                "This card can't be cast as an Adventure this way (CR 715.3d)"
+            );
+        }
+        // CR 715.3a — "when casting an adventurer card as an Adventure, ONLY
+        // the alternative characteristics are evaluated to see if it can be
+        // cast." Everything below that reads a characteristic of "the spell
+        // being cast" reads THIS, not `cardDef`: the target requirement, and
+        // (through `castSubjectView`) the timing gate immediately after.
+        // Identity for every card with no inset spell, so nothing else moves.
+        const castSubjectDef =
+            castSubjectDefinition(cardDef, args.alternativeCostId) ?? cardDef;
+        // CR 715.3a — `assertLegalAction` above asked only whether the CARD is
+        // castable at all, and for an adventurer card that is true whenever
+        // EITHER half is (`getLegalActions`, `gre/rules.ts`). Which half was
+        // announced is known only here, so the per-option timing gate lives
+        // here: without it a Brazen Borrower could be cast as a 3/1 creature at
+        // instant speed on the strength of Petty Theft's legality. Scoped to
+        // cards that HAVE an inset spell — for every other card the two
+        // questions are the same question, already answered above.
+        if (
+            cardDef.insetSpell !== undefined &&
+            !castTimingBaseLegal(
+                state,
+                args.playerId,
+                cardInHand,
+                castFromZone,
+                args.alternativeCostId
+            )
+        ) {
+            throw new Error(
+                `${castSubjectDef.name} can't be cast right now (CR 715.3a)`
+            );
+        }
 
         // Validate X is provided iff the cost contains a string X (CR 107.3).
         const hasX =
@@ -8355,8 +8446,14 @@ export const announceCast = mutation({
         const activeTargetRequirement = isOverloadCost
             ? undefined
             : (chosenMode?.targetRequirement ??
+              // CR 715.3a / 715.3b — the SUBJECT, not the printed card: an
+              // Adventure spell "has only its alternative characteristics",
+              // and its target requirement is one of them. Identity for every
+              // non-adventurer card, and the twin declares no kicker, bestow,
+              // morph or overload, so every branch inside falls through to its
+              // own `targetRequirement` (ADR 0120 §4).
               castAdjustedTargetRequirement(
-                  cardDef,
+                  castSubjectDef,
                   kickerPayments,
                   isBestowCost,
                   isMorphCost,
@@ -8777,6 +8874,12 @@ export const announceCast = mutation({
                     // already covered. The flag rides to
                     // `tryAutoCommitPendingCast`, which stamps the stack item.
                     ...(isOverloadCost ? { overloaded: true } : {}),
+                    // CR 715.3b — an Adventure with no targets (none shipped
+                    // yet; Petty Theft targets) parks here on its mana exactly
+                    // as morph does. Stamped for the same fail-closed reason
+                    // `bestowed` is stamped on a branch it cannot reach: a
+                    // silently dropped cast mode is not cheap.
+                    ...(isAdventureCast ? { castAsAdventure: true } : {}),
                     // CR 601.2 (issue #2473) — the announcement-time timing
                     // snapshot rides to the deferred commit.
                     ...(castOffSorceryTiming
@@ -8889,6 +8992,11 @@ export const announceCast = mutation({
             // the projection can never observe a face-up morph spell on the
             // stack even for one intermediate state.
             if (isMorphCost) turnFaceDown(state, stackItem, "morph");
+            // CR 715.3b — the ADVENTURE cast's identity swap, at the same seam
+            // and for the same reason as the morph turn-down above: a
+            // "whenever a player casts a spell" trigger must see the Adventure
+            // spell, which is what the object IS at that moment.
+            if (isAdventureCast) castAsAdventure(stackItem);
             state.stack.push(stackItem);
             state.passCount = 0;
             state.priorityPlayerId = getOpponentId(state, args.playerId);

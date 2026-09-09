@@ -188,6 +188,7 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "baseSubtypes",
     "baseTypes",
     "activationsThisTurn",
+    "adventureOf",
     "animation",
     "attachedTo",
     "attackedDuringLastTurn",
@@ -201,6 +202,7 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "cantBlockThisTurn",
     "castFromExileCostIncrease",
     "castFromExileManaSubstitution",
+    "castFromExileNotAsAdventure",
     "castFromExileWithoutPayingManaCost",
     "castFromGraveyardExilesOnResolve",
     "castFromGraveyardWithoutPayingManaCost",
@@ -558,6 +560,9 @@ function compactCard(
     if (card.faceDown) out.faceDown = true;
     if (card.faceDownBy) out.faceDownBy = card.faceDownBy;
     if (card.faceDownOf) out.faceDownOf = card.faceDownOf;
+    // CR 715.3b/715.4 — the front id of a stack item cast as an Adventure.
+    // Public to both players (unlike faceDownOf), so no per-viewer stripping.
+    if (card.adventureOf) out.adventureOf = card.adventureOf;
     // CR 712 / ADR 0067 (issue #1210) — transform face flag + the front
     // face's own definition id, so a later flip back can restore it. Public
     // to both players (unlike faceDown/faceDownOf), no per-viewer stripping.
@@ -584,6 +589,10 @@ function compactCard(
     // CR 601.3 / 118.9 (issue #1156) — Dauthi Voidwalker's free-cast waiver
     // rides `castableFromExileBy`'s permission window and must survive a
     // save/load the same way.
+    // CR 715.3d — the Adventure exile grant does not re-offer the Adventure.
+    if (card.castFromExileNotAsAdventure) {
+        out.castFromExileNotAsAdventure = true;
+    }
     if (card.castFromExileWithoutPayingManaCost) {
         out.castFromExileWithoutPayingManaCost = true;
     }
@@ -1030,6 +1039,7 @@ function expandCard(
         result.faceDownBy = compact.faceDownBy as FaceDownProducer;
     }
     if (compact.faceDownOf) result.faceDownOf = compact.faceDownOf as string;
+    if (compact.adventureOf) result.adventureOf = compact.adventureOf as string;
     if (compact.transformed) result.transformed = true;
     if (compact.transformedFrom) {
         result.transformedFrom = compact.transformedFrom as string;
@@ -1048,6 +1058,9 @@ function expandCard(
     if (compact.castableFromExileUntilTurn !== undefined) {
         result.castableFromExileUntilTurn =
             compact.castableFromExileUntilTurn as number;
+    }
+    if (compact.castFromExileNotAsAdventure) {
+        result.castFromExileNotAsAdventure = true;
     }
     if (compact.castFromExileWithoutPayingManaCost) {
         result.castFromExileWithoutPayingManaCost = true;

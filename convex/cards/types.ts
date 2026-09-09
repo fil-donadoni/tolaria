@@ -2347,6 +2347,50 @@ export interface CardBackFace {
     imagePrintId?: string;
 }
 
+/** CR 715 / 722 — the KIND of an {@link InsetSpell}, and the whole of what
+ *  distinguishes the two rules that share the inset frame.
+ *
+ *  CR 722 repeats CR 715 clause for clause (722.2 ≡ 715.2, 722.2a ≡ 715.2a,
+ *  722.2c ≡ 715.2c, 722.5 ≡ 715.5) and differs on exactly one bit: CR 715.3
+ *  lets a player CHOOSE to cast the card as an Adventure, while CR 722.3 says
+ *  a preparation card "can never be cast" with its inset characteristics —
+ *  the half becomes an exiled COPY instead (CR 722.3c). That single bit is
+ *  what {@link INSET_SPELL_KINDS} keys, so the surface that decides whether
+ *  the parent offers a cast option cannot be written without answering it for
+ *  every kind (ADR 0120 §1). */
+export type InsetSpellKind = "adventure" | "prepare";
+
+/** CR 715.2 / 722.2 — "the text that appears in the inset frame on the left
+ *  defines alternative characteristics that the object may have while it's a
+ *  spell."
+ *
+ *  Declared ONCE on the parent {@link CardDefinition}, never as a second
+ *  `CardDefinition` in the catalogue: CR 715.2c is explicit that "each
+ *  adventurer card is only one card", so one catalogue row, one card-index
+ *  lockfile row, one Guard C anchor, and nothing owed by deck legality, the
+ *  Limited pool or `check:index` (ADR 0120 §1).
+ *
+ *  What the ENGINE reads is not this record but the twin `CardDefinition`
+ *  built from it at import time and registered under `${parentId}#${kind}`
+ *  (`cards/insetSpell.ts`) — resolvable by `tryGetDefinition` everywhere,
+ *  invisible to every enumerator. CR 715.4 then falls out rather than being
+ *  implemented: the twin is the object's identity only while the item is on
+ *  the stack as an Adventure, and in every other zone the card resolves to
+ *  its normal characteristics because nothing ever swapped its id. */
+export interface InsetSpell {
+    kind: InsetSpellKind;
+    /** CR 715.5 — the alternative NAME, which a "choose a card name" effect
+     *  may be given instead of the parent's. */
+    name: string;
+    manaCost?: ManaCost;
+    types: CardType[];
+    /** CR 715.2 — includes the "Adventure" subtype the inset frame prints. */
+    subtypes?: string[];
+    oracleText: string;
+    effects?: EffectOp[];
+    targetRequirement?: TargetRequirement;
+}
+
 /** JSON-pure subset of {@link CardBackFace} for the `createToken` Effect
  *  Script Op's `EffectTokenSpec.backFace` (ADR 0045/0046) — every field a
  *  double-faced TOKEN's back needs, minus `activatedAbilities`/
@@ -16407,6 +16451,19 @@ export interface CardDefinition {
      *  face, CR 711) is out of scope; only `TokenSpec.backFace`
      *  (double-faced tokens, e.g. the Incubator) is wired end-to-end today. */
     backFace?: CardBackFace;
+    /** CR 715.2 / 722.2 — the INSET SPELL printed in the smaller frame inside
+     *  this card's text box: an Adventure (CR 715) or a prepare spell
+     *  (CR 722). One optional field for both, not `adventure?` beside a later
+     *  `prepare?`: the two rules share the declaration, the copiable-values
+     *  rule (715.2b), the "has an X" predicate (715.2a) and the name-choice
+     *  rule (715.5), and differ only in how the half becomes castable — which
+     *  is what {@link InsetSpellKind} carries (ADR 0120 §1).
+     *
+     *  CR 715.2c — one card is one card. This is NOT a second catalogue entry;
+     *  the engine-visible half is the twin definition
+     *  `${id}#${insetSpell.kind}` that `cards/insetSpell.ts` builds and
+     *  `preloadDefinitions` registers, which no enumerator ever yields. */
+    insetSpell?: InsetSpell;
     /** Activated-ability templates GRANTED to other permanents by a
      *  StaticActivatedGrant on this card's `staticEffects` (CR 113.1, 611).
      *  Kept separate from `activatedAbilities` so the source itself does not

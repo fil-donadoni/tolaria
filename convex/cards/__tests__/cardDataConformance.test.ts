@@ -16,10 +16,25 @@
 // Scope: only sets that ship a vendored MTGJSON file under `data/json/` can
 // be checked at all — a definition whose id isn't in ANY vendored file is
 // silently skipped (its home set isn't vendored, not a conformance failure).
-// Split/flip/adventure/meld cards are out of scope catalogue-wide (ADR
-// 0010/0041) and are never registered as CardDefinitions in the first place,
-// so they cannot appear here — see inv/white.ts's own "out of scope" note for
-// Stand // Deliver / Wax // Wane.
+// Split/flip/meld cards are out of scope catalogue-wide (ADR 0010/0041) and
+// are never registered as CardDefinitions in the first place, so they cannot
+// appear here — see inv/white.ts's own "out of scope" note for Stand //
+// Deliver / Wax // Wane.
+//
+// ADVENTURE left that bucket with ADR 0120 (issue #3302): an adventurer card
+// IS one `CardDefinition`, with its inset half on `insetSpell`, so Brazen
+// Borrower can and does reach this comparison. It compares CLEANLY because
+// CR 715.4 makes the card's characteristics in every zone but the stack the
+// FRONT face's, which is what this definition's `types`/`subtypes`/`manaCost`/
+// P/T carry — MTGJSON records the same face for the same reason. The inset
+// half is not compared here at all: its characteristics belong to an object
+// that exists only on the stack (CR 715.3b), and the twin definition that
+// carries them is registry-only, never in `getAllCards()`.
+//
+// This is scoped, not vacuous: ELD is not among the vendored `data/json/` sets
+// today, so Brazen Borrower is SKIPPED by the join below like every other
+// non-vendored card. The comment states the rule that will hold the day ELD is
+// vendored, rather than a claim about registration that stopped being true.
 
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "fs";

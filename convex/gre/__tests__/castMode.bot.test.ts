@@ -28,6 +28,7 @@ import {
 } from "../../cards/__tests__/setup";
 import { enumerateMoves, type Move } from "../moves";
 import { MORPH_CAST_ALT_COST_ID } from "../morph";
+import { adventureCastAltCostId } from "../adventure";
 import { applyMoveForSearch } from "../applyMove";
 import { applyMoveInSearch, policyValue } from "../search";
 import {
@@ -46,6 +47,7 @@ import { NO_BOARD_LAYER_VIEW } from "../layers";
 const FOREST = getCardByName("Forest").id;
 const PLAINS = getCardByName("Plains").id;
 const MOUNTAIN = getCardByName("Mountain").id;
+const ISLAND = getCardByName("Island").id;
 
 /** Every characteristic a cast mode can change. Deliberately WIDER than the
  *  boolean markers (PR #3056 review finding 6): `applyBestowCharacteristics`
@@ -61,6 +63,11 @@ function modeMarkersOf(card: CardInstanceState) {
         dashed: card.dashed === true,
         evoked: card.evoked === true,
         overloaded: card.overloaded === true,
+        // CR 715.3b — the Adventure's mark IS the retained front id
+        // (`adventureOf`), not a boolean beside it; the identity swap it
+        // records is what the type/subtype/P-T fields below then show.
+        adventure: card.adventureOf !== undefined,
+        cardId: (card.card as { id?: string }).id,
         types: [...(card.types ?? [])].sort(),
         subtypes: [...(card.subtypes ?? [])].sort(),
         power: card.power,
@@ -77,6 +84,7 @@ const CLEARED_MARKERS = {
     dashed: undefined,
     evoked: undefined,
     overloaded: undefined,
+    adventureOf: undefined,
 } as const;
 
 /** A position in which `card` is castable, plus the opponent creature a
@@ -217,6 +225,32 @@ const MODE_FIXTURES: Record<CastMode, ModeFixture> = {
             expect(m.overloaded).toBe(true);
         },
     },
+    // CR 715.3b — "while on the stack as an Adventure, the spell has ONLY its
+    // alternative characteristics." The only row whose stamp is an IDENTITY
+    // swap: the object on the stack becomes the registered twin, so the
+    // 3/1 Faerie Rogue is gone and an Instant — Adventure is there instead.
+    // Unstamped, the tree prices Petty Theft as a 3/1 body it never gets, and
+    // (worse) resolves the creature half for the Adventure's price.
+    adventure: {
+        card: "Brazen Borrower",
+        land: ISLAND,
+        landCount: 2,
+        enumerated: true,
+        clearsOnResolve: true,
+        assertStamped: (m) => {
+            expect(m.adventure).toBe(true);
+            expect(m.cardId).toBe(
+                `${getCardByName("Brazen Borrower").id}#adventure`
+            );
+            expect(m.types).toEqual(["Instant"]);
+            expect(m.subtypes).toEqual(["Adventure"]);
+            // CR 715.3b — an Instant has no power or toughness. Leaving the
+            // printed 3/1 on would have the search valuing a body the
+            // Adventure line does not produce.
+            expect(m.power).toBeUndefined();
+            expect(m.toughness).toBeUndefined();
+        },
+    },
 };
 
 /** The enumerated cast of `subject` paying `mode`'s alternative cost. */
@@ -245,6 +279,9 @@ function subjectAfter(state: GameState): CardInstanceState {
         ...state.stack,
         ...state.players.flatMap((p) => p.battlefield),
         ...state.players.flatMap((p) => p.graveyard),
+        // CR 715.3d — a resolved Adventure is EXILED instead of being put into
+        // its owner's graveyard, so the greedy sandbox leaves its subject here.
+        ...state.players.flatMap((p) => p.exile),
     ];
     const found = everywhere.find((c) => c.id === "subject");
     if (!found) throw new Error("subject vanished");
@@ -267,6 +304,10 @@ function altCostIdFor(def: CardDefinition, mode: CastMode): string {
             return def.evoke?.id ?? "";
         case "overload":
             return def.overload?.id ?? "";
+        // CR 715.3 — synthesized like morph's, but per-card (the id carries the
+        // parent's own id, since it is the twin's identity the stamp needs).
+        case "adventure":
+            return adventureCastAltCostId(def);
     }
 }
 

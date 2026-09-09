@@ -34,12 +34,17 @@
  */
 
 import { expandDefinition } from "../cards/registry";
-import type { CardDefinition, GameEventType } from "../cards/types";
+import type { CardDefinition, GameEventType, InsetSpell } from "../cards/types";
 import type { CompiledTriggerHead } from "../cards/compiledTriggers";
 import { compileCard } from "./compile";
 import { canonicaliseShorthands, sortKeys } from "./gates";
 import type { ManaCost } from "../cards/types";
-import type { CompiledDefinition, CompileOutcome, OracleCard } from "./types";
+import type {
+    CompiledDefinition,
+    CompileOutcome,
+    OracleCard,
+    OracleFace,
+} from "./types";
 
 /** Fields with no rules text behind them — see the header. */
 export const PASSTHROUGH_KEYS: ReadonlySet<string> = new Set([
@@ -327,7 +332,50 @@ export function goldOracleCard(definition: CardDefinition): OracleCard {
             definition.loyalty === undefined
                 ? undefined
                 : String(definition.loyalty),
-        layout: "normal",
+        // CR 715 / 722 (ADR 0120 §5) — an adventurer card's Oracle text lives
+        // in `card_faces`, and so must the round-trip's input: compiling the
+        // parent's text alone would compile a fragment of the card while
+        // looking complete, which is the failure `SUPPORTED_LAYOUTS` was
+        // written to prevent. The two faces are rebuilt from the definition and
+        // its `insetSpell` — the same halves the compiler lowered them from.
+        ...(definition.insetSpell
+            ? {
+                  layout: definition.insetSpell.kind,
+                  faces: [
+                      {
+                          name: definition.name,
+                          manaCost: printManaCost(definition.manaCost),
+                          typeLine:
+                              subtypes.length > 0
+                                  ? `${head} — ${subtypes.join(" ")}`
+                                  : head,
+                          oracleText: definition.oracleText ?? "",
+                          ...(definition.power === undefined
+                              ? {}
+                              : { power: String(definition.power) }),
+                          ...(definition.toughness === undefined
+                              ? {}
+                              : { toughness: String(definition.toughness) }),
+                      },
+                      insetFaceOf(definition.insetSpell),
+                  ],
+              }
+            : { layout: "normal" }),
+    };
+}
+
+/** The {@link OracleFace} an {@link InsetSpell} was lowered from — the inverse
+ *  of `compileInsetLayout`'s copy, so a card that round-trips its front face
+ *  round-trips its inset half too. */
+function insetFaceOf(inset: InsetSpell): OracleFace {
+    const head = inset.types.join(" ");
+    const subtypes = inset.subtypes ?? [];
+    return {
+        name: inset.name,
+        manaCost: printManaCost(inset.manaCost),
+        typeLine:
+            subtypes.length > 0 ? `${head} — ${subtypes.join(" ")}` : head,
+        oracleText: inset.oracleText,
     };
 }
 

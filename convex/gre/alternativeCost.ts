@@ -52,6 +52,11 @@ import { hasLegalBestowHost } from "./bestow";
 import { liveSupertypesOf } from "./snow";
 import { STATIC_EFFECT_CTX } from "./layers";
 import { getDefinition, tryGetDefinition } from "../cards";
+import {
+    adventureCastAlternativeCost,
+    adventureCastOptionFor,
+    isAdventureCastId,
+} from "./adventure";
 import { MORPH_CAST_ALT_COST_ID, morphCastAlternativeCost } from "./morph";
 import { resolveZoneCharacteristics } from "./zoneCharacteristics";
 import type {
@@ -365,6 +370,13 @@ export function getAlternativeCost(
     if (def?.morph && altCostId === MORPH_CAST_ALT_COST_ID) {
         return morphCastAlternativeCost(def);
     }
+    // CR 715.3 — the Adventure cast option, likewise SYNTHESIZED rather than
+    // declared: the cost is the inset half's own printed cost, read off the
+    // registered twin (`gre/adventure.ts`), so no card can state it apart from
+    // the half it casts.
+    if (isAdventureCastId(def, altCostId)) {
+        return adventureCastAlternativeCost(def);
+    }
     return def?.alternativeCosts?.find((a) => a.id === altCostId);
 }
 
@@ -390,6 +402,9 @@ export function affordableAlternativeCosts(
     const def = cardId ? tryGetDefinition(cardId) : undefined;
     if (!def) return [];
     const morphCast = morphCastAlternativeCost(def);
+    // CR 715.3 / 715.3d — instance-aware: the option is withdrawn on a card
+    // exiled by its OWN Adventure (`adventureCastOptionFor`).
+    const adventureCast = adventureCastOptionFor(card);
     const variants = [
         ...(def.alternativeCosts ?? []),
         ...(def.evoke ? [def.evoke] : []),
@@ -417,6 +432,20 @@ export function affordableAlternativeCosts(
         // picker's. Offered from ANY zone the card could be cast from, per CR
         // 702.37a ("functions in any zone from which you could play the card").
         ...(morphCast ? [morphCast] : []),
+        // CR 715.3 — "as a player plays an adventurer card, the player chooses
+        // whether they play the card normally or as an Adventure." That choice
+        // is announced on the CR 601.2b channel every other row here uses, so
+        // it is one more cast option rather than a second casting path
+        // (ADR 0120 §3). Its mana leg is the twin's printed cost and is not
+        // checked here for the same reason Dash's and morph's are not:
+        // affordability of a MANA leg is the "cast" legality gate's job
+        // (`gre/rules.ts`).
+        //
+        // CR 722.3 is why this reads the KIND rather than the field's presence
+        // — a preparation card "can never be cast" with its inset
+        // characteristics, and `adventureCastAlternativeCost` answers only for
+        // `kind: "adventure"`.
+        ...(adventureCast ? [adventureCast] : []),
     ];
     if (variants.length === 0) return [];
     return variants.filter((a) =>

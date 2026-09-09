@@ -30,6 +30,7 @@ import { expandKeywordTriggers } from "./abilities/keywordTriggers";
 import { expandChapterAbilities } from "./abilities/sagas";
 import { expandCompiledStatics } from "./compiledStatics";
 import { expandCompiledTriggers } from "./compiledTriggers";
+import { insetSpellTwinDefinition } from "./insetSpell";
 import { setCardManaCostLookup } from "./manaCostLookup";
 import { setCardSupertypeLookup } from "./supertypeLookup";
 
@@ -283,7 +284,26 @@ export const declaresCastPermission = (cardId: string): boolean =>
 /** Preload a batch of CardDefinitions into the runtime registry. Idempotent:
  *  calling twice with the same id is a no-op (later loads win the value). */
 export function preloadDefinitions(defs: CardDefinition[]): void {
-    for (const def of defs) setRegistryEntry(def.id, def);
+    for (const def of defs) {
+        setRegistryEntry(def.id, def);
+        // CR 715.2 / 722.2 (ADR 0120 §2) — THE seam where an inset spell's
+        // TWIN definition enters the registry. Here, and not in
+        // `setRegistryEntry`, for two reasons: this is the one BATCH funnel
+        // every hydration path already goes through (the server catalogue's
+        // `preloadDefinitions(allCards)`, the client's preload, and
+        // compiled-row hydration), while `setRegistryEntry` also serves print
+        // aliases and the test-only `withTemporaryDefinition` swap, where a
+        // twin registered under a temporary definition would outlive the swap
+        // it came in with.
+        //
+        // The twin is registered under `${parent.id}#${kind}` and NOWHERE
+        // else: it never reaches `catalogue.ts`'s `allCards`, which is built
+        // from set-module exports, so deck legality, the Limited pool,
+        // `check:index` and `getAllCardNames` cannot see it (CR 715.2c — one
+        // card is one card).
+        const twin = insetSpellTwinDefinition(def);
+        if (twin) setRegistryEntry(twin.id, twin);
+    }
 }
 
 /** TEST-ONLY seam. Serves `def` from the registry for the duration of `fn`,

@@ -8,6 +8,22 @@
 
 import type { CardDefinition, CardSupertype, CardType } from "../cards/types";
 
+/** One printed FACE of a multi-faced card, as Scryfall reports it in
+ *  `card_faces` and `scripts/oracle-corpus.ts` already reduces it.
+ *
+ *  Every field is the face's own — an adventurer card's two faces carry two
+ *  names, two mana costs and two type lines (CR 715.2), and CR 715.3a makes the
+ *  second face's the ONLY ones evaluated when it is cast. */
+export interface OracleFace {
+    readonly name: string;
+    readonly manaCost: string;
+    readonly typeLine: string;
+    readonly oracleText: string;
+    readonly power?: string;
+    readonly toughness?: string;
+    readonly loyalty?: string;
+}
+
 /** A card as the compiler receives it: Scryfall's oracle row, nothing more. */
 export interface OracleCard {
     readonly oracleId: string;
@@ -22,6 +38,11 @@ export interface OracleCard {
     readonly toughness?: string;
     readonly loyalty?: string;
     readonly layout?: string;
+    /** Scryfall's `card_faces`, for a layout that has them. Ignored for
+     *  `"normal"`, and REQUIRED (exactly two) for an inset-spell layout — see
+     *  `SUPPORTED_INSET_LAYOUTS` in `compile.ts`. The corpus reducer has
+     *  produced this since before any layout consumed it. */
+    readonly faces?: readonly OracleFace[];
 }
 
 /**

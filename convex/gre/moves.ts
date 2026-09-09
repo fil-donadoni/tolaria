@@ -136,6 +136,8 @@ import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { matchesPermanentFilter } from "../cards/filters";
 import { liveSupertypesOf, countSnowLands } from "./snow";
 import { canSummonCompanion } from "./companion";
+import { adventureCastOptionFor, adventureTwin } from "./adventure";
+import { castSubjectView } from "./castMode";
 import {
     faceDownCastView,
     morphCastAlternativeCost,
@@ -2658,6 +2660,70 @@ function enumerateCastMovesFromZone(
                 confirmTargets: false,
                 tapPlan: overloadTapPlan,
             });
+        }
+    }
+
+    // CR 715.3 (ADR 0120) — the ADVENTURE cast mode: a SIXTH variant axis, and
+    // the seam that makes the whole mechanic reachable for the Bot
+    // (`.claude/rules/gre-development.md` § Bot reachability). Like overload it
+    // is a different SPELL rather than a cheaper one — Petty Theft is an
+    // instant-speed bounce, Brazen Borrower a 3/1 flier — so the two enumerate
+    // side by side and the tree picks on the resulting board.
+    //
+    // Unlike every branch above it must enumerate TARGETS: the inset half
+    // carries its own `targetRequirement` (CR 715.3a — only the alternative
+    // characteristics are evaluated), so the target tuples are built against
+    // the SUBJECT view, not the printed card. Without that the Bot would offer
+    // a zero-target cast the mutation refuses, which is the #2283/#2284
+    // bot-freeze shape.
+    //
+    // `adventureCastOptionFor` (not `adventureCastAlternativeCost`) is what
+    // withdraws the option on a card exiled by its own Adventure (CR 715.3d).
+    const adventureAlt = adventureCastOptionFor(card);
+    if (adventureAlt && lifeInsteadOfMana === undefined) {
+        const adventureSubject = castSubjectView(card, adventureAlt.id);
+        const adventureDef = adventureTwin(def ?? undefined);
+        const adventureCost = normalizeManaCost(adventureAlt.mana ?? {}, {
+            chosenX: 0,
+        });
+        foldFlashSurchargeCost(
+            adventureCost,
+            flashSurcharge,
+            flashSurchargeOwed
+        );
+        // CR 601.2f–h — 715.3 routes the Adventure cast through the ordinary
+        // alternative-cost rules, so the battlefield cost modifiers every other
+        // cast branch folds apply to the INSET half's cost.
+        applyCostModifiers(
+            adventureCost,
+            getCostModifiers(state, adventureSubject, "spell")
+        );
+        const adventureTapPlan = planManaPayment(state, player, adventureCost, {
+            cardInstanceId: card.id,
+            cardDef: adventureDef,
+        });
+        if (adventureTapPlan !== null) {
+            const adventureReq = adventureDef?.targetRequirement;
+            for (const { targets, lastGroupSize } of enumerateTargetGroupTuples(
+                state,
+                player,
+                adventureSubject,
+                [adventureReq],
+                undefined
+            )) {
+                moves.push({
+                    kind: "cast-spell",
+                    cardInstanceId: card.id,
+                    alternativeCostId: adventureAlt.id,
+                    targets,
+                    confirmTargets: announcedTargetsNeedConfirm(
+                        adventureReq,
+                        lastGroupSize,
+                        undefined
+                    ),
+                    tapPlan: adventureTapPlan,
+                });
+            }
         }
     }
     return moves;

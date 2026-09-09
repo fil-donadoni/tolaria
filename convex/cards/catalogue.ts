@@ -166,6 +166,7 @@ import {
 // the full contract. Registered into the SAME `registry` map hand-written
 // cards use, so `getDefinition`/`tryGetDefinition` never distinguish the two.
 import { excludeHandWritten } from "./compiledCatalogue";
+import { insetSpellDefinitionId } from "./insetSpell";
 // The pool as a BUNDLED module. On the SERVER this is
 // `data/oracle-compiled-pool.json`; in a CLIENT build `vite.config.ts`
 // aliases this exact relative specifier to an empty array and the rows arrive
@@ -423,6 +424,27 @@ const nameRegistry = new Map<string, CardDefinition>(
     allCards.map((card) => [card.name.toLowerCase(), card])
 );
 
+// CR 715.5 / 722.5 (ADR 0120) — "if an effect instructs a player to choose a
+// card name and the player wants to choose an adventurer card's ALTERNATIVE
+// name, the player may do so." So the inset half's name resolves here, to the
+// registered TWIN: naming "Petty Theft" must name the Adventure, not the
+// creature that carries it.
+//
+// The name registry alone, never `allCards`: this map is a LOOKUP, and every
+// enumerated population — deck legality, the Limited pool, `check:index`,
+// `getAllCardNames`, the deck-builder search index — is built from `allCards`
+// or `getAllCatalogueCards()` and so still sees exactly one card (CR 715.2c).
+// A printed name always wins the key, the same first-write-wins precedence
+// compiled rows get below.
+for (const card of allCards) {
+    const inset = card.insetSpell;
+    if (!inset) continue;
+    const key = inset.name.toLowerCase();
+    if (nameRegistry.has(key)) continue;
+    const twin = getDefinition(insetSpellDefinitionId(card.id, inset.kind));
+    nameRegistry.set(key, twin);
+}
+
 // The compiled rows this graph actually registered, kept because the runtime
 // registry is NOT a usable stand-in for "the catalogue's cards": it is a LIVE
 // map that grows during play. `maybeSynthesizeToken` and
@@ -458,6 +480,17 @@ export function registerCompiledDefinitions(
     for (const card of fresh) {
         const key = card.name.toLowerCase();
         if (!nameRegistry.has(key)) nameRegistry.set(key, card);
+        // CR 715.5 — the same alternative-name key the hand-written loop above
+        // seeds, for a COMPILED adventurer row. `preloadDefinitions` has
+        // already registered its twin.
+        const inset = card.insetSpell;
+        if (!inset) continue;
+        const insetKey = inset.name.toLowerCase();
+        if (nameRegistry.has(insetKey)) continue;
+        const twin = tryGetDefinition(
+            insetSpellDefinitionId(card.id, inset.kind)
+        );
+        if (twin) nameRegistry.set(insetKey, twin);
     }
     compiledRegistered.push(...fresh);
     // The CLIENT calls this after module load (from the loading gate), so a

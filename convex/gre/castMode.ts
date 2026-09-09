@@ -50,6 +50,12 @@ import { tryGetDefinition } from "../cards";
 import type { CardDefinition } from "../cards/types";
 import { applyBestowCharacteristics } from "./bestow";
 import { turnFaceDown } from "./faceDown";
+import {
+    adventureCastAltCostId,
+    adventureTwin,
+    castAsAdventure,
+} from "./adventure";
+import { hasAdventure } from "../cards/insetSpell";
 import { isMorphCastId, MORPH_CAST_ALT_COST_ID } from "./morph";
 import type { CardInstanceState } from "./state";
 import type { LayerStateView } from "./layers";
@@ -58,7 +64,13 @@ import type { LayerStateView } from "./layers";
  *  becomes of the permanent, rather than only what it costs. An alt cost that
  *  changes the price alone (Force of Will's, Fireblast's, Gush's) is NOT one —
  *  it leaves no mark on the stack item and belongs in no row here. */
-export type CastMode = "bestow" | "morph" | "dash" | "evoke" | "overload";
+export type CastMode =
+    | "bestow"
+    | "morph"
+    | "dash"
+    | "evoke"
+    | "overload"
+    | "adventure";
 
 type CastModeRow = {
     /** The alt-cost id that selects this mode for `def`, or `undefined` when
@@ -68,6 +80,26 @@ type CastModeRow = {
      *  `AlternativeCost`. The two agree so long as ids are unique per card,
      *  which `castModeIdsAreUnambiguous` below is what keeps true. */
     idOf: (def: CardDefinition | undefined) => string | undefined;
+    /** CR 715.3a (ADR 0120 §3) — the definition whose characteristics decide
+     *  whether this cast can HAPPEN: "when casting an adventurer card as an
+     *  Adventure, only the alternative characteristics are evaluated to see if
+     *  it can be cast."
+     *
+     *  This is what makes the census PRE-commit rather than post-commit. Every
+     *  other member here describes the object AFTER it reaches the stack;
+     *  timing, affordability and targeting all run BEFORE one exists, and a
+     *  stamp applied to a freshly-built stack item arrives too late to make an
+     *  instant-speed Adventure legal. Identity for every mode that changes only
+     *  what the object BECOMES — bestow, morph, dash, evoke, overload — and the
+     *  twin for adventure.
+     *
+     *  Morph is identity DESPITE also being evaluated against different
+     *  characteristics (CR 702.37c): its subject is not a registered definition
+     *  but a synthesized 2/2, which `faceDownCastView` (`morph.ts`) has
+     *  expressed as an instance view since before this member existed. Making
+     *  it return the face-down SENTINEL here would be a second answer to a
+     *  question that already has one. */
+    subject: (def: CardDefinition) => CardDefinition;
     /** What the mode stamps on the freshly-built cast stack item. Every stamper
      *  is idempotent, so a re-walked commit path can never double-apply. */
     stamp: (state: LayerStateView, item: CardInstanceState) => void;
@@ -83,6 +115,7 @@ const CAST_MODE_CENSUS: Record<CastMode, CastModeRow> = {
     // rides onto the permanent.
     bestow: {
         idOf: (def) => def?.bestow?.id,
+        subject: (def) => def,
         stamp: (_state, item) => applyBestowCharacteristics(item),
     },
     // CR 702.37c — a morph cast puts a FACE-DOWN 2/2 on the stack, not the
@@ -91,6 +124,7 @@ const CAST_MODE_CENSUS: Record<CastMode, CastModeRow> = {
     // constant rather than a field on the definition.
     morph: {
         idOf: (def) => (def?.morph ? MORPH_CAST_ALT_COST_ID : undefined),
+        subject: (def) => def,
         stamp: (state, item) => turnFaceDown(state, item, "morph"),
     },
     // CR 702.109a — the `dashed` marker `dashTrigger`
@@ -99,6 +133,7 @@ const CAST_MODE_CENSUS: Record<CastMode, CastModeRow> = {
     // inside a search, so the tree prices a dashed creature as a permanent one.
     dash: {
         idOf: (def) => def?.dash?.id,
+        subject: (def) => def,
         stamp: (_state, item) => {
             item.dashed = true;
         },
@@ -110,6 +145,7 @@ const CAST_MODE_CENSUS: Record<CastMode, CastModeRow> = {
     // over-valued line the bot can see.
     evoke: {
         idOf: (def) => def?.evoke?.id,
+        subject: (def) => def,
         stamp: (_state, item) => {
             item.evoked = true;
         },
@@ -123,9 +159,23 @@ const CAST_MODE_CENSUS: Record<CastMode, CastModeRow> = {
     // being left to the two executors.
     overload: {
         idOf: (def) => def?.overload?.id,
+        subject: (def) => def,
         stamp: (_state, item) => {
             item.overloaded = true;
         },
+    },
+    // CR 715.3b — "while on the stack as an Adventure, the spell has only its
+    // ALTERNATIVE characteristics." The one row whose `subject` is not the
+    // identity: the twin definition registered at hydration IS the object being
+    // announced, so timing (CR 715.3a — an Instant printed on a creature card),
+    // affordability and targeting are all judged against it. `stamp` then swaps
+    // the stack item's identity to that same twin and retains the front id for
+    // the CR 715.4 revert.
+    adventure: {
+        idOf: (def) =>
+            hasAdventure(def) ? adventureCastAltCostId(def!) : undefined,
+        subject: (def) => adventureTwin(def) ?? def,
+        stamp: (_state, item) => castAsAdventure(item),
     },
 };
 
@@ -198,4 +248,57 @@ export function applyCastModeCharacteristics(
     const mode = castModeOf(def ?? undefined, alternativeCostId);
     if (!mode) return;
     CAST_MODE_CENSUS[mode].stamp(state, stackItem);
+}
+
+/** CR 715.3a / 601.2b (ADR 0120 §3) — THE cast SUBJECT: the definition whose
+ *  characteristics decide whether the cast `alternativeCostId` announces can
+ *  happen at all.
+ *
+ *  `def` itself for a printed-cost cast, for a price-only alternative cost and
+ *  for every cast mode that changes only what the object BECOMES; the twin for
+ *  an Adventure. Call this — never a bare `tryGetDefinition(card.card.id)` —
+ *  from any surface that asks "what is being cast": the timing gate
+ *  (`castTimingBaseLegal`, `rules.ts`), the cast-option list
+ *  (`castOptionAlternativeCosts`), `announceCast` (`game.ts`), the Bot's
+ *  `enumerateCastMoves` (`moves.ts`) and the client picker
+ *  (`src/lib/card-utils.ts`). The `Record<CastMode, …>` above is what makes a
+ *  new mode declare its answer instead of inheriting a wrong one. */
+export function castSubjectDefinition(
+    def: CardDefinition | undefined,
+    alternativeCostId: string | undefined
+): CardDefinition | undefined {
+    if (!def) return def;
+    const mode = castModeOf(def, alternativeCostId);
+    return mode ? CAST_MODE_CENSUS[mode].subject(def) : def;
+}
+
+/** The INSTANCE-level twin of {@link castSubjectDefinition}: `card` as the
+ *  announced cast sees it, for the readers that take a `CardInstanceState`
+ *  (`hasInstantSpeed`, the cost solver's characteristic-keyed restrictions,
+ *  `handCardMatchesFilter`).
+ *
+ *  Returns `card` UNCHANGED whenever the subject is the card's own definition,
+ *  so every existing cast keeps its exact identity — including morph, whose
+ *  own characteristics view (`faceDownCastView`) predates this seam and stays
+ *  its authority (see `CastModeRow.subject`).
+ *
+ *  A throwaway spread, never a mutation: the card is still in its zone and only
+ *  the eventual stack item is rewritten (by `stamp`, at commit). */
+export function castSubjectView(
+    card: CardInstanceState,
+    alternativeCostId: string | undefined
+): CardInstanceState {
+    const cardId = (card.card as { id?: string }).id;
+    const def = cardId ? tryGetDefinition(cardId) : null;
+    const subject = castSubjectDefinition(def ?? undefined, alternativeCostId);
+    if (!def || !subject || subject.id === def.id) return card;
+    return {
+        ...card,
+        card: { id: subject.id },
+        types: [...subject.types],
+        subtypes: [...(subject.subtypes ?? [])],
+        staticAbilities: [...(subject.staticAbilities ?? [])],
+        power: subject.power,
+        toughness: subject.toughness,
+    };
 }
