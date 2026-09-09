@@ -197,7 +197,7 @@ describe("announceCast under a board cast permission (CR 601.3 / 118.9, issue #2
                 alternativeCostId: ALUREN_ALT_COST_ID,
                 chosenX: 2,
             })
-        ).rejects.toThrow();
+        ).rejects.toThrow("The only legal choice for X is 0");
 
         await runAnnounceCast(harness.ctx, "p1", {
             cardInstanceId: "probe",

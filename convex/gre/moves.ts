@@ -1810,7 +1810,12 @@ export function enumerateCastMoves(
     // a paid announcement outright). Enumerating the printed-cost variants here
     // would hand the executor a Move the mutation refuses — the #2283/#2284
     // bot-freeze class — so they are dropped, not merely deprioritised.
-    const printedMoves = castPermissionRequiredFor(state, player.id, card)
+    const printedMoves = castPermissionRequiredFor(
+        state,
+        player.id,
+        card,
+        castFromZone
+    )
         ? []
         : enumerateCastMovesFromZone(state, player, card, opts);
     const moves = [...printedMoves, ...permissionMoves];
@@ -3603,6 +3608,13 @@ export function enumerateMoves(
         const lifeCost = libraryTopCastLifeCost(state, player, libraryTop);
         moves.push(
             ...enumerateCastMoves(state, player, libraryTop, {
+                // CR 601.3 — the zone, stated: without it the wrapper's
+                // permission scan defaults to the HAND and offers this
+                // library-top cast a `cast-permission` free cast that
+                // `announceCast` refuses twice over (the id does not resolve
+                // for a library cast, and CR 601.2b forbids a second
+                // alternative method riding on the life substitution).
+                castFromZone: "library",
                 // Only pass the substitution when the permission actually
                 // replaces the mana cost: a grant with no `manaCostReplacement`
                 // (Vizier of the Menagerie's shape) casts for the printed cost,

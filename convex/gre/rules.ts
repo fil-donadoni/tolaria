@@ -63,6 +63,7 @@ import { PHYREXIAN_LIFE_PER_PIP, phyrexianPipCount } from "./phyrexian";
 import { matchesPermanentFilter } from "../cards/filters";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { isExileCostEligible } from "../cards/exileCostEligibility";
+import type { CastFromZone } from "./castCost";
 import {
     castOptionAlternativeCosts,
     castPermissionRequired,
@@ -485,7 +486,16 @@ const ALL_HAND_ACTIONS: CardAction[] = [
 export function castTimingBaseLegal(
     state: GameState,
     casterId: string,
-    card: CardInstanceState
+    card: CardInstanceState,
+    /** CR 601.3 — the zone this cast would come FROM. Load-bearing for the
+     *  board-permission leg alone: a `cast-permission` static licenses a cast
+     *  from the caster's HAND (see `collectCastPermissions`), so an Aluren on
+     *  the battlefield must not hand flash to a flashback / escape / madness /
+     *  Yawgmoth's Will cast of a covered creature. Every other leg here is
+     *  zone-agnostic — an instant is an instant wherever it is cast from — so
+     *  the parameter defaults to the hand and only the non-hand branches of
+     *  `getLegalActions` pass their own. */
+    castFromZone: CastFromZone = "hand"
 ): boolean {
     if (isCastTimingSorcerySpeedLocked(casterId, state)) {
         return isSorceryTimingFor(state, casterId);
@@ -501,7 +511,7 @@ export function castTimingBaseLegal(
         // rather than growing a fourth — the tier count this predicate keeps is
         // intrinsic keyword -> player grant -> card self-permission.
         hasCastTimingFlashGrant(casterId, card, state) ||
-        hasCastPermissionFlash(state, casterId, card) ||
+        hasCastPermissionFlash(state, casterId, card, castFromZone) ||
         // CR 601.3 / 601.3c — a card-level self-permission, in either of its
         // two declared shapes: the CONDITIONAL surcharge rider ("You may cast
         // this spell as though it had flash if you pay {2} more to cast it",
@@ -621,7 +631,17 @@ export function flashSurchargeRequired(
     if (isCastTimingSorcerySpeedLocked(casterId, state)) return false;
     if (
         hasInstantSpeed(card) ||
-        hasCastTimingFlashGrant(casterId, card, state)
+        hasCastTimingFlashGrant(casterId, card, state) ||
+        // CR 601.3b (issue #2706) — a board `cast-permission` static granting
+        // flash is a THIRD way the off-window cast is licensed without the
+        // rider, so the surcharge buys nothing and clause 3's "the permission
+        // is redundant" reasoning covers it exactly as it covers Teferi's
+        // grant. Unreachable in the shipped pool (the four `flashSurcharge`
+        // cards are three sorceries and a mana-value-4 creature, and the one
+        // shipped permission filters to mana value 3 or less), and listed here
+        // so the predicate can never quietly charge for a permission it did not
+        // need. Hand-scoped like the permission itself.
+        hasCastPermissionFlash(state, casterId, card)
     ) {
         return false;
     }
@@ -642,16 +662,27 @@ export function flashSurchargeRequired(
 export function castPermissionRequiredFor(
     state: GameState,
     casterId: string,
-    card: CardInstanceState
+    card: CardInstanceState,
+    /** The zone the cast comes from — the permission is hand-only, so a
+     *  non-hand cast owes nothing and this returns `false` for it. Passed by
+     *  every caller that knows its zone (`announceCast`, the Bot's
+     *  enumerator); the default keeps a hand cast reading unchanged. */
+    castFromZone: CastFromZone = "hand"
 ): boolean {
     if (isCastTimingSorcerySpeedLocked(casterId, state)) return false;
-    return castPermissionRequired(state, casterId, card, {
-        otherwiseInstantSpeed:
-            hasInstantSpeed(card) ||
-            hasCastTimingFlashGrant(casterId, card, state) ||
-            hasCardSelfFlashPermission(card),
-        inOwnSorceryWindow: isSorceryTimingFor(state, casterId),
-    });
+    return castPermissionRequired(
+        state,
+        casterId,
+        card,
+        {
+            otherwiseInstantSpeed:
+                hasInstantSpeed(card) ||
+                hasCastTimingFlashGrant(casterId, card, state) ||
+                hasCardSelfFlashPermission(card),
+            inOwnSorceryWindow: isSorceryTimingFor(state, casterId),
+        },
+        castFromZone
+    );
 }
 
 export function getLegalActions(
@@ -836,7 +867,12 @@ export function getLegalActions(
         hasFlashback(card) &&
         !hasEscape(state, card);
     if (isFlashbackCast) {
-        const baseLegal = castTimingBaseLegal(state, caster.id, card);
+        const baseLegal = castTimingBaseLegal(
+            state,
+            caster.id,
+            card,
+            "graveyard"
+        );
         // CR 702.34a — the mana portion may be absent (Lava Dart pays only a
         // sacrifice); an empty cost is always affordable.
         const flashbackMana = getFlashbackCost(card) ?? {};
@@ -870,7 +906,12 @@ export function getLegalActions(
         player.graveyard.some((c) => c.id === card.id) &&
         hasEscape(state, card);
     if (isEscapeCast) {
-        const baseLegal = castTimingBaseLegal(state, caster.id, card);
+        const baseLegal = castTimingBaseLegal(
+            state,
+            caster.id,
+            card,
+            "graveyard"
+        );
         if (
             baseLegal &&
             passesCastPhaseRestriction(state, card) &&
@@ -899,7 +940,12 @@ export function getLegalActions(
         player.graveyard.some((c) => c.id === card.id) &&
         canCastFromGraveyardByPermission(state, player, card);
     if (isPermissionCast) {
-        const baseLegal = castTimingBaseLegal(state, caster.id, card);
+        const baseLegal = castTimingBaseLegal(
+            state,
+            caster.id,
+            card,
+            "graveyard"
+        );
         if (
             baseLegal &&
             passesCastPhaseRestriction(state, card) &&
@@ -931,7 +977,12 @@ export function getLegalActions(
             ?.castableFromOwnGraveyard ??
             false);
     if (isIntrinsicGraveyardCast) {
-        const baseLegal = castTimingBaseLegal(state, caster.id, card);
+        const baseLegal = castTimingBaseLegal(
+            state,
+            caster.id,
+            card,
+            "graveyard"
+        );
         if (
             baseLegal &&
             passesCastPhaseRestriction(state, card) &&
@@ -970,7 +1021,12 @@ export function getLegalActions(
         player.graveyard.some((c) => c.id === card.id) &&
         card.castableFromGraveyardBy === casterId;
     if (isGraveyardGrantCast) {
-        const baseLegal = castTimingBaseLegal(state, caster.id, card);
+        const baseLegal = castTimingBaseLegal(
+            state,
+            caster.id,
+            card,
+            "graveyard"
+        );
         const costOverride = card.castFromGraveyardWithoutPayingManaCost
             ? {}
             : (getInstanceManaCost(card) ?? {});
@@ -1005,7 +1061,12 @@ export function getLegalActions(
         player.graveyard.some((c) => c.id === card.id) &&
         canCastPermanentFromGraveyardByPermission(state, player, card);
     if (isPermanentPermissionCast) {
-        const baseLegal = castTimingBaseLegal(state, caster.id, card);
+        const baseLegal = castTimingBaseLegal(
+            state,
+            caster.id,
+            card,
+            "graveyard"
+        );
         if (
             baseLegal &&
             passesCastPhaseRestriction(state, card) &&
@@ -1037,7 +1098,12 @@ export function getLegalActions(
         player.graveyard.some((c) => c.id === card.id) &&
         hasRetrace(state, card);
     if (isRetraceCast) {
-        const baseLegal = castTimingBaseLegal(state, caster.id, card);
+        const baseLegal = castTimingBaseLegal(
+            state,
+            caster.id,
+            card,
+            "graveyard"
+        );
         if (
             baseLegal &&
             passesCastPhaseRestriction(state, card) &&
@@ -1104,7 +1170,7 @@ export function getLegalActions(
         !types.includes("Land") &&
         card.castFromExileWithoutPayingManaCost === true;
     if (isFreeExileCast) {
-        const baseLegal = castTimingBaseLegal(state, caster.id, card);
+        const baseLegal = castTimingBaseLegal(state, caster.id, card, "exile");
         if (
             baseLegal &&
             passesCastPhaseRestriction(state, card) &&
@@ -1178,7 +1244,7 @@ export function getLegalActions(
                       mandatoryCostOpts
                   );
         if (
-            castTimingBaseLegal(state, player.id, card) &&
+            castTimingBaseLegal(state, player.id, card, "library") &&
             passesCastPhaseRestriction(state, card) &&
             castProhibitionReason(player.id, card, state) === undefined &&
             affordable &&

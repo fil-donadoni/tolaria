@@ -86,6 +86,10 @@ const layer6StaticIds = new Set<string>();
  *  Derived by `setRegistryEntry`; see `declaresLayer7StaticEffect`. */
 const layer7StaticIds = new Set<string>();
 
+/** Ids whose definition declares a `cast-permission` static (CR 601.3, issue
+ *  #2706). Derived by `setRegistryEntry`; see `declaresCastPermission`. */
+const castPermissionIds = new Set<string>();
+
 /** The ONLY writer of `registry`. Keeps `zoneConditionalIds` in step. */
 const setRegistryEntry = (key: string, def: CardDefinition): void => {
     registry.set(key, def);
@@ -95,6 +99,9 @@ const setRegistryEntry = (key: string, def: CardDefinition): void => {
     }
     if (declaresStaticKind(def, LAYER_6_STATIC_KINDS)) layer6StaticIds.add(key);
     if (declaresStaticKind(def, LAYER_7_STATIC_KINDS)) layer7StaticIds.add(key);
+    if (declaresStaticKind(def, CAST_PERMISSION_STATIC_KINDS)) {
+        castPermissionIds.add(key);
+    }
 };
 
 /** CR 613.1b-e — the `StaticEffect` kinds the layers-2-to-5 derivation owns.
@@ -163,6 +170,9 @@ const LAYER_6_STATIC_KINDS = new Set<string>([
  *  Duplicated from `gre/layers.ts`'s own table for the reason
  *  `LAYER_2_5_STATIC_KINDS` above is; `layers.test.ts` asserts the two agree. */
 const LAYER_7_STATIC_KINDS = new Set<string>(["pt-buff", "pt-cda", "pt-set"]);
+
+/** CR 601.3 — the one kind `gre/castPermissions.ts` scans for. */
+const CAST_PERMISSION_STATIC_KINDS = new Set<string>(["cast-permission"]);
 
 /** Membership in one of the three derived sets above, for an id that may never
  *  have been REGISTERED.
@@ -251,6 +261,24 @@ export const declaresLayer6StaticEffect = (cardId: string): boolean =>
  *  two twins above. */
 export const declaresLayer7StaticEffect = (cardId: string): boolean =>
     declaresIndexedStatic(cardId, layer7StaticIds);
+
+/** CR 601.3 (issue #2706) — does `cardId`'s definition declare a
+ *  `cast-permission` static? The fourth of these prechecks, and it earns its
+ *  place on the same measured grounds: `collectCastPermissions`
+ *  (`gre/castPermissions.ts`) walks EVERY permanent on BOTH battlefields, and
+ *  the cast path asks it up to four times per hand card — the timing gate, the
+ *  cast-option list, and the Bot's enumerator twice — which the ISMCTS search
+ *  then pays at every node it expands. Almost no permanent grants a cast
+ *  permission, and a `Set.has` on the id says so without a registry lookup or
+ *  an `expandDefinition`.
+ *
+ *  Same derived-membership discipline and the same fail-slow trade as its three
+ *  twins: a stale TRUE costs one wasted lookup and never a wrong answer,
+ *  because the scan still reads the live definition before deriving anything;
+ *  a stale FALSE is impossible, because every write goes through
+ *  `setRegistryEntry`. */
+export const declaresCastPermission = (cardId: string): boolean =>
+    declaresIndexedStatic(cardId, castPermissionIds);
 
 /** Preload a batch of CardDefinitions into the runtime registry. Idempotent:
  *  calling twice with the same id is a no-op (later loads win the value). */

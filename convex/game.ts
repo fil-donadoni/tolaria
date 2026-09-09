@@ -6923,6 +6923,20 @@ export function finalizeTargetSelection(
               castZone
           )
         : undefined;
+    // CR 601.2f / 601.2h — the total cost was LOCKED IN at announcement, and a
+    // board-granted alternative cost is the only one here whose resolution is
+    // STATE-dependent: `getAlternativeCost` is a pure definition lookup that
+    // cannot change between announcement and commit, but a `cast-permission`
+    // id stops resolving the moment its source leaves the battlefield. Falling
+    // through to `undefined` would silently re-price the cast at the printed
+    // mana cost — the caster announced a free cast and would be charged for it.
+    // Fail CLOSED: an announced permission that no longer resolves is a bug in
+    // this engine, not a price change.
+    if (pt.alternativeCostId !== undefined && chosenAltCost === undefined) {
+        throw new Error(
+            "The announced alternative cost is no longer available for this spell"
+        );
+    }
     // CR 702.74a — the chosen alt cost IS the card's Evoke cost (compared by
     // reference — `getAlternativeCost` resolves `def.evoke` for its own id):
     // the resulting stack item is tagged `evoked: true` below so the
@@ -7943,7 +7957,12 @@ export const announceCast = mutation({
         // permission's own alternative cost is mandatory. Rejected here, at
         // announcement, so no commit path can charge the wrong total.
         if (
-            castPermissionRequiredFor(state, args.playerId, cardInHand) &&
+            castPermissionRequiredFor(
+                state,
+                args.playerId,
+                cardInHand,
+                castFromZone
+            ) &&
             !(
                 args.alternativeCostId &&
                 isCastPermissionAltCostId(args.alternativeCostId)

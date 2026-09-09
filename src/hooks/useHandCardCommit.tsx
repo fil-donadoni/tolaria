@@ -326,17 +326,28 @@ export function useHandCardCommit(
         // alternative costs"), but unlike evoke/dash/bestow the COST is not a
         // field on the card: the {3} belongs to the rule, and
         // `affordableAlternativeCosts` synthesizes it from `def.morph` (the
-        // printed TURN-UP cost). So the gate keys on `def.morph` while the
-        // offered option comes back from the shared server helper, exactly as
-        // for the other three.
-        if (
-            !cardInstance.castManaCostReplaced &&
-            ((def.alternativeCosts && def.alternativeCosts.length > 0) ||
-                def.evoke ||
-                def.dash ||
-                def.bestow ||
-                def.morph)
-        ) {
+        // printed TURN-UP cost) — which is the first sign that the card's own
+        // fields were never the right question here.
+        // CR 118.9 (issue #2706) — "An alternative cost is a cost listed in a
+        // spell's text, OR APPLIED TO IT FROM ANOTHER EFFECT." That second
+        // clause is why this gate no longer pre-screens the card's SHAPE
+        // (`def.alternativeCosts` / evoke / dash / bestow / morph): a board
+        // `cast-permission` static (Aluren) offers a free cast for a card that
+        // declares none of those fields, so the shape test dropped exactly the
+        // cards the permission exists for — the picker never opened, the click
+        // paid the printed cost inside the sorcery window and hit the CR 118.9b
+        // rejection outside it, with no affordance able to satisfy it.
+        //
+        // The gate is now the ANSWER rather than a proxy for it:
+        // `affordableAltCostsForCard` delegates to `castOptionAlternativeCosts`,
+        // the same union authority `getLegalActions` and `announceCast` read, so
+        // "is there an option" is asked once and cannot disagree with itself.
+        // The shape test was only ever an approximation of a non-empty list.
+        //
+        // `castManaCostReplaced` stays: CR 601.2b — a library-top cast under a
+        // cost-replacing permission (Bolas's Citadel) IS an alternative method
+        // of casting, and no second one may ride along.
+        if (!cardInstance.castManaCostReplaced) {
             const affordableAlts = affordableAltCostsForCard(
                 cardInstance,
                 playerId,

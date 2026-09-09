@@ -26,6 +26,18 @@
 // Read-time only, exactly like `cast-restriction`: nothing is materialized onto
 // a permanent, so a permission auto-reverts when its source leaves play.
 //
+// KNOWN BOUNDARY, shared with `cast-restriction` but with a worse polarity than
+// it has: the scan reads `staticEffects` off the registry definition, so a
+// source whose abilities have been REMOVED (an `ability-loss` static, CR 613.1f
+// layer 6) still grants its permission. Over-applying a restriction is
+// conservative; over-applying a GRANT makes an illegal cast legal, and under
+// `withoutPayingManaCost` it makes it legal for free. A face-down permanent is
+// already safe (`FACE_DOWN_CARD_ID` resolves to the vanilla 2/2 sentinel, which
+// declares nothing). No shipped card combination reaches it — nothing in this
+// pool strips an enchantment's abilities — and the fix belongs with the
+// layer-6-aware read the whole family needs, not in this module alone.
+// tracked-by: #3272
+//
 // THE COST HALF IS AN ALTERNATIVE COST (CR 118.9 — "a cost … applied to it from
 // another effect that its controller may pay rather than paying the spell's
 // mana cost"), never a silent waiver: CR 118.5 is explicit that a cost of {0}
@@ -35,7 +47,7 @@
 // for free (CR 118.9a — only one alternative cost per spell), and the ordinary
 // paid cast stays available beside it inside the caster's own sorcery window.
 
-import { tryGetDefinition } from "../cards";
+import { declaresCastPermission, tryGetDefinition } from "../cards";
 import type {
     AlternativeCost,
     CardDefinition,
@@ -74,11 +86,22 @@ export function castPermissionAltCostId(
  *  permission id (two Alurens grant the one permission, not two cast options —
  *  CR 601.2b would let the caster announce only one of them anyway).
  *
- *  Zone: HAND only. A permission of this shape licenses the cast itself, and a
- *  cast with no zone stated is a cast from the caster's hand (CR 601.3e /
- *  108.2a); a card in another zone needs its own permission to be castable at
- *  all, and that permission — not this one — states what it costs. Nothing in
- *  the shipped pool grants a class-wide free cast out of a non-hand zone.
+ *  Zone: HAND only, and load-bearing. The permission this kind models IS the
+ *  CR 601.3 "rule or effect allows that player to cast it", and what it widens
+ *  is the base permission every card type states for itself — CR 302.1 for a
+ *  creature: "A player who has priority may cast a creature card from their
+ *  hand during a main phase of their turn when the stack is empty." Aluren
+ *  relaxes the WHEN and the COST of that; it names no other zone, and a card in
+ *  one needs its own permission (Flashback, Escape, Yawgmoth's Will) to be
+ *  castable at all — that permission, not this one, states what its cast costs
+ *  and when it may happen.
+ *
+ *  So a non-hand cast must be left strictly ALONE, not merely unsweetened: an
+ *  Aluren that granted flash to an escape cast, or made one owe a free cast
+ *  that cannot resolve for that zone, would turn a legal sorcery-speed cast
+ *  into an uncastable one. That is why every caller threads its real zone
+ *  through `castTimingBaseLegal` and `castPermissionRequiredFor` instead of
+ *  taking the hand default.
  *
  *  Mirrors `isCastTimingSorcerySpeedLocked`'s scan shape exactly: read off each
  *  permanent's registry `staticEffects`, never a materialized per-instance
@@ -96,6 +119,12 @@ export function collectCastPermissions(
         for (const source of player.battlefield) {
             const sourceId = (source.card as { id?: string }).id;
             if (!sourceId) continue;
+            // Derived-membership precheck (`cards/registry.ts`): almost no
+            // permanent declares this kind, and the cast path asks this scan up
+            // to four times per hand card — which the ISMCTS search then pays
+            // at every node it expands. A `Set.has` answers for the whole board
+            // without one `expandDefinition`.
+            if (!declaresCastPermission(sourceId)) continue;
             const def = tryGetDefinition(sourceId);
             if (!def?.staticEffects) continue;
             for (const effect of def.staticEffects) {
@@ -247,7 +276,11 @@ export function castPermissionRequired(
 }
 
 /** Catalogue helper: every `cast-permission` static a definition declares.
- *  Used by the id-uniqueness guard and by the Bot-reachability sweep. */
+ *  Its one consumer is the catalogue-wide id-uniqueness guard
+ *  (`convex/cards/__tests__/castPermissionIds.test.ts`): `collectCastPermissions`
+ *  deduplicates by the BARE `effect.id` across every definition on both
+ *  battlefields, so two cards sharing an id would silently suppress one
+ *  another's permission. */
 export function declaredCastPermissions(
     def: CardDefinition
 ): StaticCastPermission[] {

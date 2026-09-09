@@ -28,7 +28,11 @@ import {
     collectCastPermissions,
     hasCastPermissionFlash,
 } from "../castPermissions";
-import { castPermissionRequiredFor, getLegalActions } from "../rules";
+import {
+    castPermissionRequiredFor,
+    castTimingBaseLegal,
+    getLegalActions,
+} from "../rules";
 import { getPlayer } from "../state";
 import type { CardInstanceState, GameState } from "../state";
 
@@ -315,5 +319,48 @@ describe("the timing half (CR 601.3b / 702.8a) and its mandatory pairing (CR 118
             ).not.toContain("cast");
             expect(castPermissionRequiredFor(state, "p2", card)).toBe(false);
         });
+    });
+});
+
+describe("the permission is HAND-scoped (CR 302.1 / 601.3)", () => {
+    // A permanent's cast permission widens the base "cast a creature card from
+    // their hand" permission (CR 302.1). A card in another zone is castable
+    // only under a DIFFERENT permission — Flashback, Escape, Yawgmoth's Will —
+    // which states its own cost and timing, and Aluren must leave those alone.
+    // Getting this wrong is not a missing sweetener but a DEAD END: the timing
+    // gate would grant flash the escape cast never had, the mandatory-cost
+    // predicate would then demand a free cast that does not resolve for that
+    // zone, and a legal sorcery-speed cast becomes uncastable for as long as
+    // an Aluren is on the battlefield.
+    const offWindow = () =>
+        board({
+            p2Hand: [grizzlyBears.id],
+            activePlayerId: "p1",
+            priorityPlayerId: "p2",
+        });
+
+    it("grants flash for a HAND cast and for no other zone", () => {
+        const state = offWindow();
+        const card = handCard(state, "p2");
+
+        expect(castTimingBaseLegal(state, "p2", card, "hand")).toBe(true);
+        for (const zone of ["graveyard", "exile", "library"] as const) {
+            expect(castTimingBaseLegal(state, "p2", card, zone)).toBe(false);
+            expect(hasCastPermissionFlash(state, "p2", card, zone)).toBe(false);
+        }
+    });
+
+    it("demands its alternative cost for a HAND cast and for no other zone", () => {
+        const state = offWindow();
+        const card = handCard(state, "p2");
+
+        expect(castPermissionRequiredFor(state, "p2", card, "hand")).toBe(true);
+        for (const zone of ["graveyard", "exile", "library"] as const) {
+            expect(castPermissionRequiredFor(state, "p2", card, zone)).toBe(
+                false
+            );
+            expect(castPermissionAltCosts(state, "p2", card, zone)).toEqual([]);
+            expect(collectCastPermissions(state, "p2", card, zone)).toEqual([]);
+        }
     });
 });

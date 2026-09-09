@@ -9,7 +9,9 @@
 // #2283/#2284 bot-freeze class, not a merely suboptimal line.
 
 import { describe, expect, it } from "vitest";
+import { announceCast } from "../../game";
 import { aluren } from "../../cards/sets/tmp/green";
+import { bolassCitadel } from "../../cards/sets/war/black";
 import { grizzlyBears } from "../../cards/sets/lea/green";
 import { forest } from "../../cards/sets/lea/colorless";
 import {
@@ -20,6 +22,13 @@ import {
 import { CAST_PERMISSION_ALT_COST_PREFIX } from "../castPermissions";
 import { enumerateMoves } from "../moves";
 import type { GameState } from "../state";
+import type { Id } from "../../_generated/dataModel";
+import {
+    gameStateSeed,
+    makeMutationCtx,
+    runMutation,
+    type Handler,
+} from "../../__tests__/gameMutationHarness";
 
 const ALUREN_ALT_COST_ID = `${CAST_PERMISSION_ALT_COST_PREFIX}aluren-creature-permission`;
 
@@ -127,5 +136,84 @@ describe("enumerateMoves — board cast permission (CR 601.3 / 118.9)", () => {
         expect(castMoves(state, "p1").map((m) => m.alternativeCostId)).toEqual([
             undefined,
         ]);
+    });
+});
+
+describe("the enumerated Move is one `announceCast` ACCEPTS", () => {
+    // The enumerator and the mutation are two readings of the same rules, and a
+    // Move the mutation refuses is a bot FREEZE, not a bad line: the executor
+    // announces first, `enumerateMoves` returns [] while a cast is parked, and
+    // the only exit is the abort rung. So the round trip is the guard, not the
+    // shape of the Move on its own.
+    it("round-trips every enumerated cast variant through the real mutation", async () => {
+        const state = board({ caster: "p1", forests: 2 });
+        const moves = castMoves(state, "p1");
+        expect(moves.length).toBeGreaterThan(1);
+
+        for (const move of moves) {
+            const harness = makeMutationCtx("p1", [
+                gameStateSeed(board({ caster: "p1", forests: 2 })),
+            ]);
+            await runMutation<
+                {
+                    gameId: Id<"games">;
+                    playerId: string;
+                    cardInstanceId: string;
+                    alternativeCostId?: string;
+                    chosenX?: number;
+                },
+                void
+            >(announceCast as never as Handler<never, void>, harness.ctx, {
+                gameId: "game-1" as Id<"games">,
+                playerId: "p1",
+                cardInstanceId: "bears",
+                ...(move.alternativeCostId
+                    ? { alternativeCostId: move.alternativeCostId }
+                    : {}),
+            } as never);
+            // Accepted, not necessarily resolved: a PRINTED-cost announcement
+            // parks in `pendingCast` until the mana is tapped (CR 601.2g), while
+            // the free cast owes nothing and reaches the stack immediately. Both
+            // are acceptances; a refusal would have thrown above.
+            const after = harness.state();
+            expect(
+                after.stack.length === 1 || after.pendingCast !== undefined
+            ).toBe(true);
+        }
+    });
+
+    it("offers NO permission variant to a library-top cast (CR 601.2b — one alternative method per spell)", () => {
+        // Bolas's Citadel already replaces the mana cost with life, which IS an
+        // alternative method of casting; `announceCast` refuses any alternative
+        // cost riding along with it. Before the zone was threaded into the
+        // wrapper, the permission scan defaulted to the HAND and offered one
+        // anyway — a Move rejected twice over.
+        const state = board({ caster: "p1", forests: 2 });
+        state.players[0].battlefield.push(
+            makeInstance(bolassCitadel.id, {
+                id: "citadel",
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        state.players[0].library = [
+            makeInstance(grizzlyBears.id, {
+                id: "top",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            }),
+        ];
+
+        const libraryMoves = enumerateMoves(state, "p1").filter(
+            (m) => m.kind === "cast-spell" && m.cardInstanceId === "top"
+        ) as Array<{ alternativeCostId?: string }>;
+
+        expect(libraryMoves.length).toBeGreaterThan(0);
+        expect(
+            libraryMoves.filter((m) =>
+                m.alternativeCostId?.startsWith(CAST_PERMISSION_ALT_COST_PREFIX)
+            )
+        ).toEqual([]);
     });
 });
