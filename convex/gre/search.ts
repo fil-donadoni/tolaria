@@ -1913,7 +1913,8 @@ export function policyValue(
     probe: GameState,
     botId: string,
     move: Move,
-    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
+    moverId?: string
 ): number {
     if (
         (move.kind === "cast-spell" || move.kind === "activate-ability") &&
@@ -1921,14 +1922,37 @@ export function policyValue(
     ) {
         resolveTopOfStack(probe);
     }
-    let v = evaluate(probe, botId, weights);
-    const combat = probe.combat;
+    // Issue #3293 — a SUSPENDED resolution is not a ply boundary, and scoring
+    // one is how the policy learns to want a body that is already dead.
+    //
+    // A `choice`/`mayPay` Op suspends its stack item mid-resolution (CR 608.2,
+    // `resolutionStep`), so a state carrying a pending choice is one Op into an
+    // effect whose LATER Ops are the ones that pay for it. Flash is the shape
+    // that surfaced it: "put a creature onto the battlefield" has happened, the
+    // "sacrifice it unless you pay" has not, so the 1-ply probe scores a free
+    // creature — measured 234.5 against 233.95 for passing, on a line whose
+    // settled value is −24. The greedy policy takes that bait at the choice
+    // node AND, from the `pass` branch, casts the same spell later in the
+    // rollout for the same reason, so passing never looks better either.
+    //
+    // Settling is only ever through a choice THIS mover owns
+    // (`settleStackForBreakdown`, issue #3194 — the opponent's answer is not
+    // the mover's to assume), bounded by `MAX_CHOICE_DEPTH` and the shared
+    // branch-work budget, and it leaves a state with no pending choice exactly
+    // as it was: a resolution that already completed has nothing to settle, so
+    // every position that is not mid-resolution scores byte-identically.
+    let settled = probe;
+    if (moverId && probe.stack.length > 0 && probe.pendingChoices?.length) {
+        settled = settleStackForBreakdown(probe, moverId, weights);
+    }
+    let v = evaluate(settled, botId, weights);
+    const combat = settled.combat;
     if (
         combat &&
         combat.confirmed &&
         !combat.blockersConfirmed &&
         combat.attackerIds.length > 0 &&
-        hasCastableInstant(probe, probe.activePlayerId)
+        hasCastableInstant(settled, settled.activePlayerId)
     ) {
         // Don't PRE-JUDGE the attacker's combat while the attacker holds a
         // castable trick (ADR 0021 slice 3): the held instant may swing the
@@ -1939,7 +1963,7 @@ export function policyValue(
         // Strip it so the policy holds priority and lets the actual combat (with
         // the trick) resolve downstream. Policy-only, so the shared leaf
         // magnitudes / reward band are untouched.
-        v -= declaredCombatDelta(probe, botId, weights);
+        v -= declaredCombatDelta(settled, botId, weights);
     }
     // Fold the declared block exchange in for ANY move taken at a confirmed,
     // pre-damage block — `declaredBlockDelta` reads effective P/T, so it covers
@@ -1949,7 +1973,7 @@ export function policyValue(
     // `lethalUnblockedDelta` (issue #1489) reaches this sum EXACTLY ONCE, via
     // `evaluate` above: it is deliberately not inside `declaredBlockDelta`, so
     // this third consumer of the term cannot double it to ±2·WIN_SCORE.
-    return v + declaredBlockDelta(probe, botId, weights);
+    return v + declaredBlockDelta(settled, botId, weights);
 }
 
 /** The reactive-aware rollout DEFAULT POLICY (ADR 0021 slice 2, issue #222): the
@@ -1985,7 +2009,7 @@ export function selectRolloutMove(
         // `policyValue` is from the bot's view; flip for the opponent so each
         // mover greedily maximizes ITS own reward (a competent opponent).
         const r = rewardFromValue(
-            policyValue(probe, botId, move, weights),
+            policyValue(probe, botId, move, weights, pid),
             weights
         );
         let moverReward = moverIsBot ? r : 1 - r;
@@ -2714,7 +2738,16 @@ export function settleStackForBreakdown(
     budget: { left: number } = { left: MAX_CHOICE_BRANCH_WORK }
 ): GameState {
     let guard = 0;
-    while (state.stack.length > 0 && guard++ < 16) {
+    // Issue #3293 — the loop condition is "is anything still owed", not "is the
+    // stack non-empty". A resolution that fires triggers reaches a state with
+    // an EMPTY stack and a live `trigger-order` choice (CR 603.3b APNAP
+    // ordering): the triggers are collected but not yet placed, so the old
+    // stack-only condition exited right there and threw them away. Worldspine
+    // Wurm cheated in and sacrificed measured −24, the same as a vanilla body,
+    // with its two dies triggers sitting unanswered in `pendingChoices`. A
+    // choice this mover does not own, or one no generator can answer, still
+    // breaks out below exactly as before.
+    while (guard++ < 16) {
         if (
             state.pendingTarget ||
             state.pendingCast ||
@@ -2741,8 +2774,20 @@ export function settleStackForBreakdown(
             if (!best) break;
             return best;
         }
+        if (state.stack.length === 0) break;
         resolveTopOfStack(state);
         checkStateBasedActions(state);
+        // CR 603.2 / 603.3 (issue #3293) — a resolution that KILLED something
+        // has only emitted the event; the trigger it fires reaches the stack
+        // through the engine's own scan, and without it the settle loop exits
+        // on an empty stack having thrown the payoff away. That is what made
+        // every cheat-into-play line settle to the same number no matter what
+        // was cheated in: Worldspine Wurm's three 5/5 tokens, Rukh Egg's 4/4
+        // Bird and Hill Giant's nothing all measured −24, because the dies
+        // trigger was never placed. Scanned AFTER the SBAs so a death the SBAs
+        // caused is covered too, and the loop's own `guard` bounds the extra
+        // stack items the scan can add.
+        processPendingActionTriggers(state);
     }
     return state;
 }
