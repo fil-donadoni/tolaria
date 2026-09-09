@@ -585,6 +585,29 @@ describe("land.ts — lockedEnv (review round 2, B1)", () => {
         expect(env.PATH).toBe("/usr/bin");
         expect(env.TOLARIA_ALLOW_FULL_SUITE).toBe("1");
     });
+
+    /**
+     * Issue #3286. `check:lane` gained a preflight that refuses a stale or
+     * RED tree, so a HAND-RUN pre-PR gate is not paid twice. Inside `land`
+     * that preflight must not run at all, and the exemption is load-bearing
+     * in BOTH directions:
+     *
+     *   - the preflight fetches, and a fetch inside the lock can observe a
+     *     base tip NEWER than the one `rebaseStep()` just rebased onto —
+     *     which fails the ancestry check and kills the land mid-lock, out of
+     *     a race nobody lost;
+     *   - RED is a WARNING in `land`, never a refusal, because the
+     *     fix-forward that repairs a red tip arrives THROUGH a `land`.
+     *     Refusing here would wall off the only exit from RED.
+     *
+     * Proof-of-failure: deleted the `TOLARIA_LAND_GATE` line from
+     * `lockedEnv` — this assertion went red (`undefined` !== `"1"`), and
+     * before this test existed the whole `land.test.ts` suite stayed green
+     * on that same deletion. Reverted.
+     */
+    it("exempts the embedded check:lane from its own preflight (issue #3286)", () => {
+        expect(lockedEnv(base).TOLARIA_LAND_GATE).toBe("1");
+    });
 });
 
 describe("land.ts — nested heavy gate inside the locked command", () => {

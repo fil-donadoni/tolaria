@@ -211,6 +211,39 @@ time, so a `skin` PR carries its own `check:ui` receipt and `land` re-derives
 it (ADR 0110 §4); the batch-level `check:ui` of the retired fan-out is gone
 with it.
 
+### The preflight — why `check:lane` refuses before it runs anything (issue #3286)
+
+A lane gate costs 8–17 minutes under the heavy mutex, and two conditions make
+that run worthless _before it starts_:
+
+- **HEAD is not rebased onto the base tip.** The classifier uses `base...HEAD`,
+  so it still names the right lane — but the checks run against a tree that is
+  not what will land, and the rebase afterwards produces a tree nobody has
+  gated. The gate gets paid twice.
+- **The base tip is RED.** A commit pushed by hand outside `land` can red it.
+  The session then burns a full lane gate to be told about someone else's
+  failure, and owes a fix-forward PR before its own work can land at all.
+
+Both are answerable in about two seconds — `git rev-list --count HEAD..<base>`
+and the presence of the durable `RED` marker — so `check:lane` answers them
+first and refuses with the exact next command. The fetch that refreshes the
+base ref is **non-fatal**: the gate is offline by contract, so no network
+degrades to "answer from the remote-tracking ref as it stands", never to a
+refusal.
+
+The staleness refusal has **no hatch**. Rebasing is cheap and always correct;
+an env var that let a session gate a stale tree would only serve the habit the
+refusal exists to break. The RED refusal has one, `TOLARIA_ALLOW_RED_BASE=1`,
+for the one legitimate case: a human gating the fix-forward branch itself.
+
+**`land` is exempt** (`TOLARIA_LAND_GATE=1`, set in `lockedEnv`). It already
+orders this correctly — fetch → rebase → `check:lane` → push → merge inside one
+mutex — and re-asking both questions there is actively harmful: a fetch inside
+the lock could observe a base tip newer than the one `rebaseStep()` rebased
+onto, failing the ancestry check and killing the land mid-lock; and RED must
+stay a warning in `land`, because the fix-forward that repairs a red tip
+arrives through a `land`. Refusing there would wall off the only exit from RED.
+
 ## The base branch and `release` — where the full gate went (ADR 0116)
 
 Under ADR 0110 every landing detached `health:main` after the merge: the full
