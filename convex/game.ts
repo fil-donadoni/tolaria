@@ -403,6 +403,7 @@ import {
     getManaTapOptionsDetailed,
     getFixedManaAmount,
     getFixedSacrificeManaAbility,
+    getFixedMultiColorTapManaAbility,
     hasManaAbility,
     isCreature,
     isPlaneswalker,
@@ -1992,49 +1993,85 @@ export function tapSourceIntoPayment(
     }
 
     const manaColor = getBasicLandMana(card) ?? getActivatedManaColor(card);
-    if (!manaColor) throw new Error("Card does not produce mana");
+    // CR 605.1a (issue #3263) — a FIXED tap mana ability adding 2+ DISTINCT
+    // colours in one activation ("{T}, Sacrifice this land: Add {W}{B}", a
+    // granted "{T}: Add {U}{R}") has no single `Color` for
+    // `getActivatedManaColor` to return, so this site used to reject a source
+    // `getManaTapOptionsDetailed` had just offered the auto-tapper. Resolved
+    // only when there is no single-colour answer, so every existing shape keeps
+    // its exact path.
+    const multiColorAbility = manaColor
+        ? null
+        : getFixedMultiColorTapManaAbility(card);
+    if (!manaColor && !multiColorAbility) {
+        throw new Error("Card does not produce mana");
+    }
+    // CR 605.1a — the ability this activation actually pays for and runs the
+    // riders of. `ability` is `getActivatedManaAbility`'s answer, whose filter
+    // differs from the multi-colour probe's (it does not require `cost.tap` and
+    // accepts `manaChoices` / `manaColorSource`), so on a card carrying both
+    // shapes the two can name DIFFERENT abilities — paying one ability's cost
+    // while depositing another's output. Identical to `ability` whenever the
+    // multi-colour probe found nothing, so no existing shape moves.
+    const acting = multiColorAbility ?? ability;
     // ADR 0039 / CR 605.1a — a fixed-output "Sacrifice this" mana ability
     // (Basal Thrull) sacrifices the source instead of tapping it. One-way: the
     // sacrificed source is never in `tappedLandIds` as an untappable entry.
-    const isSacrifice = ability?.cost.sacrifice === true;
+    const isSacrifice = acting?.cost.sacrifice === true;
     // CR 605.1a / 601.2f — pay the mana portion of the activation cost FIRST,
     // before any source mutation, so an unaffordable activation throws with
     // nothing changed.
-    applyManaAbilityManaCost(state, player, ability, card);
+    applyManaAbilityManaCost(state, player, acting, card);
     if (!isSacrifice) card.isTapped = true;
     // CR 106.1 / 605.1a — board-conditional output (Urza trio) is computed from
     // the controller's battlefield now and snapshotted onto `chosenMana` so the
     // untap/refund path returns the exact amount that was added.
-    const amount = getFixedManaAmount(
+    const dynamic = getDynamicManaProduced(
         card,
-        manaColor,
         player.battlefield,
         state.continuousEffects
     );
+    // CR 605.1a (issue #3263) — the multi-colour shape contributes its WHOLE
+    // `manaProduced` in one activation, exactly as
+    // `activateFixedSacrificeManaAbility` does for the tap-less sacrifice
+    // shape; the single-colour shape keeps its `getFixedManaAmount` arithmetic.
+    const base: ManaCost = manaColor
+        ? ({
+              [manaColor]: getFixedManaAmount(
+                  card,
+                  manaColor,
+                  player.battlefield,
+                  state.continuousEffects
+              ),
+          } as ManaCost)
+        : (dynamic ?? (multiColorAbility!.manaProduced as ManaCost));
     // CR 614 — Deep Water rewrites a land's produced mana to {U} (no-op for
     // non-lands / unaffected players).
-    const added = applyLandManaReplacement(state, player.id, card, {
-        [manaColor]: amount,
-    } as ManaCost);
+    const added = applyLandManaReplacement(state, player.id, card, base);
+    // CR 106.4 — the multi-colour output is ALWAYS snapshotted: it is what
+    // `refundChosenManaOutput` reverses on undo, and the single-`Color`
+    // `refundFixedManaOutput` fallback cannot express it.
     if (
-        getDynamicManaProduced(
-            card,
-            player.battlefield,
-            state.continuousEffects
-        ) ||
-        added[manaColor] === undefined
+        !isSacrifice &&
+        (!manaColor || dynamic || added[manaColor] === undefined)
     ) {
         card.chosenMana = added;
     }
     // CR 106.6 (issue #1559 review) — deposit into the parallel
     // `restrictedMana` pool when this FIXED mana ability is restricted
     // (Mishra's Workshop), instead of always crediting the fungible pool.
-    // Mirrors `tapUntap`'s already-fixed fixed-ability tap branch.
+    // Mirrors `tapUntap`'s already-fixed fixed-ability tap branch. The
+    // multi-colour branch reads its restriction and its CR 106.6 "can't be
+    // countered" rider off the RESOLVED ability, because its refund always
+    // routes through `refundChosenManaOutput`, which reverses with exactly
+    // those two — a deposit that dropped the rider would not be reversed.
     depositTappedMana(
         player,
         added,
-        getActivatedManaRestriction(card) ?? undefined,
-        undefined
+        (multiColorAbility
+            ? multiColorAbility.manaRestriction
+            : getActivatedManaRestriction(card)) ?? undefined,
+        multiColorAbility?.manaCantBeCounteredRider
     );
     // CR 605.2 — emit "tapped for mana" before the sacrifice moves the card off
     // the battlefield, so leaves-the-battlefield triggers see the mana added and
@@ -2051,7 +2088,7 @@ export function tapSourceIntoPayment(
     } else {
         // CR 603.7a / ADR 0040 — arm a control-change-on-tap rider when a
         // fixed-output tap mana source is tapped during a payment.
-        armDelayedTriggerOnTap(state, ability, card, player.id);
+        armDelayedTriggerOnTap(state, acting, card, player.id);
         tappedLandIds.push(card.id);
     }
     // CR 605.1a / 120 — unconditional fixed-mana self-damage rider (Ancient
@@ -2059,20 +2096,20 @@ export function tapSourceIntoPayment(
     // every tap regardless of the mana produced. Fires in the payment-tap
     // path too, so the ping applies whether tapped via priority (`tapUntap`)
     // or while paying a spell/ability cost (here).
-    applyUnconditionalTapSelfDamage(state, ability, card, player.id);
+    applyUnconditionalTapSelfDamage(state, acting, card, player.id);
     // CR 605.1a / 118.4 — tap mana ability life-payment cost. Fires in the
     // payment-tap path too, so the life is paid whether tapped via priority
     // (`tapUntap`) or while paying a spell/ability cost (here).
-    applyManaAbilityLifeCost(state, ability, player.id);
+    applyManaAbilityLifeCost(state, acting, player.id);
     // CR 605.1a / 118.3 — tap mana ability discard-at-random cost. Fires in
     // the payment-tap path too, so the discard applies whether tapped via
     // priority (`tapUntap`) or while paying a spell/ability cost (here).
-    applyManaAbilityDiscardCost(state, ability, player.id);
+    applyManaAbilityDiscardCost(state, acting, player.id);
     // CR 605.1a / 121.1 — mana-ability draw rider (Chromatic Sphere). Fires in
     // the payment-tap path too, whether tapped via priority (`tapUntap`) or
     // while paying a spell/ability cost (here). Unlike the riders above, this
     // one is NOT gated on `!isSacrifice` — it must fire on a sacrifice cost.
-    applyDrawCardOnTap(state, ability, player.id);
+    applyDrawCardOnTap(state, acting, player.id);
     // CR 106.4 / 605.1a — record the life paid to the inline riders (Ancient
     // Tomb, Mana Confluence) so untapForPayment can restore it. Skip on the
     // sacrifice path: the source is gone and has no untap branch.
@@ -15207,11 +15244,28 @@ export const tapUntap = mutation({
             // (Fire Sprites "{G}, {T}: Add {R}") FIRST, before any source
             // mutation, so an unaffordable activation throws with nothing
             // changed. Tap only — an untap toggle reverses the cost below.
-            if (!wasTapped)
-                applyManaAbilityManaCost(state, player, ability, card);
-            if (!isSacrifice) card.isTapped = !card.isTapped;
             const manaColor =
                 getBasicLandMana(card) ?? getActivatedManaColor(card);
+            // CR 605.1a (issue #3263) — the multi-colour fixed TAP shape, which
+            // `getActivatedManaColor` cannot name with a single `Color`. Before
+            // this branch existed the `if (manaColor)` below was simply skipped:
+            // the source was tapped and NOTHING was added to the pool. Resolved
+            // BEFORE the cost is paid, because it is the ability whose cost this
+            // activation owes — see `acting` below.
+            const multiColorAbility = manaColor
+                ? null
+                : getFixedMultiColorTapManaAbility(card);
+            // CR 605.1a — the ability this activation pays for and runs the
+            // riders of. `ability` is `getActivatedManaAbility`'s answer, whose
+            // filter differs from the multi-colour probe's, so on a card
+            // carrying both shapes the two can name DIFFERENT abilities.
+            // Identical to `ability` whenever the probe found nothing, so no
+            // existing shape moves. Mirrors `tapSourceIntoPayment`.
+            const acting = multiColorAbility ?? ability;
+            if (!wasTapped)
+                applyManaAbilityManaCost(state, player, acting, card);
+            if (!isSacrifice) card.isTapped = !card.isTapped;
+            if (multiColorAbility) tapAbility = acting;
             if (manaColor) {
                 // CR 106.1 / 605.1a — board-conditional output (Urza trio) is
                 // computed from the controller's battlefield at tap time. On
@@ -15333,6 +15387,52 @@ export const tapUntap = mutation({
                     // CR 605.4 — also refund the Wild-Growth-style bonus mana
                     // this tap added (else it stays floating: the infinite-mana
                     // leak on tap/untap).
+                    refundTapBonusMana(player, card);
+                }
+            } else if (multiColorAbility) {
+                // CR 605.1a / 106.4 (issue #3263) — the whole `manaProduced`
+                // goes in on the tap and comes back out on the untap. The
+                // output is ALWAYS snapshotted onto `chosenMana`: it is what
+                // `refundChosenManaOutput` reverses (restriction- and
+                // rider-aware, CR 106.6), and the single-`Color` refund
+                // arithmetic the branch above uses cannot express it.
+                if (!wasTapped) {
+                    const produced =
+                        getDynamicManaProduced(
+                            card,
+                            player.battlefield,
+                            state.continuousEffects
+                        ) ?? (multiColorAbility.manaProduced as ManaCost);
+                    // CR 614 — Deep Water rewrites a land's produced mana to
+                    // {U} (no-op for non-lands / unaffected players).
+                    const added = applyLandManaReplacement(
+                        state,
+                        player.id,
+                        card,
+                        produced
+                    );
+                    // Not on the sacrifice path: the source is leaving the
+                    // battlefield, so there is no untap that could claim the
+                    // refund this snapshot exists for (the choice branch guards
+                    // the same way).
+                    if (!isSacrifice) card.chosenMana = added;
+                    depositTappedMana(
+                        player,
+                        added,
+                        multiColorAbility.manaRestriction,
+                        multiColorAbility.manaCantBeCounteredRider
+                    );
+                    producedThisActivation = added;
+                    emitPermanentTapped(
+                        state,
+                        card,
+                        true,
+                        producedThisActivation
+                    );
+                } else {
+                    refundChosenManaOutput(player, card);
+                    // CR 605.4 — and the Wild-Growth-style bonus this tap
+                    // added, exactly as the single-colour untap does.
                     refundTapBonusMana(player, card);
                 }
             }

@@ -17,6 +17,7 @@ import {
     isTapLockedBySummoningSickness,
     manaActivationRequiresTap,
     hasFixedSacrificeManaAbility,
+    hasFixedMultiColorTapManaAbility,
     canAffordManaAbilityCost,
     getLandManaColor,
     getActivatedManaColor,
@@ -581,6 +582,11 @@ export function useBattlefieldVisualState(
                       // colour), so it needs its own probe or it is not
                       // clickable while paying a cost.
                       hasFixedSacrificeManaAbility(card) ||
+                      // CR 605.1a (issue #3263) — same shape of blind spot for
+                      // a FIXED TAP ability adding 2+ distinct colours: no
+                      // single `Color`, so `getActivatedManaColor` answers null
+                      // for a source the server's payment path now accepts.
+                      hasFixedMultiColorTapManaAbility(card) ||
                       getManaChoices(card) !== null;
         }
         // CR 605.3b: mana abilities require priority (outside payment).

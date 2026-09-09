@@ -613,6 +613,80 @@ export function getFixedSacrificeManaAbility(
     );
 }
 
+/** The card's FIXED-output mana ability whose cost includes {T} and whose
+ *  `manaProduced` spans 2+ DISTINCT colours in ONE activation (CR 605.1a,
+ *  issue #3263), or null — "{T}, Sacrifice this land: Add {W}{B}." with no
+ *  other mana ability to fall back on, and every granted `{T}: Add {U}{R}`.
+ *
+ *  The third sibling of {@link getActivatedManaColor} /
+ *  {@link getFixedSacrificeManaAbility}, and a SEPARATE probe for the same
+ *  reason the sacrifice one is: `getActivatedManaColor` answers "which single
+ *  `Color` does tapping this source add", and a two-colour output has no such
+ *  answer — it returned null, so every tap site read the source as producing
+ *  NOTHING (`tapSourceIntoPayment` threw "Card does not produce mana" on a
+ *  source `getManaTapOptionsDetailed` had just offered, and the priority path
+ *  tapped it for zero mana). Unlike the sacrifice shape this one IS tap-shaped,
+ *  so its callers keep the whole untap/refund apparatus — they deposit the
+ *  ability's full `ManaCost` and snapshot it onto `chosenMana`, which is what
+ *  the existing restriction-aware refund (`refundChosenManaOutput`) reverses.
+ *
+ *  Deliberately NOT consulted before `getBasicLandMana ?? getActivatedManaColor`
+ *  at any call site: a source that HAS a single-colour answer (Ancient Spring's
+ *  "{T}: Add {U}" alongside its "{T}, Sacrifice this land: Add {W}{B}") keeps
+ *  the exact path it had, and a source exposing both shapes as two options is
+ *  routed to the choice branch by `manaTapNeedsChoice` before either probe runs.
+ *
+ *  NON-DESTRUCTIVE FIRST, exactly like `getManaTapOptionsDetailed`'s
+ *  `nonSacrifice.length > 0 ? nonSacrifice : sacrifice` preference: a
+ *  `cost.sacrifice` ability is returned only when the source has no
+ *  non-sacrifice mana ability at all. Without that, a card printing its
+ *  "{T}, Sacrifice this: Add {W}{B}" leg BEFORE its single-colour "{T}: Add
+ *  {U}" would make `getActivatedManaColor` answer null (it reads the first
+ *  matching ability) while the option list still offered only the {U} — and the
+ *  fixed branch would have sacrificed the land for the player. No catalogue
+ *  card is printed in that order today; the guarantee should not depend on
+ *  print order (issue #3263 review).
+ *
+ *  "2+ distinct" is over MANA TYPES (CR 106.1b — the five colours plus
+ *  colourless), so "{T}: Add {C}{R}" is this shape too: `getActivatedManaColor`
+ *  has no single `Color` for it either.
+ *
+ *  CR 113.1 / 611.2a — POST-LAYER effective set, like every other mana probe. */
+export function getFixedMultiColorTapManaAbility(
+    card: CardInstanceState
+): ActivatedAbility | null {
+    if (abilitiesSuppressed(card)) return null;
+    const effective = getEffectiveActivatedAbilities(card);
+    const isFixedTapMana = (a: ActivatedAbility): boolean =>
+        !a.useStack &&
+        a.cost.tap === true &&
+        !!a.manaProduced &&
+        !a.manaChoices &&
+        !a.getManaChoices &&
+        !a.manaColorSource;
+    const multiColor = effective
+        .map(({ ability }) => ability)
+        .filter(
+            (a) =>
+                isFixedTapMana(a) &&
+                MANA_COLORS.filter((c) => (a.manaProduced?.[c] ?? 0) > 0)
+                    .length >= 2
+        );
+    if (multiColor.length === 0) return null;
+    const nonSacrifice = multiColor.find((a) => a.cost.sacrifice !== true);
+    if (nonSacrifice) return nonSacrifice;
+    const hasNonSacrificeManaAbility = effective.some(
+        ({ ability: a }) =>
+            !a.useStack &&
+            a.cost.sacrifice !== true &&
+            (a.manaProduced ||
+                a.manaChoices ||
+                a.getManaChoices ||
+                a.manaColorSource)
+    );
+    return hasNonSacrificeManaAbility ? null : multiColor[0];
+}
+
 /** Amount of a single color produced by a card's fixed (non-choice) tap mana
  *  ability. Basic lands and abilities without an explicit count default to 1;
  *  abilities like Sol Ring ({T}: Add {C}{C}) return 2.
