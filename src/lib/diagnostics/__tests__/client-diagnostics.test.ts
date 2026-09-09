@@ -20,6 +20,8 @@ const CONNECTED = {
     connectionRetries: 1,
     hasInflightRequests: false,
     timeOfOldestInflightRequest: null,
+    inflightMutations: 0,
+    inflightActions: 0,
 } as const;
 
 describe("client diagnostics (issue #3256)", () => {
