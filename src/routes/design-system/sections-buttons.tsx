@@ -1,6 +1,7 @@
 // Buttons: the three coexisting systems, then the proposed unified matrix.
 import { Button } from "@/components/ui/button";
 import { Section, Specimen, Sub, Where } from "./lib";
+import { V4_ZONE_CTA_PLATE } from "~/lib/board-chrome-v4";
 
 function Row({ children }: { children: React.ReactNode }) {
     return <div className="flex flex-wrap items-center gap-2">{children}</div>;
@@ -111,7 +112,9 @@ export function ButtonsSection() {
                             <button className="flex h-8 w-8 items-center justify-center rounded-full border border-accent bg-accent/10 text-accent">
                                 1
                             </button>
-                            <button className="rounded-b bg-accent-strong/90 px-2 py-1 text-xs font-bold text-white">
+                            <button
+                                className={`rounded-b px-2 py-1 ${V4_ZONE_CTA_PLATE}`}
+                            >
                                 Card overlay
                             </button>
                             <button className="rounded bg-white/10 px-2 py-1 text-xs text-white/70 hover:bg-white/20">

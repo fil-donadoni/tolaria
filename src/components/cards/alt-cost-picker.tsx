@@ -7,6 +7,14 @@ import { formatOracleText } from "~/lib/oracle-text";
 type AltCostPickerProps = {
     /** The card's alternative casting costs (CR 118.9). */
     altCosts: AlternativeCost[];
+    /** CR 601.3c / 118.9b (issue #3280) — whether paying the PRINTED mana cost
+     *  is a legal announcement right now. `false` when a board permission that
+     *  waives the mana cost is the only thing licensing the cast (Aluren, off
+     *  the caster's sorcery window): the permission's free cast is MANDATORY,
+     *  so the "Pay mana cost" row would be a click the mutation is guaranteed
+     *  to refuse and is not rendered. Server-projected
+     *  (`printedCostCastUnavailable`), never re-derived here. */
+    printedCostAvailable: boolean;
     cardName: string;
     /** Anchor position (client px) — the picker opens next to the cast card. */
     position: { x: number; y: number };
@@ -25,6 +33,7 @@ type AltCostPickerProps = {
  *  hand-rolling its own portal/clamp/row markup. */
 export default function AltCostPicker({
     altCosts,
+    printedCostAvailable,
     cardName,
     position,
     onSelect,
@@ -33,15 +42,17 @@ export default function AltCostPicker({
     return (
         <AnchoredPicker
             position={position}
-            rowCount={altCosts.length}
+            rowCount={altCosts.length + (printedCostAvailable ? 1 : 0)}
             onCancel={onCancel}
             title={cardName}
         >
-            <AnchoredPickerRow onSelect={() => onSelect(undefined)}>
-                <span className="text-display text-sm text-text">
-                    Pay mana cost
-                </span>
-            </AnchoredPickerRow>
+            {printedCostAvailable ? (
+                <AnchoredPickerRow onSelect={() => onSelect(undefined)}>
+                    <span className="text-display text-sm text-text">
+                        Pay mana cost
+                    </span>
+                </AnchoredPickerRow>
+            ) : null}
             {altCosts.map((alt) => (
                 <AnchoredPickerRow
                     key={alt.id}

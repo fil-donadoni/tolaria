@@ -11,6 +11,11 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { resolve, join, relative } from "node:path";
 import {
+    V4_ZONE_CTA,
+    V4_ZONE_CTA_DISABLED,
+    V4_ZONE_CTA_PLATE,
+} from "@/lib/board-chrome-v4";
+import {
     V3_TOKEN_GROUPS,
     V4_TOKEN_GROUPS,
     ALL_TOKEN_GROUPS,
@@ -210,6 +215,21 @@ describe("design tokens — WCAG contrast (phase 3)", () => {
         expect(
             ratio(colors["surface-base"], colors["success"])
         ).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it("zone-CTA labels pass: surface-base on accent-strong ≥4.5:1 (issue #3280)", () => {
+        // ADR 0103 retired `accent-strong` as a "brighter accent" and
+        // re-derived it off ivory, but the eight zone CTAs (exile Cast,
+        // graveyard/library Play, Flashback, Activate, companion Summon, Turn
+        // face up) kept a pre-v4 `text-white` on that plate: ~1.05:1, an
+        // invisible label while ENABLED, readable only once disabled. The
+        // shared recipe is `V4_ZONE_CTA_PLATE` (`src/lib/board-chrome-v4.ts`);
+        // this row is what keeps the pairing measured rather than eyeballed.
+        expect(
+            ratio(colors["surface-base"], colors["accent-strong"])
+        ).toBeGreaterThanOrEqual(4.5);
+        // The retired pairing, named so it can never come back quietly.
+        expect(ratio("#ffffff", colors["accent-strong"])).toBeLessThan(1.5);
     });
 
     it("the retired values stay retired (the two original failures)", () => {
@@ -659,6 +679,26 @@ describe("identity v4 — menu rows (ADR 0103 §5, issue #2731)", () => {
     });
 });
 
+/** Every `.ts`/`.tsx` under `src/`, minus `_generated` and `__tests__/`
+ *  directories — the latter's matches are permanent negative-assertion guards,
+ *  not usage. Shared by the class-string sweeps below (font-beleren, the zone
+ *  CTA plate): each one is "no NEW source file spells this by hand", and a
+ *  second copy of the walker is how the two would drift. */
+function sourceFiles(dir: string, out: string[] = []): string[] {
+    for (const entry of readdirSync(dir)) {
+        if (
+            entry === "node_modules" ||
+            entry === "_generated" ||
+            entry === "__tests__"
+        )
+            continue;
+        const full = join(dir, entry);
+        if (statSync(full).isDirectory()) sourceFiles(full, out);
+        else if (/\.tsx?$/.test(entry)) out.push(full);
+    }
+    return out;
+}
+
 describe("identity v4 — Geist is the chrome face, Beleren is card-domain only (ADR 0103 §4)", () => {
     /** The `@theme inline` block verbatim (`themeColors` only returns the
      *  hexes it matched, so a font token needs the raw text). */
@@ -733,24 +773,6 @@ describe("identity v4 — Geist is the chrome face, Beleren is card-domain only 
     // regression (a NEW styling use) still reds this test the moment it
     // lands, which is the row's only job.
     const BELEREN_RESIDUAL_CEILING = 3;
-
-    /** Every `.ts`/`.tsx` under `src/`, except this guard file (which names
-     *  the class in its own assertions) and `__tests__/` directories (whose
-     *  matches are permanent negative-assertion guards, not usage). */
-    function sourceFiles(dir: string, out: string[] = []): string[] {
-        for (const entry of readdirSync(dir)) {
-            if (
-                entry === "node_modules" ||
-                entry === "_generated" ||
-                entry === "__tests__"
-            )
-                continue;
-            const full = join(dir, entry);
-            if (statSync(full).isDirectory()) sourceFiles(full, out);
-            else if (/\.tsx?$/.test(entry)) out.push(full);
-        }
-        return out;
-    }
 
     it("the residual font-beleren sites stay at the permanent floor (doc prose only, #2734)", () => {
         const root = resolve(process.cwd(), "src");
@@ -1008,5 +1030,74 @@ describe("identity v4 — primitive recipes (ADR 0103, issue #2723)", () => {
             expect(body).toContain("background-color: var(--color-accent)");
             expect(body).toContain("color: var(--color-surface-base)");
         });
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The zone-CTA plate (ADR 0103 §3, issue #3280).
+//
+// The eight zone CTAs — exile Cast, graveyard/library Play, Flashback,
+// Activate, companion Summon, Turn face up — each carried the identical
+// hand-typed class string, `text-white` included. ADR 0103 retired
+// `accent-strong` as a "brighter accent" and re-derived it off ivory, so that
+// pairing measured ~1.05:1 and the label was invisible while ENABLED; only the
+// disabled state, which overrides the colour, could be read. The contrast row
+// above measures the tokens; this one keeps the RECIPE the single spelling, so
+// a ninth CTA cannot re-type the retired pairing.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("identity v4 — zone CTA plate (ADR 0103 §3, issue #3280)", () => {
+    it("the shared recipe pairs the ivory plate with the on-ivory graphite foreground", () => {
+        expect(V4_ZONE_CTA_PLATE).toContain("bg-accent-strong/90");
+        expect(V4_ZONE_CTA_PLATE).toContain("text-surface-base");
+        expect(V4_ZONE_CTA_PLATE).not.toContain("text-white");
+        // The bottom-edge form is the plate plus its disabled half — the shape
+        // six of the eight CTAs use verbatim.
+        expect(V4_ZONE_CTA).toContain(V4_ZONE_CTA_PLATE);
+        expect(V4_ZONE_CTA).toContain(V4_ZONE_CTA_DISABLED);
+    });
+
+    it("no source file spells `bg-accent-strong` with `text-white` by hand", () => {
+        const offenders: string[] = [];
+        for (const file of sourceFiles(resolve(process.cwd(), "src"))) {
+            const text = readFileSync(file, "utf8");
+            for (const m of text.matchAll(/className=(?:"|\{`)([^"`]*)/g)) {
+                if (
+                    m[1].includes("bg-accent-strong") &&
+                    m[1].includes("text-white")
+                ) {
+                    offenders.push(relative(process.cwd(), file));
+                }
+            }
+        }
+        expect(
+            offenders,
+            `White on \`accent-strong\` (#f7f3ea, ivory since ADR 0103) is ~1.05:1 — ` +
+                `an invisible label. Compose \`V4_ZONE_CTA\` / \`V4_ZONE_CTA_PLATE\` ` +
+                `(src/lib/board-chrome-v4.ts) instead of re-typing the string.`
+        ).toEqual([]);
+    });
+
+    it("no chrome RECIPE pairs them either", () => {
+        // The sweep above reads `className=` attributes, so a ninth CTA added
+        // as a new exported constant BESIDE `V4_ZONE_CTA_PLATE` would slip
+        // through it — the recipes are not in a `className`. This row reads the
+        // recipe module's own string literals instead, which is where a new
+        // shared skin would actually be written.
+        const recipes = readFileSync(
+            resolve(process.cwd(), "src/lib/board-chrome-v4.ts"),
+            "utf8"
+        );
+        const offenders = [...recipes.matchAll(/"([^"]*)"/g)]
+            .map((m) => m[1])
+            .filter(
+                (literal) =>
+                    literal.includes("bg-accent-strong") &&
+                    literal.includes("text-white")
+            );
+        expect(
+            offenders,
+            `A board-chrome recipe pairs white with the ivory \`accent-strong\` ` +
+                `plate (~1.05:1). The on-ivory foreground is \`text-surface-base\`.`
+        ).toEqual([]);
     });
 });

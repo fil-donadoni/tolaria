@@ -1,5 +1,6 @@
 import type { CardInstance } from "~/types/game";
 import { useHandCardCommit } from "~/hooks/useHandCardCommit";
+import { V4_ZONE_CTA } from "~/lib/board-chrome-v4";
 
 /** Play-lands-from-top-of-library affordance (CR 305.1-analog — an
  *  unconditional, player-wide permission granted by a battlefield source while
@@ -48,7 +49,7 @@ export default function LibraryPlayLandButton({
                 onPlayClick();
                 onCommitted?.();
             }}
-            className="absolute inset-x-0 bottom-0 z-30 rounded-b bg-accent-strong/90 px-1 py-1 text-xs font-bold text-white shadow hover:bg-accent-strong disabled:cursor-not-allowed disabled:bg-surface-elevated/80 disabled:text-text-muted disabled:shadow-none"
+            className={V4_ZONE_CTA}
         >
             Play
         </button>

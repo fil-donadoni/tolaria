@@ -20,6 +20,7 @@ import {
 import type { CardInstance } from "~/types/game";
 import ModePicker from "~/components/cards/mode-picker";
 import AltCostPicker from "~/components/cards/alt-cost-picker";
+import { isCastPermissionAltCostId } from "@convex/gre/castPermissions";
 import PhyrexianPicker from "~/components/cards/phyrexian-picker";
 import AdditionalCostPicker from "~/components/cards/additional-cost-picker";
 import CastCostDialog from "~/components/cards/cast-cost-dialog";
@@ -42,9 +43,17 @@ type AltCostPickerState = {
     keepPriority: boolean | undefined;
     position: { x: number; y: number };
     /** The alternative costs the caster can currently afford (CR 118.9) — the
-     *  picker offers exactly these plus "Pay mana cost". Filtered at open time
-     *  so a condition-failing / unaffordable alt is never shown. */
+     *  picker offers exactly these, plus "Pay mana cost" when
+     *  {@link printedCostAvailable}. Filtered at open time so a
+     *  condition-failing / unaffordable alt is never shown. */
     altCosts: AlternativeCost[];
+    /** CR 601.3c / 118.9b (issue #3280) — whether paying the PRINTED mana cost
+     *  is a legal announcement right now. `false` under a board permission that
+     *  waives the mana cost off the caster's sorcery window (Aluren), where the
+     *  free cast is mandatory; the picker then omits its "Pay mana cost" row.
+     *  Read from the server-projected `printedCostCastUnavailable`, never
+     *  re-derived (ADR 0074). */
+    printedCostAvailable: boolean;
 };
 
 /** CR 601.2b / 118.8 — open state for the caster-chosen ADDITIONAL-cost picker
@@ -347,6 +356,21 @@ export function useHandCardCommit(
         // `castManaCostReplaced` stays: CR 601.2b — a library-top cast under a
         // cost-replacing permission (Bolas's Citadel) IS an alternative method
         // of casting, and no second one may ride along.
+        //
+        // CR 601.3c / 118.9b (issue #3280) — the printed-cost cast is itself
+        // one of the picker's OPTIONS, and it is not always legal. When a board
+        // permission (Aluren) is the only thing licensing this cast right now,
+        // its free cast is MANDATORY and paying the printed cost is illegal:
+        // the server says so through `printedCostCastUnavailable`, projected
+        // from the very predicate `announceCast` rejects on and the Bot's
+        // enumerator suppresses the printed-cost move on. The client reads that
+        // answer, it does not re-derive cast timing (ADR 0074).
+        //
+        // With the printed cost counted as an option, the rule the picker
+        // follows is the same one every other picker here follows: offer only
+        // what is legal, and never open for a decision that has ONE outcome. A
+        // single surviving option dispatches straight through, exactly as a
+        // card with no options at all casts on click today.
         if (!cardInstance.castManaCostReplaced) {
             const affordableAlts = affordableAltCostsForCard(
                 cardInstance,
@@ -354,7 +378,39 @@ export function useHandCardCommit(
                 allPlayers,
                 activePlayerId
             );
-            if (affordableAlts.length > 0) {
+            const printedCostAvailable =
+                !cardInstance.printedCostCastUnavailable;
+            // CR 118.9b — the printed cost is not the only row the permission
+            // forbids. `announceCast` refuses EVERY `alternativeCostId` that is
+            // not the permission's own, so the card's declared alternative
+            // costs (evoke / dash / bestow / morph) are equally illegal here —
+            // and six shipped creatures at mana value 3 or less carry one
+            // (Endurance, Vibrance, Wistfulness, Ragavan, Death-Greeter's
+            // Champion, Springheart Nantuko), so this is reachable in the
+            // shipped pool, not a hypothetical. Filtering only the printed row
+            // left Ragavan's "Dash" standing under Aluren, one click from the
+            // same rejection this whole change exists to remove.
+            const options = printedCostAvailable
+                ? affordableAlts
+                : affordableAlts.filter((alt) =>
+                      isCastPermissionAltCostId(alt.id)
+                  );
+            const optionCount = options.length + (printedCostAvailable ? 1 : 0);
+            if (!printedCostAvailable && options.length === 1) {
+                // The permission's free cast is the only legal announcement —
+                // no picker, no click on a row the mutation would refuse.
+                commitAnnounceCast({
+                    chosenX,
+                    keepPriority,
+                    chosenModeId: undefined,
+                    alternativeCostId: options[0].id,
+                    kickerPayments,
+                    buyback,
+                    payFlashSurcharge,
+                });
+                return;
+            }
+            if (optionCount >= 2 && options.length > 0) {
                 setAltCostPickerState({
                     chosenX,
                     kickerPayments,
@@ -362,10 +418,20 @@ export function useHandCardCommit(
                     payFlashSurcharge,
                     keepPriority,
                     position,
-                    altCosts: affordableAlts,
+                    altCosts: options,
+                    printedCostAvailable,
                 });
                 return;
             }
+            // `optionCount === 0` falls through to the plain announcement
+            // below, where the server's own CR 118.9b rejection stands as
+            // defense-in-depth. It is unreachable as written — the flag is set
+            // only by a covering permission that waives the mana cost, and
+            // `castOptionAlternativeCosts` emits that same permission into the
+            // list the client reads here, so the filter above always keeps at
+            // least one row. Left as a fall-through rather than a client-side
+            // refusal: inventing one would be the second copy of the timing
+            // rules this field exists to avoid.
         }
         // CR 601.2b / 118.8 — a spell with a CASTER-CHOSEN additional cost
         // ("As an additional cost to cast this spell, discard a card or pay 3
@@ -454,9 +520,20 @@ export function useHandCardCommit(
         // (CR 202.3e prices the card at X = 0 off the stack). The `payXLife`
         // ADDITIONAL cost (Toxic Deluge, Fire Covenant) is unaffected — it is
         // not part of the replaced mana cost, so its X is still chosen here.
+        //
+        // CR 107.3b (issue #3280) — the SAME clamp, for the same reason, on the
+        // board-permission free cast beside it: `announceCast` locks X to 0 for
+        // any cast made under a `cast-permission` alternative cost, and off the
+        // caster's sorcery window that free cast is the ONLY legal announcement
+        // (`printedCostCastUnavailable`). So there is no X to collect there
+        // either, and the stepper was inviting a value the mutation throws on
+        // ("The only legal choice for X is 0…") — Balduvian Hydra and Rock
+        // Hydra are both {X}{R}{R} at mana value 2 in hand, inside the shipped
+        // permission's "mana value 3 or less" filter.
         const hasX =
             (typeof def.manaCost?.X === "string" &&
-                !cardInstance.castManaCostReplaced) ||
+                !cardInstance.castManaCostReplaced &&
+                !cardInstance.printedCostCastUnavailable) ||
             def.additionalCosts?.payXLife === true;
         const anchor = e.currentTarget as HTMLElement | null;
         const rect = anchor?.getBoundingClientRect();
@@ -559,6 +636,7 @@ export function useHandCardCommit(
         altCostPickerState && altCostPickerState.altCosts.length > 0 ? (
             <AltCostPicker
                 altCosts={altCostPickerState.altCosts}
+                printedCostAvailable={altCostPickerState.printedCostAvailable}
                 cardName={def.name}
                 position={altCostPickerState.position}
                 onSelect={(altCostId) => {
