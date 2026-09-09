@@ -375,7 +375,7 @@ describe("Teferi's Response — conjunctive targeted-permanent clause (issue #27
         // Satisfies `controller: "you"` but not `types: "Land"`.
         expect(clickable).not.toContain(ids.onMyBear);
         // …and the top-level `controller: "opponent"` still bites: your own
-        // spell, targeting your own land, is never a legal target (CR 109.3).
+        // spell, targeting your own land, is never a legal target (CR 109.4).
         expect(clickable).not.toContain(ids.mineOnMyLand);
     });
 

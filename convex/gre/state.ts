@@ -3485,7 +3485,7 @@ export type PendingTarget = {
      *  granted counter ability. Ignored for non-spell target types. */
     spellWouldDestroyLandYouControl?: boolean;
     /** Restricts legal SPELL targets to stack objects that THEMSELVES target
-     *  a permanent matching EVERY clause at once (CR 114.1 / 109.2).
+     *  a permanent matching EVERY clause at once (CR 115.2 / 109.2).
      *  Propagated from TargetRequirement.spellTargetsPermanentFilter (already
      *  LOWERED — `types` is normalized to an array). Used by Confound
      *  ("counter target spell that targets a creature") and Teferi's Response

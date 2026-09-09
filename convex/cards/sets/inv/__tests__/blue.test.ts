@@ -1742,7 +1742,7 @@ describe("Faerie Squadron (Kicker → two +1/+1 counters + flying; CR 702.33 / 1
 // Two general pieces meet here and each is proven on BOTH sides of its own
 // contract:
 //
-//   `spellTargetsPermanentFilter` (CR 114.1 / 109.2) — the CONJUNCTIVE
+//   `spellTargetsPermanentFilter` (CR 115.2 / 109.2) — the CONJUNCTIVE
 //   targeted-permanent clause. The must-NOT rows are the point: a candidate
 //   targeting a land an OPPONENT controls, and one targeting a permanent you
 //   control that is not a land, each satisfy exactly ONE clause and must be
@@ -1884,7 +1884,7 @@ describe("Teferi's Response (issue #2708)", () => {
         }
     }
 
-    // ── The targeted-permanent clause (CR 114.1 / 109.2)
+    // ── The targeted-permanent clause (CR 115.2 / 109.2)
 
     it("OFFERS an opponent's ability that targets a land you control", () => {
         const state = board();
@@ -1914,7 +1914,7 @@ describe("Teferi's Response (issue #2708)", () => {
         expect(offered(state)).not.toContain(icyAbility.id);
     });
 
-    it("does NOT offer YOUR OWN spell that targets your land (CR 109.3 — an opponent must control it)", () => {
+    it("does NOT offer YOUR OWN spell that targets your land (CR 109.4 — an opponent must control it)", () => {
         const state = board();
         const rain = pushSpell(state, stoneRainDef.id, "p1", [
             { type: "permanent", id: "myLand" },

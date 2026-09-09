@@ -689,7 +689,7 @@ export interface TargetRequirement {
     spellSingleTargetingController?: boolean;
     /** Restricts a stack-object target (`type: "spell"`) to objects that
      *  THEMSELVES target at least one PERMANENT matching EVERY clause below
-     *  (CR 114.1 — Confound's "Counter target spell that targets a creature";
+     *  (CR 115.2 — Confound's "Counter target spell that targets a creature";
      *  Teferi's Response's "target spell or ability an opponent controls that
      *  targets a land you control"). The filter reads the candidate stack
      *  item's own chosen `targets`, resolves each `"permanent"` selection
@@ -714,7 +714,7 @@ export interface TargetRequirement {
      *    type (OR across the list). Single string is shorthand for one type.
      *  - `controller` — the witness's LIVE controller, read the same way
      *    every other `controller` filter reads it (`matchesBattlefieldController`,
-     *    CR 109.3): `"you"` / `"opponent"` are relative to the player CHOOSING
+     *    CR 109.4): `"you"` / `"opponent"` are relative to the player CHOOSING
      *    the target, not to the stack object's controller. Note the two
      *    controllers are independent: Teferi's Response constrains the stack
      *    object with the top-level `controller: "opponent"` and its TARGET

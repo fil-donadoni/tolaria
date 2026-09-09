@@ -1209,7 +1209,7 @@ const spellSingleTargetingControllerDescriptor = defineFilter<boolean>({
     },
 });
 
-// CR 114.1 / 109.2 — a SPELL-PROPERTY filter (issue #1956, generalized to a
+// CR 115.2 / 109.2 — a SPELL-PROPERTY filter (issue #1956, generalized to a
 // conjunction by issue #2708): the chosen stack object must itself target at
 // least one permanent matching EVERY clause AT ONCE — "Counter target spell
 // that targets a creature" (Confound), "counter target spell or ability an
@@ -1229,7 +1229,7 @@ const spellSingleTargetingControllerDescriptor = defineFilter<boolean>({
 // Confound's own target go illegal, CR 608.2b). The `controller` clause reads
 // the witness's LIVE `controllerId` through the same
 // `matchesBattlefieldController` predicate every other controller filter uses
-// (CR 109.3), relative to the CHOOSER — never to the candidate's own
+// (CR 109.4), relative to the CHOOSER — never to the candidate's own
 // controller, which the top-level `controller` filter constrains separately.
 // Fail-CLOSED: an untargeted spell has no targets and never qualifies.
 const spellTargetsPermanentFilterDescriptor = defineFilter<{
