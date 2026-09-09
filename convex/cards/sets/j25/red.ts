@@ -3,12 +3,7 @@
 // j25/index.ts. Cards are classified by the colour identity of their mana cost
 // (CR 202.2).
 
-import type {
-    CardDefinition,
-    GameEvent,
-    PermanentView,
-    TriggerStateView,
-} from "../../types";
+import type { CardDefinition, GameEvent, PermanentView } from "../../types";
 import { createBloodTokenOp } from "../../abilities/tokens/bloodToken";
 import {
     isDamageDealtEvent,
@@ -78,11 +73,7 @@ export const ivoraInsatiableHeir: CardDefinition = {
             oracleText: IVORA_BLOOD_TRIGGER,
             // CR 603.2 — one Oracle sentence, two engine events.
             event: ["PERMANENT_ENTERED", "DAMAGE_DEALT"],
-            matches: (
-                event: GameEvent,
-                self: PermanentView,
-                _state?: TriggerStateView
-            ): boolean => {
+            matches: (event: GameEvent, self: PermanentView): boolean => {
                 if (event.type === "PERMANENT_ENTERED") {
                     return event.instanceId === self.id;
                 }
