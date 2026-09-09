@@ -239,6 +239,20 @@ describe("land.ts — the locked command", () => {
         );
     });
 
+    it("seeds AFTER the primary checkout catches up (issue #3253)", () => {
+        // `seedScenarioDirect` resolves card names server-side against the
+        // DEPLOYED bundle, and the bundle can only hold what is on DISK in the
+        // primary checkout. Seeding before the fast-forward seeds against the
+        // PRE-merge tree, so a scenario naming the PR's own new card can never
+        // resolve — deterministic, not a race, and it silently lost 10 of 14
+        // specs before this order was fixed.
+        const cmd = buildLockedCommand(base);
+        const ffIdx = cmd.indexOf(primaryBranchFastForwardStep("/repo"));
+        const seedIdx = cmd.indexOf("seed-scenario.ts");
+        expect(ffIdx).toBeGreaterThan(-1);
+        expect(seedIdx).toBeGreaterThan(ffIdx);
+    });
+
     it("does not seed at all without a merge (--no-merge gates and pushes only)", () => {
         const cmd = buildLockedCommand({ ...base, merge: false });
         expect(cmd).not.toContain("seed-scenario.ts");
