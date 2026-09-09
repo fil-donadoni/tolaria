@@ -2030,6 +2030,25 @@ describe("Teferi's Response (issue #2708)", () => {
         expect(state.players[1].battlefield.map((c) => c.id)).toContain("icy");
     });
 
+    // The ability gate is what makes "a countered SPELL binds nothing" TRUE
+    // rather than merely true-so-far: in a real game a spell on the stack is
+    // never also on a battlefield, so the binding's battlefield re-check hides
+    // the gate. This state constructs exactly that collision — a countered
+    // SPELL whose stack-item id matches a permanent — so the only thing that
+    // can reject it is the `abilityId`/`triggeredAbilityId` discrimination
+    // itself (CR 701.6a: a spell has no permanent source).
+    it("a countered SPELL binds nothing even when its stack id names a permanent (the ability gate, isolated)", () => {
+        const state = board();
+        const rain = pushSpell(state, stoneRainDef.id, "p2", [
+            { type: "permanent", id: "myLand" },
+        ]);
+        rain.id = "icy"; // the collision the battlefield check would miss
+        resolveResponse(state, "icy");
+
+        expect(state.players[1].battlefield.map((c) => c.id)).toContain("icy");
+        expect(state.players[0].hand).toHaveLength(2);
+    });
+
     it("wire format: the countered ability is gone and the destroyed source is off the projected battlefield", () => {
         const state = board();
         const icyAbility = pushIcyActivation(state, "myLand");
