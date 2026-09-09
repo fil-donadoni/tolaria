@@ -59,9 +59,12 @@ describe("cast-permission ids (CR 601.3)", () => {
 
         expect(wrong).toEqual([]);
         // Premise: a catalogue that failed to load would pass vacuously, and
-        // so would one where nothing declares a permission at all.
+        // so would one where nothing declares a permission at all. The floor
+        // is above ONE because the compiled pool registers its own rows
+        // (`cards/catalogue.ts`) — a run seeing only the hand-written Aluren
+        // has lost them, and with them everything this guard is for.
         expect(scanned).toBeGreaterThan(1000);
-        expect(permissions).toBeGreaterThan(0);
+        expect(permissions).toBeGreaterThan(1);
     });
 
     it("two permissions sharing an id have the same clause", () => {
