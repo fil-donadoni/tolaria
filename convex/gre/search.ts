@@ -2738,16 +2738,7 @@ export function settleStackForBreakdown(
     budget: { left: number } = { left: MAX_CHOICE_BRANCH_WORK }
 ): GameState {
     let guard = 0;
-    // Issue #3293 — the loop condition is "is anything still owed", not "is the
-    // stack non-empty". A resolution that fires triggers reaches a state with
-    // an EMPTY stack and a live `trigger-order` choice (CR 603.3b APNAP
-    // ordering): the triggers are collected but not yet placed, so the old
-    // stack-only condition exited right there and threw them away. Worldspine
-    // Wurm cheated in and sacrificed measured −24, the same as a vanilla body,
-    // with its two dies triggers sitting unanswered in `pendingChoices`. A
-    // choice this mover does not own, or one no generator can answer, still
-    // breaks out below exactly as before.
-    while (guard++ < 16) {
+    while (state.stack.length > 0 && guard++ < 16) {
         if (
             state.pendingTarget ||
             state.pendingCast ||
@@ -2774,20 +2765,8 @@ export function settleStackForBreakdown(
             if (!best) break;
             return best;
         }
-        if (state.stack.length === 0) break;
         resolveTopOfStack(state);
         checkStateBasedActions(state);
-        // CR 603.2 / 603.3 (issue #3293) — a resolution that KILLED something
-        // has only emitted the event; the trigger it fires reaches the stack
-        // through the engine's own scan, and without it the settle loop exits
-        // on an empty stack having thrown the payoff away. That is what made
-        // every cheat-into-play line settle to the same number no matter what
-        // was cheated in: Worldspine Wurm's three 5/5 tokens, Rukh Egg's 4/4
-        // Bird and Hill Giant's nothing all measured −24, because the dies
-        // trigger was never placed. Scanned AFTER the SBAs so a death the SBAs
-        // caused is covered too, and the loop's own `guard` bounds the extra
-        // stack items the scan can add.
-        processPendingActionTriggers(state);
     }
     return state;
 }
