@@ -39,6 +39,9 @@ import {
 import { grizzlyBears, island, lightningBolt } from "@convex/cards/sets/lea";
 import { stoneRain } from "@convex/cards/sets/lea/red";
 import { confound } from "@convex/cards/sets/pls/blue";
+import { teferisResponse } from "@convex/cards/sets/inv/blue";
+import { icyManipulator } from "@convex/cards/sets/lea/colorless";
+import { buildActivatedAbilityStackItem } from "@convex/gre/activationCommit";
 import { urzasRage } from "@convex/cards/sets/inv/red";
 import type { TargetRequirement } from "@convex/cards/types";
 import type { GameState } from "@convex/gre/state";
@@ -243,7 +246,7 @@ describe("spell-property target filters — server offered set == client clickab
         expect(
             matchesSpellPendingTarget(
                 { id: "s1", card: { id: "x" } },
-                pt({ spellTargetsTypeFilter: ["Creature"] }),
+                pt({ spellTargetsPermanentFilter: { types: ["Creature"] } }),
                 ctx
             )
         ).toBe(false);
@@ -254,7 +257,7 @@ describe("spell-property target filters — server offered set == client clickab
                     card: { id: "x" },
                     targets: [{ type: "player", id: "p1" }],
                 },
-                pt({ spellTargetsTypeFilter: ["Creature"] }),
+                pt({ spellTargetsPermanentFilter: { types: ["Creature"] } }),
                 ctx
             )
         ).toBe(false);
@@ -287,5 +290,133 @@ describe("spell-property target filters — server offered set == client clickab
                 ctx
             )
         ).toBe(true);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Teferi's Response — the CONJUNCTIVE targeted-permanent clause (issue #2708).
+//
+// The clause is `{ types: "Land", controller: "you" }`, and the client mirror
+// has to enforce BOTH halves against the same witness. Its half of the state is
+// the PROJECTION, so the assertion that matters is not "the mirror agrees on a
+// legal item" but "the mirror agrees on the two items that satisfy exactly ONE
+// clause each" — a land an opponent controls, and a non-land you control.
+// Those are precisely the items two independent filter keys would have let
+// through, and precisely the ones a projection that dropped `controllerId`
+// would misjudge.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("Teferi's Response — conjunctive targeted-permanent clause (issue #2708)", () => {
+    const REQ = teferisResponse.targetRequirement!;
+
+    function board(): { state: GameState; ids: Record<string, string> } {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    life: 20,
+                    battlefield: [
+                        makeInstance(island.id, {
+                            id: "myLand",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                        makeInstance(grizzlyBears.id, {
+                            id: "myBear",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    life: 20,
+                    battlefield: [
+                        makeInstance(island.id, {
+                            id: "theirLand",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                        makeInstance(icyManipulator.id, {
+                            id: "icy",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        const onMyLand = pushSpell(state, stoneRain.id, "p2", [
+            { type: "permanent", id: "myLand" },
+        ]);
+        const onTheirLand = pushSpell(state, stoneRain.id, "p2", [
+            { type: "permanent", id: "theirLand" },
+        ]);
+        const onMyBear = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "permanent", id: "myBear" },
+        ]);
+        const mineOnMyLand = pushSpell(state, stoneRain.id, "p1", [
+            { type: "permanent", id: "myLand" },
+        ]);
+        // An ABILITY on the stack, built by the production builder — the half
+        // `spellStackKind: "any"` exists for, and the half the client mirror
+        // had no coverage of at all (PR #3279 review): every other candidate
+        // here is a spell, so a client that admitted only spells would have
+        // agreed with the server on all of them.
+        const icy = state.players[1].battlefield.find((c) => c.id === "icy")!;
+        const abilityOnMyLand = buildActivatedAbilityStackItem(icy, {
+            castById: "p2",
+            abilityId: "icy-manipulator-tap",
+            targets: [{ type: "permanent", id: "myLand" }],
+        });
+        state.stack.push(abilityOnMyLand);
+        return {
+            state,
+            ids: {
+                onMyLand: onMyLand.id,
+                onTheirLand: onTheirLand.id,
+                onMyBear: onMyBear.id,
+                mineOnMyLand: mineOnMyLand.id,
+                abilityOnMyLand: abilityOnMyLand.id,
+            },
+        };
+    }
+
+    it("client clickability EQUALS the server's offered set, item for item", () => {
+        const { state, ids } = board();
+        const clickable = clientClickable(state, REQ);
+        expect(clickable).toEqual(serverOffered(state, REQ));
+        expect(clickable).toEqual([ids.onMyLand, ids.abilityOnMyLand]);
+    });
+
+    it("an opponent's ABILITY targeting your land is clickable too (spellStackKind: any)", () => {
+        const { state, ids } = board();
+        expect(clientClickable(state, REQ)).toContain(ids.abilityOnMyLand);
+    });
+
+    it("the two ONE-CLAUSE items are rejected on the client too (what two independent keys would have admitted)", () => {
+        const { state, ids } = board();
+        const clickable = clientClickable(state, REQ);
+        // Satisfies `types: "Land"` but not `controller: "you"`.
+        expect(clickable).not.toContain(ids.onTheirLand);
+        // Satisfies `controller: "you"` but not `types: "Land"`.
+        expect(clickable).not.toContain(ids.onMyBear);
+        // …and the top-level `controller: "opponent"` still bites: your own
+        // spell, targeting your own land, is never a legal target (CR 109.4).
+        expect(clickable).not.toContain(ids.mineOnMyLand);
+    });
+
+    it("the projected battlefield really carries the controller the clause reads", () => {
+        const { state } = board();
+        const projected = projectPublicState(state, 1, "p1");
+        const land = projected.players[0].battlefield.find(
+            (c) => c.id === "myLand"
+        )!;
+        expect(land.controllerId).toBe("p1");
+    });
+
+    it("stack-spell selection is enabled and the prompt names an ability too (spellStackKind: any)", () => {
+        expect(wantsSpellTarget(REQ.type)).toBe(true);
+        expect(
+            pendingTargetFiltersFromRequirement(REQ, undefined).spellStackKind
+        ).toBe("any");
     });
 });

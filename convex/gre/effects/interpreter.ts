@@ -5324,8 +5324,23 @@ export const OP_EXECUTORS: {
             "target" in op.target
                 ? resolveTargetRef(ctx, op.target)
                 : resolveStackObjectRef(ctx, op.target);
-        if (target && target.type === "spell")
-            ctx.counter(target, op.destination);
+        if (!target || target.type !== "spell") return;
+        const outcome = ctx.counter(target, op.destination);
+        // CR 113.7a (issue #2708) — `bindSource` snapshots the PERMANENT whose
+        // ability was just countered, so Teferi's Response's "if a permanent's
+        // ability is countered this way, destroy that permanent" is a plain
+        // `destroy` on `{ ref: "$..." }` rather than a rider inside this Op.
+        // The primitive is the authority on both halves of that condition: a
+        // "can't be countered" fizzle (CR 113.6g) and a countered SPELL both
+        // come back without a source id, and an UNWRITTEN binding already
+        // makes every later `ref` skip its own Op — so the oracle's "if" needs
+        // no `if` construct.
+        if (op.bindSource && outcome.abilitySourcePermanentId) {
+            bindSnapshot(ctx, op.bindSource, {
+                type: "permanent",
+                id: outcome.abilitySourcePermanentId,
+            });
+        }
     },
     // CR 701.6-adjacent (issue #2605) — move the announced target spell off the
     // stack into a zone of its OWNER's WITHOUT countering it (Reprieve: "return

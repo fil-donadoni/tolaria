@@ -37,7 +37,12 @@
 //
 //   ONE-OFF PRIMITIVE GAPS, on the INV assorted-gaps slice #1332:
 //     Barrin's Unmaking, Essence Leak, Mana Maze, Psychic Battle,
-//     Teferi's Response, Temporal Distortion
+//     Temporal Distortion
+//
+//   SHIPPED by issue #2708: Teferi's Response is no longer a stub — both of
+//   its blockers landed as general pieces (`spellTargetsPermanentFilter`, the
+//   conjunctive form of Confound's old `spellTargetsTypeFilter`, and
+//   `counter`'s `bindSource`). See its active `CardDefinition` below.
 //
 // Two of those markers carried claims this audit disproved outright and
 // corrected in place: Essence Leak's (`MayPayCost` has had a dynamic form
@@ -1232,27 +1237,75 @@ export const swayOfIllusion: CardDefinition = {
     ],
 };
 
-// Teferi's Response — "Counter target spell or ability an opponent controls
-// that targets a land you control. If a permanent's ability is countered
-// this way, destroy that permanent. Draw two cards."
+// Teferi's Response — {1}{U} Instant. "Counter target spell or ability an
+// opponent controls that targets a land you control. If a permanent's ability
+// is countered this way, destroy that permanent. Draw two cards."
+// (CR 701.6a counter — note the KEYWORD-ACTION section is 701.6, not the
+// 701.5 "Cast" the filing issue cited; Wizards renumbers the 701 block
+// alphabetically. CR 113.7a — an ability on the stack is not its source.)
 //
-// NARROWED 2026-08-25 (#1841 audit): the old marker also claimed
-// "countering an ACTIVATED/TRIGGERED ability (not just a spell) is unbuilt".
-// WRONG at HEAD — Stifle (`convex/cards/sets/scg/blue.ts`) ships exactly
-// that today with `targetRequirement: { type: "spell", spellStackKind:
-// "ability" }` + the `counter` Op, and `spellStackKind` also has an
-// `"activated-ability"` member. The surviving blockers are narrower: no
-// target requirement expresses "spell or ability that TARGETS A LAND YOU
-// CONTROL", and no Op expresses the "if a permanent's ability is countered
-// this way, destroy that permanent" rider.
-// tracked-by: #1332
-// export const teferisResponse: CardDefinition = {
-//     id: "f3bb2df8-c559-4a34-83b0-d48fbc694cc8",
-//     name: "Teferi's Response",
-//     rarity: "rare",
-//     manaCost: { X: 1, U: 1 },
-//     types: ["Instant"],
-// };
+// SHIPPED by issue #2708. The two blockers the #1841 audit left standing are
+// both closed as GENERAL pieces, neither card-shaped:
+//
+//   1. "that targets a land you control" is
+//      `spellTargetsPermanentFilter: { types: "Land", controller: "you" }` —
+//      the registry filter (ADR 0068) Confound's old `spellTargetsTypeFilter`
+//      generalized into. It had to become ONE key holding a CONJUNCTION:
+//      `checkSpellTargetFilters` runs each key independently, so a separate
+//      type key and controller key would admit a spell targeting your
+//      creature and an OPPONENT's land — fail-open. One key, one witness.
+//   2. "if a permanent's ability is countered this way, destroy that
+//      permanent" is `counter`'s new `bindSource` (CR 113.7a) plus a plain
+//      `destroy` on the binding — no rider Op, no `resolve()`. The binding is
+//      written only when the counter actually happened AND the object was a
+//      permanent's ability AND that source is still on the battlefield, so
+//      the oracle's "if" needs no `if` construct: an unwritten binding makes
+//      the `destroy` skip itself (CR 608.2b, the uncaptured-binding
+//      contract).
+//
+// The two `controller` clauses are independent and both are needed: the
+// top-level one constrains WHO CONTROLS the stack object (an opponent, CR
+// 109.3 read off `castById`), the one inside `spellTargetsPermanentFilter`
+// constrains who controls the LAND it targets (you). `spellStackKind: "any"`
+// is what makes "spell OR ability" literal — the default admits spells only
+// (CR 701.6a), and Stifle's `"ability"` would admit only the other half.
+//
+// The draw is a SEPARATE sentence, unconditional on the counter succeeding:
+// a "can't be countered" target (CR 113.6g) still leaves Teferi's Response
+// resolving, the `counter` Op fizzling, the `destroy` skipping an unwritten
+// binding, and the `draw` running.
+//
+// The Oracle-compiler grammar (PRD #2693) has no production for either half of
+// the first line — neither the "that targets <permanent clause>" spell-property
+// restriction nor the "if a permanent's ability is countered this way" rider —
+// so the card is hand-written and declares the gap. The `draw` half compiles
+// fine; the marker names only what the grammar cannot consume.
+// compiler-gap: "Counter target spell or ability an opponent controls that targets a land you control. If a permanent's ability is countered this way, destroy that permanent." (#2693)
+export const teferisResponse: CardDefinition = {
+    id: "f3bb2df8-c559-4a34-83b0-d48fbc694cc8",
+    name: "Teferi's Response",
+    rarity: "rare",
+    oracleText:
+        "Counter target spell or ability an opponent controls that targets a land you control. If a permanent's ability is countered this way, destroy that permanent.\nDraw two cards.",
+    manaCost: { X: 1, U: 1 },
+    types: ["Instant"],
+    targetRequirement: {
+        type: "spell",
+        count: 1,
+        controller: "opponent",
+        spellStackKind: "any",
+        spellTargetsPermanentFilter: { types: "Land", controller: "you" },
+    },
+    effects: [
+        {
+            op: "counter",
+            target: { target: 0 },
+            bindSource: "$counteredSource",
+        },
+        { op: "destroy", target: { ref: "$counteredSource" } },
+        { op: "draw", player: "controller", count: 2 },
+    ],
+};
 
 // Temporal Distortion — "Whenever a creature or land becomes tapped, put an
 // hourglass counter on it. Each permanent with an hourglass counter on it

@@ -36,7 +36,13 @@ import {
     runDamageReplacement,
     stopApplyingStaticEffects,
     type GameState,
+    type StackItem,
 } from "../../../../gre/state";
+import {
+    getLegalTargets,
+    NO_TARGETING_SOURCE,
+    pendingTargetFiltersFromRequirement,
+} from "../../../../gre/rules";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import {
     applyMayPaySubmit,
@@ -54,11 +60,14 @@ import {
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
 import {
+    applyOneTargetSelection,
     beginAttackManaTax,
     tryCommitAttackManaTax,
     tapSourceIntoPayment,
 } from "../../../../game";
 import { resolveActivated, resolveTrigger, submitChoice } from "./helpers";
+import { buildActivatedAbilityStackItem } from "../../../../gre/activationCommit";
+import type { CardDefinition } from "../../../types";
 import { getDefinition } from "../../../index";
 
 const blindSeer = getDefinition("5c54ec26-c7f1-4258-9cc9-1709987f293c");
@@ -1724,5 +1733,387 @@ describe("Faerie Squadron (Kicker → two +1/+1 counters + flying; CR 702.33 / 1
             (c) => c.id === squadron.id
         )!;
         expect(slimSquadron.staticAbilities).toContain("flying");
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Teferi's Response — "Counter target spell or ability an opponent controls
+// that targets a land you control. If a permanent's ability is countered this
+// way, destroy that permanent. Draw two cards." (issue #2708)
+//
+// Two general pieces meet here and each is proven on BOTH sides of its own
+// contract:
+//
+//   `spellTargetsPermanentFilter` (CR 115.2 / 109.2) — the CONJUNCTIVE
+//   targeted-permanent clause. The must-NOT rows are the point: a candidate
+//   targeting a land an OPPONENT controls, and one targeting a permanent you
+//   control that is not a land, each satisfy exactly ONE clause and must be
+//   rejected. Two independent filter keys would have admitted both (the
+//   registry runs each key on its own), which is why the clause is one key
+//   over one witness. Offered set (`getLegalTargets`) and accepted set
+//   (`applyOneTargetSelection`, the `selectTarget` mutation's own body) are
+//   swept against each other, ADR 0068's whole point.
+//
+//   `counter.bindSource` (CR 113.7a / 701.6a) — the countered ABILITY's source
+//   permanent. A countered SPELL binds nothing, so the same three-Op script
+//   destroys a permanent in the ability case and destroys nothing in the spell
+//   case, with no `if` construct: the oracle's condition IS the unwritten
+//   binding.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const teferisResponse = getDefinition("f3bb2df8-c559-4a34-83b0-d48fbc694cc8");
+const icyManipulator = getDefinition("29dc1596-a2e7-4d60-9f99-89babaef8a06");
+const stoneRainDef = getDefinition("57ff74cb-a2ed-4123-ac42-f72f9820049e");
+const islandDef = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
+const grizzlyBearsDef = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
+
+describe("Teferi's Response (issue #2708)", () => {
+    const REQ = teferisResponse.targetRequirement!;
+
+    /** p1 casts Teferi's Response. p1 owns "myLand" and "myBear"; p2 owns
+     *  "theirLand" and the Icy Manipulator whose ability does the targeting. */
+    function board(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    life: 20,
+                    library: [
+                        makeInstance(islandDef.id, {
+                            id: "lib1",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                        makeInstance(islandDef.id, {
+                            id: "lib2",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                        makeInstance(islandDef.id, {
+                            id: "lib3",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                    battlefield: [
+                        makeInstance(islandDef.id, {
+                            id: "myLand",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                        makeInstance(grizzlyBearsDef.id, {
+                            id: "myBear",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    life: 20,
+                    battlefield: [
+                        makeInstance(islandDef.id, {
+                            id: "theirLand",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                        makeInstance(icyManipulator.id, {
+                            id: "icy",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                        // A SECOND manipulator: an activated ability's stack
+                        // item is a clone of its source, so its item id IS the
+                        // source id — two activations of the SAME permanent
+                        // would collide in the sweep below.
+                        makeInstance(icyManipulator.id, {
+                            id: "icy2",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    /** Pushes p2's Icy Manipulator activation WITHOUT resolving it — the same
+     *  stack-item shape `buildActivatedAbilityStackItem` produces (a clone of
+     *  the source, so the item id IS the source permanent's id, CR 113.7a). */
+    function pushIcyActivation(
+        state: GameState,
+        targetLandId: string,
+        sourceId = "icy"
+    ): StackItem {
+        const source = state.players[1].battlefield.find(
+            (c) => c.id === sourceId
+        )!;
+        // The REAL builder, not a hand-rolled literal: the whole
+        // `abilitySourcePermanentId === item.id` claim rests on its shape
+        // (a `structuredClone` of the source, keeping its id), so a test that
+        // re-wrote that shape by hand would prove nothing about it.
+        const item = buildActivatedAbilityStackItem(source, {
+            castById: "p2",
+            abilityId: "icy-manipulator-tap",
+            targets: [{ type: "permanent", id: targetLandId }],
+        });
+        state.stack.push(item);
+        return item;
+    }
+
+    const offered = (state: GameState) =>
+        getLegalTargets(state, REQ, NO_TARGETING_SOURCE, "p1").map((t) => t.id);
+
+    /** The REAL accepted-set path (`selectTarget`'s own body). */
+    function accepts(state: GameState, stackItemId: string): boolean {
+        const probe: GameState = {
+            ...state,
+            pendingTarget: {
+                playerId: "p1",
+                cardInstanceId: "teferis-response-source",
+                targetType: REQ.type,
+                // Open-ended max so a successful pick does not auto-finalize
+                // into the cast-commit path this probe never seeds.
+                count: { min: 1, max: 2 },
+                selected: [],
+                ...pendingTargetFiltersFromRequirement(REQ, undefined),
+            },
+        };
+        try {
+            applyOneTargetSelection(probe, "p1", {
+                targetType: "spell",
+                targetId: stackItemId,
+            });
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    // ── The targeted-permanent clause (CR 115.2 / 109.2)
+
+    it("OFFERS an opponent's ability that targets a land you control", () => {
+        const state = board();
+        const icyAbility = pushIcyActivation(state, "myLand");
+        expect(offered(state)).toContain(icyAbility.id);
+    });
+
+    it("OFFERS an opponent's SPELL that targets a land you control (spellStackKind: any)", () => {
+        const state = board();
+        const rain = pushSpell(state, stoneRainDef.id, "p2", [
+            { type: "permanent", id: "myLand" },
+        ]);
+        expect(offered(state)).toContain(rain.id);
+    });
+
+    it("does NOT offer a spell targeting a land an OPPONENT controls (the controller clause alone)", () => {
+        const state = board();
+        const rain = pushSpell(state, stoneRainDef.id, "p2", [
+            { type: "permanent", id: "theirLand" },
+        ]);
+        expect(offered(state)).not.toContain(rain.id);
+    });
+
+    it("does NOT offer an ability targeting a NON-land permanent you control (the type clause alone)", () => {
+        const state = board();
+        const icyAbility = pushIcyActivation(state, "myBear");
+        expect(offered(state)).not.toContain(icyAbility.id);
+    });
+
+    it("does NOT offer YOUR OWN spell that targets your land (CR 109.4 — an opponent must control it)", () => {
+        const state = board();
+        const rain = pushSpell(state, stoneRainDef.id, "p1", [
+            { type: "permanent", id: "myLand" },
+        ]);
+        expect(offered(state)).not.toContain(rain.id);
+    });
+
+    it("stops offering a candidate whose land target LEFT the battlefield (CR 608.2b)", () => {
+        const state = board();
+        const rain = pushSpell(state, stoneRainDef.id, "p2", [
+            { type: "permanent", id: "myLand" },
+        ]);
+        expect(offered(state)).toContain(rain.id);
+        state.players[0].battlefield = state.players[0].battlefield.filter(
+            (c) => c.id !== "myLand"
+        );
+        expect(offered(state)).not.toContain(rain.id);
+    });
+
+    it("offered set and accepted set are IDENTICAL over every candidate (ADR 0068)", () => {
+        const state = board();
+        const good = pushIcyActivation(state, "myLand");
+        const goodSpell = pushSpell(state, stoneRainDef.id, "p2", [
+            { type: "permanent", id: "myLand" },
+        ]);
+        const wrongController = pushSpell(state, stoneRainDef.id, "p2", [
+            { type: "permanent", id: "theirLand" },
+        ]);
+        const wrongType = pushIcyActivation(state, "myBear", "icy2");
+        const mine = pushSpell(state, stoneRainDef.id, "p1", [
+            { type: "permanent", id: "myLand" },
+        ]);
+
+        const offeredIds = offered(state);
+        for (const item of [
+            good,
+            goodSpell,
+            wrongController,
+            wrongType,
+            mine,
+        ]) {
+            expect(accepts(state, item.id)).toBe(offeredIds.includes(item.id));
+        }
+        expect(offeredIds).toEqual(
+            expect.arrayContaining([good.id, goodSpell.id])
+        );
+        expect(offeredIds).not.toContain(wrongController.id);
+        expect(offeredIds).not.toContain(wrongType.id);
+        expect(offeredIds).not.toContain(mine.id);
+    });
+
+    // ── Resolution: counter + the conditional destroy + the two cards
+
+    /** Casts Teferi's Response at the top of the stack and resolves it. */
+    function resolveResponse(state: GameState, targetStackItemId: string) {
+        pushSpell(state, teferisResponse.id, "p1", [
+            { type: "spell", id: targetStackItemId },
+        ]);
+        resolveTopOfStack(state);
+    }
+
+    it("counters an ABILITY and DESTROYS its source permanent (CR 701.6a + 113.7a)", () => {
+        const state = board();
+        const icyAbility = pushIcyActivation(state, "myLand");
+        resolveResponse(state, icyAbility.id);
+
+        expect(state.stack.map((s) => s.id)).not.toContain(icyAbility.id);
+        expect(state.players[1].battlefield.map((c) => c.id)).not.toContain(
+            "icy"
+        );
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain("icy");
+        expect(state.players[0].hand).toHaveLength(2);
+    });
+
+    it("counters a SPELL and destroys NOTHING — the unwritten binding IS the oracle's 'if'", () => {
+        const state = board();
+        const rain = pushSpell(state, stoneRainDef.id, "p2", [
+            { type: "permanent", id: "myLand" },
+        ]);
+        resolveResponse(state, rain.id);
+
+        expect(state.stack.map((s) => s.id)).not.toContain(rain.id);
+        expect(state.players[1].graveyard.map((c) => c.card.id)).toContain(
+            stoneRainDef.id
+        );
+        // Every permanent still standing: no collateral destroy.
+        expect(state.players[1].battlefield.map((c) => c.id).sort()).toEqual([
+            "icy",
+            "icy2",
+            "theirLand",
+        ]);
+        expect(state.players[0].battlefield.map((c) => c.id).sort()).toEqual([
+            "myBear",
+            "myLand",
+        ]);
+        expect(state.players[0].hand).toHaveLength(2);
+    });
+
+    it("does not resolve at all once its only target has LEFT the stack — no destroy, no draw (CR 608.2b)", () => {
+        const state = board();
+        const icyAbility = pushIcyActivation(state, "myLand");
+        pushSpell(state, teferisResponse.id, "p1", [
+            { type: "spell", id: icyAbility.id },
+        ]);
+        // The ability resolves (or is otherwise removed) before the Response
+        // does: every instance of "target" is now illegal, so the Response is
+        // removed from the stack and NONE of its three Ops runs — the draw is
+        // a separate SENTENCE, not a separate spell.
+        state.stack = state.stack.filter((s) => s.id !== icyAbility.id);
+        resolveTopOfStack(state);
+
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.players[1].battlefield.map((c) => c.id)).toContain("icy");
+    });
+
+    // The ability gate is what makes "a countered SPELL binds nothing" TRUE
+    // rather than merely true-so-far: in a real game a spell on the stack is
+    // never also on a battlefield, so the binding's battlefield re-check hides
+    // the gate. This state constructs exactly that collision — a countered
+    // SPELL whose stack-item id matches a permanent — so the only thing that
+    // can reject it is the `abilityId`/`triggeredAbilityId` discrimination
+    // itself (CR 701.6a: a spell has no permanent source).
+    it("a countered SPELL binds nothing even when its stack id names a permanent (the ability gate, isolated)", () => {
+        const state = board();
+        const rain = pushSpell(state, stoneRainDef.id, "p2", [
+            { type: "permanent", id: "myLand" },
+        ]);
+        rain.id = "icy"; // the collision the battlefield check would miss
+        resolveResponse(state, "icy");
+
+        expect(state.players[1].battlefield.map((c) => c.id)).toContain("icy");
+        expect(state.players[0].hand).toHaveLength(2);
+    });
+
+    // CR 400.7 — instance ids are never reallocated, so a permanent that left
+    // and came back wears the SAME id while being a NEW object. `sourceLki` is
+    // stamped the moment it leaves, and it is the only thing that tells the
+    // two apart; without the gate the rider destroys the returned object,
+    // which the ability on the stack has no relation to.
+    it("does not destroy a source that has LEFT and returned — sourceLki, not the id, decides (CR 400.7)", () => {
+        const state = board();
+        const source = state.players[1].battlefield.find(
+            (c) => c.id === "icy"
+        )!;
+        const item = buildActivatedAbilityStackItem(source, {
+            castById: "p2",
+            abilityId: "icy-manipulator-tap",
+            targets: [{ type: "permanent", id: "myLand" }],
+        });
+        // The blink: the source left (LKI stamped) and an object with the same
+        // id is on the battlefield again.
+        item.sourceLki = { ...source };
+        state.stack.push(item);
+        resolveResponse(state, item.id);
+
+        expect(state.stack.map((s) => s.id)).not.toContain(item.id);
+        expect(state.players[1].battlefield.map((c) => c.id)).toContain("icy");
+        expect(state.players[0].hand).toHaveLength(2);
+    });
+
+    // The filter's FLOOR. `{}` names no clause, but it still means "targets at
+    // least one permanent" — dropping the key instead would admit an
+    // untargeted candidate, the fail-OPEN the conjunction exists to avoid.
+    it("an EMPTY targeted-permanent clause still demands a witness", () => {
+        const state = board();
+        const emptyClause: NonNullable<CardDefinition["targetRequirement"]> = {
+            type: "spell",
+            count: 1,
+            spellStackKind: "any",
+            spellTargetsPermanentFilter: {},
+        };
+        const targeted = pushSpell(state, stoneRainDef.id, "p2", [
+            { type: "permanent", id: "theirLand" },
+        ]);
+        const untargeted = pushSpell(state, teferisResponse.id, "p2", []);
+        const ids = getLegalTargets(
+            state,
+            emptyClause,
+            NO_TARGETING_SOURCE,
+            "p1"
+        ).map((t) => t.id);
+        expect(ids).toContain(targeted.id);
+        expect(ids).not.toContain(untargeted.id);
+    });
+
+    it("wire format: the countered ability is gone and the destroyed source is off the projected battlefield", () => {
+        const state = board();
+        const icyAbility = pushIcyActivation(state, "myLand");
+        resolveResponse(state, icyAbility.id);
+
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.stack.map((s) => s.id)).not.toContain(icyAbility.id);
+        expect(projected.players[1].battlefield.map((c) => c.id)).not.toContain(
+            "icy"
+        );
+        expect(projected.players[0].hand).toHaveLength(2);
     });
 });

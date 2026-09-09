@@ -687,19 +687,46 @@ export interface TargetRequirement {
      *  single target if that target is you", CR 114.1 / 115.10). Ignored for
      *  non-spell target types. */
     spellSingleTargetingController?: boolean;
-    /** Restricts legal SPELL targets (`type: "spell"`) to spells that THEMSELVES
-     *  target at least one PERMANENT of one of these card types (CR 114.1 —
-     *  Confound's "Counter target spell that targets a creature"). The filter
-     *  reads the candidate stack item's own chosen `targets`, resolves each
-     *  `"permanent"` selection against the battlefield, and requires at least
-     *  one hit whose `types` include a listed type. Fail-CLOSED by
-     *  construction: a spell with no targets, a spell whose targets are all
-     *  players / other spells / graveyard cards, and a spell whose permanent
-     *  target has already left the battlefield all fail. Non-permanent target
-     *  kinds are never counted — CR 109.2 makes "a creature" a creature
-     *  PERMANENT, not a creature card in another zone. Single string is
-     *  shorthand for one type. Ignored for non-spell target types. */
-    spellTargetsTypeFilter?: CardType | CardType[];
+    /** Restricts a stack-object target (`type: "spell"`) to objects that
+     *  THEMSELVES target at least one PERMANENT matching EVERY clause below
+     *  (CR 115.2 — Confound's "Counter target spell that targets a creature";
+     *  Teferi's Response's "target spell or ability an opponent controls that
+     *  targets a land you control"). The filter reads the candidate stack
+     *  item's own chosen `targets`, resolves each `"permanent"` selection
+     *  against the battlefield, and requires at least ONE witness satisfying
+     *  all clauses AT ONCE.
+     *
+     *  The conjunction is the whole point of the object shape, and the reason
+     *  `types` and `controller` are not two sibling keys on this interface:
+     *  the registry (ADR 0068) evaluates every filter key INDEPENDENTLY, so
+     *  two keys would ask "targets some land?" and "targets something you
+     *  control?" separately and admit a spell targeting your creature and an
+     *  opponent's land — fail-OPEN, the `project_effect_filter_fail_open`
+     *  class. One key, one existential witness, all clauses.
+     *
+     *  Fail-CLOSED by construction: a stack object with no targets, one whose
+     *  targets are all players / other stack objects / graveyard cards, and
+     *  one whose permanent target has already left the battlefield all fail.
+     *  Non-permanent target kinds are never counted — CR 109.2 makes "a
+     *  creature" a creature PERMANENT, not a creature card in another zone.
+     *
+     *  - `types` — the witness's `types` must include at least one listed
+     *    type (OR across the list). Single string is shorthand for one type.
+     *  - `controller` — the witness's LIVE controller, read the same way
+     *    every other `controller` filter reads it (`matchesBattlefieldController`,
+     *    CR 109.4): `"you"` / `"opponent"` are relative to the player CHOOSING
+     *    the target, not to the stack object's controller. Note the two
+     *    controllers are independent: Teferi's Response constrains the stack
+     *    object with the top-level `controller: "opponent"` and its TARGET
+     *    with `controller: "you"` here.
+     *
+     *  Kind eligibility (spell vs ability) is `spellStackKind`'s job, not
+     *  this filter's — an ability reaches here whenever that gate admitted
+     *  it. Ignored for non-spell target types. */
+    spellTargetsPermanentFilter?: {
+        types?: CardType | CardType[];
+        controller?: TargetRequirement["controller"];
+    };
     /** Restricts legal SPELL targets (`type: "spell"`) to spells that were
      *  KICKED (CR 702.33a) — at least one Kicker cost was paid as the spell was
      *  cast. Read off the candidate stack item's `kickerPayments` record (the
@@ -947,6 +974,32 @@ export type GainControlDuration =
  *  (before a plain `moveZone` Op could reach it — a spell on the stack isn't
  *  one of `moveZone`'s recognized object kinds). */
 export type CounterDestination = "graveyard" | "exile" | "hand" | "library-top";
+
+/** What a `SpellContext.counter` attempt actually did (issue #2708). The
+ *  primitive is the single authority on both questions: CR 113.6g lets a
+ *  "can't be countered" spell survive a perfectly legal targeting, and CR
+ *  608.2b lets the object leave the stack before the counter runs, so a
+ *  caller cannot re-derive `countered` by looking at the stack afterwards —
+ *  both outcomes leave the same empty slot.
+ *
+ *  `abilitySourcePermanentId` carries the CR 113.7a source of a countered
+ *  ABILITY: an activated ability's stack item is a clone of its source
+ *  (`buildActivatedAbilityStackItem`), so the source id IS the item id; a
+ *  TRIGGERED ability carries it as `triggerSourceId`. Set only when the
+ *  counter succeeded, the object was one of those two, and that source is
+ *  still the same object on the battlefield — CR 400.7, gated on `sourceLki`,
+ *  because instance ids are never reallocated and a blinked permanent returns
+ *  wearing the same one.
+ *
+ *  Never set for a countered SPELL (CR 701.6a — a spell has no permanent
+ *  source to speak of), nor for a DELAYED or reflexive trigger, whose stack
+ *  items allocate a fresh id and carry no `triggerSourceId` at all: narrower
+ *  than CR 603.7e allows, fail-closed, and recorded in
+ *  `docs/findings/2708-delayed-trigger-has-no-source-id.md`. */
+export interface CounterOutcome {
+    countered: boolean;
+    abilitySourcePermanentId?: string;
+}
 
 /** Where a spell moved off the stack WITHOUT being countered ends up (issue
  *  #1205 Subtlety, issue #2605 Reprieve). Distinct from `CounterDestination`
@@ -4030,7 +4083,13 @@ export interface SpellContext {
      *  knowledge on the moved cards is cleared (ADR 0026, like a shuffle).
      *  No-op when the graveyard is empty. */
     putGraveyardOnBottomOfLibrary: (playerId: string) => void;
-    /** Counters a spell or ability on the stack (CR 701.6a). Target must be
+    /** Counters a spell or ability on the stack (CR 701.6a), and REPORTS what
+     *  it did (issue #2708) — the primitive is the only place that knows
+     *  whether the attempt actually removed the object (CR 113.6g "can't be
+     *  countered" fizzles it) and what kind of object it was, so a rider like
+     *  Teferi's Response's "if a permanent's ability is countered this way,
+     *  destroy that permanent" reads the outcome instead of re-deriving it
+     *  from a stack that no longer holds the item. Target must be
      *  TargetSelection with type "spell". No-op if target no longer on stack
      *  (CR 608.2b). `destination` overrides where a COUNTERED SPELL (never an
      *  ability — CR 701.6a / 113.7a, abilities simply cease to exist) ends up
@@ -4041,7 +4100,7 @@ export interface SpellContext {
     counter: (
         target: TargetSelection,
         destination?: CounterDestination
-    ) => void;
+    ) => CounterOutcome;
     /** CR 701.6-adjacent (issue #1205 Subtlety, issue #2605 Reprieve) — move a
      *  SPELL off the stack into a zone of its OWNER's WITHOUT countering it
      *  ("put target spell on the top or bottom of its owner's library",
@@ -15239,6 +15298,23 @@ export type EffectOp =
            *  `SpellContext.counter`'s, not this ref's. */
           target: EffectTargetRef | EffectRef;
           destination?: CounterDestination;
+          /** CR 701.6a + 113.7a (issue #2708) — binds the PERMANENT whose
+           *  ability was countered, so a following Op can act on it:
+           *  Teferi's Response's "if a permanent's ability is countered this
+           *  way, destroy that permanent" is `bindSource` + a plain `destroy`
+           *  on `{ ref: "$<name>" }`, not a rider baked into this Op.
+           *
+           *  The binding is a normal object snapshot (`bind`'s shape), so
+           *  every existing `ref` reader consumes it unchanged. It is written
+           *  ONLY when the counter actually happened AND the countered object
+           *  was a permanent's activated (CR 602) or triggered (CR 603)
+           *  ability AND that permanent is still on the battlefield. A
+           *  countered SPELL binds nothing — which is exactly the oracle's
+           *  "if a PERMANENT'S ABILITY is countered this way" condition, so
+           *  the conditional needs no `if`: an unwritten binding makes every
+           *  later `ref` to it skip its own Op (CR 608.2b, the standard
+           *  uncaptured-binding contract). */
+          bindSource?: string;
       }
     /** CR 701.6-adjacent (issue #2605) — move the announced target SPELL off
      *  the stack into a zone of its OWNER's, WITHOUT countering it: "return

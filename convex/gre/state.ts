@@ -10,6 +10,7 @@ import {
     type ManaSubstitutionScope,
     type ControlChangeCondition,
     type CounterDestination,
+    type CounterOutcome,
     type CostReductionAmount,
     type CountDrivenCostReduction,
     type DomainDrivenCostReduction,
@@ -3483,12 +3484,17 @@ export type PendingTarget = {
      *  TargetRequirement.spellWouldDestroyLandYouControl. Used by Equinox's
      *  granted counter ability. Ignored for non-spell target types. */
     spellWouldDestroyLandYouControl?: boolean;
-    /** Restricts legal SPELL targets to spells that THEMSELVES target a
-     *  permanent of one of these types (CR 114.1 / 109.2). Propagated from
-     *  TargetRequirement.spellTargetsTypeFilter. Used by Confound ("counter
-     *  target spell that targets a creature"). Ignored for non-spell target
+    /** Restricts legal SPELL targets to stack objects that THEMSELVES target
+     *  a permanent matching EVERY clause at once (CR 115.2 / 109.2).
+     *  Propagated from TargetRequirement.spellTargetsPermanentFilter (already
+     *  LOWERED — `types` is normalized to an array). Used by Confound
+     *  ("counter target spell that targets a creature") and Teferi's Response
+     *  ("...that targets a land you control"). Ignored for non-spell target
      *  types. */
-    spellTargetsTypeFilter?: CardType[];
+    spellTargetsPermanentFilter?: {
+        types?: CardType[];
+        controller?: TargetRequirement["controller"];
+    };
     /** Restricts legal SPELL targets by the candidate's own Kicker state
      *  (CR 702.33a — `true` = kicked only, `false` = unkicked only).
      *  Propagated from TargetRequirement.spellWasKicked. Used by Ertai's
@@ -3765,7 +3771,7 @@ export const PENDING_TARGET_FILTER_KEYS = {
     spellCreaturePtFilter: true,
     spellSingleTargetingController: true,
     spellWouldDestroyLandYouControl: true,
-    spellTargetsTypeFilter: true,
+    spellTargetsPermanentFilter: true,
     spellWasKicked: true,
 } satisfies Record<FilterKey & keyof PendingTarget, true> &
     Record<SpellFilterKey, true>;
@@ -15766,12 +15772,13 @@ export function buildSpellContext(
         counter(
             target: TargetSelection,
             destination: CounterDestination = "graveyard"
-        ): void {
+        ): CounterOutcome {
             if (target.type !== "spell") {
                 throw new Error("counter() requires a spell target");
             }
             const idx = state.stack.findIndex((s) => s.id === target.id);
-            if (idx === -1) return; // target no longer on stack — fizzle silently
+            // target no longer on stack — fizzle silently
+            if (idx === -1) return { countered: false };
             const found = state.stack[idx];
             // CR 113.6g — "can't be countered": the countering spell/ability
             // still legally targets this spell (targeting is unaffected — see
@@ -15789,7 +15796,48 @@ export function buildSpellContext(
             // value), not on the card's definition — the same card cast
             // WITHOUT spending that mana stays perfectly counterable.
             if (foundDef?.cantBeCountered || found.dynamicCantBeCountered)
-                return;
+                return { countered: false };
+            // CR 113.7a (issue #2708) — the source PERMANENT of a countered
+            // ability, read BEFORE the splice and reported to the caller so a
+            // "if a permanent's ability is countered this way, destroy that
+            // permanent" rider (Teferi's Response) never has to re-derive it
+            // from a stack the item has already left. An activated ability's
+            // stack item is a structuredClone of its source
+            // (`buildActivatedAbilityStackItem`), so the source id IS the item
+            // id; a TRIGGERED ability carries it in `triggerSourceId`.
+            //
+            // `sourceLki` is the CR 400.7 gate, not an optimisation: it is
+            // stamped the moment the source leaves the battlefield, and
+            // instance ids are never reallocated, so a blinked permanent comes
+            // back wearing the SAME id while being a NEW object with no
+            // relation to the ability on the stack. Without this the rider
+            // would destroy the returned object. The battlefield lookup is CR
+            // 608.2b's own half: an ability whose source is simply gone leaves
+            // nothing to destroy, and a SPELL has no permanent source at all.
+            //
+            // DELAYED and reflexive triggers are deliberately absent: their
+            // stack items allocate a fresh id and carry no `triggerSourceId`
+            // at all (`buildDelayedTriggerStackItem`, `pushReflexiveTrigger`),
+            // so there is nothing to read. Countering one destroys nothing —
+            // fail-closed, and narrower than CR 603.7e allows. Recorded in
+            // `docs/findings/2708-delayed-trigger-has-no-source-id.md`.
+            const abilitySourcePermanentId =
+                found.sourceLki !== undefined
+                    ? undefined
+                    : found.abilityId
+                      ? found.id
+                      : found.triggeredAbilityId
+                        ? found.triggerSourceId
+                        : undefined;
+            const sourceOnBattlefield =
+                abilitySourcePermanentId !== undefined &&
+                state.players.some((p) =>
+                    p.battlefield.some((c) => c.id === abilitySourcePermanentId)
+                );
+            const outcome: CounterOutcome = {
+                countered: true,
+                ...(sourceOnBattlefield ? { abilitySourcePermanentId } : {}),
+            };
             const [item] = state.stack.splice(idx, 1);
             // CR 708.9 (issue #2705) — "If a face-down spell moves from the
             // stack to any zone other than the battlefield, its owner must
@@ -15815,7 +15863,7 @@ export function buildSpellContext(
                 item.triggeredAbilityId ||
                 item.delayedTriggerId
             )
-                return;
+                return outcome;
             switch (destination) {
                 case "exile":
                     item.zone = "exile";
@@ -15857,6 +15905,7 @@ export function buildSpellContext(
                     sendStackItemToGraveyard(state, item);
                     break;
             }
+            return outcome;
         },
         moveSpellFromStack(
             target: TargetSelection,
