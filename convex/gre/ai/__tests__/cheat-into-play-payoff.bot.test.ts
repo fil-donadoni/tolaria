@@ -22,6 +22,13 @@
  *   * `policyValue` settles a suspended resolution before scoring, so the
  *     1-ply probe never sees the phantom body.
  *
+ * A third seam decides what the ROOT does with that reading, and it is pinned
+ * at the bottom of this file: the confinement probe behind issue #3194's
+ * self-confined hold used to count the bookkeeping a self-inflicted death
+ * writes (`deathsThisTurn`, `lastKnownCopiable`) as evidence the announcement
+ * had reached the opponent, so the hold never fired on this shape and the root
+ * fell through to a material tie-break reading a subtree-accumulated mean.
+ *
  * The pair is a payoff body against a vanilla body of the SAME mana value, so
  * the reduced cost (CR 118.7a) is identical and the only difference is what the
  * creature does when it dies.
@@ -35,6 +42,7 @@ import {
     settleStackForBreakdown,
 } from "../../search";
 import { evaluate } from "../../evaluate";
+import { reachesOnlyOwnSideThroughChoice } from "../../search";
 import { enumerateMoves, type Move } from "../../moves";
 import { buildBladeState } from "../blade/runner";
 import { cloneGameState } from "../../clone";
@@ -248,5 +256,52 @@ describe("cheat-into-play is worth what survives (issue #3293)", () => {
             expect(v.cast).toBeLessThan(v.pass);
             expect(p.cast).toBeGreaterThan(p.pass);
         });
+    });
+
+    // The 1-ply probe above is only half the decision. What the ROOT does with
+    // it is settled by `selectRootMove`, and its material tie-break reads a
+    // `meanMargin` accumulated over the whole SUBTREE — the `pass` subtree
+    // explores casting the same spell one ply later, so it carries the identical
+    // loss and LOSES to the branch that already paid it. The rule that answers
+    // that (issue #3194's self-confined hold, `search.ts`) was already shipped
+    // and was measured INERT here, for a reason with nothing to do with Flash:
+    // its confinement probe compared the state-level bookkeeping it writes, and a
+    // resolution that puts the mover's OWN creature onto the battlefield and
+    // then sacrifices it bumps `deathsThisTurn` and stamps `lastKnownCopiable`.
+    // Neither is a fact about the opponent, and reading them as reach answered
+    // "this announcement leaves my side" for a resolution that demonstrably
+    // does not.
+    describe("the confinement probe is not fooled by its own death bookkeeping", () => {
+        it("reads the cheat-into-play cast as reaching only the mover's side", () => {
+            // Both hands, because the confinement question is about REACH and
+            // must not depend on whether the body pays: what separates the two
+            // is the resolved margin, which is the hold's second conjunct.
+            //
+            // Both are also the witness for the ignore list, one key each:
+            // drop `deathsThisTurn` / `lastKnownCopiable` and the vanilla hand
+            // reds (the sacrifice is a departure), drop `lifeGainedThisTurn`
+            // and the payoff hand reds on its own (its body gains life as it
+            // enters). No key on that list is there on the general argument
+            // alone.
+            for (const creature of [VANILLA, PAYOFF]) {
+                const { state, botId } = position(creature);
+                const cast = enumerateMoves(state, botId).find(
+                    (m) => m.kind === "cast-spell"
+                )!;
+                expect(
+                    reachesOnlyOwnSideThroughChoice(state, cast, botId),
+                    `${creature}: the whole resolution happens on the mover's own side`
+                ).toBe(true);
+            }
+        });
+
+        // The other direction — a resolution that DOES reach the opponent must
+        // still read as reaching them — is the issue #3194 pair, asserted on
+        // this same seam in `choice-suspended-payoff.bot.test.ts` ("reads the
+        // reach as self-confined only when the effect cannot leave it"). It is
+        // not repeated here: none of the three ignored keys moves in either of
+        // its positions (no death, no departure, no life gain), so a copy would
+        // pass byte-identically with and without this change and would read as
+        // a control it cannot be.
     });
 });

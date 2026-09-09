@@ -406,6 +406,35 @@ function branchesTouchOnlyMover(
     return touchesOnlyMoverDelta(baseline, probe, moverId, spentCardId);
 }
 
+/** State-level bookkeeping a resolution ECHOES rather than causes (issue
+ *  #3293), dropped from the comparison below.
+ *
+ *  Every writer of these three today sits one line from the PRIMARY change it
+ *  records — a zone move, a departure, a life total — and on the opponent's
+ *  side each of those is still compared in full, so dropping the echo cannot
+ *  hide a resolution that reached them. What it stops is the mover's own
+ *  bookkeeping masquerading as reach. That is a claim about the writers as they
+ *  stand, not an invariant anything enforces: a SECOND writer added tomorrow
+ *  would void it silently, unlike a new key, which reads as reach and so fails
+ *  closed. Each entry below names the writer it was measured against, and each
+ *  has a witness in `ai/__tests__/cheat-into-play-payoff.bot.test.ts` — remove
+ *  it from this list and a named half of that pair goes red. */
+const ECHOED_BOOKKEEPING_KEYS = [
+    // Bumped by ANY creature dying, the mover's own included. Sole writer:
+    // `removePermanentTo` (`state.ts`), immediately after the battlefield →
+    // graveyard move — and for the opponent both zones are compared.
+    "deathsThisTurn",
+    // Last-known information stamped for a permanent as it LEAVES the
+    // battlefield. Same sole writer, on the departure itself, which is the
+    // primary change.
+    "lastKnownCopiable",
+    // A life-gain tally, written one line after the life total it echoes, and
+    // only for a gain that actually happened (a replaced or non-positive gain
+    // returns before both). The life total is compared on the opponent's own
+    // record.
+    "lifeGainedThisTurn",
+] as const;
+
 /** True when `probe` differs from `baseline` in NOTHING outside the mover's own
  *  player record.
  *
@@ -419,11 +448,18 @@ function branchesTouchOnlyMover(
  *  (`search.ts`, issue #3194) re-introduced it and was measured inert the
  *  moment the opponent controlled any permanent.
  *
- *  The mover's own record is dropped from BOTH sides, so everything else —
- *  the opponent's whole record, and every state-level ledger, including ones
- *  added tomorrow — is compared by default. A ledger keyed on the MOVER that
- *  moves therefore reads as a difference too: over-strict, in the fail-open
- *  direction (no suppression), which is the side to err on. */
+ *  The mover's own record is dropped from BOTH sides, so everything else — the
+ *  opponent's whole record, and every state-level ledger, including ones added
+ *  tomorrow — is compared by default, MINUS `ECHOED_BOOKKEEPING_KEYS`. Those
+ *  three were the same trap one level up (issue #3293): a resolution that puts
+ *  the mover's own creature onto the battlefield and then sacrifices it bumps
+ *  `deathsThisTurn` and stamps `lastKnownCopiable`, neither of which is a fact
+ *  about the opponent, and reading them as reach made this predicate — and with
+ *  it every caller that holds or demotes a self-confined announcement — INERT
+ *  for the whole cheat-into-play shape. Measured: `pass` was refused for Flash
+ *  cheating in a vanilla body it could not pay for, on 5/5 seeds at 400
+ *  iterations, and the same 5/5 answer the other way once the echoes stopped
+ *  counting. */
 function touchesOnlyMoverDelta(
     baseline: GameState,
     probe: GameState,
@@ -433,6 +469,9 @@ function touchesOnlyMoverDelta(
     const a = normalize(cloneGameState(baseline), moverId, spentCardId, "base");
     const b = normalize(cloneGameState(probe), moverId, spentCardId, "probe");
     if (!a || !b) return false;
+    for (const bag of [a, b] as unknown as Record<string, unknown>[]) {
+        for (const key of ECHOED_BOOKKEEPING_KEYS) delete bag[key];
+    }
     a.players = a.players.filter((p) => p.id !== moverId);
     b.players = b.players.filter((p) => p.id !== moverId);
     return deepEqual(a, b);

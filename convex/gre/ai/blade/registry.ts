@@ -5618,17 +5618,31 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     // identical and unpayable in both, and the trailing sacrifice is the only
     // reachable end of the resolution either way.
     //
-    // BOTH are `stretch`, and the reason is the honest one: this slice fixed
-    // the 1-ply probe, not the root. `policyValue` now settles a suspended
-    // resolution, so cast-vs-pass and put-vs-decline are both correctly signed
-    // and correctly SPLIT by what is in hand (pinned deterministically in
-    // `ai/__tests__/cheat-into-play-payoff.bot.test.ts`). What still decides
-    // the root is `selectRootMove`'s material tie-break over `meanMargin`,
-    // which is accumulated over the whole SUBTREE — and the `pass` subtree
-    // explores casting the same spell one ply later, so it carries the
-    // identical loss and loses the tie-break to the branch that already paid
-    // it. Raising a budget to turn either entry green would not be legitimate
-    // (ADR 0070 §2) and would not work for the second one anyway.
+    // The NEGATIVE control is `must` at the production budget; the positive
+    // half stays `stretch`, and the split is the honest state of the shape.
+    //
+    // Two slices got here. The first fixed the 1-ply probe: `policyValue` now
+    // settles a suspended resolution, so cast-vs-pass and put-vs-decline are
+    // both correctly signed and correctly SPLIT by what is in hand (pinned
+    // deterministically in `ai/__tests__/cheat-into-play-payoff.bot.test.ts`).
+    // The root ignored all of it, because `selectRootMove`'s material tie-break
+    // reads a `meanMargin` accumulated over the whole SUBTREE and the `pass`
+    // subtree explores casting the same spell one ply later — so `pass` carries
+    // the identical loss and loses to the branch that already paid it.
+    //
+    // The second slice made the REFUSAL leaf-decisive instead of leaving it to
+    // that mean: issue #3194's self-confined hold already fires on a cast whose
+    // whole reach is the mover's own side and whose settled margin drops, and it
+    // was measured INERT here for a reason unrelated to Flash — its confinement
+    // probe counted the state-level bookkeeping a self-inflicted death writes
+    // (`deathsThisTurn`, `lastKnownCopiable`), so a resolution that never left
+    // the mover's side read as reaching the opponent. 0/5 → 5/5 at 400.
+    //
+    // What that cannot do is make the bot WANT the payoff line: a hold rule only
+    // ever refuses. The positive half still needs 1200 iterations to separate
+    // its cast from `pass` at the root, so it keeps its `beyondBudget` block and
+    // its tier. Raising a budget to turn an entry green is not legitimate
+    // (ADR 0070 §2).
     {
         label: "cheat into play: casts for a body that pays on the way out",
         spec: {
@@ -5648,7 +5662,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         beyondBudget: {
             cause: "valuation",
             passesAt: { iterations: 1200 },
-            note: "Filed `valuation`, not `branching`: the root offers a handful of moves, so no candidate set is too wide — what mis-scores is `selectRootMove`'s material tie-break, which reads a mean accumulated over the whole SUBTREE. It happens to clear at 1200 here only because the payoff is large enough to separate the means before the artifact bites; the negative control below shows the same artifact with no budget that clears it. The right move is in the set and is correctly priced at the 1-ply probe — cast settles above passing because the Tyrant leaves a token copy of itself behind when the sacrifice takes it. What it does not get at 400 iterations is enough visits to separate from `pass` at the root, where the two tie inside the outcome epsilon and the material tie-break reads a subtree mean. 5/5 at 1200.",
+            note: "Filed `valuation`, not `branching`: the root offers a handful of moves, so no candidate set is too wide — what mis-scores is `selectRootMove`'s material tie-break, which reads a mean accumulated over the whole SUBTREE. The right move is in the set and is correctly priced at the 1-ply probe — cast settles above passing (756.4 against 509.8) because the Tyrant leaves a token copy of itself behind when the sacrifice takes it. What it does not get at 400 iterations is enough visits to separate from `pass` at the root, where the two tie inside the outcome epsilon and the tie-break reads that subtree mean; at 1200 the payoff separates the means before the artifact bites. 0/5 at 400, 5/5 at 1200 — measured byte-identically before and after the confinement fix that made the negative control below `must`, because a hold rule can only ever refuse a cast, never want one.",
         },
         expect: { moves: [{ kind: "cast-spell", card: "Flash" }] },
         note: 'Issue #3293, the half the shape exists for. PAIRED WITH "cheat into play NEGATIVE CONTROL: passes for a vanilla body of the same mana value". Cheating a seven-drop in for {1}{U} and sacrificing it is a REAL play when the body pays on the way out, and this slice is what makes that payoff visible at all: before it, every probe that ranked the cast or the hand-pick branch stopped at the first suspension and scored the phantom body still on the battlefield, so a payoff body and a vanilla one measured the same.',
@@ -5668,14 +5682,9 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         bot: "me",
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
-        beyondBudget: {
-            cause: "valuation",
-            sweptTo: { iterations: 4000 },
-            note: "0/5 at 400, 1200 and 4000 iterations — the signature of a mis-valued subtree rather than a compute shortfall, and here the mis-valuation is structural: `selectRootMove`'s material tie-break ranks contenders by `meanMargin` accumulated over the whole SUBTREE, and the `pass` subtree explores casting Flash one ply later, so it carries the same loss and LOSES to the branch that already paid it. The 1-ply probe has the right answer (cast settles below passing, and the hand pick's decline settles above its put), so what is missing is a leaf-decisive root rule, not a term. Two were measured and both rejected: a plain settled-value floor reds twelve `must` entries, because spending now to be paid later is most of Magic; an axis-wise dominance floor gets that down to one, and the one it keeps is the entry whose own note records that `evaluate`'s mana term is colour-blind — a rule of this shape cannot tell 'there is no effect' from 'the evaluator cannot see the effect'.",
-        },
+        tier: "must",
         expect: { forbidden: [{ kind: "cast-spell", card: "Flash" }] },
-        note: "Issue #3293's negative control. PAIRED WITH \"cheat into play: casts for a body that pays on the way out\". Lady Orca is a 7/4 vanilla of the same mana value as the Tyrant above, so every cost in the position is identical and the ONLY difference is that nothing survives the sacrifice: two cards and the turn's mana for an empty board. It is filed `stretch` rather than dropped because the position is the whole point of the pair — an entry that only asserts the half that works would let the shape read as solved.",
+        note: "Issue #3293's negative control, and the half that is now forced. PAIRED WITH \"cheat into play: casts for a body that pays on the way out\". Lady Orca is a 7/4 vanilla of the same mana value as the Tyrant above, so every cost in the position is identical and the ONLY difference is that nothing survives the sacrifice: two cards and the turn's mana for an empty board. DISCRIMINATING: 0/5 seeds before the confinement probe stopped counting the death bookkeeping a self-inflicted sacrifice writes, 5/5 after, at the same 400 iterations — and byte-identically unchanged on the payoff half above, which is what says the fix reads the position rather than the card.",
     },
     {
         label: "sacrifice sign: does not cast a creature whose ETB eats its own board",
