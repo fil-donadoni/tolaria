@@ -7261,7 +7261,7 @@ export type StaticActivatedGrant = StaticActivatedGrantBase &
                *  selector names, read off those cards' OWN `activatedAbilities[]`
                *  (Agatha's Soul Cauldron: "Creatures you control with +1/+1 counters on
                *  them have all activated abilities of all creature cards exiled with
-               *  this").
+               *  this" — `{ exiledWithSource: true, types: ["Creature"] }`).
                *
                *  Deliberately typed as the ONE selector layer 6 can answer rather than
                *  the wider `EffectCardSelector`: a shape the derivation cannot resolve
@@ -7272,8 +7272,12 @@ export type StaticActivatedGrant = StaticActivatedGrantBase &
                *  The ability set is re-read at EVERY derivation, so a card entering or
                *  leaving the linked pile at instant speed is reflected on the next
                *  stable transition (ADR 0112; the derivation is `syncLayer6`, and
-               *  timestamps are preserved per CR 613.7). */
-              abilitiesOf: EffectExiledWithSourceSelector;
+               *  timestamps are preserved per CR 613.7).
+               *
+               *  Its `types` names WHICH cards in that pile contribute — see
+               *  {@link EffectExiledWithSourceAbilitySelector} for why that is
+               *  required rather than an optional narrowing. */
+              abilitiesOf: EffectExiledWithSourceAbilitySelector;
           }
     );
 
@@ -11143,6 +11147,30 @@ export type EffectRef = { ref: string };
  *  resolutions (a `bind` cannot span them). Used by `grantCastFromExile`
  *  (Hideaway, CR 702.75 — "you may play the exiled card"). */
 export type EffectExiledWithSourceSelector = { exiledWithSource: true };
+
+/** CR 607.2a + CR 205.2 — the ability SOURCE of an `activated-grant`'s
+ *  `abilitiesOf` arm: the linked exile pile, NARROWED to the card types whose
+ *  abilities are copied. Agatha's Soul Cauldron copies "all activated abilities
+ *  of all CREATURE CARDS exiled with this" — the `{T}` ability exiles ANY card
+ *  from a graveyard, so the pile and the qualifying subset are genuinely
+ *  different sets, and a selector with no `types` grants a countered creature
+ *  the abilities of an exiled Mishra's Factory or Skullclamp.
+ *
+ *  `types` is REQUIRED, not an optional narrowing, because that divergence is a
+ *  FREE WIN and therefore silent: nothing reds, no test notices, the card just
+ *  does more than it prints. There is one consumer today, so the cost of
+ *  requiring it is one array literal; a card that really does copy from every
+ *  linked card writes every type it means.
+ *
+ *  Matched against the PRINTED type line of the linked card's definition
+ *  (CR 110.1 / 613 — a card in exile is not a permanent, so no layer has
+ *  touched its types), matching on ANY listed member. Deliberately a
+ *  `CardType[]` and not the wider `EffectCardFilter`: the latter's matcher
+ *  needs a `SpellContext` that layer 6 does not have, and a shape the
+ *  derivation cannot resolve must be a compile error rather than a card that
+ *  ships inert. */
+export type EffectExiledWithSourceAbilitySelector =
+    EffectExiledWithSourceSelector & { types: CardType[] };
 
 /** count — the size of a declaratively-selected set of cards (ADR 0045),
  *  the "for each …" numeric construct (CR 122 counting). No object handles

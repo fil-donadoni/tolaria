@@ -396,6 +396,14 @@
         "source": "compiled"
     },
     {
+        "name": "Agatha's Soul Cauldron",
+        "scryfallId": "019b51b0-e5c6-4208-922b-7736686dddcd",
+        "oracleId": "c259e16f-2a44-4552-8678-815f757a02e8",
+        "firstSet": "woe",
+        "firstPrintId": "019b51b0-e5c6-4208-922b-7736686dddcd",
+        "firstPrintSet": "woe"
+    },
+    {
         "name": "Ageless Guardian",
         "scryfallId": "4a5ff6af-402f-4bf6-a75b-dc1e0e40aff6",
         "oracleId": "468658bc-19d8-464a-ab8e-d36281680273",

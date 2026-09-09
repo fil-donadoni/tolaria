@@ -794,7 +794,12 @@ function resolveLayer6Action(
  *  - `abilityId` — one template on the granting card's own `grantTemplates[]`.
  *    Every grant that shipped before #2943, and the only arm the 12 shipped
  *    lord-style cards use.
- *  - `abilitiesOf` — every activated ability of every card the selector names.
+ *  - `abilitiesOf` — every activated ability of every card in the linked pile
+ *    whose PRINTED type line matches the selector's `types` (CR 205.2). The
+ *    pile and the qualifying subset differ whenever the linking ability exiles
+ *    more broadly than the granting clause reads, which is Agatha's Soul
+ *    Cauldron exactly: "{T}: Exile target CARD from a graveyard" feeding
+ *    "all activated abilities of all CREATURE CARDS exiled with this".
  *    Re-read HERE, at derivation time, which is what makes the set live: a
  *    card entering or leaving the linked exile pile at instant speed changes
  *    the answer on the next `syncLayer6` without any sweep having to be told
@@ -829,8 +834,18 @@ function resolveActivatedGrant(
     for (const { card } of getCardsExiledWith(state, source.id)) {
         const cardId = (card.card as { id?: string }).id;
         if (!cardId) continue;
-        for (const ability of tryGetDefinition(cardId)?.activatedAbilities ??
-            []) {
+        const def = tryGetDefinition(cardId);
+        // CR 205.2 — the selector's `types` half. The pile is every card the
+        // linking ability exiled; the qualifying subset is the one the Oracle
+        // names ("all activated abilities of all CREATURE CARDS exiled with
+        // this"). Read off the PRINTED type line (CR 110.1 / 613 — a card in
+        // exile is not a permanent, so no layer has rewritten its types), and
+        // fail CLOSED on a card the registry cannot resolve: an unreadable
+        // definition contributes nothing rather than everything.
+        if (!def?.types?.some((t) => effect.abilitiesOf!.types.includes(t))) {
+            continue;
+        }
+        for (const ability of def.activatedAbilities ?? []) {
             grants.push({
                 sourceCardId: cardId,
                 abilityId: ability.id,
