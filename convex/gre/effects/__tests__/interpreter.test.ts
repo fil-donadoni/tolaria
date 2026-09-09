@@ -30687,3 +30687,164 @@ describe("Effect Script Op: moveSpellFromStack (CR 400.7, issue #2605)", () => {
         ]);
     });
 });
+
+describe("Effect Script Op: dealDamage { source } — a PERMANENT recipient (CR 120.1, issue #1565)", () => {
+    // CR 120.1 — "An object that deals damage is the source of that damage."
+    // `source` names WHO deals the damage; it says nothing about who RECEIVES
+    // it. Until issue #1565 the interpreter honoured the field only for a
+    // `{ player: … }` recipient and silently dropped it for an announced
+    // permanent, so every source-keyed rider — lifelink (CR 702.15b),
+    // protection by colour (CR 702.16e), deathtouch (CR 702.2b) — was
+    // evaluated against the resolving SPELL instead of the named permanent.
+    //
+    // Target 0 is the damage SOURCE, target 1 the recipient. No `bind` and no
+    // `tapUntap`, so nothing but the damage itself is under test.
+    const sourcedScript: EffectOp[] = [
+        {
+            op: "dealDamage",
+            amount: 2,
+            to: { target: 1 },
+            source: { target: 0 },
+        },
+    ];
+
+    it("the named permanent is the CR-120.1 source, not the resolving spell (lifelink discriminator)", () => {
+        const id = registerScript(
+            "test-op-dmg-src-perm-lifelink",
+            sourcedScript
+        );
+        // The SOURCE creature has lifelink; the resolving red sorcery does not.
+        const lifelinker = makeInstance(BEAR_ID, {
+            controllerId: "p1",
+            id: "srcLL",
+            staticAbilities: ["lifelink"],
+        });
+        const victim = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            id: "victimLL",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [lifelinker] }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "srcLL" },
+            { type: "permanent", id: "victimLL" },
+        ]);
+        resolveTopOfStack(state);
+        // CR 702.15b — the SOURCE's controller gains life equal to the damage.
+        // Spell-sourced (the old path) there is no lifelink anywhere, so p1
+        // would stay on 20.
+        expect(state.players[0].life).toBe(22);
+        const damaged = state.players[1].battlefield.find(
+            (c) => c.id === "victimLL"
+        )!;
+        expect(damaged.damageMarked).toBe(2);
+        // Wire format — the marked damage survives the projection.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.players[1].battlefield.find((c) => c.id === "victimLL")!
+                .damageMarked
+        ).toBe(2);
+    });
+
+    it("protection is checked against the named permanent's colour, not the spell's (CR 702.16e)", () => {
+        const id = registerScript(
+            "test-op-dmg-src-perm-protection",
+            sourcedScript
+        );
+        // BEAR_ID costs {1}{G} — a GREEN source. The resolving script card is a
+        // RED sorcery ({R}). The recipient has protection from green, so the
+        // damage is prevented under the creature-sourced reading and NOT
+        // prevented under the spell-sourced one.
+        const greenSource = makeInstance(BEAR_ID, {
+            controllerId: "p1",
+            id: "srcG",
+        });
+        const warded = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            id: "wardedG",
+            staticAbilities: ["protection from green"],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [greenSource] }),
+                makePlayer("p2", { battlefield: [warded] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "srcG" },
+            { type: "permanent", id: "wardedG" },
+        ]);
+        resolveTopOfStack(state);
+        const target = state.players[1].battlefield.find(
+            (c) => c.id === "wardedG"
+        )!;
+        expect(target.damageMarked ?? 0).toBe(0);
+    });
+
+    it("lethal damage from the named permanent DESTROYS the recipient (CR 704.5g — not marks-only)", () => {
+        // `markDamageFromPermanentSource` is marks-only by contract (a fight
+        // marks both halves before either dies). A single sourced damage event
+        // has no such simultaneity, so the lethal → destroy step must run —
+        // otherwise a `source`-bearing Op would leave a dead creature on the
+        // battlefield until the next SBA sweep, unlike every other dealDamage.
+        const id = registerScript("test-op-dmg-src-perm-lethal", [
+            {
+                op: "dealDamage",
+                amount: 5,
+                to: { target: 1 },
+                source: { target: 0 },
+            },
+        ]);
+        const src = makeInstance(BEAR_ID, { controllerId: "p1", id: "srcL" });
+        const victim = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            id: "victimL",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [src] }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "srcL" },
+            { type: "permanent", id: "victimL" },
+        ]);
+        resolveTopOfStack(state);
+        // BEAR_ID is a 2/5; 5 damage is lethal (CR 704.5g).
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "victimL")
+        ).toBeUndefined();
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain(
+            "victimL"
+        );
+    });
+
+    it("a source that has left the battlefield deals no damage (CR 608.2b)", () => {
+        const id = registerScript("test-op-dmg-src-perm-gone", sourcedScript);
+        const victim = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            id: "victimGone",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        // Target 0 names a permanent that is not on any battlefield.
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "vanished" },
+            { type: "permanent", id: "victimGone" },
+        ]);
+        resolveTopOfStack(state);
+        const target = state.players[1].battlefield.find(
+            (c) => c.id === "victimGone"
+        )!;
+        expect(target.damageMarked ?? 0).toBe(0);
+    });
+});
