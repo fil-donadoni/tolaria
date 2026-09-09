@@ -667,3 +667,162 @@ describe("check:ui probe — square-corner check (issue #2724)", () => {
         expect(r.cardsSquareN).toBe(1);
     });
 });
+
+/**
+ * The tap-target scan (`smallN`) — issue #3320.
+ *
+ * It used to cull on the VERTICAL viewport band alone (`r.bottom < 0 ||
+ * r.top > H`), so nothing removed a control scrolled out SIDEWAYS, and nothing
+ * removed one clipped away by its own scroller. On the lobby's `overflow-x-auto`
+ * "Your decks" shelf — one uncapped tile per deck — that meant the count grew
+ * with the account's deck count: re-recorded at 22, 83, 84 and 85 on trees that
+ * never touched the lobby, and 85 -> 79 from deleting five leaked fixture decks
+ * with no code change at all.
+ *
+ * Symmetric on purpose, exactly like the occlusion table above: a probe change
+ * proven only in the direction that REMOVES a count is how the instrument rots.
+ */
+function probeSmall(opts: {
+    vw: number;
+    vh: number;
+    html: string;
+    rects: Record<string, StubRect>;
+    /** Elements whose own box is a scroll port: id → the four scroll metrics. */
+    scrollers?: Record<
+        string,
+        {
+            clientWidth: number;
+            scrollWidth: number;
+            clientHeight: number;
+            scrollHeight: number;
+        }
+    >;
+}) {
+    const window = new Window({ url: "http://localhost/" });
+    const context = createContext(window as unknown as object);
+    const doc = window.document;
+    doc.body.innerHTML = opts.html;
+
+    Object.defineProperty(window, "innerWidth", { value: opts.vw });
+    Object.defineProperty(window, "innerHeight", { value: opts.vh });
+
+    for (const [id, r] of Object.entries(opts.rects)) {
+        const el = doc.getElementById(id)!;
+        el.getBoundingClientRect = () => fullRect(r) as never;
+    }
+    for (const [id, m] of Object.entries(opts.scrollers ?? {})) {
+        const el = doc.getElementById(id)!;
+        for (const [k, v] of Object.entries(m)) {
+            Object.defineProperty(el, k, { value: v, configurable: true });
+        }
+    }
+    doc.elementFromPoint = (() => null) as never;
+
+    runInContext(PROBE_SOURCE, context);
+    runInContext("globalThis.__result = window.__tolariaProbe();", context);
+    return (window as unknown as { __result: { smallN: number } }).__result
+        .smallN;
+}
+
+/** The lobby's deck shelf: a horizontal `overflow-x-auto` strip 1200px wide
+ *  holding far more content than fits, with ONE sub-44px control in it. The
+ *  control's own box is what moves between the two cases below. */
+const SHELF_HTML = `
+    <div id="root">
+        <div id="shelf" style="overflow-x:auto">
+            <div id="strip"><button id="btn">More actions</button></div>
+        </div>
+    </div>
+`;
+
+const SHELF_SCROLLER = {
+    shelf: {
+        clientWidth: 1200,
+        scrollWidth: 9000,
+        clientHeight: 120,
+        scrollHeight: 120,
+    },
+};
+
+describe("check:ui probe — tap targets are culled by their scroll port (issue #3320)", () => {
+    it("does not count a sub-44px control scrolled out of a horizontal strip", () => {
+        // The 47th deck tile: its box sits far to the right of the shelf's own
+        // 0-1200 window, so no user at this viewport can see or tap it.
+        expect(
+            probeSmall({
+                vw: 1440,
+                vh: 900,
+                html: SHELF_HTML,
+                rects: {
+                    shelf: { left: 0, top: 200, width: 1200, height: 120 },
+                    strip: { left: 0, top: 200, width: 9000, height: 120 },
+                    btn: { left: 5200, top: 210, width: 24, height: 24 },
+                },
+                scrollers: SHELF_SCROLLER,
+            })
+        ).toBe(0);
+    });
+
+    it("still counts the same control when it is inside the strip's window", () => {
+        // The direction that keeps the instrument honest: identical markup,
+        // identical 24x24 box, moved into view. Real debt, still measured.
+        expect(
+            probeSmall({
+                vw: 1440,
+                vh: 900,
+                html: SHELF_HTML,
+                rects: {
+                    shelf: { left: 0, top: 200, width: 1200, height: 120 },
+                    strip: { left: 0, top: 200, width: 9000, height: 120 },
+                    btn: { left: 300, top: 210, width: 24, height: 24 },
+                },
+                scrollers: SHELF_SCROLLER,
+            })
+        ).toBe(1);
+    });
+
+    it("still counts a sub-44px control with no scroll port at all", () => {
+        expect(
+            probeSmall({
+                vw: 1440,
+                vh: 900,
+                html: `<div id="root"><button id="btn">x</button></div>`,
+                rects: {
+                    root: { left: 0, top: 0, width: 1440, height: 900 },
+                    btn: { left: 10, top: 10, width: 24, height: 24 },
+                },
+            })
+        ).toBe(1);
+    });
+
+    it("still culls a control below the viewport fold (the pre-existing vertical case)", () => {
+        expect(
+            probeSmall({
+                vw: 1440,
+                vh: 900,
+                html: `<div id="root"><button id="btn">x</button></div>`,
+                rects: {
+                    root: { left: 0, top: 0, width: 1440, height: 4000 },
+                    btn: { left: 10, top: 2400, width: 24, height: 24 },
+                },
+            })
+        ).toBe(0);
+    });
+
+    it("counts a control only PARTLY inside its port — one visible pixel is tappable", () => {
+        expect(
+            probeSmall({
+                vw: 1440,
+                vh: 900,
+                html: SHELF_HTML,
+                rects: {
+                    shelf: { left: 0, top: 200, width: 1200, height: 120 },
+                    strip: { left: 0, top: 200, width: 9000, height: 120 },
+                    // Straddles the shelf's right edge: 1190-1214.
+                    btn: { left: 1190, top: 210, width: 24, height: 24 },
+                },
+                scrollers: SHELF_SCROLLER,
+            })
+        ).toBe(1);
+    });
+});

@@ -188,7 +188,30 @@ window.__tolariaProbe = () => {
             });
     }
 
-    // Interactive targets under 44px (visible, in the viewport band).
+    // Interactive targets under 44px, measured against the window they are
+    // actually SEEN through: the viewport, further clipped by the element's
+    // scroll port when it has one, on BOTH axes (issue #3320).
+    //
+    // This is the same window `probe()` above hit-tests in, and for the same
+    // reason — an element seen through a scroller is judged against that
+    // scroller's box, never against the bare viewport. This scan was the one
+    // family that never adopted it: it tested `r.bottom < 0 || r.top > H`, the
+    // VERTICAL viewport band alone. Nothing culled an element scrolled out
+    // sideways, and nothing culled one clipped away by its own scroller.
+    //
+    // On a horizontal scroller that is every item past the fold. The lobby's
+    // "Your decks" shelf renders one tile per deck, uncapped, in a
+    // `overflow-x-auto` strip, so the count grew linearly with the ACCOUNT'S
+    // DECK COUNT: `lobby @ 1440x900x2` was re-recorded at 22, 83, 84 and 85 on
+    // trees that never touched the lobby, each bump banked as a ceiling with a
+    // note naming the deck or event that moved it, and deleting five leaked
+    // fixture decks took it 85 -> 79 with no code change at all. Every red that
+    // produced was a false positive: no control a user can see was any smaller
+    // than before, and a ceiling that moves with account data is a ceiling
+    // nobody can hold.
+    //
+    // A control rendered under 44px IN VIEW still counts, at every viewport —
+    // the metric keeps its meaning. It just stops counting what nobody can see.
     const small = [];
     const ctrls = [
         ...document.querySelectorAll(
@@ -199,7 +222,22 @@ window.__tolariaProbe = () => {
         if (!vis(e)) continue;
         const r = e.getBoundingClientRect();
         if (r.width < 4 || r.height < 4) continue;
-        if (r.bottom < 0 || r.top > H) continue;
+        const port = scrollPort(e);
+        const pr = port ? port.getBoundingClientRect() : null;
+        const winL = pr ? Math.max(0, pr.left) : 0;
+        const winT = pr ? Math.max(0, pr.top) : 0;
+        const winR = pr ? Math.min(V, pr.right) : V;
+        const winB = pr ? Math.min(H, pr.bottom) : H;
+        // No visible intersection with that window — off-port or off-screen on
+        // either axis. `<=` / `>=` so an element flush against an edge, with
+        // zero overlap, is out rather than in.
+        if (
+            r.right <= winL ||
+            r.left >= winR ||
+            r.bottom <= winT ||
+            r.top >= winB
+        )
+            continue;
         if (Math.min(r.width, r.height) < 44)
             small.push({
                 t: (e.getAttribute("aria-label") || e.textContent || e.tagName)
