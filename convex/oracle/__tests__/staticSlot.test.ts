@@ -27,7 +27,16 @@ import {
     makeState,
 } from "../../cards/__tests__/setup";
 import { projectPublicState } from "../../gameProjections";
+import {
+    castPermissionAltCosts,
+    collectCastPermissions,
+    hasCastPermissionFlash,
+} from "../../gre/castPermissions";
 import { getEffectivePower, getEffectiveToughness } from "../../gre/layers";
+import {
+    castPermissionClause,
+    deriveCastPermissionId,
+} from "../castPermissionId";
 import { compileCard } from "../compile";
 import { routeLine } from "../grammar/router";
 import { staticSlot, STATIC_SLOT } from "../grammar/slots/staticSlot";
@@ -287,6 +296,174 @@ describe("cost modifier (CR 601.2f)", () => {
         expect(
             refusal("Kicked spells you cast cost {1} less to cast.")
         ).toBeTruthy();
+    });
+});
+
+// ── Frame: board cast permission (CR 601.3 / 118.9) ────────────────────────
+
+describe("board cast permission (CR 601.3)", () => {
+    it("reads Aluren — both terms, a class and a mana-value ceiling", () => {
+        expect(
+            clause(
+                "Any player may cast creature spells with mana value 3 or less " +
+                    "without paying their mana costs and as though they had flash."
+            )
+        ).toEqual({
+            kind: "cast-permission",
+            grantee: "any-player",
+            filter: { type: ["Creature"], manaValueAtMost: 3 },
+            withoutPayingManaCost: true,
+            asThoughFlash: true,
+        });
+    });
+
+    it("reads the timing-only variant, grantee `controller`", () => {
+        expect(
+            clause("You may cast creature spells as though they had flash.")
+        ).toEqual({
+            kind: "cast-permission",
+            grantee: "controller",
+            filter: { type: ["Creature"] },
+            asThoughFlash: true,
+        });
+    });
+
+    it("reads the free-only variant (Dracogenesis)", () => {
+        expect(
+            clause(
+                "You may cast Dragon spells without paying their mana costs."
+            )
+        ).toEqual({
+            kind: "cast-permission",
+            grantee: "controller",
+            filter: { subtype: ["Dragon"] },
+            withoutPayingManaCost: true,
+        });
+    });
+
+    it("reads the unfiltered permission (Vedalken Orrery)", () => {
+        // The empty filter is the CARD, not a dropped clause: "spells" names
+        // no class, so a "matches everything" refusal would refuse the very
+        // sentence this bucket exists for.
+        expect(clause("You may cast spells as though they had flash.")).toEqual(
+            {
+                kind: "cast-permission",
+                grantee: "controller",
+                filter: {},
+                asThoughFlash: true,
+            }
+        );
+    });
+
+    it("reads a UNION of classes as an `any` clause list (Vernal Equinox)", () => {
+        expect(
+            clause(
+                "Any player may cast creature and enchantment spells as though they had flash."
+            )
+        ).toEqual({
+            kind: "cast-permission",
+            grantee: "any-player",
+            filter: {
+                any: [{ type: ["Creature"] }, { type: ["Enchantment"] }],
+            },
+            asThoughFlash: true,
+        });
+    });
+
+    it("REFUSES a singular one-shot permission (the As Foretold family)", () => {
+        expect(
+            refusal(
+                "You may cast a spell with mana value 3 or less from your hand " +
+                    "without paying its mana cost."
+            )
+        ).toContain("SINGULAR");
+    });
+
+    it("REFUSES an alternative cost that is not free (Primal Prayers)", () => {
+        expect(
+            refusal(
+                "You may cast creature spells with mana value 3 or less by paying {E} " +
+                    "rather than paying their mana costs."
+            )
+        ).toContain("not free");
+    });
+
+    it("REFUSES a duration-scoped permission (Borne Upon a Wind)", () => {
+        // Load-bearing beyond its own sentence: no static rule reads the type
+        // line, so this refusal is the only thing keeping an INSTANT out of a
+        // slot that means "true while this permanent is on the battlefield".
+        expect(
+            refusal("You may cast spells this turn as though they had flash.")
+        ).toContain("DURATION");
+    });
+
+    it("REFUSES a permission naming a zone (Omniscience)", () => {
+        expect(
+            refusal(
+                "You may cast spells from your hand without paying their mana costs."
+            )
+        ).toContain("naming a zone");
+    });
+
+    it("REFUSES a predicate the filter cannot express", () => {
+        // "historic" and "colorless" are not `EffectCardFilter` predicates;
+        // each is its own primitive, not this frame's business.
+        expect(
+            refusal("You may cast historic spells as though they had flash.")
+        ).toContain("historic");
+        expect(
+            refusal("You may cast colorless spells as though they had flash.")
+        ).toContain("colorless");
+    });
+
+    it("REFUSES a sentence granting neither term", () => {
+        expect(refusal("You may cast creature spells.")).toContain("inert");
+    });
+
+    it("lowers to a `cast-permission` static whose id is derived", () => {
+        const definition = compiled(
+            oracle({
+                name: "Compiled Aluren",
+                oracleText:
+                    "Any player may cast creature spells with mana value 3 or less " +
+                    "without paying their mana costs and as though they had flash.",
+            })
+        );
+        const effect = definition.compiledStaticEffects?.[0];
+        expect(effect?.kind).toBe("cast-permission");
+        if (effect?.kind !== "cast-permission") return;
+        expect(effect.id).toBe(
+            deriveCastPermissionId(castPermissionClause(effect))
+        );
+        // The id names the OPTION, not the card: the shipped Aluren prints the
+        // same sentence and therefore carries the same literal.
+        expect(effect.id).toBe("any-player-creature-f9f346f4");
+        // The lockfile invariant: what the compiler emits IS its own JSON.
+        expect(JSON.parse(JSON.stringify(definition))).toEqual(definition);
+    });
+
+    it("two cards printing one sentence derive ONE id", () => {
+        const first = compiled(
+            oracle({
+                name: "Compiled Prophet",
+                oracleText:
+                    "You may cast creature spells as though they had flash.",
+            })
+        );
+        const second = compiled(
+            oracle({
+                name: "Compiled Vivien",
+                manaCost: "{3}{G}",
+                oracleText:
+                    "You may cast creature spells as though they had flash.",
+            })
+        );
+        const idOf = (d: CardDefinition): string | undefined => {
+            const effect = d.compiledStaticEffects?.[0];
+            return effect?.kind === "cast-permission" ? effect.id : undefined;
+        };
+        expect(idOf(first)).toBeDefined();
+        expect(idOf(first)).toBe(idOf(second));
     });
 });
 
@@ -558,6 +735,138 @@ describe("a compiled anthem in the layer system (CR 613.4c)", () => {
             );
             expect(slim).toBeDefined();
             expect(getEffectivePower(projected, slim!)).toBe(3);
+        });
+    });
+});
+
+describe("a compiled cast permission in the real engine (CR 601.3)", () => {
+    const EQUINOX_ID = "compiled-equinox-3268";
+    const DRACO_ID = "compiled-dracogenesis-3268";
+    const DRAGON_ID = "compiled-dragon-3268";
+
+    const equinox = {
+        ...compiled(
+            oracle({
+                oracleId: EQUINOX_ID,
+                name: "Compiled Equinox",
+                oracleText:
+                    "Any player may cast creature and enchantment spells as though they had flash.",
+            })
+        ),
+        id: EQUINOX_ID,
+    };
+    const dracogenesis = {
+        ...compiled(
+            oracle({
+                oracleId: DRACO_ID,
+                name: "Compiled Dracogenesis",
+                oracleText:
+                    "You may cast Dragon spells without paying their mana costs.",
+            })
+        ),
+        id: DRACO_ID,
+    };
+    const dragon = {
+        ...compiled({
+            oracleId: DRAGON_ID,
+            name: "Compiled Dragon",
+            manaCost: "{4}{R}{R}",
+            typeLine: "Creature — Dragon",
+            oracleText: "",
+            power: "5",
+            toughness: "5",
+        }),
+        id: DRAGON_ID,
+    };
+    const cat = vanilla(LION_ID, "Compiled Lion", "{W}");
+
+    /** The permission a compiled card declares — narrowed, never cast. */
+    function permissionIdOf(definition: CardDefinition): string {
+        const effect = definition.compiledStaticEffects?.[0];
+        expect(effect?.kind).toBe("cast-permission");
+        if (effect?.kind !== "cast-permission")
+            throw new Error("not a cast permission");
+        return deriveCastPermissionId(castPermissionClause(effect));
+    }
+
+    function withCards<T>(fn: () => T): T {
+        return withTemporaryDefinition(equinox, () =>
+            withTemporaryDefinition(dracogenesis, () =>
+                withTemporaryDefinition(dragon, () =>
+                    withTemporaryDefinition(cat, fn)
+                )
+            )
+        );
+    }
+
+    /** p1 holds the two permissions; p2 holds the hand. */
+    function board(): ReturnType<typeof makeState> {
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(EQUINOX_ID, { id: "equinox" }),
+                        makeInstance(DRACO_ID, { id: "draco" }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    hand: [
+                        makeInstance(DRAGON_ID, { id: "hand-dragon" }),
+                        makeInstance(LION_ID, { id: "hand-cat" }),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    it('hands the "Any player" permission to the OPPONENT and the "You" one to nobody else', () => {
+        withCards(() => {
+            const state = board();
+            const dragonCard = state.players[1]!.hand[0]!;
+            const found = collectCastPermissions(state, "p2", dragonCard).map(
+                (p) => p.id
+            );
+            // The Dragon matches Dracogenesis' filter too — but that
+            // permission is grantee `controller`, and p2 is not p1.
+            expect(found).toEqual([permissionIdOf(equinox)]);
+            expect(hasCastPermissionFlash(state, "p2", dragonCard)).toBe(true);
+            // Flash-only grants no cast OPTION: the printed cost is still paid.
+            expect(castPermissionAltCosts(state, "p2", dragonCard)).toEqual([]);
+        });
+    });
+
+    it("offers the free cast to the controller, and only for the matching class", () => {
+        withCards(() => {
+            const state = board();
+            const dragonCard = state.players[1]!.hand[0]!;
+            const catCard = state.players[1]!.hand[1]!;
+            expect(
+                castPermissionAltCosts(state, "p1", dragonCard).map(
+                    (c) => c.description
+                )
+            ).toEqual([
+                "You may cast Dragon spells without paying their mana costs.",
+            ]);
+            // The negative half is what fails when a filter is dropped.
+            expect(castPermissionAltCosts(state, "p1", catCard)).toEqual([]);
+        });
+    });
+
+    it("wire format: the permission survives projectPublicState", () => {
+        withCards(() => {
+            const state = board();
+            const projected = projectPublicState(state, 1, "p2");
+            const slim = projected.players[1]?.hand.find(
+                (c) => c?.id === "hand-dragon"
+            );
+            expect(slim).toBeDefined();
+            // The client evaluates the identical predicate (ADR 0074): the
+            // scan reads registry `staticEffects` and the hand card's id, both
+            // of which survive the projection.
+            expect(hasCastPermissionFlash(projected, "p2", slim!)).toBe(true);
+            expect(
+                castPermissionAltCosts(projected, "p1", slim!).map((c) => c.id)
+            ).toEqual([`cast-permission:${permissionIdOf(dracogenesis)}`]);
         });
     });
 });

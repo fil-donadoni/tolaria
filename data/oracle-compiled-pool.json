@@ -4323,6 +4323,33 @@
         "rarity": "rare"
     },
     {
+        "name": "Dracogenesis",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 6,
+            "R": 2
+        },
+        "oracleText": "You may cast Dragon spells without paying their mana costs.",
+        "compiledStaticEffects": [
+            {
+                "kind": "cast-permission",
+                "grantee": "controller",
+                "filter": {
+                    "subtype": [
+                        "Dragon"
+                    ]
+                },
+                "withoutPayingManaCost": true,
+                "oracleText": "You may cast Dragon spells without paying their mana costs.",
+                "id": "controller-dragon-d1540a74"
+            }
+        ],
+        "id": "0d5674f9-22b2-45f9-902d-4fd245485c60",
+        "rarity": "mythic"
+    },
+    {
         "name": "Dimir Cluestone",
         "types": [
             "Artifact"
@@ -14775,6 +14802,41 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Quick Sliver",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Sliver"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Flash\nAny player may cast Sliver spells as though they had flash.",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "cast-permission",
+                "grantee": "any-player",
+                "filter": {
+                    "subtype": [
+                        "Sliver"
+                    ]
+                },
+                "asThoughFlash": true,
+                "oracleText": "Any player may cast Sliver spells as though they had flash.",
+                "id": "any-player-sliver-894fe0ee"
+            }
+        ],
+        "id": "30a60b2d-aeeb-4dbf-bf1a-20a274fe323f",
+        "rarity": "common"
+    },
+    {
         "name": "Stealer of Secrets",
         "types": [
             "Creature"
@@ -17673,6 +17735,42 @@
         "entersTapped": true,
         "id": "3bd39a06-c53a-42c2-b2df-028358f03406",
         "rarity": "common"
+    },
+    {
+        "name": "Vernal Equinox",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 3,
+            "G": 1
+        },
+        "oracleText": "Any player may cast creature and enchantment spells as though they had flash.",
+        "compiledStaticEffects": [
+            {
+                "kind": "cast-permission",
+                "grantee": "any-player",
+                "filter": {
+                    "any": [
+                        {
+                            "type": [
+                                "Creature"
+                            ]
+                        },
+                        {
+                            "type": [
+                                "Enchantment"
+                            ]
+                        }
+                    ]
+                },
+                "asThoughFlash": true,
+                "oracleText": "Any player may cast creature and enchantment spells as though they had flash.",
+                "id": "any-player-creature-dd0f00cb"
+            }
+        ],
+        "id": "3bed69d2-f5fb-4173-b939-5abdb48b82b4",
+        "rarity": "rare"
     },
     {
         "name": "Puncture Blast",
@@ -20604,6 +20702,41 @@
             }
         ],
         "id": "477a1f53-5cdf-4b45-b584-2e36b31a3fdb",
+        "rarity": "rare"
+    },
+    {
+        "name": "Shimmer Myr",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Myr"
+        ],
+        "manaCost": {
+            "X": 3
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Flash\nYou may cast artifact spells as though they had flash.",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "cast-permission",
+                "grantee": "controller",
+                "filter": {
+                    "type": [
+                        "Artifact"
+                    ]
+                },
+                "asThoughFlash": true,
+                "oracleText": "You may cast artifact spells as though they had flash.",
+                "id": "controller-artifact-046ab4a6"
+            }
+        ],
+        "id": "478c1a5b-237b-4ecb-be73-3c6dafd5ae53",
         "rarity": "rare"
     },
     {
@@ -35377,6 +35510,39 @@
         "rarity": "common"
     },
     {
+        "name": "High Fae Trickster",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Faerie",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 1
+        },
+        "power": 4,
+        "toughness": 2,
+        "oracleText": "Flash (You may cast this spell any time you could cast an instant.)\nFlying\nYou may cast spells as though they had flash.",
+        "staticAbilities": [
+            "flash",
+            "flying"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "cast-permission",
+                "grantee": "controller",
+                "filter": {},
+                "asThoughFlash": true,
+                "oracleText": "You may cast spells as though they had flash.",
+                "id": "controller-spell-a7736ca4"
+            }
+        ],
+        "id": "7f1b93ea-1ec1-4010-9343-765742f5088b",
+        "rarity": "rare"
+    },
+    {
         "name": "Rorix Bladewing",
         "types": [
             "Creature"
@@ -35960,6 +36126,48 @@
         ],
         "id": "8090e148-2550-4156-89e3-052abda9f0e7",
         "rarity": "common"
+    },
+    {
+        "name": "Yeva, Nature's Herald",
+        "types": [
+            "Creature"
+        ],
+        "supertypes": [
+            "Legendary"
+        ],
+        "subtypes": [
+            "Elf",
+            "Shaman"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 2
+        },
+        "power": 4,
+        "toughness": 4,
+        "oracleText": "Flash (You may cast this spell any time you could cast an instant.)\nYou may cast green creature spells as though they had flash.",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "cast-permission",
+                "grantee": "controller",
+                "filter": {
+                    "type": [
+                        "Creature"
+                    ],
+                    "color": [
+                        "G"
+                    ]
+                },
+                "asThoughFlash": true,
+                "oracleText": "You may cast green creature spells as though they had flash.",
+                "id": "controller-creature-dbc806db"
+            }
+        ],
+        "id": "80acb6dc-a9bd-4f12-9025-623416bdfc32",
+        "rarity": "rare"
     },
     {
         "name": "Talas Air Ship",
@@ -41446,6 +41654,28 @@
         "rarity": "common"
     },
     {
+        "name": "Vedalken Orrery",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 4
+        },
+        "oracleText": "You may cast spells as though they had flash.",
+        "compiledStaticEffects": [
+            {
+                "kind": "cast-permission",
+                "grantee": "controller",
+                "filter": {},
+                "asThoughFlash": true,
+                "oracleText": "You may cast spells as though they had flash.",
+                "id": "controller-spell-a7736ca4"
+            }
+        ],
+        "id": "94b546fa-af65-4afa-bb16-69b33674d3d1",
+        "rarity": "rare"
+    },
+    {
         "name": "Tree of Tales",
         "types": [
             "Artifact",
@@ -46764,6 +46994,71 @@
         ],
         "id": "a6982bde-1fa3-48fa-803d-a45d6acbc2fe",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Rattlechains",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Spirit"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Flash\nFlying\nWhen this creature enters, target Spirit gains hexproof until end of turn.\nYou may cast Spirit spells as though they had flash.",
+        "staticAbilities": [
+            "flash",
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "rattlechains-trigger",
+                "oracleText": "When this creature enters, target Spirit gains hexproof until end of turn.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "subtypeFilter": [
+                        "Spirit"
+                    ]
+                },
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "target": 0
+                        },
+                        "ability": "hexproof",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "cast-permission",
+                "grantee": "controller",
+                "filter": {
+                    "subtype": [
+                        "Spirit"
+                    ]
+                },
+                "asThoughFlash": true,
+                "oracleText": "You may cast Spirit spells as though they had flash.",
+                "id": "controller-spirit-3a02bd16"
+            }
+        ],
+        "id": "a6fc4db9-a29c-4f50-8e41-105b45af0be9",
+        "rarity": "rare"
     },
     {
         "name": "Hagra Sharpshooter",
@@ -52983,6 +53278,43 @@
         "rarity": "rare"
     },
     {
+        "name": "Hypersonic Dragon",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dragon"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 1,
+            "R": 1
+        },
+        "power": 4,
+        "toughness": 4,
+        "oracleText": "Flying, haste\nYou may cast sorcery spells as though they had flash. (You may cast them any time you could cast an instant.)",
+        "staticAbilities": [
+            "flying",
+            "haste"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "cast-permission",
+                "grantee": "controller",
+                "filter": {
+                    "type": [
+                        "Sorcery"
+                    ]
+                },
+                "asThoughFlash": true,
+                "oracleText": "You may cast sorcery spells as though they had flash.",
+                "id": "controller-sorcery-a98ea814"
+            }
+        ],
+        "id": "ba617296-3cce-4933-8939-dde6445225e2",
+        "rarity": "rare"
+    },
+    {
         "name": "Bronze Sable",
         "types": [
             "Artifact",
@@ -53283,6 +53615,30 @@
         },
         "id": "bbb03f2e-2b92-4aa1-afae-301ed5d151d3",
         "rarity": "common"
+    },
+    {
+        "name": "Squeeze",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 1
+        },
+        "oracleText": "Sorcery spells cost {3} more to cast.",
+        "compiledStaticEffects": [
+            {
+                "kind": "cost-modifier",
+                "spells": {
+                    "types": [
+                        "Sorcery"
+                    ]
+                },
+                "increase": 3
+            }
+        ],
+        "id": "bbe63220-992b-459c-81ca-d4e2de273ce1",
+        "rarity": "rare"
     },
     {
         "name": "Coretapper",
@@ -57239,6 +57595,50 @@
         ],
         "id": "ca7f7cd5-4e91-474a-9f60-a66f3f462b1c",
         "rarity": "common"
+    },
+    {
+        "name": "Blur of Heroism",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "When this enchantment enters, draw a card.\nYou may cast Hero spells as though they had flash.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "blur-of-heroism-trigger",
+                "oracleText": "When this enchantment enters, draw a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "cast-permission",
+                "grantee": "controller",
+                "filter": {
+                    "subtype": [
+                        "Hero"
+                    ]
+                },
+                "asThoughFlash": true,
+                "oracleText": "You may cast Hero spells as though they had flash.",
+                "id": "controller-hero-4bdc5504"
+            }
+        ],
+        "id": "ca94680f-d46c-4b0f-a40f-635a0fcb16f5",
+        "rarity": "uncommon"
     },
     {
         "name": "Crypt of the Eternals",

@@ -3852,6 +3852,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Blur of Heroism",
+        "scryfallId": "ca94680f-d46c-4b0f-a40f-635a0fcb16f5",
+        "oracleId": "b4a9b328-f976-4390-be9a-711ef357a50d",
+        "firstSet": "msc",
+        "firstPrintId": "ca94680f-d46c-4b0f-a40f-635a0fcb16f5",
+        "firstPrintSet": "msc",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Blur Sliver",
         "scryfallId": "63227937-86cc-45e0-9e9e-8c7ab80cbaef",
         "oracleId": "e0f05979-daba-43eb-b356-24284e7ca99c",
@@ -8784,6 +8794,16 @@
         "firstSet": "pls",
         "firstPrintId": "212e3edb-62f1-4680-884f-70323547f8ad",
         "firstPrintSet": "pls"
+    },
+    {
+        "name": "Dracogenesis",
+        "scryfallId": "0d5674f9-22b2-45f9-902d-4fd245485c60",
+        "oracleId": "9b06f2bf-146d-4b30-b467-e16f1a942253",
+        "firstSet": "tdm",
+        "firstPrintId": "0d5674f9-22b2-45f9-902d-4fd245485c60",
+        "firstPrintSet": "tdm",
+        "rarity": "mythic",
+        "source": "compiled"
     },
     {
         "name": "Draconian Cylix",
@@ -15550,6 +15570,16 @@
         "firstPrintSet": "drk"
     },
     {
+        "name": "High Fae Trickster",
+        "scryfallId": "7f1b93ea-1ec1-4010-9343-765742f5088b",
+        "oracleId": "28c1a4a0-f58c-4d07-a918-51ff8a74f050",
+        "firstSet": "fdn",
+        "firstPrintId": "7f1b93ea-1ec1-4010-9343-765742f5088b",
+        "firstPrintSet": "fdn",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "High Market",
         "scryfallId": "f4c58683-65a6-4df9-8952-458e397b1374",
         "oracleId": "86fb3749-37d6-48a6-8524-71e996850307",
@@ -16286,6 +16316,16 @@
         "firstSet": "leg",
         "firstPrintId": "44d499a9-fe7c-4a1a-9eb3-a7fd9f85ae08",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Hypersonic Dragon",
+        "scryfallId": "ba617296-3cce-4933-8939-dde6445225e2",
+        "oracleId": "e1bf20b0-2bd7-4a0f-9a02-41e43bd44641",
+        "firstSet": "prtr",
+        "firstPrintId": "ba617296-3cce-4933-8939-dde6445225e2",
+        "firstPrintSet": "prtr",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Hypnotic Cloud",
@@ -25906,6 +25946,16 @@
         "firstPrintSet": "pls"
     },
     {
+        "name": "Quick Sliver",
+        "scryfallId": "30a60b2d-aeeb-4dbf-bf1a-20a274fe323f",
+        "oracleId": "530a5740-041c-42df-8fe0-fcea87258038",
+        "firstSet": "lgn",
+        "firstPrintId": "30a60b2d-aeeb-4dbf-bf1a-20a274fe323f",
+        "firstPrintSet": "lgn",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Quick Study",
         "scryfallId": "b78e2bca-bc93-464a-8911-8361abff2ac6",
         "oracleId": "7bff8d4a-1c7d-48b8-b3e3-737dd6f01823",
@@ -26403,6 +26453,16 @@
         "firstPrintId": "7cb8d3a2-ed96-4490-9432-401da19ad3c5",
         "firstPrintSet": "tmp",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Rattlechains",
+        "scryfallId": "a6fc4db9-a29c-4f50-8e41-105b45af0be9",
+        "oracleId": "ee2ca311-7639-436d-8ecb-d2aad075f25f",
+        "firstSet": "soi",
+        "firstPrintId": "a6fc4db9-a29c-4f50-8e41-105b45af0be9",
+        "firstPrintSet": "soi",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -29616,6 +29676,16 @@
         "firstPrintSet": "mh3"
     },
     {
+        "name": "Shimmer Myr",
+        "scryfallId": "478c1a5b-237b-4ecb-be73-3c6dafd5ae53",
+        "oracleId": "e110ee80-37af-4989-a5fb-95d51dc7f102",
+        "firstSet": "mbs",
+        "firstPrintId": "478c1a5b-237b-4ecb-be73-3c6dafd5ae53",
+        "firstPrintSet": "mbs",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Shimmering Wings",
         "scryfallId": "a6a8dc46-04c7-479a-90c1-b55e6c67e0e3",
         "oracleId": "7d892d61-5a69-4500-9fb2-7cf50728aedd",
@@ -31856,6 +31926,16 @@
         "firstSet": "mmq",
         "firstPrintId": "4ba8325a-1203-4125-9111-94d9e2b1f14b",
         "firstPrintSet": "mmq"
+    },
+    {
+        "name": "Squeeze",
+        "scryfallId": "bbe63220-992b-459c-81ca-d4e2de273ce1",
+        "oracleId": "e18d8326-c3c3-43c2-ac13-6861c0ef3888",
+        "firstSet": "mmq",
+        "firstPrintId": "bbe63220-992b-459c-81ca-d4e2de273ce1",
+        "firstPrintSet": "mmq",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Squire",
@@ -36698,6 +36778,16 @@
         "source": "compiled"
     },
     {
+        "name": "Vedalken Orrery",
+        "scryfallId": "94b546fa-af65-4afa-bb16-69b33674d3d1",
+        "oracleId": "60d640a4-032b-4279-ac75-8f200ca776fb",
+        "firstSet": "5dn",
+        "firstPrintId": "94b546fa-af65-4afa-bb16-69b33674d3d1",
+        "firstPrintSet": "5dn",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Veldt",
         "scryfallId": "987534fb-74a9-46a3-805f-fe2fe2df4a90",
         "oracleId": "10b9bfb3-c478-45c6-b227-9c66b63bc79b",
@@ -36841,6 +36931,16 @@
         "firstPrintId": "efddad21-553e-4947-80d2-833b42c45f77",
         "firstPrintSet": "grn",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Vernal Equinox",
+        "scryfallId": "3bed69d2-f5fb-4173-b939-5abdb48b82b4",
+        "oracleId": "2241ef7d-3e9d-44ee-88ac-e8ad6fb2444e",
+        "firstSet": "mmq",
+        "firstPrintId": "3bed69d2-f5fb-4173-b939-5abdb48b82b4",
+        "firstPrintSet": "mmq",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -39214,6 +39314,16 @@
         "firstSet": "arn",
         "firstPrintId": "efdba2a9-d171-45ed-8dd4-9d0046128f68",
         "firstPrintSet": "arn"
+    },
+    {
+        "name": "Yeva, Nature's Herald",
+        "scryfallId": "80acb6dc-a9bd-4f12-9025-623416bdfc32",
+        "oracleId": "2d513c3e-bd27-479e-af32-7f66d96d0de0",
+        "firstSet": "m13",
+        "firstPrintId": "80acb6dc-a9bd-4f12-9025-623416bdfc32",
+        "firstPrintSet": "m13",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Yeva's Forcemage",
