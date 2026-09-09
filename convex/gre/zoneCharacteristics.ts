@@ -38,6 +38,18 @@
 //       `isPermanentCard` reads the printed definition. CR 113.6c switches the
 //       ability off on the battlefield either way, so the disagreement between
 //       them is a layer-system question, not a zone-characteristics one.
+//     • `gre/layer6.ts` `resolveActivatedGrant` (issue #3299) — the ability-
+//       SOURCE half of an `activated-grant` whose `abilitiesOf` reads a linked
+//       exile pile (Agatha's Soul Cauldron: "all activated abilities of all
+//       CREATURE CARDS exiled with this"). Read in `"exile"`, the only zone
+//       `gre/exileLinks.ts` `getCardsExiledWith` can enumerate. Deliberately a
+//       SECOND call site rather than a resolution folded into `exileLinks.ts`:
+//       that module is the authority on WHICH cards are linked and is shared
+//       verbatim by the layer path and the `SpellContext` path, while the
+//       characteristic snapshot is each caller's own — and both callers now
+//       take it from HERE, so the resolving-ability reading of the pile
+//       (`state.ts` `SpellContext.getCardsExiledWith`) and the continuous-
+//       effect reading of it cannot drift.
 //     • `state.ts` `topCardHasType` (issue #3278) — the top-of-library type
 //       gate behind `drawPlanForOutcome`'s `reveal-type-to-graveyard` outcome
 //       (Enduring Renewal). Read in the LIBRARY, the same shape `millCards`

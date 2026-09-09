@@ -149,7 +149,7 @@ export type ScenarioSpec = {
 
 /** The engine's canonical loyalty-counter key (CR 306.5b). Loyalty lives in the
  *  same generic `counters` map as +1/+1 etc., under this exact lowercase key —
- *  the loyalty badge (`planeswalker-loyalty-badge.tsx`), damage removal
+ *  the loyalty badge (`loyalty-badge.tsx`), damage removal
  *  (`removeLoyaltyForDamage`) and the zero-loyalty SBA (`checkZeroLoyaltySBA`)
  *  all read `counters["loyalty"]`. */
 export const LOYALTY_COUNTER = "loyalty";

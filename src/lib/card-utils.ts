@@ -123,10 +123,39 @@ export function isCreature(card: CardInstance): boolean {
     return card.types?.includes("Creature") ?? false;
 }
 
-/** CR 306 — true iff this permanent is a planeswalker. Drives the on-card
- *  loyalty badge and mirrors the engine-side `isPlaneswalker`. */
+/** CR 306 — true iff this permanent is a planeswalker. Mirrors the engine-side
+ *  `isPlaneswalker`. */
 export function isPlaneswalker(card: CardInstance): boolean {
     return card.types?.includes("Planeswalker") ?? false;
+}
+
+/** CR 606.2 / 122.1e — whether the on-card loyalty badge has anything to say
+ *  about this permanent (issue #3299).
+ *
+ *  NOT `isPlaneswalker`. CR 606.2 is "Normally, only planeswalkers have loyalty
+ *  abilities" — normally, not only — and a permanent that is not a planeswalker
+ *  can hold loyalty counters: a creature granted a loyalty ability (Agatha's
+ *  Soul Cauldron copying Grist, the Hunger Tide's abilities out of exile) pays
+ *  `+N` onto ITSELF under CR 606.4. Gated on the type, those counters were
+ *  invisible, so the player could not tell whether a `-N` cost was affordable
+ *  under CR 606.6.
+ *
+ *  ZERO IS A VALUE, for anything that can hold loyalty at all. A planeswalker
+ *  renders its zero because CR 122.1e's state-based action is what removes it,
+ *  so the zero is a real if brief board state. A CREATURE at zero renders it
+ *  for a longer reason: CR 704.5i is a PLANESWALKER state-based action, so that
+ *  creature stays on the battlefield indefinitely and will pay a `+N` again
+ *  next turn — a shield that blinks out the moment a `-N` empties it, and
+ *  reappears a turn later, reads as a rendering bug and hides the very quantity
+ *  CR 606.6 makes the player budget. Hence the third clause: HAVING a loyalty
+ *  ability is enough, whatever the count. It reads the post-layer effective set
+ *  (`getEffectiveClientAbilities`), so a GRANTED loyalty ability counts — which
+ *  is the whole case this predicate exists for — and an ordinary creature,
+ *  whose abilities are none or unsigned, still renders nothing. */
+export function showsLoyalty(card: CardInstance): boolean {
+    if (isPlaneswalker(card)) return true;
+    if ((card.counters?.loyalty ?? 0) > 0) return true;
+    return getEffectiveClientAbilities(card).some(isLoyaltyAbility);
 }
 
 /** CR 702.126 — true iff `card` declares the Improvise keyword. Used both to

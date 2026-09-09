@@ -1,23 +1,26 @@
 import type { CardInstance } from "~/types/game";
-import { isPlaneswalker } from "~/lib/card-utils";
+import { showsLoyalty } from "~/lib/card-utils";
 
-/** Loyalty badge (CR 306.5b) shown on a battlefield planeswalker — the
- *  planeswalker's current loyalty, read from the generic `counters["loyalty"]`
+/** Loyalty badge (CR 306.5b) shown on a battlefield permanent that HAS
+ *  loyalty — its current loyalty, read from the generic `counters["loyalty"]`
  *  map the engine keeps (starting loyalty on ETB, then adjusted by loyalty
- *  abilities and loyalty-removing damage). Renders nothing for a
- *  non-planeswalker; a planeswalker at 0 loyalty leaves the battlefield as an
- *  SBA, so a rendered badge always shows a positive value.
+ *  abilities and loyalty-removing damage).
+ *
+ *  NOT planeswalker-only (issue #3299). CR 606.2 says "Normally, only
+ *  planeswalkers have loyalty abilities" — normally, not only: a creature
+ *  granted a loyalty ability (Agatha's Soul Cauldron copying Grist, the Hunger
+ *  Tide's abilities out of exile) accumulates real loyalty counters, and a
+ *  planeswalker-gated badge left them invisible, so the player could not tell
+ *  whether a `-N` ability was affordable under CR 606.6. The predicate lives in
+ *  `~/lib/card-utils` `showsLoyalty` and is what decides; see it for why a
+ *  planeswalker still renders its zero.
  *
  *  Shape/placement (QA): it is drawn as the printed LOYALTY SHIELD and sits
  *  exactly ON the card's own printed shield in the bottom-right corner —
  *  scaled in % of the card, so it lines up at every board card size — instead
  *  of the old round chip floating beside it. */
-export default function PlaneswalkerLoyaltyBadge({
-    card,
-}: {
-    card: CardInstance;
-}) {
-    if (!isPlaneswalker(card)) return null;
+export default function LoyaltyBadge({ card }: { card: CardInstance }) {
+    if (!showsLoyalty(card)) return null;
     const loyalty = card.counters?.loyalty ?? 0;
     return (
         <div

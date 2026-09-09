@@ -110,7 +110,7 @@ A **Permanent** type representing an ally with **Loyalty** rather than power/tou
 _Avoid_: Walker, PW (in prose)
 
 **Loyalty Counter**:
-The **Counter** type (CR 122) that measures a **Planeswalker**'s current loyalty. Stored in the same generic `counters` map as any other counter (key `"loyalty"`); damage removes them (CR 120.3) and **Loyalty Abilities** add/remove them.
+The **Counter** type (CR 122) that measures a permanent's current loyalty — a **Planeswalker**'s normally, but any permanent holding a **Loyalty Ability** can accumulate them (see that entry). Stored in the same generic `counters` map as any other counter (key `"loyalty"`); damage removes them (CR 120.3) and **Loyalty Abilities** add/remove them. Only on a **Planeswalker** does reaching 0 put the permanent into its owner's graveyard (CR 122.1e).
 _Avoid_: Loyalty point, life (a planeswalker doesn't have life)
 
 **Starting Loyalty**:
@@ -118,8 +118,8 @@ The printed number of **Loyalty Counters** a **Planeswalker** enters the **Battl
 _Avoid_: Base loyalty, initial life
 
 **Loyalty Ability**:
-An **Activated Ability** of a **Planeswalker** whose cost is a signed **Loyalty** change (`+N`/`-N`/`0`, `cost.loyalty`). Sorcery-speed and once per **Planeswalker** per turn (CR 606.3); a `-N` cost may not take loyalty below 0 (CR 606.5). Its presence is the whole marker — no separate flags.
-_Avoid_: Planeswalker ability (broader — a planeswalker could have non-loyalty abilities), tick
+An **Activated Ability** whose cost is a signed **Loyalty** change (`+N`/`-N`/`0`, `cost.loyalty`). That signed cost is the WHOLE marker (CR 606.2) — no separate flag, and no type gate: "normally, only planeswalkers have loyalty abilities" is normally, not only, so a non-**Planeswalker** permanent granted one (a creature holding Grist, the Hunger Tide's abilities through Agatha's Soul Cauldron) has a real loyalty ability and accumulates real **Loyalty** counters on ITSELF. Sorcery-speed and once per PERMANENT per turn (CR 606.3); a `-N` cost may not take loyalty below 0 (CR 606.6). What stays planeswalker-only is the death rule: CR 704.5i puts a PLANESWALKER at 0 loyalty into its owner's graveyard, and a creature at 0 loyalty simply stays.
+_Avoid_: Planeswalker ability (both narrower and broader — a planeswalker can have non-loyalty abilities, and a non-planeswalker can have a loyalty one), tick
 
 **Shock Land**:
 A dual land whose entry offers a **Land-Entry Pay-Choice**: "as it enters, you

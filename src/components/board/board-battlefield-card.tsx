@@ -22,7 +22,7 @@ import {
     landscapeCombatLiftDirection,
 } from "~/lib/landscape-board-bands";
 import CounterBadges from "./counter-badges";
-import PlaneswalkerLoyaltyBadge from "./planeswalker-loyalty-badge";
+import LoyaltyBadge from "./loyalty-badge";
 import NotedManaBadge from "./noted-mana-badge";
 import ManualNoteBadge from "./manual-note-badge";
 import SummoningSicknessBadge from "./summoning-sickness-badge";
@@ -447,7 +447,7 @@ export default function BoardBattlefieldCard({
                     <NotedManaBadge card={card} />
                     <ManualNoteBadge card={card} />
                     {ptDamageStack}
-                    <PlaneswalkerLoyaltyBadge card={card} />
+                    <LoyaltyBadge card={card} />
                 </div>
             </div>
         </CardTilt3D>

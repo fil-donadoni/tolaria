@@ -81,8 +81,14 @@ export function getCounterDisplays(card: CardInstance): CounterDisplay[] {
     if (!counters) return [];
     return (
         Object.entries(counters)
-            // CR 306.5b — loyalty counters are shown by the dedicated planeswalker
-            // loyalty badge (bottom-right), not as a generic named-counter badge.
+            // CR 306.5b — loyalty counters are shown by the dedicated loyalty
+            // badge (bottom-right), not as a generic named-counter badge. The
+            // badge is no longer planeswalker-gated (issue #3299), so on the
+            // BATTLEFIELD — where it is mounted, beside `CounterBadges` — this
+            // exclusion leaves nothing unrendered. The other two callers of
+            // this list (`cards-pile.tsx`, `preview-body.ts`) mount no badge of
+            // their own, so loyalty is invisible there; pre-existing, and true
+            // of planeswalkers before this issue as much as of creatures now.
             .filter(
                 ([type, count]) =>
                     count > 0 && type !== "loyalty" && !isInternalCounter(type)
