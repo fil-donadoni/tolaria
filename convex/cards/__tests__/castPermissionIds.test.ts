@@ -37,6 +37,7 @@ import {
     castPermissionClause,
     deriveCastPermissionId,
 } from "../../oracle/castPermissionId";
+import { sortKeys } from "../../oracle/gates";
 
 describe("cast-permission ids (CR 601.3)", () => {
     it("every declared id is the derivation of its own clause", () => {
@@ -60,11 +61,13 @@ describe("cast-permission ids (CR 601.3)", () => {
         expect(wrong).toEqual([]);
         // Premise: a catalogue that failed to load would pass vacuously, and
         // so would one where nothing declares a permission at all. The floor
-        // is above ONE because the compiled pool registers its own rows
+        // is well above ONE because the compiled pool registers its own rows
         // (`cards/catalogue.ts`) — a run seeing only the hand-written Aluren
-        // has lost them, and with them everything this guard is for.
+        // has lost them, and with them everything this guard is for. Not
+        // pinned to the exact population: that is a compile OUTPUT, and a
+        // retired card should not red a guard about ids.
         expect(scanned).toBeGreaterThan(1000);
-        expect(permissions).toBeGreaterThan(1);
+        expect(permissions).toBeGreaterThan(5);
     });
 
     it("two permissions sharing an id have the same clause", () => {
@@ -76,9 +79,13 @@ describe("cast-permission ids (CR 601.3)", () => {
         const collisions: string[] = [];
         for (const def of registeredDefinitions()) {
             for (const permission of declaredCastPermissions(def)) {
+                // `sortKeys`, not a `JSON.stringify` key-array replacer: the
+                // replacer is an allow-list at EVERY nesting depth, so the
+                // top-level key list erased `filter`'s own keys and every
+                // clause compared as `filter: {}` — blinding this guard to the
+                // one field it exists to police.
                 const json = JSON.stringify(
-                    castPermissionClause(permission),
-                    Object.keys(castPermissionClause(permission)).sort()
+                    sortKeys(castPermissionClause(permission))
                 );
                 const seen = clauses.get(permission.id);
                 if (seen === undefined) {

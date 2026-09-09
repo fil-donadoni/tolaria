@@ -71,6 +71,16 @@ hand-written `type: "Creature"` and the compiler's `type: ["Creature"]` are
 the same filter with two ids — the split identity this ADR exists to prevent,
 arriving through a spelling difference instead of a forgotten field.
 
+The shorthand list was widened in the same change to cover `EffectCardFilter`'s
+other singular members — `subtype`, `color`, `excludeType`, `excludeColor` —
+because covering only `type` closes the class for Aluren and leaves it open
+for the next card: a hand-written `subtype: "Dragon"` beside the compiler's
+`subtype: ["Dragon"]` is exactly the same defect one field over. Each of the
+four is documented as a shorthand in `cards/types.ts`, and taking them was
+measured to be a no-op on the catalogue (unchanged catalogue hash, unchanged
+gold and round-trip verdicts, identical `oracle:triage` buckets) — which is
+what a canonicalisation of an already-declared equivalence should be.
+
 **3. A card still writes a LITERAL; a guard asserts the derivation.** Cards
 are DATA (ADR 0045). A definition calling the derivation would make the
 compiler round trip a tautology: both sides computing the same value proves

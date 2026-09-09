@@ -421,6 +421,35 @@ describe("board cast permission (CR 601.3)", () => {
         expect(refusal("You may cast creature spells.")).toContain("inert");
     });
 
+    it("REFUSES a conjunction joining something it never read", () => {
+        // Both halves of the same guard. The first is the " and" stripped on
+        // the strength of the flash tail with no free tail behind it; the
+        // second is the reversed tail order, which leaves its own " and".
+        expect(
+            refusal(
+                "You may cast creature spells and as though they had flash."
+            )
+        ).toContain("unread conjunction");
+        expect(
+            refusal(
+                "You may cast creature spells as though they had flash and " +
+                    "without paying their mana costs."
+            )
+        ).toContain("unread conjunction");
+    });
+
+    it("REFUSES every zone spelling, not an enumerated few", () => {
+        for (const span of [
+            "spells from your hand without paying their mana costs",
+            "creature spells from the top of your library without paying their mana costs",
+            "instant spells from among cards exiled with this as though they had flash",
+        ]) {
+            expect(refusal(`You may cast ${span}.`)).toContain(
+                "naming a zone or source"
+            );
+        }
+    });
+
     it("lowers to a `cast-permission` static whose id is derived", () => {
         const definition = compiled(
             oracle({

@@ -342,9 +342,25 @@ export function sortKeys(value: unknown): unknown {
  * bare string into an array" — that would also erase a difference between
  * `name: "Wall"` and `name: ["Wall"]`, which is not a shorthand and not
  * equivalent.
+ *
+ * `EffectCardFilter`'s SINGULAR members (`subtype`, `color`, `excludeType`,
+ * `excludeColor`, beside the `type` that was already here) joined the list in
+ * issue #3268. Each one's own doc comment in `cards/types.ts` says "a single
+ * value is shorthand for one X", so they always belonged; what made the
+ * omission matter is that this canonicaliser is now also the serializer behind
+ * a `cast-permission`'s derived id (`oracle/castPermissionId.ts`), where a
+ * missing key does not report a spurious mismatch but hands ONE permission TWO
+ * identities. Measured before taking: catalogue hash unchanged, the gold and
+ * round-trip verdicts unchanged, `oracle:triage`'s buckets identical — a
+ * no-op on the population, which is what a canonicalisation of a declared
+ * equivalence should be.
  */
 const SHORTHAND_ARRAY_KEYS: ReadonlySet<string> = new Set([
     "type",
+    "subtype",
+    "color",
+    "excludeType",
+    "excludeColor",
     "types",
     "subtypes",
     "supertypes",

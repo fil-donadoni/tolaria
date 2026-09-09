@@ -125,7 +125,11 @@ const TYPE_NOUNS: ReadonlyMap<string, readonly CardType[]> = new Map<
     // descriptor over CARDS reaches them: "sorcery spells" is read here as
     // "sorcery cards" (CR 109.2 — a spell is a card on the stack), which is
     // the only way the cast-permission and cost-modifier frames can name the
-    // class Hypersonic Dragon and Goblin Electromancer print. On the
+    // class Hypersonic Dragon ("You may cast sorcery spells as though they had
+    // flash.") and Squeeze ("Sorcery spells cost {3} more to cast.") print. A
+    // UNION of the two ("Instant and sorcery spells … cost {1} less") is still
+    // refused — by name now, for having no encoding, rather than for a noun
+    // the grammar did not know. On the
     // BATTLEFIELD the two nouns describe nothing, which is harmless: a filter
     // for a type no permanent can have matches nothing rather than too much.
     ["instant", ["Instant"]],

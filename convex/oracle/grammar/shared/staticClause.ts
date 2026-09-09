@@ -513,10 +513,10 @@ function readCastPermissionFilter(span: string): RuleResult<EffectCardFilter> {
  * is the whole of what keeps an INSTANT out of a slot that means "true while
  * this permanent is on the battlefield" (CR 604.1).
  *
- * ZONE phrases — "spells from your hand" (Omniscience), "from an opponent's
- * graveyard". `collectCastPermissions` is hand-only by contract, so the
- * phrase is not wrong, merely unread — and a permission the compiler did not
- * finish reading is one it must not emit.
+ * ZONE phrases — "spells from your hand" (Omniscience), "from the top of your
+ * library", "from among cards exiled with …". `collectCastPermissions` is
+ * hand-only by contract, so the phrase is not wrong, merely unread — and a
+ * permission the compiler did not finish reading is one it must not emit.
  *
  * PREDICATES the filter cannot express — "historic spells", "colorless
  * spells", "Aura spells with enchant creature". `EffectCardFilter` has no
@@ -540,19 +540,29 @@ export const castPermissionRule: Rule<StaticClauseIR> = pattern(
                 "a SINGULAR cast permission is a one-shot, not a standing class permission (CR 601.3)",
                 body
             );
-        if (/ from (your|an opponent's|a) /.test(body))
+        // Every zone/source spelling, not an enumerated few: "from your hand"
+        // (Omniscience), "from the top of your library", "from among cards
+        // exiled with …", "from an opponent's graveyard". No sentence this
+        // frame accepts contains the word at all, so the bare preposition is
+        // the fail-closed test — an enumeration would leave the next spelling
+        // to be refused by accident somewhere downstream.
+        if (/ from /.test(body))
             return fail(
-                "a cast permission naming a zone is not read by this frame (CR 601.3)",
+                "a cast permission naming a zone or source is not read by this frame (CR 601.3)",
                 body
             );
 
         let rest = body;
         let asThoughFlash = false;
         let withoutPayingManaCost = false;
+        let conjunction = false;
         if (rest.endsWith(FLASH_TAIL)) {
             asThoughFlash = true;
             rest = rest.slice(0, -FLASH_TAIL.length);
-            if (rest.endsWith(" and")) rest = rest.slice(0, -" and".length);
+            if (rest.endsWith(" and")) {
+                conjunction = true;
+                rest = rest.slice(0, -" and".length);
+            }
         }
         if (rest.endsWith(FREE_TAIL)) {
             withoutPayingManaCost = true;
@@ -564,8 +574,15 @@ export const castPermissionRule: Rule<StaticClauseIR> = pattern(
                 body
             );
         // The " and" above was stripped on the strength of the flash tail
-        // alone; if the free tail did not follow it, the conjunction joined
-        // something this frame never read.
+        // ALONE, so whether it joined anything this frame read is only known
+        // now. Recorded rather than re-tested: the strip already removed it,
+        // and a later `endsWith(" and")` could therefore never fire — it would
+        // read as a guard while being dead code, which is worse than no guard.
+        // Both halves matter: the conjunction with no free tail
+        // ("creature spells and as though they had flash"), and the reversed
+        // tail order, which leaves its own " and" behind.
+        if (conjunction && !withoutPayingManaCost)
+            return fail("unread conjunction in a cast permission", body);
         if (rest.endsWith(" and"))
             return fail("unread conjunction in a cast permission", body);
         if (/ (this turn|this game|until )/.test(rest))
