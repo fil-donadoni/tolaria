@@ -13711,12 +13711,36 @@ export type EffectOp =
      *  graveyard-bound replacement redirected to exile was NOT milled
      *  (CR 701.17a is "put into a graveyard from a library"), so it is never
      *  the bound card; nothing binds when every card was redirected or the
-     *  library was already empty (CR 608.2b). */
+     *  library was already empty (CR 608.2b).
+     *
+     *  Optional `bindAll` (issue #2600) binds the SAME set `bind` takes its
+     *  first element from, whole: every card that genuinely reached the
+     *  graveyard, in mill order. It is a PICKS binding — the identical
+     *  `string[]` runtime storage a `choice` Op's `bind` writes, not a new
+     *  binding kind — so the picks consumers that read IDS take it with no new
+     *  grammar: a `moveZone`/`discard` bare `cards` ref, an
+     *  `if { picksNonEmpty }` / `{ picksMatchFilter }` gate, and (the reason it
+     *  exists) `choice.candidates` in a public zone. NOT
+     *  `forEach { set: "bound" }` in practice: that construct binds its `$each`
+     *  through the battlefield-scoped snapshot path, so a graveyard-resident
+     *  member leaves it uncaptured and the body skips (`execForEach` — the same
+     *  limitation any picks binding of non-battlefield cards already has, not
+     *  one this field introduces). That last one is what
+     *  makes "mill three cards. You may put a land card from among them into
+     *  your hand" expressible: the pick is scoped to the three cards THIS Op
+     *  just moved, and cannot reach a card that was already in the graveyard.
+     *  Distinct from `bind` rather than a widening of it because the two are
+     *  different binding FAMILIES — `bind` is a CR 608.2h characteristics
+     *  snapshot read with `$b.types`/`$b.manaValue`, `bindAll` is a set of
+     *  instance ids — and Loafing Giant's first-card semantics stay exactly as
+     *  shipped. Uncaptured when nothing was milled (CR 608.2b — every reader
+     *  then skips). */
     | {
           op: "mill";
           player: EffectPlayerRef;
           count: EffectValue;
           bind?: string;
+          bindAll?: string;
       }
     /** CR 701.20a reveal + CR 400.7 zone change — reveal the top `count` card(s)
      *  of a library and send each one to a destination chosen by WHAT IT IS
@@ -14899,9 +14923,25 @@ export type EffectOp =
           filter?: EffectCardFilter;
           /** CR 601.2c / 608.2 — restricts the pick to specific ALREADY-KNOWN
            *  objects instead of a whole zone: the announced targets, or
-           *  snapshots an earlier Op bound. `zone: "battlefield"` only
-           *  (validator-enforced) — the other zones are hidden or unordered,
-           *  and nothing there can be named ahead of the pick.
+           *  snapshots an earlier Op bound.
+           *
+           *  Three shapes, each with its own reason the set can be named ahead
+           *  of the pick (validator-enforced, everything else rejected):
+           *  `zone: "battlefield"` with `EffectObjectSelector` entries (below —
+           *  a public zone of live objects); `zone: "library"` with
+           *  `kind: "choose-library-card"` and bare PICKS refs, where a
+           *  preceding `reveal` is what makes a hidden zone's set public
+           *  (CR 701.20a, issue #3205); and `zone: "graveyard"`/`"exile"` with
+           *  bare PICKS refs (issue #2600) — a public zone (CR 400.2), so
+           *  nothing has to be revealed, and the binding is what says WHICH of
+           *  its cards. That third shape is "from among them": `mill
+           *  { bindAll: "$milled" }` then `choice { zone: "graveyard",
+           *  candidates: [{ ref: "$milled" }], filter: { type: "Land" } }`
+           *  reaches the cards this script just milled and no other, where a
+           *  bare filter would reach a land milled five turns ago. A bound id
+           *  that has since left the zone drops out and the count clamps
+           *  (CR 608.2b), the same policy the battlefield presence recheck
+           *  applies.
            *
            *  This is what lets a card whose text says "choose one of THEM" be
            *  a real click on a card rather than a list of sentences: Barrin's

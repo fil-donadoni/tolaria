@@ -1723,6 +1723,39 @@ function bindSnapshot(
     ]);
 }
 
+/** CR 400.2 (issue #2600) — resolves a PUBLIC-zone `candidates` set (the
+ *  "from among them" shape): the ids the named picks bindings hold, in binding
+ *  order, intersected with the zone's CURRENT contents and narrowed by the
+ *  Op's `filter`. The intersection is this branch's CR 608.2b drop-what-left
+ *  policy — a bound card another effect has since moved out of the zone falls
+ *  out and the count clamps, exactly as the battlefield branch's presence
+ *  recheck and the library branch's own intersection do. An UNCAPTURED binding
+ *  (its Op was skipped, or milled nothing) yields an empty set, never the whole
+ *  zone: a candidate source that does not resolve must not widen the pick.
+ *  Resolved through `resolvePicks`, not `resolveObjectRef` — a graveyard or
+ *  exile card is not a battlefield permanent, so the snapshot path's presence
+ *  recheck would reject every one of them. */
+function boundSetCandidates(
+    ctx: SpellContext,
+    op: OpOf<"choice">,
+    cards: readonly (Parameters<typeof matchesCardFilter>[1] & {
+        id: string;
+    })[]
+): { available: number; candidateIds: string[] } {
+    const present = new Map(cards.map((c) => [c.id, c]));
+    const ids: string[] = [];
+    for (const selector of op.candidates ?? []) {
+        if (!("ref" in selector)) continue;
+        for (const id of resolvePicks(ctx, selector) ?? []) {
+            const card = present.get(id);
+            if (!card || ids.includes(id)) continue;
+            if (op.filter && !matchesCardFilter(ctx, card, op.filter)) continue;
+            ids.push(id);
+        }
+    }
+    return { available: ids.length, candidateIds: ids };
+}
+
 /** Computes how many candidates a `choice` Op actually has, plus the
  *  graveyard allow-list when applicable. The pick count is clamped to this
  *  (CR 608.2b — the chooser cannot be asked for more than exists; "discard
@@ -1853,6 +1886,9 @@ function choiceCandidates(
         // "an exiled card ... with a void counter on it"). No filter — every
         // card in the exile is eligible.
         const exileCards = ctx.getExileCards(zoneOwnerId);
+        // issue #2600 — "from among them" in a public zone: the pick is scoped
+        // to what an earlier Op in THIS script bound, not to the whole zone.
+        if (op.candidates) return boundSetCandidates(ctx, op, exileCards);
         const ids = op.filter
             ? exileCards
                   .filter((c) => matchesCardFilter(ctx, c, op.filter!))
@@ -1868,6 +1904,10 @@ function choiceCandidates(
     // branches above (mirrors `countSet`'s graveyard branch too). No filter —
     // every card in the graveyard is eligible (Eternal Witness).
     const graveyardCards = ctx.getGraveyardCards(zoneOwnerId);
+    // issue #2600 — "mill three cards. You may put a land card from among them
+    // into your hand": the candidate set is the cards THIS script just moved
+    // here, so the pick cannot reach one that was already in the graveyard.
+    if (op.candidates) return boundSetCandidates(ctx, op, graveyardCards);
     const ids = op.filter
         ? graveyardCards
               .filter((c) => matchesCardFilter(ctx, c, op.filter!))
@@ -3564,6 +3604,17 @@ export const OP_EXECUTORS: {
                 id: milledIds[0],
                 playerId,
             });
+        }
+        // issue #2600 — the same set, WHOLE, as a picks binding: the ids that
+        // genuinely reached the graveyard, in mill order. Written with the
+        // plain `noteChoice` a `choice` Op's picks use rather than through
+        // `bindSnapshot` (which stores one object's characteristics, not a
+        // set), so every existing picks consumer reads it unchanged. Left
+        // uncaptured when nothing was milled, exactly like `bind` above —
+        // CR 608.2b, and an uncaptured candidate source makes the pick that
+        // reads it find nothing rather than fall back to the whole zone.
+        if (op.bindAll && milledIds.length > 0) {
+            ctx.noteChoice(op.bindAll, milledIds);
         }
     },
     // CR 701.20a + CR 400.7 — reveal the top `count` card(s) of a library and

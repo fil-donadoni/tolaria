@@ -4353,9 +4353,27 @@ describe("validateEffectScript — choice candidates / bindOther", () => {
             );
         });
 
-        it("still rejects candidates in every OTHER hidden or unordered zone", () => {
+        // Narrowed by issue #2600, deliberately: `graveyard`/`exile` moved out
+        // of this list because they are PUBLIC zones (CR 400.2) — see the
+        // bound-set describe below, which pins what they now accept and, with
+        // this case, that an OBJECT SELECTOR is still refused there. `hand` is
+        // the one zone left that nothing can name ahead of the pick.
+        it("still rejects candidates in the HAND, and object selectors in a public zone", () => {
+            const handErrors = validateEffectScript(
+                host({
+                    effects: [
+                        candidateChoice({
+                            kind: "choose-hand-card",
+                            zone: "hand",
+                            bindOther: undefined,
+                        }),
+                    ],
+                })
+            );
+            expect(handErrors.join("\n")).toContain(
+                'valid only with zone: "battlefield"'
+            );
             for (const [kind, zone] of [
-                ["choose-hand-card", "hand"],
                 ["choose-graveyard-card", "graveyard"],
                 ["choose-exile-card", "exile"],
             ] as const) {
@@ -4372,9 +4390,119 @@ describe("validateEffectScript — choice candidates / bindOther", () => {
                 );
                 expect(
                     errors.join("\n"),
-                    `${kind} / ${zone} must still be refused`
-                ).toContain('valid only with zone: "battlefield"');
+                    `${kind} / ${zone} must refuse an announced-target selector`
+                ).toContain("must each be a bare binding ref");
             }
+        });
+    });
+
+    // issue #2600 — the SECOND exception to "candidates ⇒ battlefield": a
+    // PUBLIC zone (CR 400.2), where nothing has to be revealed because the
+    // zone is already public and the binding only says WHICH of its cards.
+    describe("the public-zone bound set (CR 400.2, issue #2600)", () => {
+        const millThenPick = (over: Record<string, unknown> = {}) =>
+            host({
+                effects: [
+                    {
+                        op: "mill",
+                        player: "controller",
+                        count: 3,
+                        bindAll: "$milled",
+                    },
+                    {
+                        op: "choice",
+                        kind: "choose-graveyard-card",
+                        player: "controller",
+                        zone: "graveyard",
+                        candidates: [{ ref: "$milled" }],
+                        filter: { type: "Land" },
+                        count: { min: 0, max: 1 },
+                        prompt: "You may put a land card from among them into your hand.",
+                        bind: "$kept",
+                        ...over,
+                    },
+                    {
+                        op: "moveZone",
+                        cards: { ref: "$kept" },
+                        player: "controller",
+                        from: "graveyard",
+                        to: "hand",
+                    },
+                ] as EffectOp[],
+            });
+
+        it("accepts a graveyard pick scoped to a milled set", () => {
+            expect(validateEffectScript(millThenPick())).toEqual([]);
+        });
+
+        it("accepts the same shape in exile", () => {
+            const script = millThenPick({
+                kind: "choose-exile-card",
+                zone: "exile",
+            });
+            const effects = (script.effects as EffectOp[]).map((op) =>
+                (op as { op: string }).op === "moveZone"
+                    ? ({ ...(op as object), from: "exile" } as EffectOp)
+                    : op
+            );
+            expect(validateEffectScript({ ...script, effects })).toEqual([]);
+        });
+
+        it("rejects a candidate naming a binding no earlier Op declared", () => {
+            const errors = validateEffectScript(
+                millThenPick({ candidates: [{ ref: "$never" }] })
+            );
+            expect(errors.join("\n")).toContain(
+                "must name a picks binding an EARLIER Op"
+            );
+        });
+
+        it("rejects a candidate naming a SNAPSHOT binding — a family mismatch", () => {
+            // `mill`'s own `bind` is the snapshot of the FIRST milled card, not
+            // a set: reading it as a candidate source would offer one card and
+            // silently look like a working "from among them".
+            const script = millThenPick({ candidates: [{ ref: "$first" }] });
+            const effects = (script.effects as EffectOp[]).map((op) =>
+                (op as { op: string }).op === "mill"
+                    ? ({ ...(op as object), bind: "$first" } as EffectOp)
+                    : op
+            );
+            const errors = validateEffectScript({ ...script, effects });
+            expect(errors.join("\n")).toContain(
+                "must name a picks binding an EARLIER Op"
+            );
+        });
+
+        it("rejects a candidate set that is the pick's OWN bind", () => {
+            const errors = validateEffectScript(
+                millThenPick({ candidates: [{ ref: "$kept" }] })
+            );
+            expect(errors.join("\n")).toContain("is this choice's OWN bind");
+        });
+
+        it("rejects a bindAll that re-declares an existing binding", () => {
+            const script = millThenPick();
+            const effects = (script.effects as EffectOp[]).map((op) =>
+                (op as { op: string }).op === "mill"
+                    ? ({
+                          ...(op as object),
+                          bind: "$milled",
+                      } as EffectOp)
+                    : op
+            );
+            const errors = validateEffectScript({ ...script, effects });
+            expect(errors.join("\n")).toContain(
+                'bindAll "$milled" re-declares an existing binding'
+            );
+        });
+
+        it("rejects bindOther on a public-zone pick — an unpicked graveyard card is not a permanent", () => {
+            const errors = validateEffectScript(
+                millThenPick({ bindOther: "$other" })
+            );
+            expect(errors.join("\n")).toContain(
+                '"bindOther" is valid only with zone: "battlefield"'
+            );
         });
     });
 
