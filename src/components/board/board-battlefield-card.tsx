@@ -3,7 +3,16 @@ import type { CardVisualState, ActivatableAbility } from "./battlefield-card";
 import { useGameContext } from "~/hooks/useGameContext";
 import TurnFaceUpButton from "./turn-face-up-button";
 import { useArrowHighlight } from "~/hooks/arrowHighlightContext";
-import { effectivePower, effectiveToughness } from "~/lib/effective-stats";
+import {
+    effectivePower,
+    effectiveToughness,
+    toPermanentView,
+} from "~/lib/effective-stats";
+import {
+    getEffectivePower,
+    getEffectiveToughness,
+    type LayerStateView,
+} from "@convex/gre/layers";
 import { isCreature } from "~/lib/card-utils";
 import { getEffectiveColorDisplay } from "~/lib/color-override";
 import CardImage from "../cards/card-image";
@@ -81,6 +90,17 @@ type BoardBattlefieldCardProps = {
      *  of applying the desktop Tailwind class. Omitted ⇒ desktop/portrait,
      *  unchanged. */
     compactCardHeight?: number;
+    /** Board-wide layer input (issue #2931), built ONCE per battlefield render
+     *  by the parent via `toLayerState(allPlayers, emblems, continuousEffects)`
+     *  and shared across every card. `effectivePower`/`effectiveToughness`
+     *  each rebuild that same structure internally from `allPlayers`, so
+     *  calling them per card (twice — once per stat) on a battlefield of N
+     *  permanents cost O(N) per call site: with N creatures each paying two
+     *  O(N) rebuilds, a full render was O(N^2) — the dominant cost measured on
+     *  the stress-test scenario (~100 permanents). Omitted ⇒ falls back to the
+     *  old per-call rebuild, so a caller/test that doesn't pass it (still
+     *  correct, just unshared) keeps working unchanged. */
+    layerState?: LayerStateView;
 };
 
 /** Battlefield card for the new spatial board (PRD #249, slice #256).
@@ -125,6 +145,7 @@ export default function BoardBattlefieldCard({
     clickActsWithAbilities = false,
     phased = false,
     compactCardHeight,
+    layerState,
 }: BoardBattlefieldCardProps) {
     const { allPlayers, emblems, playerId, continuousEffects } =
         useGameContext();
@@ -201,6 +222,24 @@ export default function BoardBattlefieldCard({
 
     const damage = card.damageMarked ?? 0;
 
+    // The battlefield builds `layerState` ONCE per render and shares it across
+    // every card (issue #2931) — `effectivePower`/`effectiveToughness` each
+    // rebuild the same board-wide structure internally from `allPlayers`, so
+    // calling them per creature (twice each) turned an N-permanent board into
+    // O(N^2) work. `layerState` absent (a caller/test still on the old prop
+    // shape) falls back to the old per-call rebuild, unshared but correct.
+    const permanentView = creature ? toPermanentView(card) : undefined;
+    const power =
+        permanentView &&
+        (layerState
+            ? getEffectivePower(layerState, permanentView)
+            : effectivePower(allPlayers, card, emblems, continuousEffects));
+    const toughness =
+        permanentView &&
+        (layerState
+            ? getEffectiveToughness(layerState, permanentView)
+            : effectiveToughness(allPlayers, card, emblems, continuousEffects));
+
     const ptDamageStack = creature ? (
         <div className="absolute bottom-1.5 right-1.5 flex flex-col items-end gap-0.5 pointer-events-none z-20">
             {damage > 0 && (
@@ -209,13 +248,7 @@ export default function BoardBattlefieldCard({
                 </div>
             )}
             <div className="bg-black p-0.5 rounded-xs text-[10px] font-bold text-white leading-none drop-shadow-[0_0_2px_rgba(0,0,0,0.9)]">
-                {effectivePower(allPlayers, card, emblems, continuousEffects)}/
-                {effectiveToughness(
-                    allPlayers,
-                    card,
-                    emblems,
-                    continuousEffects
-                )}
+                {power}/{toughness}
             </div>
         </div>
     ) : null;

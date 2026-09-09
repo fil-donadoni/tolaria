@@ -13,6 +13,7 @@ import {
 import type { LandscapeCardMetrics } from "~/lib/landscape-board-bands";
 import { groupBattlefield } from "~/lib/battlefield-stacks";
 import { attachmentHostName, attachmentLabel } from "~/lib/attachment";
+import { toLayerState } from "~/lib/effective-stats";
 import SpatialZone, { type SpatialItem } from "./spatial-zone";
 import BoardBattlefieldCard from "./board-battlefield-card";
 import type { CardVisualState } from "./battlefield-card";
@@ -138,6 +139,16 @@ export default function BoardBattlefield({
     const allPlayers = useMemo(
         () => (ctx.allPlayers?.length ? ctx.allPlayers : [player]),
         [ctx.allPlayers, player]
+    );
+    // Built ONCE per battlefield render and handed to every `BoardBattlefieldCard`
+    // (issue #2931): each card's P/T badge otherwise calls `effectivePower` AND
+    // `effectiveToughness`, which EACH rebuild this same board-wide structure
+    // from `allPlayers` — O(N) work per call, twice per creature, so an
+    // N-permanent board paid O(N^2) just to display power/toughness. Sharing one
+    // build across the row turns that into O(N).
+    const layerState = useMemo(
+        () => toLayerState(allPlayers, ctx.emblems, ctx.continuousEffects),
+        [allPlayers, ctx.emblems, ctx.continuousEffects]
     );
     // CR 601.2d — un-stack identical permanents while a divide-as-you-choose
     // selection is in progress, so each instance is individually dialable.
@@ -275,6 +286,7 @@ export default function BoardBattlefield({
                 }
                 clickActsWithAbilities={clickActsWithAbilities}
                 compactCardHeight={compact?.cardHeight}
+                layerState={layerState}
             />
         );
     }
@@ -288,7 +300,14 @@ export default function BoardBattlefield({
             // The slot key is prefixed, so the instance id must be declared
             // separately or no arrow can point at this permanent.
             anchorIds: [card.id],
-            node: <BoardBattlefieldCard card={card} vs={INERT_VISUAL} phased />,
+            node: (
+                <BoardBattlefieldCard
+                    card={card}
+                    vs={INERT_VISUAL}
+                    phased
+                    layerState={layerState}
+                />
+            ),
         };
     }
 
