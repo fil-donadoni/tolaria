@@ -5543,6 +5543,59 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Issue #2708 — the first entry whose announced target is a stack ITEM chosen by a property of that item's OWN targets (`spellTargetsPermanentFilter`). Filed at `stretch` deliberately: the reachability half is proven green elsewhere, and raising a budget to turn an entry green is not a legitimate move (ADR 0070 §2).",
     },
+
+    // ── A controller-chosen sacrifice is a COST (issue #3292) ─────────────
+    // A DISCRIMINATING PAIR on the SIGN of a picks-set `sacrifice`. The Op is
+    // the same in both positions; what differs is WHO picks the permanents.
+    // The value model used to price every bare-picks sacrifice as an edict
+    // (+120 discounted removal) without asking, so a `sacrifice` the CASTER
+    // chooses — their own permanent, a cost — read as removal aimed at the
+    // opponent, on nine shipped cards.
+    {
+        label: "sacrifice sign: does not cast Flash for a creature it cannot pay for",
+        spec: {
+            cards: [
+                { name: "Flash", owner: "me", zone: "hand" },
+                { name: "Craw Wurm", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { forbidden: [{ kind: "cast-spell", card: "Flash" }] },
+        note: "Issue #3292, the reported symptom. Two lands is exactly Flash's {1}{U} and nothing more, so the Craw Wurm it could cheat in costs {2}{G}{G} after the {2} reduction (CR 118.9) and CANNOT be paid for: the only reachable outcome of the cast is putting the Wurm onto the battlefield and sacrificing it — two cards and the turn's mana for nothing. The bot must pass. It used to cast, because the trailing `if (not $paid) -> sacrifice($picked)` was priced as +120 board removal: `$picked` is a bare picks ref, and the valuer never asked that the binding came from a `choice { player: \"controller\" }`. At resolution it then correctly declines the put, so the whole cast was spent on nothing. Deliberately NOT a claim that the cheat-into-play shape is worthless — giving it positive value is issue #3293; this entry only pins that the sacrifice half stops being counted as a gift.",
+    },
+    {
+        label: "sacrifice sign NEGATIVE CONTROL: still casts a genuine edict",
+        spec: {
+            cards: [
+                { name: "Sheoldred's Edict", owner: "me", zone: "hand" },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Sheoldred's Edict" }],
+        },
+        note: "Issue #3292 negative control, the other side of the same Op. The Edict's sacrifice reads the identical bare picks ref, but its `choice` names `player: \"opponent\"` — the OPPONENT picks, so it is real removal and must keep the edict value. Guards the fix against over-reaching: an attribution that answered \"controller\" for anything but the literal chooser would sign this (and Innocent Blood's `$each`, and Liliana of the Veil's announced target player) as the caster's own cost and stop the bot ever casting an edict.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the

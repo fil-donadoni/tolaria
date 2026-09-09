@@ -141,10 +141,34 @@ const CAST_DURING_RESOLUTION_FREE_VALUE = 55; // a free mini-cast (Cascade-style
 const CAST_DURING_RESOLUTION_PAID_VALUE = 20; // a pay-the-cost mini-cast — matches GRANT_CAST_VALUE's "permission to cast" scale, since the mana cost offsets most of the card's own worth
 const COPY_TOKEN_REPRESENTATIVE_STAT = 2; // unknown copied body's P/T — same representative magnitude `grounding.ts`'s CF_ASSUMED_REF uses for a bound ref
 
-/** A valuer: projects one Op onto the feature basis under a grounding mode. */
+/** The WALK-LOCAL binding scope threaded down an Effect Script by
+ *  `valueEffectScript` (issue #3292). Purely syntactic — derived from the
+ *  script's own Ops, never from live state, so both grounding modes see the
+ *  identical attribution and no `ContextAwareResolvers` entry is owed. Kept
+ *  OFF `GroundingContext` deliberately: a grounding context answers "what does
+ *  this ref mean at the decision node", while this answers "which earlier Op in
+ *  THIS script bound this name" — a fact of the script, scoped to one walk.
+ *
+ *  `controllerChosenPicks` holds the picks-binding names a `choice` Op whose
+ *  `player` is the literal `"controller"` has bound. A `sacrifice` over such a
+ *  binding is the CASTER's own permanent (a cost), not an edict. */
+type ScriptScope = {
+    readonly controllerChosenPicks: ReadonlySet<string>;
+};
+
+/** The scope a script walk starts from — nothing bound yet. */
+const EMPTY_SCRIPT_SCOPE: ScriptScope = {
+    controllerChosenPicks: new Set<string>(),
+};
+
+/** A valuer: projects one Op onto the feature basis under a grounding mode,
+ *  plus the walk-local binding scope (`ScriptScope`) accumulated by the ops
+ *  BEFORE it in the same script. Almost every valuer reads only `(op, ctx)`
+ *  and is declared with two parameters — that stays assignable. */
 type Valuer<K extends EffectOp["op"]> = (
     op: OpOf<K>,
-    ctx: GroundingContext
+    ctx: GroundingContext,
+    scope: ScriptScope
 ) => OpValue;
 
 /** Attach `board-scaling` when a resolved amount grows with hidden/board state
@@ -224,6 +248,50 @@ function withCapturedSourceAliases(
  *  against. Treated as its own case so the caller can score it neutral. */
 function isEachPlayerRef(ref: EffectPlayerRef): boolean {
     return typeof ref === "object" && "ref" in ref && ref.ref === "$each";
+}
+
+/** issue #3292 — extends a walk's `ScriptScope` with the binding an Op creates,
+ *  called by `valueEffectScript` before each Op is valued so a later Op reads
+ *  what the earlier ones bound.
+ *
+ *  Only one binding matters today: a `choice` Op with a `bind` whose `player`
+ *  is the LITERAL `"controller"`. The literal is the whole test on purpose —
+ *  `ctx.isSelf` is the wrong instrument here, because it answers a
+ *  DECISION-NODE question with an assumption for the ambiguous shapes, and
+ *  context-free it reports `true` for ANY opaque `{ ref }` player. That would
+ *  sign Innocent Blood's and Razing Snidd's `{ ref: "$each" }` and Mana
+ *  Vortex's / Destructive Flow's / Keldon Twilight's
+ *  `{ ref: "$event.activePlayerId" }` as the caster's own cost — inverting
+ *  five genuinely symmetric or opponent-side edicts to fix nine
+ *  controller-chosen ones. Everything the walk cannot attribute to the
+ *  controller by NAME keeps the edict value.
+ *
+ *  Zone-agnostic: Flash binds a HAND card (`zone: "hand"`) that a later
+ *  `moveZone` puts onto the battlefield before the `sacrifice` reads the same
+ *  binding, so keying on `zone: "battlefield"` would miss the card that
+ *  surfaced the bug. */
+function withBindingsOf(scope: ScriptScope, op: EffectOp): ScriptScope {
+    if (op.op !== "choice" || !op.bind || op.player !== "controller") {
+        return scope;
+    }
+    if (scope.controllerChosenPicks.has(op.bind)) return scope;
+    return {
+        controllerChosenPicks: new Set([
+            ...scope.controllerChosenPicks,
+            op.bind,
+        ]),
+    };
+}
+
+/** issue #3292 — true when a `sacrifice`'s bare picks ref names a binding this
+ *  walk attributed to a controller-owned `choice`. Structurally narrow, like
+ *  `isSourceBattlefieldRefSelector`: an announced `{ target: n }` slot carries
+ *  no `ref` key and is excluded before the set is even consulted. */
+function isControllerChosenPicksRef(
+    ref: EffectRef,
+    scope: ScriptScope
+): boolean {
+    return scope.controllerChosenPicks.has(ref.ref);
 }
 
 // -------------------------------------------------------------------------
@@ -415,8 +483,37 @@ const mayPay: Valuer<"mayPay"> = () => {
     return ZERO_OP_VALUE;
 };
 
-const sacrifice: Valuer<"sacrifice"> = (op) => {
+const sacrifice: Valuer<"sacrifice"> = (op, _ctx, scope) => {
     if (op.permanents) {
+        // Issue #3292 — a picks-set sacrifice signs by WHO CHOSE the picks,
+        // exactly as the single-permanent branch below signs by whose permanent
+        // it is (issue #1521). The binding attribution is walk-local
+        // (`ScriptScope`), and it is the same shape of fix issue #1964 made for
+        // a self-bounce: the script itself already says who is picking, the
+        // valuer just had no way to read it.
+        //
+        //   - bound by a `choice` whose `player` is the literal `"controller"`
+        //     — the caster picks their OWN permanent, so this is a COST. Nine
+        //     shipped cards ride it (Flash, Dredge, Glacial Chasm, Kjeldoran
+        //     Dead, Devouring Strossus, Mold Demon, Grist, Gut, Minsc & Boo),
+        //     and all of them used to read as discounted removal aimed at the
+        //     opponent. Flash is what surfaced it: its trailing
+        //     `if (not $paid) -> sacrifice($picked)` priced as +120 removal,
+        //     so the bot cast it on hands where the only reachable outcome is
+        //     sacrificing its own creature for nothing.
+        //   - anything else — an `"opponent"` chooser (Sheoldred's Edict,
+        //     Portal to Phyrexia), an announced target player (Liliana of the
+        //     Veil, Archon of Cruelty), a `{ controllerOf }` (Barrin's Spite),
+        //     the `$each` / `$event.activePlayerId` symmetric shapes (Innocent
+        //     Blood, Mana Vortex), or a binding this walk cannot attribute at
+        //     all — keeps today's edict value. The unattributable case must
+        //     fail OPEN to the edict, never silently negative.
+        if (isControllerChosenPicksRef(op.permanents, scope)) {
+            return {
+                points: SAC_SELF_COST,
+                tags: ["boardRemoval", "self-cost"],
+            };
+        }
         // A forced sacrifice over a picks set — an edict (opponent sacrifices).
         // Discounted vs. targeted removal: the chooser keeps their best, and a
         // symmetric "each player sacrifices" also hits the caster.
@@ -682,6 +779,15 @@ const choiceOp: Valuer<"choice"> = () => {
 // `$self` was captured as `{ ref: "$source" }`) is priced as the self-cost it
 // is rather than the generic bounce benefit — the recursion is exactly where
 // that context has to survive or the fix reaches nothing inside the body.
+//
+// Issue #3292 — the nested body starts from a FRESH `ScriptScope` (the default)
+// rather than inheriting the outer walk's. That is the binding rule the Op
+// itself declares: `capture` keys "become the body's ONLY initial bindings —
+// outer bindings, `$source` included, are NOT visible inside the body"
+// (`cards/types.ts`). Threading the outer set in would let an outer
+// `choice { bind: "$sac" }` sign an unrelated same-named binding inside the
+// body. The body's OWN `choice` Ops still accumulate normally, which is what
+// makes the attribution hold inside a delayed body at all.
 const delayedTrigger: Valuer<"delayedTrigger"> = (op, ctx) =>
     valueEffectScript(op.effects, withCapturedSourceAliases(ctx, op.capture));
 
@@ -819,7 +925,7 @@ const randomExileToHand: Valuer<"randomExileToHand"> = () => ({
     tags: ["cardAdvantage"],
 });
 
-const divideIntoPiles: Valuer<"divideIntoPiles"> = (op, ctx) => {
+const divideIntoPiles: Valuer<"divideIntoPiles"> = (op, ctx, scope) => {
     // Issue #1521 — NOT a coin flip: the `chooser` (not the `divider`) picks
     // which pile runs `chosenEffect` vs. `otherEffect` (ADR 0053), so this is
     // a MINIMAX pick, not an even-odds draw. When the CASTER is the chooser
@@ -830,8 +936,11 @@ const divideIntoPiles: Valuer<"divideIntoPiles"> = (op, ctx) => {
     // adversarial case this issue targets), they hand the caster the split
     // that serves the caster least — the WORST case (min), always ≤ the
     // naive average the old code used.
-    const chosen = valueEffectScript(op.chosenEffect, ctx);
-    const other = valueEffectScript(op.otherEffect, ctx);
+    // Both pile scripts are inline continuations of THIS resolution, so they
+    // inherit the walk-local binding scope (issue #3292) — unlike a
+    // delayed/reflexive body, nothing here crosses a `capture` boundary.
+    const chosen = valueEffectScript(op.chosenEffect, ctx, scope);
+    const other = valueEffectScript(op.otherEffect, ctx, scope);
     const tags = new Set<ValueTag>([
         ...chosen.tags,
         ...other.tags,
@@ -1480,18 +1589,27 @@ function addValues(a: OpValue, b: OpValue): OpValue {
  *  recursive walks and leaf Ops to `OP_VALUERS`. An Op with no valuer
  *  (defensive default — every implemented Op has one since issue #1430
  *  emptied the backfill allowlist) contributes nothing. */
-export function valueOp(op: EffectOp, ctx: GroundingContext): OpValue {
+export function valueOp(
+    op: EffectOp,
+    ctx: GroundingContext,
+    scope: ScriptScope = EMPTY_SCRIPT_SCOPE
+): OpValue {
     switch (op.op) {
         case "if": {
             // Context-free assumes the effect happens — take the `then` branch;
             // the `else` (usually the "cost paid, nothing else" arm) is the
             // approximated path. Context-aware could evaluate the predicate; for
             // now both modes take `then` (the material-bearing branch).
-            return valueEffectScript(op.then, ctx);
+            // Issue #3292 — every structural recursion below INHERITS the
+            // walk-local scope: Flash's `sacrifice` sits inside an `if.then`
+            // whose `$picked` was bound at the top level, so a branch that
+            // dropped the scope would leave the card that surfaced the bug
+            // still priced as removal.
+            return valueEffectScript(op.then, ctx, scope);
         }
         case "forEach": {
             const { amount, scaling } = ctx.forEachCount(op.select);
-            const per = valueEffectScript(op.effects, ctx);
+            const per = valueEffectScript(op.effects, ctx, scope);
             const tags = scaling
                 ? [...new Set<ValueTag>([...per.tags, "board-scaling"])]
                 : per.tags;
@@ -1501,7 +1619,7 @@ export function valueOp(op: EffectOp, ctx: GroundingContext): OpValue {
             // A modal spell is worth its BEST mode (the chooser picks it).
             let best = ZERO_OP_VALUE;
             for (const mode of op.modes) {
-                const v = valueEffectScript(mode.effects, ctx);
+                const v = valueEffectScript(mode.effects, ctx, scope);
                 if (v.points > best.points) best = v;
             }
             return best;
@@ -1512,8 +1630,8 @@ export function valueOp(op: EffectOp, ctx: GroundingContext): OpValue {
             // for both Ops: `coinFlipSync` (issue #1281) only skips the
             // reveal-ack suspension, the win/loss branch shape and the
             // even-odds valuation are identical.
-            const win = valueEffectScript(op.win.effects, ctx);
-            const loss = valueEffectScript(op.loss.effects, ctx);
+            const win = valueEffectScript(op.win.effects, ctx, scope);
+            const loss = valueEffectScript(op.loss.effects, ctx, scope);
             return {
                 points: (win.points + loss.points) / 2,
                 tags: [...new Set<ValueTag>([...win.tags, ...loss.tags])],
@@ -1521,9 +1639,13 @@ export function valueOp(op: EffectOp, ctx: GroundingContext): OpValue {
         }
         default: {
             const valuer = OP_VALUERS[op.op] as
-                | ((op: EffectOp, ctx: GroundingContext) => OpValue)
+                | ((
+                      op: EffectOp,
+                      ctx: GroundingContext,
+                      scope: ScriptScope
+                  ) => OpValue)
                 | undefined;
-            return valuer ? valuer(op, ctx) : ZERO_OP_VALUE;
+            return valuer ? valuer(op, ctx, scope) : ZERO_OP_VALUE;
         }
     }
 }
@@ -2013,9 +2135,18 @@ export function opBeneficence(
  *  feeds `cardValue`; the merged tag set feeds the context target-priors. */
 export function valueEffectScript(
     effects: readonly EffectOp[],
-    ctx: GroundingContext = contextFreeGrounding()
+    ctx: GroundingContext = contextFreeGrounding(),
+    scope: ScriptScope = EMPTY_SCRIPT_SCOPE
 ): OpValue {
     let acc = ZERO_OP_VALUE;
-    for (const op of effects) acc = addValues(acc, valueOp(op, ctx));
+    // Issue #3292 — the walk is SEQUENTIAL, so it can carry what the Ops before
+    // it bound. `withBindingsOf` runs before each Op is valued, which is the
+    // order the interpreter itself resolves in: a `choice` records its picks,
+    // then the Ops after it read the binding back.
+    let walkScope = scope;
+    for (const op of effects) {
+        walkScope = withBindingsOf(walkScope, op);
+        acc = addValues(acc, valueOp(op, ctx, walkScope));
+    }
     return acc;
 }
