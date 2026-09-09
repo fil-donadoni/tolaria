@@ -10,6 +10,7 @@ import {
     renderReceipt,
     executePlan,
     shellStdio,
+    preflightRefusal,
     type LanePlan,
     type RunResult,
 } from "../check-lane";
@@ -922,5 +923,87 @@ describe("check-lane — --json stdout isolation (#2748 review, finding 2)", () 
 
     it("leaves the child's stdout inherited outside json mode, so the human receipt still streams check output live", () => {
         expect(shellStdio(false)).toEqual(["inherit", "inherit", "inherit"]);
+    });
+});
+
+describe("check-lane — preflight (issue #3286)", () => {
+    /**
+     * `check:lane` used to classify the diff and run the plan without ever
+     * asking the two questions that make the run worthless before it starts:
+     * is HEAD rebased onto the base tip, and is that tip RED? One lane gate
+     * costs 8-17 minutes under the heavy mutex, so a session that answered
+     * them late paid twice — once for the stale tree, once for the rebased
+     * one — and, when the tip was red for a foreign reason, owed a
+     * fix-forward PR on top.
+     *
+     * `preflightRefusal` is the whole decision, pure, so every branch is
+     * enumerable without a subprocess — same convention as `classifyLane`
+     * and `shellStdio` above.
+     *
+     * Proof-of-failure, three separate breaks, each reverted:
+     *   - made the `behind` branch unreachable (`if (false)`) — the four
+     *     staleness assertions went red;
+     *   - guarded the `behind` branch with `&& !input.red`, putting RED
+     *     first — the ordering assertion and the hatch-scope assertion went
+     *     red;
+     *   - guarded it with `&& !input.allowRed`, letting the RED hatch excuse
+     *     a stale tree — the hatch-scope assertion went red alone.
+     */
+    const clean = {
+        behind: 0,
+        red: false,
+        allowRed: false,
+        base: "origin/staging",
+    };
+
+    it("proceeds on a rebased tree over a green base tip", () => {
+        expect(preflightRefusal(clean)).toBeNull();
+    });
+
+    it("refuses a stale tree, naming the count and the rebase command", () => {
+        const refusal = preflightRefusal({ ...clean, behind: 4 });
+        expect(refusal).toContain("4 commits behind");
+        expect(refusal).toContain("git rebase origin/staging");
+    });
+
+    it("singularises the count so a one-commit drift does not read as a bug", () => {
+        expect(preflightRefusal({ ...clean, behind: 1 })).toContain(
+            "1 commit behind"
+        );
+    });
+
+    /**
+     * The load-bearing ordering: a tree that is BOTH stale and red must be
+     * told to rebase first. Rebasing is seconds and may itself be what makes
+     * the tip's state legible; sending the session to fix-forward a red tip
+     * it has not even rebased onto is the wrong first move.
+     */
+    it("reports staleness before RED when both hold", () => {
+        const refusal = preflightRefusal({ ...clean, behind: 2, red: true });
+        expect(refusal).toContain("behind");
+        expect(refusal).not.toContain("health:status");
+    });
+
+    it("refuses a RED base tip, pointing at health:status and the hatch", () => {
+        const refusal = preflightRefusal({ ...clean, red: true });
+        expect(refusal).toContain("health:status");
+        expect(refusal).toContain("TOLARIA_ALLOW_RED_BASE=1");
+    });
+
+    it("lets the hatch through RED — the fix-forward branch gates by hand", () => {
+        expect(
+            preflightRefusal({ ...clean, red: true, allowRed: true })
+        ).toBeNull();
+    });
+
+    /**
+     * The hatch is named for RED and covers RED ONLY. Rebasing is cheap and
+     * always correct, so an env var that let a session gate a stale tree
+     * would only ever serve the habit this refusal exists to break.
+     */
+    it("does not let the RED hatch excuse a stale tree", () => {
+        expect(
+            preflightRefusal({ ...clean, behind: 3, red: true, allowRed: true })
+        ).toContain("behind");
     });
 });

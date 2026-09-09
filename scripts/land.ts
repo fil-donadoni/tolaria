@@ -642,9 +642,25 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
  * (`gate.ts:97-123`) does not refuse the heavy tier on the `fix/issue-N` /
  * `feat/issue-N` branch `land` runs from — `land` IS the merge-train, the
  * case that guard exempts.
+ *
+ * `TOLARIA_LAND_GATE=1` exempts the embedded `check:lane` from its own
+ * preflight (issue #3286, `check-lane.ts` § Preflight). That preflight refuses
+ * a stale or RED tree so a HAND-RUN pre-PR gate is not paid twice; inside
+ * `land` both of its questions are already answered and asking them again is
+ * actively harmful. `rebaseStep()` two lines up in the same locked command has
+ * just rebased onto `ORIGIN_BASE`, so the ancestry question is settled — and
+ * re-fetching here could observe a tip NEWER than the one we rebased onto and
+ * kill the land mid-lock, manufacturing a failure out of a race nobody lost.
+ * RED stays a WARNING here, not a refusal, for the reason the release-health
+ * check below states: the fix-forward that repairs a red tip arrives through
+ * a `land`, so refusing on RED would wall off the only exit from RED.
  */
 export function lockedEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-    return { ...netEnv(base), TOLARIA_ALLOW_FULL_SUITE: "1" };
+    return {
+        ...netEnv(base),
+        TOLARIA_ALLOW_FULL_SUITE: "1",
+        TOLARIA_LAND_GATE: "1",
+    };
 }
 
 // ─────────────────────────────────────────────────────────────────────────

@@ -54,8 +54,10 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { resolve } from "node:path";
-import { ORIGIN_BASE } from "./lib/branches";
+import { existsSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
+import { primaryCheckout } from "./lib/primary-checkout";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Path classification
@@ -549,6 +551,80 @@ export function renderReceipt(result: RunResult): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// Preflight — refuse BEFORE paying the lane gate (issue #3286)
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * WHY A PREFLIGHT AT ALL. One `check:lane` costs 8-17 minutes under the heavy
+ * mutex, and two conditions make that run worthless before it starts:
+ *
+ *   - HEAD is not rebased onto the base tip. The gate runs on a stale tree,
+ *     the rebase that follows drags in foreign commits, and the gate has to
+ *     be paid a SECOND time on a tree nobody has gated yet.
+ *   - The base tip is RED. A commit pushed by hand outside `land` can red it,
+ *     and the session discovers that only after a full lane gate has run —
+ *     then owes a fix-forward PR before its own work can land at all.
+ *
+ * Both are answerable in about two seconds. Answering them late is the whole
+ * cost; answering them early is the whole fix.
+ *
+ * WHY `land` IS EXEMPT. `land.ts` already orders this correctly — fetch →
+ * rebase → `check:lane` → push → merge, all inside one mutex — and it
+ * deliberately WARNS rather than refuses on RED, because the fix-forward that
+ * repairs a red tip arrives through a `land` (see `land.ts` § the release
+ * health verdict). Two further reasons this preflight must not run there:
+ * re-fetching inside the lock could observe a base tip NEWER than the one
+ * `land` just rebased onto, which would fail the ancestry check and kill the
+ * land mid-lock; and the ordering `land` enforces is exactly what makes the
+ * ancestry check redundant. So `land` sets `TOLARIA_LAND_GATE=1` and this
+ * whole section is skipped.
+ */
+export interface PreflightInputs {
+    /** Commits the base ref has that HEAD does not. 0 ⇔ HEAD is rebased. */
+    behind: number;
+    /** Is the durable release-health `RED` marker present? */
+    red: boolean;
+    /** `TOLARIA_ALLOW_RED_BASE=1` — hatch for the RED refusal ONLY. */
+    allowRed: boolean;
+    /** The ref the diff is classified against, e.g. `origin/staging`. */
+    base: string;
+}
+
+/**
+ * The refusal text, or `null` to proceed. Pure, so every branch is enumerable
+ * in a test without a subprocess — the convention the rest of this file keeps.
+ *
+ * THE STALE CHECK HAS NO HATCH, on purpose. Rebasing is cheap, always correct,
+ * and the alternative is paying the gate twice; an env var that let a session
+ * gate a stale tree would only ever be used by the habit this refusal exists
+ * to break. The RED check has one, because a human gating the fix-forward
+ * branch by hand before landing it is a legitimate reason to proceed on a red
+ * tip — that is the ONE case, and it is the reason the hatch is named for RED
+ * rather than for the preflight.
+ */
+export function preflightRefusal(input: PreflightInputs): string | null {
+    if (input.behind > 0) {
+        const commits = input.behind === 1 ? "commit" : "commits";
+        return `HEAD is ${input.behind} ${commits} behind \`${input.base}\`.
+  Gating a stale tree pays the gate twice: this run classifies and gates code
+  that is not what will land, and the rebase afterwards produces a tree nobody
+  has gated. Rebase FIRST, then gate once.
+
+  Run:  git rebase ${input.base}
+  Then: bun run check:lane`;
+    }
+    if (input.red && !input.allowRed) {
+        return `the release health gate is RED on \`${BASE_BRANCH}\` (\`bun run health:status\`).
+  The base tip is broken for a reason that is not your diff, so this lane gate
+  would burn 8-17 minutes to report someone else's failure. RED means
+  fix-forward FIRST (ADR 0118).
+
+  If this branch IS the fix-forward: TOLARIA_ALLOW_RED_BASE=1 bun run check:lane`;
+    }
+    return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // git plumbing — thin and untested, per repo convention (land.ts,
 // docs-lane.ts): every DECISION above is a pure function tested directly
 // against hand-built path lists, never through a subprocess.
@@ -578,6 +654,57 @@ export function changedPaths(
     return git(["diff", "-z", "--name-only", ...filter, `${base}...HEAD`], cwd)
         .split("\0")
         .filter((p) => p.length > 0);
+}
+
+/**
+ * Refresh the base ref so `behindCount` answers about the tip that actually
+ * exists, not a remote-tracking ref from an hour ago. NON-FATAL by design: the
+ * gate is offline by contract (CLAUDE.md § Quality gates), so a session with
+ * no network must still be able to gate. A failed fetch degrades to "answer
+ * from the ref we already have" and says so, rather than inventing a new way
+ * for `check:lane` to refuse.
+ */
+function fetchBase(cwd: string): void {
+    const r = spawnSync("git", ["fetch", "--quiet", "origin", BASE_BRANCH], {
+        encoding: "utf8",
+        cwd,
+    });
+    if (r.status !== 0) {
+        console.warn(
+            `check:lane: could not fetch origin/${BASE_BRANCH} (${(r.stderr || "").trim() || "no network?"}) — answering the preflight from the remote-tracking ref as it stands`
+        );
+    }
+}
+
+/** Commits `base` has that HEAD does not. 0 ⇔ HEAD is rebased onto it. */
+function behindCount(base: string, cwd: string): number {
+    const r = spawnSync("git", ["rev-list", "--count", `HEAD..${base}`], {
+        encoding: "utf8",
+        cwd,
+    });
+    // An unknown ref (a hand-passed `--base=` that does not resolve) is not
+    // the preflight's business to diagnose — `changedPaths` below fails on it
+    // with git's own message. Treat it as "nothing to say" here.
+    if (r.status !== 0) return 0;
+    return Number((r.stdout || "").trim()) || 0;
+}
+
+/**
+ * The durable RED marker lives in the PRIMARY checkout, never in a worktree:
+ * `.claude/telemetry/` is gitignored, so a fresh worktree has an empty one and
+ * would read every red tip as green. Same read `land.ts` does, for the same
+ * reason — and legitimate through `primaryCheckout()` precisely BECAUSE the
+ * path is untracked machine state, so the verdict cannot depend on which
+ * branch another directory happens to have checked out.
+ */
+function baseIsRed(cwd: string): boolean {
+    try {
+        return existsSync(
+            join(primaryCheckout(cwd), ".claude/telemetry/health/RED")
+        );
+    } catch {
+        return false;
+    }
 }
 
 function fail(message: string): never {
@@ -695,6 +822,20 @@ function main(): void {
         fail(
             "working tree is dirty — commit or stash first, so the HEAD SHA in the receipt describes exactly what was classified"
         );
+    }
+
+    // Preflight before anything expensive — see the § Preflight header for
+    // why `land` (which has already fetched and rebased inside its own lock)
+    // sets TOLARIA_LAND_GATE and is exempt.
+    if (process.env.TOLARIA_LAND_GATE !== "1") {
+        if (base === ORIGIN_BASE) fetchBase(cwd);
+        const refusal = preflightRefusal({
+            behind: behindCount(base, cwd),
+            red: baseIsRed(cwd),
+            allowRed: process.env.TOLARIA_ALLOW_RED_BASE === "1",
+            base,
+        });
+        if (refusal) fail(refusal);
     }
 
     const head = git(["rev-parse", "--short", "HEAD"], cwd).trim();
