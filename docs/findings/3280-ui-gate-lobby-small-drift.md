@@ -1,7 +1,8 @@
 ---
 title: check:ui is red on the base tip — lobby @ 1440x900x2 exceeds its `small` budget by one control
 discoveredBy: 3280
-status: draft
+status: triaged
+issue: 3320
 confidence: high
 ---
 
@@ -33,3 +34,28 @@ makes the receipt unenforceable for every skin-lane PR until it clears — which
 is the enforcement ADR 0110 §4 leans on entirely. Re-recording the ceiling
 would hide the drift rather than close it; finding the 85th control is the
 first step either way.
+
+---
+
+**Resolved — and this draft's own premise was wrong.** Filed as issue #3320,
+fixed in PR #3326.
+
+The `+1` was not a control that shipped without the budget seeing it. It was a
+leaked ui-gate fixture deck: `check:ui`'s deck-builder walk creates a real
+`userDecks` row and, when a run aborts, fails to delete it (issue #3184). Five
+such orphans had accumulated on the dev account — byte-for-byte copies of the
+walk's own decklist. Deleting them took `small` 85 → 79 with no code change.
+
+The real defect was one level down, and the "find the 85th control" framing
+above would never have reached it: `probe.js`'s tap-target scan culled on the
+VERTICAL viewport band alone, so it counted every control scrolled out
+sideways. The lobby's "Your decks" shelf is an uncapped `overflow-x-auto` strip
+with one tile per deck, so the count tracked the account's deck count — which
+is what the 22 / 83 / 84 / 85 re-record history had been recording all along,
+one banked ceiling at a time. Culling by scroll port on both axes took the row
+to 27.
+
+The two arguments this draft made for its own ticket both survive, pointed at
+the right cause: the count moved without a re-record, and a red base tip makes
+the receipt unenforceable. What it got wrong was assuming the movement was in
+the UI rather than in the instrument measuring it.
