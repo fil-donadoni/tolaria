@@ -35,6 +35,7 @@ import {
     settleStackForBreakdown,
 } from "../../search";
 import { evaluate } from "../../evaluate";
+import { reachesOnlyOwnSideThroughChoice } from "../../search";
 import { enumerateMoves, type Move } from "../../moves";
 import { buildBladeState } from "../blade/runner";
 import { cloneGameState } from "../../clone";
@@ -249,4 +250,101 @@ describe("cheat-into-play is worth what survives (issue #3293)", () => {
             expect(p.cast).toBeGreaterThan(p.pass);
         });
     });
+
+    // The 1-ply probe above is only half the decision. What the ROOT does with
+    // it is settled by `selectRootMove`, and its material tie-break reads a
+    // `meanMargin` accumulated over the whole SUBTREE — the `pass` subtree
+    // explores casting the same spell one ply later, so it carries the identical
+    // loss and LOSES to the branch that already paid it. The rule that answers
+    // that (issue #3194's self-confined hold, `search.ts`) was already shipped
+    // and was measured INERT here, for a reason with nothing to do with Flash:
+    // its confinement probe compared the state-level per-turn tallies, and a
+    // resolution that puts the mover's OWN creature onto the battlefield and
+    // then sacrifices it bumps `deathsThisTurn` and stamps `lastKnownCopiable`.
+    // Neither is a fact about the opponent, and reading them as reach answered
+    // "this announcement leaves my side" for a resolution that demonstrably
+    // does not.
+    describe("the confinement probe is not fooled by its own death bookkeeping", () => {
+        it("reads the cheat-into-play cast as reaching only the mover's side", () => {
+            // Both hands, because the confinement question is about REACH and
+            // must not depend on whether the body pays: what separates the two
+            // is the resolved margin, which is the hold's second conjunct.
+            for (const creature of [VANILLA, PAYOFF]) {
+                const { state, botId } = position(creature);
+                const cast = enumerateMoves(state, botId).find(
+                    (m) => m.kind === "cast-spell"
+                )!;
+                expect(
+                    reachesOnlyOwnSideThroughChoice(state, cast, botId),
+                    `${creature}: the whole resolution happens on the mover's own side`
+                ).toBe(true);
+            }
+        });
+
+        it("still reads a resolution that reaches the OPPONENT as reaching them", () => {
+            // The negative control for the three ignored tallies: dropping an
+            // echo must not drop the evidence. Vision Charm's land-type mode is
+            // the shape issue #3194 drew its own discriminating pair with — the
+            // same mode, self-confined against the bot's lone Island and NOT
+            // confined once the opponent controls lands it can re-type — so it
+            // pins both directions of the predicate this change touches.
+            const selfOnly = visionCharmPosition([]);
+            const reaching = visionCharmPosition([
+                { name: "Forest", owner: "opp", zone: "battlefield", count: 3 },
+            ]);
+            expect(
+                reachesOnlyOwnSideThroughChoice(
+                    selfOnly.state,
+                    selfOnly.landTypeMode,
+                    selfOnly.botId
+                )
+            ).toBe(true);
+            expect(
+                reachesOnlyOwnSideThroughChoice(
+                    reaching.state,
+                    reaching.landTypeMode,
+                    reaching.botId
+                )
+            ).toBe(false);
+        });
+    });
 });
+
+/** Vision Charm on a lone Island, plus whatever `extra` cards the position
+ *  needs — the issue #3194 pair, reused here as the reach control. */
+function visionCharmPosition(extra: Record<string, unknown>[]): {
+    state: GameState;
+    botId: string;
+    landTypeMode: Move;
+} {
+    const scenario = {
+        label: "issue #3293 reach control",
+        spec: {
+            cards: [
+                { name: "Vision Charm", owner: "me", zone: "hand" },
+                { name: "Island", owner: "me", zone: "battlefield", count: 1 },
+                ...extra,
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 1,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 1 },
+        seeds: [0],
+        tier: "must",
+        expect: { forbidden: [] },
+    } as unknown as BladeScenario;
+    const state = buildBladeState(scenario);
+    const botId = state.players[0].id;
+    const landTypeMode = enumerateMoves(state, botId).find(
+        (m) =>
+            m.kind === "cast-spell" &&
+            (m as { chosenModeId?: string }).chosenModeId === "land-type"
+    );
+    expect(
+        landTypeMode,
+        "the position must offer the land-type mode"
+    ).toBeTruthy();
+    return { state, botId, landTypeMode: landTypeMode! };
+}
