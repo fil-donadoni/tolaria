@@ -155,6 +155,25 @@ export function buildStateFromScenario(
     p1.companion = undefined;
     p2.companion = undefined;
 
+    // CR 104 (issue #3314) — a scenario starts a LIVE position, so the
+    // game-over flag goes with the zones above. `debugSetupScenario` persists
+    // exactly what comes back from here, and `assertGameNotOver`
+    // (`convex/game.ts`) rejects every mutation while the flag stands: a
+    // scenario loaded into a finished game would otherwise place the board the
+    // spec names on top of a dead game — the panel shows a normal board and a
+    // normal phase banner, and the first click dies with "Game is over".
+    //
+    // A solo game reaches that state on its own the moment both libraries run
+    // out (CR 104.3c), which is exactly the position a scenario is loaded to
+    // rescue. `libraryCount` fixes the CAUSE of that draw but cannot revive the
+    // game, because the flag survives the rebuild — the two are independent,
+    // and only this line makes the reset total.
+    //
+    // The inverse `specFromState` reports `gameOver` as DROPPED rather than
+    // lowering it into the spec; clearing it here is what makes that note true
+    // in both directions — a finished game is neither captured nor carried.
+    state.gameOver = undefined;
+
     // Helper to create an instance from a card name
     function makeInstance(
         cardName: string,
