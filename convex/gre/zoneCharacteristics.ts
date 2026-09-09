@@ -22,6 +22,33 @@
 //     • `alternativeCost.ts` `handCardMatchesFilter`, the deliberately separate
 //       hand-card matcher behind every discard/reveal COST leg (13 call sites
 //       across `game.ts`, `moves.ts`, `paymentPicks.ts`, `card-utils.ts`).
+//     • `state.ts` `SpellContext.getCharacteristics` and its sibling
+//       `SpellContext.isPermanentCard` (issue #3278), the per-target-shape
+//       readers of an object's live types/subtypes/name. These back EVERY
+//       `bind` snapshot (`effects/interpreter.ts` `bindSnapshot`: SNAP_TYPES /
+//       SNAP_SUBTYPES / SNAP_NAME / SNAP_IS_PERMANENT_CARD), so a
+//       `boundMatchesFilter` gate reading "was it a creature card" of a card
+//       exiled FROM a graveyard (Agatha's Soul Cauldron) resolves here rather
+//       than off the printed type line. Their four card-bearing shapes are
+//       routed with the zone the shape names — `spell` → `"stack"`,
+//       `graveyard-card` → `"graveyard"`, `hand-card` → `"hand"`.
+//       Their `permanent` shape is deliberately NOT routed, but the two do it
+//       DIFFERENTLY and neither is this module's business: `getCharacteristics`
+//       reads the instance (so a layer-4 `type-add` is honoured),
+//       `isPermanentCard` reads the printed definition. CR 113.6c switches the
+//       ability off on the battlefield either way, so the disagreement between
+//       them is a layer-system question, not a zone-characteristics one.
+//     • `state.ts` `topCardHasType` (issue #3278) — the top-of-library type
+//       gate behind `drawPlanForOutcome`'s `reveal-type-to-graveyard` outcome
+//       (Enduring Renewal). Read in the LIBRARY, the same shape `millCards`
+//       uses for the graveyard.
+//     • `serialize.ts` `expandLibrary` (issue #3278). The odd one out: not a
+//       rules reader but the PERSISTENCE boundary. A library card is compacted
+//       to `[instanceId, cardId]`, so expansion REBUILDS its characteristics
+//       from the definition instead of restoring them — rebuilding from the
+//       printed line would silently undo the materialisation on every DB round
+//       trip, which is FAMILY B's guarantee leaking away. Hand / graveyard /
+//       exile need nothing: `compactCard` persists their line field by field.
 //
 //   FAMILY B — readers that read the INSTANCE's own mutable `types` /
 //   `subtypes`. These are covered by `applyZoneCharacteristics`, which
@@ -61,7 +88,7 @@ import {
     declaresOffBattlefieldCharacteristics,
     tryGetDefinition,
 } from "../cards/registry";
-import type { CardInstanceState } from "./state";
+import type { CardInstanceState, GameState } from "./state";
 import type { Zone } from "./types";
 
 /** The characteristics a card has in `zone`, or `null` when its definition
@@ -115,8 +142,8 @@ export function resolveZoneCharacteristics(
  *  `CardDefinition.types` array, so an in-place edit would corrupt the
  *  registry catalogue-wide.
  *
- *  HOT: the SBA sweep (`gre/sba.ts` `refreshOffBattlefieldCharacteristics`)
- *  calls this for every card in every hidden zone of both players on every
+ *  HOT: the sweep {@link refreshOffBattlefieldCharacteristics} below calls this
+ *  for every card in every hidden zone of both players on every
  *  `checkStateBasedActions` entry, and the bot's search makes ~13k of those
  *  per decision. The `declaresOffBattlefieldCharacteristics` precheck answers
  *  the ~100% "no" case from a string `Set`, before the definition lookup and
@@ -179,4 +206,48 @@ export function clearZoneCharacteristics(card: CardInstanceState): void {
     card.subtypes = [...(def.subtypes ?? [])];
     card.power = def.power;
     card.toughness = def.toughness;
+}
+
+/** CR 113.6c (issue #2391) — re-derives the off-battlefield characteristics of
+ *  every card in a non-battlefield zone. A no-op for every card whose
+ *  definition declares none (`applyZoneCharacteristics` returns immediately),
+ *  which today is all but one card in the catalogue.
+ *
+ *  This is the SAFETY NET, not the primary hook: the two zone funnels
+ *  (`moveCard` and `removePermanentTo`, `gre/state.ts`) apply it at the moment
+ *  a card changes zones, so a mid-resolution read is already correct. What
+ *  this sweep adds is TOTALITY — it re-derives from the printed definition
+ *  rather than reacting to a transition, so the paths that bypass both funnels
+ *  (the opening library built by `gre/setup.ts` / `game.ts`,
+ *  `stageReanimatedOnBattlefield`'s direct `zone` writes) are covered without
+ *  each of them having to know, and a zone path added later cannot silently
+ *  fail open. Idempotent, so it does not gate the CR 704.4 fixpoint.
+ *
+ *  A SWEEP IS NOT ALWAYS DOWNSTREAM (issue #3278). It lives here rather than
+ *  in `gre/sba.ts` because `checkStateBasedActions` is not the only caller:
+ *  `gre/scenarioBuilder.ts` builds a state that is PERSISTED as-is by
+ *  `debugSetupScenario` with no action in between, so a scenario-placed
+ *  zone-conditional card has to be materialised by the builder itself —
+ *  waiting for the next SBA entry means the SAVED state is wrong, and a
+ *  graveyard-target legality read taken as the first action after setup
+ *  (Animate Dead offering a scenario-placed Grist) misses it.
+ *
+ *  TOTALITY IS NOT FREE, so the per-card cost is kept at a `Set.has` on the
+ *  card id: `applyZoneCharacteristics` prechecks
+ *  `declaresOffBattlefieldCharacteristics` (`cards/registry.ts`) before any
+ *  definition lookup. This loop runs over both players' hand + library +
+ *  graveyard + exile on EVERY `checkStateBasedActions` entry, and one
+ *  400-iteration `search()` makes ~13k of those per bot decision against a
+ *  ~1.5s budget. Measured at 140 distinct hidden-zone cards over 20k calls
+ *  (median of 3): 1.74µs/call with no sweep at all, 4.39µs/call resolving a
+ *  definition per card, 2.47µs/call with the precheck — ~72% of the added
+ *  cost removed, ~35ms → ~10ms per search. Do NOT reintroduce a per-card
+ *  `getDefinition` here. */
+export function refreshOffBattlefieldCharacteristics(state: GameState): void {
+    for (const player of state.players) {
+        for (const card of player.hand) applyZoneCharacteristics(card);
+        for (const card of player.library) applyZoneCharacteristics(card);
+        for (const card of player.graveyard) applyZoneCharacteristics(card);
+        for (const card of player.exile) applyZoneCharacteristics(card);
+    }
 }

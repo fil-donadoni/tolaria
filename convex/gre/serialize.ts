@@ -58,6 +58,7 @@ import {
     recomposeLayers2to5ForInstance,
 } from "./layers2to5";
 import { migrateLegacyAbilityLossHolds } from "./layer6";
+import { resolveZoneCharacteristics } from "./zoneCharacteristics";
 import type { GrantedAbilityOrigin } from "./activatedAbilities";
 
 type CompactCard = Record<string, unknown>;
@@ -1210,21 +1211,33 @@ function expandLibrary(
             | readonly [string, string | number, string[]];
         const cardId = resolveCardId(rawCardId, ctx);
         const def = tryGetDefinition(cardId);
+        // CR 113.6c (issue #3278) — the library tuple stores only
+        // `[instanceId, cardId]`, so expansion REBUILDS the characteristics
+        // rather than restoring them, and rebuilding from the printed line
+        // silently undoes the materialisation for a card whose static ability
+        // functions in a library (Grist, the Hunger Tide). Hand / graveyard /
+        // exile need nothing here: `compactCard` persists their line
+        // field-by-field, so a divergent one survives the round trip on its
+        // own. `null` back is the ~100% case and the printed line stands.
+        const zoned = resolveZoneCharacteristics(def, "library");
         const card: CardInstanceState = {
             id,
             card: { id: cardId },
             controllerId: ownerId,
             ownerId,
             zone: "library",
-            types: def?.types ? [...def.types] : [],
-            subtypes: def?.subtypes ? [...def.subtypes] : [],
+            types: zoned?.types ?? (def?.types ? [...def.types] : []),
+            subtypes:
+                zoned?.subtypes ?? (def?.subtypes ? [...def.subtypes] : []),
             staticAbilities: def?.staticAbilities
                 ? [...def.staticAbilities]
                 : [],
             isTapped: false,
         };
-        if (def?.power !== undefined) card.power = def.power;
-        if (def?.toughness !== undefined) card.toughness = def.toughness;
+        const power = zoned ? zoned.power : def?.power;
+        const toughness = zoned ? zoned.toughness : def?.toughness;
+        if (power !== undefined) card.power = power;
+        if (toughness !== undefined) card.toughness = toughness;
         if (knownTo?.length) card.knownTo = [...knownTo];
         return card;
     });

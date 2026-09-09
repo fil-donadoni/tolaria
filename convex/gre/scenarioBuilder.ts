@@ -35,6 +35,7 @@ import {
     getOpponentId,
 } from "./state";
 import { applyCopy } from "./copy";
+import { refreshOffBattlefieldCharacteristics } from "./zoneCharacteristics";
 import { resolveEntersWithCounters } from "../cards/entersWith";
 import { turnFaceDown } from "./faceDown";
 import { finalizeMulligan } from "./mulligan";
@@ -601,6 +602,22 @@ export function buildStateFromScenario(
         if (spec.experience.me) p1.experienceCounters = spec.experience.me;
         if (spec.experience.opp) p2.experienceCounters = spec.experience.opp;
     }
+
+    // CR 113.6c (issue #3278) — materialise off-battlefield characteristics on
+    // everything the placement loop above put in a hidden zone, LAST, so it
+    // sees the final contents of every zone (library seeding, face-down exile
+    // and the `libraryCount` reset all run above it).
+    //
+    // The builder has to do this ITSELF rather than leave it to the next
+    // state-based-action sweep: `debugSetupScenario` (`convex/game.ts`)
+    // persists exactly what comes back from here, so a Grist placed in a
+    // graveyard would sit in the SAVED state as a bare Planeswalker card until
+    // some later action happened to run the sweep — and the first thing a
+    // scenario is loaded to do is a read (Animate Dead's graveyard-target
+    // legality), which would then miss it. `makeInstance` above aliases
+    // `types` straight to the shared `CardDefinition.types` array; the sweep
+    // ASSIGNS fresh arrays, so it cannot corrupt the registry.
+    refreshOffBattlefieldCharacteristics(state);
 
     return state;
 }

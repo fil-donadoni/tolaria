@@ -8665,6 +8665,33 @@ export function revertControlChange(
     syncLayers2to5(state);
 }
 
+/** CR 113.6c (issue #3278) — the card types `cardId` HAS while it sits in
+ *  `zone`, which for a hidden zone is not necessarily its printed type line:
+ *  Grist, the Hunger Tide ("as long as Grist isn't on the battlefield, it's a
+ *  1/1 Insect creature in addition to its other types") is a creature card in
+ *  a graveyard, a hand, a library, exile and on the stack.
+ *
+ *  Routed through `resolveZoneCharacteristics`, the single zone-characteristics
+ *  authority — `null` back is the ~100% case (the card declares no such
+ *  ability) and the printed types are then the right answer.
+ *
+ *  For NON-BATTLEFIELD shapes only. On the battlefield the ability is switched
+ *  off and the layer system owns the instance's `types`, so a battlefield
+ *  reader reads the instance, never this. Returns `[]` for an unknown id (a
+ *  token has no registry definition).
+ *
+ *  Used by the FAMILY A snapshot readers `SpellContext.isPermanentCard` and
+ *  `SpellContext.getCharacteristics` — see `gre/zoneCharacteristics.ts`'s
+ *  consumer census. */
+function typesInZone(
+    cardId: string | undefined,
+    zone: Zone
+): readonly string[] {
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
+    if (!def) return [];
+    return resolveZoneCharacteristics(def, zone)?.types ?? def.types;
+}
+
 /** Finds a card on any player's battlefield by instance id. */
 function findOnBattlefield(
     state: GameState,
@@ -19008,8 +19035,7 @@ export function buildSpellContext(
                 const stackItem = state.stack.find((s) => s.id === target.id);
                 if (!stackItem) return false;
                 const cardId = (stackItem.card as { id?: string }).id;
-                const def = cardId ? tryGetDefinition(cardId) : undefined;
-                return isPermanentType(def?.types ?? []);
+                return isPermanentType(typesInZone(cardId, "stack"));
             }
             if (target.type === "graveyard-card") {
                 const owner = target.playerId;
@@ -19019,8 +19045,7 @@ export function buildSpellContext(
                 );
                 if (!found) return false;
                 const cardId = (found.card as { id?: string }).id;
-                const def = cardId ? tryGetDefinition(cardId) : undefined;
-                return isPermanentType(def?.types ?? []);
+                return isPermanentType(typesInZone(cardId, "graveyard"));
             }
             if (target.type === "hand-card") {
                 const owner = target.playerId;
@@ -19030,8 +19055,7 @@ export function buildSpellContext(
                 );
                 if (!found) return false;
                 const cardId = (found.card as { id?: string }).id;
-                const def = cardId ? tryGetDefinition(cardId) : undefined;
-                return isPermanentType(def?.types ?? []);
+                return isPermanentType(typesInZone(cardId, "hand"));
             }
             return false;
         },
@@ -19044,15 +19068,21 @@ export function buildSpellContext(
         getCharacteristics(
             target: TargetSelection
         ): { types: string[]; subtypes: string[]; name: string } | undefined {
-            const fromDef = (cardId: string | undefined) => {
+            const fromDef = (cardId: string | undefined, zone: Zone) => {
                 const def = cardId ? tryGetDefinition(cardId) : undefined;
-                return def
-                    ? {
-                          types: [...def.types],
-                          subtypes: [...(def.subtypes ?? [])],
-                          name: def.name,
-                      }
-                    : undefined;
+                if (!def) return undefined;
+                // CR 113.6c (issue #3278) — the same hidden-zone routing as
+                // `isPermanentCard`: an object outside the battlefield has
+                // whatever types/subtypes its off-battlefield static gives it,
+                // so the printed line is NOT the answer here. `null` back means
+                // the card declares no such ability and the printed
+                // characteristics stand (the ~100% case).
+                const zoned = resolveZoneCharacteristics(def, zone);
+                return {
+                    types: [...(zoned?.types ?? def.types)],
+                    subtypes: [...(zoned?.subtypes ?? def.subtypes ?? [])],
+                    name: def.name,
+                };
             };
             if (target.type === "permanent") {
                 const found = findOnBattlefield(state, target.id);
@@ -19068,7 +19098,7 @@ export function buildSpellContext(
             if (target.type === "spell") {
                 const stackItem = state.stack.find((s) => s.id === target.id);
                 if (!stackItem) return undefined;
-                return fromDef((stackItem.card as { id?: string }).id);
+                return fromDef((stackItem.card as { id?: string }).id, "stack");
             }
             if (
                 target.type === "graveyard-card" ||
@@ -19082,7 +19112,10 @@ export function buildSpellContext(
                         : getPlayer(state, owner).hand;
                 const found = zone.find((c) => c.id === target.id);
                 if (!found) return undefined;
-                return fromDef((found.card as { id?: string }).id);
+                return fromDef(
+                    (found.card as { id?: string }).id,
+                    target.type === "graveyard-card" ? "graveyard" : "hand"
+                );
             }
             return undefined;
         },
@@ -20415,14 +20448,22 @@ export function binRevealedTopCard(
     return top.id;
 }
 
-/** True when the top card of `player`'s library has `cardType` (CR 300 — read
- *  from the printed definition, mirroring `millCards`). False for an empty
- *  library. */
+/** True when the top card of `player`'s library has `cardType` (CR 300). False
+ *  for an empty library.
+ *
+ *  CR 113.6c (issue #3278) — read in the LIBRARY, exactly as `millCards` reads
+ *  the milled card in the graveyard it moved to: a card that is a creature card
+ *  only while off the battlefield (Grist, the Hunger Tide) is one on top of a
+ *  library, so a reveal-and-bin outcome keyed on `cardType` (Enduring Renewal's
+ *  `reveal-type-to-graveyard`, `drawPlanForOutcome`) must see it. A FAMILY A
+ *  reader — see `gre/zoneCharacteristics.ts`'s census. */
 function topCardHasType(player: PlayerState, cardType: CardType): boolean {
     const top = player.library[0];
     if (!top) return false;
     const cardId = (top.card as { id?: string }).id;
-    const types = cardId ? tryGetDefinition(cardId)?.types : undefined;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
+    const types =
+        resolveZoneCharacteristics(def, "library")?.types ?? def?.types;
     return types?.includes(cardType) ?? false;
 }
 
