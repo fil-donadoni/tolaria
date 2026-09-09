@@ -22,6 +22,13 @@
  *   * `policyValue` settles a suspended resolution before scoring, so the
  *     1-ply probe never sees the phantom body.
  *
+ * A third seam decides what the ROOT does with that reading, and it is pinned
+ * at the bottom of this file: the confinement probe behind issue #3194's
+ * self-confined hold used to count the per-turn tallies a self-inflicted death
+ * writes (`deathsThisTurn`, `lastKnownCopiable`) as evidence the announcement
+ * had reached the opponent, so the hold never fired on this shape and the root
+ * fell through to a material tie-break reading a subtree-accumulated mean.
+ *
  * The pair is a payoff body against a vanilla body of the SAME mana value, so
  * the reduced cost (CR 118.7a) is identical and the only difference is what the
  * creature does when it dies.

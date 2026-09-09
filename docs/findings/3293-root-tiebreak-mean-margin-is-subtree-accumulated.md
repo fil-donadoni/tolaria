@@ -14,12 +14,25 @@ whose whole purpose was to reject it, and more search makes it worse rather than
 better, because the artifact is in what the mean is taken over, not in how many
 samples it has.
 
+**The REFUSAL half is closed; this is now about the other half.** Issue #3293
+landed the leaf-decisive answer for a cast that should not happen: issue #3194's
+self-confined hold already reads a settled 1-ply outcome rather than that mean,
+and it was inert here only because its confinement probe counted the per-turn
+tallies a self-inflicted death writes (`deathsThisTurn`, `lastKnownCopiable`) as
+evidence the announcement had reached the opponent. With the echoes dropped, the
+blade negative control goes 0/5 → 5/5 at the production budget and is `must`.
+
+What no hold rule can do is make the bot WANT a line: the paired PAYOFF entry
+("cheat into play: casts for a body that pays on the way out") still needs 1200
+iterations, because at 400 the cast and `pass` tie inside `outcomeEps` and the
+tie-break reads that subtree mean. So the artifact stands, in the direction where
+the right move is the ACTION.
+
 **Evidence.** `convex/gre/search.ts`, `selectRootMove`. Measured on issue
-#3293's position (Flash plus a vanilla body it cannot pay for, exactly two
-lands): the 1-ply probe is correct after this slice — cast settles to an empty
-board, passing keeps two cards and the mana — yet the root chooses the cast on
-5/5 seeds at 400, 1200 and 4000 iterations. The blade entry
-"cheat into play NEGATIVE CONTROL" carries the numbers.
+#3293's pair: the payoff half is priced correctly at the 1-ply probe (cast 756.4
+against 509.8 for passing, because the body leaves a token copy of itself behind
+when the sacrifice takes it) and still loses the root on 5/5 seeds at 400, then
+wins on 5/5 at 1200 — byte-identically before and after the confinement fix.
 
 **What was already tried and rejected**, both measured in-session:
 
@@ -31,19 +44,17 @@ board, passing keeps two cards and the mana — yet the root chooses the cast on
   only on fully-settled outcomes) gets that to **one** red, and the one it keeps
   is `choice-behind payoff: the re-type mode stays live against the opponent's
 lands` — whose own note records that `evaluate`'s mana term is colour-blind by
-  construction. Vision Charm denying an opponent's green and Flash cheating a
-  vanilla body in both measure as hand, mana and flexibility down with nothing
-  up, so a rule of this shape cannot tell "there is no effect" from "the
-  evaluator cannot see the effect". Gating it on
-  `reachesOnlyOwnSideThroughChoice` (issue #3194's own predicate) does not
-  separate them either: that predicate requires FUTILITY and answers false for
-  Flash, whose resolution does change the board on the way through.
+  construction, so a rule of this shape cannot tell "there is no effect" from
+  "the evaluator cannot see the effect". (The hold that shipped instead answers
+  this by asking the STRUCTURAL question — did the resolution reach the
+  opponent's record at all — which Vision Charm's re-typed Forests answer yes to
+  even though every term reads flat.)
 
-**Why it may not deserve its own issue.** The fix is not obvious and the two
-cheap ones are refuted above; what it probably needs is either a leaf-decisive
-root quantity (the settled per-candidate value `buildTrace` already computes) or
-a colour-aware mana axis that would make the Vision Charm case measurable and
-let the dominance floor stand. Either is a slice of its own, and either would
-close issue #3293's blade pair. Worth pairing with
+**Why it may not deserve its own issue.** The cheap fixes are refuted above, and
+what is left is a want-side rule rather than a refusal: either a leaf-decisive
+root quantity for the ACTION (the settled per-candidate value `buildTrace`
+already computes) or a colour-aware mana axis that would make the Vision Charm
+case measurable and let the dominance floor stand. Either would let the payoff
+half of the pair be promoted to `must`. Worth pairing with
 [[3292-latent-noncreature-floor-hides-a-negative-script]], which is the same
 position seen from the value model's side.
