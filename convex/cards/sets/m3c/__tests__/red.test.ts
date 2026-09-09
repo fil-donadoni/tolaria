@@ -322,18 +322,20 @@ describe("Pyrogoyf enter-damage source attribution (CR 120.1, issue #1565)", () 
         expect(damaged.damagedBySources).not.toContain("goyf");
     });
 
-    it("Pyrogoyf's OWN enter still sources the damage from Pyrogoyf itself", () => {
-        // The self branch: the entering creature IS the resolving trigger's
-        // permanent — but NOT the trigger's stack item, which carries its own
-        // freshly allocated id (gre/triggers.ts `buildTriggerItem`). Pyrogoyf
-        // carries lifelink, an ability the stack item cannot see, so this is a
-        // real discriminator for the self branch and not just a non-regression.
+    it("Pyrogoyf's OWN enter records PYROGOYF as the source, not the trigger's stack item", () => {
+        // The self branch. The entering creature is the trigger's PERMANENT but
+        // not its STACK ITEM, which carries a freshly allocated id
+        // (gre/triggers.ts `buildTriggerItem`) — so `damagedBySources`
+        // discriminates here even though the abilities read off either object
+        // coincide. Under the old stack-item-sourced path this array held the
+        // trigger id, which no card can ever name.
         const goyf = makeInstance(pyrogoyf.id, {
             id: "goyf",
             controllerId: "p1",
             ownerId: "p1",
             staticAbilities: ["lifelink"],
         });
+        const wall = creature("wall", "p2", 0, 5);
         const state = makeState({
             players: [
                 makePlayer("p1", {
@@ -344,12 +346,20 @@ describe("Pyrogoyf enter-damage source attribution (CR 120.1, issue #1565)", () 
                         deadCard("l1", "p1", ["Land"]),
                     ],
                 }),
-                makePlayer("p2", { life: 20 }),
+                makePlayer("p2", { battlefield: [wall] }),
             ],
         });
         expect(getEffectivePower(state, goyf)).toBe(2);
-        fireEnterTrigger(state, goyf, "goyf", { type: "player", id: "p2" });
-        expect(state.players.find((p) => p.id === "p2")!.life).toBe(18);
+        fireEnterTrigger(state, goyf, "goyf", {
+            type: "permanent",
+            id: "wall",
+        });
+        const damaged = state.players
+            .flatMap((p) => p.battlefield)
+            .find((c) => c.id === "wall")!;
+        expect(damaged.damageMarked).toBe(2);
+        expect(damaged.damagedBySources).toEqual(["goyf"]);
+        // CR 702.15b — lifelink on the entering permanent (itself, here).
         expect(state.players.find((p) => p.id === "p1")!.life).toBe(22);
     });
 });
