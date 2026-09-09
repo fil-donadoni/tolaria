@@ -20448,14 +20448,22 @@ export function binRevealedTopCard(
     return top.id;
 }
 
-/** True when the top card of `player`'s library has `cardType` (CR 300 — read
- *  from the printed definition, mirroring `millCards`). False for an empty
- *  library. */
+/** True when the top card of `player`'s library has `cardType` (CR 300). False
+ *  for an empty library.
+ *
+ *  CR 113.6c (issue #3278) — read in the LIBRARY, exactly as `millCards` reads
+ *  the milled card in the graveyard it moved to: a card that is a creature card
+ *  only while off the battlefield (Grist, the Hunger Tide) is one on top of a
+ *  library, so a reveal-and-bin outcome keyed on `cardType` (Enduring Renewal's
+ *  `reveal-type-to-graveyard`, `drawPlanForOutcome`) must see it. A FAMILY A
+ *  reader — see `gre/zoneCharacteristics.ts`'s census. */
 function topCardHasType(player: PlayerState, cardType: CardType): boolean {
     const top = player.library[0];
     if (!top) return false;
     const cardId = (top.card as { id?: string }).id;
-    const types = cardId ? tryGetDefinition(cardId)?.types : undefined;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
+    const types =
+        resolveZoneCharacteristics(def, "library")?.types ?? def?.types;
     return types?.includes(cardType) ?? false;
 }
 

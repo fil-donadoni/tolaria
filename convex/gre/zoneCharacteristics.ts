@@ -23,15 +23,32 @@
 //       hand-card matcher behind every discard/reveal COST leg (13 call sites
 //       across `game.ts`, `moves.ts`, `paymentPicks.ts`, `card-utils.ts`).
 //     • `state.ts` `SpellContext.getCharacteristics` and its sibling
-//       `SpellContext.isPermanentCard` (issue #3278), reached through the local
-//       `typesInZone` helper — the per-target-shape readers of an object's live
-//       types/subtypes/name. These back EVERY `bind` snapshot
-//       (`effects/interpreter.ts` `bindSnapshot`: SNAP_TYPES / SNAP_SUBTYPES /
-//       SNAP_NAME / SNAP_IS_PERMANENT_CARD), so a `boundMatchesFilter` gate
-//       reading "was it a creature card" of a card exiled FROM a graveyard
-//       (Agatha's Soul Cauldron) resolves here rather than off the printed type
-//       line. Their `permanent` shape is deliberately NOT routed: it reads the
-//       instance, where the ability is off and the layer system owns `types`.
+//       `SpellContext.isPermanentCard` (issue #3278), the per-target-shape
+//       readers of an object's live types/subtypes/name. These back EVERY
+//       `bind` snapshot (`effects/interpreter.ts` `bindSnapshot`: SNAP_TYPES /
+//       SNAP_SUBTYPES / SNAP_NAME / SNAP_IS_PERMANENT_CARD), so a
+//       `boundMatchesFilter` gate reading "was it a creature card" of a card
+//       exiled FROM a graveyard (Agatha's Soul Cauldron) resolves here rather
+//       than off the printed type line. Their four card-bearing shapes are
+//       routed with the zone the shape names — `spell` → `"stack"`,
+//       `graveyard-card` → `"graveyard"`, `hand-card` → `"hand"`.
+//       Their `permanent` shape is deliberately NOT routed, but the two do it
+//       DIFFERENTLY and neither is this module's business: `getCharacteristics`
+//       reads the instance (so a layer-4 `type-add` is honoured),
+//       `isPermanentCard` reads the printed definition. CR 113.6c switches the
+//       ability off on the battlefield either way, so the disagreement between
+//       them is a layer-system question, not a zone-characteristics one.
+//     • `state.ts` `topCardHasType` (issue #3278) — the top-of-library type
+//       gate behind `drawPlanForOutcome`'s `reveal-type-to-graveyard` outcome
+//       (Enduring Renewal). Read in the LIBRARY, the same shape `millCards`
+//       uses for the graveyard.
+//     • `serialize.ts` `expandLibrary` (issue #3278). The odd one out: not a
+//       rules reader but the PERSISTENCE boundary. A library card is compacted
+//       to `[instanceId, cardId]`, so expansion REBUILDS its characteristics
+//       from the definition instead of restoring them — rebuilding from the
+//       printed line would silently undo the materialisation on every DB round
+//       trip, which is FAMILY B's guarantee leaking away. Hand / graveyard /
+//       exile need nothing: `compactCard` persists their line field by field.
 //
 //   FAMILY B — readers that read the INSTANCE's own mutable `types` /
 //   `subtypes`. These are covered by `applyZoneCharacteristics`, which

@@ -35,6 +35,8 @@ import {
 } from "../../cards/__tests__/setup";
 import { applyPlayLand, applyPlayLandFromExile } from "../playLand";
 import { checkStateBasedActions } from "../sba";
+import { compactState, expandState } from "../serialize";
+import { planDrawStep } from "../state";
 import { buildSpellContext, flushPendingEvents } from "../state";
 import { pushSpell } from "../../cards/__tests__/setup";
 
@@ -375,5 +377,97 @@ describe("off-battlefield characteristics through the snapshot readers (CR 113.6
             ctx.getCharacteristics({ type: "spell", id: item.id })!.types
         ).toContain("Creature");
         expect(ctx.isPermanentCard({ type: "spell", id: item.id })).toBe(true);
+    });
+});
+
+// The two FAMILY A readers a review of PR #3297 found still unrouted — the same
+// defect class as the snapshot accessors above, on the LIBRARY rather than the
+// graveyard/hand. Both are reached through a real entry point here, not called
+// directly: `topCardHasType` is module-private and the serialization boundary
+// is only observable through a full round trip.
+describe("off-battlefield characteristics on the LIBRARY (CR 113.6c)", () => {
+    /** Enduring Renewal — "If you would draw a card, reveal the top card of
+     *  your library instead. If it's a creature card, put it into your
+     *  graveyard." The one shipped card whose behaviour turns on the top
+     *  library card's TYPE. */
+    const ENDURING_RENEWAL = "be77edac-9a8b-4b7f-a859-27df76b10aa6";
+
+    it("survives the persistence round trip, which REBUILDS a library card from its definition", () => {
+        // A library card is compacted to `[instanceId, cardId]` — its type line
+        // is not stored, it is rebuilt on expand. Rebuilt from the printed
+        // definition, every DB round trip silently undoes the materialisation
+        // and FAMILY B's guarantee leaks away between saves.
+        const card = makeInstance(ZONE_SORCERY_ID, {
+            id: "lib-card",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { library: [card] }), makePlayer("p2")],
+        });
+        checkStateBasedActions(state);
+        expect(card.types).toContain("Creature");
+
+        const back = expandState(compactState(state));
+
+        const restored = back.players[0].library.find(
+            (c) => c.id === "lib-card"
+        )!;
+        expect(restored.types).toContain("Creature");
+        expect(restored.types).toContain("Sorcery");
+        expect(restored.subtypes).toContain("Insect");
+        expect(restored.power).toBe(1);
+        expect(restored.toughness).toBe(1);
+    });
+
+    it("makes Enduring Renewal bin a top card that is a creature card only off the battlefield", () => {
+        // `topCardHasType` reads the top of the LIBRARY, so it must read it in
+        // that zone — the same shape `millCards` uses for the graveyard.
+        const renewal = makeInstance(ENDURING_RENEWAL, {
+            id: "renewal",
+            controllerId: "p1",
+        });
+        const top = makeInstance(ZONE_SORCERY_ID, {
+            id: "lib-top",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [renewal],
+                    library: [top],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+
+        expect(planDrawStep(state, "p1", 1, true)).toEqual({ kind: "bin" });
+    });
+
+    it("still draws normally when the top card is a creature card in NO zone", () => {
+        // The negative half — otherwise "always bin" passes the test above.
+        const renewal = makeInstance(ENDURING_RENEWAL, {
+            id: "renewal",
+            controllerId: "p1",
+        });
+        // Animate Dead — an Enchantment in every zone, so the gate has to
+        // discriminate rather than bin whatever is on top.
+        const top = makeInstance("8fd7861d-925f-4b4c-a4ab-60be6f43d50b", {
+            id: "lib-top",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [renewal],
+                    library: [top],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+
+        expect(planDrawStep(state, "p1", 1, true)).toEqual({
+            kind: "normal",
+            count: 1,
+        });
     });
 });
