@@ -23,6 +23,10 @@ import type { GameState } from "../state";
 
 const ALUREN_ALT_COST_ID = `${CAST_PERMISSION_ALT_COST_PREFIX}aluren-creature-permission`;
 
+/** p1 always owns the Aluren; `forests` are the CASTER's, so a printed-cost
+ *  cast is genuinely payable whenever the count is non-zero — without that the
+ *  printed variant is absent for lack of mana and a test claiming it was
+ *  SUPPRESSED would pass for the wrong reason. */
 function board(opts: {
     caster: "p1" | "p2";
     forests?: number;
@@ -37,6 +41,16 @@ function board(opts: {
             zone: "hand",
         }),
     ];
+    const lands = (owner: "p1" | "p2") =>
+        owner === caster
+            ? Array.from({ length: forests }, (_, i) =>
+                  makeInstance(forest.id, {
+                      id: `${owner}-forest-${i}`,
+                      controllerId: owner,
+                      ownerId: owner,
+                  })
+              )
+            : [];
     return makeState({
         players: [
             makePlayer("p1", {
@@ -47,16 +61,13 @@ function board(opts: {
                         controllerId: "p1",
                         ownerId: "p1",
                     }),
-                    ...Array.from({ length: forests }, (_, i) =>
-                        makeInstance(forest.id, {
-                            id: `forest-${i}`,
-                            controllerId: "p1",
-                            ownerId: "p1",
-                        })
-                    ),
+                    ...lands("p1"),
                 ],
             }),
-            makePlayer("p2", { hand: caster === "p2" ? hand : [] }),
+            makePlayer("p2", {
+                hand: caster === "p2" ? hand : [],
+                battlefield: lands("p2"),
+            }),
         ],
         activePlayerId: "p1",
         priorityPlayerId,
@@ -95,7 +106,9 @@ describe("enumerateMoves — board cast permission (CR 601.3 / 118.9)", () => {
         // `announceCast` demands the permission's alternative cost.
         const state = board({
             caster: "p2",
-            forests: 0,
+            // Enough mana that the printed {1}{G} IS payable: what removes the
+            // printed line here is the CR 118.9b rejection, not affordability.
+            forests: 2,
             priorityPlayerId: "p2",
         });
         const moves = castMoves(state, "p2");
