@@ -50,6 +50,17 @@ export default defineSchema({
         // may curate the built-in Preset Decks from the deck editor. Optional
         // so existing rows load unchanged (absent === not an admin).
         isAdmin: v.optional(v.boolean()),
+        // Bug-report disclosure consent (issue #3255). Recorded HERE and not in
+        // browser storage on purpose: browser storage is per-browser and is
+        // cleared by the very class of problem a reporter is most likely to be
+        // reporting, so a consent kept there silently resets and is a record of
+        // nothing. Both optional — absent means never asked, which is exactly
+        // what an existing account is, so no migration is owed.
+        bugReportConsentAt: v.optional(v.number()),
+        // The `BUG_REPORT_CONSENT_VERSION` this account accepted. Behind the
+        // current constant === the payload widened since; the gate is shown
+        // again before diagnostics travel.
+        bugReportConsentVersion: v.optional(v.number()),
     }).index("email", ["email"]),
     gameStates: defineTable({
         gameId: v.id("games"),
@@ -1096,6 +1107,14 @@ export default defineSchema({
         // a GitHub outage loses the issue, never the report.
         issueNumber: v.optional(v.number()),
         issueUrl: v.optional(v.string()),
+        // Which disclosure the reporter was shown when they filed this row, and
+        // whether they accepted it (issue #3255). Stamped on every row filed
+        // after the gate shipped, so a maintainer reading an old row knows what
+        // its reporter had been told. Absent === filed before the gate existed.
+        consentVersion: v.optional(v.number()),
+        // `false` means the reporter DECLINED: the description and contact
+        // fields are here, the diagnostic payload deliberately is not.
+        diagnosticsConsent: v.optional(v.boolean()),
     }).index("by_issueNumber", ["issueNumber"]),
 
     debugScenarios: defineTable({

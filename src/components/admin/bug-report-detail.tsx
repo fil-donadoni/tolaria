@@ -85,6 +85,19 @@ export default function BugReportDetail({
                     {report.userAgent && (
                         <span>User agent: {report.userAgent}</span>
                     )}
+                    {/* issue #3255 — what the reporter was told, and what they
+                        answered. A row with `diagnosticsConsent: false` is
+                        missing its route/board/AI rings BY CHOICE; without this
+                        line that reads as a bug in the collector. */}
+                    {report.consentVersion !== undefined && (
+                        <span>
+                            Disclosure v{report.consentVersion} &mdash;
+                            diagnostics{" "}
+                            {report.diagnosticsConsent
+                                ? "accepted"
+                                : "declined"}
+                        </span>
+                    )}
                     {report.issueUrl && (
                         <a
                             href={report.issueUrl}

@@ -16,6 +16,7 @@ import {
     summarizeGameSnapshot,
     type GameSnapshot,
 } from "./bugReportSummary";
+import { BUG_REPORT_CONSENT_VERSION } from "./bugReportConsent";
 
 // Re-exported so existing importers (`convex/__tests__/bugReports.test.ts`)
 // keep working unchanged — the derivation itself now lives in
@@ -158,6 +159,33 @@ export function buildIssuePayload(input: IssueInput): {
     return { title, body: bodyLines.join("\n") };
 }
 
+/** The diagnostic fields of a report — everything beyond the reporter's own
+ *  words, contact details and the file they chose themselves. */
+export type ReportDiagnosticFields = {
+    route?: string;
+    userAgent?: string;
+    gameId?: Id<"games">;
+    clientDiagnostics?: unknown;
+};
+
+/**
+ * The cut the bug-report disclosure licenses (issue #3255), in ONE pure place
+ * so it is unit-testable and so the row, the issue body and the game-state read
+ * cannot each decide it differently.
+ *
+ * A decline drops every diagnostic field. The dialog already withholds them,
+ * and this re-derives the same cut server-side anyway: a client that sends a
+ * payload it was not licensed to send must not have it stored, and the dialog
+ * is not the authority on that (ADR 0074).
+ */
+export function applyDiagnosticsConsent(
+    fields: ReportDiagnosticFields,
+    diagnosticsConsent: boolean
+): ReportDiagnosticFields {
+    if (!diagnosticsConsent) return {};
+    return fields;
+}
+
 /**
  * Short-lived, auth-gated upload URL for the optional attachment. The client
  * POSTs the file to the returned URL and gets back a `storageId` to pass into
@@ -263,11 +291,28 @@ export const createReportRow = internalMutation({
         seq: v.optional(v.number()),
         state: v.optional(v.any()),
         clientDiagnostics: v.optional(v.any()),
+        consentVersion: v.optional(v.number()),
+        diagnosticsConsent: v.optional(v.boolean()),
     },
     returns: v.id("bugReports"),
     handler: async (ctx, args) => {
         const userId = await getCurrentUserId(ctx);
-        return await ctx.db.insert("bugReports", { ...args, userId });
+        const reportId = await ctx.db.insert("bugReports", { ...args, userId });
+        // The consent is recorded on the USER at the moment a report is filed
+        // under it (issue #3255) — one write, in the same transaction as the
+        // row it licensed, rather than a separate public mutation the dialog
+        // could forget to call. A DECLINE stores nothing: an account that
+        // refused has not consented, so the gate greets it unchecked again.
+        if (
+            args.diagnosticsConsent === true &&
+            args.consentVersion !== undefined
+        ) {
+            await ctx.db.patch(userId, {
+                bugReportConsentAt: Date.now(),
+                bugReportConsentVersion: args.consentVersion,
+            });
+        }
+        return reportId;
     },
 });
 
@@ -313,6 +358,8 @@ export const getReport = internalQuery({
             seq: v.optional(v.number()),
             state: v.optional(v.any()),
             clientDiagnostics: v.optional(v.any()),
+            consentVersion: v.optional(v.number()),
+            diagnosticsConsent: v.optional(v.boolean()),
             issueNumber: v.optional(v.number()),
             issueUrl: v.optional(v.string()),
             filedAt: v.number(),
@@ -335,6 +382,12 @@ export const getReport = internalQuery({
             seq: row.seq,
             state: row.state,
             clientDiagnostics: row.clientDiagnostics,
+            // What the reporter had been told when they filed (issue #3255).
+            // Absent === filed before the gate shipped; `diagnosticsConsent:
+            // false` === they declined and the diagnostic fields above are
+            // missing BY CHOICE, not by a bug.
+            consentVersion: row.consentVersion,
+            diagnosticsConsent: row.diagnosticsConsent,
             issueNumber: row.issueNumber,
             issueUrl: row.issueUrl,
             filedAt: row._creationTime,
@@ -422,6 +475,9 @@ export async function getBugReportHandler(
         // `bunx convex run … --prod`, which is the access path #2250 built this
         // page to route around.
         clientDiagnostics: row.clientDiagnostics,
+        // What the reporter had been told when they filed (issue #3255).
+        consentVersion: row.consentVersion,
+        diagnosticsConsent: row.diagnosticsConsent,
         issueNumber: row.issueNumber,
         issueUrl: row.issueUrl,
         filedAt: row._creationTime,
@@ -444,6 +500,8 @@ export const getBugReport = query({
             seq: v.optional(v.number()),
             state: v.optional(v.any()),
             clientDiagnostics: v.optional(v.any()),
+            consentVersion: v.optional(v.number()),
+            diagnosticsConsent: v.optional(v.boolean()),
             issueNumber: v.optional(v.number()),
             issueUrl: v.optional(v.string()),
             filedAt: v.number(),
@@ -478,6 +536,11 @@ export const submitBugReport = action({
         // verbatim and never parsed here — it is evidence for a human, and a
         // report must not fail because a diagnostic field moved on.
         clientDiagnostics: v.optional(v.any()),
+        // The disclosure gate's answer (issue #3255). The dialog withholds the
+        // diagnostic fields on a decline, and this server re-derives the same
+        // cut rather than trusting it to: a client that sends a payload it was
+        // not licensed to send must not have it stored.
+        diagnosticsConsent: v.boolean(),
     },
     returns: v.object({ issueUrl: v.string() }),
     handler: async (ctx, args): Promise<{ issueUrl: string }> => {
@@ -492,12 +555,28 @@ export const submitBugReport = action({
             );
         }
 
+        // Everything beyond the reporter's words, contact details and the file
+        // they chose themselves is diagnostic, and a decline drops all of it —
+        // the narrative report still files. The attachment stays either way: a
+        // file the reporter picked is a deliberate act, not something collected
+        // from under them.
+        const diagnostics = applyDiagnosticsConsent(
+            {
+                route: args.route,
+                userAgent: args.userAgent,
+                gameId: args.gameId,
+                clientDiagnostics: args.clientDiagnostics,
+            },
+            args.diagnosticsConsent
+        );
+
         // The snapshot is best-effort: a report filed from the lobby has no
         // gameId, and a game that has not started has no state row. Neither is
-        // a reason to fail the report.
-        const snapshot = args.gameId
+        // a reason to fail the report. Read through the CUT gameId, so a
+        // declined report never even touches the board.
+        const snapshot = diagnostics.gameId
             ? await ctx.runQuery(internal.bugReports.getGameSnapshotForReport, {
-                  gameId: args.gameId,
+                  gameId: diagnostics.gameId,
               })
             : null;
 
@@ -507,22 +586,27 @@ export const submitBugReport = action({
                 name: args.name,
                 email: args.email,
                 description: args.description,
-                route: args.route,
-                userAgent: args.userAgent,
+                route: diagnostics.route,
+                userAgent: diagnostics.userAgent,
                 attachmentId: args.attachmentId,
                 attachmentName: args.attachmentName,
-                gameId: args.gameId,
+                gameId: diagnostics.gameId,
                 seq: snapshot?.seq,
                 state: snapshot?.state,
-                clientDiagnostics: args.clientDiagnostics,
+                clientDiagnostics: diagnostics.clientDiagnostics,
+                // Stamped on EVERY row, accepted or declined — the version is
+                // what the reporter was shown, and a maintainer reading the row
+                // later needs to know that as much as the answer.
+                consentVersion: BUG_REPORT_CONSENT_VERSION,
+                diagnosticsConsent: args.diagnosticsConsent,
             }
         );
 
         const { title, body } = buildIssuePayload({
             name: args.name,
             description: args.description,
-            route: args.route,
-            userAgent: args.userAgent,
+            route: diagnostics.route,
+            userAgent: diagnostics.userAgent,
             attachmentName: args.attachmentName,
             gameSection: snapshot ? buildGameStateSection(snapshot) : null,
             reportId,

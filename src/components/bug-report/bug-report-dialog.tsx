@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -8,8 +8,12 @@ import { Button } from "@/components/ui/button";
 import GameDialog from "@/components/ui/game-dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { getStoredSession } from "~/lib/session";
-import { collectAiDiagnostics } from "~/lib/ai/diagnostics";
+import { bugReportConsentIsCurrent } from "@convex/bugReportConsent";
+import BugReportConsent from "./bug-report-consent";
+import {
+    collectDiagnosticPayload,
+    type BugReportDiagnostics,
+} from "./diagnostic-payload";
 import { describeSubmitError } from "./describe-submit-error";
 
 type BugReportDialogProps = {
@@ -45,6 +49,26 @@ export default function BugReportDialog({
     const [description, setDescription] = useState("");
     const [file, setFile] = useState<File | null>(null);
 
+    // The diagnostic payload, captured when the dialog OPENS. One value: the
+    // gate previews it and the submission sends it, so the two cannot disagree
+    // (issue #3255) — and the reporter consents to exactly what they were
+    // shown, not to whatever the rings had grown into by the time they clicked.
+    const [payload, setPayload] = useState<BugReportDiagnostics | null>(null);
+    useEffect(() => {
+        setPayload(open ? collectDiagnosticPayload() : null);
+    }, [open]);
+
+    // Consent follows the same prefill idiom as name/email: the stored decision
+    // rules until the reporter touches the box. It is read from the USER RECORD
+    // — clearing browser storage, which is what a reporter with a broken client
+    // does first, must not silently un-consent an account.
+    const [consentDirty, setConsentDirty] = useState(false);
+    const [consentChoice, setConsentChoice] = useState(false);
+    const consentIsCurrent = bugReportConsentIsCurrent(
+        currentUser?.bugReportConsentVersion
+    );
+    const accepted = consentDirty ? consentChoice : consentIsCurrent;
+
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [issueUrl, setIssueUrl] = useState<string | null>(null);
@@ -62,6 +86,8 @@ export default function BugReportDialog({
         setEmailDirty(false);
         setName("");
         setEmail("");
+        setConsentDirty(false);
+        setConsentChoice(false);
     }
 
     function handleOpenChange(next: boolean) {
@@ -97,32 +123,21 @@ export default function BugReportDialog({
                 attachmentName = file.name;
             }
 
-            // Most in-app reports are about something happening on the board
-            // right now, and the description alone is rarely actionable (#1728
-            // was one sentence with no card, phase or game id). Send the id of
-            // the game the reporter is sitting in — the server reads the state
-            // itself, and only for a participant of that game. Read at submit
-            // time, not at mount: this dialog is mounted at the router root for
-            // the whole session, so a value captured on mount would go stale
-            // the moment the user starts a different game.
-            const { gameId } = getStoredSession();
-
             const result = await submitBugReport({
                 name: nameValue,
                 email: emailValue,
                 description,
                 attachmentId,
                 attachmentName,
-                route: window.location.pathname,
-                userAgent: navigator.userAgent,
-                gameId: gameId ?? undefined,
-                // The AI rings (issue #2470). Read at submit time like the game
-                // id above, and for a stronger reason: the play bot runs in
-                // THIS tab (ADR 0074), so nothing server-side can reconstruct
-                // why one of its decisions failed. Omitted entirely when both
-                // rings are empty, so a report from the lobby or from a
-                // human-vs-human game carries no empty scaffolding.
-                clientDiagnostics: collectAiDiagnostics(),
+                // The gate's answer, and — only when it is yes — the payload it
+                // previewed, SPREAD verbatim (issue #3255). Spreading the same
+                // object the preview rendered is what makes "the preview shows
+                // what is sent" a property of the code rather than a promise:
+                // a field added to `BugReportDiagnostics` travels and is
+                // previewed in one edit, and a decline sends none of them.
+                // The server re-derives this cut regardless.
+                diagnosticsConsent: accepted,
+                ...(accepted && payload ? payload : {}),
             });
             setIssueUrl(result.issueUrl);
         } catch (err) {
@@ -234,6 +249,18 @@ export default function BugReportDialog({
                             disabled={submitting}
                         />
                     </label>
+
+                    {payload && (
+                        <BugReportConsent
+                            payload={payload}
+                            accepted={accepted}
+                            onAcceptedChange={(next) => {
+                                setConsentDirty(true);
+                                setConsentChoice(next);
+                            }}
+                            disabled={submitting}
+                        />
+                    )}
 
                     {error && (
                         <Banner tone="danger" role="alert">
