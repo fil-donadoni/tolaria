@@ -360,12 +360,24 @@ function profileLookup(profiles: Record<string, CardProfile>): GetCardProfile {
 /** Flash + Worldspine Wurm + 30 copies of a filler spell that outscores Flash
  *  on standalone quality alone. `manaValue` is overridden to 2 so the filler
  *  competes with Flash in its OWN curve bucket — otherwise the curve phase
- *  maindecks Flash for free as the only 2-drop and the test proves nothing. */
+ *  maindecks Flash for free as the only 2-drop and the test proves nothing.
+ *
+ *  The filler must beat Flash on standalone quality by LESS than a full-weight
+ *  Capability match is worth, or the design guarantee the two tests below
+ *  assert is simply not true of this pair and they fail for a reason that has
+ *  nothing to do with Capabilities. It is Wall of Air no longer (issue #3292):
+ *  Flash's Effect Script stopped being read as a +120 edict — its trailing
+ *  `if (not $paid) -> sacrifice($picked)` sacrifices the CASTER's own creature
+ *  — so `cardValueById` now floors it at `base + MV` and the Wall's gap grew
+ *  from a fraction of the match to roughly twelve times it. Jump keeps every
+ *  property the fixture needs (blue like Flash, a plain one-shot spell, no
+ *  Capability rows of its own) with a gap the match can still close; the
+ *  relation, not the number, is what the second test re-derives every run. */
 function flashFixture() {
     const flash = metaOf("Flash");
     const wurm = metaOf("Worldspine Wurm");
     const filler: AutoBuildCardMeta = {
-        ...metaOf("Wall of Air"),
+        ...metaOf("Jump"),
         manaValue: 2,
     };
     const entries: Record<string, AutoBuildCardMeta> = {

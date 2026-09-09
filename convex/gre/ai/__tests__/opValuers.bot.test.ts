@@ -272,14 +272,225 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
     });
 
     describe("sacrifice (CR 701.21)", () => {
-        it("a forced picks-set sacrifice (edict) is positive removal", () => {
-            const op: EffectOp = {
-                op: "sacrifice",
-                permanents: { ref: "$picked" },
-            };
-            const v = valueOp(op, cf);
+        // Issue #3292 — the bare-picks case is SPLIT by chooser rather than
+        // pinned at one value: which sign it carries depends on who picks the
+        // permanents, and the walk-local `ScriptScope` is what tells the
+        // valuer. Both halves assert; the unattributed case below is the
+        // fail-open floor that keeps this from ever going silently negative.
+        const choose = (player: EffectPlayerRef, bind: string): EffectOp => ({
+            op: "choice",
+            kind: "choose-permanents",
+            player,
+            zone: "battlefield",
+            filter: { type: "Creature" },
+            count: 1,
+            prompt: "Choose a creature to sacrifice.",
+            bind,
+        });
+        const sacPicks = (ref: string): EffectOp => ({
+            op: "sacrifice",
+            permanents: { ref },
+        });
+
+        it("a picks-set sacrifice the CONTROLLER chose is a cost (self-cost)", () => {
+            const v = valueEffectScript(
+                [choose("controller", "$picked"), sacPicks("$picked")],
+                cf
+            );
+            expect(v.points).toBe(-40);
+            expect(v.tags).toEqual(
+                expect.arrayContaining(["boardRemoval", "self-cost"])
+            );
+        });
+
+        it("a picks-set sacrifice an OPPONENT chose stays an edict", () => {
+            const v = valueEffectScript(
+                [choose("opponent", "$sac"), sacPicks("$sac")],
+                cf
+            );
             expect(v.points).toBe(120);
             expect(v.tags).toContain("boardRemoval");
+            expect(v.tags).not.toContain("self-cost");
+        });
+
+        // The chooser shapes the walk cannot attribute BY NAME to the
+        // controller — an announced player slot, `{ controllerOf }`, and the
+        // symmetric `{ ref: "$each" }` / `{ ref: "$event.…" }` forms — all keep
+        // the edict value. `ctx.isSelf` would answer "self" for the two `{ ref }`
+        // shapes context-free, which is exactly why the attribution is a literal
+        // `"controller"` test instead.
+        it.each<[string, EffectPlayerRef]>([
+            ["an announced target player", { target: 0 }],
+            ["`{ controllerOf }`", { controllerOf: { target: 0 } }],
+            ["the `$each` symmetric shape", { ref: "$each" }],
+            ["an event-derived player", { ref: "$event.activePlayerId" }],
+        ])(
+            "a picks-set sacrifice chosen by %s stays an edict",
+            (_label, player) => {
+                const v = valueEffectScript(
+                    [choose(player, "$sac"), sacPicks("$sac")],
+                    cf
+                );
+                expect(v.points).toBe(120);
+                expect(v.tags).not.toContain("self-cost");
+            }
+        );
+
+        it("an UNATTRIBUTED bare picks ref keeps the edict value", () => {
+            // No binding Op in the walk at all — the fail-open floor. A slice
+            // that made this negative would price every un-walked edict as the
+            // caster's own cost.
+            const v = valueOp(sacPicks("$picked"), cf);
+            expect(v.points).toBe(120);
+            expect(v.tags).toContain("boardRemoval");
+            expect(v.tags).not.toContain("self-cost");
+        });
+
+        it("the attribution survives an `if` branch (Flash's shape)", () => {
+            // `choice` at the top level, `sacrifice` inside `if.then` — the
+            // SHAPE Flash ships (its own pick is a `choose-hand-card` over
+            // `zone: "hand"`, which the walker reads no differently: it keys
+            // on the chooser and the binding name, never on the kind or the
+            // zone), and the one the bot was casting for nothing.
+            const v = valueEffectScript(
+                [
+                    choose("controller", "$picked"),
+                    {
+                        op: "if",
+                        predicate: { not: { binding: "$paid" } },
+                        then: [sacPicks("$picked")],
+                    },
+                ],
+                cf
+            );
+            expect(v.points).toBe(-40);
+            expect(v.tags).toContain("self-cost");
+        });
+
+        it("the attribution holds inside a delayed-trigger body", () => {
+            const v = valueEffectScript(
+                [
+                    {
+                        op: "delayedTrigger",
+                        timing: "next-end-step",
+                        oracleText:
+                            "At the beginning of the next end step, sacrifice it.",
+                        effects: [
+                            choose("controller", "$picked"),
+                            sacPicks("$picked"),
+                        ],
+                    },
+                ],
+                cf
+            );
+            expect(v.points).toBe(-40);
+            expect(v.tags).toContain("self-cost");
+        });
+
+        it("the attribution holds inside a reflexive-trigger body", () => {
+            const v = valueEffectScript(
+                [
+                    {
+                        op: "reflexiveTrigger",
+                        oracleText: "When you do, sacrifice a creature.",
+                        effects: [
+                            choose("controller", "$picked"),
+                            sacPicks("$picked"),
+                        ],
+                    },
+                ],
+                cf
+            );
+            expect(v.points).toBe(-40);
+            expect(v.tags).toContain("self-cost");
+        });
+
+        // PR #3298 review — the picks twin of issue #1964's `$source` aliasing:
+        // a capture whose SOURCE is an attributed picks ref carries the
+        // attribution into the body under its new name. Without it the same
+        // mis-sign survives one level down.
+        it("a capture that ALIASES an attributed pick carries it into the body", () => {
+            const v = valueEffectScript(
+                [
+                    choose("controller", "$picked"),
+                    {
+                        op: "reflexiveTrigger",
+                        oracleText: "When you do, sacrifice it.",
+                        capture: { $s: { ref: "$picked" } },
+                        effects: [sacPicks("$s")],
+                    },
+                ],
+                cf
+            );
+            expect(v.points).toBe(-40);
+            expect(v.tags).toContain("self-cost");
+        });
+
+        it("a capture aliasing an UNATTRIBUTED name carries nothing", () => {
+            const v = valueEffectScript(
+                [
+                    choose("opponent", "$picked"),
+                    {
+                        op: "reflexiveTrigger",
+                        oracleText: "When you do, sacrifice it.",
+                        capture: { $s: { ref: "$picked" } },
+                        effects: [sacPicks("$s")],
+                    },
+                ],
+                cf
+            );
+            expect(v.points).toBe(120);
+            expect(v.tags).not.toContain("self-cost");
+        });
+
+        // PR #3298 review — the chooser alone does not say WHOSE permanents
+        // the pick ranges over. Both fields keep the edict value rather than
+        // guessing; no shipped card sets either on a controller-chosen
+        // sacrifice, so these are latent guards.
+        it("a controller-chosen pick over ANOTHER player's zone stays an edict", () => {
+            const pick = choose("controller", "$sac") as Extract<
+                EffectOp,
+                { op: "choice" }
+            >;
+            const v = valueEffectScript(
+                [{ ...pick, zoneOwnerId: "opponent" }, sacPicks("$sac")],
+                cf
+            );
+            expect(v.points).toBe(120);
+            expect(v.tags).not.toContain("self-cost");
+        });
+
+        it("a controller-chosen pick over a NAMED candidate set stays an edict", () => {
+            const pick = choose("controller", "$sac") as Extract<
+                EffectOp,
+                { op: "choice" }
+            >;
+            const v = valueEffectScript(
+                [{ ...pick, candidates: [{ target: 0 }] }, sacPicks("$sac")],
+                cf
+            );
+            expect(v.points).toBe(120);
+            expect(v.tags).not.toContain("self-cost");
+        });
+
+        it("a delayed body does NOT inherit an outer same-named binding", () => {
+            // CR 603.7 / `cards/types.ts` — `capture` keys are the body's ONLY
+            // initial bindings, so an outer `$picked` says nothing about the
+            // body's. Inheriting it would sign an unrelated edict as a cost.
+            const v = valueEffectScript(
+                [
+                    choose("controller", "$picked"),
+                    {
+                        op: "delayedTrigger",
+                        timing: "next-end-step",
+                        oracleText:
+                            "At the beginning of the next end step, sacrifice.",
+                        effects: [sacPicks("$picked")],
+                    },
+                ],
+                cf
+            );
+            expect(v.points).toBe(120);
             expect(v.tags).not.toContain("self-cost");
         });
 

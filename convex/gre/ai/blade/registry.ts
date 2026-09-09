@@ -5543,6 +5543,66 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Issue #2708 — the first entry whose announced target is a stack ITEM chosen by a property of that item's OWN targets (`spellTargetsPermanentFilter`). Filed at `stretch` deliberately: the reachability half is proven green elsewhere, and raising a budget to turn an entry green is not a legitimate move (ADR 0070 §2).",
     },
+
+    // ── A controller-chosen sacrifice is a COST (issue #3292) ─────────────
+    // A DISCRIMINATING PAIR on the SIGN of a picks-set `sacrifice`. The Op is
+    // the same in both positions; what differs is WHO picks the permanents.
+    // The value model used to price every bare-picks sacrifice as an edict
+    // (+120 discounted removal) without asking, so a `sacrifice` the CASTER
+    // chooses — their own permanent, a cost — read as removal aimed at the
+    // opponent, on nine shipped cards.
+    {
+        label: "sacrifice sign: does not cast a creature whose ETB eats its own board",
+        spec: {
+            cards: [
+                { name: "Kjeldoran Dead", owner: "me", zone: "hand" },
+                {
+                    name: "Craw Wurm",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Kjeldoran Dead" }],
+        },
+        note: 'Issue #3292. Kjeldoran Dead is a 3/1 whose ETB is `choice { player: "controller" } -> sacrifice($sac)` (CR 701.21) — the caster picks one of their OWN creatures. With a 6/4 Craw Wurm as the only other body, casting it is strictly worse than passing whichever creature the sacrifice takes, so the bot must not cast. It used to, because the ability script priced that sacrifice as +120 board removal: the permanent was credited a standing EDICT it does not have, and `dslRealizedAbilityScriptValue` puts that credit on the board at EVERY search leaf — measured at 590 points before the fix against 430 after (a 160-point swing), on the same two-creature board. Discriminating, measured at authoring time on all five seeds: `cast-spell` before the valuer split, `pass` after.',
+    },
+    {
+        label: "sacrifice sign NEGATIVE CONTROL: still casts a genuine edict",
+        spec: {
+            cards: [
+                { name: "Sheoldred's Edict", owner: "me", zone: "hand" },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "cast-spell", card: "Sheoldred's Edict" }],
+        },
+        note: "Issue #3292 negative control, the other side of the same Op. The Edict's sacrifice reads the identical bare picks ref, but its `choice` names `player: \"opponent\"` — the OPPONENT picks, so it is real removal and must keep the edict value. Guards the fix against over-reaching: an attribution that answered \"controller\" for anything but the literal chooser would sign this (and Innocent Blood's `$each`, and Liliana of the Veil's announced target player) as the caster's own cost and stop the bot ever casting an edict.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the
