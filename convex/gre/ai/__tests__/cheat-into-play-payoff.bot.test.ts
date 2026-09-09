@@ -23,7 +23,7 @@
  *     1-ply probe never sees the phantom body.
  *
  * The pair is a payoff body against a vanilla body of the SAME mana value, so
- * the reduced cost (CR 118.9) is identical and the only difference is what the
+ * the reduced cost (CR 118.7a) is identical and the only difference is what the
  * creature does when it dies.
  */
 
@@ -178,6 +178,53 @@ describe("cheat-into-play is worth what survives (issue #3293)", () => {
             expect(probe(state, botId, put)).toBeGreaterThan(
                 probe(state, botId, decline)
             );
+        });
+    });
+
+    describe("policyValue leaves everything else alone", () => {
+        it("does not settle a resolution the OPPONENT owes a choice on", () => {
+            // The safety argument of the whole change: the settle answers only
+            // choices the MOVER owns, so a suspension waiting on the other seat
+            // is never resolved on that seat's behalf.
+            const { state, botId, put } = atHandPick(VANILLA);
+            const oppId = state.players[1].id;
+            const mid = cloneGameState(state);
+            applyMoveInSearch(mid, botId, put);
+            expect(mid.pendingChoices?.[0]?.playerId).toBe(botId);
+            const asOpponent = settleStackForBreakdown(mid, oppId);
+            expect(asOpponent.pendingChoices?.length).toBeGreaterThan(0);
+            expect(asOpponent.stack.length).toBeGreaterThan(0);
+        });
+
+        it("settles only when a mover is named, and only mid-resolution", () => {
+            // Two halves of one guard. Mid-resolution the `moverId` argument is
+            // load-bearing: without it the caller keeps the old, unsettled
+            // reading. With nothing suspended there is nothing to settle, so
+            // naming a mover changes no score at all — which is what makes the
+            // change inert for every position that is not mid-resolution.
+            const { state, botId, put } = atHandPick(VANILLA);
+            const mid = cloneGameState(state);
+            applyMoveInSearch(mid, botId, put);
+            expect(policyValue(mid, botId, put, undefined, botId)).not.toBe(
+                policyValue(mid, botId, put, undefined)
+            );
+
+            const root = position(VANILLA);
+            const pass = enumerateMoves(root.state, root.botId).find(
+                (m) => m.kind === "pass"
+            )!;
+            const settledRoot = cloneGameState(root.state);
+            applyMoveInSearch(settledRoot, root.botId, pass);
+            expect(settledRoot.pendingChoices ?? []).toHaveLength(0);
+            expect(
+                policyValue(
+                    settledRoot,
+                    root.botId,
+                    pass,
+                    undefined,
+                    root.botId
+                )
+            ).toBe(policyValue(settledRoot, root.botId, pass, undefined));
         });
     });
 
