@@ -472,6 +472,46 @@ describe("board cast permission (CR 601.3)", () => {
         expect(JSON.parse(JSON.stringify(definition))).toEqual(definition);
     });
 
+    it("the picker LABEL is outside the identity (ADR 0119 decision 0)", () => {
+        // The property that survives an author shortening the label: Aluren's
+        // shipped permission reads "Cast with Aluren" and its compiled twin
+        // reads the whole sentence, and the two must still be ONE offered cast
+        // option. Asserted on the derivation directly, because no two shipped
+        // cards differ in label alone today — a data-driven version of this
+        // would be vacuous.
+        const terms = {
+            kind: "cast-permission" as const,
+            grantee: "any-player" as const,
+            filter: { type: ["Creature"] as const, manaValueAtMost: 3 },
+            withoutPayingManaCost: true,
+            asThoughFlash: true,
+        };
+        expect(
+            deriveCastPermissionId(
+                castPermissionTerms({ ...terms, id: "x", oracleText: "long" })
+            )
+        ).toBe(
+            deriveCastPermissionId(
+                castPermissionTerms({ ...terms, id: "y", oracleText: "short" })
+            )
+        );
+        // …and a TERM still moves it, so the exclusion is one field wide.
+        expect(
+            deriveCastPermissionId(
+                castPermissionTerms({ ...terms, id: "x", oracleText: "long" })
+            )
+        ).not.toBe(
+            deriveCastPermissionId(
+                castPermissionTerms({
+                    ...terms,
+                    filter: { type: ["Creature"] as const, manaValueAtMost: 4 },
+                    id: "x",
+                    oracleText: "long",
+                })
+            )
+        );
+    });
+
     it("two cards printing one sentence derive ONE id", () => {
         const first = compiled(
             oracle({
