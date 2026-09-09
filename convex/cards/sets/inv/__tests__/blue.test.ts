@@ -66,6 +66,7 @@ import {
     tapSourceIntoPayment,
 } from "../../../../game";
 import { resolveActivated, resolveTrigger, submitChoice } from "./helpers";
+import { buildActivatedAbilityStackItem } from "../../../../gre/activationCommit";
 import { getDefinition } from "../../../index";
 
 const blindSeer = getDefinition("5c54ec26-c7f1-4258-9cc9-1709987f293c");
@@ -1844,13 +1845,15 @@ describe("Teferi's Response (issue #2708)", () => {
         const source = state.players[1].battlefield.find(
             (c) => c.id === sourceId
         )!;
-        const item: StackItem = {
-            ...source,
-            zone: "stack",
+        // The REAL builder, not a hand-rolled literal: the whole
+        // `abilitySourcePermanentId === item.id` claim rests on its shape
+        // (a `structuredClone` of the source, keeping its id), so a test that
+        // re-wrote that shape by hand would prove nothing about it.
+        const item = buildActivatedAbilityStackItem(source, {
             castById: "p2",
             abilityId: "icy-manipulator-tap",
             targets: [{ type: "permanent", id: targetLandId }],
-        };
+        });
         state.stack.push(item);
         return item;
     }
@@ -2047,6 +2050,57 @@ describe("Teferi's Response (issue #2708)", () => {
 
         expect(state.players[1].battlefield.map((c) => c.id)).toContain("icy");
         expect(state.players[0].hand).toHaveLength(2);
+    });
+
+    // CR 400.7 — instance ids are never reallocated, so a permanent that left
+    // and came back wears the SAME id while being a NEW object. `sourceLki` is
+    // stamped the moment it leaves, and it is the only thing that tells the
+    // two apart; without the gate the rider destroys the returned object,
+    // which the ability on the stack has no relation to.
+    it("does not destroy a source that has LEFT and returned — sourceLki, not the id, decides (CR 400.7)", () => {
+        const state = board();
+        const source = state.players[1].battlefield.find(
+            (c) => c.id === "icy"
+        )!;
+        const item = buildActivatedAbilityStackItem(source, {
+            castById: "p2",
+            abilityId: "icy-manipulator-tap",
+            targets: [{ type: "permanent", id: "myLand" }],
+        });
+        // The blink: the source left (LKI stamped) and an object with the same
+        // id is on the battlefield again.
+        item.sourceLki = { ...source };
+        state.stack.push(item);
+        resolveResponse(state, item.id);
+
+        expect(state.stack.map((s) => s.id)).not.toContain(item.id);
+        expect(state.players[1].battlefield.map((c) => c.id)).toContain("icy");
+        expect(state.players[0].hand).toHaveLength(2);
+    });
+
+    // The filter's FLOOR. `{}` names no clause, but it still means "targets at
+    // least one permanent" — dropping the key instead would admit an
+    // untargeted candidate, the fail-OPEN the conjunction exists to avoid.
+    it("an EMPTY targeted-permanent clause still demands a witness", () => {
+        const state = board();
+        const emptyClause: NonNullable<CardDefinition["targetRequirement"]> = {
+            type: "spell",
+            count: 1,
+            spellStackKind: "any",
+            spellTargetsPermanentFilter: {},
+        };
+        const targeted = pushSpell(state, stoneRainDef.id, "p2", [
+            { type: "permanent", id: "theirLand" },
+        ]);
+        const untargeted = pushSpell(state, teferisResponse.id, "p2", []);
+        const ids = getLegalTargets(
+            state,
+            emptyClause,
+            NO_TARGETING_SOURCE,
+            "p1"
+        ).map((t) => t.id);
+        expect(ids).toContain(targeted.id);
+        expect(ids).not.toContain(untargeted.id);
     });
 
     it("wire format: the countered ability is gone and the destroyed source is off the projected battlefield", () => {

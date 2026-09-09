@@ -3493,7 +3493,7 @@ export type PendingTarget = {
      *  types. */
     spellTargetsPermanentFilter?: {
         types?: CardType[];
-        controller?: "you" | "opponent" | "any" | "active";
+        controller?: TargetRequirement["controller"];
     };
     /** Restricts legal SPELL targets by the candidate's own Kicker state
      *  (CR 702.33a — `true` = kicked only, `false` = unkicked only).
@@ -15804,15 +15804,31 @@ export function buildSpellContext(
             // from a stack the item has already left. An activated ability's
             // stack item is a structuredClone of its source
             // (`buildActivatedAbilityStackItem`), so the source id IS the item
-            // id; a triggered or delayed-triggered ability carries it in
-            // `triggerSourceId`. Battlefield presence is re-checked here (CR
-            // 608.2b): an ability whose source already left leaves nothing to
-            // destroy, and a SPELL has no permanent source at all.
-            const abilitySourcePermanentId = found.abilityId
-                ? found.id
-                : (found.triggeredAbilityId ?? found.delayedTriggerId)
-                  ? found.triggerSourceId
-                  : undefined;
+            // id; a TRIGGERED ability carries it in `triggerSourceId`.
+            //
+            // `sourceLki` is the CR 400.7 gate, not an optimisation: it is
+            // stamped the moment the source leaves the battlefield, and
+            // instance ids are never reallocated, so a blinked permanent comes
+            // back wearing the SAME id while being a NEW object with no
+            // relation to the ability on the stack. Without this the rider
+            // would destroy the returned object. The battlefield lookup is CR
+            // 608.2b's own half: an ability whose source is simply gone leaves
+            // nothing to destroy, and a SPELL has no permanent source at all.
+            //
+            // DELAYED and reflexive triggers are deliberately absent: their
+            // stack items allocate a fresh id and carry no `triggerSourceId`
+            // at all (`buildDelayedTriggerStackItem`, `pushReflexiveTrigger`),
+            // so there is nothing to read. Countering one destroys nothing —
+            // fail-closed, and narrower than CR 603.7e allows. Recorded in
+            // `docs/findings/2708-delayed-trigger-has-no-source-id.md`.
+            const abilitySourcePermanentId =
+                found.sourceLki !== undefined
+                    ? undefined
+                    : found.abilityId
+                      ? found.id
+                      : found.triggeredAbilityId
+                        ? found.triggerSourceId
+                        : undefined;
             const sourceOnBattlefield =
                 abilitySourcePermanentId !== undefined &&
                 state.players.some((p) =>

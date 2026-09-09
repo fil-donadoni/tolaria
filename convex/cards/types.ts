@@ -725,7 +725,7 @@ export interface TargetRequirement {
      *  it. Ignored for non-spell target types. */
     spellTargetsPermanentFilter?: {
         types?: CardType | CardType[];
-        controller?: "you" | "opponent" | "any" | "active";
+        controller?: TargetRequirement["controller"];
     };
     /** Restricts legal SPELL targets (`type: "spell"`) to spells that were
      *  KICKED (CR 702.33a) — at least one Kicker cost was paid as the spell was
@@ -985,10 +985,17 @@ export type CounterDestination = "graveyard" | "exile" | "hand" | "library-top";
  *  `abilitySourcePermanentId` carries the CR 113.7a source of a countered
  *  ABILITY: an activated ability's stack item is a clone of its source
  *  (`buildActivatedAbilityStackItem`), so the source id IS the item id; a
- *  triggered ability carries it as `triggerSourceId`. Set only when the
- *  counter succeeded, the object was an ability, and that source is still on
- *  the battlefield — a countered SPELL never sets it (CR 701.6a: a spell has
- *  no permanent source to speak of). */
+ *  TRIGGERED ability carries it as `triggerSourceId`. Set only when the
+ *  counter succeeded, the object was one of those two, and that source is
+ *  still the same object on the battlefield — CR 400.7, gated on `sourceLki`,
+ *  because instance ids are never reallocated and a blinked permanent returns
+ *  wearing the same one.
+ *
+ *  Never set for a countered SPELL (CR 701.6a — a spell has no permanent
+ *  source to speak of), nor for a DELAYED or reflexive trigger, whose stack
+ *  items allocate a fresh id and carry no `triggerSourceId` at all: narrower
+ *  than CR 603.7e allows, fail-closed, and recorded in
+ *  `docs/findings/2708-delayed-trigger-has-no-source-id.md`. */
 export interface CounterOutcome {
     countered: boolean;
     abilitySourcePermanentId?: string;

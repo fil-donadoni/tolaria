@@ -1238,9 +1238,14 @@ const spellTargetsPermanentFilterDescriptor = defineFilter<{
 }>({
     lower: (req) => {
         const f = req.spellTargetsPermanentFilter;
+        // Only an ABSENT field drops the key. An empty object does NOT: the
+        // filter's floor is "targets at least one permanent", so `{}` still
+        // demands a witness and rejects an untargeted candidate. Returning
+        // `undefined` here would delete the key from the forward set and admit
+        // everything — the fail-OPEN this filter's whole shape exists to
+        // avoid (review of PR #3279).
         if (!f) return undefined;
         const types = arr(f.types);
-        if (types === undefined && f.controller === undefined) return undefined;
         return {
             ...(types === undefined ? {} : { types }),
             ...(f.controller === undefined ? {} : { controller: f.controller }),

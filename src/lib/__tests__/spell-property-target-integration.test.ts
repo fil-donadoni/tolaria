@@ -40,6 +40,8 @@ import { grizzlyBears, island, lightningBolt } from "@convex/cards/sets/lea";
 import { stoneRain } from "@convex/cards/sets/lea/red";
 import { confound } from "@convex/cards/sets/pls/blue";
 import { teferisResponse } from "@convex/cards/sets/inv/blue";
+import { icyManipulator } from "@convex/cards/sets/lea/colorless";
+import { buildActivatedAbilityStackItem } from "@convex/gre/activationCommit";
 import { urzasRage } from "@convex/cards/sets/inv/red";
 import type { TargetRequirement } from "@convex/cards/types";
 import type { GameState } from "@convex/gre/state";
@@ -333,6 +335,11 @@ describe("Teferi's Response — conjunctive targeted-permanent clause (issue #27
                             controllerId: "p2",
                             ownerId: "p2",
                         }),
+                        makeInstance(icyManipulator.id, {
+                            id: "icy",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
                     ],
                 }),
             ],
@@ -349,6 +356,18 @@ describe("Teferi's Response — conjunctive targeted-permanent clause (issue #27
         const mineOnMyLand = pushSpell(state, stoneRain.id, "p1", [
             { type: "permanent", id: "myLand" },
         ]);
+        // An ABILITY on the stack, built by the production builder — the half
+        // `spellStackKind: "any"` exists for, and the half the client mirror
+        // had no coverage of at all (PR #3279 review): every other candidate
+        // here is a spell, so a client that admitted only spells would have
+        // agreed with the server on all of them.
+        const icy = state.players[1].battlefield.find((c) => c.id === "icy")!;
+        const abilityOnMyLand = buildActivatedAbilityStackItem(icy, {
+            castById: "p2",
+            abilityId: "icy-manipulator-tap",
+            targets: [{ type: "permanent", id: "myLand" }],
+        });
+        state.stack.push(abilityOnMyLand);
         return {
             state,
             ids: {
@@ -356,6 +375,7 @@ describe("Teferi's Response — conjunctive targeted-permanent clause (issue #27
                 onTheirLand: onTheirLand.id,
                 onMyBear: onMyBear.id,
                 mineOnMyLand: mineOnMyLand.id,
+                abilityOnMyLand: abilityOnMyLand.id,
             },
         };
     }
@@ -364,7 +384,12 @@ describe("Teferi's Response — conjunctive targeted-permanent clause (issue #27
         const { state, ids } = board();
         const clickable = clientClickable(state, REQ);
         expect(clickable).toEqual(serverOffered(state, REQ));
-        expect(clickable).toEqual([ids.onMyLand]);
+        expect(clickable).toEqual([ids.onMyLand, ids.abilityOnMyLand]);
+    });
+
+    it("an opponent's ABILITY targeting your land is clickable too (spellStackKind: any)", () => {
+        const { state, ids } = board();
+        expect(clientClickable(state, REQ)).toContain(ids.abilityOnMyLand);
     });
 
     it("the two ONE-CLAUSE items are rejected on the client too (what two independent keys would have admitted)", () => {

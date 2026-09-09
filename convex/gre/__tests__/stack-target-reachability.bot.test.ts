@@ -26,6 +26,7 @@
 
 import { describe, expect, it } from "vitest";
 import { enumerateMoves } from "../moves";
+import { buildActivatedAbilityStackItem } from "../activationCommit";
 import { icyManipulator, island } from "../../cards/sets/lea/colorless";
 import { forest } from "../../cards/sets/lea/colorless";
 import { teferisResponse } from "../../cards/sets/inv/blue";
@@ -98,16 +99,17 @@ function board(opts: { abilityTarget: "myLand" | "myBear" | "theirLand" }): {
     });
     state.priorityPlayerId = "p1";
     const source = state.players[1].battlefield.find((c) => c.id === "icy")!;
-    // The same stack-item shape `buildActivatedAbilityStackItem` produces: a
-    // clone of the source, so the item id IS the source permanent's id
-    // (CR 113.7a).
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: "p2",
-        abilityId: "icy-manipulator-tap",
-        targets: [{ type: "permanent", id: opts.abilityTarget }],
-    });
+    // The production builder (`convex/gre/activationCommit.ts`), not a
+    // hand-rolled literal — it is a `structuredClone` of the source, so the
+    // item id IS the source permanent's id (CR 113.7a), and that is the shape
+    // the filter under test reads.
+    state.stack.push(
+        buildActivatedAbilityStackItem(source, {
+            castById: "p2",
+            abilityId: "icy-manipulator-tap",
+            targets: [{ type: "permanent", id: opts.abilityTarget }],
+        })
+    );
     return { state, responseId: "response", abilityStackId: "icy" };
 }
 
