@@ -627,6 +627,20 @@ describe("spendsStandingPermanent — cost-side domination (issue #2939)", () =>
             );
         });
 
+        it("is DIFFERENTIAL — a source the BOARD already dooms is not the cost's doing", () => {
+            // CR 704.5m — an unattached Aura goes to the graveyard whether or
+            // not anything is paid, so a bare \"is it gone after the sweep\"
+            // reading would blame the cost for it. Merseine is the fixture as a
+            // SHAPE: an Aura with a `removeCounter` activation.
+            const MERSEINE = getCardByName("Merseine").id;
+            const net = perm(MERSEINE, "net", { counters: { net: 1 } });
+            const remove = effectiveAbilityOf(net, "merseine-remove-net")!;
+            expect(remove.cost.removeCounter).toBeDefined();
+            expect(spendsStandingPermanent(boardOf(net), net, remove)).toBe(
+                false
+            );
+        });
+
         it("fails closed when the source is not on the battlefield", () => {
             const bal = ballista(1);
             const shoot = effectiveAbilityOf(bal, SHOOT)!;
