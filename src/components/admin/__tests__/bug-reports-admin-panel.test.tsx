@@ -120,12 +120,12 @@ describe("BugReportsAdminPanel", () => {
     // decision failed (ADR 0074). An admin scanning the list must be able to
     // tell which reports carry them without opening each one, and the detail
     // must actually render them.
-    it("flags the reports carrying AI diagnostics, and renders them on selection", () => {
+    it("flags the reports carrying client diagnostics, and renders them on selection", () => {
         render(<BugReportsAdminPanel />);
         expect(screen.getAllByText("AI").length).toBe(1);
 
         fireEvent.click(screen.getByText("Ada"));
-        expect(screen.getByText("AI diagnostics")).toBeTruthy();
+        expect(screen.getByText("Client diagnostics")).toBeTruthy();
     });
 
     it("shows no AI section for a report that carries no rings", () => {
@@ -143,7 +143,7 @@ describe("BugReportsAdminPanel", () => {
         fireEvent.click(screen.getByText("Grace"));
 
         expect(screen.getByText("grace@example.com")).toBeTruthy();
-        expect(screen.queryByText("AI diagnostics")).toBeNull();
+        expect(screen.queryByText("Client diagnostics")).toBeNull();
     });
 
     it("shows nothing selected by default", () => {

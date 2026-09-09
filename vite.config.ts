@@ -3,9 +3,14 @@ import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
+import { buildDefine } from "./scripts/lib/build-define";
 
 // https://vite.dev/config/
 export default defineConfig({
+    // Build identity, stamped into the bundle so a bug report can say WHICH
+    // BUILD produced it (issue #3256). Shared with `vitest.config.ts` so the
+    // guarding test sees the same substitution the shipped bundle does.
+    define: buildDefine(),
     // PROTOTYPE (/prototype/board): proxy Scryfall through the dev origin so
     // the WebGL variant can upload textures. The cross-origin CDN + the
     // card-image service worker otherwise yield opaque responses that taint

@@ -15,6 +15,14 @@ let currentUser: {
 } | null;
 /** What `getStoredSession` reports — the game the reporter is sitting in. */
 let sessionGameId: string | null;
+/** What the Convex client reports for its own socket. */
+let connectionState: {
+    isWebSocketConnected: boolean;
+    hasEverConnected: boolean;
+    connectionCount: number;
+    connectionRetries: number;
+    hasInflightRequests: boolean;
+};
 /** What `collectAiDiagnostics` reports for the next submit. */
 let aiDiagnostics: unknown;
 const submitBugReport = vi.fn();
@@ -24,6 +32,10 @@ vi.mock("convex/react", () => ({
     useQuery: () => currentUser,
     useMutation: () => generateUploadUrl,
     useAction: () => submitBugReport,
+    // issue #3256 — the dialog reads the realtime connection state off the live
+    // client, because a dropped subscription and a frozen bot are
+    // indistinguishable from a board snapshot.
+    useConvex: () => ({ connectionState: () => connectionState }),
 }));
 // issue #2470 — the AI rings themselves are a bot-subsystem concern (and
 // importing them here would put this jsdom test in the bot suite, which the
@@ -64,6 +76,13 @@ describe("BugReportDialog", () => {
             bugReportConsentVersion: BUG_REPORT_CONSENT_VERSION,
         };
         sessionGameId = null;
+        connectionState = {
+            isWebSocketConnected: true,
+            hasEverConnected: true,
+            connectionCount: 1,
+            connectionRetries: 0,
+            hasInflightRequests: false,
+        };
         localStorage.clear();
         submitBugReport.mockReset();
         generateUploadUrl.mockReset();
@@ -197,15 +216,15 @@ describe("BugReportDialog", () => {
 
         await waitFor(() => expect(submitBugReport).toHaveBeenCalledTimes(1));
         const args = submitBugReport.mock.calls[0][0] as {
-            clientDiagnostics?: { decisions: { outcome: string }[] };
+            clientDiagnostics?: { ai?: { decisions: { outcome: string }[] } };
         };
-        expect(args.clientDiagnostics?.decisions).toHaveLength(1);
-        expect(args.clientDiagnostics?.decisions[0].outcome).toBe(
+        expect(args.clientDiagnostics?.ai?.decisions).toHaveLength(1);
+        expect(args.clientDiagnostics?.ai?.decisions[0].outcome).toBe(
             "worker-error"
         );
     });
 
-    it("omits the diagnostics entirely when there is no bot history", async () => {
+    it("omits the AI section entirely when there is no bot history", async () => {
         const { getByRole, getByPlaceholderText } = render(
             <BugReportDialog open onOpenChange={() => {}} />
         );
@@ -217,9 +236,14 @@ describe("BugReportDialog", () => {
 
         await waitFor(() => expect(submitBugReport).toHaveBeenCalledTimes(1));
         const args = submitBugReport.mock.calls[0][0] as {
-            clientDiagnostics?: unknown;
+            clientDiagnostics?: Record<string, unknown>;
         };
-        expect(args.clientDiagnostics).toBeUndefined();
+        // The blob itself is always there since issue #3256 — the build
+        // identity always has something to say. The AI section is what must be
+        // absent: empty scaffolding reads as evidence that the rings were
+        // checked and found empty.
+        expect(args.clientDiagnostics?.ai).toBeUndefined();
+        expect(args.clientDiagnostics?.build).toBeTruthy();
     });
 
     // --- Disclosure gate (issue #3255) -----------------------------------
@@ -376,7 +400,12 @@ describe("BugReportDialog", () => {
             expect(args[key]).toEqual(previewed[key]);
         }
         expect(previewed.gameId).toBe("game_7");
-        expect(previewed.clientDiagnostics).toEqual(aiDiagnostics);
+        const diagnostics = previewed.clientDiagnostics as Record<
+            string,
+            unknown
+        >;
+        expect(diagnostics.ai).toEqual(aiDiagnostics);
+        expect(diagnostics.build).toBeTruthy();
     });
 
     it("changes the preview when the payload changes", () => {

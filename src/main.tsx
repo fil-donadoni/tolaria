@@ -18,6 +18,21 @@ import "@convex/cards/catalogue";
 // rejection is surfaced there with a retry, so it is deliberately not handled
 // here.
 import { hydrateCatalogue } from "~/lib/catalogueArtifact";
+import { installConsoleRing } from "~/lib/diagnostics/console-ring";
+import { installNetworkRing } from "~/lib/diagnostics/network-ring";
+import { sampleStorageFacts } from "~/lib/diagnostics/environment";
+
+// Client diagnostics (issue #3256), installed as early as a module can run.
+// All three are bounded, client-only rings that reach a maintainer ONLY when a
+// reporter files a bug report and consents to the disclosure (issue #3255) —
+// nothing here sends anything anywhere on its own.
+//
+// Before `Sentry.init` on purpose: the SDK wraps the console too, and wrapping
+// first means this ring sees the call the app made rather than whatever the
+// instrumentation left of it. Both wrappers chain; neither replaces.
+installConsoleRing();
+installNetworkRing(import.meta.env.VITE_CONVEX_URL);
+void sampleStorageFacts();
 
 void hydrateCatalogue().catch(() => {
     // Owned by `CatalogueGate`, which surfaces the failure with a retry. This
@@ -43,6 +58,11 @@ if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
         navigator.serviceWorker
             .register("/sw-cards.js", { scope: "/" })
+            // Re-sample once the registration has settled: the sample taken at
+            // module load necessarily predates it, and "no service worker" is
+            // exactly the wrong thing for a report about missing card images to
+            // say (issue #3256).
+            .then(() => sampleStorageFacts())
             .catch((err) => {
                 console.warn("[sw-cards] registration failed", err);
             });

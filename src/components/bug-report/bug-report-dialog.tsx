@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useAction, useMutation, useQuery } from "convex/react";
+import { useAction, useConvex, useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { CheckCircle2, Loader2 } from "lucide-react";
@@ -53,9 +53,18 @@ export default function BugReportDialog({
     // this dialog is mounted at the router root for the whole session, so a
     // value captured once would go stale the moment the user starts a
     // different game.
+    const convex = useConvex();
     const payload = useMemo(
-        () => (open ? collectDiagnosticPayload() : null),
-        [open]
+        () =>
+            open
+                ? collectDiagnosticPayload({
+                      // The realtime subscription's state, read from the live
+                      // client (issue #3256): a dropped subscription and a
+                      // frozen bot are indistinguishable from a board snapshot.
+                      connection: convex.connectionState(),
+                  })
+                : null,
+        [open, convex]
     );
 
     // Consent follows the same prefill idiom as name/email: the stored decision
