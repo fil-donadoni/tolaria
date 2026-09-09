@@ -2,7 +2,30 @@
 
 ## Status
 
-accepted
+accepted — amended 2026-09-09 (see below)
+
+## Amendment (2026-09-09): the downstream total run moved; item 5 superseded
+
+The argument below is unchanged; one of its **names** is not. When this record
+was written, the downstream total run was the merge-train's full gate, paid on
+the rebased tree **before** each PR merged. ADR 0116 moved it: `land` now pays
+only `check:lane`, and the full gate — `node` AND `dom`, both whole — runs
+once per release, on the base tip, through `bun run release` →
+`scripts/health-main.ts`. Backstop 3 below therefore still exists, but stands
+one step **later** than this ADR first recorded it: after a PR merges into the
+base branch, not before. That widens the residual risk this ADR states plainly;
+it does not remove it. A `dom` breakage that an `engine`-lane diff slips past
+the type-check and the barrel-mock guard now reddens the base tip and is fixed
+forward (`bun run health:fix`, ADR 0116's durable RED marker) instead of
+blocking the PR. The passages below are written in those current terms; the
+historical narrative about #2339, #2655 and #2584 first surfacing at the
+merge-train is left as it happened.
+
+**Decision item 5 is superseded outright** by ADR 0110 §4 and issue #2760: the
+`check:ui` receipt is owed **per PR** by a `skin` diff that can reach the DOM,
+and `land` verifies the pasted receipt itself (`verifyReceiptText`,
+`scripts/land.ts`). There is no batch-level pixel receipt, and
+`/process-gh-issues` no longer exists.
 
 ## Context
 
@@ -93,10 +116,10 @@ diff `check:lane` classifies `engine`, `dom` is skipped — including for a
 diff that touches only `convex/**`. PRD #2738's own count is that 179 of 437
 `src` tests import `convex/**`, so a convex-only diff CAN turn a `src`-side
 test red, and under the `engine` lane that failure no longer surfaces before
-review — it resurfaces at the merge-train, on the integrated tree, which is
-the exact symptom #2655 was filed to fix. This work does not revert #2655's
-fix — no diff lands without a `dom` run somewhere in its history, see the
-backstops below — but for the `engine`-lane slice of diffs it does move that
+review — it resurfaces downstream, on the integrated tree, which is the exact
+symptom #2655 was filed to fix. This work does not revert #2655's fix — no
+diff lands without a `dom` run somewhere in its history, see the backstops
+below — but for the `engine`-lane slice of diffs it does move that
 run later in the pipeline than #2655 put it, deliberately.
 
 The two axes commute in one direction only, which is the whole point:
@@ -134,23 +157,27 @@ carried here so this ADR is the one place a reader checks the claim):
    suite's `vi.mock("@convex/cards")` factory goes stale against (#2339 — 102
    tests across 12 files, first seen at the merge-train before this guard
    existed).
-3. **The merge-train's full gate** (`land`, SKILL.md §4 step 3) runs the
-   complete suite — `node` AND `dom`, both whole — on the rebased tree before
-   any PR actually merges.
+3. **The full gate at release** (`bun run release` → `scripts/health-main.ts`,
+   ADR 0116) runs the complete suite — `node` AND `dom`, both whole — on the
+   base tip. Note the amendment above: when this ADR was written this backstop
+   was the merge-train's full gate, which `land` paid on the rebased tree
+   before any PR merged; it now stands one step later, after the merge into
+   the base branch.
 
 **State the residual risk plainly, because that is what this ADR is for:** a
 convex-only diff that reddens a `dom` test in a way the type-check and the
 barrel-mock guard do not catch — a runtime behaviour change visible only to a
 rendered component, not to `tsc` or to an import-graph census — is now caught
-at the merge-train instead of pre-PR. That is **later** than #2655 put it:
+downstream instead of pre-PR. That is **later** than #2655 put it:
 #2655's whole point was moving the `dom` guard from "surfaces at the
 merge-train" to "surfaces before review." For the `engine` lane's slice of
 diffs, this work moves it back, on purpose, in exchange for not paying a
 `dom` run's wall-clock on every diff that structurally cannot need one. The
-trade is accepted, not hidden, and its cost is a bisect at the merge-train
-(the existing procedure in `references/merge-train.md`) rather than a red
-`check:pr` on the branch. If a real incident ever shows the three backstops
-above missing something a `dom` run would have caught, the fix is narrower
+trade is accepted, not hidden, and its cost is a bisect on the base tip
+(`bun run health:status` names the RED marker; `bun run health:fix` spawns the
+fixer — `docs/guides/land-and-release.md`) rather than a red `check:pr` on the
+branch. If a real incident ever shows the three backstops above missing
+something a `dom` run would have caught, the fix is narrower
 than reverting this ADR: strengthen the backstop that missed it — most likely
 `convex-cards-barrel-mock.test.ts`'s coverage — not restore `dom` to every
 `engine` diff.
@@ -207,11 +234,14 @@ because #2655 was left untouched. It was not.
    deferred as a lane mismatch like any other cross-lane candidate; it never
    invalidates the batch it was excluded from, because nothing about
    admitting the OTHER issues depended on the excluded one's label.
-5. **The batch-level pixel receipt replaces one `check:ui` per PR.** A `skin`
-   batch pays exactly one full `check:ui` run, on the integrated tree, before
-   the merge-train — not one per issue. A red result blocks the whole batch
-   until bisected to the responsible PR; it is never patched against an
-   unattributed red. `/process-gh-issues` documents this in SKILL.md §4.
+5. ~~**The batch-level pixel receipt replaces one `check:ui` per PR.**~~
+   **Superseded** by ADR 0110 §4 and issue #2760 — see the amendment at the
+   top. A `skin` PR whose diff can reach the DOM owes its **own** byte-exact
+   `check:ui` receipt, and `land` re-derives the lane and verifies that
+   receipt before merging (`verifyReceiptText`, `scripts/land.ts`). The
+   batch-level receipt this item described never survived the move to the
+   single-session pipeline, and the skill it cited (`/process-gh-issues`) is
+   gone.
 
 ## Consequences
 
