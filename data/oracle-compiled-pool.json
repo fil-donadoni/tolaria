@@ -1,5 +1,59 @@
 [
     {
+        "name": "Obyra's Attendants",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Faerie",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 4,
+            "U": 1
+        },
+        "power": 3,
+        "toughness": 4,
+        "oracleText": "Flying",
+        "staticAbilities": [
+            "flying"
+        ],
+        "insetSpell": {
+            "kind": "adventure",
+            "name": "Desperate Parry",
+            "manaCost": {
+                "X": 1,
+                "U": 1
+            },
+            "types": [
+                "Instant"
+            ],
+            "subtypes": [
+                "Adventure"
+            ],
+            "oracleText": "Target creature gets -4/-0 until end of turn. (Then exile this card. You may cast the creature later from exile.)",
+            "effects": [
+                {
+                    "op": "pump",
+                    "target": {
+                        "target": 0
+                    },
+                    "power": -4,
+                    "toughness": 0,
+                    "duration": {
+                        "phase": "end-of-turn"
+                    }
+                }
+            ],
+            "targetRequirement": {
+                "type": "Creature",
+                "count": 1
+            }
+        },
+        "id": "0001e77a-7fff-49d2-a55c-42f6fdf6db08",
+        "rarity": "common"
+    },
+    {
         "name": "Venerable Knight",
         "types": [
             "Creature"
@@ -7669,6 +7723,56 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Garenbrig Carver",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Warrior"
+        ],
+        "manaCost": {
+            "X": 3,
+            "G": 1
+        },
+        "power": 3,
+        "toughness": 2,
+        "insetSpell": {
+            "kind": "adventure",
+            "name": "Shield's Might",
+            "manaCost": {
+                "X": 1,
+                "G": 1
+            },
+            "types": [
+                "Instant"
+            ],
+            "subtypes": [
+                "Adventure"
+            ],
+            "oracleText": "Target creature gets +2/+2 until end of turn. (Then exile this card. You may cast the creature later from exile.)",
+            "effects": [
+                {
+                    "op": "pump",
+                    "target": {
+                        "target": 0
+                    },
+                    "power": 2,
+                    "toughness": 2,
+                    "duration": {
+                        "phase": "end-of-turn"
+                    }
+                }
+            ],
+            "targetRequirement": {
+                "type": "Creature",
+                "count": 1
+            }
+        },
+        "id": "194b7a1c-291a-470e-9a40-61b72a46793b",
+        "rarity": "common"
+    },
+    {
         "name": "Touch of Brilliance",
         "types": [
             "Sorcery"
@@ -12478,6 +12582,73 @@
         ],
         "id": "295f9eb0-5a75-4f86-aca9-3f76b0213c41",
         "rarity": "common"
+    },
+    {
+        "name": "Twinmaw Stormbrood",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dragon"
+        ],
+        "manaCost": {
+            "X": 5,
+            "W": 1
+        },
+        "power": 5,
+        "toughness": 4,
+        "oracleText": "Flying\nWhen this creature enters, you gain 5 life.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "twinmaw-stormbrood-trigger",
+                "oracleText": "When this creature enters, you gain 5 life.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 5
+                    }
+                ]
+            }
+        ],
+        "insetSpell": {
+            "kind": "adventure",
+            "name": "Charring Bite",
+            "manaCost": {
+                "X": 1,
+                "R": 1
+            },
+            "types": [
+                "Sorcery"
+            ],
+            "subtypes": [
+                "Omen"
+            ],
+            "oracleText": "Charring Bite deals 5 damage to target creature without flying. (Then shuffle this card into its owner's library.)",
+            "effects": [
+                {
+                    "op": "dealDamage",
+                    "amount": 5,
+                    "to": {
+                        "target": 0
+                    }
+                }
+            ],
+            "targetRequirement": {
+                "type": "Creature",
+                "count": 1,
+                "excludeAbility": "flying"
+            }
+        },
+        "id": "2999e3b1-6510-42b2-9429-28c07a64a44f",
+        "rarity": "uncommon"
     },
     {
         "name": "Markov Patrician",
@@ -18901,6 +19072,58 @@
         "rarity": "common"
     },
     {
+        "name": "Smaug, the Great Calamity",
+        "types": [
+            "Creature"
+        ],
+        "supertypes": [
+            "Legendary"
+        ],
+        "subtypes": [
+            "Dragon"
+        ],
+        "manaCost": {
+            "X": 5,
+            "R": 2
+        },
+        "power": 5,
+        "toughness": 5,
+        "oracleText": "Flying",
+        "staticAbilities": [
+            "flying"
+        ],
+        "insetSpell": {
+            "kind": "adventure",
+            "name": "Spew Flame",
+            "manaCost": {
+                "X": 4,
+                "R": 1
+            },
+            "types": [
+                "Sorcery"
+            ],
+            "subtypes": [
+                "Adventure"
+            ],
+            "oracleText": "Spew Flame deals 5 damage to target creature. (Then exile this card. You may cast the creature later from exile.)",
+            "effects": [
+                {
+                    "op": "dealDamage",
+                    "amount": 5,
+                    "to": {
+                        "target": 0
+                    }
+                }
+            ],
+            "targetRequirement": {
+                "type": "Creature",
+                "count": 1
+            }
+        },
+        "id": "419ca9e5-8413-4378-a4ef-eda5a1024218",
+        "rarity": "common"
+    },
+    {
         "name": "Breath of Fire",
         "types": [
             "Instant"
@@ -24650,6 +24873,82 @@
         "rarity": "common"
     },
     {
+        "name": "Whirlwing Stormbrood",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dragon"
+        ],
+        "manaCost": {
+            "X": 4,
+            "U": 1
+        },
+        "power": 4,
+        "toughness": 3,
+        "oracleText": "Flash\nFlying\nYou may cast sorcery spells and Dragon spells as though they had flash.",
+        "staticAbilities": [
+            "flash",
+            "flying"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "cast-permission",
+                "grantee": "controller",
+                "filter": {
+                    "any": [
+                        {
+                            "type": [
+                                "Sorcery"
+                            ]
+                        },
+                        {
+                            "subtype": [
+                                "Dragon"
+                            ]
+                        }
+                    ]
+                },
+                "asThoughFlash": true,
+                "oracleText": "You may cast sorcery spells and Dragon spells as though they had flash.",
+                "id": "controller-sorcery-38aeb89a"
+            }
+        ],
+        "insetSpell": {
+            "kind": "adventure",
+            "name": "Dynamic Soar",
+            "manaCost": {
+                "X": 2,
+                "G": 1
+            },
+            "types": [
+                "Sorcery"
+            ],
+            "subtypes": [
+                "Omen"
+            ],
+            "oracleText": "Put three +1/+1 counters on target creature you control. (Then shuffle this card into its owner's library.)",
+            "effects": [
+                {
+                    "op": "counters",
+                    "action": "add",
+                    "counter": "+1/+1",
+                    "target": {
+                        "target": 0
+                    },
+                    "count": 3
+                }
+            ],
+            "targetRequirement": {
+                "type": "Creature",
+                "count": 1,
+                "controller": "you"
+            }
+        },
+        "id": "56a25eb1-bdb8-4f86-8d9a-3055ad1b2a13",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Consuming Bonfire",
         "types": [
             "Kindred",
@@ -25730,6 +26029,56 @@
             "first strike"
         ],
         "id": "5af01330-05c2-4c5b-9830-2886711b2b5d",
+        "rarity": "common"
+    },
+    {
+        "name": "Minecart Daredevil",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dwarf",
+            "Knight"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "power": 4,
+        "toughness": 2,
+        "insetSpell": {
+            "kind": "adventure",
+            "name": "Ride the Rails",
+            "manaCost": {
+                "X": 1,
+                "R": 1
+            },
+            "types": [
+                "Instant"
+            ],
+            "subtypes": [
+                "Adventure"
+            ],
+            "oracleText": "Target creature gets +2/+1 until end of turn. (Then exile this card. You may cast the creature later from exile.)",
+            "effects": [
+                {
+                    "op": "pump",
+                    "target": {
+                        "target": 0
+                    },
+                    "power": 2,
+                    "toughness": 1,
+                    "duration": {
+                        "phase": "end-of-turn"
+                    }
+                }
+            ],
+            "targetRequirement": {
+                "type": "Creature",
+                "count": 1
+            }
+        },
+        "id": "5b2a02f3-3921-4f40-9ffa-70bc08b052e1",
         "rarity": "common"
     },
     {
@@ -30412,6 +30761,50 @@
         "rarity": "common"
     },
     {
+        "name": "Embereth Shieldbreaker",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Knight"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "insetSpell": {
+            "kind": "adventure",
+            "name": "Battle Display",
+            "manaCost": {
+                "R": 1
+            },
+            "types": [
+                "Sorcery"
+            ],
+            "subtypes": [
+                "Adventure"
+            ],
+            "oracleText": "Destroy target artifact. (Then exile this card. You may cast the creature later from exile.)",
+            "effects": [
+                {
+                    "op": "destroy",
+                    "target": {
+                        "target": 0
+                    }
+                }
+            ],
+            "targetRequirement": {
+                "type": "Artifact",
+                "count": 1
+            }
+        },
+        "id": "6cc73d16-5ed7-4104-91f6-0997a2080e2e",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Sinew Sliver",
         "types": [
             "Creature"
@@ -31116,6 +31509,58 @@
         ],
         "id": "706a38f3-8e7a-4ce5-9af9-e9f4c8afc9ec",
         "rarity": "common"
+    },
+    {
+        "name": "Two-Headed Hunter",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Giant"
+        ],
+        "manaCost": {
+            "X": 4,
+            "R": 1
+        },
+        "power": 5,
+        "toughness": 4,
+        "oracleText": "Menace (This creature can't be blocked except by two or more creatures.)",
+        "staticAbilities": [
+            "menace"
+        ],
+        "insetSpell": {
+            "kind": "adventure",
+            "name": "Twice the Rage",
+            "manaCost": {
+                "X": 1,
+                "R": 1
+            },
+            "types": [
+                "Instant"
+            ],
+            "subtypes": [
+                "Adventure"
+            ],
+            "oracleText": "Target creature gains double strike until end of turn. (Then exile this card. You may cast the creature later from exile.)",
+            "effects": [
+                {
+                    "op": "grantAbility",
+                    "target": {
+                        "target": 0
+                    },
+                    "ability": "double strike",
+                    "duration": {
+                        "phase": "end-of-turn"
+                    }
+                }
+            ],
+            "targetRequirement": {
+                "type": "Creature",
+                "count": 1
+            }
+        },
+        "id": "70c12e75-7e65-4706-b976-e47835910928",
+        "rarity": "uncommon"
     },
     {
         "name": "Moldering Karok",
@@ -32444,6 +32889,81 @@
         },
         "id": "75624ab3-ddbd-4fe8-8a07-7d1f78ec8a84",
         "rarity": "common"
+    },
+    {
+        "name": "Giant Killer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Peasant"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "{1}{W}, {T}: Tap target creature.",
+        "activatedAbilities": [
+            {
+                "id": "giant-killer-ability",
+                "oracleText": "{1}{W}, {T}: Tap target creature.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "W": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "tap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "insetSpell": {
+            "kind": "adventure",
+            "name": "Chop Down",
+            "manaCost": {
+                "X": 2,
+                "W": 1
+            },
+            "types": [
+                "Instant"
+            ],
+            "subtypes": [
+                "Adventure"
+            ],
+            "oracleText": "Destroy target creature with power 4 or greater. (Then exile this card. You may cast the creature later from exile.)",
+            "effects": [
+                {
+                    "op": "destroy",
+                    "target": {
+                        "target": 0
+                    }
+                }
+            ],
+            "targetRequirement": {
+                "type": "Creature",
+                "count": 1,
+                "powerFilter": {
+                    "min": 4
+                }
+            }
+        },
+        "id": "75754468-2850-42e6-ab22-61ff7b9d1214",
+        "rarity": "rare"
     },
     {
         "name": "Ring of the Lucii",
@@ -39694,6 +40214,54 @@
         "rarity": "common"
     },
     {
+        "name": "Tuinvale Treefolk",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Treefolk",
+            "Druid"
+        ],
+        "manaCost": {
+            "X": 5,
+            "G": 1
+        },
+        "power": 6,
+        "toughness": 5,
+        "insetSpell": {
+            "kind": "adventure",
+            "name": "Oaken Boon",
+            "manaCost": {
+                "X": 3,
+                "G": 1
+            },
+            "types": [
+                "Sorcery"
+            ],
+            "subtypes": [
+                "Adventure"
+            ],
+            "oracleText": "Put two +1/+1 counters on target creature. (Then exile this card. You may cast the creature later from exile.)",
+            "effects": [
+                {
+                    "op": "counters",
+                    "action": "add",
+                    "counter": "+1/+1",
+                    "target": {
+                        "target": 0
+                    },
+                    "count": 2
+                }
+            ],
+            "targetRequirement": {
+                "type": "Creature",
+                "count": 1
+            }
+        },
+        "id": "8bc518fc-904e-4e39-aeda-ffb222bfcc82",
+        "rarity": "common"
+    },
+    {
         "name": "Tombstalker",
         "types": [
             "Creature"
@@ -40520,6 +41088,56 @@
             }
         },
         "id": "8f335d43-cacb-40ad-93c1-9a861e9f66c7",
+        "rarity": "common"
+    },
+    {
+        "name": "Ettercap",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Spider",
+            "Beast"
+        ],
+        "manaCost": {
+            "X": 4,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 5,
+        "oracleText": "Reach",
+        "staticAbilities": [
+            "reach"
+        ],
+        "insetSpell": {
+            "kind": "adventure",
+            "name": "Web Shot",
+            "manaCost": {
+                "X": 2,
+                "G": 1
+            },
+            "types": [
+                "Instant"
+            ],
+            "subtypes": [
+                "Adventure"
+            ],
+            "oracleText": "Destroy target creature with flying. (Then exile this card. You may cast the creature later from exile.)",
+            "effects": [
+                {
+                    "op": "destroy",
+                    "target": {
+                        "target": 0
+                    }
+                }
+            ],
+            "targetRequirement": {
+                "type": "Creature",
+                "count": 1,
+                "requireAbility": "flying"
+            }
+        },
+        "id": "8f5228dc-ec9d-456f-a89c-1bc592a1bbab",
         "rarity": "common"
     },
     {
@@ -50991,6 +51609,86 @@
         "toughness": 7,
         "id": "b44255cf-5264-4ead-9de0-20cc0f7cac6f",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Blessed Hippogriff",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Hippogriff"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 3,
+        "oracleText": "Flying\nWhenever this creature attacks, target attacking creature without flying gains flying until end of turn.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "blessed-hippogriff-trigger",
+                "oracleText": "Whenever this creature attacks, target attacking creature without flying gains flying until end of turn.",
+                "head": {
+                    "kind": "attacks"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "combatRoleFilter": [
+                        "attacking"
+                    ],
+                    "excludeAbility": "flying"
+                },
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "target": 0
+                        },
+                        "ability": "flying",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "insetSpell": {
+            "kind": "adventure",
+            "name": "Tyr's Blessing",
+            "manaCost": {
+                "W": 1
+            },
+            "types": [
+                "Instant"
+            ],
+            "subtypes": [
+                "Adventure"
+            ],
+            "oracleText": "Target creature gains indestructible until end of turn. (Then exile this card. You may cast the creature later from exile.)",
+            "effects": [
+                {
+                    "op": "grantAbility",
+                    "target": {
+                        "target": 0
+                    },
+                    "ability": "indestructible",
+                    "duration": {
+                        "phase": "end-of-turn"
+                    }
+                }
+            ],
+            "targetRequirement": {
+                "type": "Creature",
+                "count": 1
+            }
+        },
+        "id": "b4590e53-ca8d-4896-a8cf-6af1e4bc456f",
+        "rarity": "common"
     },
     {
         "name": "Sejiri Refuge",
@@ -62968,6 +63666,55 @@
             "shroud"
         ],
         "id": "dd66cb50-6ef5-4b1f-b6c3-ad1210d2d380",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Threadbind Clique",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Faerie"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "Flying",
+        "staticAbilities": [
+            "flying"
+        ],
+        "insetSpell": {
+            "kind": "adventure",
+            "name": "Rip the Seams",
+            "manaCost": {
+                "X": 2,
+                "W": 1
+            },
+            "types": [
+                "Instant"
+            ],
+            "subtypes": [
+                "Adventure"
+            ],
+            "oracleText": "Destroy target tapped creature. (Then exile this card. You may cast the creature later from exile.)",
+            "effects": [
+                {
+                    "op": "destroy",
+                    "target": {
+                        "target": 0
+                    }
+                }
+            ],
+            "targetRequirement": {
+                "type": "Creature",
+                "count": 1,
+                "tappedFilter": "tapped"
+            }
+        },
+        "id": "dd6ed252-c262-4062-97ba-75c50d6b5579",
         "rarity": "uncommon"
     },
     {

@@ -139,7 +139,6 @@ describe("CR 715.3 — the Adventure is offered as a cast option", () => {
     });
 
     it("is NOT offered by a card with no inset spell", () => {
-        const state = position(2);
         const plain = makeInstance(HILL_GIANT, {
             id: "plain",
             controllerId: "p1",
