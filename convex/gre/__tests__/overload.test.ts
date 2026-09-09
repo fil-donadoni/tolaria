@@ -54,7 +54,6 @@ import {
     makeState,
 } from "../../cards/__tests__/setup";
 import { getCardByName, registerTokenDefinition } from "../../cards";
-import type { CardDefinition } from "../../cards/types";
 
 const DAMN = getCardByName("Damn");
 const WINDS = getCardByName("Winds of Abandon");
