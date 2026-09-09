@@ -111,7 +111,7 @@ const COLOR_WORDS: ReadonlyMap<string, Color> = new Map([
     ["green", "G"],
 ]);
 
-/** CR 205.2a — the noun spelling of each permanent card type, singular/plural. */
+/** CR 205.2a — the noun spelling of each card type, singular/plural. */
 const TYPE_NOUNS: ReadonlyMap<string, readonly CardType[]> = new Map<
     string,
     readonly CardType[]
@@ -121,6 +121,15 @@ const TYPE_NOUNS: ReadonlyMap<string, readonly CardType[]> = new Map<
     ["enchantment", ["Enchantment"]],
     ["land", ["Land"]],
     ["planeswalker", ["Planeswalker"]],
+    // CR 205.2a lists instant and sorcery beside the permanent types, and a
+    // descriptor over CARDS reaches them: "sorcery spells" is read here as
+    // "sorcery cards" (CR 109.2 — a spell is a card on the stack), which is
+    // the only way the cast-permission and cost-modifier frames can name the
+    // class Hypersonic Dragon and Goblin Electromancer print. On the
+    // BATTLEFIELD the two nouns describe nothing, which is harmless: a filter
+    // for a type no permanent can have matches nothing rather than too much.
+    ["instant", ["Instant"]],
+    ["sorcery", ["Sorcery"]],
     // CR 300.1 / 110.1 — "permanent" names every permanent card type, not a
     // type of its own. Read narrowly it silently shrinks a removal spell.
     ["permanent", PERMANENT_TYPES],

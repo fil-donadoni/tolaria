@@ -31,6 +31,7 @@ import { expandHideaway } from "../cards/abilities/hideaway";
 import { expandKeywordTriggers } from "../cards/abilities/keywordTriggers";
 import type { CompiledStaticEffect } from "../cards/compiledStatics";
 import type { CardDefinition } from "../cards/types";
+import { deriveCastPermissionId } from "./castPermissionId";
 import type { StaticClauseIR } from "./grammar/shared/staticClause";
 
 /** Where one lowered static clause lands. All fields are optional and merged. */
@@ -108,7 +109,17 @@ export function isDefinitionLevelKeyword(keyword: string): boolean {
     return expanded !== bare;
 }
 
-export function lowerStaticClause(clause: StaticClauseIR): LowerStaticResult {
+/**
+ * @param oracleText the whole static LINE, full stop included. Only the
+ * `cast-permission` kind needs it, and it needs it for a reason no other kind
+ * has: the sentence is what the caster reads on the cast option itself
+ * (`AlternativeCost.description`, `gre/castPermissions.ts`), so it is
+ * behaviour-adjacent text rather than a label lowering could synthesise.
+ */
+export function lowerStaticClause(
+    clause: StaticClauseIR,
+    oracleText: string
+): LowerStaticResult {
     switch (clause.kind) {
         case "pt-buff":
             return {
@@ -167,6 +178,34 @@ export function lowerStaticClause(clause: StaticClauseIR): LowerStaticResult {
                     },
                 },
             };
+        case "cast-permission": {
+            // CR 601.3 — the permission's id is DERIVED from the clause, never
+            // from the card: `collectCastPermissions` deduplicates on the bare
+            // id across both battlefields, so two cards printing the same
+            // sentence must offer ONE cast option rather than two
+            // (`oracle/castPermissionId.ts` carries the whole argument).
+            const permission = {
+                kind: "cast-permission" as const,
+                grantee: clause.grantee,
+                filter: clause.filter,
+                ...(clause.withoutPayingManaCost === true
+                    ? { withoutPayingManaCost: true }
+                    : {}),
+                ...(clause.asThoughFlash === true
+                    ? { asThoughFlash: true }
+                    : {}),
+                oracleText,
+            };
+            return {
+                ok: true,
+                lowered: {
+                    effect: {
+                        ...permission,
+                        id: deriveCastPermissionId(permission),
+                    },
+                },
+            };
+        }
         case "enters-tapped":
             return {
                 ok: true,

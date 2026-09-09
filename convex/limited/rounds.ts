@@ -31,12 +31,8 @@ import {
     gamesToWinMatch,
     type LimitedMatchFormat,
 } from "./matchFormat";
-import {
-    fnv1a32,
-    simulateBotMatch,
-    type DeckStrength,
-    botMatchSeed,
-} from "./matchSim";
+import { fnv1a32 } from "../lib/hash";
+import { simulateBotMatch, type DeckStrength, botMatchSeed } from "./matchSim";
 import { pairRound, roundsForSeatCount } from "./swiss";
 
 /** The minimal Seat shape opening a round needs: which seats exist and which
