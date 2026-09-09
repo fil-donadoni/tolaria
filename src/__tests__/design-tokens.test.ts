@@ -470,7 +470,7 @@ describe("identity v4 — inset card rings (ADR 0103 §8, issue #2724)", () => {
         const colors = themeColors(css);
         const roles: Record<string, string> = {
             ".card-ring-candidate": "--color-signal-target",
-            ".card-ring-selected": "--color-accent",
+            ".card-ring-selected": "--color-signal-self",
             ".card-ring-attacking": "--color-signal-pending",
             ".card-ring-pending": "--color-signal-pending",
             ".card-ring-combat-1": "--color-combat-1",
