@@ -18,7 +18,12 @@
 import { describe, it, expect } from "vitest";
 import type { CardInstanceState, GameState, StackItem } from "../state";
 import type { CardType } from "../../cards/types";
-import { buildSpellContext, markInfectWitherDamage } from "../state";
+import {
+    buildSpellContext,
+    dealDamageFromPermanentToPlayer,
+    markInfectWitherDamage,
+    resolveFight,
+} from "../state";
 import { markInfectPoisonDamage } from "../state";
 import { applyAllCombatDamage } from "../phases";
 import { checkStateBasedActions } from "../sba";
@@ -512,5 +517,107 @@ describe("infect/wither survive the wire projection (visible outcome)", () => {
         )!;
         expect(slimOgre.counters).toEqual({ "-1/-1": 2 });
         expect(getEffectiveToughness(projected, slimOgre)).toBe(3);
+    });
+});
+
+// CR 702.90a-b / 702.9b — the PERMANENT-SOURCE damage sinks
+// (`markDamageFromPermanentSource`, `dealDamageFromPermanentToPlayer`) are the
+// path a fight, a painland's coloured-tap rider and every `dealDamage { source }`
+// Op take. They wrote life loss and `damageMarked` unconditionally, so the whole
+// infect/wither leg was lost the moment the source was an arbitrary permanent
+// rather than the resolving stack item — a hole that only became reachable from
+// a card's announced target with issue #1565.
+describe("permanent-source damage sinks — infect/wither (CR 702.90a-b, issue #1565)", () => {
+    function boardWith(staticAbilities: string[]): {
+        state: GameState;
+        item: StackItem;
+        source: CardInstanceState;
+    } {
+        // 1/5: the fight case below needs the source to survive the Bears'
+        // half (toughness 5) and to deal a sub-lethal single point, so the
+        // -1/-1 counter it leaves is still observable (CR 122.2 — counters
+        // cease to exist the moment a permanent changes zones).
+        const source = creature("infector", 1, 5, { staticAbilities });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [source] }),
+                makePlayer("p2"),
+            ],
+        });
+        // A resolving stack item that carries NO infect of its own — so any
+        // poison/-1/-1 counter below can only have come from the permanent.
+        const item: StackItem = {
+            id: "plain-spell",
+            card: { id: "plain-spell" },
+            types: ["Sorcery"],
+            subtypes: [],
+            staticAbilities: [],
+            power: 0,
+            toughness: 0,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "stack",
+            isTapped: false,
+            castById: "p1",
+            targets: [],
+        };
+        return { state, item, source };
+    }
+
+    it("dealDamageFromPermanent — an infect PERMANENT damages a player as poison", () => {
+        const { state, item } = boardWith(["infect"]);
+        buildSpellContext(state, item).dealDamageFromPermanent(
+            "infector",
+            { type: "player", id: "p2" },
+            3
+        );
+        expect(state.players[1].life).toBe(20);
+        expect(state.players[1].poisonCounters).toBe(3);
+    });
+
+    it("dealDamageFromPermanent — a wither PERMANENT damages a creature as -1/-1 counters", () => {
+        const { state, item } = boardWith(["wither"]);
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        state.players[1].battlefield.push(bear);
+        buildSpellContext(state, item).dealDamageFromPermanent(
+            "infector",
+            { type: "permanent", id: "bear" },
+            1
+        );
+        // CR 702.9b — wither damage is dealt as -1/-1 counters and is NEVER
+        // marked, so the 2/2 Bears is a 1/1 with no damage on it.
+        expect(bear.counters?.["-1/-1"]).toBe(1);
+        expect(bear.damageMarked ?? 0).toBe(0);
+        expect(getEffectiveToughness(state, bear)).toBe(1);
+    });
+
+    it("dealDamageFromPermanentToPlayer — the painland/mana-ability sink honours infect too", () => {
+        const { state, source } = boardWith(["infect"]);
+        dealDamageFromPermanentToPlayer(state, source, "p1", "p2", 2);
+        expect(state.players[1].life).toBe(20);
+        expect(state.players[1].poisonCounters).toBe(2);
+    });
+
+    it("resolveFight — a wither combatant deals its half as -1/-1 counters (CR 701.14)", () => {
+        const { state } = boardWith(["wither"]);
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        state.players[1].battlefield.push(bear);
+        resolveFight(state, "infector", "bear");
+        // The wither half lands as counters on the Bears; the Bears' own
+        // ordinary half is marked on the withering creature as usual.
+        expect(bear.counters?.["-1/-1"]).toBe(1);
+        expect(bear.damageMarked ?? 0).toBe(0);
+        const infector = state.players[0].battlefield.find(
+            (c) => c.id === "infector"
+        )!;
+        expect(infector.damageMarked).toBe(2);
     });
 });

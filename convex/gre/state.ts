@@ -8959,9 +8959,23 @@ export function dealDamageFromPermanentToPlayer(
         ? reduced
         : applyTargetPrevention(state, "player", finalTarget.id, reduced);
     if (reduced <= 0) return;
-    getPlayer(state, finalTarget.id).life -= reduced;
-    // CR 119.3 — damage dealt to a player causes that player to lose life.
-    emitLifeLost(state, finalTarget.id, reduced, true);
+    // CR 702.90a — a source with infect deals its damage to a player as poison
+    // counters instead of life loss (CR 702.90c: it is still "damage" for every
+    // other purpose, so the bookkeeping below is unaffected — only the life loss
+    // and its trigger are skipped). Read off the PERMANENT source's effective
+    // abilities, exactly as the stack-item sink does (issue #1565).
+    if (
+        !markInfectPoisonDamage(
+            state,
+            finalTarget.id,
+            desc.staticAbilities,
+            reduced
+        )
+    ) {
+        getPlayer(state, finalTarget.id).life -= reduced;
+        // CR 119.3 — damage dealt to a player causes that player to lose life.
+        emitLifeLost(state, finalTarget.id, reduced, true);
+    }
     bumpDamageDealtToPlayer(state, finalTarget.id, reduced);
     recordSourceDamagedOpponent(state, source.id, finalTarget.id);
     bumpArtifactDamageToPlayer(state, finalTarget.id, reduced, desc.types);
@@ -9079,9 +9093,20 @@ function markDamageFromPermanentSource(
             ? reduced
             : applyTargetPrevention(state, "player", finalTarget.id, reduced);
         if (reduced <= 0) return null;
-        getPlayer(state, finalTarget.id).life -= reduced;
-        // CR 119.3 — damage dealt to a player causes that player to lose life.
-        emitLifeLost(state, finalTarget.id, reduced, true);
+        // CR 702.90a — infect turns the redirected player damage into poison
+        // counters (issue #1565: this sink used to lose the infect leg outright).
+        if (
+            !markInfectPoisonDamage(
+                state,
+                finalTarget.id,
+                desc.staticAbilities,
+                reduced
+            )
+        ) {
+            getPlayer(state, finalTarget.id).life -= reduced;
+            // CR 119.3 — damage dealt to a player causes it to lose life.
+            emitLifeLost(state, finalTarget.id, reduced, true);
+        }
         bumpDamageDealtToPlayer(state, finalTarget.id, reduced);
         recordSourceDamagedOpponent(state, source.id, finalTarget.id);
         bumpArtifactDamageToPlayer(state, finalTarget.id, reduced, desc.types);
@@ -9137,16 +9162,28 @@ function markDamageFromPermanentSource(
     // toughness). The 0-loyalty death is a separate SBA (`checkZeroLoyaltySBA`),
     // never a lethal-damage return here.
     const pw = isPlaneswalker(found.card);
+    const desc = describeDamageSource(state, source.id);
     if (pw) {
         removeLoyaltyForDamage(found.card, reduced);
-    } else {
+    } else if (
+        // CR 702.90b / 702.9b — damage from a source with infect or wither is
+        // dealt to a creature as -1/-1 counters, never marked (issue #1565:
+        // this sink wrote `damageMarked` unconditionally, so a fight, a
+        // painland redirect and every `source`-bearing Op lost the whole
+        // infect/wither leg).
+        !markInfectWitherDamage(
+            state,
+            found.card,
+            desc.staticAbilities,
+            reduced
+        )
+    ) {
         found.card.damageMarked = (found.card.damageMarked ?? 0) + reduced;
     }
     found.card.damagedBySources = [
         ...(found.card.damagedBySources ?? []),
         source.id,
     ];
-    const desc = describeDamageSource(state, source.id);
     state.pendingEvents = [
         ...(state.pendingEvents ?? []),
         {
@@ -14125,7 +14162,10 @@ export function buildSpellContext(
                 // 701.19a). issue #1054 — the CAUSER is the controller of the
                 // resolving spell/ability, which is not necessarily the damage
                 // source's controller (Backlash points an opponent's creature at
-                // its own controller).
+                // its own controller): its one consumer (`leftTrigger.ts`, the
+                // Karmic Justice shape) keys on who CAUSED the destruction, not
+                // on the damage source. `resolveFight` deliberately passes none
+                // — the three destroy sites differ on purpose.
                 destroyWithReplacements(state, lethalId, {
                     causerControllerId: item.controllerId,
                 });

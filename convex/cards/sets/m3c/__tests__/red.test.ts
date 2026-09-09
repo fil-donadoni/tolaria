@@ -6,7 +6,7 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
-import { resolveTopOfStack } from "../../../../gre/state";
+import { allocInstanceId, resolveTopOfStack } from "../../../../gre/state";
 import type {
     CardInstanceState,
     GameState,
@@ -81,6 +81,13 @@ function fireEnterTrigger(
 ): void {
     const item: StackItem = {
         ...source,
+        // The engine's `buildTriggerItem` (gre/triggers.ts) allocates a FRESH
+        // instance id for the trigger's stack item — spreading the permanent
+        // would leave the item sharing the permanent's id, so
+        // `describeDamageSource(item.id)` would find the battlefield permanent
+        // by accident and every source-attribution assertion below would be
+        // vacuous.
+        id: allocInstanceId(state),
         zone: "stack",
         castById: source.controllerId,
         triggeredAbilityId: "pyrogoyf-lhurgoyf-enters",
@@ -308,13 +315,19 @@ describe("Pyrogoyf enter-damage source attribution (CR 120.1, issue #1565)", () 
         // CR 702.2b — the SBA pass destroys it; the flag is the source-keyed
         // signal, and it is set only when the entering creature is the source.
         expect(damaged.dealtDeathtouchDamage).toBe(true);
+        // CR 120.1 — the recorded source IDENTITY is the entering creature, not
+        // the trigger's stack item. `damagedBySources` is what Sengir Vampire's
+        // shape reads back, so pin it directly.
+        expect(damaged.damagedBySources).toContain("other");
+        expect(damaged.damagedBySources).not.toContain("goyf");
     });
 
     it("Pyrogoyf's OWN enter still sources the damage from Pyrogoyf itself", () => {
         // The self branch: the entering creature IS the resolving trigger's
-        // permanent, so routing through the permanent-source pipeline must not
-        // change the outcome. Pyrogoyf carries lifelink here to prove the source
-        // is read off the entering permanent in this branch too.
+        // permanent — but NOT the trigger's stack item, which carries its own
+        // freshly allocated id (gre/triggers.ts `buildTriggerItem`). Pyrogoyf
+        // carries lifelink, an ability the stack item cannot see, so this is a
+        // real discriminator for the self branch and not just a non-regression.
         const goyf = makeInstance(pyrogoyf.id, {
             id: "goyf",
             controllerId: "p1",

@@ -50,7 +50,10 @@ import {
     type Handler,
 } from "../../../../__tests__/gameMutationHarness";
 import type { Id } from "../../../../_generated/dataModel";
-import { collectTriggers } from "../../../../gre/triggers";
+import {
+    collectTriggers,
+    placeTriggersOnStack,
+} from "../../../../gre/triggers";
 import {
     applyMayPaySubmit,
     applyNameCardSubmit,
@@ -2378,5 +2381,72 @@ describe("Rith's Charm ({R}{G}{W} Instant — three modes, CR 700.2)", () => {
         expect(state.stack.map((s) => s.id)).toEqual([bolt.id]);
         resolveTopOfStack(state);
         expect(state.players[0].life).toBe(20);
+    });
+});
+
+// CR 113.7a / 608.2h — "The source can still perform the action even though it
+// no longer exists." Sparkcaster's ping names its own permanent as the CR-120.1
+// damage source (`source: { ref: "$source" }`, "IT deals 1 damage"), and its
+// OTHER enter trigger bounces a red or green creature you control — Sparkcaster
+// being R/G, routinely itself. So the ping resolving with its source already
+// gone is the card's ordinary line, not an edge case, and the damage is still
+// dealt. Issue #1565 made `source` load-bearing on the object-recipient leg for
+// the first time; this pins the LKI fallback that keeps the ping alive.
+describe("Sparkcaster — the ping resolves after its own bounce (CR 113.7a, issue #1565)", () => {
+    const SPARKCASTER = "daf442b3-fa39-4f6a-90a0-22dcd9df649c";
+
+    /** Sparkcaster on the battlefield, its ping trigger on the stack aimed at
+     *  the opponent, via the REAL trigger scan (`collectTriggers` →
+     *  `placeTriggersOnStack`). */
+    function pingOnStack(): GameState {
+        const spark = makeInstance(SPARKCASTER, {
+            id: "spark",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [spark] }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        const fired = collectTriggers(state, [
+            {
+                type: "PERMANENT_ENTERED",
+                instanceId: "spark",
+                controllerId: "p1",
+                cardId: SPARKCASTER,
+                types: ["Creature"],
+            },
+        ]);
+        const ping = fired.filter(
+            (t) => t.triggeredAbilityId === "sparkcaster-etb-ping"
+        );
+        expect(ping).toHaveLength(1);
+        placeTriggersOnStack(state, ping);
+        const item = state.stack[state.stack.length - 1];
+        // CR 603.3d — targets are chosen as the trigger goes on the stack;
+        // announce them directly rather than driving the selection prompt.
+        item.targets = [{ type: "player", id: "p2" }];
+        state.pendingChoices = undefined;
+        return state;
+    }
+
+    it("deals its 1 damage while Sparkcaster is still on the battlefield", () => {
+        const state = pingOnStack();
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(19);
+    });
+
+    it("still deals its 1 damage once its own bounce has removed the source", () => {
+        const state = pingOnStack();
+        // The other enter trigger has already resolved and returned Sparkcaster
+        // to its owner's hand — `{ ref: "$source" }` no longer resolves.
+        removePermanentTo(state, "spark", "hand");
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "spark")
+        ).toBeUndefined();
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(19);
     });
 });

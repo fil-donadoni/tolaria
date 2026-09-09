@@ -1980,20 +1980,48 @@ function keepPromptFor(
  *  damage to the WRONG object). */
 function dealDamageSourcedFrom(
     ctx: SpellContext,
-    op: OpOf<"dealDamage">,
-    target: TargetSelection
+    op: OpOf<"dealDamage"> & { source: EffectObjectSelector },
+    target: TargetSelection,
+    amount: number
 ): void {
-    const amount = resolveValue(ctx, op.amount);
-    if (amount === undefined || amount <= 0) return;
-    if (!op.source) return;
     const src = resolveObjectRef(ctx, op.source);
-    if (!src || src.type !== "permanent") return;
-    ctx.dealDamageFromPermanent(
-        src.id,
-        target,
-        amount,
-        op.unpreventable,
-        op.unredirectable
+    if (src && src.type === "permanent") {
+        ctx.dealDamageFromPermanent(
+            src.id,
+            target,
+            amount,
+            op.unpreventable,
+            op.unredirectable
+        );
+        return;
+    }
+    // CR 113.7a / 608.2h — "The source can still perform the action even though
+    // it no longer exists": a `$source` that has left the battlefield is not an
+    // UNKNOWN source, it is the resolving ability's own object, which is exactly
+    // what the default `dealDamage` path stamps (the stack item is the engine's
+    // last-known clone of it). Sparkcaster's ping is the shipped case — its OWN
+    // first trigger bounces it, so `$source` routinely fails to resolve by the
+    // time the ping resolves, and dropping the damage there would be a
+    // regression on a card that has always dealt it.
+    //
+    // Deliberately NOT a blanket fallback: any other selector names a DIFFERENT
+    // object (Backlash's `$c` bind snapshot), and substituting the resolving
+    // spell for one we could not resolve would silently mis-attribute the
+    // damage. Those stay a no-op, as they were before issue #1565.
+    if (isSourceSelfRef(op.source)) {
+        ctx.dealDamage(target, amount, op.unpreventable, op.unredirectable);
+    }
+}
+
+/** True for the `{ ref: "$source" }` selector — the ONE selector that denotes
+ *  the resolving ability's own object, and therefore the one whose failure to
+ *  resolve is answered by the default stack-item damage path (CR 113.7a). */
+function isSourceSelfRef(selector: EffectObjectSelector): boolean {
+    return (
+        typeof selector === "object" &&
+        selector !== null &&
+        "ref" in selector &&
+        selector.ref === "$source"
     );
 }
 
@@ -2017,10 +2045,12 @@ export const OP_EXECUTORS: {
             const playerId = resolvePlayerRef(ctx, op.to.player);
             if (playerId === undefined) return;
             if (op.source) {
-                dealDamageSourcedFrom(ctx, op, {
-                    type: "player",
-                    id: playerId,
-                });
+                dealDamageSourcedFrom(
+                    ctx,
+                    { ...op, source: op.source },
+                    { type: "player", id: playerId },
+                    amount
+                );
                 return;
             }
             ctx.dealDamage(
@@ -2037,7 +2067,12 @@ export const OP_EXECUTORS: {
         // does to a player one (issue #1565): the recipient shape says nothing
         // about who the SOURCE of the damage is.
         if (op.source) {
-            dealDamageSourcedFrom(ctx, op, target);
+            dealDamageSourcedFrom(
+                ctx,
+                { ...op, source: op.source },
+                target,
+                amount
+            );
             return;
         }
         ctx.dealDamage(target, amount, op.unpreventable, op.unredirectable);
