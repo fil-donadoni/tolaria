@@ -170,7 +170,12 @@ export function hasCastPermissionFlash(
 function altCostFor(permission: StaticCastPermission): AlternativeCost {
     return {
         id: castPermissionAltCostId(permission),
-        description: permission.oracleText,
+        // issue #3284 — the picker row shows the SHORT `label` when the
+        // permission declares one, and the printed Oracle sentence otherwise.
+        // The two were one field until a UI-motivated edit to `oracleText`
+        // corrupted card data (it feeds the catalogue artifact's content hash);
+        // splitting them keeps the row readable without lying about the card.
+        description: permission.label ?? permission.oracleText,
     };
 }
 

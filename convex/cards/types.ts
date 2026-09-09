@@ -8641,8 +8641,40 @@ export interface StaticCastPermission {
      *  window to instant speed ("as though they had flash"). A sorcery-speed
      *  LOCK still beats it (CR 101.2, `cast-timing-lock`). */
     asThoughFlash?: boolean;
-    /** Oracle text shown as the cast option's label. */
+    /** CARD DATA — the permission's own PRINTED Oracle paragraph, verbatim
+     *  (CR 108.1 — "use the Oracle card reference when determining a card's
+     *  wording"). Two consequences, and only these two: it is serialized
+     *  VERBATIM into the content-hashed catalogue artifact (ADR 0114 §2), and it
+     *  is the cast-option row's name when no `label` is declared.
+     *
+     *  Shortening it to read better in the picker is what issue #3284 repaired.
+     *  That is `label`'s job, and a catalogue-wide sweep
+     *  (`castPermissions.test.ts`) now reds when this field is not one of its
+     *  own card's Oracle paragraphs — equality per paragraph, not containment,
+     *  so a verbatim EXCERPT (the same edit done with scissors) reds too.
+     *
+     *  It does NOT reach the card's rendered text (`getDisplayAbilities` has no
+     *  `staticEffects` row — `shouldShowOracleText` falls back to the card's own
+     *  `oracleText` instead) and it does NOT reach the Oracle compiler
+     *  (`oracle/lowerStatic.ts` emits no `cast-permission`). Stated because the
+     *  first draft of this comment claimed both, and a docstring whose
+     *  checkable claims are false teaches a reader to discount the true one. */
     oracleText: string;
+    /** UI COPY — the short name the cast-option row shows instead of the whole
+     *  Oracle paragraph ("Cast with Aluren"). Optional and purely cosmetic:
+     *  `altCostFor` (`gre/castPermissions.ts`) renders `label ?? oracleText`, so
+     *  a permission that declares none behaves exactly as it did before this
+     *  field existed, and no rules check ever reads it.
+     *
+     *  It IS still serialized into the content-hashed catalogue artifact, so
+     *  editing the copy restales `data/catalogue/*` exactly as editing
+     *  `oracleText` did — the coupling is RENAMED, not removed. Deliberate:
+     *  `ModeOption.label` is the same UI-copy-in-card-data precedent and is
+     *  already in the artifact, and stripping UI-only fields would break the
+     *  pack's "relocated verbatim, deep-compared against the live definition"
+     *  invariant. What the split buys is that the restaling edit no longer also
+     *  corrupts the card's printed text. */
+    label?: string;
 }
 
 export type StaticEffect = (

@@ -20,6 +20,7 @@ import {
     makeState,
 } from "../../cards/__tests__/setup";
 import { withTemporaryDefinition } from "../../cards/registry";
+import { getAllCards } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
 import {
     CAST_PERMISSION_ALT_COST_PREFIX,
@@ -27,6 +28,7 @@ import {
     castPermissionAltCosts,
     collectCastPermissions,
     hasCastPermissionFlash,
+    declaredCastPermissions,
 } from "../castPermissions";
 import {
     castPermissionRequiredFor,
@@ -362,5 +364,101 @@ describe("the permission is HAND-scoped (CR 302.1 / 601.3)", () => {
             expect(castPermissionAltCosts(state, "p2", card, zone)).toEqual([]);
             expect(collectCastPermissions(state, "p2", card, zone)).toEqual([]);
         }
+    });
+});
+
+// The CLASS guard for issue #3284, not the instance. `StaticCastPermission`
+// carried ONE field doing two jobs — "Oracle text shown as the cast option's
+// label" — and `altCostFor` rendered it straight into the picker row's
+// accessible name. So the field LOOKED like UI copy, and an edit that made the
+// row read better ("Cast with Aluren") silently corrupted CARD DATA: the
+// catalogue artifact's content hash covers oracle text (ADR 0114 §2), so the
+// committed pack went stale, and the picker's own wiring test — which asserts
+// the permission's printed wording — went red. Both landed unnoticed.
+//
+// The instance fix restored the sentence and moved the short string to the new
+// `label`. Nothing about that stops the NEXT author reaching for `oracleText`
+// again, which is what this sweep is for: a cast permission's `oracleText` must
+// be one of its own card's printed Oracle paragraphs, so a UI-motivated edit reds
+// here and the failure message names `label`.
+//
+// PARAGRAPH EQUALITY, not containment (review finding): containment admits the
+// empty string and — worse for the class — a verbatim EXCERPT, which is the same
+// picker-readability edit done with scissors rather than a rewrite.
+//
+// Scoped to `cast-permission` DELIBERATELY, and not because the other kinds are
+// safe. Twelve sibling `StaticEffect` kinds carry an `oracleText` too, and 43 of
+// those 95 fields already hold a source-name-appended REASON string by
+// convention (`combat.ts`'s `reason:`, `phases.ts`'s `prompt:`,
+// `castRestrictions.ts`'s `castProhibitionReason`) — "Creatures without flying
+// can't attack (Moat)." is not printed text and is not meant to be. Widening this
+// sweep would red 43 shipped cards; the fix for those is to rename the field to
+// `reason` (the good name already exists, one interface away, on
+// `CastCondition.reason`), which is a separate change. Draft:
+// docs/findings/3284-static-effect-oracletext-is-a-reason-string-on-twelve-kinds.md
+describe("cast-permission `oracleText` is CARD DATA, never UI copy (issue #3284)", () => {
+    it("every shipped permission's `oracleText` IS one of its own card's Oracle paragraphs", () => {
+        const normalise = (text: string) => text.replace(/\s+/g, " ").trim();
+        const offenders: string[] = [];
+        let checked = 0;
+        for (const card of getAllCards()) {
+            for (const permission of declaredCastPermissions(card)) {
+                checked += 1;
+                const paragraphs = (card.oracleText ?? "")
+                    .split("\n")
+                    .map(normalise);
+                if (!paragraphs.includes(normalise(permission.oracleText))) {
+                    offenders.push(
+                        `${card.name} :: ${permission.id} — "${permission.oracleText}" is not one of the card's own ` +
+                            "Oracle paragraphs. A cast permission's `oracleText` is PRINTED text, serialized verbatim " +
+                            "into the content-hashed catalogue artifact (ADR 0114 §2). Put the picker's short row name " +
+                            "in `label` instead — `altCostFor` prefers it."
+                    );
+                }
+            }
+        }
+        // Guard the guard: a sweep over zero permissions is vacuously green.
+        expect(checked).toBeGreaterThan(0);
+        expect(offenders).toEqual([]);
+    });
+
+    /** Aluren's own cast permission, off the definition — so the fallback case
+     *  asserts against the PERMISSION's field, not the card's (they are equal
+     *  today only because the permission text is the whole card paragraph). */
+    function alurenPermission() {
+        const [permission] = declaredCastPermissions(aluren);
+        if (!permission) throw new Error("Aluren declares no cast permission");
+        return permission;
+    }
+
+    it("`label` is what the cast-option row shows, and `oracleText` is the fallback", () => {
+        const state = board({ p1Hand: [grizzlyBears.id] });
+        // Aluren declares both, so the row shows the SHORT label.
+        expect(
+            castPermissionAltCosts(state, "p1", handCard(state, "p1")).map(
+                (a) => a.description
+            )
+        ).toEqual(["Cast with Aluren"]);
+
+        // A permission with NO label falls back to the printed sentence —
+        // the behaviour every permission had before `label` existed.
+        const unlabelled: CardDefinition = {
+            ...aluren,
+            staticEffects: (aluren.staticEffects ?? []).map((effect) =>
+                effect.kind === "cast-permission"
+                    ? { ...effect, label: undefined }
+                    : effect
+            ),
+        };
+        withTemporaryDefinition(unlabelled, () => {
+            const fallback = board({ p1Hand: [grizzlyBears.id] });
+            expect(
+                castPermissionAltCosts(
+                    fallback,
+                    "p1",
+                    handCard(fallback, "p1")
+                ).map((a) => a.description)
+            ).toEqual([alurenPermission().oracleText]);
+        });
     });
 });

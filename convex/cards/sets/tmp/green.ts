@@ -193,7 +193,12 @@ export const aluren: CardDefinition = {
             filter: { type: "Creature", manaValueAtMost: 3 },
             withoutPayingManaCost: true,
             asThoughFlash: true,
-            oracleText: "Cast with Aluren",
+            // CARD DATA — the printed sentence (issue #3284). The picker's short
+            // row name is `label`, below; putting it here staled the catalogue
+            // artifact and broke the picker's own wiring test.
+            oracleText:
+                "Any player may cast creature spells with mana value 3 or less without paying their mana costs and as though they had flash.",
+            label: "Cast with Aluren",
         },
     ],
 };
