@@ -348,8 +348,10 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
 
         it("the attribution survives an `if` branch (Flash's shape)", () => {
             // `choice` at the top level, `sacrifice` inside `if.then` — the
-            // exact script Flash ships, and the one the bot was casting for
-            // nothing.
+            // SHAPE Flash ships (its own pick is a `choose-hand-card` over
+            // `zone: "hand"`, which the walker reads no differently: it keys
+            // on the chooser and the binding name, never on the kind or the
+            // zone), and the one the bot was casting for nothing.
             const v = valueEffectScript(
                 [
                     choose("controller", "$picked"),
@@ -401,6 +403,74 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
             );
             expect(v.points).toBe(-40);
             expect(v.tags).toContain("self-cost");
+        });
+
+        // PR #3298 review — the picks twin of issue #1964's `$source` aliasing:
+        // a capture whose SOURCE is an attributed picks ref carries the
+        // attribution into the body under its new name. Without it the same
+        // mis-sign survives one level down.
+        it("a capture that ALIASES an attributed pick carries it into the body", () => {
+            const v = valueEffectScript(
+                [
+                    choose("controller", "$picked"),
+                    {
+                        op: "reflexiveTrigger",
+                        oracleText: "When you do, sacrifice it.",
+                        capture: { $s: { ref: "$picked" } },
+                        effects: [sacPicks("$s")],
+                    },
+                ],
+                cf
+            );
+            expect(v.points).toBe(-40);
+            expect(v.tags).toContain("self-cost");
+        });
+
+        it("a capture aliasing an UNATTRIBUTED name carries nothing", () => {
+            const v = valueEffectScript(
+                [
+                    choose("opponent", "$picked"),
+                    {
+                        op: "reflexiveTrigger",
+                        oracleText: "When you do, sacrifice it.",
+                        capture: { $s: { ref: "$picked" } },
+                        effects: [sacPicks("$s")],
+                    },
+                ],
+                cf
+            );
+            expect(v.points).toBe(120);
+            expect(v.tags).not.toContain("self-cost");
+        });
+
+        // PR #3298 review — the chooser alone does not say WHOSE permanents
+        // the pick ranges over. Both fields keep the edict value rather than
+        // guessing; no shipped card sets either on a controller-chosen
+        // sacrifice, so these are latent guards.
+        it("a controller-chosen pick over ANOTHER player's zone stays an edict", () => {
+            const pick = choose("controller", "$sac") as Extract<
+                EffectOp,
+                { op: "choice" }
+            >;
+            const v = valueEffectScript(
+                [{ ...pick, zoneOwnerId: "opponent" }, sacPicks("$sac")],
+                cf
+            );
+            expect(v.points).toBe(120);
+            expect(v.tags).not.toContain("self-cost");
+        });
+
+        it("a controller-chosen pick over a NAMED candidate set stays an edict", () => {
+            const pick = choose("controller", "$sac") as Extract<
+                EffectOp,
+                { op: "choice" }
+            >;
+            const v = valueEffectScript(
+                [{ ...pick, candidates: [{ target: 0 }] }, sacPicks("$sac")],
+                cf
+            );
+            expect(v.points).toBe(120);
+            expect(v.tags).not.toContain("self-cost");
         });
 
         it("a delayed body does NOT inherit an outer same-named binding", () => {

@@ -274,19 +274,70 @@ function withBindingsOf(scope: ScriptScope, op: EffectOp): ScriptScope {
     if (op.op !== "choice" || !op.bind || op.player !== "controller") {
         return scope;
     }
-    if (scope.controllerChosenPicks.has(op.bind)) return scope;
+    // WHOSE permanents the pick ranges over is a second question, and the
+    // chooser alone does not answer it (PR #3298 review). `zoneOwnerId`
+    // (issue #920) points the pick at ANOTHER player's zone — "the opponent's
+    // permanent, chosen by me", which is removal, not a cost — and
+    // `candidates` narrows it to an already-known set whose membership this
+    // walk cannot read. No shipped card sets either on a controller-chosen
+    // sacrifice today, so both clauses are latent guards: they keep the edict
+    // value rather than guessing, which is the same fail-open the
+    // unattributable chooser shapes get.
+    if (op.zoneOwnerId !== undefined && op.zoneOwnerId !== "controller") {
+        return scope;
+    }
+    if (op.candidates !== undefined) return scope;
+    return withControllerChosenPick(scope, op.bind);
+}
+
+/** Adds one attributed binding name, returning `scope` itself when it is
+ *  already there (the set is additive — a script never un-binds a name, and
+ *  `validate.ts` rejects re-declaring one within a scope). */
+function withControllerChosenPick(
+    scope: ScriptScope,
+    name: string
+): ScriptScope {
+    if (scope.controllerChosenPicks.has(name)) return scope;
     return {
-        controllerChosenPicks: new Set([
-            ...scope.controllerChosenPicks,
-            op.bind,
-        ]),
+        controllerChosenPicks: new Set([...scope.controllerChosenPicks, name]),
     };
 }
 
+/** issue #3292 — the picks twin of `withCapturedSourceAliases` (PR #3298
+ *  review). A `delayedTrigger`/`reflexiveTrigger` body starts from a fresh
+ *  scope because `capture` keys are its ONLY initial bindings — but a capture
+ *  whose SOURCE is an attributed picks ref carries the attribution across with
+ *  it, exactly as one whose source is `{ ref: "$source" }` carries the
+ *  battlefield-source fact (issue #1964). Without this seeding, a reflexive
+ *  body written as `capture: { $s: { ref: "$picked" } }` +
+ *  `sacrifice { permanents: { ref: "$s" } }` keeps the edict value: the same
+ *  mis-sign, one level down. Pure passthrough when no capture aliases an
+ *  attributed name. */
+function withCapturedPicksAliases(
+    scope: ScriptScope,
+    capture: Record<string, EffectCaptureSource> | undefined
+): ScriptScope {
+    if (!capture) return EMPTY_SCRIPT_SCOPE;
+    let seeded = EMPTY_SCRIPT_SCOPE;
+    for (const [name, source] of Object.entries(capture)) {
+        if (
+            typeof source === "object" &&
+            source !== null &&
+            "ref" in source &&
+            typeof source.ref === "string" &&
+            scope.controllerChosenPicks.has(source.ref)
+        ) {
+            seeded = withControllerChosenPick(seeded, name);
+        }
+    }
+    return seeded;
+}
+
 /** issue #3292 — true when a `sacrifice`'s bare picks ref names a binding this
- *  walk attributed to a controller-owned `choice`. Structurally narrow, like
- *  `isSourceBattlefieldRefSelector`: an announced `{ target: n }` slot carries
- *  no `ref` key and is excluded before the set is even consulted. */
+ *  walk attributed to a controller-owned `choice`. An announced target slot
+ *  never reaches here at all: it takes the valuer's `target` branch, and
+ *  `permanents` is typed `EffectRef` — a bare `{ ref }` — so there is no
+ *  announced shape to exclude. */
 function isControllerChosenPicksRef(
     ref: EffectRef,
     scope: ScriptScope
@@ -780,16 +831,22 @@ const choiceOp: Valuer<"choice"> = () => {
 // is rather than the generic bounce benefit — the recursion is exactly where
 // that context has to survive or the fix reaches nothing inside the body.
 //
-// Issue #3292 — the nested body starts from a FRESH `ScriptScope` (the default)
-// rather than inheriting the outer walk's. That is the binding rule the Op
-// itself declares: `capture` keys "become the body's ONLY initial bindings —
-// outer bindings, `$source` included, are NOT visible inside the body"
-// (`cards/types.ts`). Threading the outer set in would let an outer
-// `choice { bind: "$sac" }` sign an unrelated same-named binding inside the
-// body. The body's OWN `choice` Ops still accumulate normally, which is what
-// makes the attribution hold inside a delayed body at all.
-const delayedTrigger: Valuer<"delayedTrigger"> = (op, ctx) =>
-    valueEffectScript(op.effects, withCapturedSourceAliases(ctx, op.capture));
+// Issue #3292 — the nested body does NOT inherit the outer walk's
+// `ScriptScope`; it starts from the one `withCapturedPicksAliases` derives
+// from the `capture` map alone. That is the binding rule the Op itself
+// declares: `capture` keys "become the body's ONLY initial bindings — outer
+// bindings, `$source` included, are NOT visible inside the body"
+// (`cards/types.ts`). Passing the outer set through wholesale would let an
+// outer `choice { bind: "$sac" }` sign an unrelated same-named binding inside
+// the body; passing nothing at all would drop the attribution for a body that
+// captures the picks ref under a new name. The body's OWN `choice` Ops
+// accumulate on top, as at any other level.
+const delayedTrigger: Valuer<"delayedTrigger"> = (op, ctx, scope) =>
+    valueEffectScript(
+        op.effects,
+        withCapturedSourceAliases(ctx, op.capture),
+        withCapturedPicksAliases(scope, op.capture)
+    );
 
 // CR 603.12 — a reflexive trigger's whole value IS its body: the Op itself
 // only queues a stack object. Same recursion as `delayedTrigger`, and — unlike
@@ -797,8 +854,12 @@ const delayedTrigger: Valuer<"delayedTrigger"> = (op, ctx) =>
 // the same priority round rather than at a future phase boundary. Same
 // `capture`-alias threading as `delayedTrigger` (issue #1964) — a reflexive
 // self-bounce would hit the identical mis-scoring otherwise.
-const reflexiveTrigger: Valuer<"reflexiveTrigger"> = (op, ctx) =>
-    valueEffectScript(op.effects, withCapturedSourceAliases(ctx, op.capture));
+const reflexiveTrigger: Valuer<"reflexiveTrigger"> = (op, ctx, scope) =>
+    valueEffectScript(
+        op.effects,
+        withCapturedSourceAliases(ctx, op.capture),
+        withCapturedPicksAliases(scope, op.capture)
+    );
 
 const digMatchingToHand: Valuer<"digMatchingToHand"> = () => ({
     points: CARD_SELECTION_VALUE,
