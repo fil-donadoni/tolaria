@@ -81,10 +81,11 @@ import {
     assignMayPayHandCards,
     manaBalanceForRestriction,
 } from "@convex/gre/state";
-import {
-    affordableAlternativeCosts,
-    handCardMatchesFilter,
-} from "@convex/gre/alternativeCost";
+import { handCardMatchesFilter } from "@convex/gre/alternativeCost";
+// CR 118.9 — THE cast-option authority: the card's own affordable alternative
+// costs plus every board-granted free cast (`cast-permission`, Aluren). Shared
+// verbatim with the GRE's legality gate and `announceCast` (ADR 0074).
+import { castOptionAlternativeCosts } from "@convex/gre/castPermissions";
 // CR 601.2b / 118.8 — the server's own additional-cost leg affordability, reused
 // verbatim so the cast-time leg picker and `announceCast` can never disagree.
 import { payableAdditionalCostLegs } from "@convex/gre/additionalCost";
@@ -1669,7 +1670,7 @@ export function buildTriggerStateView(
  *  your own turn, Mine Collapse pitched on the opponent's turn, Snuff Out's "Pay
  *  4 life" without a Swamp) is filtered out so clicking it never throws a hard
  *  `announceCast` rejection ("Can't pay the alternative cost"). Delegates to the
- *  server predicate `affordableAlternativeCosts` — the same authority the
+ *  server predicate `castOptionAlternativeCosts` — the same authority the
  *  mutation enforces — so the UI and the GRE can never disagree (no duplicated
  *  condition logic client-side). The projected `Player`/`CardInstance` shapes
  *  carry every field the predicate reads (`activePlayerId`, battlefield
@@ -1687,7 +1688,13 @@ export function affordableAltCostsForCard(
         activePlayerId,
         players,
     } as unknown as GameState;
-    return affordableAlternativeCosts(
+    // CR 118.9 — "a cost … applied to it from another effect": the union
+    // authority also folds in every board `cast-permission` static's free cast
+    // (Aluren), which is why this reads `castOptionAlternativeCosts` and not
+    // `affordableAlternativeCosts` directly. Both battlefields survive the wire
+    // projection, so the client evaluates the identical predicate the mutation
+    // enforces (ADR 0074).
+    return castOptionAlternativeCosts(
         state,
         caster as unknown as PlayerState,
         card as unknown as CardInstanceState

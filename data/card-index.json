@@ -850,6 +850,14 @@
         "source": "compiled"
     },
     {
+        "name": "Aluren",
+        "scryfallId": "268403bc-733d-446e-a7c1-abc957c42bc2",
+        "oracleId": "44e02e70-07ab-4795-8037-55185bd11d54",
+        "firstSet": "tmp",
+        "firstPrintId": "268403bc-733d-446e-a7c1-abc957c42bc2",
+        "firstPrintSet": "tmp"
+    },
+    {
         "name": "Amateur Auteur",
         "scryfallId": "74b77675-cf32-477f-8fdb-cbfa99c6de17",
         "oracleId": "38e36eb0-f3a9-42d7-9223-417d23e434fa",

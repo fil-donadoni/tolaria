@@ -5265,6 +5265,39 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Issue #2996 — Explore's keep-or-bin tail (CR 701.44a), the sharper consumer of this family: for a scry the fixed default was merely suboptimal, but the keep-or-bin IS the decision the nonland branch exists to offer, and the bot always chose \"top\", so a blank revealed off an explore was always next turn's draw. The window is a single card, so the generator emits exactly two branches (keep / bin) — the n = 1 collapse of the four policies. Shipped Explore consumers today: the Map token and Sentinel of the Nameless City (issue #2376).",
     },
+    {
+        // BOARD CAST PERMISSION reachability (CR 601.3 / 118.9, issue #2706).
+        // Aluren is on the battlefield and the bot has NO land at all, so the
+        // printed {1}{G} is unpayable and the ONLY way a creature reaches the
+        // stack is the permission's zero-mana alternative cost. Casting
+        // anything here therefore proves two things at once: the free-cast
+        // variant was enumerated (`enumerateCastMoves` re-enters its own
+        // builder with the cost replaced), and the search preferred a free 2/2
+        // to passing.
+        //
+        // The claim is REACHABILITY, not preference — a free body on an empty
+        // board is not a matter of opinion. The entry exists because a missed
+        // enumeration seam here is invisible to every other suite: nothing goes
+        // red, the bot simply never uses the Aluren it controls, which is the
+        // whole point of the card.
+        label: "cast permission: casts a creature for free under Aluren with no lands",
+        spec: {
+            cards: [
+                { name: "Aluren", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "cast-spell", card: "Grizzly Bears" }] },
+        note: "Issue #2706 — the first `cast-permission` static. With landCount 0 the printed cost cannot be paid, so a `cast-spell` move at all IS the free cast; no other line exists.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the

@@ -226,6 +226,7 @@ import {
     flashSurchargeRequired,
     foldFlashSurchargeCost,
     effectiveRequirementForSource,
+    castPermissionRequiredFor,
 } from "./gre/rules";
 // issue #2283 — the raised-origin (`trigger`/`retarget`/`copy-retarget`)
 // finalization and its divide split live in one module shared with the bot's
@@ -272,6 +273,10 @@ import {
     validateAlternativeHandCostPicks,
     handCardMatchesFilter,
 } from "./gre/alternativeCost";
+import {
+    isCastPermissionAltCostId,
+    resolveCastAlternativeCost,
+} from "./gre/castPermissions";
 // Bestow (CR 702.103) — the cost half rides the alternative-cost machinery
 // above; these are the CHARACTERISTIC half (`convex/gre/bestow.ts`).
 import {
@@ -6904,9 +6909,34 @@ export function finalizeTargetSelection(
     // announcement (Thwart returns Islands, Fireblast sacrifices Mountains); it
     // rode along on `pendingTarget` and is paid at this commit (601.2h),
     // replacing the mana cost entirely.
+    // CR 118.9 also covers an alternative cost "applied to it from another
+    // effect" — a board `cast-permission` static's free cast (Aluren). Both
+    // spaces resolve through the one lookup so the id announced can never
+    // resolve here and not at announcement.
     const chosenAltCost = pt.alternativeCostId
-        ? getAlternativeCost(cardDef, pt.alternativeCostId)
+        ? resolveCastAlternativeCost(
+              state,
+              player.id,
+              cardInHand,
+              pt.alternativeCostId,
+              getAlternativeCost(cardDef, pt.alternativeCostId),
+              castZone
+          )
         : undefined;
+    // CR 601.2f / 601.2h — the total cost was LOCKED IN at announcement, and a
+    // board-granted alternative cost is the only one here whose resolution is
+    // STATE-dependent: `getAlternativeCost` is a pure definition lookup that
+    // cannot change between announcement and commit, but a `cast-permission`
+    // id stops resolving the moment its source leaves the battlefield. Falling
+    // through to `undefined` would silently re-price the cast at the printed
+    // mana cost — the caster announced a free cast and would be charged for it.
+    // Fail CLOSED: an announced permission that no longer resolves is a bug in
+    // this engine, not a price change.
+    if (pt.alternativeCostId !== undefined && chosenAltCost === undefined) {
+        throw new Error(
+            "The announced alternative cost is no longer available for this spell"
+        );
+    }
     // CR 702.74a — the chosen alt cost IS the card's Evoke cost (compared by
     // reference — `getAlternativeCost` resolves `def.evoke` for its own id):
     // the resulting stack item is tagged `evoked: true` below so the
@@ -7907,10 +7937,40 @@ export const announceCast = mutation({
         // spell), replacing the mana cost entirely. Illegal when the lands
         // aren't available.
         const chosenAltCost = args.alternativeCostId
-            ? getAlternativeCost(cardDef, args.alternativeCostId)
+            ? resolveCastAlternativeCost(
+                  state,
+                  args.playerId,
+                  cardInHand,
+                  args.alternativeCostId,
+                  getAlternativeCost(cardDef, args.alternativeCostId),
+                  castFromZone
+              )
             : undefined;
         if (args.alternativeCostId && !chosenAltCost) {
             throw new Error("Unknown alternative cost for this spell");
+        }
+        // CR 601.3c / 118.9b — "An effect that allows you to cast a spell may
+        // require a certain alternative cost to be paid." When the ONLY thing
+        // licensing this cast right now is a permission that waives the mana
+        // cost (Aluren, off the caster's sorcery window), the caster does not
+        // get to announce the cast and then pay the printed price: the
+        // permission's own alternative cost is mandatory. Rejected here, at
+        // announcement, so no commit path can charge the wrong total.
+        if (
+            castPermissionRequiredFor(
+                state,
+                args.playerId,
+                cardInHand,
+                castFromZone
+            ) &&
+            !(
+                args.alternativeCostId &&
+                isCastPermissionAltCostId(args.alternativeCostId)
+            )
+        ) {
+            throw new Error(
+                "This spell can only be cast now without paying its mana cost"
+            );
         }
         if (
             chosenAltCost &&
@@ -7984,7 +8044,19 @@ export const announceCast = mutation({
         // mana and `libraryTopCastLifeCost` charges the off-stack mana value.
         // Announcing anything but 0 is illegal; announcing nothing is fine and
         // means 0 (the client no longer offers the dialog on this path).
-        const xLockedToZero = hasX && libraryTopPayment !== undefined;
+        // CR 107.3b — "…an effect lets that player cast that spell while paying
+        // neither its mana cost nor an alternative cost that includes X". A
+        // board permission's free cast (Aluren) is exactly that effect: its
+        // alternative cost is nothing at all, so it includes no X and the only
+        // legal choice for X is 0. Same clamp, same reason, as the library-top
+        // permission beside it.
+        const freeCastUnderPermission =
+            args.alternativeCostId !== undefined &&
+            isCastPermissionAltCostId(args.alternativeCostId) &&
+            chosenAltCost !== undefined;
+        const xLockedToZero =
+            hasX &&
+            (libraryTopPayment !== undefined || freeCastUnderPermission);
         if (xLockedToZero) {
             if (args.chosenX !== undefined && args.chosenX !== 0) {
                 throw new Error(

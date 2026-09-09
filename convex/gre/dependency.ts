@@ -144,6 +144,7 @@ export const STATIC_EFFECT_READS: Record<
     "combat-damage-unpreventable": [],
     "cast-restriction": [],
     "cast-timing-lock": [],
+    "cast-permission": [],
 };
 
 /** CR 604.3 — the `StaticEffect` kinds that generate a CHARACTERISTIC-DEFINING

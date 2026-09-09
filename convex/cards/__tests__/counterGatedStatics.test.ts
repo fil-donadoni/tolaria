@@ -91,6 +91,7 @@ const KIND_MATERIALIZATION: Record<
     "combat-damage-unpreventable": "recomputed",
     "cast-restriction": "recomputed",
     "cast-timing-lock": "recomputed",
+    "cast-permission": "recomputed",
     // --- materialized by beginApplyingStaticEffects -----------------------
     "keyword-grant": "materialized",
     "activated-grant": "materialized",
