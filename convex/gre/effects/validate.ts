@@ -4146,12 +4146,15 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // issue #1095 — optional `bind` snapshots the FIRST card that genuinely
     // reached the graveyard (Loafing Giant's "if a land card was milled this
     // way"), mirroring `discardAtRandom`'s bind shape exactly.
+    // issue #2600 — optional `bindAll` binds that same set WHOLE as a PICKS
+    // binding (every id that reached the graveyard, in mill order), the source
+    // a public-zone `choice.candidates` reads to express "from among them".
     mill: {
         required: {
             player: isPlayerRef,
             count: isEffectValue,
         },
-        optional: { bind: isBindingName },
+        optional: { bind: isBindingName, bindAll: isBindingName },
     },
     // CR 701.20a + CR 400.7 — reveal the top `count` card(s) of a library and
     // route each by what it IS (deterministic; no choice, never suspends).
@@ -4520,13 +4523,26 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             const revealedLibraryPick =
                 entry.zone === "library" &&
                 entry.kind === "choose-library-card";
+            // CR 400.2 (issue #2600) — the OTHER principled exception, and a
+            // simpler one: a graveyard and an exile zone are PUBLIC, so their
+            // contents are already known to every player and nothing has to be
+            // revealed to name a subset ahead of the pick. What the binding
+            // adds is WHICH subset — "mill three cards … a land card from
+            // among THEM" is a pick the whole-zone filter cannot express,
+            // because the zone also holds cards milled five turns ago. The
+            // script-level walk further down forces every entry
+            // to be a picks binding an EARLIER Op declared, which is what makes
+            // "them" mean the set this script itself created.
+            const publicZonePick =
+                entry.zone === "graveyard" || entry.zone === "exile";
             if (
                 entry.candidates !== undefined &&
                 entry.zone !== "battlefield" &&
-                !revealedLibraryPick
+                !revealedLibraryPick &&
+                !publicZonePick
             ) {
                 errors.push(
-                    '"candidates" is valid only with zone: "battlefield", or with zone: "library" + kind: "choose-library-card" (a REVEALED set, CR 701.20a) — every other zone is hidden or unordered, so nothing in it can be named ahead of the pick'
+                    '"candidates" is valid only with zone: "battlefield", with zone: "library" + kind: "choose-library-card" (a REVEALED set, CR 701.20a), or with a PUBLIC zone — "graveyard"/"exile" (CR 400.2) — sourced from an earlier picks binding; a hand is hidden and unordered, so nothing in it can be named ahead of the pick'
                 );
             }
             // The converse: the new kind exists ONLY to pick from a revealed
@@ -5754,6 +5770,17 @@ function checkOpListRefs(
     // the wire exposure is driven by the pick's `candidateIds` and never by
     // `knownTo`, would be the whole leak.
     const revealedBindings = new Map<string, string>();
+    // issue #2600 — the same idea for a PUBLIC-zone bound set, where the
+    // question is not "was it revealed" but "whose zone are those cards in".
+    // Keyed by binding name, valued by the SERIALIZED player ref whose zone the
+    // binding's members were put in: a `mill { player: { target: 0 } }` fills
+    // the TARGET's graveyard, so a pick reading it must be aimed at that same
+    // player's graveyard or it intersects with nothing and the card silently
+    // does half its text. Membership is also the ALLOW-LIST of producers: a
+    // picks binding this pass never saw (a `nameCard` bind stores a card NAME,
+    // not an instance id, and is family-indistinguishable) can never be a
+    // candidate source. Same list scoping as `revealedBindings` above.
+    const publicZoneBindings = new Map<string, string>();
     effects.forEach((raw, i) => {
         if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
             return;
@@ -5804,18 +5831,22 @@ function checkOpListRefs(
                 k === "chosenEffect" ||
                 k === "otherEffect" ||
                 // `choice.candidates` on a `choose-library-card` pick
-                // (issue #3205) — the ONE `candidates` shape that is NOT a
-                // list of `EffectObjectSelector`s. A revealed LIBRARY card is
-                // not a battlefield object, so each entry is a bare PICKS ref
-                // naming the search choice's own bind; the generic collector
-                // below tags every `candidates` entry as an OBJECT position
-                // (Barrin's Spite, which is the other shape). Checked instead
-                // by the dedicated pass further down, which enforces the picks
-                // family AND the CR 701.20a reveal the object position knows
+                // (issue #3205) or on a PUBLIC-ZONE pick (issue #2600,
+                // graveyard/exile) — the `candidates` shapes that are NOT a
+                // list of `EffectObjectSelector`s. Neither a revealed library
+                // card nor a graveyard/exile card is a battlefield object, so
+                // each entry is a bare PICKS ref naming an earlier Op's bind;
+                // the generic collector below tags every `candidates` entry as
+                // an OBJECT position (Barrin's Spite, which is the other
+                // shape). Checked instead by the dedicated passes further
+                // down, which enforce the picks family — and, for the library
+                // shape only, the CR 701.20a reveal the object position knows
                 // nothing about.
                 (k === "candidates" &&
                     entry.op === "choice" &&
-                    entry.kind === "choose-library-card")
+                    (entry.kind === "choose-library-card" ||
+                        entry.zone === "graveyard" ||
+                        entry.zone === "exile"))
             ) {
                 continue;
             }
@@ -6211,6 +6242,91 @@ function checkOpListRefs(
             }
         }
 
+        // issue #2600 — the OTHER producer of a public-zone set: a `choice`
+        // that picked from a graveyard/exile in the first place, whose picks
+        // are by construction in `zoneOwnerId ?? player`'s copy of that zone
+        // ("choose two cards in your graveyard … then choose one of THEM").
+        // Registered after that Op's own candidate check below has run on it.
+        if (
+            entry.op === "choice" &&
+            (entry.zone === "graveyard" || entry.zone === "exile") &&
+            typeof entry.bind === "string"
+        ) {
+            publicZoneBindings.set(
+                entry.bind,
+                JSON.stringify(entry.zoneOwnerId ?? entry.player ?? null)
+            );
+        }
+
+        // CR 400.2 (issue #2600) — a PUBLIC-zone `candidates` set names cards
+        // by BINDING, never by object selector: an announced target slot or an
+        // `$event` ref means a battlefield object, and a graveyard/exile card
+        // is not one. No reveal requirement, unlike the library shape right
+        // above — the zone is already public; the binding is only saying WHICH
+        // of its cards the pick may reach ("from among them").
+        if (
+            entry.op === "choice" &&
+            (entry.zone === "graveyard" || entry.zone === "exile") &&
+            Array.isArray(entry.candidates)
+        ) {
+            for (const selector of entry.candidates) {
+                const ref =
+                    typeof selector === "object" &&
+                    selector !== null &&
+                    typeof (selector as { ref?: unknown }).ref === "string"
+                        ? (selector as { ref: string }).ref
+                        : undefined;
+                if (ref === undefined) {
+                    errors.push(
+                        `${at}: zone "${entry.zone}" candidates must each be a bare binding ref — an announced target slot or a $event ref names a battlefield object, which no ${entry.zone} pick can be about`
+                    );
+                    continue;
+                }
+                if (declared.get(ref) !== "picks") {
+                    errors.push(
+                        `${at}: zone "${entry.zone}" candidate "${ref}" must name a picks binding an EARLIER Op in this list declared (a mill's bindAll, a choice's own bind) — that binding is what makes "from among them" mean the set this script created`
+                    );
+                    continue;
+                }
+                // This pass runs after the entry's own `bind` registration
+                // (the ordering the library shape above documents), so the
+                // ONE thing the family check cannot catch is a pick whose
+                // candidate set is its own not-yet-made pick. Empty at
+                // runtime — every candidate would drop and the choice would
+                // silently find nothing — so reject it loudly instead.
+                if (ref === entry.bind) {
+                    errors.push(
+                        `${at}: zone "${entry.zone}" candidate "${ref}" is this choice's OWN bind — a candidate set must be bound by an EARLIER Op, never by the pick it scopes`
+                    );
+                    continue;
+                }
+                // Whose zone the bound cards are actually IN. The library
+                // sibling asks the same question about its reveal's audience;
+                // here it is about the pile. A mismatch is not a leak — the
+                // interpreter intersects with the pick's own zone and comes
+                // up empty — it is the SILENT half-effect that intersection
+                // produces: "target player mills three cards. You may put a
+                // land card from among them into your hand" written with the
+                // pick left defaulting to the controller's own graveyard
+                // validates, resolves, and quietly does nothing.
+                const boundZoneOwner = publicZoneBindings.get(ref);
+                if (boundZoneOwner === undefined) {
+                    errors.push(
+                        `${at}: zone "${entry.zone}" candidate "${ref}" names a picks binding whose cards are not known to be in a public zone — only a mill's bindAll or an earlier graveyard/exile choice's bind can source one (a nameCard bind, for instance, stores a card NAME and would match nothing)`
+                    );
+                    continue;
+                }
+                const pickZoneOwner = JSON.stringify(
+                    entry.zoneOwnerId ?? entry.player ?? null
+                );
+                if (boundZoneOwner !== pickZoneOwner) {
+                    errors.push(
+                        `${at}: zone "${entry.zone}" candidate "${ref}" holds cards in a DIFFERENT player's ${entry.zone} than the one being picked from — set the pick's "zoneOwnerId" to the player whose zone the binding filled, or the two sets never intersect`
+                    );
+                }
+            }
+        }
+
         // `choice.bindOther` declares an object SNAPSHOT binding — the single
         // candidate the chooser did NOT pick (Barrin's Spite's "the other").
         // Its own field rather than `bind`, which the Op already spends on the
@@ -6222,6 +6338,30 @@ function checkOpListRefs(
                 );
             } else {
                 declared.set(entry.bindOther, "snapshot");
+            }
+        }
+
+        // `mill.bindAll` (issue #2600) declares a PICKS binding — every card
+        // that genuinely reached the graveyard, whereas the same Op's `bind`
+        // spends the snapshot family on the FIRST of them. Its own field for
+        // the same reason `choice.bindOther` is one: two families, one Op, and
+        // `bindingKindOf` answers per-Op rather than per-field.
+        if (entry.op === "mill" && typeof entry.bindAll === "string") {
+            if (entry.bindAll === "$each") {
+                errors.push(
+                    `${at}: bindAll "$each" is reserved — only the forEach construct binds it (issue #807)`
+                );
+            } else if (declared.has(entry.bindAll)) {
+                errors.push(
+                    `${at}: bindAll "${entry.bindAll}" re-declares an existing binding — binding names must be unique within a script`
+                );
+            } else {
+                declared.set(entry.bindAll, "picks");
+                // CR 701.17 — a mill fills the milled PLAYER's graveyard.
+                publicZoneBindings.set(
+                    entry.bindAll,
+                    JSON.stringify(entry.player ?? null)
+                );
             }
         }
 

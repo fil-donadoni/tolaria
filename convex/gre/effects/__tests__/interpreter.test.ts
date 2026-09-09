@@ -18241,6 +18241,345 @@ describe("Effect Script Op: mill (CR 701.17, issue #885)", () => {
     });
 });
 
+// CR 400.2 / 608.2b (issue #2600) — "from among them": `mill`'s `bindAll`
+// reports the WHOLE milled set as a picks binding, and a public-zone
+// `choice.candidates` scopes the pick to it. The gap this closes is that a
+// graveyard `choice` can otherwise only be narrowed by card characteristics,
+// so "mill three cards. You may put a land card from among them into your
+// hand" would reach a land milled five turns ago.
+describe("Effect Script: bound-set candidates in a public zone (CR 400.2)", () => {
+    /** Mill 2, then pick a land FROM AMONG THEM into hand. */
+    function fromAmongThemScript(name: string) {
+        return registerScript(name, [
+            {
+                op: "mill",
+                player: "controller",
+                count: 2,
+                bindAll: "$milled",
+            },
+            {
+                op: "choice",
+                kind: "choose-graveyard-card",
+                player: "controller",
+                zone: "graveyard",
+                candidates: [{ ref: "$milled" }],
+                filter: { type: "Land" },
+                count: 1,
+                prompt: "You may put a land card from among the milled cards into your hand.",
+                bind: "$pick",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$pick" },
+                player: "controller",
+                from: "graveyard",
+                to: "hand",
+            },
+        ]);
+    }
+
+    /** A graveyard that ALREADY holds a land (the card the pick must not be
+     *  able to reach) and a library whose top two are a non-land then a land. */
+    function millableState(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [
+                        makeInstance(LAND_ID, {
+                            id: "old-land",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "graveyard",
+                        }),
+                    ],
+                    library: [
+                        makeInstance(BEAR_ID, {
+                            id: "milled-bear",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                        makeInstance(LAND_ID, {
+                            id: "milled-land",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    it("scopes the pick to the cards THIS script milled, not the whole graveyard", () => {
+        const id = fromAmongThemScript("test-among-them-scope");
+        const state = millableState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        // `old-land` satisfies the type filter and sits in the same graveyard —
+        // a whole-zone pick would offer it. Only the milled land is a candidate.
+        expect(head.candidateIds).toEqual(["milled-land"]);
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["milled-land"],
+        });
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["milled-land"]);
+        const graveyard = state.players[0].graveyard.map((c) => c.id);
+        expect(graveyard).toContain("old-land");
+        expect(graveyard).toContain("milled-bear");
+        expect(graveyard).not.toContain("milled-land");
+    });
+
+    it("the narrowed candidate set survives the projection (wire format)", () => {
+        const id = fromAmongThemScript("test-among-them-wire");
+        const state = millableState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // The picker renders from the PROJECTED pending choice: a reducer that
+        // dropped or widened `candidateIds` would offer `old-land` on the
+        // client while the server refused it.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.pendingChoices![0].candidateIds).toEqual([
+            "milled-land",
+        ]);
+    });
+
+    it("refuses a submit naming a graveyard card outside the bound set (anti-spoof)", () => {
+        const id = fromAmongThemScript("test-among-them-spoof");
+        const state = millableState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(() =>
+            applyPendingChoiceSubmit(state, {
+                playerId: "p1",
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: ["old-land"],
+            })
+        ).toThrow();
+        expect(state.players[0].hand).toHaveLength(0);
+    });
+
+    it("an UNCAPTURED bindAll yields an empty candidate set, never the whole graveyard (CR 608.2b)", () => {
+        const id = fromAmongThemScript("test-among-them-uncaptured");
+        const state = millableState();
+        // Empty library — nothing is milled, so `bindAll` is never captured.
+        // Failing OPEN here would raise a pick over the whole graveyard and
+        // hand `old-land` back.
+        state.players[0].library = [];
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain(
+            "old-land"
+        );
+    });
+
+    it("a bound card that has LEFT the zone drops out and the count clamps (CR 608.2b)", () => {
+        // The milled land is exiled between the mill and the pick, so the only
+        // land the candidate set names is gone: no pick is raised at all.
+        const id = registerScript("test-among-them-left-zone", [
+            {
+                op: "mill",
+                player: "controller",
+                count: 2,
+                bindAll: "$milled",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$milled" },
+                player: "controller",
+                from: "graveyard",
+                to: "exile",
+            },
+            {
+                op: "choice",
+                kind: "choose-graveyard-card",
+                player: "controller",
+                zone: "graveyard",
+                candidates: [{ ref: "$milled" }],
+                filter: { type: "Land" },
+                count: 1,
+                prompt: "Put a land card from among them into your hand.",
+                bind: "$pick",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$pick" },
+                player: "controller",
+                from: "graveyard",
+                to: "hand",
+            },
+        ]);
+        const state = millableState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].exile.map((c) => c.id)).toEqual([
+            "milled-bear",
+            "milled-land",
+        ]);
+        expect(state.players[0].hand).toHaveLength(0);
+    });
+
+    it("scopes an EXILE pick the same way (the other public zone)", () => {
+        // Same shape, other branch: the milled set is moved to exile and the
+        // pick reads it there, so the exile-zone candidates path is exercised
+        // against an exile that ALSO holds an unrelated land.
+        const id = registerScript("test-among-them-exile", [
+            {
+                op: "mill",
+                player: "controller",
+                count: 2,
+                bindAll: "$milled",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$milled" },
+                player: "controller",
+                from: "graveyard",
+                to: "exile",
+            },
+            {
+                op: "choice",
+                kind: "choose-exile-card",
+                player: "controller",
+                zone: "exile",
+                candidates: [{ ref: "$milled" }],
+                filter: { type: "Land" },
+                count: 1,
+                prompt: "Put a land card from among them into your hand.",
+                bind: "$pick",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$pick" },
+                player: "controller",
+                from: "exile",
+                to: "hand",
+            },
+        ]);
+        const state = millableState();
+        state.players[0].exile = [
+            makeInstance(LAND_ID, {
+                id: "old-exiled-land",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "exile",
+            }),
+        ];
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.candidateIds).toEqual(["milled-land"]);
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["milled-land"],
+        });
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["milled-land"]);
+    });
+
+    it("unions SEVERAL bindings and de-duplicates them", () => {
+        // Review round 1 — the multi-binding loop was unexercised. Two mills
+        // bind two disjoint sets; the pick names the second one TWICE plus the
+        // first, so the union must be both lands, each once, in binding order.
+        const id = registerScript("test-among-them-multi-binding", [
+            { op: "mill", player: "controller", count: 1, bindAll: "$a" },
+            { op: "mill", player: "controller", count: 2, bindAll: "$b" },
+            {
+                op: "choice",
+                kind: "choose-graveyard-card",
+                player: "controller",
+                zone: "graveyard",
+                candidates: [{ ref: "$b" }, { ref: "$a" }, { ref: "$b" }],
+                filter: { type: "Land" },
+                count: 1,
+                prompt: "Choose one.",
+                bind: "$pick",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: [
+                        // $a takes the land on top; $b takes the bear and the
+                        // second land — so a union that lost either binding, or
+                        // one that double-counted `$b`, is visible in the set.
+                        makeInstance(LAND_ID, {
+                            id: "land-a",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                        makeInstance(BEAR_ID, {
+                            id: "bear-b",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                        makeInstance(LAND_ID, {
+                            id: "land-b",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.pendingChoices![0].candidateIds).toEqual([
+            "land-b",
+            "land-a",
+        ]);
+    });
+
+    it("bindAll is an ordinary picks binding — an if { picksNonEmpty } gate reads it", () => {
+        // The set is not a new binding kind: the picks consumers that read IDS
+        // take it with no new grammar (a bare `cards` ref — exercised by the
+        // two tests above — and the `picksNonEmpty` predicate here).
+        const script = (name: string) =>
+            registerScript(name, [
+                {
+                    op: "mill",
+                    player: "controller",
+                    count: 2,
+                    bindAll: "$milled",
+                },
+                {
+                    op: "if",
+                    predicate: { picksNonEmpty: { ref: "$milled" } },
+                    then: [{ op: "gainLife", player: "controller", amount: 7 }],
+                },
+            ]);
+        const state = millableState();
+        pushSpell(state, script("test-among-them-picksnonempty"), "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(27);
+
+        // …and stays uncaptured when nothing was milled (CR 608.2b), so the
+        // same gate reads false rather than firing on an empty set.
+        const empty = millableState();
+        empty.players[0].library = [];
+        pushSpell(empty, script("test-among-them-picksnonempty-empty"), "p1");
+        resolveTopOfStack(empty);
+        expect(empty.players[0].life).toBe(20);
+    });
+});
+
 // CR 614.1a (issue #1095) — the `exileOnDeath` Op: a one-shot, turn-scoped
 // "if it would die this turn, exile it instead" replacement. Scorching Lava's
 // kicked rider; the DSL skin over `SpellContext.setExileOnDeath`, which three
