@@ -677,7 +677,7 @@
         --card-ring-color: var(--color-signal-target);
     }
     .card-ring-selected {
-        --card-ring-color: var(--color-accent);
+        --card-ring-color: var(--color-signal-self);
     }
     .card-ring-attacking {
         --card-ring-color: var(--color-signal-pending);
@@ -775,7 +775,7 @@
             --card-ring-color: var(--color-signal-target-strong);
         }
         .card-ring-selected:hover {
-            --card-ring-color: var(--color-accent-strong);
+            --card-ring-color: var(--color-signal-self-strong);
         }
     }
 
