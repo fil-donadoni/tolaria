@@ -19,7 +19,10 @@
 //     `getLegalTargets` call that refuses to offer them
 //   - CR 608.2b — an overloaded spell has no targets and so cannot fizzle
 //   - serialization round-trip and the wire projection of `overloaded`
-//   - the authoring guard: an overload card reaching a `{ target: n }` slot
+//   - the authoring guard: an overload card reaching a `{ target: n }` slot,
+//     and an overload card sweeping `forEach { set: "targets" }` twice
+//   - the cast-instance LEAK gate: the marker must not survive the spell
+//     leaving the stack, or the next printed-cost cast of the same card wraths
 //
 // The two seams that read `gre/moves.ts` — cost modifiers folded into the
 // OVERLOAD cost, and the Bot seeing both cast modes — live in the sibling
@@ -43,6 +46,7 @@ import {
     isOverloadAlternativeCost,
 } from "../overload";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
+import { emitSpellCastEvent } from "../state";
 import { compactState, expandState } from "../serialize";
 import { validateEffectScript } from "../effects/validate";
 import {
@@ -75,6 +79,32 @@ registerTokenDefinition({
     power: 2,
     toughness: 2,
     staticAbilities: ["hexproof"],
+});
+
+/** An overload card whose printed requirement is X-relative, so the sweep has
+ *  an announced X to read (PR #3288 review finding 3). Synthetic because no
+ *  shipped overload card has an X — which is exactly why dropping it would have
+ *  failed silently. */
+const X_PROBE_ID = "test:overload-x-probe";
+registerTokenDefinition({
+    id: X_PROBE_ID,
+    rarity: "rare",
+    name: "Overload X Probe",
+    manaCost: { X: "X", W: 1 },
+    types: ["Sorcery"],
+    overload: {
+        id: "overload",
+        description: "Overload {X}{W}{W}",
+        mana: { X: "X", W: 2 },
+    },
+    targetRequirement: { type: "Creature", count: 1, mvFilter: { max: "X" } },
+    effects: [
+        {
+            op: "forEach",
+            select: { set: "targets" },
+            effects: [{ op: "destroy", target: { ref: "$each" } }],
+        },
+    ],
 });
 
 function handCard(cardId: string, id: string, controllerId = "p1") {
@@ -384,6 +414,114 @@ describe("Winds of Abandon — one script, two modes (CR 702.96a/b)", () => {
     });
 });
 
+describe("Overload — the sweep reads the announced X (CR 107.3, PR #3288 review finding 3)", () => {
+    it("an X-relative printed requirement sweeps against the X the caster paid, not 0", () => {
+        // Grizzly Bears is mana value 2; Craw Wurm is 6. With X = 2 the sweep
+        // is "each creature with mana value 2 or less" and takes the Bears
+        // alone. Dropping `chosenX` made `lowerPermanentFilters` fall back to
+        // 0, so the sweep would take nothing at all.
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        creature(BEAR, "cheap", "p2"),
+                        creature(getCardByName("Craw Wurm").id, "fat", "p2"),
+                    ],
+                }),
+            ],
+        });
+        const item: StackItem = {
+            ...handCard(X_PROBE_ID, "probe"),
+            zone: "stack",
+            castById: "p1",
+            overloaded: true,
+            chosenX: 2,
+        };
+        state.stack.push(item);
+        expect(
+            overloadAffectedTargets(state, item, "p1").map((t) => t.id)
+        ).toEqual(["cheap"]);
+    });
+});
+
+describe("Overload — the marker is CAST-INSTANCE scoped (CR 702.96a, PR #3288 review finding 1)", () => {
+    // The `evoked`/`dashed`/`escaped` leak shape, and the worst instance of it:
+    // `overloaded` decides whether the script sweeps EVERY matching object, so a
+    // marker that rides into the graveyard makes the NEXT printed-cost cast of
+    // that card a one-sided wrath. Every cast-commit site builds its stack item
+    // as `{ ...card, ...(isOverloadCost ? { overloaded: true } : {}) }` — a
+    // spread that is `{}` for a printed cast and so never CLEARS an inherited
+    // value. Reachable in the shipped pool: Regrowth / Eternal Witness /
+    // Yawgmoth's Will all bring a resolved Damn back.
+    function boardWithThree(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [creature(BEAR, "mine", "p1")],
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        creature(BEAR, "theirs1", "p2"),
+                        creature(BEAR, "theirs2", "p2"),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    it("an overloaded Damn that resolves leaves NO marker on the graveyard card", () => {
+        const state = boardWithThree();
+        damnOnStack(state, { overloaded: true });
+        resolveTopOfStack(state);
+        const inYard = state.players[0].graveyard.find((c) => c.id === "damn");
+        expect(inYard).toBeDefined();
+        expect(inYard!.overloaded).toBeUndefined();
+    });
+
+    it("recasting that same card object for its PRINTED cost destroys only the announced target", () => {
+        const state = boardWithThree();
+        damnOnStack(state, { overloaded: true });
+        resolveTopOfStack(state);
+        // Rebuild the board and recast the very object the first cast left
+        // behind — the Regrowth line, minus the Regrowth.
+        const recycled = state.players[0].graveyard.find(
+            (c) => c.id === "damn"
+        )!;
+        state.players[0].graveyard = [];
+        state.players[0].battlefield = [creature(BEAR, "mine2", "p1")];
+        state.players[1].battlefield = [
+            creature(BEAR, "t3", "p2"),
+            creature(BEAR, "t4", "p2"),
+        ];
+        // The printed-cost commit shape: a spread with no overload branch.
+        state.stack.push({
+            ...recycled,
+            zone: "stack",
+            castById: "p1",
+            targets: [{ type: "permanent", id: "t3" }],
+        });
+        resolveTopOfStack(state);
+        expect(boardIds(state, 0)).toEqual(["mine2"]);
+        expect(boardIds(state, 1)).toEqual(["t4"]);
+    });
+
+    it("a cast trigger watching an overloaded spell does not inherit the marker (CR 603.3d)", () => {
+        // Same reason a trigger never inherits the watched spell's TARGETS: the
+        // trigger is a different object, and the marker would swap ITS own
+        // `ctx.targets` for the spell's sweep as it resolved.
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const item = damnOnStack(state, { overloaded: true });
+        emitSpellCastEvent(state, item);
+        for (const queued of state.stack) {
+            if (queued.id === item.id) continue;
+            expect(queued.overloaded).toBeUndefined();
+        }
+    });
+});
+
 describe("Overload — the marker survives the wire and the database (issue #3215)", () => {
     function stateWithOverloadedDamn(): GameState {
         const state = makeState({
@@ -424,7 +562,33 @@ describe("Overload — authoring guard (validateEffectScript)", () => {
         expect(errors.join("\n")).toMatch(/declares overload \(CR 702\.96\)/);
     });
 
-    it("accepts the shipped shape — the guard above is not vacuous", () => {
+    it('refuses an overload card that sweeps forEach { set: "targets" } twice', () => {
+        // PR #3288 review finding 2: the "each" set is re-derived per
+        // SpellContext, and a resolution that suspends builds a new one, so a
+        // SECOND sweep freezes different members depending on whether the first
+        // suspended. Refused rather than given a semantics.
+        const sweep = {
+            op: "forEach" as const,
+            select: { set: "targets" as const },
+            effects: [{ op: "destroy" as const, target: { ref: "$each" } }],
+        };
+        const errors = validateEffectScript({
+            id: "test:twice-overload",
+            name: "Twice Overload",
+            types: ["Sorcery"],
+            overload: {
+                id: "overload",
+                description: "Overload {2}{W}{W}",
+                mana: { X: 2, W: 2 },
+            },
+            effects: [sweep, sweep],
+        });
+        expect(errors.join("\n")).toMatch(
+            /sweeps forEach \{ set: "targets" \} 2 times/
+        );
+    });
+
+    it("accepts the shipped shape — the guards above are not vacuous", () => {
         expect(validateEffectScript(DAMN)).toEqual([]);
         expect(validateEffectScript(WINDS)).toEqual([]);
     });

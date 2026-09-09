@@ -6962,6 +6962,22 @@ export function validateEffectScript(def: EffectScriptHost): string[] {
                 `${label}: declares overload (CR 702.96) but its script uses ${slots.length} fixed { target: n } slot reference(s) — an overloaded cast announces no targets (CR 702.96b), so a slot reads only the first swept object; reach them with forEach { set: "targets" } instead`
             );
         }
+        // …and it must sweep exactly ONCE (PR #3288 review finding 2). The
+        // "each" set is derived from the live board every time a SpellContext
+        // is built, and a resolution that suspends for a choice builds a new
+        // one on resume — while `forEach` freezes its own members at ITS entry.
+        // With one sweep those two facts never meet: the freeze happens before
+        // anything can suspend. With two, the second sweep's members depend on
+        // whether the first one suspended, so the same board can resolve two
+        // ways. Determinism is a hard property of this engine (no event log,
+        // seeded PRNG), so the second sweep is refused rather than given a
+        // semantics nobody has had to choose yet.
+        const sweeps = countTargetSetSweeps(def.effects);
+        if (sweeps > 1) {
+            errors.push(
+                `${label}: declares overload (CR 702.96) and sweeps forEach { set: "targets" } ${sweeps} times — the "each" set is re-derived from the live board per resolution context, so a second sweep resolves differently depending on whether the first one suspended for a choice; express the whole effect in ONE sweep`
+            );
+        }
     }
     return errors;
 }
@@ -6971,6 +6987,32 @@ export function validateEffectScript(def: EffectScriptHost): string[] {
  *  `cards`, `controllerOf`, …). Shape-matched rather than field-matched because
  *  the slot ref is a VALUE the grammar accepts in many places, and a
  *  field-name list would rot the next time an Op accepts one. */
+function countTargetSetSweeps(node: unknown): number {
+    if (Array.isArray(node)) {
+        return node.reduce<number>(
+            (n, child) => n + countTargetSetSweeps(child),
+            0
+        );
+    }
+    if (node === null || typeof node !== "object") return 0;
+    const obj = node as Record<string, unknown>;
+    const select = obj.select as { set?: unknown } | undefined;
+    const self =
+        obj.op === "forEach" &&
+        typeof select === "object" &&
+        select !== null &&
+        select.set === "targets"
+            ? 1
+            : 0;
+    return (
+        self +
+        Object.values(obj).reduce<number>(
+            (n, value) => n + countTargetSetSweeps(value),
+            0
+        )
+    );
+}
+
 function findTargetSlotRefs(node: unknown, out: unknown[]): void {
     if (Array.isArray(node)) {
         for (const child of node) findTargetSlotRefs(child, out);

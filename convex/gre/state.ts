@@ -7049,6 +7049,18 @@ function resetStackTransientState(item: StackItem): void {
     delete item.evoked;
     delete item.dashed;
     delete item.escaped;
+    // CR 702.96a (issue #3215, PR #3288 review finding 1) — the Overload cast
+    // marker is the SAME leak shape as the three above, and the worst-behaved
+    // instance of it: `overloaded` decides whether the script's
+    // `forEach { set: "targets" }` sweeps the announced targets or EVERY
+    // matching object, so a marker that rides into the graveyard turns the next
+    // printed-cost cast of that card into a one-sided wrath for two mana.
+    // Reachable in the shipped pool today: overload Damn (or have it
+    // countered), then Regrowth / Eternal Witness / Yawgmoth's Will brings it
+    // back and the recast — which pays {B}{B} and announces ONE target —
+    // destroys every creature on both sides, because the `{ ...card, … }`
+    // spread every cast-commit site uses never writes `overloaded: false`.
+    delete item.overloaded;
     // CR 702.103b/400.7 — the bestow marker is the same leak shape as the
     // three above, with one extra obligation: bestow also MUTATED the object's
     // type line in place, so a bare `delete` would leave a countered
@@ -10592,6 +10604,12 @@ function collectCastTriggers(
         // nothing itself (the COPIES it produces carry the snapshot's
         // targets instead).
         targets: undefined,
+        // CR 702.96a (issue #3215) — and for the same reason, the trigger is
+        // not the overloaded SPELL: inheriting the marker through the spread
+        // would swap this item's own `ctx.targets` for the "each" sweep as it
+        // resolves. The `stormSnapshot` below keeps the spell's own marker,
+        // which is what the copies need.
+        overloaded: undefined,
         stormSnapshot: structuredClone(castSpell),
         stormCopiesRemaining: event.priorSpellCount ?? 0,
     };
@@ -10641,6 +10659,10 @@ function collectSelfCastTriggers(
             // CR 603.3d — a trigger chooses its own targets when it is put on
             // the stack; it never inherits the watched spell's.
             targets: undefined,
+            // CR 702.96a (issue #3215) — nor the watched spell's overload
+            // marker, which would otherwise swap this trigger's own
+            // `ctx.targets` for the spell's "each" sweep.
+            overloaded: undefined,
         });
         pushed = true;
     }
@@ -11877,6 +11899,13 @@ export function resetBattlefieldTransientState(
     delete card.evoked;
     delete card.dashed;
     delete card.escaped;
+    // CR 702.96a (issue #3215) — the battlefield-side half of the same gate the
+    // stack side now carries. No overload card in the pool is a permanent
+    // spell, so nothing reaches here with the marker today; it is listed
+    // because the sibling functions must name the SAME set of cast-instance
+    // facts, and a field on one list and not the other is how the leak this
+    // whole comment describes came back.
+    delete card.overloaded;
     // CR 307.1 / 117.1a / 601.3a (issue #2473) — same one-shot-fact-about-
     // the-OBJECT-that-was-cast shape as the trio immediately above: a
     // permanent bounced directly off the battlefield (never re-entering the

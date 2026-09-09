@@ -54,7 +54,7 @@ import type {
     TargetSelection,
 } from "../cards/types";
 import { getLegalTargets, targetingSourceFromCard } from "./rules";
-import type { CardInstanceState, GameState } from "./state";
+import type { CardInstanceState, GameState, StackItem } from "./state";
 
 /** CR 702.96a — is `alt` the card's OWN overload cost? Compared by reference,
  *  the `isBestowAlternativeCost` idiom: `getAlternativeCost` resolves
@@ -93,7 +93,7 @@ export function isOverloadCastId(
  *  started with. */
 export function overloadAffectedTargets(
     state: GameState,
-    item: CardInstanceState,
+    item: StackItem,
     casterId: string
 ): TargetSelection[] {
     const def = overloadDefinitionOf(item);
@@ -107,8 +107,20 @@ export function overloadAffectedTargets(
         // read) judge it the same way the announcement would have.
         targetingSourceFromCard(item, true),
         casterId,
-        undefined,
+        // CR 107.3 (PR #3288 review finding 3) — the announced X. A printed
+        // requirement can be X-relative (`mvFilter: { lte: "X" }`), and
+        // `lowerPermanentFilters` falls back to 0 for an absent X, so dropping
+        // it here would sweep against "mana value 0 or less" instead of the X
+        // the caster actually paid. No shipped overload card has an X, which is
+        // exactly why it would have failed silently.
+        item.chosenX,
         [],
+        // `sourcePower` stays undefined deliberately: it exists for a
+        // `mvFilter` bound of `"sourcePower"`, read off an announcing
+        // PERMANENT's live power (CR 613 layer 7c). A resolving spell is not on
+        // the battlefield and has no such power to read, so there is nothing
+        // more informative to pass than the 0 `resolveMvFilter` already falls
+        // back to.
         undefined,
         { ignoreTargetingRestrictions: true }
     );

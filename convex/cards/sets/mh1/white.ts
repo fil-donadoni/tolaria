@@ -100,6 +100,16 @@ export const ephemerate: CardDefinition = {
 // searcher isn't required to find one even though the search is mandatory:
 // `count: { min: 0, max: 1 }`, the Quirion Trailblazer shape.
 //
+// One divergence — tracked-by: #3289 — and it is a capability gap rather than
+// a reading: CR 701.23h collapses repeated searches before a shuffle into ONE
+// search, and the Oracle's "those players put those cards onto the battlefield
+// tapped, then shuffle" enters the lands together. This runs one search, one
+// entry and one shuffle PER exiled creature instead. A second `forEach` pass
+// cannot fix it (`execForEach` skips a member that has already left the
+// battlefield), and one search for N cards needs a `count` resolved at runtime,
+// which the `choice` Op does not take. Observable only through a
+// search-watching or lands-entering trigger.
+//
 // The grammar has no keyword-cost line rule for CR 702.96, and the
 // "for each creature exiled this way…" tail has no rule either, so neither
 // line round-trips yet (issue #3274):
