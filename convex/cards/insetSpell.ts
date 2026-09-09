@@ -114,13 +114,37 @@ export function insetSpellTwinDefinition(
     };
 }
 
+/** CR 715.3 vs CR 722.3 — the inset kind `def` declares, but ONLY when the
+ *  parent may cast it. `undefined` for a card with no inset spell and for one
+ *  whose kind can never be cast from the parent (a prepare spell, CR 722.3).
+ *
+ *  THE castability authority, and the reason {@link INSET_SPELL_KINDS} is a
+ *  `Record` rather than prose: every surface that offers or accepts an inset
+ *  cast reaches the table through this, so a kind added to the union cannot
+ *  reach a cast path without a row saying whether it may. It was possible to
+ *  add one and have every cast site keep working off a literal
+ *  `kind === "adventure"` check — the drift this module's header claims to
+ *  prevent (PR #3302 review finding 6). */
+export function castableInsetKind(
+    def: CardDefinition | undefined
+): InsetSpellKind | undefined {
+    const kind = def?.insetSpell?.kind;
+    if (kind === undefined) return undefined;
+    return INSET_SPELL_KINDS[kind].castableFromParent ? kind : undefined;
+}
+
 /** CR 715.2a — "if an effect refers to a card, spell, or permanent that 'has an
  *  Adventure', it refers to an object that has the alternative characteristics
  *  of an Adventure spell, EVEN IF the object currently doesn't use them."
  *
  *  So this is a question about the CARD, answered off the printed declaration,
  *  and it stays true for a Brazen Borrower sitting in a graveyard as a plain
- *  3/1 Faerie. */
+ *  3/1 Faerie.
+ *
+ *  A question about the KIND, deliberately NOT routed through
+ *  {@link castableInsetKind}: 715.2a is about what the object HAS, and stays
+ *  true for a half that could never be cast from the parent at all. Castability
+ *  is the other predicate's job. */
 export function hasAdventure(def: CardDefinition | undefined): boolean {
     return def?.insetSpell?.kind === "adventure";
 }

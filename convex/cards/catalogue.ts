@@ -166,7 +166,7 @@ import {
 // the full contract. Registered into the SAME `registry` map hand-written
 // cards use, so `getDefinition`/`tryGetDefinition` never distinguish the two.
 import { excludeHandWritten } from "./compiledCatalogue";
-import { insetSpellDefinitionId } from "./insetSpell";
+import { insetSpellDefinitionId, isInsetSpellDefinitionId } from "./insetSpell";
 // The pool as a BUNDLED module. On the SERVER this is
 // `data/oracle-compiled-pool.json`; in a CLIENT build `vite.config.ts`
 // aliases this exact relative specifier to an empty array and the rows arrive
@@ -514,6 +514,56 @@ export const tryGetCardByName = (name: string): CardDefinition | null =>
 
 export const getAllCardNames = (): string[] =>
     allCards.map((card) => card.name);
+
+/** CR 715.4 / 715.2c — `tryGetCardByName` restricted to names that can be
+ *  PLACED as a card: a printed catalogue card, never an inset spell's twin.
+ *
+ *  The exact complement of {@link getChooseableCardNames}. An Adventure exists
+ *  only while its card is on the stack as one ("in every zone except the stack
+ *  … an adventurer card has only its normal characteristics"), so any consumer
+ *  that turns a NAME into a card living in a zone, a deck, a cube or a banlist
+ *  must resolve through this and not through the bare lookup — otherwise a
+ *  scenario spec, a cube list or a banlist row naming "Petty Theft" binds to an
+ *  Instant that is in no enumerated population, has no card-index row and can
+ *  never revert (PR #3302 review finding 5). Fail closed: unknown and
+ *  not-placeable are the same `null`.
+ *
+ *  `tryGetCardByName` itself stays wide, because CR 715.5's name CHOICE is a
+ *  legitimate consumer of the alternative name. */
+export const tryGetPlaceableCardByName = (
+    name: string
+): CardDefinition | null => {
+    const def = tryGetCardByName(name);
+    return def && !isInsetSpellDefinitionId(def.id) ? def : null;
+};
+
+/** CR 715.5 / 722.5 — every card name a player may CHOOSE when an effect says
+ *  "choose a card name": {@link getAllCardNames} plus every inset spell's
+ *  alternative name ("if an effect instructs a player to choose a card name and
+ *  the player wants to choose an adventurer card's alternative name, the player
+ *  may do so").
+ *
+ *  A SECOND seam rather than a widening of `getAllCardNames`, and the split is
+ *  the same one the lookups already make: `tryGetCardByName` resolves an inset
+ *  name and every ENUMERATED population — deck legality, the Limited pool, the
+ *  card index, the debug-scenario allow-list — does not, because CR 715.2c says
+ *  an adventurer card is one card and none of those may see two. This one is
+ *  the choice DOMAIN, which is exactly where 715.5 says the extra name belongs.
+ *
+ *  Its consumer is the client's `name-card` input, whose candidate list AND
+ *  submit gate were built from `getAllCardNames()` — so the server accepted
+ *  "Petty Theft" through `isLegalNamedCard` while the human's button stayed
+ *  inert (PR #3302 review finding 4). */
+export const getChooseableCardNames = (): string[] => {
+    const names = getAllCardNames();
+    for (const card of allCards) {
+        if (card.insetSpell) names.push(card.insetSpell.name);
+    }
+    for (const card of compiledRegistered) {
+        if (card.insetSpell) names.push(card.insetSpell.name);
+    }
+    return names;
+};
 
 // Re-use the registry's expandDefinition for the catalogue-level getAllCards,
 // so keyword cards are expanded identically. Import the expansion from the

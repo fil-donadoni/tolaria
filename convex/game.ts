@@ -443,7 +443,6 @@ import {
 import { checkStateBasedActions } from "./gre/sba";
 import {
     canTurnFaceUp,
-    faceDownCastView,
     getMorphCost,
     isMorphCastAlternativeCost,
     morphTurnUpPaymentPlan,
@@ -455,7 +454,7 @@ import {
     castAsAdventure,
     isAdventureCastAlternativeCost,
 } from "./gre/adventure";
-import { castSubjectDefinition } from "./gre/castMode";
+import { castSubjectDefinition, castSubjectView } from "./gre/castMode";
 import {
     applyPlayLand,
     applyPlayLandFromExile,
@@ -7087,7 +7086,24 @@ export function finalizeTargetSelection(
         cardDef.flashSurcharge,
         flashSurchargePaid
     );
-    applyCostModifiers(manaCost, getCostModifiers(state, cardInHand, "spell"));
+    // CR 601.2f / 715.3a — the modifiers that apply are the ones keyed on the
+    // characteristics of the object BEING CAST, which for an announced cast
+    // mode is not the printed card: a morph cast is a colourless nameless 2/2
+    // (CR 702.37c) and an Adventure is its inset half. `castSubjectView` is the
+    // ONE seam that answers this, shared with `getLegalActions`'s gate and the
+    // Bot's enumerator, so the gate and the payment cannot price the same cast
+    // differently — which they did, in BOTH directions, while this site folded
+    // against the printed card (PR #3302 review finding 1: Mana Matrix reduced
+    // Petty Theft at the gate and not here, parking an unpayable cast; Thalia
+    // taxed it at the gate and not here, undercharging it).
+    applyCostModifiers(
+        manaCost,
+        getCostModifiers(
+            state,
+            castSubjectView(cardInHand, pt.alternativeCostId),
+            "spell"
+        )
+    );
     // CR 107.4f — resolve the Phyrexian pips ({B/P}, {U/P}) for this cast: the
     // pips paid with mana fold into the coloured mana cost (paid via the pool /
     // auto-tap like any pip); the pips paid with life add to `payLife` below. An
@@ -8705,7 +8721,7 @@ export const announceCast = mutation({
                 altManaCost,
                 getCostModifiers(
                     state,
-                    isMorphCost ? faceDownCastView(cardInHand) : cardInHand,
+                    castSubjectView(cardInHand, args.alternativeCostId),
                     "spell"
                 )
             );

@@ -69,7 +69,6 @@ import {
     castPermissionRequired,
     hasCastPermissionFlash,
 } from "./castPermissions";
-import { faceDownCastView, isMorphCastAlternativeCost } from "./morph";
 import { castSubjectDefinition, castSubjectView } from "./castMode";
 import { adventureCastOptionFor } from "./adventure";
 import { canPayAnyAdditionalCost } from "./additionalCost";
@@ -1414,23 +1413,19 @@ export function getLegalActions(
                             caster,
                             // CR 702.37c / 707.2 (issue #2970 review) — a MORPH
                             // variant is cast as "a 2/2 creature with no text, no
-                            // name, no subtypes, and no mana cost", so the
-                            // modifiers folded below (and any characteristic-keyed
-                            // mana restriction the solver reads) must be judged
-                            // against THOSE characteristics. Same view
-                            // `announceCast` and the Bot's morph variant price
-                            // against, so the three cannot disagree. Identity to
-                            // the real card is unchanged — the view is a spread,
-                            // so the instance id and any object-scoped exile tax
-                            // ride along.
-                            isMorphCastAlternativeCost(
-                                tryGetDefinition(
-                                    (card.card as { id?: string }).id ?? ""
-                                ) ?? undefined,
-                                alt
-                            )
-                                ? faceDownCastView(card)
-                                : card,
+                            // name, no subtypes, and no mana cost", and CR 715.3a
+                            // says the same of an ADVENTURE, so the modifiers
+                            // folded below (and any characteristic-keyed mana
+                            // restriction the solver reads) must be judged
+                            // against the ANNOUNCED subject's characteristics.
+                            // `castSubjectView` is the one seam that answers
+                            // that for every mode; while each site carried its
+                            // own morph-only ternary the three disagreed the
+                            // moment a second mode needed a view (PR #3302
+                            // review finding 1). Identity to the real card is
+                            // unchanged — the view is a spread, so the instance
+                            // id and any object-scoped exile tax ride along.
+                            castSubjectView(card, alt.id),
                             alt.mana ?? {},
                             state,
                             {

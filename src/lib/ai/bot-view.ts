@@ -915,8 +915,11 @@ function nameCardDefaultFor(
  *  through `src/main.tsx`'s catalogue side-effect import — so this yields the
  *  same names in the same order. What it yields EXTRA (the face-down sentinel,
  *  runtime token definitions) is filtered out by `isLegalNamedCard` itself,
- *  whose `tryGetCardByName` reads the catalogue's printed-name registry: a
- *  synthetic definition is not a legal card name and cannot be returned here.
+ *  whose `tryGetCardByName` reads the catalogue's name registry: a synthetic
+ *  definition is not a legal card name and cannot be returned here. The ONE
+ *  exception is deliberate — an inset spell's TWIN is registry-only and IS a
+ *  legal name, because CR 715.5 says a player choosing a card name may choose
+ *  an adventurer card's alternative name (ADR 0120).
  *
  *  Lazy, so the common case stops at the first candidate instead of expanding
  *  ~1900 definitions to read one `.name`. */

@@ -31,7 +31,7 @@
 //     the revert, the way `transformedFrom` retains it.
 
 import {
-    hasAdventure,
+    castableInsetKind,
     insetSpellDefinitionId,
     parentIdOfInsetSpell,
 } from "../cards/insetSpell";
@@ -65,11 +65,12 @@ export function isAdventureCastAltCostId(altCostId: string): boolean {
 export function adventureTwin(
     def: CardDefinition | undefined
 ): CardDefinition | undefined {
-    if (!hasAdventure(def)) return undefined;
-    return (
-        tryGetDefinition(insetSpellDefinitionId(def!.id, "adventure")) ??
-        undefined
-    );
+    // `castableInsetKind`, not `hasAdventure`: the question here is whether the
+    // PARENT may cast this half, which CR 722.3 answers differently for a
+    // prepare spell, and `INSET_SPELL_KINDS` is the one table that says so.
+    const kind = castableInsetKind(def);
+    if (kind !== "adventure") return undefined;
+    return tryGetDefinition(insetSpellDefinitionId(def!.id, kind)) ?? undefined;
 }
 
 /** CR 715.3 — the synthesized cast option for an adventurer card, or
@@ -134,7 +135,9 @@ export function isAdventureCastId(
     def: CardDefinition | undefined,
     altCostId: string | undefined
 ): boolean {
-    if (altCostId === undefined || !hasAdventure(def)) return false;
+    if (altCostId === undefined || castableInsetKind(def) !== "adventure") {
+        return false;
+    }
     return altCostId === adventureCastAltCostId(def!);
 }
 

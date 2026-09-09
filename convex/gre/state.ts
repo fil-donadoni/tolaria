@@ -7110,6 +7110,20 @@ function resetStackTransientState(item: StackItem): void {
     // function, which is exactly what lets the resolved permanent stay
     // bestowed (CR 702.103b).
     revertBestow(item);
+    // CR 715.4 — the exact same obligation, one mechanic later: an Adventure
+    // cast MUTATED the object's identity in place (`card.card.id` is the twin,
+    // and its type line with it), so a bare departure would leave an Instant
+    // named "Petty Theft" sitting in a hand, a library or exile — an object
+    // that is in no enumerated population and is not the card its owner owns.
+    // "In every zone except the stack … an adventurer card has only its NORMAL
+    // characteristics", so the revert belongs at the ONE chokepoint every
+    // non-battlefield departure already passes through, not at each of them:
+    // `counter()`'s exile / library-top / hand branches (Remand, Memory Lapse),
+    // `moveSpellFromStack` (Subtlety, Reprieve), and the shuffle-into-library /
+    // rebound / exile-on-resolve / buyback redirects were ALL uncovered while
+    // only the graveyard and 715.3d paths called it (PR #3302 review finding 2).
+    // A no-op on every item not cast as an Adventure.
+    revertAdventureIdentity(item);
     // CR 307.1 / 117.1a / 601.3a (issue #2473) — same leak shape as
     // `evoked`/`dashed`/`escaped` immediately above: a COUNTERED (or
     // otherwise stack-leaving-without-resolving) spell must not carry this
@@ -16340,6 +16354,12 @@ export function buildSpellContext(
                 card.castFromExileWithoutPayingManaCost = true;
             } else {
                 delete card.castFromExileWithoutPayingManaCost;
+                // CR 715.3d — the SEVENTH sibling, cleared in the SAME permission
+                // window as the six above. Left standing it is durable and
+                // zone-independent: a card exiled by its own Adventure, cast from
+                // exile and later bounced would refuse the Adventure from HAND for
+                // the rest of the game (PR #3302 review finding 3).
+                delete card.castFromExileNotAsAdventure;
             }
             // CR 305.9 (issue #1689) — only a grant whose Oracle text says
             // "play" ALSO authorizes a LAND under it; see the field's own
@@ -21348,6 +21368,12 @@ export function moveCard(
         delete card.castableFromExileBy;
         delete card.castableFromExileUntilTurn;
         delete card.castFromExileWithoutPayingManaCost;
+        // CR 715.3d — the SEVENTH sibling, cleared in the SAME permission
+        // window as the six above. Left standing it is durable and
+        // zone-independent: a card exiled by its own Adventure, cast from
+        // exile and later bounced would refuse the Adventure from HAND for
+        // the rest of the game (PR #3302 review finding 3).
+        delete card.castFromExileNotAsAdventure;
         delete card.castableFromExileIncludesLand;
         delete card.castFromExileManaSubstitution;
         delete card.castFromExileCostIncrease;
@@ -21569,6 +21595,12 @@ export function removeFromZone(
     // CR 601.3 (issue #1156) — the free-cast waiver (Dauthi Voidwalker) rides
     // the SAME permission window as `castableFromExileBy`; consumed together.
     delete card.castFromExileWithoutPayingManaCost;
+    // CR 715.3d — the SEVENTH sibling, cleared in the SAME permission
+    // window as the six above. Left standing it is durable and
+    // zone-independent: a card exiled by its own Adventure, cast from
+    // exile and later bounced would refuse the Adventure from HAND for
+    // the rest of the game (PR #3302 review finding 3).
+    delete card.castFromExileNotAsAdventure;
     // CR 305.9 (issue #1689) — the land-inclusive marker rides the SAME
     // permission window as `castableFromExileBy`; consumed together.
     delete card.castableFromExileIncludesLand;

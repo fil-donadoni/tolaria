@@ -484,3 +484,35 @@ describe("bestow variants are discriminated at the seam (CR 702.103b, issue #279
         expect(seam.own).toBeGreaterThan(seam.gift);
     });
 });
+
+describe("a cast mode is priced against its OWN characteristics (CR 601.2f)", () => {
+    // PR #3302 review finding 1, on the seam the Bot owns. `enumerateCastMoves`
+    // builds a real `tapPlan` from a real cost, so a variant priced against the
+    // printed card is not merely mis-valued — it is not enumerated at all when
+    // the board covers only the true price, and the Bot never sees the line.
+    //
+    // Mana Matrix ("Instant and enchantment spells you cast cost {2} less")
+    // reads a CARD TYPE, which is exactly what an announced cast mode changes:
+    // Petty Theft is an Instant, Brazen Borrower is a Creature.
+    it("enumerates the Adventure off ONE Island under Mana Matrix", () => {
+        const state = positionFor("Brazen Borrower", ISLAND, 1);
+        state.players[0].battlefield.push(
+            makeInstance(getCardByName("Mana Matrix").id, {
+                id: "matrix",
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        const adventureCasts = enumerateMoves(state, "p1").filter(
+            (m): m is Extract<Move, { kind: "cast-spell" }> =>
+                m.kind === "cast-spell" &&
+                m.cardInstanceId === "subject" &&
+                (m.alternativeCostId ?? "").startsWith("adventure:")
+        );
+        // {1}{U} reduced by {2} is {U}: one Island covers it, and the plan taps
+        // exactly that one. Priced against the printed Creature there is no
+        // reduction, `planManaPayment` returns null and this list is empty.
+        expect(adventureCasts.length).toBeGreaterThan(0);
+        expect(adventureCasts[0].tapPlan).toHaveLength(1);
+    });
+});

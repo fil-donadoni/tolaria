@@ -36,7 +36,7 @@
 import { expandDefinition } from "../cards/registry";
 import type { CardDefinition, GameEventType, InsetSpell } from "../cards/types";
 import type { CompiledTriggerHead } from "../cards/compiledTriggers";
-import { compileCard } from "./compile";
+import { compileCard, oracleLayoutForInsetKind } from "./compile";
 import { canonicaliseShorthands, sortKeys } from "./gates";
 import type { ManaCost } from "../cards/types";
 import type {
@@ -340,7 +340,7 @@ export function goldOracleCard(definition: CardDefinition): OracleCard {
         // its `insetSpell` — the same halves the compiler lowered them from.
         ...(definition.insetSpell
             ? {
-                  layout: definition.insetSpell.kind,
+                  layout: oracleLayoutForInsetKind(definition.insetSpell.kind),
                   faces: [
                       {
                           name: definition.name,

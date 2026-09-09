@@ -138,11 +138,7 @@ import { liveSupertypesOf, countSnowLands } from "./snow";
 import { canSummonCompanion } from "./companion";
 import { adventureCastOptionFor, adventureTwin } from "./adventure";
 import { castSubjectView } from "./castMode";
-import {
-    faceDownCastView,
-    morphCastAlternativeCost,
-    turnableFaceUpPermanents,
-} from "./morph";
+import { morphCastAlternativeCost, turnableFaceUpPermanents } from "./morph";
 import { hasRetrace } from "./retrace";
 import { flashbackExileEligibleCount } from "./flashback";
 import { hasEscape } from "./escape";
@@ -2549,7 +2545,11 @@ function enumerateCastMovesFromZone(
         // taxed a face-down Exalted Angel {3}.
         const morphModifiers = getCostModifiers(
             state,
-            faceDownCastView(card),
+            // The shared seam, not a local `faceDownCastView` call: every site
+            // that prices a cast asks `castSubjectView` what the announced cast
+            // IS, so the enumerator, the gate and the payment cannot drift
+            // apart when a new mode needs a view (PR #3302 review finding 1).
+            castSubjectView(card, morphCast.id),
             "spell"
         );
         applyCostModifiers(morphCost, morphModifiers);

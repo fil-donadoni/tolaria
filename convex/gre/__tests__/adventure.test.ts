@@ -44,7 +44,13 @@ import {
     getLegalTargets,
     targetingSourceFromCard,
 } from "../rules";
-import { resolveTopOfStack } from "../state";
+import {
+    applyCostModifiers,
+    getCostModifiers,
+    normalizeManaCost,
+    removeFromZone,
+    resolveTopOfStack,
+} from "../state";
 import type { CardInstanceState, GameState, StackItem } from "../state";
 
 const BORROWER = getCardByName("Brazen Borrower").id;
@@ -376,5 +382,148 @@ describe("CR 715.3d — a RESOLVED Adventure is exiled, not put into the graveya
         expect((graveyard[0].card as { id: string }).id).toBe(BORROWER);
         expect(graveyard[0].types).toEqual(["Creature"]);
         expect(graveyard[0].adventureOf).toBeUndefined();
+    });
+});
+
+describe("CR 601.2f / 715.3a — the gate and the payment price the SAME object", () => {
+    // PR #3302 review finding 1. Every cost-modifier collector on a cast path
+    // must be handed the ANNOUNCED subject, and while `announceCast`'s payment
+    // sites folded against the printed card they disagreed with the gate in
+    // BOTH directions on shipped cards: Mana Matrix ("Instant and enchantment
+    // spells you cast cost {2} less") reduced Petty Theft at the gate and not
+    // at the payment, parking a cast the caster could never cover; Thalia
+    // ("Noncreature spells cost {1} more") taxed it at the gate and not at the
+    // payment, undercharging it. One seam, `castSubjectView`, now answers for
+    // both — and for morph, whose own view it composes in.
+    function withManaMatrix(islands: number): GameState {
+        const state = position(islands);
+        state.players[0].battlefield.push(
+            makeInstance(getCardByName("Mana Matrix").id, {
+                id: "matrix",
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        return state;
+    }
+
+    it("collects a modifier keyed on the INSET half's card type, not the parent's", () => {
+        const state = withManaMatrix(1);
+        const card = handCard(state);
+        const altId = adventureIdFor(state);
+        // Brazen Borrower is a Creature — Mana Matrix does not see it.
+        expect(getCostModifiers(state, card, "spell").reductionGeneric).toBe(0);
+        // Petty Theft is an Instant — it does.
+        expect(
+            getCostModifiers(state, castSubjectView(card, altId), "spell")
+                .reductionGeneric
+        ).toBe(2);
+    });
+
+    it("prices the Adventure at {U} off ONE Island, gate and payment alike", () => {
+        const state = withManaMatrix(1);
+        const card = handCard(state);
+        const alt = adventureCastOptionFor(card)!;
+        // The PAYMENT total, built the way every commit site builds it.
+        const priced = normalizeManaCost(alt.mana ?? {}, {});
+        applyCostModifiers(
+            priced,
+            getCostModifiers(state, castSubjectView(card, alt.id), "spell")
+        );
+        expect(priced).toEqual({ U: 1 });
+        // …and the GATE agrees: one Island is enough.
+        expect(getLegalActions(state, state.players[0], card)).toContain(
+            "cast"
+        );
+    });
+
+    it("leaves the PRINTED cast priced against the printed card", () => {
+        // The reduction must not leak onto the creature half: Brazen Borrower
+        // is a Creature and Mana Matrix reads Instants and enchantments.
+        const state = withManaMatrix(2);
+        const card = handCard(state);
+        const priced = normalizeManaCost({ X: 1, U: 2 }, {});
+        applyCostModifiers(
+            priced,
+            getCostModifiers(state, castSubjectView(card, undefined), "spell")
+        );
+        expect(priced).toEqual({ X: 1, U: 2 });
+    });
+});
+
+describe("CR 715.4 — every stack DEPARTURE restores the adventurer card", () => {
+    // PR #3302 review finding 2. The revert lives at `resetStackTransientState`,
+    // the one chokepoint every non-battlefield departure passes through, rather
+    // than at the two sites that happened to be wired first. Left uncovered,
+    // Remand put an Instant named "Petty Theft" into a hand — an object in no
+    // enumerated population, with no `insetSpell`, that could never revert.
+    function counteredBy(counterName: string): GameState {
+        const state = position(2);
+        pushAdventure(state, "giant");
+        const counterCard = makeInstance(getCardByName(counterName).id, {
+            id: "counter",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "stack",
+        });
+        state.stack.push({
+            ...counterCard,
+            castById: "p2",
+            targets: [{ type: "spell", id: "borrower" }],
+        } as StackItem);
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    it("Remand — countered to HAND, as the adventurer card", () => {
+        const state = counteredBy("Remand");
+        const inHand = state.players[0].hand.find((c) => c.id === "borrower");
+        expect(
+            inHand,
+            "the countered spell reached its owner's hand"
+        ).toBeDefined();
+        expect((inHand!.card as { id: string }).id).toBe(BORROWER);
+        expect(inHand!.adventureOf).toBeUndefined();
+        expect(inHand!.types).toEqual(["Creature"]);
+        expect(inHand!.power).toBe(3);
+        // …and it is castable as an Adventure again from there: nothing about
+        // being countered withdraws CR 715.3.
+        expect(adventureCastOptionFor(inHand!)).toBeDefined();
+    });
+
+    it("Memory Lapse — countered to the LIBRARY, as the adventurer card", () => {
+        const state = counteredBy("Memory Lapse");
+        const onTop = state.players[0].library[0];
+        expect(onTop?.id).toBe("borrower");
+        expect((onTop.card as { id: string }).id).toBe(BORROWER);
+        expect(onTop.adventureOf).toBeUndefined();
+        expect(onTop.types).toEqual(["Creature"]);
+    });
+});
+
+describe("CR 715.3d — the restriction is the PERMISSION's, not the card's", () => {
+    // PR #3302 review finding 3. `castFromExileNotAsAdventure` is cleared in
+    // the same window as its six siblings. Left standing it is durable and
+    // zone-independent: the card would refuse the Adventure from HAND for the
+    // rest of the game, and survive a DB round trip in that state.
+    it("clears with its siblings when the card leaves exile", () => {
+        const state = position(4);
+        pushAdventure(state, "giant");
+        resolveTopOfStack(state);
+        const exiled = state.players[0].exile[0];
+        expect(exiled.castFromExileNotAsAdventure).toBe(true);
+
+        // Cast the creature half out of exile — `removeFromZone` is the same
+        // departure that strips `castableFromExileBy`.
+        const taken = removeFromZone(
+            state,
+            state.players[0],
+            exiled.id,
+            "exile"
+        );
+        expect(taken.castableFromExileBy).toBeUndefined();
+        expect(taken.castFromExileNotAsAdventure).toBeUndefined();
+        // …so once it is anywhere else, the Adventure is on offer again.
+        expect(adventureCastOptionFor(taken)).toBeDefined();
     });
 });

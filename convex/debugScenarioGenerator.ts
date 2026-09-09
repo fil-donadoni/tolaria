@@ -15,7 +15,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { v } from "convex/values";
 import { action } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { getAllCardNames, tryGetCardByName } from "./cards";
+import { getAllCardNames, tryGetPlaceableCardByName } from "./cards";
 import {
     SCENARIO_JSON_SCHEMA,
     buildRegenerateDescription,
@@ -93,7 +93,7 @@ export const generateDebugScenario = action({
             description: trimmed,
             allowList: getAllCardNames(),
             generate: makeAnthropicGenerate(apiKey),
-            resolves: (name) => tryGetCardByName(name) !== null,
+            resolves: (name) => tryGetPlaceableCardByName(name) !== null,
         });
     },
 });
@@ -137,7 +137,7 @@ export const regenerateDebugScenario = action({
             description,
             allowList: getAllCardNames(),
             generate: makeAnthropicGenerate(apiKey),
-            resolves: (name) => tryGetCardByName(name) !== null,
+            resolves: (name) => tryGetPlaceableCardByName(name) !== null,
         });
         return { ...result, prompt: description };
     },

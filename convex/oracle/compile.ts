@@ -58,6 +58,19 @@ const SUPPORTED_INSET_LAYOUTS: Record<string, InsetSpellKind> = {
     adventure: "adventure",
 };
 
+/** The inverse of {@link SUPPORTED_INSET_LAYOUTS} — the Scryfall layout string
+ *  a lowered `insetSpell.kind` came from. `goldOracleCard` needs it to rebuild
+ *  the compiler's own input: emitting the KIND there happens to work only while
+ *  the two vocabularies coincide, and the day a `"prepare"` card ships under
+ *  whatever layout Scryfall names it, its gold round trip would refuse a card
+ *  that compiles fine from the corpus (PR #3302 review finding 8). */
+export function oracleLayoutForInsetKind(kind: InsetSpellKind): string {
+    for (const [layout, k] of Object.entries(SUPPORTED_INSET_LAYOUTS)) {
+        if (k === kind) return layout;
+    }
+    return kind;
+}
+
 /**
  * The fields the {@link InsetSpell} record can carry. A face that compiled to
  * ANYTHING else is refused rather than truncated: the whole premise of this

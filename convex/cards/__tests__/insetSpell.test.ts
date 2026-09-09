@@ -18,6 +18,7 @@ import {
     tryGetDefinition,
 } from "../index";
 import {
+    castableInsetKind,
     chooseableCardNames,
     hasAdventure,
     insetSpellDefinitionId,
@@ -25,6 +26,12 @@ import {
     parentIdOfInsetSpell,
     INSET_SPELL_KINDS,
 } from "../insetSpell";
+import {
+    getChooseableCardNames,
+    tryGetPlaceableCardByName,
+} from "../catalogue";
+
+import type { CardDefinition } from "../types";
 
 const PARENT = "Brazen Borrower";
 const INSET = "Petty Theft";
@@ -163,6 +170,79 @@ describe("CR 722.3 — the kind decides whether the parent offers a cast", () =>
         // The single bit that separates CR 715 from CR 722. It is a `Record`
         // over the kind union so a third kind cannot compile without answering.
         expect(INSET_SPELL_KINDS.adventure.castableFromParent).toBe(true);
+        expect(INSET_SPELL_KINDS.prepare.castableFromParent).toBe(false);
+    });
+});
+
+describe("the choice DOMAIN and the placeable POPULATION are different sets", () => {
+    // PR #3302 review findings 4 and 5, which are the same boundary read from
+    // opposite sides. CR 715.5 widens what a player may NAME; CR 715.2c and
+    // 715.4 keep what may be PLACED at exactly one card per adventurer card.
+    // Sharing one lookup for both is what left the human's name-choice button
+    // inert while a scenario spec could seed an Instant into a hand.
+    it("a player may CHOOSE the inset name", () => {
+        const names = getChooseableCardNames();
+        expect(names).toContain(PARENT);
+        expect(names).toContain(INSET);
+    });
+
+    it("adds ONLY inset names — a domain that drifted would offer names the server refuses", () => {
+        // Not merely "bigger". The client's `name-card` submit gate is built
+        // from this list and the server validates with `tryGetCardByName`, so
+        // every extra name here must resolve, and resolve to a TWIN — anything
+        // else is a name the button would accept and the mutation would throw
+        // on. Stated as an invariant rather than a count so the assertion
+        // survives the next adventurer card (13 compiled rows already
+        // contribute one each).
+        const enumerated = new Set(getAllCardNames());
+        const extras = getChooseableCardNames().filter(
+            (n) => !enumerated.has(n)
+        );
+        expect(extras).toContain(INSET);
+        for (const name of extras) {
+            const resolved = tryGetCardByName(name);
+            expect(resolved, `"${name}" resolves`).not.toBeNull();
+            expect(resolved!.id).toContain("#");
+        }
+        for (const name of getAllCardNames()) {
+            expect(getChooseableCardNames()).toContain(name);
+        }
+    });
+
+    it("the inset name is NOT placeable into a zone (CR 715.4)", () => {
+        // "In every zone except the stack … an adventurer card has only its
+        // NORMAL characteristics." A scenario, cube or banlist entry naming
+        // the Adventure resolves to nothing rather than to the twin.
+        expect(tryGetPlaceableCardByName(INSET)).toBeNull();
+        expect(tryGetPlaceableCardByName(PARENT)?.name).toBe(PARENT);
+        expect(tryGetPlaceableCardByName("Boomerang")?.name).toBe("Boomerang");
+    });
+});
+
+describe("CR 722.3 — castability is read from the table, never from the kind string", () => {
+    // PR #3302 review finding 6: `INSET_SPELL_KINDS` existed but nothing read
+    // it, so every cast surface answered "may the parent cast this?" with a
+    // literal `kind === "adventure"` — and adding a kind would have compiled
+    // with no site forced to answer.
+    it("answers for an adventurer card and for a card with no inset spell", () => {
+        expect(castableInsetKind(getCardByName(PARENT))).toBe("adventure");
+        expect(castableInsetKind(getCardByName("Boomerang"))).toBeUndefined();
+        expect(castableInsetKind(undefined)).toBeUndefined();
+    });
+
+    it("withholds a kind the table says the parent may never cast", () => {
+        // CR 722.3 — "a preparation card can never be cast" with its inset
+        // characteristics. Asserted through the same predicate every cast
+        // surface reads, on a variant definition, so the claim is about the
+        // TABLE and not about which kinds happen to ship today.
+        const parent = getCardByName(PARENT);
+        const prepared: CardDefinition = {
+            ...parent,
+            insetSpell: { ...parent.insetSpell!, kind: "prepare" },
+        };
+        expect(castableInsetKind(prepared)).toBeUndefined();
+        // …while CR 715.2a's "has an X" predicate is a different question and
+        // is unaffected by castability.
         expect(INSET_SPELL_KINDS.prepare.castableFromParent).toBe(false);
     });
 });

@@ -55,8 +55,12 @@ import {
     adventureTwin,
     castAsAdventure,
 } from "./adventure";
-import { hasAdventure } from "../cards/insetSpell";
-import { isMorphCastId, MORPH_CAST_ALT_COST_ID } from "./morph";
+import { castableInsetKind } from "../cards/insetSpell";
+import {
+    faceDownCastView,
+    isMorphCastId,
+    MORPH_CAST_ALT_COST_ID,
+} from "./morph";
 import type { CardInstanceState } from "./state";
 import type { LayerStateView } from "./layers";
 
@@ -173,7 +177,9 @@ const CAST_MODE_CENSUS: Record<CastMode, CastModeRow> = {
     // the CR 715.4 revert.
     adventure: {
         idOf: (def) =>
-            hasAdventure(def) ? adventureCastAltCostId(def!) : undefined,
+            castableInsetKind(def) === "adventure"
+                ? adventureCastAltCostId(def!)
+                : undefined,
         subject: (def) => adventureTwin(def) ?? def,
         stamp: (_state, item) => castAsAdventure(item),
     },
@@ -290,6 +296,18 @@ export function castSubjectView(
 ): CardInstanceState {
     const cardId = (card.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : null;
+    // CR 702.37c — MORPH is the one mode whose subject is not a registered
+    // definition but a synthesized 2/2, so the census row keeps `subject` as
+    // the identity (ADR 0120 §3) and the VIEW composes in `faceDownCastView`,
+    // which has expressed those characteristics since before this seam existed.
+    // Answered HERE rather than at each caller: the five surfaces that price a
+    // cast used to carry their own `isMorphCast ? faceDownCastView(card) :
+    // card` ternary, and the day a SECOND mode needed a view three of them had
+    // not been updated (PR #3302 review finding 1) — a gate pricing Petty Theft
+    // as an Instant while the payment priced the Creature.
+    if (isMorphCastId(def ?? undefined, alternativeCostId)) {
+        return faceDownCastView(card);
+    }
     const subject = castSubjectDefinition(def ?? undefined, alternativeCostId);
     if (!def || !subject || subject.id === def.id) return card;
     return {
