@@ -19,6 +19,8 @@ bun run land <PR#>                     # 6. rebase, gate, merge into the base br
 cd /Users/filippo/code/mtg/tolaria     # the primary checkout, on the release branch
 bun run release --dry-run              # what would move, nothing moves
 bun run release                        # full gate on the base tip, then main fast-forwards
+bun run release --no-fix               # ... but refuse on RED instead of starting a fix
+bun run health:fix                     # clear a standing RED marker without a release
 ```
 
 Branch names are not in this guide because they are not in the scripts either:
@@ -140,21 +142,73 @@ production deploy.
 4. Reads `.claude/telemetry/health/last.json` and releases **only** if the
    record is GREEN and about exactly the tip being promoted. A record about
    another sha, a RED, or a run still marked `running` refuses with the reason.
-5. `git push origin <sha>:refs/heads/<release>` — a plain refspec, so git
+5. On RED — and only on RED — hands the tip to the [fix loop](#g-fix-loop)
+   below, then gates again. Everything else refuses.
+6. `git push origin <sha>:refs/heads/<release>` — a plain refspec, so git
    itself refuses a non-fast-forward. Never `--force` (`deny-guard.sh` § 2
    denies it for both configured branches).
-6. Fast-forwards the primary checkout's local release branch when it is the
+7. Fast-forwards the primary checkout's local release branch when it is the
    one checked out.
 
 `bun run health:status` shows the last verdict at any time. `bun run health`
 runs the same gate by hand (`--branch=<name>` picks the tip).
 
+### The RED path: the fix loop
+
+A RED verdict starts a repair rather than ending the run (ADR 0118). One round
+is one health gate plus at most one fix:
+
+1. `release` hands the red tip to `bun run health:fix`, which spawns an
+   **interactive** Claude session on the `/health-fix` skill. That session
+   reproduces the failing step in a detached worktree at the tip, fixes it
+   forward with a test closing the CLASS of the failure, opens an issue and a
+   PR, and lands it through `bun run land` like any other change. It never
+   reverts, and it never calls `release` itself.
+2. The session's last act is a **verdict file**,
+   `.claude/telemetry/health/fix-verdict.json` — an interactive `claude` exits
+   0 whatever happened inside it, so the exit status carries no answer.
+   `landed` (with the PR verified `MERGED`) or `stuck`, and nothing else.
+3. Parsing is **fail-closed**: no file, unparsable JSON, an unknown outcome or
+   a verdict about another sha all read as `stuck`, which ends the loop and
+   leaves the RED marker standing.
+4. On `landed`, the base tip is re-read from the remote — the base branch
+   moved — and the next round gates the fixed tree.
+
+Bounds and switches:
+
+| Flag                   | Effect                                                                 |
+| ---------------------- | ---------------------------------------------------------------------- |
+| (none)                 | up to **three** rounds, then the handover                              |
+| `--max-fix-attempts=N` | moves the bound; refuses `N < 2` (a bound of 1 never re-gates the fix) |
+| `--no-fix`             | the pre-ADR-0118 behaviour: refuse on RED, spawn nothing               |
+| `--dry-run`            | unchanged — prints the tips, gates nothing, spawns nothing             |
+
+Three rather than one because the health gate stops at its FIRST failing step
+and `bun run test` runs its three suites in series: a tip red at `test:app`
+and then at `test:bot` is two legitimate reds, not an oscillating fixer.
+
+**No terminal, no spawn.** `health:fix` refuses when stdin is not a TTY and
+prints the command to type by hand — the fixer grills on ambiguity, and a
+question asked into a pipe hangs the run. So `release` inside another Claude
+session, or under `nohup`, behaves exactly as it did before ADR 0118.
+`loop-drain.sh` is unchanged for the same reason: it still **stops** on RED
+rather than spawning a fixer nobody authorised overnight.
+
+`bun run health:fix` on its own is the manual entry point — same skill, same
+verdict, no release. It is how a standing RED marker blocking the AFK loop
+gets cleared. It refuses, each with its reason: no `RED` marker (exit 0), a
+marker with no health record behind it, a record about another sha, a record
+that is `running` or `green`, and no TTY.
+
 ### When release refuses
 
-- **RED.** The marker stays; `land` warns on every landing until it is gone.
-  Fix forward on the base branch like any PR — never stack unrelated work on
-  a red tip, never silence a test — then `release` again. Attribution over a
-  batch of N landings costs at most ⌈log₂ N⌉ health runs.
+- **RED, and the [fix loop](#g-fix-loop) gave up.** The handover names what every round
+  attempted, then the refusal verbatim; the marker stays and `land` warns on
+  every landing until it is gone. A `stuck` verdict means the fixer would not
+  defend its own repair — read its issue, fix forward on the base branch like
+  any PR (never stack unrelated work on a red tip, never silence a test), then
+  `release` again. Attribution over a batch of N landings costs at most
+  ⌈log₂ N⌉ health runs.
 - **Non-fast-forward.** The release branch has a commit the base branch lacks
   (someone pushed to it directly). In a detached worktree at `origin/<base>`:
   `git merge origin/<release>`, `git push origin HEAD:refs/heads/<base>`, then
@@ -191,6 +245,14 @@ test suites) on one branch tip, leaving a durable verdict under
 `.claude/telemetry/health/`. Runs at release, or by hand — never per landing
 (ADR 0116; the per-landing version cost ~213 minutes of mutex a day and
 produced 1.4 contention false-REDs a day).
+
+### <a id="g-fix-loop"></a>Fix loop
+
+`release`'s bounded repair of a RED base tip (ADR 0118): up to three rounds of
+[health gate](#g-health-gate) → `bun run health:fix` → an interactive
+`/health-fix` session → a fail-closed verdict file. Never spawns without a
+TTY; `--no-fix` disables it; `loop-drain.sh` does not use it and still stops
+on RED.
 
 ### <a id="g-heavy-mutex"></a>Heavy mutex
 
