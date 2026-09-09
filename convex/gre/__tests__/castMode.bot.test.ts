@@ -28,6 +28,7 @@ import {
 } from "../../cards/__tests__/setup";
 import { enumerateMoves, type Move } from "../moves";
 import { MORPH_CAST_ALT_COST_ID } from "../morph";
+import { adventureCastAltCostId } from "../adventure";
 import { applyMoveForSearch } from "../applyMove";
 import { applyMoveInSearch, policyValue } from "../search";
 import {
@@ -46,6 +47,7 @@ import { NO_BOARD_LAYER_VIEW } from "../layers";
 const FOREST = getCardByName("Forest").id;
 const PLAINS = getCardByName("Plains").id;
 const MOUNTAIN = getCardByName("Mountain").id;
+const ISLAND = getCardByName("Island").id;
 
 /** Every characteristic a cast mode can change. Deliberately WIDER than the
  *  boolean markers (PR #3056 review finding 6): `applyBestowCharacteristics`
@@ -61,6 +63,11 @@ function modeMarkersOf(card: CardInstanceState) {
         dashed: card.dashed === true,
         evoked: card.evoked === true,
         overloaded: card.overloaded === true,
+        // CR 715.3b — the Adventure's mark IS the retained front id
+        // (`adventureOf`), not a boolean beside it; the identity swap it
+        // records is what the type/subtype/P-T fields below then show.
+        adventure: card.adventureOf !== undefined,
+        cardId: (card.card as { id?: string }).id,
         types: [...(card.types ?? [])].sort(),
         subtypes: [...(card.subtypes ?? [])].sort(),
         power: card.power,
@@ -77,6 +84,7 @@ const CLEARED_MARKERS = {
     dashed: undefined,
     evoked: undefined,
     overloaded: undefined,
+    adventureOf: undefined,
 } as const;
 
 /** A position in which `card` is castable, plus the opponent creature a
@@ -217,6 +225,32 @@ const MODE_FIXTURES: Record<CastMode, ModeFixture> = {
             expect(m.overloaded).toBe(true);
         },
     },
+    // CR 715.3b — "while on the stack as an Adventure, the spell has ONLY its
+    // alternative characteristics." The only row whose stamp is an IDENTITY
+    // swap: the object on the stack becomes the registered twin, so the
+    // 3/1 Faerie Rogue is gone and an Instant — Adventure is there instead.
+    // Unstamped, the tree prices Petty Theft as a 3/1 body it never gets, and
+    // (worse) resolves the creature half for the Adventure's price.
+    adventure: {
+        card: "Brazen Borrower",
+        land: ISLAND,
+        landCount: 2,
+        enumerated: true,
+        clearsOnResolve: true,
+        assertStamped: (m) => {
+            expect(m.adventure).toBe(true);
+            expect(m.cardId).toBe(
+                `${getCardByName("Brazen Borrower").id}#adventure`
+            );
+            expect(m.types).toEqual(["Instant"]);
+            expect(m.subtypes).toEqual(["Adventure"]);
+            // CR 715.3b — an Instant has no power or toughness. Leaving the
+            // printed 3/1 on would have the search valuing a body the
+            // Adventure line does not produce.
+            expect(m.power).toBeUndefined();
+            expect(m.toughness).toBeUndefined();
+        },
+    },
 };
 
 /** The enumerated cast of `subject` paying `mode`'s alternative cost. */
@@ -245,6 +279,9 @@ function subjectAfter(state: GameState): CardInstanceState {
         ...state.stack,
         ...state.players.flatMap((p) => p.battlefield),
         ...state.players.flatMap((p) => p.graveyard),
+        // CR 715.3d — a resolved Adventure is EXILED instead of being put into
+        // its owner's graveyard, so the greedy sandbox leaves its subject here.
+        ...state.players.flatMap((p) => p.exile),
     ];
     const found = everywhere.find((c) => c.id === "subject");
     if (!found) throw new Error("subject vanished");
@@ -267,6 +304,10 @@ function altCostIdFor(def: CardDefinition, mode: CastMode): string {
             return def.evoke?.id ?? "";
         case "overload":
             return def.overload?.id ?? "";
+        // CR 715.3 — synthesized like morph's, but per-card (the id carries the
+        // parent's own id, since it is the twin's identity the stamp needs).
+        case "adventure":
+            return adventureCastAltCostId(def);
     }
 }
 
@@ -441,5 +482,70 @@ describe("bestow variants are discriminated at the seam (CR 702.103b, issue #279
         // one of these six numbers was identical.
         expect(seam.printed).toBeGreaterThan(seam.own);
         expect(seam.own).toBeGreaterThan(seam.gift);
+    });
+});
+
+describe("a cast mode is priced against its OWN characteristics (CR 601.2f)", () => {
+    // PR #3302 review finding 1, on the seam the Bot owns. `enumerateCastMoves`
+    // builds a real `tapPlan` from a real cost, so a variant priced against the
+    // printed card is not merely mis-valued — it is not enumerated at all when
+    // the board covers only the true price, and the Bot never sees the line.
+    //
+    // Mana Matrix ("Instant and enchantment spells you cast cost {2} less")
+    // reads a CARD TYPE, which is exactly what an announced cast mode changes:
+    // Petty Theft is an Instant, Brazen Borrower is a Creature.
+    it("enumerates the Adventure off ONE Island under Mana Matrix", () => {
+        const state = positionFor("Brazen Borrower", ISLAND, 1);
+        state.players[0].battlefield.push(
+            makeInstance(getCardByName("Mana Matrix").id, {
+                id: "matrix",
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        const adventureCasts = enumerateMoves(state, "p1").filter(
+            (m): m is Extract<Move, { kind: "cast-spell" }> =>
+                m.kind === "cast-spell" &&
+                m.cardInstanceId === "subject" &&
+                (m.alternativeCostId ?? "").startsWith("adventure:")
+        );
+        // {1}{U} reduced by {2} is {U}: one Island covers it, and the plan taps
+        // exactly that one. Priced against the printed Creature there is no
+        // reduction, `planManaPayment` returns null and this list is empty.
+        expect(adventureCasts.length).toBeGreaterThan(0);
+        expect(adventureCasts[0].tapPlan).toHaveLength(1);
+    });
+
+    it("still prices a MORPH cast face down — the seam answers for every mode", () => {
+        // The regression the unification could introduce, and the reason this
+        // test exists at all: the three sites that price a cast used to carry
+        // their own `faceDownCastView` call, and they now share
+        // `castSubjectView`. If that seam ever stops composing morph in, morph
+        // silently reverts to being priced as the printed card — which is
+        // issue #2970's bug, not a new one, and nothing else here would catch
+        // it (measured: removing the branch left the whole suite green).
+        //
+        // Gloom ("White spells cost {3} more to cast", `lea/black.ts`) reads a
+        // COLOUR, and CR 702.37c strips it: a face-down spell is a colourless
+        // nameless 2/2. Six Plains cover the {3} morph cost taxed to {6}, and
+        // exactly cover the untaxed {3} with three to spare — so the tap plan's
+        // SIZE is what separates the two readings.
+        const state = positionFor("Exalted Angel", PLAINS, 6);
+        state.players[1].battlefield.push(
+            makeInstance(getCardByName("Gloom").id, {
+                id: "gloom",
+                controllerId: "p2",
+                ownerId: "p2",
+            })
+        );
+        const morphCasts = enumerateMoves(state, "p1").filter(
+            (m): m is Extract<Move, { kind: "cast-spell" }> =>
+                m.kind === "cast-spell" &&
+                m.cardInstanceId === "subject" &&
+                m.alternativeCostId === MORPH_CAST_ALT_COST_ID
+        );
+        expect(morphCasts.length).toBeGreaterThan(0);
+        // {3}, not {3} + Gloom's {3}.
+        expect(morphCasts[0].tapPlan).toHaveLength(3);
     });
 });

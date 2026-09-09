@@ -14,7 +14,35 @@
  * input is never mutated (the function clones internally).
  */
 
-import { getCardByName, tokenDefinitionId, tryGetDefinition } from "../cards";
+import {
+    getCardByName as getCatalogueCardByName,
+    tokenDefinitionId,
+    tryGetDefinition,
+} from "../cards";
+import { isInsetSpellDefinitionId } from "../cards/insetSpell";
+
+/** CR 715.4 — the name→card resolution EVERY builder in this module uses, with
+ *  the one thing a scenario may never name: an inset spell.
+ *
+ *  "In every zone except the stack, and while on the stack not as an Adventure,
+ *  an adventurer card has only its normal characteristics." A scenario places
+ *  cards into hands, battlefields, graveyards, libraries and exile — never onto
+ *  the stack as an Adventure — so an entry naming "Petty Theft" would seed an
+ *  Instant that is not a card in any zone the rules admit, with no card-index
+ *  row and no path back to its front face. The validators
+ *  (`debugScenarios.ts`, `debugScenarioGenerator.ts`) reject it first with a
+ *  readable message; this is the backstop that makes the builder itself
+ *  fail closed, because a spec can also arrive from a seeded backlog file that
+ *  never passed through them (PR #3302 review finding 5). */
+function getCardByName(name: string) {
+    const def = getCatalogueCardByName(name);
+    if (isInsetSpellDefinitionId(def.id)) {
+        throw new Error(
+            `"${name}" is an Adventure, not a card that can be placed in a zone (CR 715.4)`
+        );
+    }
+    return def;
+}
 import { INDEFINITE_SOURCE_ID } from "./layer6";
 import { basicLandsForColors, getCardColors } from "../cards/colors";
 import { findTokenSpec, listTokenCatalogue } from "../cards/tokenCatalogue";

@@ -47,6 +47,113 @@ describe("compileCard — states", () => {
         }
     });
 
+    it("an ADVENTURE layout lowers its second face into `insetSpell` (CR 715)", () => {
+        // ADR 0120 §5 — adventure leaves the fail-closed layout bucket because
+        // CR 715.4 keeps both faces off every zone but the stack: the front
+        // face IS the card, and the inset half is one optional field on it.
+        const outcome = compileCard(
+            oracleCard({
+                name: "Test Adventurer",
+                layout: "adventure",
+                typeLine: "Creature — Faerie",
+                oracleText: "",
+                faces: [
+                    {
+                        name: "Test Adventurer",
+                        manaCost: "{1}{U}",
+                        typeLine: "Creature — Faerie",
+                        oracleText: "Flying",
+                        power: "2",
+                        toughness: "1",
+                    },
+                    {
+                        name: "Test Errand",
+                        manaCost: "{U}",
+                        typeLine: "Instant — Adventure",
+                        oracleText:
+                            "Return target creature to its owner's hand.",
+                    },
+                ],
+            })
+        );
+        expect(outcome.state).not.toBe("unparsed");
+        if (outcome.state === "unparsed") return;
+        // The FRONT face is the card (CR 715.4).
+        expect(outcome.definition).toMatchObject({
+            name: "Test Adventurer",
+            types: ["Creature"],
+            power: 2,
+            toughness: 1,
+            staticAbilities: ["flying"],
+        });
+        // …and the second face is its inset spell, with its OWN name, cost,
+        // type line and script (CR 715.2).
+        expect(outcome.definition.insetSpell).toMatchObject({
+            kind: "adventure",
+            name: "Test Errand",
+            manaCost: { U: 1 },
+            types: ["Instant"],
+            subtypes: ["Adventure"],
+        });
+        expect(outcome.definition.insetSpell?.effects).toHaveLength(1);
+        // CR 715.3b — the inset half's characteristics are ITS own: nothing of
+        // the creature face leaks into it.
+        expect(
+            (outcome.definition.insetSpell as { staticAbilities?: unknown })
+                .staticAbilities
+        ).toBeUndefined();
+    });
+
+    it("an adventurer card without exactly two faces is unparsed", () => {
+        const outcome = compileCard(
+            oracleCard({ layout: "adventure", oracleText: "" })
+        );
+        expect(outcome.state).toBe("unparsed");
+        if (outcome.state === "unparsed") {
+            expect(outcome.gaps[0]?.reason).toMatch(/exactly two faces/);
+        }
+    });
+
+    it("an inset face carrying anything an InsetSpell cannot hold is unparsed", () => {
+        // Fail CLOSED rather than truncate. This module's card-level invariant
+        // is that "a definition missing one of its abilities is worse than no
+        // definition at all", and the inset half is where a silent truncation
+        // would be least visible — a keyword on the Adventure would simply
+        // vanish.
+        const outcome = compileCard(
+            oracleCard({
+                name: "Test Adventurer",
+                layout: "adventure",
+                typeLine: "Creature — Faerie",
+                oracleText: "",
+                faces: [
+                    {
+                        name: "Test Adventurer",
+                        manaCost: "{1}{U}",
+                        typeLine: "Creature — Faerie",
+                        oracleText: "",
+                        power: "2",
+                        toughness: "1",
+                    },
+                    {
+                        name: "Test Errand",
+                        manaCost: "{U}",
+                        typeLine: "Creature — Adventure",
+                        oracleText: "Flying",
+                        power: "1",
+                        toughness: "1",
+                    },
+                ],
+            })
+        );
+        expect(outcome.state).toBe("unparsed");
+        if (outcome.state === "unparsed") {
+            expect(outcome.gaps[0]?.reason).toMatch(
+                /an InsetSpell cannot hold/
+            );
+        }
+    });
+
     it("a land with a basic land type is unparsed (CR 305.6 intrinsic ability)", () => {
         const outcome = compileCard(
             oracleCard({

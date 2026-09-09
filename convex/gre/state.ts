@@ -99,6 +99,7 @@ setControlRelocation((state, card, previousControllerId, nextControllerId) => {
     removePermanentFromCombat(state, card.id);
 });
 import { turnFaceDown, turnFaceUp } from "./faceDown";
+import { revertAdventureIdentity, wasCastAsAdventure } from "./adventure";
 import type { FaceDownProducer } from "./faceDown";
 import {
     revertTransform,
@@ -1120,6 +1121,18 @@ export type CardInstanceState = {
      *  from non-controllers by `projectPublicState`; the controller's view
      *  restores `card.id` to this value. Restored on turn-up. */
     faceDownOf?: string;
+    /** CR 715.3b/715.4 — the FRONT (printed) card id of a stack item cast as
+     *  an Adventure, retained for the revert the moment the object leaves the
+     *  stack. Its presence IS the "was cast as an Adventure" mark
+     *  (`wasCastAsAdventure`, `gre/adventure.ts`) that CR 715.3d's exile
+     *  redirect keys on, exactly as `faceDownOf`'s presence marks a face-down
+     *  object — one field, never a flag beside an id that could be set apart
+     *  from it.
+     *
+     *  PUBLIC information, unlike `faceDownOf`: an Adventure spell shows its
+     *  alternative characteristics to both players (CR 715.3b), so nothing is
+     *  hidden at the projection boundary. */
+    adventureOf?: string;
     /** WHICH mechanic put this object face down (issue #2904) — see
      *  {@link FaceDownProducer}. Public information: an opponent watching a
      *  morph cast knows it was a morph, and the face-down FACE the client
@@ -1384,6 +1397,20 @@ export type CardInstanceState = {
      *  (`phases.ts`), and `applyPlayLandFromExile`. Persisted so the grant
      *  survives a DB round-trip. */
     castFromExileWithoutPayingManaCost?: boolean;
+    /** CR 715.3d — the SEVENTH sibling of {@link castableFromExileBy}: the
+     *  permission granted by an Adventure's own resolution does not offer the
+     *  Adventure cast option again ("It can't be cast as an Adventure this
+     *  way").
+     *
+     *  It rides the PERMISSION, never the zone, and that distinction is the
+     *  whole of the subrule's second half: "although other effects that allow
+     *  a player to cast it may allow a player to cast it as an Adventure." A
+     *  card exiled by its own Adventure and then reached by, say, a
+     *  play-from-exile grant is castable as an Adventure again; this flag
+     *  suppresses the option only for the grant that carries it. Cleared
+     *  wherever `castableFromExileBy` is cleared (the SAME permission window).
+     *  Persisted so the restriction survives a DB round-trip. */
+    castFromExileNotAsAdventure?: boolean;
     /** Cast-from-graveyard permission for a SPECIFIC card (CR 601.3, with the
      *  waiver's own CR 118.9, issue #1344 — Malcolm, Alluring Scoundrel: "you may cast
      *  the discarded card without paying its mana cost"). The graveyard-zone
@@ -2564,6 +2591,16 @@ export type PendingCast = {
      *  cost the overload price and then affected the one thing it never
      *  targeted. */
     overloaded?: boolean;
+    /** CR 715.3 (ADR 0120) — true iff the alternative cost chosen for this cast
+     *  is the card's ADVENTURE cast (`isAdventureCastAlternativeCost` at
+     *  announcement). Carried through the parked cast for the same reason as
+     *  `bestowed`/`morphed`, and it is the same KIND of thing they are: not a
+     *  marker for a later trigger but a rewrite of the object put on the stack
+     *  (CR 715.3b — "while on the stack as an Adventure, the spell has only its
+     *  alternative characteristics"). Without it the deferred commit puts the
+     *  CREATURE half on the stack for a cast the caster paid the Adventure's
+     *  price for. */
+    castAsAdventure?: boolean;
     /** CR 601.2 / 307.1 / 117.1a / 601.3a (issue #2473) — the "a sorcery
      *  couldn't have been cast right now" snapshot, taken at ANNOUNCEMENT
      *  (`announceCast`, before any cost is paid) and carried here so the
@@ -7073,6 +7110,20 @@ function resetStackTransientState(item: StackItem): void {
     // function, which is exactly what lets the resolved permanent stay
     // bestowed (CR 702.103b).
     revertBestow(item);
+    // CR 715.4 — the exact same obligation, one mechanic later: an Adventure
+    // cast MUTATED the object's identity in place (`card.card.id` is the twin,
+    // and its type line with it), so a bare departure would leave an Instant
+    // named "Petty Theft" sitting in a hand, a library or exile — an object
+    // that is in no enumerated population and is not the card its owner owns.
+    // "In every zone except the stack … an adventurer card has only its NORMAL
+    // characteristics", so the revert belongs at the ONE chokepoint every
+    // non-battlefield departure already passes through, not at each of them:
+    // `counter()`'s exile / library-top / hand branches (Remand, Memory Lapse),
+    // `moveSpellFromStack` (Subtlety, Reprieve), and the shuffle-into-library /
+    // rebound / exile-on-resolve / buyback redirects were ALL uncovered while
+    // only the graveyard and 715.3d paths called it (PR #3302 review finding 2).
+    // A no-op on every item not cast as an Adventure.
+    revertAdventureIdentity(item);
     // CR 307.1 / 117.1a / 601.3a (issue #2473) — same leak shape as
     // `evoked`/`dashed`/`escaped` immediately above: a COUNTERED (or
     // otherwise stack-leaving-without-resolving) spell must not carry this
@@ -7162,6 +7213,13 @@ function sendStackItemToGraveyard(state: GameState, item: StackItem): void {
     // onto the battlefield (which is CR 708.4's face-down permanent and must
     // stay face down).
     turnFaceUp(state, item);
+    // CR 715.4 — the same rule, one rule later: "in every zone except the
+    // stack, and while on the stack not as an Adventure, an adventurer card has
+    // only its NORMAL characteristics." A COUNTERED or FIZZLED Adventure leaves
+    // the stack here, and what reaches the graveyard is the adventurer CARD —
+    // exactly as a countered face-down morph spell reaches it as its real card
+    // one line above (CR 708.11).
+    revertAdventureIdentity(item);
     const { destination, tagCounters } = graveyardDestinationFor(
         state,
         item.id,
@@ -7596,6 +7654,59 @@ function finalizeSpellResolution(
             // returns to hand for free.
             resetStackTransientState(item);
             owner.hand.push(item);
+            return;
+        }
+        // CR 715.3d (ADR 0120 §4) — "instead of putting a spell that was cast
+        // as an Adventure into its owner's graveyard as it RESOLVES, its
+        // controller exiles it. For as long as that card remains exiled, that
+        // player may play it."
+        //
+        // An ENGINE rule at the resolution site, never card text: the clause is
+        // printed in the card's FRAME, not in its Oracle text, so writing it
+        // into an Effect Script would invent text the card does not have — and
+        // Guard C (compiler round-trip) would read the invention as a
+        // divergence.
+        //
+        // A COUNTERED Adventure is correct by construction and needs no branch
+        // of its own: it never resolves, so it reaches the graveyard through
+        // `resolveTopOfStackInner`'s fizzle path with the creature half's
+        // identity restored below.
+        //
+        // Ordered LAST among the redirects, after buyback: a spell's own
+        // "exile this" self-instruction (CR 608.2) and a paid buyback are both
+        // choices made about THIS cast, while 715.3d is the default destination
+        // for the mode. No shipped card combines them.
+        if (wasCastAsAdventure(item)) {
+            // CR 715.4 — the object stops being on the stack, so it has only
+            // its NORMAL characteristics again. Reverted BEFORE the zone write
+            // so nothing ever observes a twin id in exile: what the player may
+            // play from there is the adventurer CARD.
+            revertAdventureIdentity(item);
+            // Read BEFORE `resetStackTransientState`, which strips the
+            // cast-time snapshot `castById` lives in — the same ordering trap
+            // the rebound branch above records.
+            const adventureController = item.castById ?? owner.id;
+            item.zone = "exile";
+            resetStackTransientState(item);
+            // CR 715.3d — "for as long as that card remains exiled": an
+            // open-ended grant, so NO `castableFromExileUntilTurn`, whose
+            // absence is exactly what the field's own doc calls open-ended.
+            // `castFromExileNotAsAdventure` is the seventh sibling: "it can't
+            // be cast as an Adventure THIS WAY", a property of the permission
+            // and not of the zone (715.3d explicitly allows another effect that
+            // grants a cast from exile to allow the Adventure again).
+            //
+            // Written AFTER `resetStackTransientState`, which strips stack-only
+            // cast-time snapshots — the grant is not one of those and must
+            // survive into exile.
+            // CR 715.3d names the CONTROLLER, not the owner: "its controller
+            // exiles it … that player may play it." The exile ZONE is still
+            // the owner's (CR 400.7 — an object moves to the zone belonging to
+            // its owner), which is what every other redirect above does too;
+            // only the PERMISSION follows the caster.
+            item.castableFromExileBy = adventureController;
+            item.castFromExileNotAsAdventure = true;
+            owner.exile.push(item);
             return;
         }
         sendStackItemToGraveyard(state, item);
@@ -16243,6 +16354,12 @@ export function buildSpellContext(
                 card.castFromExileWithoutPayingManaCost = true;
             } else {
                 delete card.castFromExileWithoutPayingManaCost;
+                // CR 715.3d — the SEVENTH sibling, cleared in the SAME permission
+                // window as the six above. Left standing it is durable and
+                // zone-independent: a card exiled by its own Adventure, cast from
+                // exile and later bounced would refuse the Adventure from HAND for
+                // the rest of the game (PR #3302 review finding 3).
+                delete card.castFromExileNotAsAdventure;
             }
             // CR 305.9 (issue #1689) — only a grant whose Oracle text says
             // "play" ALSO authorizes a LAND under it; see the field's own
@@ -21251,6 +21368,12 @@ export function moveCard(
         delete card.castableFromExileBy;
         delete card.castableFromExileUntilTurn;
         delete card.castFromExileWithoutPayingManaCost;
+        // CR 715.3d — the SEVENTH sibling, cleared in the SAME permission
+        // window as the six above. Left standing it is durable and
+        // zone-independent: a card exiled by its own Adventure, cast from
+        // exile and later bounced would refuse the Adventure from HAND for
+        // the rest of the game (PR #3302 review finding 3).
+        delete card.castFromExileNotAsAdventure;
         delete card.castableFromExileIncludesLand;
         delete card.castFromExileManaSubstitution;
         delete card.castFromExileCostIncrease;
@@ -21472,6 +21595,12 @@ export function removeFromZone(
     // CR 601.3 (issue #1156) — the free-cast waiver (Dauthi Voidwalker) rides
     // the SAME permission window as `castableFromExileBy`; consumed together.
     delete card.castFromExileWithoutPayingManaCost;
+    // CR 715.3d — the SEVENTH sibling, cleared in the SAME permission
+    // window as the six above. Left standing it is durable and
+    // zone-independent: a card exiled by its own Adventure, cast from
+    // exile and later bounced would refuse the Adventure from HAND for
+    // the rest of the game (PR #3302 review finding 3).
+    delete card.castFromExileNotAsAdventure;
     // CR 305.9 (issue #1689) — the land-inclusive marker rides the SAME
     // permission window as `castableFromExileBy`; consumed together.
     delete card.castableFromExileIncludesLand;

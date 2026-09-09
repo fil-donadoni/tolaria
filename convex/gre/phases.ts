@@ -2669,6 +2669,12 @@ export function finalizeCleanup(state: GameState): void {
                 // issue #1156 — the free-cast waiver (Dauthi Voidwalker) rides
                 // the same turn-scoped window; expires together.
                 delete card.castFromExileWithoutPayingManaCost;
+                // CR 715.3d — the SEVENTH sibling, cleared in the SAME permission
+                // window as the six above. Left standing it is durable and
+                // zone-independent: a card exiled by its own Adventure, cast from
+                // exile and later bounced would refuse the Adventure from HAND for
+                // the rest of the game (PR #3302 review finding 3).
+                delete card.castFromExileNotAsAdventure;
                 // CR 305.9 (issue #1689) — the land-inclusive marker rides
                 // the same turn-scoped window; expires together.
                 delete card.castableFromExileIncludesLand;

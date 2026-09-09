@@ -21,7 +21,15 @@ import type { LineParse } from "./grammar/ir";
 import { lowerCard } from "./lower";
 import { normalizeOracleText, SELF_MARKER } from "./normalize";
 import { BASIC_LAND_TYPES, readTypeLine } from "./typeLine";
-import type { CompileOutcome, Gap, OracleCard, ParseContext } from "./types";
+import type {
+    CompileOutcome,
+    CompiledDefinition,
+    Gap,
+    OracleCard,
+    OracleFace,
+    ParseContext,
+} from "./types";
+import type { InsetSpellKind } from "../cards/types";
 
 /**
  * Layouts grammar v0 reads. A multi-faced card (split, transform, adventure, …)
@@ -31,8 +39,59 @@ import type { CompileOutcome, Gap, OracleCard, ParseContext } from "./types";
  */
 const SUPPORTED_LAYOUTS = new Set<string>(["normal"]);
 
+/**
+ * CR 715 / 722 (ADR 0120 §5) — the layouts whose second face is an INSET SPELL
+ * rather than a second object, mapped to the `InsetSpellKind` they lower into.
+ *
+ * These leave the fail-closed bucket above because CR 715.4 / 722.4 make them
+ * unlike every other multi-faced layout: "in every zone except the stack … an
+ * adventurer card has only its NORMAL characteristics", so no zone ever shows
+ * two faces at once and nothing outside the cast path learns anything. A split
+ * card (two names and two costs in EVERY zone, CR 709), an MDFC (a back face
+ * that is a permanent, CR 712.3) and meld (CR 701.42) stay refused.
+ *
+ * A `Record`, not a `Set`: the KIND is what the lowered `insetSpell` carries,
+ * and CR 722.3 makes it load-bearing (a prepare spell can never be cast). A
+ * second entry is one line the day Scryfall reports a preparation layout.
+ */
+const SUPPORTED_INSET_LAYOUTS: Record<string, InsetSpellKind> = {
+    adventure: "adventure",
+};
+
+/** The inverse of {@link SUPPORTED_INSET_LAYOUTS} — the Scryfall layout string
+ *  a lowered `insetSpell.kind` came from. `goldOracleCard` needs it to rebuild
+ *  the compiler's own input: emitting the KIND there happens to work only while
+ *  the two vocabularies coincide, and the day a `"prepare"` card ships under
+ *  whatever layout Scryfall names it, its gold round trip would refuse a card
+ *  that compiles fine from the corpus (PR #3302 review finding 8). */
+export function oracleLayoutForInsetKind(kind: InsetSpellKind): string {
+    for (const [layout, k] of Object.entries(SUPPORTED_INSET_LAYOUTS)) {
+        if (k === kind) return layout;
+    }
+    return kind;
+}
+
+/**
+ * The fields the {@link InsetSpell} record can carry. A face that compiled to
+ * ANYTHING else is refused rather than truncated: the whole premise of this
+ * module's card-level invariant is that "a definition missing one of its
+ * abilities is worse than no definition at all", and the inset half is where a
+ * silent truncation would be least visible.
+ */
+const INSET_SPELL_FIELDS = new Set<string>([
+    "name",
+    "manaCost",
+    "types",
+    "subtypes",
+    "oracleText",
+    "effects",
+    "targetRequirement",
+]);
+
 export function compileCard(card: OracleCard): CompileOutcome {
     const layout = card.layout ?? "normal";
+    const insetKind = SUPPORTED_INSET_LAYOUTS[layout];
+    if (insetKind !== undefined) return compileInsetLayout(card, insetKind);
     if (!SUPPORTED_LAYOUTS.has(layout)) {
         return unparsed([
             {
@@ -155,4 +214,99 @@ export function compileCard(card: OracleCard): CompileOutcome {
 
 function unparsed(gaps: readonly Gap[]): CompileOutcome {
     return { state: "unparsed", gaps };
+}
+
+/** The synthetic single-faced `OracleCard` one FACE of a multi-faced card is,
+ *  so each face runs the ordinary `"normal"` pipeline rather than a second
+ *  parallel one. */
+function faceAsOracleCard(card: OracleCard, face: OracleFace): OracleCard {
+    return {
+        oracleId: card.oracleId,
+        name: face.name,
+        manaCost: face.manaCost,
+        typeLine: face.typeLine,
+        oracleText: face.oracleText,
+        ...(face.power !== undefined ? { power: face.power } : {}),
+        ...(face.toughness !== undefined ? { toughness: face.toughness } : {}),
+        ...(face.loyalty !== undefined ? { loyalty: face.loyalty } : {}),
+        layout: "normal",
+    };
+}
+
+/**
+ * CR 715 / 722 (ADR 0120 §5) — compile an inset-spell layout: the FRONT face
+ * becomes the card, the second face becomes its `insetSpell`.
+ *
+ * Both faces run the ordinary pipeline, so a grammar rule written for a normal
+ * card serves an Adventure for free and neither face can be half-read. Gaps
+ * from BOTH faces are reported together, for the same reason the line loop
+ * above does not stop at the first one: the aggregated fragment histogram is
+ * what ranks the next grammar rule (PRD #2693 user story 9).
+ */
+function compileInsetLayout(
+    card: OracleCard,
+    kind: InsetSpellKind
+): CompileOutcome {
+    const faces = card.faces ?? [];
+    if (faces.length !== 2) {
+        return unparsed([
+            {
+                line: card.typeLine,
+                fragment: card.typeLine,
+                reason: `layout "${card.layout}" needs exactly two faces, got ${faces.length}`,
+            },
+        ]);
+    }
+    const front = compileCard(faceAsOracleCard(card, faces[0]));
+    const inset = compileCard(faceAsOracleCard(card, faces[1]));
+    if (front.state === "unparsed" || inset.state === "unparsed") {
+        return unparsed([
+            ...(front.state === "unparsed" ? front.gaps : []),
+            ...(inset.state === "unparsed" ? inset.gaps : []),
+        ]);
+    }
+    // Fail CLOSED on anything the `InsetSpell` record cannot carry — a keyword,
+    // an activated or triggered ability, a static effect, a mode, an additional
+    // cost. Truncating one would produce a card that looks playable and plays
+    // wrong, which is exactly what this module's card-level invariant exists to
+    // prevent.
+    const carried = Object.keys(inset.definition).filter(
+        (k) => !INSET_SPELL_FIELDS.has(k)
+    );
+    if (carried.length > 0) {
+        return unparsed([
+            {
+                line: faces[1].oracleText,
+                fragment: faces[1].oracleText,
+                reason: `inset spell carries ${carried.join(", ")}, which an InsetSpell cannot hold`,
+            },
+        ]);
+    }
+    const insetDef = inset.definition;
+    const definition: CompiledDefinition = {
+        ...front.definition,
+        insetSpell: {
+            kind,
+            name: insetDef.name,
+            ...(insetDef.manaCost ? { manaCost: insetDef.manaCost } : {}),
+            types: [...insetDef.types],
+            ...(insetDef.subtypes ? { subtypes: [...insetDef.subtypes] } : {}),
+            oracleText: faces[1].oracleText,
+            ...(insetDef.effects ? { effects: insetDef.effects } : {}),
+            ...(insetDef.targetRequirement
+                ? { targetRequirement: insetDef.targetRequirement }
+                : {}),
+        },
+    };
+    const opsUsed = [...new Set([...front.opsUsed, ...inset.opsUsed])].sort();
+    const slots = [...new Set([...front.slots, ...inset.slots])].sort();
+    const reasons = [
+        ...(front.state === "quarantine" ? front.reasons : []),
+        ...(inset.state === "quarantine" ? inset.reasons : []),
+    ];
+    // One card is one card (CR 715.2c): a quarantined FACE quarantines the
+    // card, never half of it.
+    return reasons.length > 0
+        ? { state: "quarantine", definition, opsUsed, slots, reasons }
+        : { state: "ready", definition, opsUsed, slots };
 }

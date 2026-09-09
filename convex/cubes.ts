@@ -11,7 +11,7 @@
 // convex-test harness (`convex/__tests__/cubes.test.ts`).
 //
 // Cubes are stored by oracle NAME and resolved to the built pool LIVE on every
-// read via `tryGetCardByName` (the `nameRegistry` authority): a name with no
+// read via `tryGetPlaceableCardByName` (the `nameRegistry` authority): a name with no
 // built `CardDefinition` is dropped, and a card ships into every cube it's
 // named in with no cube edit and no migration — exactly the banlist model.
 
@@ -23,7 +23,7 @@ import {
     type MutationCtx,
     type QueryCtx,
 } from "./_generated/server";
-import { tryGetCardByName } from "./cards";
+import { tryGetPlaceableCardByName } from "./cards";
 import { assertIsAdmin } from "./auth";
 import type { ResolveCardByName } from "./formats";
 import { VINTAGE_CUBE_NAMES } from "./cubes/vintageCubeNames";
@@ -92,8 +92,10 @@ export const list = query({
             .map((r) => ({
                 slug: r.slug,
                 name: r.name,
-                count: resolveCubeMembership(r.cardNames, tryGetCardByName)
-                    .length,
+                count: resolveCubeMembership(
+                    r.cardNames,
+                    tryGetPlaceableCardByName
+                ).length,
             }))
             .sort((a, b) => a.name.localeCompare(b.name));
     },
@@ -111,7 +113,7 @@ export const membership = query({
     handler: async (ctx, { slug }): Promise<string[]> => {
         const row = await loadCube(ctx, slug);
         if (!row) return [];
-        return resolveCubeMembership(row.cardNames, tryGetCardByName);
+        return resolveCubeMembership(row.cardNames, tryGetPlaceableCardByName);
     },
 });
 

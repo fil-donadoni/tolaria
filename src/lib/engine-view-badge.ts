@@ -87,6 +87,13 @@ function resolutionSites(def: CardDefinition): ResolutionSite[] {
         for (const mode of ability.modes ?? []) sites.push(mode);
     }
     for (const t of def.delayedTriggers ?? []) sites.push(t);
+    // CR 715.2c (ADR 0120) — an adventurer card is ONE card, and the preview
+    // badges one card. Its inset half is a resolution site of that card: cast
+    // as an Adventure, the engine resolves `insetSpell.effects`. Omitting it
+    // read Brazen Borrower as `none` while the deep-walk guard
+    // (`engine-view-badge.catalogue.test.ts`) saw the script — which is the
+    // stale-census failure this whole file exists to make loud.
+    if (def.insetSpell) sites.push(def.insetSpell);
     return sites;
 }
 

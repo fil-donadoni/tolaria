@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { getAllCardNames } from "@convex/cards/catalogue";
+import { getChooseableCardNames } from "@convex/cards/catalogue";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 
@@ -19,8 +19,12 @@ export default function CardNameInput({
 }) {
     const [value, setValue] = useState("");
     // The whole implemented registry is the candidate set (CR 202.3 — name ANY
-    // card; here, any card we model). Computed once.
-    const allNames = useMemo(() => getAllCardNames(), []);
+    // card; here, any card we model), PLUS every inset spell's alternative name
+    // (CR 715.5 — "if … the player wants to choose an adventurer card's
+    // alternative name, the player may do so"). `getChooseableCardNames` is the
+    // choice DOMAIN and is deliberately wider than the enumerated populations
+    // deck legality and the card index read (CR 715.2c). Computed once.
+    const allNames = useMemo(() => getChooseableCardNames(), []);
     // Case-insensitive registry membership — gates the submit and disambiguates
     // casing (the server normalizes to canonical casing on submit).
     const canonicalByLower = useMemo(() => {

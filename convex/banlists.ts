@@ -14,7 +14,7 @@
 
 import { v } from "convex/values";
 import { query, type MutationCtx, type QueryCtx } from "./_generated/server";
-import { tryGetCardByName } from "./cards";
+import { tryGetPlaceableCardByName } from "./cards";
 import {
     BANLIST_SEEDS,
     isBanlistFormatId,
@@ -163,7 +163,7 @@ export const getBanlist = query({
 
 /**
  * Enforcement cardId sets for `format` (PRD #1138 User Story 4): names are
- * resolved to `CardDefinition.id` LIVE on every read via `tryGetCardByName`
+ * resolved to `CardDefinition.id` LIVE on every read via `tryGetPlaceableCardByName`
  * (the `nameRegistry` authority, `convex/cards/index.ts`), so a card banned
  * on a prior sync starts being enforced the instant it ships — no migration,
  * no stale window. Consumed by the client's `validateDeck` call sites and by
@@ -182,7 +182,7 @@ export const getBanlistEnforcement = query({
         const { banned, restricted } = resolveBanlistEnforcementForFormat(
             format,
             rows,
-            tryGetCardByName
+            tryGetPlaceableCardByName
         );
         return { banned: [...banned], restricted: [...restricted] };
     },
@@ -211,7 +211,11 @@ export async function loadBanlistOverrides(
 ): Promise<BanlistOverride | undefined> {
     if (!isBanlistFormatId(format)) return undefined;
     const rows = await loadRows(ctx, format);
-    return resolveBanlistEnforcementForFormat(format, rows, tryGetCardByName);
+    return resolveBanlistEnforcementForFormat(
+        format,
+        rows,
+        tryGetPlaceableCardByName
+    );
 }
 
 /**

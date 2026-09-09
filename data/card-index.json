@@ -3450,6 +3450,16 @@
         "firstPrintSet": "dft"
     },
     {
+        "name": "Blessed Hippogriff // Tyr's Blessing",
+        "scryfallId": "b4590e53-ca8d-4896-a8cf-6af1e4bc456f",
+        "oracleId": "3372b994-47de-4e89-9bfc-76e1cb3f1cfa",
+        "firstSet": "clb",
+        "firstPrintId": "b4590e53-ca8d-4896-a8cf-6af1e4bc456f",
+        "firstPrintSet": "clb",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Blessed Wine",
         "scryfallId": "6b9a92f9-9bbc-4887-9fbc-0f7212fd5e66",
         "oracleId": "8079007c-a07a-4d71-bb08-e1dd215297de",
@@ -4394,6 +4404,14 @@
         "firstPrintSet": "blb",
         "rarity": "common",
         "source": "compiled"
+    },
+    {
+        "name": "Brazen Borrower",
+        "scryfallId": "c2089ec9-0665-448f-bfe9-d181de127814",
+        "oracleId": "c7b044c3-3cfa-407e-bf20-2875e8e04b7b",
+        "firstSet": "eld",
+        "firstPrintId": "c2089ec9-0665-448f-bfe9-d181de127814",
+        "firstPrintSet": "eld"
     },
     {
         "name": "Brazen Scourge",
@@ -10062,6 +10080,16 @@
         "source": "compiled"
     },
     {
+        "name": "Embereth Shieldbreaker // Battle Display",
+        "scryfallId": "6cc73d16-5ed7-4104-91f6-0997a2080e2e",
+        "oracleId": "52e439d0-a263-4d53-9ae3-fa1f8aa8293e",
+        "firstSet": "eld",
+        "firstPrintId": "6cc73d16-5ed7-4104-91f6-0997a2080e2e",
+        "firstPrintSet": "eld",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Emerald Dragonfly",
         "scryfallId": "a3e81250-52c3-49f6-be43-17c34339e177",
         "oracleId": "b067aa04-5977-4371-85d1-78d2884df03f",
@@ -10556,6 +10584,16 @@
         "firstSet": "ala",
         "firstPrintId": "0d050f2d-bd65-4ab9-9ea6-9deba91b2792",
         "firstPrintSet": "ala",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Ettercap // Web Shot",
+        "scryfallId": "8f5228dc-ec9d-456f-a89c-1bc592a1bbab",
+        "oracleId": "e0b5b3af-af89-4b91-8b55-947ec095d6f2",
+        "firstSet": "clb",
+        "firstPrintId": "8f5228dc-ec9d-456f-a89c-1bc592a1bbab",
+        "firstPrintSet": "clb",
         "rarity": "common",
         "source": "compiled"
     },
@@ -12836,6 +12874,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Garenbrig Carver // Shield's Might",
+        "scryfallId": "194b7a1c-291a-470e-9a40-61b72a46793b",
+        "oracleId": "496c9633-ff17-48df-9b24-1d8cbfd06126",
+        "firstSet": "eld",
+        "firstPrintId": "194b7a1c-291a-470e-9a40-61b72a46793b",
+        "firstPrintSet": "eld",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Garrison Griffin",
         "scryfallId": "94a04717-5cd7-4982-bf36-00cea30b9ef1",
         "oracleId": "2ae828d1-0c8b-4558-bd0b-512760020913",
@@ -13114,6 +13162,16 @@
         "firstSet": "lea",
         "firstPrintId": "367dbefe-3366-408e-9fcf-7dc00f8cc201",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Giant Killer // Chop Down",
+        "scryfallId": "75754468-2850-42e6-ab22-61ff7b9d1214",
+        "oracleId": "91e71279-c9d2-4873-916a-59da03a65741",
+        "firstSet": "eld",
+        "firstPrintId": "75754468-2850-42e6-ab22-61ff7b9d1214",
+        "firstPrintSet": "eld",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Giant Mantis",
@@ -21298,6 +21356,16 @@
         "firstPrintSet": "mh2"
     },
     {
+        "name": "Minecart Daredevil // Ride the Rails",
+        "scryfallId": "5b2a02f3-3921-4f40-9ffa-70bc08b052e1",
+        "oracleId": "df555f60-2164-49dc-be67-00aca9eb0d45",
+        "firstSet": "woe",
+        "firstPrintId": "5b2a02f3-3921-4f40-9ffa-70bc08b052e1",
+        "firstPrintSet": "woe",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Minion of Leshrac",
         "scryfallId": "61278908-a1b4-4b4c-84f5-498ca41fc6b6",
         "oracleId": "8af3b981-6eda-46b0-a7b8-226bc719d137",
@@ -23321,6 +23389,16 @@
         "firstPrintId": "aad8a194-cee7-4671-8310-19357fc1a450",
         "firstPrintSet": "p02",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Obyra's Attendants // Desperate Parry",
+        "scryfallId": "0001e77a-7fff-49d2-a55c-42f6fdf6db08",
+        "oracleId": "396b088d-f9af-4ee1-843f-dbe1633f9cc8",
+        "firstSet": "woe",
+        "firstPrintId": "0001e77a-7fff-49d2-a55c-42f6fdf6db08",
+        "firstPrintSet": "woe",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -30914,6 +30992,16 @@
         "source": "compiled"
     },
     {
+        "name": "Smaug, the Great Calamity // Spew Flame",
+        "scryfallId": "419ca9e5-8413-4378-a4ef-eda5a1024218",
+        "oracleId": "fc75cfec-e1f6-4cb5-8a3c-2f7b2c39c03f",
+        "firstSet": "hob",
+        "firstPrintId": "419ca9e5-8413-4378-a4ef-eda5a1024218",
+        "firstPrintSet": "hob",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Smelt",
         "scryfallId": "723cb7e3-3f48-41fa-aa08-bdc59225e44f",
         "oracleId": "b5f4b732-099c-46e7-a03d-d8e4c78245b8",
@@ -34644,6 +34732,16 @@
         "source": "compiled"
     },
     {
+        "name": "Threadbind Clique // Rip the Seams",
+        "scryfallId": "dd6ed252-c262-4062-97ba-75c50d6b5579",
+        "oracleId": "bd575e82-99e7-44c7-ab93-d33f5678e1ad",
+        "firstSet": "woe",
+        "firstPrintId": "dd6ed252-c262-4062-97ba-75c50d6b5579",
+        "firstPrintSet": "woe",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Thrill of Possibility",
         "scryfallId": "c9021f85-7ab4-4a78-a398-1611fe09cd14",
         "oracleId": "1cb0610b-a731-42c2-b93f-0a29f63cebf4",
@@ -35794,6 +35892,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Tuinvale Treefolk // Oaken Boon",
+        "scryfallId": "8bc518fc-904e-4e39-aeda-ffb222bfcc82",
+        "oracleId": "09193c40-538c-4154-a671-076eece35e54",
+        "firstSet": "eld",
+        "firstPrintId": "8bc518fc-904e-4e39-aeda-ffb222bfcc82",
+        "firstPrintSet": "eld",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Tuknir Deathlock",
         "scryfallId": "9dfbcb4d-a9ae-4d76-8dde-7312fbad56b0",
         "oracleId": "0b6fa658-a344-4202-866b-e19997e32ff2",
@@ -35930,6 +36038,16 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Twinmaw Stormbrood // Charring Bite",
+        "scryfallId": "2999e3b1-6510-42b2-9429-28c07a64a44f",
+        "oracleId": "ff812a78-3fe7-47bc-9984-1c2380cff5b1",
+        "firstSet": "tdm",
+        "firstPrintId": "2999e3b1-6510-42b2-9429-28c07a64a44f",
+        "firstPrintSet": "tdm",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Twinscroll Shaman",
         "scryfallId": "87193af5-4b6b-48d0-9b75-8171bb1d6e53",
         "oracleId": "a2f867cd-410d-4524-8660-38ad142f6b1f",
@@ -35965,6 +36083,16 @@
         "firstPrintId": "8d5cf3a1-2228-4143-b07d-de082380b5e7",
         "firstPrintSet": "dmc",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Two-Headed Hunter // Twice the Rage",
+        "scryfallId": "70c12e75-7e65-4706-b976-e47835910928",
+        "oracleId": "0f222f3d-f02b-42b9-aedf-fb7ed92d4889",
+        "firstSet": "woe",
+        "firstPrintId": "70c12e75-7e65-4706-b976-e47835910928",
+        "firstPrintSet": "woe",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -38399,6 +38527,16 @@
         "firstPrintId": "51c9bd9c-900a-48a1-9cfe-2f8d031af6b8",
         "firstPrintSet": "ktk",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Whirlwing Stormbrood // Dynamic Soar",
+        "scryfallId": "56a25eb1-bdb8-4f86-8d9a-3055ad1b2a13",
+        "oracleId": "4fbfc814-df10-4d61-ada9-c96cc8ee8d8c",
+        "firstSet": "tdm",
+        "firstPrintId": "56a25eb1-bdb8-4f86-8d9a-3055ad1b2a13",
+        "firstPrintSet": "tdm",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
