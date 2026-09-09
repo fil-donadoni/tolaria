@@ -28,6 +28,7 @@ import {
     pushSpell,
 } from "../../cards/__tests__/setup";
 import { finalizeTargetSelection } from "../../game";
+import { drainAutoPasses } from "../phases";
 import {
     emitSpellCastEvent,
     processPendingActionTriggers,
@@ -222,6 +223,85 @@ describe("a TARGETED self-cast trigger announces its target as it goes on the st
         processPendingActionTriggers(state);
         expect(state.pendingTarget).toBeUndefined();
         expect(state.stack[1].targets).toEqual([]);
+    });
+});
+
+describe("the raised target survives the cast's auto-pass drain (issue #3229 review)", () => {
+    // The FULL production cast seam is three calls, not two: every site in
+    // `convex/game.ts` runs `emitSpellCastEvent` → `processPendingActionTriggers`
+    // → **`drainAutoPasses`**, with `singleShotAutoPass` set to the caster.
+    //
+    // `raiseTriggerTargetSelection` yanks priority back to the trigger's
+    // controller and resets `passCount` (`gre/rules.ts`), so the caster's
+    // single-shot auto-pass matches again and the drain spends it — and if the
+    // OPPONENT is in `autoPassPlayers` (they pressed Enter for the rest of the
+    // turn), the second iteration reaches `passCount >= 2` and resolves the
+    // trigger with `targets: undefined`, exiling nothing, while
+    // `state.pendingTarget` still points at a stack item that no longer exists.
+    //
+    // The drain is guarded at its TOP for exactly this: an owed target or
+    // choice ends the drain before any pass, which is what every producer that
+    // raises one before the drain needs (`placeTriggersOnStack` reached from
+    // `processPendingActionTriggers` at the same cast sites).
+    function castTargetedThenDrain(opts: { opponentAutoPasses: boolean }) {
+        const victim = makeInstance(GRIZZLY_BEARS_ID, {
+            id: "victim",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        const spell = pushSpell(state, TARGETED_CARD_ID, "p1");
+        spell.targets = undefined;
+        // What `commitPendingCast` sets before it emits (CR 117).
+        state.priorityPlayerId = "p1";
+        state.singleShotAutoPass = "p1";
+        state.passCount = 0;
+        if (opts.opponentAutoPasses) state.autoPassPlayers = ["p2"];
+        emitSpellCastEvent(state, spell);
+        processPendingActionTriggers(state);
+        drainAutoPasses(state);
+        return { state, spell };
+    }
+
+    it("the drain stops on the owed target instead of spending the caster's auto-pass", () => {
+        const { state } = castTargetedThenDrain({ opponentAutoPasses: false });
+        expect(state.pendingTarget).toBeDefined();
+        expect(state.priorityPlayerId).toBe("p1");
+        // The single-shot is still owed: the caster never got a priority window
+        // to spend it in, because a target is owed first (ADR 0047).
+        expect(state.singleShotAutoPass).toBe("p1");
+        expect(state.stack).toHaveLength(2);
+        expect(state.stack[1].targets).toBeUndefined();
+    });
+
+    it("an auto-passing OPPONENT cannot resolve the trigger out from under the target choice", () => {
+        const { state } = castTargetedThenDrain({ opponentAutoPasses: true });
+        // The trigger must still be on the stack, still owing its target, and
+        // the victim must still be on the battlefield.
+        expect(state.pendingTarget).toBeDefined();
+        expect(state.stack).toHaveLength(2);
+        expect(state.stack[1].triggeredAbilityId).toBe(
+            "synthetic-self-cast-targeted"
+        );
+        expect(state.stack[1].targets).toBeUndefined();
+        expect(state.players[1].battlefield.map((c) => c.id)).toEqual([
+            "victim",
+        ]);
+        expect(state.players[1].exile).toHaveLength(0);
+        // And the choice is still answerable: finishing it exiles the victim.
+        state.pendingTarget!.selected = [{ type: "permanent", id: "victim" }];
+        finalizeTargetSelection(
+            state,
+            state.pendingTarget!,
+            state.pendingTarget!.playerId
+        );
+        resolveTopOfStack(state);
+        expect(state.players[1].exile.map((c) => c.id)).toEqual(["victim"]);
     });
 });
 
