@@ -5634,9 +5634,9 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     // that mean: issue #3194's self-confined hold already fires on a cast whose
     // whole reach is the mover's own side and whose settled margin drops, and it
     // was measured INERT here for a reason unrelated to Flash — its confinement
-    // probe counted the state-level per-turn tallies a self-inflicted death
-    // writes (`deathsThisTurn`, `lastKnownCopiable`), so a resolution that never
-    // left the mover's side read as reaching the opponent. 0/5 → 5/5 at 400.
+    // probe counted the state-level bookkeeping a self-inflicted death writes
+    // (`deathsThisTurn`, `lastKnownCopiable`), so a resolution that never left
+    // the mover's side read as reaching the opponent. 0/5 → 5/5 at 400.
     //
     // What that cannot do is make the bot WANT the payoff line: a hold rule only
     // ever refuses. The positive half still needs 1200 iterations to separate

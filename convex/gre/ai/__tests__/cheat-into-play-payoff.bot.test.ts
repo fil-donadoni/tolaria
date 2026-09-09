@@ -24,7 +24,7 @@
  *
  * A third seam decides what the ROOT does with that reading, and it is pinned
  * at the bottom of this file: the confinement probe behind issue #3194's
- * self-confined hold used to count the per-turn tallies a self-inflicted death
+ * self-confined hold used to count the bookkeeping a self-inflicted death
  * writes (`deathsThisTurn`, `lastKnownCopiable`) as evidence the announcement
  * had reached the opponent, so the hold never fired on this shape and the root
  * fell through to a material tie-break reading a subtree-accumulated mean.
@@ -265,7 +265,7 @@ describe("cheat-into-play is worth what survives (issue #3293)", () => {
     // loss and LOSES to the branch that already paid it. The rule that answers
     // that (issue #3194's self-confined hold, `search.ts`) was already shipped
     // and was measured INERT here, for a reason with nothing to do with Flash:
-    // its confinement probe compared the state-level per-turn tallies, and a
+    // its confinement probe compared the state-level bookkeeping it writes, and a
     // resolution that puts the mover's OWN creature onto the battlefield and
     // then sacrifices it bumps `deathsThisTurn` and stamps `lastKnownCopiable`.
     // Neither is a fact about the opponent, and reading them as reach answered
@@ -276,6 +276,13 @@ describe("cheat-into-play is worth what survives (issue #3293)", () => {
             // Both hands, because the confinement question is about REACH and
             // must not depend on whether the body pays: what separates the two
             // is the resolved margin, which is the hold's second conjunct.
+            //
+            // Both are also the witness for the ignore list, one key each:
+            // drop `deathsThisTurn` / `lastKnownCopiable` and the vanilla hand
+            // reds (the sacrifice is a departure), drop `lifeGainedThisTurn`
+            // and the payoff hand reds on its own (its body gains life as it
+            // enters). No key on that list is there on the general argument
+            // alone.
             for (const creature of [VANILLA, PAYOFF]) {
                 const { state, botId } = position(creature);
                 const cast = enumerateMoves(state, botId).find(
@@ -288,70 +295,13 @@ describe("cheat-into-play is worth what survives (issue #3293)", () => {
             }
         });
 
-        it("still reads a resolution that reaches the OPPONENT as reaching them", () => {
-            // The negative control for the three ignored tallies: dropping an
-            // echo must not drop the evidence. Vision Charm's land-type mode is
-            // the shape issue #3194 drew its own discriminating pair with — the
-            // same mode, self-confined against the bot's lone Island and NOT
-            // confined once the opponent controls lands it can re-type — so it
-            // pins both directions of the predicate this change touches.
-            const selfOnly = visionCharmPosition([]);
-            const reaching = visionCharmPosition([
-                { name: "Forest", owner: "opp", zone: "battlefield", count: 3 },
-            ]);
-            expect(
-                reachesOnlyOwnSideThroughChoice(
-                    selfOnly.state,
-                    selfOnly.landTypeMode,
-                    selfOnly.botId
-                )
-            ).toBe(true);
-            expect(
-                reachesOnlyOwnSideThroughChoice(
-                    reaching.state,
-                    reaching.landTypeMode,
-                    reaching.botId
-                )
-            ).toBe(false);
-        });
+        // The other direction — a resolution that DOES reach the opponent must
+        // still read as reaching them — is the issue #3194 pair, asserted on
+        // this same seam in `choice-suspended-payoff.bot.test.ts` ("reads the
+        // reach as self-confined only when the effect cannot leave it"). It is
+        // not repeated here: none of the three ignored keys moves in either of
+        // its positions (no death, no departure, no life gain), so a copy would
+        // pass byte-identically with and without this change and would read as
+        // a control it cannot be.
     });
 });
-
-/** Vision Charm on a lone Island, plus whatever `extra` cards the position
- *  needs — the issue #3194 pair, reused here as the reach control. */
-function visionCharmPosition(extra: Record<string, unknown>[]): {
-    state: GameState;
-    botId: string;
-    landTypeMode: Move;
-} {
-    const scenario = {
-        label: "issue #3293 reach control",
-        spec: {
-            cards: [
-                { name: "Vision Charm", owner: "me", zone: "hand" },
-                { name: "Island", owner: "me", zone: "battlefield", count: 1 },
-                ...extra,
-            ],
-            phase: "PRECOMBAT_MAIN",
-            turn: 1,
-            libraryCount: 20,
-        },
-        bot: "me",
-        budget: { iterations: 1 },
-        seeds: [0],
-        tier: "must",
-        expect: { forbidden: [] },
-    } as unknown as BladeScenario;
-    const state = buildBladeState(scenario);
-    const botId = state.players[0].id;
-    const landTypeMode = enumerateMoves(state, botId).find(
-        (m) =>
-            m.kind === "cast-spell" &&
-            (m as { chosenModeId?: string }).chosenModeId === "land-type"
-    );
-    expect(
-        landTypeMode,
-        "the position must offer the land-type mode"
-    ).toBeTruthy();
-    return { state, botId, landTypeMode: landTypeMode! };
-}
