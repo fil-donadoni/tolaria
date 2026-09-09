@@ -67,6 +67,7 @@ import {
 } from "../../../../game";
 import { resolveActivated, resolveTrigger, submitChoice } from "./helpers";
 import { buildActivatedAbilityStackItem } from "../../../../gre/activationCommit";
+import type { CardDefinition } from "../../../types";
 import { getDefinition } from "../../../index";
 
 const blindSeer = getDefinition("5c54ec26-c7f1-4258-9cc9-1709987f293c");
