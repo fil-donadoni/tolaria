@@ -60,6 +60,7 @@ function modeMarkersOf(card: CardInstanceState) {
         faceDown: card.faceDown === true,
         dashed: card.dashed === true,
         evoked: card.evoked === true,
+        overloaded: card.overloaded === true,
         types: [...(card.types ?? [])].sort(),
         subtypes: [...(card.subtypes ?? [])].sort(),
         power: card.power,
@@ -67,6 +68,16 @@ function modeMarkersOf(card: CardInstanceState) {
         enchantRestriction: card.grantedEnchantRestriction,
     };
 }
+
+/** Every cast-instance marker, cleared — what `resetStackTransientState` leaves
+ *  behind on a spell that resolved out of the stack (CR 400.7). */
+const CLEARED_MARKERS = {
+    bestowed: undefined,
+    faceDown: undefined,
+    dashed: undefined,
+    evoked: undefined,
+    overloaded: undefined,
+} as const;
 
 /** A position in which `card` is castable, plus the opponent creature a
  *  targeted mode can point at. */
@@ -119,6 +130,16 @@ type ModeFixture = {
     enumerated: boolean;
     /** What the mode must have stamped on the resulting object. */
     assertStamped: (markers: ReturnType<typeof modeMarkersOf>) => void;
+    /** True when the card is an INSTANT or SORCERY, so the greedy sandbox — which
+     *  resolves the spell — has already run the cast-instance gate
+     *  (`resetStackTransientState`, CR 400.7) by the time the subject is
+     *  inspected, while the ISMCTS tree still holds it on the stack. The two
+     *  executors are then looking at DIFFERENT MOMENTS, and comparing their
+     *  markers for equality asks the wrong question. The stronger pair of
+     *  claims is asserted instead: the tree stamped the mode, and the greedy
+     *  side CLEARED it on the way to the graveyard — the leak PR #3288's review
+     *  finding 1 was about. */
+    clearsOnResolve?: boolean;
 };
 
 /** `Record<CastMode, …>` is the point: a mode added to the union cannot compile
@@ -178,6 +199,24 @@ const MODE_FIXTURES: Record<CastMode, ModeFixture> = {
             expect(m.evoked).toBe(true);
         },
     },
+    // CR 702.96a — the marker `buildSpellContext` reads to swap the script's
+    // `forEach { set: "targets" }` member set from the announced targets to
+    // every matching object (CR 702.96b). Damn's printed cost is {B}{B} and its
+    // overload cost {2}{W}{W}, so a board of four Plains offers the OVERLOAD
+    // cast and nothing else — which is also the point of the mode: unstamped,
+    // an overloaded Damn resolves as the one-creature removal spell the
+    // printed cast already was, and the tree cannot tell a wrath from a Doom
+    // Blade.
+    overload: {
+        card: "Damn",
+        land: PLAINS,
+        landCount: 4,
+        enumerated: true,
+        clearsOnResolve: true,
+        assertStamped: (m) => {
+            expect(m.overloaded).toBe(true);
+        },
+    },
 };
 
 /** The enumerated cast of `subject` paying `mode`'s alternative cost. */
@@ -197,12 +236,15 @@ function modeCastMove(state: GameState, mode: CastMode): Move {
 }
 
 /** The `subject` object after `move` is applied, wherever it ended up — still
- *  on the stack (the ISMCTS executor leaves it there by design) or already on
- *  the battlefield (the greedy sandbox resolves it). */
+ *  on the stack (the ISMCTS executor leaves it there by design), already on the
+ *  battlefield (the greedy sandbox resolves a permanent spell), or in the
+ *  graveyard (CR 608.2m — the greedy sandbox resolving an INSTANT or SORCERY,
+ *  which is what an overload card is). */
 function subjectAfter(state: GameState): CardInstanceState {
     const everywhere: CardInstanceState[] = [
         ...state.stack,
         ...state.players.flatMap((p) => p.battlefield),
+        ...state.players.flatMap((p) => p.graveyard),
     ];
     const found = everywhere.find((c) => c.id === "subject");
     if (!found) throw new Error("subject vanished");
@@ -223,6 +265,8 @@ function altCostIdFor(def: CardDefinition, mode: CastMode): string {
             return def.dash?.id ?? "";
         case "evoke":
             return def.evoke?.id ?? "";
+        case "overload":
+            return def.overload?.id ?? "";
     }
 }
 
@@ -260,7 +304,23 @@ describe("cast modes reach BOTH search executors (CR 601.2b, issue #2796)", () =
             applyMoveInSearch(tree, "p1", move);
 
             const treeMarkers = modeMarkersOf(subjectAfter(tree));
-            expect(treeMarkers).toEqual(modeMarkersOf(subjectAfter(greedy)));
+            if (fixture.clearsOnResolve) {
+                // An instant/sorcery: the greedy sandbox resolved it, so its
+                // subject is in the GRAVEYARD with the cast-instance markers
+                // already cleared (CR 400.7). Equality would compare two
+                // different moments; assert both halves separately instead —
+                // the tree stamped the mode, and the greedy side did not carry
+                // it out of the stack.
+                const greedySubject = subjectAfter(greedy);
+                expect(greedySubject.zone).not.toBe("stack");
+                expect(modeMarkersOf(greedySubject)).toEqual(
+                    modeMarkersOf({ ...greedySubject, ...CLEARED_MARKERS })
+                );
+            } else {
+                expect(treeMarkers).toEqual(
+                    modeMarkersOf(subjectAfter(greedy))
+                );
+            }
             // …and both agree on the RIGHT thing, not merely with each other:
             // two executors that both dropped the mode would agree too.
             fixture.assertStamped(treeMarkers);

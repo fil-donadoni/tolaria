@@ -772,6 +772,70 @@ describe("applyProbeCast — Urza's tapOtherFilter mana ability (issue #2420)", 
     });
 });
 
+describe("the probe applies CAST MODES (CR 601.2b, issue #3215)", () => {
+    // The probe is the FIFTH build-a-StackItem-from-a-cast site, and the one
+    // place where dropping a cast mode is worse than mis-valuing the line: this
+    // seam decides LEGALITY, so an unstamped mode makes the move disappear.
+    //
+    // An overloaded Damn resolves against `forEach { set: "targets" }`, whose
+    // member set is the announced targets — empty, because CR 702.96b says an
+    // overloaded spell announces none. Without the `overloaded` stamp the probe
+    // therefore resolved a spell that destroyed NOTHING, proved it a no-op, and
+    // pruned the only cast the bot could afford. Stamped, the same probe wipes
+    // the opponent's board and the move survives.
+    const overloadSpec: BladeScenario["spec"] = {
+        cards: [
+            { name: "Damn", owner: "me", zone: "hand" },
+            { name: "Plains", owner: "me", zone: "battlefield" },
+            { name: "Plains", owner: "me", zone: "battlefield" },
+            { name: "Plains", owner: "me", zone: "battlefield" },
+            { name: "Plains", owner: "me", zone: "battlefield" },
+            { name: "Craw Wurm", owner: "opp", zone: "battlefield" },
+            { name: "Craw Wurm", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        turn: 6,
+        libraryCount: 20,
+    };
+
+    it("an overloaded cast is NOT pruned — it destroys every creature the probe can see", () => {
+        const state = build(overloadSpec);
+        const unpruned = castsOf(state, "Damn", false);
+        const overload = unpruned.find(
+            (m) => m.kind === "cast-spell" && m.alternativeCostId === "overload"
+        )!;
+        expect(overload).toBeDefined();
+        expect(isDominatedNoOpMove(state, me(state), overload)).toBe(false);
+        // …and it therefore survives the pruning enumeration the search runs.
+        expect(
+            castsOf(state, "Damn", true).some(
+                (m) =>
+                    m.kind === "cast-spell" &&
+                    m.alternativeCostId === "overload"
+            )
+        ).toBe(true);
+    });
+
+    it("applyProbeCast stamps the mode, so the probe board is the board the cast really produces", () => {
+        const state = build(overloadSpec);
+        const overload = castsOf(state, "Damn", false).find(
+            (m): m is Extract<Move, { kind: "cast-spell" }> =>
+                m.kind === "cast-spell" && m.alternativeCostId === "overload"
+        )!;
+        const probe = buildBladeState({
+            label: "dominance-unit",
+            spec: overloadSpec,
+            bot: "me",
+            budget: { iterations: 1 },
+            tier: "must",
+            expect: { moves: [{ kind: "pass" }] },
+        });
+        expect(applyProbeCast(probe, me(probe), overload as never)).toBe(true);
+        const item = probe.stack.find((s) => s.id === overload.cardInstanceId);
+        expect(item?.overloaded).toBe(true);
+    });
+});
+
 describe("deepEqual (issue #1887)", () => {
     it("treats an absent key and an explicit undefined as equal", () => {
         expect(deepEqual({ a: 1 }, { a: 1, b: undefined })).toBe(true);

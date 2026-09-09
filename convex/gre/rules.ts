@@ -2895,8 +2895,28 @@ export function getLegalTargets(
      *  (`cards/types.ts`) for the CR 603.3d snapshot-timing rationale.
      *  Undefined for every caller that doesn't need it — `resolveMvFilter`
      *  falls back to 0, matching every other left-play convention. */
-    sourcePower?: number
+    sourcePower?: number,
+    /** CR 702.96b (issue #3215) — Overload. An OVERLOADED cast "won't require
+     *  any targets. It may affect objects that couldn't be chosen as legal
+     *  targets if the spell were cast without its overload cost being paid",
+     *  so the sweep it resolves against keeps every INTRINSIC filter the
+     *  printed requirement states and drops every TARGETING restriction —
+     *  protection (CR 702.16b),
+     *  a CR 611 permanent guard,
+     *  hexproof (CR 702.11b),
+     *  shroud (CR 702.18)
+     *  and the from-everything quality (CR 702.16i).
+     *  Threaded as an option on THIS function rather
+     *  than answered by a second scan of the board, so the "which objects match
+     *  this requirement" derivation stays one authority (ADR 0068) and an
+     *  overload sweep can never disagree with the targets the same card offers
+     *  in its printed mode. Only `overloadAffectedTargets` (`gre/overload.ts`)
+     *  passes it; every other caller is asking about real TARGETS, where these
+     *  gates are the whole point. */
+    options?: { ignoreTargetingRestrictions?: boolean }
 ): TargetSelection[] {
+    const ignoreTargetingRestrictions =
+        options?.ignoreTargetingRestrictions === true;
     const targets: TargetSelection[] = [];
     const {
         colors: sourceColors,
@@ -3094,7 +3114,13 @@ export function getLegalTargets(
                 // source's controller, or a CHARACTERISTIC quality (issue
                 // #1120, "protection from legendary creatures") read off the
                 // source's live types/supertypes.
-                if (isProtectedFrom(card, protectionSource)) continue;
+                // CR 702.96b — an overloaded sweep is not targeting, so this
+                // gate and the guard below do not apply to it.
+                if (
+                    !ignoreTargetingRestrictions &&
+                    isProtectedFrom(card, protectionSource)
+                )
+                    continue;
                 // CR 611 — a continuous `permanent-guard` may bar targeting
                 // entirely (Guardian Beast / shroud: "can't be the target of
                 // spells or abilities"), or narrowed by source quality ("Aura
@@ -3102,6 +3128,7 @@ export function getLegalTargets(
                 // CR 702.11b — a hexproof permanent is barred on the same path
                 // for opponent-controlled sources only (own caster still legal).
                 if (
+                    !ignoreTargetingRestrictions &&
                     isGuardedAgainst(state, card, "cantBeTargeted", {
                         types: sourceTypes,
                         subtypes: sourceSubtypes,
@@ -3151,7 +3178,13 @@ export function getLegalTargets(
             // hexproof/Guardian-Beast-style permanent guards, shroud has no
             // source-controller exception, so no `actionSource` is threaded.
             // Always-on gate (ADR 0068) — stays outside the registry.
-            if (playerHasShroud(state, player.id)) continue;
+            // CR 702.96b — likewise bypassed by an overloaded sweep, which
+            // targets nothing.
+            if (
+                !ignoreTargetingRestrictions &&
+                playerHasShroud(state, player.id)
+            )
+                continue;
             // CR 702.16b/i (applied to a player via CR 115.4) — a player with
             // protection from everything "can't be the target of spells or
             // abilities" from ANY source, their own included (The One Ring,
@@ -3159,7 +3192,11 @@ export function getLegalTargets(
             // source-controller exception, so no `actionSource` is threaded.
             // `selectTarget` runs the SAME predicate against the submitted
             // target, so the offered set and the accepted set can't diverge.
-            if (playerHasProtectionFromEverything(state, player.id)) continue;
+            if (
+                !ignoreTargetingRestrictions &&
+                playerHasProtectionFromEverything(state, player.id)
+            )
+                continue;
             targets.push({ type: "player", id: player.id });
         }
     }

@@ -447,6 +447,7 @@ import {
     isMorphCastAlternativeCost,
     morphTurnUpPaymentPlan,
 } from "./gre/morph";
+import { isOverloadAlternativeCost } from "./gre/overload";
 import { turnFaceDown, turnFaceUp } from "./gre/faceDown";
 import {
     applyPlayLand,
@@ -3799,6 +3800,13 @@ export function tryAutoCommitPendingCast(
         // through `PendingCast.dashed` (set at announcement) so it still
         // lands on the stack item once mana is covered / the picker completes.
         ...(state.pendingCast.dashed ? { dashed: true } : {}),
+        // CR 702.96a (issue #3215) — a parked Overload cast (the ordinary case:
+        // an overload cost is a MANA cost, so it parks on `tapForPayment`)
+        // carries the marker through `PendingCast.overloaded`, set at
+        // announcement. Without it the deferred commit builds a spell that was
+        // paid for at the overload price and then resolves against the one
+        // target it never announced.
+        ...(state.pendingCast.overloaded ? { overloaded: true } : {}),
         // CR 601.2 / 307.1 / 117.1a / 601.3a (issue #2473) — the timing
         // memory Necromancy-shaped clauses key on, read back off the
         // ANNOUNCEMENT-time snapshot (`announceCast`) rather than re-derived
@@ -6350,12 +6358,27 @@ export function assertFlashSurchargeDeclaration(
  *  A chosen modal mode's requirement still wins over both (modal never
  *  co-occurs with kicker or bestow on a shipped card, but the precedence is
  *  defined at the call site). */
-function castAdjustedTargetRequirement(
+/** Exported (issue #3215) for the same reason `buildCastSacrificeSelection`
+ *  and `assertKickerAnnouncementLegal` are: this project has no convex-test
+ *  harness for `game.ts` mutations (ADR 0001), and CR 702.96b's "an overloaded
+ *  spell won't require any targets" is a claim about THIS function, not about
+ *  the stack item that eventually results from it. Driving it directly is the
+ *  only way to assert the rule rather than one of its downstream shadows. */
+export function castAdjustedTargetRequirement(
     cardDef: CardDefinition,
     kickerPayments: KickerPayments | undefined,
     isBestowCost: boolean,
-    isMorphCost: boolean
+    isMorphCost: boolean,
+    isOverloadCost: boolean
 ): TargetRequirement | undefined {
+    // CR 702.96b — "If a player chooses to pay the overload cost of a spell,
+    // that spell won't require any targets." The printed requirement is not
+    // discarded, only unannounced: `overloadAffectedTargets` (`gre/overload.ts`)
+    // reads that same requirement as the spell RESOLVES, to decide which
+    // objects "each" names. Checked alongside morph and before every other
+    // branch for the same reason — this is a property of the object on the
+    // stack, not a preference among requirements.
+    if (isOverloadCost) return undefined;
     // CR 702.37c — a face-down spell has "no text", so none of the card's
     // printed clauses apply to it, including a target requirement. Checked
     // FIRST and unconditionally: this is a characteristic-defining property of
@@ -8062,6 +8085,15 @@ export const announceCast = mutation({
         // and it REWRITES the object put on the stack into a face-down 2/2
         // (`turnFaceDown` at each commit below).
         const isMorphCost = isMorphCastAlternativeCost(cardDef, chosenAltCost);
+        // CR 702.96a (issue #3215) — the chosen alt cost IS this card's Overload
+        // cost. Like morph it is not a plain marker: it strips the spell's
+        // target requirement (CR 702.96b — "that spell won't require any
+        // targets", `castAdjustedTargetRequirement` below) and it changes what
+        // the resolving script sweeps (`overloaded: true` at each commit below).
+        const isOverloadCost = isOverloadAlternativeCost(
+            cardDef,
+            chosenAltCost
+        );
 
         // Validate X is provided iff the cost contains a string X (CR 107.3).
         const hasX =
@@ -8317,14 +8349,19 @@ export const announceCast = mutation({
         // requirement for non-modal spells — a kicked spell with a
         // `kickedTargetRequirement` (Bloodchief's Thirst, Tear Asunder) targets
         // its wider/different set (CR 702.33).
-        const activeTargetRequirement =
-            chosenMode?.targetRequirement ??
-            castAdjustedTargetRequirement(
-                cardDef,
-                kickerPayments,
-                isBestowCost,
-                isMorphCost
-            );
+        // CR 702.96b — an overloaded cast requires no targets AT ALL, so it
+        // outranks even a chosen mode's requirement: "target" was replaced
+        // throughout the spell's text (CR 702.96a), including inside a mode.
+        const activeTargetRequirement = isOverloadCost
+            ? undefined
+            : (chosenMode?.targetRequirement ??
+              castAdjustedTargetRequirement(
+                  cardDef,
+                  kickerPayments,
+                  isBestowCost,
+                  isMorphCost,
+                  isOverloadCost
+              ));
 
         // Check if the card requires targets (CR 601.2c). When `count: "X"`
         // resolves to 0 (X chosen as 0), the spell takes no targets — fall
@@ -8734,6 +8771,12 @@ export const announceCast = mutation({
                     // while parked and so is never exposed to the opponent by
                     // `pendingCast` (which carries only a `cardInstanceId`).
                     ...(isMorphCost ? { morphed: true } : {}),
+                    // CR 702.96a/b (issue #3215) — an overload cast ALWAYS
+                    // reaches this no-target branch (702.96b: it "won't require
+                    // any targets"), and parks here whenever its mana isn't
+                    // already covered. The flag rides to
+                    // `tryAutoCommitPendingCast`, which stamps the stack item.
+                    ...(isOverloadCost ? { overloaded: true } : {}),
                     // CR 601.2 (issue #2473) — the announcement-time timing
                     // snapshot rides to the deferred commit.
                     ...(castOffSorceryTiming
@@ -8820,6 +8863,13 @@ export const announceCast = mutation({
                 // fail-closed. `applyBestowCharacteristics` below turns it
                 // into the real characteristic change if it ever IS reached.
                 ...(isBestowCost ? { bestowed: true } : {}),
+                // CR 702.96a (issue #3215) — the overload cast's immediate
+                // commit: this IS an alternative cost and it takes no targets,
+                // so a caster whose pool already covers it lands here. Unlike
+                // `bestowed` the marker is not consumed below — it stays on the
+                // stack item, because CR 702.96a's text change functions until
+                // the spell has finished resolving.
+                ...(isOverloadCost ? { overloaded: true } : {}),
                 // CR 601.2 (issue #2473) — `announceCast` no-target +
                 // alternative-cost immediate-commit branch. Uses the same
                 // announcement-time constant as every deferred path, so the

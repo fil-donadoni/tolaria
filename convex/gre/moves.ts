@@ -2614,6 +2614,52 @@ function enumerateCastMovesFromZone(
             });
         }
     }
+
+    // CR 702.96a (issue #3215) — the OVERLOAD cast mode: "You may choose to pay
+    // [cost] rather than pay this spell's mana cost", and if you do, every
+    // "target" in the spell's text becomes "each". A FIFTH variant axis, and the
+    // one the printed-cost loop above can never stand in for: an overload cast
+    // is a different SPELL, not a cheaper one — overloaded Damn is a wrath and
+    // printed Damn is a removal spell, and the search cannot prefer either
+    // unless it can see both. The two enumerate side by side, so the tree picks
+    // on the resulting board rather than on price.
+    //
+    // Unlike the Dash branch above, this one deliberately does NOT skip a card
+    // carrying a `targetRequirement`: every overload card has one — it is the
+    // requirement CR 702.96b rewrites — and the overloaded cast announces no
+    // targets against it (`targets: []`, exactly the morph shape). The modal
+    // case is likewise not a reason to skip: `announceCast` ignores a chosen
+    // mode's requirement for an overload cast for the same CR 702.96a reason.
+    if (def?.overload && lifeInsteadOfMana === undefined) {
+        const overloadCost = normalizeManaCost(def.overload.mana ?? {}, {
+            chosenX: 0,
+        });
+        foldFlashSurchargeCost(
+            overloadCost,
+            flashSurcharge,
+            flashSurchargeOwed
+        );
+        // CR 601.2f–h — 702.96a routes an overload cast through the ordinary
+        // alternative-cost rules, so the same battlefield cost modifiers every
+        // other cast branch folds apply to the OVERLOAD cost, not the printed
+        // one.
+        const overloadModifiers = getCostModifiers(state, card, "spell");
+        applyCostModifiers(overloadCost, overloadModifiers);
+        const overloadTapPlan = planManaPayment(state, player, overloadCost, {
+            cardInstanceId: card.id,
+            cardDef: def,
+        });
+        if (overloadTapPlan !== null) {
+            moves.push({
+                kind: "cast-spell",
+                cardInstanceId: card.id,
+                alternativeCostId: def.overload.id,
+                targets: [],
+                confirmTargets: false,
+                tapPlan: overloadTapPlan,
+            });
+        }
+    }
     return moves;
 }
 

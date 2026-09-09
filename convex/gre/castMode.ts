@@ -58,7 +58,7 @@ import type { LayerStateView } from "./layers";
  *  becomes of the permanent, rather than only what it costs. An alt cost that
  *  changes the price alone (Force of Will's, Fireblast's, Gush's) is NOT one —
  *  it leaves no mark on the stack item and belongs in no row here. */
-export type CastMode = "bestow" | "morph" | "dash" | "evoke";
+export type CastMode = "bestow" | "morph" | "dash" | "evoke" | "overload";
 
 type CastModeRow = {
     /** The alt-cost id that selects this mode for `def`, or `undefined` when
@@ -112,6 +112,19 @@ const CAST_MODE_CENSUS: Record<CastMode, CastModeRow> = {
         idOf: (def) => def?.evoke?.id,
         stamp: (_state, item) => {
             item.evoked = true;
+        },
+    },
+    // CR 702.96a — the `overloaded` marker `buildSpellContext` (`state.ts`)
+    // reads to swap the script's `forEach { set: "targets" }` member set from
+    // the announced targets to every matching object (CR 702.96b). Without it
+    // the tree prices an overloaded Damn as a one-creature removal spell — the
+    // same erasure issue #2796 documented for bestow, and the reason a mode
+    // that changes what the spell DOES belongs in this census rather than
+    // being left to the two executors.
+    overload: {
+        idOf: (def) => def?.overload?.id,
+        stamp: (_state, item) => {
+            item.overloaded = true;
         },
     },
 };

@@ -118,6 +118,7 @@ import { spellHasDelve } from "../payWith";
 // runtime import graph) and the call sits inside a function body, so the
 // state.ts↔phases.ts cycle is never touched at module-evaluation time.
 import { wasCastOffSorceryTiming } from "../phases";
+import { applyCastModeCharacteristics } from "../castMode";
 import { choiceCandidates } from "./choiceCandidates";
 import { MAX_CHOICE_BRANCH_WORK, MAX_CHOICE_DEPTH } from "./choiceDepth";
 import {
@@ -703,6 +704,19 @@ export function applyProbeCast(
             ? { castOffSorceryTiming: true }
             : {}),
     };
+    // CR 601.2b (issue #3215) — the cast-MODE census, the same one both search
+    // executors apply (`gre/castMode.ts`). This is the FIFTH
+    // build-a-StackItem-from-a-cast site and the census did not reach it, which
+    // is worse here than the drift issue #2796 documented: a mode the probe
+    // drops does not merely mis-value the line, it DELETES it. The probe's
+    // verdict is "applying this changes nothing", and an unstamped overload
+    // cast resolves against an EMPTY `forEach { set: "targets" }` member set —
+    // provably a no-op, so `isDominatedNoOpMove` pruned the overloaded cast out
+    // of the bot's legal moves entirely and the bot could only pass. Bestow and
+    // morph had the same latent hole (a bestowed probe resolving as a creature
+    // spell, a morph probe as its face-up self); stamping from the shared
+    // census closes all of them at once and keeps a new mode from reopening it.
+    applyCastModeCharacteristics(probe, stackItem, move.alternativeCostId);
     probe.stack.push(stackItem);
     emitSpellCastEvent(probe, stackItem);
     processPendingActionTriggers(probe);

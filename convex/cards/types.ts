@@ -16660,6 +16660,50 @@ export interface CardDefinition {
      *  By convention this card's `AlternativeCost.id` is `"bestow"`. Used by
      *  Springheart Nantuko (MH3). */
     bestow?: AlternativeCost;
+    /** CR 702.96 — Overload. "Overload [cost]" is two static abilities that
+     *  function while the spell is on the stack: "You may choose to pay [cost]
+     *  rather than pay this spell's mana cost", and "If you chose to pay this
+     *  spell's overload cost, change its text by replacing all instances of the
+     *  word 'target' with the word 'each'" (CR 702.96a). This field carries the
+     *  COST half only, reusing the {@link AlternativeCost} shape verbatim
+     *  because 702.96a says casting a spell using its overload ability "follows
+     *  the rules for paying alternative costs in rules 601.2b and 601.2f–h" —
+     *  the same infra `evoke` / `dash` / `bestow` resolve through
+     *  (`convex/gre/alternativeCost.ts`). Dedicated field, not an
+     *  `alternativeCosts[]` entry, so the chosen cost is IDENTIFIABLE as "the
+     *  overload one" by reference at cast commit (`isOverloadAlternativeCost`,
+     *  `convex/gre/overload.ts`).
+     *
+     *  The TEXT-CHANGING half (CR 702.96c, a rule-612 effect) needs no rewrite
+     *  machinery, because in this engine a spell's "text" is its Effect Script
+     *  and the script already has ONE construct that means "every object this
+     *  spell is affecting": `forEach { set: "targets" }` (issue #1083), which
+     *  iterates `SpellContext.targets`. So an overload card writes ONE script,
+     *  and the two modes differ only in what that set CONTAINS:
+     *
+     *   - printed cost → the announced targets (one, normally);
+     *   - overload cost → every object matching the card's own
+     *     `targetRequirement`, computed with TARGETING restrictions bypassed
+     *     (CR 702.96b — "that spell won't require any targets. It may affect
+     *     objects that couldn't be chosen as legal targets"), i.e. hexproof,
+     *     shroud and protection do not shield an overloaded sweep.
+     *
+     *  Consequently a card declaring `overload` MUST express its effect through
+     *  `forEach { set: "targets" }` rather than a fixed `{ target: n }` slot —
+     *  a bare slot reference would silently read only the first member of the
+     *  "each" set. `validateEffectScript` enforces that (`overload card: a
+     *  { target: n } object selector …`), so the mistake reds the static sweep
+     *  instead of shipping a half-overloaded card.
+     *
+     *  `CardInstanceState.overloaded` marks the cast for the rest of the
+     *  resolution, on the same marker precedent `evoked` and `dashed` set.
+     *  CR 702.96b's "won't require any targets" is
+     *  `castAdjustedTargetRequirement` returning `undefined`, exactly as a
+     *  face-down cast does.
+     *
+     *  By convention this card's `AlternativeCost.id` is `"overload"`. Used by
+     *  Damn (MH2) and Winds of Abandon (MH1). */
+    overload?: AlternativeCost;
     /** CR 702.37 — Morph. The card's printed MORPH COST, i.e. the cost paid to
      *  turn the face-down permanent face up as a special action (CR 702.37e /
      *  116.2b), NOT the cost of casting it face down. The face-down cast is

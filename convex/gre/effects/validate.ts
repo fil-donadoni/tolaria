@@ -56,7 +56,11 @@ export type EffectScriptHost = Pick<
     // `CardDefinition.types` itself, which is required) so synthetic test
     // hosts (`host()` in `validate.test.ts`) that omit it are unaffected — an
     // absent `types` simply skips that one gate.
-    Partial<Pick<CardDefinition, "types">>;
+    Partial<Pick<CardDefinition, "types">> &
+    // CR 702.96 (issue #3215) — read ONLY by the Overload slot-reference gate
+    // below. Optional for the same reason `types` is: a synthetic test host
+    // that omits it simply skips that one check.
+    Partial<Pick<CardDefinition, "overload">>;
 
 /** Field schema for one Op: required fields (each must be present and valid)
  *  plus optional fields (validated only when present). Any field NOT listed
@@ -6937,7 +6941,90 @@ export function validateEffectScript(def: EffectScriptHost): string[] {
             );
         }
     }
+
+    // CR 702.96a/b (issue #3215) — an OVERLOAD card must reach its objects
+    // through `forEach { set: "targets" }`, never through a fixed `{ target: n }`
+    // slot. Overload replaces every "target" in the spell's text with "each",
+    // and this engine expresses that by swapping what `SpellContext.targets`
+    // CONTAINS (`overloadAffectedTargets`, `gre/overload.ts`) — a set of one in
+    // the printed mode, of every matching object when overloaded. A slot
+    // reference reads element 0 of that set and nothing else, so an overload
+    // card authored with `{ target: 0 }` destroys exactly one creature for its
+    // overload price: correct-looking in the printed mode, silently
+    // half-implemented in the mode the keyword exists for. Nothing else would
+    // catch it — the smoke sweep resolves the printed mode, and the overloaded
+    // mode has no announced target to make illegal.
+    if (def.overload) {
+        const slots: unknown[] = [];
+        findTargetSlotRefs(def.effects, slots);
+        if (slots.length > 0) {
+            errors.push(
+                `${label}: declares overload (CR 702.96) but its script uses ${slots.length} fixed { target: n } slot reference(s) — an overloaded cast announces no targets (CR 702.96b), so a slot reads only the first swept object; reach them with forEach { set: "targets" } instead`
+            );
+        }
+        // …and it must sweep exactly ONCE (PR #3288 review finding 2). The
+        // "each" set is derived from the live board every time a SpellContext
+        // is built, and a resolution that suspends for a choice builds a new
+        // one on resume — while `forEach` freezes its own members at ITS entry.
+        // With one sweep those two facts never meet: the freeze happens before
+        // anything can suspend. With two, the second sweep's members depend on
+        // whether the first one suspended, so the same board can resolve two
+        // ways. Determinism is a hard property of this engine (no event log,
+        // seeded PRNG), so the second sweep is refused rather than given a
+        // semantics nobody has had to choose yet.
+        const sweeps = countTargetSetSweeps(def.effects);
+        if (sweeps > 1) {
+            errors.push(
+                `${label}: declares overload (CR 702.96) and sweeps forEach { set: "targets" } ${sweeps} times — the "each" set is re-derived from the live board per resolution context, so a second sweep resolves differently depending on whether the first one suspended for a choice; express the whole effect in ONE sweep`
+            );
+        }
+    }
     return errors;
+}
+
+/** Collects every `EffectTargetRef` (`{ target: <number> }`) anywhere in a
+ *  script tree, at any nesting depth and in any field position (`target`, `of`,
+ *  `cards`, `controllerOf`, …). Shape-matched rather than field-matched because
+ *  the slot ref is a VALUE the grammar accepts in many places, and a
+ *  field-name list would rot the next time an Op accepts one. */
+function countTargetSetSweeps(node: unknown): number {
+    if (Array.isArray(node)) {
+        return node.reduce<number>(
+            (n, child) => n + countTargetSetSweeps(child),
+            0
+        );
+    }
+    if (node === null || typeof node !== "object") return 0;
+    const obj = node as Record<string, unknown>;
+    const select = obj.select as { set?: unknown } | undefined;
+    const self =
+        obj.op === "forEach" &&
+        typeof select === "object" &&
+        select !== null &&
+        select.set === "targets"
+            ? 1
+            : 0;
+    return (
+        self +
+        Object.values(obj).reduce<number>(
+            (n, value) => n + countTargetSetSweeps(value),
+            0
+        )
+    );
+}
+
+function findTargetSlotRefs(node: unknown, out: unknown[]): void {
+    if (Array.isArray(node)) {
+        for (const child of node) findTargetSlotRefs(child, out);
+        return;
+    }
+    if (node === null || typeof node !== "object") return;
+    const obj = node as Record<string, unknown>;
+    if (typeof obj.target === "number") {
+        out.push(obj);
+        return;
+    }
+    for (const value of Object.values(obj)) findTargetSlotRefs(value, out);
 }
 
 /** No implicit bindings — a spell site provides no `$source` (its source is

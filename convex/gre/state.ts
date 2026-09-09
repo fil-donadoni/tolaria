@@ -142,6 +142,7 @@ import {
     targetingSourceFromCard,
     protectionSourceFromTargeting,
 } from "./rules";
+import { overloadAffectedTargets } from "./overload";
 import {
     checkPermanentTargetFilters,
     checkPlayerTargetFilters,
@@ -1503,6 +1504,20 @@ export type CardInstanceState = {
      *  to decide whether the "sacrifice this when it enters" half of Evoke
      *  fires. See {@link PermanentView.evoked} for the full doc. */
     evoked?: boolean;
+    /** CR 702.96a (issue #3215) — true iff this spell was cast for its Overload
+     *  cost. Set on the stack item at cast commit (`convex/game.ts`, when the
+     *  chosen alternative cost === `CardDefinition.overload`) and by the
+     *  cast-mode census inside both search executors (`gre/castMode.ts`). It is
+     *  the whole of CR 702.96a's second static ability: the SpellContext built
+     *  for an overloaded item takes its `targets` from
+     *  `overloadAffectedTargets` (`gre/overload.ts`) instead of the announced
+     *  slots, so `forEach { set: "targets" }` — the script construct that means
+     *  "every object this spell is affecting" — sweeps each matching object
+     *  rather than the one announced target. The marker rides onto the
+     *  resulting permanent for free like `evoked`/`dashed`, where it is inert:
+     *  no overload card in the pool is a permanent spell, and nothing reads it
+     *  off the battlefield. */
+    overloaded?: boolean;
     /** CR 702.109a — true iff this permanent was cast for its Dash cost. Set
      *  on the stack item at cast commit (`convex/game.ts`, when the chosen
      *  alternative cost === `CardDefinition.dash`) and rides onto the
@@ -2540,6 +2555,15 @@ export type PendingCast = {
      *  `cardInstanceId`, and the card is still in the caster's HAND while the
      *  payment is open, where the opponent's projection nulls it. */
     morphed?: boolean;
+    /** CR 702.96a — true iff the alternative cost chosen for this cast is the
+     *  card's Overload cost (`isOverloadAlternativeCost` at announcement).
+     *  Carried through a parked cast for the same reason as `evoked`/`dashed`/
+     *  `bestowed`/`morphed`: the mode is chosen at announcement (CR 601.2b) but
+     *  the stack item is not built until commit, and without it the deferred
+     *  commit would build an item whose text was never changed — a spell that
+     *  cost the overload price and then affected the one thing it never
+     *  targeted. */
+    overloaded?: boolean;
     /** CR 601.2 / 307.1 / 117.1a / 601.3a (issue #2473) — the "a sorcery
      *  couldn't have been cast right now" snapshot, taken at ANNOUNCEMENT
      *  (`announceCast`, before any cost is paid) and carried here so the
@@ -7025,6 +7049,18 @@ function resetStackTransientState(item: StackItem): void {
     delete item.evoked;
     delete item.dashed;
     delete item.escaped;
+    // CR 702.96a (issue #3215, PR #3288 review finding 1) — the Overload cast
+    // marker is the SAME leak shape as the three above, and the worst-behaved
+    // instance of it: `overloaded` decides whether the script's
+    // `forEach { set: "targets" }` sweeps the announced targets or EVERY
+    // matching object, so a marker that rides into the graveyard turns the next
+    // printed-cost cast of that card into a one-sided wrath for two mana.
+    // Reachable in the shipped pool today: overload Damn (or have it
+    // countered), then Regrowth / Eternal Witness / Yawgmoth's Will brings it
+    // back and the recast — which pays {B}{B} and announces ONE target —
+    // destroys every creature on both sides, because the `{ ...card, … }`
+    // spread every cast-commit site uses never writes `overloaded: false`.
+    delete item.overloaded;
     // CR 702.103b/400.7 — the bestow marker is the same leak shape as the
     // three above, with one extra obligation: bestow also MUTATED the object's
     // type line in place, so a bare `delete` would leave a countered
@@ -10568,6 +10604,12 @@ function collectCastTriggers(
         // nothing itself (the COPIES it produces carry the snapshot's
         // targets instead).
         targets: undefined,
+        // CR 702.96a (issue #3215) — and for the same reason, the trigger is
+        // not the overloaded SPELL: inheriting the marker through the spread
+        // would swap this item's own `ctx.targets` for the "each" sweep as it
+        // resolves. The `stormSnapshot` below keeps the spell's own marker,
+        // which is what the copies need.
+        overloaded: undefined,
         stormSnapshot: structuredClone(castSpell),
         stormCopiesRemaining: event.priorSpellCount ?? 0,
     };
@@ -10617,6 +10659,10 @@ function collectSelfCastTriggers(
             // CR 603.3d — a trigger chooses its own targets when it is put on
             // the stack; it never inherits the watched spell's.
             targets: undefined,
+            // CR 702.96a (issue #3215) — nor the watched spell's overload
+            // marker, which would otherwise swap this trigger's own
+            // `ctx.targets` for the spell's "each" sweep.
+            overloaded: undefined,
         });
         pushed = true;
     }
@@ -11853,6 +11899,13 @@ export function resetBattlefieldTransientState(
     delete card.evoked;
     delete card.dashed;
     delete card.escaped;
+    // CR 702.96a (issue #3215) — the battlefield-side half of the same gate the
+    // stack side now carries. No overload card in the pool is a permanent
+    // spell, so nothing reaches here with the marker today; it is listed
+    // because the sibling functions must name the SAME set of cast-instance
+    // facts, and a field on one list and not the other is how the leak this
+    // whole comment describes came back.
+    delete card.overloaded;
     // CR 307.1 / 117.1a / 601.3a (issue #2473) — same one-shot-fact-about-
     // the-OBJECT-that-was-cast shape as the trio immediately above: a
     // permanent bounced directly off the battlefield (never re-entering the
@@ -13734,7 +13787,18 @@ export function buildSpellContext(
         // above; a batch-aware imperative `resolve()` reads it to enumerate the
         // whole set (Twilight Diviner's "copy one of them" choice).
         triggerEventBatch: item.triggerEventBatch,
-        targets: item.targets ?? [],
+        // CR 702.96a/b (issue #3215) — the text-changing half of Overload, and
+        // the ONE place it lives. An overloaded spell announced no targets, so
+        // `item.targets` is empty and the CR 608.2b legality gate already
+        // treated it as untargeted (it cannot fizzle); what its script's
+        // `forEach { set: "targets" }` must sweep instead is every object
+        // matching the card's printed requirement, targeting restrictions
+        // bypassed. Computed here, as the spell resolves, because 702.96a's
+        // second ability is a CONTINUOUS effect functioning while the spell is
+        // on the stack — not a set snapshotted at announcement.
+        targets: item.overloaded
+            ? overloadAffectedTargets(state, item, item.castById)
+            : (item.targets ?? []),
         allPlayerIds: state.players.map((p) => p.id),
 
         getAttachedToId(): string | undefined {

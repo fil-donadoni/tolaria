@@ -210,17 +210,54 @@ export const boneShards: CardDefinition = {
     effects: [{ op: "destroy", target: { target: 0 } }],
 };
 
-// TODO(issue #676 stub — Overload, CR 702.96, is `planned` in
-// mechanicsRegistry.ts: no alternative-cost "change target to each"
-// primitive exists, and Damn's overload mode (destroy each creature) is half
-// the card. Stop-and-issue; tracked stub.
-// export const damn: CardDefinition = {
-//     id: "efeae088-9ac5-4d2f-a15c-d8675a471ac5",
-//     name: "Damn",
-//     rarity: "rare",
-//     manaCost: { B: 2 },
-//     types: ["Sorcery"],
-// };
+// Damn — {B}{B} Sorcery (MH2 80, Vintage Cube). "Destroy target creature. A
+// creature destroyed this way can't be regenerated. Overload {2}{W}{W}."
+//
+// CR 702.96 (issue #3215) — the keyword's first shipped card, and the reason
+// its script reaches its victims through `forEach { set: "targets" }` rather
+// than a `{ target: 0 }` slot: overload replaces "target" with "each"
+// (CR 702.96a) by swapping what that set CONTAINS, so ONE script is both the
+// printed removal spell and the wrath. Overloaded it destroys EVERY creature —
+// the caster's own board included, and creatures with hexproof too
+// (CR 702.96b — the spell targets nothing, so no targeting restriction can
+// shield anything from it).
+//
+// `cantBeRegenerated` (ADR 0053) carries the second sentence in both modes;
+// indestructible still protects (CR 701.8 — "can't be regenerated" suppresses
+// the CR 701.19c shield only).
+//
+// The grammar has no keyword-cost line rule for CR 702.96, and an overload
+// card's body must lower to the `forEach { set: "targets" }` shape rather than
+// a slot reference, so neither line round-trips yet (issue #3274):
+// compiler-gap: Overload {2}{W}{W} (#3274)
+export const damn: CardDefinition = {
+    id: "efeae088-9ac5-4d2f-a15c-d8675a471ac5",
+    name: "Damn",
+    rarity: "rare",
+    oracleText:
+        'Destroy target creature. A creature destroyed this way can\'t be regenerated.\nOverload {2}{W}{W} (You may cast this spell for its overload cost. If you do, change "target" in its text to "each.")',
+    manaCost: { B: 2 },
+    types: ["Sorcery"],
+    overload: {
+        id: "overload",
+        description: "Overload {2}{W}{W}",
+        mana: { X: 2, W: 2 },
+    },
+    targetRequirement: { type: "Creature", count: 1 },
+    effects: [
+        {
+            op: "forEach",
+            select: { set: "targets" },
+            effects: [
+                {
+                    op: "destroy",
+                    target: { ref: "$each" },
+                    cantBeRegenerated: true,
+                },
+            ],
+        },
+    ],
+};
 
 // Dauthi Voidwalker — {1}{B} Creature Dauthi Rogue, 3/2, shadow (MH2 81,
 // Vintage Cube FREE tranche, issue #686). "Shadow. If a card would be put
