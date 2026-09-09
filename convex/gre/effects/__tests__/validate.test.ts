@@ -4496,6 +4496,108 @@ describe("validateEffectScript — choice candidates / bindOther", () => {
             );
         });
 
+        // Review round 1 — the mismatch the `choose-library-card` sibling
+        // already catches for its reveal's audience, asked about the PILE
+        // instead: "target player mills three cards. You may put a land card
+        // from among them into your hand" written with the pick left
+        // defaulting to the controller's own graveyard validates, resolves,
+        // intersects with nothing and silently does half the card's text.
+        it("rejects a pick aimed at a DIFFERENT player's zone than the binding filled", () => {
+            const script = millThenPick();
+            const effects = (script.effects as EffectOp[]).map((op) =>
+                (op as { op: string }).op === "mill"
+                    ? ({ ...(op as object), player: { target: 0 } } as EffectOp)
+                    : op
+            );
+            const errors = validateEffectScript({ ...script, effects });
+            expect(errors.join("\n")).toContain(
+                "holds cards in a DIFFERENT player's graveyard"
+            );
+        });
+
+        it("accepts the foreign-zone shape once the pick names that zone owner", () => {
+            const script = millThenPick({ zoneOwnerId: { target: 0 } });
+            const effects = (script.effects as EffectOp[]).map((op) =>
+                (op as { op: string }).op === "mill"
+                    ? ({ ...(op as object), player: { target: 0 } } as EffectOp)
+                    : (op as { op: string }).op === "moveZone"
+                      ? ({
+                            ...(op as object),
+                            player: { target: 0 },
+                        } as EffectOp)
+                      : op
+            );
+            expect(validateEffectScript({ ...script, effects })).toEqual([]);
+        });
+
+        // Review round 1 — `bindingKindOf` answers "picks" for `nameCard` too,
+        // but a nameCard binding stores a card NAME, not an instance id, so it
+        // would intersect with nothing. The family check alone cannot tell the
+        // two apart; the producer allow-list can.
+        it("rejects a nameCard binding as a candidate source — it stores a name, not an id", () => {
+            const errors = validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "nameCard",
+                            player: "controller",
+                            prompt: "Name a card.",
+                            bind: "$named",
+                        },
+                        {
+                            op: "choice",
+                            kind: "choose-graveyard-card",
+                            player: "controller",
+                            zone: "graveyard",
+                            candidates: [{ ref: "$named" }],
+                            count: 1,
+                            prompt: "Choose one.",
+                            bind: "$kept",
+                        },
+                    ] as EffectOp[],
+                })
+            );
+            expect(errors.join("\n")).toContain(
+                "not known to be in a public zone"
+            );
+        });
+
+        it("accepts a candidate list naming SEVERAL bindings", () => {
+            expect(
+                validateEffectScript(
+                    host({
+                        effects: [
+                            {
+                                op: "mill",
+                                player: "controller",
+                                count: 1,
+                                bindAll: "$first",
+                            },
+                            {
+                                op: "mill",
+                                player: "controller",
+                                count: 1,
+                                bindAll: "$second",
+                            },
+                            {
+                                op: "choice",
+                                kind: "choose-graveyard-card",
+                                player: "controller",
+                                zone: "graveyard",
+                                candidates: [
+                                    { ref: "$first" },
+                                    { ref: "$second" },
+                                ],
+                                count: 1,
+                                prompt: "Choose one.",
+                                bind: "$kept",
+                            },
+                        ] as EffectOp[],
+                    })
+                )
+            ).toEqual([]);
+        });
+
         it("rejects bindOther on a public-zone pick — an unpicked graveyard card is not a permanent", () => {
             const errors = validateEffectScript(
                 millThenPick({ bindOther: "$other" })

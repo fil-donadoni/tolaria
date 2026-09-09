@@ -18490,6 +18490,63 @@ describe("Effect Script: bound-set candidates in a public zone (CR 400.2)", () =
         expect(state.players[0].hand.map((c) => c.id)).toEqual(["milled-land"]);
     });
 
+    it("unions SEVERAL bindings and de-duplicates them", () => {
+        // Review round 1 — the multi-binding loop was unexercised. Two mills
+        // bind two disjoint sets; the pick names the second one TWICE plus the
+        // first, so the union must be both lands, each once, in binding order.
+        const id = registerScript("test-among-them-multi-binding", [
+            { op: "mill", player: "controller", count: 1, bindAll: "$a" },
+            { op: "mill", player: "controller", count: 2, bindAll: "$b" },
+            {
+                op: "choice",
+                kind: "choose-graveyard-card",
+                player: "controller",
+                zone: "graveyard",
+                candidates: [{ ref: "$b" }, { ref: "$a" }, { ref: "$b" }],
+                filter: { type: "Land" },
+                count: 1,
+                prompt: "Choose one.",
+                bind: "$pick",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: [
+                        // $a takes the land on top; $b takes the bear and the
+                        // second land — so a union that lost either binding, or
+                        // one that double-counted `$b`, is visible in the set.
+                        makeInstance(LAND_ID, {
+                            id: "land-a",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                        makeInstance(BEAR_ID, {
+                            id: "bear-b",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                        makeInstance(LAND_ID, {
+                            id: "land-b",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.pendingChoices![0].candidateIds).toEqual([
+            "land-b",
+            "land-a",
+        ]);
+    });
+
     it("bindAll is an ordinary picks binding — an if { picksNonEmpty } gate reads it", () => {
         // The set is not a new binding kind: the picks consumers that read IDS
         // take it with no new grammar (a bare `cards` ref — exercised by the

@@ -5770,6 +5770,17 @@ function checkOpListRefs(
     // the wire exposure is driven by the pick's `candidateIds` and never by
     // `knownTo`, would be the whole leak.
     const revealedBindings = new Map<string, string>();
+    // issue #2600 — the same idea for a PUBLIC-zone bound set, where the
+    // question is not "was it revealed" but "whose zone are those cards in".
+    // Keyed by binding name, valued by the SERIALIZED player ref whose zone the
+    // binding's members were put in: a `mill { player: { target: 0 } }` fills
+    // the TARGET's graveyard, so a pick reading it must be aimed at that same
+    // player's graveyard or it intersects with nothing and the card silently
+    // does half its text. Membership is also the ALLOW-LIST of producers: a
+    // picks binding this pass never saw (a `nameCard` bind stores a card NAME,
+    // not an instance id, and is family-indistinguishable) can never be a
+    // candidate source. Same list scoping as `revealedBindings` above.
+    const publicZoneBindings = new Map<string, string>();
     effects.forEach((raw, i) => {
         if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
             return;
@@ -6231,6 +6242,22 @@ function checkOpListRefs(
             }
         }
 
+        // issue #2600 — the OTHER producer of a public-zone set: a `choice`
+        // that picked from a graveyard/exile in the first place, whose picks
+        // are by construction in `zoneOwnerId ?? player`'s copy of that zone
+        // ("choose two cards in your graveyard … then choose one of THEM").
+        // Registered after that Op's own candidate check below has run on it.
+        if (
+            entry.op === "choice" &&
+            (entry.zone === "graveyard" || entry.zone === "exile") &&
+            typeof entry.bind === "string"
+        ) {
+            publicZoneBindings.set(
+                entry.bind,
+                JSON.stringify(entry.zoneOwnerId ?? entry.player ?? null)
+            );
+        }
+
         // CR 400.2 (issue #2600) — a PUBLIC-zone `candidates` set names cards
         // by BINDING, never by object selector: an announced target slot or an
         // `$event` ref means a battlefield object, and a graveyard/exile card
@@ -6271,6 +6298,31 @@ function checkOpListRefs(
                     errors.push(
                         `${at}: zone "${entry.zone}" candidate "${ref}" is this choice's OWN bind — a candidate set must be bound by an EARLIER Op, never by the pick it scopes`
                     );
+                    continue;
+                }
+                // Whose zone the bound cards are actually IN. The library
+                // sibling asks the same question about its reveal's audience;
+                // here it is about the pile. A mismatch is not a leak — the
+                // interpreter intersects with the pick's own zone and comes
+                // up empty — it is the SILENT half-effect that intersection
+                // produces: "target player mills three cards. You may put a
+                // land card from among them into your hand" written with the
+                // pick left defaulting to the controller's own graveyard
+                // validates, resolves, and quietly does nothing.
+                const boundZoneOwner = publicZoneBindings.get(ref);
+                if (boundZoneOwner === undefined) {
+                    errors.push(
+                        `${at}: zone "${entry.zone}" candidate "${ref}" names a picks binding whose cards are not known to be in a public zone — only a mill's bindAll or an earlier graveyard/exile choice's bind can source one (a nameCard bind, for instance, stores a card NAME and would match nothing)`
+                    );
+                    continue;
+                }
+                const pickZoneOwner = JSON.stringify(
+                    entry.zoneOwnerId ?? entry.player ?? null
+                );
+                if (boundZoneOwner !== pickZoneOwner) {
+                    errors.push(
+                        `${at}: zone "${entry.zone}" candidate "${ref}" holds cards in a DIFFERENT player's ${entry.zone} than the one being picked from — set the pick's "zoneOwnerId" to the player whose zone the binding filled, or the two sets never intersect`
+                    );
                 }
             }
         }
@@ -6305,6 +6357,11 @@ function checkOpListRefs(
                 );
             } else {
                 declared.set(entry.bindAll, "picks");
+                // CR 701.17 — a mill fills the milled PLAYER's graveyard.
+                publicZoneBindings.set(
+                    entry.bindAll,
+                    JSON.stringify(entry.player ?? null)
+                );
             }
         }
 
