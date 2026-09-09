@@ -30,6 +30,7 @@ import {
     placeTriggersOnStack,
 } from "../../../../gre/triggers";
 import { finalizeTargetSelection } from "../../../../game";
+import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";
 import type { GameEvent } from "../../../types";
@@ -86,6 +87,19 @@ function activate(state: GameState, abilityId: string): void {
         abilityId,
     });
     resolveTopOfStack(state);
+}
+
+/** Submits a `search-library` pending choice, the shared idiom every tutor test
+ *  uses (Skyship Weatherlight, `sets/pls/__tests__/colorless.test.ts`). */
+function submitLibraryPick(state: GameState, cardInstanceIds: string[]): void {
+    const head = state.pendingChoices![0];
+    applyPendingChoiceSubmit(state, {
+        playerId: head.playerId,
+        stackItemId: head.stackItemId,
+        step: head.step,
+        choiceId: head.choiceId,
+        cardInstanceIds,
+    });
 }
 
 describe("Ugin, Eye of the Storms — targeted cast trigger (CR 113.6k / 603.3d, issue #3229)", () => {
@@ -294,6 +308,28 @@ describe("Ugin, Eye of the Storms — loyalty abilities (CR 606, ADR 0058)", () 
         expect([...(choice.candidateIds ?? [])].sort()).toEqual([
             "libJuggernaut",
             "libSolRing",
+        ]);
+
+        submitLibraryPick(state, ["libSolRing", "libJuggernaut"]);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+
+        // CR 607 — every exiled card is LINKED to Ugin…
+        const exiled = state.players[0].exile;
+        expect(exiled.map((c) => c.id).sort()).toEqual([
+            "libJuggernaut",
+            "libSolRing",
+        ]);
+        for (const card of exiled) {
+            expect(card.exiledBySourceId).toBe("ugin1");
+            // …and EVERY one of them is castable for free this turn. This is
+            // the assertion that separates the linked route from the bare-picks
+            // branch, which grants only the FIRST pick.
+            expect(card.castableFromExileBy).toBe("p1");
+            expect(card.castFromExileWithoutPayingManaCost).toBe(true);
+        }
+        // The coloured card was never findable, so it stayed in the library.
+        expect(state.players[0].library.map((c) => c.id)).toEqual([
+            "libArchers",
         ]);
     });
 });

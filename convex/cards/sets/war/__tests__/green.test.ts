@@ -190,23 +190,57 @@ describe("Nissa, Who Shakes the World — +1 animates a noncreature land (CR 205
         });
     }
 
-    it("only NONCREATURE lands YOU CONTROL are legal targets", () => {
-        const state = boardWithLands();
+    /** The +1's legal target ids, read through the SAME authority the mutation
+     *  and the client both use (`getLegalTargets`, ADR 0068). */
+    function plus1TargetIds(state: GameState): string[] {
         const source = state.players[0].battlefield.find(
             (c) => c.id === "nissa1"
         )!;
         const req = (nissa.activatedAbilities ?? []).find(
             (a) => a.id === PLUS1
         )!.targetRequirement!;
-        const legalIds = getLegalTargets(
+        return getLegalTargets(
             state,
             req,
             targetingSourceFromCard(source, false),
             "p1"
         )
             .filter((t) => t.type === "permanent")
-            .map((t) => t.id);
-        expect(legalIds).toEqual(["forest1"]);
+            .map((t) => t.id)
+            .sort();
+    }
+
+    it("only lands YOU CONTROL are legal targets — a creature and the opponent's land are not", () => {
+        const state = boardWithLands();
+        expect(plus1TargetIds(state)).toEqual(["forest1"]);
+    });
+
+    it("a land that is ALREADY a creature is not a legal target (CR 205 — 'noncreature land')", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        nissaOnBattlefield(),
+                        makeInstance(forest.id, {
+                            id: "forest1",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                        makeInstance(forest.id, {
+                            id: "forest2",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(plus1TargetIds(state)).toEqual(["forest1", "forest2"]);
+        // Animate one of them with the +1 itself: it becomes a land CREATURE,
+        // and a second +1 can no longer choose it.
+        activate(state, PLUS1, [{ type: "permanent", id: "forest1" }]);
+        expect(plus1TargetIds(state)).toEqual(["forest2"]);
     });
 
     it("puts three counters, untaps, and makes it a 3/3 Elemental land creature with vigilance and haste", () => {
