@@ -3,8 +3,10 @@
 // spend mana as though it were mana of any color to activate abilities of
 // creatures you control".
 //
-// The card itself is still blocked on ability-copy (`cards/sets/woe/colorless.ts`),
-// so the scope is exercised on probe definitions. They live in a fixture module
+// The card itself shipped in issue #2945 (`cards/sets/woe/colorless.ts`) and has
+// its own suites; the scope keeps its probe definitions because they reach
+// corners the real card cannot — a NONCREATURE and a MANA creature carrying the
+// same coloured ability cost. They live in a fixture module
 // rather than inline in one suite because the ENGINE guards and the BOT guards
 // run in different vitest projects (`bot-suite-boundary.test.ts`): both must
 // drive the SAME definitions or the two halves can drift apart silently.
@@ -19,9 +21,9 @@ export const CREATURE_ID = "00000000-0000-4000-8000-000029440002";
 export const ARTIFACT_ID = "00000000-0000-4000-8000-000029440003";
 export const MANA_CREATURE_ID = "00000000-0000-4000-8000-000029440004";
 
-/** Agatha's Soul Cauldron's second clause, and nothing else — the card itself
- *  is still blocked on ability-copy (`cards/sets/woe/colorless.ts`), so the
- *  scope is exercised on a fixture exactly as issue #2944 scoped it. */
+/** Agatha's Soul Cauldron's second clause, and nothing else — a copy of the
+ *  shipped card's own predicate (`cards/sets/woe/colorless.ts`, issue #2945),
+ *  carried on a fixture so the negative cases below can exist at all. */
 const CAULDRON_SCOPE = {
     kind: "activated-ability",
     applies: (
