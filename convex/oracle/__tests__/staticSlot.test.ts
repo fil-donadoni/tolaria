@@ -389,9 +389,10 @@ describe("board cast permission (CR 601.3)", () => {
     });
 
     it("REFUSES a duration-scoped permission (Borne Upon a Wind)", () => {
-        // Load-bearing beyond its own sentence: no static rule reads the type
-        // line, so this refusal is the only thing keeping an INSTANT out of a
-        // slot that means "true while this permanent is on the battlefield".
+        // Asserted on the REASON, not merely on the refusal: the class reader
+        // would decline "spells this turn" anyway, by accident, and no static
+        // rule reads the type line — so this named check is the whole of what
+        // deliberately keeps an INSTANT out of a board-static slot.
         expect(
             refusal("You may cast spells this turn as though they had flash.")
         ).toContain("DURATION");

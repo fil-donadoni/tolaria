@@ -505,9 +505,12 @@ function readCastPermissionFilter(span: string): RuleResult<EffectCardFilter> {
  * and nothing else; there is no field for a cost that is merely DIFFERENT.
  *
  * DURATION tails — "spells this turn" (Borne Upon a Wind), "sorcery spells
- * this turn" (Complete the Circuit). This refusal is load-bearing beyond its
- * own sentence: no static rule consults `ParseContext.typeLine`, so the tail
- * is the only thing keeping an INSTANT out of a slot that means "true while
+ * this turn" (Complete the Circuit). The class reader would refuse these
+ * anyway, because "this turn" is not a qualifier the descriptor grammar
+ * knows — but by ACCIDENT, and an accident is not a guarantee (the same
+ * argument the module header makes for the plural check). It is worth stating
+ * deliberately because no static rule consults `ParseContext.typeLine`: this
+ * is the whole of what keeps an INSTANT out of a slot that means "true while
  * this permanent is on the battlefield" (CR 604.1).
  *
  * ZONE phrases — "spells from your hand" (Omniscience), "from an opponent's
