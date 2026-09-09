@@ -819,7 +819,8 @@ describe("the probe applies CAST MODES (CR 601.2b, issue #3215)", () => {
     it("applyProbeCast stamps the mode, so the probe board is the board the cast really produces", () => {
         const state = build(overloadSpec);
         const overload = castsOf(state, "Damn", false).find(
-            (m) => m.kind === "cast-spell" && m.alternativeCostId === "overload"
+            (m): m is Extract<Move, { kind: "cast-spell" }> =>
+                m.kind === "cast-spell" && m.alternativeCostId === "overload"
         )!;
         const probe = buildBladeState({
             label: "dominance-unit",
