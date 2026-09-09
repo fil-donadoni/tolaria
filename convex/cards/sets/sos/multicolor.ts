@@ -4,6 +4,7 @@
 // cost (CR 202.2): lands and colourless artifacts (no coloured cost) live in
 // colorless.ts.
 import type { CardDefinition } from "../../types";
+import { PERMANENT_TYPES } from "../../../gre/constants";
 
 // Traumatic Critique — {X}{U}{R} Instant. "Traumatic Critique deals X damage to
 // any target. Draw two cards, then discard a card." CR 107.3 X cost (read via
@@ -405,6 +406,95 @@ export const viciousRivalry: CardDefinition = {
                     then: [{ op: "destroy", target: { ref: "$each" } }],
                 },
             ],
+        },
+    ],
+};
+
+// Prismari Charm — {U}{R} Instant. "Choose one — • Surveil 2, then draw a
+// card. • Prismari Charm deals 1 damage to each of one or two targets.
+// • Return target nonland permanent to its owner's hand." (Modern Scryfall
+// oracle text, ADR 0004.) CR 700.2 modal: exactly one mode is announced as
+// the spell is cast, and only that mode's targets are chosen (CR 700.2c).
+// Authored DSL-first (ADR 0045) — every mode composes from already-shipped
+// Ops, the same `modes[]` mechanism Lorehold Charm above uses.
+//
+// Mode 1 — "Surveil 2, then draw a card" (CR 701.25 Surveil, CR 121.1 draw).
+// Surveil is the `destination: "graveyard"` variant of `scryReorder` (look at
+// the top N, put any number into the graveyard and the rest back on top in
+// any order); Consider (`mid/blue.ts`) is the shipped 1-card precedent, this
+// is the same Op at `count: 2`. Surveil resolves first, then the draw.
+//
+// Mode 2 — "deals 1 damage to each of one or two targets" (CR 601.2c). The
+// variable target count is `TargetRequirement.count`'s object form,
+// `{ min: 1, max: 2 }` (Arc Mage, `nem/red.ts`, announces the same shape);
+// the CR already forbids naming the same object twice in one target list, so
+// "one or two targets" is two DIFFERENT objects when two are chosen.
+// Deliberately NOT a `dealDamageDividedAsChosen` (Arc Mage's divided 2): this
+// charm's amount is FIXED per target, not divided — one target takes 1 (never
+// 2), two targets take 1 each.
+//
+// The body is one `dealDamage` per announced slot rather than a
+// `forEach { select: { set: "targets" } }` sweep, and that is load-bearing,
+// not stylistic: `selectForEachMembers` (`gre/effects/interpreter.ts`) keeps
+// only `t.type === "permanent"` entries, so an "any target" PLAYER pick would
+// be silently dropped from the iteration and take no damage. A missing second
+// slot (only one target announced) simply resolves to nothing and the Op is
+// skipped (CR 608.2b), which is exactly the "one target" reading.
+//
+// Mode 3 — "Return target nonland permanent to its owner's hand": the plain
+// bounce `moveZone` (CR 400.7), with the target's Land type excluded.
+//
+// Guard C (issue #2701): the grammar consumes no modal bullet list at all —
+// a "Choose one —" card fails even when every bullet parses on its own, and
+// mode 3's line does parse standalone. Modes 1 and 2 are unparsed as well.
+// compiler-gap: "Choose one —" modal bullet list (#2693)
+// compiler-gap: "Surveil 2, then draw a card." (#2693)
+// compiler-gap: "Prismari Charm deals 1 damage to each of one or two targets." (#2693)
+export const prismariCharm: CardDefinition = {
+    id: "8f6c2a5e-fe13-407c-aadd-c9caf2884ff1",
+    rarity: "uncommon",
+    name: "Prismari Charm",
+    oracleText:
+        "Choose one —\n• Surveil 2, then draw a card.\n• Prismari Charm deals 1 damage to each of one or two targets.\n• Return target nonland permanent to its owner's hand.",
+    manaCost: { U: 1, R: 1 },
+    types: ["Instant"],
+    modes: [
+        {
+            id: "surveil-draw",
+            label: "Surveil 2, then draw a card.",
+            oracleText: "Surveil 2, then draw a card.",
+            effects: [
+                {
+                    op: "scryReorder",
+                    player: "controller",
+                    count: 2,
+                    destination: "graveyard",
+                    prompt: "Surveil 2 — keep the cards on top or put them into your graveyard.",
+                },
+                { op: "draw", player: "controller", count: 1 },
+            ],
+        },
+        {
+            id: "damage-one-or-two",
+            label: "Deal 1 damage to each of one or two targets.",
+            oracleText:
+                "Prismari Charm deals 1 damage to each of one or two targets.",
+            targetRequirement: { type: "any", count: { min: 1, max: 2 } },
+            effects: [
+                { op: "dealDamage", amount: 1, to: { target: 0 } },
+                { op: "dealDamage", amount: 1, to: { target: 1 } },
+            ],
+        },
+        {
+            id: "bounce-nonland",
+            label: "Return target nonland permanent to its owner's hand.",
+            oracleText: "Return target nonland permanent to its owner's hand.",
+            targetRequirement: {
+                type: [...PERMANENT_TYPES],
+                excludeTypes: "Land",
+                count: 1,
+            },
+            effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
         },
     ],
 };
