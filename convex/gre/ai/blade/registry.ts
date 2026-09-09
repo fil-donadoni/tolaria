@@ -5552,23 +5552,30 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     // chooses — their own permanent, a cost — read as removal aimed at the
     // opponent, on nine shipped cards.
     {
-        label: "sacrifice sign: does not cast Flash for a creature it cannot pay for",
+        label: "sacrifice sign: does not cast a creature whose ETB eats its own board",
         spec: {
             cards: [
-                { name: "Flash", owner: "me", zone: "hand" },
-                { name: "Craw Wurm", owner: "me", zone: "hand" },
+                { name: "Kjeldoran Dead", owner: "me", zone: "hand" },
+                {
+                    name: "Craw Wurm",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
             ],
             phase: "PRECOMBAT_MAIN",
-            turn: 3,
-            landCount: 2,
+            turn: 5,
+            landCount: 3,
             libraryCount: 20,
         },
         bot: "me",
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
-        expect: { forbidden: [{ kind: "cast-spell", card: "Flash" }] },
-        note: "Issue #3292, the reported symptom. Two lands is exactly Flash's {1}{U} and nothing more, so the Craw Wurm it could cheat in costs {2}{G}{G} after the {2} reduction (CR 118.9) and CANNOT be paid for: the only reachable outcome of the cast is putting the Wurm onto the battlefield and sacrificing it — two cards and the turn's mana for nothing. The bot must pass. It used to cast, because the trailing `if (not $paid) -> sacrifice($picked)` was priced as +120 board removal: `$picked` is a bare picks ref, and the valuer never asked that the binding came from a `choice { player: \"controller\" }`. At resolution it then correctly declines the put, so the whole cast was spent on nothing. Deliberately NOT a claim that the cheat-into-play shape is worthless — giving it positive value is issue #3293; this entry only pins that the sacrifice half stops being counted as a gift.",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Kjeldoran Dead" }],
+        },
+        note: 'Issue #3292. Kjeldoran Dead is a 3/1 whose ETB is `choice { player: "controller" } -> sacrifice($sac)` (CR 701.21) — the caster picks one of their OWN creatures. With a 6/4 Craw Wurm as the only other body, casting it is strictly worse than passing whichever creature the sacrifice takes, so the bot must not cast. It used to, because the ability script priced that sacrifice as +120 board removal: the permanent was credited a standing EDICT it does not have, and `dslRealizedAbilityScriptValue` puts that credit on the board at EVERY search leaf — measured 589.5 before the fix against 429.5 after, on the same two-creature board. Discriminating, measured at authoring time on all five seeds: `cast-spell` before the valuer split, `pass` after.',
     },
     {
         label: "sacrifice sign NEGATIVE CONTROL: still casts a genuine edict",
