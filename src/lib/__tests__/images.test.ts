@@ -8,9 +8,22 @@
 // every image consumer must go through: it returns the def's printed
 // `imagePrintId` for tokens that have one, and `null` for tokens that
 // don't (so the caller skips the network and renders a placeholder).
+//
+// The bug class recurred once the engine minted a SECOND synthetic id shape
+// (issue #3321): an inset spell's twin is `${printId}#${kind}` (ADR 0120), the
+// resolver's guard was written against the `token:` prefix alone, and `#` is
+// the URL FRAGMENT delimiter — so an Adventure on the stack did not merely
+// request a wrong URL, it requested a TRUNCATED one, extension and all, and
+// Scryfall answered 404. The catalogue-wide sweep at the bottom of this file is
+// the assertion that generalises the guard: it asks the question of EVERY
+// registered definition rather than of the id shapes someone remembered.
 
 import { describe, it, expect } from "vitest";
-import { tokenDefinitionId } from "@convex/cards";
+import {
+    getCardByName,
+    registeredDefinitions,
+    tokenDefinitionId,
+} from "@convex/cards";
 import type { TokenSpec } from "@convex/cards/types";
 import {
     getArtCropImageUrl,
@@ -194,5 +207,70 @@ describe("resolveCardImageFace / face-aware URL selection (issue #1595)", () => 
         expect(resolvedId).toBe(PRINT_ID);
         expect(face).toBe("back");
         expect(getImageUrl(resolvedId, face)).toContain("/grid/back/a/a/");
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("no registered definition can produce an un-fetchable image URL (issue #3321)", () => {
+    // The guard that was missing. Both earlier incidents were the same shape —
+    // an id this engine SYNTHESIZES reaching a Scryfall path — and both were
+    // found in production rather than here, because every test asserted the id
+    // shapes its author already knew about. This one enumerates the registry,
+    // so the next synthetic id is covered on the day it is minted.
+    //
+    // `registeredDefinitions()` is the right population precisely because it is
+    // WIDER than the catalogue: it yields the face-down sentinel, runtime
+    // tokens and inset-spell twins — the objects that have no printing of their
+    // own and are therefore the only ones that can break this.
+    const offenders: string[] = [];
+    const urls: string[] = [];
+    for (const def of registeredDefinitions()) {
+        const resolved = resolveCardImageId(def.id);
+        if (resolved === null) continue; // renders the in-app placeholder
+        if (resolved.includes("#") || resolved.startsWith("token:")) {
+            offenders.push(`${def.name} (${def.id}) -> ${resolved}`);
+        }
+        urls.push(getArtCropImageUrl(resolved));
+    }
+
+    it("resolves every definition to a printing id or to nothing", () => {
+        expect(
+            offenders,
+            "a synthetic id reached the image resolver's output. It is not a " +
+                "Scryfall id, so the request either 404s or — for an id " +
+                "containing `#` — is truncated at the fragment delimiter and " +
+                "loses its file extension. Return null instead and let the " +
+                "caller render the placeholder."
+        ).toEqual([]);
+    });
+
+    it("builds no URL carrying a fragment delimiter", () => {
+        // The assertion stated at the OUTPUT rather than at the id, because
+        // this is the property that actually broke: a `#` anywhere in the path
+        // makes the browser send less than the string says.
+        expect(urls.filter((u) => u.includes("#"))).toEqual([]);
+        // Vacuity floor: a resolver that answered null for everything would
+        // pass both assertions above.
+        expect(urls.length).toBeGreaterThan(100);
+    });
+});
+
+describe("an Adventure's art is the adventurer card's printing (CR 715.2c, issue #3321)", () => {
+    // One card is one card, and one card is one PRINTING: the inset half has no
+    // illustration of its own, so a Petty Theft on the stack shows Brazen
+    // Borrower's art rather than a placeholder.
+    const twinId = `${getCardByName("Brazen Borrower").id}#adventure`;
+
+    it("resolves the twin to the parent's print id", () => {
+        expect(resolveCardImageId(twinId)).toBe(
+            getCardByName("Brazen Borrower").id
+        );
+    });
+
+    it("produces the same art URL the parent produces", () => {
+        expect(getArtCropImageUrl(resolveCardImageId(twinId)!)).toBe(
+            getArtCropImageUrl(getCardByName("Brazen Borrower").id)
+        );
     });
 });
