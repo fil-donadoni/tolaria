@@ -32,6 +32,7 @@
 // injected and the caller seeds it from the pairing's identity
 // (`botMatchSeed`), so a re-render can never rewrite a recorded result (PRD
 // #1628 story 19).
+import { fnv1a32 } from "../lib/hash";
 import type { DeckCard } from "../deckPresets";
 import { FORMAT_RULES } from "../formats";
 import {
@@ -352,21 +353,6 @@ export function simulateBotMatch(
         else winsB++;
     }
     return { winsA, winsB };
-}
-
-/** FNV-1a over an identity string, coerced to the signed 32-bit integer
- *  `makeRng` expects. The ONE identity→seed hash of the play phase: this
- *  module seeds a bot match with it (`botMatchSeed`) and `rounds.ts` seeds a
- *  round's pairing with it (`roundPairingSeed`), so "the same identity always
- *  yields the same stream" is one fact with one implementation rather than a
- *  constant that has to be copied correctly twice. */
-export function fnv1a32(identity: string): number {
-    let hash = 0x811c9dc5;
-    for (let i = 0; i < identity.length; i++) {
-        hash ^= identity.charCodeAt(i);
-        hash = Math.imul(hash, 0x01000193);
-    }
-    return hash | 0;
 }
 
 /** Derives the RNG seed for ONE pairing from its identity (PRD #1628 story

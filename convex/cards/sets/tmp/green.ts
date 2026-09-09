@@ -176,7 +176,6 @@ export const harrow: CardDefinition = {
 // Enforced once, at announcement, by `castPermissionRequiredFor`
 // (`convex/gre/rules.ts`).
 //
-// compiler-gap: Any player may cast creature spells with mana value 3 or less without paying their mana costs and as though they had flash. (#3268)
 export const aluren: CardDefinition = {
     id: "268403bc-733d-446e-a7c1-abc957c42bc2",
     name: "Aluren",
@@ -188,7 +187,13 @@ export const aluren: CardDefinition = {
     staticEffects: [
         {
             kind: "cast-permission",
-            id: "aluren-creature-permission",
+            // CR 601.3 — DERIVED from the clause, not from the card: the
+            // engine deduplicates permissions on the bare id across both
+            // battlefields, so the id names the offered cast option rather
+            // than Aluren (`oracle/castPermissionId.ts`, issue #3268). The
+            // literal is asserted against that derivation catalogue-wide by
+            // `cards/__tests__/castPermissionIds.test.ts`.
+            id: "any-player-creature-f9f346f4",
             grantee: "any-player",
             filter: { type: "Creature", manaValueAtMost: 3 },
             withoutPayingManaCost: true,

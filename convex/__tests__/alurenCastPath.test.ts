@@ -32,7 +32,7 @@ import {
 } from "./gameMutationHarness";
 
 const GAME_ID = "game-1" as Id<"games">;
-const ALUREN_ALT_COST_ID = "cast-permission:aluren-creature-permission";
+const ALUREN_ALT_COST_ID = "cast-permission:any-player-creature-f9f346f4";
 
 /** A creature whose printed cost carries a variable {X}. Its mana value in
  *  hand is still 1 (CR 202.3b — X counts as 0 everywhere but the stack), so

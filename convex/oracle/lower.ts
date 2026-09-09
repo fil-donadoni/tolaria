@@ -223,7 +223,7 @@ function lowerLine(
             return null;
         }
         case "static": {
-            const lowered = lowerStaticClause(ir.clause);
+            const lowered = lowerStaticClause(ir.clause, parsed.line);
             if (!lowered.ok) return lowered.reason;
             const out = lowered.lowered;
             if (out.effect !== undefined)

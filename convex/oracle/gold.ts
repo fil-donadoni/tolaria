@@ -37,7 +37,7 @@ import { expandDefinition } from "../cards/registry";
 import type { CardDefinition, GameEventType } from "../cards/types";
 import type { CompiledTriggerHead } from "../cards/compiledTriggers";
 import { compileCard } from "./compile";
-import { sortKeys } from "./gates";
+import { canonicaliseShorthands, sortKeys } from "./gates";
 import type { ManaCost } from "../cards/types";
 import type { CompiledDefinition, CompileOutcome, OracleCard } from "./types";
 
@@ -109,90 +109,6 @@ function isDeadManaAbilityClosure(ability: Record<string, unknown>): boolean {
     );
 }
 
-/**
- * Fields `cards/types.ts` documents as "single X is shorthand for one X".
- *
- * `subtypeFilter: "Wall"` and `subtypeFilter: ["Wall"]` are the SAME filter —
- * every consumer normalises them at read time, and the catalogue writes both,
- * sometimes for the same phrase on two different cards ("Sacrifice a Saproling"
- * is `subtypes: "Saproling"` on Nemata and `subtypes: ["Saproling"]` on Elvish
- * Farmer). Comparing the two encodings as different values would report a
- * dozen spurious mismatches and say nothing about whether the compiler READ the
- * card correctly, which is the only question this harness exists to answer.
- *
- * So the comparison is canonicalised the same way `sortKeys` canonicalises key
- * ORDER: symmetrically, on both sides, over an ENUMERATED list of fields whose
- * own doc comment declares the equivalence. It is deliberately not "lift every
- * bare string into an array" — that would also erase a difference between
- * `name: "Wall"` and `name: ["Wall"]`, which is not a shorthand and not
- * equivalent.
- */
-const SHORTHAND_ARRAY_KEYS: ReadonlySet<string> = new Set([
-    "type",
-    "types",
-    "subtypes",
-    "supertypes",
-    "colors",
-    "subtypeFilter",
-    "supertypeFilter",
-    "excludeTypes",
-    "excludeSubtypes",
-    "excludeSupertypes",
-    "excludeColors",
-    "combatRoleFilter",
-    "spellTypeFilter",
-    "spellExcludeTypeFilter",
-    "spellTargetsTypeFilter",
-]);
-
-/**
- * `ManaCost`-valued fields, where a generic component of ZERO is the same
- * second documented dual encoding.
- *
- * `printManaCost` renders `{}` and `{ X: 0 }` identically (a zero generic
- * contributes no symbol), and `gold.test.ts` already states the equivalence
- * outright — "`{0}` is encoded both as `{}` and as `{ X: 0 }` in the
- * catalogue". Blinking Spirit writes `{ X: 0 }` for its "{0}:" cost and Urza's
- * Avenger writes `{}` for the same printed cost, so a comparison that told them
- * apart would report one of the two as a compiler defect whichever way the
- * compiler chose.
- */
-const MANA_COST_KEYS: ReadonlySet<string> = new Set([
-    "mana",
-    "manaCost",
-    "manaProduced",
-]);
-
-/** Lift every declared shorthand field to its canonical form, at any depth. */
-function canonicaliseShorthands(value: unknown): unknown {
-    if (Array.isArray(value)) return value.map(canonicaliseShorthands);
-    if (value === null || typeof value !== "object") return value;
-    const out: Record<string, unknown> = {};
-    for (const [key, inner] of Object.entries(
-        value as Record<string, unknown>
-    )) {
-        const canonical = canonicaliseShorthands(inner);
-        if (SHORTHAND_ARRAY_KEYS.has(key) && typeof canonical === "string") {
-            out[key] = [canonical];
-            continue;
-        }
-        out[key] =
-            MANA_COST_KEYS.has(key) && canonical !== null
-                ? withoutZeroGeneric(canonical)
-                : canonical;
-    }
-    return out;
-}
-
-function withoutZeroGeneric(value: unknown): unknown {
-    if (typeof value !== "object" || value === null) return value;
-    const record = value as Record<string, unknown>;
-    if (record.X !== 0) return value;
-    const rest: Record<string, unknown> = { ...record };
-    delete rest.X;
-    return rest;
-}
-
 const ABILITY_ARRAY_KEYS: ReadonlySet<string> = new Set([
     "activatedAbilities",
     "triggeredAbilities",
@@ -239,6 +155,32 @@ export type GoldBucket =
  */
 const CLOSURE_VALUED_KEYS: ReadonlySet<string> = new Set(["effect"]);
 
+/**
+ * Static-effect arrays, and the ONE display key their elements carry.
+ *
+ * Narrower than {@link ABILITY_DISPLAY_KEYS} in exactly the place that
+ * matters: `id` is NOT here. ADR 0114 §4 — the comparator never folds a field
+ * the engine reads to DECIDE — and a `cast-permission`'s id is read twice
+ * (the cross-battlefield dedupe in `gre/castPermissions.ts`, and the
+ * `alternativeCostId` the cast mutation resolves). It stays compared.
+ *
+ * `label` is the opposite kind of field, and it is the SAME field the modes'
+ * `label` row above describes: UI copy the catalogue writes ("Cast with
+ * Aluren") in place of the printed paragraph. Issue #3284 split it out of
+ * `oracleText` precisely because one field was doing two jobs; comparing it
+ * would make Guard C unsatisfiable for every card whose author writes one,
+ * since no grammar can derive an author's copy. `oracleText` beside it is
+ * card data and IS compared — the compiler emits the sentence it read.
+ *
+ * `cast-permission` is the only static kind carrying either field, so the
+ * entry scopes itself exactly as the modes' `label` does (issue #3268).
+ */
+const STATIC_ARRAY_KEYS: ReadonlySet<string> = new Set([
+    "staticEffects",
+    "compiledStaticEffects",
+]);
+const STATIC_DISPLAY_KEYS: ReadonlySet<string> = new Set(["label"]);
+
 /** Behavioural projection: everything the GRAMMAR is responsible for. */
 export function behaviouralProjection(
     definition: CardDefinition | CompiledDefinition
@@ -248,6 +190,18 @@ export function behaviouralProjection(
         if (PASSTHROUGH_KEYS.has(key) || value === undefined) continue;
         if (CLOSURE_VALUED_KEYS.has(key)) {
             out[key] = sortKeys(() => undefined);
+            continue;
+        }
+        if (STATIC_ARRAY_KEYS.has(key) && Array.isArray(value)) {
+            out[key] = value.map((effect) => {
+                const record = effect as Record<string, unknown>;
+                const copy: Record<string, unknown> = {};
+                for (const [k, v] of Object.entries(record)) {
+                    if (STATIC_DISPLAY_KEYS.has(k)) continue;
+                    copy[k] = v;
+                }
+                return sortKeys(copy);
+            });
             continue;
         }
         if (ABILITY_ARRAY_KEYS.has(key) && Array.isArray(value)) {

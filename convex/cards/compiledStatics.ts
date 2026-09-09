@@ -45,6 +45,7 @@ import type {
     Color,
     ManaCost,
     PermanentView,
+    StaticCastPermission,
     StaticEffect,
     StaticEffectContext,
 } from "./types";
@@ -147,7 +148,21 @@ export type CompiledStaticEffect =
           readonly increase?: number;
           /** Generic mana removed from the cost. Exclusive with `increase`. */
           readonly reduction?: number;
-      };
+      }
+    /**
+     * CR 601.3 / 118.9 — "<grantee> may cast <class> spells [without paying
+     * their mana costs] [as though they had flash]" (issue #3268).
+     *
+     * The one member that is its own engine effect verbatim rather than a
+     * descriptor OF one, and the reason is the reason this module exists said
+     * backwards: `StaticCastPermission` carries no predicate at all. Its
+     * `filter` is a declarative `EffectCardFilter` read by
+     * `handCardMatchesFilter` at cast time (`gre/castPermissions.ts`), so
+     * there is nothing to rebuild and nothing a JSON emitter has to leave
+     * behind. Re-declaring the same six fields here would only create a shape
+     * that could drift from the one the engine reads.
+     */
+    | StaticCastPermission;
 
 /**
  * One descriptor's filter as a live predicate.
@@ -267,6 +282,12 @@ export function resolveCompiledStatic(
                     : {}),
             };
         }
+        // CR 601.3 — already the engine's own effect (see the union member):
+        // returned unchanged rather than reassembled field by field, so a
+        // field added to `StaticCastPermission` reaches the engine without an
+        // edit here that could be forgotten.
+        case "cast-permission":
+            return descriptor;
         default: {
             const never: never = descriptor;
             throw new Error(
