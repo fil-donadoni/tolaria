@@ -223,18 +223,31 @@ describe("no registered definition can produce an un-fetchable image URL (issue 
     // WIDER than the catalogue: it yields the face-down sentinel, runtime
     // tokens and inset-spell twins — the objects that have no printing of their
     // own and are therefore the only ones that can break this.
-    const offenders: string[] = [];
-    const urls: string[] = [];
-    for (const def of registeredDefinitions()) {
-        const resolved = resolveCardImageId(def.id);
-        if (resolved === null) continue; // renders the in-app placeholder
-        if (resolved.includes("#") || resolved.startsWith("token:")) {
-            offenders.push(`${def.name} (${def.id}) -> ${resolved}`);
+    // Swept INSIDE the tests, never at collection time. The `dom` project runs
+    // `isolate: false` (one worker, shared module registry), and several
+    // sibling suites assert through `waitFor` with its 1s default — a
+    // ~2,000-definition synchronous sweep evaluated while the file is merely
+    // being COLLECTED is work those timers pay for. Memoised so the two
+    // assertions below sweep once between them.
+    let swept: { offenders: string[]; urls: string[] } | null = null;
+    const sweep = (): { offenders: string[]; urls: string[] } => {
+        if (swept) return swept;
+        const offenders: string[] = [];
+        const urls: string[] = [];
+        for (const def of registeredDefinitions()) {
+            const resolved = resolveCardImageId(def.id);
+            if (resolved === null) continue; // renders the in-app placeholder
+            if (resolved.includes("#") || resolved.startsWith("token:")) {
+                offenders.push(`${def.name} (${def.id}) -> ${resolved}`);
+            }
+            urls.push(getArtCropImageUrl(resolved));
         }
-        urls.push(getArtCropImageUrl(resolved));
-    }
+        swept = { offenders, urls };
+        return swept;
+    };
 
     it("resolves every definition to a printing id or to nothing", () => {
+        const { offenders } = sweep();
         expect(
             offenders,
             "a synthetic id reached the image resolver's output. It is not a " +
@@ -246,6 +259,7 @@ describe("no registered definition can produce an un-fetchable image URL (issue 
     });
 
     it("builds no URL carrying a fragment delimiter", () => {
+        const { urls } = sweep();
         // The assertion stated at the OUTPUT rather than at the id, because
         // this is the property that actually broke: a `#` anywhere in the path
         // makes the browser send less than the string says.
