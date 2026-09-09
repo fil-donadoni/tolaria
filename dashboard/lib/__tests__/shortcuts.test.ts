@@ -4,6 +4,7 @@ import {
     handleKeydown,
     isTypingTarget,
     openSheet,
+    refreshSettled,
     sheetOpen,
 } from "../shortcuts";
 import { subscribeToView, viewFromParams } from "../view";
@@ -231,8 +232,7 @@ describe("shortcuts — 'r' refreshes the visible view (#2635 AC)", () => {
             return Promise.reject(new Error("test: no network"));
         });
         expect(fireKey("r").prevented).toBe(true);
-        await Promise.resolve();
-        await Promise.resolve();
+        await refreshSettled();
         expect(calls[0]).toBe("/api/loop-status");
     });
 
@@ -257,9 +257,9 @@ describe("shortcuts — 'r' refreshes the visible view (#2635 AC)", () => {
             return Promise.reject(new Error("test: no network"));
         });
         expect(fireKey("r").prevented).toBe(true);
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
+        // The REAL completion of the dynamic `import()`, not a guessed number
+        // of microtask ticks — see `refreshSettled`'s note in the subject.
+        await refreshSettled();
         expect(calls).toEqual([]);
     });
 });
