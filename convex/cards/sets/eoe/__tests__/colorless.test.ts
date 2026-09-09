@@ -21,7 +21,6 @@ import {
     collectTriggers,
     placeTriggersOnStack,
 } from "../../../../gre/triggers";
-import { finalizeTargetSelection } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     getEffectivePower,

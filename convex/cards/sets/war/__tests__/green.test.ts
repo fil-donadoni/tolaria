@@ -25,7 +25,6 @@ import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
-import { collectTriggers } from "../../../../gre/triggers";
 import {
     getLegalTargets,
     targetingSourceFromCard,
@@ -33,7 +32,7 @@ import {
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";
 import { NISSA_WHO_SHAKES_THE_WORLD_EMBLEM_ID } from "../../../emblems";
-import type { GameEvent, TargetSelection } from "../../../types";
+import type { TargetSelection } from "../../../types";
 
 const nissa = getDefinition("f857bbe4-5619-4733-a0c7-69700f2ef4f3");
 const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
