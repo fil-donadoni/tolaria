@@ -96,20 +96,29 @@ function mostCommonColorsFromSpellContext(ctx: SpellContext): Color[] {
 
 // Addle — {1}{B} Sorcery. "Choose a color. Target player reveals their hand
 // and you choose a card of that color from it. That player discards that
-// card." (CR 701.20a reveal, CR 701.9 discard.) The "choose a color" clause
-// has no dedicated primitive, so it's expressed as a 5-mode `optionChoice`
-// (one per W/U/B/R/G) — each mode is the exact Thoughtseize `reveal` +
-// `choice(choose-hand-card)` + `discard` template (lrw/black.ts), just
-// filtered by that mode's fixed color instead of `excludeType`. The pick is
-// MANDATORY (no "may" in the oracle text): a plain `count: 1` clamps to the
-// filtered candidate set, so "no card of that color" raises no choice at all
-// (CR 608.2b — the interpreter returns early at `available === 0`) while a
-// hand that does hold one leaves the caster no way to decline.
+// card." (CR 701.20a reveal, CR 701.9 discard.) Oracle order is authoritative
+// (issue #2929): the color pick is BLIND, so `reveal` sits inside each mode,
+// after the `optionChoice` — not as a top-level op ahead of it — otherwise
+// the caster picks a color with the whole hand already visible, turning a
+// blind guess into a free, always-optimal choice. The "choose a color"
+// clause has no dedicated primitive, so it's expressed as a 5-mode
+// `optionChoice` (one per W/U/B/R/G) — each mode is the exact Thoughtseize
+// `reveal` + `choice(choose-hand-card)` + `discard` template (lrw/black.ts),
+// just filtered by that mode's fixed color instead of `excludeType`. The
+// pick is MANDATORY (no "may" in the oracle text): a plain `count: 1` clamps
+// to the filtered candidate set, so "no card of that color" raises no choice
+// at all (CR 608.2b — the interpreter returns early at `available === 0`)
+// while a hand that does hold one leaves the caster no way to decline.
 function addleMode(color: Color, label: string) {
     return {
         label,
         color,
         effects: [
+            {
+                op: "reveal" as const,
+                player: { target: 0 },
+                zone: "hand" as const,
+            },
             {
                 op: "choice" as const,
                 kind: "choose-hand-card" as const,
@@ -140,7 +149,6 @@ export const addle: CardDefinition = {
     types: ["Sorcery"],
     targetRequirement: { type: "player", count: 1 },
     effects: [
-        { op: "reveal", player: { target: 0 }, zone: "hand" },
         {
             op: "optionChoice",
             player: "controller",
