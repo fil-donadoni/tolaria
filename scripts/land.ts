@@ -578,6 +578,21 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
         // `bun run release`, on the base tip that is about to become the
         // release branch — that is where `.claude/telemetry/health/` and the
         // `green-sha` record are written now.
+        // Local `main` catches up with the tip the API merge just created —
+        // unconditional of `--keep`, which is about the WORKTREE, not about
+        // leaving the checkout every session branches from one commit stale.
+        //
+        // BEFORE the seed below, and that order is load-bearing (issue #3253).
+        // `seedScenarioDirect` resolves every card name SERVER-SIDE against
+        // the deployed bundle, and the bundle can only ever contain what is on
+        // DISK in the primary checkout. Seeding first meant seeding against
+        // the PRE-merge tree, so a scenario naming the PR's own new card could
+        // never resolve — not a race, an ordering bug, and it silently lost 10
+        // of the 14 specs in the 80 PRs before 2026-09-09. The seed's own
+        // `--push` (`lib/seed-scenario-run.ts`) is the other half: it deploys
+        // what this fast-forward just wrote instead of waiting on a `convex
+        // dev` watcher that may be seconds behind or not running at all.
+        steps.push(primaryBranchFastForwardStep(opts.primaryCheckout));
         // Register the PR's preset scenario in the local Convex deployment
         // (ADR 0044) — the step ADR 0110 dropped when it retired the
         // orchestrator CLAUDE.md § step 7 still names. Post-merge, in the
@@ -590,10 +605,6 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
         steps.push(
             `(cd ${shQuote(opts.primaryCheckout)} && bun ${shQuote(SEED_SCENARIO)} ${opts.pr} || true)`
         );
-        // Local `main` catches up with the tip the API merge just created —
-        // unconditional of `--keep`, which is about the WORKTREE, not about
-        // leaving the checkout every session branches from one commit stale.
-        steps.push(primaryBranchFastForwardStep(opts.primaryCheckout));
         // The claim outlives nothing: the PR is merged, the issue is closing.
         const release = releaseClaimStep(opts.branch);
         if (release !== null) steps.push(release);
