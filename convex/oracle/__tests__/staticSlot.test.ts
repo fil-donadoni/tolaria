@@ -856,7 +856,17 @@ describe("a compiled cast permission in the real engine (CR 601.3)", () => {
     it("wire format: the permission survives projectPublicState", () => {
         withCards(() => {
             const state = board();
-            const projected = projectPublicState(state, 1, "p2");
+            // `PublicGameState` narrows `hand` to `(SlimHandCard | null)[]`
+            // (a hidden card is a `null` from the other seat), which is the
+            // one field the permission scan never reads — it walks
+            // `players[].battlefield` for registry ids and matches the
+            // candidate card by its own id. Same cast, same reason, as
+            // `src/lib/__tests__/aluren-cast-permission-surface.test.ts`.
+            const projected = projectPublicState(
+                state,
+                1,
+                "p2"
+            ) as unknown as typeof state;
             const slim = projected.players[1]?.hand.find(
                 (c) => c?.id === "hand-dragon"
             );
