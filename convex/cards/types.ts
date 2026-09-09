@@ -975,6 +975,25 @@ export type GainControlDuration =
  *  one of `moveZone`'s recognized object kinds). */
 export type CounterDestination = "graveyard" | "exile" | "hand" | "library-top";
 
+/** What a `SpellContext.counter` attempt actually did (issue #2708). The
+ *  primitive is the single authority on both questions: CR 113.6g lets a
+ *  "can't be countered" spell survive a perfectly legal targeting, and CR
+ *  608.2b lets the object leave the stack before the counter runs, so a
+ *  caller cannot re-derive `countered` by looking at the stack afterwards —
+ *  both outcomes leave the same empty slot.
+ *
+ *  `abilitySourcePermanentId` carries the CR 113.7a source of a countered
+ *  ABILITY: an activated ability's stack item is a clone of its source
+ *  (`buildActivatedAbilityStackItem`), so the source id IS the item id; a
+ *  triggered ability carries it as `triggerSourceId`. Set only when the
+ *  counter succeeded, the object was an ability, and that source is still on
+ *  the battlefield — a countered SPELL never sets it (CR 701.6a: a spell has
+ *  no permanent source to speak of). */
+export interface CounterOutcome {
+    countered: boolean;
+    abilitySourcePermanentId?: string;
+}
+
 /** Where a spell moved off the stack WITHOUT being countered ends up (issue
  *  #1205 Subtlety, issue #2605 Reprieve). Distinct from `CounterDestination`
  *  on both axes, which is why it is its own union rather than a reuse:
@@ -4057,7 +4076,13 @@ export interface SpellContext {
      *  knowledge on the moved cards is cleared (ADR 0026, like a shuffle).
      *  No-op when the graveyard is empty. */
     putGraveyardOnBottomOfLibrary: (playerId: string) => void;
-    /** Counters a spell or ability on the stack (CR 701.6a). Target must be
+    /** Counters a spell or ability on the stack (CR 701.6a), and REPORTS what
+     *  it did (issue #2708) — the primitive is the only place that knows
+     *  whether the attempt actually removed the object (CR 113.6g "can't be
+     *  countered" fizzles it) and what kind of object it was, so a rider like
+     *  Teferi's Response's "if a permanent's ability is countered this way,
+     *  destroy that permanent" reads the outcome instead of re-deriving it
+     *  from a stack that no longer holds the item. Target must be
      *  TargetSelection with type "spell". No-op if target no longer on stack
      *  (CR 608.2b). `destination` overrides where a COUNTERED SPELL (never an
      *  ability — CR 701.6a / 113.7a, abilities simply cease to exist) ends up
@@ -4068,7 +4093,7 @@ export interface SpellContext {
     counter: (
         target: TargetSelection,
         destination?: CounterDestination
-    ) => void;
+    ) => CounterOutcome;
     /** CR 701.6-adjacent (issue #1205 Subtlety, issue #2605 Reprieve) — move a
      *  SPELL off the stack into a zone of its OWNER's WITHOUT countering it
      *  ("put target spell on the top or bottom of its owner's library",
@@ -15266,6 +15291,23 @@ export type EffectOp =
            *  `SpellContext.counter`'s, not this ref's. */
           target: EffectTargetRef | EffectRef;
           destination?: CounterDestination;
+          /** CR 701.6a + 113.7a (issue #2708) — binds the PERMANENT whose
+           *  ability was countered, so a following Op can act on it:
+           *  Teferi's Response's "if a permanent's ability is countered this
+           *  way, destroy that permanent" is `bindSource` + a plain `destroy`
+           *  on `{ ref: "$<name>" }`, not a rider baked into this Op.
+           *
+           *  The binding is a normal object snapshot (`bind`'s shape), so
+           *  every existing `ref` reader consumes it unchanged. It is written
+           *  ONLY when the counter actually happened AND the countered object
+           *  was a permanent's activated (CR 602) or triggered (CR 603)
+           *  ability AND that permanent is still on the battlefield. A
+           *  countered SPELL binds nothing — which is exactly the oracle's
+           *  "if a PERMANENT'S ABILITY is countered this way" condition, so
+           *  the conditional needs no `if`: an unwritten binding makes every
+           *  later `ref` to it skip its own Op (CR 608.2b, the standard
+           *  uncaptured-binding contract). */
+          bindSource?: string;
       }
     /** CR 701.6-adjacent (issue #2605) — move the announced target SPELL off
      *  the stack into a zone of its OWNER's, WITHOUT countering it: "return

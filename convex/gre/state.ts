@@ -10,6 +10,7 @@ import {
     type ManaSubstitutionScope,
     type ControlChangeCondition,
     type CounterDestination,
+    type CounterOutcome,
     type CostReductionAmount,
     type CountDrivenCostReduction,
     type DomainDrivenCostReduction,
@@ -15771,12 +15772,13 @@ export function buildSpellContext(
         counter(
             target: TargetSelection,
             destination: CounterDestination = "graveyard"
-        ): void {
+        ): CounterOutcome {
             if (target.type !== "spell") {
                 throw new Error("counter() requires a spell target");
             }
             const idx = state.stack.findIndex((s) => s.id === target.id);
-            if (idx === -1) return; // target no longer on stack — fizzle silently
+            // target no longer on stack — fizzle silently
+            if (idx === -1) return { countered: false };
             const found = state.stack[idx];
             // CR 113.6g — "can't be countered": the countering spell/ability
             // still legally targets this spell (targeting is unaffected — see
@@ -15794,7 +15796,32 @@ export function buildSpellContext(
             // value), not on the card's definition — the same card cast
             // WITHOUT spending that mana stays perfectly counterable.
             if (foundDef?.cantBeCountered || found.dynamicCantBeCountered)
-                return;
+                return { countered: false };
+            // CR 113.7a (issue #2708) — the source PERMANENT of a countered
+            // ability, read BEFORE the splice and reported to the caller so a
+            // "if a permanent's ability is countered this way, destroy that
+            // permanent" rider (Teferi's Response) never has to re-derive it
+            // from a stack the item has already left. An activated ability's
+            // stack item is a structuredClone of its source
+            // (`buildActivatedAbilityStackItem`), so the source id IS the item
+            // id; a triggered or delayed-triggered ability carries it in
+            // `triggerSourceId`. Battlefield presence is re-checked here (CR
+            // 608.2b): an ability whose source already left leaves nothing to
+            // destroy, and a SPELL has no permanent source at all.
+            const abilitySourcePermanentId = found.abilityId
+                ? found.id
+                : (found.triggeredAbilityId ?? found.delayedTriggerId)
+                  ? found.triggerSourceId
+                  : undefined;
+            const sourceOnBattlefield =
+                abilitySourcePermanentId !== undefined &&
+                state.players.some((p) =>
+                    p.battlefield.some((c) => c.id === abilitySourcePermanentId)
+                );
+            const outcome: CounterOutcome = {
+                countered: true,
+                ...(sourceOnBattlefield ? { abilitySourcePermanentId } : {}),
+            };
             const [item] = state.stack.splice(idx, 1);
             // CR 708.9 (issue #2705) — "If a face-down spell moves from the
             // stack to any zone other than the battlefield, its owner must
@@ -15820,7 +15847,7 @@ export function buildSpellContext(
                 item.triggeredAbilityId ||
                 item.delayedTriggerId
             )
-                return;
+                return outcome;
             switch (destination) {
                 case "exile":
                     item.zone = "exile";
@@ -15862,6 +15889,7 @@ export function buildSpellContext(
                     sendStackItemToGraveyard(state, item);
                     break;
             }
+            return outcome;
         },
         moveSpellFromStack(
             target: TargetSelection,

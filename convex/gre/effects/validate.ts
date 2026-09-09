@@ -4659,7 +4659,13 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         // by the ordered ref pass, which admits only a `stack-object` field
         // here; the schema's job is only to admit the two shapes.
         required: { target: (v) => isTargetRef(v) || isEventRefValue(v) },
-        optional: { destination: isCounterDestination },
+        // `bindSource` (issue #2708) is an ordinary object-snapshot binding
+        // name — the same `$`-prefixed shape `destroy`/`exile`'s `bind` takes,
+        // so every existing `ref` reader consumes it unchanged.
+        optional: {
+            destination: isCounterDestination,
+            bindSource: isBindingName,
+        },
     },
     // CR 701.6-adjacent (issue #2605) — move the target spell off the stack
     // into a zone of its OWNER's WITHOUT countering it (Reprieve's "return
@@ -6338,6 +6344,22 @@ function checkOpListRefs(
                 );
             } else {
                 declared.set(entry.bindOther, "snapshot");
+            }
+        }
+
+        // `counter.bindSource` (issue #2708) declares an object SNAPSHOT
+        // binding — the PERMANENT whose ability was countered (CR 113.7a).
+        // Its own field rather than `bind`, exactly like `choice.bindOther`:
+        // the binding is not the Op's target (that is the stack object being
+        // countered, which is never a permanent) but a DIFFERENT object the
+        // Op learned about while doing its work.
+        if (entry.op === "counter" && typeof entry.bindSource === "string") {
+            if (declared.has(entry.bindSource)) {
+                errors.push(
+                    `${at}: bindSource "${entry.bindSource}" re-declares an existing binding — binding names must be unique within a script`
+                );
+            } else {
+                declared.set(entry.bindSource, "snapshot");
             }
         }
 
