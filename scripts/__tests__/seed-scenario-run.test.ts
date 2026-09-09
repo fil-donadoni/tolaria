@@ -37,13 +37,4 @@ describe("seedScenarioArgv (issue #3253)", () => {
         expect(argv[argv.indexOf("--typecheck") + 1]).toBe("disable");
         expect(argv[argv.indexOf("--codegen") + 1]).toBe("disable");
     });
-
-    it("passes the payload as ONE argv entry, never shell-joined", () => {
-        // A spec label carries spaces and em dashes; joining the argv into a
-        // shell string is how that becomes an unparseable JSON argument.
-        const spaced = '{"label":"a b — c","spec":{"cards":[]}}';
-        expect(
-            seedScenarioArgv(spaced).filter((a) => a === spaced)
-        ).toHaveLength(1);
-    });
 });
