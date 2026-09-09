@@ -3748,6 +3748,36 @@ export function drainAutoPasses(state: GameState): void {
             state.queuedEndTurn = remaining.length > 0 ? remaining : undefined;
         }
 
+        // ADR 0047 (issue #3229 review) — a player who OWES INPUT is not a
+        // player who can pass. The two guards further down catch a choice/target
+        // raised BY a `resolveTopOfStack` inside this loop; this one catches one
+        // that was already owed when the drain was ENTERED, which is the shape
+        // every producer that raises before the drain leaves behind:
+        // `processPendingActionTriggers` → `placeTriggersOnStack` →
+        // `raiseTriggerTargetSelection` for a targeted trigger, and
+        // `collectSelfCastTriggers`' own CR 603.3d sweep for a targeted cast
+        // trigger (Ugin, Eye of the Storms). Every cast site in `game.ts` runs
+        // `emitSpellCastEvent` → `processPendingActionTriggers` →
+        // `drainAutoPasses` with `singleShotAutoPass` set to the caster, and the
+        // raise resets `priorityPlayerId`/`passCount`
+        // (`raiseTriggerTargetSelection`, `gre/rules.ts`) — so without this the
+        // caster's single-shot matched again and was spent on a window they
+        // never got, and an auto-passing OPPONENT then carried `passCount` to 2
+        // and resolved the trigger with `targets: undefined`, leaving
+        // `pendingTarget` pointing at a stack item that no longer existed.
+        //
+        // Scoped to the two PLAYER-INPUT shapes. A pending REFLEXIVE trigger is
+        // not owed input — it is a trigger waiting to be placed, and
+        // `processPendingActionTriggers` drains it — so it does not stop the
+        // drain. Read through a local so the check does not NARROW
+        // `state.pendingChoices` for the rest of the loop body: a
+        // `resolveTopOfStack` below can populate it, and the guard that reads
+        // `state.pendingChoices![0].playerId` must stay type-visible.
+        const owesInput: boolean =
+            state.pendingTarget !== undefined ||
+            (state.pendingChoices?.length ?? 0) > 0;
+        if (owesInput) return;
+
         const autoPass = state.autoPassPlayers ?? [];
         const singleShot = state.singleShotAutoPass === state.priorityPlayerId;
         if (!autoPass.includes(state.priorityPlayerId) && !singleShot) break;

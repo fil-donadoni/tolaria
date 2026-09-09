@@ -391,6 +391,16 @@
             "name": "Eldrazi Spawn"
         }
     ],
+    "a87606cc-fbf0-4e2c-9798-f1c935d0573d": [
+        {
+            "scryfallId": "2e07758f-0d1c-47d9-ba5a-43bc2a7423cd",
+            "name": "Cat"
+        },
+        {
+            "scryfallId": "f4e87a11-b3b1-47b2-bd73-f4c78d6fbe6c",
+            "name": "Copy"
+        }
+    ],
     "aa533845-4c4b-4072-aa39-8e56ce7ec325": [
         {
             "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",

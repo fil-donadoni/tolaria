@@ -52,6 +52,8 @@ const EXPECTED_CEILING: Record<string, number> = {
     "Minsc & Boo, Timeless Heroes": 4,
     // start 5, spend 2 — starting count again
     "Narset, Parter of Veils": 6,
+    // start 5, spends 1/8
+    "Nissa, Who Shakes the World": 9,
     // start 4, spend 5
     "Oko, Thief of Crowns": 6,
     // start 3, spends 2/6
@@ -60,6 +62,10 @@ const EXPECTED_CEILING: Record<string, number> = {
     "Teferi, Hero of Dominaria": 9,
     // start 4, spend 3 — starting count again
     "Teferi, Time Raveler": 5,
+    // start 4, spends 0/3/7
+    "Tezzeret, Cruel Captain": 8,
+    // start 7, spends 2/0/11
+    "Ugin, Eye of the Storms": 12,
     // start 3, spends 1/7
     "Wrenn and Six": 8,
 };

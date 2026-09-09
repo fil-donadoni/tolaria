@@ -213,6 +213,14 @@ export interface SpellFilter {
     excludeTypes?: CardType | CardType[];
     subtypes?: string | string[];
     colors?: Color | Color[];
+    /** Exclude spells that have ANY of these colors (CR 105.2). The negative of
+     *  `colors`, mirroring `excludeTypes`' relation to `types` exactly (ADR 0045
+     *  "generalize, don't add" — a symmetric field on an existing filter, not a
+     *  new one). A COLORLESS spell is the absence of colour (CR 202.2), never a
+     *  sixth colour, so "whenever you cast a colorless spell" (Ugin, Eye of the
+     *  Storms) is `excludeColors: ["W", "U", "B", "R", "G"]` — a spell with none
+     *  of the five. Single value is shorthand for one colour. */
+    excludeColors?: Color | Color[];
 }
 
 // --- DamageSourceFilter (applied to a damage source description) ---
@@ -565,6 +573,11 @@ export function matchesSpellFilter(
     if (filter.colors !== undefined) {
         const wanted = asArray(filter.colors);
         if (!wanted.some((c) => spell.colors.includes(c))) return false;
+    }
+    // CR 105.2 — the negative of `colors`, same shape as `excludeTypes` above.
+    if (filter.excludeColors !== undefined) {
+        const excluded = asArray(filter.excludeColors);
+        if (excluded.some((c) => spell.colors.includes(c))) return false;
     }
     return true;
 }

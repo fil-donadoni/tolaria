@@ -442,6 +442,27 @@ export const GREEN_INSECT_TOKEN: EffectTokenSpec = {
     colors: ["G"],
 };
 
+/** Cat token (CR 111 / 707.2, issue #3229). "2/2 green Cat creature token" —
+ *  created today by Esika's Chariot's ETB trigger (`sets/khm/green.ts`, two of
+ *  them). Vanilla: no abilities, so `EffectTokenSpec` (JSON-pure, ADR 0046)
+ *  rather than `TokenSpec`.
+ *
+ *  Deliberately NO pinned `imagePrintId`, the `RABBIT_TOKEN` / `KNIGHT_TOKEN` /
+ *  `HUMAN_TOKEN` treatment: Cat is a printed token across many sets with
+ *  different characteristics, and the art-match rule is "the token associated
+ *  with the PRODUCING card's own printing" — `SpellContext.createToken` resolves
+ *  it per producer from `generated/token-prints.json` (`tokenPrintIdFor`),
+ *  reverse-linked from Esika's Chariot's own KHM #167 printing's `all_parts`
+ *  2/2 green Cat token. */
+export const CAT_TOKEN: EffectTokenSpec = {
+    name: "Cat",
+    types: ["Creature"],
+    subtypes: ["Cat"],
+    power: 2,
+    toughness: 2,
+    colors: ["G"],
+};
+
 /** Food token (CR 111.10b — "A Food token is a colorless Food artifact token
  *  with '{2}, {T}, Sacrifice this token: You gain 3 life.'"; issue #2361).
  *  Created today by Oko, Thief of Crowns' `+2` (`sets/eld/multicolor.ts`);

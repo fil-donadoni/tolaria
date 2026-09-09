@@ -137,6 +137,7 @@ import {
     getExtraLandDrops,
     getLegalTargets,
     NO_TARGETING_SOURCE,
+    raiseTriggerTargetSelection,
     targetingSourceFromCard,
     protectionSourceFromTargeting,
 } from "./rules";
@@ -10594,6 +10595,7 @@ function collectSelfCastTriggers(
 ): void {
     const abilities = def?.triggeredAbilities;
     if (!abilities || abilities.length === 0) return;
+    let pushed = false;
     for (const ability of abilities) {
         if (ability.functionsFromStack !== true) continue;
         if (!triggerHandlesEventType(ability, event.type)) continue;
@@ -10610,7 +10612,23 @@ function collectSelfCastTriggers(
             // the stack; it never inherits the watched spell's.
             targets: undefined,
         });
+        pushed = true;
     }
+    // CR 603.3d — "the controller of a triggered ability chooses the targets as
+    // the ability is put on the stack". EVERY other producer reaches that sweep
+    // through `placeTriggersOnStack` (`gre/triggers.ts`), which this path
+    // deliberately bypasses: a cast trigger is pushed straight above its own
+    // spell so it lands in the same atomic step the cast is announced. Without
+    // the sweep here the item sits on the stack with `targets: undefined`
+    // forever — `processPendingActionTriggers` bails before its own sweep when
+    // the event collected no battlefield triggers, which is the normal case for
+    // a card whose only cast watcher is itself — and resolves doing nothing
+    // (`{ target: 0 }` resolves to no object, every Op skips per CR 608.2b).
+    // Invisible until the FIRST targeted cast trigger shipped (Ugin, Eye of the
+    // Storms, issue #3229); Emrakul's and Mana Vortex's are untargeted, so the
+    // gap cost them nothing. Guarded on `pushed` so the ordinary cast pays no
+    // stack scan.
+    if (pushed) raiseTriggerTargetSelection(state);
 }
 
 /** Emits CARD_DRAWN events for a player who just drew `count` cards
