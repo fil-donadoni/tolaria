@@ -11,6 +11,7 @@ import { buildPresetPayload, deckColors } from "../lib/preset-deck-seed";
 import { readTier1Decks, type Tier1Deck } from "../lib/tier1-decks";
 import { tryGetCardByName } from "../../convex/cards";
 import { validateDeck } from "../../convex/formats";
+import { parseArgs, seedOne } from "../seed-preset-deck";
 
 const resolve = (name: string) => tryGetCardByName(name);
 const SUPPLIED = "2026-08-23";
@@ -137,5 +138,93 @@ describe("deckColors (CR 202.2 colour identity)", () => {
             .filter((d): d is NonNullable<typeof d> => d !== null);
         expect(defs).toHaveLength(2);
         expect(deckColors(defs)).toEqual([]);
+    });
+});
+
+// `--all` — the sweep (issue #3254). The last card of a decklist is landed by
+// a card slice whose own diff has no idea it was the last one, so nothing in
+// the pipeline noticed Parallax Replenish reaching 21/21. The sweep is what a
+// reader runs to find out; these are its offline halves (argument parsing and
+// the seedable/blocked classification), which need no deployment.
+describe("seed:preset argument parsing (issue #3254)", () => {
+    it("reads a bare slug", () => {
+        expect(parseArgs(["oath-ponza"])).toEqual({
+            slug: "oath-ponza",
+            all: false,
+            dryRun: false,
+        });
+    });
+
+    it("reads --all", () => {
+        expect(parseArgs(["--all"])).toEqual({
+            slug: "",
+            all: true,
+            dryRun: false,
+        });
+    });
+
+    it("carries --dry-run through both shapes", () => {
+        expect(parseArgs(["oath-ponza", "--dry-run"]).dryRun).toBe(true);
+        expect(parseArgs(["--all", "--dry-run"]).dryRun).toBe(true);
+    });
+
+    // A slug AND --all is ambiguous — seed that one, or every one? Refusing is
+    // the only answer that cannot silently do the wrong thing.
+    it("refuses a slug together with --all", () => {
+        expect(() => parseArgs(["oath-ponza", "--all"])).toThrow(/not both/);
+    });
+
+    it("refuses an empty invocation", () => {
+        expect(() => parseArgs([])).toThrow(/usage/);
+    });
+});
+
+describe("seed:preset --all classification (issue #3254)", () => {
+    const file = readTier1Decks(ROOT);
+
+    // `--dry-run` is what makes this offline: `seedOne` builds and validates
+    // the payload and returns without touching a deployment.
+    const rows = file.decks.map((d) =>
+        seedOne(d, file.source.suppliedOn, true)
+    );
+
+    it("classifies every canonical list as seedable or blocked, never failed", () => {
+        expect(rows).toHaveLength(file.decks.length);
+        expect(rows.map((r) => r.state).filter((s) => s === "failed")).toEqual(
+            []
+        );
+        for (const row of rows) {
+            expect(["seedable", "blocked"]).toContain(row.state);
+        }
+    });
+
+    it("Oath Ponza is seedable — every card of it is implemented", () => {
+        const row = rows.find((r) => r.slug === "oath-ponza")!;
+        expect(row.state).toBe("seedable");
+        expect(row.problems).toBeUndefined();
+    });
+
+    // A deck whose cards can never resolve, so this assertion is stable
+    // whatever the canonical file says today. The first draft asserted over the
+    // REAL file's blocked half and was vacuous: with the blocked branch
+    // disabled every deck classified as `seedable`, the blocked array went
+    // empty, and a loop over an empty array passes. Proven by breaking it.
+    it("classifies a deck with an unresolvable card as blocked, naming it", () => {
+        const impossible: Tier1Deck = {
+            slug: "impossible",
+            name: "Impossible",
+            main: [{ count: 60, name: "Nonexistent Card ZZZ" }],
+            sideboard: [{ count: 15, name: "Nonexistent Card YYY" }],
+        };
+        const row = seedOne(impossible, file.source.suppliedOn, true);
+        expect(row.state).toBe("blocked");
+        expect(row.problems?.join("\n")).toContain("Nonexistent Card ZZZ");
+        expect(row.problems?.join("\n")).toContain("Nonexistent Card YYY");
+    });
+
+    it("every blocked list in the canonical file names its blockers", () => {
+        for (const row of rows.filter((r) => r.state === "blocked")) {
+            expect(row.problems?.join("\n")).toMatch(/unknown card name\(s\)/);
+        }
     });
 });

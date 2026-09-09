@@ -113,7 +113,10 @@ describe("one implementation, both callers", () => {
     const read = (rel: string) =>
         readFileSync(join(import.meta.dirname, "..", rel), "utf8");
 
-    it.each([["lib/seed-scenario-run.ts"], ["seed-preset-deck.ts"]])(
+    // Both `convex run` writers now live in `lib/` (issue #3254 extracted the
+    // preset one out of the CLI when `--all` became its second caller — the
+    // condition `seed-preset-deck.ts`'s own header had named for the split).
+    it.each([["lib/seed-scenario-run.ts"], ["lib/seed-preset-run.ts"]])(
         "%s reads the message through the shared helper",
         (rel) => {
             const source = read(rel);
