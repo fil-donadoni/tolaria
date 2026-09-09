@@ -60,7 +60,12 @@ export type CastPermissionClause = Omit<StaticCastPermission, "id">;
 export function castPermissionClause(
     permission: StaticCastPermission
 ): CastPermissionClause {
-    const { id: _id, ...clause } = permission;
+    // Copy-then-delete rather than a rest destructure: the clause must be
+    // "everything the permission carries EXCEPT the id", so a field added to
+    // `StaticCastPermission` later is part of the digest without an edit here
+    // — the same fail-closed shape `expandCompiledStatics` uses one field over.
+    const clause: CastPermissionClause & { id?: string } = { ...permission };
+    delete clause.id;
     return clause;
 }
 
