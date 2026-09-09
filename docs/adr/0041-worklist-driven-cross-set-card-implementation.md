@@ -101,7 +101,11 @@ exists to diff against, so semantic judgment is required). Output per worklist i
   **Adventure left this bucket** ([ADR 0120][adr-0120], issue #3223): CR 715.4 puts
   the alternative characteristics on the stack and nowhere else, so an adventurer
   card is a cast option over an **Inset Spell**, not schema-level layout work. The
-  same reading covers preparation cards (CR 722). Split, MDFC and meld stay here.
+  same reading covers preparation cards (CR 722). **Split cards left it in part**
+  ([ADR 0121][adr-0121], issue #3224): CR 709.4's combined characteristics are
+  DERIVED from the two halves, so an instant/sorcery split card is one
+  definition with two registered half twins. A **permanent** split card
+  (CR 709.5 — every Room) stays here, and so do MDFC and meld.
 
 ## Consequences
 
@@ -121,3 +125,4 @@ exists to diff against, so semantic judgment is required). Output per worklist i
   than silent art breakage.
 
 [adr-0120]: 0120-inset-spell-is-a-registered-twin-definition.md
+[adr-0121]: 0121-split-card-is-one-combined-definition.md
