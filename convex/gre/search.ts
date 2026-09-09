@@ -3555,6 +3555,44 @@ function colorModeTiebreak(
     return winner && topShare > 0 && topShare > runnerUpShare ? winner : null;
 }
 
+/** Issue #3293 — the `pass` contender when the currently-best action's own
+ *  SETTLED outcome is worse than passing's, else `null`.
+ *
+ *  Both sides are measured the same way and once each: clone the root, apply
+ *  the move, and read `policyValue`, which settles a suspended resolution
+ *  through the mover's own choices before scoring. Only a `cast-spell` /
+ *  `activate-ability` is floored — an attack or a block is a declaration whose
+ *  worth is a combat exchange the dedicated combat tie-breaks already price,
+ *  and a `resolution-choice` is not an action the mover could decline. */
+function settledOutcomeFloor(
+    rootState: GameState,
+    botId: string,
+    pool: Edge[],
+    best: Edge,
+    weights: EvalWeights
+): Edge | null {
+    if (
+        best.move.kind !== "cast-spell" &&
+        best.move.kind !== "activate-ability"
+    ) {
+        return null;
+    }
+    const passEdge = pool.find((e) => e.move.kind === "pass");
+    if (!passEdge || passEdge === best) return null;
+    const settledValue = (move: Move): number => {
+        const probe = cloneGameState(rootState);
+        try {
+            applyMoveInSearch(probe, botId, move);
+        } catch {
+            return Number.POSITIVE_INFINITY; // unmeasurable: never floor on it
+        }
+        return policyValue(probe, botId, move, weights, botId);
+    };
+    return settledValue(best.move) < settledValue(passEdge.move)
+        ? passEdge
+        : null;
+}
+
 export function selectRootMove(
     root: Node,
     moves: Move[],
@@ -3629,6 +3667,47 @@ export function selectRootMove(
         }
         return rootMoveFor(edge, rootState);
     };
+
+    // Settled-outcome floor (issue #3293). The generic material tie-break above
+    // ranks contenders by `meanMargin`, which is accumulated over the whole
+    // SUBTREE — and a subtree the search explored contains the same blunder on
+    // both sides. Casting Flash with a hand it cannot pay for settles to −24
+    // against +310 for passing, but the `pass` subtree also explores casting it
+    // one ply later, so `pass` carries the identical loss and LOSES the
+    // tie-break to the branch that already paid it. More search never fixes
+    // that: it is an artifact of what the mean is taken over, not a shortfall
+    // of samples (measured 0/5 at 400, 1200 and 4000 iterations).
+    //
+    // So this rule is deliberately LEAF-DECISIVE, the same shape the combat
+    // tie-breaks use for the same reason: it compares the chosen action's OWN
+    // settled outcome against passing's, each measured once on a fresh probe
+    // through `policyValue` — which since this slice resolves a suspended
+    // resolution to its end, so "the creature I cheated in and then sacrificed"
+    // is scored as the empty board it really leaves.
+    //
+    // Narrow on purpose in WHAT it may do, not in when it looks: it only ever
+    // redirects a cast or an activation to `pass`, and only when that action's
+    // own fully-settled outcome is strictly worse than passing's. It is read
+    // over the whole visited `pool` rather than the `contenders` slice because
+    // the artifact it corrects GROWS with budget — at 1200 iterations the
+    // blunder has accumulated enough visits that `pass` is no longer a
+    // contender at all, which is exactly when the floor is most needed. "Do
+    // not take an action whose fully-settled outcome is worse than doing
+    // nothing" is the same principle `dominance.ts` applies to a provable
+    // no-op, widened from "changes nothing" to "changes things for the worse".
+    if (rootState && botId) {
+        const floorPick = settledOutcomeFloor(
+            rootState,
+            botId,
+            pool,
+            best,
+            weights
+        );
+        if (floorPick && floorPick !== best) {
+            best = floorPick;
+            mechanism = "settled-outcome-floor";
+        }
+    }
 
     // Colour-mode tie-break (issue #2306) — see `colorModeTiebreak`'s own doc
     // comment for why a "protection from the colour of your choice" pick needs

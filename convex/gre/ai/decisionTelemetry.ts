@@ -33,7 +33,10 @@ export type RootDecisionMechanism =
     | "hold-trick"
     | "colour-mode-evidence"
     | "wasted-mana-hold"
-    | "last-window-fire";
+    | "last-window-fire"
+    /** Issue #3293 — the chosen action's own SETTLED outcome is worse than
+     *  passing's, on a decision the search itself could not tell apart. */
+    | "settled-outcome-floor";
 
 /** Which bound ended a search loop — the iteration budget (`SearchBudget.
  *  iterations`) was reached, the wall-clock bound (`SearchBudget.timeMs`)
