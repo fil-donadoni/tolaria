@@ -14071,29 +14071,65 @@ export function buildSpellContext(
         },
         dealDamageFromPermanent(
             sourceInstanceId: string,
-            playerId: string,
+            target: TargetSelection,
             amount: number,
             unpreventable = false,
             unredirectable = false
         ) {
-            // CR 120.1 — the CR-120.1 source is the named battlefield
-            // permanent, not the resolving stack item. Backlash: the tapped
-            // creature (LKI-snapshot `$c`) deals its power to its controller.
+            // CR 120.1 — "An object that deals damage is the source of that
+            // damage": the source is the named battlefield permanent, not the
+            // resolving stack item. Backlash: the tapped creature (LKI-snapshot
+            // `$c`) deals its power to its controller. Pyrogoyf (issue #1565):
+            // the ENTERING Lhurgoyf deals damage equal to its power to any
+            // target, so a rider that reads the source — deathtouch, lifelink,
+            // "damage from a red source", protection-by-colour — is evaluated
+            // against THAT creature and not against the Pyrogoyf whose trigger
+            // is resolving.
             // Delegates to the shared permanent-source pipeline (CR 614
             // replacement → CR 615 prevention → infect/lifelink/protection all
             // keyed off the permanent's identity via `describeDamageSource`).
             // No-op when the source has left the battlefield (CR 608.2b).
             const found = findOnBattlefield(state, sourceInstanceId);
             if (!found) return;
-            dealDamageFromPermanentToPlayer(
+            if (target.type === "player") {
+                dealDamageFromPermanentToPlayer(
+                    state,
+                    found.card,
+                    found.card.controllerId,
+                    target.id,
+                    amount,
+                    unpreventable,
+                    unredirectable
+                );
+                return;
+            }
+            // Permanent recipient (creature / planeswalker / battle, CR 120.1a).
+            // `markDamageFromPermanentSource` is marks-only by contract so a
+            // fight can mark both halves before either creature dies; a single
+            // damage event has no such simultaneity to protect, so the CR 704.5g
+            // lethal → destroy step runs here, exactly as `dealDamage` runs it
+            // for the stack-item source. CR 702.2b deathtouch is already marked
+            // inside the helper and is collected by the SBA pass.
+            const lethalId = markDamageFromPermanentSource(
                 state,
                 found.card,
                 found.card.controllerId,
-                playerId,
+                target.id,
                 amount,
                 unpreventable,
                 unredirectable
             );
+            if (lethalId) {
+                // CR 704.5g lethal → destroy replacement (CR 614, ADR 0020),
+                // then the regeneration shield gets its chance (CR 614.5,
+                // 701.19a). issue #1054 — the CAUSER is the controller of the
+                // resolving spell/ability, which is not necessarily the damage
+                // source's controller (Backlash points an opponent's creature at
+                // its own controller).
+                destroyWithReplacements(state, lethalId, {
+                    causerControllerId: item.controllerId,
+                });
+            }
         },
         fight(target: TargetSelection) {
             // CR 701.14 mutual damage: the resolving ability's source permanent

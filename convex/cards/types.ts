@@ -3250,20 +3250,25 @@ export interface SpellContext {
      *  non-CREATURE permanent, or one that has left the battlefield
      *  (CR 608.2b). */
     setDamageLockThisTurn: (target: TargetSelection) => void;
-    /** CR 120.1 — deals `amount` damage to a player FROM an explicit
-     *  battlefield permanent (`sourceInstanceId`), rather than from the
-     *  resolving stack item. The named permanent is stamped as the damage
-     *  source, so source-keyed rules — infect (life-loss vs poison), lifelink
-     *  (its controller gains life), source-colour prevention/protection, "a
-     *  source deals damage" triggers — all key off THAT permanent's identity,
-     *  not the spell's. Routes through the same CR 614 replacement → CR 615
-     *  prevention pipeline as `dealDamage`. Used by Backlash ("that creature
-     *  deals damage equal to its power to its controller"), the declarative
-     *  skin being `dealDamage`'s optional `source` field. No-op when the
-     *  permanent has left the battlefield (CR 608.2b) or `amount <= 0`. */
+    /** CR 120.1 — deals `amount` damage to ANY target (player, creature,
+     *  planeswalker or battle) FROM an explicit battlefield permanent
+     *  (`sourceInstanceId`), rather than from the resolving stack item. The
+     *  named permanent is stamped as the damage source, so source-keyed rules —
+     *  infect (life-loss vs poison), lifelink (its controller gains life),
+     *  deathtouch (CR 702.2b), source-colour prevention/protection
+     *  (CR 702.16e), "a source deals damage" triggers — all key off THAT
+     *  permanent's identity, not the spell's. Routes through the same CR 614
+     *  replacement → CR 615 prevention pipeline as `dealDamage`, and applies
+     *  the CR 704.5g lethal → destroy step for a permanent recipient exactly as
+     *  `dealDamage` does. Used by Backlash ("that creature deals damage equal to
+     *  its power to its controller") and Pyrogoyf ("that creature deals damage
+     *  equal to its power to any target" — the ENTERING Lhurgoyf is the source,
+     *  not the Pyrogoyf whose trigger is resolving, issue #1565); the
+     *  declarative skin is `dealDamage`'s optional `source` field. No-op when
+     *  the permanent has left the battlefield (CR 608.2b) or `amount <= 0`. */
     dealDamageFromPermanent: (
         sourceInstanceId: string,
-        playerId: string,
+        target: TargetSelection,
         amount: number,
         unpreventable?: boolean,
         unredirectable?: boolean
@@ -12229,10 +12234,12 @@ export type EffectOp =
            *  infect/lifelink, source-colour prevention/protection and "a source
            *  deals damage" triggers all key off the creature's identity (CR
            *  120.1). Routed through the permanent-source pipeline
-           *  (`SpellContext.dealDamageFromPermanent` →
-           *  `dealDamageFromPermanentToPlayer`); only meaningful with a
-           *  `{ player: … }` recipient. No-op if the named permanent has left
-           *  the battlefield (CR 608.2b). */
+           *  (`SpellContext.dealDamageFromPermanent`), which honours it for
+           *  EVERY recipient shape — a player, an announced permanent target,
+           *  or a `forEach` member (issue #1565); the permanent leg carries the
+           *  same CR 702.16e protection, CR 702.2b deathtouch and CR 704.5g
+           *  lethal handling the default path has. No-op if the named permanent
+           *  has left the battlefield (CR 608.2b). */
           source?: EffectObjectSelector;
           /** CR 615 — when true, the damage skips prevention shields (Urza's
            *  Rage's kicked mode: "the damage can't be prevented"). Omitted/false
