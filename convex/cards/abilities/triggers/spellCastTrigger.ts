@@ -15,6 +15,7 @@ import type {
     PermanentView,
     SpellCastEvent,
     SpellContext,
+    TargetRequirement,
     TriggerStateView,
     TriggeredAbility,
 } from "../../types";
@@ -62,6 +63,15 @@ export interface SpellCastTriggerArgs {
      *  (CR 601.2i — types / subtypes / colors). Spells are not permanents,
      *  so `SpellFilter` is intentionally narrower than `PermanentFilter`. */
     filter?: SpellFilter;
+    /** CR 603.3d — announcement-time target requirement for a TARGETED cast
+     *  trigger ("When you cast this spell, exile up to one target permanent
+     *  that's one or more colors" — Ugin, Eye of the Storms). Forwarded verbatim
+     *  onto the built `TriggeredAbility`, exactly as `enteredTrigger` /
+     *  `attacksTrigger` / `phaseTrigger` already forward theirs; the engine
+     *  locks the target(s) as the trigger goes on the stack
+     *  (`raiseTriggerTargetSelection`, `gre/rules.ts`). The `effects` body reads
+     *  the announced slot as `{ target: 0 }`. */
+    targetRequirement?: TargetRequirement;
     /** Additional predicate at trigger-check time (CR 603.4). Receives the
      *  narrowed event, the source view, and the read-only state view for
      *  cards that need to inspect persistent game state beyond scope+filter. */
@@ -167,6 +177,10 @@ export function spellCastTrigger(args: SpellCastTriggerArgs): TriggeredAbility {
     // watches OTHER spells from a permanent already on the battlefield, where
     // the normal scan finds it.
     if (args.scope === "self") built.functionsFromStack = true;
+    // CR 603.3d — the trigger announces its own targets as it goes on the stack.
+    if (args.targetRequirement !== undefined) {
+        built.targetRequirement = args.targetRequirement;
+    }
     if (args.effects !== undefined) {
         built.effects = args.effects;
     } else {

@@ -360,6 +360,45 @@ describe("matchesSpellFilter", () => {
         expect(matchesSpellFilter(s, { colors: ["R", "G"] })).toBe(false);
         expect(matchesSpellFilter(s, { colors: ["U", "W"] })).toBe(true);
     });
+
+    // CR 105.2 (issue #3229) — the negative of `colors`, the same shape
+    // `excludeTypes` has against `types`. All five listed is "colorless"
+    // (CR 105.2c — the absence of colour, never a sixth colour), which is what
+    // Ugin, Eye of the Storms' "whenever you cast a colorless spell" needs.
+    it("excludeColors keeps only spells having NONE of the listed colors", () => {
+        const blue = spell({ colors: ["U"] });
+        const colorless = spell({ colors: [] });
+        const gold = spell({ colors: ["U", "R"] });
+        const ALL = ["W", "U", "B", "R", "G"] as const;
+
+        expect(matchesSpellFilter(colorless, { excludeColors: [...ALL] })).toBe(
+            true
+        );
+        expect(matchesSpellFilter(blue, { excludeColors: [...ALL] })).toBe(
+            false
+        );
+        expect(matchesSpellFilter(gold, { excludeColors: [...ALL] })).toBe(
+            false
+        );
+        // A single value is shorthand for one colour, and it excludes only that
+        // one: a blue spell is still "nonblack".
+        expect(matchesSpellFilter(blue, { excludeColors: "B" })).toBe(true);
+        expect(matchesSpellFilter(blue, { excludeColors: "U" })).toBe(false);
+        // AND with every other field: colourless is not enough on its own.
+        const colorlessArtifact = spell({ types: ["Artifact"], colors: [] });
+        expect(
+            matchesSpellFilter(colorlessArtifact, {
+                types: "Artifact",
+                excludeColors: [...ALL],
+            })
+        ).toBe(true);
+        expect(
+            matchesSpellFilter(colorlessArtifact, {
+                types: "Creature",
+                excludeColors: [...ALL],
+            })
+        ).toBe(false);
+    });
 });
 
 describe("matchesDamageSourceFilter", () => {

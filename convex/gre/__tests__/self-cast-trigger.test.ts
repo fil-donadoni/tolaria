@@ -21,11 +21,24 @@ import { preloadDefinitions } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
 import { spellCastTrigger } from "../../cards/abilities/triggers/spellCastTrigger";
 import { manaVortex } from "../../cards/sets/drk/blue";
-import { makeState, makePlayer, pushSpell } from "../../cards/__tests__/setup";
-import { emitSpellCastEvent, processPendingActionTriggers } from "../state";
+import {
+    makeInstance,
+    makeState,
+    makePlayer,
+    pushSpell,
+} from "../../cards/__tests__/setup";
+import { finalizeTargetSelection } from "../../game";
+import {
+    emitSpellCastEvent,
+    processPendingActionTriggers,
+    resolveTopOfStack,
+} from "../state";
 
 const SELF_CARD_ID = "00000000-0000-4000-8000-00005e1f0001";
 const WATCHER_CARD_ID = "00000000-0000-4000-8000-00005e1f0002";
+const TARGETED_CARD_ID = "00000000-0000-4000-8000-00005e1f0003";
+/** Grizzly Bears — a registered vanilla creature, used as an inert target. */
+const GRIZZLY_BEARS_ID = "ce2d603a-3231-4a8c-bf39-1617586ea870";
 
 preloadDefinitions([
     {
@@ -64,6 +77,29 @@ preloadDefinitions([
                     "Whenever a player casts a spell, take an extra turn.",
                 scope: "any",
                 effects: [{ op: "extraTurn", player: "controller" }],
+            }),
+        ],
+    } as CardDefinition,
+    {
+        id: TARGETED_CARD_ID,
+        name: "Synthetic Targeted Cast Trigger",
+        rarity: "rare",
+        manaCost: { X: 2 },
+        types: ["Creature"],
+        subtypes: ["Eldrazi"],
+        power: 2,
+        toughness: 2,
+        triggeredAbilities: [
+            spellCastTrigger({
+                id: "synthetic-self-cast-targeted",
+                oracleText:
+                    "When you cast this spell, exile up to one target creature.",
+                scope: "self",
+                targetRequirement: {
+                    type: "Creature",
+                    count: { min: 0, max: 1 },
+                },
+                effects: [{ op: "exile", target: { target: 0 } }],
             }),
         ],
     } as CardDefinition,
@@ -116,6 +152,76 @@ describe("self-scoped cast triggers are collected off the stack (CR 603.6e, issu
             });
             expect(watcher.functionsFromStack).toBeUndefined();
         }
+    });
+});
+
+describe("a TARGETED self-cast trigger announces its target as it goes on the stack (CR 603.3d, issue #3229)", () => {
+    // The half issue #2319 left open. `collectSelfCastTriggers` pushes straight
+    // onto the stack and never reaches `placeTriggersOnStack`, which is where
+    // every other producer's `raiseTriggerTargetSelection` sweep lives — and
+    // `processPendingActionTriggers` bails BEFORE its own sweep when the cast
+    // event collected no battlefield triggers, which is the normal case for a
+    // card whose only cast watcher is itself. So the trigger sat on the stack
+    // with `targets: undefined` and resolved doing nothing. Invisible until the
+    // first TARGETED cast trigger shipped (Ugin, Eye of the Storms).
+    function castTargeted() {
+        // A VANILLA creature: the synthetic watcher card above would add a
+        // third stack item off this very cast.
+        const victim = makeInstance(GRIZZLY_BEARS_ID, {
+            id: "victim",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        const spell = pushSpell(state, TARGETED_CARD_ID, "p1");
+        spell.targets = undefined;
+        emitSpellCastEvent(state, spell);
+        processPendingActionTriggers(state);
+        return { state, spell };
+    }
+
+    it('raises a `kind:"trigger"` PendingTarget pointed at the trigger item', () => {
+        const { state, spell } = castTargeted();
+        expect(state.stack).toHaveLength(2);
+        expect(state.stack[1].triggeredAbilityId).toBe(
+            "synthetic-self-cast-targeted"
+        );
+        expect(state.pendingTarget).toBeDefined();
+        expect(state.pendingTarget!.kind).toBe("trigger");
+        expect(state.pendingTarget!.cardInstanceId).toBe(state.stack[1].id);
+        expect(state.pendingTarget!.playerId).toBe("p1");
+        // CR 603.3d — the trigger never inherits the watched spell's targets.
+        expect(state.stack[0].id).toBe(spell.id);
+    });
+
+    it("resolving the trigger after the choice actually exiles the chosen target", () => {
+        const { state } = castTargeted();
+        state.pendingTarget!.selected = [{ type: "permanent", id: "victim" }];
+        finalizeTargetSelection(
+            state,
+            state.pendingTarget!,
+            state.pendingTarget!.playerId
+        );
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[1].exile.map((c) => c.id)).toEqual(["victim"]);
+    });
+
+    it("with nothing legal the `up to one` slot locks EMPTY instead of staying unset (CR 603.3d)", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const spell = pushSpell(state, TARGETED_CARD_ID, "p1");
+        spell.targets = undefined;
+        emitSpellCastEvent(state, spell);
+        processPendingActionTriggers(state);
+        expect(state.pendingTarget).toBeUndefined();
+        expect(state.stack[1].targets).toEqual([]);
     });
 });
 

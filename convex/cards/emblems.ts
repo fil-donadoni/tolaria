@@ -15,6 +15,7 @@
 
 import type { EmblemDefinition, GameEvent, PermanentView } from "./types";
 import { PERMANENT_TYPES } from "./types";
+import { phaseTrigger } from "./abilities/triggers/phaseTrigger";
 
 const EMBLEM_REGISTRY = new Map<string, EmblemDefinition>();
 
@@ -361,4 +362,122 @@ registerEmblemDefinition({
     // card's own printing's emblem, per the token/emblem art rule.
     imagePrintId: "58c8a9fc-755a-4bff-8e13-41fbf4d9e546",
     grantsRetraceToOwnGraveyard: { cardTypes: ["Instant", "Sorcery"] },
+});
+
+/** Tezzeret, Cruel Captain −7 emblem (EOE, issue #3229). A TRIGGERED emblem
+ *  (CR 114.4, 113.6p) whose trigger is a PHASE trigger rather than a cast/draw
+ *  watcher — the first of that shape in the registry: "At the beginning of
+ *  combat on your turn, put three +1/+1 counters on target artifact you control.
+ *  If it's not a creature, it becomes a 0/0 Robot artifact creature."
+ *
+ *  Built with the shared `phaseTrigger` factory (CR 507 — the beginning of
+ *  combat step) rather than a hand-narrowed `PHASE_BEGIN` predicate: an emblem's
+ *  synthetic `self` carries the owner as `controllerId`
+ *  (`emblemAsTriggerSelf`, `gre/triggers.ts`), which is exactly what
+ *  `resolvePhaseScope`'s `"your"` compares against the active player, so "on
+ *  YOUR turn" needs no emblem-specific code. The target (CR 115.1c) is chosen as
+ *  the trigger goes on the stack via the ability's `targetRequirement`, ridden
+ *  onto the emblem trigger item as `inlineTargetRequirement`
+ *  (`buildEmblemTriggerItem`) — the same seam Chandra's and Teferi's emblems use.
+ *
+ *  ORDER IS LOAD-BEARING. The counters go on FIRST, the animation second, both
+ *  inside one resolution: a 0/0 with three +1/+1 counters is a 3/3 (CR 613.4 —
+ *  counters apply on top of the layer-7a base set), and state-based actions are
+ *  not checked mid-resolution (CR 704.3), so the Robot never exists as a 0/0
+ *  that dies. Reversing the two Ops would still end at 3/3, but only because no
+ *  SBA runs between them — the printed order is also the safe one, so it is the
+ *  one shipped.
+ *
+ *  "If it's NOT a creature" is an `objectMatchesFilter` predicate (issue #1747)
+ *  on the announced slot with `excludeType: "Creature"`, read against the LIVE
+ *  layer-materialised type line (CR 613) — an artifact already animated by
+ *  something else correctly skips the animation. `animate` with NO `duration` is
+ *  the CR 611.2c indefinite change the Oracle text means; `subtype: "Robot"` is
+ *  the creature type, and the Creature card type is what `animate` adds on top of
+ *  the printed Artifact (CR 205.1b — "artifact creature" retains the prior
+ *  types), so nothing has to re-state "artifact". */
+export const TEZZERET_CRUEL_CAPTAIN_EMBLEM_ID = "tezzeret-cruel-captain-emblem";
+
+registerEmblemDefinition({
+    id: TEZZERET_CRUEL_CAPTAIN_EMBLEM_ID,
+    name: "Tezzeret, Cruel Captain emblem",
+    text: "At the beginning of combat on your turn, put three +1/+1 counters on target artifact you control. If it's not a creature, it becomes a 0/0 Robot artifact creature.",
+    // Scryfall print of the emblem card (set `teoe`, layout `emblem`) — the
+    // EOE-era emblem printing matching Tezzeret's own set, per the token/emblem
+    // art rule (the card's own printing where present).
+    imagePrintId: "b97ae026-a3d3-4130-bf6f-aeeb3a1ab520",
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "tezzeret-cruel-captain-emblem-combat",
+            oracleText:
+                "At the beginning of combat on your turn, put three +1/+1 counters on target artifact you control. If it's not a creature, it becomes a 0/0 Robot artifact creature.",
+            phase: "BEGINNING_OF_COMBAT",
+            scope: "your",
+            targetRequirement: {
+                type: "Artifact",
+                count: 1,
+                controller: "you",
+            },
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "+1/+1",
+                    target: { target: 0 },
+                    count: 3,
+                },
+                {
+                    op: "if",
+                    predicate: {
+                        objectMatchesFilter: { target: 0 },
+                        filter: { excludeType: "Creature" },
+                    },
+                    then: [
+                        {
+                            op: "animate",
+                            target: { target: 0 },
+                            power: 0,
+                            toughness: 0,
+                            subtype: "Robot",
+                        },
+                    ],
+                },
+            ],
+        }),
+    ],
+});
+
+/** Nissa, Who Shakes the World −8 emblem (WAR, issue #3229). A STATIC emblem
+ *  (CR 114.4, 611.2b) — "Lands you control have indestructible." The same
+ *  `keyword-grant` continuous static effect Consecrate Land carries on a
+ *  battlefield permanent (`sets/lea/white.ts`), reused here on a command-zone
+ *  source, with Sorin's owner-scoped anthem predicate shape: CR 114.3 gives the
+ *  emblem no characteristics of its own, so its synthetic source's
+ *  `controllerId` is the owner and the standard "target and source share a
+ *  controller" comparison is exactly the printed "you control". */
+export const NISSA_WHO_SHAKES_THE_WORLD_EMBLEM_ID =
+    "nissa-who-shakes-the-world-emblem";
+
+registerEmblemDefinition({
+    id: NISSA_WHO_SHAKES_THE_WORLD_EMBLEM_ID,
+    name: "Nissa, Who Shakes the World emblem",
+    text: "Lands you control have indestructible.",
+    // Scryfall print of the emblem card (set `twar`, layout `emblem`) — the
+    // WAR-era emblem printing matching Nissa's own set, per the token/emblem art
+    // rule (the card's own printing where present).
+    imagePrintId: "56b191fe-7a92-4d08-91a4-036699d08bc4",
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            // CR 114.3 — "lands you control": the emblem's owner is the
+            // synthetic source's controller, so the anthem predicate scopes it.
+            // `target.types` is the LIVE layer-4 type line (Natural Emergence's
+            // own land predicate, `sets/pls/multicolor.ts`), so a land animated
+            // into a creature keeps the grant — it is still a land (CR 205.1b).
+            applies: (target, source) =>
+                target.types.includes("Land") &&
+                target.controllerId === source.controllerId,
+            keyword: "indestructible",
+        },
+    ],
 });
