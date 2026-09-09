@@ -279,7 +279,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
         // fail-open floor that keeps this from ever going silently negative.
         const choose = (player: EffectPlayerRef, bind: string): EffectOp => ({
             op: "choice",
-            kind: "choose-permanent",
+            kind: "choose-permanents",
             player,
             zone: "battlefield",
             filter: { type: "Creature" },
