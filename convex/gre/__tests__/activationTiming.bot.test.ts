@@ -82,6 +82,15 @@ function perm(cardId: string, id: string, extra = {}): CardInstanceState {
     });
 }
 
+/** A board holding exactly `cards` for p1 — the state `spendsStandingPermanent`
+ *  needs to answer the POSITIONAL half of its question (issue #3296): whether
+ *  paying the cost leaves the source on the battlefield. */
+function boardOf(...cards: CardInstanceState[]): GameState {
+    return makeState({
+        players: [makePlayer("p1", { battlefield: cards }), makePlayer("p2")],
+    });
+}
+
 function activation(cardInstanceId: string, abilityId: string): Move {
     return {
         kind: "activate-ability",
@@ -537,12 +546,14 @@ describe("spendsStandingPermanent — cost-side domination (issue #2939)", () =>
 
     it("accepts a `sacrificeFilter` cost (CR 701.21a, paid per CR 602.1)", () => {
         expect(orbAbility.cost.sacrificeFilter).toBeDefined();
-        expect(spendsStandingPermanent(orbAbility)).toBe(true);
+        expect(spendsStandingPermanent(boardOf(orb), orb, orbAbility)).toBe(
+            true
+        );
     });
 
     it("accepts a cost that sacrifices the SOURCE itself", () => {
         expect(
-            spendsStandingPermanent({
+            spendsStandingPermanent(boardOf(orb), orb, {
                 ...orbAbility,
                 cost: { sacrifice: true },
             })
@@ -550,21 +561,93 @@ describe("spendsStandingPermanent — cost-side domination (issue #2939)", () =>
     });
 
     it("rejects a `{T}` cost — the untap step gives it back (CR 502.3)", () => {
-        const zap = effectiveAbilityOf(perm(SORCERER, "tim"), SORCERER_ZAP)!;
+        const tim = perm(SORCERER, "tim");
+        const zap = effectiveAbilityOf(tim, SORCERER_ZAP)!;
         expect(zap.cost.tap).toBe(true);
-        expect(spendsStandingPermanent(zap)).toBe(false);
+        expect(spendsStandingPermanent(boardOf(tim), tim, zap)).toBe(false);
     });
 
     it("rejects the other irreversible costs — deliberate, fail-closed exclusions", () => {
-        for (const cost of [
-            { life: 2 },
-            { removeCounter: { type: "corpse", count: 1 } },
-            { discardThis: true },
-        ]) {
-            expect(spendsStandingPermanent({ ...orbAbility, cost })).toBe(
+        for (const cost of [{ life: 2 }, { discardThis: true }]) {
+            expect(
+                spendsStandingPermanent(boardOf(orb), orb, {
+                    ...orbAbility,
+                    cost,
+                })
+            ).toBe(false);
+        }
+    });
+
+    it("rejects a `removeCounter` cost the SOURCE SURVIVES (issue #3296)", () => {
+        // The Orb is not a creature, so no counter payment can put it into the
+        // graveyard — the positional clause has nothing to say and the cost
+        // stays excluded, exactly as it was before #3296.
+        const withCounters = perm(ORB, "orb", { counters: { charge: 3 } });
+        expect(
+            spendsStandingPermanent(boardOf(withCounters), withCounters, {
+                ...orbAbility,
+                cost: { removeCounter: { type: "charge", count: 1 } },
+            })
+        ).toBe(false);
+    });
+
+    // The POSITIONAL half (issue #3296, surfaced by issue #3192). Walking
+    // Ballista is the fixture only as a SHAPE: printed toughness 0, so its
+    // counters ARE its body and a `removeCounter` cost at the last one is
+    // materially a sacrifice (CR 704.5f). Nothing under test reads its name —
+    // the two cases below are the SAME ability on the SAME card, and only the
+    // board differs, which is the whole point.
+    describe("a cost that destroys its own source (issue #3296)", () => {
+        const BALLISTA = getCardByName("Walking Ballista").id;
+        const SHOOT = "walking-ballista-shoot";
+
+        function ballista(counters: number): CardInstanceState {
+            return perm(BALLISTA, "bal", {
+                counters: { "+1/+1": counters },
+            });
+        }
+
+        it("accepts it at the LAST counter — CR 704.5f sweeps the source", () => {
+            const bal = ballista(1);
+            const shoot = effectiveAbilityOf(bal, SHOOT)!;
+            expect(shoot.cost.removeCounter).toEqual({
+                type: "+1/+1",
+                count: 1,
+            });
+            expect(spendsStandingPermanent(boardOf(bal), bal, shoot)).toBe(
+                true
+            );
+        });
+
+        it("rejects it with counters to spare — same ability, same card", () => {
+            const bal = ballista(3);
+            const shoot = effectiveAbilityOf(bal, SHOOT)!;
+            expect(spendsStandingPermanent(boardOf(bal), bal, shoot)).toBe(
                 false
             );
-        }
+        });
+
+        it("is DIFFERENTIAL — a source the BOARD already dooms is not the cost's doing", () => {
+            // CR 704.5m — an unattached Aura goes to the graveyard whether or
+            // not anything is paid, so a bare \"is it gone after the sweep\"
+            // reading would blame the cost for it. Merseine is the fixture as a
+            // SHAPE: an Aura with a `removeCounter` activation.
+            const MERSEINE = getCardByName("Merseine").id;
+            const net = perm(MERSEINE, "net", { counters: { net: 1 } });
+            const remove = effectiveAbilityOf(net, "merseine-remove-net")!;
+            expect(remove.cost.removeCounter).toBeDefined();
+            expect(spendsStandingPermanent(boardOf(net), net, remove)).toBe(
+                false
+            );
+        });
+
+        it("fails closed when the source is not on the battlefield", () => {
+            const bal = ballista(1);
+            const shoot = effectiveAbilityOf(bal, SHOOT)!;
+            expect(spendsStandingPermanent(makeState(), bal, shoot)).toBe(
+                false
+            );
+        });
     });
 
     it("is INDEPENDENT of the payoff clause — the Orb is not transient", () => {
@@ -804,16 +887,21 @@ describe("spendsStandingPermanent — a sacrifice-for-MANA outlet is excluded (C
         const altar = perm(ALTAR, "alt");
         const ability = getEffectiveActivatedAbilities(altar)[0].ability;
         expect(ability.cost.sacrificeFilter).toBeDefined();
-        expect(spendsStandingPermanent(ability)).toBe(false);
+        expect(spendsStandingPermanent(boardOf(altar), altar, ability)).toBe(
+            false
+        );
     });
 
     it("recurses into the structural constructs (ADR 0045)", () => {
         // The same cost, the same `addMana`, one construct deeper: a scan that
         // only looked at the top level would call this deferrable.
-        const orbAbility = effectiveAbilityOf(perm(ORB, "orb"), ORB_GAIN)!;
-        expect(spendsStandingPermanent(orbAbility)).toBe(true);
+        const orb = perm(ORB, "orb");
+        const orbAbility = effectiveAbilityOf(orb, ORB_GAIN)!;
+        expect(spendsStandingPermanent(boardOf(orb), orb, orbAbility)).toBe(
+            true
+        );
         expect(
-            spendsStandingPermanent({
+            spendsStandingPermanent(boardOf(orb), orb, {
                 ...orbAbility,
                 effects: [
                     {

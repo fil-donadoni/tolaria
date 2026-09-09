@@ -4053,7 +4053,8 @@ function isSorcerySpeedTrickDump(state: GameState, move: Move): boolean {
         // gives up a permanent still doing its job. See
         // `spendsStandingPermanent`.
         return (
-            isTransientOnlyAbility(ability) || spendsStandingPermanent(ability)
+            isTransientOnlyAbility(ability) ||
+            spendsStandingPermanent(state, source, ability)
         );
     }
     return false;
@@ -4098,7 +4099,7 @@ function isDeferredEngineActivation(
     if (
         !isDeferrableStackAbility(ability) ||
         isTransientOnlyAbility(ability) ||
-        !spendsStandingPermanent(ability)
+        !spendsStandingPermanent(state, source, ability)
     ) {
         return false;
     }

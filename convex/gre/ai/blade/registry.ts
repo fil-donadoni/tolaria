@@ -2056,6 +2056,66 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Issue #1920, the discard-cost mirror of the Mother entry: the Elf pays a card from hand to give itself indestructible until end of turn (CR 702.12b), which is worth paying with a Bolt already on the stack aimed at it. DISCRIMINATING and the strongest single result in this change: RED on ALL 5 seeds on the pre-#1920 engine — the bot passed and let the Elf die every time, because the discard was a visible cost and the indestructible was an invisible payoff — and green on all 5 after. Its NEGATIVE CONTROL is `activation timing: does not activate Iron-Shield Elf with no threat` below; the pair is what proves the fix bought discrimination rather than a blanket bias toward activating.",
     },
     {
+        label: "activation timing: does not shoot away its own last counter at a face on 20",
+        spec: {
+            cards: [
+                {
+                    name: "Walking Ballista",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                    counters: { "+1/+1": 1 },
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 2,
+            libraryCount: 20,
+            life: { me: 20, opp: 20 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Walking Ballista" }],
+        },
+        note: "Issue #3192, the HOLD half — the reported blunder, reduced to its position: a 1/1 whose whole body is one +1/+1 counter, and paying the shoot cost puts it in the graveyard (CR 704.5f) to move a 20-life face to 19. MEASURED at 400 iterations, seed 0xb1ade, before the fix: the shot at the opponent's face won on `mechanism: material-tiebreak` with visits 102 / mean 0.4963 / meanMargin -7.32 against `pass` at visits 100 / mean 0.4928 / meanMargin -14.44, all four root moves inside `outcomeEps` (`contenderCount: 4`, `gapReward` 0.0035 against a 0.05 band). The issue and issue #3296 both assumed a ~126-point evaluation gap kept this position out of the tie-break's reach; it does not, because the gate is on mean REWARD and reward saturates. What made the accumulated margin agree with the blunder is rollout noise of exactly the shape #2939 documented: the ε-random branch throws the Ballista away inside the `pass` subtree too, measured as a leaf material margin of 3.53 at ε=0.25 against 165 at ε=0. After the fix the pick is `mechanism: hold-trick` on all 5 seeds. Its discriminating twin is the FIRE half directly below.",
+    },
+    {
+        label: "activation payoff: shoots its own last counter at a face on 1",
+        spec: {
+            cards: [
+                {
+                    name: "Walking Ballista",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                    counters: { "+1/+1": 1 },
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 2,
+            libraryCount: 20,
+            life: { me: 20, opp: 1 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Walking Ballista",
+                    target: "opp",
+                },
+            ],
+        },
+        note: "Issue #3192, the FIRE half — the identical board with the opponent at 1, and the reason the hold half is not satisfied by a blanket \"never remove the last counter\" prune. The counter buys the game here, so the hold tie-break must never see it: MEASURED at 400 iterations, seed 0xb1ade, BOTH before and after the fix, the shot wins on `mechanism: mean-reward` with `exploredSize: 1` / `contenderCount: 1` at mean 0.9150 and meanMargin 160.00, against `pass` at visits 68 / mean 0.7621 / meanMargin 152.44 — a gap of 0.153 against the 0.05 outcome-equality band, so the tie-break is never consulted at all. Deleting the hold half's clause leaves this entry green, and deleting the clause's board-awareness (promoting `removeCounter` wholesale) leaves it green too; only the pair pins both directions.",
+    },
+    {
         label: "activation timing: does not activate Iron-Shield Elf with no threat",
         spec: {
             cards: [
