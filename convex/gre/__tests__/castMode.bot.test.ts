@@ -69,6 +69,16 @@ function modeMarkersOf(card: CardInstanceState) {
     };
 }
 
+/** Every cast-instance marker, cleared — what `resetStackTransientState` leaves
+ *  behind on a spell that resolved out of the stack (CR 400.7). */
+const CLEARED_MARKERS = {
+    bestowed: undefined,
+    faceDown: undefined,
+    dashed: undefined,
+    evoked: undefined,
+    overloaded: undefined,
+} as const;
+
 /** A position in which `card` is castable, plus the opponent creature a
  *  targeted mode can point at. */
 function positionFor(
@@ -120,6 +130,16 @@ type ModeFixture = {
     enumerated: boolean;
     /** What the mode must have stamped on the resulting object. */
     assertStamped: (markers: ReturnType<typeof modeMarkersOf>) => void;
+    /** True when the card is an INSTANT or SORCERY, so the greedy sandbox — which
+     *  resolves the spell — has already run the cast-instance gate
+     *  (`resetStackTransientState`, CR 400.7) by the time the subject is
+     *  inspected, while the ISMCTS tree still holds it on the stack. The two
+     *  executors are then looking at DIFFERENT MOMENTS, and comparing their
+     *  markers for equality asks the wrong question. The stronger pair of
+     *  claims is asserted instead: the tree stamped the mode, and the greedy
+     *  side CLEARED it on the way to the graveyard — the leak PR #3288's review
+     *  finding 1 was about. */
+    clearsOnResolve?: boolean;
 };
 
 /** `Record<CastMode, …>` is the point: a mode added to the union cannot compile
@@ -192,6 +212,7 @@ const MODE_FIXTURES: Record<CastMode, ModeFixture> = {
         land: PLAINS,
         landCount: 4,
         enumerated: true,
+        clearsOnResolve: true,
         assertStamped: (m) => {
             expect(m.overloaded).toBe(true);
         },
@@ -283,7 +304,23 @@ describe("cast modes reach BOTH search executors (CR 601.2b, issue #2796)", () =
             applyMoveInSearch(tree, "p1", move);
 
             const treeMarkers = modeMarkersOf(subjectAfter(tree));
-            expect(treeMarkers).toEqual(modeMarkersOf(subjectAfter(greedy)));
+            if (fixture.clearsOnResolve) {
+                // An instant/sorcery: the greedy sandbox resolved it, so its
+                // subject is in the GRAVEYARD with the cast-instance markers
+                // already cleared (CR 400.7). Equality would compare two
+                // different moments; assert both halves separately instead —
+                // the tree stamped the mode, and the greedy side did not carry
+                // it out of the stack.
+                const greedySubject = subjectAfter(greedy);
+                expect(greedySubject.zone).not.toBe("stack");
+                expect(modeMarkersOf(greedySubject)).toEqual(
+                    modeMarkersOf({ ...greedySubject, ...CLEARED_MARKERS })
+                );
+            } else {
+                expect(treeMarkers).toEqual(
+                    modeMarkersOf(subjectAfter(greedy))
+                );
+            }
             // …and both agree on the RIGHT thing, not merely with each other:
             // two executors that both dropped the mode would agree too.
             fixture.assertStamped(treeMarkers);
