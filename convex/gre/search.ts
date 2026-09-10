@@ -4259,7 +4259,7 @@ function isStandingSpendActivation(
     state: GameState,
     pid: string,
     move: Move
-): boolean {
+): move is Extract<Move, { kind: "activate-ability" }> {
     if (move.kind !== "activate-ability") return false;
     const player = state.players.find((p) => p.id === pid);
     if (!player) return false;
