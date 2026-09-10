@@ -12364,8 +12364,11 @@ export function resetBattlefieldTransientState(
     // CR 608.2b (issue #2985) — the resolution-time illegal-SLOT verdict is
     // exactly such a one-shot fact about the object that was cast, and it
     // indexes into a `targets` list this same instance will not have on its
-    // next cast. Named on BOTH lists per the paragraph above.
-    delete card.illegalTargetSlots;
+    // next cast. Named on BOTH lists per the paragraph above. Cast because
+    // this function takes the `CardInstanceState` an object is on the
+    // battlefield, while the field is declared on the `StackItem` it was
+    // while being cast.
+    delete (card as Partial<StackItem>).illegalTargetSlots;
 }
 
 /** Phase 1 of reanimation (issue #1094, CR 400.7): clears battlefield-only
