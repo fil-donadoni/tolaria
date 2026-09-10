@@ -3622,6 +3622,38 @@ describe("validateAbilityEffectScript — $event.<field> refs (ADR 0049, issue #
         expect(errors.join("\n")).toContain("not a censused field");
     });
 
+    // CR 509.1h (issue #2762) — the pair complement is censused on
+    // BLOCKERS_CONFIRMED and nowhere else: an event with no attacker/blocker
+    // pair has no "other combatant", and the census is what makes that a
+    // STATIC error rather than a card that ships and silently no-ops.
+    it("accepts $event.otherCombatant at a BLOCKERS_CONFIRMED trigger site", () => {
+        const errors = validateAbilityEffectScript(
+            abilityHost([
+                {
+                    op: "preventRegeneration",
+                    target: { ref: "$event.otherCombatant" },
+                },
+            ]),
+            "Test (id)",
+            "BLOCKERS_CONFIRMED"
+        );
+        expect(errors).toEqual([]);
+    });
+
+    it("rejects $event.otherCombatant at a NON-BLOCKERS_CONFIRMED trigger site", () => {
+        const errors = validateAbilityEffectScript(
+            abilityHost([
+                {
+                    op: "preventRegeneration",
+                    target: { ref: "$event.otherCombatant" },
+                },
+            ]),
+            "Test (id)",
+            "DAMAGE_DEALT"
+        );
+        expect(errors.join("\n")).toContain("not a censused field");
+    });
+
     it("rejects $event inside a delayedTrigger BODY (event gone at fire time)", () => {
         const errors = validateAbilityEffectScript(
             abilityHost([

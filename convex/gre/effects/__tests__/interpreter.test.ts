@@ -17303,6 +17303,186 @@ describe("Effect Script value grammar: $event.<field> (ADR 0049, CR 603, issue #
     });
 });
 
+// --- $event.otherCombatant: the CR 509.1h pair complement (issue #2762) ------
+//
+// "Whenever this creature blocks or becomes blocked by a creature, THAT
+// CREATURE …" (Lim-Dûl's Cohort). Which of `BLOCKERS_CONFIRMED`'s two ids
+// "that creature" names is not a property of the event — it is the one that is
+// NOT the reading ability's own source, so the same card resolves to the
+// blocker when it attacked and to the attacker when it blocked. The censused
+// `otherCombatant` row (`cards/mechanicsRegistry.ts`, ADR 0049) is the only
+// piece that knows this; the ref shape, the validator's family check and
+// `resolveObjectRef`'s battlefield recheck are the ordinary `$event.<field>`
+// ones. Coverage per the per-Op regime: BOTH directions, the fail-closed
+// third-party source, the CR 608.2b departed-creature no-op, and one
+// consequence read back through `projectPublicState` (wire format).
+describe("Effect Script value grammar: $event.otherCombatant (CR 509.1h, issue #2762)", () => {
+    const PAIR_LOCK_ID = "test-event-pair-lock";
+    registerTokenDefinition({
+        id: PAIR_LOCK_ID,
+        name: PAIR_LOCK_ID,
+        rarity: "common",
+        manaCost: { X: 1, B: 2 },
+        types: ["Creature"],
+        subtypes: ["Zombie"],
+        power: 2,
+        toughness: 3,
+        triggeredAbilities: [
+            {
+                id: "pair-lock-no-regen",
+                oracleText:
+                    "Whenever this creature blocks or becomes blocked by a creature, that creature can't be regenerated this turn.",
+                event: "BLOCKERS_CONFIRMED",
+                matches: () => true,
+                effects: [
+                    {
+                        op: "preventRegeneration",
+                        target: { ref: "$event.otherCombatant" },
+                    },
+                ],
+            },
+        ],
+    });
+
+    function pairEvent(
+        attackerId: string,
+        blockerId: string
+    ): StackItem["triggerEvent"] {
+        return {
+            type: "BLOCKERS_CONFIRMED",
+            attackerId,
+            attackerControllerId: "p1",
+            attackerTypes: ["Creature"],
+            attackerSubtypes: [],
+            blockerId,
+            blockerControllerId: "p2",
+            blockerTypes: ["Creature"],
+            blockerSubtypes: [],
+        };
+    }
+
+    /** Source on p1's battlefield, plain bear on p2's. */
+    function setup(sourceId: string, otherId: string) {
+        const src = makeInstance(PAIR_LOCK_ID, {
+            id: sourceId,
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const other = makeInstance(BEAR_ID, {
+            id: otherId,
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: [src] }),
+                makePlayer("p2", { battlefield: [other] }),
+            ],
+        });
+    }
+
+    function fire(
+        state: GameState,
+        sourceId: string,
+        triggerEvent: StackItem["triggerEvent"]
+    ): void {
+        const src = state.players
+            .flatMap((p) => p.battlefield)
+            .find((c) => c.id === sourceId)!;
+        state.stack.push({
+            ...src,
+            zone: "stack",
+            castById: src.controllerId,
+            triggeredAbilityId: "pair-lock-no-regen",
+            triggerSourceId: sourceId,
+            triggerEvent,
+            targets: [],
+        });
+        resolveTopOfStack(state);
+    }
+
+    it("source is the ATTACKER: the complement is the blocker", () => {
+        const state = setup("src", "other");
+        fire(state, "src", pairEvent("src", "other"));
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "other")!
+                .cantBeRegeneratedThisTurn
+        ).toBe(true);
+        // The source itself is never "that creature" (CR 509.1h names the
+        // OTHER member of the pair).
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "src")!
+                .cantBeRegeneratedThisTurn
+        ).toBeUndefined();
+    });
+
+    it("source is the BLOCKER: the complement is the attacker", () => {
+        const state = setup("src", "other");
+        fire(state, "src", pairEvent("other", "src"));
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "other")!
+                .cantBeRegeneratedThisTurn
+        ).toBe(true);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "src")!
+                .cantBeRegeneratedThisTurn
+        ).toBeUndefined();
+    });
+
+    it("fails CLOSED when the source is neither combatant — nobody is locked", () => {
+        const state = setup("bystander", "other");
+        const attacker = makeInstance(BEAR_ID, {
+            id: "att",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        state.players[0].battlefield.push(attacker);
+        // A pair the source is not part of: the row has no "other" to name, so
+        // the Op skips rather than guessing the attacker (CR 608.2b).
+        fire(state, "bystander", pairEvent("att", "other"));
+        for (const player of state.players) {
+            for (const card of player.battlefield) {
+                expect(card.cantBeRegeneratedThisTurn).toBeUndefined();
+            }
+        }
+    });
+
+    it("CR 608.2b: the complement left the battlefield before resolution — clean no-op", () => {
+        const state = setup("src", "other");
+        // The blocker died in response to the trigger.
+        const [gone] = state.players[1].battlefield.splice(0, 1);
+        state.players[1].graveyard.push(gone);
+        expect(() =>
+            fire(state, "src", pairEvent("src", "other"))
+        ).not.toThrow();
+        expect(
+            state.players[1].graveyard.find((c) => c.id === "other")!
+                .cantBeRegeneratedThisTurn
+        ).toBeUndefined();
+    });
+
+    it("wire format: the locked creature dies through its own regeneration shield", () => {
+        const state = setup("src", "other");
+        fire(state, "src", pairEvent("src", "other"));
+        // Shield it and destroy it: CR 701.19c suppresses the shield, so the
+        // creature actually dies — and the CLIENT sees it leave the
+        // battlefield through the real projection.
+        const killerId = registerScript("test-pair-lock-shield-then-destroy", [
+            { op: "regenerate", target: { target: 0 } },
+            { op: "destroy", target: { target: 0 } },
+        ]);
+        pushSpell(state, killerId, "p1", [{ type: "permanent", id: "other" }]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.players[1].battlefield.find((c) => c.id === "other")
+        ).toBeUndefined();
+        expect(
+            projected.players[1].graveyard.some((c) => c.id === "other")
+        ).toBe(true);
+    });
+});
+
 // --- counter Op + destination (CR 701.6a, issue #683) -----------------------
 //
 // The bare `counter` Op (default graveyard destination) predates this suite —

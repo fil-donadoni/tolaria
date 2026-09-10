@@ -814,6 +814,31 @@ describe("Lim-Dûl's Cohort (blocks/becomes-blocked → can't be regenerated, CR
         const blk = state.players[1].battlefield.find((c) => c.id === "blk")!;
         expect(blk.cantBeRegeneratedThisTurn).toBe(true);
     });
+
+    // The oracle is symmetric ("blocks OR becomes blocked by"), so the same
+    // trigger must name the ATTACKER when the Cohort is the blocker — the half
+    // a source-relative pair complement exists for (CR 509.1h, issue #2762).
+    it("names the attacker when the Cohort is the blocker", () => {
+        const { state, cohort } = setup();
+        resolveTrigger(state, cohort, "lim-duls-cohort-no-regen", {
+            type: "BLOCKERS_CONFIRMED",
+            attackerId: "blk",
+            attackerControllerId: "p2",
+            attackerTypes: ["Creature"],
+            attackerSubtypes: [],
+            blockerId: "cohort",
+            blockerControllerId: "p1",
+            blockerTypes: ["Creature"],
+            blockerSubtypes: ["Zombie"],
+        } as StackItem["triggerEvent"]);
+        const blk = state.players[1].battlefield.find((c) => c.id === "blk")!;
+        expect(blk.cantBeRegeneratedThisTurn).toBe(true);
+        // Never itself (CR 509.1h names the OTHER member of the pair).
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "cohort")!
+                .cantBeRegeneratedThisTurn
+        ).toBeUndefined();
+    });
 });
 
 describe("Lim-Dûl's Hex (each player pays {B} or {3} or takes 1, CR 603.6a / 117.3a)", () => {
