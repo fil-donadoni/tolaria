@@ -176,6 +176,18 @@ export interface LimitedEventSeatView {
      *  so it is never revealed even after `completed` (unlike `pool`). `null`
      *  for a non-viewer seat or when nothing is selected. */
     selectedPickId: string | null;
+    /** Default Pick (ADR 0095, issue #2271) — see `LimitedEventSeat.
+     *  defaultPickId`. Same "own seat only" discipline as `currentPack`/
+     *  `pickDeadline`/`selectedPickId` above: another seat's Default Pick is
+     *  exactly the kind of standing recommendation a live draft must never
+     *  leak, disclosure or not. `null` for a non-viewer seat or whenever no
+     *  default is currently stamped. */
+    defaultPickId: string | null;
+    /** Unattended Pick indices (ADR 0095, issue #2271) — see
+     *  `LimitedEventSeat.unattendedPickIndices`. Own seat only, same
+     *  discipline as the fields above. `null` for a non-viewer seat or when
+     *  nothing is currently marked. */
+    unattendedPickIndices: number[] | null;
     /** Deck-ready indicator (issue #1580): true once THIS seat has a deck —
      *  a human seat once its `limited` deck is submitted, a bot seat once
      *  its Auto-Built deck is computable (Pool final). Deliberately visible
@@ -558,6 +570,10 @@ export function projectLimitedEvent(
                     ? (seat.poolArrangement ?? null)
                     : null,
                 selectedPickId: isViewer ? (seat.selectedPickId ?? null) : null,
+                defaultPickId: isViewer ? (seat.defaultPickId ?? null) : null,
+                unattendedPickIndices: isViewer
+                    ? (seat.unattendedPickIndices ?? null)
+                    : null,
                 hasDeck: hasDeckBySeat.has(seat.seatIndex),
             };
         }),

@@ -178,6 +178,7 @@ describe("editing-surface hold-preview census (issue #2583)", () => {
                     pickId: "r0-p0-c0",
                 }}
                 selected={false}
+                isDefault={false}
                 onSelect={vi.fn()}
                 onPick={vi.fn()}
                 onOpenMenu={vi.fn()}

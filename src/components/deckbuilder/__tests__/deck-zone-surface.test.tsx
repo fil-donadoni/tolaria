@@ -243,6 +243,29 @@ describe("DeckZoneSurface — no per-card overlay buttons (issue #2584)", () => 
         expect(plains.querySelectorAll(".card-ring-selected")).toHaveLength(0);
     });
 
+    it("marks a tile with its Unattended Pick ring when isUnattended(card, pinKey) returns true (ADR 0095, issue #2271)", () => {
+        const { getByTitle } = renderZone({
+            cards: [BOLT, PLAINS],
+            isUnattended: (card) => card.cardId === BOLT.cardId,
+        });
+        const bolt = getByTitle(/Remove Lightning Bolt/);
+        const plains = getByTitle(/Remove Plains/);
+        expect(
+            bolt.querySelector('[data-testid="unattended-pick-ring"]')
+        ).not.toBeNull();
+        expect(
+            plains.querySelector('[data-testid="unattended-pick-ring"]')
+        ).toBeNull();
+    });
+
+    it("marks no tile at all when isUnattended is absent (every non-draft-Pool caller)", () => {
+        const { getByTitle } = renderZone({ cards: [BOLT] });
+        const bolt = getByTitle(/Remove Lightning Bolt/);
+        expect(
+            bolt.querySelector('[data-testid="unattended-pick-ring"]')
+        ).toBeNull();
+    });
+
     it("a click SELECTS instead of moving once the host supplies onCardSelect (the touch path)", () => {
         const onCardClick = vi.fn();
         const onCardSelect = vi.fn();

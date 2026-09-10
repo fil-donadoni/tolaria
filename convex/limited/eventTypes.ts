@@ -95,6 +95,29 @@ export interface LimitedEventSeat {
      *  `draftEngine.ts`), so it can never coincidentally match a LATER
      *  round's card. */
     selectedPickId?: string;
+    /** Default Pick (ADR 0095, issue #2271): the `pickId` the Pick Heuristic
+     *  would take from THIS seat's `currentPack` right now — computed and
+     *  stamped the instant a pack is assigned (`draftEngine.ts`'s
+     *  `assignFreshPack`), exactly where `pickDeadline` is stamped, never
+     *  recomputed later. Absent whenever `pickDeadline` is (timer-off, a Bot
+     *  Drafter seat, no current pack, or a 1-card "auto" pack with no real
+     *  choice to default). `resolveAutoPickTimeout` honours it SECOND, after
+     *  `selectedPickId` — see that function's doc comment for the three-arm
+     *  resolution order. Server-computed only, never client-writable; the
+     *  client discloses it opt-in (`useCardZoom`-shaped `localStorage` pref)
+     *  as a ring subordinate to `selectedPickId`'s, never shown by default
+     *  (anchoring — ADR 0095). */
+    defaultPickId?: string;
+    /** Unattended Pick indices (ADR 0095, issue #2271): this seat's Pool
+     *  positions an Auto-Pick filled from the **Default Pick** (never one
+     *  that honoured a **Selected Card** — see `AutoPickResolution.unattended`,
+     *  `draftEngine.ts`) since the seat's last hand-made Pick. Transient,
+     *  seat-level, and deliberately NOT a per-card field on the `pool` array
+     *  itself (ADR 0095's rejected alternative) — cleared in full by the next
+     *  `submitPick`, the gesture that proves the seat is back at the table.
+     *  A seat that never returns keeps its marks into deckbuild, which is
+     *  correct. Absent means nothing unattended since the last manual Pick. */
+    unattendedPickIndices?: number[];
 }
 
 export type LimitedEventType = "sealed" | "draft";

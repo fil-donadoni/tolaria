@@ -186,6 +186,14 @@ export interface DeckZoneSurfaceProps {
      *  Deliberately a flag rather than a forked read-only pile component: one
      *  pile surface is the whole point of ADR 0075. */
     readOnly?: boolean;
+    /** This copy is an Unattended Pick (ADR 0095, issue #2271) — the draft
+     *  Pool only (`limited-draft-pool.tsx`); every other caller omits it.
+     *  Receives the resolved `pinKey` (not just the card) since marking is
+     *  PER PHYSICAL COPY, the same identity `onPin`/drag payloads use — two
+     *  copies of one card can be marked independently. Absent ⇒ no tile in
+     *  this Zone is ever marked, which is every other `DeckZoneSurface`
+     *  caller (unchanged). */
+    isUnattended?: (card: ZoneCard, pinKey: string) => boolean;
 }
 
 /** One card of a Zone, carrying the key its Card Pin is recorded under. The
@@ -223,6 +231,7 @@ export default function DeckZoneSurface({
     onDeleteColumn,
     onPin,
     readOnly = false,
+    isUnattended,
 }: DeckZoneSurfaceProps) {
     // The Zone build-time filter (issue #1625, ADR 0075 § "Filter is
     // momentary") lives ONLY in this component's own state — never lifted to
@@ -468,6 +477,9 @@ export default function DeckZoneSurface({
                                     // (no drag, no tab stop, no destructive
                                     // hover ring); see `readOnly` above.
                                     readOnly,
+                                    isUnattended: isUnattended
+                                        ? isUnattended(card, pinKey)
+                                        : false,
                                 };
                             }
                         ),
@@ -487,6 +499,7 @@ export default function DeckZoneSurface({
             onPin,
             moveMenuColumns,
             readOnly,
+            isUnattended,
         ]
     );
 

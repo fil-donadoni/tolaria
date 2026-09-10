@@ -656,7 +656,7 @@ describe("Limited Event Draft Timer + Auto-Pick (issue #1114, PRD #1107 stories 
         expect(humanSeat.currentPack).toBeDefined();
 
         // What the timeout path picks…
-        const timeoutPickId = resolveAutoPickTimeout(
+        const timeoutResolution = resolveAutoPickTimeout(
             afterBots.seats,
             0,
             humanSeat.pickSeq!,
@@ -670,7 +670,9 @@ describe("Limited Event Draft Timer + Auto-Pick (issue #1114, PRD #1107 stories 
             getCardEvalMeta,
             { packsSeen: [humanSeat.currentPack!] }
         );
-        expect(timeoutPickId).toBe(directPickId);
+        expect(timeoutResolution?.pickId).toBe(directPickId);
+        // Nothing was selected — this is an Unattended Pick (ADR 0095).
+        expect(timeoutResolution?.unattended).toBe(true);
     });
 
     it("a permanently-absent human seat's Auto-Picks (via the exact autoPickSeatTimeout sequence) complete the draft with a heuristic-coherent Pool", () => {
@@ -722,20 +724,20 @@ describe("Limited Event Draft Timer + Auto-Pick (issue #1114, PRD #1107 stories 
             expect(humanSeat.currentPack!.length).toBeGreaterThan(0);
 
             // Exactly the `autoPickSeatTimeout` mutation body's sequence.
-            const pickId = resolveAutoPickTimeout(
+            const resolution = resolveAutoPickTimeout(
                 seats,
                 HUMAN_SEAT,
                 humanSeat.pickSeq!,
                 botChoosePick
             );
-            expect(pickId).not.toBeNull();
+            expect(resolution).not.toBeNull();
             const picked = applyPick(
                 seats,
                 round,
                 remaining,
                 packSlots,
                 HUMAN_SEAT,
-                pickId!,
+                resolution!.pickId,
                 seed,
                 getRuntimeBoosterConfig,
                 resolveCardMeta,
@@ -902,14 +904,16 @@ describe("Limited Event Draft Timer + Auto-Pick (issue #1114, PRD #1107 stories 
         );
 
         // Exactly the `autoPickSeatTimeout` mutation body's sequence.
-        const timeoutPickId = resolveAutoPickTimeout(
+        const timeoutResolution = resolveAutoPickTimeout(
             seatsWithSelection,
             0,
             humanSeat.pickSeq!,
             botChoosePick
         );
-        expect(timeoutPickId).toBe(selected.pickId);
-        expect(timeoutPickId).not.toBe(heuristicPickId);
+        expect(timeoutResolution?.pickId).toBe(selected.pickId);
+        expect(timeoutResolution?.pickId).not.toBe(heuristicPickId);
+        // A Selected Card was honoured — NOT an Unattended Pick (ADR 0095).
+        expect(timeoutResolution?.unattended).toBe(false);
 
         const picked = applyPick(
             seatsWithSelection,
@@ -917,7 +921,7 @@ describe("Limited Event Draft Timer + Auto-Pick (issue #1114, PRD #1107 stories 
             afterBots.draftPacksRemaining,
             packSlots,
             0,
-            timeoutPickId!,
+            timeoutResolution!.pickId,
             seed,
             getBoosterConfig,
             resolveCardMeta,
@@ -972,13 +976,14 @@ describe("Limited Event Draft Timer + Auto-Pick (issue #1114, PRD #1107 stories 
             i === 0 ? { ...s, selectedPickId: "r0-p0-c999" } : s
         );
 
-        const timeoutPickId = resolveAutoPickTimeout(
+        const timeoutResolution = resolveAutoPickTimeout(
             seatsWithStaleSelection,
             0,
             humanSeat.pickSeq!,
             botChoosePick
         );
-        expect(timeoutPickId).toBe(heuristicPickId);
+        expect(timeoutResolution?.pickId).toBe(heuristicPickId);
+        expect(timeoutResolution?.unattended).toBe(true);
     });
 });
 

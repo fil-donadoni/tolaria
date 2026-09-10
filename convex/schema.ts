@@ -828,6 +828,16 @@ export default defineSchema({
                 // folds an inline copy in when no selection row exists.
                 // Nothing writes it any more.
                 selectedPickId: v.optional(v.string()),
+                // Default Pick (ADR 0095, issue #2271): see
+                // `LimitedEventSeat.defaultPickId` (`convex/limited/
+                // eventTypes.ts`) for the full doc. Small mutable state, same
+                // tier as `pickDeadline`/`pickSeq` above — server-written only.
+                defaultPickId: v.optional(v.string()),
+                // Unattended Pick indices (ADR 0095, issue #2271): see
+                // `LimitedEventSeat.unattendedPickIndices`. Transient —
+                // cleared by the next `submitPick`, never a per-Pool-card
+                // field.
+                unattendedPickIndices: v.optional(v.array(v.number())),
             })
         ),
         createdAt: v.number(),
