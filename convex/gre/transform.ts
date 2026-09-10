@@ -44,7 +44,13 @@ import {
     tryGetDefinition,
 } from "../cards";
 import { resolveTokenStaticEffects } from "../cards/tokenStaticEffects";
-import type { CardBackFace, ManaCost, TokenSpec } from "../cards/types";
+import type {
+    CardBackFace,
+    CardType,
+    ManaCost,
+    TokenSpec,
+} from "../cards/types";
+import { PERMANENT_TYPES } from "../cards/types";
 import {
     isModalDoubleFaced,
     modalBackFaceDefinitionId,
@@ -68,6 +74,15 @@ import type { LayerStateView } from "./layers";
  *  server-side registration call ever reaching it (`transformPermanent`
  *  runs server-side only). Without this, `maybeSynthesizeToken`'s
  *  from-scratch decode has no way to know the face was "back". */
+/** CR 712.10 — is this face a PERMANENT card face? The one predicate the two
+ *  transform legs share, so the clause cannot be enforced on one direction and
+ *  forgotten on the other. */
+function isPermanentFaceTypes(types: readonly CardType[]): boolean {
+    return types.some((t) =>
+        (PERMANENT_TYPES as readonly CardType[]).includes(t)
+    );
+}
+
 function backFaceAsTokenSpec(backFace: CardBackFace): TokenSpec {
     return {
         name: backFace.name,
@@ -330,7 +345,22 @@ export function transformPermanent(
         const frontDef = tryGetDefinition(frontId);
         const backFace = frontDef?.backFace;
         if (!backFace) return; // CR 712 — nothing to transform into.
-        const backId = registerBackFaceDefinition(backFace);
+        // CR 712.10 — "if a spell or ability instructs a player to transform a
+        // permanent, and the face that permanent would transform into is an
+        // instant or sorcery card face … nothing happens." No printed NONMODAL
+        // back face is one, so this leg is latent for the 401 transform cards;
+        // it is stated because the modal kind makes the mirror leg below live.
+        if (!isPermanentFaceTypes(backFace.types)) return;
+        // CR 712.3 / 712.8f (ADR 0122 §1) — a MODAL back face is already a
+        // registered twin, so transform points at THAT definition rather than
+        // minting a second one through the token codec. One face, one
+        // definition: a codec-synthesized copy would carry neither the face's
+        // entry replacement nor its twin id, so a permanent flipped here and a
+        // permanent PLAYED as that face would be two different objects wearing
+        // one name.
+        const backId = isModalDoubleFaced(frontDef ?? undefined)
+            ? modalBackFaceDefinitionId(frontId)
+            : registerBackFaceDefinition(backFace);
         card.transformedFrom = frontId;
         card.card = { id: backId };
         // CR 701.27b / 712 — transforming is the SAME permanent (CR 400.7
@@ -347,6 +377,18 @@ export function transformPermanent(
         });
         card.transformed = true;
     } else {
+        // CR 712.10 — the live leg of the same clause, and the reason it is
+        // stated at all: a MODAL permanent showing its land back face reverts
+        // to its FRONT face, which for Sink into Stupor is an INSTANT card
+        // face. "Nothing happens" — without this, an effect that transforms
+        // target permanent would leave an Instant sitting on the battlefield
+        // (ADR 0122). CR 712.8a's departure revert is a different question and
+        // is not gated by this: a card LEAVING the battlefield has no face up
+        // at all, and `revertTransform`'s own caller there is
+        // `removePermanentTo`.
+        const frontId = card.transformedFrom;
+        const frontDef = frontId ? tryGetDefinition(frontId) : undefined;
+        if (frontDef && !isPermanentFaceTypes(frontDef.types)) return;
         // Back → front is exactly the CR 712.8a restore, so it IS that
         // function — one front-face rebuild, not two that can drift apart.
         revertTransform(state, card);

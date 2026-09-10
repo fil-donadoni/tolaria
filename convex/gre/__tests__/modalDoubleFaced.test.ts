@@ -23,6 +23,7 @@ import {
 import { getLegalActions } from "../rules";
 import { landPlayFaces } from "../modalLandPlay";
 import { applyPlayLand, finalizeLandEntry } from "../playLand";
+import { transformPermanent } from "../transform";
 import { projectPublicState } from "../../gameProjections";
 import type { GameState, PlayerState } from "../state";
 
@@ -155,6 +156,33 @@ describe("modal double-faced cards (CR 712.3)", () => {
         // the back, and the mutation's own gate reads the same list.
         expect(landPlayFaces(player.hand[0])).toEqual(["back"]);
         expect(state.pendingChoices).toBeUndefined();
+    });
+
+    it("CR 712.10: an effect cannot transform a modal land back into its instant front face", () => {
+        const { state, player, instanceId } = handState(SINK_INTO_STUPOR);
+        applyPlayLand(state, player, instanceId, "back");
+        finalizeLandEntry(
+            state,
+            "p1",
+            instanceId,
+            { life: 3 },
+            true,
+            state.pendingChoices?.[0]?.landSourceZone,
+            state.pendingChoices?.[0]?.landEntryFace
+        );
+        const land = player.battlefield.find((c) => c.id === instanceId)!;
+        expect(land.types).toEqual(["Land"]);
+
+        // "…and the face that permanent would transform into is an instant or
+        // sorcery card face … nothing happens." Without the clause the modal
+        // play's reuse of the `transformed` markers would let an Instant sit
+        // on the battlefield.
+        transformPermanent(state, land);
+
+        expect(land.types).toEqual(["Land"]);
+        expect((land.card as { id: string }).id).toBe(
+            modalBackFaceDefinitionId(SINK_INTO_STUPOR)
+        );
     });
 
     it("CR 712.19: the name-choice list offers both face names, and the card's name is the front face's", () => {
