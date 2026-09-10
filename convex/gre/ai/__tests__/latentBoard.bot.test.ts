@@ -19,6 +19,7 @@ import {
 import { evaluateBreakdown, permanentRealisedValue } from "../../evaluate";
 import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
 import {
+    openEndedSlotRequirement,
     representativeVictimLoss,
     targetSlotRequirements,
 } from "../latentBoard";
@@ -26,6 +27,7 @@ import { shivanDragon, stoneRain } from "../../../cards/sets/lea/red";
 import { disenchant, swordsToPlowshares } from "../../../cards/sets/lea/white";
 import { llanowarElves } from "../../../cards/sets/lea/green";
 import { blackLotus, forest } from "../../../cards/sets/lea/colorless";
+import { forceOfVigor } from "../../../cards/sets/mh1/green";
 
 /** A two-player state where `p1` holds exactly `handCardId` and `p2`'s
  *  battlefield is `oppBoard` (card ids). Everything else is the shared
@@ -70,6 +72,36 @@ describe("the representative victim (issue #3398)", () => {
         const slots = targetSlotRequirements(stoneRain);
         expect(slots).toHaveLength(1);
         expect(slots[0].type).toBe("Land");
+    });
+
+    it("emits one slot per slot a BOUNDED range authorises", () => {
+        // Force of Vigor: `count: { min: 0, max: 2 }`, and a script that names
+        // BOTH `{ target: 0 }` and `{ target: 1 }`. Emitting a single slot for
+        // the group left slot 1 off the end of the list, where the valuer read
+        // it as one full representative victim.
+        const slots = targetSlotRequirements(forceOfVigor);
+        expect(slots).toHaveLength(2);
+        expect(slots[1]).toBe(slots[0]);
+        // Bounded on both ends, so nothing absorbs a HIGHER index: a script
+        // naming slot 2 would be naming a requirement the card never declares.
+        expect(openEndedSlotRequirement(forceOfVigor)).toBeUndefined();
+    });
+
+    it("leaves an OPEN-ENDED group to absorb every index past the authored list", () => {
+        // `count: "X"` is resolved against `chosenX` at announcement (CR
+        // 601.2c) and has no ceiling a pre-announcement valuation can read, so
+        // the group itself answers for slot 1, 2, … rather than the lens
+        // inventing a victim for them.
+        const variable = {
+            targetRequirement: {
+                type: "Land" as const,
+                count: "X" as const,
+            },
+        };
+        expect(targetSlotRequirements(variable)).toHaveLength(1);
+        expect(openEndedSlotRequirement(variable)).toBe(
+            variable.targetRequirement
+        );
     });
 });
 
@@ -140,6 +172,23 @@ describe("latent removal value follows the board (issue #3398)", () => {
         ]);
         expect(againstNothingLegal).toBe(0);
         expect(againstArtifact).toBeGreaterThan(0);
+    });
+
+    it("is ZERO on every slot of a bounded multi-target group with no legal victim", () => {
+        // Force of Vigor's second `destroy` reads slot 1. Before the slot list
+        // covered a bounded range, slot 1 fell through to the representative
+        // victim and the card priced at 160 in hand against a board holding
+        // nothing it could legally destroy — MORE than Stone Rain is worth
+        // against three real Forests, with the `base + MV` floor lifted
+        // underneath it because slot 0 had answered.
+        expect(latentInHand(forceOfVigor.id, [shivanDragon.id])).toBe(0);
+        // And with one legal victim it is priced by THAT victim, on both
+        // slots, not by a phantom on the second.
+        const oneArtifact = latentInHand(forceOfVigor.id, [blackLotus.id]);
+        expect(oneArtifact).toBeGreaterThan(0);
+        expect(oneArtifact).toBeLessThan(
+            2 * DEFAULT_EVAL_WEIGHTS.latent.boardRemoval
+        );
     });
 
     it("never counts the CASTER's own permanents as victims", () => {

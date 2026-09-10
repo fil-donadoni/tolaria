@@ -65,11 +65,37 @@ export function representativeVictimLoss(weights: EvalWeights): number {
  *  back into `evaluate.ts` (which imports this one). */
 export type RealisedLoss = (perm: CardInstanceState) => number;
 
+/** How many flat slots a requirement group fills, when the DEFINITION states
+ *  a ceiling. A fixed `count: N` fills N; the object form's numeric `max` is
+ *  an authored ceiling too (Force of Vigor's `{ min: 0, max: 2 }`), and every
+ *  one of those slots belongs to THIS requirement. `undefined` for a genuinely
+ *  open-ended count — `"X"` in either position, or a `{ min }` with no `max`
+ *  — which is resolved against `chosenX` at announcement (CR 601.2c,
+ *  `resolveTargetRequirementCount`) and has no ceiling a pre-announcement
+ *  valuation can read.
+ *
+ *  Emitting ONE slot for a bounded range was the phantom-victim bug the
+ *  issue-#3398 review caught: Force of Vigor's script names `{ target: 0 }`
+ *  AND `{ target: 1 }`, slot 1 fell off the end of the list, and the lens
+ *  answered "unknown" — which the valuer reads as one full representative
+ *  victim. The card then priced at 160 in hand against a board holding
+ *  nothing it could legally destroy, with the `base + MV` floor lifted
+ *  underneath it because slot 0 HAD answered. */
+function authoredSlotCount(req: TargetRequirement): number | undefined {
+    if (typeof req.count === "number") return Math.max(1, req.count);
+    if (req.count === "X") return undefined;
+    const max = req.count.max;
+    return typeof max === "number" ? Math.max(1, max) : undefined;
+}
+
 /** The FLAT target-slot list an Effect Script's `{ target: n }` indexes into:
- *  `targetRequirement` first (repeated for a fixed multi-`count` requirement),
+ *  `targetRequirement` first (repeated for each slot its count authorises),
  *  then each `additionalTargetRequirements` group in array order — the same
- *  order `announceCast` concatenates the picks in (CR 601.2c). `undefined`
- *  entries are impossible; a card with no requirement yields an empty list. */
+ *  order `announceCast` concatenates the picks in (CR 601.2c), and the same
+ *  order `moves.ts`' `groupsFor` enumerates them. An open-ended group
+ *  contributes ONE slot here and absorbs every higher index through
+ *  {@link openEndedSlotRequirement}. A card with no requirement yields an
+ *  empty list. */
 export function targetSlotRequirements(
     def: Pick<
         CardDefinition,
@@ -77,18 +103,44 @@ export function targetSlotRequirements(
     >
 ): TargetRequirement[] {
     const slots: TargetRequirement[] = [];
-    const push = (req: TargetRequirement | undefined) => {
-        if (!req) return;
-        // A variable count ("X", or a `{ min, max }` range) is not knowable
-        // from the definition alone — it is chosen at announcement. One slot
-        // is the floor every such requirement fills, and the floor is what a
-        // latent (pre-announcement) valuation can honestly claim.
-        const fixed = typeof req.count === "number" ? req.count : 1;
-        for (let i = 0; i < Math.max(1, fixed); i++) slots.push(req);
-    };
-    push(def.targetRequirement);
-    for (const extra of def.additionalTargetRequirements ?? []) push(extra);
+    for (const req of targetRequirementGroups(def)) {
+        for (let i = 0; i < (authoredSlotCount(req) ?? 1); i++) slots.push(req);
+    }
     return slots;
+}
+
+/** The requirement a slot index PAST {@link targetSlotRequirements}' list
+ *  belongs to: the last OPEN-ENDED group, since only such a group can produce
+ *  more slots than the definition authorises. `undefined` when every group is
+ *  bounded — a script naming a slot beyond that list names a requirement the
+ *  card does not declare, and the lens must answer "unknown" (keep the
+ *  representative victim) rather than invent one. */
+export function openEndedSlotRequirement(
+    def: Pick<
+        CardDefinition,
+        "targetRequirement" | "additionalTargetRequirements"
+    >
+): TargetRequirement | undefined {
+    let openEnded: TargetRequirement | undefined;
+    for (const req of targetRequirementGroups(def)) {
+        if (authoredSlotCount(req) === undefined) openEnded = req;
+    }
+    return openEnded;
+}
+
+/** The card's target-requirement GROUPS in flat-slot order (CR 601.2c). */
+function targetRequirementGroups(
+    def: Pick<
+        CardDefinition,
+        "targetRequirement" | "additionalTargetRequirements"
+    >
+): TargetRequirement[] {
+    const groups: TargetRequirement[] = [];
+    if (def.targetRequirement) groups.push(def.targetRequirement);
+    for (const extra of def.additionalTargetRequirements ?? []) {
+        groups.push(extra);
+    }
+    return groups;
 }
 
 /** What a lens needs to answer "what is the best legal victim worth HERE". */
@@ -133,13 +185,16 @@ export function makeLatentBoardLens(
     // spell by a requirement it may never use.
     const slots = def.modes?.length ? [] : targetSlotRequirements(def);
     if (slots.length === 0) return base;
+    // A slot index past the authored list belongs to the trailing open-ended
+    // group when there is one; otherwise it is genuinely unknown.
+    const openEnded = openEndedSlotRequirement(def);
 
     const denominator = representativeVictimLoss(weights);
     const memo = new Map<number, number | undefined>();
     let measured = false;
 
     const compute = (slot: number): number | undefined => {
-        const requirement = slots[slot];
+        const requirement = slots[slot] ?? openEnded;
         if (!requirement) return undefined;
         const source = pendingTargetingSource(state, card.id, "cast");
         const legal = getLegalTargets(state, requirement, source, casterId);
