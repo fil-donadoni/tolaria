@@ -26,6 +26,8 @@ import {
 import type { PendingChoiceKind } from "@convex/gre";
 import { projectPublicState } from "@convex/gameProjections";
 import { raiseTriggerTargetSelection } from "@convex/gre/rules";
+import { emitAttackersDeclaredEvents } from "@convex/gre/phases";
+import { markAttacking } from "@convex/gre/combat";
 import {
     makeInstance,
     makePlayer,
@@ -254,6 +256,49 @@ function stateWithBotCastWindow(
     return state;
 }
 
+/** CR 603.3b (ADR 0058, issue #3222) — a real simultaneous-trigger batch, and
+ *  the shape that made this kind matter: the bot attacks with two creatures
+ *  carrying DIFFERENT attack triggers (Sanguine Evangelist's battle cry and
+ *  Sentinel of the Nameless City's Map), so CR 508.1m's one batch owes an
+ *  ordering. Built through the real emitter rather than a hand-written
+ *  `PendingChoice`, because the batch lives OFF the stack in
+ *  `pendingTriggerBatch` and the choice carries a sentinel `stackItemId` — a
+ *  hand-built one would not survive the resolver the search drives. */
+function stateWithBotTriggerOrder(): GameState {
+    const attackers = [
+        makeInstance(getCardByName("Sanguine Evangelist").id, {
+            id: "atk-evangelist",
+            controllerId: BOT,
+            ownerId: BOT,
+            zone: "battlefield",
+        }),
+        makeInstance(getCardByName("Sentinel of the Nameless City").id, {
+            id: "atk-sentinel",
+            controllerId: BOT,
+            ownerId: BOT,
+            zone: "battlefield",
+        }),
+    ];
+    const state = makeState({
+        players: [
+            makePlayer(HUMAN),
+            makePlayer(BOT, { battlefield: attackers }),
+        ],
+        activePlayerId: BOT,
+        priorityPlayerId: BOT,
+        phase: "DECLARE_ATTACKERS",
+    });
+    state.combat = {
+        attackerIds: attackers.map((c) => c.id),
+        confirmed: true,
+        blockerAssignments: {},
+        blockersConfirmed: false,
+    };
+    for (const c of state.players[1].battlefield) markAttacking(state, c);
+    emitAttackersDeclaredEvents(state);
+    return state;
+}
+
 /** One fixture per generator-covered choice kind. A kind added to
  *  `CHOICE_CANDIDATE_GENERATORS` with no entry here fails the sweep below —
  *  that is the point: the new kind must be proven to reach the search. */
@@ -313,6 +358,11 @@ const FIXTURES: Partial<Record<PendingChoiceKind, () => GameState>> = {
             ["Ornithopter", "Craw Wurm"],
             ["Island", "Island", "Island"]
         ),
+    // CR 603.3b (ADR 0058, issue #3222) — ordering one's own simultaneous
+    // triggers. The generator emits a single canonical permutation, so the
+    // value of routing it is not a better answer but a search that can DESCEND
+    // past the batch instead of leaf-scoring at it.
+    "trigger-order": stateWithBotTriggerOrder,
     "choose-hand-card": () =>
         stateWithBotChoice(
             {

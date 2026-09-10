@@ -217,7 +217,13 @@ describe("choice-node candidate contract (CR 608.2 / ADR 0016, issue #1425)", ()
         // and until then the bot never sent a card to the bottom or the
         // graveyard.
         expect(hasChoiceCandidateGenerator("order-top")).toBe(true);
-        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(11);
+        // CR 603.3b (ADR 0058, issue #3222) — a simultaneous-trigger batch.
+        // The generator emits the ONE canonical ordering, so this is not a new
+        // decision the search has to weigh; it is the difference between a
+        // node the playout descends past and a wall it leaf-scores at, which
+        // is what an unregistered kind actually is.
+        expect(hasChoiceCandidateGenerator("trigger-order")).toBe(true);
+        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(12);
     });
 
     it("searchable is per-CHOICE, not per-kind: a mandatory hand pick is not a node (PR #1914 review finding 2)", () => {
