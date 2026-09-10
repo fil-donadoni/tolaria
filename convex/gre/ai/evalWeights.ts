@@ -34,8 +34,28 @@ export type EvalWeights = {
     lifeWeight: number;
     /** Board-presence bonus for every permanent in play (`W_PERMANENT`). */
     permanentWeight: number;
-    /** Per untapped mana source, the available-mana proxy (`W_MANA`). */
+    /** Per UNTAPPED mana source (`W_MANA`). */
     manaWeight: number;
+    /** Per TAPPED mana source (issue #3377). A tapped source is still a source:
+     *  it untaps in its controller's next untap step (CR 502.1), so tapping one
+     *  to pay for something forfeits this turn's option, not the permanent.
+     *  Scored below `manaWeight` — having mana available NOW is worth something
+     *  — but nowhere near zero, which is what it used to be worth.
+     *
+     *  Bounded on BOTH sides by measurement, not taste:
+     *   - strictly BELOW `manaWeight`, or an untapped source stops outranking a
+     *     tapped one and the bot cannot see that attacking with a mana dork
+     *     costs it the mana (`evaluate.bot.test.ts`);
+     *   - far enough ABOVE zero that tapping out for a lasting payoff is not a
+     *     material loss. Measured on the issue-#3377 DecisionTrace: putting a
+     *     permanent +1/+1 counter on a creature is worth `creatures` +29 against
+     *     a `flexibility` −6, so four tapped sources must cost less than 23 —
+     *     i.e. this weight must exceed 6.25. At 9 they cost 12, and the
+     *     activation is correctly a gain.
+     *
+     *  The land-drop invariant (issue #149) is untouched: a land ENTERS
+     *  untapped and so is still scored at the full `manaWeight`. */
+    tappedManaWeight: number;
     /** Per on-curve land, the mana-development term (`W_MANA_DEV`, issue
      *  #2686): a land contributes this ON TOP of `permanentWeight` +
      *  `manaWeight` while the player's land count is still below the total
@@ -160,6 +180,7 @@ export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     graveyardReachCap: 2,
     permanentWeight: 5,
     manaWeight: 12,
+    tappedManaWeight: 9,
     manaDevWeight: 12,
     flexWeight: 6,
     flexCardCap: 3,

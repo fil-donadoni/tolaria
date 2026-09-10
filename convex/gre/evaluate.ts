@@ -338,12 +338,13 @@ function availableManaFor(player: PlayerState): number {
  *  of every step and phase (CR 500.4), so it is the least durable thing on the
  *  board. It stays in `availableManaFor`, where "can I pay for this right now"
  *  is the question being asked. */
-function manaSourcesFor(player: PlayerState): number {
-    let n = 0;
+function manaSourceTermFor(player: PlayerState, weights: EvalWeights): number {
+    let total = 0;
     for (const perm of player.battlefield) {
-        if (hasManaAbility(perm, undefined, player.battlefield)) n += 1;
+        if (!hasManaAbility(perm, undefined, player.battlefield)) continue;
+        total += perm.isTapped ? weights.tappedManaWeight : weights.manaWeight;
     }
-    return n;
+    return total;
 }
 
 /** Whether `playerId` holds at least one instant-speed card it can afford to
@@ -1010,7 +1011,7 @@ function playerTerms(
     // something forfeits nothing durable; it untaps next turn (CR 502.1), and
     // the option it gave up THIS turn is `flexibility`'s job, priced below off
     // `availableMana`.
-    terms.mana = manaSourcesFor(player) * weights.manaWeight;
+    terms.mana = manaSourceTermFor(player, weights);
     // The mana-development term prices the base against the hand's castability
     // (issue #2686) — additive to `mana`, never a replacement for it, and zero
     // on any board whose land count already covers the hand's mana needs.

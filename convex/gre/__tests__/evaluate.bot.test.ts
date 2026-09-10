@@ -164,6 +164,77 @@ describe("evaluate (issue #111)", () => {
         );
     });
 
+    it("TAPPING a mana source is not a material loss (CR 502.1, issue #3377)", () => {
+        // The `mana` term counts SOURCES, not untapped sources. A source tapped
+        // to pay for something untaps in its controller's next untap step, so
+        // nothing durable was given up; the option it cost THIS turn is what
+        // `flexibility` prices, separately.
+        //
+        // Measured before this: on a real DecisionTrace, tapping four lands to
+        // put a PERMANENT +1/+1 counter on a creature scored 25 points WORSE
+        // than passing (creatures +29 against mana −48, flexibility −6), so the
+        // material tie-break refused every mana-costed activation whose payoff
+        // was smaller than the sources it tapped — which is nearly all of them.
+        const lands = (tapped: boolean) =>
+            ["l1", "l2", "l3"].map((id) =>
+                makeInstance(MOUNTAIN, {
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    id,
+                    isTapped: tapped,
+                })
+            );
+        const untapped = makeState({
+            players: [
+                makePlayer("p1", { battlefield: lands(false) }),
+                makePlayer("p2"),
+            ],
+        });
+        const tapped = makeState({
+            players: [
+                makePlayer("p1", { battlefield: lands(true) }),
+                makePlayer("p2"),
+            ],
+        });
+        // Tapping three sources may cost SOMETHING — an untapped source still
+        // outranks a tapped one, asserted directly above — but it must cost far
+        // less than the sources are worth, or no mana-costed activation can ever
+        // pay for itself. The bound is the measured one: four tapped sources
+        // have to come in under the +23 that trace's activation was worth.
+        const cost =
+            materialMargin(untapped, "p1") - materialMargin(tapped, "p1");
+        expect(cost).toBeGreaterThan(0);
+        expect(cost).toBeLessThan(23);
+    });
+
+    it("OWNING a mana source is still material — the land-drop invariant's half (issue #149/#3377)", () => {
+        // The discriminating control on the test above: making the term
+        // tap-blind must not make it board-blind. A source that is not there at
+        // all is worth strictly less than one that is, tapped or not — which is
+        // what keeps `−cardValue(land) + permanentWeight + manaWeight` positive.
+        const withLand = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(MOUNTAIN, {
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            id: "l1",
+                            isTapped: true,
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const without = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        expect(evaluateBreakdown(withLand, "p1").self.mana).toBeGreaterThan(
+            evaluateBreakdown(without, "p1").self.mana
+        );
+    });
+
     it("developing a land scores strictly higher than holding it in hand (issue #149)", () => {
         // Same land, all else equal: in hand vs in play. A land drop must be a
         // strictly positive evaluation delta or the bot ties play-land with pass
