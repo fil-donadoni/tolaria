@@ -857,7 +857,16 @@ export function scorePreservedDemands(
     return score;
 }
 
-/** Distinct colors a source can produce across all its mana options. */
+/** Distinct colors a source can produce across all its mana options.
+ *
+ *  GROSS, like `manaFromPlan`: an option's own `cost` leg is not netted out
+ *  here, nor in `scorePreservedDemands`'s feasibility probe, so a costed option
+ *  credits its source with colours a Demand could only reach by paying that leg
+ *  under a context the Demand does not have. Unreachable today — the one
+ *  admitted shape (Arena of Glory) nets exactly what its free option produces,
+ *  so it can never make a Demand affordable the free option cannot — but a
+ *  second carrier whose costed option nets MORE would need these two to become
+ *  cost-aware, not just `applyOption` (issue #3384). */
 function sourceColorBreadth(source: AutoTapSource): number {
     const colors = new Set<Color>();
     for (const opt of source.options) {

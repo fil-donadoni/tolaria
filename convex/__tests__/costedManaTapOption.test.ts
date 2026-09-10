@@ -288,9 +288,7 @@ describe("auto-tap reaches the costed option for a CREATURE spell (CR 106.6, iss
 // PLAN rather than about the option.
 describe("the plan refuses a costed option the payment would not reward", () => {
     it("a BESTOWED cast is an Aura spell, so the rider never fires (CR 702.103b)", async () => {
-        // Cost deliberately out of reach, so the partial plan runs and nothing
-        // commits: what is under test is WHICH option the plan reaches for.
-        const spell = castOf(springheartNantuko.id, 5);
+        const spell = castOf(springheartNantuko.id, 2);
         spell.pendingCast.bestowed = true;
         const stub = makeMutationCtx("p1", [
             gameStateSeed(arenaBoard(1, spell)),
