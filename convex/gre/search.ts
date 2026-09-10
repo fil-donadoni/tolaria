@@ -4043,9 +4043,31 @@ export function selectRootMove(
     // out at the search horizon anyway
     // (`project_combat_eval_washed_at_horizon`), so a sacrifice outlet used on
     // an attacker or a blocker is left to win or lose on mean reward.
+    // EXCLUDED with a NON-EMPTY STACK, and this is the same exclusion
+    // `isSorceryTimingFor` already gives the hold-the-trick rule ("a main phase
+    // with something on the stack is a response window, which is where an
+    // activation belongs"). A response window is precisely where spending the
+    // permanent is RIGHT: an opponent's removal spell aimed at it means holding
+    // extracts nothing at all. `firingBeatsHolding` cannot see that — `evaluate`
+    // does not model the stack, so a permanent already doomed by a spell on it
+    // scores at full value in the holding baseline, the probe reads "alive, no
+    // payoff" against "dead, small payoff", and the rule would hold a Ballista
+    // through the Bolt that kills it. An empty stack also keeps the probe
+    // comparable in the first place: `policyValue` only settles the stack when
+    // it holds exactly ONE item, so an activation resolving underneath an
+    // opponent's spell yields no payoff at all and the hold becomes automatic.
+    //
+    // KNOWN LIMITATION, stated rather than papered over: `evaluate` is blind to
+    // pending DELAYED TRIGGERS too, so a permanent doomed by one ("sacrifice it
+    // at the beginning of the end step") reads as fully standing in the holding
+    // baseline, and an outlet on it is held rather than cashed. Narrower and
+    // rarer than the stack case, and the empty-stack gate does not cover it; if
+    // a blade position ever shows it costing the bot a real play, the narrowing
+    // goes here.
     if (
         rootState &&
         !rootState.combat &&
+        rootState.stack.length === 0 &&
         !!botId &&
         isStandingSpendActivation(rootState, botId, best.move) &&
         !firingBeatsHolding(rootState, botId, best.move, weights)
@@ -4321,17 +4343,26 @@ function isDeferredEngineActivation(
  *  side is `evaluate` on the untouched root: `pass` moves no material, and
  *  applying it would advance the phase and score a different turn.
  *
- *  Runs at the ROOT only, behind the `isLastDeferralWindow` and
- *  `isDeferredEngineActivation` gates — so once per qualifying candidate (the
- *  cost-pick variants of a single ability, capped at `MAX_VICTIM_VARIANTS`),
- *  never on the hot path. The clone goes through `cloneGameState`, the search's
+ *  Runs at the ROOT only, from TWO call sites: the last-window FIRE rule
+ *  (behind `isLastDeferralWindow` + `isDeferredEngineActivation`, once per
+ *  qualifying candidate — the cost-pick variants of a single ability, capped at
+ *  `MAX_VICTIM_VARIANTS`) and the standing-spend HOLD rule (behind
+ *  `isStandingSpendActivation`, once, on the robust pick). Never on the hot
+ *  path from either. The clone goes through `cloneGameState`, the search's
  *  own seam (ADR 0001 / #108), never `structuredClone`.
  *
- *  The two sides compare like with like because `state.combat` is torn down in
- *  `endCombatStep` before END_STEP, so `policyValue`'s combat corrections are
- *  both zero here and it reduces to `evaluate`. That is a property of the
- *  WINDOW, not of `policyValue` — a future change leaving combat standing into
- *  an end step would bias the probe. */
+ *  The two sides compare like with like only while the ROOT STATE carries
+ *  neither live combat nor a non-empty stack, and each caller earns that
+ *  differently. FIRE inherits it from its window: `state.combat` is torn down
+ *  in `endCombatStep` before END_STEP, so `policyValue`'s combat corrections
+ *  are both zero and it reduces to `evaluate` — a property of the WINDOW, not
+ *  of `policyValue`, and a future change leaving combat standing into an end
+ *  step would bias it. HOLD runs in every window, so it asserts both conditions
+ *  explicitly at its own guard (`!rootState.combat`, `stack.length === 0`)
+ *  rather than inheriting either. The stack half matters for a second reason
+ *  the combat half does not have: `evaluate` never models the stack, so a
+ *  permanent already doomed by a spell on it scores at full value on the
+ *  holding side. */
 function firingBeatsHolding(
     state: GameState,
     pid: string,

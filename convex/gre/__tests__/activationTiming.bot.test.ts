@@ -962,6 +962,54 @@ describe("selectRootMove — a sacrifice engine is held, then converted (issue #
         ).toBe("pass");
     });
 
+    it("HOLD: the opponent's UPKEEP is held too — the rule is not the last window", () => {
+        // The scope claim, pinned. `last-window-fire` is gated on
+        // `isLastDeferralWindow` (the opponent's END STEP); this rule
+        // deliberately is not, because the argument does not depend on which
+        // window it is. Without this, a future narrowing back to the last
+        // window would pass every other test in this file.
+        const state = makeState({
+            phase: "UPKEEP",
+            activePlayerId: "p2",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: unpayingBoard() }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(
+            selectRootMove(spendIsRobustRoot(), [ACTIVATE, PASS], state, "p1")
+                .kind
+        ).toBe("pass");
+    });
+
+    it("NO-HOLD: a RESPONSE window is where the spend belongs (issue #3319 review)", () => {
+        // The exclusion the hold-the-trick rule gets for free from
+        // `isSorceryTimingFor` and this one has to assert: with an opponent's
+        // removal spell on the stack aimed at the very permanent being spent,
+        // holding extracts NOTHING — the permanent dies either way.
+        //
+        // `firingBeatsHolding` cannot discriminate it: `evaluate` does not model
+        // the stack, so the doomed permanent scores at full value on the holding
+        // side and the probe reads "alive, no payoff" against "dead, small
+        // payoff". The empty-stack conjunct is what stops it, so this test is
+        // the guard on that conjunct.
+        const state = makeState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p2",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: unpayingBoard() }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, BOLT, "p2", [{ type: "permanent", id: "orb" }]);
+        expect(
+            selectRootMove(spendIsRobustRoot(), [ACTIVATE, PASS], state, "p1")
+                .kind
+        ).toBe("activate-ability");
+    });
+
     it("records `standing-spend-hold` as the deciding mechanism", () => {
         // The telemetry seam, asserted exactly as `last-window-fire` asserts
         // its own: a `RootDecisionMechanism` value `finish` never emits is a
