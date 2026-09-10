@@ -56,8 +56,9 @@ export const palantirOfOrthanc: CardDefinition = {
                 controller: "opponent",
             },
             effects: [
-                // CR 122.1 — the counter goes on FIRST, so the mill below reads
-                // a count INCLUDING it ("put an influence counter on Palantír
+                // CR 608.2c — the controller follows the instructions in the
+                // order written, so the counter goes on FIRST and the mill
+                // below reads a count INCLUDING it (CR 122.6) ("put an influence counter on Palantír
                 // of Orthanc … you mill X cards, where X is the number of
                 // influence counters on Palantír of Orthanc"). The first
                 // trigger therefore mills 1, not 0.
@@ -78,9 +79,10 @@ export const palantirOfOrthanc: CardDefinition = {
                     count: 2,
                     destination: "library-bottom",
                 },
-                // CR 117.3a — "target opponent MAY have you draw a card": the
-                // decision belongs to the ANNOUNCED OPPONENT, not to the
-                // controller of the trigger, and it costs them nothing. The
+                // CR 608.2d / 121.3a — "target opponent MAY have you draw a
+                // card": the choice is announced while the effect is applied,
+                // and CR 121.3a is explicit that the player MAKING it need not
+                // be the player who would draw. It costs them nothing. The
                 // cost-free `mayPay` shape (issue #680) with a non-controller
                 // `player` is exactly that, and the required boolean `bind` is
                 // what the punisher branch below reads.
@@ -100,9 +102,12 @@ export const palantirOfOrthanc: CardDefinition = {
                     // an uncaptured binding is 0 (CR 608.2 — the effect does as
                     // much as it can).
                     else: [
-                        // CR 701.13a — X is the LIVE influence count on the
-                        // source (CR 122.6), read the same way The One Ring's
-                        // upkeep loss reads its burden counters. `bindAll`
+                        // CR 701.17a mill; X is the LIVE influence count on
+                        // the source (CR 122.6), read at resolution in the
+                        // order written (CR 608.2c) — the same way The One
+                        // Ring's upkeep loss reads its burden counters. A
+                        // library shorter than X mills as many as possible
+                        // (CR 701.17b). `bindAll`
                         // (issue #2600) captures every card that genuinely
                         // reached the graveyard, in mill order — a short
                         // library mills what it has, and the sum below covers
@@ -118,12 +123,14 @@ export const palantirOfOrthanc: CardDefinition = {
                             },
                             bindAll: "$milled",
                         },
-                        // CR 118.2 / 202.3 — ONE loss of the total, not one
+                        // CR 119.3 / 202.3 — ONE loss of the total, not one
                         // loss per card: a per-card `forEach` would be a
-                        // different game action (N events, N replacement
-                        // windows). `{X}` in a milled card's cost counts as 0
-                        // outside the stack (CR 202.3b), which the registry's
-                        // own mana-value read already folds.
+                        // different game action (N life-loss events, N CR 614
+                        // replacement windows). `{X}` in a milled card's cost
+                        // counts as 0 outside the stack (CR 202.3e), which the
+                        // registry's own mana-value read already folds.
+                        //
+                        // simplification: a milled card that a CR 614 graveyard-bound replacement sends elsewhere is not counted, though CR 701.17c says a milled card can be found in whatever public zone it reached — out-of-scope here, the miss is upstream in `mill`'s `bindAll` (#2600), which binds only cards that reached the graveyard; see docs/findings/3243-milled-card-redirected-out-of-the-graveyard.md
                         {
                             op: "loseLife",
                             player: { target: 0 },
@@ -228,7 +235,7 @@ export const theOneRing: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             effects: [
-                // CR 122.1 — the counter goes on FIRST…
+                // CR 608.2c — the counter goes on FIRST…
                 {
                     op: "counters",
                     action: "add",

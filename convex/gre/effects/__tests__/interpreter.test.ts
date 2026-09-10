@@ -31803,7 +31803,7 @@ describe("Effect Script Op: dealDamage { source } — a PERMANENT recipient (CR 
 // first consumer, but nothing here names that card.
 describe("Effect Script value: sum over a bound card set (CR 122 / 404)", () => {
     /** {X}{2}{B} — MV 3, because a variable {X} counts as 0 outside the stack
-     *  (CR 202.3b). The edge case a hand-summed printed cost would get wrong. */
+     *  (CR 202.3e). The edge case a hand-summed printed cost would get wrong. */
     const X_COST_ID = "test-effects-sum-xcost";
     registerTokenDefinition({
         id: X_COST_ID,
@@ -31882,7 +31882,7 @@ describe("Effect Script value: sum over a bound card set (CR 122 / 404)", () => 
         expect(state.players[1].life).toBe(before - 4);
     });
 
-    it("a SHORT library mills what it has and the sum covers only those cards (CR 608.2)", () => {
+    it("a SHORT library mills what it has and the sum covers only those cards (CR 701.17b)", () => {
         const id = millAndDrainScript("test-sum-short-library", 5);
         const state = drainableState([BEAR_ID]);
         const before = state.players[1].life;
@@ -31898,9 +31898,10 @@ describe("Effect Script value: sum over a bound card set (CR 122 / 404)", () => 
         const before = state.players[1].life;
         pushSpell(state, id, "p1");
         resolveTopOfStack(state);
-        // An UNCAPTURED binding is the empty set, and a sum over it is 0 —
-        // deliberately NOT the CR 608.2b `undefined` skip every object-scoped
-        // read takes, which would leave the amount unresolved.
+        // The clause ran and cost nothing. This case does NOT distinguish 0
+        // from an unresolvable read — `loseLife` returns early on both — it
+        // pins that the punisher is scoped to what was actually milled. The
+        // 0-vs-undefined discrimination is the comparison case below.
         expect(state.players[1].life).toBe(before);
         // Nothing was milled — the only graveyard arrivals are what was
         // already there plus the resolved sorcery itself (CR 608.2m).
@@ -31947,13 +31948,13 @@ describe("Effect Script value: sum over a bound card set (CR 122 / 404)", () => 
         expect(state.players[0].life).toBe(before + 3);
     });
 
-    it("a variable {X} in a milled card's cost counts as 0 (CR 202.3b)", () => {
+    it("a variable {X} in a milled card's cost counts as 0 (CR 202.3e)", () => {
         const id = millAndDrainScript("test-sum-x-cost", 1);
         const state = drainableState([X_COST_ID]);
         const before = state.players[1].life;
         pushSpell(state, id, "p1");
         resolveTopOfStack(state);
-        // {X}{2}{B} is mana value 3 in every zone but the stack.
+        // {X}{2}{B} is mana value 3 in every zone but the stack (CR 202.3e).
         expect(state.players[1].life).toBe(before - 3);
     });
 

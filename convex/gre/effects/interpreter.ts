@@ -721,16 +721,18 @@ function resolveValue(
     // uses; the ids are looked up in `player`'s graveyard through the SAME
     // `ctx.getGraveyardCards` reader `picksMatchFilter` uses (CR 404), and
     // `read` names the characteristic (CR 202.3 mana value, with {X} folded to
-    // 0 outside the stack per CR 202.3b — the registry read already does that).
+    // 0 outside the stack per CR 202.3e — the registry read already does that).
     //
     // An UNCAPTURED binding is 0, NOT undefined: "you mill X cards … and that
     // player loses life equal to the total mana value of those cards" with an
     // empty library milled nothing and costs 0 life — the clause resolved and
-    // did as much as it could (CR 608.2), and the sum over an empty set is 0.
+    // the impossible part was ignored (CR 101.3), and the sum over an empty
+    // set is 0.
     // An unresolvable `player` IS undefined, so the consuming Op skips exactly
     // as it does for any other missing player ref. An id that has since left
-    // the graveyard simply contributes nothing — the read is live, not a CR
-    // 608.2h snapshot.
+    // the graveyard simply contributes nothing — the read is live rather than a
+    // CR 608.2h snapshot replay, a deliberate deviation documented on the
+    // type.
     if ("sum" in value) {
         const playerId = resolvePlayerRef(ctx, value.sum.player);
         if (!playerId) return undefined;

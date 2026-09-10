@@ -1,4 +1,4 @@
-// CR 117.3a (issue #3243) — the bot answering a cost-free `mayPay` whose
+// CR 608.2d / 121.3a (issue #3243) — the bot answering a cost-free `mayPay` whose
 // BENEFICIARY is the OTHER seat.
 //
 // Every shipped cost-free "you may" before this one pays the player who
@@ -89,12 +89,14 @@ function palantirOffer(): GameState {
         players: [
             makePlayer("p1", {
                 battlefield: [palantir],
-                // Forty basic lands: the milled cards must be worth 0 mana
-                // value (CR 202.3) AND come off a library deep enough that
-                // milling two of them is not itself a gift to the answerer —
-                // a short library makes DECLINING attractive because it decks
-                // the offering player, which is a different axis from the one
-                // this pair is about.
+                // Forty, and deep on purpose: milling two cards off a SHORT
+                // library is itself a gift to the answerer (it decks the
+                // offering player), which is a different axis from the one
+                // this pair is about — proven, since the half passed with the
+                // beneficiary flipped until the library was deepened. The
+                // basics are cosmetic: p1's library is hidden from p2, so the
+                // search prices every card in it at mana value 0 whatever the
+                // fixture puts there (see the finding filed with this issue).
                 library: Array.from({ length: 40 }, (_, i) =>
                     makeInstance(getCardByName("Forest").id, {
                         id: `lib-${i}`,
@@ -182,15 +184,15 @@ function ownBenefitOffer(): GameState {
     return state;
 }
 
-describe("cost-free mayPay: the bot answers by WHO gets the card (CR 117.3a)", () => {
+describe("cost-free mayPay: the bot answers by WHO gets the card (CR 608.2d)", () => {
     it("DECLINES the offer that would hand the OFFERING player a card", () => {
         for (const seed of SEEDS) {
             const state = palantirOffer();
             const offer = state.pendingChoices![0];
             expect(offer.kind).toBe("may-pay");
             expect(offer.playerId).toBe("p2");
-            // The library is all basic lands, so the punisher's total mana
-            // value is 0 (CR 202.3) and declining is literally free.
+            // Declining costs the answerer nothing the search can see, and
+            // accepting hands the offering player a card.
             expect(answerOf(state, seed), `seed ${seed}`).toBe(false);
         }
     });

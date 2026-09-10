@@ -12314,8 +12314,8 @@ export type EffectPlayerCountersValue = {
  *  total mana value of those cards" (Palantír of Orthanc) has no single object
  *  to read at all, and a `forEach` cannot help — the DSL has no accumulator, so
  *  a per-member body would have to emit N separate life-loss Ops, which is a
- *  different game action from one loss of the total (CR 118.2 / 704 — one event,
- *  one replacement window, one trigger).
+ *  different game action from one loss of the total (CR 119.3 / 614 — one
+ *  life-loss event, one replacement window, one trigger).
  *
  *  `of` is a bare PICKS ref (`{ ref: "$milled" }`) naming a picks-family
  *  binding: a `choice` Op's `bind` or `mill`'s `bindAll` (issue #2600), both of
@@ -12334,12 +12334,14 @@ export type EffectPlayerCountersValue = {
  *
  *  `read` is likewise a single-member union naming the characteristic axis.
  *  `manaValue` is CR 202.3's printed mana value with `{X}` folded to 0 outside
- *  the stack (CR 202.3b), read off the same card registry every other
+ *  the stack (CR 202.3e), read off the same card registry every other
  *  graveyard characteristic read uses. `power`/`toughness` are deliberately NOT
- *  offered for a graveyard set: CR 208.2 gives a card outside the battlefield
- *  no power or toughness, so they would sum to a confident 0 rather than fail
- *  — the fail-closed choice is to make them a compile error until a zone that
- *  HAS them ships.
+ *  offered: no zone in the `zone` union has LIVE power or toughness to read
+ *  (a card in a graveyard is not a permanent, and its printed P/T is not the
+ *  value any layer has touched — CR 208.2b even zeroes a "as it enters" P/T
+ *  off the battlefield), so they would sum to a number nothing computed rather
+ *  than fail. The fail-closed choice is to make them a compile error until a
+ *  zone that HAS them ships.
  *
  *  An UNCAPTURED binding sums to **0**, not undefined — deliberately unlike
  *  every object-scoped read's CR 608.2b skip. "You mill X cards, and that
@@ -12347,9 +12349,17 @@ export type EffectPlayerCountersValue = {
  *  empty library mills nothing and loses 0 life; the clause still happened
  *  (CR 608.2 — the effect does as much as it can), and a sum over the empty set
  *  IS 0. Only an unresolvable `player` yields undefined, which skips the
- *  consuming Op the way any missing player ref does. An id in the binding that
- *  is no longer in that graveyard contributes nothing — it left after the bind,
- *  and this value reads the zone live rather than a CR 608.2h snapshot. */
+ *  consuming Op the way any missing player ref does.
+ *
+ *  An id in the binding that is no longer in that graveyard contributes
+ *  nothing: this value reads the zone LIVE rather than replaying a CR 608.2h
+ *  snapshot. That is a deliberate deviation from 608.2h's "determined only
+ *  once, when the effect is applied", taken because the alternative — snapshot
+ *  every bound card's characteristics at bind time — duplicates what the
+ *  binding Op already stores and buys nothing any shipped card can observe:
+ *  no Effect Script can move a card between the Op that binds a set and the Op
+ *  that sums it, since both run inside one uninterruptible resolution. Revisit
+ *  it if a suspending Op ever lands between the two. */
 export type EffectSumValue = {
     sum: {
         of: EffectRef;

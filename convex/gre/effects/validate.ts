@@ -5274,7 +5274,13 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
     // fallback keys off the CHILD key name, so `of` would be mis-tagged
     // "object" and a legitimate picks binding rejected as a family mismatch.
     // `read` / `zone` are bare string literals with no ref grammar.
-    if (keyHint === "sum" && keys.includes("of")) {
+    if (
+        keyHint === "sum" &&
+        keys.includes("of") &&
+        keys.every(
+            (k) => k === "of" || k === "read" || k === "zone" || k === "player"
+        )
+    ) {
         collectRefUses(obj.of, "cards", out);
         collectRefUses(obj.player, "player", out);
         return;

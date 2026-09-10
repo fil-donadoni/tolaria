@@ -400,7 +400,7 @@ describe("The One Ring — burden counters (CR 122.1 / 122.6)", () => {
 // may-choice inside the controller's own trigger, whose decline branch mills a
 // counter-scaled X and drains the opponent for the total mana value of exactly
 // those cards (the `sum` value member's first consumer).
-describe("Palantír of Orthanc — the opponent's choice and its punisher (CR 117.3a / 122.6 / 202.3)", () => {
+describe("Palantír of Orthanc — the opponent's choice and its punisher (CR 608.2d / 122.6 / 202.3)", () => {
     const palantir = getDefinition("6efb6a69-562c-4d95-858d-b067444cfd7e");
     /** MV 4 over MV 1 — a total of 5, and each distinguishable from the other
      *  so a half-counted set is not mistaken for a correct one. */
@@ -477,12 +477,15 @@ describe("Palantír of Orthanc — the opponent's choice and its punisher (CR 11
         const { state, permanent } = palantirState();
         const mayPay = fireEndStep(state, permanent);
 
-        // CR 122.1 — the counter goes on before the mill reads the count.
+        // CR 608.2c — instructions run in the order written, so the counter
+        // goes on before the mill reads the count (CR 122.6).
         expect(
             state.players[0].battlefield.find((c) => c.id === permanent.id)
                 ?.counters?.influence
         ).toBe(2);
-        // CR 117.3a — the choice belongs to the ANNOUNCED opponent, not to the
+        // CR 608.2d / 121.3a — the choice belongs to the ANNOUNCED opponent,
+        // and CR 121.3a is explicit that the chooser need not be the player
+        // who would draw. Not to the
         // controller of the trigger. A controller-locked `mayPay` would put
         // p1's own name here and let the Palantír's controller decline for
         // them.
@@ -490,7 +493,7 @@ describe("Palantír of Orthanc — the opponent's choice and its punisher (CR 11
         expect(mayPay?.playerId).toBe("p2");
     });
 
-    it("the offer is ADDRESSED to the chooser — only p2 can answer it (CR 117.3a)", () => {
+    it("the offer is ADDRESSED to the chooser — only p2 can answer it (CR 608.2d)", () => {
         const { state, permanent } = palantirState();
         fireEndStep(state, permanent);
         // The projection ships `pendingChoices` verbatim to BOTH seats, so a
@@ -525,7 +528,7 @@ describe("Palantír of Orthanc — the opponent's choice and its punisher (CR 11
         applyMayPaySubmit(state, { playerId: "p2", accept: false });
 
         // Two influence counters → mill 2: The One Ring (MV 4) + a Lightning
-        // Bolt (MV 1) = 5 life, in ONE loss (CR 118.2), and paid by the player
+        // Bolt (MV 1) = 5 life, in ONE loss (CR 119.3), and paid by the player
         // who declined — not by the Palantír's controller.
         expect(state.players[0].graveyard.map((c) => c.id)).toEqual([
             "lib-0",
@@ -536,7 +539,7 @@ describe("Palantír of Orthanc — the opponent's choice and its punisher (CR 11
         expect(state.players[0].life).toBe(20);
     });
 
-    it("a library SHORTER than X mills what it has and drains only for that (CR 608.2)", () => {
+    it("a library SHORTER than X mills what it has and drains only for that (CR 701.17b)", () => {
         const { state, permanent } = palantirState([bolt.id]);
         fireEndStep(state, permanent);
         const life = state.players[1].life;
@@ -555,8 +558,10 @@ describe("Palantír of Orthanc — the opponent's choice and its punisher (CR 11
 
         expect(state.players[0].graveyard).toHaveLength(0);
         expect(state.players[1].life).toBe(life);
-        // The trigger finished rather than staying suspended on an unresolved
-        // amount — the failure mode a CR 608.2b `undefined` sum would produce.
+        // The trigger ran to completion. NOT a proof that the empty sum is 0
+        // rather than unresolvable — `loseLife` returns early on both, so the
+        // two are indistinguishable HERE; the case that actually discriminates
+        // them is the comparison-predicate one in `interpreter.test.ts`.
         expect(state.stack).toHaveLength(0);
         expect(state.pendingChoices ?? []).toHaveLength(0);
     });

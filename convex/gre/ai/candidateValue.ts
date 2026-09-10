@@ -706,8 +706,9 @@ function resolveValueAgainstBoard(
             ? Math.ceil(quotient)
             : Math.floor(quotient);
     }
-    // ref / manaValue / domain — object- or player-scoped reads with no
-    // resolvable object/announcement pre-cast.
+    // ref / manaValue / domain / sum — object-, player- or bound-set-scoped
+    // reads with no resolvable object/announcement/binding pre-cast. MUST
+    // mirror `contextFreeGrounding`'s own floor for each (issue #1520).
     return CF_ASSUMED_REF_FALLBACK;
 }
 
