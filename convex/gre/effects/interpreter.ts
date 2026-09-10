@@ -2524,12 +2524,17 @@ export const OP_EXECUTORS: {
                 return;
             }
             // CR 406.3 — cards exiled with cascade are exiled FACE UP and are
-            // public information. Exile is an open zone, so the grant is what
-            // makes the identities public while they are still leaving a
-            // HIDDEN one; `notifyReveal` is the transient dialog that shows
-            // both players what came off the top. The same pair
-            // `revealUntilMatch` / `revealTopAndRoute` / `explore` fire.
-            ctx.markKnownToAll(playerId, walked);
+            // public information. That is achieved by NOT asking for anything
+            // else: exile is an open zone, `moveCardById` strips any private
+            // `knownTo` grant on the way in (`PUBLIC_ZONES`, gre/state.ts), and
+            // `projectExileCard` shows the real identity to every viewer of a
+            // card with no `knownTo`. A `markKnownToAll` here would be dead
+            // code — verified by removing it and watching the opponent-view
+            // assertion stay green — and `exileFaceDown` (the hideaway /
+            // impulse-draw primitive) is the call that WOULD be wrong.
+            // `notifyReveal` is the separate, transient "here is what came off
+            // the top" dialog, the same one `revealUntilMatch` /
+            // `revealTopAndRoute` / `explore` raise.
             ctx.notifyReveal(
                 [...ctx.allPlayerIds],
                 walked,

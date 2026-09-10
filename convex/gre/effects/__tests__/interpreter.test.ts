@@ -23199,8 +23199,17 @@ describe("Effect Script Op: cascade (CR 702.85a, issue #3216)", () => {
     function goldenLibrary(): CardInstanceState[] {
         // land (skipped, never stops the walk) → mana value 6 (nonland but NOT
         // less than 5) → mana value 2 (the hit).
+        //
+        // The land carries a PRIVATE knowledge grant (`knownTo: ["p1"]`, the
+        // stamp a scry / an impulse look leaves, ADR 0026). It is what makes
+        // the CR 406.3 assertion below non-vacuous: an ordinary library card
+        // has no `knownTo` at all and lands in exile public by construction, so
+        // a cascade that FORGOT to make its pile public would still look right.
+        // This one would project to the opponent as the face-down sentinel.
+        const land = libraryCard(CASCADE_LAND_ID, "casLand");
+        land.knownTo = ["p1"];
         return [
-            libraryCard(CASCADE_LAND_ID, "casLand"),
+            land,
             libraryCard(EXPENSIVE_ID, "casBig"),
             libraryCard(CHEAP_ID, "casHit"),
             libraryCard(BEAR_ID, "casUntouched"),
@@ -23225,7 +23234,10 @@ describe("Effect Script Op: cascade (CR 702.85a, issue #3216)", () => {
 
         // Wire format (new-Op regime, CR 406.3): the cards are exiled FACE UP,
         // so the OPPONENT's own projection carries their real identities — not
-        // the face-down sentinel.
+        // the face-down sentinel. The land went in carrying a PRIVATE knowledge
+        // grant, so this reds if cascade ever routes its pile through
+        // `exileFaceDown` (the hideaway / impulse-draw primitive) instead of an
+        // ordinary public exile.
         const opponentView = projectPublicState(state, 1, "p2");
         expect(
             opponentView.players[0].exile.map((c) => c.card.id).sort()

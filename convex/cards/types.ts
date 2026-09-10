@@ -13169,6 +13169,11 @@ export type EffectOp =
      *  exiled, nothing is cast, and every card goes straight back to the
      *  bottom in a random order — CR 609.3, as far as possible).
      *
+     *  VISIBILITY (CR 406.3) — the exiled cards are face up and public, which
+     *  costs no call: exile is an open zone, the move strips any private
+     *  `knownTo` grant, and the projection shows a `knownTo`-less exiled card
+     *  to everyone. `exileFaceDown` is the call that would be wrong here.
+     *
      *  SUSPENDS like `choice` / `castDuringResolution`: the walk and the
      *  exiled set are checkpointed under this Op's script position, so a
      *  resume re-enters here and re-uses them instead of exiling a second
