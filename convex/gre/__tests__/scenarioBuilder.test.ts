@@ -383,9 +383,7 @@ describe("buildStateFromScenario — per-turn player tallies (CR 121.1 / 400.7)"
             cards: [{ name: "Grizzly Bears", owner: "me", zone: "hand" }],
         });
         built.players[0].drawnThisTurn = ["d1", "d2", "d3"];
-        const { dropped } = specFromState(projectFullState(built, 0), {
-            mySeatId: "p1",
-        });
+        const { dropped } = specFromState(built, { mySeatId: "p1" });
         expect(
             dropped.some((d) => /drawnThisTurn beyond the single/.test(d))
         ).toBe(true);
