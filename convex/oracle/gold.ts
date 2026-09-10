@@ -34,7 +34,12 @@
  */
 
 import { expandDefinition } from "../cards/registry";
-import type { CardDefinition, GameEventType, InsetSpell } from "../cards/types";
+import type {
+    CardDefinition,
+    GameEventType,
+    InsetSpell,
+    SplitHalf,
+} from "../cards/types";
 import type { CompiledTriggerHead } from "../cards/compiledTriggers";
 import { compileCard, oracleLayoutForInsetKind } from "./compile";
 import { canonicaliseShorthands, sortKeys } from "./gates";
@@ -338,29 +343,61 @@ export function goldOracleCard(definition: CardDefinition): OracleCard {
         // looking complete, which is the failure `SUPPORTED_LAYOUTS` was
         // written to prevent. The two faces are rebuilt from the definition and
         // its `insetSpell` — the same halves the compiler lowered them from.
-        ...(definition.insetSpell
+        // CR 709 (ADR 0121 §5) — a SPLIT card's Oracle text likewise lives in
+        // `card_faces`, and the combined `name` / `manaCost` / `typeLine`
+        // above are a DERIVATION no printed face carries. So the round-trip's
+        // input rebuilds the two faces from `splitHalves` — the same halves
+        // the compiler lowered them from — and the compiler re-derives the
+        // combination through the same `deriveSplitCombination`. Checked
+        // BEFORE `insetSpell`: no card can carry both, and a split card that
+        // fell through to the `layout: "normal"` branch would be compiled from
+        // a type line reading "Instant Sorcery" and a summed cost, which is
+        // not a printed card at all.
+        ...(definition.splitHalves
             ? {
-                  layout: oracleLayoutForInsetKind(definition.insetSpell.kind),
-                  faces: [
-                      {
-                          name: definition.name,
-                          manaCost: printManaCost(definition.manaCost),
-                          typeLine:
-                              subtypes.length > 0
-                                  ? `${head} — ${subtypes.join(" ")}`
-                                  : head,
-                          oracleText: definition.oracleText ?? "",
-                          ...(definition.power === undefined
-                              ? {}
-                              : { power: String(definition.power) }),
-                          ...(definition.toughness === undefined
-                              ? {}
-                              : { toughness: String(definition.toughness) }),
-                      },
-                      insetFaceOf(definition.insetSpell),
-                  ],
+                  layout: "split",
+                  faces: definition.splitHalves.map(splitFaceOf),
               }
-            : { layout: "normal" }),
+            : definition.insetSpell
+              ? {
+                    layout: oracleLayoutForInsetKind(
+                        definition.insetSpell.kind
+                    ),
+                    faces: [
+                        {
+                            name: definition.name,
+                            manaCost: printManaCost(definition.manaCost),
+                            typeLine:
+                                subtypes.length > 0
+                                    ? `${head} — ${subtypes.join(" ")}`
+                                    : head,
+                            oracleText: definition.oracleText ?? "",
+                            ...(definition.power === undefined
+                                ? {}
+                                : { power: String(definition.power) }),
+                            ...(definition.toughness === undefined
+                                ? {}
+                                : { toughness: String(definition.toughness) }),
+                        },
+                        insetFaceOf(definition.insetSpell),
+                    ],
+                }
+              : { layout: "normal" }),
+    };
+}
+
+/** The {@link OracleFace} a {@link SplitHalf} was lowered from — the inverse
+ *  of `compileSplitLayout`'s copy, so a card that round-trips one half
+ *  round-trips both. */
+function splitFaceOf(half: SplitHalf): OracleFace {
+    const head = half.types.join(" ");
+    const subtypes = half.subtypes ?? [];
+    return {
+        name: half.name,
+        manaCost: printManaCost(half.manaCost),
+        typeLine:
+            subtypes.length > 0 ? `${head} — ${subtypes.join(" ")}` : head,
+        oracleText: half.oracleText,
     };
 }
 

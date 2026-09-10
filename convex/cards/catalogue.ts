@@ -580,9 +580,21 @@ export const tryGetPlaceableCardByName = (
  *  "Petty Theft" through `isLegalNamedCard` while the human's button stayed
  *  inert (PR #3302 review finding 4). */
 export const getChooseableCardNames = (): string[] => {
+    // The hand-written population's own names first — this seam WIDENS
+    // `getAllCardNames`, and the client's candidate list is built by
+    // difference against it.
     const names: string[] = [];
-    for (const card of [...allCards, ...compiledRegistered]) {
-        names.push(...chooseableNamesOf(card));
+    for (const card of allCards) names.push(...chooseableNamesOf(card));
+    // A COMPILED row contributes only its EXTRA names. Its own printed name is
+    // deliberately absent, exactly as it is absent from `getAllCardNames`:
+    // ADR 0113 §2 delivers the compiled pool asymmetrically (bundled on the
+    // server, fetched on the client), so a domain that included it would
+    // differ between the two and the submit gate would accept names the
+    // button never offered. Widening BOTH seams together is its own change.
+    for (const card of compiledRegistered) {
+        for (const name of chooseableNamesOf(card)) {
+            if (name !== card.name) names.push(name);
+        }
     }
     return names;
 };

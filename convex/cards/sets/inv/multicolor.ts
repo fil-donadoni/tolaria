@@ -3779,6 +3779,7 @@ export const sterlingGrove: CardDefinition = {
 // permanent to its owner's hand." (CR 615.1 prevention shield, CR 400.7 zone
 // change.) Both halves are ordinary Effect Scripts over already-exercised Ops
 // — the whole novelty of this card is CR 709, which lives in the engine.
+// compiler-gap: "Prevent the next 2 damage that would be dealt to target creature this turn." (#2693)
 export const standDeliver: CardDefinition = defineSplitCard({
     id: "be8b338f-6f05-43c6-beeb-c5052cc0d6a9",
     rarity: "uncommon",

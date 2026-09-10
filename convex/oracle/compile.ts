@@ -29,7 +29,9 @@ import type {
     OracleFace,
     ParseContext,
 } from "./types";
-import type { InsetSpellKind } from "../cards/types";
+import type { CardType, InsetSpellKind, SplitHalf } from "../cards/types";
+import { PERMANENT_TYPES } from "../cards/types";
+import { deriveSplitCombination } from "../cards/splitCard";
 
 /**
  * Layouts grammar v0 reads. A multi-faced card (split, transform, adventure, …)
@@ -38,6 +40,24 @@ import type { InsetSpellKind } from "../cards/types";
  * would compile a fragment of the card while looking complete. Fail closed.
  */
 const SUPPORTED_LAYOUTS = new Set<string>(["normal"]);
+
+/**
+ * CR 709.1–709.4 (ADR 0121 §5) — the SPLIT layout, admitted with a gate.
+ *
+ * `layout: "split"` is not one class but three, and the Scryfall string cannot
+ * tell them apart: measured against the vendored corpus, 137 split cards split
+ * into 30 with a PERMANENT face (CR 709.5's shared type line — every one an
+ * `Enchantment — Room`), 23 with Fuse (CR 702.102), and 84 with two
+ * instant/sorcery halves. Only the last class is modelled, so the gate is a
+ * PERMANENCE test and a Fuse test, never a card-name list that would rot:
+ * 709.5's own first sentence is "some split cards are PERMANENT CARDS with a
+ * single shared type line".
+ *
+ * Aftermath (Refuse // Cooperate, CR 702.127) sits in the admitted class and
+ * needs nothing here: aftermath is a keyword on a half, ordinary card text,
+ * not layout.
+ */
+const SPLIT_LAYOUT = "split";
 
 /**
  * CR 715 / 722 (ADR 0120 §5) — the layouts whose second face is an INSET SPELL
@@ -78,6 +98,22 @@ export function oracleLayoutForInsetKind(kind: InsetSpellKind): string {
  * abilities is worse than no definition at all", and the inset half is where a
  * silent truncation would be least visible.
  */
+/**
+ * The fields a {@link SplitHalf} record can carry — its exact field list
+ * (`cards/types.ts`), for the same fail-closed reason
+ * {@link INSET_SPELL_FIELDS} exists below: a half that compiled to a keyword,
+ * a triggered ability or a static effect is REFUSED rather than truncated.
+ */
+const SPLIT_HALF_FIELDS = new Set<string>([
+    "name",
+    "manaCost",
+    "types",
+    "subtypes",
+    "oracleText",
+    "effects",
+    "targetRequirement",
+]);
+
 const INSET_SPELL_FIELDS = new Set<string>([
     "name",
     "manaCost",
@@ -92,6 +128,7 @@ export function compileCard(card: OracleCard): CompileOutcome {
     const layout = card.layout ?? "normal";
     const insetKind = SUPPORTED_INSET_LAYOUTS[layout];
     if (insetKind !== undefined) return compileInsetLayout(card, insetKind);
+    if (layout === SPLIT_LAYOUT) return compileSplitLayout(card);
     if (!SUPPORTED_LAYOUTS.has(layout)) {
         return unparsed([
             {
@@ -305,6 +342,129 @@ function compileInsetLayout(
         ...(inset.state === "quarantine" ? inset.reasons : []),
     ];
     // One card is one card (CR 715.2c): a quarantined FACE quarantines the
+    // card, never half of it.
+    return reasons.length > 0
+        ? { state: "quarantine", definition, opsUsed, slots, reasons }
+        : { state: "ready", definition, opsUsed, slots };
+}
+
+/**
+ * CR 709.1–709.4 (ADR 0121 §5) — compile a SPLIT layout: both faces become
+ * halves, and the card's own characteristics are the DERIVATION of them.
+ *
+ * Both faces run the ordinary pipeline, so a grammar rule written for a normal
+ * card serves a split half for free and neither half can be half-read. The
+ * combination goes through `deriveSplitCombination` — the same function the
+ * set files' `defineSplitCard` calls — so Guard C round-trips THROUGH the
+ * derivation rather than around it: a lowering that summed the costs itself
+ * could disagree with CR 709.4b and the round trip would still be green.
+ */
+function compileSplitLayout(card: OracleCard): CompileOutcome {
+    const faces = card.faces ?? [];
+    if (faces.length !== 2) {
+        return unparsed([
+            {
+                line: card.typeLine,
+                fragment: card.typeLine,
+                reason: `layout "split" needs exactly two faces, got ${faces.length}`,
+            },
+        ]);
+    }
+    // CR 709.5 — "some split cards are permanent cards with a single shared
+    // type line." Those are a DIFFERENT rule with unlock designations, locked
+    // halves and their own copiable values, and they stay out of scope
+    // (ADR 0121; issue #3306). Refused on PERMANENCE, which is what 709.5
+    // itself keys on, so no card-name list has to be maintained.
+    for (const face of faces) {
+        const parsed = readTypeLine(face.typeLine);
+        if (!parsed.ok) {
+            return unparsed([
+                {
+                    line: face.typeLine,
+                    fragment: parsed.fragment,
+                    reason: parsed.reason,
+                },
+            ]);
+        }
+        const permanentTypes = parsed.parsed.types.filter((t: CardType) =>
+            (PERMANENT_TYPES as readonly string[]).includes(t)
+        );
+        if (permanentTypes.length > 0) {
+            return unparsed([
+                {
+                    line: face.typeLine,
+                    fragment: face.typeLine,
+                    reason: `split card with a permanent face (${permanentTypes.join("/")}) is CR 709.5, out of scope`,
+                },
+            ]);
+        }
+    }
+    // CR 702.102 — Fuse ("you may cast one or both halves of this card from
+    // your hand"). Unbuilt: a fused spell is ONE spell with both halves'
+    // combined characteristics on the stack (CR 709.4d), which is the exact
+    // opposite of 709.3b's "only the characteristics of the half being cast
+    // exist" this module implements.
+    const fused = faces.find((f) => /^Fuse\b/m.test(f.oracleText));
+    if (fused) {
+        return unparsed([
+            {
+                line: fused.oracleText,
+                fragment: "Fuse",
+                reason: "split card with Fuse (CR 702.102) is out of scope",
+            },
+        ]);
+    }
+    const compiled = faces.map((face) =>
+        compileCard(faceAsOracleCard(card, face))
+    );
+    const unparsedFaces = compiled.filter((c) => c.state === "unparsed");
+    if (unparsedFaces.length > 0) {
+        return unparsed(
+            unparsedFaces.flatMap((c) => (c.state === "unparsed" ? c.gaps : []))
+        );
+    }
+    const halves: SplitHalf[] = [];
+    for (const [index, outcome] of compiled.entries()) {
+        if (outcome.state === "unparsed") continue;
+        const carried = Object.keys(outcome.definition).filter(
+            (k) => !SPLIT_HALF_FIELDS.has(k)
+        );
+        if (carried.length > 0) {
+            return unparsed([
+                {
+                    line: faces[index].oracleText,
+                    fragment: faces[index].oracleText,
+                    reason: `split half carries ${carried.join(", ")}, which a SplitHalf cannot hold`,
+                },
+            ]);
+        }
+        const half = outcome.definition;
+        halves.push({
+            name: half.name,
+            ...(half.manaCost ? { manaCost: half.manaCost } : {}),
+            types: [...half.types],
+            ...(half.subtypes ? { subtypes: [...half.subtypes] } : {}),
+            oracleText: faces[index].oracleText,
+            ...(half.effects ? { effects: half.effects } : {}),
+            ...(half.targetRequirement
+                ? { targetRequirement: half.targetRequirement }
+                : {}),
+        });
+    }
+    const definition: CompiledDefinition = {
+        ...deriveSplitCombination([halves[0], halves[1]]),
+        oracleText: faces.map((f) => f.oracleText).join("\n"),
+    };
+    const parsedFaces = compiled.filter(
+        (c): c is Extract<CompileOutcome, { opsUsed: readonly string[] }> =>
+            c.state !== "unparsed"
+    );
+    const opsUsed = [...new Set(parsedFaces.flatMap((c) => c.opsUsed))].sort();
+    const slots = [...new Set(parsedFaces.flatMap((c) => c.slots))].sort();
+    const reasons = compiled.flatMap((c) =>
+        c.state === "quarantine" ? c.reasons : []
+    );
+    // One card is one card (CR 709.2): a quarantined HALF quarantines the
     // card, never half of it.
     return reasons.length > 0
         ? { state: "quarantine", definition, opsUsed, slots, reasons }

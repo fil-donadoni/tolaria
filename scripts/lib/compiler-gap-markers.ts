@@ -53,6 +53,17 @@ export const CARD_ANCHOR =
  *  not. */
 const NAME_PROPERTY = /^\s*name:\s*"((?:[^"\\]|\\.)*)"/;
 
+/** End of an anchor's object literal at column 0 — `};` for a plain object
+ *  literal, `});` for one passed to a factory (`defineSplitCard`). */
+const OBJECT_END = /^\}\)?;/;
+
+/** CR 709.4a — the separator between a split card's two names. Duplicated
+ *  from `convex/cards/splitCard.ts` on purpose: this module is a SOURCE
+ *  scanner run by the gate scripts and must not import engine code. Guard C's
+ *  own join is what keeps the two in step — a drift here yields an anchor
+ *  whose name matches no catalogue card, which reds. */
+const SPLIT_NAME_SEPARATOR = " // ";
+
 /**
  * Any line claiming to be a compiler-gap marker, well-formed or not.
  *
@@ -105,15 +116,30 @@ export function scanCardAnchors(lines: string[]): {
     const anchorsWithoutName: number[] = [];
     for (let i = 0; i < lines.length; i++) {
         if (!CARD_ANCHOR.test(lines[i])) continue;
-        let name: string | undefined;
+        // CR 709.4a (ADR 0121) — a SPLIT card's anchor carries no `name:` of
+        // its own: `defineSplitCard` derives the combined name from the two
+        // halves, and the first `name:` under the anchor is the LEFT half's
+        // ("Stand", not "Stand // Deliver"). So the join key is rebuilt the
+        // same way the derivation builds it, from the first two half names in
+        // source order. Detected off the anchor line's own call rather than a
+        // `splitHalves:` search, because the whole point of the helper is that
+        // the field is written by it and never by the author.
+        const isSplit = /=\s*defineSplitCard\(/.test(lines[i]);
+        const names: string[] = [];
         for (let j = i + 1; j < lines.length; j++) {
-            if (/^};/.test(lines[j]) || CARD_ANCHOR.test(lines[j])) break;
+            if (OBJECT_END.test(lines[j]) || CARD_ANCHOR.test(lines[j])) break;
             const m = NAME_PROPERTY.exec(lines[j]);
             if (m) {
-                name = m[1];
-                break;
+                names.push(m[1]);
+                if (names.length >= (isSplit ? 2 : 1)) break;
             }
         }
+        const name =
+            isSplit && names.length === 2
+                ? names.join(SPLIT_NAME_SEPARATOR)
+                : !isSplit && names.length === 1
+                  ? names[0]
+                  : undefined;
         if (name === undefined) {
             anchorsWithoutName.push(i + 1);
             continue;

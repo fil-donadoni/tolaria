@@ -109,11 +109,11 @@ export function splitSideOfDefinitionId(
  *  new field: the halves stay declared on the definition, so a symbol-level
  *  reader reads `splitHalves`. Nothing in the shipped pool asks today.
  *
- *  Variable `{X}` (CR 107.3) is carried, never summed: a cost has one announced
- *  X, so a card printing `{X}` on BOTH halves would need a rule this engine has
- *  no reading for, and it throws rather than inventing one. No printed split
- *  card does (measured against the vendored corpus: 6 of the 84 admitted have
- *  an `{X}` half, all of them on ONE side). */
+ *  A VARIABLE `{X}` (CR 107.3) is carried, never summed: a cost has one
+ *  announced X, so a card printing a variable `{X}` on BOTH halves would need
+ *  a rule this engine has no reading for, and it throws rather than inventing
+ *  one. No printed split card does (measured against the vendored corpus: 6 of
+ *  the 84 admitted have an `{X}` half, all of them on ONE side). */
 export function combineSplitManaCosts(
     left: ManaCost | undefined,
     right: ManaCost | undefined
@@ -122,19 +122,33 @@ export function combineSplitManaCosts(
     const a = left ?? {};
     const b = right ?? {};
     const combined: ManaCost = {};
-    for (const key of ["W", "U", "B", "R", "G", "C", "generic"] as const) {
+    for (const key of ["W", "U", "B", "R", "G", "C"] as const) {
         const sum = (a[key] ?? 0) + (b[key] ?? 0);
         if (sum > 0) combined[key] = sum;
     }
-    if (a.X !== undefined && b.X !== undefined) {
+    // `X` DOUBLES as the generic slot when it is a number (`types.ts`), so
+    // generic mana arrives in two fields and both are summed: Fire `{1}{R}`
+    // (`{ X: 1, R: 1 }`) + Ice `{1}{U}` = `{2}{U}{R}`. Reading only `generic`
+    // here would have combined those two into `{U}{R}`.
+    const numericGeneric =
+        (typeof a.X === "number" ? a.X : 0) +
+        (typeof b.X === "number" ? b.X : 0) +
+        (a.generic ?? 0) +
+        (b.generic ?? 0);
+    const variable = [a, b].filter((c) => typeof c.X === "string");
+    if (variable.length > 1) {
         throw new Error(
-            "combineSplitManaCosts: both halves declare {X} — CR 709.4b has no reading for two announced values"
+            "combineSplitManaCosts: both halves declare a variable {X} — CR 709.4b has no reading for two announced values"
         );
     }
-    const xSource = a.X !== undefined ? a : b.X !== undefined ? b : undefined;
-    if (xSource) {
-        combined.X = xSource.X;
-        if (xSource.xFactor !== undefined) combined.xFactor = xSource.xFactor;
+    if (variable.length === 1) {
+        combined.X = variable[0].X;
+        if (variable[0].xFactor !== undefined) {
+            combined.xFactor = variable[0].xFactor;
+        }
+        if (numericGeneric > 0) combined.generic = numericGeneric;
+    } else if (numericGeneric > 0) {
+        combined.X = numericGeneric;
     }
     const phyrexian: Record<string, number> = {};
     for (const source of [a.phyrexian, b.phyrexian]) {
@@ -185,12 +199,28 @@ export function defineSplitCard(
     }
 ): CardDefinition {
     const { halves, ...rest } = spec;
+    return { ...rest, ...deriveSplitCombination(halves) };
+}
+
+/** THE derivation, as a spreadable record: the three fields CR 709.4 makes a
+ *  function of the halves, plus the halves themselves.
+ *
+ *  Split out of {@link defineSplitCard} so the Oracle compiler's lowering can
+ *  reach it too. `CompiledDefinition` (`oracle/types.ts`) is `CardDefinition`
+ *  minus `id`, `rarity` and every closure field, so the compiler cannot call
+ *  the authoring helper — and a second copy of the combination in the lowering
+ *  is exactly what would let Guard C round-trip AROUND the derivation rather
+ *  than through it (ADR 0121 §5). */
+export function deriveSplitCombination(
+    halves: readonly [SplitHalf, SplitHalf]
+): Pick<CardDefinition, "name" | "types" | "splitHalves"> & {
+    manaCost?: ManaCost;
+} {
     const manaCost = combineSplitManaCosts(
         halves[0].manaCost,
         halves[1].manaCost
     );
     return {
-        ...rest,
         name: combineSplitNames(halves),
         ...(manaCost ? { manaCost } : {}),
         types: combineSplitTypes(halves),

@@ -204,8 +204,26 @@ describe("the choice DOMAIN and the placeable POPULATION are different sets", ()
             expect(resolved, `"${name}" resolves`).not.toBeNull();
             expect(resolved!.id).toContain("#");
         }
+        // CR 709.4a is the ONE exception to "every printed name is
+        // choosable": a split card's two names are choosable and the
+        // combined string is not — "the player must choose one of those
+        // names and not both". Asserted as an exclusion rather than skipped,
+        // so a split card that leaked its combined name into the domain reds.
+        const chooseable = new Set(getChooseableCardNames());
+        const splitCombined = new Set(
+            getAllCards()
+                .filter((c) => c.splitHalves)
+                .map((c) => c.name)
+        );
+        expect(splitCombined.size).toBeGreaterThan(0);
         for (const name of getAllCardNames()) {
-            expect(getChooseableCardNames()).toContain(name);
+            if (splitCombined.has(name)) {
+                expect(chooseable.has(name), `"${name}" is NOT choosable`).toBe(
+                    false
+                );
+                continue;
+            }
+            expect(chooseable.has(name), `"${name}" is choosable`).toBe(true);
         }
     });
 
