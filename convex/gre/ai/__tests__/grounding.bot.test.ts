@@ -73,6 +73,60 @@ describe("context-aware grounding never regresses below the context-free floor (
     });
 });
 
+// CR 121.1 (issue #3240) — the per-turn draw tally is a LIVE board fact at a
+// pre-cast choice node for the perspective player, exactly like
+// `lifeGainedThisTurn`. Grounding it at the generic unknown-ref floor instead
+// would price Proft's Eidetic Memory's payoff by a constant no matter how many
+// cards the caster has actually drawn — the wrong-magnitude failure mode
+// issue #1520 is about, and one no suite reds on its own.
+describe("cardsDrawnThisTurn grounds against the live board (CR 121.1, issue #3240)", () => {
+    function stateWith(drawn: string[]) {
+        return makeState({
+            players: [
+                makePlayer("p1", { drawnThisTurn: drawn }),
+                makePlayer("p2", { drawnThisTurn: ["x"] }),
+            ],
+            priorityPlayerId: "p1",
+            activePlayerId: "p1",
+        });
+    }
+
+    it("reads the perspective player's actual tally, and TRACKS it", () => {
+        const v: EffectValue = { cardsDrawnThisTurn: { of: "controller" } };
+        const g = (drawn: string[]) =>
+            contextAwareGroundingForChoice(stateWith(drawn), "p1").value(v)
+                .amount;
+        expect(g([])).toBe(0);
+        expect(g(["a", "b", "c"])).toBe(3);
+        // Not the context-free constant: the whole point is that this member
+        // is resolvable pre-cast.
+        expect(g(["a", "b", "c"])).not.toBe(cf.value(v).amount);
+    });
+
+    it("a non-controller selector is not announced yet, so it takes the floor", () => {
+        const v: EffectValue = { cardsDrawnThisTurn: { of: "opponent" } };
+        const aware = contextAwareGroundingForChoice(
+            stateWith(["a", "b", "c"]),
+            "p1"
+        ).value(v);
+        expect(aware.amount).toBe(cf.value(v).amount);
+    });
+
+    it("inside a `difference`, the tally operand tracks the board too", () => {
+        const v: EffectValue = {
+            difference: {
+                from: { cardsDrawnThisTurn: { of: "controller" } },
+                minus: 1,
+            },
+        };
+        const g = (drawn: string[]) =>
+            contextAwareGroundingForChoice(stateWith(drawn), "p1").value(v)
+                .amount;
+        expect(g(["a", "b", "c", "d"])).toBe(3);
+        expect(g(["a", "b"])).toBe(1);
+    });
+});
+
 // Every SCOPE and ZONE member of `EffectCountSpec` must be threaded through the
 // context-aware count reader (`resolveCountSpecAgainstBoard`,
 // `gre/ai/candidateValue.ts`). Its zone switch used to be a permissive
