@@ -519,5 +519,26 @@ describe("Bloodbraid Challenger — Cascade (CR 702.85), Haste (CR 702.10), Esca
         const def = getDefinition(TWICE_ID);
         const ids = (def.triggeredAbilities ?? []).map((t) => t.id);
         expect(ids).toEqual(["cascade", "cascade-2"]);
+
+        // And the ids are distinct for a REASON: the collector pushes one stack
+        // object per ability, so two instances put TWO cascade triggers above
+        // the spell. Sharing an id would collapse them into one.
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: [libraryCard(BBC_CHEAP_ID, "twiceHit")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const spell = pushSpell(state, TWICE_ID, "p1");
+        emitSpellCastEvent(state, spell);
+        processPendingActionTriggers(state);
+        expect(
+            state.stack
+                .filter((s) => s.triggerSourceId === spell.id)
+                .map((s) => s.triggeredAbilityId)
+                .sort()
+        ).toEqual(["cascade", "cascade-2"]);
     });
 });
