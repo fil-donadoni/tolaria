@@ -12373,8 +12373,8 @@ export type EffectLifeGainedThisTurnValue = {
 
 /** cardsDrawnThisTurn — how many cards a PLAYER has drawn so far this turn
  *  (CR 121.1, issue #3240), a thin JSON-pure skin over
- *  `SpellContext.getCardsDrawnThisTurn`. A SIXTEENTH `EffectValue` grammar
- *  member; like `domain` (issue #1066), `abilityResolutionCount` (issue #1189)
+ *  `SpellContext.getCardsDrawnThisTurn`. An EIGHTEENTH `EffectValue` grammar
+ *  member (the ordered census lives in `convex/cards/mechanicsRegistry.ts`); like `domain` (issue #1066), `abilityResolutionCount` (issue #1189)
  *  and `lifeGainedThisTurn` (issue #1457) it is NOT an Op and NOT a new
  *  STRUCTURAL construct — it does not reopen ADR 0045.
  *

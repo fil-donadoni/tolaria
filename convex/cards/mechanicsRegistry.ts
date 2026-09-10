@@ -3657,8 +3657,27 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  folded into this ONE member (Broadside Bombardiers' "2 plus the sacrificed
  *  permanent's mana value"), exactly the shape `EffectDomainValue.times` /
  *  `EffectCountSpec.times` already ship — NOT a general addition operator and
- *  NOT a widening of `difference`, which stays exactly as narrow as #2006
- *  shipped it. */
+ *  NOT a widening of `difference`'s OPERAND set (see the next paragraph for
+ *  the one change that did widen it).
+ *  `cardsDrawnThisTurn` (issue #3240, `{ cardsDrawnThisTurn: { of } }`) IS a
+ *  new value-grammar member — the EIGHTEENTH — and like every member since
+ *  `X` (#852) it is NOT an Op and NOT a structural construct, so it earns no
+ *  EFFECT_OP_REGISTRY row and does not reopen ADR 0045. CR 121.1: how many
+ *  cards a PLAYER has drawn so far this turn, a thin skin over
+ *  SpellContext.getCardsDrawnThisTurn reading back
+ *  `PlayerState.drawnThisTurn.length` — the exact twin of `lifeGainedThisTurn`
+ *  one zone over, with the same PLAYER `of` selector. Reason to exist: the
+ *  retrospective draw question no CARD_DRAWN event can answer, as an AMOUNT
+ *  (Proft's Eidetic Memory's "X ... where X is the number of cards you've
+ *  drawn this turn minus one"); the "if you've drawn more than one card this
+ *  turn" half is a CR 603.4 intervening-if over `TriggerStateView`, not an
+ *  effect, so it never reaches the interpreter.
+ *  It is also the ONE member that widened `difference`: its "minus one" needs
+ *  a tally as the minuend, so `EffectDifferenceTallyOperand` was added as a
+ *  SIBLING of `EffectDifferenceOperand` (the `EffectScaledOperand` precedent,
+ *  #2366) rather than a widening in place — `divide` keeps the narrow type,
+ *  and `X` stays excluded from both. The grammar is still depth-1: this member
+ *  is a leaf read with no nested value slot. */
 export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // --- Architecture-setting foundations (implemented before the skins) ---
     // delayedTrigger SHIPPED (issue #838, ADR 0048) and moveZone SHIPPED
