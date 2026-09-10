@@ -7,7 +7,7 @@
 //      key beside the chosen key, and `greedyAgrees` is exactly their
 //      equality — with no sink installed nothing is computed.
 //   3. The blade runner's `pick: "greedy"` leg answers with a legal move and
-//      never runs the search (a greedy leg at a 12 000-iteration budget must
+//      never runs the search (a greedy leg at a 100 000-iteration budget must
 //      cost milliseconds).
 import { describe, expect, it } from "vitest";
 import { enumerateMoves } from "../moves";
@@ -112,16 +112,17 @@ describe('blade runner pick: "greedy" (issue #3393)', () => {
         const scenario = findBladeScenario(LABEL);
         const t0 = performance.now();
         const result = runBladeScenario(
-            { ...scenario, budget: { iterations: 1_000_000 } },
+            { ...scenario, budget: { iterations: 100_000 } },
             null,
             "greedy"
         );
         const elapsed = performance.now() - t0;
         expect(result.seeds.length).toBeGreaterThan(0);
         for (const s of result.seeds) expect(s.move).not.toBeNull();
-        // A million-iteration search would take minutes; the greedy leg
-        // must not have run it.
-        expect(elapsed).toBeLessThan(5_000);
+        // A 100 000-iteration search on this position costs tens of seconds
+        // (proven red at 507 s with a million); the greedy leg must not have
+        // run it.
+        expect(elapsed).toBeLessThan(2_000);
         expect(result.ok).toBe(true);
     });
 });

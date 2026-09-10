@@ -634,6 +634,10 @@ _Avoid_: A/B test, control pair
 A position the **Brain** solves only with more search than a real game grants. Recorded with _why_ — too many candidate moves at one decision, a payoff too far ahead, or a hidden-information coincidence that rarely occurs — because each cause names a missing piece of **Brain** knowledge, not a shortfall of thinking time.
 _Avoid_: Too slow, needs more iterations, timeout
 
+**Greedy Pick**:
+The move the **Brain**'s one-ply policy chooses on its own — score every legal move by the position it leaves after resolving, take the best — with no search at all. It is the policy the search already uses to finish its rollouts, asked at the root instead. Not a way the **Brain** plays; a yardstick: run against the **Blade Scenarios** and beside the search's own pick, it says how much of the **Brain**'s judgement the search adds over the policy it contains.
+_Avoid_: Heuristic bot, easy mode, fallback
+
 **Ladder**:
 The **Brain**'s strength metric: paired bot-vs-bot games in which the two **Players** use the same decks and the same shuffles and only the **Brain** configuration differs by seat, so the verdict ("stronger", "weaker", "inconclusive") is about the **Brain**, never about the decks. Complements the **Blade Scenario**: a blade proves a forced play is not missed, a ladder proves a change that shifts every decision a little is a net gain.
 _Avoid_: Self-play benchmark, deck win-rate, tournament
