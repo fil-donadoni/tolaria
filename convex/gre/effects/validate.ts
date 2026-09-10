@@ -1287,6 +1287,26 @@ function isLifeGainedThisTurnValue(value: unknown): boolean {
     return isPlayerRef(s.of);
 }
 
+/** `{ cardsDrawnThisTurn: { of } }` — SHAPE of the per-turn draw-count value
+ *  construct (CR 121.1, issue #3240, sixteenth EffectValue member). The exact
+ *  twin of `isLifeGainedThisTurnValue` above: `of` is a PLAYER selector
+ *  (`EffectPlayerRef`), family-checked as a PLAYER position by the ordered ref
+ *  pass (the `keyHint === "cardsDrawnThisTurn"` case in `collectRefUses`,
+ *  needed for the same `of`-key collision reason `domain` documents). No other
+ *  keys are permitted — no `times`, no `minus`: subtracting is `difference`'s
+ *  job (Proft's Eidetic Memory composes the two), and a per-member offset here
+ *  would be a second, card-shaped way to spell the same arithmetic. */
+function isCardsDrawnThisTurnValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== "cardsDrawnThisTurn") return false;
+    const spec = (value as { cardsDrawnThisTurn: unknown }).cardsDrawnThisTurn;
+    if (typeof spec !== "object" || spec === null) return false;
+    const s = spec as Record<string, unknown>;
+    if (!Object.keys(s).every((k) => k === "of")) return false;
+    return isPlayerRef(s.of);
+}
+
 /** `{ playerCounters: { of, type } }` — SHAPE of the player-counter read
  *  (CR 122.1, issue #1969, fourteenth EffectValue member). `of` is a PLAYER
  *  selector (`EffectPlayerRef`) — like `domain`'s / `lifeGainedThisTurn`'s and
@@ -1356,6 +1376,20 @@ function isDifferenceOperand(value: unknown): boolean {
     return isPositiveInt(value) || isCountValue(value);
 }
 
+/** One operand of a `difference` as of issue #3240 — `isDifferenceOperand`
+ *  PLUS the per-turn `cardsDrawnThisTurn` tally. Deliberately a SEPARATE
+ *  checker rather than a widening of `isDifferenceOperand`, mirroring exactly
+ *  why `isScaledOperand` is separate: `divide` reads `isDifferenceOperand`
+ *  too, and no shipped divide card halves a per-turn tally, so widening the
+ *  shared checker would hand division an operand nothing asked for. `X` stays
+ *  out of BOTH — the "rejects a NESTED difference" case still rejects
+ *  `{ difference: { from: { X: true }, minus: 1 } }`. Still a TERMINAL, never
+ *  `isEffectValue`: `cardsDrawnThisTurn` is a leaf read with no nested value
+ *  slot, so the grammar stays depth-1. */
+function isDifferenceTallyOperand(value: unknown): boolean {
+    return isDifferenceOperand(value) || isCardsDrawnThisTurnValue(value);
+}
+
 /** `{ difference: { from, minus } }` — SHAPE of the subtraction value construct
  *  (issue #2006, CR 107.1b). Exactly two keys, both required, each a terminal
  *  operand. One operator, two operands, no nesting: this is the entire
@@ -1372,7 +1406,9 @@ function isDifferenceValue(value: unknown): boolean {
     if (!Object.keys(s).every((k) => k === "from" || k === "minus")) {
         return false;
     }
-    return isDifferenceOperand(s.from) && isDifferenceOperand(s.minus);
+    return (
+        isDifferenceTallyOperand(s.from) && isDifferenceTallyOperand(s.minus)
+    );
 }
 
 /** One operand of a `scaled` (issue #2366) — `isDifferenceOperand` PLUS `X`.
@@ -1465,6 +1501,7 @@ function isEffectValue(value: unknown): boolean {
         isEscapedValue(value) ||
         isAbilityResolutionCountValue(value) ||
         isLifeGainedThisTurnValue(value) ||
+        isCardsDrawnThisTurnValue(value) ||
         isPlayerCountersValue(value) ||
         isDifferenceValue(value) ||
         isScaledValue(value) ||
@@ -5245,6 +5282,19 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
     // established.
     if (
         keyHint === "lifeGainedThisTurn" &&
+        keys.length === 1 &&
+        keys[0] === "of"
+    ) {
+        collectRefUses(obj.of, "player", out);
+        return;
+    }
+    // cardsDrawnThisTurn — { cardsDrawnThisTurn: { of } } (CR 121.1, issue
+    // #3240): `of` is a PLAYER position, same as `lifeGainedThisTurn`'s and
+    // for the same reason. Handled before the generic recursion so a ref under
+    // it isn't mis-tagged "object" by the `of`-key convention
+    // `counters`/`manaValue` established.
+    if (
+        keyHint === "cardsDrawnThisTurn" &&
         keys.length === 1 &&
         keys[0] === "of"
     ) {

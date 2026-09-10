@@ -207,12 +207,12 @@ export function contextFreeGrounding(
             };
         }
         // counters / manaValue / domain / kickerCount / additionalCostPaid /
-        // escaped / abilityResolutionCount / lifeGainedThisTurn / sum — dynamic
-        // reads off runtime state. `sum` (issue #3243) belongs here rather than
-        // in a branch of its own: its magnitude is the total of a characteristic
-        // over a set NOTHING has bound yet at a pre-cast node, so there is
-        // strictly less to resolve than for `counters`, which already takes this
-        // floor.
+        // escaped / abilityResolutionCount / lifeGainedThisTurn /
+        // cardsDrawnThisTurn / sum — dynamic reads off runtime state. `sum`
+        // (issue #3243) belongs here rather than in a branch of its own: its
+        // magnitude is the total of a characteristic over a set NOTHING has
+        // bound yet at a pre-cast node, so there is strictly less to resolve
+        // than for `counters`, which already takes this floor.
         if ("escaped" in v || "abilityResolutionCount" in v)
             return { amount: 1, scaling: false };
         return { amount: CF_ASSUMED_REF, scaling: true };

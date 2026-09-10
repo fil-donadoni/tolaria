@@ -3363,6 +3363,12 @@ function advanceTurn(state: GameState): void {
     // The full per-turn draw tally (Sylvan Library "cards drawn this turn") is
     // turn-scoped too — clear it so a prior turn's draws can't be chosen.
     for (const p of state.players) p.drawnThisTurn = undefined;
+    // CR 400.7 / 603.4 — the "a card left your graveyard this turn" tally
+    // (Gau, Feral Youth) is turn-scoped. Cleared HERE, at the turn boundary,
+    // and nowhere else: an end-step trigger re-checks its intervening if on
+    // resolution, and Gau's fires at BOTH players' end steps, so anything that
+    // cleared the tally mid-turn would answer "no" the second time.
+    for (const p of state.players) p.leftGraveyardThisTurn = undefined;
     // CR 614 — Aladdin's Lamp's draw replacement is "this turn"; any entry not
     // consumed by a draw expires when the next turn begins.
     state.drawLookReplacements = undefined;

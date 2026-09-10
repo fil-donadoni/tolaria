@@ -53,6 +53,7 @@ import type {
     StackItem,
 } from "./state";
 import {
+    noteGraveyardDeparture,
     removeFromZone,
     removePermanentTo,
     resolveTopOfStack,
@@ -499,6 +500,11 @@ export function applyCastCostPicksForSearch(
             if (idx === -1) continue;
             const [moved] = source.splice(idx, 1);
             player.exile.push(moved);
+            // CR 400.7 — the search-side twin of the real cast's exile cost
+            // (`game.ts`, which routes through `moveCard`): a graveyard-sourced
+            // escape/delve cost is a departure here too, so the tally the
+            // opponent model reads matches the one the real game would show.
+            if (exileZone === "graveyard") noteGraveyardDeparture(player);
         }
     }
     return true;
@@ -962,6 +968,9 @@ export function applyActivationCostsForSearch(
             const [card] = gyOwner.graveyard.splice(idx, 1);
             card.zone = "exile";
             gyOwner.exile.push(card);
+            // CR 400.7 — same reasoning as the cast-cost leg above: an
+            // ADDITIONAL-cost exile from a graveyard is a departure.
+            noteGraveyardDeparture(gyOwner);
         }
     }
     // CR 118.3 — the discard leg (Survival of the Fittest, Iron-Shield Elf).

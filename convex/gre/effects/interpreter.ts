@@ -76,7 +76,7 @@ import type {
     EffectComparisonOp,
     EffectMode,
     EffectCountSpec,
-    EffectDifferenceOperand,
+    EffectDifferenceTallyOperand,
     EffectExiledWithSourceSelector,
     EffectForEachSelector,
     EffectRef,
@@ -810,6 +810,19 @@ function resolveValue(
         if (playerId === undefined) return undefined;
         return ctx.getLifeGainedThisTurn(playerId);
     }
+    // cardsDrawnThisTurn (CR 121.1, issue #3240) — how many cards a PLAYER has
+    // drawn so far this turn, a thin skin over ctx.getCardsDrawnThisTurn. The
+    // exact twin of lifeGainedThisTurn above: `of` is a PLAYER selector
+    // resolved through the SAME resolvePlayerRef path, undefined when the
+    // player cannot be resolved (CR 608.2b). Powers the amount half of "the
+    // number of cards you've drawn this turn minus one" (Proft's Eidetic
+    // Memory) via `difference`; the card's own "more than one" gate is a
+    // CR 603.4 intervening-if and never reaches here.
+    if ("cardsDrawnThisTurn" in value) {
+        const playerId = resolvePlayerRef(ctx, value.cardsDrawnThisTurn.of);
+        if (playerId === undefined) return undefined;
+        return ctx.getCardsDrawnThisTurn(playerId);
+    }
     // playerCounters (CR 122.1, issue #1969) — how many counters of one kind a
     // PLAYER has, a thin skin over ctx.getPlayerCounters. The PLAYER-scoped
     // sibling of `counters` above: `of` is a PLAYER selector resolved through
@@ -852,9 +865,12 @@ function resolveValue(
     }
     // divide (issue #2385) — a terminal divided by a fixed positive-integer
     // divisor, rounded per the mandatory `rounding` field (CR 107.1a). The
-    // operand is `EffectDifferenceOperand` — the SAME non-X terminal set
-    // `difference` uses — so it reads through the identical
-    // `resolveDifferenceOperand` helper; no separate resolver needed.
+    // operand is `EffectDifferenceOperand` — the narrow literal-or-`count` set,
+    // a SUBSET of what `difference` accepts since issue #3240 widened its own
+    // operand — so it reads through the identical `resolveDifferenceOperand`
+    // helper; no separate resolver needed. The extra terminal that helper
+    // handles is unreachable from here because the TYPE forbids it, which is
+    // the whole point of `EffectDifferenceTallyOperand` being a sibling.
     if ("divide" in value) {
         const dividend = resolveDifferenceOperand(ctx, value.divide.value);
         const quotient = dividend / value.divide.by;
@@ -871,9 +887,19 @@ function resolveValue(
  *  unresolvable — unlike a `ref`, which is not a legal operand here. */
 function resolveDifferenceOperand(
     ctx: SpellContext,
-    operand: EffectDifferenceOperand
+    operand: EffectDifferenceTallyOperand
 ): number {
-    return typeof operand === "number" ? operand : countSet(ctx, operand.count);
+    if (typeof operand === "number") return operand;
+    // CR 121.1 (issue #3240) — the one non-`count` terminal `difference`
+    // accepts. Resolved through the SAME player path the standalone value
+    // member uses; an unresolvable player reads 0 rather than poisoning the
+    // whole subtraction with NaN (CR 608.2b — the effect treats a gone player
+    // as having drawn nothing).
+    if ("cardsDrawnThisTurn" in operand) {
+        const playerId = resolvePlayerRef(ctx, operand.cardsDrawnThisTurn.of);
+        return playerId === undefined ? 0 : ctx.getCardsDrawnThisTurn(playerId);
+    }
+    return countSet(ctx, operand.count);
 }
 
 /** One operand of a `scaled` value (issue #2366): a literal integer, a single
