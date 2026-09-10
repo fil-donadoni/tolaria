@@ -212,12 +212,52 @@ window.__tolariaProbe = () => {
     //
     // A control rendered under 44px IN VIEW still counts, at every viewport —
     // the metric keeps its meaning. It just stops counting what nobody can see.
+    //
+    // THE SHELL RETURN BAND IS NOT PART OF ANY MEASURED SURFACE (issue #3337).
+    // `AppReturnBanner` (`src/components/chrome/app-return-banner.tsx`) is
+    // mounted by `AppShell` on every route that does not already own the
+    // return, and ONLY while the signed-in account has a game or a Limited
+    // event in flight. Its one `Button` is `size="xs"` — 101x22 at
+    // 1440x900x2 — so it lands in this scan at every viewport, and it does so
+    // as a function of DEPLOYMENT STATE rather than of the tree: whether the
+    // `TOLARIA_UI_EMAIL` account happens to have a match open when the lane
+    // runs. That is the same "a ceiling that moves with account data is a
+    // ceiling nobody can hold" defect the block above records for the deck
+    // shelf, arriving through the shell instead of through a scroller.
+    //
+    // MEASURED, not reasoned: the tree at `c1de20dab` — the exact commit that
+    // RECORDED `limited-build`'s 61/5/11/12/58 on 2026-09-09 — measured
+    // 62/6/12/13/59 the next day, byte-identical to HEAD, and deleting the one
+    // `Return to game` entry from the enumerated scan reproduced the recorded
+    // ceiling at all five viewports. PR #3334 then banked the +1 as a permanent
+    // ceiling with no note naming it, which is the outcome this cull exists to
+    // make impossible.
+    //
+    // Culled rather than budgeted, on `budgets.json`'s own axe-exemption
+    // precedent: "an exemption is a named node in a reviewable diff; a nonzero
+    // budget row is a number nobody can attribute". The band is that named
+    // node, `scripts/__tests__/ui-gate-probe.test.ts` pins the selector, and
+    // every run PRINTS whether it was mounted and how many controls it took
+    // out, so the exclusion is never silent. The band's own tap-target debt is
+    // therefore not measured by this lane; it has its own height contract
+    // (`h-9`, `SHELL_RETURN_BANNER_PX`) and its own tests.
+    //
+    // `closest`, so the `<span>`s and the `<Button>` inside it go together,
+    // and the cull is applied to `ctrls` ITSELF — the array the `small` scan
+    // below and `probe(ctrls)` both read — so the band cannot move
+    // `ctrlsZero`/`ctrlsOcc`/`ctrlsStranded` either.
+    const SHELL_RETURN_BAND = '[data-slot="app-return-banner"]';
     const small = [];
-    const ctrls = [
+    const ctrlsAll = [
         ...document.querySelectorAll(
             "button,a[href],input,select,[role=button],[role=tab],[role=option]"
         ),
     ];
+    const ctrls = ctrlsAll.filter((e) => !e.closest(SHELL_RETURN_BAND));
+    const shellBand = {
+        mounted: document.querySelector(SHELL_RETURN_BAND) !== null,
+        excluded: ctrlsAll.length - ctrls.length,
+    };
     for (const e of ctrls) {
         if (!vis(e)) continue;
         const r = e.getBoundingClientRect();
@@ -434,6 +474,7 @@ window.__tolariaProbe = () => {
         starved: starved.slice(0, 4),
         smallN: small.length,
         small: small.slice(0, 8),
+        shellBand,
         tinyText: tiny,
         tinyEx: [...tinyEx],
     };

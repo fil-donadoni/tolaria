@@ -127,6 +127,14 @@ export interface ProbeResult {
     starvedN: number;
     starved: unknown[];
     smallN: number;
+    /** The SHELL RETURN BAND's contribution, which `probe.js` culls out of
+     *  every control count (issue #3337). `AppReturnBanner` mounts on every
+     *  route that does not own the return, but only while the signed-in
+     *  account has a game or Limited event in flight — so its one `size="xs"`
+     *  button entered `small` as a function of DEPLOYMENT STATE, not of the
+     *  tree. Reported rather than merely dropped: an excluded control the run
+     *  does not name is exactly the unattributable number the cull replaces. */
+    shellBand: { mounted: boolean; excluded: number };
     tinyText: number;
     hOverflow: number;
     cardW: { min: number; max: number } | null;
