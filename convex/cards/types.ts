@@ -6714,14 +6714,22 @@ export interface DelayedTriggerDef {
      *  interpreter's environment before the script runs. Mutually exclusive
      *  with `resolve`. */
     effects?: EffectOp[];
-    /** AI-only SHADOW Effect Script for a `resolve()` body (PRD #1423, issue
-     *  #1519 — extended to `delayedTriggers[]` by PR #2010's review, MINOR
-     *  7): never executed, only walked by `OP_VALUERS` so the bot's value
-     *  model can see what an imperative delayed-trigger body does. Same
-     *  contract as `CardDefinition.aiEffects` / `ActivatedAbility.aiEffects`
-     *  / `TriggeredAbility.aiEffects`. Meaningless alongside `effects` (a
-     *  real script is already valued). */
-    aiEffects?: EffectOp[];
+    // NO `aiEffects` here, deliberately — unlike `CardDefinition` /
+    // `ActivatedAbility` / `TriggeredAbility`, which all carry one. The field
+    // existed on this shape from PR #2010's review (MINOR 7) until it was
+    // removed as dead data: **no valuer reads a delayed trigger.** The value
+    // model's ability walk is `activatedAbilities` + `triggeredAbilities`
+    // only (`gre/ai/cardScriptValue.ts`, `gre/ai/graveyardReach.ts`); the
+    // `delayedTrigger` Op values its own INLINE body (ADR 0048), never a
+    // named template from this array; and the one AI reader of the array,
+    // `gre/ai/searchDestination.ts`, documents that it ignores `aiEffects` by
+    // contract. So a shadow script written here would move the bot by exactly
+    // zero, and one shipped (a `gainLife amount: 0` on Planeswalker's
+    // Mischief) whose own comment admitted it was "not a real valuation".
+    // Absence of the field is now what stops the next one — `tsc` rather than
+    // a test comment. That the array is unvalued AT ALL — a real `effects[]`
+    // on a template is equally invisible — is the standing gap, issue #3383;
+    // when it closes, THAT is when this field could earn its place back.
 }
 
 // --- Continuous static effects (CR 611, 613) ---

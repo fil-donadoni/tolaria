@@ -342,16 +342,20 @@ export const planeswalkersMischief: CardDefinition = {
                 if (ctx.getExileCardOwner(cardId) === undefined) return;
                 ctx.moveCardById(ownerId, cardId, "exile", "hand");
             },
-            // aiEffects (PRD #1423, issue #1519, MINOR 7 of PR #2010's
-            // review): `delayedTriggers[]` is a bare `resolve()` body with no
-            // Op skin either (same protocol note as the scheduling ability
-            // above). Its own incremental value for the bot's search is near
-            // zero either way — reaching this step means the exiled card was
-            // never cast, i.e. the opportunity the FIRST ability's own
-            // `aiEffects` already values is already gone; giving the card
-            // back merely restores the status quo. `amount: 0` is an honest
-            // near-neutral placeholder, not a real valuation.
-            aiEffects: [{ op: "gainLife", player: "controller", amount: 0 }],
+            // No `aiEffects` here, and none is possible: no VALUER reads a
+            // delayed trigger, so `DelayedTriggerDef` no longer HAS that field
+            // (`cards/types.ts` carries the removal note; debug views did
+            // render it, which is why "no valuer" and not "nothing"). A
+            // `gainLife amount: 0` placeholder sat here until then, its own
+            // comment admitting it was "not a real valuation". Deleting it
+            // cost the bot nothing: this trigger's incremental value is ~zero
+            // anyway — reaching this step means the exiled card was never
+            // cast, so the opportunity the SCHEDULING ability's own
+            // really-walked `aiEffects` prices (via `gre/ai/candidateValue.ts`)
+            // is already gone, and handing the card back only restores the
+            // status quo. The standing gap — the value model walking
+            // `delayedTriggers[]` at all, template `effects[]` included — is
+            // issue #3383.
         },
     ],
 };
