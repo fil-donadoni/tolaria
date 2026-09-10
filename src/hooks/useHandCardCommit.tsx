@@ -22,6 +22,7 @@ import ModePicker from "~/components/cards/mode-picker";
 import AltCostPicker from "~/components/cards/alt-cost-picker";
 import { isCastPermissionAltCostId } from "@convex/gre/castPermissions";
 import { splitCastOptionsFor } from "@convex/gre/splitCast";
+import type { PlayLandFace } from "@convex/gre/modalLandPlay";
 import type { CardInstanceState } from "@convex/gre/state";
 import PhyrexianPicker from "~/components/cards/phyrexian-picker";
 import AdditionalCostPicker from "~/components/cards/additional-cost-picker";
@@ -154,7 +155,7 @@ export function useHandCardCommit(
     const [costDialogState, setCostDialogState] =
         useState<CostDialogState | null>(null);
 
-    const onPlayClick = () => {
+    const onPlayClick = (face: PlayLandFace = "front") => {
         // A second commit fired inside the first one's round trip is always a
         // doomed dispatch (the engine is parked on the first: "Another spell is
         // already being cast" / "the game is waiting for target input"), and in
@@ -171,6 +172,12 @@ export function useHandCardCommit(
                     gameId,
                     playerId,
                     cardInstanceId: cardInstance.id,
+                    // CR 712.12 (ADR 0122 §2) — the face chosen before the
+                    // card is put onto the battlefield. Omitted for the front
+                    // face so an ordinary land play sends exactly the argument
+                    // set it always did; the server re-derives the legal face
+                    // set and refuses anything else (`playCard`, game.ts).
+                    ...(face === "front" ? {} : { face }),
                     skipValidation: debugAllActions || undefined,
                 })
             )

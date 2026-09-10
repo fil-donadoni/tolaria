@@ -5,6 +5,7 @@
 
 import type {
     ActivatedAbility,
+    CardBackFace,
     CardDefinition,
     Color,
     EffectOp,
@@ -314,6 +315,54 @@ export function makeDualLand(args: {
                 },
                 useStack: false,
                 manaChoices: [{ [c1]: 1 }, { [c2]: 1 }],
+            },
+        ],
+    };
+}
+
+/** CR 712.3 / 712.12 — the LAND back face of a modal double-faced card, as the
+ *  `CardBackFace` a `kind: "modal"` twin is registered from (ADR 0122 §1).
+ *
+ *  Every land-backed modal card printed so far shares one shape: a typeless
+ *  `Land` face with the "as this land enters, you may pay N life; if you
+ *  don't, it enters tapped" clause and a single-colour mana ability. That is
+ *  the shock clause CR 614.12 already models (`entersTappedUnlessPay`), so the
+ *  factory declares it and nothing else — the pay-choice, the entry, the
+ *  tapped bit and the client prompt are the shipped machinery a printed shock
+ *  land uses, reached through the registered twin.
+ *
+ *  The mana ability is an Effect Script (`addMana`, ADR 0045) with
+ *  `useStack: false` (CR 605.3a — a mana ability doesn't use the stack). It
+ *  carries the LAND's own name in its id rather than the card's, because the
+ *  twin is a definition in its own right and an id colliding with the front
+ *  face's would make two abilities indistinguishable in a trace. */
+export function modalLandBackFace(args: {
+    /** The back face's printed name — the land's, not the card's (CR 712.8a
+     *  gives the CARD the front face's name). */
+    name: string;
+    /** The colour the land taps for. */
+    color: Color;
+    /** CR 614.12 — the life the "unless you pay" clause asks for. Three on
+     *  every printed land-backed modal card; a parameter because the clause
+     *  is the shock clause and the shock cycle itself prints two. */
+    life: number;
+}): CardBackFace {
+    const slug = args.name.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-");
+    return {
+        kind: "modal",
+        name: args.name,
+        types: ["Land"],
+        oracleText:
+            `As this land enters, you may pay ${args.life} life. If you don't, it enters tapped.\n` +
+            `{T}: Add {${args.color}}.`,
+        entersTappedUnlessPay: { life: args.life },
+        activatedAbilities: [
+            {
+                id: `${slug}-mana`,
+                oracleText: `{T}: Add {${args.color}}.`,
+                cost: { tap: true },
+                effects: [{ op: "addMana", mana: { [args.color]: 1 } }],
+                useStack: false,
             },
         ],
     };

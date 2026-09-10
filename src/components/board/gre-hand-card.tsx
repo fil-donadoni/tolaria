@@ -10,6 +10,11 @@ import { useDragToCommit } from "~/hooks/useDragToCommit";
 import { useTapStageConfirm } from "~/hooks/useTapStageConfirm";
 import { usePendingGameIntent } from "~/hooks/usePendingGameIntent";
 import { buildTriggerStateView, getHandStackAbilities } from "~/lib/card-utils";
+import {
+    landPlayFaces,
+    playLandFaceDefinition,
+} from "@convex/gre/modalLandPlay";
+import type { CardInstanceState } from "@convex/gre/state";
 import { extractMutationErrorMessage } from "~/lib/mutation-error";
 import {
     hasPendingGameIntent,
@@ -189,10 +194,14 @@ export default function GreHandCard({
         costDialogOverlay,
     } = useHandCardCommit(card);
 
+    // The drag / swipe gesture commits the card's ONE primary action. A card
+    // offering two (CR 712.12 — a modal card's cast and its land play) has no
+    // "the" action for a gesture to mean, so `commitEnabled` below turns the
+    // gesture off for it and the menu, which lists both, is the only way in.
+    // Guessing one would silently spend a land drop on a player who dragged
+    // meaning to cast.
     const commit = (e: React.MouseEvent | React.PointerEvent) => {
-        // Land plays take precedence over cast for the same instance; only one
-        // of the two is legal for a hand card in practice.
-        if (canPlay) onPlayClick();
+        if (canPlay && !canCast) onPlayClick(landFaces[0] ?? "front");
         else if (canCast) onCastClick(e);
     };
 
@@ -221,19 +230,52 @@ export default function GreHandCard({
             })
         ).catch((err) => console.error(extractMutationErrorMessage(err)));
     };
-    const primaryAvailable = canPlay || canCast;
-    const optionCount = handAbilities.length + (primaryAvailable ? 1 : 0);
+    // CR 712.12 / 712.11c (ADR 0122 §2) — a card in hand can offer MORE THAN
+    // ONE primary action. A modal double-faced card offers a cast of its front
+    // face and a play of its land back face, and the two windows are
+    // independent: Sink into Stupor is castable whenever an instant is,
+    // Soporific Springs is playable only in a main phase of its controller's
+    // turn with an empty stack and a land drop left. Both are read off the
+    // SAME shared predicates the server uses — `legalActions` for the window,
+    // `landPlayFaces` for which faces are lands (ADR 0074: the client shares
+    // the module, never the authority).
+    //
+    // Ordered cast-then-play so a card whose front face is the marquee half
+    // reads that way in the menu; an ordinary land has no cast entry, so its
+    // single "Play land" is unchanged.
+    const landFaces = canPlay ? landPlayFaces(card as CardInstanceState) : [];
+    const primaryActions: HandCardPrimaryAction[] = [
+        ...(canCast
+            ? [
+                  {
+                      label: "Cast",
+                      onSelect: (e: React.MouseEvent | React.TouchEvent) =>
+                          onCastClick(e as React.MouseEvent),
+                  },
+              ]
+            : []),
+        ...landFaces.map((face) => ({
+            // One face and no cast: the historic "Play land" wording, so an
+            // ordinary land's affordance is untouched. Two options: name the
+            // FACE, because "Play land" would read identically for both halves
+            // of a `land // land` pathway.
+            label:
+                landFaces.length === 1 && !canCast
+                    ? "Play land"
+                    : `Play ${playLandFaceDefinition(card as CardInstanceState, face)?.name ?? "land"}`,
+            onSelect: () => onPlayClick(face),
+        })),
+    ];
+    const primaryAvailable = primaryActions.length > 0;
+    const optionCount = handAbilities.length + primaryActions.length;
     const useMenu = !isHandChoice && optionCount > 1;
     const cyclingOnlyClick =
         !useMenu && handAbilities.length === 1 && !primaryAvailable;
-    const primaryAction: HandCardPrimaryAction | undefined = canPlay
-        ? { label: "Play land", onSelect: () => onPlayClick() }
-        : canCast
-          ? {
-                label: "Cast",
-                onSelect: (e) => onCastClick(e as React.MouseEvent),
-            }
-          : undefined;
+    // CR 712.12 — the drag/swipe and tap-stage gestures commit "the" primary
+    // action, so they are armed only while there IS one. A modal double-faced
+    // card offering both a cast and a land play routes through the menu, which
+    // names each face; see `commit` above.
+    const gestureEnabled = commitEnabled && primaryActions.length <= 1;
 
     // Touch-vs-desktop tap detection for the menu (mirrors
     // `useAbilityCardClick` on the battlefield): touchstart flags the next
@@ -243,7 +285,7 @@ export default function GreHandCard({
     const isTouchRef = useRef(false);
 
     const { state, handlers } = useDragToCommit({
-        commitEnabled,
+        commitEnabled: gestureEnabled,
         onCommit: commit,
     });
 
@@ -263,7 +305,7 @@ export default function GreHandCard({
     // this component outright, which drops the stage with it.)
     const stageRootRef = useRef<HTMLDivElement>(null);
     const tapStage = useTapStageConfirm({
-        enabled: commitEnabled,
+        enabled: gestureEnabled,
         rootRef: stageRootRef,
         resetKey: [
             turn,
@@ -494,7 +536,7 @@ export default function GreHandCard({
         <HandCardActionMenu
             abilities={handAbilities}
             onActivate={activateHandAbility}
-            primaryAction={primaryAction}
+            primaryActions={primaryActions}
             sheetOpen={sheetOpen}
             onSheetClose={() => setSheetOpen(false)}
         >
