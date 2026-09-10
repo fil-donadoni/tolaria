@@ -86,7 +86,13 @@ import {
 // cards graduated — Lightning Bolt, Ancestral Recall, Giant Growth, Firebolt,
 // Terminate, … — and Guard C's stale-row check is what named every one of
 // them. The ceiling only ever comes down.
-const BASELINE_CEILING = 1718;
+//
+// Lowered 1718 -> 1703 by issue #3075 (the `oracleText` backfill): the 15
+// genuinely vanilla cards of the `no-oracle-text` class round-trip the moment
+// they HAVE an input — Grizzly Bears, Craw Wurm, Scathe Zombies, … The other 8
+// moved to `COMPILER_GAP_ROWS`, which buys no slot: the ceiling is taken on the
+// union, so it comes down by the graduates alone.
+const BASELINE_CEILING = 1703;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that

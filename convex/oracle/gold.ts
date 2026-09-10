@@ -462,8 +462,12 @@ export interface GoldReport {
      * from every count above, because the compiler's INPUT is missing rather
      * than empty: compiling `""` would "succeed" on a card that plainly has
      * rules text (Berserk, Channel, Fear …) and score it as a vanilla match.
-     * A missing fixture is not a passing test. The number is reported so the
-     * hole stays visible — see docs/findings/2694-gold-cards-without-oracletext.md.
+     * A missing fixture is not a passing test.
+     *
+     * Empty TODAY, and asserted so — issue #3075 backfilled the 23 that
+     * predated the harness and `gold.test.ts` pins the list at zero. The field
+     * stays optional in `CardDefinition`, so the list stays: it is what turns
+     * the next omission into a red instead of a silent vanilla match.
      */
     readonly withoutOracleText: readonly string[];
 }
@@ -598,9 +602,11 @@ export type TwinResult =
  *
  * A card with NO `oracleText` fails rather than being skipped. Compiling `""`
  * does not error — it produces a behaviourless definition, which MATCHES a
- * vanilla creature (Grizzly Bears is exactly such a card), so treating the
- * missing input as an empty one would score a fixture hole as a pass. See
- * `docs/findings/2694-gold-cards-without-oracletext.md`.
+ * vanilla creature, so treating the missing input as an empty one would score a
+ * fixture hole as a pass. Grizzly Bears was exactly such a card until issue
+ * #3075 gave it the `oracleText: ""` it always had on Scryfall — which is the
+ * distinction this branch turns on, and the reason it is `undefined` it tests
+ * and never falsiness.
  */
 export function compiledTwin(definition: CardDefinition): TwinResult {
     if (definition.oracleText === undefined) {

@@ -37,7 +37,9 @@
  *     "undetermined", because the direction IS determined: it is the compiler.
  *   - `no-oracle-text` supports ONLY `card-defect`. No grammar was involved:
  *     the definition is missing the compiler's input, which is a hole on the
- *     hand-written side (`docs/findings/2694-gold-cards-without-oracletext.md`).
+ *     hand-written side. No card is in this state today (issue #3075 closed the
+ *     class and `gold.test.ts` keeps it closed), and the kind stays mapped
+ *     because the field is optional and the next omission must land somewhere.
  *   - `mismatch` supports ALL THREE, and that is the honest answer rather than
  *     a loose one. The compiler produced a definition and the two disagree;
  *     which side is wrong is a RULING, and all three outcomes are real. The
