@@ -21,6 +21,7 @@ import {
     EFFECT_AFFECTS_SELF,
     PERMANENT_TYPES,
 } from "../../types";
+import { defineSplitCard } from "../../splitCard";
 import { protectionColorModes } from "../../abilities";
 import { colorChoiceModes } from "../../abilities/chooseColor";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
@@ -3756,3 +3757,94 @@ export const sterlingGrove: CardDefinition = {
         },
     ],
 };
+
+// ─────────────────────────────────────────────────────────────────────────
+// Split cards (CR 709.1–709.4, ADR 0121, issue #3307)
+//
+// Two halves and ONE card. CR 709.4b makes both of these GOLD cards, which is
+// why they live here and not in `white.ts` where their out-of-scope stubs used
+// to sit: "a split card's colours and mana value are determined from its
+// combined mana cost", so Stand // Deliver is a white AND blue card with mana
+// value 4, and Wax // Wane a green and white card with mana value 2.
+//
+// Neither declares a top-level `name`, `manaCost` or `types`: CR 709.4 makes
+// those three a FUNCTION of the halves, and `defineSplitCard` is the only
+// thing that writes them (`cards/splitCard.ts`, ADR 0121 §1). Each half is
+// registered as a twin under `${id}#left` / `${id}#right`; CR 709.2 keeps the
+// catalogue at one row.
+// ─────────────────────────────────────────────────────────────────────────
+
+// Stand // Deliver — {W} // {2}{U}, Instant // Instant. "Prevent the next 2
+// damage that would be dealt to target creature this turn." // "Return target
+// permanent to its owner's hand." (CR 615.1 prevention shield, CR 400.7 zone
+// change.) Both halves are ordinary Effect Scripts over already-exercised Ops
+// — the whole novelty of this card is CR 709, which lives in the engine.
+export const standDeliver: CardDefinition = defineSplitCard({
+    id: "be8b338f-6f05-43c6-beeb-c5052cc0d6a9",
+    rarity: "uncommon",
+    oracleText:
+        "Prevent the next 2 damage that would be dealt to target creature this turn.\nReturn target permanent to its owner's hand.",
+    halves: [
+        {
+            name: "Stand",
+            manaCost: { W: 1 },
+            types: ["Instant"],
+            oracleText:
+                "Prevent the next 2 damage that would be dealt to target creature this turn.",
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [
+                {
+                    op: "preventDamage",
+                    mode: "next-n",
+                    to: { target: 0 },
+                    amount: 2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+        {
+            name: "Deliver",
+            manaCost: { X: 2, U: 1 },
+            types: ["Instant"],
+            oracleText: "Return target permanent to its owner's hand.",
+            targetRequirement: { type: [...PERMANENT_TYPES], count: 1 },
+            effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
+        },
+    ],
+});
+
+// Wax // Wane — {G} // {W}, Instant // Instant. "Target creature gets +2/+2
+// until end of turn." // "Destroy target enchantment." (CR 613.1d layer 7c
+// pump, CR 701.8 destroy.)
+export const waxWane: CardDefinition = defineSplitCard({
+    id: "19859061-f5ec-4b7f-86a1-196f98648e0a",
+    rarity: "uncommon",
+    oracleText:
+        "Target creature gets +2/+2 until end of turn.\nDestroy target enchantment.",
+    halves: [
+        {
+            name: "Wax",
+            manaCost: { G: 1 },
+            types: ["Instant"],
+            oracleText: "Target creature gets +2/+2 until end of turn.",
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: 2,
+                    toughness: 2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+        {
+            name: "Wane",
+            manaCost: { W: 1 },
+            types: ["Instant"],
+            oracleText: "Destroy target enchantment.",
+            targetRequirement: { type: "Enchantment", count: 1 },
+            effects: [{ op: "destroy", target: { target: 0 } }],
+        },
+    ],
+});

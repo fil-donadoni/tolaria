@@ -118,6 +118,9 @@ export const CAST_KEY_CENSUS: Record<keyof PendingCast, ParkClass> = {
     // half's mana cost it implies is an ordinary mana cost and parks (or not)
     // through `manaCost` above like any other.
     castAsAdventure: "non-park",
+    // CR 709.3b — which split half was announced. Like `castAsAdventure`
+    // above it rewrites the object put on the stack; it never owes a payment.
+    castAsSplitHalf: "non-park",
     /** CR 601.2 (issue #2473) — a board-state SNAPSHOT taken at announcement
      *  and carried to the commit; the payer decides nothing about it. */
     castOffSorceryTiming: "non-park",

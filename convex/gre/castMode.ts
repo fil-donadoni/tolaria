@@ -47,15 +47,22 @@
  */
 
 import { tryGetDefinition } from "../cards";
-import type { CardDefinition } from "../cards/types";
+import type { AlternativeCost, CardDefinition } from "../cards/types";
 import { applyBestowCharacteristics } from "./bestow";
 import { turnFaceDown } from "./faceDown";
 import {
     adventureCastAltCostId,
+    adventureCastOptionFor,
     adventureTwin,
     castAsAdventure,
 } from "./adventure";
 import { castableInsetKind } from "../cards/insetSpell";
+import {
+    castAsSplitHalf,
+    splitCastAltCostId,
+    splitCastOptionsFor,
+    splitTwin,
+} from "./splitCast";
 import {
     faceDownCastView,
     isMorphCastId,
@@ -74,7 +81,9 @@ export type CastMode =
     | "dash"
     | "evoke"
     | "overload"
-    | "adventure";
+    | "adventure"
+    | "split-left"
+    | "split-right";
 
 type CastModeRow = {
     /** The alt-cost id that selects this mode for `def`, or `undefined` when
@@ -183,7 +192,50 @@ const CAST_MODE_CENSUS: Record<CastMode, CastModeRow> = {
         subject: (def) => adventureTwin(def) ?? def,
         stamp: (_state, item) => castAsAdventure(item),
     },
+    // CR 709.3a/709.3b — "only the chosen half is evaluated to see if it can be
+    // cast", and "while on the stack, only the characteristics of the half
+    // being cast exist". Two rows rather than one parameterised entry because
+    // `CastMode` is what the census is a `Record` over: a side without a row
+    // could not be announced at all, which is the property that made the
+    // `subject` member reach every pre-commit surface for free.
+    "split-left": {
+        idOf: (def) =>
+            def?.splitHalves ? splitCastAltCostId(def, "left") : undefined,
+        subject: (def) => splitTwin(def, "left") ?? def,
+        stamp: (_state, item) => castAsSplitHalf(item, "left"),
+    },
+    "split-right": {
+        idOf: (def) =>
+            def?.splitHalves ? splitCastAltCostId(def, "right") : undefined,
+        subject: (def) => splitTwin(def, "right") ?? def,
+        stamp: (_state, item) => castAsSplitHalf(item, "right"),
+    },
 };
+
+/** CR 715.3 / 709.3 — every cast option on `card` that is a DIFFERENT SPELL
+ *  rather than a different price for the printed one: the Adventure (one) and
+ *  a split card's two halves.
+ *
+ *  What unites them, and the reason they are one list rather than a
+ *  per-mechanic local at each of the four offering surfaces: each is judged
+ *  entirely against its OWN subject (`castSubjectDefinition`), so timing,
+ *  affordability and targeting are asked of the half and never of the card,
+ *  and none of them lends legality to the printed cast or to each other. Every
+ *  other cast mode — bestow, morph, dash, evoke, overload — casts the printed
+ *  card for a different price and rides the printed conjunction.
+ *
+ *  Instance-level, because Adventure's own withdrawal is (CR 715.3d — "it
+ *  can't be cast as an Adventure this way", carried on the exiled instance).
+ *  Callers: the "cast" legality gate (`rules.ts`), `enumerateCastMoves`
+ *  (`moves.ts`), `announceCast` (`game.ts`) and the client picker. A surface
+ *  that built its own list is how the third such mode would ship reachable at
+ *  three sites out of four. */
+export function independentCastOptionsFor(
+    card: CardInstanceState
+): AlternativeCost[] {
+    const adventure = adventureCastOptionFor(card);
+    return [...(adventure ? [adventure] : []), ...splitCastOptionsFor(card)];
+}
 
 /** The cast mode `alternativeCostId` selects for `def`, or `undefined` for a
  *  printed-cost cast and for an alternative cost that is only a price.

@@ -2391,6 +2391,35 @@ export interface InsetSpell {
     targetRequirement?: TargetRequirement;
 }
 
+/** CR 709.1 / 709.3 — one CASTABLE HALF of a split card: "split cards have two
+ *  card faces on a single card", and "a player chooses which half of a split
+ *  card they are casting before putting it onto the stack."
+ *
+ *  Carries the castable characteristics and NOTHING else. CR 709.3b — "while
+ *  on the stack, only the characteristics of the half being cast exist" — is
+ *  what bounds the field list: keywords, statics, triggers, activated
+ *  abilities and P/T are absent because the admitted class (CR 709.1–709.4,
+ *  two instant/sorcery halves) has no object that could carry them. A split
+ *  card with a PERMANENT face is CR 709.5, a different rule and out of scope
+ *  (ADR 0121; issue #3306).
+ *
+ *  Declared on {@link CardDefinition.splitHalves}, from which
+ *  `cards/splitCard.ts` derives the combined `name`, `manaCost` and `types`
+ *  CR 709.4 asks for, and builds the two registered twin definitions
+ *  (`${id}#left` / `${id}#right`) the stack actually sees. Never a second
+ *  catalogue entry: CR 709.2 — "each split card is only one card". */
+export interface SplitHalf {
+    /** CR 709.4a — one of the card's two names. A "choose a card name" effect
+     *  may be given this and never the combined string. */
+    name: string;
+    manaCost?: ManaCost;
+    types: CardType[];
+    subtypes?: string[];
+    oracleText: string;
+    effects?: EffectOp[];
+    targetRequirement?: TargetRequirement;
+}
+
 /** JSON-pure subset of {@link CardBackFace} for the `createToken` Effect
  *  Script Op's `EffectTokenSpec.backFace` (ADR 0045/0046) — every field a
  *  double-faced TOKEN's back needs, minus `activatedAbilities`/
@@ -16495,6 +16524,21 @@ export interface CardDefinition {
      *  `${id}#${insetSpell.kind}` that `cards/insetSpell.ts` builds and
      *  `preloadDefinitions` registers, which no enumerator ever yields. */
     insetSpell?: InsetSpell;
+    /** CR 709.1 — the two halves of a SPLIT card, printed left then right.
+     *
+     *  NEVER hand-authored alongside a top-level `name` / `manaCost` /
+     *  `types`: CR 709.4 makes those three a FUNCTION of the halves, so a set
+     *  file exports `defineSplitCard({ halves, … })`'s result and the
+     *  derivation writes them (`cards/splitCard.ts`, ADR 0121 §1). An authored
+     *  combination can disagree with the rule and nothing detects it —
+     *  `cardDataConformance.test.ts` re-derives every shipped split card and
+     *  compares.
+     *
+     *  CR 709.2 — one card is one card. This is NOT two catalogue entries; the
+     *  engine-visible halves are the twin definitions `${id}#left` /
+     *  `${id}#right` that `cards/splitCard.ts` builds and `preloadDefinitions`
+     *  registers, which no enumerator ever yields. */
+    splitHalves?: readonly [SplitHalf, SplitHalf];
     /** Activated-ability templates GRANTED to other permanents by a
      *  StaticActivatedGrant on this card's `staticEffects` (CR 113.1, 611).
      *  Kept separate from `activatedAbilities` so the source itself does not

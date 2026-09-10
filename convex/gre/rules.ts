@@ -69,8 +69,13 @@ import {
     castPermissionRequired,
     hasCastPermissionFlash,
 } from "./castPermissions";
-import { castSubjectDefinition, castSubjectView } from "./castMode";
+import {
+    castSubjectDefinition,
+    castSubjectView,
+    independentCastOptionsFor,
+} from "./castMode";
 import { adventureCastOptionFor } from "./adventure";
+import { offersPrintedCast } from "./splitCast";
 import { canPayAnyAdditionalCost } from "./additionalCost";
 import {
     getFlashbackCost,
@@ -1309,45 +1314,59 @@ export function getLegalActions(
         // active player has priority; a sorcery-speed LOCK (Teferi's static)
         // forces the latter even for instants. See `castTimingBaseLegal`.
         const baseLegal = castTimingBaseLegal(state, caster.id, card);
-        // CR 715.3 / 715.3a (ADR 0120 §4) — the ADVENTURE cast is a SECOND,
-        // independently legal option on the same card, and every question that
-        // decides it is asked of the inset half: "only the alternative
-        // characteristics are evaluated to see if it can be cast." So it gets
-        // its own conjunction rather than riding the printed card's — an
-        // Instant printed on a creature card is castable at instant speed
-        // (timing), for the half's own cost (affordability), and only when the
-        // half's own targets exist (CR 601.2c).
+        const cardDef =
+            tryGetDefinition((card.card as { id?: string }).id ?? "") ??
+            undefined;
+        // CR 715.3 / 709.3 — the INDEPENDENT cast options: the ones that are a
+        // different SPELL rather than a different price for the printed one,
+        // so each is judged entirely against its own half (`castSubjectView`)
+        // and none of them lends legality to another. An Instant printed on a
+        // creature card is castable at instant speed (timing), for the half's
+        // own cost (affordability), and only when the half's own targets exist
+        // (CR 601.2c).
         //
-        // Evaluated in full HERE rather than folded into the disjunction below
-        // because the two halves must not lend each other legality: a
-        // Brazen Borrower whose creature half is affordable must not make
-        // Petty Theft castable into an empty board, and a Petty Theft with
-        // legal targets must not make the creature castable at instant speed.
-        // What the two DO share is the whole-card gates: a cast prohibition
-        // (CR 601.3a) and a phase restriction apply to the card, not to a face.
-        const adventureAlt = adventureCastOptionFor(card);
-        const adventureSubject = adventureAlt
-            ? castSubjectView(card, adventureAlt.id)
-            : card;
-        const adventureCastLegal =
-            adventureAlt !== undefined &&
-            castTimingBaseLegal(
-                state,
-                caster.id,
-                card,
-                "hand",
-                adventureAlt.id
-            ) &&
-            canPotentiallyPayCost(
-                caster,
-                adventureSubject,
-                adventureAlt.mana ?? {},
-                state
-            ) &&
-            hasEnoughLegalTargets(state, caster, adventureSubject);
-        // The PRINTED cast's own conjunction, unchanged. The Adventure option
-        // is OR'd in below, never folded into it.
+        // Evaluated in full HERE rather than folded into the printed
+        // disjunction below because the halves must not lend each other
+        // legality: a Brazen Borrower whose creature half is affordable must
+        // not make Petty Theft castable into an empty board, and Wax having a
+        // legal creature must not make Wane castable with no enchantment on
+        // the table. What they DO share is the whole-card gates — a cast
+        // prohibition (CR 601.3a) and a phase restriction apply to the card,
+        // not to a face.
+        //
+        // ONE list rather than a conjunction per mechanic: split (two options)
+        // and Adventure (one) ask exactly the same three questions of exactly
+        // the same seam, and the day a third such mode ships it joins the list
+        // instead of adding a fourth `…CastLegal` local nobody remembers to
+        // OR in.
+        const independentAlts = independentCastOptionsFor(card);
+        const independentCastLegal = independentAlts.some(
+            (alt) =>
+                castTimingBaseLegal(state, caster.id, card, "hand", alt.id) &&
+                canPotentiallyPayCost(
+                    caster,
+                    castSubjectView(card, alt.id),
+                    alt.mana ?? {},
+                    state
+                ) &&
+                hasEnoughLegalTargets(
+                    state,
+                    caster,
+                    castSubjectView(card, alt.id)
+                )
+        );
+        // The PRINTED cast's own conjunction, unchanged. The independent
+        // options are OR'd in below, never folded into it.
+        //
+        // CR 709.3 — `offersPrintedCast` is false for exactly one shape, a
+        // SPLIT card: "a player chooses which half of a split card they are
+        // casting BEFORE putting it onto the stack", so no cast ever puts the
+        // combined object on the stack and its 709.4b summed cost is a
+        // characteristic in a zone, never a price anyone pays. Without this
+        // leg a Wax // Wane in hand would offer a {G}{W} cast that resolves to
+        // neither half.
         const printedCastLegal =
+            offersPrintedCast(cardDef) &&
             baseLegal &&
             passesCastPhaseRestriction(state, card) &&
             // CR 601.3a — a player-scoped cast-type restriction (Brand of Ill
@@ -1451,7 +1470,7 @@ export function getLegalActions(
             hasEnoughLegalTargets(state, caster, card) &&
             hasPayableAdditionalCost(caster, card);
         if (
-            (printedCastLegal || adventureCastLegal) &&
+            (printedCastLegal || independentCastLegal) &&
             // CR 601.3a / CR 715.2c — the whole-card gates, shared by both
             // options: a cast prohibition and a phase restriction are stated
             // about the CARD, and one card is one card. `printedCastLegal`
