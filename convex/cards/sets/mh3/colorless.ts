@@ -64,14 +64,17 @@ export const shiftingWoodland: CardDefinition = {
 // makes the leg always payable: an untapped permanent can be exerted, and so
 // can one already exerted this turn.
 //
-// TODO (tracked-by: #3354): the mana-provenance rider — "If that mana is spent
-// on a creature spell, it gains haste until end of turn" — is not implemented.
-// The {R}{R} is added as ordinary pool mana, so a creature spell paid with it
-// does not gain haste. CR 106.6 rider machinery exists for exactly one property
-// (`RestrictedMana.cantBeCounteredRider`, Delighted Halfling) and issue #3354
-// names the five sites a second one needs, including the one with no precedent:
-// carrying the property from the stack item onto the permanent the spell
-// becomes.
+// CR 106.6 (issue #3354) — the mana-provenance rider is `manaHasteRider`, the
+// second CR 106.6 rider after Delighted Halfling's
+// `RestrictedMana.cantBeCounteredRider` and the first that rides an
+// UNRESTRICTED unit: this mana may pay for anything, so the {R}{R} floats in
+// the parallel `restrictedMana` pool tagged but ungated (the fungible
+// `manaPool` is a bare per-colour count with nowhere to record a tag).
+// `payManaCostForSpell` settles the oracle's own "spent on a CREATURE spell"
+// condition at payment and stamps `StackItem.dynamicHasteFromMana`;
+// `finalizeSpellResolution` hands it off to the permanent the spell becomes as
+// an until-end-of-turn layer-6 haste grant (CR 611.2c) — the piece with no
+// precedent, since `dynamicCantBeCountered` dies with its stack item.
 //
 // compiler-gap: "This land enters tapped unless you control a Mountain." (#3214)
 // compiler-gap: "{R}, {T}, Exert this land: Add {R}{R}. If that mana is spent on a creature spell, it gains haste until end of turn." (#3214)
@@ -113,6 +116,10 @@ export const arenaOfGlory: CardDefinition = {
             // whole activation cost is everything before the colon).
             cost: { mana: { R: 1 }, tap: true, exertThis: true },
             useStack: false,
+            // CR 106.6 — "If that mana is spent on a creature spell, it gains
+            // haste until end of turn." Declarative, exactly like Delighted
+            // Halfling's `manaCantBeCounteredRider`; no `resolve()` involved.
+            manaHasteRider: true,
             effect: (ctx) => ctx.addMana({ R: 2 }),
             manaProduced: { R: 2 },
         },

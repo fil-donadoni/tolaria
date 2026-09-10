@@ -99,15 +99,46 @@ describe("restrictedManaLabel (#754, CR 106.6)", () => {
             "Legendary spells only — can't be countered"
         );
 
-        // The rider is orthogonal to `restriction` — it also combines with
-        // the generic fallback when no restriction is set at all.
+        // The rider is orthogonal to `restriction`. With no restriction at
+        // all (Arena of Glory, issue #3354) the unit is in `restrictedMana`
+        // ONLY because the rider tagged it: it is spendable on anything, and
+        // the base label says so rather than lying with "Restricted".
         const noRestriction: RestrictedMana = {
             color: "W",
             amount: 1,
             cantBeCounteredRider: true,
         };
         expect(restrictedManaLabel(noRestriction)).toBe(
-            "Restricted — can't be countered"
+            "Any spell — can't be countered"
+        );
+    });
+
+    it("labels the haste rider, alone and combined (#3354, CR 106.6)", () => {
+        const arena: RestrictedMana = {
+            color: "R",
+            amount: 2,
+            hasteRider: true,
+        };
+        expect(restrictedManaLabel(arena)).toBe(
+            "Any spell — creature spell gains haste"
+        );
+
+        // Riders are independent of each other as well as of `restriction`:
+        // a unit carrying both names both, in declaration order.
+        const both: RestrictedMana = {
+            color: "R",
+            amount: 1,
+            restriction: "legendary-spell",
+            cantBeCounteredRider: true,
+            hasteRider: true,
+        };
+        expect(restrictedManaLabel(both)).toBe(
+            "Legendary spells only — can't be countered, creature spell gains haste"
+        );
+
+        // An untagged unit with no restriction keeps the generic fallback.
+        expect(restrictedManaLabel({ color: "R", amount: 1 })).toBe(
+            "Restricted"
         );
     });
 });

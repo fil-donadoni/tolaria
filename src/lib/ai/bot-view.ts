@@ -34,6 +34,7 @@ import {
 } from "@convex/gre";
 import { cardValueById } from "@convex/gre";
 import { manaValue, parseHybridCostKey } from "@convex/gre/constants";
+import { mayPayUnitIsEligible } from "@convex/gre/state";
 import { matchesPermanentFilter } from "@convex/cards/filters";
 import { hasControlledSinceTurnStart } from "@convex/gre/controlContinuity";
 import { getColorsFromCost, getCardColorIdentity } from "@convex/cards/colors";
@@ -468,18 +469,22 @@ function readChoiceZone(
  *  `restrictedMana` unit whose restriction EXACTLY equals `manaRestriction`
  *  (CR 106.6, ADR 0022 / 0042). Mirrors the server's
  *  `spendablePoolForRestriction` (`convex/gre/state.ts`) — same merge key,
- *  same exact-match eligibility rule, no substitutions — so this gate is
- *  never more permissive than `canPayMayPayCost` (issue #2222). Returns a
- *  plain `manaPool` copy when no restriction is given, preserving the
- *  historical mana-only path. */
+ *  same eligibility rule, no substitutions — so this gate is never more
+ *  permissive than `canPayMayPayCost` (issue #2222). */
 function spendableManaPoolForRestriction(
     bot: Pick<PublicPlayer, "manaPool" | "restrictedMana">,
     manaRestriction: ManaRestriction | undefined
 ): Record<string, number> {
     const pool = { ...bot.manaPool };
-    if (!manaRestriction) return pool;
     for (const r of bot.restrictedMana ?? []) {
-        if (r.restriction === manaRestriction) {
+        // The SERVER's own predicate, not a hand-mirrored copy of the rule —
+        // an exact-restriction match, plus (CR 106.6, issue #3354) the
+        // bare-rider unit that restricts nothing and only sits in
+        // `restrictedMana` because the fungible pool has nowhere to record its
+        // tag. Calling it is what keeps this gate provably no more permissive
+        // than `canPayMayPayCost` (issue #2222) instead of merely intended to
+        // be.
+        if (mayPayUnitIsEligible(r, manaRestriction)) {
             pool[r.color] = (pool[r.color] ?? 0) + r.amount;
         }
     }

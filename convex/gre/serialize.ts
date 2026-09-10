@@ -1666,6 +1666,14 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
     if (item.dynamicCantBeCountered) {
         base.dynamicCantBeCountered = item.dynamicCantBeCountered;
     }
+    // CR 106.6 / 611.2c (issue #3354, Arena of Glory) — persist the per-cast
+    // haste rider for the same reason: the save is taken while the creature
+    // spell is still on the stack, and the flag is what the resolution turns
+    // into the until-end-of-turn grant. Dropped here, the creature resolves
+    // summoning-sick after a reload.
+    if (item.dynamicHasteFromMana) {
+        base.dynamicHasteFromMana = item.dynamicHasteFromMana;
+    }
     return base;
 }
 
@@ -1842,6 +1850,11 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
     // per-cast "can't be countered" rider.
     if (compact.dynamicCantBeCountered) {
         item.dynamicCantBeCountered = compact.dynamicCantBeCountered as boolean;
+    }
+    // CR 106.6 / 611.2c (issue #3354, Arena of Glory) — rehydrate the per-cast
+    // haste rider.
+    if (compact.dynamicHasteFromMana) {
+        item.dynamicHasteFromMana = compact.dynamicHasteFromMana as boolean;
     }
     return item;
 }

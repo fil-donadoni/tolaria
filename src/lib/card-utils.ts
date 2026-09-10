@@ -80,7 +80,7 @@ import type {
 } from "@convex/gre/state";
 import {
     assignMayPayHandCards,
-    manaBalanceForRestriction,
+    manaBalanceForRestrictionAnyRider,
 } from "@convex/gre/state";
 import { handCardMatchesFilter } from "@convex/gre/alternativeCost";
 // CR 118.9 — THE cast-option authority: the card's own affordable alternative
@@ -481,8 +481,9 @@ export function getActivatedManaMenuEntry(
  *  it back. So the question asked here is the SERVER refund's own question —
  *  "is the bucket THIS ability deposited into still holding the mana" — keyed
  *  on the producing ability's `manaRestriction` via
- *  `manaBalanceForRestriction`, exactly as `refundFixedManaOutput` /
- *  `refundChosenManaOutput` (`convex/game.ts`) reverse it.
+ *  `manaBalanceForRestrictionAnyRider`, the rider-agnostic sibling of the key
+ *  `refundFixedManaOutput` / `refundChosenManaOutput` (`convex/game.ts`)
+ *  reverse with (see the call site for why the riders are dropped here).
  *
  *  It is NOT a spend-eligibility question, so `spendablePoolForAbility` is
  *  the wrong helper: keyed on the source's own card types it excludes every
@@ -501,17 +502,23 @@ export function canRefundManaTap(
         card as unknown as CardInstanceState
     ).find(({ ability: a }) => !a.useStack && a.manaProduced)?.ability;
     if (!ability?.manaProduced) return false;
-    // The rider is deliberately left off the bucket key: the FIXED-output
-    // deposit sites (`tapUntap`, `tapSourceIntoPayment`) both bank without one
-    // and `refundFixedManaOutput` reverses without one, so a rider-keyed
-    // lookup here would miss the unit the server actually credited. Only
-    // `chosenMana` (choice) abilities carry a rider, and this helper does not
-    // support those (see above).
+    // CR 106.6 (issue #3354) — asked RIDER-AGNOSTICALLY. A card with several
+    // mana abilities (Arena of Glory: a plain "{T}: Add {R}" and an exert
+    // ability whose {R}{R} carries the haste rider) does not tell the client
+    // WHICH one was tapped — `chosenMana` is not projected — so the
+    // rider-keyed lookup would read the untagged bucket, find it empty and
+    // hide a refund the server would happily honour. The question here is only
+    // "is mana this source produced still unspent somewhere", never the
+    // server's exact reversal key, so summing every bucket of this restriction
+    // is both correct and strictly the safer error.
     const restriction = ability.manaRestriction;
     for (const [color, amount] of Object.entries(ability.manaProduced)) {
         if (color === "X" || typeof amount !== "number" || amount <= 0)
             continue;
-        if (manaBalanceForRestriction(player, color, restriction) < amount)
+        if (
+            manaBalanceForRestrictionAnyRider(player, color, restriction) <
+            amount
+        )
             return false;
     }
     return true;

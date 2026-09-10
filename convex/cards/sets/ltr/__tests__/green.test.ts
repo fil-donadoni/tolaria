@@ -112,7 +112,7 @@ describe("Delighted Halfling (LTR #158, CR 106.6 / 701.13, issue #1559)", () => 
             undefined,
             theOneRing.supertypes ?? []
         );
-        expect(usedRider).toBe(true);
+        expect(usedRider).toEqual({ cantBeCountered: true, haste: false });
         expect(withRider.restrictedMana).toBeUndefined();
 
         // Paying entirely from the fungible pool (no restricted mana touched)
@@ -129,26 +129,24 @@ describe("Delighted Halfling (LTR #158, CR 106.6 / 701.13, issue #1559)", () => 
             undefined,
             theOneRing.supertypes ?? []
         );
-        expect(usedRiderFromPool).toBe(false);
+        expect(usedRiderFromPool).toEqual({
+            cantBeCountered: false,
+            haste: false,
+        });
     });
 
     it("addRestrictedManaToPool keeps rider and non-rider units of the same color/restriction separate", () => {
         const player = makePlayer("p1");
+        addRestrictedManaToPool(player, "G", 1, "legendary-spell", undefined, {
+            cantBeCountered: true,
+        });
         addRestrictedManaToPool(
             player,
             "G",
             1,
             "legendary-spell",
             undefined,
-            true
-        );
-        addRestrictedManaToPool(
-            player,
-            "G",
-            1,
-            "legendary-spell",
-            undefined,
-            false
+            undefined
         );
         expect(player.restrictedMana).toEqual([
             {
@@ -160,14 +158,9 @@ describe("Delighted Halfling (LTR #158, CR 106.6 / 701.13, issue #1559)", () => 
             { color: "G", amount: 1, restriction: "legendary-spell" },
         ]);
         // A second deposit WITH the rider merges into the first unit.
-        addRestrictedManaToPool(
-            player,
-            "G",
-            2,
-            "legendary-spell",
-            undefined,
-            true
-        );
+        addRestrictedManaToPool(player, "G", 2, "legendary-spell", undefined, {
+            cantBeCountered: true,
+        });
         expect(player.restrictedMana).toEqual([
             {
                 color: "G",

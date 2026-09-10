@@ -43,7 +43,11 @@
 import type { AlternativeCost, CardDefinition, ManaCost } from "../cards/types";
 import { FACE_DOWN_CARD_ID, tryGetDefinition } from "../cards";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
-import { getManaSubstitutions, normalizeManaCost } from "./state";
+import {
+    getManaSubstitutions,
+    normalizeManaCost,
+    spendablePoolWithRiders,
+} from "./state";
 import {
     buildAutoTapSources,
     solveSmartAutoTap,
@@ -158,8 +162,12 @@ export function morphTurnUpPaymentPlan(
         player.battlefield,
         manaGateBattlefields(state)
     );
+    // CR 106.6 (issue #3354) — the payment (`applyTurnPermanentFaceUp`) admits
+    // a bare-rider unit, so the PLAN must count it or "the button is offered"
+    // and "the payment succeeds" — this function's whole reason to exist —
+    // drift apart the moment Arena of Glory's {R}{R} is floating.
     return solveSmartAutoTap(
-        player.manaPool,
+        spendablePoolWithRiders(player),
         normalizeManaCost(cost),
         subs,
         sources

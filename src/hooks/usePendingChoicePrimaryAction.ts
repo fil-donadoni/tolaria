@@ -8,6 +8,7 @@ import {
     mayPaySacrificePickSatisfied,
     mayPayDiscardPickSatisfied,
 } from "~/lib/card-utils";
+import { mayPayUnitIsEligible } from "@convex/gre/state";
 import { isZonePickConfirmEnabled } from "~/lib/pending-choice-confirm";
 import { pendingChoiceRoutesToBattlefield } from "~/lib/pending-choice-labels";
 import { useGameContext } from "./useGameContext";
@@ -120,18 +121,21 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
         // CR 118.3 / 702.24 — Pay/Yes is legal only once every leg of the cost
         // union (mana / life / sacrifice) can be paid.
         const chooser = allPlayers.find((p) => p.id === choice.playerId);
-        // ADR 0042 — a cumulative-upkeep may-pay (`manaRestriction` set) may
-        // also be paid with restricted mana carrying that restriction; merge it
-        // into the affordability pool so the Pay button enables.
-        const extraMana =
-            chooser && choice.manaRestriction
-                ? chooser.restrictedMana
-                      ?.filter((r) => r.restriction === choice.manaRestriction)
-                      .reduce<Record<string, number>>((acc, r) => {
-                          acc[r.color] = (acc[r.color] ?? 0) + r.amount;
-                          return acc;
-                      }, {})
-                : undefined;
+        // ADR 0042 / CR 106.6 — a cumulative-upkeep may-pay
+        // (`manaRestriction` set) may also be paid with restricted mana
+        // carrying that restriction, and (issue #3354) ANY may-pay may be paid
+        // with a bare-rider unit, which restricts nothing and only sits in
+        // `restrictedMana` because the fungible pool has nowhere to record its
+        // tag. Merged in through the SERVER's own predicate
+        // (`mayPayUnitIsEligible`), so this button and `canPayMayPayCost`
+        // cannot drift — the third mirror of that rule after the bot's
+        // (`src/lib/ai/bot-view.ts`).
+        const extraMana = chooser?.restrictedMana
+            ?.filter((r) => mayPayUnitIsEligible(r, choice.manaRestriction))
+            .reduce<Record<string, number>>((acc, r) => {
+                acc[r.color] = (acc[r.color] ?? 0) + r.amount;
+                return acc;
+            }, {});
         // CR 701.21a / 118 — when the choice carries a battlefield sacrifice
         // pick (`zone: "battlefield"`), Pay stays disabled until the buffered
         // victims satisfy the leg: a fixed count, or (threshold mode, Phyrexian
