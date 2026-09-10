@@ -6,9 +6,9 @@
 //   2. A telemetry record emitted by `runSearchWithTrace` carries the greedy
 //      key beside the chosen key, and `greedyAgrees` is exactly their
 //      equality — with no sink installed nothing is computed.
-//   3. The blade runner's `pick: "greedy"` leg answers with a legal move and
-//      never runs the search (a greedy leg at a 100 000-iteration budget must
-//      cost milliseconds).
+//   3. The blade runner's `pick: "greedy"` leg answers with exactly the
+//      `greedyRootPick` move at every seed — on an entry the search decides
+//      differently, so a leg that quietly ran the search instead would show.
 import { describe, expect, it } from "vitest";
 import { enumerateMoves } from "../moves";
 import { greedyRootPick, searchWithTrace } from "../search";
@@ -24,7 +24,11 @@ import {
 } from "../ai/blade";
 import { seatPlayerId } from "../ai/blade/matcher";
 
-const LABEL = "positive-control: plays its only land on an empty board";
+// A registry entry the greedy leg and the search decide DIFFERENTLY (the
+// greedy pick passes, the search casts — `docs/research/greedy-vs-search.md`),
+// so the identity below cannot be satisfied by a leg that ran the search.
+const SEARCH_ONLY =
+    "sacrifice sign NEGATIVE CONTROL: still casts a genuine edict";
 const RICH = "overloads Damn to wrath three creatures instead of killing one";
 
 function scenarioNamed(label: string) {
@@ -114,21 +118,17 @@ describe("greedy concordance in the telemetry record (issue #3393)", () => {
 });
 
 describe('blade runner pick: "greedy" (issue #3393)', () => {
-    it("answers with a legal move at a budget the search could not afford here", () => {
-        const scenario = scenarioNamed(LABEL);
-        const t0 = performance.now();
-        const result = runBladeScenario(
-            { ...scenario, budget: { iterations: 100_000 } },
-            null,
-            "greedy"
-        );
-        const elapsed = performance.now() - t0;
+    it("answers every seed with exactly the greedyRootPick move, never the search's", () => {
+        const scenario = scenarioNamed(SEARCH_ONLY);
+        const result = runBladeScenario(scenario, null, "greedy");
         expect(result.seeds.length).toBeGreaterThan(0);
-        for (const s of result.seeds) expect(s.move).not.toBeNull();
-        // A 100 000-iteration search on this position costs tens of seconds
-        // (proven red at 507 s with a million); the greedy leg must not have
-        // run it.
-        expect(elapsed).toBeLessThan(2_000);
-        expect(result.ok).toBe(true);
+        for (const s of result.seeds) {
+            const state = buildBladeState(scenario);
+            const botId = seatPlayerId(state, scenario.bot);
+            expect(s.move).not.toBeNull();
+            expect(JSON.stringify(s.move)).toBe(
+                JSON.stringify(greedyRootPick(state, botId, s.seed))
+            );
+        }
     });
 });
