@@ -65,6 +65,10 @@ export const MAX_CHOICE_BRANCH_WORK = 128;
 export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     // --- raises a choice -------------------------------------------------
     castDuringResolution: true,
+    // CR 702.85a (issue #3216) — cascade runs `runCastDuringResolution` for
+    // its middle clause, so it raises that Op's Cast/Decline (plus the cast
+    // card's own mode/X/target picks) through its own executor.
+    cascade: true,
     choice: true,
     chooseCategorized: true,
     coinFlip: true,

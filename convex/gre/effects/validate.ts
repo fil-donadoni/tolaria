@@ -3262,6 +3262,16 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             return errors;
         },
     },
+    // CR 702.85a (issue #3216) — the CASCADE keyword's whole triggered ability.
+    // `player` is the cascading spell's controller and is the ONLY field: the
+    // walk's threshold is read live off the spell on the stack (never authored),
+    // the cast is always free and always from exile, and the tail is always the
+    // library bottom in a random order. Emitted only by `expandCascade`, so a
+    // hand-written occurrence in a card file is a bug the reviewer catches, not
+    // a shape the validator has to admit variations of.
+    cascade: {
+        required: { player: isPlayerRef },
+    },
     // CR 106.1 (issue #850) — add mana to a player's mana pool. `mana` is the
     // JSON-pure per-colour amount map (WUBRGC, positive integers); `player`
     // (optional) names whose pool (default the resolving controller).

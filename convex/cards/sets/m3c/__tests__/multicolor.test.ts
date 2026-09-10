@@ -8,15 +8,27 @@
 // calls for this file (`.claude/rules/gre-development.md` § DSL-first
 // authoring).
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../../../__tests__/setup";
 import type {
     CardInstanceState,
     GameState,
     StackItem,
 } from "../../../../gre/state";
-import { resolveTopOfStack } from "../../../../gre/state";
+import {
+    emitSpellCastEvent,
+    processPendingActionTriggers,
+    resolveTopOfStack,
+} from "../../../../gre/state";
 import { registerTokenDefinition, getDefinition } from "../../../index";
-import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
+import {
+    applyMayPaySubmit,
+    applyPendingChoiceSubmit,
+} from "../../../../gre/pendingChoiceSubmit";
 import {
     raiseTriggerTargetSelection,
     getLegalTargets,
@@ -371,5 +383,141 @@ describe("Satya — delayed sacrifice-or-pay {E} equal to the token's mana value
         expect(state.players[0].battlefield.map((c) => c.id)).not.toContain(
             copy.id
         );
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bloodbraid Challenger (issue #3216) — the first CASCADE card (CR 702.85).
+// This is the FULL-PATH test the per-Op interpreter suite cannot give: the
+// keyword string on a real catalogue card, expanded at the `getDefinition`
+// seam, collected off the stack at the real cast choke point
+// (`emitSpellCastEvent` → `collectSelfCastTriggers`), resolved above its own
+// spell, and landing a free spell on the stack.
+const bloodbraidChallenger = getDefinition(
+    "fbca967e-578f-4b05-b697-2e2ee1a40dfb"
+);
+
+const BBC_CHEAP_ID = "test-bbc-cheap";
+registerTokenDefinition({
+    id: BBC_CHEAP_ID,
+    name: BBC_CHEAP_ID,
+    rarity: "common",
+    manaCost: { X: 2 },
+    types: ["Sorcery"],
+    effects: [{ op: "draw", player: "controller", count: 1 }],
+});
+const BBC_LAND_ID = "test-bbc-land";
+registerTokenDefinition({
+    id: BBC_LAND_ID,
+    name: BBC_LAND_ID,
+    rarity: "common",
+    types: ["Land"],
+});
+
+describe("Bloodbraid Challenger — Cascade (CR 702.85), Haste (CR 702.10), Escape (CR 702.138)", () => {
+    function libraryCard(cardId: string, id: string): CardInstanceState {
+        return makeInstance(cardId, {
+            id,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+    }
+
+    it("declares cascade and haste as keyword strings and escape as data — no imperative body (ADR 0045)", () => {
+        expect(bloodbraidChallenger.staticAbilities).toContain("cascade");
+        expect(bloodbraidChallenger.staticAbilities).toContain("haste");
+        expect(bloodbraidChallenger.escape).toEqual({
+            mana: { X: 3, R: 1, G: 1 },
+            exile: { count: 3 },
+        });
+        expect(bloodbraidChallenger.resolve).toBeUndefined();
+        expect(bloodbraidChallenger.effects).toBeUndefined();
+    });
+
+    it("the keyword string is expanded into ONE CR 702.85a cast trigger whose whole body is the `cascade` Op (ADR 0054)", () => {
+        const triggers = (bloodbraidChallenger.triggeredAbilities ?? []).filter(
+            (t) => t.id === "cascade"
+        );
+        expect(triggers).toHaveLength(1);
+        expect(triggers[0].event).toBe("SPELL_CAST");
+        // CR 702.85a — "functions only while the spell with cascade is on the
+        // stack": the marker is what makes `collectSelfCastTriggers` see it.
+        expect(triggers[0].functionsFromStack).toBe(true);
+        expect(triggers[0].effects).toEqual([
+            { op: "cascade", player: "controller" },
+        ]);
+    });
+
+    it("casting it puts the cascade trigger ABOVE the spell, and resolving that trigger exiles down to the first cheaper nonland card and offers it FREE (CR 603.3b / 702.85a)", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: [
+                        libraryCard(BBC_LAND_ID, "bbcLand"),
+                        libraryCard(BBC_CHEAP_ID, "bbcHit"),
+                        libraryCard(BBC_LAND_ID, "bbcRest"),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const spell = pushSpell(
+            state,
+            "fbca967e-578f-4b05-b697-2e2ee1a40dfb",
+            "p1"
+        );
+        emitSpellCastEvent(state, spell);
+        processPendingActionTriggers(state);
+        // The trigger sits ABOVE its own spell — the free spell therefore
+        // resolves BEFORE the creature that cascaded.
+        expect(state.stack).toHaveLength(2);
+        expect(state.stack[0].id).toBe(spell.id);
+        expect(state.stack[1].triggeredAbilityId).toBe("cascade");
+        expect(state.stack[1].triggerSourceId).toBe(spell.id);
+
+        // Resolve the trigger: mana value 5, so the walk stops on the mana
+        // value 2 sorcery, skipping the land above it.
+        resolveTopOfStack(state);
+        expect(state.players[0].exile.map((c) => c.id).sort()).toEqual([
+            "bbcHit",
+            "bbcLand",
+        ]);
+        const offer = state.pendingChoices![0];
+        expect(offer.kind).toBe("option-pick");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: offer.stackItemId,
+            step: offer.step,
+            choiceId: offer.choiceId,
+            cardInstanceIds: ["cast"],
+        });
+        // The free spell is on top of the cascading creature (CR 608.2f), with
+        // NO mana spent — the fixture has an empty pool.
+        expect(state.stack.map((s) => s.id)).toEqual([spell.id, "bbcHit"]);
+        // The rest went back to the bottom, under the untouched card.
+        expect(state.players[0].exile).toHaveLength(0);
+        expect(state.players[0].library.map((c) => c.id)).toEqual([
+            "bbcRest",
+            "bbcLand",
+        ]);
+    });
+
+    it("CR 702.85c — a spell with TWO instances of cascade triggers twice, as two distinct stack objects", () => {
+        const TWICE_ID = "test-bbc-double-cascade";
+        registerTokenDefinition({
+            id: TWICE_ID,
+            name: TWICE_ID,
+            rarity: "rare",
+            manaCost: { X: 5 },
+            types: ["Creature"],
+            subtypes: ["Elf"],
+            power: 1,
+            toughness: 1,
+            staticAbilities: ["cascade", "cascade"],
+        });
+        const def = getDefinition(TWICE_ID);
+        const ids = (def.triggeredAbilities ?? []).map((t) => t.id);
+        expect(ids).toEqual(["cascade", "cascade-2"]);
     });
 });

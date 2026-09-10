@@ -23136,6 +23136,238 @@ describe("Effect Script Op: castDuringResolution — exile-top source + paid cas
     });
 });
 
+describe("Effect Script Op: cascade (CR 702.85a, issue #3216)", () => {
+    // The cascade keyword's whole triggered ability, exercised through the REAL
+    // resolution path. The script is pushed as the SPELL itself, which is what
+    // makes the threshold observable: `ctx.sourceInstanceId` is that stack
+    // item, so `getManaValue({ type: "spell", … })` reads mana value 5 off the
+    // registered cost below — the same read the real trigger performs from one
+    // stack slot higher (CR 603.3b).
+    const CASCADER_MV = 5;
+
+    /** A nonland card of an exact mana value, for the walk to compare. */
+    function registerFiller(id: string, generic: number): string {
+        registerTokenDefinition({
+            id,
+            name: id,
+            rarity: "common",
+            manaCost: { X: generic },
+            types: ["Sorcery"],
+            effects: [],
+        });
+        return id;
+    }
+    const EXPENSIVE_ID = registerFiller("test-op-cascade-expensive", 6);
+    const CHEAP_ID = registerFiller("test-op-cascade-cheap", 2);
+    const CASCADE_LAND_ID = "test-op-cascade-land";
+    registerTokenDefinition({
+        id: CASCADE_LAND_ID,
+        name: CASCADE_LAND_ID,
+        rarity: "common",
+        types: ["Land"],
+    });
+
+    function cascadeShape(id: string): string {
+        return registerScript(id, [{ op: "cascade", player: "controller" }], {
+            manaCost: { X: CASCADER_MV },
+        });
+    }
+
+    function libraryCard(
+        cardId: string,
+        instanceId: string
+    ): CardInstanceState {
+        return makeInstance(cardId, {
+            id: instanceId,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+    }
+
+    /** Top-down library. `library[0]` is the top (CR 401.1). */
+    function withLibrary(
+        library: CardInstanceState[],
+        seed = 12345
+    ): GameState {
+        return makeState({
+            players: [makePlayer("p1", { library }), makePlayer("p2")],
+            rngSeed: seed,
+        });
+    }
+
+    function goldenLibrary(): CardInstanceState[] {
+        // land (skipped, never stops the walk) → mana value 6 (nonland but NOT
+        // less than 5) → mana value 2 (the hit).
+        return [
+            libraryCard(CASCADE_LAND_ID, "casLand"),
+            libraryCard(EXPENSIVE_ID, "casBig"),
+            libraryCard(CHEAP_ID, "casHit"),
+            libraryCard(BEAR_ID, "casUntouched"),
+        ];
+    }
+
+    it("exiles from the top until a NONLAND card cheaper than the cascading spell (lands and too-expensive cards never stop the walk), offers a free Cast/Decline, and on accept puts the hit on the stack while the rest go to the BOTTOM (CR 702.85a)", () => {
+        const id = cascadeShape("test-op-cascade-accept");
+        const state = withLibrary(goldenLibrary());
+        pushSpell(state, id, "p1");
+        // The walk exiles three cards and suspends on the Cast/Decline offer.
+        expect(resolveTopOfStack(state)).toBeNull();
+        const exiledIds = state.players[0].exile.map((c) => c.id);
+        expect(exiledIds.sort()).toEqual(["casBig", "casHit", "casLand"]);
+        // The card BELOW the hit was never touched — the walk stops AT the hit.
+        expect(state.players[0].library.map((c) => c.id)).toEqual([
+            "casUntouched",
+        ]);
+        const offer = state.pendingChoices![0];
+        expect(offer.kind).toBe("option-pick");
+        expect(offer.options?.map((o) => o.id)).toEqual(["cast", "decline"]);
+
+        // Wire format (new-Op regime, CR 406.3): the cards are exiled FACE UP,
+        // so the OPPONENT's own projection carries their real identities — not
+        // the face-down sentinel.
+        const opponentView = projectPublicState(state, 1, "p2");
+        expect(
+            opponentView.players[0].exile.map((c) => c.card.id).sort()
+        ).toEqual([CASCADE_LAND_ID, CHEAP_ID, EXPENSIVE_ID].sort());
+        expect(
+            opponentView.players[0].exile.some(
+                (c) => c.card.id === FACE_DOWN_CARD_ID
+            )
+        ).toBe(false);
+
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: offer.stackItemId,
+            step: offer.step,
+            choiceId: offer.choiceId,
+            cardInstanceIds: ["cast"],
+        });
+        expect(state.pendingChoices).toBeUndefined();
+        // The hit is a real spell on the stack, cast for FREE (no mana was
+        // available at all — the pool is empty in this fixture).
+        expect(state.stack.some((s) => s.id === "casHit")).toBe(true);
+        // Everything else exiled this way went to the BOTTOM of the library,
+        // under the card the walk never reached.
+        expect(state.players[0].exile).toHaveLength(0);
+        const library = state.players[0].library.map((c) => c.id);
+        expect(library[0]).toBe("casUntouched");
+        expect(library.slice(1).sort()).toEqual(["casBig", "casLand"]);
+    });
+
+    it("DECLINING the free cast is legal, and the hit then goes to the bottom with the rest (CR 702.85a — 'that weren't cast')", () => {
+        const id = cascadeShape("test-op-cascade-decline");
+        const state = withLibrary(goldenLibrary());
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const offer = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: offer.stackItemId,
+            step: offer.step,
+            choiceId: offer.choiceId,
+            cardInstanceIds: ["decline"],
+        });
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack.some((s) => s.id === "casHit")).toBe(false);
+        expect(state.players[0].exile).toHaveLength(0);
+        const library = state.players[0].library.map((c) => c.id);
+        expect(library[0]).toBe("casUntouched");
+        expect(library.slice(1).sort()).toEqual([
+            "casBig",
+            "casHit",
+            "casLand",
+        ]);
+    });
+
+    it("a library with NO qualifying card is exiled whole, offers nothing at all, and goes straight back to the bottom (CR 101.3 / 609.3)", () => {
+        const id = cascadeShape("test-op-cascade-nohit");
+        const state = withLibrary([
+            libraryCard(CASCADE_LAND_ID, "noHitLand"),
+            libraryCard(EXPENSIVE_ID, "noHitBig"),
+        ]);
+        pushSpell(state, id, "p1");
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        // No suspension, no prompt — the ability finished in one pass.
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[0].exile).toHaveLength(0);
+        expect(state.players[0].library.map((c) => c.id).sort()).toEqual([
+            "noHitBig",
+            "noHitLand",
+        ]);
+    });
+
+    it("an EMPTY library exiles nothing and never prompts (CR 101.3)", () => {
+        const id = cascadeShape("test-op-cascade-empty");
+        const state = withLibrary([]);
+        pushSpell(state, id, "p1");
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.players[0].exile).toHaveLength(0);
+        expect(state.players[0].library).toHaveLength(0);
+    });
+
+    it("the bottom order comes from the SEEDED PRNG: the same seed reproduces it exactly, a different seed can differ, and `rngCounter` advances (never Math.random)", () => {
+        function bottomOrderFor(seed: number, id: string): string[] {
+            const state = withLibrary(
+                [
+                    libraryCard(CASCADE_LAND_ID, "seedA"),
+                    libraryCard(EXPENSIVE_ID, "seedB"),
+                    libraryCard(EXPENSIVE_ID, "seedC"),
+                    libraryCard(EXPENSIVE_ID, "seedD"),
+                    libraryCard(CHEAP_ID, "seedHit"),
+                ],
+                seed
+            );
+            pushSpell(state, cascadeShape(id), "p1");
+            resolveTopOfStack(state);
+            const offer = state.pendingChoices![0];
+            applyPendingChoiceSubmit(state, {
+                playerId: "p1",
+                stackItemId: offer.stackItemId,
+                step: offer.step,
+                choiceId: offer.choiceId,
+                cardInstanceIds: ["decline"],
+            });
+            expect(state.rngCounter).toBeGreaterThan(0);
+            return state.players[0].library.map((c) => c.id);
+        }
+        const a = bottomOrderFor(7, "test-op-cascade-seed-a");
+        const b = bottomOrderFor(7, "test-op-cascade-seed-b");
+        // Same seed, same ordering — the replay contract.
+        expect(a).toEqual(b);
+        // And it really is an ordering of the whole exiled pile.
+        expect(a.slice().sort()).toEqual(
+            ["seedA", "seedB", "seedC", "seedD", "seedHit"].sort()
+        );
+    });
+
+    it("survives a serialization round-trip mid-offer: the exiled pile and the hit are recalled rather than re-walked (CR 608.3)", () => {
+        const id = cascadeShape("test-op-cascade-resume");
+        const state = withLibrary(goldenLibrary());
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const revived = expandState(compactState(state));
+        const offer = revived.pendingChoices![0];
+        applyPendingChoiceSubmit(revived, {
+            playerId: "p1",
+            stackItemId: offer.stackItemId,
+            step: offer.step,
+            choiceId: offer.choiceId,
+            cardInstanceIds: ["cast"],
+        });
+        // A re-walk that re-ran the walk would have exiled a SECOND prefix off
+        // the library; the untouched card is still on top and alone.
+        expect(revived.stack.some((s) => s.id === "casHit")).toBe(true);
+        expect(revived.players[0].exile).toHaveLength(0);
+        expect(revived.players[0].library.map((c) => c.id)[0]).toBe(
+            "casUntouched"
+        );
+        expect(revived.players[0].library).toHaveLength(3);
+    });
+});
+
 describe("Effect Script Op: castDuringResolution — LAND branch, play during resolution (CR 116.2a / 305.2a / 305.3 / 305.2b, issue #1961)", () => {
     // The `includesLand` extension's permanent Op test. Shape: discard a LAND,
     // then offer a PLAY of it from the graveyard as part of THIS resolution —

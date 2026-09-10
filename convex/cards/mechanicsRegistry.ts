@@ -1518,7 +1518,39 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Cascade",
         kind: "keyword-ability",
         cr: "702.85",
-        status: "planned",
+        status: "implemented",
+        // Issue #3216 — "cascade" is a TRIGGERED ability (CR 702.85a), not a
+        // static one, and it is expanded IMPLICITLY from the bare
+        // `staticAbilities` string at the `getDefinition` seam
+        // (`expandCascade`, chained in `convex/cards/registry.ts` alongside
+        // `expandHideaway` / `expandAnnihilator` / `expandKeywordTriggers`,
+        // ADR 0054). A card declares ONLY the string; the seam injects the
+        // CR 702.85a cast trigger, so the keyword can never be printed with
+        // nothing enforcing it (the deathtouch/hexproof shape Guard A catches)
+        // and the trigger can never be declared without the keyword.
+        //
+        // The trigger is a `spellCastTrigger({ scope: "self" })`, so it carries
+        // `functionsFromStack` and is collected by `collectSelfCastTriggers`
+        // (CR 603.6e) — the only sweep that can see a trigger whose source is
+        // the spell being announced — and lands ABOVE that spell, which is why
+        // the free spell resolves FIRST (CR 603.3b).
+        //
+        // Its body is the single `cascade` Op (fully declarative, ADR 0045 —
+        // no `resolve()`), whose registry row carries the rules-level
+        // derivation: the live mana-value threshold, the `matchesCardFilter`
+        // walk, the face-up CR 406.3 exile, the shared
+        // `runCastDuringResolution` offer and the seeded-PRNG random bottom.
+        //
+        // CR 702.85c (multiple instances trigger separately) is the reason
+        // `expandCascade` counts EVERY matching `staticAbilities` entry rather
+        // than the first, the `expandAnnihilator` shape — two instances inject
+        // two abilities with DISTINCT ids and the collector pushes one stack
+        // object per ability.
+        //
+        // OUT OF SCOPE (issue #3216): CR 702.85b's "as you cascade" riders —
+        // no card in the pool prints one, and the rider is a permission granted
+        // by a SEPARATE permanent, not part of the keyword.
+        binding: "cascade",
     },
     // 702.86 Annihilator
     {
@@ -2855,6 +2887,15 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         cr: "601.3 / 118.9",
         binding: "SpellContext.grantCastFromGraveyard",
         note: 'Grant cast permission for a graveyard card named by `card`, an EffectObjectSelector: either a bare picks ref (the card a preceding Op bound — typically the just-discarded card from a choice(kind: "choose-hand-card") + discard pair) or an announced target slot `{ target: n }` (CR 601.2c — issue #1650, Emry, Lurker of the Loch: "{T}: Choose target artifact card in your graveyard. You may cast that card this turn."; the slot must still hold a graveyard-card selection or the Op is skipped, CR 608.2b). Optionally ALSO waives its mana cost entirely (CR 601.3 / 118.9, issue #1344 — Malcolm, Alluring Scoundrel: "If there are four or more chorus counters on Malcolm, you may cast the discarded card without paying its mana cost"). A thin declarative Op skin over the SpellContext primitive `grantCastFromGraveyard`, one execution path (ADR 0045) — the graveyard-sourced twin of `grantCastFromExile` (issue #1156), generalizing the SAME per-card grant shape to a second zone rather than adding a card-shaped primitive (ADR 0045 primitive reuse). Always SAME-PLAYER (no `zoneOwnerId` — no cross-player graveyard-cast primitive exists in this engine, `castZoneOwner`\'s doc in `convex/game.ts`). Stamps `castableFromGraveyardBy` (+ `castFromGraveyardWithoutPayingManaCost` when `withoutPayingManaCost` is set) on the picked `CardInstanceState`, consulted by `castRawManaCost` (`convex/game.ts`) and `getLegalActions`\'s graveyard-grant affordability branch (`gre/rules.ts`). `window` mirrors the exile primitive\'s own turn-scoping. DIVERGENCE (issue #1344, out of scope): Malcolm\'s Oracle ruling requires the free cast to happen as part of the triggered ability\'s own resolution, ignoring the card\'s timing restrictions ("you can\'t wait to cast the spell later in the turn"); this Op instead grants an ordinary "this-turn" impulse cast window, the SAME simplification every other impulse-cast card in this engine already uses (Expressive Iteration, Headliner Scarlett). Malcolm itself no longer relies on this Op — it uses `castDuringResolution` (CR 608.2f, issue #1477) for its real "cast as part of resolution" behaviour; this impulse-window Op remains for cards whose Oracle text genuinely grants a later-in-turn window. `exilesOnResolve` (issue #2380) is the second orthogonal rider: the granted cast EXILES the card as it leaves the stack instead of putting it into its owner\'s graveyard (Jace, Telepath Unbound\'s −3: "If that spell would be put into your graveyard, exile it instead."), stamping `CardInstanceState.castFromGraveyardExilesOnResolve`, read at cast-commit by `graveyardCastStackFlags` (`convex/game.ts`) and applied through the SAME `exileOnResolve` stack-item flag Flashback\'s CR 702.34a exile already uses — one exile-as-it-leaves-the-stack path, not a parallel one.',
+    },
+    {
+        op: "cascade",
+        status: "implemented",
+        cr: "702.85",
+        mechanicId: "cascade",
+        binding:
+            "SpellContext.getManaValue / getLibraryCards / peekLibraryTop / markKnownToAll / notifyReveal / moveCardById / putCardsOnBottomInRandomOrder + runCastDuringResolution",
+        note: 'Effect Script Op for the CR 702.85a CASCADE keyword (issue #3216): exile cards from the top of `player`\'s library until a nonland card whose mana value is less than the cascading spell\'s is exiled, offer that card as a FREE cast during this same resolution, then put every card exiled this way that was not cast on the BOTTOM of the library in a random order. Emitted ONLY by `expandCascade` (convex/cards/abilities/cascade.ts) from a card\'s bare `cascade` keyword string — a card never writes this Op by hand, exactly the `hideaway` arrangement, so the keyword\'s rules text lives in one place and the keyword can never be printed with nothing enforcing it (the deathtouch/hexproof shape Guard A catches). THREE CLAUSES, ONE OP, because they are one atomic sequence: the middle clause SUSPENDS on a live Cast/Decline and the third has to run after it holding the SAME exiled pile, which no binding can carry across (`revealUntilMatch` deliberately has no `bind`, and `forEach` walks a set fixed up front rather than a library with a stop condition). The nearest neighbour, `castDuringResolution` with `fromTopOfLibrary`, exiles exactly ONE card and stops; widening it to a conditional walk plus a random-order tail would bolt a cascade-shaped mode onto an Op whose contract is "offer one named card" — the mode-flag shape ADR 0045 forbids. THRESHOLD (CR 202.3 / 702.85a): "this spell\'s mana value" is read LIVE off the cascading spell — the trigger sits ABOVE its own spell (CR 603.3b, `collectSelfCastTriggers`), so `getManaValue({ type: "spell", id: ctx.sourceInstanceId })` finds it on the stack with its `chosenX` folded in (CR 202.3b) — never the printed cost baked in at definition time, which would be wrong the day a cascade card with {X} is printed. "Less than N" is `manaValueAtMost: N - 1` (mana values are integers) on `matchesCardFilter`, the same filter authority every other hidden-zone selector uses; lands never stop the walk (`excludeType: "Land"`) and go to the bottom with the rest. THE SECOND COMPARISON ("if the resulting spell\'s mana value is less than this spell\'s mana value") is provably vacuous here rather than skipped: the offer is a FREE cast, so X in the waived cost is 0 (CR 107.3b), and a card in exile is read with X = 0 too (CR 202.3b), making the resulting spell\'s mana value EQUAL to the one the walk compared; choosing a mode does not change a mana cost either, and the only shapes that could diverge (split / modal-DFC / Adventure) are not castable through this path. VISIBILITY (CR 406.3): the exiled cards are FACE UP and public — `markKnownToAll` grants the identities while the cards are still leaving the HIDDEN library, `notifyReveal` is the transient dialog, the `revealUntilMatch` / `explore` pair. The cast reuses `runCastDuringResolution` VERBATIM (ADR 0045, one execution path) with the hit handed over as an ordinary picks binding, `source: "exile"`, `free: true` — the Cast/Decline offer, the mode / X / additional-cost / target picks and the CR 601.3a cast gate are all the shipped ones, so a declined or forbidden cast simply leaves the card in exile for the tail. THE TAIL is the new `SpellContext.putCardsOnBottomInRandomOrder`, the set-scoped sibling of `putGraveyardOnBottomOfLibrary`: `seededShuffle` off `rngSeed`/`rngCounter` (never `Math.random` — determinism, ADR 0026-adjacent replay contract), then one `moveCardById` per card in the shuffled order, which appends to the library (index end = bottom). "That weren\'t cast" is the ZONE check rather than a second bookkeeping list — the card that WAS cast is on the stack and is silently skipped (CR 608.2b). Knowledge is cleared on the moved cards even though they were public a moment earlier: both players saw WHICH cards went back, neither knows WHERE. CR 702.85c (multiple instances trigger separately) is the expansion\'s job, not this Op\'s — `expandCascade` injects one trigger per declared instance with distinct ids. CR 702.85b ("as you cascade" riders) is out of scope: no card in the pool prints one. Every miss is a CR 608.2b/101.3 no-op that never suspends: a gone player, an empty library, and a walk that reaches the bottom with no qualifying card (whole library exiled, nothing cast, everything back on the bottom in a random order — CR 609.3, as far as possible).',
     },
     {
         op: "castDuringResolution",

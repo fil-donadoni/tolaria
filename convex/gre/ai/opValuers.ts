@@ -201,6 +201,7 @@ const SKIP_DRAW_STEP_DISRUPTION_VALUE = 40; // the mirror case — denying ANOTH
 // resolution.
 const CAST_DURING_RESOLUTION_FREE_VALUE = 55; // a free mini-cast (Cascade-style) — a hair above a drawn card (one `latent.cardAdvantage` unit), since no mana is spent
 const CAST_DURING_RESOLUTION_PAID_VALUE = 20; // a pay-the-cost mini-cast — matches GRANT_CAST_VALUE's "permission to cast" scale, since the mana cost offsets most of the card's own worth
+const CASCADE_VALUE = 50; // CR 702.85a (issue #3216) — a free mini-cast of a cheaper spell off the top, a hair UNDER CAST_DURING_RESOLUTION_FREE_VALUE: the caster does not choose the card, the walk can miss entirely, and the remainder is buried
 const COPY_TOKEN_REPRESENTATIVE_STAT = 2; // unknown copied body's P/T — same representative magnitude `grounding.ts`'s CF_ASSUMED_REF uses for a bound ref
 
 /** The WALK-LOCAL binding scope threaded down an Effect Script by
@@ -1272,6 +1273,18 @@ const castDuringResolution: Valuer<"castDuringResolution"> = (op) => ({
     tags: tagScaling(true, "cardAdvantage"),
 });
 
+// CR 702.85a (issue #3216) — cascade's whole triggered ability. Valued like the
+// free `castDuringResolution` it literally runs for its middle clause, one notch
+// lower: the cast is free, but the caster picks nothing (the walk names the
+// card), the walk can end with no qualifying card at all, and the cards it
+// exiled are buried on the bottom rather than kept. `board-scaling` for the
+// same reason `castDuringResolution` is — which spell comes off the top is
+// unknowable to a flat static model.
+const cascade: Valuer<"cascade"> = () => ({
+    points: CASCADE_VALUE,
+    tags: tagScaling(true, "cardAdvantage"),
+});
+
 const grantCastFromExile: Valuer<"grantCastFromExile"> = () => ({
     points: GRANT_CAST_VALUE,
     tags: ["cardAdvantage"],
@@ -1769,6 +1782,7 @@ export const OP_VALUERS: {
     attach,
     becomeMonarch,
     castDuringResolution,
+    cascade,
     choice: choiceOp,
     createTokenCopy,
     delayedTrigger,
@@ -1993,6 +2007,10 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     grantCastTiming: "beneficial",
     grantSpellManaSubstitution: "beneficial",
     castDuringResolution: "beneficial",
+    // CR 702.85a (issue #3216) — a free extra spell for the cascading spell's
+    // own controller. The buried remainder is a real cost, but it is paid by
+    // the same player who takes the gift and never redirects the stake.
+    cascade: "beneficial",
     returnExiledForSource: "beneficial",
     setProtectionFromEverything: "beneficial",
     setIslandSanctuaryProtection: "beneficial",

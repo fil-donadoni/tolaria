@@ -373,6 +373,21 @@ const OFFER_PROMPT = {
     cast: "You may cast the card. Cast it or decline.",
 } as const;
 
+/** CR 702.85a (issue #3216) — the picks binding the `cascade` Op writes the
+ *  card its walk stopped on into, so `runCastDuringResolution` can name it with
+ *  the ordinary `card: { ref }` shape instead of growing a cascade-specific
+ *  selector. Scoped to the resolving stack item's own `collectedChoices`
+ *  (`noteChoice`), so two cascade triggers resolving in the same turn never
+ *  share it. */
+const CASCADE_HIT_BINDING = "$cascadeHit";
+
+/** CR 702.85a (issue #3216) — the sentinel the `cascade` Op persists when its
+ *  walk reached the bottom of the library without a qualifying card. A real
+ *  instance id never collides with it, and it exists because "no hit" has to be
+ *  a REMEMBERED outcome: on a resume the walk is not re-run, so the absence of
+ *  a hit must be readable back rather than re-derived. */
+const CASCADE_NO_HIT = "#none";
+
 /** Boolean payload stored by a `mayPay` Op (issue #806): the single-element
  *  `["yes"]` / `["no"]` array `requestMayPay` persists (mirroring the may-pay
  *  Pending Choice answer). Read by an `if` binding predicate. */
@@ -2425,331 +2440,138 @@ export const OP_EXECUTORS: {
             ...(op.exilesOnResolve ? { exilesOnResolve: true } : {}),
         });
     },
-    // CR 608.2g (issue #1477) — play a card as PART OF this resolution: a "you
-    // may cast/play <card>" with no stated duration, which exists ONLY during
-    // the resolution of the ability that grants it. Reuses the resolve-time
-    // mini-cast (`SpellContext.castChosenSpell`, ADR 0037) and the
-    // interpreter's own suspend/resume seam. SELF-cast: actingPlayer ==
-    // controller == `player`. NO priority passes to the opponent between the
-    // offer and the inline cast — the Cast/Decline prompt and the cast card's
-    // own target/mode/X picks are resolve-time choices, not priority; normal
-    // priority resumes only once the parent ability finishes with the new
-    // spell on the stack (CR 608.2g). Timing / card-type restrictions are
-    // ignored: CR 117.1a / 302.1 / 307.1 grant their permissions to "a player
-    // WHO HAS PRIORITY", and this happens outside priority, so the effect
-    // itself is the permission — a creature or sorcery is effectively castable
-    // at instant speed, on either player's turn. Distinct from
-    // `grantCastFrom*` (which stamp a later-in-turn impulse window) — nothing
-    // is saved for later (Malcolm's Oracle ruling; Hideaway's too, #1961).
+    // CR 608.2g (issue #1477) — play a card as PART OF this resolution.
+    // The whole implementation is `runCastDuringResolution` (below), a named
+    // module function rather than an inline method for one reason: the CASCADE
+    // Op (CR 702.85a, issue #3216) has to run the IDENTICAL offer → mode → X →
+    // additional-cost → target → commit sequence for the card its walk exiled,
+    // and ADR 0045 allows exactly one execution path for it, not a second copy.
+    castDuringResolution: runCastDuringResolution,
+    // CR 702.85a (issue #3216) — the CASCADE keyword's whole triggered ability,
+    // in three clauses that must run in this order and share one exiled pile:
+    // the WALK (exile from the top until a nonland card cheaper than this
+    // spell), the free CAST offer, and the random-order BOTTOM tail.
     //
-    // The LAND branch (`includesLand`, issue #1961) is genuinely NARROWER, not
-    // instant-speed: playing a land is a SPECIAL ACTION (CR 116.2a) that
-    // consumes the drop even mid-resolution (CR 305.2a), can't happen on the
-    // opponent's turn (CR 305.3) and can't happen with the drop spent
-    // (CR 305.2b). See `getChosenLandPlayable`.
-    castDuringResolution(ctx, op) {
-        // Idempotent across a re-walk (CR 608.3 — a completed step never
-        // re-runs): once the mini-cast has committed (or the Op has terminally
-        // passed/declined), a LATER Op suspending would re-walk this Op; a
-        // done-marker keyed under this Op's checkpoint short-circuits it so the
-        // spell is never cast twice. Keyed on the pre-order checkpoint set by
-        // `runOpList` right before dispatch (stable across replays).
+    // Emitted only by `expandCascade` (cards/abilities/cascade.ts) — a card
+    // never writes this Op by hand, the `hideaway` arrangement.
+    //
+    // SUSPENDS on the cast offer, so this executor runs more than once (CR
+    // 608.3 — the interpreter checkpoints at this Op and re-enters HERE, not at
+    // position 0). Everything that must happen EXACTLY once is keyed under the
+    // checkpoint: the walk's exiled ids, and which of them was the hit.
+    cascade(ctx, op) {
         const pos = ctx.getScriptCheckpoint() ?? 0;
-        const doneKey = `#castDuringResolution:${pos}`;
+        const doneKey = `#cascade:${pos}`;
         if (ctx.recallChoice(doneKey) !== undefined) return;
-
         const playerId = resolvePlayerRef(ctx, op.player);
-        if (playerId === undefined) return; // CR 608.2b — caster gone, skip
+        // CR 608.2b — the caster is gone; nothing to exile, nothing to bottom.
+        if (playerId === undefined) {
+            ctx.noteChoice(doneKey, ["pass"]);
+            return;
+        }
 
-        // Records the terminal outcome exactly once: the internal done-marker
-        // (short-circuits a re-walk, CR 608.3) AND — when the author asked for
-        // one — the boolean OUTCOME binding a downstream `if` reads (issue
-        // #1478, Chandra's "If you don't [cast it], …"). `cast` is true only
-        // when a spell actually reached the stack; a decline, a silent pass, an
-        // unmeetable cost, or an unpayable mana cost all read `false` (mirrors
-        // `mayPay`'s `["yes"]`/`["no"]` boolean payload).
-        const finish = (cast: boolean, marker: string) => {
-            ctx.noteChoice(doneKey, [marker]);
-            if (op.resultBind !== undefined) {
-                ctx.noteChoice(op.resultBind, [cast ? MAYPAY_YES : "no"]);
-            }
-        };
+        // CR 702.85a / 202.3 — "this spell's mana value". The cascade trigger
+        // was put on the stack ABOVE its own spell (CR 603.3b,
+        // `collectSelfCastTriggers`), so the spell is still there while this
+        // resolves and `ctx.sourceInstanceId` IS its stack-item id: the value
+        // is read live, with the spell's `chosenX` folded in (CR 202.3b),
+        // rather than baked in from the printed cost at definition time.
+        const threshold = ctx.getManaValue({
+            type: "spell",
+            id: ctx.sourceInstanceId,
+        });
 
-        // Resolve the card to offer and its effective SOURCE zone. Three shapes:
-        //  - `fromTopOfLibrary` (issue #1478, Chandra +1) — exile the top card
-        //    of the caster's library UNCONDITIONALLY as the first thing the Op
-        //    does (CR 608.2g), then offer that exiled card; a decline / can't-
-        //    pay leaves it in exile. The exiled id is persisted under the Op's
-        //    checkpoint so a suspend/resume re-walk reuses it rather than
-        //    exiling a second card (CR 608.3).
-        //  - `card` as a bare picks ref + `source` (issue #1477, Malcolm) — a
-        //    card an earlier Op in the SAME script bound, played from its
-        //    graveyard/exile source.
-        //  - `card` as `{ exiledWithSource: true }` (issue #1961, CR 607 LINKED
-        //    abilities — Hideaway's "you may play the exiled card"): the card
-        //    THIS ability's own source permanent exiled and stamped via
-        //    `linkExileToSource`, read back through `getCardsExiledWith`. No
-        //    binding can name it, because the exiling ability and the play
-        //    ability are two SEPARATE abilities resolving at different times and
-        //    a `bind` cannot span two resolutions — the CR 607 link IS the
-        //    identity. Always from exile. Hideaway links exactly one card; a
-        //    source that linked several offers the first (the Oracle text says
-        //    "THE exiled card", singular).
-        let cardInstanceId: string | undefined;
-        let sourceZone: "graveyard" | "exile";
-        if (op.fromTopOfLibrary) {
-            sourceZone = "exile";
-            const exiledKey = `#cdrExiled:${pos}`;
-            const recalled = ctx.recallChoice(exiledKey);
-            if (recalled !== undefined) {
-                cardInstanceId = recalled[0];
-            } else {
-                const topId = ctx.peekLibraryTop(playerId, 1)[0];
-                if (topId === undefined) {
-                    finish(false, "pass"); // empty library — nothing to exile
-                    return;
+        // PHASE 1 — the walk (once). "Exile cards from the top of your library
+        // until you exile a nonland card whose mana value is less than this
+        // spell's mana value." Mana values are integers, so "less than N" is
+        // `manaValueAtMost: N - 1` on the single filter authority every other
+        // hidden-zone selector goes through; a threshold of 0 matches nothing
+        // and exiles the whole library, which is what CR 702.85a says happens.
+        const exiledKey = `#cascadeExiled:${pos}`;
+        const hitKey = `#cascadeHit:${pos}`;
+        let exiled = ctx.recallChoice(exiledKey);
+        let hitId: string | undefined;
+        if (exiled === undefined) {
+            // Characteristics first, BEFORE anything moves — the same
+            // `getLibraryCards` (order-agnostic, for the characteristics) plus
+            // ONE `peekLibraryTop` (the only primitive that returns library ids
+            // in TOP-DOWN order, which is what "until" means) pair
+            // `revealUntilMatch` uses.
+            const byId = new Map(
+                ctx.getLibraryCards(playerId).map((c) => [c.id, c])
+            );
+            const ordered = ctx.peekLibraryTop(playerId, byId.size);
+            const walked: string[] = [];
+            for (const id of ordered) {
+                const card = byId.get(id);
+                if (card === undefined) continue; // no longer there
+                walked.push(id);
+                if (
+                    matchesCardFilter(ctx, card, {
+                        excludeType: "Land",
+                        manaValueAtMost: threshold - 1,
+                    })
+                ) {
+                    hitId = id;
+                    break; // the walk stops AT the qualifying card, inclusive
                 }
-                ctx.moveCardById(playerId, topId, "library", "exile");
-                ctx.noteChoice(exiledKey, [topId]);
-                cardInstanceId = topId;
             }
-        } else if (op.card !== undefined && "exiledWithSource" in op.card) {
-            sourceZone = "exile";
-            cardInstanceId = ctx.getCardsExiledWith(ctx.sourceInstanceId)[0]
-                ?.id;
-        } else if (op.card !== undefined) {
-            sourceZone = op.source ?? "exile";
-            const ids = resolvePicks(ctx, op.card);
-            cardInstanceId = ids && ids.length > 0 ? ids[0] : undefined;
+            // CR 101.3 — an empty library exiles nothing, casts nothing and
+            // bottoms nothing; the ability is a clean no-op that never
+            // suspends and never prompts.
+            if (walked.length === 0) {
+                ctx.noteChoice(doneKey, ["pass"]);
+                return;
+            }
+            // CR 406.3 — cards exiled with cascade are exiled FACE UP and are
+            // public information. Exile is an open zone, so the grant is what
+            // makes the identities public while they are still leaving a
+            // HIDDEN one; `notifyReveal` is the transient dialog that shows
+            // both players what came off the top. The same pair
+            // `revealUntilMatch` / `revealTopAndRoute` / `explore` fire.
+            ctx.markKnownToAll(playerId, walked);
+            ctx.notifyReveal(
+                [...ctx.allPlayerIds],
+                walked,
+                ctx.sourceCardId,
+                "reveal"
+            );
+            for (const id of walked) {
+                ctx.moveCardById(playerId, id, "library", "exile");
+            }
+            ctx.noteChoice(exiledKey, walked);
+            ctx.noteChoice(hitKey, [hitId ?? CASCADE_NO_HIT]);
+            exiled = walked;
         } else {
-            sourceZone = op.source ?? "exile";
-            cardInstanceId = undefined;
+            const recalledHit = ctx.recallChoice(hitKey)?.[0];
+            hitId = recalledHit === CASCADE_NO_HIT ? undefined : recalledHit;
         }
 
-        // Silent pass (CR 608.2b): the selector resolved to nothing — the
-        // binding was never captured, or the CR 607 source linked nothing.
-        if (cardInstanceId === undefined) {
-            finish(false, "pass");
-            return;
-        }
-
-        // CR 406.3 — ONE offer shape for the whole Op when it can reach a land:
-        // the prompt and the option labels must not differ between the land
-        // branch and the cast branch, or the mere wording discloses the hidden
-        // card's type to the opponent (`pendingChoices` is projected unredacted
-        // and the non-chooser's client renders `prompt` verbatim).
-        const offerOptions = op.includesLand
-            ? PLAY_DECLINE_OPTIONS
-            : CAST_DECLINE_OPTIONS;
-        const offerPrompt = op.includesLand
-            ? OFFER_PROMPT.play
-            : OFFER_PROMPT.cast;
-
-        // CR 116.2a / 305.9 — a LAND is PLAYED, never cast. `includesLand` is
-        // set only by a grant whose Oracle text says "play" (Hideaway); without
-        // it a land silently passes, which is the official Malcolm land ruling
-        // and stays the default for every "cast" grant. A land+other-type card
-        // can only be played as a land (CR 305.9), so this branch wins first.
-        if (
-            op.includesLand &&
-            ctx.getChosenLandPlayable(playerId, cardInstanceId, sourceZone)
-        ) {
-            // "you may PLAY the exiled card" — the same resolve-time
-            // `option-pick` as the cast branch, byte-identical in prompt and
-            // options (see `OFFER_PROMPT`). The text deliberately does NOT name
-            // the card either: a hideaway card is FACE DOWN (CR 406.3, visible
-            // only to its controller) and `pendingChoices` crosses the wire
-            // unredacted to BOTH viewers, so naming it in the prompt — or
-            // pinning it via `subjectCardId` — would leak the hidden identity.
-            const landDecision = ctx.requestOptionChoice({
-                playerId,
-                choiceId: "cdr:decide",
-                options: offerOptions,
-                prompt: offerPrompt,
+        // PHASE 2 — "You may cast that card without paying its mana cost."
+        // The offer, the mode / X / additional-cost / target picks and the
+        // commit are `runCastDuringResolution` verbatim (ADR 0045 — one
+        // execution path): the hit is handed over as an ordinary picks
+        // binding, from exile, free. A decline, or a card the CR 601.3a cast
+        // gate refuses, leaves it in exile for phase 3 to bottom.
+        if (hitId !== undefined) {
+            ctx.noteChoice(CASCADE_HIT_BINDING, [hitId]);
+            const outcome = runCastDuringResolution(ctx, {
+                op: "castDuringResolution",
+                player: op.player,
+                card: { ref: CASCADE_HIT_BINDING },
+                source: "exile",
+                free: true,
             });
-            if (landDecision === undefined) return "suspend"; // enqueued — wait
-            if (landDecision !== "cast") {
-                // Declined — the land stays in its source zone (still face down
-                // if it was), nothing enters, and no later-in-turn window is
-                // stamped: the CR 608.2g permission dies with this resolution.
-                finish(false, "decline");
-                return;
-            }
-            // CR 305.2a — the land enters through the canonical play-land
-            // transition and CONSUMES the player's land drop.
-            const played = ctx.playLandForPlayer(playerId, cardInstanceId, {
-                sourceZone,
-            });
-            finish(played, played ? "cast" : "pass");
-            return;
+            if (outcome === "suspend") return "suspend";
         }
 
-        // Silent pass (CR 608.2b / the Malcolm land ruling): the card is no
-        // longer in the source zone (empty source), or it is a land the grant
-        // can't reach — either a "cast"-only grant (no `includesLand`) or a
-        // "play" grant whose CR 305 legality failed (opponent's turn per CR
-        // 305.3, land drop already spent per CR 305.2b, a CR 614 land-play
-        // lock). No prompt is offered at all — the ability finishes silently
-        // and the resolution completes cleanly.
-        if (!ctx.getChosenCardCastable(playerId, cardInstanceId, sourceZone)) {
-            finish(false, "pass");
-            return;
-        }
-
-        // "you may cast" — a Cast / Decline `option-pick` (Play / Decline for a
-        // grant that can also reach a land, identical to the land branch above
-        // so the branch taken stays hidden — CR 406.3), a resolve-time choice
-        // routed to the caster (CR 608.2g: NOT priority, the opponent cannot act
-        // here). Reuses the existing suspend/resume seam.
-        const decision = ctx.requestOptionChoice({
-            playerId,
-            choiceId: "cdr:decide",
-            options: offerOptions,
-            prompt: offerPrompt,
-        });
-        if (decision === undefined) return "suspend"; // enqueued — wait
-        if (decision !== "cast") {
-            // Declined — the card stays in its source zone, nothing is cast,
-            // and (unlike `grantCastFrom*`) no later-in-turn window is stamped.
-            finish(false, "decline");
-            return;
-        }
-
-        // MODE (CR 700.2c) — a modal card's chosen mode drives its targeting
-        // (CR 700.2d). Non-modal cards skip this.
-        const modes = ctx.getCardModes(playerId, cardInstanceId);
-        let chosenModeId: string | undefined;
-        if (modes.length > 0) {
-            const pickedMode = ctx.requestOptionChoice({
-                playerId,
-                choiceId: "cdr:mode",
-                options: modes,
-                prompt: "Choose a mode for the card you are casting.",
-            });
-            if (pickedMode === undefined) return "suspend";
-            chosenModeId = pickedMode;
-        }
-
-        // X (CR 107.3) — only for a PAID cast. A free cast waives the mana
-        // cost, so X in that waived cost is 0 (CR 107.3b) — no prompt.
-        let chosenX: number | undefined;
-        if (!op.free && ctx.cardHasXCost(playerId, cardInstanceId)) {
-            const maxX = ctx.getMaxAffordableX(
-                playerId,
-                cardInstanceId,
-                chosenModeId
-            );
-            const xOptions = Array.from({ length: maxX + 1 }, (_, n) => ({
-                id: String(n),
-                label: `X = ${n}`,
-            }));
-            const pickedX = ctx.requestOptionChoice({
-                playerId,
-                choiceId: "cdr:x",
-                options: xOptions,
-                prompt: "Choose the value of X.",
-            });
-            if (pickedX === undefined) return "suspend";
-            chosenX = Number(pickedX);
-        }
-
-        // ADDITIONAL COST — sacrifice (CR 118.8). Applies even to a free cast
-        // (only the mana cost is waived). No matching permanent => the cost is
-        // unmeetable, the card is NOT cast ("if able").
-        const sacrificeFilter = ctx.getCardSacrificeFilter(
-            playerId,
-            cardInstanceId
-        );
-        let additionalSacrificeId: string | undefined;
-        if (sacrificeFilter) {
-            const candidateIds = ctx.getBattlefieldIds(
-                playerId,
-                sacrificeFilter
-            );
-            if (candidateIds.length === 0) {
-                finish(false, "pass"); // unmeetable — not cast
-                return;
-            }
-            const pickedSac = ctx.requestChoice({
-                playerId,
-                choiceId: "cdr:sacrifice",
-                kind: "choose-permanents",
-                zone: "battlefield",
-                zoneOwnerId: playerId,
-                filter: sacrificeFilter,
-                candidateIds,
-                count: 1,
-                prompt: "Choose a permanent to sacrifice.",
-            });
-            if (pickedSac === undefined) return "suspend";
-            additionalSacrificeId = pickedSac[0];
-            if (!additionalSacrificeId) return;
-        }
-
-        // TARGETS (CR 601.2c) — the caster chooses targets for the cast card
-        // (the chosen mode's requirement for a modal card, CR 700.2d). Reuses
-        // `getLegalTargetsForCard` exactly as a normal cast does. No legal
-        // target => the card is NOT cast ("if able").
-        const targetReq = chosenModeId
-            ? ctx.getCardModeTargetRequirement(
-                  playerId,
-                  cardInstanceId,
-                  chosenModeId
-              )
-            : ctx.getCardTargetRequirement(playerId, cardInstanceId);
-        let chosenTargets: TargetSelection[] | undefined;
-        if (targetReq) {
-            const legal = ctx.getLegalTargetsForCard(
-                playerId,
-                cardInstanceId,
-                targetReq
-            );
-            if (legal.length === 0) {
-                finish(false, "pass"); // no legal target — not cast
-                return;
-            }
-            const candidatePlayerIds = legal
-                .filter((t) => t.type === "player")
-                .map((t) => t.id);
-            const candidateIds = legal
-                .filter((t) => t.type !== "player")
-                .map((t) => t.id);
-            const pickedTarget = ctx.requestChoice({
-                playerId,
-                choiceId: "cdr:target",
-                kind: "choose-damage-target",
-                zone: "battlefield",
-                count: 1,
-                candidateIds,
-                candidatePlayerIds,
-                prompt: "Choose a target for the card you are casting.",
-            });
-            if (pickedTarget === undefined) return "suspend";
-            const pickedId = pickedTarget[0];
-            if (!pickedId) return;
-            const selected = legal.find((t) => t.id === pickedId);
-            if (!selected) return; // pick no longer legal (CR 608.2b)
-            chosenTargets = [selected];
-        }
-
-        // Commit the mini-cast. Self-cast: actingPlayerId == playerId. The
-        // spell is spliced onto the stack just BELOW the resolving ability
-        // (`castChosenSpell`) so it becomes the new top and resolves next —
-        // with NO priority in between (CR 608.2f). `free` waives the mana cost
-        // (Malcolm), `sourceZone` is the zone it is cast from. The boolean
-        // return (issue #1478) is `false` when the normal mana cost is
-        // unpayable (CR 117.3 / 601.2g) — the card stays in its source zone and
-        // the outcome binding reads "not cast" so a downstream `if not $cast`
-        // fires (Chandra's 2 damage to each opponent).
-        const cast = ctx.castChosenSpell(playerId, cardInstanceId, playerId, {
-            targets: chosenTargets,
-            chosenX,
-            chosenModeId,
-            additionalSacrificeId,
-            sourceZone,
-            free: op.free,
-        });
-        finish(cast, cast ? "cast" : "pass");
+        // PHASE 3 — "Then put all cards exiled this way that weren't cast on
+        // the bottom of your library in a random order." The whole exiled set
+        // is offered to the primitive; the one card that WAS cast is no longer
+        // in exile and is skipped there (CR 608.2b), so "that weren't cast" is
+        // the zone check rather than a second bookkeeping list.
+        ctx.putCardsOnBottomInRandomOrder(playerId, exiled, "exile");
+        ctx.noteChoice(doneKey, ["done"]);
     },
     // CR 106.1 (issue #850) — add mana to a player's mana pool. A thin
     // declarative skin over the SpellContext primitive `addManaTo`, ONE
@@ -6499,4 +6321,328 @@ export function runDelayedTriggerBody(
         }
     }
     runEffectScript(ctx, effects);
+}
+
+// CR 608.2g (issue #1477) — play a card as PART OF this resolution: a "you
+// may cast/play <card>" with no stated duration, which exists ONLY during
+// the resolution of the ability that grants it. Reuses the resolve-time
+// mini-cast (`SpellContext.castChosenSpell`, ADR 0037) and the
+// interpreter's own suspend/resume seam. SELF-cast: actingPlayer ==
+// controller == `player`. NO priority passes to the opponent between the
+// offer and the inline cast — the Cast/Decline prompt and the cast card's
+// own target/mode/X picks are resolve-time choices, not priority; normal
+// priority resumes only once the parent ability finishes with the new
+// spell on the stack (CR 608.2g). Timing / card-type restrictions are
+// ignored: CR 117.1a / 302.1 / 307.1 grant their permissions to "a player
+// WHO HAS PRIORITY", and this happens outside priority, so the effect
+// itself is the permission — a creature or sorcery is effectively castable
+// at instant speed, on either player's turn. Distinct from
+// `grantCastFrom*` (which stamp a later-in-turn impulse window) — nothing
+// is saved for later (Malcolm's Oracle ruling; Hideaway's too, #1961).
+//
+// The LAND branch (`includesLand`, issue #1961) is genuinely NARROWER, not
+// instant-speed: playing a land is a SPECIAL ACTION (CR 116.2a) that
+// consumes the drop even mid-resolution (CR 305.2a), can't happen on the
+// opponent's turn (CR 305.3) and can't happen with the drop spent
+// (CR 305.2b). See `getChosenLandPlayable`.
+function runCastDuringResolution(
+    ctx: SpellContext,
+    op: OpOf<"castDuringResolution">
+): OpOutcome {
+    // Idempotent across a re-walk (CR 608.3 — a completed step never
+    // re-runs): once the mini-cast has committed (or the Op has terminally
+    // passed/declined), a LATER Op suspending would re-walk this Op; a
+    // done-marker keyed under this Op's checkpoint short-circuits it so the
+    // spell is never cast twice. Keyed on the pre-order checkpoint set by
+    // `runOpList` right before dispatch (stable across replays).
+    const pos = ctx.getScriptCheckpoint() ?? 0;
+    const doneKey = `#castDuringResolution:${pos}`;
+    if (ctx.recallChoice(doneKey) !== undefined) return;
+
+    const playerId = resolvePlayerRef(ctx, op.player);
+    if (playerId === undefined) return; // CR 608.2b — caster gone, skip
+
+    // Records the terminal outcome exactly once: the internal done-marker
+    // (short-circuits a re-walk, CR 608.3) AND — when the author asked for
+    // one — the boolean OUTCOME binding a downstream `if` reads (issue
+    // #1478, Chandra's "If you don't [cast it], …"). `cast` is true only
+    // when a spell actually reached the stack; a decline, a silent pass, an
+    // unmeetable cost, or an unpayable mana cost all read `false` (mirrors
+    // `mayPay`'s `["yes"]`/`["no"]` boolean payload).
+    const finish = (cast: boolean, marker: string) => {
+        ctx.noteChoice(doneKey, [marker]);
+        if (op.resultBind !== undefined) {
+            ctx.noteChoice(op.resultBind, [cast ? MAYPAY_YES : "no"]);
+        }
+    };
+
+    // Resolve the card to offer and its effective SOURCE zone. Three shapes:
+    //  - `fromTopOfLibrary` (issue #1478, Chandra +1) — exile the top card
+    //    of the caster's library UNCONDITIONALLY as the first thing the Op
+    //    does (CR 608.2g), then offer that exiled card; a decline / can't-
+    //    pay leaves it in exile. The exiled id is persisted under the Op's
+    //    checkpoint so a suspend/resume re-walk reuses it rather than
+    //    exiling a second card (CR 608.3).
+    //  - `card` as a bare picks ref + `source` (issue #1477, Malcolm) — a
+    //    card an earlier Op in the SAME script bound, played from its
+    //    graveyard/exile source.
+    //  - `card` as `{ exiledWithSource: true }` (issue #1961, CR 607 LINKED
+    //    abilities — Hideaway's "you may play the exiled card"): the card
+    //    THIS ability's own source permanent exiled and stamped via
+    //    `linkExileToSource`, read back through `getCardsExiledWith`. No
+    //    binding can name it, because the exiling ability and the play
+    //    ability are two SEPARATE abilities resolving at different times and
+    //    a `bind` cannot span two resolutions — the CR 607 link IS the
+    //    identity. Always from exile. Hideaway links exactly one card; a
+    //    source that linked several offers the first (the Oracle text says
+    //    "THE exiled card", singular).
+    let cardInstanceId: string | undefined;
+    let sourceZone: "graveyard" | "exile";
+    if (op.fromTopOfLibrary) {
+        sourceZone = "exile";
+        const exiledKey = `#cdrExiled:${pos}`;
+        const recalled = ctx.recallChoice(exiledKey);
+        if (recalled !== undefined) {
+            cardInstanceId = recalled[0];
+        } else {
+            const topId = ctx.peekLibraryTop(playerId, 1)[0];
+            if (topId === undefined) {
+                finish(false, "pass"); // empty library — nothing to exile
+                return;
+            }
+            ctx.moveCardById(playerId, topId, "library", "exile");
+            ctx.noteChoice(exiledKey, [topId]);
+            cardInstanceId = topId;
+        }
+    } else if (op.card !== undefined && "exiledWithSource" in op.card) {
+        sourceZone = "exile";
+        cardInstanceId = ctx.getCardsExiledWith(ctx.sourceInstanceId)[0]?.id;
+    } else if (op.card !== undefined) {
+        sourceZone = op.source ?? "exile";
+        const ids = resolvePicks(ctx, op.card);
+        cardInstanceId = ids && ids.length > 0 ? ids[0] : undefined;
+    } else {
+        sourceZone = op.source ?? "exile";
+        cardInstanceId = undefined;
+    }
+
+    // Silent pass (CR 608.2b): the selector resolved to nothing — the
+    // binding was never captured, or the CR 607 source linked nothing.
+    if (cardInstanceId === undefined) {
+        finish(false, "pass");
+        return;
+    }
+
+    // CR 406.3 — ONE offer shape for the whole Op when it can reach a land:
+    // the prompt and the option labels must not differ between the land
+    // branch and the cast branch, or the mere wording discloses the hidden
+    // card's type to the opponent (`pendingChoices` is projected unredacted
+    // and the non-chooser's client renders `prompt` verbatim).
+    const offerOptions = op.includesLand
+        ? PLAY_DECLINE_OPTIONS
+        : CAST_DECLINE_OPTIONS;
+    const offerPrompt = op.includesLand ? OFFER_PROMPT.play : OFFER_PROMPT.cast;
+
+    // CR 116.2a / 305.9 — a LAND is PLAYED, never cast. `includesLand` is
+    // set only by a grant whose Oracle text says "play" (Hideaway); without
+    // it a land silently passes, which is the official Malcolm land ruling
+    // and stays the default for every "cast" grant. A land+other-type card
+    // can only be played as a land (CR 305.9), so this branch wins first.
+    if (
+        op.includesLand &&
+        ctx.getChosenLandPlayable(playerId, cardInstanceId, sourceZone)
+    ) {
+        // "you may PLAY the exiled card" — the same resolve-time
+        // `option-pick` as the cast branch, byte-identical in prompt and
+        // options (see `OFFER_PROMPT`). The text deliberately does NOT name
+        // the card either: a hideaway card is FACE DOWN (CR 406.3, visible
+        // only to its controller) and `pendingChoices` crosses the wire
+        // unredacted to BOTH viewers, so naming it in the prompt — or
+        // pinning it via `subjectCardId` — would leak the hidden identity.
+        const landDecision = ctx.requestOptionChoice({
+            playerId,
+            choiceId: "cdr:decide",
+            options: offerOptions,
+            prompt: offerPrompt,
+        });
+        if (landDecision === undefined) return "suspend"; // enqueued — wait
+        if (landDecision !== "cast") {
+            // Declined — the land stays in its source zone (still face down
+            // if it was), nothing enters, and no later-in-turn window is
+            // stamped: the CR 608.2g permission dies with this resolution.
+            finish(false, "decline");
+            return;
+        }
+        // CR 305.2a — the land enters through the canonical play-land
+        // transition and CONSUMES the player's land drop.
+        const played = ctx.playLandForPlayer(playerId, cardInstanceId, {
+            sourceZone,
+        });
+        finish(played, played ? "cast" : "pass");
+        return;
+    }
+
+    // Silent pass (CR 608.2b / the Malcolm land ruling): the card is no
+    // longer in the source zone (empty source), or it is a land the grant
+    // can't reach — either a "cast"-only grant (no `includesLand`) or a
+    // "play" grant whose CR 305 legality failed (opponent's turn per CR
+    // 305.3, land drop already spent per CR 305.2b, a CR 614 land-play
+    // lock). No prompt is offered at all — the ability finishes silently
+    // and the resolution completes cleanly.
+    if (!ctx.getChosenCardCastable(playerId, cardInstanceId, sourceZone)) {
+        finish(false, "pass");
+        return;
+    }
+
+    // "you may cast" — a Cast / Decline `option-pick` (Play / Decline for a
+    // grant that can also reach a land, identical to the land branch above
+    // so the branch taken stays hidden — CR 406.3), a resolve-time choice
+    // routed to the caster (CR 608.2g: NOT priority, the opponent cannot act
+    // here). Reuses the existing suspend/resume seam.
+    const decision = ctx.requestOptionChoice({
+        playerId,
+        choiceId: "cdr:decide",
+        options: offerOptions,
+        prompt: offerPrompt,
+    });
+    if (decision === undefined) return "suspend"; // enqueued — wait
+    if (decision !== "cast") {
+        // Declined — the card stays in its source zone, nothing is cast,
+        // and (unlike `grantCastFrom*`) no later-in-turn window is stamped.
+        finish(false, "decline");
+        return;
+    }
+
+    // MODE (CR 700.2c) — a modal card's chosen mode drives its targeting
+    // (CR 700.2d). Non-modal cards skip this.
+    const modes = ctx.getCardModes(playerId, cardInstanceId);
+    let chosenModeId: string | undefined;
+    if (modes.length > 0) {
+        const pickedMode = ctx.requestOptionChoice({
+            playerId,
+            choiceId: "cdr:mode",
+            options: modes,
+            prompt: "Choose a mode for the card you are casting.",
+        });
+        if (pickedMode === undefined) return "suspend";
+        chosenModeId = pickedMode;
+    }
+
+    // X (CR 107.3) — only for a PAID cast. A free cast waives the mana
+    // cost, so X in that waived cost is 0 (CR 107.3b) — no prompt.
+    let chosenX: number | undefined;
+    if (!op.free && ctx.cardHasXCost(playerId, cardInstanceId)) {
+        const maxX = ctx.getMaxAffordableX(
+            playerId,
+            cardInstanceId,
+            chosenModeId
+        );
+        const xOptions = Array.from({ length: maxX + 1 }, (_, n) => ({
+            id: String(n),
+            label: `X = ${n}`,
+        }));
+        const pickedX = ctx.requestOptionChoice({
+            playerId,
+            choiceId: "cdr:x",
+            options: xOptions,
+            prompt: "Choose the value of X.",
+        });
+        if (pickedX === undefined) return "suspend";
+        chosenX = Number(pickedX);
+    }
+
+    // ADDITIONAL COST — sacrifice (CR 118.8). Applies even to a free cast
+    // (only the mana cost is waived). No matching permanent => the cost is
+    // unmeetable, the card is NOT cast ("if able").
+    const sacrificeFilter = ctx.getCardSacrificeFilter(
+        playerId,
+        cardInstanceId
+    );
+    let additionalSacrificeId: string | undefined;
+    if (sacrificeFilter) {
+        const candidateIds = ctx.getBattlefieldIds(playerId, sacrificeFilter);
+        if (candidateIds.length === 0) {
+            finish(false, "pass"); // unmeetable — not cast
+            return;
+        }
+        const pickedSac = ctx.requestChoice({
+            playerId,
+            choiceId: "cdr:sacrifice",
+            kind: "choose-permanents",
+            zone: "battlefield",
+            zoneOwnerId: playerId,
+            filter: sacrificeFilter,
+            candidateIds,
+            count: 1,
+            prompt: "Choose a permanent to sacrifice.",
+        });
+        if (pickedSac === undefined) return "suspend";
+        additionalSacrificeId = pickedSac[0];
+        if (!additionalSacrificeId) return;
+    }
+
+    // TARGETS (CR 601.2c) — the caster chooses targets for the cast card
+    // (the chosen mode's requirement for a modal card, CR 700.2d). Reuses
+    // `getLegalTargetsForCard` exactly as a normal cast does. No legal
+    // target => the card is NOT cast ("if able").
+    const targetReq = chosenModeId
+        ? ctx.getCardModeTargetRequirement(
+              playerId,
+              cardInstanceId,
+              chosenModeId
+          )
+        : ctx.getCardTargetRequirement(playerId, cardInstanceId);
+    let chosenTargets: TargetSelection[] | undefined;
+    if (targetReq) {
+        const legal = ctx.getLegalTargetsForCard(
+            playerId,
+            cardInstanceId,
+            targetReq
+        );
+        if (legal.length === 0) {
+            finish(false, "pass"); // no legal target — not cast
+            return;
+        }
+        const candidatePlayerIds = legal
+            .filter((t) => t.type === "player")
+            .map((t) => t.id);
+        const candidateIds = legal
+            .filter((t) => t.type !== "player")
+            .map((t) => t.id);
+        const pickedTarget = ctx.requestChoice({
+            playerId,
+            choiceId: "cdr:target",
+            kind: "choose-damage-target",
+            zone: "battlefield",
+            count: 1,
+            candidateIds,
+            candidatePlayerIds,
+            prompt: "Choose a target for the card you are casting.",
+        });
+        if (pickedTarget === undefined) return "suspend";
+        const pickedId = pickedTarget[0];
+        if (!pickedId) return;
+        const selected = legal.find((t) => t.id === pickedId);
+        if (!selected) return; // pick no longer legal (CR 608.2b)
+        chosenTargets = [selected];
+    }
+
+    // Commit the mini-cast. Self-cast: actingPlayerId == playerId. The
+    // spell is spliced onto the stack just BELOW the resolving ability
+    // (`castChosenSpell`) so it becomes the new top and resolves next —
+    // with NO priority in between (CR 608.2f). `free` waives the mana cost
+    // (Malcolm), `sourceZone` is the zone it is cast from. The boolean
+    // return (issue #1478) is `false` when the normal mana cost is
+    // unpayable (CR 117.3 / 601.2g) — the card stays in its source zone and
+    // the outcome binding reads "not cast" so a downstream `if not $cast`
+    // fires (Chandra's 2 damage to each opponent).
+    const cast = ctx.castChosenSpell(playerId, cardInstanceId, playerId, {
+        targets: chosenTargets,
+        chosenX,
+        chosenModeId,
+        additionalSacrificeId,
+        sourceZone,
+        free: op.free,
+    });
+    finish(cast, cast ? "cast" : "pass");
 }

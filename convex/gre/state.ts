@@ -16315,6 +16315,38 @@ export function buildSpellContext(
             clearKnowledge(moved, null);
             player.library.push(...moved);
         },
+        // CR 702.85a (issue #3216) — cascade's tail: "put all cards exiled
+        // this way that weren't cast on the bottom of your library in a random
+        // order". The set-scoped sibling of `putGraveyardOnBottomOfLibrary`
+        // above: the pile is an arbitrary SUBSET of one zone, so it is named by
+        // ids rather than by the zone. Shuffle the ids with the seeded PRNG
+        // (deterministic under replay — never `Math.random`), then move them
+        // one at a time through the SAME `moveCardById` funnel every other
+        // cross-zone move uses, which appends to the library (`library[0]` is
+        // the top, so push is the bottom) and silently skips a card that is no
+        // longer in `from` — the cascade hit that was cast and now sits on the
+        // stack (CR 608.2b). The resulting order is unwitnessed even though the
+        // cards were public in exile a moment ago, so knowledge is cleared on
+        // exactly the cards that moved (ADR 0026, like a shuffle).
+        putCardsOnBottomInRandomOrder(playerId, cardInstanceIds, from) {
+            if (from === "library") return; // a self-move has no bottom
+            const player = getPlayer(state, playerId);
+            const fromField = ZONE_TO_FIELD[from];
+            const present = new Set(
+                (player[fromField] as CardInstanceState[]).map((c) => c.id)
+            );
+            const moving = cardInstanceIds.filter((id) => present.has(id));
+            if (moving.length === 0) return;
+            seededShuffle(state, moving);
+            for (const id of moving) {
+                ctx.moveCardById(playerId, id, from, "library");
+            }
+            const movedSet = new Set(moving);
+            clearKnowledge(
+                player.library.filter((c) => movedSet.has(c.id)),
+                null
+            );
+        },
         // CR 701.6a: to counter a spell is to remove it from the stack and put
         // it into its owner's graveyard. If the target is no longer on the
         // stack (already resolved/countered), this is a silent no-op — the

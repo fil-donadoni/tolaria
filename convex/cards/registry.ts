@@ -23,6 +23,7 @@ import {
 // (`convex/cards/emblems.ts`) is populated whenever the card catalogue loads.
 import "./emblems";
 import { expandAnnihilator } from "./abilities/annihilator";
+import { expandCascade } from "./abilities/cascade";
 import { BESTOW_STATIC_EFFECT_KINDS, expandBestow } from "./abilities/bestow";
 import { expandFadingVanishing } from "./abilities/fadingVanishing";
 import { expandHideaway } from "./abilities/hideaway";
@@ -379,7 +380,9 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
     // "look at the top N, exile one face down" trigger the same way, and
     // Annihilator N (CR 702.86, issue #2295) its declare-attackers
     // "defending player sacrifices N permanents" trigger — one per declared
-    // instance of the keyword (CR 702.86b).
+    // instance of the keyword (CR 702.86b). Cascade (CR 702.85, issue #3216)
+    // injects its "when you cast this spell" trigger the same way — also one
+    // per declared instance (CR 702.85c).
     // Bestow (CR 702.103, ADR 0084) injects its layer-4 type change from the
     // `bestow` COST field rather than from a keyword string — the field is the
     // declaration — so that the type line a bestowed object reads is a derived
@@ -392,12 +395,16 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
     // reason: a later expander reading `staticEffects` must not see a different
     // set depending on whether the card was compiled or hand-written.
     const expanded = expandBestow(
-        expandAnnihilator(
-            expandHideaway(
-                expandKeywordTriggers(
-                    expandFadingVanishing(
-                        expandChapterAbilities(
-                            expandCompiledTriggers(expandCompiledStatics(base))
+        expandCascade(
+            expandAnnihilator(
+                expandHideaway(
+                    expandKeywordTriggers(
+                        expandFadingVanishing(
+                            expandChapterAbilities(
+                                expandCompiledTriggers(
+                                    expandCompiledStatics(base)
+                                )
+                            )
                         )
                     )
                 )
