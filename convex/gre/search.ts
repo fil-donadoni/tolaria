@@ -73,7 +73,7 @@ import {
 } from "./phases";
 import { cloneGameState } from "./clone";
 import { predictCombatOutcome } from "./dangerClock";
-import { recordBlockedAttackers } from "./banding";
+import { getEffectiveBlockGraph, recordBlockedAttackers } from "./banding";
 import {
     markAttacking,
     markDeclaredBlockers,
@@ -4034,15 +4034,19 @@ export function selectRootMove(
     // wins on `mechanism: mean-reward` with `contenderCount: 1`) and never
     // reaches here.
     //
-    // EXCLUDED while combat is live (`rootState.combat`), and not as a
-    // workaround: `firingBeatsHolding` compares `policyValue` after the move
-    // against `evaluate` on the root, and those two agree only when
-    // `state.combat` is torn down (see its header — the property that makes
-    // the END_STEP probe honest). Inside combat the probe would be biased by
-    // corrections one side has and the other does not, and combat value washes
-    // out at the search horizon anyway
-    // (`project_combat_eval_washed_at_horizon`), so a sacrifice outlet used on
-    // an attacker or a blocker is left to win or lose on mean reward.
+    // The COMBAT is owned too (issue #3369), which it was not when this rule
+    // shipped: it was excluded wholesale, on the ground that
+    // `firingBeatsHolding` compared `policyValue` after the move against a bare
+    // `evaluate` on the root and the two agree only with combat torn down. That
+    // exclusion left the bot attacking with a creature and spending it one step
+    // later, so the probe was made symmetric instead (see `firingBeatsHolding`)
+    // and the blanket gate replaced by `isInPendingCombatExchange`, which asks
+    // the narrower question the hold actually depends on: would the permanent
+    // still BE there to keep. A creature standing in a live exchange may be
+    // dead either way, and spending it first is then right — combat value also
+    // washes out at the search horizon
+    // (`project_combat_eval_washed_at_horizon`), so the predicate fails open
+    // rather than trying to price the exchange.
     // EXCLUDED with a NON-EMPTY STACK, and this is the same exclusion
     // `isSorceryTimingFor` already gives the hold-the-trick rule ("a main phase
     // with something on the stack is a response window, which is where an
@@ -4109,9 +4113,22 @@ export function selectRootMove(
     // The stop is the once-per-turn clause in `isDeferredEngineActivation` — a
     // tie-break redirects ONE outcome-equal pick, and the second conversion has
     // to earn itself on mean reward.
+    //
+    // `stack.length === 0` (issue #3369 review): `firingBeatsHolding` scores
+    // BOTH sides through `policyValue`, which RESOLVES the top of the stack for
+    // an activation. With an opponent's spell underneath at their end step —
+    // ordinary play — the holding side would be scored AFTER that spell and the
+    // firing side with it still pending, so the two would differ by the
+    // opponent's spell rather than by the decision. MEASURED on the
+    // `NO-FIRE (convert)` board with a Bolt aimed at the bot's own face, the
+    // conversion flipped from `pass` to a land sacrificed for 2 life — the
+    // Sylvan Safekeeper class (#2422/#2938) this rule exists to refuse. A
+    // response window is not this rule's business anyway; the HOLD rule above
+    // makes the same exclusion for the same reason.
     if (
         rootState &&
         !!botId &&
+        rootState.stack.length === 0 &&
         best.move.kind === "pass" &&
         isLastDeferralWindow(rootState, botId)
     ) {
@@ -4284,21 +4301,51 @@ function isLastDeferralWindow(state: GameState, pid: string): boolean {
  *  it, so it is standing exactly as it stands outside combat. That is the
  *  issue's own position, one window after the attack.
  *
- *  Pre-damage only, via `blockersConfirmed`: once the damage step has been
- *  taken the survivors are simply on the battlefield, and a creature that came
- *  through is standing again. */
+ *  PRE-DAMAGE ONLY, and that is a PHASE test rather than a `blockersConfirmed`
+ *  one — see the guard in the body: the declaration outlives the damage steps,
+ *  so `blockersConfirmed` alone keeps reading an exchange that is over. */
 function isInPendingCombatExchange(
     state: GameState,
     sourceId: string
 ): boolean {
+    // PHASE GUARD (mandatory), the same one `declaredFaceDamage` carries in
+    // `evaluate.ts` and for the same reason: `state.combat` — `confirmed`,
+    // `blockersConfirmed`, `attackerIds` and `blockerAssignments` included —
+    // SURVIVES both damage steps and is torn down only as END_OF_COMBAT ENDS
+    // (`endCombatStep`, `phases.ts`, CR 511.3). Damage is applied on step
+    // ENTRY, so at COMBAT_DAMAGE and END_OF_COMBAT the exchange is already
+    // OVER and every survivor is simply standing on the battlefield again.
+    //
+    // Without it the predicate reads a stale declaration and the rule goes
+    // silent for the rest of the turn on any creature that was blocked — which
+    // is issue #3369's own blunder one blocker away: MEASURED, a Walking
+    // Ballista blocked by a 0/8 Wall of Stone comes through the damage step
+    // untouched and, at COMBAT_DAMAGE, removes its last counter for one point
+    // at a 20-life face on all 5 seeds.
+    //
+    // `FIRST_STRIKE_DAMAGE` stays INSIDE the window deliberately: regular
+    // damage is still coming (CR 510.4), so a creature that survived first
+    // strike is still standing in a live exchange and silence is the
+    // conservative answer.
+    if (
+        state.phase !== "DECLARE_BLOCKERS" &&
+        state.phase !== "FIRST_STRIKE_DAMAGE"
+    ) {
+        return false;
+    }
     const combat = state.combat;
     if (!combat || !combat.confirmed || !combat.blockersConfirmed) return false;
-    // A declared blocker — it is assigning and being assigned damage.
-    if (combat.blockerAssignments[sourceId]?.length) return true;
-    // A declared attacker, but only once something has blocked it.
-    if (!combat.attackerIds.includes(sourceId)) return false;
-    return Object.values(combat.blockerAssignments).some((atkIds) =>
-        atkIds.includes(sourceId)
+    // Through `getEffectiveBlockGraph` (`banding.ts`), never a hand-rolled scan
+    // of `blockerAssignments`: banding (CR 702.21j) maps a block declared on
+    // ONE band member onto every member, so a raw scan reads a banded attacker
+    // that something else absorbed as UNBLOCKED — a fail-CLOSED miss in a
+    // predicate whose whole contract is to fail open. It is also the module
+    // that OWNS the question, which is the argument this predicate already
+    // makes against carrying a second copy of the combat rules.
+    const graph = getEffectiveBlockGraph(state);
+    return !!(
+        graph.attackersByBlocker[sourceId]?.length ||
+        graph.blockersByAttacker[sourceId]?.length
     );
 }
 
@@ -4385,8 +4432,9 @@ function isDeferredEngineActivation(
  *  Both sides go through the seams the search itself uses — `applyMoveInSearch`
  *  to realise the activation and `policyValue` to resolve it one ply and score
  *  the result — so this cannot drift from what the tree believes. The holding
- *  side is `evaluate` on the untouched root: `pass` moves no material, and
- *  applying it would advance the phase and score a different turn.
+ *  side is the UNTOUCHED root through the SAME `policyValue` (issue #3369):
+ *  `pass` moves no material, and applying it would advance the phase and score
+ *  a different turn, so the clone is scored as it stands.
  *
  *  Runs at the ROOT only, from TWO call sites: the last-window FIRE rule
  *  (behind `isLastDeferralWindow` + `isDeferredEngineActivation`, once per
@@ -4398,16 +4446,27 @@ function isDeferredEngineActivation(
  *
  *  The two sides compare like with like only while the ROOT STATE carries
  *  neither live combat nor a non-empty stack, and each caller earns that
- *  differently. FIRE inherits it from its window: `state.combat` is torn down
- *  in `endCombatStep` before END_STEP, so `policyValue`'s combat corrections
- *  are both zero and it reduces to `evaluate` — a property of the WINDOW, not
- *  of `policyValue`, and a future change leaving combat standing into an end
- *  step would bias it. HOLD runs in every window, so it asserts both conditions
- *  explicitly at its own guard (`!rootState.combat`, `stack.length === 0`)
- *  rather than inheriting either. The stack half matters for a second reason
- *  the combat half does not have: `evaluate` never models the stack, so a
- *  permanent already doomed by a spell on it scores at full value on the
- *  holding side. */
+ *  differently, and BOTH callers now assert the EMPTY STACK at their own guard
+ *  (issue #3369): `policyValue` RESOLVES the top of the stack for an
+ *  activation, so with a spell underneath, the holding side would be scored
+ *  after it and the firing side with it still pending — the two would then
+ *  differ by the opponent's spell rather than by the decision. FIRE used to
+ *  inherit only the combat half from its window (`state.combat` is torn down in
+ *  `endCombatStep` before END_STEP, so both corrections are zero there and this
+ *  reduces to `evaluate`, byte-identical to the comparison it replaced), and an
+ *  opponent's end-step spell was enough to flip it. The stack half matters for
+ *  a second reason the combat half does not have: `evaluate` never models the
+ *  stack, so a permanent already doomed by a spell aimed at it scores at full
+ *  value on the holding side.
+ *
+ *  RESIDUAL ASYMMETRY, stated rather than claimed away: `policyValue` strips
+ *  `declaredCombatDelta` behind `hasCastableInstant`, a condition read off each
+ *  side separately. An activation that taps the bot out can remove its last
+ *  castable instant, so in the bot's own DECLARE_ATTACKERS window the fired
+ *  side may keep the predicted-exchange term while the held side strips it.
+ *  Narrower than what the symmetry fixes, and strictly better than the
+ *  one-sided comparison it replaced, but the two are comparable in every window
+ *  only up to that term. */
 function firingBeatsHolding(
     state: GameState,
     pid: string,
