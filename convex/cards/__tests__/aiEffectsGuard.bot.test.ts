@@ -2979,8 +2979,12 @@ interface DelayedTriggerAllowlistEntry {
 // `abilitiesOf` now also walks `card.delayedTriggers[]` (PR #2010's review,
 // MINOR 7 — a bare `resolve()` delayed-trigger body was previously invisible
 // to this guard entirely, so it could ship with no `aiEffects` and no
-// error). The 25 entries below are every PRE-EXISTING delayed-trigger body
-// that scope extension newly reached; none are new abilities.
+// error). 25 of the 26 entries below are every PRE-EXISTING delayed-trigger
+// body that scope extension newly reached; none are new abilities. The 26th
+// (Planeswalker's Mischief) is the one card that HAD passed the guard, via a
+// `gainLife amount: 0` shadow whose own comment admitted it was "not a real
+// valuation" — deleted as dead data when this guard stopped honouring the
+// shape.
 //
 // Issue #2020 was filed to drain this list by writing an `aiEffects` shadow
 // on each delayed trigger, and was CLOSED unimplemented once that turned out
@@ -3013,6 +3017,13 @@ interface DelayedTriggerAllowlistEntry {
 // leave a stale one, and never add one for new work.
 const DELAYED_TRIGGER_AI_EFFECTS_ALLOWLIST: readonly DelayedTriggerAllowlistEntry[] =
     [
+        {
+            cardId: "79aa232c-3f16-4c68-99dc-09a7aeef477b",
+            name: "Planeswalker's Mischief",
+            delayedTriggerId: "planeswalkers-mischief-return",
+            issue: 1436,
+            note: "genuinely irreducible, not awaiting a shadow script: this trigger's incremental value is ~zero by construction — reaching it means the exiled card was never cast, so the opportunity the SCHEDULING ability's own (really-walked) aiEffects prices is already gone, and returning the card restores the status quo. A card-level aiValue would be worse than nothing here: it OVERRIDES that working ability shadow. It carried a gainLife amount: 0 placeholder until the guard stopped honouring dead-data shadows (#1436)",
+        },
         {
             cardId: "d992b336-3b6e-43e1-8662-d85664349b44",
             name: "Siren's Call",
@@ -3337,9 +3348,24 @@ describe("aiEffects shadow-script guard — ability-level resolve() (issue #1519
         const offenders: string[] = [];
         for (const card of getAllCards()) {
             if (card.aiValue !== undefined) continue;
+            const delayedIds = new Set(
+                delayedTriggersOf(card).map((t) => t.id)
+            );
             for (const ability of abilitiesOf(card)) {
                 if (!isResolveOnlyAbility(ability)) continue;
-                if (abilityHasShadowScript(ability)) continue;
+                // `aiEffects` excuses an ACTIVATED/TRIGGERED site because
+                // `OP_VALUERS` really walks it (`gre/ai/cardScriptValue.ts`).
+                // It excuses a `delayedTriggers[]` site from NOTHING: no
+                // valuer reads `DelayedTriggerDef.aiEffects` at all — see the
+                // block comment above `DELAYED_TRIGGER_AI_EFFECTS_ALLOWLIST`.
+                // Honouring it here is what let a `gainLife amount: 0`
+                // placeholder read as a fix (Planeswalker's Mischief, PLS).
+                if (
+                    !delayedIds.has(ability.id) &&
+                    abilityHasShadowScript(ability)
+                ) {
+                    continue;
+                }
                 const key = `${card.id} ${ability.id}`;
                 if (abilityAllowlistIds.has(key)) continue;
                 if (delayedTriggerAllowlistIds.has(key)) continue;
@@ -3353,7 +3379,8 @@ describe("aiEffects shadow-script guard — ability-level resolve() (issue #1519
             "activated/triggered/delayed-trigger site(s) with a bare resolve()/resolveSteps " +
                 "body, no effects[]/aiEffects, and no owning-card aiValue — either sketch an " +
                 "aiEffects shadow script on the site (walked by the same OP_VALUERS a real " +
-                "effects[] script uses), set the card's aiValue, or — ONLY for a pre-existing " +
+                "effects[] script uses — but NOT on a delayedTriggers[] template, where no " +
+                "valuer reads it), set the card's aiValue, or — ONLY for a pre-existing " +
                 "backfill straggler, never a NEW ability — add a narrow " +
                 "ABILITY_AI_EFFECTS_ALLOWLIST or DELAYED_TRIGGER_AI_EFFECTS_ALLOWLIST entry in " +
                 "this test file with a real disposition and a real tracking issue."
@@ -3455,7 +3482,7 @@ describe("aiEffects shadow-script guard — delayedTriggers[] residue (issue #14
             ).toBe(true);
             expect(
                 abilityHasShadowScript(trigger!),
-                `${entry.cardId} (${entry.name}) delayed trigger ${entry.delayedTriggerId} now carries aiEffects — stale allowlist entry, remove it`
+                `${entry.cardId} (${entry.name}) delayed trigger ${entry.delayedTriggerId} carries aiEffects, which is DEAD DATA on a delayedTriggers[] template — nothing reads DelayedTriggerDef.aiEffects (see the block comment above this allowlist). Delete it and fix the owning card instead (real effects[], else aiValue); this row stays until then`
             ).toBe(false);
             expect(
                 card!.aiValue,
@@ -3465,16 +3492,16 @@ describe("aiEffects shadow-script guard — delayedTriggers[] residue (issue #14
     });
 
     it("EXACT count: the allowlist covers exactly the current delayedTriggers[] resolve()-only-with-no-shadow-script residue — the list cannot silently grow", () => {
+        // Deliberately NOT filtered by `abilityHasShadowScript`, unlike the
+        // ability-level count above: an `aiEffects` script on a
+        // `delayedTriggers[]` template is read by no valuer, so letting it
+        // shrink this count would make a placebo fix look like a fix and
+        // force the row's removal (the exact trap issue #2020 walked into).
         let actual = 0;
         for (const card of getAllCards()) {
             if (card.aiValue !== undefined) continue;
             for (const trigger of delayedTriggersOf(card)) {
-                if (
-                    isResolveOnlyAbility(trigger) &&
-                    !abilityHasShadowScript(trigger)
-                ) {
-                    actual++;
-                }
+                if (isResolveOnlyAbility(trigger)) actual++;
             }
         }
         expect(

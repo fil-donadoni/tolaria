@@ -342,16 +342,22 @@ export const planeswalkersMischief: CardDefinition = {
                 if (ctx.getExileCardOwner(cardId) === undefined) return;
                 ctx.moveCardById(ownerId, cardId, "exile", "hand");
             },
-            // aiEffects (PRD #1423, issue #1519, MINOR 7 of PR #2010's
-            // review): `delayedTriggers[]` is a bare `resolve()` body with no
-            // Op skin either (same protocol note as the scheduling ability
-            // above). Its own incremental value for the bot's search is near
-            // zero either way — reaching this step means the exiled card was
-            // never cast, i.e. the opportunity the FIRST ability's own
-            // `aiEffects` already values is already gone; giving the card
-            // back merely restores the status quo. `amount: 0` is an honest
-            // near-neutral placeholder, not a real valuation.
-            aiEffects: [{ op: "gainLife", player: "controller", amount: 0 }],
+            // No `aiEffects` here on purpose: nothing reads
+            // `DelayedTriggerDef.aiEffects` — the value model walks
+            // `activatedAbilities`/`triggeredAbilities` only
+            // (`gre/ai/cardScriptValue.ts`), the `delayedTrigger` OP values
+            // its own INLINE body (ADR 0048) rather than a named
+            // `delayedTriggers[]` template, and the one engine reader of this
+            // array (`gre/ai/searchDestination.ts`) documents that it
+            // deliberately ignores `aiEffects`. A `gainLife amount: 0`
+            // placeholder used to sit here and was deleted as dead data (the
+            // guard now rejects the shape outright — see
+            // `DELAYED_TRIGGER_AI_EFFECTS_ALLOWLIST`, issue #1436). It cost
+            // the bot nothing: this trigger's own incremental value is ~zero
+            // anyway — reaching this step means the exiled card was never
+            // cast, so the opportunity the SCHEDULING ability's `aiEffects`
+            // already prices is gone, and handing the card back only restores
+            // the status quo.
         },
     ],
 };
