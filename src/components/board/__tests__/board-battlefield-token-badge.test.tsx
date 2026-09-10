@@ -168,4 +168,38 @@ describe("battlefield token marker (issue #2932, CR 111.1 / 111.7)", () => {
             container.querySelector('[data-summoning-sick="true"]')
         ).toBeTruthy();
     });
+
+    it("steps above the noted-mana badge instead of covering it", () => {
+        // A token CAN be a copy of Ice Cauldron (CR 707.2) and bank mana like
+        // the original, and `NotedManaBadge` owns the same bottom-left corner
+        // (CR 106.10). Both must stay readable.
+        const { container } = renderCard(
+            makeCreature({
+                isToken: true,
+                types: ["Artifact"],
+                notedMana: { mana: { U: 1 } },
+            })
+        );
+        const badge = container.querySelector<HTMLElement>(
+            '[data-token="true"]'
+        )!;
+        expect(badge.className).toContain("bottom-8");
+        expect(badge.className).not.toContain("bottom-1 ");
+        // The noted-mana badge keeps its own place — nothing else moves.
+        const noted = container.querySelector<HTMLElement>(
+            "[class*='bottom-1'][class*='left-1']"
+        );
+        expect(noted).toBeTruthy();
+        expect(noted).not.toBe(badge);
+    });
+
+    it("keeps the bottom-left corner when there is no noted mana", () => {
+        const { container } = renderCard(
+            makeCreature({ isToken: true, notedMana: { mana: { U: 0 } } })
+        );
+        const badge = container.querySelector<HTMLElement>(
+            '[data-token="true"]'
+        )!;
+        expect(badge.className).toContain("bottom-1");
+    });
 });

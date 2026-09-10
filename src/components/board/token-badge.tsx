@@ -17,19 +17,27 @@ import type { CardInstance } from "~/types/game";
  *
  *  Sits bottom-left: top-left is the summoning-sickness badge (a token creature
  *  is very often BOTH), top-centre the manual note, top-right the combat/target
- *  index, centre the counters and bottom-right the P/T + damage stack. The only
- *  other bottom-left tenant is `NotedManaBadge`, which is Ice Cauldron's noted
- *  mana — a card-backed permanent, never a token.
+ *  index, centre the counters and bottom-right the P/T + damage stack. The one
+ *  other bottom-left tenant is `NotedManaBadge`, which a token CAN also earn as
+ *  a copy of Ice Cauldron — this badge steps above it when both are live.
  *
  *  Purely presentational — pointer-events are off so it never intercepts the
  *  card's tap/target/ability gestures. */
 export default function TokenBadge({ card }: { card: CardInstance }) {
     if (card.isToken !== true) return null;
 
+    // `NotedManaBadge` holds the same corner, and a token is not immune to it:
+    // a token that's a COPY of Ice Cauldron / Jeweled Amulet (CR 707.2) can
+    // bank mana like the original. Step above it when both are live — the same
+    // predicate `NotedManaBadge` renders on, so the two can never disagree —
+    // rather than painting over it. Nothing else moves.
+    const noted = card.notedMana?.mana;
+    const stacked = !!noted && Object.values(noted).some((n) => n > 0);
+
     return (
         <div
             data-token="true"
-            className="absolute bottom-1 left-1 z-20 pointer-events-none rounded-full bg-black/70 p-1 ring-1 ring-white/30 drop-shadow-[0_0_2px_rgba(0,0,0,0.9)]"
+            className={`absolute ${stacked ? "bottom-8" : "bottom-1"} left-1 z-20 pointer-events-none rounded-full bg-black/70 p-1 ring-1 ring-white/30 drop-shadow-[0_0_2px_rgba(0,0,0,0.9)]`}
             title="Token — ceases to exist if it leaves the battlefield"
             aria-label="Token"
         >
