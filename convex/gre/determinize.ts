@@ -67,6 +67,24 @@
 // legitimately has (`determinizeObserver` keeps the hand and shuffles only the
 // library order).
 
+// BLINDED SEATS (issue #2791, PRD #2787) — the ladder's information-REMOVAL
+// knob, and the only caller is a `SearchVariant`. `opponentModel: "blind"`
+// gives every non-observer seat opaque placeholders in every slot the observer
+// has not been shown, whatever the state holds.
+//
+// It exists because the two paths above are near-indistinguishable on the state
+// the ladder actually plays: headless self-play searches the FULL-INFORMATION
+// state, where `determinizeOpponent` pools the opponent's real hand with its
+// real library and re-deals — i.e. it samples the TRUE remainder, which is what
+// `unseenRemainder` reconstructs. So the ladder's default seat is ALREADY
+// deck-informed, and measuring "informed vs blind" there needs the blind arm to
+// be manufactured. (The two are not exactly equal — the informed path also
+// KEEPS `knownTo` hand cards, and its pool does not rule out copies the
+// observer cannot read — but neither difference is the opponent-modelling
+// ceiling; `searchVariant.ts` § `opponent-blind` carries the derivation.) Live
+// play gets its blindness for free from the wire projection and never sets
+// this.
+
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import { cloneGameState } from "./clone";
 import { PLACEHOLDER_CARD_ID } from "./constants";
@@ -76,6 +94,7 @@ import {
     unseenRemainder,
     type DeckKnowledgeBySeat,
 } from "./deckKnowledge";
+import type { OpponentModel } from "./ai/searchVariant";
 import {
     computeLibraryTopLookedAtPlayers,
     computeLibraryTopRevealedPlayers,
@@ -101,12 +120,19 @@ function inZone(
  *  know (issue #2789). A seat listed here, other than the observer, has its
  *  hidden zones SAMPLED from that decklist's unseen remainder instead of
  *  re-dealt from its own contents; every other seat is unchanged, so a call
- *  without this argument behaves exactly as it did before it existed. */
+ *  without this argument behaves exactly as it did before it existed.
+ *
+ *  `opponentModel` is the ladder-only override (issue #2791): `"blind"` gives
+ *  every non-observer seat opaque placeholders in the slots the observer has
+ *  not been shown, whatever the state holds and whatever `deckKnowledge` says.
+ *  `undefined`/`null` — live play and every test that installs no variant —
+ *  leaves the branch below exactly as it was. */
 export function determinize(
     state: GameState,
     observerId: string,
     rng: () => number,
-    deckKnowledge?: DeckKnowledgeBySeat
+    deckKnowledge?: DeckKnowledgeBySeat,
+    opponentModel?: OpponentModel | null
 ): GameState {
     const next = cloneGameState(state);
 
@@ -155,6 +181,13 @@ export function determinize(
         if (player.id === observerId) {
             // Own hand is known; only the UNKNOWN library order is hidden.
             determinizeObserver(player, rng, pinned);
+            continue;
+        }
+        // The ladder's information-removal knob wins over everything below
+        // (issue #2791): a blinded seat holds nothing the observer has not
+        // been shown, so neither its real contents nor a decklist may leak in.
+        if (opponentModel === "blind") {
+            determinizeBlindedOpponent(player, observerId, rng, pinned);
             continue;
         }
         // A decklist for this seat turns the re-deal into a SAMPLE from what
@@ -389,6 +422,55 @@ function determinizeInformedOpponent(
     // cards with the hand. Keeping the zone while re-sampling the position is
     // a third behaviour NEITHER path has; it belongs to both at once, not
     // here.
+    fillHiddenZonesFrom(
+        player,
+        unseenRemainder(state, player, deckCardIds, observerId),
+        observerId,
+        rng,
+        pinned
+    );
+}
+
+/** Blind an opponent seat outright (issue #2791) — the LADDER's
+ *  information-removal knob, never a production path.
+ *
+ *  It is `determinizeInformedOpponent` with an EMPTY remainder, and that is
+ *  the whole implementation: every hidden slot the observer has not been shown
+ *  falls through to `unknownCard`, exactly as it does when a real decklist runs
+ *  out. What comes back is the live client's own epistemic state — the wire
+ *  projection fills an opponent's hidden zones with opaque placeholders, and a
+ *  placeholder resolves to no `CardDefinition`, so the simulated opponent never
+ *  casts anything again.
+ *
+ *  Why it must exist as a knob at all: the ladder plays HEADLESS on the
+ *  full-information state, where the blind path pools the opponent's REAL hand
+ *  with its REAL library and re-deals — i.e. it already samples from the true
+ *  remainder. Without this, "informed vs blind" is unmeasurable there, because
+ *  both arms are informed (`searchVariant.ts` § `opponent-blind`).
+ *
+ *  `pinned` and `knownTo` still hold: a card the observer has been SHOWN is a
+ *  fact, not a guess, and blinding is about what it was never shown. */
+function determinizeBlindedOpponent(
+    player: PlayerState,
+    observerId: string,
+    rng: () => number,
+    pinned: ReadonlySet<number>
+): void {
+    fillHiddenZonesFrom(player, [], observerId, rng, pinned);
+}
+
+/** Fill a non-observer seat's unknown hidden slots from `remainder` (a card-id
+ *  multiset, consumed in shuffled order), keeping every slot the observer is
+ *  entitled to see. Shared by the informed and blinded paths above — they
+ *  differ ONLY in what they put in the pool, so the accounting below is
+ *  written once. `remainder` is mutated. */
+function fillHiddenZonesFrom(
+    player: PlayerState,
+    remainder: string[],
+    observerId: string,
+    rng: () => number,
+    pinned: ReadonlySet<number>
+): void {
     const { held, unpinned } = splitPinned(player.library, pinned);
     const keptHand = player.hand.filter(
         (c) => c.knownTo?.includes(observerId) === true
@@ -396,7 +478,6 @@ function determinizeInformedOpponent(
     const handSlots = player.hand.length - keptHand.length;
     const librarySlots = unpinned.length;
 
-    const remainder = unseenRemainder(state, player, deckCardIds, observerId);
     // Strike every already-placed card from the pool, or it could be dealt a
     // SECOND time into a slot the observer cannot see.
     for (const c of [...held.values(), ...keptHand]) {

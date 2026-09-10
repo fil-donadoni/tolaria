@@ -87,7 +87,21 @@ export type SearchVariant = {
      *  clip (`materialSignal`) for the fitted logistic margin → win-prob
      *  (`CALIBRATED_REWARD_K` in search.ts). Absent = production linear clip. */
     rewardMapping?: "calibrated";
+    /** How the search imagines the seats it cannot see (issue #2791, PRD
+     *  #2787). Absent = whatever the state it is handed already supports,
+     *  which is the ONLY production path. `"blind"` forces every non-observer
+     *  seat's unknown hidden slots to opaque placeholders — the live client's
+     *  epistemic state — regardless of what the state actually holds.
+     *  Consulted once, in `runSearchWithTrace`, and threaded into
+     *  `determinize`. */
+    opponentModel?: OpponentModel;
 };
+
+/** The imagined-opponent modes a variant may force (issue #2791). One member
+ *  today: the experiment removes information, it never adds any (a seat's
+ *  decklist is data the engine cannot invent, so `deckKnowledge` stays an
+ *  argument, not a knob). */
+export type OpponentModel = "blind";
 
 let activeVariant: SearchVariant | null = null;
 
@@ -125,6 +139,18 @@ export function resolveActionPriors(
     variant: SearchVariant | null
 ): ActionPriorConfig | null {
     return variant?.actionPriors ?? null;
+}
+
+/** Resolve the ACTIVE opponent model for one search (issue #2791). `null` —
+ *  live play, every test that installs no variant, and every other variant —
+ *  leaves `determinize` on its historical per-seat branch verbatim. Resolved
+ *  once, beside `resolveEvalWeights` and `resolveActionPriors`, at the top of
+ *  `runSearchWithTrace`, and threaded down explicitly; nothing deeper re-reads
+ *  the module-global. */
+export function resolveOpponentModel(
+    variant: SearchVariant | null
+): OpponentModel | null {
+    return variant?.opponentModel ?? null;
 }
 
 /** The named candidate configs `bun run ladder --variant <name>` can run.
@@ -239,5 +265,71 @@ export const LADDER_VARIANTS: Record<string, SearchVariant> = {
     "graveyard-reach-off": {
         name: "graveyard-reach-off",
         evalWeights: { graveyardReachFraction: 0 },
+    },
+
+    /** THE OPPONENT-MODELLING CEILING (issue #2791, PRD #2787).
+     *
+     *  WHAT IT MEASURES. How much of the bot's strength comes from reasoning
+     *  about an opponent whose hidden cards are REAL. Knowing what a seat can
+     *  still be holding is the ORACLE upper bound on opponent modelling — no
+     *  belief model built from public evidence can ever beat the truth — so
+     *  this number sizes the whole idea before an honest belief subsystem is
+     *  scoped. A verdict inside the `placebo` band is a genuine and valuable
+     *  result: it retires the belief pool before it is built.
+     *
+     *  WHY THE CANDIDATE IS THE BLIND ONE — the ticket asked for the opposite
+     *  polarity and the ticket's premise is wrong about this harness. The
+     *  ladder plays HEADLESS on the full-information `GameState`
+     *  (`runHeadlessGame` hands `searchFn` the raw state, no wire projection),
+     *  and the blind path `determinizeOpponent` POOLS the opponent's real hand
+     *  with its real library and re-deals — so the ladder's default seat
+     *  already samples worlds from the TRUE remainder, which is what
+     *  `unseenRemainder` reconstructs. Handing it `deckKnowledge` on top would
+     *  re-derive essentially that same multiset: hours of machine time for a
+     *  verdict pinned near the noise floor by construction.
+     *
+     *  Two ways the ticket's arm would not be exactly null, neither of which
+     *  rescues it as an experiment. (1) It would ADD reveal-class knowledge:
+     *  `fillHiddenZonesFrom` keeps hand cards whose `knownTo` includes the
+     *  observer, where the pooled re-deal throws that position away — and
+     *  mono-black is an R1 pairing running Demonic Tutor, whose reveal stamps
+     *  the tutored card known to everyone. (2) It would SUBTRACT accuracy:
+     *  `unseenRemainder` deliberately does not rule out copies the observer
+     *  cannot read (face-down permanents, face-down exile), so where those
+     *  exist its pool is strictly WIDER than the truth the re-deal uses. Net,
+     *  the ticket's arm is bounded above by the default and measures a
+     *  reveal-preservation effect, not the opponent-modelling ceiling it
+     *  was asked for.
+     *
+     *  The informative contrast is therefore the other one. Control = the
+     *  ladder's oracle default; candidate = `"blind"`, which forces the
+     *  imagined opponent's unknown slots to opaque placeholders and so
+     *  reproduces what the LIVE client actually searches against (the wire
+     *  projection fills those zones with placeholders, and a placeholder
+     *  resolves to no `CardDefinition`, so the simulated opponent never casts
+     *  anything again). The delta is the same quantity with the sign flipped:
+     *  what blindness COSTS is what perfect knowledge is WORTH.
+     *
+     *  HOW TO JUDGE IT. Against the `placebo` noise floor, never against 50%.
+     *  Candidate win rate inside the placebo band ⇒ opponent modelling buys
+     *  nothing measurable at this budget, and the belief-pool successor is not
+     *  worth building. Candidate materially BELOW the band ⇒ that gap is the
+     *  ceiling a belief model could aim at, and only a fraction of it is
+     *  reachable from public evidence alone.
+     *
+     *  RUNG. `--rung R1` (instant-speed interaction). R0 is combat and racing
+     *  and holds few tricks, so it cannot show this effect at all.
+     *
+     *  Run: `bun run ladder --tier decision --variant opponent-blind --rung R1`.
+     *
+     *  NOT a blade-green candidate. "All `must` entries green with the variant
+     *  ON" (`blade/runner.ts`) is an acceptance criterion for a knob that
+     *  claims strength; this one deliberately REMOVES information, so a green
+     *  blade suite under it would mean the entries are insensitive to the
+     *  opponent model, not that the knob is safe. `placebo` is exempt for the
+     *  mirror reason — it claims no strength at all. */
+    "opponent-blind": {
+        name: "opponent-blind",
+        opponentModel: "blind",
     },
 };
