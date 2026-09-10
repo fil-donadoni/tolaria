@@ -19,13 +19,22 @@
 // the grant (CR 611.2c).
 
 import { describe, it, expect } from "vitest";
-import { tapForPayment, untapForPayment } from "../game";
+import {
+    tapForPayment,
+    untapForPayment,
+    tapSourceIntoPayment,
+    tryCommitAttackManaTax,
+} from "../game";
 import { projectPublicState } from "../gameProjections";
 import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
 import { arenaOfGlory } from "../cards/sets/mh3/colorless";
 import { grizzlyBears } from "../cards/sets/lea/green";
 import { lightningBolt } from "../cards/sets/lea/red";
-import { resolveTopOfStack } from "../gre/state";
+import {
+    resolveTopOfStack,
+    mayPayUnitIsEligible,
+    payManaCostForSpell,
+} from "../gre/state";
 import { advancePhase } from "../gre/phases";
 import { validateAttackerEligibility } from "../gre/combat";
 import type { GameState, PendingCast, StackItem } from "../gre/state";
@@ -266,5 +275,166 @@ describe("Arena of Glory's haste rider — the spell to permanent hand-off (CR 6
         // CR 500.5 — a rider-tagged unit left floating empties with the rest
         // of the pool exactly like every other `restrictedMana` unit.
         expect(state.players[0].restrictedMana).toBeUndefined();
+    });
+});
+
+// The failure class the first review round found (issue #3354 review): moving
+// an UNRESTRICTED unit into `restrictedMana` made every payment site that read
+// `player.manaPool` raw silently stop seeing it. CR 106.6 is explicit — "This
+// doesn't affect the mana's type" — so a bare-rider unit must pay for
+// everything the fungible pool could. Before this rider existed, "in
+// `restrictedMana`" and "restricted" were the same statement and reading the
+// raw pool was correct; these tests are what makes that no longer be an
+// assumption anyone can quietly re-introduce.
+describe("floating rider mana is spendable OUTSIDE a spell cast (CR 106.6, issue #3354)", () => {
+    /** Two Arenas: one already tapped for its {R}{R}, one to activate. */
+    function twoArenaState(): {
+        state: GameState;
+        second: ReturnType<typeof makeInstance>;
+    } {
+        const first = makeInstance(arenaOfGlory.id, {
+            id: "arena-1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const second = makeInstance(arenaOfGlory.id, {
+            id: "arena-2",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [first, second] }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            phase: "PRECOMBAT_MAIN",
+        });
+        // The {R}{R} the first Arena already produced, tagged, and nothing in
+        // the fungible pool — the exact shape that used to throw.
+        state.players[0].restrictedMana = [
+            { color: "R", amount: 2, hasteRider: true },
+        ];
+        return { state, second };
+    }
+
+    it("pays a MANA ABILITY's own {R} cost — the pool is empty and only tagged mana is floating", () => {
+        const { state, second } = twoArenaState();
+        // Bug shape: `applyManaAbilityManaCost` gated on `player.manaPool`, so
+        // this threw "Not enough mana to activate this ability" with two red
+        // mana visibly floating.
+        expect(() =>
+            tapSourceIntoPayment(
+                state,
+                state.players[0],
+                second,
+                EXERT_OPTION_INDEX,
+                []
+            )
+        ).not.toThrow();
+        expect(second.isTapped).toBe(true);
+        // One of the two tagged mana paid the cost; the other stays, and the
+        // second Arena's own {R}{R} joins the same tagged bucket.
+        expect(state.players[0].restrictedMana).toEqual([
+            { color: "R", amount: 3, hasteRider: true },
+        ]);
+        expect(state.players[0].manaPool.R ?? 0).toBe(0);
+    });
+
+    it("pays an ATTACK MANA TAX (CR 508.1g) — otherwise the declaration parks with nothing but cancel", () => {
+        const { state } = twoArenaState();
+        state.combat = {
+            attackerIds: [],
+            blockerAssignments: {},
+            blockersConfirmed: false,
+            pendingAttackManaTax: {
+                playerId: "p1",
+                cost: { R: 1 },
+                reason: "Attacking creatures cost {R} more.",
+                tappedLandIds: [],
+            },
+        } as unknown as GameState["combat"];
+
+        expect(tryCommitAttackManaTax(state)).toBe(true);
+        expect(state.combat?.pendingAttackManaTax).toBeUndefined();
+        expect(state.players[0].restrictedMana).toEqual([
+            { color: "R", amount: 1, hasteRider: true },
+        ]);
+    });
+
+    it("mayPayUnitIsEligible admits a bare-rider unit for ANY may-pay leg, and keeps the exact-match rule", () => {
+        const rider = { color: "R", amount: 2, hasteRider: true } as const;
+        // Restricts nothing, so it pays a restricted leg and an unrestricted
+        // one alike.
+        expect(mayPayUnitIsEligible(rider, undefined)).toBe(true);
+        expect(mayPayUnitIsEligible(rider, "cumulative-upkeep")).toBe(true);
+        // A genuinely restricted unit is still exact-match only (ADR 0022).
+        const upkeep = {
+            color: "W",
+            amount: 1,
+            restriction: "cumulative-upkeep",
+        } as const;
+        expect(mayPayUnitIsEligible(upkeep, "cumulative-upkeep")).toBe(true);
+        expect(mayPayUnitIsEligible(upkeep, undefined)).toBe(false);
+        expect(mayPayUnitIsEligible(upkeep, "artifact-spell")).toBe(false);
+        // CR 601.3 — an instance-keyed unit is a CAST permission, never a
+        // may-pay payment.
+        expect(
+            mayPayUnitIsEligible(
+                { color: "U", amount: 1, castableCardId: "x" },
+                undefined
+            )
+        ).toBe(false);
+    });
+});
+
+describe("settlement order keeps the rider for the spell that can use it (CR 106.6, issue #3354)", () => {
+    /** One untagged {R} in the pool, one tagged {R} beside it. */
+    const mixedPool = () => {
+        const player = makePlayer("p1", {
+            manaPool: { W: 0, U: 0, B: 0, R: 1, G: 0, C: 0 },
+        });
+        player.restrictedMana = [{ color: "R", amount: 1, hasteRider: true }];
+        return player;
+    };
+
+    it("a NONCREATURE spell spends the untagged pool mana first, leaving the rider intact", () => {
+        const player = mixedPool();
+        const riders = payManaCostForSpell(player, { R: 1 }, ["Instant"]);
+        expect(riders).toEqual({ cantBeCountered: false, haste: false });
+        // Restricted-FIRST is the blanket policy, and it is right for a unit
+        // that is less flexible than pool mana. A bare-rider unit is exactly
+        // as flexible AND carries something the player floated it for, so it
+        // is deferred behind the pool: the Bolt takes the plain {R} and the
+        // creature behind it still gets its haste.
+        expect(player.manaPool.R).toBe(0);
+        expect(player.restrictedMana).toEqual([
+            { color: "R", amount: 1, hasteRider: true },
+        ]);
+    });
+
+    it("a CREATURE spell spends the tagged mana first — that is what floating it was for", () => {
+        const player = mixedPool();
+        const riders = payManaCostForSpell(player, { R: 1 }, ["Creature"]);
+        expect(riders).toEqual({ cantBeCountered: false, haste: true });
+        expect(player.manaPool.R).toBe(1);
+        expect(player.restrictedMana).toBeUndefined();
+    });
+
+    it("a genuinely RESTRICTED unit is still spent first, ahead of the pool", () => {
+        const player = mixedPool();
+        player.restrictedMana = [
+            { color: "R", amount: 1, restriction: "creature-spell" },
+            { color: "R", amount: 1, hasteRider: true },
+        ];
+        payManaCostForSpell(player, { R: 1 }, ["Creature"]);
+        // Both are eligible and both are "preferred" for a creature spell, so
+        // the declared order decides — the restricted one, the only one the
+        // fungible pool cannot substitute for, comes first.
+        expect(player.restrictedMana).toEqual([
+            { color: "R", amount: 1, hasteRider: true },
+        ]);
+        expect(player.manaPool.R).toBe(1);
     });
 });
