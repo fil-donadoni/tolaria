@@ -155,10 +155,12 @@ describe("Sanguine Evangelist (LCI, CR 603.2 + CR 702.91)", () => {
             type: "CREATURE_DIED",
             creatureInstanceId: evangelist.id,
             creatureControllerId: "p1",
+            creatureOwnerId: "p1",
             creatureTypes: ["Creature"],
-            lastKnownPower: 2,
-            lastKnownToughness: 1,
-        } as GameEvent;
+            damagedBySources: [],
+            creaturePower: 2,
+            creatureToughness: 1,
+        };
         const collected = collectTriggers(state, [death]);
         expect(
             collected.filter((t) => t.triggeredAbilityId === TRIGGER_ID)

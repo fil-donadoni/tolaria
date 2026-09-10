@@ -601,6 +601,60 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Bot reachability for Ninjutsu (issue #2390). Guards the hand scan `enumerateAbilityMoves` gained in the same change: without it no `activateFromHand` ability is ever enumerated, and the bot holds a Fallen Shinobi it can never play. The window is the cost's own (CR 509.1h), which is why the setup walks all the way through the block declaration.",
     },
     {
+        // ATTACK-TRIGGER VISIBILITY (CR 508.1m, issue #3222). Until this
+        // change neither search sandbox emitted ATTACKERS_DECLARED at all —
+        // `applyMoveInSearch`'s `declare-attackers` marked the attackers and
+        // went straight to priority, while its `declare-blockers` sibling two
+        // cases below had always called `emitBlockersConfirmedEvents`. So every
+        // attack trigger in the catalogue was invisible to the bot: battle
+        // cry's pump, exalted's, annihilator's sacrifice, a token-making swing.
+        //
+        // FAIRNESS BY CONSTRUCTION: the opponent is at 5 with an empty board
+        // and no cards, so nothing can block and nothing can answer. Sanguine
+        // Evangelist (2/1, battle cry) plus a Grizzly Bears (2/2) is FOUR
+        // printed power — one short — and exactly five once the CR 702.91a
+        // trigger pumps the Bears. Attacking with both is therefore a forced
+        // WIN, which the evaluator's outcome band puts above every material
+        // consideration; with the trigger unseen there is no winning branch at
+        // all and the pick falls back to material noise over attacker subsets.
+        // The claim is visibility, not preference.
+        label: "battle cry: swings for exactly-lethal only the pump provides",
+        spec: {
+            cards: [
+                {
+                    name: "Sanguine Evangelist",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 3,
+            libraryCount: 20,
+            life: { me: 20, opp: 5 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "declare-attackers",
+                    cards: ["Sanguine Evangelist", "Grizzly Bears"],
+                },
+            ],
+        },
+        note: "Issue #3222 — the attack-trigger seam, pinned by the one shape that cannot be argued with: five life, four printed power, and the fifth point coming only from battle cry's +1/+0 on the OTHER attacker (CR 702.91a). Guards `emitAttackersDeclaredEvents` in `applyMoveInSearch` (`gre/search.ts`) and its greedy twin in `applyMove.ts`; deleting either leaves the win unreachable and this entry red. Not battle-cry-specific by construction — the emission is the class fix, and exalted/annihilator/attack-token triggers ride the same line.",
+    },
+    {
         // STRETCH. A lone 3/3 facing an empty board: attacking is free damage
         // (no blockers, no crackback the position can produce) and passing the
         // combat step throws a turn away. It PASSES today; it is kept in the

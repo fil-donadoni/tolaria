@@ -121,6 +121,7 @@ import { applyPlayLandFromAnyZone, finalizeLandEntry } from "./playLand";
 import {
     applyAllCombatDamage,
     buildAutoDamageAssignments,
+    emitAttackersDeclaredEvents,
     wasCastOffSorceryTiming,
 } from "./phases";
 import {
@@ -1701,6 +1702,29 @@ export function applyMoveForSearch(
                 if (!atk.staticAbilities.includes("vigilance")) {
                     // CR 708.9 / ADR 0013 — face-down attacker turns up on tap.
                     tapPermanent(next, atk);
+                }
+            }
+            // CR 508.1m (issue #3222) — the attack triggers, then a bounded
+            // drain of the segment they created, so the defender's best
+            // response and the leaf `evaluate` both see the board the attack
+            // actually produces (battle cry's pump, exalted's, annihilator's
+            // sacrifice). Same shape as the cast-segment drain above: bounded,
+            // and it stops on the first pass that makes no progress, so a
+            // resolution suspended on a PendingChoice cannot spin — a
+            // suspending attack trigger is simply left unresolved, the same
+            // documented limit the cast leg carries.
+            emitAttackersDeclaredEvents(next);
+            for (let step = 0; step < MAX_CAST_RESOLUTION_STEPS; step++) {
+                if (next.stack.length === 0) break;
+                if ((next.pendingChoices?.length ?? 0) > 0) break;
+                const depthBefore = next.stack.length;
+                const topIdBefore = next.stack[next.stack.length - 1]?.id;
+                resolveTopOfStack(next);
+                if (
+                    next.stack.length === depthBefore &&
+                    next.stack[next.stack.length - 1]?.id === topIdBefore
+                ) {
+                    break;
                 }
             }
             // Defender chooses blocks during DECLARE_BLOCKERS; set the phase so
