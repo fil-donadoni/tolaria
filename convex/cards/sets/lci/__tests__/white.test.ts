@@ -92,6 +92,19 @@ function resolveBatTrigger(
     resolveTopOfStack(state);
 }
 
+/** The CR 603.10 last-known-information payload the engine emits when the
+ *  Evangelist dies — its own death, so the LKI is its printed 2/1. */
+const deathEvent = (instanceId: string): GameEvent => ({
+    type: "CREATURE_DIED",
+    creatureInstanceId: instanceId,
+    creatureControllerId: "p1",
+    creatureOwnerId: "p1",
+    creatureTypes: ["Creature"],
+    damagedBySources: [],
+    creaturePower: 2,
+    creatureToughness: 1,
+});
+
 const bats = (state: GameState): CardInstanceState[] =>
     state.players[0].battlefield.filter((c) => c.id !== "evangelist");
 
@@ -107,16 +120,34 @@ describe("Sanguine Evangelist (LCI, CR 603.2 + CR 702.91)", () => {
     });
 
     it("CR 603.2 — ONE ability answers BOTH events (enters and dies)", () => {
-        // The printed line is one sentence, so one ability carrying both
-        // events; two would render twice on the stack.
-        const printed = sanguineEvangelist.triggeredAbilities!.filter(
-            (t) => t.id === TRIGGER_ID
-        );
-        expect(printed).toHaveLength(1);
-        expect(printed[0].event).toEqual([
-            "PERMANENT_ENTERED",
-            "CREATURE_DIED",
+        // The claim is about the STACK, so it is measured on the stack: each
+        // of the two events must put exactly ONE trigger there, and both must
+        // come from the same ability. Two abilities off one printed line would
+        // render twice — the bug this shape exists to prevent.
+        const entered = boardWithEvangelist("battlefield");
+        const enterTriggers = collectTriggers(entered.state, [
+            {
+                type: "PERMANENT_ENTERED",
+                instanceId: entered.evangelist.id,
+                controllerId: "p1",
+            } as GameEvent,
         ]);
+        expect(
+            enterTriggers.filter((t) => t.triggerSourceId === "evangelist")
+        ).toHaveLength(1);
+
+        const died = boardWithEvangelist("graveyard");
+        const deathTriggers = collectTriggers(died.state, [
+            deathEvent(died.evangelist.id),
+        ]);
+        expect(
+            deathTriggers.filter((t) => t.triggerSourceId === "evangelist")
+        ).toHaveLength(1);
+
+        expect(deathTriggers[0].triggeredAbilityId).toBe(
+            enterTriggers[0].triggeredAbilityId
+        );
+        expect(deathTriggers[0].triggeredAbilityId).toBe(TRIGGER_ID);
     });
 
     it("creates a 1/1 black flying Bat when it enters, surviving the wire", () => {
@@ -151,17 +182,7 @@ describe("Sanguine Evangelist (LCI, CR 603.2 + CR 702.91)", () => {
         // The real trigger scan, not a hand-pushed stack item: the source has
         // already left the battlefield, so `collectTriggers` has to find it in
         // the graveyard for the dies half to fire at all.
-        const death: GameEvent = {
-            type: "CREATURE_DIED",
-            creatureInstanceId: evangelist.id,
-            creatureControllerId: "p1",
-            creatureOwnerId: "p1",
-            creatureTypes: ["Creature"],
-            damagedBySources: [],
-            creaturePower: 2,
-            creatureToughness: 1,
-        };
-        const collected = collectTriggers(state, [death]);
+        const collected = collectTriggers(state, [deathEvent(evangelist.id)]);
         expect(
             collected.filter((t) => t.triggeredAbilityId === TRIGGER_ID)
         ).toHaveLength(1);

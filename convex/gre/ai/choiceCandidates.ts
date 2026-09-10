@@ -1171,6 +1171,40 @@ const orderTopCandidates: ChoiceCandidateGenerator = (state, choice) => {
     return out.slice(0, ORDER_TOP_MAX_CANDIDATES);
 };
 
+// ---------------------------------------------------------------------------
+// Simultaneous-trigger ordering (trigger-order)
+// ---------------------------------------------------------------------------
+
+/** `trigger-order` (CR 603.3b, ADR 0058): ONE candidate, the slice in
+ *  collection order — the identical canonical answer `legalActions.ts` gives
+ *  the human path and `chooseResolution` (`src/lib/ai/brain.ts`) gives outside
+ *  the search. Self-ordering one's OWN triggers is tactically immaterial, so
+ *  the move space stays flat (one action, not N!) and the ISMCTS budget is
+ *  spent on decisions that matter.
+ *
+ *  Registered because an UNREGISTERED kind is not "answered by a default" — it
+ *  is a wall: `choiceCandidates` returns `[]`, `decidingPlayer` returns null,
+ *  and both the descent and the rollout stop and leaf-score the position right
+ *  there. For a trigger batch raised at declare-attackers that means an attack
+ *  branch scored with its attackers tapped and NO combat damage, against a
+ *  `pass` branch that rolls out in full — attacking systematically undervalued
+ *  exactly where the batch is commonest (two DIFFERENT attack triggers: a
+ *  battle-cry creature beside an exalted one, two distinct Hierarchs). Issue
+ *  #3222 made the emission reach the search; this is what keeps the search
+ *  able to walk past it. */
+const triggerOrderCandidates: ChoiceCandidateGenerator = (_state, choice) => [
+    {
+        key: "trigger-order:collection",
+        move: {
+            kind: "resolution-choice",
+            stackItemId: choice.stackItemId,
+            step: choice.step,
+            choiceId: choice.choiceId,
+            cardInstanceIds: [...(choice.candidateIds ?? [])],
+        },
+    },
+];
+
 /** The registry: choice kind → candidate generator. A kind with NO generator is
  *  not yet an in-tree decision node — the search treats it exactly as before
  *  (no decider, playout stops there), so adding a tranche is purely additive. */
@@ -1205,6 +1239,10 @@ export const CHOICE_CANDIDATE_GENERATORS: Partial<
     // Explore with the minimal-legal "keep everything on top" and never sent a
     // card to the bottom or the graveyard.
     "order-top": orderTopCandidates,
+    // CR 603.3b (ADR 0058, issue #3222) — the degenerate ordering, registered
+    // so a simultaneous-trigger batch is a node the search can DESCEND past
+    // rather than a wall it leaf-scores at. See the generator's own header.
+    "trigger-order": triggerOrderCandidates,
 };
 
 /** Per-kind APPLICABILITY predicate, read from the `PendingChoice` alone.

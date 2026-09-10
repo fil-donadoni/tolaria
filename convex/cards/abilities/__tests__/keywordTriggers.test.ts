@@ -393,19 +393,30 @@ describe("Battle cry keyword expansion (CR 702.91)", () => {
         expect(power(state, "criB")).toBe(3);
     });
 
-    it("a creature that starts attacking after the trigger resolved is not pumped (CR 608.2h)", () => {
+    it("a creature that ENTERS attacking after the trigger resolved is not pumped (CR 611.2c)", () => {
         const { state } = attackingBoard();
         fireBattleCry(state, "crier");
 
-        // CR 608.2h — the answer was determined once, when the effect was
-        // applied, so a creature put onto the battlefield attacking afterwards
-        // — modelled here by the homebody joining combat after resolution —
-        // gets nothing.
-        const late = state.players[0].battlefield.find(
-            (c) => c.id === "homebody"
-        )!;
-        late.isAttacking = true;
+        // CR 611.2c — the set a resolution-generated continuous effect affects
+        // is fixed when it begins, so a creature that was not on the
+        // battlefield at all when the trigger resolved gets nothing however
+        // attacking it is. Modelled as the real shape: a NEW permanent
+        // entering the battlefield attacking (a token made by a later
+        // trigger), not a flag flipped on a creature that was already there.
+        const bears = getCardByName("Grizzly Bears");
+        const late = makeInstance(bears.id, {
+            id: "late",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isAttacking: true,
+        });
+        state.players[0].battlefield.push(late);
         expect(getEffectivePower(state, late)).toBe(2);
+        // And the creatures the effect DID catch keep their buff — the
+        // assertion pairs, so a "nothing is ever pumped" regression cannot
+        // pass this test.
+        expect(power(state, "ally")).toBe(3);
     });
 });
 

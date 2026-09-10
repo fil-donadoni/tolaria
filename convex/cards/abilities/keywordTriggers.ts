@@ -94,17 +94,22 @@ function prowessTrigger(): TriggeredAbility {
  *  every OTHER attacking creature gets +1/+0 until end of turn.
  *
  *  The member set is a fresh battlefield scan taken when the trigger
- *  RESOLVES, frozen there (CR 608.2h — information the effect requires is
- *  determined only once, when the effect is applied). That is the
- *  rules-correct reading of "each other
+ *  RESOLVES, frozen there: CR 608.2h — information the effect requires is
+ *  determined only once, when the effect is applied — and CR 611.2c, which
+ *  fixes the set a resolution-generated continuous effect affects at the
+ *  moment it begins. That is the rules-correct reading of "each other
  *  attacking creature": a creature put onto the battlefield attacking while
  *  the trigger is still on the stack IS attacking when it resolves and does
  *  get the buff; one that enters attacking afterwards does not, and neither
- *  does one that has left combat by then (CR 608.2b).
+ *  does one that has left combat by then (CR 608.2h again — the ability is
+ *  untargeted, so CR 608.2b's target-legality check never applies to it).
  *
- *  No `controller` on the selector: CR 508.1a lets only the active player
- *  declare attackers, so every attacking creature is already the source's
- *  controller's — scoping the scan would be a second authority on that fact.
+ *  `controller: "controller"` narrows the scan to the trigger controller's
+ *  own battlefield. CR 508.1a already guarantees that is where every attacker
+ *  is — the source can only have triggered by attacking, so its controller IS
+ *  the active player — but stating it makes the selector fail CLOSED: any
+ *  future path that left `isAttacking` set on a defender-controlled permanent
+ *  would otherwise pump an enemy creature.
  *  `excludeSource` is what makes it "each OTHER" (CR 702.91a); without it a
  *  lone battle-cry attacker would pump itself. Two battle-cry creatures
  *  attacking together each drop THEMSELVES from their own scan and so pump
@@ -121,6 +126,7 @@ function battleCryTrigger(): TriggeredAbility {
                 select: {
                     set: "permanents",
                     zone: "battlefield",
+                    controller: "controller",
                     filter: { type: "Creature", isAttacking: true },
                     excludeSource: true,
                 },

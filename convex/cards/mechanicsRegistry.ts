@@ -1582,10 +1582,11 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         // the keyword. Fully declarative (DSL-first, ADR 0045): an
         // `attacksTrigger` (ATTACKERS_DECLARED, CR 508.1m) with `scope:
         // "self"`, body `forEach { set: "permanents", filter: { type:
-        // "Creature", isAttacking: true }, excludeSource: true }` → `pump`
-        // +1/+0 until end of turn (CR 613.4c). `excludeSource` is what makes
-        // it "each OTHER attacking creature"; no `controller` scope, because
-        // CR 508.1a already makes every attacker the active player's. The
+        // "Creature", isAttacking: true }, controller: "controller",
+        // excludeSource: true }` → `pump` +1/+0 until end of turn (CR 613.4c).
+        // `excludeSource` is what makes it "each OTHER attacking creature";
+        // the controller scope is redundant under CR 508.1a and kept so the
+        // selector fails closed rather than open. The
         // member set freezes when the TRIGGER RESOLVES (CR 608.2h), so a
         // creature put onto the battlefield attacking in response is pumped
         // and one entering after resolution is not. CR 702.91b (multiple

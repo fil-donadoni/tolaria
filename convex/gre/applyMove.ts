@@ -1717,6 +1717,13 @@ export function applyMoveForSearch(
             for (let step = 0; step < MAX_CAST_RESOLUTION_STEPS; step++) {
                 if (next.stack.length === 0) break;
                 if ((next.pendingChoices?.length ?? 0) > 0) break;
+                // CR 603.3d (PR review) — a TARGETED attack trigger is parked
+                // by `raiseTriggerTargetSelection` with the item still ON the
+                // stack and `pendingTarget` set. Resolving it here would
+                // resolve it with no target chosen; stopping leaves the leaf
+                // honestly unresolved, the same shape the `pendingChoices`
+                // break above leaves.
+                if (next.pendingTarget) break;
                 const depthBefore = next.stack.length;
                 const topIdBefore = next.stack[next.stack.length - 1]?.id;
                 resolveTopOfStack(next);
