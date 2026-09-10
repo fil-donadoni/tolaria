@@ -24,6 +24,48 @@
 // production `DEFAULT_BUDGET` (`SearchBudget` — iterations/timeMs is already
 // its own type, for the same reason: a resource ceiling, not an evaluation
 // choice).
+import type { Feature } from "./featureBasis";
+
+/** The fitted price of ONE UNIT of each feature-basis dimension — the latent
+ *  worth an Effect Script Op contributes per unit of what it does (issue
+ *  #3398, PRD #3397). One weight per `FEATURE_BASIS` dimension, so a verdict
+ *  can lower removal without lowering card draw (PRD #3397 story 11).
+ *
+ *  What ONE UNIT is, per dimension — the unit is part of the contract, since
+ *  the weight is meaningless without it:
+ *
+ *   | dimension       | one unit                                              |
+ *   | --------------- | ----------------------------------------------------- |
+ *   | `damage`        | one point of damage                                   |
+ *   | `cardAdvantage` | one card drawn                                        |
+ *   | `lifeSwing`     | one life point                                        |
+ *   | `boardRemoval`  | **one REPRESENTATIVE permanent taken off the board**  |
+ *   | `ramp`          | one mana produced                                     |
+ *   | `evasion`       | one temporary keyword grant                           |
+ *   | `tempo`         | one representative permanent returned to hand         |
+ *   | `disruption`    | one countered spell                                   |
+ *   | `recursion`     | one creature returned from graveyard to battlefield   |
+ *   | `tokens`        | one point of a created token's own body worth         |
+ *   | `pump`          | one +1/+0 or +0/+1                                    |
+ *   | `protection`    | one one-shot destroy-proof shield                     |
+ *
+ *  `boardRemoval` (and the `tempo` bounce that shares its victim) is the one
+ *  whose unit count is NOT a constant: a targeted, board-affecting Op counts
+ *  the realised board loss of its BEST LEGAL TARGET on the current board over
+ *  the representative victim's (`ai/latentBoard.ts`), so Stone Rain against
+ *  three Forests and Swords to Plowshares against Shivan Dragon are different
+ *  numbers from the same weight. That is the whole point of issue #3398: the
+ *  fixed `DESTROY_VALUE = 160` priced every removal spell at a 2/2 whatever it
+ *  faced, so announcing Stone Rain against a 17-point land cost 205 margin
+ *  points and the Bot never cast it (issue #3322,
+ *  `docs/research/greedy-vs-search.md`).
+ *
+ *  With NO board attached (a context-free valuation — the Bot Drafter's pick
+ *  heuristic, the resolution-choice ordering, a catalogue tool) the unit count
+ *  falls back to exactly ONE representative victim, which is what reproduces
+ *  today's numbers byte-for-byte. */
+export type LatentWeights = Readonly<Record<Feature, number>>;
+
 export type EvalWeights = {
     // --- evaluate.ts: leaf material/position weights (ADR 0018) -----------
     /** A won position's dominating, finite magnitude (`evaluate.ts`'s
@@ -163,6 +205,14 @@ export type EvalWeights = {
     /** Dominating penalty per misdirected target slot, the announcement-
      *  variant tie-break (`MISDIRECTION_WEIGHT`, issue #1888). */
     misdirectionWeight: number;
+    // --- opValuers.ts: latent per-dimension script weights (issue #3398) ---
+    /** The fitted price of one unit of each feature-basis dimension — see
+     *  `LatentWeights` above for what a unit IS per dimension. Replaces the
+     *  hand-picked per-Op point constants (`DESTROY_VALUE` and its siblings)
+     *  that `ai/opValuers.ts` used to carry: those were unreachable to a fit
+     *  and blind to the board. */
+    latent: LatentWeights;
+
     /** How many determinized worlds the block-quality root tie-break averages
      *  a candidate block over (`makeBlockDeltaLens`, issue #2876). It lives
      *  here rather than as a module const so a ladder variant can sweep it:
@@ -215,6 +265,25 @@ export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     // 21 on its own board). Its cost is per CONTENDER block edge — see
     // `makeBlockDeltaLens`' measurement.
     blockWorldSamples: 12,
+    // Issue #3398 — chosen so today's per-Op numbers are reproduced where a
+    // representative victim exists: `boardRemoval` 160 against one 2/2-worth
+    // victim IS the old `DESTROY_VALUE`, `damage` 22 IS `DAMAGE_PER_POINT`,
+    // and so on down the table. A re-parameterisation first; a behaviour
+    // change only where the board says the victim is not a 2/2.
+    latent: Object.freeze({
+        damage: 22,
+        cardAdvantage: 45,
+        lifeSwing: 8,
+        boardRemoval: 160,
+        ramp: 12,
+        evasion: 40,
+        tempo: 55,
+        disruption: 130,
+        recursion: 140,
+        tokens: 0.85,
+        pump: 9,
+        protection: 60,
+    }),
 });
 
 /** Reward gained per `evaluate` margin point in the OPEN band of

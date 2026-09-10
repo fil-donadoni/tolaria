@@ -6380,6 +6380,74 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: { moves: [{ kind: "cast-spell", card: "Replenish" }] },
         note: "Issue #2715 — the assembly step of the Parallax Replenish list. Exactly four Plains, so the {3}{W} is payable and nothing else is; the only two lines on the board are this cast and a pass.",
     },
+    {
+        // DISCRIMINATING PAIR, half 1 (issue #3398, PRD #3397). The position
+        // issue #3322 reported and `docs/research/greedy-vs-search.md`
+        // reproduced: Stone Rain in hand, exactly its {2}{R} in untapped
+        // Mountains, nothing else to do, and three Forests across the table.
+        //
+        // Under the fixed `DESTROY_VALUE = 160` the spell was worth a 2/2 in
+        // hand whatever it faced, so announcing it cost 205 margin points
+        // against a 17-point land: greedy and a 400-iteration search both
+        // passed, on every seed. Priced by what it can actually take — one
+        // `latent.boardRemoval` unit times the Forest's realised loss over the
+        // representative victim's — the spell is finally worth less in hand
+        // than the land is on the board, and casting it is the gain it always
+        // was.
+        label: "board-aware removal: casts Stone Rain on a land when there is nothing better to do",
+        spec: {
+            cards: [
+                { name: "Stone Rain", owner: "me", zone: "hand" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "opp", zone: "battlefield" },
+                { name: "Forest", owner: "opp", zone: "battlefield" },
+                { name: "Forest", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        tier: "must",
+        expect: { moves: [{ kind: "cast-spell", card: "Stone Rain" }] },
+        note: "Issue #3398 / #3322. Half 1 of the discriminating pair — pinning `victimUnits` back to the fixed representative victim (the pre-#3398 `DESTROY_VALUE`) makes the spell cost more to announce than the land is worth, and this goes red.",
+    },
+    {
+        // DISCRIMINATING PAIR, half 2 (issue #3398). The SAME board and the
+        // same three Mountains, plus a creature on curve in hand. The fix must
+        // not degrade into "always cast removal": three mana buys exactly one
+        // of the two spells, and a 3/2 body is worth far more than one of the
+        // opponent's three lands.
+        //
+        // Written as a `forbidden`, not a `moves`: which non-Stone-Rain line
+        // is best (deploy now, or hold the Barbarians for a better window) is
+        // a preference this entry has no business pinning — the blunder is
+        // what is unambiguous.
+        label: "board-aware removal: deploys the creature instead of Stone Rain when both are castable",
+        spec: {
+            cards: [
+                { name: "Stone Rain", owner: "me", zone: "hand" },
+                { name: "Balduvian Barbarians", owner: "me", zone: "hand" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "opp", zone: "battlefield" },
+                { name: "Forest", owner: "opp", zone: "battlefield" },
+                { name: "Forest", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        tier: "must",
+        expect: { forbidden: [{ kind: "cast-spell", card: "Stone Rain" }] },
+        note: "Issue #3398. Half 2 of the discriminating pair — proves the fix is board-awareness, not a blanket preference for removal.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the

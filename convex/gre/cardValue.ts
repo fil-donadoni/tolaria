@@ -25,6 +25,7 @@ import {
     dslRealizedAbilityScriptValue,
     dslSpellScriptValue,
 } from "./ai";
+import type { LatentLens } from "./ai/grounding";
 
 // The pure creature body math (`creatureValueRaw`) now lives in the leaf module
 // `./creatureBody` (issue #1426) so the per-Op value model (`gre/ai/**`) can
@@ -129,6 +130,14 @@ export function latentValue(chars: {
     /** DSL activated/triggered ability-script value (a creature's
      *  `effects[]`/`aiEffects` abilities); undefined/0 when it has none. */
     dslAbilityValue?: number;
+    /** Issue #3398 — true when `dslSpellValue` was MEASURED against a real
+     *  board (a targeted, board-affecting Op priced by its best legal victim)
+     *  rather than assumed from a representative one. Lifts the `base + MV`
+     *  coverage floor below: that floor answers "the Op vocabulary cannot
+     *  value this script", which a measurement has just refuted. Keeping it
+     *  is what left Stone Rain worth 38 in hand against a 17-point land —
+     *  still a net loss to announce, so still never announced. */
+    dslSpellValueMeasured?: boolean;
 }): number {
     if (chars.isCreature) {
         // A creature's `aiValue` overrides its WHOLE computed worth (body +
@@ -156,7 +165,9 @@ export function latentValue(chars: {
     // whose script the current Op vocabulary can't yet value fully (a
     // backfilled Op, #1430) never drops BELOW its mana-value worth; a burn /
     // removal spell rises far above it.
-    const fallback = NONCREATURE_BASE + chars.manaValue * W_NC_MV;
+    const fallback = chars.dslSpellValueMeasured
+        ? 0
+        : NONCREATURE_BASE + chars.manaValue * W_NC_MV;
     if (chars.dslSpellValue !== undefined) {
         // Clamp BEFORE the floor comparison (issue #1508) — an ordinary
         // script's value is always well under the cap, so this is a no-op for
@@ -171,13 +182,28 @@ export function latentValue(chars: {
 /** Derive the two DSL-script value pieces from a `CardDefinition` (context-free
  *  grounding — the card's worth in hand). Split out so both the id-keyed and
  *  the live-instance `cardValue` entry points share one derivation. */
-export function dslLatentPieces(def: CardDefinition): {
+export function dslLatentPieces(
+    def: CardDefinition,
+    /** Issue #3398 — the board the card is being valued against, when the
+     *  caller has one. Only the SPELL script reads it (a targeted, board-
+     *  affecting Op prices at its best legal victim's realised loss); a
+     *  creature's ABILITY scripts are valued context-free either way, since
+     *  their targets are chosen on a future board, not this one. */
+    board?: LatentLens
+): {
     dslSpellValue?: number;
     dslAbilityValue?: number;
+    dslSpellValueMeasured?: boolean;
 } {
+    const dslSpellValue = dslSpellScriptValue(def, board);
     return {
-        dslSpellValue: dslSpellScriptValue(def),
+        dslSpellValue,
         dslAbilityValue: dslAbilityScriptValue(def),
+        // Only a value the lens actually ANSWERED counts as measured — a
+        // board that could not resolve the card's target slots leaves the
+        // pre-#3398 representative valuation, floor included.
+        dslSpellValueMeasured:
+            dslSpellValue !== undefined && board?.measured() === true,
     };
 }
 
@@ -187,12 +213,16 @@ export function dslLatentPieces(def: CardDefinition): {
  *  re-derived from the registry `CardDefinition` (keyed by the id that survives
  *  the wire), NEVER read off the fat instance blob. Returns `{}` for an unknown
  *  id (a token / off-registry card — it keeps the `base + MV` fallback). */
-export function dslLatentPiecesById(cardId: string): {
+export function dslLatentPiecesById(
+    cardId: string,
+    board?: LatentLens
+): {
     dslSpellValue?: number;
     dslAbilityValue?: number;
+    dslSpellValueMeasured?: boolean;
 } {
     const def = tryGetDefinition(cardId);
-    return def ? dslLatentPieces(def) : {};
+    return def ? dslLatentPieces(def, board) : {};
 }
 
 /** Realized (in-play) DSL ability worth of a permanent from its REGISTRY id —

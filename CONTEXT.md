@@ -695,6 +695,24 @@ _Avoid_: Score, heuristic, fitness
 The **Brain**'s worth of a single card, in **Evaluation** units. Has two faces: _latent_ value (potential while the card sits in **Hand**/**Library**/**Graveyard**) and _realized_ value (a **Permanent**'s contribution once on the **Battlefield**, its power/toughness/keywords). Derived from card characteristics (mana value, P/T, keywords), with an optional per-**Card Definition** override for cards the heuristic misjudges. Lets the **Brain** prefer keeping/fetching a bomb over a **Land** and refuse to spend a good card for no effect.
 _Avoid_: Card weight, card score, rating
 
+**Latent Weight**:
+One fitted number per feature-basis dimension — the price of ONE unit of
+that dimension in **Evaluation** units — and the whole of what an **Effect
+Script**'s **Card Value** is built from. A valuer says how many units its Op is
+worth; the weight says what a unit costs, so a **Weight Fit** can lower removal
+without lowering card draw. Replaced the hand-picked per-Op point constants,
+which no fit could reach and no board could move.
+_Avoid_: Op value, removal constant, DESTROY_VALUE
+
+**Representative Victim**:
+The stand-in permanent a board-affecting Op is priced against when there is no
+board to read — a vanilla 2/2 for two, one unit of the `boardRemoval` **Latent
+Weight**. On a real board the unit count is measured instead: the best LEGAL
+target's realised loss over the representative victim's, so the same removal
+spell is worth four different numbers against a **Land**, a small creature, a
+bomb and an empty **Battlefield**.
+_Avoid_: Average creature, baseline target, default victim
+
 **Danger Clock**:
 The **Brain**'s read of the race: each **Player**'s estimated turns-to-lethal (life ÷ incoming **Combat Damage**, net of available **Blockers**). The **Evaluation** rewards holding the faster clock, so the **Bot** both defends when threatened and pushes damage when ahead instead of stalling. Estimates the threat beyond the search's turn-boundary horizon.
 _Avoid_: Threat level, aggro score, race

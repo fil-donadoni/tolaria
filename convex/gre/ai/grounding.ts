@@ -26,6 +26,9 @@ import type {
     EffectForEachSelector,
     EffectRef,
 } from "../../cards/types";
+import type { Feature } from "./featureBasis";
+import type { LatentWeights } from "./evalWeights";
+import { DEFAULT_EVAL_WEIGHTS } from "./evalWeights";
 
 /** Representative magnitudes used in CONTEXT-FREE grounding (PRD #1423). Not
  *  tuned per card — a coarse "typical" value so a variable-amount card is
@@ -33,6 +36,55 @@ import type {
 export const CF_ASSUMED_X = 2; // a chosen X paid from a hand (a mid ritual/burn X)
 export const CF_ASSUMED_COUNT = 1; // one forEach member / one counted thing
 export const CF_ASSUMED_REF = 2; // a bound object's power/toughness/manaValue
+
+/** The LATENT pricing lens a valuer reads (issue #3398, PRD #3397): the
+ *  fitted price of one unit of each feature-basis dimension, plus — when a
+ *  board is attached — how many units of `boardRemoval` the best legal victim
+ *  of an announced target slot is actually worth THERE.
+ *
+ *  Kept on the grounding context rather than passed as a second valuer
+ *  parameter for the same reason every other runtime read already lives here:
+ *  a valuer must be identical in both grounding modes, and the thing that
+ *  varies between them is what the context can answer. */
+export interface LatentLens {
+    /** Fitted price of one unit of each basis dimension. */
+    readonly weights: LatentWeights;
+    /** Units of `boardRemoval` the BEST LEGAL victim of announced target slot
+     *  `slot` is worth — its realised board loss over the representative
+     *  victim's (`ai/latentBoard.ts`). `undefined` when NO board is attached
+     *  (the valuer then falls back to exactly one representative victim, which
+     *  is what reproduces the pre-#3398 constants); `0` when a board IS
+     *  attached and holds no legal victim at all — a removal spell facing an
+     *  empty board is worth nothing, which is the case the old fixed constant
+     *  got most wrong. */
+    victimUnits(slot: number): number | undefined;
+    /** True once `victimUnits` has ANSWERED at least one slot off a REAL
+     *  board — i.e. this script's board-affecting worth is MEASURED, not
+     *  assumed from a representative victim.
+     *
+     *  Read by `latentValue` (`cardValue.ts`) to lift the `base + MV`
+     *  coverage floor. That floor exists so a card whose script the Op
+     *  vocabulary cannot value yet never drops below its mana-value proxy —
+     *  a statement about COVERAGE. Once the board has been read, the proxy is
+     *  superseded by a measurement, and keeping it is what left Stone Rain
+     *  priced at 38 in hand against a 17-point land: still a net loss to
+     *  cast, so still never cast (issue #3398). */
+    measured(): boolean;
+}
+
+/** The lens a valuation with no board attached reads: the production weights,
+ *  no victim lookup. */
+export function contextFreeLatentLens(
+    weights: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent
+): LatentLens {
+    return { weights, victimUnits: () => undefined, measured: () => false };
+}
+
+/** Price one unit of `feature` under `ctx`'s latent lens — the single read
+ *  every valuer uses instead of a module-level point constant. */
+export function latentWeight(ctx: GroundingContext, feature: Feature): number {
+    return ctx.latent.weights[feature];
+}
 
 /** A resolved runtime amount plus whether it scales with hidden/board state
  *  (so the caller can attach the `board-scaling` tag). */
@@ -77,6 +129,9 @@ export interface GroundingContext {
      *  permanent ref has no player-ref shape `isSelf` could read (issue
      *  #1964 — the `moveZone`/self-bounce-as-cost fix). */
     isSourceBattlefieldRef(ref: EffectRef): boolean;
+    /** The latent pricing lens (issue #3398) — per-dimension unit prices, and
+     *  the board's best legal victim for a targeted, board-affecting Op. */
+    readonly latent: LatentLens;
 }
 
 function isNegated(v: EffectSignedValue): v is { negate: EffectValue } {
@@ -84,7 +139,9 @@ function isNegated(v: EffectSignedValue): v is { negate: EffectValue } {
 }
 
 /** Context-free grounding: representative assumptions, caster's perspective. */
-export function contextFreeGrounding(): GroundingContext {
+export function contextFreeGrounding(
+    weights: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent
+): GroundingContext {
     const value = (v: EffectValue): GroundedAmount => {
         if (typeof v === "number") return { amount: v, scaling: false };
         if ("X" in v) return { amount: CF_ASSUMED_X, scaling: true };
@@ -179,6 +236,7 @@ export function contextFreeGrounding(): GroundingContext {
         isSourceBattlefieldRef(ref) {
             return ref.ref === "$source";
         },
+        latent: contextFreeLatentLens(weights),
     };
 }
 
@@ -192,6 +250,9 @@ export interface ContextAwareResolvers {
     resolveIsSelf(ref: EffectPlayerRef): boolean;
     /** Real member count of a `forEach` selector at the decision node. */
     resolveForEachCount(select: EffectForEachSelector): number;
+    /** Fitted per-dimension unit prices (issue #3398). Optional — a caller
+     *  that does not run a ladder variant gets the production vector. */
+    latentWeights?: LatentWeights;
 }
 
 /** Context-aware grounding: real magnitudes and perspective at a decision
@@ -231,6 +292,20 @@ export function contextAwareGrounding(
         isSourceBattlefieldRef(ref) {
             return ref.ref === "$source";
         },
+        // No context-aware caller attaches a board lens, and one of them
+        // WOULD want it: `dslSearchLibraryPrior` (`ai/choicePriors.ts`) values
+        // a whole, not-yet-cast card through
+        // `contextAwareGroundingForChoice`, target unchosen — so a removal
+        // spell it ranks in a library prices at the representative victim
+        // while `evaluate`'s hand term, one node later, prices the same card
+        // against the real board. Not a regression (the prior read the fixed
+        // constant before this too), but a genuine second price for one card,
+        // and a `latent` sweep does not reach it: nothing sets
+        // `latentWeights` below, so this reads the production vector. Both
+        // need `EvalWeights` threaded from `search.ts` through `priorFor` —
+        // a seam this issue's blast radius does not cover
+        // (`docs/findings/choice-prior-latent-weights.md`).
+        latent: contextFreeLatentLens(resolvers.latentWeights),
     };
 }
 
@@ -246,4 +321,14 @@ export function contextAwareGrounding(
  *  be ordinary battlefield ones. */
 export function withGraveyardSource(ctx: GroundingContext): GroundingContext {
     return { ...ctx, isSourceBattlefieldRef: () => false };
+}
+
+/** Derives a ctx that reads `lens` for its latent pricing — how a caller that
+ *  HAS a board (the `evaluate` hand term, via `cardValue`) attaches it to an
+ *  otherwise context-free valuation (issue #3398). */
+export function withLatentLens(
+    ctx: GroundingContext,
+    lens: LatentLens
+): GroundingContext {
+    return { ...ctx, latent: lens };
 }

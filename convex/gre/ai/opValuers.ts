@@ -44,40 +44,108 @@ import { contextFreeGrounding } from "./grounding";
 
 type OpOf<K extends EffectOp["op"]> = Extract<EffectOp, { op: K }>;
 
-// --- Forge-scale point weights (hand-tuned for ordering) -------------------
-const DAMAGE_PER_POINT = 22; // burn is removal + reach — worth a touch above life
-const LIFE_PER_POINT = 8; // matches evaluate.ts W_LIFE
-const CARD_VALUE = 45; // one drawn card (between a land and a spell)
-const DESTROY_VALUE = 160; // destroy a representative permanent (≈ a 2/2 body)
-const EXILE_VALUE = 175; // exile — no regen / graveyard recursion, worth a hair more
-const COUNTER_VALUE = 130; // counter a representative spell/threat
-const REANIMATE_VALUE = 140; // graveyard → battlefield a representative creature
-const HAND_RETURN_VALUE = 55; // bounce (tempo removal) / regrowth (card advantage)
-// Issue #1964 — the EXACT mirror of `HAND_RETURN_VALUE`, the same convention
-// `SKIP_DRAW_STEP_SELF_VALUE`/`_DISRUPTION_VALUE` already use for one clause
-// read from two directions: a `moveZone → hand` naming the ability's own
-// BATTLEFIELD source is the identical primitive as a bounce/regrowth, but
-// losing YOUR OWN board presence (and needing to recast) is a cost, not a
-// gain. Reused, not invented — see `isSourceBattlefieldRefSelector` below for
-// the narrow shape this fires on (never an announced target, never a
-// graveyard-zoned ability's self-regrowth).
-const HAND_RETURN_SELF_COST = -HAND_RETURN_VALUE;
-const TUCK_VALUE = 45; // to library / exile / graveyard from graveyard
-const PUMP_PER_STAT = 9; // per +1 power or +1 toughness
-const TOKEN_DISCOUNT = 0.85; // a token still has to survive — latent discount
+// --- Fitted per-dimension unit prices (issue #3398, PRD #3397) -------------
+// The hand-picked point constants this table replaced — `DESTROY_VALUE = 160`,
+// `EXILE_VALUE`, `COUNTER_VALUE`, `DAMAGE_PER_POINT`, `CARD_VALUE`,
+// `LIFE_PER_POINT`, `RAMP_PER_MANA`, `PUMP_PER_STAT`, `TOKEN_DISCOUNT`,
+// `GRANT_ABILITY_VALUE`, `REGENERATE_VALUE` and their siblings — are DELETED,
+// not renamed. Each was a magnitude no fit could reach and no board could
+// move: `DESTROY_VALUE` priced Stone Rain at a 2/2 whether it faced an empty
+// battlefield or a Shivan Dragon, so announcing it against a 17-point land
+// cost 205 margin points and the Bot never cast it (issue #3322).
+//
+// In their place: `EvalWeights.latent` carries ONE fitted weight per
+// `FEATURE_BASIS` dimension — the price of one UNIT of that dimension (see
+// `LatentWeights` in `evalWeights.ts` for what a unit IS per dimension) — read
+// off the grounding context (`ctx.latent`, so a ladder variant or a weight fit
+// moves it with no code edit). A valuer's job is now to say HOW MANY UNITS its
+// Op is worth, never what a unit costs.
+//
+// For a TARGETED, board-affecting Op the unit count is not a constant either:
+// it is the realised board loss of the Op's best legal target on the CURRENT
+// board over the representative victim's (`victimUnitsFor` below, backed by
+// `ai/latentBoard.ts`). With no board attached it is exactly 1, which is what
+// reproduces every pre-#3398 number byte-for-byte.
+//
+// A guard greps the deleted names back out: `latentWeights.bot.test.ts`.
+
+/** How much of a victim's realised worth each removal SHAPE actually takes,
+ *  as an exact fraction of the `boardRemoval` unit — dimensionless, never a
+ *  price. Written `(weight * num) / den` at every use site (multiply BEFORE
+ *  dividing) so the product is exact in binary and the pre-#3398 integers are
+ *  reproduced without float drift. */
+const REMOVAL_COMPLETENESS = {
+    /** The baseline shape — `destroy` takes the whole permanent. */
+    destroy: { num: 1, den: 1 },
+    /** Exile — no regeneration, no graveyard recursion, a hair more. */
+    exile: { num: 35, den: 32 },
+    /** An edict: the chooser keeps their best, and a symmetric "each player
+     *  sacrifices" also hits the caster. */
+    edict: { num: 3, den: 4 },
+    /** Stealing a permanent: denial plus a body, but revertible. */
+    gainControl: { num: 15, den: 16 },
+} as const;
+
+/** The `tempo` twin of `REMOVAL_COMPLETENESS`: how much of a bounced victim's
+ *  worth each `moveZone` destination takes, as a fraction of the `tempo` unit
+ *  (one representative permanent returned to hand). */
+const RETURN_COMPLETENESS = {
+    hand: { num: 1, den: 1 },
+    /** To library / exile / graveyard — a tuck, slightly less than a bounce
+     *  in this basis (the card is gone, but so is the chance to recast it). */
+    tuck: { num: 9, den: 11 },
+} as const;
+
+/** The `disruption` twin: how much of a countered spell each stack-departure
+ *  destination takes (CR 400.7). `library-bottom` reads as answered for the
+ *  rest of the game and prices AT the unit; `library-top` eats the owner's
+ *  next draw; `hand` is pure tempo, materially half an answer. */
+const STACK_DEPARTURE_COMPLETENESS = {
+    "library-bottom": { num: 1, den: 1 },
+    "library-top": { num: 11, den: 13 },
+    hand: { num: 1, den: 2 },
+} as const;
+
+/** The `protection` twin: a one-shot destroy-proof shield is the unit. */
+const PROTECTION_COMPLETENESS = {
+    /** Fog-style / two-way shield with no scalar amount. */
+    flatPrevent: { num: 7, den: 6 },
+    /** Player-wide "can't be attacked except by flying/islandwalk" — ground
+     *  only, so a tempered protection. */
+    islandSanctuary: { num: 1, den: 3 },
+    /** Player-wide untargetable + ALL damage prevented for a full turn cycle
+     *  — strictly stronger than Island Sanctuary (no evasion carve-out,
+     *  covers burn and abilities too). */
+    fromEverything: { num: 3, den: 4 },
+} as const;
+
+/** Price `units` units of `feature` under the context's fitted weights. */
+function priced(ctx: GroundingContext, feature: Feature, units = 1): number {
+    return ctx.latent.weights[feature] * units;
+}
+
+/** Price a completeness-scaled unit exactly: `(weight * num) / den * units`,
+ *  multiplying before dividing so an exact binary fraction stays exact. */
+function pricedFraction(
+    ctx: GroundingContext,
+    feature: Feature,
+    { num, den }: { num: number; den: number },
+    units = 1
+): number {
+    return ((ctx.latent.weights[feature] * num) / den) * units;
+}
+
 const NONCREATURE_TOKEN_VALUE = 40; // a Clue/Treasure/Food-style utility token
-const SAC_FORCED_VALUE = 120; // an edict (opponent sacrifices) — discounted removal
 const SAC_SELF_COST = -40; // sacrificing your OWN permanent (a cost)
 
 // --- Backfill-Op point weights (issue #1430) --------------------------------
-const RAMP_PER_MANA = 12; // one produced mana ≈ evaluate.ts's untapped-mana weight
 const ENERGY_PER_POINT = 6; // an energy counter — a smaller, synergy-gated resource
 const EXPERIENCE_PER_POINT = 14; // CR 122.1 — an experience counter: energy-like, but
 // PERMANENT (no rule removes it, and it survives its source dying — CR 122.2 is
 // object-scoped) and COMPOUNDING (each one makes every later trigger bigger),
 // so it prices above a one-shot energy counter and near a life point's weight.
 const POISON_PER_COUNTER = 16; // CR 122.1f — ten poison counters LOSE the game, so one
-// counter is a tenth of a kill: priced at 2x a life point (LIFE_PER_POINT),
+// counter is a tenth of a kill: priced at 2x a life point (`latent.lifeSwing`),
 // the same "life total is 20, poison is 10" ratio, no engine card exposes it
 // yet (the `addPlayerCounter` Op admits it; infect damage has its own path).
 const ATTACH_VALUE = 15; // reconfigure/equip-style self-attach — a small pump bump
@@ -87,12 +155,8 @@ const WHOLE_HAND_DISCARD_VALUE = 110; // representative whole-hand discard (~3 c
 const CARD_SELECTION_VALUE = 30; // lookDistribute/digMatchingToHand — an impulse-drawn card
 const SCRY_PER_CARD_VALUE = 10; // one card of scry-style selection
 const MILL_PER_CARD_VALUE = 6; // one milled card — a small library-resource shift
-const GRANT_ABILITY_VALUE = 40; // a temporary keyword grant (evasion/utility)
 const GRANT_CAST_VALUE = 20; // permission to cast an already-known exile/graveyard card
 const GRANT_GRAVEYARD_PLAY_VALUE = 80; // broad graveyard-replay permission (board-scaling)
-const GAIN_CONTROL_VALUE = 150; // steal — denial + a body, a hair under reanimate
-const PREVENT_DAMAGE_FLAT_VALUE = 70; // Fog-style / two-way shield, no scalar amount
-const REGENERATE_VALUE = 60; // a one-shot destroy-proof shield
 const RESTRICT_CASTING_VALUE = 20; // a turn-scoped "can't cast" denial
 const RESTRICT_ACTIVATION_VALUE = 15; // a turn-scoped "can't activate" denial
 const GRANT_CAST_TIMING_VALUE = 8; // a "cast as though flash" self-grant (tempo)
@@ -123,10 +187,8 @@ const EXTRA_TURN_VALUE = 300; // CR 500.7 — an entire additional turn
 const EXTRA_COMBAT_VALUE = 150;
 const SKIP_TURN_VALUE = 300; // CR 614.10 — forfeiting an entire turn, the mirror of EXTRA_TURN_VALUE
 const WIN_GAME_VALUE = 100000; // CR 104.2a — an alternate win condition
-const ISLAND_SANCTUARY_PROTECTION_VALUE = 20; // player-wide "can't be attacked except by flying/islandwalk" — ground-only, tempered protection
-const PROTECTION_FROM_EVERYTHING_VALUE = 45; // player-wide untargetable + ALL damage prevented for a full turn cycle — strictly stronger than Island Sanctuary (no evasion carve-out, covers burn and abilities too)
 const RANGED_TOPDECK_PER_CARD = 3; // Sylvan Library-style selection upside per pool card, smaller than putBack since it's an optional life-gated pick, not a free reorder
-const SKIP_DRAW_STEP_SELF_VALUE = -40; // CR 504.1/500.8 — forfeiting your OWN draw step is a real cost, a hair under -CARD_VALUE (the shipped card, Elfhame Sanctuary, pairs it with a land-to-hand upside elsewhere in the script)
+const SKIP_DRAW_STEP_SELF_VALUE = -40; // CR 504.1/500.8 — forfeiting your OWN draw step is a real cost, a hair under one `latent.cardAdvantage` unit (the shipped card, Elfhame Sanctuary, pairs it with a land-to-hand upside elsewhere in the script)
 const SKIP_DRAW_STEP_DISRUPTION_VALUE = 40; // the mirror case — denying ANOTHER player's draw step is turn-based card denial, worth the same one card, signed positive
 
 // --- Backfill-Op point weights (issue #1515) --------------------------------
@@ -137,7 +199,7 @@ const SKIP_DRAW_STEP_DISRUPTION_VALUE = 40; // the mirror case — denying ANOTH
 // representative flat magnitude, always `board-scaling` since the realized
 // worth (which spell gets cast; the copied body's stats) is unknown until
 // resolution.
-const CAST_DURING_RESOLUTION_FREE_VALUE = 55; // a free mini-cast (Cascade-style) — a hair above a drawn card (CARD_VALUE), since no mana is spent
+const CAST_DURING_RESOLUTION_FREE_VALUE = 55; // a free mini-cast (Cascade-style) — a hair above a drawn card (one `latent.cardAdvantage` unit), since no mana is spent
 const CAST_DURING_RESOLUTION_PAID_VALUE = 20; // a pay-the-cost mini-cast — matches GRANT_CAST_VALUE's "permission to cast" scale, since the mana cost offsets most of the card's own worth
 const COPY_TOKEN_REPRESENTATIVE_STAT = 2; // unknown copied body's P/T — same representative magnitude `grounding.ts`'s CF_ASSUMED_REF uses for a bound ref
 
@@ -181,6 +243,34 @@ function tagScaling(scaling: boolean, ...tags: ValueTag[]): ValueTag[] {
  *  (a `{ ref }` / `{ player }` selector does not). */
 function isAnnouncedTarget(sel: object): boolean {
     return "target" in sel;
+}
+
+/** The FLAT announced target-slot index a selector names (`{ target: 2 }`),
+ *  or `undefined` for every other selector shape. The index the latent board
+ *  lens resolves a requirement — and therefore a victim — from. */
+function announcedSlot(sel: object): number | undefined {
+    if (!("target" in sel)) return undefined;
+    const slot = (sel as { target: unknown }).target;
+    return typeof slot === "number" ? slot : undefined;
+}
+
+/** How many `boardRemoval`-scale UNITS a board-affecting Op takes off the
+ *  board (issue #3398): the realised loss of the best legal victim of its
+ *  announced target slot on the board being valued, over the representative
+ *  victim's.
+ *
+ *  Exactly `1` — one representative victim, which reproduces every pre-#3398
+ *  constant byte-for-byte — in the three cases where the board cannot answer:
+ *  a NON-announced selector (a sweeper's `forEach`, a bound ref), no board
+ *  attached at all (a context-free valuation: the Bot Drafter's pick
+ *  heuristic, the resolution-choice ordering), or a slot whose requirement the
+ *  lens cannot read (a modal card's per-mode targets). `0` only when a board
+ *  IS attached and holds no legal victim — the empty-board case the fixed
+ *  constant got most wrong. */
+function victimUnitsFor(sel: object, ctx: GroundingContext): number {
+    const slot = announcedSlot(sel);
+    if (slot === undefined) return 1;
+    return ctx.latent.victimUnits(slot) ?? 1;
 }
 
 /** issue #1964 — true for a BARE ref selector (`{ ref: string }`) that
@@ -360,7 +450,7 @@ const dealDamage: Valuer<"dealDamage"> = (op, ctx) => {
     const tags: ValueTag[] = tagScaling(scaling, "damage");
     if (!toPlayer && isAnnouncedTarget(op.to)) tags.push("targeted");
     if (!toPlayer) {
-        return { points: amount * DAMAGE_PER_POINT, tags };
+        return { points: priced(ctx, "damage", amount), tags };
     }
     const playerRef = (op.to as { player: EffectPlayerRef }).player;
     // Issue #1521 — a player-directed damage Op is NOT always aimed at the
@@ -390,7 +480,7 @@ const dealDamage: Valuer<"dealDamage"> = (op, ctx) => {
             ? false
             : ctx.isSelf(playerRef, "opponent");
     if (self) tags.push("self-cost");
-    return { points: amount * DAMAGE_PER_POINT * (self ? -1 : 1), tags };
+    return { points: priced(ctx, "damage", amount * (self ? -1 : 1)), tags };
 };
 
 const dealDamageDividedAsChosen: Valuer<"dealDamageDividedAsChosen"> = (
@@ -407,7 +497,7 @@ const dealDamageDividedAsChosen: Valuer<"dealDamageDividedAsChosen"> = (
     const total = op.total === "X+1" ? amount + 1 : amount;
     // Divided burn among announced targets — removal + reach, always targeted.
     return {
-        points: total * DAMAGE_PER_POINT,
+        points: priced(ctx, "damage", total),
         tags: [...tagScaling(scaling, "damage"), "targeted"],
     };
 };
@@ -417,7 +507,7 @@ const draw: Valuer<"draw"> = (op, ctx) => {
     // "you draw" (self) is card advantage; "target player draws" as a downside
     // (opponent) is negative.
     const self = ctx.isSelf(op.player, "self");
-    const points = amount * CARD_VALUE * (self ? 1 : -1);
+    const points = priced(ctx, "cardAdvantage", amount * (self ? 1 : -1));
     return { points, tags: tagScaling(scaling, "cardAdvantage") };
 };
 
@@ -425,7 +515,7 @@ const gainLife: Valuer<"gainLife"> = (op, ctx) => {
     const { amount, scaling } = ctx.value(op.amount);
     const self = ctx.isSelf(op.player, "self");
     return {
-        points: amount * LIFE_PER_POINT * (self ? 1 : -1),
+        points: priced(ctx, "lifeSwing", amount * (self ? 1 : -1)),
         tags: tagScaling(scaling, "lifeSwing"),
     };
 };
@@ -437,18 +527,33 @@ const loseLife: Valuer<"loseLife"> = (op, ctx) => {
     const self = ctx.isSelf(op.player, "opponent");
     const tags = tagScaling(scaling, "lifeSwing");
     if (self) tags.push("self-cost");
-    return { points: amount * LIFE_PER_POINT * (self ? -1 : 1), tags };
+    return { points: priced(ctx, "lifeSwing", amount * (self ? -1 : 1)), tags };
 };
 
-const destroy: Valuer<"destroy"> = (op) => ({
-    points: DESTROY_VALUE,
+// Issue #3398 — the point of the whole ticket: what a `destroy` is worth is
+// what it destroys. One fitted `boardRemoval` unit price times the units the
+// board's best legal victim is actually worth, so this Op prices Stone Rain
+// against three Forests, against a Shivan Dragon and against an empty board
+// as three different numbers from one weight.
+const destroy: Valuer<"destroy"> = (op, ctx) => ({
+    points: pricedFraction(
+        ctx,
+        "boardRemoval",
+        REMOVAL_COMPLETENESS.destroy,
+        victimUnitsFor(op.target, ctx)
+    ),
     tags: isAnnouncedTarget(op.target)
         ? ["boardRemoval", "targeted"]
         : ["boardRemoval", "board-scaling"],
 });
 
-const exile: Valuer<"exile"> = (op) => ({
-    points: EXILE_VALUE,
+const exile: Valuer<"exile"> = (op, ctx) => ({
+    points: pricedFraction(
+        ctx,
+        "boardRemoval",
+        REMOVAL_COMPLETENESS.exile,
+        victimUnitsFor(op.target, ctx)
+    ),
     tags: isAnnouncedTarget(op.target)
         ? ["boardRemoval", "targeted"]
         : ["boardRemoval", "board-scaling"],
@@ -470,8 +575,13 @@ const exileSelf: Valuer<"exileSelf"> = () => ({
 // downside the AI doesn't model here — a first-order removal valuation is the
 // right approximation, matching how `gainControl` values as removal despite
 // its own conditional-revert caveat.
-const exileWithAttachments: Valuer<"exileWithAttachments"> = (op) => ({
-    points: EXILE_VALUE,
+const exileWithAttachments: Valuer<"exileWithAttachments"> = (op, ctx) => ({
+    points: pricedFraction(
+        ctx,
+        "boardRemoval",
+        REMOVAL_COMPLETENESS.exile,
+        victimUnitsFor(op.target, ctx)
+    ),
     tags: isAnnouncedTarget(op.target)
         ? ["boardRemoval", "targeted"]
         : ["boardRemoval", "board-scaling"],
@@ -494,8 +604,8 @@ const captureBinding: Valuer<"captureBinding"> = () => ZERO_OP_VALUE;
 const recallCapturedBinding: Valuer<"recallCapturedBinding"> = () =>
     ZERO_OP_VALUE;
 
-const counter: Valuer<"counter"> = () => ({
-    points: COUNTER_VALUE,
+const counter: Valuer<"counter"> = (_op, ctx) => ({
+    points: priced(ctx, "disruption"),
     tags: ["disruption", "targeted"],
 });
 
@@ -514,15 +624,12 @@ const counter: Valuer<"counter"> = () => ({
 //     card comes straight back (Reprieve). Materially it is half an answer,
 //     and pricing it AT `counter` would have the bot trade a real counterspell
 //     for a bounce it should keep in reserve.
-const SPELL_TO_LIBRARY_TOP_VALUE = 110;
-const SPELL_TO_HAND_VALUE = 65;
-const moveSpellFromStack: Valuer<"moveSpellFromStack"> = (op) => ({
-    points:
-        op.destination === "library-bottom"
-            ? COUNTER_VALUE
-            : op.destination === "library-top"
-              ? SPELL_TO_LIBRARY_TOP_VALUE
-              : SPELL_TO_HAND_VALUE,
+const moveSpellFromStack: Valuer<"moveSpellFromStack"> = (op, ctx) => ({
+    points: pricedFraction(
+        ctx,
+        "disruption",
+        STACK_DEPARTURE_COMPLETENESS[op.destination]
+    ),
     tags: ["disruption", "targeted"],
 });
 
@@ -534,7 +641,7 @@ const mayPay: Valuer<"mayPay"> = () => {
     return ZERO_OP_VALUE;
 };
 
-const sacrifice: Valuer<"sacrifice"> = (op, _ctx, scope) => {
+const sacrifice: Valuer<"sacrifice"> = (op, ctx, scope) => {
     if (op.permanents) {
         // Issue #3292 — a picks-set sacrifice signs by WHO CHOSE the picks,
         // exactly as the single-permanent branch below signs by whose permanent
@@ -568,7 +675,14 @@ const sacrifice: Valuer<"sacrifice"> = (op, _ctx, scope) => {
         // A forced sacrifice over a picks set — an edict (opponent sacrifices).
         // Discounted vs. targeted removal: the chooser keeps their best, and a
         // symmetric "each player sacrifices" also hits the caster.
-        return { points: SAC_FORCED_VALUE, tags: ["boardRemoval"] };
+        return {
+            points: pricedFraction(
+                ctx,
+                "boardRemoval",
+                REMOVAL_COMPLETENESS.edict
+            ),
+            tags: ["boardRemoval"],
+        };
     }
     // Issue #1521 — a single-permanent sacrifice signs by WHOSE permanent it
     // is, not a blanket self-cost. `target` covers two distinct shapes
@@ -582,27 +696,57 @@ const sacrifice: Valuer<"sacrifice"> = (op, _ctx, scope) => {
     //     permanent) — the CASTER's own permanent, a genuine cost.
     if (op.target && isAnnouncedTarget(op.target)) {
         return {
-            points: SAC_FORCED_VALUE,
+            points: pricedFraction(
+                ctx,
+                "boardRemoval",
+                REMOVAL_COMPLETENESS.edict,
+                victimUnitsFor(op.target, ctx)
+            ),
             tags: ["boardRemoval", "targeted"],
         };
     }
     return { points: SAC_SELF_COST, tags: ["boardRemoval", "self-cost"] };
 };
 
-/** Value contribution of a `moveZone` by its destination zone. */
-function moveZonePoints(to: EffectMoveZone): { points: number; tag: Feature } {
+/** Value contribution of a `moveZone` by its destination zone (issue #3398:
+ *  the fitted unit price times the units the victim is worth — `victimUnits`
+ *  is 1 for every non-board move, which is every zone but a battlefield
+ *  departure). */
+function moveZonePoints(
+    to: EffectMoveZone,
+    ctx: GroundingContext,
+    victimUnits: number
+): { points: number; tag: Feature } {
     switch (to) {
         case "battlefield":
-            // Reanimation (graveyard → battlefield) — a body AND card advantage.
-            return { points: REANIMATE_VALUE, tag: "recursion" };
+            // Reanimation (graveyard → battlefield) — a body AND card
+            // advantage. The victim is a GRAVEYARD card, not a board
+            // permanent, so it prices at one `recursion` unit.
+            return { points: ctx.latent.weights.recursion, tag: "recursion" };
         case "hand":
             // Bounce (battlefield → hand, tempo removal) OR regrowth (graveyard
             // → hand, card advantage) — both a gain for the caster.
-            return { points: HAND_RETURN_VALUE, tag: "tempo" };
+            return {
+                points: pricedFraction(
+                    ctx,
+                    "tempo",
+                    RETURN_COMPLETENESS.hand,
+                    victimUnits
+                ),
+                tag: "tempo",
+            };
         case "library":
         case "exile":
         case "graveyard":
-            return { points: TUCK_VALUE, tag: "tempo" };
+            return {
+                points: pricedFraction(
+                    ctx,
+                    "tempo",
+                    RETURN_COMPLETENESS.tuck,
+                    victimUnits
+                ),
+                tag: "tempo",
+            };
     }
 }
 
@@ -632,7 +776,11 @@ const moveZone: Valuer<"moveZone"> = (op, ctx) => {
     // "return it to your hand" keeps scoring as the card advantage it is).
     if (op.to === "hand" && isSourceBattlefieldRefSelector(op.target, ctx)) {
         return {
-            points: HAND_RETURN_SELF_COST,
+            // Issue #1964 — the EXACT mirror of a bounce, one `tempo` unit
+            // signed as the cost it is: losing YOUR OWN board presence (and
+            // needing to recast) is never a gain. Never board-aware — the
+            // victim is the ability's own source, not a chosen target.
+            points: -priced(ctx, "tempo"),
             tags: ["tempo", "self-cost"],
         };
     }
@@ -640,14 +788,18 @@ const moveZone: Valuer<"moveZone"> = (op, ctx) => {
     // creature card of your graveyard" — Shallow Grave, Corpse Dance) needs
     // NO special case here, and the absence is deliberate rather than an
     // omission: it carries a `target`, so it passes the guard above and its
-    // `to: "battlefield"` scores as REANIMATE_VALUE like any other
+    // `to: "battlefield"` scores as one `recursion` unit like any other
     // reanimation, and `isAnnouncedTarget` already answers false for it (the
     // engine picks the card deterministically — nothing is announced, CR
     // 115), so it correctly misses the `targeted` tag. Both facts are pinned
     // by a test in `__tests__/opValuers.bot.test.ts`; the guard above must
     // stay keyed on the PRESENCE of `target`, not on it being announced, or
     // both shipped cards silently valuate at 0 and the bot never casts them.
-    const { points, tag } = moveZonePoints(op.to);
+    const { points, tag } = moveZonePoints(
+        op.to,
+        ctx,
+        victimUnitsFor(op.target, ctx)
+    );
     const tags: ValueTag[] = [tag];
     if (isAnnouncedTarget(op.target)) tags.push("targeted");
     return { points, tags };
@@ -670,7 +822,7 @@ const createToken: Valuer<"createToken"> = (op, ctx) => {
         spec.toughness === undefined ? undefined : ctx.value(spec.toughness);
     const ptScaling = (p?.scaling ?? false) || (t?.scaling ?? false);
     const per = isCreatureToken
-        ? TOKEN_DISCOUNT *
+        ? ctx.latent.weights.tokens *
           creatureValueRaw(
               Math.max(0, p?.amount ?? 0),
               Math.max(0, t?.amount ?? 0),
@@ -701,7 +853,7 @@ const createTokenCopy: Valuer<"createTokenCopy"> = (op, ctx) => {
     const toughness =
         op.except?.baseToughness ?? COPY_TOKEN_REPRESENTATIVE_STAT;
     const per =
-        TOKEN_DISCOUNT *
+        ctx.latent.weights.tokens *
         creatureValueRaw(
             power,
             toughness,
@@ -723,7 +875,7 @@ const pump: Valuer<"pump"> = (op, ctx) => {
     // so the magnitude is scored positive; the sign only picks the feature.
     const feature: Feature = net >= 0 ? "pump" : "boardRemoval";
     return {
-        points: Math.abs(net) * PUMP_PER_STAT,
+        points: priced(ctx, "pump", Math.abs(net)),
         tags: tagScaling(scaling, feature),
     };
 };
@@ -746,13 +898,13 @@ const counters: Valuer<"counters"> = (op, ctx) => {
         const net = (pt.power + pt.toughness) * sign;
         const feature: Feature = net >= 0 ? "pump" : "boardRemoval";
         return {
-            points: Math.abs(net) * count * PUMP_PER_STAT,
+            points: priced(ctx, "pump", Math.abs(net) * count),
             tags: tagScaling(scaling, feature),
         };
     }
     // A non-P/T counter (charge, fade, …) — a small, resource-ish contribution.
     return {
-        points: count * PUMP_PER_STAT * sign,
+        points: priced(ctx, "pump", count * sign),
         tags: tagScaling(scaling, "pump"),
     };
 };
@@ -765,12 +917,12 @@ const counters: Valuer<"counters"> = (op, ctx) => {
 // inventing a magnitude.
 // -------------------------------------------------------------------------
 
-const addMana: Valuer<"addMana"> = (op) => {
+const addMana: Valuer<"addMana"> = (op, ctx) => {
     const total = Object.values(op.mana).reduce(
         (sum: number, n) => sum + (n ?? 0),
         0
     );
-    return { points: total * RAMP_PER_MANA, tags: ["ramp"] };
+    return { points: priced(ctx, "ramp", total), tags: ["ramp"] };
 };
 
 const addSubtype: Valuer<"addSubtype"> = () => ZERO_OP_VALUE;
@@ -976,13 +1128,13 @@ const discardAtRandom: Valuer<"discardAtRandom"> = (op, ctx) => {
 
 // CR 400.7 (issue #1947) — a random pick from a source-linked exile pile,
 // returned to its OWNER's hand (Skyship Weatherlight). Modeled as a flat
-// regrowth-style card-advantage gain (`HAND_RETURN_VALUE`'s "bounce (tempo
+// regrowth-style card-advantage gain (one `latent.tempo` unit — "bounce (tempo
 // removal) / regrowth (card advantage)" framing) — the static model cannot
 // know which card the seeded RNG will pick, so it values the ACT of
 // retrieval rather than any specific card, the same flat-constant treatment
 // `grantCastFromExile` uses for an equally unknowable card-specific outcome.
-const randomExileToHand: Valuer<"randomExileToHand"> = () => ({
-    points: HAND_RETURN_VALUE,
+const randomExileToHand: Valuer<"randomExileToHand"> = (_op, ctx) => ({
+    points: priced(ctx, "tempo"),
     tags: ["cardAdvantage"],
 });
 
@@ -1060,8 +1212,13 @@ const skipNextTurn: Valuer<"skipNextTurn"> = (op, ctx) => {
     return { points: (self ? -1 : 1) * SKIP_TURN_VALUE, tags };
 };
 
-const gainControl: Valuer<"gainControl"> = (op) => ({
-    points: GAIN_CONTROL_VALUE,
+const gainControl: Valuer<"gainControl"> = (op, ctx) => ({
+    points: pricedFraction(
+        ctx,
+        "boardRemoval",
+        REMOVAL_COMPLETENESS.gainControl,
+        victimUnitsFor(op.target, ctx)
+    ),
     tags: isAnnouncedTarget(op.target)
         ? ["boardRemoval", "targeted"]
         : ["boardRemoval"],
@@ -1096,8 +1253,8 @@ const addPlayerCounter: Valuer<"addPlayerCounter"> = (op, ctx) => {
     };
 };
 
-const grantAbility: Valuer<"grantAbility"> = (op) => ({
-    points: GRANT_ABILITY_VALUE,
+const grantAbility: Valuer<"grantAbility"> = (op, ctx) => ({
+    points: priced(ctx, "evasion"),
     tags: isAnnouncedTarget(op.target) ? ["evasion", "targeted"] : ["evasion"],
 });
 
@@ -1149,7 +1306,7 @@ const mill: Valuer<"mill"> = (op, ctx) => {
 // of which route fires — a land hitting the battlefield and a spell hitting
 // the hand are both worth roughly a drawn card here. Routes sending cards to
 // the graveyard/exile are self-mill and worth strictly less, so the per-card
-// value is damped off `CARD_VALUE` rather than taken at face value.
+// value is damped off one `cardAdvantage` unit rather than taken at face value.
 const REVEAL_ROUTE_PER_CARD = 35;
 const revealTopAndRoute: Valuer<"revealTopAndRoute"> = (op, ctx) => {
     const { amount, scaling } = op.count
@@ -1168,23 +1325,32 @@ const revealTopAndRoute: Valuer<"revealTopAndRoute"> = (op, ctx) => {
 // multiplied by a guess. The match leg is the whole reason a card prints this,
 // and its worth is set by WHERE the match lands:
 //   battlefield → a free permanent straight out of the library, the
-//                 library-sourced twin of graveyard reanimation → REANIMATE_VALUE
-//   hand        → one card of advantage, dug for rather than drawn → CARD_VALUE
-//   graveyard   → a filtered self-mill, a graveyard-deck enabler   → TUCK_VALUE
+//                 library-sourced twin of graveyard reanimation → one `recursion` unit
+//   hand        → one card of advantage, dug for rather than drawn → one `cardAdvantage` unit
+//   graveyard   → a filtered self-mill, a graveyard-deck enabler   → a tuck
 //   exile       → the card leaves the game; the reveal is the point → SCRY_PER_CARD_VALUE
 // The prefix sent to `rest` is deliberately NOT netted out. It is a real cost
 // when it self-mills (Oath) and a real gain when it fills a graveyard deck,
 // and the valuer cannot tell which without knowing the deck — a signed guess
 // would be worse than none, and the sign it would flip is the one
 // `OP_BENEFICENCE` below reads.
-const REVEAL_UNTIL_MATCH_VALUE: Record<RevealRouteDestination, number> = {
-    battlefield: REANIMATE_VALUE,
-    hand: CARD_VALUE,
-    graveyard: TUCK_VALUE,
-    exile: SCRY_PER_CARD_VALUE,
-};
-const revealUntilMatch: Valuer<"revealUntilMatch"> = (op) => ({
-    points: REVEAL_UNTIL_MATCH_VALUE[op.match],
+function revealUntilMatchValue(
+    match: RevealRouteDestination,
+    ctx: GroundingContext
+): number {
+    switch (match) {
+        case "battlefield":
+            return priced(ctx, "recursion");
+        case "hand":
+            return priced(ctx, "cardAdvantage");
+        case "graveyard":
+            return pricedFraction(ctx, "tempo", RETURN_COMPLETENESS.tuck);
+        case "exile":
+            return SCRY_PER_CARD_VALUE;
+    }
+}
+const revealUntilMatch: Valuer<"revealUntilMatch"> = (op, ctx) => ({
+    points: revealUntilMatchValue(op.match, ctx),
     // Never `board-scaling`: the Op takes no `EffectValue`, so there is no
     // amount that could scale with the board.
     tags: ["cardAdvantage"],
@@ -1196,7 +1362,7 @@ const revealUntilMatch: Valuer<"revealUntilMatch"> = (op) => ({
 // here precisely because the two branches are worth almost the same in this
 // basis:
 //   land    → the card goes to hand                       CARD_SELECTION_VALUE 30
-//   nonland → a +1/+1 counter, i.e. 2 stats               2 * PUMP_PER_STAT    18
+//   nonland → a +1/+1 counter, i.e. 2 stats             2 * `latent.pump`      18
 //             + a keep-or-bin Surveil 1 (CR 701.25)       SCRY_PER_CARD_VALUE  10  = 28
 // Tagged on BOTH features it can produce — the counter is `pump`, the card
 // selection is `cardAdvantage` — since neither is conditional on anything the
@@ -1216,7 +1382,7 @@ const preventDamage: Valuer<"preventDamage"> = (op, ctx) => {
     if (op.mode === "next-n") {
         const { amount, scaling } = ctx.value(op.amount);
         return {
-            points: amount * LIFE_PER_POINT,
+            points: priced(ctx, "lifeSwing", amount),
             tags: tagScaling(scaling, "protection"),
         };
     }
@@ -1231,14 +1397,21 @@ const preventDamage: Valuer<"preventDamage"> = (op, ctx) => {
                 : ctx.value({ X: true });
         const total = op.total === "X+1" ? amount + 1 : amount;
         return {
-            points: total * LIFE_PER_POINT,
+            points: priced(ctx, "lifeSwing", total),
             tags: [...tagScaling(scaling, "protection"), "targeted"],
         };
     }
     // "all-combat" (Fog) / "combat-to-and-by" (Maze of Ith) /
     // "all-from-source" (Falling Timber, Rith's Charm) / "all-from-matching"
     // (Radiant Kavu) — no scalar amount, a flat defensive shield.
-    return { points: PREVENT_DAMAGE_FLAT_VALUE, tags: ["protection"] };
+    return {
+        points: pricedFraction(
+            ctx,
+            "protection",
+            PROTECTION_COMPLETENESS.flatPrevent
+        ),
+        tags: ["protection"],
+    };
 };
 
 const putBack: Valuer<"putBack"> = (op, ctx) => {
@@ -1262,8 +1435,8 @@ const rangedTopdeck: Valuer<"rangedTopdeck"> = (op, ctx) => {
     };
 };
 
-const regenerate: Valuer<"regenerate"> = (op) => ({
-    points: REGENERATE_VALUE,
+const regenerate: Valuer<"regenerate"> = (op, ctx) => ({
+    points: priced(ctx, "protection"),
     tags: isAnnouncedTarget(op.target)
         ? ["protection", "targeted"]
         : ["protection"],
@@ -1271,7 +1444,7 @@ const regenerate: Valuer<"regenerate"> = (op) => ({
 
 // The inverse of `regenerate`: strip a creature's regeneration for the turn —
 // an offensive removal-enabler (it lets a companion destroy/damage stick), so
-// it is worth a fraction of a full removal, not the defensive REGENERATE_VALUE.
+// it is worth a fraction of a full removal, not a defensive `protection` unit.
 const PREVENT_REGEN_VALUE = 25;
 
 const preventRegeneration: Valuer<"preventRegeneration"> = (op) => ({
@@ -1378,13 +1551,13 @@ const grantSpellManaSubstitution: Valuer<
     tags: ["tempo"],
 });
 
-const restrictCombat: Valuer<"restrictCombat"> = (op) => {
+const restrictCombat: Valuer<"restrictCombat"> = (op, ctx) => {
     // "cant-be-blocked" (CR 509.1b) is the evasion side — an offensive buff to
     // YOUR creature (it connects), not disruption of an opponent's board. Value
     // and tag it like a keyword-evasion grant, not soft removal.
     if (op.restriction === "cant-be-blocked") {
         return {
-            points: GRANT_ABILITY_VALUE,
+            points: priced(ctx, "evasion"),
             tags: isAnnouncedTarget(op.target)
                 ? ["evasion", "targeted"]
                 : ["evasion"],
@@ -1402,10 +1575,15 @@ const restrictCombat: Valuer<"restrictCombat"> = (op) => {
 // islandwalk" protection — a broad defensive effect, but tempered vs.
 // `restrictCombat`'s per-creature `cant-attack` (RESTRICT_COMBAT_VALUE)
 // because it only stops GROUND attackers, not evasive ones.
-const setIslandSanctuaryProtection: Valuer<
-    "setIslandSanctuaryProtection"
-> = () => ({
-    points: ISLAND_SANCTUARY_PROTECTION_VALUE,
+const setIslandSanctuaryProtection: Valuer<"setIslandSanctuaryProtection"> = (
+    _op,
+    ctx
+) => ({
+    points: pricedFraction(
+        ctx,
+        "protection",
+        PROTECTION_COMPLETENESS.islandSanctuary
+    ),
     tags: ["protection"],
 });
 
@@ -1414,10 +1592,15 @@ const setIslandSanctuaryProtection: Valuer<
 // EVERY damage source and every targeted removal/burn aimed at the player for
 // a full turn cycle, with no evasion carve-out to play around (contrast
 // `setIslandSanctuaryProtection`, which only stops ground attackers).
-const setProtectionFromEverything: Valuer<
-    "setProtectionFromEverything"
-> = () => ({
-    points: PROTECTION_FROM_EVERYTHING_VALUE,
+const setProtectionFromEverything: Valuer<"setProtectionFromEverything"> = (
+    _op,
+    ctx
+) => ({
+    points: pricedFraction(
+        ctx,
+        "protection",
+        PROTECTION_COMPLETENESS.fromEverything
+    ),
     tags: ["protection"],
 });
 
