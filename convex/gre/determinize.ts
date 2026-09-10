@@ -72,13 +72,18 @@
 // gives every non-observer seat opaque placeholders in every slot the observer
 // has not been shown, whatever the state holds.
 //
-// It exists because the two paths above are indistinguishable on the state the
-// ladder actually plays: headless self-play searches the FULL-INFORMATION
+// It exists because the two paths above are near-indistinguishable on the state
+// the ladder actually plays: headless self-play searches the FULL-INFORMATION
 // state, where `determinizeOpponent` pools the opponent's real hand with its
-// real library and re-deals — which is `unseenRemainder` by another route. So
-// the ladder's default seat is ALREADY deck-informed, and measuring
-// "informed vs blind" there needs the blind arm to be manufactured. Live play
-// gets its blindness for free from the wire projection and never sets this.
+// real library and re-deals — i.e. it samples the TRUE remainder, which is what
+// `unseenRemainder` reconstructs. So the ladder's default seat is ALREADY
+// deck-informed, and measuring "informed vs blind" there needs the blind arm to
+// be manufactured. (The two are not exactly equal — the informed path also
+// KEEPS `knownTo` hand cards, and its pool does not rule out copies the
+// observer cannot read — but neither difference is the opponent-modelling
+// ceiling; `searchVariant.ts` § `opponent-blind` carries the derivation.) Live
+// play gets its blindness for free from the wire projection and never sets
+// this.
 
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import { cloneGameState } from "./clone";

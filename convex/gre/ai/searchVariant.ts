@@ -282,11 +282,24 @@ export const LADDER_VARIANTS: Record<string, SearchVariant> = {
      *  ladder plays HEADLESS on the full-information `GameState`
      *  (`runHeadlessGame` hands `searchFn` the raw state, no wire projection),
      *  and the blind path `determinizeOpponent` POOLS the opponent's real hand
-     *  with its real library and re-deals. That pool IS `unseenRemainder` — the
-     *  decklist minus every publicly-accounted copy — so the ladder's default
-     *  seat already samples worlds from the true remainder. Handing it
-     *  `deckKnowledge` on top would re-derive the same multiset and measure a
-     *  null by construction: hours of machine time for an unfalsifiable ~50%.
+     *  with its real library and re-deals — so the ladder's default seat
+     *  already samples worlds from the TRUE remainder, which is what
+     *  `unseenRemainder` reconstructs. Handing it `deckKnowledge` on top would
+     *  re-derive essentially that same multiset: hours of machine time for a
+     *  verdict pinned near the noise floor by construction.
+     *
+     *  Two ways the ticket's arm would not be exactly null, neither of which
+     *  rescues it as an experiment. (1) It would ADD reveal-class knowledge:
+     *  `fillHiddenZonesFrom` keeps hand cards whose `knownTo` includes the
+     *  observer, where the pooled re-deal throws that position away — and
+     *  mono-black is an R1 pairing running Demonic Tutor, whose reveal stamps
+     *  the tutored card known to everyone. (2) It would SUBTRACT accuracy:
+     *  `unseenRemainder` deliberately does not rule out copies the observer
+     *  cannot read (face-down permanents, face-down exile), so where those
+     *  exist its pool is strictly WIDER than the truth the re-deal uses. Net,
+     *  the ticket's arm is bounded above by the default and measures a
+     *  reveal-preservation effect, not the opponent-modelling ceiling it
+     *  was asked for.
      *
      *  The informative contrast is therefore the other one. Control = the
      *  ladder's oracle default; candidate = `"blind"`, which forces the
@@ -307,7 +320,14 @@ export const LADDER_VARIANTS: Record<string, SearchVariant> = {
      *  RUNG. `--rung R1` (instant-speed interaction). R0 is combat and racing
      *  and holds few tricks, so it cannot show this effect at all.
      *
-     *  Run: `bun run ladder --tier decision --variant opponent-blind --rung R1`. */
+     *  Run: `bun run ladder --tier decision --variant opponent-blind --rung R1`.
+     *
+     *  NOT a blade-green candidate. "All `must` entries green with the variant
+     *  ON" (`blade/runner.ts`) is an acceptance criterion for a knob that
+     *  claims strength; this one deliberately REMOVES information, so a green
+     *  blade suite under it would mean the entries are insensitive to the
+     *  opponent model, not that the knob is safe. `placebo` is exempt for the
+     *  mirror reason — it claims no strength at all. */
     "opponent-blind": {
         name: "opponent-blind",
         opponentModel: "blind",

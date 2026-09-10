@@ -982,10 +982,20 @@ describe("determinize — blinded opponent (issue #2791)", () => {
 
 /** The board the informed-opponent blade pair uses (issue #2789), with the
  *  opponent's hidden pool CONCENTRATED: three tricks in hand against a
- *  three-card library of inert Plains, so a pooled re-deal of the real cards
- *  puts a trick in the imagined hand essentially every iteration. Hill Giant
- *  attacking into an untapped Grizzly Bears behind one Forest is a 3-damage
- *  gift when the trick exists and a free hit when it does not. */
+ *  three-card library, so a pooled re-deal of the real cards puts a trick in
+ *  the imagined hand essentially every iteration. Hill Giant attacking into an
+ *  untapped Grizzly Bears behind one Forest is a 3-damage gift when the trick
+ *  exists and a free hit when it does not.
+ *
+ *  `libraryCount` seeds basics matched to the colours PRESENT
+ *  (`scenarioBuilder.ts`), so with {R, G} on the board each library is
+ *  [Mountain, Forest, Mountain] — not inert filler. Two consequences worth
+ *  stating rather than glossing: the Forest is a live second land, so blinding
+ *  removes the opponent's imagined MANA DEVELOPMENT as well as the trick; and
+ *  the count applies to BOTH seats, so the bot is three cards from decking too.
+ *  Both are symmetric across the two arms, so neither is what separates them,
+ *  and blinding preserves the library COUNT (CR 704.5b) so deck-out lands
+ *  identically either way. */
 const CONCENTRATED_TRICK: BladeScenario = {
     label: "issue #2791 wiring: opponent-blind reaches determinize",
     spec: {
@@ -1015,7 +1025,11 @@ const CONCENTRATED_TRICK: BladeScenario = {
     bot: "me",
     budget: { iterations: 400 },
     seeds: [0xb1ade, 1, 2],
-    tier: "must",
+    // Report-only: this entry lives in a test file, is never enumerated by the
+    // blade suite (`registry.ts` is its only source), and one of the two arms
+    // below is asserted to FAIL it. `must` would read as a registry claim it
+    // is not making.
+    tier: "stretch",
     expect: { forbidden: [{ kind: "declare-attackers", card: "Hill Giant" }] },
 };
 
@@ -1026,18 +1040,27 @@ describe("opponent-blind variant — end to end through search (issue #2791)", (
         const seeing = runBladeScenario(CONCENTRATED_TRICK, null);
         expect(seeing.ok, seeing.failureMessage).toBe(true);
 
-        // Candidate: the same position, the same seeds, the same budget — only
-        // the imagined opponent is blinded. Placeholders resolve to no
+        // Candidate: the same position, the same seeds, the same budget — the
+        // variant is the only input that differs. Placeholders resolve to no
         // `CardDefinition`, so the simulated opponent never casts the trick and
-        // the attack looks free. This is the wiring proof: nothing but the
-        // variant differs, and it reaches `determinize` through `search`.
+        // the attack looks free. This is the wiring proof that the knob reaches
+        // `determinize` through `search`.
+        //
+        // It is not a CONTROLLED world-by-world comparison and does not claim
+        // to be: an empty pool draws no rng, so blinding also shifts the whole
+        // iteration's stream (rollouts, tie-breaks). On the ladder that is what
+        // the `placebo` band exists to bound; here it is why the assertion is
+        // every-seed rather than one.
         const blinded = runBladeScenario(
             CONCENTRATED_TRICK,
             LADDER_VARIANTS["opponent-blind"]
         );
         expect(blinded.ok).toBe(false);
-        expect(
-            blinded.seeds.every((s) => s.move?.kind === "declare-attackers")
-        ).toBe(true);
+        // EVERY seed walks in — the per-seed claim. `ok === false` alone would
+        // be satisfied by one seed of three, and matching `move.kind` would
+        // assert nothing at all: at a DECLARE_ATTACKERS window every move has
+        // kind `declare-attackers`, the zero-attacker "don't attack" the
+        // control arm returns included.
+        expect(blinded.seeds.every((s) => !s.ok)).toBe(true);
     });
 });
