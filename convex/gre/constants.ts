@@ -1839,6 +1839,44 @@ export function getManaTapOptionRestriction(
     return ability?.manaRestriction ?? null;
 }
 
+/** True when the SPECIFIC option a `manaChoiceIndex` resolves to carries an
+ *  activation-cost leg the AUTOMATIC planner must never pay on the player's
+ *  behalf, beyond what `getManaTapOptionRestriction` / `getManaChoiceCounterCost`
+ *  already cover. Two legs qualify today, for two different reasons:
+ *
+ *   - **`cost.exertThis` (CR 701.43a)** — Arena of Glory's "{R}, {T}, Exert
+ *     this land: Add {R}{R}". Exerting spends a real, permanent resource (the
+ *     source's next untap step), which is exactly the "stored resource the
+ *     player must not have spent on their behalf" category the counter-burning
+ *     exclusion above was written for. `isAutoPayableManaAbilityCost` cannot
+ *     catch it: `cost.tap` short-circuits that predicate to `true` before the
+ *     never-list is consulted (deliberate, pre-existing — Basal Thrull's
+ *     {T}+sacrifice is admitted the same way), and Arena's exert ability taps.
+ *   - **a `cost.mana` leg the planner cannot fund** — the solver reasons about
+ *     mana a source PRODUCES, never about mana it CONSUMES, so an option whose
+ *     ability charges mana of its own is planned at a price the payment
+ *     primitive then refuses (`applyManaAbilityManaCost` throws "Not enough
+ *     mana to activate this ability" and the whole mutation rolls back). Only
+ *     the PURE-GENERIC shape is fundable, and only through
+ *     `planManaPayment`'s own recursion, which this solver does not run — so
+ *     any `cost.mana` at all disqualifies the option here.
+ *
+ *  Per-OPTION, not per-source, and indices are never renumbered: a card mixing
+ *  a free ability with a costed one (Arena of Glory's plain "{T}: Add {R}")
+ *  stays auto-tappable on the free option. */
+export function manaTapOptionSpendsUnplannedResource(
+    card: CardInstanceState,
+    source: ManaTapOptionSource
+): boolean {
+    if (source.kind !== "activated") return false;
+    const cardId = (card.card as { id?: string }).id;
+    const ability = tryGetDefinition(cardId ?? "")?.activatedAbilities?.find(
+        (a) => a.id === source.abilityId
+    );
+    if (!ability) return false;
+    return !!ability.cost.exertThis || ability.cost.mana !== undefined;
+}
+
 /** Counter cost (CR 122.6) carried by the SPECIFIC option a `getManaChoices`
  *  index resolves to — a Mana Battery / storage land whose ability declares
  *  `manaChoiceRemovesCounters`: choosing index N removes N counters of that

@@ -347,6 +347,7 @@ export function useVsAiDriver(
             api.game.selectActivationDiscardCost
         ),
         toggleAttacker: useMutation(api.game.toggleAttacker),
+        toggleExert: useMutation(api.game.toggleExert),
         confirmAttackers: useMutation(api.game.confirmAttackers),
         selectBlocker: useMutation(api.game.selectBlocker),
         assignBlockerTarget: useMutation(api.game.assignBlockerTarget),

@@ -1495,8 +1495,19 @@ export function applyMoveInSearch(
         }
 
         case "declare-attackers": {
+            // CR 508.1g / 701.43d — carry the move's optional exert choices
+            // into the sandbox declaration; `emitAttackersDeclaredEvents` below
+            // pays them and batches their linked "when you do" triggers with
+            // the attack triggers, so the search sees both the payoff and the
+            // missed untap the server would produce.
+            const declaredExertIds = (move.exertIds ?? []).filter((id) =>
+                move.attackerIds.includes(id)
+            );
             const combat = (state.combat = {
                 attackerIds: [...move.attackerIds],
+                ...(declaredExertIds.length > 0
+                    ? { exertedIds: declaredExertIds }
+                    : {}),
                 confirmed: true,
                 blockerAssignments: {},
                 blockersConfirmed: false,

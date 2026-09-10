@@ -673,6 +673,58 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: 'Issue #3222 — the attack-trigger seam, pinned by the one shape that cannot be argued with: five life, four printed power, and the fifth point coming only from battle cry\'s +1/+0 on the OTHER attacker (CR 702.91a). Guards `emitAttackersDeclaredEvents` in `applyMoveInSearch` (`gre/search.ts`); deleting it flips every seed from "attack with both" to "attack with nobody", measured. Not battle-cry-specific by construction — the emission is the class fix, and exalted / annihilator / attack-token triggers ride the same line.',
     },
     {
+        // MUST. The CR 508.1g optional-attack-cost seam (issue #3214, exert).
+        // Glorybringer 4/4 flier swings into an untapped Serra Angel, the one
+        // creature on the board that can block it — and trades with it exactly.
+        // Exerting is the whole card: 4 damage kills the Angel before blockers
+        // are declared, so the swing connects AND the blocker is gone, for the
+        // price of one missed untap. Declining trades a 5-drop for a 5-drop.
+        //
+        // Written as a `predicate` because `MoveMatcher` has no exert field:
+        // the decision here is not WHICH creatures attack (there is only one)
+        // but whether the declaration pays the optional cost, which lives on
+        // `Move.exertIds`. Guards the whole chain in one line — enumeration
+        // (`enumerateAttackerMoves` emitting the paid variant at all),
+        // application (`applyMoveInSearch` carrying `exertIds` into
+        // `combat.exertedIds`) and payment (`emitAttackersDeclaredEvents` →
+        // `payDeclaredExertCosts`, whose linked trigger is what kills the
+        // Angel). Drop any one of them and the paid variant is either never
+        // offered or scores identically to declining.
+        label: "must: exerts Glorybringer to kill the blocker it would trade with",
+        spec: {
+            cards: [
+                {
+                    name: "Glorybringer",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Serra Angel",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 9,
+            landCount: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xe8e27, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                move?.kind === "declare-attackers" &&
+                (move.exertIds ?? []).length > 0,
+            describe:
+                "declares an attack that PAYS the optional exert cost (CR 508.1g / 701.43d)",
+        },
+        note: "Issue #3214 — the exert seam. The position is chosen so the exert payoff and its price cannot be confused: 4 damage removes the only blocker (which would otherwise trade one-for-one with Glorybringer), and the price — not untapping next turn — is a cost the search only sees beyond its horizon, so a passing entry proves the payoff reaches the root decision rather than that the price was mispriced.",
+    },
+    {
         // STRETCH. A lone 3/3 facing an empty board: attacking is free damage
         // (no blockers, no crackback the position can produce) and passing the
         // combat step throws a turn away. It PASSES today; it is kept in the

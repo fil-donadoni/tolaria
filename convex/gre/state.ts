@@ -433,6 +433,16 @@ export type CardInstanceState = {
      *  the mana ability with no stack, so the tap stays reversible. Cleared at
      *  untap step / on refund, like `chosenMana`. */
     lifePaidThisTap?: number;
+    /** CR 701.43a/b / 605.1a — set when THIS payment tap's `cost.exertThis`
+     *  leg (Arena of Glory) is what exerted the source, i.e. `skipNextUntap`
+     *  was not already set. An untap-toggle that reverses the mana-ability
+     *  activation before its mana is spent must un-exert exactly what it
+     *  exerted and nothing else: CR 701.43b lets a permanent be exerted more
+     *  than once before its next untap step, so a source ALREADY exerted by an
+     *  earlier effect keeps that earlier exert when this tap is reversed.
+     *  The exert-side sibling of `lifePaidThisTap` / `manaPaidThisTap`;
+     *  cleared at untap step / on refund, like both. */
+    exertedThisTap?: boolean;
     /** CR 601.2h / 605.1a — mana the controller actually spent from their pool
      *  to pay this tap-for-mana's own MANA cost leg (a filter/upgrader rock:
      *  Chromatic Star / Chromatic Sphere / Barbed Sextant / Implements of
@@ -2815,6 +2825,11 @@ export type PendingActivation = {
      *  cancelled mana payment leaves the permanent on the battlefield
      *  (CR 601.2h). Paid by `payReturnThisToHandCost`. */
     returnThisToHandSource?: boolean;
+    /** CR 701.43a / 602.1a — the `cost.exertThis` leg's intent, carried to
+     *  commit so a cancelled mana payment leaves the source un-exerted. Always
+     *  payable (CR 701.43b), so unlike the zone-move legs it needs no re-check
+     *  at commit. */
+    exertSource?: boolean;
     /** "Discard N cards at random" cost (CR 118.3 — Coral Helm). The cards are
      *  discarded at commit via the seeded PRNG. */
     discardAtRandomCount?: number;
@@ -4116,6 +4131,17 @@ export type GameState = {
          *  declare-time target chosen here. Cleared at END_OF_COMBAT with the
          *  rest of `combat`. */
         attackTargets?: Record<string, string>;
+        /** CR 508.1g / 701.43d — the declared attackers whose controller chose
+         *  to pay the OPTIONAL "you may exert this creature as it attacks"
+         *  cost. Toggled while the declaration is still open (the choice is
+         *  made AS attackers are declared, never at resolution), paid at
+         *  `finalizeConfirmAttackers`: each id is exerted (CR 701.43a) and
+         *  emits `PERMANENT_EXERTED`, whose linked "when you do" trigger
+         *  (CR 607.2h) joins the same APNAP batch as `ATTACKERS_DECLARED`.
+         *  Kept for the rest of combat once confirmed so the declaration
+         *  record stays readable; cleared at END_OF_COMBAT with the rest of
+         *  `combat`. Absent when nothing was exerted. */
+        exertedIds?: string[];
         confirmed: boolean;
         /** blockerId → attackerIds mapping. Each blocker maps to the array of
          *  attackers it is blocking. Normally length 1; multi-block creatures
@@ -11961,6 +11987,7 @@ export function resetBattlefieldTransientState(
     delete card.chosenMana;
     delete card.manaCounterRemoval;
     delete card.lifePaidThisTap;
+    delete card.exertedThisTap;
     delete card.manaPaidThisTap;
     delete card.manaCommitted;
     delete card.tapTriggerCommitted;

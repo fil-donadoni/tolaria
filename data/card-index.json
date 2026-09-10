@@ -1642,6 +1642,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Arena of Glory",
+        "scryfallId": "dd148edc-9e43-41aa-bb50-f912115d3e72",
+        "oracleId": "63dfe794-5f56-41ec-9883-5523b41cc3e0",
+        "firstSet": "mh3",
+        "firstPrintId": "dd148edc-9e43-41aa-bb50-f912115d3e72",
+        "firstPrintSet": "mh3"
+    },
+    {
         "name": "Arenson's Aura",
         "scryfallId": "f94f3e87-1b39-49a8-ad0d-f18c854e298a",
         "oracleId": "465843dc-57d0-46fd-ac47-238723034563",
@@ -13508,6 +13516,14 @@
         "firstPrintSet": "ons",
         "rarity": "common",
         "source": "compiled"
+    },
+    {
+        "name": "Glorybringer",
+        "scryfallId": "3277ad99-5682-4baa-b106-de15721876a6",
+        "oracleId": "b75c3902-633e-4d24-acde-d7a9cc8f466e",
+        "firstSet": "akh",
+        "firstPrintId": "3277ad99-5682-4baa-b106-de15721876a6",
+        "firstPrintSet": "akh"
     },
     {
         "name": "Gluttonous Zombie",

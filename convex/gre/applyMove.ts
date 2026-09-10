@@ -116,6 +116,7 @@ import {
     isSacrificeSelectionComplete,
 } from "./sacrificeChoice";
 import { captureNinjutsuAttackTarget } from "./ninjutsu";
+import { payExertActivationCost } from "./exert";
 import { checkStateBasedActions } from "./sba";
 import { applyPlayLandFromAnyZone, finalizeLandEntry } from "./playLand";
 import {
@@ -852,6 +853,13 @@ export function applyActivationCostsForSearch(
     // `src` is always the whole answer here.
     if (ability.cost.returnThisToHand) {
         removePermanentTo(state, src.id, "hand");
+    }
+    // CR 701.43a / 602.1a — the "Exert this permanent" leg (Arena of Glory).
+    // Applied in the search slice for the same reason the legs above are: a
+    // line that skipped it would score a land that untaps next turn, so the
+    // Bot would take the ability for free and misprice every turn after.
+    if (ability.cost.exertThis) {
+        payExertActivationCost(state, src);
     }
     // CR 602.1 / 118 — the DEFERRED cost legs (sacrifice, tap-other,
     // exile-from-graveyard, discard). The payer is the ACTIVATING player, NOT
@@ -1678,9 +1686,17 @@ export function applyMoveForSearch(
                 }
                 if (Object.keys(filtered).length > 0) attackTargets = filtered;
             }
+            // CR 508.1g / 701.43d — the optional exert costs the move chose,
+            // filtered to ids actually declared. `emitAttackersDeclaredEvents`
+            // below pays them and batches their triggers with the attack
+            // triggers, exactly as the server's `finalizeConfirmAttackers` does.
+            const exertIds = (move.exertIds ?? []).filter((id) =>
+                move.attackerIds.includes(id)
+            );
             next.combat = {
                 attackerIds: [...move.attackerIds],
                 ...(attackTargets ? { attackTargets } : {}),
+                ...(exertIds.length > 0 ? { exertedIds: exertIds } : {}),
                 confirmed: true,
                 blockerAssignments: {},
                 blockersConfirmed: false,

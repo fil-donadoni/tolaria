@@ -40,6 +40,7 @@ import {
     resolveTargetRequirementCount,
 } from "./state";
 import { handCardMatchesFilter } from "./alternativeCost";
+import { mayExertAsAttacks } from "./exert";
 import {
     castExileCostOccupiesPayWithSlot,
     castRawManaCost,
@@ -502,6 +503,13 @@ export type Move =
     | {
           kind: "declare-attackers";
           attackerIds: string[];
+          /** CR 508.1g / 701.43d — the declared attackers whose OPTIONAL
+           *  "you may exert this creature as it attacks" cost the bot chooses
+           *  to pay. Absent (or empty) = decline, which is always a legal
+           *  answer. A subset rather than a boolean because each offer is
+           *  independent: with two Glorybringers the bot may exert one and not
+           *  the other. */
+          exertIds?: string[];
           /** CR 508.1a (issue #1220) — optional per-attacker planeswalker attack
            *  target (attackerId → planeswalkerId). Absent attackers attack the
            *  defending player. Lets the bot direct an attack at a planeswalker. */
@@ -3262,10 +3270,51 @@ export function enumerateAttackerMoves(
             .map((subset) => [...base, ...subset.map((c) => c.id)])
     );
 
-    const baseMoves: Move[] = subsets.map((attackerIds) => ({
-        kind: "declare-attackers" as const,
-        attackerIds,
-    }));
+    // CR 508.1g / 701.43d — the optional exert cost, one independent yes/no per
+    // declared attacker that offers it (Glorybringer). Enumerated as a variant
+    // of each attacker subset rather than as a separate decision node: the
+    // choice is made AS attackers are declared (never afterwards), so a Move
+    // that did not carry it could not express the declaration at all.
+    //
+    // Bounded by construction: the power set is taken over the EXERT-CAPABLE
+    // members of a subset, and exert is rare enough on a real board that this is
+    // 1-2 creatures. `powerSet` is `MAX_COMBINATIONS`-capped anyway, and an
+    // all-declines variant is always the FIRST member it emits, so a truncation
+    // can only ever cost the bot exotic mixed answers, never the ability to
+    // decline.
+    const exertable = new Set(
+        eligible
+            .filter((c) => mayExertAsAttacks(c) !== undefined)
+            .map((c) => c.id)
+    );
+    type DeclareAttackersMove = Extract<Move, { kind: "declare-attackers" }>;
+    const withExertVariants = (
+        attackerIds: string[]
+    ): DeclareAttackersMove[] => {
+        const offers = attackerIds.filter((id) => exertable.has(id));
+        if (offers.length === 0) {
+            return [{ kind: "declare-attackers" as const, attackerIds }];
+        }
+        return powerSet(offers).map((exertIds) => ({
+            kind: "declare-attackers" as const,
+            attackerIds,
+            ...(exertIds.length > 0 ? { exertIds } : {}),
+        }));
+    };
+
+    // CR 508.1g — the variant product is CAPPED like every other combinatorial
+    // window in this file. `powerSet` bounds each call at `MAX_COMBINATIONS`,
+    // but `subsets.length x 2^offers` is not bounded by that, and the
+    // planeswalker loop below multiplies it again per planeswalker: four
+    // exert-capable attackers would take the root from 64 declarations to 1024
+    // and cut every move's ISMCTS visits by 16x. Truncation is safe in the one
+    // way that matters — `withExertVariants` emits the all-declines answer
+    // first for every subset (`powerSet`'s first member is the empty set), so
+    // the cap can only ever cost the bot exotic mixed answers, never the
+    // ability to decline or the plain declaration.
+    const baseMoves: Move[] = subsets
+        .flatMap(withExertVariants)
+        .slice(0, MAX_COMBINATIONS);
 
     // CR 508.1a (issue #1220) — the bot must also be able to attack a
     // planeswalker the defender controls, not only the defending player. For
@@ -3284,11 +3333,10 @@ export function enumerateAttackerMoves(
             if (attackerIds.length === 0) continue;
             const attackTargets: Record<string, string> = {};
             for (const id of attackerIds) attackTargets[id] = pw.id;
-            pwMoves.push({
-                kind: "declare-attackers" as const,
-                attackerIds,
-                attackTargets,
-            });
+            for (const variant of withExertVariants(attackerIds)) {
+                if (pwMoves.length >= MAX_COMBINATIONS) break;
+                pwMoves.push({ ...variant, attackTargets });
+            }
         }
     }
 

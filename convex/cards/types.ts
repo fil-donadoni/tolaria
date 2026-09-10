@@ -1367,6 +1367,25 @@ export interface ActivatedAbility {
          *  `exileThis`, never with the selection layer. Used by Attunement
          *  (`sets/usg/blue.ts`). */
         returnThisToHand?: boolean;
+        /** CR 701.43a/c / 602.1a — "Exert this permanent" as an activation cost
+         *  leg (Arena of Glory: "{R}, {T}, Exert this land: …"). Paying it
+         *  chooses to have THIS source not untap during its controller's next
+         *  untap step (`CardInstanceState.skipNextUntap`) and emits
+         *  `PERMANENT_EXERTED`.
+         *
+         *  Deliberately NOT creature-gated: CR 701.43a exerts a PERMANENT, and
+         *  the first shipped card doing it as a cost is a land. CR 701.43c
+         *  ("an object that isn't on the battlefield can't be exerted") is
+         *  automatic here — an activation cost is paid by a source that is on
+         *  the battlefield by construction.
+         *
+         *  Always affordable, and that is not an oversight: CR 701.43b lets a
+         *  permanent be exerted even when untapped and even when it has already
+         *  been exerted this turn, so there is no board state in which this leg
+         *  can be refused. It is a cost with a real PRICE (the source misses an
+         *  untap) but no precondition — the same shape as `sacrifice`, which is
+         *  likewise never unaffordable. */
+        exertThis?: boolean;
         /** "Discard N cards at random" cost (CR 118.3 / 701.8 — an additional
          *  cost paid by discarding randomly-chosen cards). The ability is only
          *  legal to activate while the activating player has at least one card
@@ -7835,6 +7854,35 @@ export interface StaticAttackSacrificeTax {
     oracleText: string;
 }
 
+/** CR 701.43d / 508.1g — "You may exert [this creature] as it attacks": an
+ *  OPTIONAL cost to attack, offered to the active player for THIS permanent
+ *  once it is among the declared attackers. Unlike `attack-sacrifice-tax` and
+ *  `attack-mana-tax` (mandatory taxes another permanent imposes on an attack),
+ *  this is a self-scoped PERMISSION the attacker's own controller may decline —
+ *  declining is always legal, and CR 508.1d is explicit that a player is never
+ *  required to pay a cost to attack.
+ *
+ *  The effect is declarative and carries no predicate: the source IS the
+ *  creature the offer is made for, so the engine (`exertableAttackerIds`,
+ *  `convex/gre/exert.ts`) needs nothing beyond "this permanent declares the
+ *  kind and is a declared attacker". A card whose exert offer were ever
+ *  conditional would add its own predicate then, not now (YAGNI).
+ *
+ *  Paying it exerts the creature (CR 701.43a — it won't untap during its
+ *  controller's next untap step) and emits `PERMANENT_EXERTED`, which is what
+ *  the LINKED "when you do" trigger (CR 607.2h) listens to. The static ability
+ *  and the linked trigger are declared SEPARATELY on the card — this kind for
+ *  the offer, a `PERMANENT_EXERTED` `TriggeredAbility` matching `self.id` for
+ *  the reflexive half — because the engine's trigger machinery already gives
+ *  the "when you do" half its stack item, its targets and its UI. */
+export interface StaticMayExertAsAttacks {
+    kind: "may-exert-as-attacks";
+    id: string;
+    /** Oracle text of the offer, surfaced as the prompt label on the
+     *  declare-attackers exert affordance. */
+    oracleText: string;
+}
+
 /** Battlefield-scanned per-attacker MANA attack tax directed at the host's
  *  controller (CR 508.1c/1g — Propaganda / Ghostly Prison / Windborn Muse /
  *  Elephant Grass). The mana analogue of `attack-sacrifice-tax` (#733): a taxed
@@ -8848,6 +8896,7 @@ export type StaticEffect = (
     | StaticGlobalAttackRestriction
     | StaticAttackSacrificeTax
     | StaticAttackManaTax
+    | StaticMayExertAsAttacks
     | StaticLandwalkNegation
     | StaticEntersTappedRestriction
     | StaticAttackRequirement
@@ -9137,6 +9186,7 @@ export type GameEventType =
     | "SPELL_KICKED"
     | "PERMANENT_TAPPED"
     | "PERMANENT_UNTAPPED"
+    | "PERMANENT_EXERTED"
     | "ABILITY_ACTIVATED"
     | "STATE_CHECK"
     | "TRIGGER_FIZZLED"
@@ -9514,6 +9564,37 @@ export interface PermanentUntappedEvent {
     controllerId: string;
     permanentTypes: ReadonlyArray<CardType>;
     permanentSubtypes: ReadonlyArray<string>;
+}
+
+/** CR 701.43a — emitted once each time a permanent is EXERTED ("you choose to
+ *  have it not untap during your next untap step"). Both exert sites raise it:
+ *  the optional attack cost (CR 701.43d / 508.1g, chosen at declare-attackers)
+ *  and the `cost.exertThis` activation-cost leg (Arena of Glory). Payload
+ *  mirrors `PermanentTappedEvent` so a trigger can discriminate without
+ *  re-reading the registry.
+ *
+ *  This is the event the LINKED "when you do" trigger (CR 701.43d / 607.2h)
+ *  listens to: Glorybringer's ability matches only `permanentId === self.id`,
+ *  which is exactly "refers only to actions taken as a result of the static
+ *  ability" — no other exert, on any other permanent, can fire it. */
+export interface PermanentExertedEvent {
+    type: "PERMANENT_EXERTED";
+    /** Instance id of the permanent that was exerted (CR 701.43c — always a
+     *  permanent on the battlefield; nothing elsewhere can be exerted). */
+    permanentId: string;
+    /** Controller of the exerted permanent at exert time — the player who
+     *  MADE the choice (CR 701.43a: "you choose"). */
+    controllerId: string;
+    /** Card types of the exerted permanent (CR 205), snapshotted at exert
+     *  time. Exert is NOT creature-only (Arena of Glory is a land). */
+    permanentTypes: ReadonlyArray<CardType>;
+    /** Card subtypes of the exerted permanent (CR 205.3), snapshotted. */
+    permanentSubtypes: ReadonlyArray<string>;
+    /** True when the exert paid the CR 701.43d optional attack cost (the
+     *  creature was exerted "as it attacks"), false when it paid an activation
+     *  cost leg (CR 602.1a, Arena of Glory). Lets a future "whenever you exert
+     *  a creature" watcher discriminate the two without re-deriving the phase. */
+    asAttacks: boolean;
 }
 
 /** Activated-ability-use event emitted when a permanent's activated ability
@@ -10081,6 +10162,7 @@ export type GameEvent =
     | SpellKickedEvent
     | PermanentTappedEvent
     | PermanentUntappedEvent
+    | PermanentExertedEvent
     | AbilityActivatedEvent
     | StateCheckEvent
     | TriggerFizzledEvent

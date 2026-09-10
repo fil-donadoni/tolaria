@@ -49,3 +49,72 @@ export const shiftingWoodland: CardDefinition = {
         return false;
     },
 };
+
+// Arena of Glory — Land.
+// "This land enters tapped unless you control a Mountain.
+//  {T}: Add {R}.
+//  {R}, {T}, Exert this land: Add {R}{R}. If that mana is spent on a creature
+//  spell, it gains haste until end of turn."
+//
+// CR 701.43a/c — "Exert this land" is an activation COST leg (`cost.exertThis`,
+// CR 602.1a): paying it chooses to have the land not untap during its
+// controller's next untap step. Exert is a PERMANENT keyword action, not a
+// creature one — CR 701.43a says "a permanent" — which is why the leg is not
+// creature-gated and why this land is its first shipped carrier. CR 701.43b
+// makes the leg always payable: an untapped permanent can be exerted, and so
+// can one already exerted this turn.
+//
+// TODO (tracked-by: #3354): the mana-provenance rider — "If that mana is spent
+// on a creature spell, it gains haste until end of turn" — is not implemented.
+// The {R}{R} is added as ordinary pool mana, so a creature spell paid with it
+// does not gain haste. CR 106.6 rider machinery exists for exactly one property
+// (`RestrictedMana.cantBeCounteredRider`, Delighted Halfling) and issue #3354
+// names the five sites a second one needs, including the one with no precedent:
+// carrying the property from the stack item onto the permanent the spell
+// becomes.
+//
+// compiler-gap: "This land enters tapped unless you control a Mountain." (#3214)
+// compiler-gap: "{R}, {T}, Exert this land: Add {R}{R}. If that mana is spent on a creature spell, it gains haste until end of turn." (#3214)
+export const arenaOfGlory: CardDefinition = {
+    id: "dd148edc-9e43-41aa-bb50-f912115d3e72",
+    rarity: "rare",
+    name: "Arena of Glory",
+    oracleText:
+        "This land enters tapped unless you control a Mountain.\n{T}: Add {R}.\n{R}, {T}, Exert this land: Add {R}{R}. If that mana is spent on a creature spell, it gains haste until end of turn. (An exerted permanent won't untap during your next untap step.)",
+    types: ["Land"],
+    entersTappedUnless(
+        view: LandEntryStateView,
+        controllerId: string
+    ): boolean {
+        for (const player of view.players) {
+            if (player.id !== controllerId) continue;
+            return player.battlefield.some((p) =>
+                p.subtypes.includes("Mountain")
+            );
+        }
+        return false;
+    },
+    activatedAbilities: [
+        {
+            id: "arena-of-glory-mana",
+            oracleText: "{T}: Add {R}.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx) => ctx.addMana({ R: 1 }),
+            manaProduced: { R: 1 },
+        },
+        {
+            id: "arena-of-glory-exert-mana",
+            oracleText:
+                "{R}, {T}, Exert this land: Add {R}{R}. If that mana is spent on a creature spell, it gains haste until end of turn.",
+            // CR 605.1a — still a mana ability: it adds mana, does not target,
+            // and is not a loyalty ability, so it never uses the stack even
+            // with a mana leg and an exert leg in its cost (CR 602.1a — the
+            // whole activation cost is everything before the colon).
+            cost: { mana: { R: 1 }, tap: true, exertThis: true },
+            useStack: false,
+            effect: (ctx) => ctx.addMana({ R: 2 }),
+            manaProduced: { R: 2 },
+        },
+    ],
+};

@@ -119,6 +119,7 @@ describe("COST_LEG_CLAIMS — the activation-cost leg census (issue #3007)", () 
                 "discardFilter",
                 "discardLastDrawn",
                 "discardThis",
+                "exertThis",
                 "exileFromGraveyard",
                 "exileThis",
                 "life",

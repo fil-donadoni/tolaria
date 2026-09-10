@@ -10,7 +10,7 @@
 //   turn-face-up     → turnPermanentFaceUp (CR 116.2b / 702.37e, issue #2705)
 //   cast-spell       → announceCast → selectTargets? [→ confirmTargets] → tapForPayment?
 //   activate-ability → activateAbility → selectTargets? [→ confirmTargets] → tapForActivationPayment*
-//   declare-attackers→ toggleAttacker* → confirmAttackers
+//   declare-attackers→ toggleAttacker* → toggleExert* → confirmAttackers
 //   declare-blockers → (selectBlocker → assignBlockerTarget)* → confirmBlockers
 //   mulligan         → declareMulligan
 //   mulligan-bottom  → submitResolutionChoice (kind "mulligan-bottom")
@@ -175,6 +175,10 @@ export type MoveMutations = {
         a: GP & { cardInstanceIds: string[] }
     ) => Promise<unknown>;
     toggleAttacker: (a: GP & { cardInstanceId: string }) => Promise<unknown>;
+    /** CR 508.1g / 701.43d — the optional exert cost for one declared
+     *  attacker. Separate from `toggleAttacker` because declining is the
+     *  default and the two toggles are independent decisions. */
+    toggleExert: (a: GP & { cardInstanceId: string }) => Promise<unknown>;
     confirmAttackers: (a: GP) => Promise<unknown>;
     selectBlocker: (a: GP & { cardInstanceId: string }) => Promise<unknown>;
     assignBlockerTarget: (a: GP & { attackerId: string }) => Promise<unknown>;
@@ -687,6 +691,12 @@ export async function executeMove(
             // in the set are auto-included by confirmAttackers (CR 508.1d).
             for (const id of move.attackerIds) {
                 await mutations.toggleAttacker({ ...base, cardInstanceId: id });
+            }
+            // CR 508.1g / 701.43d — the optional exert costs, chosen while the
+            // declaration is still open (the server refuses `toggleExert` once
+            // `combat.confirmed` is set, which is exactly the CR's ordering).
+            for (const id of move.exertIds ?? []) {
+                await mutations.toggleExert({ ...base, cardInstanceId: id });
             }
             await mutations.confirmAttackers(base);
             return;

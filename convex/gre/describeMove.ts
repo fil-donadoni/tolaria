@@ -181,12 +181,23 @@ export function describeMove(move: Move, state: GameState): string {
                 : `${move.sourceCardId}:${move.abilityId}`;
             return `activate granted ability (${label})`;
         }
-        case "declare-attackers":
-            return move.attackerIds.length === 0
-                ? "no attacks"
-                : `attack: ${move.attackerIds
-                      .map((id) => instanceName(state, id))
-                      .join(", ")}`;
+        case "declare-attackers": {
+            if (move.attackerIds.length === 0) return "no attacks";
+            const attackers = move.attackerIds
+                .map((id) => instanceName(state, id))
+                .join(", ");
+            // CR 508.1g / 701.43d — the optional exert cost is part of the
+            // decision, so the trace line must show it: two otherwise identical
+            // declarations that differ only in whether Glorybringer exerted are
+            // two different moves, and a label that hid it would make the
+            // DecisionTrace unreadable exactly where it matters.
+            const exerted = (move.exertIds ?? [])
+                .map((id) => instanceName(state, id))
+                .join(", ");
+            return exerted.length > 0
+                ? `attack: ${attackers} (exert: ${exerted})`
+                : `attack: ${attackers}`;
+        }
         case "declare-blockers":
             return move.assignments.length === 0
                 ? "no blocks"

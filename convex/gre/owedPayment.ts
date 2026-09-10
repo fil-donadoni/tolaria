@@ -206,6 +206,10 @@ export const ACTIVATION_KEY_CENSUS: Record<keyof PendingActivation, ParkClass> =
         /** CR 602.1a — Attunement returns THIS permanent to its owner's hand;
          *  no pick. */
         returnThisToHandSource: "non-park",
+        /** CR 701.43a/b — the source exerts ITSELF at commit; always payable
+         *  (an untapped or already-exerted permanent can still be exerted), so
+         *  nobody is waiting on the payer. */
+        exertSource: "non-park",
         /** CR 118.3 — discarded AT RANDOM (Coral Helm): the PRNG picks, not the
          *  payer. A park would never clear. */
         discardAtRandomCount: "non-park",

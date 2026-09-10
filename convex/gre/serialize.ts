@@ -255,6 +255,7 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "enterAttackingTarget",
     "imagePrintId",
     "indefiniteSubtypeSet",
+    "exertedThisTap",
     "isAttacking",
     "isBlocking",
     "isSummoningSick",
@@ -469,6 +470,7 @@ function compactCard(
         out.untapLockedBy = card.untapLockedBy;
     }
     if (card.skipNextUntap) out.skipNextUntap = true;
+    if (card.exertedThisTap) out.exertedThisTap = true;
     if (card.canAttackDespiteDefenderThisTurn)
         out.canAttackDespiteDefenderThisTurn = true;
     if (card.counters && Object.keys(card.counters).length > 0) {
@@ -947,6 +949,7 @@ function expandCard(
         result.untapLockedBy = compact.untapLockedBy as string[];
     }
     if (compact.skipNextUntap) result.skipNextUntap = true;
+    if (compact.exertedThisTap) result.exertedThisTap = true;
     if (compact.canAttackDespiteDefenderThisTurn)
         result.canAttackDespiteDefenderThisTurn = true;
     if (compact.counters) {

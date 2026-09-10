@@ -5,6 +5,7 @@ import {
     getManaTapOptionRestriction,
     getManaTapOptionsDetailed,
     isTapLockedBySummoningSickness,
+    manaTapOptionSpendsUnplannedResource,
     MANA_COLORS,
     normalizedHybridPips,
 } from "./constants";
@@ -227,6 +228,14 @@ export function buildAutoTapSources(
         // 0`) here, keeping only the free index-0 "remove 0 counters" pick —
         // the battery stays auto-tappable for its base mana, never for a
         // scaling tap the player didn't choose.
+        // CR 701.43a / 602.1 (issue #3214) — and the third exclusion of the same
+        // family: an option whose ability EXERTS its source, or charges mana of
+        // its own. `manaTapOptionSpendsUnplannedResource` carries the argument;
+        // in short, `solveSmartAutoTap` minimizes tap COUNT, so Arena of Glory's
+        // "{R}, {T}, Exert this land: Add {R}{R}" beats two ordinary lands for
+        // any cost of 2+ — and the plan then either pays an exert the player
+        // never chose or, with an empty pool, throws out of
+        // `applyManaAbilityManaCost` and rolls the whole mutation back.
         // Indices are kept against the FULL unified `options` list — the same
         // list `tapSourceIntoPayment` / `resolveManaTapChoice` resolve
         // `manaChoiceIndex` against — so filtering never renumbers them.
@@ -235,7 +244,8 @@ export function buildAutoTapSources(
             .filter(
                 ({ opt }) =>
                     getManaTapOptionRestriction(card, opt.source) === null &&
-                    getManaChoiceCounterCost(card, opt.source) === null
+                    getManaChoiceCounterCost(card, opt.source) === null &&
+                    !manaTapOptionSpendsUnplannedResource(card, opt.source)
             );
         if (usable.length === 0) continue; // wholly restricted: leave manual
         sources.push({
