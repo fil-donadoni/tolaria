@@ -539,6 +539,21 @@ describe("Palantír of Orthanc — the opponent's choice and its punisher (CR 60
         expect(state.players[0].life).toBe(20);
     });
 
+    it("the opponent may accept even with the controller's library EMPTY (CR 121.3a)", () => {
+        // CR 121.3a — the chooser is not the player who would draw, and "if
+        // the latter player has no cards in their library, the choice can be
+        // taken". Accepting is then a kill: the draw from an empty library
+        // makes the Palantír's controller lose the next time SBAs are checked
+        // (CR 104.3c), which is exactly why the rule lets the choice be made.
+        const { state, permanent } = palantirState([]);
+        fireEndStep(state, permanent);
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+
+        expect(state.players[0].library).toHaveLength(0);
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.players[0].hasDrawnFromEmpty).toBe(true);
+    });
+
     it("a library SHORTER than X mills what it has and drains only for that (CR 701.17b)", () => {
         const { state, permanent } = palantirState([bolt.id]);
         fireEndStep(state, permanent);

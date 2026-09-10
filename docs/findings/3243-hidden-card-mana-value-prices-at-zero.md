@@ -21,11 +21,13 @@ value for whoever is choosing, so every hidden-card-scaled cost reads as free
 and every hidden-card-scaled benefit reads as worthless.
 
 **Evidence.** `convex/gre/determinize.ts:352` — "opaque on purpose — a
-placeholder resolves to no `CardDefinition`". Reproduced at
-`convex/gre/ai/__tests__/opponentSideMayPay.bot.test.ts`: with three influence
-counters and a library of three Colossus of Sardia (mana value 9 each), a bot
-at 4 life still answers `may-pay: false`, i.e. it takes 27 life loss over
-giving up one card. Passing the offering seat's decklist as `deckKnowledge`
+placeholder resolves to no `CardDefinition`". Observed in a scratch run while
+writing `convex/gre/ai/__tests__/opponentSideMayPay.bot.test.ts` (the fixture
+was not kept, precisely because it asserts a bot answer that is correct given
+what the bot can see): with three influence counters and a library of three
+Colossus of Sardia (mana value 9 each), a bot at 4 life still answered
+`may-pay: false` on every seed — it took 27 life loss over giving up one card.
+Passing the offering seat's decklist as `deckKnowledge`
 does not change it — that field selects which decklists seed the unknown-card
 POOL, while the slots themselves stay opaque for every non-observer seat
 "whatever the state holds and whatever `deckKnowledge` says"
