@@ -3245,7 +3245,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         status: "implemented",
         cr: "701.19",
         binding: "SpellContext.setTargetCantBeRegeneratedThisTurn",
-        note: "Flag a creature so it CAN'T be regenerated for the rest of the turn (CR 701.19c, issue #1283) — the inverse of the `regenerate` shield Op. A thin declarative skin over the single SpellContext primitive `setTargetCantBeRegeneratedThisTurn`, one execution path (ADR 0045): it sets the `cantBeRegeneratedThisTurn` per-instance flag (suppressing every regeneration shield AND the auto-regenerate replacement until CLEANUP, CR 514.2). `target` is an announced target slot (`{ target: N }` — Incinerate's \"a creature dealt damage this way can't be regenerated this turn\", Orcish Healer's \"{R}{R}, {T}: Target creature can't be regenerated this turn\"), the resolving source (`$source` — Clergy of the Holy Nimbus's \"{1}: This creature can't be regenerated this turn\", routed through the SAME setTarget primitive with the source's id; the `setSourceCantBeRegeneratedThisTurn` variant is the identical flag write on `item.id`), or a forEach `$each`. DISTINCT from `destroy`'s `cantBeRegenerated` FLAG, which suppresses regeneration only for that one destroy event — this is a STANDALONE turn-scoped lock with no destroy attached (Bone Shaman rider, Lim-Dûl's Cohort, and the damage-target trigger variants that read the firing $event stay resolve()). No-op on a non-creature or a permanent that has left the battlefield (CR 608.2b).",
+        note: "Flag a creature so it CAN'T be regenerated for the rest of the turn (CR 701.19c, issue #1283) — the inverse of the `regenerate` shield Op. A thin declarative skin over the single SpellContext primitive `setTargetCantBeRegeneratedThisTurn`, one execution path (ADR 0045): it sets the `cantBeRegeneratedThisTurn` per-instance flag (suppressing every regeneration shield AND the auto-regenerate replacement until CLEANUP, CR 514.2). `target` is an announced target slot (`{ target: N }` — Incinerate's \"a creature dealt damage this way can't be regenerated this turn\", Orcish Healer's \"{R}{R}, {T}: Target creature can't be regenerated this turn\"), the resolving source (`$source` — Clergy of the Holy Nimbus's \"{1}: This creature can't be regenerated this turn\", routed through the SAME setTarget primitive with the source's id; the `setSourceCantBeRegeneratedThisTurn` variant is the identical flag write on `item.id`), or a forEach `$each`. DISTINCT from `destroy`'s `cantBeRegenerated` FLAG, which suppresses regeneration only for that one destroy event — this is a STANDALONE turn-scoped lock with no destroy attached (Bone Shaman rider; the damage-target trigger variants that read the firing $event stay resolve()). Lim-Dûl's Cohort reads the CR 509.1h pair complement declaratively since issue #2762 — `target: { ref: \"$event.otherCombatant\" }`. No-op on a non-creature or a permanent that has left the battlefield (CR 608.2b).",
     },
     {
         op: "exileOnDeath",
@@ -3839,8 +3839,29 @@ export interface EventFieldRow {
     /** Flattens the firing event to the single id the friendly field names, or
      *  undefined when the event carries no such id (e.g. DAMAGE_DEALT dealt to a
      *  permanent has no `damagedPlayer`). CR 608.2b — the reading Op then
-     *  skips. */
-    resolve: (event: GameEvent) => string | undefined;
+     *  skips.
+     *
+     *  `sourceInstanceId` is the RESOLVING ability's own source permanent
+     *  (`SpellContext.sourceInstanceId`), threaded in so a row can flatten a
+     *  field that is only well-defined RELATIVE to the reading ability — the
+     *  CR 509.1h pair complement, "the OTHER creature in the attacker/blocker
+     *  pair" (`BLOCKERS_CONFIRMED.otherCombatant`, issue #2762). Almost every
+     *  row ignores it: a field that reads straight off the event stays a pure
+     *  function of the event, and a row that takes the second parameter is
+     *  saying "this id has no meaning without knowing who is asking".
+     *
+     *  OPTIONAL for the CALLERS, not because a resolution can lack a source:
+     *  `SpellContext.sourceInstanceId` is a non-optional `string`
+     *  (`item.triggerSourceId ?? item.id`), and every capture path resolves
+     *  inside the scheduling ability's OWN resolution, so the single
+     *  interpreter call site always has it. The parameter is optional so a
+     *  caller that only needs an ABSOLUTE row — the registry's own census
+     *  tests — can pass the event alone. A relative row given no source
+     *  returns undefined and the reading Op skips (CR 608.2h). */
+    resolve: (
+        event: GameEvent,
+        sourceInstanceId?: string
+    ) => string | undefined;
 }
 
 /** `(GameEventType, field) → { family, resolve }` (ADR 0049). Keyed by the
@@ -3878,6 +3899,48 @@ export const EVENT_FIELD_REGISTRY: Record<
             family: "object",
             resolve: (e) =>
                 e.type === "BLOCKERS_CONFIRMED" ? e.blockerId : undefined,
+        },
+        // CR 509.1h (issue #2762) — the pair COMPLEMENT: "Whenever this
+        // creature blocks or becomes blocked by a creature, THAT CREATURE …"
+        // (Lim-Dûl's Cohort). Which of the two ids "that creature" names is
+        // not a property of the event — it depends on which side of the pair
+        // the READING ability's own source is on, and the same card fires with
+        // its source as the attacker on one turn and as the blocker on the
+        // next. That is what the second `resolve` parameter is for: this row
+        // returns whichever id is NOT `sourceInstanceId`.
+        //
+        // Deliberately a censused ROW and not a new `EffectObjectSelector`
+        // variant or a new reserved ref: the pair complement is a fact about
+        // THIS event, so it belongs in the table that already censuses this
+        // event's fields (ADR 0049), and the frozen ref grammar (ADR 0045)
+        // needs no change at all — `{ ref: "$event.otherCombatant" }` is the
+        // ordinary object-family `$event.<field>` shape the validator already
+        // family-checks and `resolveObjectRef` already rechecks for
+        // battlefield presence.
+        //
+        // FAIL-CLOSED when the source is NEITHER combatant — a symmetric
+        // "whenever a creature blocks" trigger on some third permanent has no
+        // "other" creature to name, so the reading Op skips (CR 608.2h — the
+        // effect fails to determine the information) rather than silently
+        // acting on the attacker. A card whose own source is SOMETIMES in the
+        // pair therefore reads this row correctly for its own pair and no-ops
+        // on every other one: this row is for the "THIS creature blocks or
+        // becomes blocked" wording, and a genuinely symmetric "whenever a
+        // creature blocks" card wants `attackerId`/`blockerId`, not a
+        // complement. Same for the aura wording
+        // ("whenever ENCHANTED creature blocks…", `combatPairKill`'s
+        // `combatant: "enchanted"`): the pair contains the aura's HOST, never
+        // the aura itself, so this row correctly declines to guess — that
+        // scope needs its own row, and has no shipped DSL consumer yet.
+        otherCombatant: {
+            family: "object",
+            resolve: (e, sourceInstanceId) => {
+                if (e.type !== "BLOCKERS_CONFIRMED") return undefined;
+                if (sourceInstanceId === undefined) return undefined;
+                if (e.attackerId === sourceInstanceId) return e.blockerId;
+                if (e.blockerId === sourceInstanceId) return e.attackerId;
+                return undefined;
+            },
         },
     },
     // CR 119.3 — damage to a target. `damagedPlayer` FLATTENS the nested

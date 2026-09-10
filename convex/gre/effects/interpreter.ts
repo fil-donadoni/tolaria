@@ -233,7 +233,11 @@ function resolveEventRef(
     if (!event) return undefined;
     const row = getEventFieldRow(event.type, field);
     if (!row) return undefined;
-    const id = row.resolve(event);
+    // The resolving ability's OWN source is threaded in so a RELATIVE row can
+    // flatten a field that has no meaning without knowing who is asking — the
+    // CR 509.1h pair complement (`BLOCKERS_CONFIRMED.otherCombatant`, issue
+    // #2762). Every absolute row ignores it.
+    const id = row.resolve(event, ctx.sourceInstanceId);
     if (id === undefined) return undefined;
     return { family: row.family, id };
 }

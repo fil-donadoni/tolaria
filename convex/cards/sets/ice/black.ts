@@ -4,7 +4,6 @@
 // generic mana is encoded as `X: n` (e.g. {1}{G} → { X: 1, G: 1 }).
 // Cards are classified by the colour identity of their mana cost (CR 202.2).
 import type {
-    BlockersConfirmedEvent,
     CardDefinition,
     CardPrint,
     GameEvent,
@@ -1871,10 +1870,10 @@ export const leshracsSigil: CardDefinition = {
 // blocks-or-becomes-blocked + CR 701.19c regeneration suppression.) The
 // combatPairKill family captures this exact "the other creature in the pair"
 // targeting, but it always *destroys* at end of combat — here the effect is an
-// immediate, no-destroy `setTargetCantBeRegeneratedThisTurn`, so we declare the
-// BLOCKERS_CONFIRMED trigger directly. NOTE: `setTargetCantBeRegeneratedThisTurn`
-// SHIPS today (Incinerate / Orcish Healer) — the old "needs primitive" stub was
-// stale (#655).
+// immediate, no-destroy regeneration lock, so we declare the
+// BLOCKERS_CONFIRMED trigger directly. Fully declarative since issue #2762:
+// the `preventRegeneration` Op (CR 701.19c) acting on the censused
+// `$event.otherCombatant` pair complement (CR 509.1h).
 const LIM_DULS_COHORT_ID = "3d0006f6-2f96-453d-9145-eaefa588efbc";
 export const limDLsCohort: CardDefinition = {
     id: LIM_DULS_COHORT_ID,
@@ -1896,30 +1895,22 @@ export const limDLsCohort: CardDefinition = {
             matches: (event: GameEvent, self: PermanentView) =>
                 event.type === "BLOCKERS_CONFIRMED" &&
                 (event.attackerId === self.id || event.blockerId === self.id),
-            // NOT DSL-migratable (ADR 0045): the regeneration-lock half now HAS
-            // an Op (`preventRegeneration`, CR 701.19c, #1283 — shipped), but
-            // "that creature" is the OTHER creature in the attacker/blocker
-            // pair, read off the firing `BLOCKERS_CONFIRMED` event's
-            // `attackerId`/`blockerId` fields at resolve time — a raw
-            // event-derived object with no `$source` / announced-target /
-            // `$each` selector to name it.
-            // Blocked on: a CONDITIONAL `$event.<field>`-style object selector
-            // (the OTHER creature in the pair) for a plain (non-factory)
-            // triggered ability.
-            // tracked-by: #2762
-            resolve: (ctx: SpellContext, event: GameEvent) => {
-                if (event.type !== "BLOCKERS_CONFIRMED") return;
-                const ev = event as BlockersConfirmedEvent;
-                // CR 509.1h — the OTHER creature in the pair.
-                const otherId =
-                    ev.attackerId === ctx.sourceInstanceId
-                        ? ev.blockerId
-                        : ev.attackerId;
-                ctx.setTargetCantBeRegeneratedThisTurn({
-                    type: "permanent",
-                    id: otherId,
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #2762). "That
+            // creature" is the OTHER creature in the attacker/blocker pair
+            // (CR 509.1h), which the censused `$event.otherCombatant` row
+            // (ADR 0049, `cards/mechanicsRegistry.ts`) names relative to this
+            // ability's own source — so the trigger reads identically whether
+            // the Cohort attacked into a blocker or blocked an attacker. A
+            // creature that has left the battlefield before the trigger
+            // resolves makes the Op a clean no-op (CR 608.2h — the ability
+            // names no target, so it is last-known-information that governs,
+            // not target legality).
+            effects: [
+                {
+                    op: "preventRegeneration",
+                    target: { ref: "$event.otherCombatant" },
+                },
+            ],
         },
     ],
 };
