@@ -81,6 +81,7 @@ describe("DEFAULT_EVAL_WEIGHTS (issue #2683)", () => {
             outcomeEps: 0.05,
             extraTurnValue: 350,
             misdirectionWeight: 1_000_000,
+            blockWorldSamples: 12,
         });
     });
 

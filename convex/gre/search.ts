@@ -3052,6 +3052,102 @@ export function blockDeltaOf(
     );
 }
 
+// --- Block quality under the opponent model (issue #2876) ------------------
+//
+// `blockDeltaOf` above is a pure reading of whatever state it is handed, and
+// its `cautiousBlockPenalty` term (evaluate.ts, ADR 0021) asks the ATTACKER's
+// hand what it could cast this combat. That makes the state it is handed a
+// correctness question, not a convenience: `selectRootMove`'s block-quality
+// tie-break used to hand it the REAL root position, which on the wire carries
+// opaque placeholders for the opponent's hand (`determinize.ts`'s production
+// note). Every hidden-information improvement the search has — the imagined
+// hand, the Unseen Remainder, Deck Knowledge (issue #2789) — is produced by
+// `determinize` and consumed by the tree and the rollouts; a tie-break reading
+// the root position instead sees an attacker holding NOTHING castable, so it
+// weighs a block as if no trick existed and the Brain blocks into the pump its
+// own opponent model had every means to predict. (The attack side never had
+// this gap: an attack root leaves the decision to the tree, which does see the
+// sampled worlds — the #2789 blade pair says so in as many words.)
+//
+// The fix is a lens, not a new sampler: `determinize` is already correct and
+// unchanged, and the gap is the consumer. The tie-break asks this lens for a
+// move's block delta and gets the MEAN over `BLOCK_WORLD_SAMPLES` determinized
+// worlds — the same worlds, from the same sampler, with the same deck
+// knowledge the search itself was handed. A trick the opponent model says is
+// there is priced in every world and moves the mean by the full penalty; one
+// it merely admits is priced in the fraction of worlds that deal it, which is
+// exactly the hedge `blockCautionFraction` is documented to be.
+//
+// DETERMINISM (ADR 0070 §2). The worlds come from a SEPARATE stream,
+// `makeRng(seed ^ BLOCK_LENS_SEED_SALT)`, never the search's own `rng`.
+// Drawing from the search stream would shift every later determinization and
+// silently re-roll every existing blade entry; a derived stream keeps a fixed
+// seed reproducible while leaving every off-pattern decision byte-identical to
+// what it was before this slice.
+//
+// COST, and its SHAPE. The determinizations are amortised once per decision;
+// what is paid per CONTENDER block edge is `weights.blockWorldSamples` calls
+// to `blockDeltaOf` instead of one. MEASURED on this machine, per decision, at
+// a 400-iteration budget: the blade pair's board (2 candidate declarations)
+// costs 1.6 ms against a 433 ms decision, 0.4%; a deliberately wide board (4
+// attackers into 4 blockers, 64 enumerated declarations, EVERY one asked)
+// costs 54.8 ms against 547 ms, 10.0% — 11.9x the 4.6 ms the pre-#2876 root
+// pass paid over the same 64. Off-pattern it is exactly zero: the worlds are
+// built LAZILY, on the first move the lens is asked about, and each move's
+// mean is memoised by `moveKey`, so every non-combat root — and every block
+// root the search settles before the tie-break — allocates no world at all.
+
+/** Salt for the lens's derived RNG stream — any fixed constant works; what
+ *  matters is that it is NOT the search's stream (see the note above). */
+const BLOCK_LENS_SEED_SALT = 0x2876;
+
+/** The block-quality tie-break's reading of a candidate block. */
+export type BlockDeltaLens = (move: Move) => number;
+
+/** Build a `blockDeltaOf` lens that reads DETERMINIZED worlds rather than the
+ *  root position (issue #2876). Pure apart from its own memo; the returned
+ *  closure is single-decision-scoped, so the memo can never outlive the
+ *  position the worlds were sampled from.
+ *
+ *  Exported as a named seam so the lens is unit-testable without driving a
+ *  full search — and so a test can prove the mean MOVES when the opponent
+ *  model changes, which is the whole property this slice adds. */
+export function makeBlockDeltaLens(
+    rootState: GameState,
+    botId: string,
+    seed: number,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
+    deckKnowledge?: DeckKnowledgeBySeat,
+    // The ladder's information-REMOVAL arm (issue #2791). `iterate` hands it
+    // to `determinize` for the tree's worlds, and the lens MUST sample under
+    // the same model: a `blind` variant whose block tie-break kept sampling
+    // informed worlds would stop being blind at exactly the seam this lens
+    // makes decisive, and every informed-vs-blind number measured through it
+    // would be contaminated.
+    opponentModel: OpponentModel | null = null
+): BlockDeltaLens {
+    let worlds: GameState[] | null = null;
+    const memo = new Map<string, number>();
+    return (move: Move): number => {
+        const key = moveKey(move);
+        const hit = memo.get(key);
+        if (hit !== undefined) return hit;
+        if (!worlds) {
+            const rng = makeRng(seed ^ BLOCK_LENS_SEED_SALT);
+            worlds = Array.from({ length: weights.blockWorldSamples }, () =>
+                determinize(rootState, botId, rng, deckKnowledge, opponentModel)
+            );
+        }
+        const mean =
+            worlds.reduce(
+                (sum, world) => sum + blockDeltaOf(world, move, botId, weights),
+                0
+            ) / worlds.length;
+        memo.set(key, mean);
+        return mean;
+    };
+}
+
 // --- Extra-turn structural credit (issue #244) -----------------------------
 // An extra turn's value is "washed out" of the rollout: ADR 0015 terminates
 // each rollout at the START of the bot's next turn, and the `extraTurns` queue
@@ -3630,7 +3726,14 @@ export function selectRootMove(
     // `Node`, so this stays optional and the telemetry record simply omits
     // the fields when absent.
     searchStats?: SearchStats,
-    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
+    // The block-quality tie-break's reading of a candidate block (issue
+    // #2876). Supplied only by `runSearchWithTrace`, which owns the seed and
+    // the deck knowledge the worlds are sampled with; absent everywhere else
+    // (every test that hand-builds a `Node`), where the tie-break falls back
+    // to reading `rootState` exactly as it did before. The fallback is not a
+    // second opinion — a hand-built root has no sampler behind it at all.
+    blockLens?: BlockDeltaLens
 ): Move {
     const pool = [...root.children.values()].filter((e) => e.visits > 0);
     if (pool.length === 0) return moves[0];
@@ -3823,11 +3926,16 @@ export function selectRootMove(
         );
         if (blocks.length > 0) {
             const prev = best;
+            // The determinized lens when the caller had a sampler (issue
+            // #2876) — the SAME worlds, deck knowledge included, that the tree
+            // and the rollouts reason over. Reading `rootState` here is what
+            // made every opponent model structurally invisible to a block.
+            const deltaOf = (e: Edge) =>
+                blockLens
+                    ? blockLens(e.move)
+                    : blockDeltaOf(rootState, e.move, botId, weights);
             best = blocks
-                .map((e) => ({
-                    e,
-                    delta: blockDeltaOf(rootState, e.move, botId, weights),
-                }))
+                .map((e) => ({ e, delta: deltaOf(e) }))
                 .reduce((m, x) => (x.delta > m.delta ? x : m)).e;
             if (best !== prev) mechanism = "block-quality";
         }
@@ -4723,7 +4831,25 @@ function runSearchWithTrace(
         stoppedBy,
     };
 
-    const move = selectRootMove(root, moves, state, playerId, stats, weights);
+    const move = selectRootMove(
+        root,
+        moves,
+        state,
+        playerId,
+        stats,
+        weights,
+        // Lazy (issue #2876): the worlds are sampled on the first move the
+        // block tie-break asks about, so a decision that never reaches it —
+        // every non-block root — pays nothing for holding the lens.
+        makeBlockDeltaLens(
+            state,
+            playerId,
+            seed,
+            weights,
+            deckKnowledge,
+            opponentModel
+        )
+    );
     return {
         move,
         trace: buildTrace(root, state, playerId, stats, move, weights),
