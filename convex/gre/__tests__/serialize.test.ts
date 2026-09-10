@@ -766,6 +766,30 @@ describe("gameStates serialize round-trip", () => {
         expect(normal.stack[0].dynamicCantBeCountered).toBeUndefined();
     });
 
+    it("preserves a stack item's dynamicHasteFromMana rider (CR 106.6/611.2c, issue #3354)", () => {
+        // Same save window as the rider above, but the stakes are the
+        // OPPOSITE end: this flag is not read while the spell is on the stack
+        // at all — it exists only to be handed off at resolution. Dropped by
+        // the round-trip, Arena of Glory's creature resolves summoning-sick
+        // and nothing anywhere reports a problem.
+        const state = freshState();
+        const spell = state.players[0].hand[0];
+        state.stack = [
+            {
+                ...spell,
+                zone: "stack",
+                castById: "p1",
+                dynamicHasteFromMana: true,
+            },
+        ];
+        const expanded = expandState(compactState(state));
+        expect(expanded.stack[0].dynamicHasteFromMana).toBe(true);
+        // Absent on a normal cast (omitted rather than serialized).
+        state.stack[0].dynamicHasteFromMana = undefined;
+        const normal = expandState(compactState(state));
+        expect(normal.stack[0].dynamicHasteFromMana).toBeUndefined();
+    });
+
     it("preserves a trigger's departure-time LKI snapshot (CR 608.2h, issue #2042)", () => {
         // A pending choice taken between a blink and the trigger's resolution
         // is a stable save point, so `sourceLki` must survive the round trip:

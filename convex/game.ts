@@ -9872,6 +9872,16 @@ export const untapForPayment = mutation({
         // is what exerted it, the same reversal `untapSourceFromPayment` runs on
         // the activation side (Arena of Glory).
         restoreExertOnUntap(state, card);
+        // CR 106.4 / 601.2f / 118.4 (issue #3354) — and the COST legs the
+        // activation took: the ability's own mana (Arena of Glory's {R},
+        // Chromatic Star's {1}) and the life an inline rider paid (Mana
+        // Confluence). `untapSourceFromPayment` — the activation-side twin of
+        // this handler — has always run both; this cast-side copy ran neither,
+        // so the identical undo burned the cost here and refunded it there.
+        // The exert leg above was already fixed in isolation (#3214); the
+        // remaining two are the same reversal-symmetry defect, one class.
+        restoreLifePaidOnUntap(player, card);
+        restoreManaPaidOnUntap(player, card);
         discardPermanentTappedEvent(state, card.id);
         state.pendingCast.tappedLandIds.splice(idx, 1);
 
