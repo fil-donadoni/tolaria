@@ -39,6 +39,14 @@ export type ManualCardInstance = {
     controllerId: string;
     ownerId: string;
     isTapped: boolean;
+    /** CR 111.1 / 111.7 — this permanent is a TOKEN (`manualCreateToken`), not
+     *  a card off the decklist. Manual Mode enforces no rules (ADR 0080), but
+     *  the board still has to SAY it: a token picked from the token picker
+     *  wears a real token printing's name and art, and the shared battlefield
+     *  card marks it off this flag (`board/token-badge.tsx`). Optional because
+     *  a state persisted before this field existed has none — those tokens
+     *  simply render unmarked. No backfill. */
+    isToken?: boolean;
     faceDown?: boolean;
     lane?: "main" | "combat";
     /**
@@ -1120,6 +1128,7 @@ export function manualCreateToken(
         controllerId,
         ownerId: playerId,
         isTapped: false,
+        isToken: true,
     };
     player.battlefield.push(token);
     const pn = playerName(state, playerId);

@@ -561,6 +561,10 @@ describe("manual verbs - table driven", () => {
         expect(token.controllerId).toBe("p1");
         expect(token.ownerId).toBe("p1");
         expect(token.isTapped).toBe(false);
+        // CR 111.1 — the board's token marker (`board/token-badge.tsx`) reads
+        // this flag; without it a Manual-Board token is indistinguishable from
+        // a real card (issue #2932).
+        expect(token.isToken).toBe(true);
         expect(result.log.text).toContain("{{card:0}}");
         expect(result.log.cards).toEqual(["token-card-id"]);
     });

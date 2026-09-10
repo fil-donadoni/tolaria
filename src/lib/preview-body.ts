@@ -130,6 +130,17 @@ export type PreviewBodyContent = {
      *  restriction regardless of whether the permanent's own printed text
      *  happens to be visible. */
     skipNextUntap?: boolean;
+    /** CR 111.1 / 111.7 — true iff this face is a live TOKEN permanent (a
+     *  marker for a permanent not represented by a card, which ceases to exist
+     *  as an SBA the moment it leaves the battlefield). Read off the projected
+     *  `CardInstance.isToken` rather than the name or the art, because the case
+     *  that needs the line is precisely the one where those lie: a token
+     *  created as a COPY (CR 707.2) carries the copied card's name and art and
+     *  is otherwise indistinguishable from the real permanent. Absent for a
+     *  face with no live instance (the ORIGINAL face of a copy, emblems,
+     *  designations) — that face states the COPIED card's identity, which is
+     *  not itself a token. */
+    isToken?: boolean;
     /** Live graveyard-progress lookup for the controller of this card, keyed by
      *  ability word (delirium / threshold — see graveyard-milestones.ts). Non-
      *  null only in-game for a card whose oracle text carries such a word; the
@@ -405,6 +416,7 @@ export function buildPreviewBody(
                 ? attachmentHostName(cardInstance, gameCtx.allPlayers)
                 : null,
         skipNextUntap: !!cardInstance?.skipNextUntap,
+        isToken: cardInstance?.isToken === true,
         milestones,
         isManualGame: !!gameCtx?.isManualGame,
         insetHalf: buildInsetHalf(defId),

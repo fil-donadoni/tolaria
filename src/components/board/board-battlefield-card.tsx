@@ -26,6 +26,7 @@ import LoyaltyBadge from "./loyalty-badge";
 import NotedManaBadge from "./noted-mana-badge";
 import ManualNoteBadge from "./manual-note-badge";
 import SummoningSicknessBadge from "./summoning-sickness-badge";
+import TokenBadge from "./token-badge";
 import AttachedCardsCluster from "./attached-cards-cluster";
 import ExileCastButton from "./exile-cast-button";
 import ActivatableAbilityMenu from "./activatable-ability-menu";
@@ -445,6 +446,7 @@ export default function BoardBattlefieldCard({
                     <CounterBadges card={card} />
                     {!phased && <SummoningSicknessBadge card={card} />}
                     <NotedManaBadge card={card} />
+                    <TokenBadge card={card} />
                     <ManualNoteBadge card={card} />
                     {ptDamageStack}
                     <LoyaltyBadge card={card} />
