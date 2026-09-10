@@ -33,7 +33,8 @@ export type RootDecisionMechanism =
     | "hold-trick"
     | "colour-mode-evidence"
     | "wasted-mana-hold"
-    | "last-window-fire";
+    | "last-window-fire"
+    | "standing-spend-hold";
 
 /** Which bound ended a search loop — the iteration budget (`SearchBudget.
  *  iterations`) was reached, the wall-clock bound (`SearchBudget.timeMs`)
@@ -143,6 +144,7 @@ const NAMED_RULES: RootDecisionMechanism[] = [
     "colour-mode-evidence",
     "wasted-mana-hold",
     "last-window-fire",
+    "standing-spend-hold",
 ];
 
 export type RootDecisionSummary = {

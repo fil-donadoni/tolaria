@@ -2283,6 +2283,72 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Issue #3192, the FIRE half — the identical board with the opponent at 1, and the reason the hold half is not satisfied by a blanket \"never remove the last counter\" prune. The counter buys the game here, so the hold tie-break must never see it: MEASURED at 400 iterations, seed 0xb1ade, BOTH before and after the fix, the shot wins on `mechanism: mean-reward` with `exploredSize: 1` / `contenderCount: 1` at mean 0.9150 and meanMargin 160.00, against `pass` at visits 68 / mean 0.7621 / meanMargin 152.44 — a gap of 0.153 against the 0.05 outcome-equality band, so the tie-break is never consulted at all. Deleting the hold half's clause leaves this entry green, and deleting the clause's board-awareness (promoting `removeCounter` wholesale) leaves it green too; only the pair pins both directions.",
     },
     {
+        label: "activation timing: does not shoot away its own last counter at the opponent's end step",
+        spec: {
+            cards: [
+                {
+                    name: "Walking Ballista",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                    counters: { "+1/+1": 1 },
+                },
+            ],
+            phase: "END_STEP",
+            turn: 5,
+            landCount: 2,
+            libraryCount: 20,
+            life: { me: 20, opp: 20 },
+        },
+        // `me` is always the ACTIVE player in a `ScenarioSpec`, so the seat
+        // holding the Ballista has to be `opp` for this to be the OPPONENT's
+        // end step from the bot's point of view. The built board hands priority
+        // to the active player; one `pass` walks it to the bot (CR 513.1).
+        setup: [{ kind: "pass", seat: "me" }],
+        bot: "opp",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Walking Ballista" }],
+        },
+        note: "Issue #3319 — the HOLD half of the pair above, one window later, and the window a real game actually loses the Ballista in. The issue-#3192 fix rides on the hold-the-trick rule, which is gated on `isSorceryTimingFor`: it only ever looks at the bot's OWN sorcery window, so the entry above passed while the identical board at the opponent's end step still threw the creature away. MEASURED at 400 iterations on seeds 0xb1ade/1/2, before this change: PRECOMBAT_MAIN picked `pass` on `mechanism: hold-trick` and END_STEP picked the shot at the face on `mechanism: material-tiebreak`, `contenderCount: 4` with `gapReward` 0.0038 against the 0.05 outcome band — all four root moves outcome-equal, so mean reward never decided it and the subtree-accumulated margin did. The fix is the `standing-spend-hold` tie-break, the missing direction of the issue-#2939 last-window FIRE rule: FIRE converts when the robust pick is `pass` and firing pays, this holds when the robust pick IS the spend and firing does not. After it the pick is `pass` on `mechanism: standing-spend-hold` on all 5 seeds. Its discriminating twin is the entry directly below.",
+    },
+    {
+        label: "activation payoff: shoots its own last counter at the opponent's end step for lethal",
+        spec: {
+            cards: [
+                {
+                    name: "Walking Ballista",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                    counters: { "+1/+1": 1 },
+                },
+            ],
+            phase: "END_STEP",
+            turn: 5,
+            landCount: 2,
+            libraryCount: 20,
+            life: { me: 1, opp: 20 },
+        },
+        setup: [{ kind: "pass", seat: "me" }],
+        bot: "opp",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Walking Ballista",
+                    target: "me",
+                },
+            ],
+        },
+        note: "Issue #3319, the FIRE half — the same end-step board with the opponent on 1, and the proof that `standing-spend-hold` bought discrimination rather than a blanket refusal to ever spend a permanent outside the bot's own main phase. MEASURED at 400 iterations on all 5 seeds, both before and after the change: the shot wins on `mechanism: mean-reward`, so it out-rewards `pass` by more than `OUTCOME_EPS` and the new tie-break is never consulted at all. Deleting the new rule leaves this entry green; only the pair pins both directions, exactly as the PRECOMBAT_MAIN pair above does for the sorcery window.",
+    },
+    {
         label: "activation timing: does not activate Iron-Shield Elf with no threat",
         spec: {
             cards: [
