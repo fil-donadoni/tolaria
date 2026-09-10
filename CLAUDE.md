@@ -10,23 +10,11 @@ Tolaria is an MTG (Magic: The Gathering) gameplay engine for study and
 experimentation. Focus: rules correctness and real-time reactivity between two
 clients. Not commercial — an extensible engine with a working subset of cards.
 
-## Tech Stack
-
-| Layer           | Technology                     | Notes                                      |
-| --------------- | ------------------------------ | ------------------------------------------ |
-| Frontend        | React 19 + TypeScript + Vite 8 | React Compiler enabled                     |
-| Backend/DB      | Convex                         | Real-time reactive state, atomic mutations |
-| Auth            | @convex-dev/auth (Password)    | Email + password + nickname                |
-| Package manager | bun                            |                                            |
-
-TypeScript ~5.9 strict (project refs: `tsconfig.app.json` src, `tsconfig.node.json` config). ESLint 9 flat config (`typescript-eslint`, `react-hooks`, `react-refresh`).
-
-## Commands
-
-- `bun run dev` — dev server with HMR
-- `bun run build` — `tsc -b` then Vite build
-- `bun run lint` — ESLint
-- `bun run preview` — preview production build
+Stack, toolchain, commands and the file map are NOT here — read on demand from
+`docs/PROJECT.md` (§ 2 Stack & toolchain / Comandi essenziali, § 7.3 Struttura
+del frontend, § 13 Mappa rapida dei file). None of it is something a session
+must know BEFORE it opens a file, so none of it is resident
+(`docs/agents/context-residency-audit.md`).
 
 ## Architecture
 
@@ -96,25 +84,14 @@ Priority timeout 30s via `ctx.scheduler.runAfter` with seq-based cancellation.
 Phases: BEGINNING (untap/upkeep/draw) → PRECOMBAT_MAIN → COMBAT (5 substeps) →
 POSTCOMBAT_MAIN → ENDING. Untap and cleanup are automatic (no priority).
 
-## Project Structure
+## Key boundary — authority, not imports
 
-```
-convex/            # Backend
-├── schema.ts      # Tables
-├── game.ts        # Public mutations/queries
-├── cards/         # Card definitions as data (index.ts registry, types.ts, sets/)
-└── gre/           # Engine: engine.ts, phases.ts, stack.ts, triggers.ts, sba.ts, actions/
-src/               # Frontend (React + Vite)
-├── components/    # Battlefield, Hand, Stack, Card
-└── hooks/         # useGameState.ts (wrapper on Convex useQuery)
-```
-
-**Key boundary — authority, not imports** (ADR 0074): the frontend MAY import
-pure engine modules from `convex/gre/` and `convex/limited/` (client-side
-Brain, Draft Lab do so routinely — sharing the module prevents drift). What
-the frontend never has is **authority**: no client-side engine run produces
-persisted or trusted state; every real move goes through a public mutation in
-`convex/game.ts` and is re-validated server-side.
+**ADR 0074**: the frontend MAY import pure engine modules from `convex/gre/`
+and `convex/limited/` (client-side Brain, Draft Lab do so routinely — sharing
+the module prevents drift). What the frontend never has is **authority**: no
+client-side engine run produces persisted or trusted state; every real move
+goes through a public mutation in `convex/game.ts` and is re-validated
+server-side.
 
 ## Card Definition System
 
