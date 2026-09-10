@@ -123,6 +123,15 @@ function palantirOffer(): GameState {
             }),
         ],
     });
+    // Both seats deliberately far above the punisher's reach. p1's library is
+    // HIDDEN from p2, so the milled cards are opaque placeholders whose mana
+    // value the search reads as 0 — but what the determinizer puts in an
+    // unknown slot is not something a fixture controls, and at 20 life a
+    // punisher priced at even a few points can outweigh one card and flip the
+    // answer. High life makes the half rest on the axis it is about (who
+    // receives the card) rather than on the magnitude of an unknowable cost.
+    state.players[0].life = 100;
+    state.players[1].life = 100;
     state.phase = "END_STEP";
     fireTrigger(
         state,
@@ -159,8 +168,9 @@ function ownBenefitOffer(): GameState {
     });
     const state = makeState({
         players: [
-            makePlayer("p1", { battlefield: [spirit] }),
+            makePlayer("p1", { battlefield: [spirit], life: 100 }),
             makePlayer("p2", {
+                life: 100,
                 // Twenty, not five: `libraryTerm` (evaluate.ts, CR 104.3c)
                 // scores steeply negative below a 12-card horizon, so a short
                 // library makes DRAWING a cost and the half would pass for the
