@@ -6106,8 +6106,9 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         //
         // Parallax Replenish's whole deck is this one card: Attunement and
         // Frantic Search bin enchantments, Replenish ({3}{W}) returns ALL of
-        // them at once (CR 608.2 — one `forEach` over the graveyard, resolved
-        // `simultaneous`), and Opalescence turns what came back into a board.
+        // them at once (CR 608.2f — one `forEach` over the graveyard, whose
+        // members return `simultaneous`ly), and Opalescence turns what came
+        // back into a board.
         // The list reached 21/21 `ready` through three ENGINE slices (#3204
         // Attunement's `returnThisToHand` cost leg, #3205 Intuition's revealed
         // hidden-zone pick, #3206 Decree of Silence's `$event` cast ref) and
@@ -6116,19 +6117,28 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         //
         // The claim is REACHABILITY, not preference: three permanents for four
         // mana against the alternative of passing is not a matter of opinion.
-        // What it guards is a mass `moveZone` out of the graveyard staying
-        // VISIBLE to the search — every Op here valuates through
-        // `OP_VALUERS`/`OP_BENEFICENCE`, and a `moveZone` that fell open to
-        // neutral would leave the bot holding its Replenish forever with no
-        // suite going red.
+        // What it guards is the WHOLE PATH, end to end, on the deck's own
+        // board — the cast is enumerated, it survives dominance pruning, and
+        // the search prefers it to `pass`. Not the Op's valuation, which is
+        // pinned already (`opValuers.bot.test.ts` fixes `moveZone` →
+        // battlefield at `REANIMATE_VALUE` with the `recursion` tag, and
+        // `OP_BENEFICENCE.moveZone` is deliberately and permanently
+        // `"neutral"`); accordingly this entry is proven red by breaking the
+        // CARD — Replenish's `forEach` reading `set: "exile"` instead of
+        // `"graveyard"` returns nothing, and the bot passes.
         //
         // Its NEGATIVE CONTROL is not a second registry entry but a dominance
         // pair, `isDominatedNoOpMove — Replenish into an enchantment-less
-        // graveyard` (`ai/__tests__/dominance.bot.test.ts`): the empty-graveyard
-        // cast is refused by the DOMINANCE PROOF, upstream of the search, and
-        // an entry asserting it here could not be driven red by any break of
-        // the valuation it would claim to guard — it is stated where it is
-        // actually decided.
+        // graveyard` (`ai/__tests__/dominance.bot.test.ts`), because that is
+        // where the futile cast is actually refused. As a blade entry it could
+        // not be driven red, and not for want of budget: at 1000 iterations x
+        // 10 seeds with `isDominatedNoOpMove` disabled OUTRIGHT the bot still
+        // passes on all ten seeds — the search declines the enchantment-less
+        // cast on its own, the prune only saves it the visits. (Also measured
+        // green at 200 x 5 under `REANIMATE_VALUE` x100, under
+        // `manaWeight`/`flexWeight` zeroed, and under a root tie-break that
+        // prefers an outcome-equal cast to `pass`.) A `must` entry nothing can
+        // red is not evidence; the dominance pair reds on the first break.
         label: "replenish: casts the mass return with three enchantments in the graveyard",
         spec: {
             cards: [

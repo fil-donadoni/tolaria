@@ -311,7 +311,9 @@ describe("isDominatedNoOpMove — reanimation into a creature-less graveyard (is
     // The MASS shape of the same class (issue #2715, PRD #2693). Shallow Grave
     // above is a positional single-card scan; Replenish is a `forEach` over the
     // whole graveyard resolved `simultaneous`, so its no-op path is an EMPTY
-    // ITERATION (CR 608.2b) rather than an unbound `$revived` — a different
+    // ITERATION (CR 608.2c — the instructions are followed as written, and an
+    // instruction over an empty set does nothing) rather than an unbound
+    // `$revived` — a different
     // interpreter route to the same "nothing observable changed" verdict, and
     // the payoff card of a whole Premodern Tier 1 list.
     it("proves Replenish into an enchantment-less graveyard is dominated by pass", () => {
