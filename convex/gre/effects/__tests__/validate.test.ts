@@ -5020,6 +5020,32 @@ describe('validateEffectScript — count zone:"hand" + difference (issue #2006)'
         }
     });
 
+    it("family-checks `of` as a PLAYER position, not the object position the `of` key otherwise means", () => {
+        // The `of` key means OBJECT for `counters`/`manaValue`, so without the
+        // ordered ref pass's own `cardsDrawnThisTurn` case a players-set
+        // `$each` under it reads as an object binding and the script is
+        // wrongly rejected. Inside a players `forEach`, this must be clean.
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: { set: "players" },
+                            effects: [
+                                {
+                                    op: "loseLife",
+                                    player: { ref: "$each" },
+                                    amount: drawn({ ref: "$each" }),
+                                },
+                            ],
+                        } as never,
+                    ],
+                })
+            )
+        ).toEqual([]);
+    });
+
     it("does NOT widen `divide` — no shipped card halves a per-turn tally", () => {
         expect(
             validateEffectScript(
