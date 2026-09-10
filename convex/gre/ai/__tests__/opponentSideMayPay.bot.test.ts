@@ -89,7 +89,13 @@ function palantirOffer(): GameState {
         players: [
             makePlayer("p1", {
                 battlefield: [palantir],
-                library: Array.from({ length: 5 }, (_, i) =>
+                // Forty basic lands: the milled cards must be worth 0 mana
+                // value (CR 202.3) AND come off a library deep enough that
+                // milling two of them is not itself a gift to the answerer —
+                // a short library makes DECLINING attractive because it decks
+                // the offering player, which is a different axis from the one
+                // this pair is about.
+                library: Array.from({ length: 40 }, (_, i) =>
                     makeInstance(getCardByName("Forest").id, {
                         id: `lib-${i}`,
                         controllerId: "p1",
