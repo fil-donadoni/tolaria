@@ -32,7 +32,11 @@
 // `evalWeights`: `evalWeights.ucbC` is now the ONLY way a variant overrides
 // it, so there is exactly one mechanism, not two competing ones.
 
-import { DEFAULT_EVAL_WEIGHTS, type EvalWeights } from "./evalWeights";
+import {
+    DEFAULT_EVAL_WEIGHTS,
+    type EvalWeights,
+    type LatentWeights,
+} from "./evalWeights";
 import {
     ROOT_DECISION_MECHANISMS,
     ROOT_RULE_ALLOWLIST,
@@ -79,8 +83,15 @@ export type SearchVariant = {
     actionPriors?: ActionPriorConfig;
     /** Partial override of the production `EvalWeights` vector (issue #2683)
      *  — e.g. `{ ucbC: 0.7 }` or `{ manaWeight: 16 }`. Unset fields keep their
-     *  `DEFAULT_EVAL_WEIGHTS` value; `resolveEvalWeights` does the merge. */
-    evalWeights?: Partial<EvalWeights>;
+     *  `DEFAULT_EVAL_WEIGHTS` value; `resolveEvalWeights` does the merge.
+     *
+     *  `latent` (issue #3398) is itself a per-dimension record, and its
+     *  override is merged PER DIMENSION rather than wholesale: a variant that
+     *  sweeps `boardRemoval` alone must not blank the other eleven weights
+     *  (which would leave every valuer multiplying by `undefined`). */
+    evalWeights?: Partial<Omit<EvalWeights, "latent">> & {
+        latent?: Partial<LatentWeights>;
+    };
     /** XOR mask applied to the per-decision search seed, for the candidate
      *  seat only (issue #1929). Changes WHICH determinizations ISMCTS samples
      *  and nothing else — same policy, same budget, same rules — so it is
@@ -144,7 +155,15 @@ export function getSearchVariant(): SearchVariant | null {
  *  run that actually sets `evalWeights`. */
 export function resolveEvalWeights(variant: SearchVariant | null): EvalWeights {
     if (!variant?.evalWeights) return DEFAULT_EVAL_WEIGHTS;
-    return { ...DEFAULT_EVAL_WEIGHTS, ...variant.evalWeights };
+    const { latent, ...flat } = variant.evalWeights;
+    return {
+        ...DEFAULT_EVAL_WEIGHTS,
+        ...flat,
+        // Per-dimension merge (issue #3398) — see `evalWeights`' doc above.
+        latent: latent
+            ? { ...DEFAULT_EVAL_WEIGHTS.latent, ...latent }
+            : DEFAULT_EVAL_WEIGHTS.latent,
+    };
 }
 
 /** Resolve the ACTIVE action-prior config for one search (issue #2684).
