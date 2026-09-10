@@ -15,6 +15,7 @@ import {
     playLandFaceDefinition,
 } from "@convex/gre/modalLandPlay";
 import type { CardInstanceState } from "@convex/gre/state";
+import type { PlayLandFace } from "@convex/cards/modalDfc";
 import { extractMutationErrorMessage } from "~/lib/mutation-error";
 import {
     hasPendingGameIntent,
@@ -243,7 +244,17 @@ export default function GreHandCard({
     // Ordered cast-then-play so a card whose front face is the marquee half
     // reads that way in the menu; an ordinary land has no cast entry, so its
     // single "Play land" is unchanged.
-    const landFaces = canPlay ? landPlayFaces(card as CardInstanceState) : [];
+    // The wire card is a `CardInstanceState` minus its fat `card` payload, but
+    // a hand-built fixture (and a Manual Board catalogue card, ADR 0080) can
+    // reach here with no type line at all. Fall back to the single front-face
+    // play this surface has always offered rather than reading `types` off
+    // nothing: the server re-derives the legal face set and refuses anything
+    // else, so the fallback can only ever offer LESS than the truth.
+    const instance = card as unknown as CardInstanceState;
+    const derivedFaces =
+        canPlay && Array.isArray(instance.types) ? landPlayFaces(instance) : [];
+    const landFaces: PlayLandFace[] =
+        derivedFaces.length > 0 ? derivedFaces : canPlay ? ["front"] : [];
     const primaryActions: HandCardPrimaryAction[] = [
         ...(canCast
             ? [
@@ -262,7 +273,7 @@ export default function GreHandCard({
             label:
                 landFaces.length === 1 && !canCast
                     ? "Play land"
-                    : `Play ${playLandFaceDefinition(card as CardInstanceState, face)?.name ?? "land"}`,
+                    : `Play ${playLandFaceDefinition(instance, face)?.name ?? "land"}`,
             onSelect: () => onPlayClick(face),
         })),
     ];

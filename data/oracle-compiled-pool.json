@@ -1827,6 +1827,49 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Branchloft Pathway",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {G}.",
+        "activatedAbilities": [
+            {
+                "id": "branchloft-pathway-mana",
+                "oracleText": "{T}: Add {G}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "G": 1
+                }
+            }
+        ],
+        "backFace": {
+            "kind": "modal",
+            "name": "Boulderloft Pathway",
+            "types": [
+                "Land"
+            ],
+            "activatedAbilities": [
+                {
+                    "id": "boulderloft-pathway-mana",
+                    "oracleText": "{T}: Add {W}.",
+                    "cost": {
+                        "tap": true
+                    },
+                    "useStack": false,
+                    "manaProduced": {
+                        "W": 1
+                    }
+                }
+            ],
+            "oracleText": "{T}: Add {W}."
+        },
+        "id": "0511e232-2a72-40f5-a400-4f7ebc442d17",
+        "rarity": "rare"
+    },
+    {
         "name": "Bogstomper",
         "types": [
             "Creature"
@@ -4083,6 +4126,49 @@
         },
         "id": "0cd4007c-eb51-4da0-b8df-38aae1482a5a",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Blightstep Pathway",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {B}.",
+        "activatedAbilities": [
+            {
+                "id": "blightstep-pathway-mana",
+                "oracleText": "{T}: Add {B}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "B": 1
+                }
+            }
+        ],
+        "backFace": {
+            "kind": "modal",
+            "name": "Searstep Pathway",
+            "types": [
+                "Land"
+            ],
+            "activatedAbilities": [
+                {
+                    "id": "searstep-pathway-mana",
+                    "oracleText": "{T}: Add {R}.",
+                    "cost": {
+                        "tap": true
+                    },
+                    "useStack": false,
+                    "manaProduced": {
+                        "R": 1
+                    }
+                }
+            ],
+            "oracleText": "{T}: Add {R}."
+        },
+        "id": "0ce39a19-f51d-4a35-ae80-5b82eb15fcff",
+        "rarity": "rare"
     },
     {
         "name": "Arcane Encyclopedia",
@@ -7517,29 +7603,6 @@
             "flying"
         ],
         "id": "1854f819-d08e-4a23-bedb-4618b79623e9",
-        "rarity": "common"
-    },
-    {
-        "name": "Boarding Party",
-        "types": [
-            "Creature"
-        ],
-        "subtypes": [
-            "Human",
-            "Pirate"
-        ],
-        "manaCost": {
-            "X": 5,
-            "R": 1
-        },
-        "power": 6,
-        "toughness": 3,
-        "oracleText": "Haste\nCascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)",
-        "staticAbilities": [
-            "haste",
-            "cascade"
-        ],
-        "id": "186adacf-434b-475b-9b85-749615ae002b",
         "rarity": "common"
     },
     {
@@ -11723,6 +11786,49 @@
         "rarity": "common"
     },
     {
+        "name": "Riverglide Pathway",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {U}.",
+        "activatedAbilities": [
+            {
+                "id": "riverglide-pathway-mana",
+                "oracleText": "{T}: Add {U}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "U": 1
+                }
+            }
+        ],
+        "backFace": {
+            "kind": "modal",
+            "name": "Lavaglide Pathway",
+            "types": [
+                "Land"
+            ],
+            "activatedAbilities": [
+                {
+                    "id": "lavaglide-pathway-mana",
+                    "oracleText": "{T}: Add {R}.",
+                    "cost": {
+                        "tap": true
+                    },
+                    "useStack": false,
+                    "manaProduced": {
+                        "R": 1
+                    }
+                }
+            ],
+            "oracleText": "{T}: Add {R}."
+        },
+        "id": "2668ac91-6cda-4f81-a08d-4fc5f9cb35b2",
+        "rarity": "rare"
+    },
+    {
         "name": "Talon Trooper",
         "types": [
             "Creature"
@@ -15307,27 +15413,6 @@
         "rarity": "common"
     },
     {
-        "name": "Maelstrom Colossus",
-        "types": [
-            "Artifact",
-            "Creature"
-        ],
-        "subtypes": [
-            "Golem"
-        ],
-        "manaCost": {
-            "X": 8
-        },
-        "power": 7,
-        "toughness": 7,
-        "oracleText": "Cascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)",
-        "staticAbilities": [
-            "cascade"
-        ],
-        "id": "322491d2-d082-4d38-8d81-8588c011e725",
-        "rarity": "common"
-    },
-    {
         "name": "Generous Stray",
         "types": [
             "Creature"
@@ -18492,37 +18577,6 @@
         ],
         "id": "3e644ab8-3cc3-413d-a918-44fc636087ae",
         "rarity": "rare"
-    },
-    {
-        "name": "Natural Reclamation",
-        "types": [
-            "Instant"
-        ],
-        "manaCost": {
-            "X": 4,
-            "G": 1
-        },
-        "oracleText": "Cascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)\nDestroy target artifact or enchantment.",
-        "staticAbilities": [
-            "cascade"
-        ],
-        "effects": [
-            {
-                "op": "destroy",
-                "target": {
-                    "target": 0
-                }
-            }
-        ],
-        "targetRequirement": {
-            "type": [
-                "Artifact",
-                "Enchantment"
-            ],
-            "count": 1
-        },
-        "id": "3e98fb7c-6962-4b57-b7b7-c71899564002",
-        "rarity": "common"
     },
     {
         "name": "Composite Golem",
@@ -29040,6 +29094,49 @@
         "rarity": "rare"
     },
     {
+        "name": "Needleverge Pathway",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {R}.",
+        "activatedAbilities": [
+            {
+                "id": "needleverge-pathway-mana",
+                "oracleText": "{T}: Add {R}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "R": 1
+                }
+            }
+        ],
+        "backFace": {
+            "kind": "modal",
+            "name": "Pillarverge Pathway",
+            "types": [
+                "Land"
+            ],
+            "activatedAbilities": [
+                {
+                    "id": "pillarverge-pathway-mana",
+                    "oracleText": "{T}: Add {W}.",
+                    "cost": {
+                        "tap": true
+                    },
+                    "useStack": false,
+                    "manaProduced": {
+                        "W": 1
+                    }
+                }
+            ],
+            "oracleText": "{T}: Add {W}."
+        },
+        "id": "6559047e-6ede-4815-a3a0-389062094f9d",
+        "rarity": "rare"
+    },
+    {
         "name": "Makeshift Munitions",
         "types": [
             "Enchantment"
@@ -29297,28 +29394,6 @@
         },
         "id": "663df3e8-12e5-46cf-9da7-39961feaa7f9",
         "rarity": "common"
-    },
-    {
-        "name": "Enlisted Wurm",
-        "types": [
-            "Creature"
-        ],
-        "subtypes": [
-            "Wurm"
-        ],
-        "manaCost": {
-            "X": 4,
-            "W": 1,
-            "G": 1
-        },
-        "power": 5,
-        "toughness": 5,
-        "oracleText": "Cascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)",
-        "staticAbilities": [
-            "cascade"
-        ],
-        "id": "66605149-3959-4a51-8400-350e6fac2ab2",
-        "rarity": "uncommon"
     },
     {
         "name": "Sedge Scorpion",
@@ -30922,23 +30997,6 @@
         "entersTapped": true,
         "id": "6bf0de91-765a-49e3-bd8a-94f266b3bdd8",
         "rarity": "common"
-    },
-    {
-        "name": "Throes of Chaos",
-        "types": [
-            "Sorcery"
-        ],
-        "manaCost": {
-            "X": 3,
-            "R": 1
-        },
-        "oracleText": "Cascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)\nRetrace (You may cast this card from your graveyard by discarding a land card in addition to paying its other costs.)",
-        "staticAbilities": [
-            "cascade",
-            "retrace"
-        ],
-        "id": "6c02cc57-f589-4c5d-b306-cceb0ab3ce8b",
-        "rarity": "uncommon"
     },
     {
         "name": "Embereth Shieldbreaker",
@@ -33013,29 +33071,6 @@
             }
         ],
         "id": "75256550-bbe0-499d-909e-af10691749c2",
-        "rarity": "common"
-    },
-    {
-        "name": "Annoyed Altisaur",
-        "types": [
-            "Creature"
-        ],
-        "subtypes": [
-            "Dinosaur"
-        ],
-        "manaCost": {
-            "X": 5,
-            "G": 2
-        },
-        "power": 6,
-        "toughness": 5,
-        "oracleText": "Reach, trample\nCascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)",
-        "staticAbilities": [
-            "reach",
-            "trample",
-            "cascade"
-        ],
-        "id": "7536d618-0c98-45bb-913b-b8117b4acf87",
         "rarity": "common"
     },
     {
@@ -36158,28 +36193,47 @@
         "rarity": "common"
     },
     {
-        "name": "Bloodbraid Elf",
+        "name": "Hengegate Pathway",
         "types": [
-            "Creature"
+            "Land"
         ],
-        "subtypes": [
-            "Elf",
-            "Berserker"
+        "oracleText": "{T}: Add {W}.",
+        "activatedAbilities": [
+            {
+                "id": "hengegate-pathway-mana",
+                "oracleText": "{T}: Add {W}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "W": 1
+                }
+            }
         ],
-        "manaCost": {
-            "X": 2,
-            "R": 1,
-            "G": 1
+        "backFace": {
+            "kind": "modal",
+            "name": "Mistgate Pathway",
+            "types": [
+                "Land"
+            ],
+            "activatedAbilities": [
+                {
+                    "id": "mistgate-pathway-mana",
+                    "oracleText": "{T}: Add {U}.",
+                    "cost": {
+                        "tap": true
+                    },
+                    "useStack": false,
+                    "manaProduced": {
+                        "U": 1
+                    }
+                }
+            ],
+            "oracleText": "{T}: Add {U}."
         },
-        "power": 3,
-        "toughness": 2,
-        "oracleText": "Haste (This creature can attack and {T} as soon as it comes under your control.)\nCascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)",
-        "staticAbilities": [
-            "haste",
-            "cascade"
-        ],
-        "id": "7ef67487-c8e5-49bb-b0f7-e073ff2e31f1",
-        "rarity": "uncommon"
+        "id": "7ef37cb3-d803-47d7-8a01-9c803aa2eadc",
+        "rarity": "rare"
     },
     {
         "name": "Ana Disciple",
@@ -38824,6 +38878,49 @@
         ],
         "id": "87870792-e429-4eba-8193-cdce5c7b6c55",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Darkbore Pathway",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {B}.",
+        "activatedAbilities": [
+            {
+                "id": "darkbore-pathway-mana",
+                "oracleText": "{T}: Add {B}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "B": 1
+                }
+            }
+        ],
+        "backFace": {
+            "kind": "modal",
+            "name": "Slitherbore Pathway",
+            "types": [
+                "Land"
+            ],
+            "activatedAbilities": [
+                {
+                    "id": "slitherbore-pathway-mana",
+                    "oracleText": "{T}: Add {G}.",
+                    "cost": {
+                        "tap": true
+                    },
+                    "useStack": false,
+                    "manaProduced": {
+                        "G": 1
+                    }
+                }
+            ],
+            "oracleText": "{T}: Add {G}."
+        },
+        "id": "87a4e5fe-161f-42da-9ca2-67c8e8970e94",
+        "rarity": "rare"
     },
     {
         "name": "Dark Hatchling",
@@ -45383,24 +45480,6 @@
         "rarity": "common"
     },
     {
-        "name": "Ardent Plea",
-        "types": [
-            "Enchantment"
-        ],
-        "manaCost": {
-            "X": 1,
-            "W": 1,
-            "U": 1
-        },
-        "oracleText": "Exalted (Whenever a creature you control attacks alone, that creature gets +1/+1 until end of turn.)\nCascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)",
-        "staticAbilities": [
-            "exalted",
-            "cascade"
-        ],
-        "id": "9d521737-ee07-4387-bc07-5ced53db374d",
-        "rarity": "uncommon"
-    },
-    {
         "name": "Reach Through Mists",
         "types": [
             "Instant"
@@ -47326,23 +47405,6 @@
         ],
         "id": "a4a1f9c1-25a3-465f-b3d8-98f0867c9bb6",
         "rarity": "common"
-    },
-    {
-        "name": "Into the Time Vortex",
-        "types": [
-            "Sorcery"
-        ],
-        "manaCost": {
-            "X": 4,
-            "R": 1
-        },
-        "oracleText": "Cascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)\nRebound (If you cast this spell from your hand, exile it as it resolves. At the beginning of your next upkeep, you may cast this card from exile without paying its mana cost.)",
-        "staticAbilities": [
-            "cascade",
-            "rebound"
-        ],
-        "id": "a4a3cb61-b760-4cd4-838c-b26310103719",
-        "rarity": "rare"
     },
     {
         "name": "Loxodon Partisan",
@@ -49751,28 +49813,6 @@
         "rarity": "common"
     },
     {
-        "name": "Heralds of Tzeentch",
-        "types": [
-            "Creature"
-        ],
-        "subtypes": [
-            "Demon"
-        ],
-        "manaCost": {
-            "X": 4,
-            "U": 1
-        },
-        "power": 3,
-        "toughness": 3,
-        "oracleText": "Flying\nCascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)",
-        "staticAbilities": [
-            "flying",
-            "cascade"
-        ],
-        "id": "ad145868-bb3a-4a7a-a8ca-51f3ebc2c11e",
-        "rarity": "uncommon"
-    },
-    {
         "name": "Alabaster Kirin",
         "types": [
             "Creature"
@@ -52127,6 +52167,49 @@
         "rarity": "common"
     },
     {
+        "name": "Clearwater Pathway",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {U}.",
+        "activatedAbilities": [
+            {
+                "id": "clearwater-pathway-mana",
+                "oracleText": "{T}: Add {U}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "U": 1
+                }
+            }
+        ],
+        "backFace": {
+            "kind": "modal",
+            "name": "Murkwater Pathway",
+            "types": [
+                "Land"
+            ],
+            "activatedAbilities": [
+                {
+                    "id": "murkwater-pathway-mana",
+                    "oracleText": "{T}: Add {B}.",
+                    "cost": {
+                        "tap": true
+                    },
+                    "useStack": false,
+                    "manaProduced": {
+                        "B": 1
+                    }
+                }
+            ],
+            "oracleText": "{T}: Add {B}."
+        },
+        "id": "b4b99ebb-0d54-4fe5-a495-979aaa564aa8",
+        "rarity": "rare"
+    },
+    {
         "name": "Lazotep Behemoth",
         "types": [
             "Creature"
@@ -52932,6 +53015,49 @@
         ],
         "id": "b6cb3d78-1a60-4e9b-b387-afeb58677536",
         "rarity": "common"
+    },
+    {
+        "name": "Barkchannel Pathway",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {G}.",
+        "activatedAbilities": [
+            {
+                "id": "barkchannel-pathway-mana",
+                "oracleText": "{T}: Add {G}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "G": 1
+                }
+            }
+        ],
+        "backFace": {
+            "kind": "modal",
+            "name": "Tidechannel Pathway",
+            "types": [
+                "Land"
+            ],
+            "activatedAbilities": [
+                {
+                    "id": "tidechannel-pathway-mana",
+                    "oracleText": "{T}: Add {U}.",
+                    "cost": {
+                        "tap": true
+                    },
+                    "useStack": false,
+                    "manaProduced": {
+                        "U": 1
+                    }
+                }
+            ],
+            "oracleText": "{T}: Add {U}."
+        },
+        "id": "b6de14ae-0132-4261-af00-630bf15918cd",
+        "rarity": "rare"
     },
     {
         "name": "Orazca Raptor",
@@ -60276,30 +60402,6 @@
         "rarity": "common"
     },
     {
-        "name": "Shardless Agent",
-        "types": [
-            "Artifact",
-            "Creature"
-        ],
-        "subtypes": [
-            "Human",
-            "Rogue"
-        ],
-        "manaCost": {
-            "X": 1,
-            "U": 1,
-            "G": 1
-        },
-        "power": 2,
-        "toughness": 2,
-        "oracleText": "Cascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)",
-        "staticAbilities": [
-            "cascade"
-        ],
-        "id": "ceb4df89-a97e-4479-b7f0-7083417a9565",
-        "rarity": "uncommon"
-    },
-    {
         "name": "Enormous Baloth",
         "types": [
             "Creature"
@@ -61229,6 +61331,49 @@
         ],
         "id": "d2429a15-ccbe-463c-9218-968709d9e878",
         "rarity": "common"
+    },
+    {
+        "name": "Brightclimb Pathway",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {W}.",
+        "activatedAbilities": [
+            {
+                "id": "brightclimb-pathway-mana",
+                "oracleText": "{T}: Add {W}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "W": 1
+                }
+            }
+        ],
+        "backFace": {
+            "kind": "modal",
+            "name": "Grimclimb Pathway",
+            "types": [
+                "Land"
+            ],
+            "activatedAbilities": [
+                {
+                    "id": "grimclimb-pathway-mana",
+                    "oracleText": "{T}: Add {B}.",
+                    "cost": {
+                        "tap": true
+                    },
+                    "useStack": false,
+                    "manaProduced": {
+                        "B": 1
+                    }
+                }
+            ],
+            "oracleText": "{T}: Add {B}."
+        },
+        "id": "d24c3d51-795d-4c01-a34a-3280fccd2d78",
+        "rarity": "rare"
     },
     {
         "name": "Voiceless Spirit",
@@ -63303,6 +63448,49 @@
         ],
         "id": "da2a65d6-0887-4fe8-a6e6-909208fddd90",
         "rarity": "common"
+    },
+    {
+        "name": "Cragcrown Pathway",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {R}.",
+        "activatedAbilities": [
+            {
+                "id": "cragcrown-pathway-mana",
+                "oracleText": "{T}: Add {R}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "R": 1
+                }
+            }
+        ],
+        "backFace": {
+            "kind": "modal",
+            "name": "Timbercrown Pathway",
+            "types": [
+                "Land"
+            ],
+            "activatedAbilities": [
+                {
+                    "id": "timbercrown-pathway-mana",
+                    "oracleText": "{T}: Add {G}.",
+                    "cost": {
+                        "tap": true
+                    },
+                    "useStack": false,
+                    "manaProduced": {
+                        "G": 1
+                    }
+                }
+            ],
+            "oracleText": "{T}: Add {G}."
+        },
+        "id": "da57eb54-5199-4a56-95f7-f6ac432876b1",
+        "rarity": "rare"
     },
     {
         "name": "Spinneret Sliver",
@@ -72807,30 +72995,6 @@
         "rarity": "common"
     },
     {
-        "name": "Captured Sunlight",
-        "types": [
-            "Sorcery"
-        ],
-        "manaCost": {
-            "X": 2,
-            "W": 1,
-            "G": 1
-        },
-        "oracleText": "Cascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)\nYou gain 4 life.",
-        "staticAbilities": [
-            "cascade"
-        ],
-        "effects": [
-            {
-                "op": "gainLife",
-                "player": "controller",
-                "amount": 4
-            }
-        ],
-        "id": "fcafc9eb-efa3-4f6c-a2ca-aec8692fddc1",
-        "rarity": "common"
-    },
-    {
         "name": "Faerie Invaders",
         "types": [
             "Creature"
@@ -72926,36 +73090,6 @@
         "toughness": 3,
         "id": "fd2a923a-1f9c-4a29-9c6b-344ae4d5ae8f",
         "rarity": "common"
-    },
-    {
-        "name": "Bituminous Blast",
-        "types": [
-            "Instant"
-        ],
-        "manaCost": {
-            "X": 3,
-            "B": 1,
-            "R": 1
-        },
-        "oracleText": "Cascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)\nBituminous Blast deals 4 damage to target creature.",
-        "staticAbilities": [
-            "cascade"
-        ],
-        "effects": [
-            {
-                "op": "dealDamage",
-                "amount": 4,
-                "to": {
-                    "target": 0
-                }
-            }
-        ],
-        "targetRequirement": {
-            "type": "Creature",
-            "count": 1
-        },
-        "id": "fd6a3c48-b01e-4462-a4a1-8d5009a6a844",
-        "rarity": "uncommon"
     },
     {
         "name": "Shambling Ghoul",
