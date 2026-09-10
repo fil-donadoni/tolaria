@@ -1,6 +1,6 @@
 {
     "version": 1,
-    "recordedOn": "2026-09-09",
+    "recordedOn": "2026-09-10",
     "note": "Ceilings for `bun run check:ui` (issue #2580). Recorded from a real run on this machine \u2014 see the PR. The floors this lane is FOR are cardsOcc 0, ctrlsStranded 0 and axeSerious/axeCritical 0. AS OF ISSUE #2593 EVERY WALKED SURFACE HOLDS axeSerious 0 / axeCritical 0 \u2014 those two are no longer debt lines anywhere, so a nonzero reading is a regression, not a carried defect. The one surface that could not hold it as written is `/admin/design-system`, whose job includes SHOWING what a failing token looks like: its three deliberate specimens carry `data-axe-exempt=\"<why>\"`, the lane excludes those subtrees and prints `exempt<n>` on the surface's line of every run, and `scripts/__tests__/axe-exemption-scope.test.ts` fails if the attribute appears anywhere but that page. An exemption is a named node in a reviewable diff; a nonzero budget row is a number nobody can attribute. Where a surface breaks one of the REMAINING floors today; where a surface breaks one of those TODAY the entry keeps the measured value and carries a `knownDebt` note naming the defect, printed under every run. A slice that fixes a surface lowers its ceilings in the same PR. A surface nobody can walk yet is `{\"status\":\"unwalked\",\"reason\":\u2026}` \u2014 listed in the output and in the coverage line, never silently green. Issue #2582 (PR #2619) moved the probe's `occ`/`reachable` boundary, and it moved it in BOTH directions. A control is `occ` when the centre of its VISIBLE INTERSECTION with (viewport n its own SCROLL PORT) hit-tests to something else, and `reachable` when that intersection is EMPTY but a gesture can bring it back \u2014 see `probe.js`'s `scrollPort` / `probe`. The old rule tested the element's raw centre against the bare viewport. LOOSER than the old rule: a control lying wholly outside its port's box (the deck-builder's off-strip `Delete column MV n` buttons) is no longer `occ`, and neither is one straddling a port's clip edge with a band below it (the lobby's `Your Events (all)` under the new bottom nav) \u2014 `<main>` paints nothing there, so nothing can be occluding it. STRICTER than the old rule: a control PARTLY clipped by its port is now hit-tested over the strip it still paints, where a raw centre would have been thrown away as out-of-window (`design-system-dialog`'s section-08 Cancel/Confirm specimens), and a `position: fixed` box gets no port at all rather than borrowing an ancestor scroller's rectangle. Rows re-recorded against the corrected probe carry the measurement and its enumeration in their own note. `deck-builder` was re-recorded whole on 2026-08-20 (issue #2585 fixup, PR #2650): the filter controls leaving the header band for a sheet/popover freed real height at every viewport, and a follow-up fixup (search bar `min-w-0 overflow-hidden`, Filters button icon-only under `short-viewport:`) closed a same-day regression at `844x390x3` where the new Filters button wrapped the header onto two full-height rows and pushed the Maindeck's Delete-column row under `SaveDeckBar` (`ctrlsOcc` 2 \u2192 5 mid-fix \u2192 1 final). Rows not re-recorded still measure below their number and are deliberately left alone, and the notes on them describe debt the surface's own slice owns. Issue #2822 removed the reason those readings used to VARY on the Limited side: every `limited-*` and `draft-*` row is now measured against a seeded, label-addressed fixture (`convex/limitedFixtures.ts`, reached through the `?label=` filter and the row's `data-limited-event-label`), so none of them is a function of how many events this deployment holds or which seat a positional scan landed on. Those seven surfaces were re-recorded WHOLE on 2026-08-26 \u2014 their prior viewport blocks were deleted rather than `--accept`ed one cell at a time, because the fixture is a different SUBJECT and an accepted drift would have implied continuity that does not exist. `limited-build` left `unwalked` in the same change: the builder route needs only a dealt, non-empty pool, which the mid-draft fixture seat has. Issue #2658 adds `small`: count of visible in-band interactive controls under 44px on their smaller dimension (`probe.js`'s `smallN`). This key is DELIBERATELY POINTER-BLIND \u2014 the probe applies the same 44px test at every viewport, but `--control-h` resolves to 32px under `pointer: fine` ON PURPOSE (`src/index.css:942,946-948`, citing WCAG 2.5.8, a TOUCH-target rule). So the `1440x900x2` (desktop, pointer: fine) row of every surface reads a nonzero `small` that is the intended 32px control height, not debt; the four `\u2026,mobile,touch\u2026` rows (390x844x3, 844x390x3, 820x1180x2, 1180x820x2) read real sub-44px tap-target debt. Every nonzero `small` ceiling below carries a `knownDebt` note saying explicitly which of the two it is \u2014 a reader must never \"fix\" a desktop reading by shrinking a touch target, or dismiss a touch reading as \"just the desktop thing\". This ticket only RECORDS the touch-viewport debt as a ceiling so it cannot deepen; #2659 owns lowering it. Issue #2724 adds `cardsSquare`: card surfaces that are SQUARE \u2014 a card showing page background inside its own rectangle instead of the printed rounded corner (`probe.js`'s `cardsSquareN`). It is a HARD FLOOR of 0 on every surface and must never be raised: the whole point of the proportional `--card-radius` recipe (ADR 0103 \u00a77) is that no card is ever square, and the check exists because happy-dom has no layout and cannot see a shape at all. Measured by COMPUTED RADIUS: the probe walks the card's own box chain (the image plus any ancestor whose rect is the same box), takes the largest `border-top-left-radius` on an element that actually CLIPS to it \u2014 the image itself, or an ancestor with non-visible `overflow` or paint containment, since a radius on a non-clipping ancestor does not shape the square art inside it \u2014 and reds when that radius is under 2.4% of the card's width \u2014 deliberately well under `--card-radius` itself, so the counter answers \"is this card square?\" and not \"is the corner the value I remember?\". The threshold is a FRACTION because the token is one: a fixed radius looks right at one card size and wrong at every other. Two mechanisms were tried and rejected, and re-deriving either from this note would rebuild a check that measures nothing. NOT a hit test at the corner (the first implementation, withdrawn): the corner is an ellipse quadrant, so a point inset by `i` on both axes sits outside it only when i < ~0.29\u00b7r \u2014 ~1.1px on a 78x109 phone deck tile \u2014 and `elementFromPoint` takes CSS-pixel coordinates the browser snaps to device pixels, so a sub-pixel inset is not reliably where you put it; it reported `cardsSquare 36` at 390x844x3 on a tree whose cards were all visibly, correctly rounded (screenshot-confirmed). NOT a pixel read: card art is cross-origin, so a canvas read is tainted. The known limit, recorded in `probe.js`: a FIXED radius that happens to land near the right fraction on one small card passes \u2014 that case is also visually indistinguishable, and the CSS recipe (`.card-corner` / `.card-ring`) is what holds it.",
     "surfaces": {
         "auth-sign-in": {
@@ -1079,6 +1079,82 @@
                     "axeSerious": 0,
                     "axeCritical": 0,
                     "knownDebt": "`draft-pool-peek` is `draft-pool-stop` plus one gesture: select the LAST Pool tile (the first is buried under its pile, and Playwright waits out its whole timeout on it) and measure with the Pool's own `DeckZonePeek` mounted. The walk now PROVES the mounted panel is the Pool's and not the Booster's \u2014 both render `[data-peek-panel]`, and `reachDraftRoom` has ALREADY pinned a Booster selection (`pinDraftSelection`, #2677), so a pool click that did nothing would have left this row measuring `draft-pick`'s panel under a second surface id. The assertion is on `[data-editing-action=\"Move to\u2026\"]`, the one CTA only `deck-zone-peek.tsx` appends. Byte-identical to `draft-pool-stop` here, and that is a fact about the arrangement rather than a missing gesture: off a phone `usePeekPanelLayout` resolves to the 224px RAIL at every viewport, and both CTA rows are four items (Booster `Close`/`Pick`/`\u2192 Side`/`Inspect`, Pool `Close`/`\u2192 Side`/`Move to\u2026`/`Inspect`), so the geometry the probe measures is the same. Only the phone rows separate the two surfaces. `cardsOcc 18` is the OVERLAID column pile (ADR 0075) in the Pool band: the fixture seat holds 24 cards, `DeckColumnPile` draws each Mana-Value Column's copies stacked, and every card but the top of a pile fails `probe.js`'s centre-point test BY DESIGN. `cardsStranded 0` \u2014 every buried copy is one hover or one drag away. Nothing is off-port at this viewport (`reach0`), so the count is exactly 24 pool cards minus 6 pile tops. `ctrlsOcc 22` is `cardsOcc` + 4, and that identity holds on EVERY non-phone row of all three Draft Room surfaces: a pool tile is both an `<img>` and a `role=button` (`DeckCardTile`), so each buried card is counted once in each family, and the remaining 4 are the room bar the Peek Panel's 224px rail covers from OUTSIDE `peekPanelReserve` (`Table`/`Pool`/`More` and the floating `Report a bug`, `docs/findings/2583-peek-rail-occludes-controls-outside-the-reserve.md`). A row where `ctrlsOcc - cardsOcc` stops being 4 has a new occluder, not more pile geometry \u2014 that is what makes these two ceilings readable together rather than two loose numbers. `small` at this `pointer: coarse` viewport is REAL sub-44px tap-target debt (`--control-h-coarse`, `src/index.css:942,946-948`), recorded as a ceiling so it cannot deepen. #2659 owns lowering it; it is explicitly out of scope for #2822."
+                }
+            }
+        },
+        "lobby-vs-ai": {
+            "label": "vs-AI setup dialog (/ → Play vs Bot → primary)",
+            "status": "budgeted",
+            "viewports": {
+                "1440x900x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "cardsSquare": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 41,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "small": 88,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "Recorded 2026-09-10 (issue #2790, the `Expert` level + the per-level description line). The dialog is MODAL, so `ctrlsOcc` counts the whole lobby sitting behind the scrim — that is what a modal IS, not a defect, and `ctrlsOcc` is not one of the lane's hard floors (same reading as the `design-system-dialog` row). `small`/`tiny` are the SAME lobby tap-target debt the `lobby` row above already carries at this viewport, seen through the scrim; issue #2659 owns lowering it as the lobby's own controls are fixed, and this row moves with it. What this row is actually here to hold at zero is the dialog's own geometry: `cardsStranded`, `ctrlsStranded`, `starved`, `hOverflow` and both axe floors — the four-across segmented control introduced by issue #2790 fits at every viewport including 390px portrait, and the description line under it wraps without pushing the primary action out of reach."
+                },
+                "390x844x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "cardsSquare": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 27,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "small": 18,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "Recorded 2026-09-10 (issue #2790, the `Expert` level + the per-level description line). The dialog is MODAL, so `ctrlsOcc` counts the whole lobby sitting behind the scrim — that is what a modal IS, not a defect, and `ctrlsOcc` is not one of the lane's hard floors (same reading as the `design-system-dialog` row). `small`/`tiny` are the SAME lobby tap-target debt the `lobby` row above already carries at this viewport, seen through the scrim; issue #2659 owns lowering it as the lobby's own controls are fixed, and this row moves with it. What this row is actually here to hold at zero is the dialog's own geometry: `cardsStranded`, `ctrlsStranded`, `starved`, `hOverflow` and both axe floors — the four-across segmented control introduced by issue #2790 fits at every viewport including 390px portrait, and the description line under it wraps without pushing the primary action out of reach."
+                },
+                "844x390x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "cardsSquare": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 16,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "small": 18,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "Recorded 2026-09-10 (issue #2790, the `Expert` level + the per-level description line). The dialog is MODAL, so `ctrlsOcc` counts the whole lobby sitting behind the scrim — that is what a modal IS, not a defect, and `ctrlsOcc` is not one of the lane's hard floors (same reading as the `design-system-dialog` row). `small`/`tiny` are the SAME lobby tap-target debt the `lobby` row above already carries at this viewport, seen through the scrim; issue #2659 owns lowering it as the lobby's own controls are fixed, and this row moves with it. What this row is actually here to hold at zero is the dialog's own geometry: `cardsStranded`, `ctrlsStranded`, `starved`, `hOverflow` and both axe floors — the four-across segmented control introduced by issue #2790 fits at every viewport including 390px portrait, and the description line under it wraps without pushing the primary action out of reach."
+                },
+                "820x1180x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "cardsSquare": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 49,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "small": 23,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "Recorded 2026-09-10 (issue #2790, the `Expert` level + the per-level description line). The dialog is MODAL, so `ctrlsOcc` counts the whole lobby sitting behind the scrim — that is what a modal IS, not a defect, and `ctrlsOcc` is not one of the lane's hard floors (same reading as the `design-system-dialog` row). `small`/`tiny` are the SAME lobby tap-target debt the `lobby` row above already carries at this viewport, seen through the scrim; issue #2659 owns lowering it as the lobby's own controls are fixed, and this row moves with it. What this row is actually here to hold at zero is the dialog's own geometry: `cardsStranded`, `ctrlsStranded`, `starved`, `hOverflow` and both axe floors — the four-across segmented control introduced by issue #2790 fits at every viewport including 390px portrait, and the description line under it wraps without pushing the primary action out of reach."
+                },
+                "1180x820x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "cardsSquare": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 37,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "small": 21,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "Recorded 2026-09-10 (issue #2790, the `Expert` level + the per-level description line). The dialog is MODAL, so `ctrlsOcc` counts the whole lobby sitting behind the scrim — that is what a modal IS, not a defect, and `ctrlsOcc` is not one of the lane's hard floors (same reading as the `design-system-dialog` row). `small`/`tiny` are the SAME lobby tap-target debt the `lobby` row above already carries at this viewport, seen through the scrim; issue #2659 owns lowering it as the lobby's own controls are fixed, and this row moves with it. What this row is actually here to hold at zero is the dialog's own geometry: `cardsStranded`, `ctrlsStranded`, `starved`, `hOverflow` and both axe floors — the four-across segmented control introduced by issue #2790 fits at every viewport including 390px portrait, and the description line under it wraps without pushing the primary action out of reach."
                 }
             }
         }
