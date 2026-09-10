@@ -31839,9 +31839,12 @@ describe("Effect Script value: sum over a bound card set (CR 122 / 404)", () => 
     }
 
     /** p1's graveyard already holds an MV-2 card; the library holds a MV-2
-     *  bear over an MV-0 land, so a correctly SCOPED sum of a 2-card mill is
-     *  2 and an unscoped one would be 4. */
-    function drainableState(library: string[] = [BEAR_ID, LAND_ID]): GameState {
+     *  bear over a MV-2 black instant. A correctly SCOPED sum over a 2-card
+     *  mill is 4 — an unscoped zone sum would be 6, and a FIRST-CARD-ONLY read
+     *  (the pre-`bindAll` shape) would be 2. */
+    function drainableState(
+        library: string[] = [BEAR_ID, BLACK_CARD_ID]
+    ): GameState {
         return makeState({
             players: [
                 makePlayer("p1", {
@@ -31873,9 +31876,10 @@ describe("Effect Script value: sum over a bound card set (CR 122 / 404)", () => 
         const before = state.players[1].life;
         pushSpell(state, id, "p1");
         resolveTopOfStack(state);
-        // Bear {1}{G} = 2, land = 0. The MV-2 card already in the graveyard is
-        // NOT part of the bound set — an unscoped zone sum would drain 4.
-        expect(state.players[1].life).toBe(before - 2);
+        // Bear {1}{G} = 2 plus black instant {1}{B} = 2. Every distinguishing
+        // number is distinct: 6 would mean the sum reached the whole
+        // graveyard, 2 would mean it read only the first milled card.
+        expect(state.players[1].life).toBe(before - 4);
     });
 
     it("a SHORT library mills what it has and the sum covers only those cards (CR 608.2)", () => {
