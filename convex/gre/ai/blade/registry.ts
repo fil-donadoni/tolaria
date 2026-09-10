@@ -6102,9 +6102,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Issue #3292 negative control, the other side of the same Op. The Edict's sacrifice reads the identical bare picks ref, but its `choice` names `player: \"opponent\"` — the OPPONENT picks, so it is real removal and must keep the edict value. Guards the fix against over-reaching: an attribution that answered \"controller\" for anything but the literal chooser would sign this (and Innocent Blood's `$each`, and Liliana of the Veil's announced target player) as the caster's own cost and stop the bot ever casting an edict.",
     },
     {
-        // DECK KEY LINE, HALF 1 of 2 (issue #2715, PRD #2693).
-        // PAIRED WITH: "replenish NEGATIVE CONTROL: does not cast the mass
-        // return with nothing in the graveyard".
+        // DECK KEY LINE (issue #2715, PRD #2693).
         //
         // Parallax Replenish's whole deck is this one card: Attunement and
         // Frantic Search bin enchantments, Replenish ({3}{W}) returns ALL of
@@ -6123,6 +6121,14 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // `OP_VALUERS`/`OP_BENEFICENCE`, and a `moveZone` that fell open to
         // neutral would leave the bot holding its Replenish forever with no
         // suite going red.
+        //
+        // Its NEGATIVE CONTROL is not a second registry entry but a dominance
+        // pair, `isDominatedNoOpMove — Replenish into an enchantment-less
+        // graveyard` (`ai/__tests__/dominance.bot.test.ts`): the empty-graveyard
+        // cast is refused by the DOMINANCE PROOF, upstream of the search, and
+        // an entry asserting it here could not be driven red by any break of
+        // the valuation it would claim to guard — it is stated where it is
+        // actually decided.
         label: "replenish: casts the mass return with three enchantments in the graveyard",
         spec: {
             cards: [
@@ -6143,39 +6149,6 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         tier: "must",
         expect: { moves: [{ kind: "cast-spell", card: "Replenish" }] },
         note: "Issue #2715 — the assembly step of the Parallax Replenish list. Exactly four Plains, so the {3}{W} is payable and nothing else is; the only two lines on the board are this cast and a pass.",
-    },
-    {
-        // DECK KEY LINE, HALF 2 of 2 (issue #2715).
-        // PAIRED WITH: "replenish: casts the mass return with three
-        // enchantments in the graveyard".
-        //
-        // The identical board with an EMPTY graveyard. Replenish is still
-        // enumerated (it targets nothing, so it is castable at any time —
-        // verified on this exact spec), and returning nothing for four mana is
-        // a card and a turn thrown away. `forbidden` rather than `moves`
-        // because what the bot does INSTEAD is genuinely open (pass, hold
-        // mana), while the blunder is not.
-        //
-        // Without this half, half 1 passes on a bot that simply casts every
-        // spell it can afford — which is the one failure mode a reachability
-        // claim cannot distinguish from a real valuation.
-        label: "replenish NEGATIVE CONTROL: does not cast the mass return with nothing in the graveyard",
-        spec: {
-            cards: [
-                { name: "Plains", owner: "me", zone: "battlefield", count: 4 },
-                { name: "Replenish", owner: "me", zone: "hand" },
-                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
-            ],
-            phase: "PRECOMBAT_MAIN",
-            turn: 5,
-            libraryCount: 20,
-        },
-        bot: "me",
-        budget: { iterations: 200 },
-        seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "must",
-        expect: { forbidden: [{ kind: "cast-spell", card: "Replenish" }] },
-        note: "Issue #2715 — the discriminating half. The `forEach` over the graveyard resolves to an empty set (CR 608.2b), so the spell resolves and does nothing.",
     },
 ];
 
