@@ -6101,6 +6101,65 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Issue #3292 negative control, the other side of the same Op. The Edict's sacrifice reads the identical bare picks ref, but its `choice` names `player: \"opponent\"` — the OPPONENT picks, so it is real removal and must keep the edict value. Guards the fix against over-reaching: an attribution that answered \"controller\" for anything but the literal chooser would sign this (and Innocent Blood's `$each`, and Liliana of the Veil's announced target player) as the caster's own cost and stop the bot ever casting an edict.",
     },
+    {
+        // DECK KEY LINE (issue #2715, PRD #2693).
+        //
+        // Parallax Replenish's whole deck is this one card: Attunement and
+        // Frantic Search bin enchantments, Replenish ({3}{W}) returns ALL of
+        // them at once (CR 608.2f — one `forEach` over the graveyard, whose
+        // members return `simultaneous`ly), and Opalescence turns what came
+        // back into a board.
+        // The list reached 21/21 `ready` through three ENGINE slices (#3204
+        // Attunement's `returnThisToHand` cost leg, #3205 Intuition's revealed
+        // hidden-zone pick, #3206 Decree of Silence's `$event` cast ref) and
+        // not one of them touched a bot path, so nothing anywhere asserted the
+        // deck's payoff turn is a turn the Bot actually takes.
+        //
+        // The claim is REACHABILITY, not preference: three permanents for four
+        // mana against the alternative of passing is not a matter of opinion.
+        // What it guards is the WHOLE PATH, end to end, on the deck's own
+        // board — the cast is enumerated, it survives dominance pruning, and
+        // the search prefers it to `pass`. Not the Op's valuation, which is
+        // pinned already (`opValuers.bot.test.ts` fixes `moveZone` →
+        // battlefield at `REANIMATE_VALUE` with the `recursion` tag, and
+        // `OP_BENEFICENCE.moveZone` is deliberately and permanently
+        // `"neutral"`); accordingly this entry is proven red by breaking the
+        // CARD — Replenish's `forEach` reading `set: "exile"` instead of
+        // `"graveyard"` returns nothing, and the bot passes.
+        //
+        // Its NEGATIVE CONTROL is not a second registry entry but a dominance
+        // pair, `isDominatedNoOpMove — Replenish into an enchantment-less
+        // graveyard` (`ai/__tests__/dominance.bot.test.ts`), because that is
+        // where the futile cast is actually refused. As a blade entry it could
+        // not be driven red, and not for want of budget: at 1000 iterations x
+        // 10 seeds with `isDominatedNoOpMove` disabled OUTRIGHT the bot still
+        // passes on all ten seeds — the search declines the enchantment-less
+        // cast on its own, the prune only saves it the visits. (Also measured
+        // green at 200 x 5 under `REANIMATE_VALUE` x100, under
+        // `manaWeight`/`flexWeight` zeroed, and under a root tie-break that
+        // prefers an outcome-equal cast to `pass`.) A `must` entry nothing can
+        // red is not evidence; the dominance pair reds on the first break.
+        label: "replenish: casts the mass return with three enchantments in the graveyard",
+        spec: {
+            cards: [
+                { name: "Plains", owner: "me", zone: "battlefield", count: 4 },
+                { name: "Replenish", owner: "me", zone: "hand" },
+                { name: "Opalescence", owner: "me", zone: "graveyard" },
+                { name: "Parallax Wave", owner: "me", zone: "graveyard" },
+                { name: "Seal of Cleansing", owner: "me", zone: "graveyard" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "cast-spell", card: "Replenish" }] },
+        note: "Issue #2715 — the assembly step of the Parallax Replenish list. Exactly four Plains, so the {3}{W} is payable and nothing else is; the only two lines on the board are this cast and a pass.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the

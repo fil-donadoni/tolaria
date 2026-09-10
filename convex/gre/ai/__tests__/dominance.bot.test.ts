@@ -308,6 +308,54 @@ describe("isDominatedNoOpMove — reanimation into a creature-less graveyard (is
         expect(castsOf(state, "Battle Cry", true).length).toBeGreaterThan(0);
     });
 
+    // The MASS shape of the same class (issue #2715, PRD #2693). Shallow Grave
+    // above is a positional single-card scan; Replenish is a `forEach` over the
+    // whole graveyard resolved `simultaneous`, so its no-op path is an EMPTY
+    // ITERATION (CR 608.2c — the instructions are followed as written, and an
+    // instruction over an empty set does nothing) rather than an unbound
+    // `$revived` — a different
+    // interpreter route to the same "nothing observable changed" verdict, and
+    // the payoff card of a whole Premodern Tier 1 list.
+    it("proves Replenish into an enchantment-less graveyard is dominated by pass", () => {
+        const state = build({
+            cards: [
+                { name: "Replenish", owner: "me", zone: "hand" },
+                { name: "Grizzly Bears", owner: "me", zone: "graveyard" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        });
+        const casts = castsOf(state, "Replenish", false);
+        expect(casts.length).toBeGreaterThan(0);
+        for (const move of casts) {
+            expect(isDominatedNoOpMove(state, me(state), move)).toBe(true);
+        }
+        expect(castsOf(state, "Replenish", true)).toHaveLength(0);
+    });
+
+    it("NEGATIVE CONTROL: Replenish with three enchantments in the graveyard is never dominated", () => {
+        const state = build({
+            cards: [
+                { name: "Replenish", owner: "me", zone: "hand" },
+                { name: "Opalescence", owner: "me", zone: "graveyard" },
+                { name: "Parallax Wave", owner: "me", zone: "graveyard" },
+                { name: "Seal of Cleansing", owner: "me", zone: "graveyard" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        });
+        const casts = castsOf(state, "Replenish", false);
+        expect(casts.length).toBeGreaterThan(0);
+        for (const move of casts) {
+            expect(isDominatedNoOpMove(state, me(state), move)).toBe(false);
+        }
+        expect(castsOf(state, "Replenish", true).length).toBeGreaterThan(0);
+    });
+
     it("NEGATIVE CONTROL: Shallow Grave with a creature in the graveyard is never dominated — the cast IS chosen", () => {
         const state = build({
             cards: [
