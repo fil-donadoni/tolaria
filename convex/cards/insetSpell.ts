@@ -110,7 +110,16 @@ export function insetSpellTwinDefinition(
         ...(inset.targetRequirement
             ? { targetRequirement: inset.targetRequirement }
             : {}),
-        ...(parent.imagePrintId ? { imagePrintId: parent.imagePrintId } : {}),
+        // CR 715.2c / 111.1 — one card is one card, and one card is one
+        // PRINTING: the inset half has no illustration of its own, so its art
+        // is the adventurer card's. `?? parent.id` is the load-bearing half —
+        // a hand-written card's `id` IS its home printing's Scryfall id and
+        // almost none of them declare `imagePrintId`, so copying that field
+        // alone left the twin with NO art id at all. It then fell through to
+        // the "the id is the print id" path, where the twin's own `#`-bearing
+        // id reached the Scryfall URL builder and truncated it at the fragment
+        // delimiter into a 404 (issue #3321).
+        imagePrintId: parent.imagePrintId ?? parent.id,
     };
 }
 
