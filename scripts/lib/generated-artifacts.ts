@@ -22,6 +22,13 @@
  *   - `data/card-index.json` — IMMUNE BY SHAPE. Per-row, sorted by name, no
  *     header, no hash, no tally. `scripts/__tests__/generated-artifact-merge.test.ts`
  *     pins that shape so the immunity cannot silently lapse.
+ *   - `data/ai-effects-allowlist.json` — IMMUNE BY SHAPE (issue #3017). The
+ *     aiEffects guard's baseline: per-row, sorted by class then card name, no
+ *     header, no hash, no tally. It exists BECAUSE of this property — it
+ *     replaced four literal arrays in a 3.3k-line test file that every
+ *     resolve()->effects[] migration PR had to hand-edit, and that any two
+ *     concurrent ones collided in. Re-derived (prune-only) by `ai:allowlist`.
+ *     `scripts/__tests__/generated-artifact-merge.test.ts` pins its shape too.
  *   - `data/oracle-compiled-pool.json` — IMMUNE BY SHAPE. A bare array of
  *     resolved card rows; no header, no hash, no tally (ADR 0114 §2 keeps it a
  *     catalogue with nothing left to resolve at runtime).

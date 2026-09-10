@@ -24,6 +24,11 @@ import {
     resolveGeneratedArtifactsStep,
 } from "../land";
 import { BASE_BRANCH, ORIGIN_BASE } from "../lib/branches";
+import {
+    AI_EFFECTS_BASELINE_PATH,
+    serializeBaseline,
+    type AiEffectsBaselineRow,
+} from "../lib/ai-effects-baseline";
 
 /**
  * Guards for issue #3069 — "a generated artifact is regenerated, not merged".
@@ -144,6 +149,30 @@ describe("generated-artifact class — what is NOT in it (issue #3069 asks for t
         for (const row of index.slice(0, 200)) {
             expect(Object.keys(row)).not.toContain("contentHash");
         }
+    });
+
+    it("the aiEffects baseline is immune by shape: per-row, canonically sorted, no whole-file state", () => {
+        // Issue #3017 moved 497 allowlist rows out of a 3.3k-line test file
+        // for exactly this reason — the file was the serialization point of
+        // the resolve()->effects[] migration, and two concurrent migration PRs
+        // collided in it. That is only fixed while the artifact stays per-row
+        // and header-free, so pin it here rather than trusting it to hold.
+        expect(REGENERATED_ARTIFACTS.map((a) => a.path)).not.toContain(
+            AI_EFFECTS_BASELINE_PATH
+        );
+        const text = readFileSync(
+            join(REPO_ROOT, AI_EFFECTS_BASELINE_PATH),
+            "utf8"
+        );
+        const rows = JSON.parse(text) as AiEffectsBaselineRow[];
+        // A bare array — no header object to hold a hash or a tally.
+        expect(Array.isArray(rows)).toBe(true);
+        for (const row of rows) {
+            expect(Object.keys(row)).not.toContain("contentHash");
+        }
+        // Canonical order is content-independent (class, then name), so a row
+        // added or removed moves no other row's line.
+        expect(text).toBe(serializeBaseline(rows));
     });
 
     it("the compiled pool is immune by shape: a bare array, no header", () => {
