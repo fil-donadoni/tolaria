@@ -4336,8 +4336,9 @@ function isInPendingCombatExchange(
     const combat = state.combat;
     if (!combat || !combat.confirmed || !combat.blockersConfirmed) return false;
     // Through `getEffectiveBlockGraph` (`banding.ts`), never a hand-rolled scan
-    // of `blockerAssignments`: banding (CR 702.21j) maps a block declared on
-    // ONE band member onto every member, so a raw scan reads a banded attacker
+    // of `blockerAssignments`: Banding (CR 702.22h) makes every other creature
+    // in a band blocked by whatever blocked one of them, so a raw scan reads a
+    // banded attacker
     // that something else absorbed as UNBLOCKED — a fail-CLOSED miss in a
     // predicate whose whole contract is to fail open. It is also the module
     // that OWNS the question, which is the argument this predicate already
