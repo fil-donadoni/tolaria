@@ -211,7 +211,7 @@ describe("Life — mass land animation, CR 611.2c / 205.1b", () => {
         castHalf(state, "left");
         resolveTopOfStack(state);
 
-        state.phase = "ENDING";
+        state.phase = "END_STEP";
         expect(onBattlefield(state, "land0").types).toContain("Creature");
 
         state.phase = "CLEANUP";
