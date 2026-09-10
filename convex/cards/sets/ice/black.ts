@@ -1902,7 +1902,9 @@ export const limDLsCohort: CardDefinition = {
             // ability's own source — so the trigger reads identically whether
             // the Cohort attacked into a blocker or blocked an attacker. A
             // creature that has left the battlefield before the trigger
-            // resolves makes the Op a clean no-op (CR 608.2b).
+            // resolves makes the Op a clean no-op (CR 608.2h — the ability
+            // names no target, so it is last-known-information that governs,
+            // not target legality).
             effects: [
                 {
                     op: "preventRegeneration",

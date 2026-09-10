@@ -1836,11 +1836,21 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // which is what `hasPerCardTest` looks for, so it lands in AFK-ready
         // too. Net: total 472->473, FREE 317->318, AFK-ready 308->309,
         // Op-blocked unchanged at 140. Partition: 318+15+140=473.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(473);
+        //
+        // Issue #2762 then REMOVES one: Lim-Dûl's Cohort (`ice/black.ts`), an
+        // Op-blocked closure — the `preventRegeneration` Op existed, but "that
+        // creature" (the OTHER member of the attacker/blocker pair, CR 509.1h)
+        // had no declarative name. The censused `$event.otherCombatant` row
+        // gives it one, so the closure became an `effects[]` script. It carried
+        // no per-card FREE status to lose (Op-blocked closures are counted
+        // outside FREE/AFK-ready), so only the total and Op-blocked move. Net:
+        // total 473->472, Op-blocked 140->139, FREE and AFK-ready unchanged.
+        // Partition: 318+15+139=472.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(472);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(318);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(309);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(15);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(140);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(139);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

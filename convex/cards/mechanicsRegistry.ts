@@ -3849,9 +3849,15 @@ export interface EventFieldRow {
      *  row ignores it: a field that reads straight off the event stays a pure
      *  function of the event, and a row that takes the second parameter is
      *  saying "this id has no meaning without knowing who is asking".
-     *  Undefined only where there is no resolving source (a capture resolved
-     *  outside an ability's own resolution); a relative row then returns
-     *  undefined and the reading Op skips, CR 608.2b. */
+     *
+     *  OPTIONAL for the CALLERS, not because a resolution can lack a source:
+     *  `SpellContext.sourceInstanceId` is a non-optional `string`
+     *  (`item.triggerSourceId ?? item.id`), and every capture path resolves
+     *  inside the scheduling ability's OWN resolution, so the single
+     *  interpreter call site always has it. The parameter is optional so a
+     *  caller that only needs an ABSOLUTE row — the registry's own census
+     *  tests — can pass the event alone. A relative row given no source
+     *  returns undefined and the reading Op skips (CR 608.2h). */
     resolve: (
         event: GameEvent,
         sourceInstanceId?: string
@@ -3914,8 +3920,14 @@ export const EVENT_FIELD_REGISTRY: Record<
         //
         // FAIL-CLOSED when the source is NEITHER combatant — a symmetric
         // "whenever a creature blocks" trigger on some third permanent has no
-        // "other" creature to name, so the reading Op skips (CR 608.2b) rather
-        // than silently acting on the attacker. Same for the aura wording
+        // "other" creature to name, so the reading Op skips (CR 608.2h — the
+        // effect fails to determine the information) rather than silently
+        // acting on the attacker. A card whose own source is SOMETIMES in the
+        // pair therefore reads this row correctly for its own pair and no-ops
+        // on every other one: this row is for the "THIS creature blocks or
+        // becomes blocked" wording, and a genuinely symmetric "whenever a
+        // creature blocks" card wants `attackerId`/`blockerId`, not a
+        // complement. Same for the aura wording
         // ("whenever ENCHANTED creature blocks…", `combatPairKill`'s
         // `combatant: "enchanted"`): the pair contains the aura's HOST, never
         // the aura itself, so this row correctly declines to guess — that

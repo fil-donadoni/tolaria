@@ -3640,6 +3640,27 @@ describe("validateAbilityEffectScript — $event.<field> refs (ADR 0049, issue #
         expect(errors).toEqual([]);
     });
 
+    // The one error only a REGISTERED row can produce: an uncensused field
+    // never reaches the family check. This is what pins the row's `family:
+    // "object"` — the reject-elsewhere test above passes identically on a tree
+    // where the row was never added at all.
+    it("rejects $event.otherCombatant in a PLAYER position (family must match)", () => {
+        const errors = validateAbilityEffectScript(
+            abilityHost([
+                {
+                    op: "loseLife",
+                    player: { ref: "$event.otherCombatant" },
+                    amount: 1,
+                },
+            ]),
+            "Test (id)",
+            "BLOCKERS_CONFIRMED"
+        );
+        expect(errors.join("\n")).toContain(
+            "family must match the ref position"
+        );
+    });
+
     it("rejects $event.otherCombatant at a NON-BLOCKERS_CONFIRMED trigger site", () => {
         const errors = validateAbilityEffectScript(
             abilityHost([

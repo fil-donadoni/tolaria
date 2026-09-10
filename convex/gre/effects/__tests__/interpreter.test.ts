@@ -17447,7 +17447,7 @@ describe("Effect Script value grammar: $event.otherCombatant (CR 509.1h, issue #
         }
     });
 
-    it("CR 608.2b: the complement left the battlefield before resolution — clean no-op", () => {
+    it("CR 608.2h: the complement left the battlefield before resolution — clean no-op", () => {
         const state = setup("src", "other");
         // The blocker died in response to the trigger.
         const [gone] = state.players[1].battlefield.splice(0, 1);
@@ -17459,6 +17459,34 @@ describe("Effect Script value grammar: $event.otherCombatant (CR 509.1h, issue #
             state.players[1].graveyard.find((c) => c.id === "other")!
                 .cantBeRegeneratedThisTurn
         ).toBeUndefined();
+    });
+
+    // CR 113.7a — the MIRROR case, and the one unique to a SOURCE-RELATIVE
+    // row: the ability exists on the stack independently of its source, so a
+    // Cohort killed in response still locks the other creature. The source id
+    // comes off the stack item, never from a battlefield lookup; a refactor
+    // that re-derived "self" by scanning the battlefield would go red here and
+    // nowhere else.
+    it("CR 113.7a: the SOURCE died in response — the complement is still locked", () => {
+        const state = setup("src", "other");
+        const src = state.players[0].battlefield.find((c) => c.id === "src")!;
+        state.stack.push({
+            ...src,
+            zone: "stack",
+            castById: src.controllerId,
+            triggeredAbilityId: "pair-lock-no-regen",
+            triggerSourceId: "src",
+            triggerEvent: pairEvent("src", "other"),
+            targets: [],
+        });
+        // Kill the source AFTER the trigger is on the stack, BEFORE it resolves.
+        const [dead] = state.players[0].battlefield.splice(0, 1);
+        state.players[0].graveyard.push(dead);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "other")!
+                .cantBeRegeneratedThisTurn
+        ).toBe(true);
     });
 
     it("wire format: the locked creature dies through its own regeneration shield", () => {
