@@ -1010,6 +1010,51 @@ describe("selectRootMove — a sacrifice engine is held, then converted (issue #
         ).toBe("activate-ability");
     });
 
+    it("HOLD: an UNBLOCKED attacker is still standing, so the spend is held", () => {
+        // Issue #3369, the reported blunder reduced to its predicate. Nothing
+        // is assigning damage to an unblocked attacker, so it is standing
+        // exactly as it stands outside combat and the hold argument applies
+        // unchanged. Before the fix the whole combat was unowned: the rule was
+        // gated on `!rootState.combat` and hold-the-trick on
+        // `isSorceryTimingFor`.
+        const state = spendIsRobust(unpayingBoard());
+        state.phase = "COMBAT_DAMAGE";
+        state.combat = {
+            attackerIds: ["orb"],
+            confirmed: true,
+            blockersConfirmed: true,
+            blockerAssignments: {},
+        };
+        expect(
+            selectRootMove(spendIsRobustRoot(), [ACTIVATE, PASS], state, "p1")
+                .kind
+        ).toBe("pass");
+    });
+
+    it("NO-HOLD: a BLOCKED attacker is dead either way, so the spend stands", () => {
+        // The discriminating twin, and the reason the combat could not simply
+        // be folded into the hold. A creature standing in a confirmed exchange
+        // may be about to die for nothing; holding it then preserves nothing at
+        // all, and the value is in spending it first (CR 510.1c).
+        //
+        // The predicate is deliberately not a lethality calculation — it fails
+        // OPEN on any pending exchange rather than re-deriving assignment,
+        // deathtouch and prevention outside `lethalDamage.ts` /
+        // `damageAssignment.ts` / `combatDamagePrevention.ts`.
+        const state = spendIsRobust(unpayingBoard());
+        state.phase = "DECLARE_BLOCKERS";
+        state.combat = {
+            attackerIds: ["orb"],
+            confirmed: true,
+            blockersConfirmed: true,
+            blockerAssignments: { blk: ["orb"] },
+        };
+        expect(
+            selectRootMove(spendIsRobustRoot(), [ACTIVATE, PASS], state, "p1")
+                .kind
+        ).toBe("activate-ability");
+    });
+
     it("records `standing-spend-hold` as the deciding mechanism", () => {
         // The telemetry seam, asserted exactly as `last-window-fire` asserts
         // its own: a `RootDecisionMechanism` value `finish` never emits is a
