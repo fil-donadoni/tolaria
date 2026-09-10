@@ -131,7 +131,7 @@ function abilityOnlyOf(
 }
 
 /** Just `card.delayedTriggers[]` — the dedicated scope
- *  `DELAYED_TRIGGER_AI_EFFECTS_ALLOWLIST` (issue #2020) audits. */
+ *  `DELAYED_TRIGGER_AI_EFFECTS_ALLOWLIST` (issue #1436) audits. */
 function delayedTriggersOf(card: CardDefinition): DelayedTriggerDef[] {
     return card.delayedTriggers ?? [];
 }
@@ -2966,8 +2966,11 @@ interface DelayedTriggerAllowlistEntry {
      *  offending delayed trigger, each getting its own entry. */
     readonly delayedTriggerId: string;
     /** Real, OPEN tracking issue this entry is filed against. Every entry
-     *  below is #2020 today; a future PR splitting one off into its own
-     *  fix gets its own issue number when it's fixed, not when it's added. */
+     *  below is #1436 today — the resolve()-residue backfill, which owns the
+     *  CARD these delayed triggers hang off (see the block comment below for
+     *  why the card, not the delayed trigger, is the fixable unit). A future
+     *  PR splitting one off into its own fix gets its own issue number when
+     *  it's fixed, not when it's added. */
     readonly issue: number;
     /** The `// no honest shadow script: <why>` disposition. */
     readonly note: string;
@@ -2977,191 +2980,213 @@ interface DelayedTriggerAllowlistEntry {
 // MINOR 7 — a bare `resolve()` delayed-trigger body was previously invisible
 // to this guard entirely, so it could ship with no `aiEffects` and no
 // error). The 25 entries below are every PRE-EXISTING delayed-trigger body
-// this newly reaches, at the moment the scope extension landed (issue
-// #2020) — none are new abilities, and none of these 25 sketch trivially:
-// each acts on an EXTERNAL object captured via `payload` at scheduling time
-// (`ctx.scheduleDelayedTrigger(..., { targetId })`), which the standalone
-// `aiEffects` shadow (walked by `OP_VALUERS` with no access to that
-// `payload`) has no way to reference — see #2020 for the per-entry detail
-// and the fix-or-empty-out discipline (same as `ABILITY_AI_EFFECTS_ALLOWLIST`
-// above: remove a row the moment its delayed trigger gets a real shadow
-// script or its owning card gets an `aiValue`, never leave a stale one).
+// that scope extension newly reached; none are new abilities.
+//
+// Issue #2020 was filed to drain this list by writing an `aiEffects` shadow
+// on each delayed trigger, and was CLOSED unimplemented once that turned out
+// to be dead work: **nothing reads `DelayedTriggerDef.aiEffects`.** The value
+// model walks `activatedAbilities` + `triggeredAbilities` only
+// (`gre/ai/cardScriptValue.ts`); the `delayedTrigger` Op's valuer recurses
+// into the Op's own INLINE body (ADR 0048), never the named
+// `cardDef.delayedTriggers[]` TEMPLATE these 25 use; the one engine reader of
+// that array, `gre/ai/searchDestination.ts`, documents that it deliberately
+// does NOT consult `aiEffects` (it asks what the engine will really do, not
+// what a thing is worth); the remaining readers are debug views
+// (`src/lib/engine-view-*.ts`). So a shadow script written HERE would satisfy
+// this guard and move the bot's valuation by exactly zero — the placeholder
+// #2020's own acceptance criteria forbade.
+//
+// What IS real is one level up: every one of these delayed triggers is
+// scheduled from inside a `resolve()` body, so the OWNING CARD is what the
+// value model cannot see — 22 of the 24 cards below already carry a row in
+// `AI_EFFECTS_ALLOWLIST` / `ABILITY_AI_EFFECTS_ALLOWLIST` for that same
+// invisibility. Fixing the card (migrating it to real `effects[]`, else an
+// `aiValue`) closes its delayed-trigger row here as a side effect, which is
+// why every entry now tracks #1436 — the resolve()-residue backfill, which
+// already rules that a card the classifier reports FREE-migratable must be
+// MIGRATED rather than given a shadow script.
+//
+// The guard stays, and its job is now purely forward-looking: a NEW delayed
+// trigger may not ship as a bare `resolve()` with no `aiValue` on its card,
+// and a row that stops matching reality (card fixed, id renamed) reds. Remove
+// a row the moment its owning card gets `effects[]` or an `aiValue` — never
+// leave a stale one, and never add one for new work.
 const DELAYED_TRIGGER_AI_EFFECTS_ALLOWLIST: readonly DelayedTriggerAllowlistEntry[] =
     [
         {
             cardId: "d992b336-3b6e-43e1-8662-d85664349b44",
             name: "Siren's Call",
             delayedTriggerId: "sirens-call-destroy",
-            issue: 2020,
-            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+            issue: 1436,
+            note: "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436",
         },
         {
             cardId: "8105973c-a94d-444c-ba20-ab0fa978bee8",
             name: "Nettling Imp",
             delayedTriggerId: "nettling-imp-destroy",
-            issue: 2020,
-            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+            issue: 1436,
+            note: "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436",
         },
         {
             cardId: "e173c8ce-2352-405e-ad00-e3bb94ced1ad",
             name: "Berserk",
             delayedTriggerId: "destroy-if-attacked",
-            issue: 2020,
-            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+            issue: 1436,
+            note: "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436",
         },
         {
             cardId: "9cd91814-6177-4a3d-a1c1-a3be7d7c7957",
             name: "Cockatrice",
             delayedTriggerId: "cockatrice-combat-kill-destroy",
-            issue: 2020,
-            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+            issue: 1436,
+            note: "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436",
         },
         {
             cardId: "e92cce01-b3bd-4307-aae5-9a7c8fa386ab",
             name: "Thicket Basilisk",
             delayedTriggerId: "basilisk-combat-kill-destroy",
-            issue: 2020,
-            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+            issue: 1436,
+            note: "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436",
         },
         {
             cardId: "dc60077f-d577-4a6c-a78f-697317024c40",
             name: "Infinite Authority",
             delayedTriggerId: "infinite-authority-destroy",
-            issue: 2020,
-            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+            issue: 1436,
+            note: "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436",
         },
         {
             cardId: "dc60077f-d577-4a6c-a78f-697317024c40",
             name: "Infinite Authority",
             delayedTriggerId: "infinite-authority-counter",
-            issue: 2020,
-            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+            issue: 1436,
+            note: "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436",
         },
         {
             cardId: "e691adef-3027-4e6a-889f-9f4e2df36a7c",
             name: "Mana Drain",
             delayedTriggerId: "mana-drain-add",
-            issue: 2020,
-            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+            issue: 1436,
+            note: "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436",
         },
         {
             cardId: "e11bf79b-a951-4d0c-acdf-d8ba5290a648",
             name: "Farrelite Priest",
             delayedTriggerId: "farrelite-priest-sacrifice",
-            issue: 2020,
-            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+            issue: 1436,
+            note: "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436",
         },
         {
             cardId: "5be87527-3b8f-4529-afdb-a61ad4e787e1",
             name: "Initiates of the Ebon Hand",
             delayedTriggerId: "initiates-ebon-hand-sacrifice",
-            issue: 2020,
-            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+            issue: 1436,
+            note: "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436",
         },
         {
             cardId: "a0a27ac3-2273-469a-92ba-3f4a3d55de6f",
             name: "Goblin Kites",
             delayedTriggerId: "goblin-kites-flip",
-            issue: 2020,
-            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+            issue: 1436,
+            note: "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436",
         },
         {
             cardId: "c1b138e1-f8fc-435c-9aed-98004768479c",
             name: "Rainbow Vale",
             delayedTriggerId: "rainbow-vale-handoff",
-            issue: 2020,
-            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+            issue: 1436,
+            note: "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436",
         },
         {
             cardId: "d721569d-9cf2-4c3c-b11c-4c46c258a0d2",
             name: "Sacred Boon",
             delayedTriggerId: "sacred-boon-counters",
-            issue: 2020,
-            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+            issue: 1436,
+            note: "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436",
         },
         {
             cardId: "ab675291-3189-43f3-b11b-0724eca8b941",
             name: "Seraph",
             delayedTriggerId: "seraph-reanimate",
-            issue: 2020,
-            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+            issue: 1436,
+            note: "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436",
         },
         {
             cardId: "a779aca7-ff2c-48d8-9484-6ad04b2c6bcb",
             name: "Winter's Chill",
             delayedTriggerId: "winters-chill-destroy",
-            issue: 2020,
-            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+            issue: 1436,
+            note: "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436",
         },
         {
             cardId: "717c5dda-8e38-4c76-b241-685198402284",
             name: "Krovikan Vampire",
             delayedTriggerId: "krovikan-vampire-reanimate",
-            issue: 2020,
-            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+            issue: 1436,
+            note: "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436",
         },
         {
             cardId: "54d7a0c1-efb4-4a8d-ad92-a96d43835052",
             name: "Necropotence",
             delayedTriggerId: "necropotence-return-to-hand",
-            issue: 2020,
-            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+            issue: 1436,
+            note: "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436",
         },
         {
             cardId: "35abefe6-c39b-4fe5-b2e3-d213f0c4f447",
             name: "Norritt",
             delayedTriggerId: "norritt-destroy",
-            issue: 2020,
-            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+            issue: 1436,
+            note: "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436",
         },
         {
             cardId: "fe65a045-dacb-4392-bcb6-843394ef98c9",
             name: "Barbarian Guides",
             delayedTriggerId: "barbarian-guides-bounce",
-            issue: 2020,
-            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+            issue: 1436,
+            note: "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436",
         },
         {
             cardId: "de839540-a7b9-4f91-91df-3fd4f5c0bc4e",
             name: "Goblin Sappers",
             delayedTriggerId: "goblin-sappers-destroy-both",
-            issue: 2020,
-            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+            issue: 1436,
+            note: "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436",
         },
         {
             cardId: "de839540-a7b9-4f91-91df-3fd4f5c0bc4e",
             name: "Goblin Sappers",
             delayedTriggerId: "goblin-sappers-destroy-target",
-            issue: 2020,
-            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+            issue: 1436,
+            note: "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436",
         },
         {
             cardId: "73c07c87-0e44-4a5a-92b7-728350cd02de",
             name: "Arcum's Whistle",
             delayedTriggerId: "arcums-whistle-destroy",
-            issue: 2020,
-            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+            issue: 1436,
+            note: "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436",
         },
         {
             cardId: "2bc0e8d3-633b-4281-863f-c51c69eed0b6",
             name: "Celestial Sword",
             delayedTriggerId: "celestial-sword-sacrifice",
-            issue: 2020,
-            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+            issue: 1436,
+            note: "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436",
         },
         {
             cardId: "a15d33d6-7213-4482-a1be-ac0a73644af6",
             name: "Memory Jar",
             delayedTriggerId: "memory-jar-return",
-            issue: 2020,
-            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+            issue: 1436,
+            note: "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436",
         },
         {
             cardId: "55707746-da6e-46e5-a5ca-7ac843fdc38e",
             name: "Phelia, Exuberant Shepherd",
             delayedTriggerId: "phelia-return",
-            issue: 2020,
-            note: "no honest shadow script: delayed-trigger body acts on an externally-captured payload target, tracked by #2020",
+            issue: 1436,
+            note: "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436",
         },
     ];
 
@@ -3296,7 +3321,7 @@ describe("aiEffects shadow-script guard — ability-level resolve() (issue #1519
         // `ABILITY_AI_EFFECTS_ALLOWLIST`; `delayedTriggers[]` offenders (a
         // DISTINCT DelayedTriggerDef shape, no `abilityId` in the same
         // sense) get their OWN dedicated list, `DELAYED_TRIGGER_AI_EFFECTS_
-        // ALLOWLIST` (issue #2020) — kept separate so each has its own
+        // ALLOWLIST` (issue #1436) — kept separate so each has its own
         // fix-or-empty-out audit trail rather than one undifferentiated
         // bucket.
         const abilityAllowlistIds = new Set(
@@ -3396,7 +3421,7 @@ describe("aiEffects shadow-script guard — ability-level resolve() (issue #1519
     });
 });
 
-describe("aiEffects shadow-script guard — delayedTriggers[] residue (issue #2020)", () => {
+describe("aiEffects shadow-script guard — delayedTriggers[] residue (issue #1436)", () => {
     it("every DELAYED_TRIGGER_AI_EFFECTS_ALLOWLIST entry is well-formed and non-stale", () => {
         const cards = getAllCards();
         for (const entry of DELAYED_TRIGGER_AI_EFFECTS_ALLOWLIST) {
