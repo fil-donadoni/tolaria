@@ -983,8 +983,6 @@ function graveyardReachTerm(
     return credited * weights.graveyardReachFraction;
 }
 
-/** The weighted contributions of one player's resources, from their own
- *  perspective. `sumTerms` of this equals the legacy `playerScore`. */
 /** The realized worth a NON-CREATURE, NON-LAND permanent contributes to its
  *  controller's `permanents` term — its latent body scaled by how much of its
  *  useful loyalty range a planeswalker currently holds (exactly 1 for
@@ -1039,6 +1037,8 @@ export function permanentRealisedValue(
     return total;
 }
 
+/** The weighted contributions of one player's resources, from their own
+ *  perspective. `sumTerms` of this equals the legacy `playerScore`. */
 function playerTerms(
     state: GameState,
     player: PlayerState,
