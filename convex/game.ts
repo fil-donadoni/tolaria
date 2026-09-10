@@ -8230,6 +8230,22 @@ export const announceCast = mutation({
                 "Can't apply an alternative cost to a spell cast from the top of your library"
             );
         }
+        // CR 119.4 (PR review finding 3) — "a player may pay an amount of life
+        // only if their life total is greater than or equal to the amount of
+        // the payment." The gate upstream now answers this PER ANNOUNCEMENT
+        // (CR 709.3a — Stand costs 1 life off a Bolas's Citadel and Deliver
+        // costs 3), and `getLegalActions` reports a card-level "cast" as soon
+        // as ONE half is payable: which half was announced is known only here,
+        // exactly like the CR 715.3a timing gate below. Without this the
+        // caster could announce the half they cannot afford and drive their
+        // own life total negative — the gate's per-half verdict was being
+        // discarded. Costs a non-split library-top cast nothing: its amount is
+        // the one the gate already checked.
+        if (libraryTopPayment && player.life < libraryTopPayment.life) {
+            throw new Error(
+                `Not enough life to cast ${castSubjectDefinition(cardDef, args.alternativeCostId)?.name ?? cardDef.name} from the top of your library (CR 119.4)`
+            );
+        }
         // CR 702.74a — the chosen alt cost IS the card's Evoke cost. Tags the
         // resulting stack item `evoked: true` at commit below so the
         // "sacrifice this when it enters" trigger fires.
@@ -8969,7 +8985,17 @@ export const announceCast = mutation({
             );
             const altPayLife =
                 (chosenAltCost.life ?? 0) +
-                kickerLifeCost(cardDef, kickerPayments);
+                kickerLifeCost(cardDef, kickerPayments) +
+                // CR 118.9-analog / 119.4 (PR review finding 2) — the life that
+                // REPLACES the whole mana cost on a cast off the top of the
+                // library (Bolas's Citadel). This branch could not be reached
+                // by a library-top cast until CR 709.3's split half became the
+                // one announcement allowed to ride it, and an UNTARGETED half
+                // (Life // Death's "Life") commits HERE rather than in
+                // `finalizeTargetSelection` — which is the only other place
+                // this leg was folded. Without it the half was free, and the
+                // Bot's own Move for the same cast already carried `payLife`.
+                (libraryTopPayment?.life ?? 0);
             const parkPerm =
                 castSac !== undefined && !isSacrificeSelectionComplete(castSac);
             const parkHand =

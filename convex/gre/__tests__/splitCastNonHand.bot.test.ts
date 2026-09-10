@@ -31,6 +31,7 @@ import { enumerateCastMoves } from "../moves";
 import { libraryTopCastLifeCost } from "../rules";
 import { splitCastAltCostId } from "../splitCast";
 import type { GameState } from "../state";
+import { bonecrusherGiant } from "../../cards/sets/eld/red";
 
 const STAND_DELIVER = getCardByName("Stand // Deliver");
 const PLAINS = getCardByName("Plains").id;
@@ -162,6 +163,54 @@ describe("CR 709.3 — the Bot reaches a split half outside the hand (issue #334
         // actually costs, and no mana is tapped for either.
         expect(left).toMatchObject({ payLife: 1, tapPlan: [] });
         expect(right).toMatchObject({ payLife: 3, tapPlan: [] });
+    });
+
+    it("does NOT enumerate an ADVENTURE off a cost-replacing library top (CR 601.2b, PR review finding 1)", () => {
+        // The half-loop's `lifeInsteadOfMana` gate had to be relaxed for the
+        // split half, and relaxing it for EVERY independent option let the
+        // Adventure through: CR 601.2b forbids two alternative methods of
+        // casting on one spell, so `announceCast` refuses that Move outright —
+        // the #2283/#2284 bot-freeze shape. Only the split half is exempt,
+        // because CR 709.3's choice of half is not a price at all.
+        const card = makeInstance(bonecrusherGiant.id, {
+            id: "giant-card",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: [card],
+                    battlefield: [
+                        makeInstance(CITADEL, {
+                            id: "citadel",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                        ...Array.from({ length: 4 }, (_, i) =>
+                            makeInstance(getCardByName("Mountain").id, {
+                                id: `mtn${i}`,
+                                controllerId: "p1",
+                                ownerId: "p1",
+                            })
+                        ),
+                    ],
+                }),
+                makePlayer("p2", {}),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            phase: "PRECOMBAT_MAIN",
+        });
+        const player = state.players[0];
+        const moves = enumerateCastMoves(state, player, card, {
+            castFromZone: "library",
+            lifeInsteadOfMana: libraryTopCastLifeCost(state, player, card),
+        });
+        // The printed cast alone — the Adventure carries no way to say it is
+        // riding the life substitution, so it is not offered.
+        expect(castIds(moves)).toEqual(new Set([undefined]));
     });
 
     it("offers only the half the caster's life can pay for (CR 119.4)", () => {

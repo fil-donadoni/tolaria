@@ -151,34 +151,6 @@ export function reboundCastStackFlags(
     return zone === "hand" && hasRebound(card) ? { reboundFromHand: true } : {};
 }
 
-/** The mana cost a cast pays: the Escape cost or Flashback cost when cast from
- *  the graveyard (CR 702.138a / 702.34a — "rather than paying its mana cost"),
- *  the card's normal printed mana cost under the BROAD graveyard-cast
- *  permission (CR 305.1-analog / 601, issue #1149 — Yawgmoth's Will pays no
- *  alternative cost, just the printed one), else the card's printed mana cost
- *  for a hand/exile cast. Exported for the flashback/escape integration tests
- *  (issue #944 pattern).
- *
- *  CR 709.3 (issue #3344) — WHICH object's printed cost that is, once a SPLIT
- *  half has been announced, is the one reading this function has to take, and
- *  it is not the same answer for every branch:
- *
- *   * a permission that has the cast pay "its mana cost" (Yawgmoth's Will,
- *     Hogaak's intrinsic grant, Lurrus, retrace — CR 702.81a adds a discard
- *     ALONGSIDE the mana cost rather than replacing it — and an unreplaced
- *     library-top cast) is talking about the SPELL. CR 709.3a: "only the
- *     chosen half is … put onto the stack"; CR 709.3b: "while on the stack,
- *     only the characteristics of the half being cast exist". CR 709.4b's own
- *     example settles it — "If you cast Assault, the resulting spell is a red
- *     spell with a mana value of 1." So those branches price the announced
- *     HALF, through `castSubjectView`.
- *   * a cost an ability STATES about the card — escape (CR 702.138a),
- *     flashback (CR 702.34a), madness (CR 702.35a) — is stated by an ability
- *     that functions in the zone the card is IN, and CR 709.4 makes the
- *     characteristics there "those of its two halves combined". A granted
- *     escape "equal to that card's mana cost" (Underworld Breach) therefore
- *     reads the COMBINED cost, so those branches stay blind to the
- *     announcement. */
 /** CR 118.9-analog / 119.4 / 107.3b (issue #2398, Bolas's Citadel) — the
  *  payment a cast owes INSTEAD of its mana cost when it comes off the top of
  *  the caster's library under a permission that replaces the mana cost.
@@ -257,6 +229,34 @@ export function castAlternativeCostForZone(
     return mana ? { ...rest, mana } : rest;
 }
 
+/** The mana cost a cast pays: the Escape cost or Flashback cost when cast from
+ *  the graveyard (CR 702.138a / 702.34a — "rather than paying its mana cost"),
+ *  the card's normal printed mana cost under the BROAD graveyard-cast
+ *  permission (CR 305.1-analog / 601, issue #1149 — Yawgmoth's Will pays no
+ *  alternative cost, just the printed one), else the card's printed mana cost
+ *  for a hand/exile cast. Exported for the flashback/escape integration tests
+ *  (issue #944 pattern).
+ *
+ *  CR 709.3 (issue #3344) — WHICH object's printed cost that is, once a SPLIT
+ *  half has been announced, is the one reading this function has to take, and
+ *  it is not the same answer for every branch:
+ *
+ *   * a permission that has the cast pay "its mana cost" (Yawgmoth's Will,
+ *     Hogaak's intrinsic grant, Lurrus, retrace — CR 702.81a adds a discard
+ *     ALONGSIDE the mana cost rather than replacing it — and an unreplaced
+ *     library-top cast) is talking about the SPELL. CR 709.3a: "only the
+ *     chosen half is … put onto the stack"; CR 709.3b: "while on the stack,
+ *     only the characteristics of the half being cast exist". CR 709.4b's own
+ *     example settles it — "If you cast Assault, the resulting spell is a red
+ *     spell with a mana value of 1." So those branches price the announced
+ *     HALF, through `castSubjectView`.
+ *   * a cost an ability STATES about the card — escape (CR 702.138a),
+ *     flashback (CR 702.34a), madness (CR 702.35a) — is stated by an ability
+ *     that functions in the zone the card is IN, and CR 709.4 makes the
+ *     characteristics there "those of its two halves combined". A granted
+ *     escape "equal to that card's mana cost" (Underworld Breach) therefore
+ *     reads the COMBINED cost, so those branches stay blind to the
+ *     announcement. */
 export function castRawManaCost(
     state: GameState,
     card: CardInstanceState,

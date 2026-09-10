@@ -143,7 +143,7 @@ import {
     castSubjectView,
     independentCastOptionsFor,
 } from "./castMode";
-import { offersPrintedCast } from "./splitCast";
+import { isSplitCastId, offersPrintedCast } from "./splitCast";
 import { morphCastAlternativeCost, turnableFaceUpPermanents } from "./morph";
 import { hasRetrace } from "./retrace";
 import { flashbackExileEligibleCount } from "./flashback";
@@ -2728,6 +2728,21 @@ function enumerateCastMovesFromZone(
     // withdraws the Adventure on a card exiled by its own Adventure
     // (CR 715.3d) and what a third such mode would join.
     for (const alt of independentCastOptionsFor(card)) {
+        // CR 601.2b / 118.9a (PR review finding 1) — "a player can't apply two
+        // alternative methods of casting … to a single spell", and a cast off
+        // a permission that REPLACES the mana cost with life (Bolas's Citadel)
+        // is one such method. An ADVENTURE is a second, so `announceCast`
+        // refuses it there and the Move must not be enumerated — the
+        // #2283/#2284 freeze shape, and the reason the dash and overload
+        // branches above keep their own `lifeInsteadOfMana` guards. A SPLIT
+        // half is the one exemption, for the reason `announceCast`'s own
+        // exemption states: CR 709.3's choice of half is not a price at all.
+        if (
+            lifeInsteadOfMana !== undefined &&
+            isSplitCastId(def ?? undefined, alt.id) === undefined
+        ) {
+            continue;
+        }
         const subject = castSubjectView(card, alt.id);
         const subjectDef = castSubjectDefinition(def ?? undefined, alt.id);
         // CR 709.3 (issue #3344) — from a NON-hand zone the half pays what

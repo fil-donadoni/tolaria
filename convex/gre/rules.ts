@@ -1376,8 +1376,9 @@ export function getLegalActions(
                 // three commit sites read, so none of them can charge another
                 // number.
                 alsoLegal: (_subject, altCostId) =>
+                    !replacesManaCost ||
                     player.life >=
-                    libraryTopCastLifeCost(state, player, card, altCostId),
+                        libraryTopCastLifeCost(state, player, card, altCostId),
             })
         ) {
             actions.push("cast");

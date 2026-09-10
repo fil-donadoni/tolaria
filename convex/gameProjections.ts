@@ -1685,13 +1685,16 @@ export function projectFullState(
             // every affordance gates the same way as the public projection
             // (CR 702.34 / 702.138 / 305.1-analog, issue #1190).
             graveyard: player.graveyard.map((c) =>
-                projectGraveyardCard(
-                    state,
-                    player,
-                    c,
-                    true,
-                    () => getLegalActions(state, player, c, allActions),
-                    canPlayLandsFromGraveyard(state, player)
+                withPrintedCastAvailability(
+                    projectGraveyardCard(
+                        state,
+                        player,
+                        c,
+                        true,
+                        () => getLegalActions(state, player, c, allActions),
+                        canPlayLandsFromGraveyard(state, player)
+                    ),
+                    c
                 )
             ),
             // Full debug view has no single viewer — attach exile legalActions
@@ -1714,9 +1717,12 @@ export function projectFullState(
                       }
                     : slimCard(c);
                 const host = exileAssoc.get(c.id);
-                return host !== undefined
-                    ? { ...out, exiledByPermanentId: host }
-                    : out;
+                return withPrintedCastAvailability(
+                    host !== undefined
+                        ? { ...out, exiledByPermanentId: host }
+                        : out,
+                    c
+                );
             }),
             // CR 613 (PRD #2064 S5) — same registry derivation as the public
             // projection, so the debug view and the wire never disagree about a

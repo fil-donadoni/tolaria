@@ -34,6 +34,7 @@ import { getPlayer, type GameState } from "../state";
 import { splitCastAltCostId } from "../splitCast";
 import { splitHalfDefinitionId } from "../../cards/splitCard";
 import { getLegalActions } from "../rules";
+import { lifeDeath } from "../../cards/sets/apc/multicolor";
 
 const STAND_DELIVER = getCardByName("Stand // Deliver");
 const CITADEL = getCardByName("Bolas's Citadel").id;
@@ -207,6 +208,78 @@ describe("CR 709.3 — announceCast commits a split HALF from a non-hand zone (i
         // 3 − 1: the half's mana value, and no mana was ever owed (the
         // permission replaced the whole cost).
         expect(getPlayer(after, "p1").life).toBe(2);
+    });
+
+    it("an UNTARGETED half off a Citadel still pays its life (CR 119.4, PR review finding 2)", async () => {
+        // Life // Death's "Life" half takes no target, so it commits in
+        // `announceCast`'s alternative-cost branch rather than in
+        // `finalizeTargetSelection` — and that branch's life accumulator had no
+        // library-top leg, because until CR 709.3's half became the one
+        // announcement allowed to ride the substitution nothing could reach it.
+        // The half was cast for free.
+        const card = makeInstance(lifeDeath.id, {
+            id: "lifedeath",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: [card],
+                    battlefield: [
+                        makeInstance(CITADEL, {
+                            id: "citadel",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {}),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            phase: "PRECOMBAT_MAIN",
+        });
+        const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
+        await announce(harness, {
+            cardInstanceId: "lifedeath",
+            alternativeCostId: splitCastAltCostId(lifeDeath, "left"),
+        });
+
+        const after = harness.state();
+        expect(after.stack.map((s) => s.id)).toEqual(["lifedeath"]);
+        // "Life" is {G}, mana value 1 — the card's own is 3.
+        expect(getPlayer(after, "p1").life).toBe(19);
+    });
+
+    it("refuses the half the life total cannot cover (CR 119.4, PR review finding 3)", async () => {
+        // `getLegalActions` reports a card-level "cast" as soon as ONE half is
+        // payable (Stand costs 1 life), so the caster can still ASK for the
+        // other. Which half was announced is known only in the mutation, and
+        // without its own check the announcement drove the life total to −2.
+        const state = board({ zone: "library", citadel: true, life: 1 });
+        const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
+        expect(
+            getLegalActions(
+                state,
+                getPlayer(state, "p1"),
+                state.players[0].library[0]
+            )
+        ).toContain("cast");
+        await expect(
+            announce(harness, {
+                cardInstanceId: "split",
+                alternativeCostId: RIGHT,
+            })
+        ).rejects.toThrow(/Not enough life/);
+        // The payable half is untouched by the refusal.
+        await announce(harness, {
+            cardInstanceId: "split",
+            alternativeCostId: LEFT,
+        });
+        await pickGiant(harness);
+        expect(getPlayer(harness.state(), "p1").life).toBe(0);
     });
 
     it("the OTHER half off the same library top costs its own 3 life", async () => {
