@@ -46,6 +46,7 @@ const MECHANISMS = [
     "self-harm-removal",
     "free-development",
     "hold-trick",
+    "standing-spend-hold",
 ];
 
 /** Structural sanity every record must satisfy, whatever the position. */

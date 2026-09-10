@@ -3997,6 +3997,89 @@ export function selectRootMove(
         if (hold) return finish(hold, "hold-trick");
     }
 
+    // Standing-spend HOLD (issue #3319) — the MISSING HALF of the last-window
+    // FIRE rule directly below, and the reason the issue-#3192 fix held in the
+    // bot's own main phase and not in a real game.
+    //
+    // The hold-the-trick rule above is gated on `isSorceryTimingFor`: it only
+    // ever looks at the mover's OWN sorcery window. Every other priority the
+    // bot holds — the opponent's upkeep, draw, main, end step — leaves an
+    // activation that DESTROYS ITS OWN SOURCE for a marginal payoff with
+    // nothing between it and the material tie-break. MEASURED on the issue's
+    // board (Walking Ballista on its last +1/+1 counter, both players on 20,
+    // no other permanent), 400 iterations, seeds 0xb1ade/1/2: in
+    // PRECOMBAT_MAIN the pick is `pass` on `mechanism: hold-trick`, and at the
+    // opponent's END_STEP the SAME board picks the shot at the face on
+    // `mechanism: material-tiebreak`, `contenderCount: 4`, `gapReward` 0.0038
+    // against the 0.05 outcome band — all four root moves outcome-equal, so
+    // the reward never decided it and the accumulated subtree margin did.
+    //
+    // The FIRE rule below already owns exactly this trade in exactly this
+    // vocabulary; it just only answers one of its two directions. It converts
+    // when the robust pick is `pass` AND firing pays. This is the other
+    // direction: the robust pick IS the spend and firing does NOT pay, so an
+    // outcome-equal `pass` keeps the permanent. Same predicates
+    // (`isStandingSpendActivation`, `firingBeatsHolding`), same
+    // `OUTCOME_EPS` gate, and structurally disjoint from the FIRE rule — that
+    // one requires `best.move.kind === "pass"`, this one requires an
+    // activation — so neither can pre-empt the other and their order is
+    // immaterial.
+    //
+    // Fires in ANY window rather than only the last one, because the argument
+    // does not depend on which window it is: a spend that leaves the immediate
+    // position no better than standing pat is dominated by keeping the
+    // permanent, and the FIRE rule remains the single place a conversion is
+    // licensed. A spend with REAL value out-rewards `pass` by more than
+    // `OUTCOME_EPS` (the fire half of the issue-#3192 pair, opponent on 1,
+    // wins on `mechanism: mean-reward` with `contenderCount: 1`) and never
+    // reaches here.
+    //
+    // EXCLUDED while combat is live (`rootState.combat`), and not as a
+    // workaround: `firingBeatsHolding` compares `policyValue` after the move
+    // against `evaluate` on the root, and those two agree only when
+    // `state.combat` is torn down (see its header — the property that makes
+    // the END_STEP probe honest). Inside combat the probe would be biased by
+    // corrections one side has and the other does not, and combat value washes
+    // out at the search horizon anyway
+    // (`project_combat_eval_washed_at_horizon`), so a sacrifice outlet used on
+    // an attacker or a blocker is left to win or lose on mean reward.
+    // EXCLUDED with a NON-EMPTY STACK, and this is the same exclusion
+    // `isSorceryTimingFor` already gives the hold-the-trick rule ("a main phase
+    // with something on the stack is a response window, which is where an
+    // activation belongs"). A response window is precisely where spending the
+    // permanent is RIGHT: an opponent's removal spell aimed at it means holding
+    // extracts nothing at all. `firingBeatsHolding` cannot see that — `evaluate`
+    // does not model the stack, so a permanent already doomed by a spell on it
+    // scores at full value in the holding baseline, the probe reads "alive, no
+    // payoff" against "dead, small payoff", and the rule would hold a Ballista
+    // through the Bolt that kills it. An empty stack also keeps the probe
+    // comparable in the first place: `policyValue` only settles the stack when
+    // it holds exactly ONE item, so an activation resolving underneath an
+    // opponent's spell yields no payoff at all and the hold becomes automatic.
+    //
+    // KNOWN LIMITATION, stated rather than papered over: `evaluate` is blind to
+    // pending DELAYED TRIGGERS too, so a permanent doomed by one ("sacrifice it
+    // at the beginning of the end step") reads as fully standing in the holding
+    // baseline, and an outlet on it is held rather than cashed. Narrower and
+    // rarer than the stack case, and the empty-stack gate does not cover it; if
+    // a blade position ever shows it costing the bot a real play, the narrowing
+    // goes here.
+    if (
+        rootState &&
+        !rootState.combat &&
+        rootState.stack.length === 0 &&
+        !!botId &&
+        isStandingSpendActivation(rootState, botId, best.move) &&
+        !firingBeatsHolding(rootState, botId, best.move, weights)
+    ) {
+        const hold = pool.find(
+            (e) =>
+                e.move.kind === "pass" &&
+                mean(e) >= bestMean - weights.outcomeEps
+        );
+        if (hold) return finish(hold, "standing-spend-hold");
+    }
+
     // Last-window FIRE (issue #2939) — the mirror of the hold rule above, and
     // the half that makes it a discipline rather than a refusal. The hold rule
     // defers a sacrifice engine out of the mover's own main phase; something has
@@ -4174,6 +4257,45 @@ function isLastDeferralWindow(state: GameState, pid: string): boolean {
     return state.phase === "END_STEP" && state.activePlayerId !== pid;
 }
 
+/** Whether `move` is an activation `pid` controls that GIVES UP A PERMANENT
+ *  STILL DOING ITS JOB for a payoff that does not decay — the shape both
+ *  deferral rules are about, extracted (issue #3319) so the FIRE half and the
+ *  HOLD half can never drift apart on what they are talking about.
+ *
+ *  Three clauses, each load-bearing:
+ *   - `isDeferrableStackAbility` — the same activation is still available
+ *     later, so deferring forfeits nothing about the ability itself;
+ *   - `!isTransientOnlyAbility` — an effect that expires this turn buys
+ *     nothing by waiting either, and holding one would walk back into the
+ *     Sylvan Safekeeper blunder (#2422/#2938);
+ *   - `spendsStandingPermanent` — paying the cost takes a permanent off the
+ *     battlefield that would otherwise keep blocking and tapping, INCLUDING
+ *     the positional `removeCounter` case where the counters are the body
+ *     (CR 704.5f, issue #3296).
+ *
+ *  Deliberately WITHOUT the once-per-turn cap `isDeferredEngineActivation`
+ *  adds on top: that cap is a stop on CONVERSION, and its sign is wrong for a
+ *  hold — an engine that has already fired once this turn is not thereby
+ *  licensed to throw the next permanent away. */
+function isStandingSpendActivation(
+    state: GameState,
+    pid: string,
+    move: Move
+): move is Extract<Move, { kind: "activate-ability" }> {
+    if (move.kind !== "activate-ability") return false;
+    const player = state.players.find((p) => p.id === pid);
+    if (!player) return false;
+    const source = player.battlefield.find((c) => c.id === move.cardInstanceId);
+    if (!source) return false;
+    const ability = effectiveAbilityOf(source, move.abilityId);
+    if (!ability) return false;
+    return (
+        isDeferrableStackAbility(ability) &&
+        !isTransientOnlyAbility(ability) &&
+        spendsStandingPermanent(state, source, ability)
+    );
+}
+
 /** Whether `move` converts a sacrifice engine `pid` controls whose payoff does
  *  NOT decay — the exact shape the hold rule deferred (issue #2939), read back
  *  so the two rules can never disagree about what they are talking about.
@@ -4189,20 +4311,11 @@ function isDeferredEngineActivation(
     pid: string,
     move: Move
 ): boolean {
-    if (move.kind !== "activate-ability") return false;
+    if (!isStandingSpendActivation(state, pid, move)) return false;
     const player = state.players.find((p) => p.id === pid);
     if (!player) return false;
     const source = player.battlefield.find((c) => c.id === move.cardInstanceId);
     if (!source) return false;
-    const ability = effectiveAbilityOf(source, move.abilityId);
-    if (!ability) return false;
-    if (
-        !isDeferrableStackAbility(ability) ||
-        isTransientOnlyAbility(ability) ||
-        !spendsStandingPermanent(state, source, ability)
-    ) {
-        return false;
-    }
     // ONE conversion per turn, and this — not the material check below — is the
     // floor that makes the rule safe (issue #2939 review). A repeatable engine
     // whose every conversion is a strict material gain never stops paying:
@@ -4230,17 +4343,26 @@ function isDeferredEngineActivation(
  *  side is `evaluate` on the untouched root: `pass` moves no material, and
  *  applying it would advance the phase and score a different turn.
  *
- *  Runs at the ROOT only, behind the `isLastDeferralWindow` and
- *  `isDeferredEngineActivation` gates — so once per qualifying candidate (the
- *  cost-pick variants of a single ability, capped at `MAX_VICTIM_VARIANTS`),
- *  never on the hot path. The clone goes through `cloneGameState`, the search's
+ *  Runs at the ROOT only, from TWO call sites: the last-window FIRE rule
+ *  (behind `isLastDeferralWindow` + `isDeferredEngineActivation`, once per
+ *  qualifying candidate — the cost-pick variants of a single ability, capped at
+ *  `MAX_VICTIM_VARIANTS`) and the standing-spend HOLD rule (behind
+ *  `isStandingSpendActivation`, once, on the robust pick). Never on the hot
+ *  path from either. The clone goes through `cloneGameState`, the search's
  *  own seam (ADR 0001 / #108), never `structuredClone`.
  *
- *  The two sides compare like with like because `state.combat` is torn down in
- *  `endCombatStep` before END_STEP, so `policyValue`'s combat corrections are
- *  both zero here and it reduces to `evaluate`. That is a property of the
- *  WINDOW, not of `policyValue` — a future change leaving combat standing into
- *  an end step would bias the probe. */
+ *  The two sides compare like with like only while the ROOT STATE carries
+ *  neither live combat nor a non-empty stack, and each caller earns that
+ *  differently. FIRE inherits it from its window: `state.combat` is torn down
+ *  in `endCombatStep` before END_STEP, so `policyValue`'s combat corrections
+ *  are both zero and it reduces to `evaluate` — a property of the WINDOW, not
+ *  of `policyValue`, and a future change leaving combat standing into an end
+ *  step would bias it. HOLD runs in every window, so it asserts both conditions
+ *  explicitly at its own guard (`!rootState.combat`, `stack.length === 0`)
+ *  rather than inheriting either. The stack half matters for a second reason
+ *  the combat half does not have: `evaluate` never models the stack, so a
+ *  permanent already doomed by a spell on it scores at full value on the
+ *  holding side. */
 function firingBeatsHolding(
     state: GameState,
     pid: string,
