@@ -61,7 +61,7 @@ describe("RootDecisionMechanism is frozen behind an allowlist (issue #3399)", ()
         // The search's own selection is not a rule and cannot be turned off:
         // with no argmax there is no pick at all.
         const structural = ROOT_DECISION_MECHANISMS.filter(
-            (m) => !isDisableableRootRule(m)
+            (m) => ROOT_RULE_ALLOWLIST[m]?.kind === "structural"
         );
         expect([...structural]).toEqual(["mean-reward", "material-tiebreak"]);
     });

@@ -284,7 +284,10 @@ export const GAP_BUCKET_EDGES = [
  *  precisely the drift the moratorium's single registry exists to make
  *  impossible. */
 const NAMED_RULES: RootDecisionMechanism[] = ROOT_DECISION_MECHANISMS.filter(
-    (m) => ROOT_RULE_ALLOWLIST[m].kind === "rule"
+    // Optional chaining is not defensive noise: a member with no allowlist row
+    // is exactly the state the guard test has to REPORT, and a module-level
+    // throw here would turn that report into an import error instead.
+    (m) => ROOT_RULE_ALLOWLIST[m]?.kind === "rule"
 );
 
 export type RootDecisionSummary = {
