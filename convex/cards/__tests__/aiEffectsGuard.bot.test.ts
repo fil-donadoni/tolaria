@@ -1903,12 +1903,6 @@ const ABILITY_AI_EFFECTS_ALLOWLIST: readonly AbilityAllowlistEntry[] = [
         note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
     },
     {
-        cardId: "3d0006f6-2f96-453d-9145-eaefa588efbc",
-        name: "Lim-Dûl's Cohort",
-        abilityId: "lim-duls-cohort-no-regen",
-        note: "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519",
-    },
-    {
         cardId: "af976f42-3d56-4e32-8294-970a276a4bf3",
         name: "Lim-Dûl's Hex",
         abilityId: "lim-duls-hex-upkeep",
