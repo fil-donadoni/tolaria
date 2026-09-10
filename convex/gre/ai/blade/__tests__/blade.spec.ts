@@ -59,9 +59,9 @@ if (TIER !== "must" && TIER !== "stretch") {
 // root-rule moratorium): `BLADE_VARIANT=no-rule:<mechanism>[,<mechanism>]`
 // turns the named root rules off for every entry of the tier. That is half
 // the moratorium's removal test — "`must` stays green without rule X" — and
-// it deliberately does NOT live in `LADDER_VARIANTS`: thirteen rules would
-// mean thirteen registry entries, each of which would then have to be
-// remembered and deleted alongside its rule. An unknown or structural
+// it deliberately does NOT live in `LADDER_VARIANTS`: that would be one
+// registry entry per rule, each of which would then have to be remembered and
+// deleted alongside its rule. An unknown or structural
 // mechanism throws exactly as an unknown registry name does.
 const VARIANT_NAME = process.env.BLADE_VARIANT;
 const VARIANT: SearchVariant | null = VARIANT_NAME

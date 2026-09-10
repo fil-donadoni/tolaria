@@ -30,7 +30,7 @@
  *  every evaluation term — a distinction a term could express is a TERM, to
  *  be fitted from verdicts (ADR 0124), not a fourteenth hand-written rule at
  *  the root. Enforced twice: `Record<RootDecisionMechanism, …>` reds in `tsc`
- *  on a missing row, and `rootRuleAllowlist.bot.test.ts` reds at runtime in
+ *  on a missing row, and `rootRuleMoratorium.bot.test.ts` reds at runtime in
  *  both directions (vitest transpiles, it does not typecheck). */
 export const ROOT_DECISION_MECHANISMS = [
     "mean-reward",
@@ -69,8 +69,10 @@ export type RootRuleProvenance = {
 /** The moratorium allowlist (issue #3399). A new `ROOT_DECISION_MECHANISMS`
  *  member without a row here does not compile and does not pass the guard
  *  test — which is the whole point: the queue's answer to "the bot blundered"
- *  became a fourteenth root rule thirteen times, and ADR 0124 §5 replaced that
- *  reflex with Verdicts → fit → report. */
+ *  became one more root rule twelve times, and ADR 0124 §5 replaced that
+ *  reflex with Verdicts → fit → report. (ADR 0124 says eleven: it was written
+ *  before issue #3388 shipped `resolved-payoff`. This table is the live
+ *  count.) */
 export const ROOT_RULE_ALLOWLIST: Record<
     RootDecisionMechanism,
     RootRuleProvenance

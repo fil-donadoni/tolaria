@@ -20,7 +20,8 @@ import { describe, it, expect } from "vitest";
 import {
     getRootDecisionSink,
     summarizeRootDecisions,
-    type RootDecisionMechanism,
+    ROOT_DECISION_MECHANISMS,
+    ROOT_RULE_ALLOWLIST,
     type RootDecisionRecord,
 } from "@convex/gre/ai/decisionTelemetry";
 import { REWARD_PER_MARGIN_POINT } from "@convex/gre";
@@ -37,34 +38,30 @@ import {
     type SelfPlayCorpusReport,
 } from "./decisionCorpus";
 
-/** Every root mechanism, as a TOTAL `Record` rather than an array — so `tsc`
- *  reds on a rule this list has not heard of instead of the suite failing at
- *  runtime, and only when a corpus run happens to land on one (issue #3388).
- *  It was an array, and it had already drifted three rules behind
- *  (`colour-mode-evidence`, `wasted-mana-hold`, `last-window-fire`): the same
- *  compiler-forced census `eval-term-labels.ts` and `RAISES_RESOLUTION_CHOICE`
- *  use, for the same reason. */
-const MECHANISM_CENSUS: Record<RootDecisionMechanism, true> = {
-    "mean-reward": true,
-    "material-tiebreak": true,
-    "extra-turn-credit": true,
-    "wasteful-attack": true,
-    "block-quality": true,
-    "announcement-variant": true,
-    "self-harm-removal": true,
-    "free-development": true,
-    "hold-trick": true,
-    "colour-mode-evidence": true,
-    "wasted-mana-hold": true,
-    "last-window-fire": true,
-    "standing-spend-hold": true,
-    "resolved-payoff": true,
-};
-const MECHANISMS = Object.keys(MECHANISM_CENSUS);
+/** Every root mechanism — read from the frozen registry (issue #3399), never
+ *  re-listed here. This was a hand-maintained `Record` census, and before that
+ *  an array that had drifted three rules behind; `ROOT_DECISION_MECHANISMS` is
+ *  now the one place the union is written down, and a second copy would be the
+ *  same drift with a shorter fuse. */
+const MECHANISMS: readonly string[] = ROOT_DECISION_MECHANISMS;
 
 /** Structural sanity every record must satisfy, whatever the position. */
 function expectWellFormed(r: RootDecisionRecord): void {
     expect(MECHANISMS).toContain(r.mechanism);
+    // A NAMED rule that was attributed must have MOVED the pick (issue
+    // #3399). Every rule in `selectRootMove` today either mutates the running
+    // pick under an explicit `best !== prev` guard or returns an edge of a
+    // different move kind, so an attribution IS a flip — and that is the
+    // invariant the moratorium's "flips = 0 means inert" reading depends on.
+    // Asserted over every record of a real corpus run rather than on one
+    // hand-built root: a rule that CONFIRMS what the stage before it already
+    // held is a rule that decided nothing, and it must be visible as such
+    // instead of borrowing the credit.
+    if (ROOT_RULE_ALLOWLIST[r.mechanism].kind === "rule") {
+        expect(r.flipped, `${r.mechanism} attributed a confirmation`).toBe(
+            true
+        );
+    }
     expect(r.poolSize).toBeGreaterThan(0);
     expect(r.exploredSize).toBeGreaterThan(0);
     expect(r.exploredSize).toBeLessThanOrEqual(r.poolSize);

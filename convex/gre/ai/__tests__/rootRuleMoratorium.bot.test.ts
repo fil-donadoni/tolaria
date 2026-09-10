@@ -9,6 +9,7 @@
 //   3. `disabledRootRules` — turn one rule off and re-run the blade tier.
 //
 // Nothing here changes a decision with the knob at its default.
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
     ROOT_DECISION_MECHANISMS,
@@ -65,6 +66,28 @@ describe("RootDecisionMechanism is frozen behind an allowlist (issue #3399)", ()
             (m) => ROOT_RULE_ALLOWLIST[m]?.kind === "structural"
         );
         expect([...structural]).toEqual(["mean-reward", "material-tiebreak"]);
+    });
+
+    it("every disableable rule is actually gated in `selectRootMove`", () => {
+        // The allowlist says a rule can be turned off; this is what makes that
+        // true. A rule wired into `selectRootMove` with no `ruleOn(…)` gate
+        // compiles, passes both guards above, and makes
+        // `BLADE_VARIANT=no-rule:<mechanism>` silently disable NOTHING — a
+        // green `must` tier that is a statement about a missing gate rather
+        // than about an inert rule. A source sweep is the only thing that can
+        // see it: nothing at runtime distinguishes "the rule did not fire"
+        // from "the rule was never consulted".
+        const source = readFileSync(
+            new URL("../../search.ts", import.meta.url),
+            "utf8"
+        );
+        for (const m of ROOT_DECISION_MECHANISMS) {
+            if (!isDisableableRootRule(m)) continue;
+            expect(
+                source.includes(`ruleOn("${m}")`),
+                `${m}: no ruleOn("${m}") gate in convex/gre/search.ts`
+            ).toBe(true);
+        }
     });
 
     it("`namedRuleShare` counts every rule, including the newest", () => {
@@ -238,32 +261,11 @@ describe("`flipped` says whether the attributed mechanism decided (issue #3399)"
         expect(d.flipped).toBe(true);
     });
 
-    it("no named rule is ever attributed without moving the pick", () => {
-        // The invariant `flipped` exists to KEEP, stated as a test rather than
-        // left to construction. Every named rule today either mutates the
-        // running pick under an explicit `best !== prev` guard, or returns an
-        // edge of a different move kind — so an attribution IS a flip. A
-        // fourteenth rule that re-selected what the stage before it already
-        // held would confirm, not decide, and this reds.
-        const cases: { root: Node; moves: Move[] }[] = [
-            {
-                root: rootOf([
-                    { move: PASS, meanReward: 0.6635, meanMargin: 330 },
-                    { move: LAND, meanReward: 0.6633, meanMargin: 327 },
-                ]),
-                moves: [PASS, LAND],
-            },
-        ];
-        for (const c of cases) {
-            const d = decide(c.root, c.moves);
-            if (isDisableableRootRule(d.mechanism)) {
-                expect(
-                    d.flipped,
-                    `${d.mechanism} attributed a confirmation`
-                ).toBe(true);
-            }
-        }
-    });
+    // The invariant "no named rule is ever attributed without moving the
+    // pick" is asserted where it can actually red: over every record of a
+    // real corpus run, in `expectWellFormed`
+    // (`src/lib/ai/selfplay/decisionCorpus.bot.test.ts`). A single hand-built
+    // root can only ever exercise the one rule it reaches.
 
     it("summarizeRootDecisions reports flips per mechanism", () => {
         const s = summarizeRootDecisions([

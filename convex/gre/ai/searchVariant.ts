@@ -203,7 +203,17 @@ export const EMPTY_DISABLED_RULES: ReadonlySet<RootDecisionMechanism> =
 export function assertDisableableRootRule(
     name: string
 ): asserts name is RootDecisionMechanism {
-    const row = ROOT_RULE_ALLOWLIST[name as RootDecisionMechanism];
+    // Membership against the frozen LIST, not a truthiness test on the object
+    // lookup: a plain object inherits `toString` / `constructor` /
+    // `__proto__`, so those names would resolve to a truthy prototype member
+    // and fall through to the structural branch below, which would then
+    // explain that `"toString"` is "the search's own selection".
+    const known = (ROOT_DECISION_MECHANISMS as readonly string[]).includes(
+        name
+    );
+    const row = known
+        ? ROOT_RULE_ALLOWLIST[name as RootDecisionMechanism]
+        : undefined;
     if (!row) {
         throw new Error(
             `disabledRootRules: "${name}" is not a RootDecisionMechanism — known: ${ROOT_DECISION_MECHANISMS.join(
@@ -219,8 +229,8 @@ export function assertDisableableRootRule(
 }
 
 /** The synthetic variant behind `BLADE_VARIANT=no-rule:<mechanism>[,<…>]`
- *  (issue #3399) — a per-rule blade leg without thirteen registry entries
- *  that would each have to be deleted with their rule. Throws on any name
+ *  (issue #3399) — a per-rule blade leg without one registry entry per rule,
+ *  each of which would then have to be deleted alongside its rule. Throws on any name
  *  that is not a disableable rule. */
 export const NO_RULE_VARIANT_PREFIX = "no-rule:";
 
