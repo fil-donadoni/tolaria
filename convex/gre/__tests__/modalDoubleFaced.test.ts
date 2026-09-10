@@ -21,7 +21,6 @@ import {
     modalBackFaceDefinitionId,
 } from "../../cards/modalDfc";
 import { getLegalActions } from "../rules";
-import { enumerateMoves } from "../moves";
 import { landPlayFaces } from "../modalLandPlay";
 import { applyPlayLand, finalizeLandEntry } from "../playLand";
 import { projectPublicState } from "../../gameProjections";
@@ -79,13 +78,11 @@ describe("modal double-faced cards (CR 712.3)", () => {
         // FACE.
         expect(landPlayFaces(card)).toEqual(["back"]);
         expect(getLegalActions(state, player, card)).toContain("play");
-
-        const plays = enumerateMoves(state, "p1").filter(
-            (m) => m.kind === "play-land"
-        );
-        expect(plays).toEqual([
-            { kind: "play-land", cardInstanceId: instanceId, face: "back" },
-        ]);
+        void instanceId;
+        // The Move ENUMERATION half of this — one `play-land` Move per land
+        // face — lives in `modalDoubleFaced.bot.test.ts`: `gre/moves.ts` is a
+        // bot-only module and `bot-suite-boundary.test.ts` keeps application
+        // tests out of it.
     });
 
     it("puts the chosen face onto the battlefield, and it enters through its own CR 614.12 pay-choice", () => {

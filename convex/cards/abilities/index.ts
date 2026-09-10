@@ -363,6 +363,15 @@ export function modalLandBackFace(args: {
                 cost: { tap: true },
                 effects: [{ op: "addMana", mana: { [args.color]: 1 } }],
                 useStack: false,
+                // CR 605.1a — the DESCRIPTOR is what every mana authority
+                // reads: the board's tap-for-mana affordance,
+                // `getManaTapOptionsDetailed`, the auto-tap solver and the
+                // Bot's mana count all ask what the ability PRODUCES, and a
+                // fixed-output mana ability never runs its body for them to
+                // find out. Without it the land taps for nothing everywhere
+                // but the resolution itself (`manaDescriptor.catalogue.test
+                // .ts` is the catalogue-wide guard).
+                manaProduced: { [args.color]: 1 },
             },
         ],
     };
