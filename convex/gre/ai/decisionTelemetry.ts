@@ -108,6 +108,16 @@ export type RootDecisionRecord = {
     mechanism: RootDecisionMechanism;
     /** True when the chosen edge is also the strict mean-reward argmax. */
     pickIsMeanArgmax: boolean;
+    /** Issue #3393 — the 1-ply greedy policy's pick on the SAME root (the
+     *  rollout policy `selectRolloutMove` applied to the root's move list,
+     *  no search), as a move key, beside the key of the move the search
+     *  chose. `greedyAgrees` is their equality. Present only on records
+     *  `runSearchWithTrace` emitted — it is the sole caller that holds the
+     *  root state, the pruned move list and the seed the greedy pick needs;
+     *  a hand-built `selectRootMove` call in a test omits all three. */
+    greedyMoveKey?: string;
+    chosenMoveKey?: string;
+    greedyAgrees?: boolean;
 } & Partial<SearchStats>;
 
 export type RootDecisionSink = (record: RootDecisionRecord) => void;
@@ -170,6 +180,15 @@ export type RootDecisionSummary = {
     namedRuleShare: number;
     /** Share of decisions whose final pick is the strict mean-reward argmax. */
     meanArgmaxShare: number;
+    /** Issue #3393 — share of records whose search pick equals the 1-ply
+     *  greedy pick, over the records that carry `greedyAgrees` (null when
+     *  none does), and the same agreement split by deciding mechanism and
+     *  by chosen move kind as `{ agree, total }` counts. */
+    greedyAgreeShare: number | null;
+    greedyAgreeByMechanism: Partial<
+        Record<RootDecisionMechanism, { agree: number; total: number }>
+    >;
+    greedyAgreeByMoveKind: Record<string, { agree: number; total: number }>;
 };
 
 function bucketLabel(gapMarginPoints: number): string {
@@ -199,8 +218,36 @@ export function summarizeRootDecisions(
     let multiContender = 0;
     let named = 0;
     let meanArgmax = 0;
+    let greedyTotal = 0;
+    let greedyAgree = 0;
+    const greedyAgreeByMechanism: RootDecisionSummary["greedyAgreeByMechanism"] =
+        {};
+    const greedyAgreeByMoveKind: RootDecisionSummary["greedyAgreeByMoveKind"] =
+        {};
+    const bumpAgree = (
+        row: { agree: number; total: number },
+        agrees: boolean
+    ): void => {
+        row.total++;
+        if (agrees) row.agree++;
+    };
 
     for (const r of records) {
+        if (r.greedyAgrees !== undefined) {
+            greedyTotal++;
+            if (r.greedyAgrees) greedyAgree++;
+            bumpAgree(
+                (greedyAgreeByMechanism[r.mechanism] ??= {
+                    agree: 0,
+                    total: 0,
+                }),
+                r.greedyAgrees
+            );
+            bumpAgree(
+                (greedyAgreeByMoveKind[r.moveKind] ??= { agree: 0, total: 0 }),
+                r.greedyAgrees
+            );
+        }
         byMechanism[r.mechanism] = (byMechanism[r.mechanism] ?? 0) + 1;
         bump(byPhase, r.phase, r.mechanism);
         bump(byMoveKind, r.moveKind, r.mechanism);
@@ -224,5 +271,8 @@ export function summarizeRootDecisions(
         multiContenderShare: total === 0 ? 0 : multiContender / total,
         namedRuleShare: total === 0 ? 0 : named / total,
         meanArgmaxShare: total === 0 ? 0 : meanArgmax / total,
+        greedyAgreeShare: greedyTotal === 0 ? null : greedyAgree / greedyTotal,
+        greedyAgreeByMechanism,
+        greedyAgreeByMoveKind,
     };
 }
