@@ -18,7 +18,7 @@
 //     dies to the CR 704.5f toughness SBA.
 
 import { describe, expect, it } from "vitest";
-import { getCardByName } from "../../../index";
+import { getDefinition } from "../../../index";
 import { splitHalfDefinitionId } from "../../../splitCard";
 import { getCardColors } from "../../../colors";
 import { manaValue } from "../../../../gre/constants";
@@ -34,16 +34,22 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { finalizeCleanup } from "../../../../gre/phases";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import { projectPublicState } from "../../../../gameProjections";
 import { applyCastModeCharacteristics } from "../../../../gre/castMode";
 import { NO_BOARD_LAYER_VIEW } from "../../../../gre/layers";
 import { splitCastAltCostId } from "../../../../gre/splitCast";
 
-const LIFE_DEATH = getCardByName("Life // Death");
-const FOREST = getCardByName("Forest").id;
-const SWAMP = getCardByName("Swamp").id;
-const HILL_GIANT = getCardByName("Hill Giant");
+// Resolved through the REGISTRY SEAM by id, never by name: `getCardByName`
+// reads the name registry, which `preloadDefinitions` never writes, so a
+// name-keyed subject is blind to an identity swap (`card-test-seam-boundary`).
+const LIFE_DEATH = getDefinition("7ab75cdb-93a1-4f78-b404-37566295c321");
+const LIFE = getDefinition(splitHalfDefinitionId(LIFE_DEATH.id, "left"));
+const DEATH = getDefinition(splitHalfDefinitionId(LIFE_DEATH.id, "right"));
+const FOREST = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b").id;
+const SWAMP = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8").id;
+const HILL_GIANT = getDefinition("0ddb98e8-13fe-4786-83f7-b72c56db135a");
 
 /** The stack item a committed half cast produces, built the way every commit
  *  site in `game.ts` builds one — spread the card out of its zone, stamp the
@@ -95,14 +101,12 @@ describe("Life // Death — CR 709.4b, the combined card off the stack", () => {
     // CR 709.3b — on the stack only the cast half's characteristics exist:
     // Life is a {G} green spell with mana value 1, not the combination.
     it("each half twin carries only its OWN cost (CR 709.3b)", () => {
-        const left = getCardByName("Life");
-        const right = getCardByName("Death");
-        expect(left.id).toBe(splitHalfDefinitionId(LIFE_DEATH.id, "left"));
-        expect(right.id).toBe(splitHalfDefinitionId(LIFE_DEATH.id, "right"));
-        expect(getCardColors(left)).toEqual(["G"]);
-        expect(manaValue(left.manaCost)).toBe(1);
-        expect(getCardColors(right)).toEqual(["B"]);
-        expect(manaValue(right.manaCost)).toBe(2);
+        expect(LIFE.name).toBe("Life");
+        expect(DEATH.name).toBe("Death");
+        expect(getCardColors(LIFE)).toEqual(["G"]);
+        expect(manaValue(LIFE.manaCost)).toBe(1);
+        expect(getCardColors(DEATH)).toEqual(["B"]);
+        expect(manaValue(DEATH.manaCost)).toBe(2);
     });
 });
 
@@ -271,10 +275,49 @@ describe("Death — reanimation out of YOUR graveyard, CR 400.7 / 119.3", () => 
         expect(state.players[0].life).toBe(20 - 4);
     });
 
-    it("only offers cards in the caster's OWN graveyard (CR 601.2c)", () => {
-        const requirement = getCardByName("Death").targetRequirement!;
-        expect(requirement.zone).toBe("graveyard");
-        expect(requirement.controller).toBe("you");
-        expect(requirement.type).toBe("Creature");
+    // "from YOUR graveyard" — walked through the engine's own legal-target
+    // scan, not by re-reading the requirement off the definition. An
+    // identically-typed creature card in the opponent's graveyard must not be
+    // offered, and a non-creature card in the caster's own must not either.
+    it("offers only creature cards in the caster's OWN graveyard (CR 601.2c)", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [
+                        makeInstance(HILL_GIANT.id, {
+                            id: "mine",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "graveyard",
+                        }),
+                        makeInstance(FOREST, {
+                            id: "myLand",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "graveyard",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    graveyard: [
+                        makeInstance(HILL_GIANT.id, {
+                            id: "theirs",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "graveyard",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        const ids = getLegalTargets(
+            state,
+            DEATH.targetRequirement!,
+            NO_TARGETING_SOURCE,
+            "p1"
+        ).map((t) => t.id);
+        expect(ids).toContain("mine");
+        expect(ids).not.toContain("theirs");
+        expect(ids).not.toContain("myLand");
     });
 });
