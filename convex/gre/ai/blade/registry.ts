@@ -3905,12 +3905,14 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     // the sampled hand is the same on every seed and every iteration.
     //
     // WHY THIS IS AN ATTACK AND NOT A BLOCK. Measured while authoring: the
-    // mirror-image BLOCK position does not discriminate, because a block is
-    // settled by `selectRootMove`'s combat tie-breaks, which read the REAL root
-    // state rather than a determinized world — so no opponent model can reach
-    // them. An attack root leaves the decision to the tree and the rollouts,
-    // which do see the sampled worlds. That gap is real and is NOT fixed here;
-    // it is reported in the PR as a follow-up rather than papered over.
+    // mirror-image BLOCK position did not discriminate, because a block was
+    // settled by `selectRootMove`'s combat tie-breaks, which read the REAL
+    // root state rather than a determinized world — so no opponent model
+    // could reach them. An attack root leaves the decision to the tree and
+    // the rollouts, which do see the sampled worlds. CLOSED by issue #2876:
+    // the block-quality tie-break now reads the same sampled worlds
+    // (`makeBlockDeltaLens`), and the mirror BLOCK pair is the entry two
+    // below this one.
     //
     // WHAT IT WAS BEFORE. Measured on this exact board with the trick sitting
     // PHYSICALLY in the opponent's hand and no deck knowledge: the bot attacks
@@ -3990,6 +3992,127 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             moves: [{ kind: "declare-attackers", card: "Hill Giant" }],
         },
         note: "Twin of the entry above; only the decklist differs (issue #2789).",
+    },
+    {
+        // THE BLOCK MIRROR OF THE #2789 PAIR (issue #2876). The entry above
+        // ends with a confession: the mirror-image BLOCK position did not
+        // discriminate, because a block was settled by `selectRootMove`'s
+        // block-quality tie-break, which read the REAL root state rather than
+        // a determinized world — so no opponent model could reach it. This
+        // pair is that gap closed. The tie-break now reads the SAME sampled
+        // worlds the tree and the rollouts do (`makeBlockDeltaLens`,
+        // search.ts), so what the bot deduces about the attacker's hand
+        // changes whether it blocks.
+        //
+        // THE POSITION. `me` (players[0], the active player) attacks with
+        // Savannah Lions (2/1) and holds one card with an untapped Forest
+        // behind it. The bot is `opp` and owes its `declare-blockers` with a
+        // lone Ironroot Treefolk (3/5).
+        //
+        //   * With no trick, the Treefolk eats the Lions for free: 3 power is
+        //     lethal to a 1-toughness attacker (CR 510.1a/704.5g) and 2 power
+        //     back does not dent a 5-toughness blocker. Declining donates 2.
+        //   * With Giant Growth the Lions blocks out as a 5/4: 3 power no
+        //     longer kills it, and its 5 power is exactly lethal to the
+        //     Treefolk. The block trades the bot's best creature for nothing.
+        //
+        // WHY IT DISCRIMINATES AT ALL, mechanically: `cautiousBlockPenalty`
+        // (evaluate.ts, ADR 0021) asks the ATTACKER's hand what it can cast
+        // this combat, and on the wire that hand is opaque placeholders. Only
+        // a determinized world puts a real card there — and only deck
+        // knowledge puts THE card there on every sample.
+        //
+        // THE ANSWER IS NEVER IN THE ROOT POSITION (the acceptance criterion
+        // #2789's pair also had to meet): both entries physically hold a
+        // Mountain, and `determinize` re-derives this seat's hidden zones from
+        // the decklist, so what sits in that hand is never what the bot
+        // reasons about. Each decklist admits exactly ONE identity, so the
+        // sampled hand is the same on every seed and every world.
+        //
+        // WHAT IT WAS BEFORE (measured on this exact board, `runBladeScenario`,
+        // 400 iterations, these 5 seeds): the bot blocked on 5/5 seeds in BOTH
+        // arms — the decklist changed nothing, which is exactly the structural
+        // blindness the issue reports.
+        label: "informed defender: does NOT block into the trick the attacker's deck must be holding",
+        spec: {
+            cards: [
+                {
+                    name: "Savannah Lions",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                // The mana the trick needs — `castableHeldInteraction` gates on
+                // open, untapped sources (CR 601.2g at this resolution), and an
+                // attacking Lions never taps it.
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                // Physically a Mountain in BOTH entries — see above.
+                { name: "Mountain", owner: "me", zone: "hand" },
+                {
+                    name: "Ironroot Treefolk",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        // The attack is declared by the ENGINE, never a hand-seeded
+        // `combat.attackerIds` (ADR 0070 §4); it also walks priority to the
+        // block window, where `decidingPlayer` hands the decision to `opp`.
+        setup: [{ kind: "declare-attackers" }],
+        bot: "opp",
+        deckKnowledge: [{ seat: "me", cards: ["Giant Growth"] }],
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "declare-blockers", card: "Ironroot Treefolk" },
+            ],
+        },
+        note: "Twin of the entry below; only the decklist differs (issue #2876).",
+    },
+    {
+        label: "informed defender: DOES block when the attacker's deck cannot hold the trick",
+        spec: {
+            cards: [
+                {
+                    name: "Savannah Lions",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "hand" },
+                {
+                    name: "Ironroot Treefolk",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        setup: [{ kind: "declare-attackers" }],
+        bot: "opp",
+        // Same board, same card in hand — but this deck admits only a land, so
+        // there is no trick to play around and declining donates 2 damage and
+        // a free kill.
+        deckKnowledge: [{ seat: "me", cards: ["Mountain"] }],
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "declare-blockers", card: "Ironroot Treefolk" }],
+        },
+        note: "Twin of the entry above; only the decklist differs (issue #2876).",
     },
     {
         // CR 500.8 (issue #2886). The bot is handed the SECOND combat phase of
