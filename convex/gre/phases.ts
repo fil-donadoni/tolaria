@@ -1655,10 +1655,18 @@ export function applyAllCombatDamage(
                     // untouched AND leaves the shield unspent ("existing
                     // damage prevention shields won't be reduced by damage
                     // that can't be prevented").
+                    //
+                    // The GAME-scoped lock (Stomp, CR 615.12, issue #3303) is
+                    // the second grant of that same override and reads here for
+                    // the same reason: the cap is applied BEFORE
+                    // `applyOneCombatDamage`, so it is the one prevention site
+                    // the sinks' shared `unpreventable` boolean never reaches.
                     let damage = attackerPower;
-                    const caps = isCombatDamageUnpreventable(state, attacker)
-                        ? undefined
-                        : state.damageCapShields;
+                    const caps =
+                        isCombatDamageUnpreventable(state, attacker) ||
+                        isDamageUnpreventableThisTurn(state)
+                            ? undefined
+                            : state.damageCapShields;
                     if (caps && caps.length > 0) {
                         const capIdx = caps.findIndex(
                             (s) => s.playerId === defenderId

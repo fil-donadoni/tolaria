@@ -1314,17 +1314,22 @@ const lockDamage: Valuer<"lockDamage"> = (op) => ({
 });
 
 // CR 615.12 (issue #3303) — the GAME-scoped lock (Stomp: "Damage can't be
-// prevented this turn"). Same shape of payoff as `lockDamage` above and priced
-// a shade over it for breadth: it covers every damage event of the turn, from
-// either player's sources, rather than the events aimed at one creature. Still
-// well under a full Fog (`markAssignsNoCombatDamage` / `preventDamage`),
-// because what it buys is contingent — dead weight in a turn where nothing gets
-// damaged, and it never removes anything by itself.
+// prevented this turn").
+//
+// Priced as a FLOOR, well under `lockDamage`'s 20 and an order under a Fog,
+// because unlike either of those its payoff is conditional on something this
+// context-free valuer cannot see: a prevention effect the opponent actually
+// has. On the boards where nothing can prevent damage — most of them — the Op
+// is worth exactly nothing, and it never removes anything by itself. Pricing it
+// near a burn spell's own damage is the concrete failure to avoid: at 25 a
+// 2-damage Stomp out-scores a 3-damage Lightning Bolt on an empty board, which
+// is a preference this Op has not earned. The realized value comes from the
+// search seeing the damage actually land, not from this scalar.
 //
 // Tagged `disruption`, not `damage`: the Op deals none. What it takes away is
 // the defender's ABILITY to act (the Fog, the Circle of Protection, the Jade
 // Monolith, protection's damage leg), which is exactly that dimension.
-const DAMAGE_PREVENTION_SUPPRESSION_VALUE = 25;
+const DAMAGE_PREVENTION_SUPPRESSION_VALUE = 8;
 
 const suppressDamagePrevention: Valuer<"suppressDamagePrevention"> = () => ({
     points: DAMAGE_PREVENTION_SUPPRESSION_VALUE,

@@ -18972,6 +18972,29 @@ describe("Effect Script Op: suppressDamagePrevention (CR 615.12)", () => {
         expect(state.damageUnpreventableThisTurn).toBeUndefined();
     });
 
+    it("covers the PERMANENT-SOURCE marker sink as well (CR 120.1)", () => {
+        // `dealDamage` with a `source` routes through
+        // `markDamageFromPermanentSource` — a different sink from the plain
+        // spell path above, and one whose own `unpreventable` boolean is
+        // computed locally rather than passed in.
+        const id = registerScript("test-op-suppressprevention-marker", [
+            { op: "suppressDamagePrevention" },
+            {
+                op: "dealDamage",
+                amount: 2,
+                to: { target: 0 },
+                source: { target: 0 },
+            },
+        ]);
+        const state = shieldedBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bearA")!
+                .damageMarked
+        ).toBe(2);
+    });
+
     it("the damage it lets through survives projection (wire format)", () => {
         const id = registerScript("test-op-suppressprevention-wire", [
             { op: "suppressDamagePrevention" },

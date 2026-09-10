@@ -15,7 +15,6 @@ import {
 } from "../../../../gre/state";
 import { applyCastModeCharacteristics } from "../../../../gre/castMode";
 import { NO_BOARD_LAYER_VIEW } from "../../../../gre/layers";
-import { lightningBolt } from "../../lea/red";
 import { getLegalActions } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
 import type { GameState, StackItem } from "../../../../gre/state";
@@ -250,6 +249,9 @@ describe("Robber of the Rich (CR 508.1 attack trigger + CR 601.3 cast-from-exile
 // ─────────────────────────────────────────────────────────────────────────────
 
 const bonecrusherGiant = getDefinition("ff984a4c-1818-4f8f-a9d7-fce57e77937d");
+// ADR 0046 — every subject resolves through the registry seam, never through a
+// set module's own export (`card-test-seam-boundary.test.ts`).
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 
 function giantBoard(): GameState {
     return makeState({

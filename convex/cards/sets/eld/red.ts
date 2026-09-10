@@ -138,6 +138,14 @@ export const robberOfTheRich: CardDefinition = {
 // path every other shipped creature trigger that deals damage takes. The
 // `source` field on `dealDamage` is for the OTHER shape, a bound permanent that
 // is not the resolving ability's own source (Backlash's `$c` snapshot).
+//
+// Guard C — grammar v0 reads neither of this card's two lines back into its own
+// definition (PRD #2693): the becomes-the-target trigger has no slot at all, and
+// the game-scoped anti-prevention clause is a brand-new Op this slice mints, so
+// the grammar could not have had a rule for it. Named as fragments rather than
+// baselined — a new card cannot be added to that baseline.
+// compiler-gap: "Whenever this creature becomes the target of a spell, this creature deals 2 damage to that spell's controller." (#2693)
+// compiler-gap: "Damage can't be prevented this turn." (#2693)
 export const bonecrusherGiant: CardDefinition = {
     id: "ff984a4c-1818-4f8f-a9d7-fce57e77937d", // ELD 115
     rarity: "rare",

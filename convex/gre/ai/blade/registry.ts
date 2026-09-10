@@ -435,6 +435,49 @@ function activationIsDiscouraged(
 
 export const BLADE_SCENARIOS: BladeScenario[] = [
     {
+        // ADVENTURE reachability (CR 715.3, issue #3303). The bot holds one
+        // card with two castable halves and only two lands: the creature half
+        // ({2}{R}) is unaffordable, the Adventure ({1}{R}) kills the
+        // opponent's only creature outright. Every other line on this board —
+        // pass, play nothing — leaves a 2/2 alive for free.
+        //
+        // The claim is REACHABILITY, not preference, and it is the claim worth
+        // pinning: an Adventure is not a cheaper price for the same spell, it
+        // is a DIFFERENT spell with its own cost, type line and script (CR
+        // 715.3b), reached only if `enumerateMoves` offers the alternative cast
+        // option and the commit path stamps it. Nothing else goes red when that
+        // seam breaks — the bot simply never plays the half, the same silent
+        // failure the ninjutsu entry above exists for.
+        //
+        // It also covers this slice's new Op end to end: Stomp's script is
+        // `suppressDamagePrevention` followed by `dealDamage`, so a valuer or
+        // beneficence row that read the first Op as a reason NOT to cast would
+        // show up here as a bot that declines a free kill.
+        label: "adventure: casts Stomp to kill the blocker, not the Giant it cannot afford",
+        spec: {
+            cards: [
+                { name: "Bonecrusher Giant", owner: "me", zone: "hand" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                (move.alternativeCostId ?? "").startsWith("adventure:"),
+            describe: "casts Bonecrusher Giant as its Adventure half (Stomp)",
+        },
+        note: "CR 715.3 Adventure reachability. `MoveMatcher` has no field for `alternativeCostId`, so the predicate shape (as for overload / dash). Also the end-to-end cover for the `suppressDamagePrevention` Op inside Stomp's script.",
+    },
+    {
         // POSITIVE CONTROL (#1427). Deliberately the least ambiguous decision
         // in Magic: it is the bot's main phase, it has one land in hand, an
         // empty board, and nothing else it can do. Playing the land is

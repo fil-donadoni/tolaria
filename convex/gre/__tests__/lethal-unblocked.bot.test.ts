@@ -320,6 +320,24 @@ describe("lethalUnblockedDelta — EXACTLY ZERO off-pattern (ADR 0070 §5)", () 
         expect(state.players[1].life).toBeLessThanOrEqual(0);
     });
 
+    it("stops declining on an unspent PLAYER shield once the lock is up (CR 615.12)", () => {
+        const state = position({
+            attackers: Array.from({ length: 4 }, () => ({
+                power: 6,
+                toughness: 4,
+            })),
+            defenderLife: 20,
+        });
+        state.playerDamagePrevention = [
+            { playerId: DEFENDER, remaining: 3, duration: { turns: 1 } },
+        ];
+        // Off-lock the term under-reports on purpose: it cannot resolve whether
+        // the shield matches without mutating state.
+        expect(lethalUnblockedDelta(state, DEFENDER)).toBe(0);
+        state.damageUnpreventableThisTurn = true;
+        expect(lethalUnblockedDelta(state, DEFENDER)).toBe(-WIN_SCORE);
+    });
+
     it("skips attackers covered by a source-scoped prevention shield (CR 510.1c / 615)", () => {
         const state = position({
             attackers: Array.from({ length: 4 }, () => ({

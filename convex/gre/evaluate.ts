@@ -1302,7 +1302,13 @@ export function lethalUnblockedDelta(
     // no consultation here: it is queried only on the PERMANENT branch of the
     // damage step — a self-protective property of the creature being dealt
     // damage — and a PLAYER is never its target.)
+    // CR 615.12 (issue #3303) — unless the GAME-scoped lock is up, in which
+    // case those shields are inert whatever they match, and declining here
+    // would be the same false zero this term's Fog guard above exists to
+    // prevent. Nothing needs resolving: under the lock every one of them
+    // prevents nothing and none of them is spent.
     if (
+        !isDamageUnpreventableThisTurn(state) &&
         state.playerDamagePrevention?.some(
             (s) => s.playerId === defender.id && s.remaining > 0
         )

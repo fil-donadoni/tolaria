@@ -155,6 +155,72 @@ describe("game-scoped damage lock — the four sinks (CR 615.12)", () => {
         ).toBe(3);
     });
 
+    it("the Forcefield cap is a prevention too — it caps nothing under the lock, and stays unspent", () => {
+        // CR 615 — Forcefield ("prevent all but 1 damage that would be dealt to
+        // you by target attacking creature") is applied BEFORE
+        // `applyOneCombatDamage`, so it is the one prevention site the sinks'
+        // shared `unpreventable` boolean never reaches and has to be ORed
+        // separately (review finding, issue #3303).
+        const state = unblockedBoard((s) => {
+            s.damageCapShields = [{ playerId: "p2", maxDamage: 1 }];
+            s.damageUnpreventableThisTurn = true;
+        });
+        applyAllCombatDamage(state, {});
+        expect(state.players[1].life).toBe(14);
+        expect(state.damageCapShields).toEqual([
+            { playerId: "p2", maxDamage: 1 },
+        ]);
+    });
+
+    it("the same Forcefield caps the swing without the lock (the contrast case)", () => {
+        const state = unblockedBoard((s) => {
+            s.damageCapShields = [{ playerId: "p2", maxDamage: 1 }];
+        });
+        applyAllCombatDamage(state, {});
+        expect(state.players[1].life).toBe(19);
+        expect(state.damageCapShields).toBeUndefined();
+    });
+
+    it("protection's damage leg is prevention too — combat damage lands under the lock (CR 702.16e)", () => {
+        // The most surprising consequence of a global lock, and the one most
+        // likely to be read as a bug later: CR 702.16e words protection's
+        // damage leg as "is prevented", so CR 615.12 goes through it. Only that
+        // leg — can't-be-blocked / can't-be-targeted are enforced elsewhere and
+        // untouched.
+        const state = combatBoard((s) => {
+            s.damageUnpreventableThisTurn = true;
+            const blocker = s.players[1].battlefield.find(
+                (c) => c.id === "blocker"
+            )!;
+            blocker.staticAbilities = [
+                ...blocker.staticAbilities,
+                "protection from green",
+            ];
+        });
+        applyAllCombatDamage(state, { atk: { blocker: 3 } });
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "blocker")!
+                .damageMarked
+        ).toBe(3);
+    });
+
+    it("the same protection prevents that damage without the lock (the contrast case)", () => {
+        const state = combatBoard((s) => {
+            const blocker = s.players[1].battlefield.find(
+                (c) => c.id === "blocker"
+            )!;
+            blocker.staticAbilities = [
+                ...blocker.staticAbilities,
+                "protection from green",
+            ];
+        });
+        applyAllCombatDamage(state, { atk: { blocker: 3 } });
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "blocker")!
+                .damageMarked
+        ).toBeUndefined();
+    });
+
     it("the same Fog stops that combat damage without the lock (the contrast case)", () => {
         const state = combatBoard((s) => {
             s.preventAllCombatDamageThisTurn = true;
@@ -166,6 +232,29 @@ describe("game-scoped damage lock — the four sinks (CR 615.12)", () => {
         ).toBeUndefined();
     });
 });
+
+/** p1's 6/4 attacking UNBLOCKED into p2, the shape Forcefield caps. */
+function unblockedBoard(setup: (state: GameState) => void): GameState {
+    const atk = makeInstance(crawWurm.id, {
+        id: "atk",
+        controllerId: "p1",
+        ownerId: "p1",
+        isAttacking: true,
+    });
+    const state = makeState({
+        activePlayerId: "p1",
+        priorityPlayerId: "p1",
+        players: [makePlayer("p1", { battlefield: [atk] }), makePlayer("p2")],
+        combat: {
+            attackerIds: ["atk"],
+            confirmed: true,
+            blockerAssignments: {},
+            blockersConfirmed: true,
+        },
+    });
+    setup(state);
+    return state;
+}
 
 /** An attacker for p1 blocked by a p2 creature, ready for a combat-damage
  *  step. `setup` arms whatever this case is about. */
