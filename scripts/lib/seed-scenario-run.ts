@@ -70,11 +70,31 @@ export interface SeedOutcome {
  *  The timeout below is enforced on the `npx` child and kills the whole chain:
  *  measured 2026-09-09 with a 3s budget, the call returns at 3.0s with
  *  `ETIMEDOUT`/`SIGTERM` and leaves no `convex` process behind. */
-export function convexRunArgv(fn: string, payload: string): string[] {
+export interface ConvexRunOptions {
+    /** Deploy the checkout's code before running. The SEED needs it (issue
+     *  #3253 — it resolves card names against the deployed bundle); a caller
+     *  that only invokes long-existing functions does not, and pays ~15s for
+     *  nothing. Defaults to true so a new caller opts OUT deliberately. */
+    push?: boolean;
+    /** A `--identity` payload, to run AS a user. `convex run` without one has
+     *  no caller identity at all, so every `assertIsAdmin` / `getCurrentUser`
+     *  function throws — that is what `--identity` is for, and it is why the
+     *  scenario CLI needs no ungated internal function of its own
+     *  (issue #3333). */
+    identity?: string;
+}
+
+export function convexRunArgv(
+    fn: string,
+    payload: string,
+    opts: ConvexRunOptions = {}
+): string[] {
+    const { push = true, identity } = opts;
     return [
         "convex",
         "run",
-        "--push",
+        ...(push ? ["--push"] : []),
+        ...(identity ? ["--identity", identity] : []),
         "--typecheck",
         "disable",
         "--codegen",
