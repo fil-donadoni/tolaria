@@ -16334,7 +16334,6 @@ export function buildSpellContext(
         // revealed card leaving a hand), which is why the primitive does it
         // rather than the caller.
         putCardsOnBottomInRandomOrder(playerId, cardInstanceIds, from) {
-            if (from === "library") return; // a self-move has no bottom
             const player = getPlayer(state, playerId);
             const fromField = ZONE_TO_FIELD[from];
             const present = new Set(
@@ -16947,7 +16946,30 @@ export function buildSpellContext(
                 return manaValue(def?.manaCost);
             }
             if (target.type === "spell") {
-                const stackItem = state.stack.find((s) => s.id === target.id);
+                const stackItem =
+                    state.stack.find((s) => s.id === target.id) ??
+                    // CR 608.2h / 603.10a (issue #3216) — LAST KNOWN
+                    // INFORMATION for the ONE case where the object being
+                    // measured is the resolving ability's OWN source spell. A
+                    // triggered ability is independent of its source once on
+                    // the stack, so a cascade trigger still resolves after its
+                    // spell has been countered or bounced in response — and
+                    // "this spell's mana value" then names an object that has
+                    // left the stack, which CR 608.2h answers with last known
+                    // information, not with nothing. Without this the threshold
+                    // read 0, the walk's filter became "mana value at most -1",
+                    // nothing could match, and a countered cascade spell exiled
+                    // and randomized the caster's ENTIRE library.
+                    //
+                    // The snapshot is free: `collectSelfCastTriggers` /
+                    // `collectCastTriggers` build the trigger item by spreading
+                    // the cast spell, so the resolving item already carries that
+                    // spell's `card` and `chosenX`. Scoped to
+                    // `triggerSourceId === target.id` so every OTHER consumer —
+                    // an effect reading the mana value of some other spell it
+                    // targeted, which may legitimately have ceased to exist —
+                    // keeps the CR 608.2b "no object, no value" behaviour.
+                    (item.triggerSourceId === target.id ? item : undefined);
                 if (!stackItem) return 0;
                 const cardId = (stackItem.card as { id?: string }).id;
                 const def = cardId ? tryGetDefinition(cardId) : undefined;

@@ -23304,10 +23304,18 @@ describe("Effect Script Op: cascade (CR 702.85a, issue #3216)", () => {
         expect(state.pendingChoices).toBeUndefined();
         expect(state.stack).toHaveLength(0);
         expect(state.players[0].exile).toHaveLength(0);
-        expect(state.players[0].library.map((c) => c.id).sort()).toEqual([
-            "noHitBig",
+        // NOT a sorted set comparison: an implementation that did NOTHING would
+        // also leave these two cards in this library, in this order (the seeded
+        // shuffle happens to be the identity on a two-card pile at `rngSeed:
+        // 12345`). `rngCounter` advancing is what distinguishes the two — the
+        // walk exiled the whole library and the tail shuffled it off the SEEDED
+        // PRNG. The randomization itself is asserted on a five-card pile in the
+        // seeded-PRNG case below, where the identity is not a coincidence.
+        expect(state.players[0].library.map((c) => c.id)).toEqual([
             "noHitLand",
+            "noHitBig",
         ]);
+        expect(state.rngCounter).toBeGreaterThan(0);
     });
 
     it("an EMPTY library exiles nothing and never prompts (CR 101.3)", () => {
@@ -23345,14 +23353,22 @@ describe("Effect Script Op: cascade (CR 702.85a, issue #3216)", () => {
             expect(state.rngCounter).toBeGreaterThan(0);
             return state.players[0].library.map((c) => c.id);
         }
+        const WALK_ORDER = ["seedA", "seedB", "seedC", "seedD", "seedHit"];
         const a = bottomOrderFor(7, "test-op-cascade-seed-a");
         const b = bottomOrderFor(7, "test-op-cascade-seed-b");
         // Same seed, same ordering — the replay contract.
         expect(a).toEqual(b);
-        // And it really is an ordering of the whole exiled pile.
-        expect(a.slice().sort()).toEqual(
-            ["seedA", "seedB", "seedC", "seedD", "seedHit"].sort()
-        );
+        // It really is an ordering of the whole exiled pile...
+        expect(a.slice().sort()).toEqual(WALK_ORDER.slice().sort());
+        // ...and it is a RANDOMIZED one. Without this, an implementation that
+        // consumed the PRNG and then bottomed the pile in walk order would pass
+        // every other assertion here.
+        expect(a).not.toEqual(WALK_ORDER);
+        // A different seed is a different permutation (both are fixed values,
+        // so this is deterministic, not a probabilistic assertion).
+        const other = bottomOrderFor(99, "test-op-cascade-seed-c");
+        expect(other.slice().sort()).toEqual(WALK_ORDER.slice().sort());
+        expect(other).not.toEqual(a);
     });
 
     it("survives a serialization round-trip mid-offer: the exiled pile and the hit are recalled rather than re-walked (CR 608.3)", () => {

@@ -4236,6 +4236,11 @@ export interface SpellContext {
      *  now sits on the stack — is silently skipped rather than resurrected
      *  (CR 608.2b). `library.push` is the bottom (`library[0]` is the top), so
      *  moving in shuffled order lands the pile bottom-first in that order.
+     *  `from` is deliberately NARROWER than `MovableZone`: a battlefield card
+     *  must leave through `removePermanentTo` (leave-the-battlefield triggers,
+     *  the CR 608.2h `sourceLki` stamp, counter memory), which this funnel
+     *  bypasses, and `"library"` would be a self-move with no bottom. Both are
+     *  unrepresentable rather than silently no-oped.
      *
      *  The resulting bottom ordering is unwitnessed, so knowledge of every
      *  moved card is cleared (ADR 0026, exactly like a shuffle): both players
@@ -4246,7 +4251,7 @@ export interface SpellContext {
     putCardsOnBottomInRandomOrder: (
         playerId: string,
         cardInstanceIds: readonly string[],
-        from: MovableZone
+        from: "exile" | "graveyard" | "hand"
     ) => void;
     /** Counters a spell or ability on the stack (CR 701.6a), and REPORTS what
      *  it did (issue #2708) — the primitive is the only place that knows
@@ -13138,10 +13143,11 @@ export type EffectOp =
      *  shape ADR 0045 forbids. Orthogonal: this is a keyword's whole rules
      *  text, the `hideaway` / `explore` precedent.
      *
-     *  ONE EXECUTION PATH for the cast (ADR 0045): the middle clause is the
-     *  SAME `offerResolveTimeCast` helper `castDuringResolution` runs, not a
-     *  second copy of the Cast/Decline + mode + X + additional-cost + target
-     *  + commit sequence.
+     *  ONE EXECUTION PATH for the cast (ADR 0045): the middle clause calls
+     *  `runCastDuringResolution` — literally the `castDuringResolution`
+     *  executor, extracted to a named module function — not a second copy of
+     *  the Cast/Decline + mode + X + additional-cost + target + commit
+     *  sequence.
      *
      *  THRESHOLD (CR 202.3 / 702.85a) — "this spell's mana value" is read at
      *  RESOLUTION off the cascading spell itself, `getManaValue({ type:
@@ -13149,7 +13155,10 @@ export type EffectOp =
      *  ABOVE its own spell (CR 603.3b), so the spell is still on the stack and
      *  its `chosenX` is folded in (CR 202.3b). Never the printed cost read at
      *  definition time, which would be wrong the day a cascade card with {X}
-     *  is printed.
+     *  is printed. (A cost printing {X} MORE THAN ONCE still reads one X too
+     *  few — `getManaValue` does not multiply by `ManaCost.xFactor`. That is
+     *  pre-existing and reaches every consumer of that branch, not just this
+     *  Op; drafted in `docs/findings/3216-manavalue-ignores-xfactor.md`.)
      *
      *  THE SECOND COMPARISON ("if the resulting spell's mana value is less
      *  than this spell's mana value") is not a second check in this engine, and

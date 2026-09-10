@@ -424,18 +424,13 @@ describe("Bloodbraid Challenger — Cascade (CR 702.85), Haste (CR 702.10), Esca
         });
     }
 
-    it("declares cascade and haste as keyword strings and escape as data — no imperative body (ADR 0045)", () => {
-        expect(bloodbraidChallenger.staticAbilities).toContain("cascade");
-        expect(bloodbraidChallenger.staticAbilities).toContain("haste");
-        expect(bloodbraidChallenger.escape).toEqual({
-            mana: { X: 3, R: 1, G: 1 },
-            exile: { count: 3 },
-        });
+    it("the keyword string is expanded into ONE CR 702.85a cast trigger whose whole body is the `cascade` Op — and nothing imperative (ADR 0045 / 0054)", () => {
+        // The card itself is pure DATA: the ONLY thing that turns the keyword
+        // string into behaviour is `expandCascade` at the `getDefinition` seam,
+        // so what is asserted here is the seam's OUTPUT, not the card file
+        // written twice.
         expect(bloodbraidChallenger.resolve).toBeUndefined();
         expect(bloodbraidChallenger.effects).toBeUndefined();
-    });
-
-    it("the keyword string is expanded into ONE CR 702.85a cast trigger whose whole body is the `cascade` Op (ADR 0054)", () => {
         const triggers = (bloodbraidChallenger.triggeredAbilities ?? []).filter(
             (t) => t.id === "cascade"
         );
@@ -503,6 +498,90 @@ describe("Bloodbraid Challenger — Cascade (CR 702.85), Haste (CR 702.10), Esca
         ]);
     });
 
+    // CR 702.85a fires on the cast, whatever zone it came from.
+    it("CR 702.138a — escaping is a CAST, so the keyword fires on a spell cast from the graveyard exactly as on one cast from hand", () => {
+        // The trigger fires on the CAST (CR 603.6e), not on the zone it was
+        // cast from: `collectSelfCastTriggers` scans the just-announced stack
+        // item and never looks at its provenance. This pins that, since the
+        // card's second half is an escape cost and the two halves are only
+        // useful together.
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: [libraryCard(BBC_CHEAP_ID, "escHit")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const spell = pushSpell(
+            state,
+            "fbca967e-578f-4b05-b697-2e2ee1a40dfb",
+            "p1"
+        );
+        // The two markers the escape cast path stamps on the stack item
+        // (`gre/escape.ts` / `gre/state.ts`) — present here so the item is a
+        // faithful escaped spell rather than a hand cast in disguise.
+        spell.castFromGraveyard = true;
+        spell.escaped = true;
+        emitSpellCastEvent(state, spell);
+        processPendingActionTriggers(state);
+        expect(state.stack.map((s) => s.triggeredAbilityId ?? "spell")).toEqual(
+            ["spell", "cascade"]
+        );
+        resolveTopOfStack(state);
+        expect(state.players[0].exile.map((c) => c.id)).toEqual(["escHit"]);
+        expect(state.pendingChoices![0].kind).toBe("option-pick");
+    });
+
+    it("CR 608.2h / 603.10a — the cascading spell being COUNTERED in response does not zero the threshold: the trigger still resolves and still stops on a card cheaper than the spell WAS", () => {
+        // The cascade trigger is independent of its source once on the stack
+        // (CR 603.10a), and its own text reads "this spell's mana value" — an
+        // object that has left the stack, so the effect uses last known
+        // information (CR 608.2h). Reading 0 there would make the filter
+        // `manaValueAtMost: -1`, which nothing matches: the whole library gets
+        // exiled and randomized onto the bottom, and the free cast is silently
+        // denied.
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: [
+                        libraryCard(BBC_LAND_ID, "lkiLand"),
+                        libraryCard(BBC_CHEAP_ID, "lkiHit"),
+                        libraryCard(BBC_LAND_ID, "lkiRest1"),
+                        libraryCard(BBC_LAND_ID, "lkiRest2"),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const spell = pushSpell(
+            state,
+            "fbca967e-578f-4b05-b697-2e2ee1a40dfb",
+            "p1"
+        );
+        emitSpellCastEvent(state, spell);
+        processPendingActionTriggers(state);
+        // The opponent counters it: Counterspell would land ABOVE the trigger
+        // and resolve first, so by the time the trigger resolves the cascading
+        // spell is simply gone from the stack.
+        state.stack = state.stack.filter((s) => s.id !== spell.id);
+        expect(state.stack).toHaveLength(1);
+
+        resolveTopOfStack(state);
+        // Mana value 5 is still the comparison: the land is skipped, the mana
+        // value 2 sorcery is the hit, and the two cards BELOW it were never
+        // touched.
+        expect(state.players[0].exile.map((c) => c.id).sort()).toEqual([
+            "lkiHit",
+            "lkiLand",
+        ]);
+        expect(state.players[0].library.map((c) => c.id)).toEqual([
+            "lkiRest1",
+            "lkiRest2",
+        ]);
+        expect(state.pendingChoices![0].kind).toBe("option-pick");
+    });
+
     it("CR 702.85c — a spell with TWO instances of cascade triggers twice, as two distinct stack objects", () => {
         const TWICE_ID = "test-bbc-double-cascade";
         registerTokenDefinition({
@@ -526,7 +605,10 @@ describe("Bloodbraid Challenger — Cascade (CR 702.85), Haste (CR 702.10), Esca
         const state = makeState({
             players: [
                 makePlayer("p1", {
-                    library: [libraryCard(BBC_CHEAP_ID, "twiceHit")],
+                    library: [
+                        libraryCard(BBC_CHEAP_ID, "twiceHit"),
+                        libraryCard(BBC_CHEAP_ID, "twiceOther"),
+                    ],
                 }),
                 makePlayer("p2"),
             ],
@@ -540,5 +622,30 @@ describe("Bloodbraid Challenger — Cascade (CR 702.85), Haste (CR 702.10), Esca
                 .map((s) => s.triggeredAbilityId)
                 .sort()
         ).toEqual(["cascade", "cascade-2"]);
+
+        // "Each triggers SEPARATELY" is two independent walks, not one walk
+        // reported twice: resolve both and watch the second start where the
+        // first left off, each stopping on its own hit and offering its own
+        // free cast. A shared checkpoint would make the second a no-op.
+        const declineTop = () => {
+            resolveTopOfStack(state);
+            const offer = state.pendingChoices![0];
+            expect(offer.kind).toBe("option-pick");
+            applyPendingChoiceSubmit(state, {
+                playerId: "p1",
+                stackItemId: offer.stackItemId,
+                step: offer.step,
+                choiceId: offer.choiceId,
+                cardInstanceIds: ["decline"],
+            });
+        };
+        declineTop();
+        declineTop();
+        // Both piles came back; nothing is stranded in exile.
+        expect(state.players[0].exile).toHaveLength(0);
+        expect(state.players[0].library.map((c) => c.id).sort()).toEqual([
+            "twiceHit",
+            "twiceOther",
+        ]);
     });
 });
