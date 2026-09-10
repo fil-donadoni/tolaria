@@ -11,6 +11,16 @@
 # Cost:   ~4–8 min per game single-threaded; 3 games × 6 pairings per shard
 #         ≈ 1.5–2.5 h wall-clock (the test file caps itself at 3 h) with the three shards in parallel.
 set -euo pipefail
+# One launcher at a time: a second launch in the same minute shares the
+# STAMP below and clobbers the first run's files (it happened on 2026-09-10).
+LOCK="ladder-runs/.greedy-corpus.lock"
+mkdir -p ladder-runs
+if [ -e "$LOCK" ] && kill -0 "$(cat "$LOCK" 2>/dev/null)" 2>/dev/null; then
+    echo "greedy-corpus.sh already running (pid $(cat "$LOCK")); refusing a second launch" >&2
+    exit 1
+fi
+echo $$ >"$LOCK"
+trap 'rm -f "$LOCK"' EXIT
 GAMES="${1:-3}"
 STAMP="$(date +%Y-%m-%d-%H-%M)"
 OUTDIR="ladder-runs"
