@@ -23,7 +23,11 @@
 // layer system so static buffs (counters, anthems) are reflected.
 
 import type { CardInstanceState, GameState, PlayerState } from "./state";
-import { isCombatDamageImmune, sourcePreventionShieldApplies } from "./state";
+import {
+    isCombatDamageImmune,
+    isDamageUnpreventableThisTurn,
+    sourcePreventionShieldApplies,
+} from "./state";
 import {
     anyCombatDamageUnpreventableStatic,
     isCombatDamageUnpreventable,
@@ -1208,9 +1212,14 @@ function declaredFaceDamage(
     // static is on the board (Questing Beast), in which case its controller's
     // creatures still connect. Mirrors `phases.ts`'s own guard so the bot does
     // not write off a lethal swing the engine will actually apply.
+    // CR 615.12 (issue #3303) — the GAME-scoped "damage can't be prevented this
+    // turn" lock (Stomp) disables the Fog outright, for every source at once,
+    // so the engine runs the whole step and the bot must not write the swing
+    // off either.
     if (
         state.preventAllCombatDamageThisTurn &&
-        !anyCombatDamageUnpreventableStatic(state)
+        !anyCombatDamageUnpreventableStatic(state) &&
+        !isDamageUnpreventableThisTurn(state)
     ) {
         return null;
     }
@@ -1238,7 +1247,9 @@ function declaredFaceDamage(
         // CR 615.12 — this attacker's combat damage can't be prevented
         // (Questing Beast), so every shield below is a no-op against it.
         // Mirrors `applyOneCombatDamage`'s own per-source computation.
-        const unpreventable = isCombatDamageUnpreventable(state, atk);
+        const unpreventable =
+            isCombatDamageUnpreventable(state, atk) ||
+            isDamageUnpreventableThisTurn(state);
         // CR 615 — the Fog, re-applied PER ATTACKER exactly as the engine does
         // (`applyOneCombatDamage`, phases.ts). The blanket early return above
         // is skipped whenever ANY battlefield carries an unpreventable-combat-

@@ -1313,6 +1313,24 @@ const lockDamage: Valuer<"lockDamage"> = (op) => ({
         : ["boardRemoval"],
 });
 
+// CR 615.12 (issue #3303) — the GAME-scoped lock (Stomp: "Damage can't be
+// prevented this turn"). Same shape of payoff as `lockDamage` above and priced
+// a shade over it for breadth: it covers every damage event of the turn, from
+// either player's sources, rather than the events aimed at one creature. Still
+// well under a full Fog (`markAssignsNoCombatDamage` / `preventDamage`),
+// because what it buys is contingent — dead weight in a turn where nothing gets
+// damaged, and it never removes anything by itself.
+//
+// Tagged `disruption`, not `damage`: the Op deals none. What it takes away is
+// the defender's ABILITY to act (the Fog, the Circle of Protection, the Jade
+// Monolith, protection's damage leg), which is exactly that dimension.
+const DAMAGE_PREVENTION_SUPPRESSION_VALUE = 25;
+
+const suppressDamagePrevention: Valuer<"suppressDamagePrevention"> = () => ({
+    points: DAMAGE_PREVENTION_SUPPRESSION_VALUE,
+    tags: ["disruption"],
+});
+
 // Source-side combat-damage neutralization (Warning / Restrain): the marked
 // creature deals 0 combat damage this turn — a single-creature defensive shield
 // worth a fraction of a full Fog (which stops the whole combat).
@@ -1600,6 +1618,7 @@ export const OP_VALUERS: {
     preventRegeneration,
     exileOnDeath,
     lockDamage,
+    suppressDamagePrevention,
     restrictActivation,
     restrictCasting,
     grantCastTiming,
@@ -1874,6 +1893,15 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // (Whippoorwill). Harmful to the permanent it names, exactly like its
     // `preventRegeneration` / `exileOnDeath` sentence-mates.
     lockDamage: "harmful",
+    // CR 615.12 (issue #3303) — a genuine neutral, and the reason is structural
+    // rather than deferred: `suppressDamagePrevention` names no object at all.
+    // It has no target, no player field and no recipient of any kind (the flag
+    // lives on the GAME and is symmetric — it unprevents damage dealt to its
+    // own caster as readily as damage dealt to the opponent), so there is no
+    // stake for a sign to attach to and nothing a beneficence-driven redirect
+    // could aim differently. Its magnitude lives in `OP_VALUERS` above, where
+    // an effect with no recipient belongs.
+    suppressDamagePrevention: "neutral",
     restrictActivation: "harmful",
     restrictCasting: "harmful",
     restrictCombat: "harmful",

@@ -160,6 +160,7 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     skipDrawStepThisTurn: false,
     skipNextTurn: false,
     skipNextUntap: false,
+    suppressDamagePrevention: false,
     tapUntap: false,
     transform: false,
     unattach: false,

@@ -1169,6 +1169,15 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             }
             recordSlot(req, op.target.target, "permanent");
             return;
+        case "suppressDamagePrevention":
+            // `suppressDamagePrevention` (CR 615.12, issue #3303) — the
+            // GAME-scoped sibling of `lockDamage` right above. It has no fields
+            // at all, so there is nothing to seed and no slot to record: it
+            // sets `state.damageUnpreventableThisTurn` in the SAME resolution,
+            // which its `OP_ASSERTORS` entry reads straight off the post-state.
+            // No skip is owed — unlike `becomeMonarch` / `winGame`, this global
+            // flag needs no seeded board to be observable.
+            return;
         case "markAssignsNoCombatDamage":
             // `markAssignsNoCombatDamage` (CR 510.1c, issue #1283) pushes a
             // combat-only, id-scoped entry onto the IMMEDIATE
@@ -2470,6 +2479,19 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                     detail: `damageLockThisTurn ${perm.damageLockThisTurn}, expected true`,
                 };
             },
+        };
+    },
+    // `suppressDamagePrevention` (CR 615.12, issue #3303) — the GAME-scoped
+    // turn-long anti-prevention lock is observable as
+    // `state.damageUnpreventableThisTurn` flipping undefined→true in the same
+    // resolution. No seeded slot to read: the Op names no object.
+    suppressDamagePrevention() {
+        return {
+            label: "game damage lock (damageUnpreventableThisTurn undefined→true)",
+            check: (post) => ({
+                ok: post.damageUnpreventableThisTurn === true,
+                detail: `damageUnpreventableThisTurn ${post.damageUnpreventableThisTurn}, expected true`,
+            }),
         };
     },
     // `markAssignsNoCombatDamage` (CR 510.1c, issue #1283) — a source-side
