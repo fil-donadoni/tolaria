@@ -380,6 +380,18 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         req.skip ??= `amount reads the cost-sacrificed permanent's ${value.sacrificed.read} — the canned generator never pays an additional sacrifice cost, so no snapshot exists to read`;
         return;
     }
+    // sum (CR 122 / 404, issue #3243): the total of one characteristic across a
+    // SET of cards a PRECEDING Op bound (a `mill` `bindAll`, a `choice` `bind`).
+    // The canned generator pushes one stack item and predicts one amount — it
+    // never runs the preceding Op, so the binding is never captured and the
+    // value would resolve to its empty-set 0, sizing a declared outcome at
+    // nothing. Skip-with-reason, exactly as the other post-`X` grammar members
+    // above; the member's own interpreter test is the behavioural guarantor
+    // (new-grammar-member regime).
+    if ("sum" in value) {
+        req.skip ??= `amount sums the ${value.sum.read} of a bound card set — the canned generator never runs the Op that binds it`;
+        return;
+    }
     req.countSets.push(value.count);
     // A count set's own controller may itself be a ref — unmodelable.
     const c = value.count.controller;

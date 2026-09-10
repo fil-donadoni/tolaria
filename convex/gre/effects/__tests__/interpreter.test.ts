@@ -31793,3 +31793,205 @@ describe("Effect Script Op: dealDamage { source } — a PERMANENT recipient (CR 
         expect(target.damageMarked ?? 0).toBe(0);
     });
 });
+
+// CR 122 counting / CR 404 / CR 202.3 (issue #3243) — `sum`, the AGGREGATE
+// sibling of the single-object `manaValue` value: the total of one
+// characteristic across the SET of cards a preceding Op bound. The permanent
+// test the new grammar member earns (per-Op regime,
+// `.claude/rules/gre-development.md` § DSL-first authoring); Palantír of
+// Orthanc's "loses life equal to the total mana value of those cards" is its
+// first consumer, but nothing here names that card.
+describe("Effect Script value: sum over a bound card set (CR 122 / 404)", () => {
+    /** {X}{2}{B} — MV 3, because a variable {X} counts as 0 outside the stack
+     *  (CR 202.3b). The edge case a hand-summed printed cost would get wrong. */
+    const X_COST_ID = "test-effects-sum-xcost";
+    registerTokenDefinition({
+        id: X_COST_ID,
+        name: X_COST_ID,
+        rarity: "common",
+        manaCost: { X: "X", generic: 2, B: 1 },
+        types: ["Sorcery"],
+    });
+
+    /** Mill `count`, then make the OPPONENT lose life equal to the total mana
+     *  value of exactly the cards milled. */
+    function millAndDrainScript(name: string, count: number): string {
+        return registerScript(name, [
+            {
+                op: "mill",
+                player: "controller",
+                count,
+                bindAll: "$milled",
+            },
+            {
+                op: "loseLife",
+                player: "opponent",
+                amount: {
+                    sum: {
+                        of: { ref: "$milled" },
+                        read: "manaValue",
+                        zone: "graveyard",
+                        player: "controller",
+                    },
+                },
+            },
+        ]);
+    }
+
+    /** p1's graveyard already holds an MV-2 card; the library holds a MV-2
+     *  bear over an MV-0 land, so a correctly SCOPED sum of a 2-card mill is
+     *  2 and an unscoped one would be 4. */
+    function drainableState(library: string[] = [BEAR_ID, LAND_ID]): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [
+                        makeInstance(BLACK_CARD_ID, {
+                            id: "already-there",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "graveyard",
+                        }),
+                    ],
+                    library: library.map((defId, i) =>
+                        makeInstance(defId, {
+                            id: `lib-${i}`,
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        })
+                    ),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    it("sums the mana value of the WHOLE milled set, scoped to it (CR 202.3)", () => {
+        const id = millAndDrainScript("test-sum-whole-set", 2);
+        const state = drainableState();
+        const before = state.players[1].life;
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // Bear {1}{G} = 2, land = 0. The MV-2 card already in the graveyard is
+        // NOT part of the bound set — an unscoped zone sum would drain 4.
+        expect(state.players[1].life).toBe(before - 2);
+    });
+
+    it("a SHORT library mills what it has and the sum covers only those cards (CR 608.2)", () => {
+        const id = millAndDrainScript("test-sum-short-library", 5);
+        const state = drainableState([BEAR_ID]);
+        const before = state.players[1].life;
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].library).toHaveLength(0);
+        expect(state.players[1].life).toBe(before - 2);
+    });
+
+    it("milling ZERO cards loses 0 life — the clause resolves, it is not skipped", () => {
+        const id = millAndDrainScript("test-sum-empty-set", 3);
+        const state = drainableState([]);
+        const before = state.players[1].life;
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // An UNCAPTURED binding is the empty set, and a sum over it is 0 —
+        // deliberately NOT the CR 608.2b `undefined` skip every object-scoped
+        // read takes, which would leave the amount unresolved.
+        expect(state.players[1].life).toBe(before);
+        // Nothing was milled — the only graveyard arrivals are what was
+        // already there plus the resolved sorcery itself (CR 608.2m).
+        expect(
+            state.players[0].graveyard.filter((c) => c.id.startsWith("lib-"))
+        ).toEqual([]);
+    });
+
+    it("a variable {X} in a milled card's cost counts as 0 (CR 202.3b)", () => {
+        const id = millAndDrainScript("test-sum-x-cost", 1);
+        const state = drainableState([X_COST_ID]);
+        const before = state.players[1].life;
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // {X}{2}{B} is mana value 3 in every zone but the stack.
+        expect(state.players[1].life).toBe(before - 3);
+    });
+
+    it("a bound card that has LEFT the graveyard contributes nothing — the read is live", () => {
+        // The milled cards are exiled between the mill and the sum, so the
+        // binding still names them but the graveyard no longer holds them.
+        const id = registerScript("test-sum-left-zone", [
+            {
+                op: "mill",
+                player: "controller",
+                count: 2,
+                bindAll: "$milled",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$milled" },
+                player: "controller",
+                from: "graveyard",
+                to: "exile",
+            },
+            {
+                op: "loseLife",
+                player: "opponent",
+                amount: {
+                    sum: {
+                        of: { ref: "$milled" },
+                        read: "manaValue",
+                        zone: "graveyard",
+                        player: "controller",
+                    },
+                },
+            },
+        ]);
+        const state = drainableState();
+        const before = state.players[1].life;
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(before);
+    });
+
+    it("reads the set through a `choice` bind too — the binding FAMILY, not the Op", () => {
+        // `sum` names a picks binding, and `mill`'s `bindAll` is only one
+        // producer of that family: a graveyard `choice` writes the identical
+        // `string[]`. Nothing here is mill-shaped.
+        const id = registerScript("test-sum-choice-bind", [
+            {
+                op: "choice",
+                kind: "choose-graveyard-card",
+                player: "controller",
+                zone: "graveyard",
+                count: 1,
+                prompt: "Choose a card in your graveyard.",
+                bind: "$pick",
+            },
+            {
+                op: "loseLife",
+                player: "opponent",
+                amount: {
+                    sum: {
+                        of: { ref: "$pick" },
+                        read: "manaValue",
+                        zone: "graveyard",
+                        player: "controller",
+                    },
+                },
+            },
+        ]);
+        const state = drainableState();
+        const before = state.players[1].life;
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["already-there"],
+        });
+        // The picked card is the MV-2 black instant.
+        expect(state.players[1].life).toBe(before - 2);
+    });
+});

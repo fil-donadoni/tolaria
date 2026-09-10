@@ -1310,6 +1310,32 @@ function isPlayerCountersValue(value: unknown): boolean {
     return isPlayerRef(t.of);
 }
 
+/** `{ sum: { of, read, zone, player } }` — SHAPE of the bound-set aggregate
+ *  (CR 122 counting / CR 404, issue #3243). All four keys are REQUIRED: `of` is
+ *  a BARE PICKS ref (no `.property` — the same `isBarePicksRef` shape
+ *  `discard`'s `cards` and `mayPay`'s `manaCostOf` accept), `read` and `zone`
+ *  are single-member closed vocabularies naming the characteristic and lookup
+ *  axes, and `player` is a PLAYER selector saying whose zone the ids are looked
+ *  up in. `of` is family-checked as a PICKS position by the ordered ref pass
+ *  (the `keyHint === "sum"` case in `collectRefUses`) — needed because the bare
+ *  key `of` means an OBJECT everywhere else in the value grammar
+ *  (`counters`/`manaValue`), and a picks binding read as an object snapshot is
+ *  exactly the family mismatch that pass exists to catch. */
+function isSumValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== "sum") return false;
+    const spec = (value as { sum: unknown }).sum;
+    if (typeof spec !== "object" || spec === null) return false;
+    const s = spec as Record<string, unknown>;
+    const allowed = ["of", "read", "zone", "player"];
+    if (!allowed.every((k) => k in s)) return false;
+    if (!Object.keys(s).every((k) => allowed.includes(k))) return false;
+    if (s.read !== "manaValue") return false;
+    if (s.zone !== "graveyard") return false;
+    return isBarePicksRef(s.of) && isPlayerRef(s.player);
+}
+
 /** A member of the closed player-counter vocabulary (CR 122.1). */
 function isPlayerCounterKind(value: unknown): boolean {
     return (
@@ -1417,8 +1443,9 @@ function isDivideValue(value: unknown): boolean {
  *  a player's `domain` (issue #1066), an object's `escaped` flag
  *  (issue #695), the resolving triggered ability's `abilityResolutionCount`
  *  (issue #1189), the `difference` of two terminals (issue #2006), a
- *  terminal `scaled` by a fixed multiplier (issue #2366), or a terminal
- *  `divide`d by a fixed divisor with explicit rounding (issue #2385).
+ *  terminal `scaled` by a fixed multiplier (issue #2366), a terminal
+ *  `divide`d by a fixed divisor with explicit rounding (issue #2385), or the
+ *  `sum` of one characteristic over a bound SET of cards (issue #3243).
  *  Exactly those — one non-nestable subtraction, one non-nestable
  *  multiplication, one non-nestable division, and beyond them no arithmetic
  *  and no expressions. */
@@ -1441,7 +1468,8 @@ function isEffectValue(value: unknown): boolean {
         isPlayerCountersValue(value) ||
         isDifferenceValue(value) ||
         isScaledValue(value) ||
-        isDivideValue(value)
+        isDivideValue(value) ||
+        isSumValue(value)
     );
 }
 
@@ -5236,6 +5264,19 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
         keys.every((k) => k === "of" || k === "type")
     ) {
         collectRefUses(obj.of, "player", out);
+        return;
+    }
+    // sum — { sum: { of, read, zone, player } } (CR 122 / 404, issue #3243):
+    // `of` is a PICKS position (a bare `choice`/`bindAll` binding name), NOT
+    // the OBJECT position the same key means on `counters`/`manaValue`, and
+    // `player` is a PLAYER position. Both are routed here, before the generic
+    // recursion below, for the same reason `domain` routes its own `of`: the
+    // fallback keys off the CHILD key name, so `of` would be mis-tagged
+    // "object" and a legitimate picks binding rejected as a family mismatch.
+    // `read` / `zone` are bare string literals with no ref grammar.
+    if (keyHint === "sum" && keys.includes("of")) {
+        collectRefUses(obj.of, "cards", out);
+        collectRefUses(obj.player, "player", out);
         return;
     }
     // `{ opponentOf: EffectPlayerRef }` (issue #1568) — the wrapped ref
