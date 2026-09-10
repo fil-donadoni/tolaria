@@ -12,9 +12,9 @@ import {
 import { collectTriggers } from "../../../../gre/triggers";
 import { projectPublicState } from "../../../../gameProjections";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { gauFeralYouth } from "../red";
+import { getDefinition } from "../../../index";
 
-const GAU_ID = gauFeralYouth.id;
+const GAU_ID = "89175ce1-0746-4ba1-970e-617d134b0527";
 
 /** Push a triggered ability onto the stack with its trigger event attached,
  *  then resolve it — the resolve-time half of the CR 603.4 intervening-if. */
@@ -74,15 +74,13 @@ function setup(opts: { graveyard?: number; counters?: number } = {}) {
     return { state, gau };
 }
 
+// CR 207.2c — `Rage` is an ability WORD: no rules meaning, no Mechanics
+// Registry row, and so nothing on `staticAbilities`. That is not asserted here
+// (a definition read that calls nothing is the definition written twice) —
+// `mechanicsRegistry.test.ts` fails catalogue-wide on a shipped keyword with no
+// `implemented` row, which is exactly the guard an invented "rage" keyword
+// would trip.
 describe("Gau, Feral Youth — Rage attack trigger (CR 207.2c / 122)", () => {
-    it("`Rage` is an ability word, so it earns NO staticAbilities entry", () => {
-        // CR 207.2c — ability words have no rules meaning. The card must not
-        // smuggle one into the keyword surface, where Guard A would (rightly)
-        // demand a Mechanics Registry row for it.
-        expect(gauFeralYouth.staticAbilities ?? []).toEqual([]);
-        expect(gauFeralYouth.oracleText).toContain("Rage —");
-    });
-
     it("puts a +1/+1 counter on itself when it attacks", () => {
         const { state, gau } = setup();
         resolveTrigger(state, gau, "gau-feral-youth-rage", {
