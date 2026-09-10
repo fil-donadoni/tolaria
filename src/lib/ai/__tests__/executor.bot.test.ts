@@ -32,6 +32,7 @@ function fakeMutations() {
         selectActivationExileCost: vi.fn().mockResolvedValue(null),
         selectActivationDiscardCost: vi.fn().mockResolvedValue(null),
         toggleAttacker: vi.fn().mockResolvedValue(null),
+        toggleExert: vi.fn().mockResolvedValue(null),
         confirmAttackers: vi.fn().mockResolvedValue(null),
         selectBlocker: vi.fn().mockResolvedValue(null),
         assignBlockerTarget: vi.fn().mockResolvedValue(null),

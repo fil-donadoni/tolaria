@@ -224,6 +224,15 @@ export const COST_LEG_CLAIMS = {
         why: "CR 118.1 / 601.2h — always payable, so nothing to gate. Named here rather than at `payExileThisCost` (`gre/state.ts`) because that authority answers only HALF the Bot path: the graveyard leg delegates to it, while the battlefield leg exiles the permanent directly. Same outcome today, two code paths — the drift seam a claim must not paper over.",
         autoPayable: false,
     },
+    exertThis: {
+        paidBy: {
+            file: "convex/gre/applyMove.ts",
+            symbol: "applyActivationCostsForSearch",
+        },
+        why: "CR 701.43a/b / 602.1a — always payable, so `enumerateAbilityMoves` gates nothing: CR 701.43b lets a permanent be exerted while untapped and lets it be exerted again before its next untap step, which leaves no board state that could refuse the leg. For an `activate-ability` move the search-side application stamps the same `skipNextUntap` the mutation does, through the same `payExertActivationCost` authority (`gre/exert.ts`), so the Bot prices the missed untap instead of getting the ability for free. That covers only HALF the Bot path, and the half the only shipped carrier does not use — see the hole.",
+        autoPayable: false,
+        hole: "#3359",
+    },
     returnThisToHand: {
         paidBy: {
             file: "convex/gre/applyMove.ts",

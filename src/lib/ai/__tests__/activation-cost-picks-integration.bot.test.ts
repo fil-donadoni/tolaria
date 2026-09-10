@@ -134,6 +134,7 @@ function engineMutations(state: GameState): MoveMutations {
             });
         },
         toggleAttacker: reject,
+        toggleExert: reject,
         confirmAttackers: reject,
         selectBlocker: reject,
         assignBlockerTarget: reject,

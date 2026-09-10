@@ -506,7 +506,10 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         name: "Exert",
         kind: "keyword-action",
         cr: "701.43",
-        status: "planned",
+        status: "implemented",
+        binding:
+            "`exertPermanent` / `payDeclaredExertCosts` / `payExertActivationCost` (`gre/exert.ts`), the `may-exert-as-attacks` StaticEffect kind and the `cost.exertThis` activation-cost leg (issue #3214)",
+        note: 'CR 701.43a — a keyword ACTION, so like Explore and Adapt this row is the CR 701 census entry and the name authority rather than a keyword the layer system reads; nothing declares "exert" in `staticAbilities[]`. The whole section ships: 701.43a is one flag (`CardInstanceState.skipNextUntap`, the CR 302.6/502.1 one-shot the untap step already consumed for Barl\'s Cage); 701.43b falls out of that flag being an idempotent boolean, so exerting an UNTAPPED permanent and re-exerting one before its next untap step are both legal and both expire in the same untap step; 701.43c is structural (every payment site holds a battlefield permanent); 701.43d is the optional attack cost (CR 508.1g) offered per declared attacker at declare-attackers via the `may-exert-as-attacks` StaticEffect, toggled through the `toggleExert` mutation, paid at `finalizeConfirmAttackers`, and emitting `PERMANENT_EXERTED` — the event the LINKED "when you do" trigger (CR 607.2h) matches on its own permanent id. The other payment site is the `cost.exertThis` activation-cost leg (CR 602.1a). Shipped on Glorybringer (`sets/akh/red.ts`, the attack form) and Arena of Glory (`sets/mh3/colorless.ts`, the cost-leg form on a LAND — exert is a permanent keyword action, never a creature-only one).',
     },
     // 701.44 Explore
     {

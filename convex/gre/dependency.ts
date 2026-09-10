@@ -129,6 +129,7 @@ export const STATIC_EFFECT_READS: Record<
     "global-attack-restriction": [],
     "attack-sacrifice-tax": [],
     "attack-mana-tax": [],
+    "may-exert-as-attacks": [],
     "attack-requirement": [],
     "block-requirement": [],
     "landwalk-negation": [],

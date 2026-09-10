@@ -435,6 +435,11 @@ import {
     recordAttackerDeclared,
 } from "./gre/combat";
 import {
+    exertableAttackerIds,
+    payExertActivationCost,
+    restoreExertOnUntap,
+} from "./gre/exert";
+import {
     getEffectiveBlockGraph,
     outstandingDamageAssigner,
     isLegalBandComposition,
@@ -1143,6 +1148,25 @@ export function applyManaAbilityLifeCost(
     const lifeCost = ability?.cost.life;
     if (!lifeCost || lifeCost <= 0) return;
     loseLifeEmitting(state, activatorId, lifeCost);
+}
+
+/** CR 605.1a / 701.43a — tap mana ability EXERT cost (Arena of Glory:
+ *  "{R}, {T}, Exert this land: Add {R}{R}."). Exerts the source through the
+ *  single `payExertActivationCost` authority (`gre/exert.ts`), which stamps
+ *  `skipNextUntap` and queues `PERMANENT_EXERTED`. Records on the instance
+ *  whether THIS tap is what exerted it, so `restoreExertOnUntap` can reverse
+ *  exactly this payment and leave an earlier exert alone (CR 701.43b — a
+ *  permanent may be exerted more than once before its next untap step).
+ *  No-op when the ability declares no exert leg. Shared by both tap-for-mana
+ *  paths (`tapUntap` priority tap + `tapSourceIntoPayment` payment tap). */
+export function applyManaAbilityExertCost(
+    state: GameState,
+    ability: ActivatedAbility | undefined | null,
+    card: CardInstanceState
+): void {
+    if (!ability?.cost.exertThis) return;
+    const newlyExerted = payExertActivationCost(state, card);
+    if (newlyExerted) card.exertedThisTap = true;
 }
 
 /** CR 605.1a / 118.3 — tap mana ability discard-at-random cost (Lion's Eye
@@ -1982,6 +2006,11 @@ export function tapSourceIntoPayment(
         // is paid whether the land is tapped for mana via priority
         // (`tapUntap`) or while paying a spell/ability cost (here).
         applyManaAbilityLifeCost(state, effAbility, player.id);
+        // CR 605.1a / 701.43a — tap mana ability exert cost (Arena of
+        // Glory): fires in the payment-tap path too, so the land misses its
+        // next untap whether it was tapped via priority or while paying for a
+        // spell.
+        applyManaAbilityExertCost(state, effAbility, card);
         // CR 605.1a / 118.3 — tap mana ability discard-at-random cost (Lion's
         // Eye Diamond): fires in the payment-tap path too, so the discard
         // applies whether the source is tapped via priority (`tapUntap`) or
@@ -2035,6 +2064,8 @@ export function tapSourceIntoPayment(
     // before any source mutation, so an unaffordable activation throws with
     // nothing changed.
     applyManaAbilityManaCost(state, player, acting, card);
+    // CR 605.1a / 701.43a — the exert leg of a FIXED-output tap mana ability.
+    applyManaAbilityExertCost(state, acting, card);
     if (!isSacrifice) card.isTapped = true;
     // CR 106.1 / 605.1a — board-conditional output (Urza trio) is computed from
     // the controller's battlefield now and snapshotted onto `chosenMana` so the
@@ -2187,6 +2218,8 @@ function untapSourceFromPayment(
     // Ancient Tomb, Mana Confluence). Symmetric with the mana / counter refund
     // above.
     restoreLifePaidOnUntap(player, card);
+    // CR 106.4 / 701.43b — and the exert its cost leg paid (Arena of Glory).
+    restoreExertOnUntap(state, card);
     // CR 106.4 / 601.2f — and the mana its own activation cost took (Chromatic
     // Star's {1}). Same reversal, cost side.
     restoreManaPaidOnUntap(player, card);
@@ -2816,6 +2849,10 @@ export function buildPendingActivation(opts: {
         ...(ability.cost.returnThisToHand
             ? { returnThisToHandSource: true }
             : {}),
+        // CR 701.43a / 602.1a — Arena of Glory's "Exert this land" leg.
+        // Deferred to commit like every other non-mana leg so a cancelled mana
+        // payment leaves the source un-exerted.
+        ...(ability.cost.exertThis ? { exertSource: true } : {}),
         ...(ability.cost.removeCounter
             ? { removeCounterCost: { ...ability.cost.removeCounter } }
             : {}),
@@ -3082,6 +3119,13 @@ export function tryAutoCommitPendingActivation(
         }
         card.isTapped = true;
     }
+    // CR 701.43a — "Exert this permanent" (Arena of Glory). Applied with the
+    // other deferred, always-payable legs: CR 701.43b makes it legal whether or
+    // not the source is tapped and whether or not it was already exerted, so
+    // unlike the zone-move legs below there is nothing to re-check at commit.
+    if (pa.exertSource) {
+        payExertActivationCost(state, card);
+    }
     if (pa.removeCounterCost) {
         payRemoveCounterCost(state, card, pa.removeCounterCost);
     }
@@ -3330,6 +3374,13 @@ function rollbackPendingCast(state: GameState): void {
         const card = player.battlefield.find((c) => c.id === cardId);
         if (!card) continue;
         card.isTapped = false;
+        // CR 106.4 / 701.43b (issue #3214) — reversing this payment tap undoes
+        // the mana ability it paid for, so un-exert the source when THIS tap is
+        // what exerted it (Arena of Glory). The activation-side rollback gets
+        // this through `untapSourceFromPayment`; this cast-side loop carries its
+        // own inline copy of the untap and must restate it, or a cancelled cast
+        // leaves the land not untapping for a spell that was never cast.
+        restoreExertOnUntap(state, card);
         // CR 605.4 — refund the Wild-Growth-style bonus mana this tap added.
         refundTapBonusMana(player, card);
         // CR 106.6 (issue #1559 review) — restriction-aware refund: reverses
@@ -6839,6 +6890,9 @@ export function finalizeTargetSelection(
 
         // Commit immediately.
         if (ability.cost.tap) card.isTapped = true;
+        // CR 701.43a / 602.1a — the "Exert this permanent" leg (Arena of
+        // Glory), paid alongside the {T} leg.
+        if (ability.cost.exertThis) payExertActivationCost(state, card);
         // CR 106.10 — noted-mana battery: snapshot the pool before payment so
         // the per-colour delta becomes the mana noted on the source.
         const poolBeforePayment =
@@ -9710,6 +9764,10 @@ export const untapForPayment = mutation({
         // CR 605.4 — refund the Wild-Growth-style bonus mana this tap added.
         refundTapBonusMana(player, card);
         card.isTapped = false;
+        // CR 106.4 / 701.43b (issue #3214) — un-exert the source when THIS tap
+        // is what exerted it, the same reversal `untapSourceFromPayment` runs on
+        // the activation side (Arena of Glory).
+        restoreExertOnUntap(state, card);
         discardPermanentTappedEvent(state, card.id);
         state.pendingCast.tappedLandIds.splice(idx, 1);
 
@@ -12104,6 +12162,16 @@ export const toggleAttacker = mutation({
                     state.combat.attackTargets = undefined;
                 }
             }
+            // CR 508.1g / 701.43d: a deselected attacker is no longer
+            // attacking, so the optional exert cost chosen for it is void —
+            // dropped here rather than filtered at payment time so the client
+            // and the bot both read a selection that means what it says.
+            if (state.combat.exertedIds?.includes(args.cardInstanceId)) {
+                const kept = state.combat.exertedIds.filter(
+                    (id) => id !== args.cardInstanceId
+                );
+                state.combat.exertedIds = kept.length > 0 ? kept : undefined;
+            }
             // CR 702.22f: a deselected attacker leaves any band it was in.
             // Drop the now-stale member and discard bands that fall below a
             // legal size (need 2+ members, 1+ with banding).
@@ -12164,6 +12232,68 @@ export const toggleAttacker = mutation({
                 };
             }
         }
+
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
+    },
+});
+
+/** CR 508.1g / 701.43d — toggle the OPTIONAL "you may exert this creature as it
+ *  attacks" cost for one declared attacker, while the declaration is still open.
+ *
+ *  A toggle rather than a one-way opt-in because the whole declaration is
+ *  revisable until `confirmAttackers` locks it in (attackers themselves, their
+ *  planeswalker targets and their bands all work this way), and because CR
+ *  508.1g makes the choice one the active player makes as attackers are
+ *  declared — never a prompt raised after the fact, which is what would let a
+ *  creature removed from combat before damage still be un-exerted. */
+export const toggleExert = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        cardInstanceId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
+
+        if (state.phase !== "DECLARE_ATTACKERS") {
+            throw new Error("Not in DECLARE_ATTACKERS phase");
+        }
+        if (args.playerId !== state.activePlayerId) {
+            throw new Error("Only the active player can choose to exert");
+        }
+        if (!state.combat || state.combat.confirmed) {
+            throw new Error("Attacker selection is not open");
+        }
+        // The SAME authority the bot enumerates and the client renders from,
+        // so an id none of them offers cannot be smuggled in here.
+        if (!exertableAttackerIds(state).includes(args.cardInstanceId)) {
+            throw new Error(
+                "That creature is not a declared attacker you may exert"
+            );
+        }
+
+        const current = state.combat.exertedIds ?? [];
+        const next = current.includes(args.cardInstanceId)
+            ? current.filter((id) => id !== args.cardInstanceId)
+            : [...current, args.cardInstanceId];
+        state.combat.exertedIds = next.length > 0 ? next : undefined;
 
         await saveGameState(
             ctx,
@@ -12587,6 +12717,18 @@ export const confirmAttackers = mutation({
                 if (Object.keys(state.combat.attackTargets).length === 0) {
                     state.combat.attackTargets = undefined;
                 }
+            }
+            // CR 508.1g / 701.43d — and its optional exert cost. Payment
+            // filters to declared attackers anyway, but the declaration can
+            // PARK here (`pendingAttackManaTax` / `pendingAttackSacrifice`) and
+            // be saved, so a stale choice would be visible to the client and
+            // the bot in between — the same inconsistency the deselect branch
+            // of `toggleAttacker` exists to avoid.
+            if (state.combat.exertedIds) {
+                const kept = state.combat.exertedIds.filter(
+                    (id) => !droppedAttackers.includes(id)
+                );
+                state.combat.exertedIds = kept.length > 0 ? kept : undefined;
             }
             if (state.combat.bands) {
                 state.combat.bands = state.combat.bands
@@ -14941,6 +15083,8 @@ export function activateAbilityOnState(
     if (ability.cost.tap) {
         card.isTapped = true;
     }
+    // CR 701.43a / 602.1a — the "Exert this permanent" leg (Arena of Glory).
+    if (ability.cost.exertThis) payExertActivationCost(state, card);
     // CR 106.10 — noted-mana battery (Jeweled Amulet / Ice Cauldron):
     // snapshot the pool before payment so the per-colour delta becomes the
     // mana noted on the source at resolve (mirrors the deferred-commit and
@@ -15711,6 +15855,8 @@ export const tapUntap = mutation({
         // rejected before reaching here.
         if (wasTapped && !producedThisActivation) {
             restoreLifePaidOnUntap(player, card);
+            // CR 106.4 / 701.43b — and the exert its cost leg paid (Arena of Glory).
+            restoreExertOnUntap(state, card);
             // CR 106.4 / 601.2f — the cost-side sibling: refund the mana the
             // activation's own mana cost took (Mana Cylix's {1}), or the untap
             // toggle burns it. Same window/guards as the life refund above.
@@ -15752,6 +15898,14 @@ export const tapUntap = mutation({
         // never refunded on untap.
         if (producedThisActivation) {
             applyManaAbilityLifeCost(state, tapAbility, args.playerId);
+        }
+
+        // CR 605.1a / 701.43a — tap mana ability exert cost (Arena of Glory).
+        // Same `producedThisActivation` gate as the rider above; unlike the
+        // life ping this one IS reversible, through `restoreExertOnUntap` on
+        // the untap toggle below.
+        if (producedThisActivation) {
+            applyManaAbilityExertCost(state, tapAbility, card);
         }
 
         // CR 605.1a / 118.3 — tap mana ability discard-at-random cost

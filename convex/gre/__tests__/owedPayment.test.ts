@@ -110,6 +110,7 @@ const FULL_ACTIVATION: Required<PendingActivation> = {
     cyclingCost: false,
     exileThisSource: false,
     returnThisToHandSource: false,
+    exertSource: false,
     discardAtRandomCount: 0,
     discardFilterChoice: { filter: {}, count: 1 },
     chosenX: 0,

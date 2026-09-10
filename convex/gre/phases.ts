@@ -56,6 +56,7 @@ import {
     tickDuration,
 } from "./state";
 import { tryGetDefinition } from "../cards";
+import { payDeclaredExertCosts } from "./exert";
 import { tryGetEmblemDefinition } from "../cards/emblems";
 import { resetControlContinuity } from "./controlContinuity";
 import { effectivePermanentView } from "./permanentView";
@@ -410,6 +411,7 @@ export function untapStep(state: GameState): void {
                 card.chosenMana = undefined;
                 card.tapBonusMana = undefined;
                 card.lifePaidThisTap = undefined;
+                card.exertedThisTap = undefined;
                 card.manaPaidThisTap = undefined;
                 // CR 502/603.3 — the source untaps (or is fully cleaned up
                 // this untap step), so a becomes-tapped trigger from a prior
@@ -430,6 +432,7 @@ export function untapStep(state: GameState): void {
                 card.chosenMana = undefined;
                 card.tapBonusMana = undefined;
                 card.lifePaidThisTap = undefined;
+                card.exertedThisTap = undefined;
                 card.manaPaidThisTap = undefined;
                 // CR 502/603.3 — the source untaps (or is fully cleaned up
                 // this untap step), so a becomes-tapped trigger from a prior
@@ -449,6 +452,7 @@ export function untapStep(state: GameState): void {
                 card.chosenMana = undefined;
                 card.tapBonusMana = undefined;
                 card.lifePaidThisTap = undefined;
+                card.exertedThisTap = undefined;
                 card.manaPaidThisTap = undefined;
                 // CR 502/603.3 — the source untaps (or is fully cleaned up
                 // this untap step), so a becomes-tapped trigger from a prior
@@ -475,6 +479,7 @@ export function untapStep(state: GameState): void {
                 card.chosenMana = undefined;
                 card.tapBonusMana = undefined;
                 card.lifePaidThisTap = undefined;
+                card.exertedThisTap = undefined;
                 card.manaPaidThisTap = undefined;
                 // CR 502/603.3 — the source untaps (or is fully cleaned up
                 // this untap step), so a becomes-tapped trigger from a prior
@@ -506,6 +511,7 @@ export function untapStep(state: GameState): void {
                 card.chosenMana = undefined;
                 card.tapBonusMana = undefined;
                 card.lifePaidThisTap = undefined;
+                card.exertedThisTap = undefined;
                 card.manaPaidThisTap = undefined;
                 // CR 502/603.3 — the source untaps (or is fully cleaned up
                 // this untap step), so a becomes-tapped trigger from a prior
@@ -527,6 +533,7 @@ export function untapStep(state: GameState): void {
                 card.chosenMana = undefined;
                 card.tapBonusMana = undefined;
                 card.lifePaidThisTap = undefined;
+                card.exertedThisTap = undefined;
                 card.manaPaidThisTap = undefined;
                 // CR 502/603.3 — the source untaps (or is fully cleaned up
                 // this untap step), so a becomes-tapped trigger from a prior
@@ -546,6 +553,7 @@ export function untapStep(state: GameState): void {
                 card.chosenMana = undefined;
                 card.tapBonusMana = undefined;
                 card.lifePaidThisTap = undefined;
+                card.exertedThisTap = undefined;
                 card.manaPaidThisTap = undefined;
                 // CR 502/603.3 — the source untaps (or is fully cleaned up
                 // this untap step), so a becomes-tapped trigger from a prior
@@ -568,6 +576,7 @@ export function untapStep(state: GameState): void {
                 card.chosenMana = undefined;
                 card.tapBonusMana = undefined;
                 card.lifePaidThisTap = undefined;
+                card.exertedThisTap = undefined;
                 card.manaPaidThisTap = undefined;
                 // CR 502/603.3 — the source untaps (or is fully cleaned up
                 // this untap step), so a becomes-tapped trigger from a prior
@@ -585,6 +594,7 @@ export function untapStep(state: GameState): void {
             card.chosenMana = undefined;
             card.tapBonusMana = undefined;
             card.lifePaidThisTap = undefined;
+            card.exertedThisTap = undefined;
             card.manaPaidThisTap = undefined;
             // CR 502/603.3 — the source untapped, so a becomes-tapped trigger
             // from a prior tap is water under the bridge: clear the
@@ -2029,12 +2039,22 @@ export function emitBlockersConfirmedEvents(state: GameState): void {
  *  control attack" ability fires exactly once. */
 export function emitAttackersDeclaredEvents(state: GameState): void {
     if (!state.combat || state.combat.attackerIds.length === 0) return;
+    // CR 508.1g/1j — the optional attack costs the active player chose are paid
+    // as part of the declaration, BEFORE any attack trigger is put on the
+    // stack. Exert is the only such cost the engine models (CR 701.43d); its
+    // `PERMANENT_EXERTED` events join the SAME batch as `ATTACKERS_DECLARED`
+    // below, so a linked "when you do" trigger (CR 607.2h) and an ordinary
+    // attack trigger are APNAP-ordered together (CR 603.3b) instead of one
+    // arbitrarily preceding the other. Paying here rather than at each caller
+    // is deliberate: this function is the one choke point the server mutation,
+    // the auto-pass auto-confirm, `applyMove` and the ISMCTS sandbox all reach.
+    const exertEvents = payDeclaredExertCosts(state);
     const event: GameEvent = {
         type: "ATTACKERS_DECLARED",
         attackingPlayerId: state.activePlayerId,
         attackerIds: [...state.combat.attackerIds],
     };
-    const triggers = collectTriggers(state, [event]);
+    const triggers = collectTriggers(state, [...exertEvents, event]);
     // CR 603.3b (ADR 0058) — order same-controller simultaneous attack triggers.
     if (placeTriggersOnStack(state, triggers)) {
         state.priorityPlayerId = state.activePlayerId;

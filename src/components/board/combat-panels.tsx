@@ -4,6 +4,7 @@ import { outstandingDamageAssigner } from "~/lib/priority";
 import { isPlaneswalker } from "~/lib/card-utils";
 import DamageAssignmentPanel from "./damage-assignment-panel";
 import BandFormationPanel from "./band-formation-panel";
+import ExertChoicePanel from "./exert-choice-panel";
 import AttackDirectionBanner from "./attack-direction-banner";
 
 /** Combat declaration / damage modals for one player's battlefield on the
@@ -14,6 +15,8 @@ import AttackDirectionBanner from "./attack-direction-banner";
  *  current combat sub-step:
  *  - {@link BandFormationPanel} — shown to the attacking player while attackers
  *    are still being declared (CR 702.22c), to group banding attackers.
+ *  - {@link ExertChoicePanel} — shown in the same step for the optional
+ *    "you may exert this creature as it attacks" cost (CR 508.1g / 701.43d).
  *  - {@link DamageAssignmentPanel} — shown to whichever player is the
  *    outstanding damage assigner during a combat-damage step (CR 510.1c/d,
  *    702.22j-k), which under banding may be the defender.
@@ -95,6 +98,14 @@ export default function CombatPanels({ player }: { player: Player }) {
                         planeswalkerPresent={defenderHasPlaneswalker}
                     />
                     <BandFormationPanel
+                        combat={combat}
+                        attackers={player.battlefield.filter((c) =>
+                            combat.attackerIds.includes(c.id)
+                        )}
+                        gameId={gameId}
+                        playerId={playerId}
+                    />
+                    <ExertChoicePanel
                         combat={combat}
                         attackers={player.battlefield.filter((c) =>
                             combat.attackerIds.includes(c.id)

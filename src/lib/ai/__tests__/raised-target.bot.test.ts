@@ -143,6 +143,7 @@ function engineMutations(state: GameState, calls: string[]): MoveMutations {
         selectActivationExileCost: reject,
         selectActivationDiscardCost: reject,
         toggleAttacker: reject,
+        toggleExert: reject,
         confirmAttackers: reject,
         selectBlocker: reject,
         assignBlockerTarget: reject,
