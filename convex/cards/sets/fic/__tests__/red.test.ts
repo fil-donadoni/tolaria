@@ -12,8 +12,9 @@ import {
 import { collectTriggers } from "../../../../gre/triggers";
 import { projectPublicState } from "../../../../gameProjections";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { getDefinition } from "../../../index";
 
+// The registry seam (ADR 0046): the card is reached by ID through
+// `makeInstance`, never by importing its definition out of the set module.
 const GAU_ID = "89175ce1-0746-4ba1-970e-617d134b0527";
 
 /** Push a triggered ability onto the stack with its trigger event attached,

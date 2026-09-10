@@ -12,8 +12,9 @@ import { collectTriggers } from "../../../../gre/triggers";
 import { effectiveMaxHandSize } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { getDefinition } from "../../../index";
 
+// The registry seam (ADR 0046): the card is reached by ID through
+// `makeInstance`, never by importing its definition out of the set module.
 const PROFT_ID = "af5b29b3-974c-4200-8df8-b072c11e1600";
 /** Grizzly Bears — a vanilla 2/2 body for the counters to land on. */
 const BEAR_ID = "ce2d603a-3231-4a8c-bf39-1617586ea870";
