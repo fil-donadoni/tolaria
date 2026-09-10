@@ -80,6 +80,9 @@ import { keywordBonusFor } from "./creatureBody";
 // permanent that carries them.
 import { isQuietFor, temporaryDefensiveKeywords } from "./ai/defensiveGrants";
 import { DEFAULT_EVAL_WEIGHTS, type EvalWeights } from "./ai/evalWeights";
+import type { LatentLens } from "./ai/grounding";
+import { contextFreeLatentLens } from "./ai/grounding";
+import { makeLatentBoardLens } from "./ai/latentBoard";
 
 /** A won position. Large enough to dominate every reachable material margin so
  *  the bot always prefers lethal, and finite so two winning lines stay
@@ -216,7 +219,15 @@ export function evaluateCreature(
 /** Latent Forge-scale worth of a card NOT in play (hand / library / graveyard),
  *  from its live instance — the Hand-term entry point (reads effective P/T, so a
  *  buffed hand card is rare but correct). Pure. */
-export function cardValue(state: GameState, card: CardInstanceState): number {
+export function cardValue(
+    state: GameState,
+    card: CardInstanceState,
+    /** Issue #3398 — the board this card is being valued AGAINST, when there
+     *  is one. Omitted (every caller outside the hand term) keeps the pure
+     *  context-free valuation: a targeted board-affecting Op then prices at
+     *  exactly one representative victim, which is the pre-#3398 number. */
+    board?: LatentLens
+): number {
     return latentValue({
         isCreature: isCreature(card),
         power: getEffectivePower(state, card),
@@ -228,8 +239,33 @@ export function cardValue(state: GameState, card: CardInstanceState): number {
         // Effect Script off the REGISTRY definition, keyed by the id that
         // survives the wire projection (`card.card` is stripped to `{ id }`) —
         // so the value is identical client- and server-side.
-        ...dslLatentPiecesById(String(card.card.id ?? "")),
+        ...dslLatentPiecesById(String(card.card.id ?? ""), board),
     });
+}
+
+/** The latent board lens for one card in `player`'s hand, or `undefined` when
+ *  the card has no registry definition to read target requirements from (a
+ *  token, an off-registry card). */
+function latentBoardFor(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    weights: EvalWeights
+): LatentLens | undefined {
+    const def = tryGetDefinition(String(card.card.id ?? ""));
+    if (!def) return undefined;
+    return makeLatentBoardLens(
+        {
+            state,
+            casterId: player.id,
+            card,
+            def,
+            weights,
+            realisedLoss: (perm) =>
+                permanentRealisedValue(state, perm, weights),
+        },
+        contextFreeLatentLens(weights.latent)
+    );
 }
 
 /** One player's material score split into its weighted contributions. Each
@@ -949,6 +985,60 @@ function graveyardReachTerm(
 
 /** The weighted contributions of one player's resources, from their own
  *  perspective. `sumTerms` of this equals the legacy `playerScore`. */
+/** The realized worth a NON-CREATURE, NON-LAND permanent contributes to its
+ *  controller's `permanents` term — its latent body scaled by how much of its
+ *  useful loyalty range a planeswalker currently holds (exactly 1 for
+ *  everything else). Extracted (issue #3398) so the board loss a removal
+ *  spell in hand is priced against reads the SAME number the board term
+ *  scores, rather than a second, drifting valuation. */
+function nonCreatureBodyValue(
+    state: GameState,
+    perm: CardInstanceState
+): number {
+    return cardValue(state, perm) * loyaltyRealizationRatio(perm);
+}
+
+/** What one permanent's REMOVAL costs its controller, on `evaluate`'s own
+ *  scale — the sum of every term that permanent contributes and that its
+ *  destruction takes away (issue #3398):
+ *
+ *   - the flat board-presence weight every permanent carries;
+ *   - a CREATURE's realized body (`evaluateCreature`, effective P/T through
+ *     the layer system plus its realized ability scripts);
+ *   - a non-creature, non-land's latent body (a Jayemdae Tome, a
+ *     loyalty-scaled planeswalker);
+ *   - the mana term of ANY permanent with a mana ability — a land, but also a
+ *     Llanowar Elves or a Sol Ring — at the same tapped/untapped split
+ *     `manaSourceTermFor` uses (CR 502.3, issue #3377).
+ *
+ *  DELIBERATELY not counted: `manaDevelopment` (a curve-relative term that
+ *  moves with the HAND, so attributing it to one land would double-count the
+ *  hand it is derived from) and `flexibility` (a live-options term, not a
+ *  property of the permanent). Both are per-player aggregates, not per-
+ *  permanent contributions — the failure this omission avoids is a lens that
+ *  prices a land above what destroying it actually moves the margin by.
+ *
+ *  Exported because the latent board lens (`ai/latentBoard.ts`) prices a
+ *  removal spell in hand against exactly these numbers: one pass over the
+ *  opponent's permanents, no probe, no second valuation authority. */
+export function permanentRealisedValue(
+    state: GameState,
+    perm: CardInstanceState,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+): number {
+    let total = weights.permanentWeight;
+    if (isCreature(perm)) {
+        total += evaluateCreature(state, perm);
+    } else if (!isLand(perm)) {
+        total += nonCreatureBodyValue(state, perm);
+    }
+    const controller = state.players.find((p) => p.id === perm.controllerId);
+    if (controller && hasManaAbility(perm, undefined, controller.battlefield)) {
+        total += perm.isTapped ? weights.tappedManaWeight : weights.manaWeight;
+    }
+    return total;
+}
+
 function playerTerms(
     state: GameState,
     player: PlayerState,
@@ -959,7 +1049,19 @@ function playerTerms(
         // Latent worth of the hand (ADR 0018): each card's `cardValue`, replacing
         // the old flat per-card constant. A bomb in hand now outweighs a spare
         // land, and pitching a good card for no effect is a decisive loss.
-        hand: player.hand.reduce((sum, c) => sum + cardValue(state, c), 0),
+        // Issue #3398 — each hand card is valued against THIS board: a
+        // targeted, board-affecting Op in its script prices at the realised
+        // loss of its best legal victim, not at a fixed representative
+        // permanent. Built per card (the lens is keyed on the card's own
+        // target requirements and its instance id) and memoised per slot
+        // inside, so this stays one pass over the opponent's permanents per
+        // targeted removal spell in hand.
+        hand: player.hand.reduce(
+            (sum, c) =>
+                sum +
+                cardValue(state, c, latentBoardFor(state, player, c, weights)),
+            0
+        ),
         creatures: 0,
         permanents: 0,
         mana: 0,
@@ -1000,8 +1102,7 @@ function playerTerms(
             // existed before the term. The flat `W_PERMANENT` above stays
             // unscaled — "a permanent is here" is equally true at 1 loyalty.
             if (!isLand(perm)) {
-                terms.permanents +=
-                    cardValue(state, perm) * loyaltyRealizationRatio(perm);
+                terms.permanents += nonCreatureBodyValue(state, perm);
             }
         }
     }

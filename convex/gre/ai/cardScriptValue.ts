@@ -28,7 +28,9 @@ import type {
 import {
     contextFreeGrounding,
     withGraveyardSource,
+    withLatentLens,
     type GroundingContext,
+    type LatentLens,
 } from "./grounding";
 import { valueEffectScript } from "./opValuers";
 import type { OpValue, ValueTag } from "./featureBasis";
@@ -176,8 +178,17 @@ function bestModeOpValue(
  *  to `aiValue`/`base + MV`). A modal spell is valued at its BEST mode either
  *  way: a cast-time `modes[]` card via `modesScriptOpValue` below, a
  *  resolution-time `optionChoice` Op via the walker. */
-export function dslSpellScriptValue(def: CardDefinition): number | undefined {
-    return dslSpellScriptOpValue(def)?.points;
+export function dslSpellScriptValue(
+    def: CardDefinition,
+    /** Issue #3398 — the board the spell is being valued against, when the
+     *  caller has one (`evaluate`'s hand term). Omitted, the valuation stays
+     *  purely context-free and every targeted, board-affecting Op prices at
+     *  exactly one representative victim — the pre-#3398 number. */
+    board?: LatentLens
+): number | undefined {
+    const ctx = contextFreeGrounding();
+    return dslSpellScriptOpValue(def, board ? withLatentLens(ctx, board) : ctx)
+        ?.points;
 }
 
 /** Merges two `OpValue`s: points summed, tags unioned (dedup) — mirrors

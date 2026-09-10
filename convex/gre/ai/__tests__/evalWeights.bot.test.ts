@@ -13,6 +13,7 @@
 
 import { describe, expect, it } from "vitest";
 import { DEFAULT_EVAL_WEIGHTS, rewardPerMarginPoint } from "../evalWeights";
+import { FEATURE_BASIS } from "../featureBasis";
 import { resolveEvalWeights } from "../searchVariant";
 import { evaluate, materialMargin } from "../../evaluate";
 import {
@@ -82,11 +83,43 @@ describe("DEFAULT_EVAL_WEIGHTS (issue #2683)", () => {
             extraTurnValue: 350,
             misdirectionWeight: 1_000_000,
             blockWorldSamples: 12,
+            // Issue #3398 — the fitted per-dimension LATENT unit prices that
+            // replaced `opValuers.ts`'s hand-picked point constants. Each is
+            // the price of ONE unit of its dimension (see `LatentWeights`),
+            // chosen so the deleted constant is reproduced against one
+            // representative victim: `boardRemoval` 160 IS the old
+            // `DESTROY_VALUE`, `damage` 22 IS `DAMAGE_PER_POINT`, and so on.
+            latent: {
+                damage: 22,
+                cardAdvantage: 45,
+                lifeSwing: 8,
+                boardRemoval: 160,
+                ramp: 12,
+                evasion: 40,
+                tempo: 55,
+                disruption: 130,
+                recursion: 140,
+                tokens: 0.85,
+                pump: 9,
+                protection: 60,
+            },
         });
     });
 
     it("is frozen — a mutation attempt is a no-op / throws in strict mode", () => {
         expect(Object.isFrozen(DEFAULT_EVAL_WEIGHTS)).toBe(true);
+        // The nested latent block is frozen too (issue #3398) — a vector
+        // handed to a ladder variant must not be able to reach in and mutate
+        // the production unit prices for every other run in the process.
+        expect(Object.isFrozen(DEFAULT_EVAL_WEIGHTS.latent)).toBe(true);
+    });
+
+    it("carries one latent weight per FEATURE_BASIS dimension (issue #3398)", () => {
+        // The fit surface must be COMPLETE: a dimension with no weight is one
+        // no verdict can move, which is the gap `DESTROY_VALUE` lived in.
+        expect(Object.keys(DEFAULT_EVAL_WEIGHTS.latent).sort()).toEqual(
+            [...FEATURE_BASIS].sort()
+        );
     });
 });
 
