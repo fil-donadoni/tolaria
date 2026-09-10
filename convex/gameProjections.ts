@@ -43,6 +43,7 @@ import {
     getInstanceManaCost,
     tryGetDefinition,
 } from "./cards";
+import { offersPrintedCast } from "./gre/splitCast";
 
 /** CardInstanceState with the static card def stripped to { id } only. */
 export type SlimCardInstance = Omit<CardInstanceState, "card"> & {
@@ -86,7 +87,11 @@ export type SlimHandCard = SlimCardInstance & {
      *  re-derives cast timing (ADR 0074). Without it the cast-option picker
      *  rendered an unconditional "Pay mana cost" row whose click was a
      *  guaranteed mutation rejection. Absent (never `false`) when the printed
-     *  cast IS available, exactly like `flashSurchargeRequired`. */
+     *  cast IS available, exactly like `flashSurchargeRequired`.
+     *
+     *  CR 709.3 (ADR 0121) — also true for a SPLIT card, whose two halves are
+     *  the whole cast menu. One flag for both, because the picker's question
+     *  is the same one and a second field is a second thing to forget. */
     printedCostCastUnavailable?: true;
 };
 
@@ -1443,8 +1448,22 @@ export function projectPublicState(
                         // `castFromZone`), so the picker can drop its
                         // "Pay mana cost" row instead of offering a click the
                         // mutation is guaranteed to refuse.
+                        //
+                        // CR 709.3 (ADR 0121) — and it is off the table
+                        // outright for a SPLIT card: "a player chooses which
+                        // half of a split card they are casting BEFORE putting
+                        // it onto the stack", so its CR 709.4b summed cost is
+                        // a characteristic in a zone and never a price. Same
+                        // flag, because the picker's question is the same one
+                        // ("is 'Pay mana cost' a row?") and a second field
+                        // would be a second thing to forget.
                         ...(legalActions.includes("cast") &&
-                        castPermissionRequiredFor(state, player.id, card)
+                        (castPermissionRequiredFor(state, player.id, card) ||
+                            !offersPrintedCast(
+                                tryGetDefinition(
+                                    (card.card as { id?: string }).id ?? ""
+                                ) ?? undefined
+                            ))
                             ? { printedCostCastUnavailable: true as const }
                             : {}),
                     };

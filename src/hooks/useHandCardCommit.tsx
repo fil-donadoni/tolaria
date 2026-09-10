@@ -390,11 +390,24 @@ export function useHandCardCommit(
             // shipped pool, not a hypothetical. Filtering only the printed row
             // left Ragavan's "Dash" standing under Aluren, one click from the
             // same rejection this whole change exists to remove.
-            const options = printedCostAvailable
-                ? affordableAlts
-                : affordableAlts.filter((alt) =>
+            //
+            // CR 709.3 (ADR 0121) — but the filter is keyed on the PERMISSION,
+            // not on the flag. `printedCostCastUnavailable` now covers a
+            // second, unrelated reason: a SPLIT card has no printed cast at
+            // all, and its two half options are the whole menu — filtering
+            // them to "the permission's own" would leave the picker empty and
+            // the card uncastable. A permission that licenses a cast is always
+            // itself in `affordableAlts` (`castOptionAlternativeCosts` emits
+            // it), so its presence is what distinguishes the two cases, and
+            // the client infers nothing the server did not already say.
+            const permissionRestricted =
+                !printedCostAvailable &&
+                affordableAlts.some((alt) => isCastPermissionAltCostId(alt.id));
+            const options = permissionRestricted
+                ? affordableAlts.filter((alt) =>
                       isCastPermissionAltCostId(alt.id)
-                  );
+                  )
+                : affordableAlts;
             const optionCount = options.length + (printedCostAvailable ? 1 : 0);
             if (!printedCostAvailable && options.length === 1) {
                 // The permission's free cast is the only legal announcement —
