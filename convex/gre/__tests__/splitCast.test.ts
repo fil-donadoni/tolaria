@@ -263,18 +263,26 @@ describe("CR 709.3b — on the stack only the chosen half exists", () => {
         expect((projected.stack[0].card as { id?: string }).id).toBe(LEFT_ID);
     });
 
-    it("the stamp is idempotent — a re-walked commit cannot lose the parent", () => {
-        // The stamper DIRECTLY, not through the census: once the item carries
-        // the twin id, `castModeOf` resolves a definition with no
-        // `splitHalves` and never reaches a stamper at all, so a census call
-        // would pass on the lookup and leave `castAsSplitHalf`'s own guard
-        // unexercised.
+    it("the stamp is idempotent — a re-walked commit cannot re-swap", () => {
+        // Reaching the guard takes the state it exists FOR: the mark set with
+        // the id NOT yet swapped. On an already-swapped item every route into
+        // the stamper dead-ends earlier — the census resolves a twin with no
+        // `splitHalves` and picks no mode, and the stamper's own
+        // `splitTwin(twinDef, side)` is `undefined` — so an assertion made
+        // there passes with the guard deleted (it did, until this rewrite).
         const state = position(1, 3);
-        const item = pushHalf(state, "left");
+        const player = state.players[0];
+        const item: StackItem = {
+            ...player.hand.splice(0, 1)[0],
+            zone: "stack",
+            castById: "p1",
+            splitHalfOf: STAND_DELIVER.id,
+        };
         castAsSplitHalf(item, "right");
-        expect((item.card as { id?: string }).id).toBe(LEFT_ID);
+        // Unchanged: the mark says a half was already announced, and a second
+        // stamp must not overwrite which one.
+        expect((item.card as { id?: string }).id).toBe(STAND_DELIVER.id);
         expect(item.splitHalfOf).toBe(STAND_DELIVER.id);
-        expect(item.types).toEqual(["Instant"]);
     });
 });
 
