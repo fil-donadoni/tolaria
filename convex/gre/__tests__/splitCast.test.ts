@@ -450,9 +450,10 @@ describe("CR 709.3 outside the HAND — the halves are offered there too (issue 
             ).toEqual(STAND_DELIVER.manaCost);
         }
         // And the cast is genuinely offered once its CARD-level legs are
-        // payable — CR 702.138a's "exile three other cards from your
-        // graveyard" plus the {2}{U}{W} the board's four lands cover — so this
-        // is the escape BRANCH walking the halves, not an inert cost read.
+        // payable — the escape cost CR 702.138a states, plus the {2}{U}{W}
+        // the board's four lands cover — so this is the escape BRANCH walking
+        // the halves, not an inert cost read. Underworld Breach's non-mana leg
+        // is three other cards moved out of the graveyard.
         for (const i of [0, 1, 2]) {
             state.players[0].graveyard.push(
                 makeInstance(HILL_GIANT, {
