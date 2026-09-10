@@ -2349,6 +2349,136 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Issue #3319, the FIRE half — the same end-step board with the opponent on 1, and the proof that `standing-spend-hold` bought discrimination rather than a blanket refusal to ever spend a permanent outside the bot's own main phase. MEASURED at 400 iterations on all 5 seeds, both before and after the change: the shot wins on `mechanism: mean-reward`, so it out-rewards `pass` by more than `OUTCOME_EPS` and the new tie-break is never consulted at all. It is protected by TWO independent gates and neither alone is load-bearing, MEASURED: removing only `firingBeatsHolding` leaves it green (no `pass` sits within `OUTCOME_EPS`, so the rule finds nothing to hold), and removing only the `OUTCOME_EPS` gate leaves it green too (firing wins the game, so `firingBeatsHolding` is true and the rule is silent). Removing BOTH turns this entry AND the PRECOMBAT_MAIN fire half above red together — which is what proves the pair is not vacuous, and that the new rule is live in every window rather than only this one.",
     },
     {
+        label: "activation timing: does not shoot away its own last counter after attacking with it",
+        spec: {
+            cards: [
+                {
+                    name: "Walking Ballista",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                    counters: { "+1/+1": 1 },
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 2,
+            libraryCount: 20,
+            life: { me: 20, opp: 20 },
+        },
+        // Attack, then walk priority forward to the damage step: the Ballista
+        // is UNBLOCKED (the opponent controls no creature), so it has already
+        // dealt its combat damage and is standing exactly as it would outside
+        // combat.
+        setup: [
+            {
+                kind: "declare-attackers",
+                cards: ["Walking Ballista"],
+                haltForDefenderResponse: true,
+            },
+            { kind: "pass", seat: "opp" },
+            { kind: "pass", seat: "me" },
+            { kind: "pass", seat: "opp" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Walking Ballista" }],
+        },
+        note: "Issue #3369 — the reported blunder, and the third window the same board had to be pinned in. The issue-#3192 pair covers the bot's own sorcery window and the issue-#3319 pair the opponent's end step; BOTH shipped while the bot still attacked with the Ballista and threw it away one step later, because `standing-spend-hold` was gated on `!rootState.combat` and hold-the-trick is gated on `isSorceryTimingFor`, so the whole combat was unowned. MEASURED at 400 iterations, seed 0xb1ade, before this change: at COMBAT_DAMAGE the shot at the face won on `mechanism: material-tiebreak`, `contenderCount: 4`, `gapReward` 0.0042 against the 0.05 band — the creature had already dealt its combat damage and was spent for one more point at 19 life. After it the pick is `pass` on `mechanism: standing-spend-hold`, and the walk shows the Ballista surviving every later window of the turn as well (END_OF_COMBAT and END_STEP on `standing-spend-hold`, POSTCOMBAT_MAIN on `hold-trick`). Its discriminating twin is the entry directly below, where the same creature is blocked and SHOULD be spent.",
+    },
+    {
+        label: "activation payoff: shoots its own last counter when the block has already doomed it",
+        spec: {
+            cards: [
+                {
+                    name: "Walking Ballista",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                    counters: { "+1/+1": 1 },
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 2,
+            libraryCount: 20,
+            life: { me: 20, opp: 20 },
+        },
+        setup: [
+            { kind: "declare-attackers", cards: ["Walking Ballista"] },
+            {
+                kind: "declare-blockers",
+                blocks: [
+                    { blocker: "Grizzly Bears", attacker: "Walking Ballista" },
+                ],
+            },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "activate-ability", card: "Walking Ballista" }],
+        },
+        note: "Issue #3369, the FIRE half, and the reason the hold could not simply be extended over the whole combat. A 1/1 whose body is one +1/+1 counter, blocked by a 2/2, is DEAD either way (CR 510.1c): the counter is worth nothing held, so shooting it before damage is free value rather than the blunder the hold rule exists to stop. MEASURED at 400 iterations on all 5 seeds: green on `origin/staging`, RED on the intermediate version of this change that removed the `!rootState.combat` gate without adding `isInPendingCombatExchange` (the bot held the Ballista and let it die for nothing on `mechanism: standing-spend-hold`), green again with the exchange predicate in place. That predicate is deliberately NOT a lethality calculation — it fails open on any pending exchange rather than re-deriving assignment, deathtouch and prevention outside the modules that own them — so an attacker blocked by something too small to kill it is left to mean reward, sub-optimal at worst.",
+    },
+    {
+        label: "activation timing: does not shoot away its own last counter after surviving a block",
+        spec: {
+            cards: [
+                {
+                    name: "Walking Ballista",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                    counters: { "+1/+1": 1 },
+                },
+                {
+                    name: "Wall of Stone",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 2,
+            libraryCount: 20,
+            life: { me: 20, opp: 20 },
+        },
+        // Blocked by a 0/8 — the Ballista deals its 1 damage into the wall and
+        // comes through the exchange untouched, so by COMBAT_DAMAGE it is
+        // standing again with its counter intact.
+        setup: [
+            { kind: "declare-attackers", cards: ["Walking Ballista"] },
+            {
+                kind: "declare-blockers",
+                blocks: [
+                    { blocker: "Wall of Stone", attacker: "Walking Ballista" },
+                ],
+            },
+            { kind: "pass", seat: "me" },
+            { kind: "pass", seat: "opp" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Walking Ballista" }],
+        },
+        note: "Issue #3369 review finding 2 — the blunder ONE BLOCKER away from the entry above, and the reason `isInPendingCombatExchange` needs a PHASE guard rather than `blockersConfirmed`. `state.combat` — `confirmed`, `blockersConfirmed`, `attackerIds` and `blockerAssignments` all included — SURVIVES both damage steps and is torn down only as END_OF_COMBAT ends (CR 511.3); `evaluate.ts`'s `declaredFaceDamage` already carries the same guard for the same reason. A 0/8 Wall of Stone cannot kill a 1/1, so the Ballista comes through the exchange standing, but the stale declaration made the predicate read it as still blocked and the hold rule went silent for the rest of the turn. MEASURED at 400 iterations before the guard: `activate-ability` targeting the face on ALL 5 seeds, at COMBAT_DAMAGE, at 20 life. `FIRST_STRIKE_DAMAGE` is deliberately left inside the exchange window — regular damage is still coming (CR 510.4) — so this entry pins the post-damage half only.",
+    },
+    {
         label: "activation timing: does not activate Iron-Shield Elf with no threat",
         spec: {
             cards: [

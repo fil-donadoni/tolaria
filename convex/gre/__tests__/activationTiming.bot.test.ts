@@ -859,6 +859,46 @@ describe("selectRootMove — a sacrifice engine is held, then converted (issue #
         expect(records.map((r) => r.mechanism)).toContain("last-window-fire");
     });
 
+    it("NO-FIRE (convert): an opponent's spell on the stack is not a conversion window", () => {
+        // Issue #3369 review. `firingBeatsHolding` scores BOTH sides through
+        // `policyValue`, which RESOLVES the top of the stack for an activation.
+        // With an opponent's spell underneath, the holding side is scored AFTER
+        // that spell and the firing side with it still pending, so the two
+        // differ by the opponent's spell rather than by the decision — and the
+        // Bolt here is aimed at the bot's FACE, touching neither the Orb nor
+        // any land. Without the empty-stack conjunct the conversion flips and
+        // the bot sacrifices a land for 2 life on a board where that is a
+        // measured material loss: the Sylvan Safekeeper class (#2422/#2938)
+        // this rule exists to refuse.
+        const state = makeState({
+            phase: "END_STEP",
+            activePlayerId: "p2",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        perm(ORB, "orb"),
+                        perm(FOREST, "f1"),
+                        perm(FOREST, "f2"),
+                        perm(FOREST, "f3"),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, BOLT, "p2", [{ type: "player", id: "p1" }]);
+        const root = rootOf(
+            [
+                { move: PASS, meanReward: 0.6635, meanMargin: 1781 },
+                { move: ACTIVATE, meanReward: 0.6631, meanMargin: 1552 },
+            ],
+            "p1"
+        );
+        expect(selectRootMove(root, [ACTIVATE, PASS], state, "p1").kind).toBe(
+            "pass"
+        );
+    });
+
     it("NO-FIRE (convert): the bot's OWN end step is not the last window", () => {
         // Its own end step is followed by the whole opponent turn, in which the
         // option is still worth holding — so the hold rule owns this window and
@@ -1008,6 +1048,144 @@ describe("selectRootMove — a sacrifice engine is held, then converted (issue #
             selectRootMove(spendIsRobustRoot(), [ACTIVATE, PASS], state, "p1")
                 .kind
         ).toBe("activate-ability");
+    });
+
+    // -----------------------------------------------------------------------
+    // The COMBAT window (issue #3369). The source here is a real ATTACKING
+    // CREATURE — Walking Ballista, printed toughness 0, so its last +1/+1
+    // counter IS its body and removing it is materially a sacrifice
+    // (CR 704.5f) — rather than the Zuran Orb the rest of this block uses: an
+    // artifact cannot be declared an attacker, and a fixture the engine could
+    // never produce would pin nothing about who is standing in an exchange.
+    // -----------------------------------------------------------------------
+    const BALLISTA_ID = getCardByName("Walking Ballista").id;
+    const BALLISTA_SHOOT = "walking-ballista-shoot";
+    const SHOOT: Move = activation("bal", BALLISTA_SHOOT);
+
+    /** p1 attacking with a Walking Ballista on its last counter, p2 holding one
+     *  blocker, at `phase`, with `blocks` as the confirmed declaration. */
+    function attackingBallista(
+        phase: GameState["phase"],
+        blocks: Record<string, string[]>
+    ): GameState {
+        const state = makeState({
+            phase,
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        perm(BALLISTA_ID, "bal", {
+                            counters: { "+1/+1": 1 },
+                            isAttacking: true,
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(getCardByName("Grizzly Bears").id, {
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            id: "blk",
+                            isSummoningSick: false,
+                            isBlocking: Object.keys(blocks).length > 0,
+                        }),
+                    ],
+                }),
+            ],
+        });
+        state.combat = {
+            attackerIds: ["bal"],
+            confirmed: true,
+            blockersConfirmed: true,
+            blockerAssignments: blocks,
+        };
+        return state;
+    }
+
+    const shootIsRobustRoot = () =>
+        rootOf(
+            [
+                { move: SHOOT, meanReward: 0.6635, meanMargin: 1781 },
+                { move: PASS, meanReward: 0.6631, meanMargin: 1552 },
+            ],
+            "p1"
+        );
+
+    const pickWith = (state: GameState) =>
+        selectRootMove(shootIsRobustRoot(), [SHOOT, PASS], state, "p1").kind;
+
+    it("HOLD: an UNBLOCKED attacker is still standing, so the spend is held", () => {
+        // Nothing is assigning damage to an unblocked attacker, so it stands
+        // exactly as it would outside combat and the hold argument is unchanged.
+        // Before issue #3369 the whole combat was unowned: this rule was gated
+        // on `!rootState.combat` and hold-the-trick on `isSorceryTimingFor`.
+        expect(pickWith(attackingBallista("DECLARE_BLOCKERS", {}))).toBe(
+            "pass"
+        );
+    });
+
+    it("NO-HOLD: a BLOCKED attacker is dead either way, so the spend stands", () => {
+        // The discriminating twin, and the reason the combat could not simply be
+        // folded into the hold: a 1/1 blocked by a 2/2 dies regardless
+        // (CR 510.1c), so the counter is worth nothing held and shooting it
+        // first is free value.
+        expect(
+            pickWith(attackingBallista("DECLARE_BLOCKERS", { blk: ["bal"] }))
+        ).toBe("activate-ability");
+    });
+
+    it("HOLD: after the damage step the exchange is OVER, stale declaration or not", () => {
+        // The PHASE GUARD, and the finding that nearly shipped the blunder one
+        // blocker away: `blockersConfirmed` / `attackerIds` /
+        // `blockerAssignments` all SURVIVE both damage steps and are torn down
+        // only as END_OF_COMBAT ends (CR 511.3). A creature that came through
+        // the exchange — blocked by something too small to kill it — is simply
+        // standing again, and reading the stale declaration would leave the rule
+        // silent for the rest of the turn.
+        expect(
+            pickWith(attackingBallista("COMBAT_DAMAGE", { blk: ["bal"] }))
+        ).toBe("pass");
+    });
+
+    it("HOLD: a favourable exchange ELSEWHERE does not buy the spend (probe symmetry)", () => {
+        // Issue #3369. `firingBeatsHolding` puts both sides through
+        // `policyValue`, which folds in `declaredBlockDelta` — a term that
+        // reads the WHOLE declared combat, not just the source being spent.
+        // Scoring the firing side with `policyValue` and the holding side with
+        // a bare `evaluate` hands the firing side that whole exchange for free,
+        // so a profitable block somewhere else on the board pays for throwing
+        // an unrelated permanent away.
+        //
+        // The source here (`orb`) is NOT in the exchange — a Hill Giant of the
+        // bot's is, blocked by a 2/2 it kills and survives — so
+        // `isInPendingCombatExchange` is silent and only the probe decides.
+        const state = spendIsRobust([
+            ...unpayingBoard(),
+            perm(GIANT, "gnt", { isAttacking: true }),
+        ]);
+        state.phase = "DECLARE_BLOCKERS";
+        state.players[1].battlefield = [
+            makeInstance(getCardByName("Grizzly Bears").id, {
+                controllerId: "p2",
+                ownerId: "p2",
+                id: "blk",
+                isSummoningSick: false,
+                isBlocking: true,
+            }),
+        ];
+        state.activePlayerId = "p1";
+        state.priorityPlayerId = "p1";
+        state.combat = {
+            attackerIds: ["gnt"],
+            confirmed: true,
+            blockersConfirmed: true,
+            blockerAssignments: { blk: ["gnt"] },
+        };
+        expect(
+            selectRootMove(spendIsRobustRoot(), [ACTIVATE, PASS], state, "p1")
+                .kind
+        ).toBe("pass");
     });
 
     it("records `standing-spend-hold` as the deciding mechanism", () => {
