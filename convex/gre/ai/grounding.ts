@@ -292,10 +292,19 @@ export function contextAwareGrounding(
         isSourceBattlefieldRef(ref) {
             return ref.ref === "$source";
         },
-        // No context-aware caller attaches a board lens yet: the choice-node
-        // and rollout seams value a fragment at a decision node where the
-        // TARGET IS ALREADY CHOSEN, so "what is the best legal victim" is not
-        // a question they have. They read the same fitted unit prices.
+        // No context-aware caller attaches a board lens, and one of them
+        // WOULD want it: `dslSearchLibraryPrior` (`ai/choicePriors.ts`) values
+        // a whole, not-yet-cast card through
+        // `contextAwareGroundingForChoice`, target unchosen — so a removal
+        // spell it ranks in a library prices at the representative victim
+        // while `evaluate`'s hand term, one node later, prices the same card
+        // against the real board. Not a regression (the prior read the fixed
+        // constant before this too), but a genuine second price for one card,
+        // and a `latent` sweep does not reach it: nothing sets
+        // `latentWeights` below, so this reads the production vector. Both
+        // need `EvalWeights` threaded from `search.ts` through `priorFor` —
+        // a seam this issue's blast radius does not cover
+        // (`docs/findings/choice-prior-latent-weights.md`).
         latent: contextFreeLatentLens(resolvers.latentWeights),
     };
 }
