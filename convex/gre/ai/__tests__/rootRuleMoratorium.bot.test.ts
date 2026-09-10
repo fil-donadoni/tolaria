@@ -389,21 +389,25 @@ describe("a blade entry that depends on a rule flips when the rule is disabled",
 
     it("`standing-spend-hold` (issue #3319) is what keeps the Ballista alive at the opponent's end step", () => {
         const entry = BLADE_SCENARIOS.find((s) => s.label === LABEL);
-        expect(entry, `blade entry "${LABEL}" not found`).toBeDefined();
+        if (!entry) throw new Error(`blade entry "${LABEL}" not found`);
         // ONE seed, not the entry's five: the blade suite owns the full run,
         // and this test owns the DIFFERENCE between two configs. Fixed
         // iterations, never wall-clock, so the verdict is byte-reproducible.
-        const oneSeed = { ...entry!, seeds: [entry!.seeds[0]] };
+        const [seed] = entry.seeds ?? [];
+        if (seed === undefined) {
+            throw new Error(`${LABEL}: entry declares no seed`);
+        }
+        const oneSeed = { ...entry, seeds: [seed] };
 
         const baseline = runBladeScenario(oneSeed, null);
         expect(baseline.ok, baseline.failureMessage).toBe(true);
-        expect(baseline.seeds[0].move.kind).toBe("pass");
+        expect(baseline.seeds[0]?.move?.kind).toBe("pass");
 
         const withoutRule = runBladeScenario(
             oneSeed,
             noRuleVariant(`${NO_RULE_VARIANT_PREFIX}standing-spend-hold`)
         );
         expect(withoutRule.ok).toBe(false);
-        expect(withoutRule.seeds[0].move.kind).toBe("activate-ability");
+        expect(withoutRule.seeds[0]?.move?.kind).toBe("activate-ability");
     });
 });
