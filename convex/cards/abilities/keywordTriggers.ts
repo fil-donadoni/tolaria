@@ -94,8 +94,9 @@ function prowessTrigger(): TriggeredAbility {
  *  every OTHER attacking creature gets +1/+0 until end of turn.
  *
  *  The member set is a fresh battlefield scan taken when the trigger
- *  RESOLVES, frozen there (CR 608.2i — information is determined once, as the
- *  effect is applied). That is the rules-correct reading of "each other
+ *  RESOLVES, frozen there (CR 608.2h — information the effect requires is
+ *  determined only once, when the effect is applied). That is the
+ *  rules-correct reading of "each other
  *  attacking creature": a creature put onto the battlefield attacking while
  *  the trigger is still on the stack IS attacking when it resolves and does
  *  get the buff; one that enters attacking afterwards does not, and neither

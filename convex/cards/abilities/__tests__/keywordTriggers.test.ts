@@ -393,13 +393,14 @@ describe("Battle cry keyword expansion (CR 702.91)", () => {
         expect(power(state, "criB")).toBe(3);
     });
 
-    it("a creature that starts attacking after the trigger resolved is not pumped (CR 608.2i)", () => {
+    it("a creature that starts attacking after the trigger resolved is not pumped (CR 608.2h)", () => {
         const { state } = attackingBoard();
         fireBattleCry(state, "crier");
 
-        // The member set froze as the effect was applied, so a creature put
-        // onto the battlefield attacking afterwards — modelled here by the
-        // homebody joining combat after resolution — gets nothing.
+        // CR 608.2h — the answer was determined once, when the effect was
+        // applied, so a creature put onto the battlefield attacking afterwards
+        // — modelled here by the homebody joining combat after resolution —
+        // gets nothing.
         const late = state.players[0].battlefield.find(
             (c) => c.id === "homebody"
         )!;

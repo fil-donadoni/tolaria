@@ -1586,7 +1586,7 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         // +1/+0 until end of turn (CR 613.4c). `excludeSource` is what makes
         // it "each OTHER attacking creature"; no `controller` scope, because
         // CR 508.1a already makes every attacker the active player's. The
-        // member set freezes when the TRIGGER RESOLVES (CR 608.2i), so a
+        // member set freezes when the TRIGGER RESOLVES (CR 608.2h), so a
         // creature put onto the battlefield attacking in response is pumped
         // and one entering after resolution is not. CR 702.91b (multiple
         // instances trigger separately) is unreachable through a string-set
