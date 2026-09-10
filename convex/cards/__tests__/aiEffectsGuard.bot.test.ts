@@ -157,7 +157,17 @@ function isResolveOnlyAbility(
 function abilityHasShadowScript(
     ability: ActivatedAbility | TriggeredAbility | DelayedTriggerDef
 ): boolean {
-    return !!ability.aiEffects && ability.aiEffects.length > 0;
+    // `DelayedTriggerDef` carries no `aiEffects` at all (the field was deleted
+    // as dead data — see the block comment above
+    // `DELAYED_TRIGGER_AI_EFFECTS_ALLOWLIST`), so this narrowing is also the
+    // whole reason a delayed trigger can never be excused by a shadow script:
+    // `tsc` refuses to write one, and this returns false for every one of
+    // them without a special case.
+    return (
+        "aiEffects" in ability &&
+        !!ability.aiEffects &&
+        ability.aiEffects.length > 0
+    );
 }
 
 interface AllowlistEntry {
@@ -2983,46 +2993,60 @@ interface DelayedTriggerAllowlistEntry {
 // body that scope extension newly reached; none are new abilities. The 26th
 // (Planeswalker's Mischief) is the one card that HAD passed the guard, via a
 // `gainLife amount: 0` shadow whose own comment admitted it was "not a real
-// valuation" — deleted as dead data when this guard stopped honouring the
-// shape.
+// valuation".
 //
 // Issue #2020 was filed to drain this list by writing an `aiEffects` shadow
-// on each delayed trigger, and was CLOSED unimplemented once that turned out
-// to be dead work: **nothing reads `DelayedTriggerDef.aiEffects`.** The value
-// model walks `activatedAbilities` + `triggeredAbilities` only
-// (`gre/ai/cardScriptValue.ts`); the `delayedTrigger` Op's valuer recurses
-// into the Op's own INLINE body (ADR 0048), never the named
-// `cardDef.delayedTriggers[]` TEMPLATE these 25 use; the one engine reader of
-// that array, `gre/ai/searchDestination.ts`, documents that it deliberately
-// does NOT consult `aiEffects` (it asks what the engine will really do, not
-// what a thing is worth); the remaining readers are debug views
-// (`src/lib/engine-view-*.ts`). So a shadow script written HERE would satisfy
-// this guard and move the bot's valuation by exactly zero — the placeholder
-// #2020's own acceptance criteria forbade.
+// on each delayed trigger. That half is dead work and the issue is closed for
+// it: **no valuer reads a delayed trigger.** The value model's ability walk is
+// `activatedAbilities` + `triggeredAbilities` only
+// (`gre/ai/cardScriptValue.ts`, `gre/ai/graveyardReach.ts`); the
+// `delayedTrigger` Op's valuer recurses into the Op's own INLINE body (ADR
+// 0048), never a named `cardDef.delayedTriggers[]` TEMPLATE like these; the
+// one AI reader of that array, `gre/ai/searchDestination.ts`, documents that
+// it deliberately does NOT consult `aiEffects` (it asks what the engine will
+// really do, not what a thing is worth); the rest are debug views
+// (`src/lib/engine-view-*.ts`, which DID render the deleted field as a chip —
+// hence "no VALUER reads it", not "nothing"). `DelayedTriggerDef.aiEffects`
+// was therefore deleted outright (`cards/types.ts`): `tsc` now refuses the
+// placebo the way this test could only warn about it.
 //
-// What IS real is one level up: every one of these delayed triggers is
-// scheduled from inside a `resolve()` body, so the OWNING CARD is what the
-// value model cannot see — 22 of the 24 cards below already carry a row in
+// The OTHER half of #2020's fix — set the owning card's `aiValue` — is
+// perfectly implementable, and is what these rows still track. For 24 of the
+// 26 that lands at #1436, the resolve()-residue backfill: their delayed
+// trigger is scheduled from inside a `resolve()` body, so the OWNING CARD is
+// what the value model cannot see, and each already carries a row in
 // `AI_EFFECTS_ALLOWLIST` / `ABILITY_AI_EFFECTS_ALLOWLIST` for that same
-// invisibility. Fixing the card (migrating it to real `effects[]`, else an
-// `aiValue`) closes its delayed-trigger row here as a side effect, which is
-// why every entry now tracks #1436 — the resolve()-residue backfill, which
-// already rules that a card the classifier reports FREE-migratable must be
-// MIGRATED rather than given a shadow script.
+// invisibility — fixing the card (real `effects[]`, else `aiValue`) closes its
+// delayed-trigger row here as a side effect. #1436 already rules that a card
+// the classifier reports FREE-migratable must be MIGRATED, not shadowed.
 //
-// The guard stays, and its job is now purely forward-looking: a NEW delayed
-// trigger may not ship as a bare `resolve()` with no `aiValue` on its card,
-// and a row that stops matching reality (card fixed, id renamed) reds. Remove
-// a row the moment its owning card gets `effects[]` or an `aiValue` — never
-// leave a stale one, and never add one for new work.
+// TWO rows are NOT #1436's and are filed against issue #3383 instead, because
+// nothing in the resolve()-residue backfill will ever reach them: Rainbow
+// Vale, whose delayed trigger is armed DECLARATIVELY by
+// `armsDelayedTriggerOnTap` (ADR 0040) from a mana ability with no `resolve()`
+// at all, and Planeswalker's Mischief, whose scheduling ability already
+// carries a really-walked `aiEffects`.
+//
+// Issue #3383 is the standing gap this list cannot close by itself: the value
+// model walks `delayedTriggers[]` NOT AT ALL, so a real `effects[]` on a
+// template is worth zero too (7 templates already carry one — Mishra's
+// Bauble's whole point is its delayed `draw`, and the bot prices the card as
+// if the draw did not exist). Until that reader exists, migrating a row here
+// to `effects[]` is an engine improvement and a bot no-op.
+//
+// The guard's job is forward-looking: a NEW delayed trigger may not ship on a
+// card the value model cannot see, and a row that stops matching reality
+// (card fixed, id renamed) reds. Remove a row the moment its owning card gets
+// an `aiValue` or its template a real `effects[]` — never leave a stale one,
+// and never add one for new work.
 const DELAYED_TRIGGER_AI_EFFECTS_ALLOWLIST: readonly DelayedTriggerAllowlistEntry[] =
     [
         {
             cardId: "79aa232c-3f16-4c68-99dc-09a7aeef477b",
             name: "Planeswalker's Mischief",
             delayedTriggerId: "planeswalkers-mischief-return",
-            issue: 1436,
-            note: "genuinely irreducible, not awaiting a shadow script: this trigger's incremental value is ~zero by construction — reaching it means the exiled card was never cast, so the opportunity the SCHEDULING ability's own (really-walked) aiEffects prices is already gone, and returning the card restores the status quo. A card-level aiValue would be worse than nothing here: it OVERRIDES that working ability shadow. It carried a gainLife amount: 0 placeholder until the guard stopped honouring dead-data shadows (#1436)",
+            issue: 3383,
+            note: "NOT #1436's: this card's SCHEDULING ability already carries a really-walked aiEffects (read at gre/ai/candidateValue.ts, which prices a candidate line by the script the ability runs), so the resolve()-residue backfill has nothing left to do here. The trigger's own incremental value is ~zero by construction too — reaching it means the exiled card was never cast, so the opportunity that ability shadow prices is already gone and returning the card restores the status quo. It carried a gainLife amount: 0 placeholder until DelayedTriggerDef.aiEffects was deleted as dead data. Retires when #3383 gives the array a reader",
         },
         {
             cardId: "d992b336-3b6e-43e1-8662-d85664349b44",
@@ -3105,8 +3129,8 @@ const DELAYED_TRIGGER_AI_EFFECTS_ALLOWLIST: readonly DelayedTriggerAllowlistEntr
             cardId: "c1b138e1-f8fc-435c-9aed-98004768479c",
             name: "Rainbow Vale",
             delayedTriggerId: "rainbow-vale-handoff",
-            issue: 1436,
-            note: "no honest shadow script, and one here would be dead data (no valuer reads DelayedTriggerDef.aiEffects) — the owning resolve() card is the fixable unit, tracked by #1436",
+            issue: 3383,
+            note: "NOT #1436's: this trigger is armed DECLARATIVELY by armsDelayedTriggerOnTap (ADR 0040) from a manaChoices mana ability, with no resolve() body anywhere on the card — so the resolve()-residue backfill will never reach it, and no shadow script is expressible (DelayedTriggerDef.aiEffects was deleted as dead data). Retires when #3383 gives the array a reader",
         },
         {
             cardId: "d721569d-9cf2-4c3c-b11c-4c46c258a0d2",
@@ -3348,24 +3372,15 @@ describe("aiEffects shadow-script guard — ability-level resolve() (issue #1519
         const offenders: string[] = [];
         for (const card of getAllCards()) {
             if (card.aiValue !== undefined) continue;
-            const delayedIds = new Set(
-                delayedTriggersOf(card).map((t) => t.id)
-            );
             for (const ability of abilitiesOf(card)) {
                 if (!isResolveOnlyAbility(ability)) continue;
                 // `aiEffects` excuses an ACTIVATED/TRIGGERED site because
                 // `OP_VALUERS` really walks it (`gre/ai/cardScriptValue.ts`).
-                // It excuses a `delayedTriggers[]` site from NOTHING: no
-                // valuer reads `DelayedTriggerDef.aiEffects` at all — see the
-                // block comment above `DELAYED_TRIGGER_AI_EFFECTS_ALLOWLIST`.
-                // Honouring it here is what let a `gainLife amount: 0`
-                // placeholder read as a fix (Planeswalker's Mischief, PLS).
-                if (
-                    !delayedIds.has(ability.id) &&
-                    abilityHasShadowScript(ability)
-                ) {
-                    continue;
-                }
+                // It excuses a `delayedTriggers[]` site from nothing, and
+                // needs no carve-out here to say so: `DelayedTriggerDef` has
+                // no `aiEffects` field, so `abilityHasShadowScript` is false
+                // for every delayed trigger by construction.
+                if (abilityHasShadowScript(ability)) continue;
                 const key = `${card.id} ${ability.id}`;
                 if (abilityAllowlistIds.has(key)) continue;
                 if (delayedTriggerAllowlistIds.has(key)) continue;
@@ -3480,10 +3495,14 @@ describe("aiEffects shadow-script guard — delayedTriggers[] residue (issue #14
                 isResolveOnlyAbility(trigger!),
                 `${entry.cardId} (${entry.name}) delayed trigger ${entry.delayedTriggerId} is no longer a resolve()-only body (gained effects[]) — stale allowlist entry, remove it`
             ).toBe(true);
-            expect(
-                abilityHasShadowScript(trigger!),
-                `${entry.cardId} (${entry.name}) delayed trigger ${entry.delayedTriggerId} carries aiEffects, which is DEAD DATA on a delayedTriggers[] template — nothing reads DelayedTriggerDef.aiEffects (see the block comment above this allowlist). Delete it and fix the owning card instead (real effects[], else aiValue); this row stays until then`
-            ).toBe(false);
+            // No "gained an aiEffects shadow ⇒ stale row" assertion here,
+            // unlike ABILITY_AI_EFFECTS_ALLOWLIST above: `DelayedTriggerDef`
+            // has no such field to gain (deleted as dead data, see the block
+            // comment above this allowlist), so `tsc` rejects the shape before
+            // a test could. What DOES retire a row is the assertion below
+            // (owning card gained an `aiValue`) or `isResolveOnlyAbility`
+            // above (template gained a real `effects[]` — worth doing for the
+            // engine, though it buys the BOT nothing until issue #3383).
             expect(
                 card!.aiValue,
                 `${entry.cardId} (${entry.name}) now carries a card-level aiValue, which already plugs every ability gap — stale allowlist entry, remove it`
@@ -3508,11 +3527,12 @@ describe("aiEffects shadow-script guard — delayedTriggers[] residue (issue #14
             actual,
             "the live count of delayedTriggers[] resolve()-only sites (on cards with no " +
                 "owning-card aiValue) no longer matches DELAYED_TRIGGER_AI_EFFECTS_ALLOWLIST.length " +
-                "— either a NEW offender landed (never allowed: a new delayed trigger must ship on " +
-                "a card the value model can see, i.e. real effects[] or the card's aiValue — an " +
-                "aiEffects script on the TEMPLATE is read by nothing and excuses nothing here) or " +
-                "an allowlisted trigger's card was fixed without removing its entry (see the " +
-                "first test)"
+                "— either a NEW offender landed or an allowlisted row's card/template was fixed " +
+                "without removing its entry (see the first test). For a NEW delayed trigger the " +
+                "only thing that makes it visible to the bot TODAY is the owning card's aiValue: a " +
+                "real effects[] on the template is the right engine shape but is valued by nothing " +
+                "until issue #3383 lands the missing reader, and an aiEffects shadow is not even " +
+                "expressible (the field was deleted as dead data)"
         ).toBe(DELAYED_TRIGGER_AI_EFFECTS_ALLOWLIST.length);
     });
 });

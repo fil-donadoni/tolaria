@@ -342,22 +342,20 @@ export const planeswalkersMischief: CardDefinition = {
                 if (ctx.getExileCardOwner(cardId) === undefined) return;
                 ctx.moveCardById(ownerId, cardId, "exile", "hand");
             },
-            // No `aiEffects` here on purpose: nothing reads
-            // `DelayedTriggerDef.aiEffects` — the value model walks
-            // `activatedAbilities`/`triggeredAbilities` only
-            // (`gre/ai/cardScriptValue.ts`), the `delayedTrigger` OP values
-            // its own INLINE body (ADR 0048) rather than a named
-            // `delayedTriggers[]` template, and the one engine reader of this
-            // array (`gre/ai/searchDestination.ts`) documents that it
-            // deliberately ignores `aiEffects`. A `gainLife amount: 0`
-            // placeholder used to sit here and was deleted as dead data (the
-            // guard now rejects the shape outright — see
-            // `DELAYED_TRIGGER_AI_EFFECTS_ALLOWLIST`, issue #1436). It cost
-            // the bot nothing: this trigger's own incremental value is ~zero
+            // No `aiEffects` here, and none is possible: no VALUER reads a
+            // delayed trigger, so `DelayedTriggerDef` no longer HAS that field
+            // (`cards/types.ts` carries the removal note; debug views did
+            // render it, which is why "no valuer" and not "nothing"). A
+            // `gainLife amount: 0` placeholder sat here until then, its own
+            // comment admitting it was "not a real valuation". Deleting it
+            // cost the bot nothing: this trigger's incremental value is ~zero
             // anyway — reaching this step means the exiled card was never
-            // cast, so the opportunity the SCHEDULING ability's `aiEffects`
-            // already prices is gone, and handing the card back only restores
-            // the status quo.
+            // cast, so the opportunity the SCHEDULING ability's own
+            // really-walked `aiEffects` prices (via `gre/ai/candidateValue.ts`)
+            // is already gone, and handing the card back only restores the
+            // status quo. The standing gap — the value model walking
+            // `delayedTriggers[]` at all, template `effects[]` included — is
+            // issue #3383.
         },
     ],
 };
