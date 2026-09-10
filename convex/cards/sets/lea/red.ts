@@ -9,7 +9,7 @@
 
 import type { CardDefinition, ManaCost, SpellContext } from "../../types";
 import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
-import { legalTargetSlots } from "../../../gre/constants";
+import { legalTargetSlots } from "../../types";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";

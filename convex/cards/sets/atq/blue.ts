@@ -9,7 +9,7 @@
 // colorless.ts.
 
 import type { CardDefinition, PermanentView, SpellContext } from "../../types";
-import { legalTargetSlots } from "../../../gre/constants";
+import { legalTargetSlots } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
 // Hurkyl's Recall — {1}{U} Instant. "Return all artifacts target player owns

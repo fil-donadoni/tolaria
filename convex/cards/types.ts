@@ -1049,6 +1049,31 @@ export interface TargetSelection {
     stackSourceId?: string;
 }
 
+/** The announced target slots that are still LEGAL, in announced order, with
+ *  the blanked ones dropped (CR 608.2b, issue #2985).
+ *
+ *  `SpellContext.targets` is POSITIONAL: index `N` is the object announced in
+ *  slot `N` for the whole resolution, and a slot the resolution-time legality
+ *  gate found illegal reads `undefined` there rather than being closed up —
+ *  "Illegal targets, if any, won't be affected by parts of a resolving spell's
+ *  effect for which they're illegal". Code that iterates the target GROUP as a
+ *  whole (a clause applied to EACH of the announced targets, a divided total)
+ *  wants this; code that names a SPECIFIC slot must index `ctx.targets`
+ *  directly and skip on `undefined`, never renumber.
+ *
+ *  Lives here rather than in `gre/constants.ts` — the usual home for a shared
+ *  engine helper — because card definitions call it, and `gre/constants.ts`
+ *  imports `cards/`: an edge from a card file back to it is an import CYCLE
+ *  that reorders module init and leaves an unrelated module-scope constant
+ *  undefined (`MANA_COLORS is not iterable`, seen on the first attempt). This
+ *  file is the leaf `TargetSelection` itself is declared in, so it costs no
+ *  new edge at all. */
+export function legalTargetSlots(
+    targets: readonly (TargetSelection | undefined)[]
+): TargetSelection[] {
+    return targets.filter((t): t is TargetSelection => t !== undefined);
+}
+
 export interface ActivatedAbilityContext {
     addMana: (cost: ManaCost) => void;
 }

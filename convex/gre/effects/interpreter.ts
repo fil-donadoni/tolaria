@@ -99,6 +99,7 @@ import type {
     TargetSelection,
     TokenSpec,
 } from "../../cards/types";
+import { legalTargetSlots } from "../../cards/types";
 import type { LookDistributeDestination } from "../types";
 import { getEventFieldRow } from "../../cards/mechanicsRegistry";
 import type { EventFieldFamily } from "../../cards/mechanicsRegistry";
@@ -111,7 +112,7 @@ import {
     minCategorizedCover,
     forcedCategorizedCover,
 } from "../categorizedPick";
-import { legalTargetSlots, manaCostsEqual } from "../constants";
+import { manaCostsEqual } from "../constants";
 
 type OpOf<K extends EffectOp["op"]> = Extract<EffectOp, { op: K }>;
 

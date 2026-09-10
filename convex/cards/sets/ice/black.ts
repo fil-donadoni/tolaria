@@ -13,10 +13,10 @@ import type {
     SpellContext,
     TargetSelection,
 } from "../../types";
-import { legalTargetSlots } from "../../../gre/constants";
 import { controlsSnowSubtype } from "../../snowReads";
 import { creatureCardsAboveInGraveyard } from "../../graveyardOrder";
 import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
+import { legalTargetSlots } from "../../types";
 import { cumulativeUpkeepTrigger } from "../../abilities/cumulativeUpkeep";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
