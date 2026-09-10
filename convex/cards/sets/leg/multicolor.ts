@@ -45,10 +45,10 @@ export const ladyOrca: CardDefinition = {
 };
 
 // Untamed Wilds ("search your library for a basic land card, put it onto the
-// battlefield, then shuffle") is SKIPPED: `getLibraryCards` exposes only
-// `{ id, types, manaValue }`, so the basic-land restriction cannot be
-// expressed as a `candidateIds` allow-list without widening that accessor to
-// carry supertypes — an engine change out of scope for this data-only tranche.
+// battlefield, then shuffle") is SKIPPED here for tranche scope only. The
+// accessor claim recorded here is stale: `getLibraryCards` carries `supertypes`
+// and `EffectCardFilter` has `supertype`, so the basic-land restriction is
+// expressible today (Fabled Passage, eld/colorless.ts). Owned by #2124.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Multicolor / gold free tranche (#376) — every multicolor (2+ colors) Legends
@@ -92,11 +92,16 @@ export const ladyOrca: CardDefinition = {
 //   • Johan — "attacking doesn't cause creatures you control to tap this combat"
 //     is a combat-tap replacement with no primitive.
 //   • Lady Caleria / Tor Wauki — "{T}: deal N damage to target attacking OR
-//     blocking creature"; `combatRoleFilter` admits only one role at a time
-//     (same gap flagged for Crimson Manticore).
+//     blocking creature" is NOT blocked: `combatRoleFilter` is array-capable
+//     and D'Avenant Archer (leg/white.ts) ships the `["attacking", "blocking"]`
+//     form. The one-role-at-a-time claim recorded here is stale; both cards
+//     are deferred for authoring only.
 //   • Lady Evangela — "prevent all combat damage that would be dealt BY target
-//     creature this turn"; only `preventAllCombatDamageToAndBy` (both
-//     directions, Ebony Horse) exists — a by-only shield would over-prevent.
+//     creature this turn" is NOT blocked: the source-scoped one-shot shield
+//     ships as `preventDamage` with `mode: "all-from-source"` and
+//     `combatOnly: true` (#1955), which is exactly a by-only combat shield.
+//     The "only `preventAllCombatDamageToAndBy` exists" claim recorded here is
+//     stale; deferred for authoring only.
 //   • Nebuchadnezzar — "name a card, reveal X cards at random from target
 //     player's hand, then discard all with the chosen name". The name-a-card
 //     half now exists (`requestNameCard`, #489 — Petra Sphinx); what's still
@@ -863,8 +868,10 @@ export const bartelRuneaxe: CardDefinition = {
 //   • Tetsuo Umezawa — its "{U}{B}{B}{R}, {T}: Destroy target tapped or blocking
 //     creature" needs a disjunctive "tapped OR blocking" target filter across
 //     two different axes (tappedFilter vs combatRoleFilter, today combined as
-//     AND). Same combat-target-OR gap flagged for Crimson Manticore ("attacking
-//     or blocking"). Its can't-be-target-of-Aura-spells static IS expressible
+//     AND). This is NOT the Crimson Manticore case, which is a disjunction
+//     WITHIN `combatRoleFilter` and has shipped as its array form — Tetsuo needs
+//     a disjunction ACROSS two filter axes, which still has no primitive.
+//     Its can't-be-target-of-Aura-spells static IS expressible
 //     here (identical to Bartel Runeaxe), but shipping a Tetsuo whose flagship
 //     removal ability can't be cast would be partial — defer the whole card.
 //   • Wall of Shadows — "Prevent all damage that would be dealt to this by

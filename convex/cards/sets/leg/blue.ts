@@ -79,10 +79,19 @@ export const wallOfVapor: CardDefinition = {
 //     - Enchantment Alteration — move an Aura to another permanent (no Aura
 //       re-attach primitive).
 //     - Puppet Master — dies-return-to-hand + optional buy-back of the Aura.
-//     - Relic Bind — modal tap-trigger on an opponent's artifact.
+//     - Relic Bind — modal tap-trigger on an opponent's artifact. NOT blocked:
+//       modal triggered abilities with per-mode targets ship as
+//       `TriggeredAbility.modes`, announced onto the stack (#2464, consumer
+//       Deceiver Exarch in nph/blue.ts), and the host-tap trigger is
+//       `PermanentScope: "host"` (Seizures). Owned by #2124.
 //     - Time Elemental — attacks/blocks → end-of-combat self-sacrifice + 5
-//       damage, plus a bounce activated ability (doable, deferred to keep this
-//       batch low-risk).
+//       damage (doable), plus "{2}{U}{U}, {T}: Return target permanent THAT
+//       ISN'T ENCHANTED to its owner's hand". The bounce half is blocked: only
+//       the host direction of the attachment relation is a target filter
+//       (`attachedToFilter` — "target Aura attached to a land"); nothing asks
+//       whether a candidate HAS an Aura attached. CR 303.4 — an Equipment does
+//       not enchant, so the filter must not fold the two together.
+//       tracked-by: #2132.
 //     - Brine Hag — set base P/T of every creature that damaged it this turn
 //       (no per-instance "damaged me this turn" tally surfaced).
 //     - Reverberation — redirect a target sorcery's damage to its controller.
@@ -95,8 +104,13 @@ export const wallOfVapor: CardDefinition = {
 //       discard-from-hand trigger); shipping only the damage half would be
 //       partial.
 //     - Gaseous Form — "Prevent all combat damage to and dealt by enchanted
-//       creature" is a CONTINUOUS aura prevention; only a turn-scoped combat
-//       shield exists, no "for as long as enchanted" prevention static.
+//       creature" is a CONTINUOUS aura prevention. Two halves are missing and
+//       ADR 0090 (accepted) decides both: `combat-damage-prevention` is read
+//       off the DAMAGED creature's own definition, so an Aura cannot project
+//       one onto its host, and the family has no "dealt BY" direction — the
+//       player branch of combat damage never consults it at all. The one-shot
+//       twin ships (`preventDamage` `mode: "combat-to-and-by"`, Maze of Ith).
+//       tracked-by: #2133.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Recall — "Discard X cards, then return a card from your graveyard to your

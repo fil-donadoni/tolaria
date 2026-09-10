@@ -603,10 +603,16 @@ export const aladdinsLamp: CardDefinition = {
 // ─────────────────────────────────────────────────────────────────────────────
 // Deferred to later batches (tracked-by: #1215) — need engine work beyond existing primitives:
 //
-//   • Hurr Jackal — "{T}: Target creature can't be regenerated this turn"
-//     needs a turn-scoped cant-be-regenerated marker primitive.
-//   • Sindbad — "{T}: Draw a card and reveal it. If it isn't a land, discard
-//     it" needs to inspect the just-drawn card's types from a resolve body.
+//   • Hurr Jackal — "{T}: Target creature can't be regenerated this turn" is
+//     NOT blocked: the `preventRegeneration` Op writes
+//     `CardInstanceState.cantBeRegeneratedThisTurn`, purged at CLEANUP, and
+//     Gravebind (ice/black.ts) ships the identical clause. Deferred to its
+//     tranche for authoring only — owned by #2124.
+//   • Sindbad — "{T}: Draw a card and reveal it. If it isn't a land card,
+//     discard it" needs the `draw` Op to NAME what it drew: `bind` ships on a
+//     dozen sibling Ops but not on `draw`, so no later Op can refer to the
+//     drawn card. `revealTopAndRoute` is not a substitute — it neither draws
+//     nor discards. tracked-by: #2130.
 //   • Diamond Valley — "{T}, Sacrifice a creature:" is a choose-another-to-
 //     sacrifice activation cost, not yet modelled for activated abilities.
 //   • Merchant Ship — "attacks and isn't blocked, gain 2 life" needs an

@@ -157,21 +157,28 @@ export const sylvanLibrary: CardDefinition = {
 //   • Ichneumon Druid — "other than the first instant that player casts each
 //     turn" needs a per-player per-turn instant-cast tally not surfaced to
 //     trigger conditions.
-//   • Radjan Spirit — "target creature loses flying until end of turn" needs a
-//     temporary (duration-scoped) keyword-removal; only static keyword-remove
-//     (Earthbind) and keyword GRANT (Jump) exist.
+//   • Radjan Spirit — "target creature loses flying until end of turn" needs
+//     SELECTIVE keyword removal as an Op. Three neighbouring shapes ship and
+//     none of them is it: the `loseAllAbilities` Op (all abilities, indefinite),
+//     the `keyword-remove` static (one keyword, continuous, source-tied,
+//     Earthbind) and the raw `removeStaticAbilities` primitive, reachable only
+//     from a resolve() closure (Vertigo, ice/red.ts). tracked-by: #2125.
 //   • Reincarnation — "when that creature dies this turn, return a creature from
 //     its owner's graveyard" needs a per-target delayed dies-watcher; the
 //     delayed-trigger timings are phase boundaries only, not "when X dies".
 //   • Rust — "counter target activated ability from an artifact source" needs an
 //     ability-on-the-stack target type that does not exist.
 //   • Subdue — "prevent all combat damage that would be dealt BY target
-//     creature" needs a per-source combat-damage prevention; only the global
-//     Fog-style `preventAllCombatDamage` exists.
-//   • Untamed Wilds — "search your library for a basic land card" needs a
-//     basic-supertype filter on hidden library cards; `getLibraryCards` exposes
-//     only id/types/manaValue, so the candidate allow-list can't isolate
-//     basics without widening that accessor (an engine change).
+//     creature". The one-shot source-scoped shield now ships (`preventDamage`
+//     with `mode: "all-from-source"` + `combatOnly`, #1955), so the Fog-only
+//     claim recorded here is stale; what the CONTINUOUS aura form still wants
+//     is the direction axis of ADR 0090 (tracked-by: #2133).
+//   • Untamed Wilds — "search your library for a basic land card" is NOT
+//     blocked: `getLibraryCards` exposes `supertypes` and `EffectCardFilter`
+//     has `supertype`, so a basic land is isolable (Fabled Passage,
+//     eld/colorless.ts, ships `filter: { supertype: "Basic" }`). CR 205.4a:
+//     basic is the SUPERTYPE, so a dual land must not be findable. Deferred to
+//     its tranche for authoring only — owned by #2124.
 //   • Willow Satyr — "gain control of target legendary creature for as long as
 //     you control this AND this remains tapped" needs a control-change condition
 //     combining controls-source + source-tapped; only the separate
