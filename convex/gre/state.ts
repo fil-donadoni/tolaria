@@ -6501,14 +6501,16 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
     // CR 112.1 / 113.3 — the shared discriminator (`gre/constants.ts`).
     const isSpell = isSpellStackItem(top);
 
-    // --- Target-legality gate (CR 608.2b/608.2c) ---
+    // --- Target-legality gate (CR 608.2b) ---
     // Re-check chosen targets BEFORE dispatching any resolve handler. Only run
     // on a fresh resolution (resolutionStep undefined) so a spell suspended
     // mid-resolve for player choices isn't re-gated on resume. If every target
     // is now illegal the item is countered by the game rules: a spell goes to
     // its owner's graveyard, an ability simply leaves the stack — neither runs
-    // its effect. Partially-legal items have `targets` pruned to the legal
-    // subset (handled inside the gate) and resolve normally.
+    // its effect. A partially-legal item resolves normally with its announced
+    // list UNCHANGED: the gate records the illegal SLOTS (issue #2985) and
+    // `buildSpellContext` blanks them, so the parts naming them are skipped
+    // and every other reference still names its own announced object.
     if (top.resolutionStep === undefined) {
         const legality = targetLegalityGate(state, top);
         if (legality === "fizzle" && top.bestowed) {
@@ -12359,6 +12361,11 @@ export function resetBattlefieldTransientState(
     // stack) must not carry its OLD cast's timing snapshot onto whatever
     // re-enters using this same `CardInstanceState`.
     delete card.castOffSorceryTiming;
+    // CR 608.2b (issue #2985) — the resolution-time illegal-SLOT verdict is
+    // exactly such a one-shot fact about the object that was cast, and it
+    // indexes into a `targets` list this same instance will not have on its
+    // next cast. Named on BOTH lists per the paragraph above.
+    delete card.illegalTargetSlots;
 }
 
 /** Phase 1 of reanimation (issue #1094, CR 400.7): clears battlefield-only
@@ -14171,9 +14178,10 @@ function abilityActivatedFromGraveyard(item: StackItem): boolean {
  *  skips its Op on `undefined`. What must NOT happen is closing the list up —
  *  that renumbers every later slot (see `targetLegalityGate`).
  *
- *  Returns a fresh array: the context view is derived, never the stored list,
- *  so nothing a resolution does to `ctx.targets` can corrupt what was
- *  announced. */
+ *  The all-legal fast path returns `item.targets` ITSELF — the same aliasing
+ *  the pre-#2985 `item.targets ?? []` had, so no reader gains a copy it did
+ *  not already have. Anything that would mutate `ctx.targets` must copy
+ *  first; nothing does today. */
 function announcedTargetSlots(
     item: StackItem
 ): (TargetSelection | undefined)[] {
