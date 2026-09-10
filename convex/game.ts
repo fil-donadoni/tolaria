@@ -2600,6 +2600,7 @@ export {
 export type { CastFromZone } from "./gre/castCost";
 import {
     buildCastExileCostChoice,
+    castAlternativeCostForZone,
     castRawManaCost,
     graveyardCastStackFlags,
     libraryTopCastPayment,
@@ -7052,13 +7053,19 @@ export function finalizeTargetSelection(
     // spaces resolve through the one lookup so the id announced can never
     // resolve here and not at announcement.
     const chosenAltCost = pt.alternativeCostId
-        ? resolveCastAlternativeCost(
+        ? castAlternativeCostForZone(
               state,
-              player.id,
               cardInHand,
+              castZone,
               pt.alternativeCostId,
-              getAlternativeCost(cardDef, pt.alternativeCostId),
-              castZone
+              resolveCastAlternativeCost(
+                  state,
+                  player.id,
+                  cardInHand,
+                  pt.alternativeCostId,
+                  getAlternativeCost(cardDef, pt.alternativeCostId),
+                  castZone
+              )
           )
         : undefined;
     // CR 601.2f / 601.2h — the total cost was LOCKED IN at announcement, and a
@@ -7117,7 +7124,12 @@ export function finalizeTargetSelection(
 
     // CR 702.34a — a Flashback cast pays the flashback cost from the graveyard
     // instead of the printed mana cost.
-    const rawCost = castRawManaCost(state, cardInHand, castZone);
+    const rawCost = castRawManaCost(
+        state,
+        cardInHand,
+        castZone,
+        pt.alternativeCostId
+    );
     const extraPer = cardDef.additionalGenericPerExtraTarget ?? 0;
     const additionalGeneric =
         extraPer > 0 ? Math.max(0, targets.length - 1) * extraPer : 0;
@@ -7234,7 +7246,12 @@ export function finalizeTargetSelection(
         // whole mana cost on a cast off the top of the library (Bolas's
         // Citadel). `castRawManaCost` already zeroed the mana half; this is
         // the other half of the same substitution. 0 for every other cast.
-        (libraryTopCastPayment(state, cardInHand, castZone)?.life ?? 0);
+        (libraryTopCastPayment(
+            state,
+            cardInHand,
+            castZone,
+            pt.alternativeCostId
+        )?.life ?? 0);
 
     // CR 601.2c → 601.2f — targets have just been chosen; now the additional
     // cost is paid. A spell with both a target and an additional cost (FEM Soul
@@ -8130,13 +8147,19 @@ export const announceCast = mutation({
         // spell), replacing the mana cost entirely. Illegal when the lands
         // aren't available.
         const chosenAltCost = args.alternativeCostId
-            ? resolveCastAlternativeCost(
+            ? castAlternativeCostForZone(
                   state,
-                  args.playerId,
                   cardInHand,
+                  castFromZone,
                   args.alternativeCostId,
-                  getAlternativeCost(cardDef, args.alternativeCostId),
-                  castFromZone
+                  resolveCastAlternativeCost(
+                      state,
+                      args.playerId,
+                      cardInHand,
+                      args.alternativeCostId,
+                      getAlternativeCost(cardDef, args.alternativeCostId),
+                      castFromZone
+                  )
               )
             : undefined;
         if (args.alternativeCostId && !chosenAltCost) {
@@ -8187,9 +8210,22 @@ export const announceCast = mutation({
         const libraryTopPayment = libraryTopCastPayment(
             state,
             cardInHand,
-            castFromZone
+            castFromZone,
+            args.alternativeCostId
         );
-        if (chosenAltCost && libraryTopPayment) {
+        // CR 709.3 (issue #3344) — a SPLIT half is the one announcement that
+        // rides this channel without being an alternative cost: "a player
+        // chooses which half of a split card they are casting", and the half's
+        // printed cost is not a second price the caster pays. It is exempt for
+        // the same reason it is exempt from CR 118.9a — nothing about it
+        // "applies two alternative methods of casting" — and it pays no mana
+        // here either way (`castAlternativeCostForZone` already replaced its
+        // mana leg with `castRawManaCost`'s `{}` for this zone).
+        if (
+            chosenAltCost &&
+            libraryTopPayment &&
+            isSplitCastId(cardDef, args.alternativeCostId) === undefined
+        ) {
             throw new Error(
                 "Can't apply an alternative cost to a spell cast from the top of your library"
             );
@@ -8854,7 +8890,12 @@ export const announceCast = mutation({
             // below; pip count comes from the spell's PRINTED mana cost. This
             // was missing entirely on this branch (issue #1985): an
             // unaffordable board-wide sacrifice slipped straight through.
-            const rawCost = castRawManaCost(state, cardInHand, castFromZone);
+            const rawCost = castRawManaCost(
+                state,
+                cardInHand,
+                castFromZone,
+                args.alternativeCostId
+            );
             assertStaticAdditionalCostAffordable(
                 state,
                 rawCost,
@@ -9230,7 +9271,12 @@ export const announceCast = mutation({
             // half. 0 for every other cast; the accumulator keeps its historic
             // name because it is this cast's single life payment, whatever
             // legs contributed to it.
-            (libraryTopCastPayment(state, cardInHand, castFromZone)?.life ?? 0);
+            (libraryTopCastPayment(
+                state,
+                cardInHand,
+                castFromZone,
+                args.alternativeCostId
+            )?.life ?? 0);
         // CR 601.2f / 118.5 — board-wide static NON-mana additional cost
         // (Drought). Gate on affordability at announcement; pip count comes from
         // the spell's PRINTED mana cost.

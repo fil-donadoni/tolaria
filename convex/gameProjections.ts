@@ -111,6 +111,17 @@ export type SlimExileCard = SlimCardInstance & {
      *  for all viewers; present only when the host permanent is on a
      *  battlefield. See {@link buildExileAssociation}. */
     exiledByPermanentId?: string;
+    /** CR 709.3 (issue #3344) — true when this card has NO printed cast, so
+     *  the cast-option picker must not offer a "Pay mana cost" row: a SPLIT
+     *  card, whose two halves are the whole menu ("a player chooses which half
+     *  of a split card they are casting BEFORE putting it onto the stack").
+     *  Stamped by `withPrintedCastAvailability` alongside the cast affordance
+     *  itself, and read by the client exactly as the hand card's identically
+     *  named field is. Mirrors `SlimHandCard.printedCostCastUnavailable`, whose
+     *  own doc covers the OTHER reason it can be set (CR 118.9b — a covering
+     *  board permission's mandatory free cast, which is hand-only by
+     *  construction). */
+    printedCostCastUnavailable?: true;
 };
 
 /** Graveyard card in projected state: slim, plus `legalActions` when the viewer
@@ -155,6 +166,17 @@ export type SlimGraveyardCard = SlimCardInstance & {
      *  an X the exile cost can't cover (which the server rejects at commit).
      *  Absent for a flashback with no graveyard-exile cost (X uncapped). */
     flashbackExileMaxX?: number;
+    /** CR 709.3 (issue #3344) — true when this card has NO printed cast, so
+     *  the cast-option picker must not offer a "Pay mana cost" row: a SPLIT
+     *  card, whose two halves are the whole menu ("a player chooses which half
+     *  of a split card they are casting BEFORE putting it onto the stack").
+     *  Stamped by `withPrintedCastAvailability` alongside the cast affordance
+     *  itself, and read by the client exactly as the hand card's identically
+     *  named field is. Mirrors `SlimHandCard.printedCostCastUnavailable`, whose
+     *  own doc covers the OTHER reason it can be set (CR 118.9b — a covering
+     *  board permission's mandatory free cast, which is hand-only by
+     *  construction). */
+    printedCostCastUnavailable?: true;
 };
 
 /** Companion slot (CR 702.139, ADR 0064) projected to the wire: `instance`
@@ -199,6 +221,17 @@ export type SlimLibraryCard = SlimCardInstance & {
      *  from the GRANT's `manaCostReplacement` being present at all, so a future
      *  replacement shape inherits both suppressions without a second field. */
     castManaCostReplaced?: true;
+    /** CR 709.3 (issue #3344) — true when this card has NO printed cast, so
+     *  the cast-option picker must not offer a "Pay mana cost" row: a SPLIT
+     *  card, whose two halves are the whole menu ("a player chooses which half
+     *  of a split card they are casting BEFORE putting it onto the stack").
+     *  Stamped by `withPrintedCastAvailability` alongside the cast affordance
+     *  itself, and read by the client exactly as the hand card's identically
+     *  named field is. Mirrors `SlimHandCard.printedCostCastUnavailable`, whose
+     *  own doc covers the OTHER reason it can be set (CR 118.9b — a covering
+     *  board permission's mandatory free cast, which is hand-only by
+     *  construction). */
+    printedCostCastUnavailable?: true;
 };
 
 /** ADR 0026 / PRD #338 — one viewer-known library card, projected sparsely.
@@ -903,6 +936,38 @@ function projectGraveyardCard(
  *  Gated on `player.id === viewerId`: an opponent's library top can legitimately
  *  be known (the CR 401.5 reveal is symmetric — both seats see it) but is never
  *  playable by the viewer, so it must never carry an affordance. */
+/** CR 709.3 (issue #3344) — stamp `printedCostCastUnavailable` onto a NON-hand
+ *  cast affordance whose card has no printed cast at all: a SPLIT card, whose
+ *  two halves are the whole cast menu ("a player chooses which half of a split
+ *  card they are casting BEFORE putting it onto the stack", CR 709.3). Without
+ *  it the client's picker renders a "Pay mana cost" row whose click is a
+ *  guaranteed `announceCast` rejection — the affordance-that-cannot-be-taken
+ *  shape every offering surface here exists to prevent.
+ *
+ *  Applied to the PROJECTED card rather than inside each zone's projector,
+ *  because `projectGraveyardCard` alone has six returns and a seventh would
+ *  forget: the same reason `enumerateCastMoves` stamps `castFromZone` once at
+ *  its own exit. The HAND computes the flag inline because it carries a second,
+ *  unrelated reason for it (CR 118.9b, a covering permission's mandatory free
+ *  cast) — and a `cast-permission` is hand-only by construction
+ *  (`collectCastPermissions`), so nothing is missing on this side.
+ *
+ *  A no-op without a cast affordance: a cost hint on an uncastable card is
+ *  noise, exactly as `phyrexianOptions` and `flashSurchargeRequired` are gated
+ *  on the hand card actually being castable. */
+function withPrintedCastAvailability<
+    T extends {
+        legalActions?: CardAction[];
+        printedCostCastUnavailable?: true;
+    },
+>(projected: T, card: CardInstanceState): T {
+    if (!projected.legalActions?.includes("cast")) return projected;
+    const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
+    return offersPrintedCast(def ?? undefined)
+        ? projected
+        : { ...projected, printedCostCastUnavailable: true as const };
+}
+
 function libraryTopAffordance(
     state: GameState,
     player: PlayerState,
@@ -934,10 +999,13 @@ function libraryTopAffordance(
         castable &&
         canCastSpellsFromTopOfLibrary(state, player)?.manaCostReplacement !==
             undefined;
-    return {
-        legalActions: getLegalActions(state, player, top, allActions),
-        ...(replaced ? { castManaCostReplaced: true as const } : {}),
-    };
+    return withPrintedCastAvailability(
+        {
+            legalActions: getLegalActions(state, player, top, allActions),
+            ...(replaced ? { castManaCostReplaced: true as const } : {}),
+        },
+        top
+    );
 }
 
 /** Hydrate a granted ability instance with its template data for the wire. */
@@ -1305,37 +1373,43 @@ export function projectPublicState(
             // permission, so the client can offer + gate the affordance (the
             // board never sees the GRE).
             graveyard: player.graveyard.map((c) =>
-                projectGraveyardCard(
-                    state,
-                    player,
-                    c,
-                    player.id === viewerId,
-                    () => getLegalActions(state, player, c, allActions),
-                    graveyardLandPlayable
+                withPrintedCastAvailability(
+                    projectGraveyardCard(
+                        state,
+                        player,
+                        c,
+                        player.id === viewerId,
+                        () => getLegalActions(state, player, c, allActions),
+                        graveyardLandPlayable
+                    ),
+                    c
                 )
             ),
             // ADR 0026 — face-down exile (impulse-draw) is gated per-viewer by
             // `knownTo`; ordinary face-up exile is public to all.
             exile: player.exile.map((c) =>
-                projectExileCard(c, viewerId, {
-                    // CR 601.3 (issue #1156) — `casterId` disambiguates a
-                    // CROSS-PLAYER grant (Robber of the Rich, Dauthi
-                    // Voidwalker): the card lives in `player`'s exile, but
-                    // `c.castableFromExileBy` may name a DIFFERENT player as
-                    // the caster, whose priority/mana/targets must gate the
-                    // "cast" affordance, not this zone owner's. Defaults to
-                    // `player.id` for every same-player grant (Ice Cauldron),
-                    // so this is a no-op there.
-                    legalActionsFor: () =>
-                        getLegalActions(
-                            state,
-                            player,
-                            c,
-                            allActions,
-                            c.castableFromExileBy
-                        ),
-                    exiledByPermanentId: exileAssoc.get(c.id),
-                })
+                withPrintedCastAvailability(
+                    projectExileCard(c, viewerId, {
+                        // CR 601.3 (issue #1156) — `casterId` disambiguates a
+                        // CROSS-PLAYER grant (Robber of the Rich, Dauthi
+                        // Voidwalker): the card lives in `player`'s exile, but
+                        // `c.castableFromExileBy` may name a DIFFERENT player as
+                        // the caster, whose priority/mana/targets must gate the
+                        // "cast" affordance, not this zone owner's. Defaults to
+                        // `player.id` for every same-player grant (Ice Cauldron),
+                        // so this is a no-op there.
+                        legalActionsFor: () =>
+                            getLegalActions(
+                                state,
+                                player,
+                                c,
+                                allActions,
+                                c.castableFromExileBy
+                            ),
+                        exiledByPermanentId: exileAssoc.get(c.id),
+                    }),
+                    c
+                )
             ),
             battlefield: player.battlefield.map((c) =>
                 projectBattlefieldCard(

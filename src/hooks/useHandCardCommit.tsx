@@ -21,6 +21,8 @@ import type { CardInstance } from "~/types/game";
 import ModePicker from "~/components/cards/mode-picker";
 import AltCostPicker from "~/components/cards/alt-cost-picker";
 import { isCastPermissionAltCostId } from "@convex/gre/castPermissions";
+import { splitCastOptionsFor } from "@convex/gre/splitCast";
+import type { CardInstanceState } from "@convex/gre/state";
 import PhyrexianPicker from "~/components/cards/phyrexian-picker";
 import AdditionalCostPicker from "~/components/cards/additional-cost-picker";
 import CastCostDialog from "~/components/cards/cast-cost-dialog";
@@ -357,6 +359,18 @@ export function useHandCardCommit(
         // cost-replacing permission (Bolas's Citadel) IS an alternative method
         // of casting, and no second one may ride along.
         //
+        // CR 709.3 (issue #3344) — with ONE exception, and it is not an
+        // alternative cost at all: WHICH HALF of a split card is being cast.
+        // "A player chooses which half of a split card they are casting before
+        // putting it onto the stack", so that choice is not a second method of
+        // casting the same spell — it is the only way to name a spell at all,
+        // and `announceCast` refuses an announcement without it. Suppressing
+        // the picker under `castManaCostReplaced` therefore left a split card
+        // on top of a Bolas's Citadel library uncastable, its click a
+        // guaranteed rejection. `splitCastOptionsFor` is the same instance-level
+        // authority the server's own offering surfaces read (ADR 0074), and it
+        // is empty for every other card, so nothing else moves.
+        //
         // CR 601.3c / 118.9b (issue #3280) — the printed-cost cast is itself
         // one of the picker's OPTIONS, and it is not always legal. When a board
         // permission (Aluren) is the only thing licensing this cast right now,
@@ -371,7 +385,10 @@ export function useHandCardCommit(
         // what is legal, and never open for a decision that has ONE outcome. A
         // single surviving option dispatches straight through, exactly as a
         // card with no options at all casts on click today.
-        if (!cardInstance.castManaCostReplaced) {
+        const halfChoiceOwed =
+            splitCastOptionsFor(cardInstance as unknown as CardInstanceState)
+                .length > 0;
+        if (!cardInstance.castManaCostReplaced || halfChoiceOwed) {
             const affordableAlts = affordableAltCostsForCard(
                 cardInstance,
                 playerId,
