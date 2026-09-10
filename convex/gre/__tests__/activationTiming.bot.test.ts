@@ -875,6 +875,109 @@ describe("selectRootMove — a sacrifice engine is held, then converted (issue #
             "pass"
         );
     });
+
+    // -----------------------------------------------------------------------
+    // The HOLD direction of the same rule (issue #3319). Everything above asks
+    // whether an outcome-equal `pass` should become a spend; these ask the
+    // reverse — whether an outcome-equal spend that is the ROBUST pick should
+    // become a `pass`. The hold-the-trick rule cannot answer it outside the
+    // mover's own sorcery window (`isSorceryTimingFor`), which is how the
+    // issue-#3192 Walking Ballista fix held in PRECOMBAT_MAIN and still threw
+    // the creature away at the opponent's end step.
+    //
+    // The engine here is Zuran Orb WITHOUT Titania — the same board the
+    // conversion rule declines above — so `firingBeatsHolding` is false and
+    // the two directions are being asked about one position.
+    // -----------------------------------------------------------------------
+    const unpayingBoard = () => [
+        perm(ORB, "orb"),
+        perm(FOREST, "f1"),
+        perm(FOREST, "f2"),
+        perm(FOREST, "f3"),
+    ];
+
+    /** The opponent's end step with the ACTIVATION as the robust pick — the
+     *  inverse of every `(convert)` case above, where `pass` is the incumbent.
+     *  Both margins favour the spend too, so nothing but the new rule can send
+     *  this back to `pass`. */
+    const spendIsRobust = (
+        battlefield: ReturnType<typeof unpayingBoard>
+    ): GameState =>
+        makeState({
+            phase: "END_STEP",
+            activePlayerId: "p2",
+            priorityPlayerId: "p1",
+            players: [makePlayer("p1", { battlefield }), makePlayer("p2")],
+        });
+
+    const spendIsRobustRoot = () =>
+        rootOf(
+            [
+                { move: ACTIVATE, meanReward: 0.6635, meanMargin: 1781 },
+                { move: PASS, meanReward: 0.6631, meanMargin: 1552 },
+            ],
+            "p1"
+        );
+
+    it("HOLD: outside the sorcery window, an outcome-equal spend that does not pay is held", () => {
+        const state = spendIsRobust(unpayingBoard());
+        expect(
+            selectRootMove(spendIsRobustRoot(), [ACTIVATE, PASS], state, "p1")
+                .kind
+        ).toBe("pass");
+    });
+
+    it("NO-HOLD: a spend with REAL value still wins on mean reward", () => {
+        // The same gate the conversion rule has from the other side: the rule
+        // lives inside `OUTCOME_EPS`, so a sacrifice that is decisive this turn
+        // is never redirected.
+        const state = spendIsRobust(unpayingBoard());
+        const root = rootOf(
+            [
+                { move: ACTIVATE, meanReward: 0.92, meanMargin: 1781 },
+                { move: PASS, meanReward: 0.6, meanMargin: 1552 },
+            ],
+            "p1"
+        );
+        expect(selectRootMove(root, [ACTIVATE, PASS], state, "p1").kind).toBe(
+            "activate-ability"
+        );
+    });
+
+    it("HOLD: the once-per-turn conversion cap does not narrow the hold", () => {
+        // The reason `isStandingSpendActivation` was extracted WITHOUT the cap
+        // that `isDeferredEngineActivation` adds on top: the cap stops an
+        // engine from being run to completion, and its sign is wrong here. An
+        // ability already fired once this turn is not thereby licensed to throw
+        // the NEXT permanent away — the second spend needs holding at least as
+        // much as the first. A blade entry cannot express this at all
+        // (`ScenarioSpec` has no `activationsThisTurn`), which is why it is a
+        // unit control.
+        const battlefield = unpayingBoard();
+        battlefield[0].activationsThisTurn = { [ORB_GAIN]: 1 };
+        const state = spendIsRobust(battlefield);
+        expect(
+            selectRootMove(spendIsRobustRoot(), [ACTIVATE, PASS], state, "p1")
+                .kind
+        ).toBe("pass");
+    });
+
+    it("records `standing-spend-hold` as the deciding mechanism", () => {
+        // The telemetry seam, asserted exactly as `last-window-fire` asserts
+        // its own: a `RootDecisionMechanism` value `finish` never emits is a
+        // mechanism nobody can see in the decision corpus.
+        const state = spendIsRobust(unpayingBoard());
+        const records: RootDecisionRecord[] = [];
+        setRootDecisionSink((r) => records.push(r));
+        try {
+            selectRootMove(spendIsRobustRoot(), [ACTIVATE, PASS], state, "p1");
+        } finally {
+            setRootDecisionSink(null);
+        }
+        expect(records.map((r) => r.mechanism)).toContain(
+            "standing-spend-hold"
+        );
+    });
 });
 
 describe("spendsStandingPermanent — a sacrifice-for-MANA outlet is excluded (CR 500.5)", () => {
