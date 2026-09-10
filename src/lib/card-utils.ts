@@ -63,7 +63,6 @@ import {
     LANDWALK_KEYWORDS,
     LANDWALK_SUPERTYPE_KEYWORDS,
     assignHybridPips,
-    getActivatedManaAbility,
     getEffectiveManaChoices,
     getFixedSacrificeManaAbility,
     getFixedMultiColorTapManaAbility,
@@ -347,18 +346,26 @@ export function getEffectiveClientAbilities(
  *  one the server's auto-tap solver would happily use. Client hint only —
  *  server validation stays authoritative (#436). */
 function findClientManaAbility(card: CardInstance) {
-    return (
-        getEffectiveActivatedAbilities(
-            card as unknown as CardInstanceState
-        ).find(
+    return clientManaAbilities(card)[0] ?? null;
+}
+
+/** CR 605.1a — EVERY post-layer mana ability the card exposes, in printed
+ *  order, not just the first one {@link findClientManaAbility} answers with. A
+ *  source can carry several (Arena of Glory's free "{T}: Add {R}" and its
+ *  costed "{R}, {T}, Exert this land: Add {R}{R}"; Delighted Halfling's
+ *  unrestricted and legendary-only pair), and a predicate that reads only the
+ *  first one answers about an ability the player may not be activating. */
+function clientManaAbilities(card: CardInstance): ActivatedAbility[] {
+    return getEffectiveActivatedAbilities(card as unknown as CardInstanceState)
+        .filter(
             ({ ability: a }) =>
                 !a.useStack &&
                 (a.manaProduced ||
                     a.manaChoices ||
                     a.getManaChoices ||
                     a.manaColorSource)
-        )?.ability ?? null
-    );
+        )
+        .map(({ ability }) => ability);
 }
 
 /** Returns true if a card has a tap mana ability (basic land subtype or
@@ -3188,33 +3195,46 @@ export function isManaCostCovered(pool: ManaPool, cost: ManaCost): boolean {
  *  True for the overwhelmingly common no-mana-cost mana ability, and true when
  *  the source exposes no activated mana ability at all (a basic land's
  *  intrinsic subtype tap) — this predicate only ever SUBTRACTS the hopeless
- *  case, it never grants tappability on its own. */
+ *  case, it never grants tappability on its own.
+ *
+ *  CR 605.1a (issue #3384) — reasons PER OPTION, over every mana ability the
+ *  card exposes, not over `getActivatedManaAbility`'s FIRST one. A source
+ *  whose costed ability is not its first (Arena of Glory: free "{T}: Add {R}"
+ *  then "{R}, {T}, Exert this land: Add {R}{R}") had its whole affordance
+ *  decided by an ability the player may not be activating — permissively in
+ *  that direction, and in the mirror shape (a costed FIRST ability beside a
+ *  free second) it greyed out a source that was payable all along. The card is
+ *  tappable while ANY of its options is payable or reachable; the server
+ *  re-validates the SPECIFIC option the submitted index resolves to. */
 export function canAffordManaAbilityCost(
     card: CardInstance,
     pool: ManaPool,
     battlefield: ReadonlyArray<CardInstance> = [],
     manaGateView?: TriggerStateView
 ): boolean {
-    const ability = getActivatedManaAbility(
-        card as unknown as Parameters<typeof getActivatedManaAbility>[0],
-        manaGateView
-    );
-    const cost = ability?.cost.mana;
-    if (!cost) return true;
-    // A live activation cost is already numeric — an `X: "X"` mana ability
-    // doesn't exist in the catalogue, and `isManaCostCovered` can't read one.
-    if (typeof cost.X === "string") return true;
-    if (isManaCostCovered(pool, cost)) return true;
+    const abilities = clientManaAbilities(card);
+    if (abilities.length === 0) return true;
     // Any OTHER untapped mana source the engine's auto-tap could reach for.
     // Colour-blind on purpose: the server runs the real solver and rejects a
     // genuinely unpayable colour, the same way it rejects an unpayable spell
-    // after auto-tap falls short.
-    return battlefield.some(
-        (c) =>
-            c.id !== card.id &&
-            c.isTapped !== true &&
-            hasManaAbility(c, manaGateView)
-    );
+    // after auto-tap falls short. Computed once — it is the same answer for
+    // every option.
+    const canReachMoreMana = () =>
+        battlefield.some(
+            (c) =>
+                c.id !== card.id &&
+                c.isTapped !== true &&
+                hasManaAbility(c, manaGateView)
+        );
+    return abilities.some((ability) => {
+        const cost = ability.cost.mana;
+        if (!cost) return true;
+        // A live activation cost is already numeric — an `X: "X"` mana ability
+        // doesn't exist in the catalogue, and `isManaCostCovered` can't read one.
+        if (typeof cost.X === "string") return true;
+        if (isManaCostCovered(pool, cost)) return true;
+        return canReachMoreMana();
+    });
 }
 
 /** Serializes a ManaCost into the symbol-token form used by formatOracleText
