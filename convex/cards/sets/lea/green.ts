@@ -76,6 +76,8 @@ export const berserk: CardDefinition = {
     id: BERSERK_ID,
     rarity: "uncommon",
     name: "Berserk",
+    oracleText:
+        "Cast this spell only before the combat damage step.\nTarget creature gains trample and gets +X/+0 until end of turn, where X is its power. At the beginning of the next end step, destroy that creature if it attacked this turn.",
     manaCost: { G: 1 },
     types: ["Instant"],
     // CR 117.1b — castable only up to (but not including) the combat damage step.
@@ -184,6 +186,8 @@ export const channel: CardDefinition = {
     id: CHANNEL_ID,
     rarity: "uncommon",
     name: "Channel",
+    oracleText:
+        "Until end of turn, any time you could activate a mana ability, you may pay 1 life. If you do, add {C}.",
     manaCost: { G: 2 },
     types: ["Sorcery"],
     activatedAbilities: [
@@ -261,6 +265,7 @@ export const crawWurm: CardDefinition = {
     id: "bfed1a95-bd67-4e16-a781-81866028af2f",
     rarity: "common",
     name: "Craw Wurm",
+    oracleText: "",
     manaCost: { X: 4, G: 2 },
     types: ["Creature"],
     subtypes: ["Wurm"],
@@ -499,6 +504,7 @@ export const grizzlyBears: CardDefinition = {
     id: "ce2d603a-3231-4a8c-bf39-1617586ea870",
     rarity: "common",
     name: "Grizzly Bears",
+    oracleText: "",
     manaCost: { X: 1, G: 1 },
     types: ["Creature"],
     subtypes: ["Bear"],
@@ -596,6 +602,7 @@ export const ironrootTreefolk: CardDefinition = {
     id: "b93c5869-7777-44bb-967a-e9439b25ced4",
     rarity: "common",
     name: "Ironroot Treefolk",
+    oracleText: "",
     manaCost: { X: 4, G: 1 },
     types: ["Creature"],
     subtypes: ["Treefolk"],

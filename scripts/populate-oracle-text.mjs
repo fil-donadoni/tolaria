@@ -15,7 +15,10 @@
  *
  * Behavior:
  *   - Scans the source file for every Scryfall UUID (active defs and
- *     commented-out stubs).
+ *     commented-out stubs). A definition whose `id:` is a CONSTANT reference
+ *     (`id: CHANNEL_ID`) carries no UUID on that line and is invisible to the
+ *     scan — populate those by hand (Berserk, Channel and The Hive were the
+ *     three in the catalogue, #3075).
  *   - Batches /cards/collection POSTs (75 ids per call).
  *   - Inserts an `oracleText: "..."` line right after the `name: "..."`
  *     line of each block, mirroring the comment prefix and indent of the
@@ -151,7 +154,14 @@ function blockAlreadyHasOracleText(idIdx, indent, commentPrefix) {
 }
 
 function extractOracleText(card) {
-    if (typeof card.oracle_text === "string" && card.oracle_text.length > 0) {
+    // An EMPTY `oracle_text` is data, not absence: a vanilla creature's Oracle
+    // text genuinely is the empty string, and the catalogue writes it as
+    // `oracleText: ""` (28 cards did so before this script could). Treating ""
+    // as "nothing fetched" is what left Grizzly Bears and its 16 siblings
+    // unbackfillable by this script for as long as it existed (#3075) — a
+    // missing field and an empty one are the distinction the compiler's input
+    // turns on, and only the FIELD may be missing.
+    if (typeof card.oracle_text === "string") {
         return card.oracle_text;
     }
     if (Array.isArray(card.card_faces) && card.card_faces.length > 0) {
