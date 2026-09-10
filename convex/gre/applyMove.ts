@@ -191,7 +191,9 @@ function autoFinalizeLandEntryChoices(state: GameState): void {
             head.landInstanceId,
             head.cost,
             accept,
-            head.landSourceZone
+            head.landSourceZone,
+            // CR 712.12 — the chosen face, as on the real submit path.
+            head.landEntryFace
         );
     }
 }
@@ -1203,7 +1205,14 @@ export function applyMoveForSearch(
             // under Icetill Explorer, the top library land under Courser of
             // Kruphix) resolves here too. Hard-coding `applyPlayLand` made this
             // path throw `Card <id> not found in hand` for exactly those moves.
-            applyPlayLandFromAnyZone(next, player, move.cardInstanceId);
+            // CR 712.12 — the chosen face rides the Move (ADR 0122 §2);
+            // absent is `"front"`, which is every land that is not modal.
+            applyPlayLandFromAnyZone(
+                next,
+                player,
+                move.cardInstanceId,
+                move.face
+            );
             // CR 614.12 / ADR 0051 — a shock land suspends entry on a
             // `land-entry-tapped` pending choice. Search must not stall on it.
             autoFinalizeLandEntryChoices(next);

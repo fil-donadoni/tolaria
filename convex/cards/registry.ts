@@ -32,6 +32,7 @@ import { expandChapterAbilities } from "./abilities/sagas";
 import { expandCompiledStatics } from "./compiledStatics";
 import { expandCompiledTriggers } from "./compiledTriggers";
 import { insetSpellTwinDefinition } from "./insetSpell";
+import { modalBackTwinDefinition } from "./modalDfc";
 import { SPLIT_HALF_SIDES, splitHalfTwinDefinition } from "./splitCard";
 import { setCardManaCostLookup } from "./manaCostLookup";
 import { setCardSupertypeLookup } from "./supertypeLookup";
@@ -316,6 +317,18 @@ export function preloadDefinitions(defs: CardDefinition[]): void {
             const half = splitHalfTwinDefinition(def, side);
             if (half) setRegistryEntry(half.id, half);
         }
+        // CR 712.8f (ADR 0122 §1) — the same seam for a MODAL double-faced
+        // card's back face: "while a modal double-faced permanent is on the
+        // battlefield, it has only the characteristics of the face that's
+        // up", so that face is a real definition under `${parent.id}#back`,
+        // registered here and NOWHERE else. CR 712.8a — outside the
+        // battlefield and the stack the card has only its FRONT face's
+        // characteristics, which is the flat definition every enumerator
+        // already holds, so `allCards` keeps seeing exactly one Sink into
+        // Stupor and deck legality, the Limited pool, `check:index` and
+        // `getAllCardNames` learn nothing new.
+        const modalBack = modalBackTwinDefinition(def);
+        if (modalBack) setRegistryEntry(modalBack.id, modalBack);
     }
 }
 

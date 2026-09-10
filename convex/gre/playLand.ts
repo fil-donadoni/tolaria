@@ -44,6 +44,64 @@ import { canPlayLandsFromGraveyard, isPlayableLibraryTopLand } from "./rules";
 import { checkAscendCityBlessing } from "./cityBlessing";
 import { tryGetDefinition } from "../cards";
 import type { MayPayCost } from "../cards/types";
+import { playLandFaceDefinition, type PlayLandFace } from "./modalLandPlay";
+import { stampModalBackFaceForPlay } from "./transform";
+
+/** CR 712.12 — the entry replacement the CHOSEN FACE declares ("as this land
+ *  enters, you may pay 3 life…"), or `undefined` when that face declares none.
+ *
+ *  One helper for all four origins because the question each of them asks is
+ *  the same one and it is now about a FACE, not about the card: an ordinary
+ *  land answers off its own definition exactly as before (`face` defaults to
+ *  `"front"`), and a modal card answers off the registered twin
+ *  (`gre/modalLandPlay.ts`). Reading `def.entersTappedUnlessPay` off the
+ *  PARENT for a modal play would have asked Sink into Stupor — an instant with
+ *  no entry clause — and let Soporific Springs enter untapped for free, the
+ *  exact shape of issue #1980 one layout over. */
+function landEntryCostForFace(
+    card: CardInstanceState,
+    face: PlayLandFace
+): MayPayCost | undefined {
+    return playLandFaceDefinition(card, face)?.entersTappedUnlessPay;
+}
+
+/** CR 712.12 / 614.12 — the object the land-entry prompt NAMES, for the face
+ *  being played.
+ *
+ *  The prompt is written about the land that is entering, and for a modal play
+ *  that is the back face: "You may pay 3 life. If you don't, Soporific Springs
+ *  enters the battlefield tapped." Naming the card in hand would name Sink
+ *  into Stupor, an instant that is not entering anything. Falls back to the
+ *  instance's own payload when the twin does not resolve, so the prompt
+ *  degrades to the front-face name rather than to "This land". */
+function landPromptCardData(
+    card: CardInstanceState,
+    face: PlayLandFace
+): unknown {
+    if (face === "front") return card.card;
+    return playLandFaceDefinition(card, face) ?? card.card;
+}
+
+/** CR 712.12 — put `card` into the face its controller chose, immediately
+ *  before the zone move that ends in `settleEnteredLand`.
+ *
+ *  A no-op for `"front"`, which is every land that is not modal. For `"back"`
+ *  it stamps the twin identity (`stampModalBackFaceForPlay`, `gre/transform
+ *  .ts`), which is what makes every downstream reader — `shouldEnterTapped`,
+ *  the entry counters, the CR 611.2 grant passes, the ETB trigger scan, the
+ *  mana ability the client will offer — see the LAND rather than the instant
+ *  in hand, with no per-reader conditional.
+ *
+ *  Called between the face choice and the move, inside one synchronous
+ *  transition: nothing ever observes a card in a hidden zone wearing its back
+ *  face, so CR 712.8a stays true at every point a projection could run. */
+function stampChosenFace(
+    state: GameState,
+    card: CardInstanceState,
+    face: PlayLandFace
+): void {
+    if (face === "back") stampModalBackFaceForPlay(state, card);
+}
 
 /**
  * Canonical play-land transition. Moves `cardInstanceId` from the player's hand
@@ -90,7 +148,11 @@ import type { MayPayCost } from "../cards/types";
 export function applyPlayLand(
     state: GameState,
     player: PlayerState,
-    cardInstanceId: string
+    cardInstanceId: string,
+    /** CR 712.12 — the face chosen before the card is put onto the
+     *  battlefield. Defaults to `"front"`, the only face an ordinary land
+     *  has. */
+    face: PlayLandFace = "front"
 ): CardInstanceState | null {
     // CR 614.1c — tapped-on-entry is decided from the PRE-move board (the
     // card is still in hand here), so a board-conditional predicate counting
@@ -105,20 +167,27 @@ export function applyPlayLand(
     // completes the entry once the controller answers. Returns null (no
     // on-battlefield instance yet) — both callers (`playCard`, search
     // `applyMove`) ignore the return.
-    const cardId = (handCard?.card as { id?: string } | undefined)?.id;
-    const def = cardId ? tryGetDefinition(cardId) : undefined;
-    if (handCard && def?.entersTappedUnlessPay) {
+    const entryCost = handCard
+        ? landEntryCostForFace(handCard, face)
+        : undefined;
+    if (handCard && entryCost) {
         enqueueLandEntryChoice(
             state,
             player.id,
             handCard.id,
-            def.entersTappedUnlessPay,
-            handCard.card,
-            "hand"
+            entryCost,
+            landPromptCardData(handCard, face),
+            "hand",
+            face
         );
         return null;
     }
 
+    // CR 712.12 — the face is chosen BEFORE the card is put onto the
+    // battlefield, so the stamp precedes every read of it, `shouldEnterTapped`
+    // included (a Kismet-style replacement asks about the LAND that is
+    // entering, not about the instant printed on the front).
+    if (handCard) stampChosenFace(state, handCard, face);
     const willEnterTapped = handCard
         ? shouldEnterTapped(state, handCard)
         : false;
@@ -184,7 +253,9 @@ function moveCardAcrossPlayers(
 export function applyPlayLandFromExile(
     state: GameState,
     player: PlayerState,
-    cardInstanceId: string
+    cardInstanceId: string,
+    /** CR 712.12 — see {@link applyPlayLand}. */
+    face: PlayLandFace = "front"
 ): CardInstanceState | null {
     // CR 305.1-analog / 400.7 (issue #1156) — the card may sit in a DIFFERENT
     // player's exile than the one playing it (a cross-player grant — Dauthi
@@ -206,14 +277,13 @@ export function applyPlayLandFromExile(
     // there) for the choice window and `finalizeLandEntry` moves it, so the
     // grant flags below are consumed there instead — see
     // `consumeExilePlayGrant`.
-    const exileCardId = (exileCard.card as { id?: string } | undefined)?.id;
-    const exileDef = exileCardId ? tryGetDefinition(exileCardId) : undefined;
-    if (exileDef?.entersTappedUnlessPay) {
+    const exileEntryCost = landEntryCostForFace(exileCard, face);
+    if (exileEntryCost) {
         enqueueLandEntryChoice(
             state,
             player.id,
             exileCard.id,
-            exileDef.entersTappedUnlessPay,
+            exileEntryCost,
             // CR 406.3 — a hideaway-exiled card is FACE DOWN, readable only by
             // the players its `knownTo` names, while `pendingChoices` crosses
             // `projectPublicState` unredacted to BOTH viewers. Naming the land
@@ -224,12 +294,17 @@ export function applyPlayLandFromExile(
             // wording. An ordinary face-up exile permission (Expressive
             // Iteration, Headliner Scarlett — no `knownTo` stamped, CR 406.3's
             // default) names the land like every other origin.
-            isHiddenInExile(exileCard) ? undefined : exileCard.card,
-            "exile"
+            isHiddenInExile(exileCard)
+                ? undefined
+                : landPromptCardData(exileCard, face),
+            "exile",
+            face
         );
         return null;
     }
 
+    // CR 712.12 — the chosen face is stamped before anything reads it.
+    stampChosenFace(state, exileCard, face);
     // CR 614.1c — tapped-on-entry is decided from the PRE-move board.
     const willEnterTapped = shouldEnterTapped(state, exileCard);
 
@@ -300,7 +375,9 @@ function consumeExilePlayGrant(card: CardInstanceState): void {
 export function applyPlayLandFromGraveyard(
     state: GameState,
     player: PlayerState,
-    cardInstanceId: string
+    cardInstanceId: string,
+    /** CR 712.12 — see {@link applyPlayLand}. */
+    face: PlayLandFace = "front"
 ): CardInstanceState | null {
     const graveyardCard = player.graveyard.find((c) => c.id === cardInstanceId);
     if (!graveyardCard) return null;
@@ -308,20 +385,22 @@ export function applyPlayLandFromGraveyard(
     // CR 614.12 / ADR 0051 — suspend on the pay-choice BEFORE the zone move,
     // exactly like the hand, library-top and exile paths; the land stays in
     // the graveyard for the window.
-    const graveCardId = (graveyardCard.card as { id?: string } | undefined)?.id;
-    const graveDef = graveCardId ? tryGetDefinition(graveCardId) : undefined;
-    if (graveDef?.entersTappedUnlessPay) {
+    const graveEntryCost = landEntryCostForFace(graveyardCard, face);
+    if (graveEntryCost) {
         enqueueLandEntryChoice(
             state,
             player.id,
             graveyardCard.id,
-            graveDef.entersTappedUnlessPay,
-            graveyardCard.card,
-            "graveyard"
+            graveEntryCost,
+            landPromptCardData(graveyardCard, face),
+            "graveyard",
+            face
         );
         return null;
     }
 
+    // CR 712.12 — the chosen face is stamped before anything reads it.
+    stampChosenFace(state, graveyardCard, face);
     // CR 614.1c — tapped-on-entry is decided from the PRE-move board, exactly
     // like the hand and exile play paths.
     const willEnterTapped = shouldEnterTapped(state, graveyardCard);
@@ -355,27 +434,31 @@ export function applyPlayLandFromGraveyard(
 export function applyPlayLandFromLibraryTop(
     state: GameState,
     player: PlayerState,
-    cardInstanceId: string
+    cardInstanceId: string,
+    /** CR 712.12 — see {@link applyPlayLand}. */
+    face: PlayLandFace = "front"
 ): CardInstanceState | null {
     const top = player.library[0];
     if (!top || top.id !== cardInstanceId) return null;
 
     // CR 614.12 / ADR 0051 — suspend on the pay-choice BEFORE the zone move,
     // exactly like the hand path; the land stays on top for the window.
-    const cardId = (top.card as { id?: string } | undefined)?.id;
-    const def = cardId ? tryGetDefinition(cardId) : undefined;
-    if (def?.entersTappedUnlessPay) {
+    const topEntryCost = landEntryCostForFace(top, face);
+    if (topEntryCost) {
         enqueueLandEntryChoice(
             state,
             player.id,
             top.id,
-            def.entersTappedUnlessPay,
-            top.card,
-            "library-top"
+            topEntryCost,
+            landPromptCardData(top, face),
+            "library-top",
+            face
         );
         return null;
     }
 
+    // CR 712.12 — the chosen face is stamped before anything reads it.
+    stampChosenFace(state, top, face);
     // CR 614.1c — tapped-on-entry is decided from the PRE-move board, exactly
     // like the hand, exile and graveyard play paths.
     const willEnterTapped = shouldEnterTapped(state, top);
@@ -440,17 +523,29 @@ export function resolvePlayLandSourceZone(
 export function applyPlayLandFromAnyZone(
     state: GameState,
     player: PlayerState,
-    cardInstanceId: string
+    cardInstanceId: string,
+    /** CR 712.12 — see {@link applyPlayLand}. */
+    face: PlayLandFace = "front"
 ): CardInstanceState | null {
     switch (resolvePlayLandSourceZone(state, player, cardInstanceId)) {
         case "hand":
-            return applyPlayLand(state, player, cardInstanceId);
+            return applyPlayLand(state, player, cardInstanceId, face);
         case "library-top":
-            return applyPlayLandFromLibraryTop(state, player, cardInstanceId);
+            return applyPlayLandFromLibraryTop(
+                state,
+                player,
+                cardInstanceId,
+                face
+            );
         case "graveyard":
-            return applyPlayLandFromGraveyard(state, player, cardInstanceId);
+            return applyPlayLandFromGraveyard(
+                state,
+                player,
+                cardInstanceId,
+                face
+            );
         case "exile":
-            return applyPlayLandFromExile(state, player, cardInstanceId);
+            return applyPlayLandFromExile(state, player, cardInstanceId, face);
         case null:
             return null;
     }
@@ -606,7 +701,11 @@ export function enqueueLandEntryChoice(
     landInstanceId: string,
     cost: MayPayCost,
     landCardData: unknown,
-    sourceZone: LandEntrySourceZone
+    sourceZone: LandEntrySourceZone,
+    /** CR 712.12 — the face this play chose, carried across the choice window
+     *  so `finalizeLandEntry` puts the same face onto the battlefield the
+     *  player named. Defaults to `"front"` (every land that is not modal). */
+    face: PlayLandFace = "front"
 ): void {
     const name =
         (landCardData as { name?: string } | undefined)?.name ?? "This land";
@@ -620,6 +719,7 @@ export function enqueueLandEntryChoice(
         kind: "land-entry-tapped",
         landInstanceId,
         landSourceZone: sourceZone,
+        ...(face === "front" ? {} : { landEntryFace: face }),
         cost,
         count: 1,
         prompt: `You may pay ${payCostText(cost)}. If you don't, ${name} enters the battlefield tapped.`,
@@ -720,7 +820,11 @@ export function finalizeLandEntry(
     landInstanceId: string,
     cost: MayPayCost,
     accept: boolean,
-    sourceZone?: LandEntrySourceZone
+    sourceZone?: LandEntrySourceZone,
+    /** CR 712.12 — the choice's own `PendingChoice.landEntryFace`, read off
+     *  the pending choice by the caller beside `landSourceZone`. Absent means
+     *  `"front"`. */
+    face: PlayLandFace = "front"
 ): CardInstanceState {
     const player = getPlayer(state, playerId);
     if (accept) payMayPayCost(state, playerId, cost);
@@ -743,6 +847,12 @@ export function finalizeLandEntry(
         // drop). Kismet-style forced-tapped is read from the PRE-move board.
         // A shock land declares no own `entersTapped(Unless)`, so
         // `shouldEnterTapped` returns only the battlefield-scanned replacement.
+        // CR 712.12 — the face was chosen before the entry began and the
+        // choice window sits inside that entry, so the stamp lands here, on
+        // the far side of the window and still before the zone move. Same
+        // ordering as the unsuspended paths: `shouldEnterTapped` below asks
+        // about the LAND that is entering.
+        stampChosenFace(state, playSource.card, face);
         const forcedTapped = shouldEnterTapped(state, playSource.card);
         const willEnterTapped = forcedTapped || !accept;
         const card =

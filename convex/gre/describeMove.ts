@@ -10,6 +10,7 @@ import type { GameState, CardInstanceState } from "./state";
 import type { Move } from "./moves";
 import type { TargetSelection } from "../cards/types";
 import { tryGetDefinition } from "../cards";
+import { playLandFaceDefinition } from "./modalLandPlay";
 
 type Named = { id: string; card: Record<string, unknown> };
 
@@ -44,6 +45,18 @@ function findInstanceAnyZone(
 function instanceName(state: GameState, id: string): string {
     const c = findInstanceAnyZone(state, id);
     return c ? cardName(c) : id;
+}
+
+/** CR 712.12 — the name a `play-land` Move puts onto the battlefield: the
+ *  chosen FACE's, which for every land that is not modal is the card's own. */
+function playLandMoveName(
+    state: GameState,
+    move: Extract<Move, { kind: "play-land" }>
+): string {
+    const card = findInstanceAnyZone(state, move.cardInstanceId);
+    if (!card) return move.cardInstanceId;
+    const faceDef = playLandFaceDefinition(card, move.face ?? "front");
+    return faceDef?.name ?? cardName(card);
 }
 
 function playerLabel(state: GameState, id: string): string {
@@ -124,7 +137,13 @@ export function describeMove(move: Move, state: GameState): string {
                       .map((t) => targetLabel(state, t))
                       .join(", ")}`;
         case "play-land":
-            return `play ${instanceName(state, move.cardInstanceId)}`;
+            // CR 712.12 — a modal land play names the FACE that enters, not
+            // the card in hand: "play Sink into Stupor" and "play Soporific
+            // Springs" are two different lines, and a trace that printed the
+            // same string for both would make the `land // land` pair
+            // indistinguishable in exactly the log a bot decision is debugged
+            // from.
+            return `play ${playLandMoveName(state, move)}`;
         case "summon-companion":
             return "summon companion";
         // CR 116.2b / 702.37e — the turn-face-up special action. Names the

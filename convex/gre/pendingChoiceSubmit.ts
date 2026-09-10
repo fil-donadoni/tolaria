@@ -337,7 +337,11 @@ export function applyLandEntrySubmit(
         // issue #1980 — the choice's own source-zone discriminator, read off
         // `head` before the shift above; without it the finalizer cannot find
         // a land suspended in exile or a graveyard.
-        head.landSourceZone
+        head.landSourceZone,
+        // CR 712.12 — the face the play chose, read off the same choice for
+        // the same reason: the entry has to finish on the face the player
+        // named, and a `land // land` pathway has two legal answers.
+        head.landEntryFace
     );
 
     // CR 614.12 — a played land is not a stack resolution; resume priority to

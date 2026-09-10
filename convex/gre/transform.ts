@@ -45,6 +45,10 @@ import {
 } from "../cards";
 import { resolveTokenStaticEffects } from "../cards/tokenStaticEffects";
 import type { CardBackFace, ManaCost, TokenSpec } from "../cards/types";
+import {
+    isModalDoubleFaced,
+    modalBackFaceDefinitionId,
+} from "../cards/modalDfc";
 import { rebuildCopiableValuesAndReplayOverlays } from "./identitySwap";
 import type { CardInstanceState } from "./state";
 import type { LayerStateView } from "./layers";
@@ -198,6 +202,59 @@ export function stampBackFaceForEntry(
         toughness: backFace.toughness,
         staticAbilities: backFace.staticAbilities
             ? [...backFace.staticAbilities]
+            : [],
+    });
+    card.transformed = true;
+    return true;
+}
+
+/** CR 712.12 / 712.8f — stamps the MODAL back-face identity onto a card that
+ *  is about to enter the battlefield as that face, because its controller
+ *  chose it as the land they are playing (ADR 0122 §2).
+ *
+ *  The sibling of {@link stampBackFaceForEntry} above and deliberately a
+ *  separate function, because the two reach DIFFERENT definitions by different
+ *  routes. That one synthesizes a nonmodal face through
+ *  `registerBackFaceDefinition`'s content-derived id codec, which carries a
+ *  `TokenSpec`'s fields and nothing else. A modal face is a whole card face —
+ *  Soporific Springs has an entry replacement AND a mana ability — so it is a
+ *  module-registered twin under `${parentId}#back` (`cards/modalDfc.ts`),
+ *  already in the registry before this runs, and there is no spec to encode.
+ *
+ *  What it SHARES is the markers, and that is the point: `transformed` +
+ *  `transformedFrom` are what the battlefield-departure funnel
+ *  (`removePermanentTo` → {@link revertTransform}) reads, so a Soporific
+ *  Springs that dies, is bounced or is exiled leaves as Sink into Stupor with
+ *  no new code at all — which is exactly CR 712.8a ("while a double-faced card
+ *  is … in a zone other than the battlefield or stack, it has only the
+ *  characteristics of its front face").
+ *
+ *  `card` must NOT yet be on the battlefield: every caller
+ *  (`gre/playLand.ts`) stamps between the CR 712.12 face choice and the zone
+ *  move, inside one synchronous transition, so nothing ever observes a card in
+ *  hand wearing its back face. Returns false, leaving `card` untouched, when
+ *  the twin does not resolve — the caller then plays the front face, which is
+ *  the only other thing it could legally be. */
+export function stampModalBackFaceForPlay(
+    state: LayerStateView,
+    card: CardInstanceState
+): boolean {
+    const frontId = (card.card as { id?: string }).id;
+    if (!frontId) return false;
+    const frontDef = tryGetDefinition(frontId);
+    if (!isModalDoubleFaced(frontDef ?? undefined)) return false;
+    const backId = modalBackFaceDefinitionId(frontId);
+    const backDef = tryGetDefinition(backId);
+    if (!backDef) return false;
+    card.transformedFrom = frontId;
+    card.card = { id: backId };
+    rebuildCopiableValuesAndReplayOverlays(state, card, {
+        types: [...backDef.types],
+        subtypes: backDef.subtypes ? [...backDef.subtypes] : [],
+        power: backDef.power,
+        toughness: backDef.toughness,
+        staticAbilities: backDef.staticAbilities
+            ? [...backDef.staticAbilities]
             : [],
     });
     card.transformed = true;

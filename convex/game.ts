@@ -480,6 +480,7 @@ import {
     applyPlayLandFromGraveyard,
     applyPlayLandFromLibraryTop,
 } from "./gre/playLand";
+import { isPlayableLandFace, type PlayLandFace } from "./gre/modalLandPlay";
 import {
     applyPendingChoiceSubmit,
     applyMayPaySubmit,
@@ -5920,6 +5921,12 @@ export const playCard = mutation({
         gameId: v.id("games"),
         playerId: v.string(),
         cardInstanceId: v.string(),
+        /** CR 712.12 (ADR 0122 §2) — "a player playing a modal double-faced
+         *  card … as a land chooses one of its faces that's a land before
+         *  putting it onto the battlefield." Optional, absent meaning
+         *  `"front"`: every land in the catalogue is played as its only face,
+         *  so the argument set an ordinary play sends is unchanged. */
+        face: v.optional(v.union(v.literal("front"), v.literal("back"))),
         skipValidation: v.optional(v.boolean()),
     },
     handler: async (ctx, args) => {
@@ -5976,6 +5983,17 @@ export const playCard = mutation({
         if (!args.skipValidation) {
             assertLegalAction(state, player, playSource, "play");
         }
+        // CR 712.12 — the face is the caller's choice, so it is the caller's
+        // to get wrong: re-derive the legal set server-side and refuse
+        // anything else. `assertLegalAction` above asked only whether the CARD
+        // may be played; this asks whether the named FACE is one that's a
+        // land, which is the whole of what 712.12 lets the player choose. A
+        // client naming `"back"` on a Forest would otherwise stamp an
+        // unresolvable twin id onto the permanent.
+        const face: PlayLandFace = args.face ?? "front";
+        if (!isPlayableLandFace(playSource, face)) {
+            throw new Error("That face isn't a land you can play");
+        }
 
         // Shared canonical play-land core (CR 305.2 land-drop tracking,
         // CR 302.6 summoning-sickness clock, CR 603.6a ETB triggers, CR 704
@@ -5985,13 +6003,23 @@ export const playCard = mutation({
         // `markEnteredThisTurn`, so a Mishra's Factory played and animated the
         // same turn could illegally attack — issue: manland summoning sickness.)
         if (exileLand) {
-            applyPlayLandFromExile(state, player, args.cardInstanceId);
+            applyPlayLandFromExile(state, player, args.cardInstanceId, face);
         } else if (graveyardLand) {
-            applyPlayLandFromGraveyard(state, player, args.cardInstanceId);
+            applyPlayLandFromGraveyard(
+                state,
+                player,
+                args.cardInstanceId,
+                face
+            );
         } else if (libraryTopLand) {
-            applyPlayLandFromLibraryTop(state, player, args.cardInstanceId);
+            applyPlayLandFromLibraryTop(
+                state,
+                player,
+                args.cardInstanceId,
+                face
+            );
         } else {
-            applyPlayLand(state, player, args.cardInstanceId);
+            applyPlayLand(state, player, args.cardInstanceId, face);
         }
 
         const nextSeq = gameState.seq + 1;

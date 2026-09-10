@@ -14,6 +14,11 @@
 //     a split card's name, the player must choose one of those names and NOT
 //     BOTH." The two half names are choosable; the combined string is not a
 //     name anyone may choose, because it is not one of "those names".
+//   * CR 712.19 — a double-faced card: "the player may choose the name of
+//     either face of a double-faced card but not both." Same answer as the
+//     adventurer card, reached from the other side: the card's own name IS its
+//     front face's (CR 712.8a), so the back face adds the second entry and
+//     nothing has to be excluded.
 //
 // One module rather than a clause in each half's own file, because the
 // CONSUMERS are shared: the client's name-card candidate list, the server's
@@ -22,6 +27,7 @@
 // button never offered is the exact bug PR #3302 review finding 4 shipped.
 
 import type { CardDefinition } from "./types";
+import { chooseableModalBackName } from "./modalDfc";
 import { chooseableSplitNames } from "./splitCard";
 
 /** CR 709.4a / 715.5 / 722.5 — every card name an effect may be GIVEN for
@@ -34,7 +40,14 @@ import { chooseableSplitNames } from "./splitCard";
 export function chooseableNamesOf(def: CardDefinition): string[] {
     const split = chooseableSplitNames(def);
     if (split) return split;
-    return def.insetSpell ? [def.name, def.insetSpell.name] : [def.name];
+    if (def.insetSpell) return [def.name, def.insetSpell.name];
+    // CR 712.19 — "the player may choose the name of either face of a
+    // double-faced card but not both." The card's own name is its FRONT
+    // face's (CR 712.8a), so `def.name` already IS one of the two and the
+    // back face adds the second. Unlike CR 709.4a's split card, nothing is
+    // excluded here: both entries are printed names of real faces.
+    const modalBack = chooseableModalBackName(def);
+    return modalBack ? [def.name, modalBack] : [def.name];
 }
 
 /** CR 709.4a — "an object has the chosen name if ONE of its names is the

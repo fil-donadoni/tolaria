@@ -102,6 +102,11 @@ import { turnFaceDown, turnFaceUp } from "./faceDown";
 import { revertAdventureIdentity, wasCastAsAdventure } from "./adventure";
 import { revertSplitIdentity } from "./splitCast";
 import type { SplitHalfSide } from "../cards/splitCard";
+import type { PlayLandFace } from "../cards/modalDfc";
+import {
+    isModalDoubleFaced,
+    modalFrontFaceIsPermanentCard,
+} from "../cards/modalDfc";
 import type { FaceDownProducer } from "./faceDown";
 import {
     revertTransform,
@@ -3263,6 +3268,22 @@ export type PendingChoice = {
      *  optional only so a choice persisted before this field existed still
      *  finalizes, through the legacy sniff. */
     landSourceZone?: LandEntrySourceZone;
+    /** For `kind: "land-entry-tapped"` only (CR 712.12, ADR 0122 §2) — WHICH
+     *  FACE of `landInstanceId` is being played, when the play was a modal
+     *  double-faced card's ("a player playing a modal double-faced card … as a
+     *  land chooses one of its faces that's a land BEFORE putting it onto the
+     *  battlefield"). The choice window sits between that choice and the zone
+     *  move, so the answer has to be carried across it: absent means
+     *  `"front"`, which is every land that is not modal.
+     *
+     *  Carried rather than re-derived on submit for the same fail-closed
+     *  reason `landSourceZone` is: a re-derivation could not tell "the front
+     *  face is also a land and that is what the player picked" from "the back
+     *  face is the only land face" for a `land // land` pathway, and CR 712.12
+     *  makes that a real choice with two answers. It is also why CR 712.8a
+     *  stays satisfied — the card in hand keeps its front-face identity for
+     *  the whole window, and the swap happens at the zone move. */
+    landEntryFace?: PlayLandFace;
     /** For `kind: "madness-cast"` only (CR 702.35a) — the instance id of the
      *  discarded-and-exiled card this choice decides. The client's "Cast" button
      *  fires `announceCast` on it (which consumes the choice); the DECLINE routes
@@ -12371,6 +12392,61 @@ export function resetBattlefieldTransientState(
     delete (card as Partial<StackItem>).illegalTargetSlots;
 }
 
+/** CR 712.14b — `true` when an instruction to put `card` onto the battlefield
+ *  does nothing, because it is a MODAL double-faced card whose front face is
+ *  not a permanent card.
+ *
+ *  Asked of the printed front face (`modalFrontFaceIsPermanentCard`,
+ *  `cards/modalDfc.ts`) rather than of the instance's live `types`: the rule
+ *  speaks about the CARD's front face, and CR 712.14 has already decided that
+ *  a double-faced card put onto the battlefield from a zone other than the
+ *  stack enters front face up. A NONMODAL card is untouched — 712.14b names
+ *  the modal kind, and 712.14a's "transformed" entry is the nonmodal answer to
+ *  the same question. */
+function refusedByModalFrontFace(card: CardInstanceState): boolean {
+    const cardId = (card.card as { id?: string } | undefined)?.id;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
+    if (!def || !isModalDoubleFaced(def)) return false;
+    return !modalFrontFaceIsPermanentCard(def);
+}
+
+/** CR 712.14b — "the card stays in its current zone." Puts `card` back into
+ *  the zone it still reports, on its OWNER's side (every caller of the
+ *  put-onto-battlefield chokepoint spliced it out of exactly that array and
+ *  left `card.zone` naming it).
+ *
+ *  The zones this can actually be reached from are hand, graveyard and exile —
+ *  a library SEARCH cannot find such a card in the first place, because
+ *  CR 712.8a makes it an instant/sorcery card in the library and no shipped
+ *  "search for a … card" filter matches one. Position within the restored zone
+ *  is not preserved, which for those three costs nothing this engine models;
+ *  the library case is named here rather than guessed at because it is
+ *  unreachable, not because it is unimportant. */
+function restoreToCurrentZone(state: GameState, card: CardInstanceState): void {
+    const owner = getPlayer(state, card.ownerId);
+    switch (card.zone) {
+        case "hand":
+            owner.hand.push(card);
+            return;
+        case "graveyard":
+            owner.graveyard.push(card);
+            return;
+        case "exile":
+            owner.exile.push(card);
+            return;
+        case "library":
+            owner.library.push(card);
+            return;
+        default:
+            // Stack / battlefield: no caller reaches this chokepoint from
+            // either (a resolving permanent spell goes through
+            // `finalizeSpellResolution`, and CR 712.13 governs it), so there
+            // is nothing to restore and dropping the card would be the bug.
+            owner.graveyard.push(card);
+            return;
+    }
+}
+
 /** Phase 1 of reanimation (issue #1094, CR 400.7): clears battlefield-only
  *  transient state and pushes the card onto `controllerId`'s battlefield —
  *  or fully disposes of it (Worms of the Earth's land block, CR 614; a shock
@@ -12411,6 +12487,29 @@ function stageReanimatedOnBattlefield(
         card.zone = "graveyard";
         card.attachedTo = undefined;
         getPlayer(state, card.ownerId).graveyard.push(card);
+        return false;
+    }
+    // CR 712.14b (ADR 0122 §3) — "if a player is instructed to put a modal
+    // double-faced card onto the battlefield and its front face isn't a
+    // permanent card, the card stays in its current zone."
+    //
+    // Sited at this shared non-cast chokepoint, which is every "put onto the
+    // battlefield" this engine has (reanimation, a library/hand tutor, a blink
+    // return, the graveyard-set batch). The clause has a live subject on day
+    // one: Sink into Stupor's front face is an instant, and CR 712.8a means
+    // the card an effect finds in a graveyard or a library IS that instant.
+    //
+    // "Stays in its current zone" is answered by returning FALSE without
+    // touching the card at all — unlike the two redirects below, which move it
+    // somewhere else. Every caller has already removed the card from its
+    // origin zone, so each restores it: the single-card path
+    // (`putReanimatedOnBattlefield`) and the batch path already treat `false`
+    // as "did not enter", and `card.zone` still names where it came from.
+    // Asked of the printed FRONT face (`modalFrontFaceIsPermanentCard`), never
+    // of the instance's live `types`, because that is what the rule speaks
+    // about.
+    if (refusedByModalFrontFace(card)) {
+        restoreToCurrentZone(state, card);
         return false;
     }
     // CR 614 (issue #1148) — Containment Priest-style replacement: "If a

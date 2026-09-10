@@ -143,6 +143,7 @@ import {
     castSubjectView,
     independentCastOptionsFor,
 } from "./castMode";
+import { landPlayFaces, type PlayLandFace } from "./modalLandPlay";
 import { isSplitCastId, offersPrintedCast } from "./splitCast";
 import { morphCastAlternativeCost, turnableFaceUpPermanents } from "./morph";
 import { hasRetrace } from "./retrace";
@@ -298,7 +299,22 @@ export type Move =
           stackItemId: string;
           choiceId: string;
       }
-    | { kind: "play-land"; cardInstanceId: string }
+    | {
+          kind: "play-land";
+          cardInstanceId: string;
+          /** CR 712.12 (ADR 0122 §2) — which FACE is put onto the
+           *  battlefield: "a player playing a modal double-faced card … as a
+           *  land chooses one of its faces that's a land before putting it
+           *  onto the battlefield."
+           *
+           *  ABSENT means `"front"`, which is what a land play has always
+           *  meant — an ordinary Forest carries no marker and every existing
+           *  Move, blade entry and executor keeps comparing equal. Only a
+           *  modal back face names itself, and the ten `land // land`
+           *  pathways are why the field exists at all: for those, both values
+           *  are legal on the same card. */
+          face?: PlayLandFace;
+      }
     | {
           /** CR 116.2 / 702.139a (ADR 0064) — the `summon-companion` special
            *  action. No card id (the source is `player.companion`, not a hand
@@ -549,6 +565,23 @@ export const SPECIAL_ACTION_MOVE_KINDS: ReadonlySet<Move["kind"]> = new Set([
     // CR 116.2b / 702.37e — turning a face-down permanent face up.
     "turn-face-up",
 ]);
+
+/** CR 712.12 — one `play-land` Move per FACE of `card` that is a land, in
+ *  printed order.
+ *
+ *  THE minter, so the three enumeration sites (hand, graveyard, library top)
+ *  cannot disagree about how many plays a card offers or how a face is named.
+ *  The FRONT face's Move omits `face` entirely rather than spelling it out:
+ *  every land in the catalogue is played as its only face, and an unmarked
+ *  Move is what keeps the shipped blade entries, the executors' equality
+ *  checks and the decision corpus comparing exactly as they did. */
+function landPlayMoves(card: CardInstanceState): Move[] {
+    return landPlayFaces(card).map((face: PlayLandFace) =>
+        face === "front"
+            ? { kind: "play-land", cardInstanceId: card.id }
+            : { kind: "play-land", cardInstanceId: card.id, face }
+    );
+}
 
 /** Upper bound on combinations emitted per combinatorial window. Keeps a
  *  20-creature board from emitting 2^20 attacker subsets. Small real/test
@@ -3734,7 +3767,12 @@ export function enumerateMoves(
     for (const card of player.hand) {
         const actions = getLegalActions(state, player, card);
         if (actions.includes("play")) {
-            moves.push({ kind: "play-land", cardInstanceId: card.id });
+            // CR 712.12 — one Move per FACE that is a land. An ordinary land
+            // yields exactly one, unmarked (`landPlayMove` omits `face` for
+            // the front), so every existing Move is byte-identical; a modal
+            // card yields one or two, and the ten `land // land` pathways are
+            // the pair the Bot has to be able to tell apart.
+            moves.push(...landPlayMoves(card));
         }
         if (actions.includes("cast")) {
             moves.push(...enumerateCastMoves(state, player, card));
@@ -3756,9 +3794,14 @@ export function enumerateMoves(
     // docs/findings/2358-graveyard-cast-moves.md (the previous wording here
     // claimed they were "enumerated elsewhere"; there is no elsewhere).
     for (const card of player.graveyard) {
-        if (!card.types.includes("Land")) continue;
+        // CR 712.12 — the same face walk as the hand loop. The candidate
+        // filter is `landPlayFaces` rather than `types.includes("Land")` for
+        // the same reason `getLegalActions` reads it: a modal card in a
+        // graveyard is its FRONT face (CR 712.8a), which may well be an
+        // instant, while the face the permission would play is the back one.
+        if (landPlayFaces(card).length === 0) continue;
         if (getLegalActions(state, player, card).includes("play")) {
-            moves.push({ kind: "play-land", cardInstanceId: card.id });
+            moves.push(...landPlayMoves(card));
         }
     }
     // CR 702.81a (issue #2358) — the RETRACE cast. A nonland card in the
@@ -3866,10 +3909,10 @@ export function enumerateMoves(
     const libraryTop = player.library[0];
     if (
         libraryTop &&
-        libraryTop.types.includes("Land") &&
+        landPlayFaces(libraryTop).length > 0 &&
         getLegalActions(state, player, libraryTop).includes("play")
     ) {
-        moves.push({ kind: "play-land", cardInstanceId: libraryTop.id });
+        moves.push(...landPlayMoves(libraryTop));
     }
     // CR 601.3 (issue #2398, Bolas's Citadel) — the SPELL half of the
     // same top-of-library permission. Index 0 ONLY, for the same

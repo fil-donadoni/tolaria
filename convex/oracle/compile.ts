@@ -60,6 +60,58 @@ const SUPPORTED_LAYOUTS = new Set<string>(["normal"]);
 const SPLIT_LAYOUT = "split";
 
 /**
+ * CR 712.3 / 712.12 (ADR 0122 §5) — the MODAL DOUBLE-FACED layout, admitted
+ * with a CR-shaped gate.
+ *
+ * `layout: "modal_dfc"` is two classes, and the split between them is not a
+ * schema but WHICH PLAYER ACTION turns the back face up. Measured against the
+ * vendored corpus, 100 cards carry it: 60 have a LAND back face, reached by
+ * CR 712.12's land play, and 40 have a spell or nonland permanent back face,
+ * reached by CR 712.11b's second cast option. Only the first is modelled
+ * (ADR 0122 §6 admits the second in principle and leaves it unbuilt until a
+ * shipped pool wants one), so the gate is a TYPE test on the back face and
+ * never a card-name list that would rot.
+ *
+ * What makes this the cheapest multi-faced layout rather than the dearest is
+ * CR 712.8a: outside the battlefield and the stack a modal card has only its
+ * front face's characteristics. So — unlike split (CR 709.4's combination) —
+ * nothing is derived on the way in. Each face lowers as its own object, the
+ * front becoming the card and the back its `backFace`, because 712.8a and
+ * 712.8f never show two of them at once.
+ */
+export const MODAL_DFC_LAYOUT = "modal_dfc";
+
+/**
+ * The fields a `CardBackFace` record can carry (`cards/types.ts`). A face that
+ * compiled to ANYTHING else — an effect script, a targeting requirement, a
+ * triggered ability, an entry-counter clause — is refused rather than
+ * truncated, for the same reason {@link INSET_SPELL_FIELDS} and
+ * {@link SPLIT_HALF_FIELDS} exist: a definition missing one of its abilities
+ * is worse than no definition at all, and the back face is where a silent
+ * truncation would be least visible (nothing on the front face changes, so the
+ * card looks right until somebody plays the land).
+ *
+ * `CardBackFace.colors` is deliberately absent: `CompiledDefinition`
+ * (`oracle/types.ts`) has no `colors` field at all, so no compiled face can
+ * carry one and listing it would describe a leg that cannot exist. A back
+ * face's colour is derived from its own characteristics like every other
+ * card's.
+ */
+const MODAL_BACK_FACE_FIELDS = new Set<string>([
+    "name",
+    "types",
+    "subtypes",
+    "supertypes",
+    "power",
+    "toughness",
+    "loyalty",
+    "staticAbilities",
+    "activatedAbilities",
+    "entersTappedUnlessPay",
+    "oracleText",
+]);
+
+/**
  * CR 715 / 722 (ADR 0120 §5) — the layouts whose second face is an INSET SPELL
  * rather than a second object, mapped to the `InsetSpellKind` they lower into.
  *
@@ -129,6 +181,7 @@ export function compileCard(card: OracleCard): CompileOutcome {
     const insetKind = SUPPORTED_INSET_LAYOUTS[layout];
     if (insetKind !== undefined) return compileInsetLayout(card, insetKind);
     if (layout === SPLIT_LAYOUT) return compileSplitLayout(card);
+    if (layout === MODAL_DFC_LAYOUT) return compileModalDfcLayout(card);
     if (!SUPPORTED_LAYOUTS.has(layout)) {
         return unparsed([
             {
@@ -342,6 +395,124 @@ function compileInsetLayout(
         ...(inset.state === "quarantine" ? inset.reasons : []),
     ];
     // One card is one card (CR 715.2c): a quarantined FACE quarantines the
+    // card, never half of it.
+    return reasons.length > 0
+        ? { state: "quarantine", definition, opsUsed, slots, reasons }
+        : { state: "ready", definition, opsUsed, slots };
+}
+
+/**
+ * CR 712.3 / 712.8a / 712.12 (ADR 0122 §5) — compile a MODAL DOUBLE-FACED
+ * layout: the FRONT face becomes the card, the back face becomes its
+ * `backFace` with `kind: "modal"`.
+ *
+ * Nothing is combined and nothing is derived — CR 712.8a means the card the
+ * enumerators hold IS its front face — so the front face's compiled definition
+ * is used whole and the back face is attached to it. Both faces run the
+ * ordinary pipeline, so a grammar rule written for a normal card serves a
+ * modal face for free and neither face can be half-read. Gaps from BOTH faces
+ * are reported together, for the same reason the line loop does not stop at
+ * the first one: the aggregated fragment histogram is what ranks the next
+ * grammar rule (PRD #2693 user story 9).
+ */
+function compileModalDfcLayout(card: OracleCard): CompileOutcome {
+    const faces = card.faces ?? [];
+    if (faces.length !== 2) {
+        return unparsed([
+            {
+                line: card.typeLine,
+                fragment: card.typeLine,
+                reason: `layout "${MODAL_DFC_LAYOUT}" needs exactly two faces, got ${faces.length}`,
+            },
+        ]);
+    }
+    // CR 712.12 — the gate. "A player playing a modal double-faced card … as a
+    // land chooses one of its faces that's a land": the class this engine
+    // models is the one whose BACK face is a land, because the land play is
+    // the action that turns it up. A nonland back face is CR 712.11b's cast
+    // option (40 of the corpus's 100), unbuilt, and keeps producing the gap it
+    // produces today rather than compiling into a card nobody can turn over.
+    const backTypeLine = readTypeLine(faces[1].typeLine);
+    if (!backTypeLine.ok) {
+        return unparsed([
+            {
+                line: faces[1].typeLine,
+                fragment: backTypeLine.fragment,
+                reason: backTypeLine.reason,
+            },
+        ]);
+    }
+    if (!backTypeLine.parsed.types.includes("Land")) {
+        return unparsed([
+            {
+                line: faces[1].typeLine,
+                fragment: faces[1].typeLine,
+                reason: `modal double-faced card with a nonland back face is CR 712.11b's cast option, out of scope`,
+            },
+        ]);
+    }
+    const front = compileCard(faceAsOracleCard(card, faces[0]));
+    const back = compileCard(faceAsOracleCard(card, faces[1]));
+    if (front.state === "unparsed" || back.state === "unparsed") {
+        return unparsed([
+            ...(front.state === "unparsed" ? front.gaps : []),
+            ...(back.state === "unparsed" ? back.gaps : []),
+        ]);
+    }
+    // Fail CLOSED on anything a `CardBackFace` cannot carry. A modal back face
+    // is a whole card face and the registered twin gives it a real
+    // `CardDefinition` (ADR 0122 §1), but the RECORD the definition is built
+    // from is still `CardBackFace`'s field list, so a face that compiled to an
+    // effect script or a triggered ability would lose it silently.
+    const carried = Object.keys(back.definition).filter(
+        (k) => !MODAL_BACK_FACE_FIELDS.has(k)
+    );
+    if (carried.length > 0) {
+        return unparsed([
+            {
+                line: faces[1].oracleText,
+                fragment: faces[1].oracleText,
+                reason: `modal back face carries ${carried.join(", ")}, which a CardBackFace cannot hold`,
+            },
+        ]);
+    }
+    const backDef = back.definition;
+    const definition: CompiledDefinition = {
+        ...front.definition,
+        backFace: {
+            kind: "modal",
+            name: backDef.name,
+            types: [...backDef.types],
+            ...(backDef.subtypes ? { subtypes: [...backDef.subtypes] } : {}),
+            ...(backDef.supertypes
+                ? { supertypes: [...backDef.supertypes] }
+                : {}),
+            ...(backDef.power !== undefined ? { power: backDef.power } : {}),
+            ...(backDef.toughness !== undefined
+                ? { toughness: backDef.toughness }
+                : {}),
+            ...(backDef.loyalty !== undefined
+                ? { loyalty: backDef.loyalty }
+                : {}),
+            ...(backDef.staticAbilities
+                ? { staticAbilities: [...backDef.staticAbilities] }
+                : {}),
+            ...(backDef.activatedAbilities
+                ? { activatedAbilities: backDef.activatedAbilities }
+                : {}),
+            ...(backDef.entersTappedUnlessPay
+                ? { entersTappedUnlessPay: backDef.entersTappedUnlessPay }
+                : {}),
+            oracleText: faces[1].oracleText,
+        },
+    };
+    const opsUsed = [...new Set([...front.opsUsed, ...back.opsUsed])].sort();
+    const slots = [...new Set([...front.slots, ...back.slots])].sort();
+    const reasons = [
+        ...(front.state === "quarantine" ? front.reasons : []),
+        ...(back.state === "quarantine" ? back.reasons : []),
+    ];
+    // One card is one card (CR 712.8a): a quarantined FACE quarantines the
     // card, never half of it.
     return reasons.length > 0
         ? { state: "quarantine", definition, opsUsed, slots, reasons }

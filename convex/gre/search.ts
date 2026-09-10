@@ -126,6 +126,7 @@ import {
     recordActivation,
 } from "./activationCommit";
 import { resolvePlayLandSourceZone } from "./playLand";
+import { stampModalBackFaceForPlay } from "./transform";
 import {
     evaluate,
     evaluateBreakdown,
@@ -901,6 +902,12 @@ export function applyMoveInSearch(
                 sourceZone === "library-top" ? "library" : sourceZone,
                 "battlefield"
             );
+            // CR 712.12 — a modal card played as its back face enters AS
+            // that face, so the stamp lands before anything reads the
+            // permanent's type line. Without it the coarse leaf would put an
+            // Instant onto the battlefield, count no land drop, and evaluate a
+            // position the real engine never produces.
+            if (move.face === "back") stampModalBackFaceForPlay(state, card);
             if (card.types.includes("Land")) {
                 player.landsPlayedThisTurn =
                     (player.landsPlayedThisTurn ?? 0) + 1;
