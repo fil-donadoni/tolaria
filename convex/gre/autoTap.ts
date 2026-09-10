@@ -63,6 +63,12 @@ export type AutoTapSource = {
          *  which is exactly the sequence `tapSourceIntoPayment` then executes,
          *  paying through `applyManaAbilityManaCost`. Absent = free option. */
         cost?: Record<string, number>;
+        /** CR 609.4b — the substitutions the ABILITY payment will see for this
+         *  option's own `cost` (`ManaTapPlanContext.abilityManaSubstitutions`),
+         *  never the surrounding cast's set. Empty when the caller supplied
+         *  none: the leg then has to be payable with no substitution at all,
+         *  which can only under-admit. */
+        costSubstitutions?: ManaSubstitution[];
         /** CR 106.6 (issue #3384) — this option's mana carries the rider the
          *  plan context was reaching for (Arena of Glory's haste on a creature
          *  spell). Ranked above an equal-tap-count plan without it. */
@@ -298,7 +304,11 @@ export function buildAutoTapSources(
                         toContribution(opt.mana)
                     ),
                     ...(normalized && Object.keys(normalized).length > 0
-                        ? { cost: normalized }
+                        ? {
+                              cost: normalized,
+                              costSubstitutions:
+                                  context?.abilityManaSubstitutions ?? [],
+                          }
                         : {}),
                     ...(manaTapOptionCarriesSoughtRider(
                         card,
@@ -400,13 +410,17 @@ function poolAfterSpending(
  *  the whole mutation back. A free option (no `cost`) is a plain add. */
 function applyOption(
     pool: Record<string, number>,
-    opt: AutoTapSource["options"][number],
-    substitutions: ManaSubstitution[]
+    opt: AutoTapSource["options"][number]
 ): Record<string, number> | null {
     if (!opt.cost) return addContribution(pool, opt.mana);
-    if (!isManaCostCovered(pool, opt.cost, substitutions)) return null;
+    // CR 609.4b — the option's own leg is an ACTIVATION cost, so it is judged
+    // with the substitutions its own payment will see, NOT with the plan's
+    // (which for a cast carries cast-scoped permissions a mana ability never
+    // gets). The plan's own set governs everything the plan is paying FOR.
+    const costSubs = opt.costSubstitutions ?? [];
+    if (!isManaCostCovered(pool, opt.cost, costSubs)) return null;
     return addContribution(
-        poolAfterSpending(pool, opt.cost, substitutions),
+        poolAfterSpending(pool, opt.cost, costSubs),
         opt.mana
     );
 }
@@ -513,7 +527,7 @@ export function solveAutoTap(
         for (const opt of ordered) {
             // CR 601.2g (issue #3384) — an option with its own mana leg is
             // tappable only once an EARLIER step floated what it costs.
-            const nextPool = applyOption(trialPool, opt, substitutions);
+            const nextPool = applyOption(trialPool, opt);
             if (nextPool === null) continue;
             const result = dfs(
                 index + 1,
@@ -605,15 +619,23 @@ export const SURPLUS_CAP = 8;
 
 /** CR 106.6 — weight of one plan step that obtains the rider the plan context
  *  was reaching for (issue #3384: Arena of Glory's haste while paying for a
- *  creature spell). Deliberately placed BETWEEN the source-quality swing
- *  `evalScore` can produce (bounded in the tens — `W_SOURCE_DUAL_PURPOSE` 20,
- *  `W_SOURCE_BREADTH` 4 × ≤4 colors, `FLEX_CARD_CAP` × `W_FLEX` 18) and
- *  `W_SURPLUS` (100): the rider is worth more than any breadth/dual-purpose
- *  preference among equal-tap-count plans, and less than avoiding a unit of
- *  mana CR 500.5 is about to empty — so a plan is never steered into waste to
- *  collect it. Far below `W_PRESERVED_DEMAND` (1000): a concrete future play
- *  still outranks it. Zero across plans when no caller supplied a context, so
- *  the ranking is byte-identical for every existing path. */
+ *  creature spell).
+ *
+ *  What this term has to beat is NOTHING, and what it has to lose to is
+ *  `W_SURPLUS`. A rider plan and the free-option plan it competes with tap the
+ *  SAME source set — the rider option differs from the free one only in netting
+ *  its own cost leg back out — so they leave the same sources untapped and the
+ *  same pool floating: `evalScore`, `demandScore` and `flex` tie by
+ *  construction, and only `surplus` and this term can separate them. Sitting
+ *  strictly below `W_SURPLUS` (100) is therefore the whole placement claim: a
+ *  plan is never steered into wasting a mana CR 500.5 is about to empty in
+ *  order to collect a rider. Far below `W_PRESERVED_DEMAND` (1000) for the same
+ *  reason a concrete future play outranks everything here. Deliberately NOT
+ *  justified against the eval's source-quality swing — that swing's own doc
+ *  (`W_SURPLUS` above) disclaims a bound for the uncapped mana-proxy term, and
+ *  a claim this term does not need is a claim that rots. Zero across plans when
+ *  no caller supplied a context, so the ranking is byte-identical for every
+ *  existing path. */
 export const W_SOUGHT_RIDER = 50;
 
 /** Smallest number of taps that covers `cost`, or `null` if uncoverable.
@@ -674,7 +696,7 @@ function enumerateKTapPlans(
             }
             // CR 601.2g (issue #3384) — same ordering rule as `solveAutoTap`:
             // a costed option is unreachable until the plan has funded it.
-            const nextPool = applyOption(trialPool, opt, substitutions);
+            const nextPool = applyOption(trialPool, opt);
             if (nextPool === null) continue;
             dfs(index + 1, nextPool, [
                 ...chosen,
@@ -737,7 +759,7 @@ export function floatingAfterPlan(
         // infeasible, which the solvers have already excluded.
         if (opt) {
             remaining =
-                applyOption(remaining, opt, substitutions) ??
+                applyOption(remaining, opt) ??
                 addContribution(remaining, opt.mana);
         }
     }
@@ -1150,7 +1172,7 @@ export function solveAutoTapPartial(
                 // CR 601.2g (issue #3384) — an unfunded costed option is not a
                 // candidate: the partial plan is EXECUTED, so a step the
                 // payment primitive would refuse must never enter it.
-                const next = applyOption(currentPool, opt, substitutions);
+                const next = applyOption(currentPool, opt);
                 if (next === null) continue;
                 const after = remainingDeficit(next, cost, substitutions);
                 if (after < bestDeficit) {

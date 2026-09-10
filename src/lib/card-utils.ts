@@ -354,8 +354,17 @@ function findClientManaAbility(card: CardInstance) {
  *  source can carry several (Arena of Glory's free "{T}: Add {R}" and its
  *  costed "{R}, {T}, Exert this land: Add {R}{R}"; Delighted Halfling's
  *  unrestricted and legendary-only pair), and a predicate that reads only the
- *  first one answers about an ability the player may not be activating. */
-function clientManaAbilities(card: CardInstance): ActivatedAbility[] {
+ *  first one answers about an ability the player may not be activating.
+ *
+ *  CR 602.5b (issue #947) — an ability whose own `canActivate` precondition
+ *  fails against `stateView` is not one of them: an un-imprinted Chrome Mox has
+ *  NO usable mana ability, which is exactly what `getActivatedManaAbility`
+ *  answers server-side. Callers with no view (shape-only introspection) skip
+ *  the gate, matching the existing UI-hint convention (#436). */
+function clientManaAbilities(
+    card: CardInstance,
+    stateView?: TriggerStateView
+): ActivatedAbility[] {
     return getEffectiveActivatedAbilities(card as unknown as CardInstanceState)
         .filter(
             ({ ability: a }) =>
@@ -365,7 +374,15 @@ function clientManaAbilities(card: CardInstance): ActivatedAbility[] {
                     a.getManaChoices ||
                     a.manaColorSource)
         )
-        .map(({ ability }) => ability);
+        .map(({ ability }) => ability)
+        .filter(
+            (a) =>
+                !a.canActivate ||
+                a.canActivate(
+                    card as unknown as PermanentView,
+                    stateView ?? { players: [] }
+                )
+        );
 }
 
 /** Returns true if a card has a tap mana ability (basic land subtype or
@@ -3212,7 +3229,7 @@ export function canAffordManaAbilityCost(
     battlefield: ReadonlyArray<CardInstance> = [],
     manaGateView?: TriggerStateView
 ): boolean {
-    const abilities = clientManaAbilities(card);
+    const abilities = clientManaAbilities(card, manaGateView);
     if (abilities.length === 0) return true;
     // Any OTHER untapped mana source the engine's auto-tap could reach for.
     // Colour-blind on purpose: the server runs the real solver and rejects a

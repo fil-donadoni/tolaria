@@ -10627,12 +10627,27 @@ export const autoTapForPayment = mutation({
         // {T}, Exert this land: Add {R}{R}" and its haste rider. Absent for an
         // activation payment or a bare auto-tap: no costed option is admitted
         // there, exactly as before.
+        //
+        // CR 702.103b — a BESTOWED cast is an Aura spell, so the rider never
+        // fires on it: `manaRiderStackStamps` drops `dynamicHasteFromMana`
+        // there, and a planner that did not apply the same gate would pay the
+        // exert and the {R} for a stamp the stack item discards.
+        // CR 702.10b — and a spell that already HAS haste from its own text
+        // gains nothing, so the exert would again be spent for free.
+        const castDef = castCard
+            ? tryGetDefinition((castCard.card as { id?: string }).id ?? "")
+            : null;
         const planContext: ManaTapPlanContext = {
-            payingForCreatureSpell: castCard
-                ? (tryGetDefinition(
-                      (castCard.card as { id?: string }).id ?? ""
-                  )?.types.includes("Creature") ?? false)
-                : false,
+            payingForCreatureSpell:
+                !state.pendingCast?.bestowed &&
+                (castDef?.types.includes("Creature") ?? false),
+            spellAlreadyHasHaste:
+                castDef?.staticAbilities?.includes("haste") ?? false,
+            // CR 609.4b — an ACTIVATION cost sees the unscoped set, never the
+            // cast-scoped permissions `substitutions` above carries; a subset
+            // of what `getAbilityManaSubstitutions` will hand the payment, so
+            // the plan can under-admit a costed option but never over-admit one.
+            abilityManaSubstitutions: getManaSubstitutions(state, player.id),
         };
         const sources = buildAutoTapSources(
             player.battlefield,

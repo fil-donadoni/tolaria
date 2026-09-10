@@ -23,11 +23,14 @@ import { tapUntap, autoTapForPayment } from "../game";
 import { projectPublicState } from "../gameProjections";
 import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
 import { arenaOfGlory } from "../cards/sets/mh3/colorless";
-import { mountain } from "../cards/sets/lea";
+import { springheartNantuko } from "../cards/sets/mh3/green";
+import { mountain, forest as forestCard } from "../cards/sets/lea";
+import { getCardByName } from "../cards";
+import { buildAutoTapSources, solveSmartAutoTap } from "../gre/autoTap";
 import { grizzlyBears } from "../cards/sets/lea/green";
 import { lightningBolt } from "../cards/sets/lea/red";
 import { resolveTopOfStack } from "../gre/state";
-import type { GameState, PendingCast } from "../gre/state";
+import type { GameState, ManaSubstitution, PendingCast } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
 import {
     makeMutationCtx,
@@ -127,6 +130,11 @@ const castOf = (
     },
 });
 
+/** A shipped red 2-drop whose PRINTED text already grants haste — the rider
+ *  can buy it nothing. Resolved by name: it is a data-driven catalogue entry
+ *  with no hand-written module to import a symbol from. */
+const hastyCreature = getCardByName("Nest Robber")!;
+
 const arenaOn = (state: GameState) =>
     state.players[0].battlefield.find((c) => c.id === "arena")!;
 
@@ -158,7 +166,7 @@ describe("tapUntap pre-funds the CHOSEN option, not the first (CR 601.2g, issue 
         expect(arenaOn(state).exertedThisTap).toBe(true);
     });
 
-    it("rejects cleanly with no other untapped source, leaving the board untouched", async () => {
+    it("rejects cleanly with no other untapped source, persisting nothing", async () => {
         const stub = makeMutationCtx("p1", [gameStateSeed(arenaBoard(0))]);
 
         await expect(
@@ -168,8 +176,12 @@ describe("tapUntap pre-funds the CHOSEN option, not the first (CR 601.2g, issue 
             })
         ).rejects.toThrow(/Not enough mana/);
 
-        // CR 601.2 — a rejected activation changes nothing: not the tap, not
-        // the exert, not the pool.
+        // CR 601.2 — a rejected activation changes nothing. The load-bearing
+        // assertion is the SEQ: the handler mutates a `structuredClone` and a
+        // throw never reaches `saveGameState`, so "the row was never patched"
+        // is the whole no-partial-write contract, and the board re-read below
+        // is what that contract MEANS rather than a second, independent check.
+        expect(stub.doc("gs-1").seq).toBe(1);
         const state = stub.state();
         expect(arenaOn(state).isTapped).toBe(false);
         expect(arenaOn(state).skipNextUntap).toBeUndefined();
@@ -268,5 +280,96 @@ describe("auto-tap reaches the costed option for a CREATURE spell (CR 106.6, iss
         expect(state.pendingCast).toBeUndefined();
         expect(state.stack).toHaveLength(1);
         expect(state.stack[0].dynamicHasteFromMana).toBeUndefined();
+    });
+});
+
+// The three ways an admitted option can cost the player a resource for
+// NOTHING — each found by review of this change, each a statement about the
+// PLAN rather than about the option.
+describe("the plan refuses a costed option the payment would not reward", () => {
+    it("a BESTOWED cast is an Aura spell, so the rider never fires (CR 702.103b)", async () => {
+        // Cost deliberately out of reach, so the partial plan runs and nothing
+        // commits: what is under test is WHICH option the plan reaches for.
+        const spell = castOf(springheartNantuko.id, 5);
+        spell.pendingCast.bestowed = true;
+        const stub = makeMutationCtx("p1", [
+            gameStateSeed(arenaBoard(1, spell)),
+        ]);
+
+        await runAutoTap(stub.ctx);
+
+        const state = stub.state();
+        // `manaRiderStackStamps` drops `dynamicHasteFromMana` for a bestowed
+        // cast, so exerting the land to obtain it would buy nothing at all.
+        expect(arenaOn(state).isTapped).toBe(true);
+        expect(arenaOn(state).skipNextUntap).toBeUndefined();
+        expect(state.players[0].restrictedMana).toBeUndefined();
+    });
+
+    it("a creature that already HAS haste gains nothing from the rider (CR 702.10b)", async () => {
+        const stub = makeMutationCtx("p1", [
+            gameStateSeed(arenaBoard(1, castOf(hastyCreature.id, 2))),
+        ]);
+
+        await runAutoTap(stub.ctx);
+
+        const state = stub.state();
+        expect(arenaOn(state).isTapped).toBe(true);
+        expect(arenaOn(state).skipNextUntap).toBeUndefined();
+        expect(state.stack[0].dynamicHasteFromMana).toBeUndefined();
+    });
+
+    it("a CAST-scoped substitution never funds an ACTIVATION cost leg (CR 609.4b)", () => {
+        // The planner is handed a cast-scoped "spend mana as any colour"
+        // permission (Robber of the Rich's exiled card, a North Star grant).
+        // `applyManaAbilityManaCost` will NOT see it — `getAbilityManaSubstitutions`
+        // names no cast — so a plan that leant on it to fund Arena's "{R}" leg
+        // would throw mid-execution and roll the whole mutation back.
+        const forest = makeInstance(forestCard.id, {
+            id: "forest-0",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const arena = makeInstance(arenaOfGlory.id, {
+            id: "arena",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [arena, forest] }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            phase: "PRECOMBAT_MAIN",
+        });
+        const castScoped = [{ from: "G", to: "R" }] as ManaSubstitution[];
+        const sources = buildAutoTapSources(
+            state.players[0].battlefield,
+            [{ playerId: "p1", battlefield: state.players[0].battlefield }],
+            {
+                payingForCreatureSpell: true,
+                // Exactly what `autoTapForPayment` passes: the UNSCOPED set,
+                // which here carries nothing.
+                abilityManaSubstitutions: [],
+            }
+        );
+        const plan = solveSmartAutoTap(
+            { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+            { X: 2 },
+            castScoped,
+            sources
+        );
+        expect(plan).not.toBeNull();
+        // The Forest funds the cost only under the cast permission, so the
+        // exert option must stay out of the plan.
+        expect(
+            plan!.some(
+                (step) =>
+                    step.cardId === "arena" &&
+                    step.manaChoiceIndex === EXERT_OPTION_INDEX
+            )
+        ).toBe(false);
     });
 });

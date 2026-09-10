@@ -30,7 +30,12 @@ import { getDefinition, tryGetDefinition } from "../cards";
 // `{T}: Add …` (Urza's Saga chapter I) is visible to the auto-tap solver and
 // the castability probe exactly like a printed one.
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
-import type { CardInstanceState, GameState, PendingTarget } from "./state";
+import type {
+    CardInstanceState,
+    GameState,
+    ManaSubstitution,
+    PendingTarget,
+} from "./state";
 import type { ContinuousEffect } from "./continuousEffects";
 import { applySubstitution } from "./textChanges";
 import {
@@ -1851,9 +1856,27 @@ export function getManaTapOptionRestriction(
  *  is being spent on. The Bot's own planner is issue #3359 and passes nothing
  *  yet, which is precisely why the default must stay exclusion. */
 export type ManaTapPlanContext = {
-    /** CR 106.6 — the cost being planned for belongs to a CREATURE spell, so a
-     *  creature-only mana rider (Arena of Glory's haste) is worth reaching for. */
+    /** CR 106.6 / 702.103b — the cost being planned for belongs to a CREATURE
+     *  spell, so a creature-only mana rider (Arena of Glory's haste) is worth
+     *  reaching for. A BESTOWED cast is an Aura spell, not a creature spell, so
+     *  it is false there — the same gate `manaRiderStackStamps` applies when it
+     *  decides whether to stamp `dynamicHasteFromMana`, and the two must agree
+     *  or the plan pays an exert for a rider the stack item then discards. */
     payingForCreatureSpell?: boolean;
+    /** CR 702.10b — the spell already HAS haste from its own text, so the rider
+     *  would buy nothing and the exert leg is a resource spent for free. */
+    spellAlreadyHasHaste?: boolean;
+    /** CR 609.4b — the substitutions an ABILITY payment will see when it pays a
+     *  planned option's own mana leg (`applyManaAbilityManaCost` →
+     *  `getAbilityManaSubstitutions`). It is NOT the set the surrounding cast is
+     *  planned with: a CAST-scoped permission (Robber of the Rich's exiled
+     *  card, a North Star one-shot grant) reaches the spell's total cost and not
+     *  a mana ability's activation cost, so validating the leg with the cast set
+     *  would admit a plan `applyManaAbilityManaCost` then refuses — the exact
+     *  planner/payment disagreement issue #3384 exists to remove. Omitted means
+     *  none: the leg must be payable with no substitution at all, which
+     *  under-admits and never over-admits. */
+    abilityManaSubstitutions?: ManaSubstitution[];
 };
 
 /** CR 106.6 — does this option's mana carry a rider the current plan is
@@ -1872,6 +1895,7 @@ function manaTapOptionRiderIsSought(
     context: ManaTapPlanContext | undefined
 ): boolean {
     if (!context?.payingForCreatureSpell) return false;
+    if (context.spellAlreadyHasHaste) return false;
     if (!ability.manaHasteRider) return false;
     const mana = ability.cost.mana;
     if (mana) {
