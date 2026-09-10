@@ -164,7 +164,7 @@ describe("evaluate (issue #111)", () => {
         );
     });
 
-    it("TAPPING a mana source is not a material loss (CR 502.1, issue #3377)", () => {
+    it("TAPPING a mana source is not a material loss (CR 502.3, issue #3377)", () => {
         // The `mana` term counts SOURCES, not untapped sources. A source tapped
         // to pay for something untaps in its controller's next untap step, so
         // nothing durable was given up; the option it cost THIS turn is what
@@ -175,8 +175,13 @@ describe("evaluate (issue #111)", () => {
         // than passing (creatures +29 against mana −48, flexibility −6), so the
         // material tie-break refused every mana-costed activation whose payoff
         // was smaller than the sources it tapped — which is nearly all of them.
+        // FOUR sources, not three: the bound this pins is the measured one from
+        // the issue-#3377 trace — four tapped sources must cost less than the
+        // +23 that activation was worth, i.e. `tappedManaWeight > 6.25`. With
+        // three the band silently widens to `> 4.33` and the guard goes green
+        // at a weight that still refuses the activation it was written for.
         const lands = (tapped: boolean) =>
-            ["l1", "l2", "l3"].map((id) =>
+            ["l1", "l2", "l3", "l4"].map((id) =>
                 makeInstance(MOUNTAIN, {
                     controllerId: "p1",
                     ownerId: "p1",

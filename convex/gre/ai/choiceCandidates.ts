@@ -1242,10 +1242,15 @@ function sacrificePermanentsIsSearchable(choice: PendingChoice): boolean {
  *  combinations, the same containment `searchLibraryCandidates` and
  *  `handPickCandidates` use.
  *
- *  `materialGivenUp` is reported as a hint so the prior seam can float the
- *  cheapest victim without this generator hard-coding the preference — the
- *  bot must still be able to sacrifice something expensive when the search
- *  finds a reason to. */
+ *  The POLICY is the cheapest-first top-K admission cut itself, stated plainly
+ *  rather than dressed up (review finding 4): `heuristicChoicePrior` has no
+ *  `sacrifice-permanents` leg, so every candidate this emits carries
+ *  `NEUTRAL_PRIOR` and the ordering that survives is which branches were
+ *  emitted at all. On a pool wider than `CHOICE_TOP_K` distinct identities the
+ *  expensive victims are therefore pruned out of the answer set, not merely
+ *  ranked below — "a candidate that was never emitted is one no amount of
+ *  reward can choose". `materialGivenUp` is carried anyway, as the hook a
+ *  prior leg would read; it is not consulted today. */
 const sacrificePermanentsCandidates: ChoiceCandidateGenerator = (
     state,
     choice
@@ -1287,6 +1292,30 @@ const sacrificePermanentsCandidates: ChoiceCandidateGenerator = (
         cardInstanceIds: cards.map((c) => c.id),
     });
 
+    const out: Omit<ChoiceCandidate, "prior">[] = [];
+    // The DECLINE branch, for an OPTIONAL sacrifice (`min: 0` — "you MAY
+    // sacrifice"). Registering this kind without it does not fix the gap, it
+    // FLIPS ITS SIGN: before, the choice was not a search node at all and the
+    // ADR 0016 heuristic declined; with the kind searchable and no empty
+    // submission, the search has only sacrificing branches to pick from and
+    // the bot can never say no. Measured on Gut, True Soul Zealot
+    // (`sets/clb/red.ts`, `count: { min: 0, max: 1 }`): the sole candidate was
+    // the 6/4 Craw Wurm, so the bot ate its best creature to make a 4/1
+    // Skeleton. Grist, the Hunger Tide's −2 (`sets/mh2/multicolor.ts`) is the
+    // other shipped shape. The driver's `chooseOwedChoiceAction` safety net
+    // cannot cover it, because the search DOES yield a move.
+    //
+    // Emitted the same way `searchLibraryCandidates` emits its own decline, and
+    // for the same reason: declining an optional cost can be right, so it must
+    // be a branch that is weighed rather than one that is missing.
+    if (min <= 0) {
+        out.push({
+            key: "sacrifice-permanents:none",
+            move: submit([]),
+            hint: { materialGivenUp: 0 },
+        });
+    }
+
     const ranked = pool
         .map((card) => ({
             card,
@@ -1299,8 +1328,14 @@ const sacrificePermanentsCandidates: ChoiceCandidateGenerator = (
                 (a.identity < b.identity ? -1 : a.identity > b.identity ? 1 : 0)
         );
 
-    const out: Omit<ChoiceCandidate, "prior">[] = [];
     const seen = new Set<string>();
+    // Distinct SETS, not distinct orders (review finding 2). The prefix walk
+    // below reaches the same set from several leads — measured, three of five
+    // branches on a 5-creature pool at `count: 3` were one set in three
+    // orders — and duplicates cost twice: top-K slots that carry nothing, and
+    // an in-tree split of one set's UCB visits across siblings, which makes it
+    // look LESS explored than a single-node rival with the same total.
+    const seenSets = new Set<string>();
     for (const lead of ranked) {
         if (out.length >= CHOICE_TOP_K) break;
         if (seen.has(lead.identity)) continue;
@@ -1312,10 +1347,11 @@ const sacrificePermanentsCandidates: ChoiceCandidateGenerator = (
             picked.push(other);
         }
         if (picked.length < pick) continue;
+        const setKey = stableSetIdentity(picked.map((p) => p.card));
+        if (seenSets.has(setKey)) continue;
+        seenSets.add(setKey);
         out.push({
-            key: `sacrifice-permanents:${picked
-                .map((p) => stableCardIdentity(p.card))
-                .join("+")}`,
+            key: `sacrifice-permanents:${setKey}`,
             move: submit(picked.map((p) => p.card)),
             hint: {
                 materialGivenUp: picked.reduce((sum, p) => sum + p.worth, 0),

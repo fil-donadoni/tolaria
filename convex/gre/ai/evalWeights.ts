@@ -37,7 +37,7 @@ export type EvalWeights = {
     /** Per UNTAPPED mana source (`W_MANA`). */
     manaWeight: number;
     /** Per TAPPED mana source (issue #3377). A tapped source is still a source:
-     *  it untaps in its controller's next untap step (CR 502.1), so tapping one
+     *  it untaps in its controller's next untap step (CR 502.3), so tapping one
      *  to pay for something forfeits this turn's option, not the permanent.
      *  Scored below `manaWeight` — having mana available NOW is worth something
      *  — but nowhere near zero, which is what it used to be worth.

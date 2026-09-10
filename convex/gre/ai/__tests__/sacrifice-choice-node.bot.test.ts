@@ -24,6 +24,12 @@ import {
 import { materialMargin } from "../../evaluate";
 import { enumerateMoves } from "../../moves";
 import { buildBladeState } from "../blade/runner";
+import { getCardByName } from "../../../cards";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../cards/__tests__/setup";
 import { findBladeScenario } from "../blade/registry";
 import { cloneGameState } from "../../clone";
 import { resolveTopOfStack } from "../../state";
@@ -76,6 +82,103 @@ describe("sacrifice-permanents as a search node (issue #3377)", () => {
         expect(materialMargin(settled, botId)).toBeLessThan(
             materialMargin(before, botId)
         );
+    });
+
+    it("an OPTIONAL sacrifice keeps its DECLINE branch (review finding 1)", () => {
+        // Registering the kind without this does not fix the gap, it flips its
+        // sign. Before, the choice was no search node and the ADR 0016
+        // heuristic declined; with it searchable and no empty submission the
+        // search has only sacrificing branches, so the bot can never say no —
+        // and the driver's `chooseOwedChoiceAction` net cannot cover it,
+        // because the search DOES yield a move.
+        //
+        // Gut, True Soul Zealot is the shipped shape (`count: { min: 0 }`,
+        // "you MAY sacrifice"): its only other creature here is a 6/4, so the
+        // forced branch eats the bot's best body for a 4/1 Skeleton.
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(getCardByName("Craw Wurm").id, {
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            id: "wurm",
+                            isSummoningSick: false,
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const choice = {
+            kind: "sacrifice-permanents",
+            stackItemId: "s1",
+            step: 0,
+            choiceId: "c1",
+            playerId: "p1",
+            zone: "battlefield",
+            count: { min: 0, max: 1 },
+            prompt: "You may sacrifice a creature.",
+        } as unknown as NonNullable<GameState["pendingChoices"]>[number];
+        const candidates = [...choiceCandidates(state, choice)];
+        const declines = candidates.filter(
+            (c) =>
+                (
+                    (c.move as { cardInstanceIds?: string[] })
+                        .cardInstanceIds ?? []
+                ).length === 0
+        );
+        expect(declines).toHaveLength(1);
+        // …and the sacrifice is still offered, or the branch is not a choice.
+        expect(candidates.length).toBeGreaterThan(1);
+    });
+
+    it("emits distinct SETS, not the same set in several orders (review finding 2)", () => {
+        // The prefix walk reaches one set from several leads. Duplicates cost
+        // twice: top-K slots carrying nothing, and an in-tree split of that
+        // set's UCB visits across siblings, which makes it look LESS explored
+        // than a single-node rival with the same total visits.
+        const names = [
+            "Llanowar Elves",
+            "Grizzly Bears",
+            "Hill Giant",
+            "Serra Angel",
+            "Craw Wurm",
+        ];
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: names.map((n, i) =>
+                        makeInstance(getCardByName(n).id, {
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            id: `c${i}`,
+                            isSummoningSick: false,
+                        })
+                    ),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const choice = {
+            kind: "sacrifice-permanents",
+            stackItemId: "s1",
+            step: 0,
+            choiceId: "c1",
+            playerId: "p1",
+            zone: "battlefield",
+            count: 3,
+            prompt: "Sacrifice three permanents.",
+        } as unknown as NonNullable<GameState["pendingChoices"]>[number];
+        const sets = [...choiceCandidates(state, choice)].map((c) =>
+            [
+                ...((c.move as { cardInstanceIds?: string[] })
+                    .cardInstanceIds ?? []),
+            ]
+                .sort()
+                .join("+")
+        );
+        expect(new Set(sets).size).toBe(sets.length);
     });
 
     it("every candidate satisfies the choice's own filter (CR 202.2)", () => {

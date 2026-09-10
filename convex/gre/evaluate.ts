@@ -310,7 +310,7 @@ function availableManaFor(player: PlayerState): number {
     return n;
 }
 
-/** How many MANA SOURCES `player` controls, tapped or not (CR 502.1, issue
+/** How many MANA SOURCES `player` controls, tapped or not (CR 502.3, issue
  *  #3377) — the `mana` term's MATERIAL half, as against `availableManaFor`'s
  *  "what can I spend right now".
  *
@@ -335,7 +335,7 @@ function availableManaFor(player: PlayerState): number {
  *  longer moves the term at all.
  *
  *  The floating POOL is deliberately not counted here: it empties at the end
- *  of every step and phase (CR 500.4), so it is the least durable thing on the
+ *  of every step and phase (CR 500.5), so it is the least durable thing on the
  *  board. It stays in `availableManaFor`, where "can I pay for this right now"
  *  is the question being asked. */
 function manaSourceTermFor(player: PlayerState, weights: EvalWeights): number {
@@ -1007,8 +1007,8 @@ function playerTerms(
     }
     const availableMana = availableManaFor(player);
     // MATERIAL: how many sources are owned, not how many are untapped right
-    // now (issue #3377 — see `manaSourcesFor`). Tapping a source to pay for
-    // something forfeits nothing durable; it untaps next turn (CR 502.1), and
+    // now (issue #3377 — see `manaSourceTermFor`). Tapping a source to pay for
+    // something forfeits nothing durable; it untaps next turn (CR 502.3), and
     // the option it gave up THIS turn is `flexibility`'s job, priced below off
     // `availableMana`.
     terms.mana = manaSourceTermFor(player, weights);

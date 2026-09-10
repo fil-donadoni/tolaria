@@ -2545,7 +2545,7 @@ describe("search — action priors + FPU (issue #2684)", () => {
         // That move was the land drop until issue #3377 made the `mana` term
         // tap-aware: a 3-mana cast used to start `3 x manaWeight` down purely
         // for tapping out, which is not a material loss (the sources untap,
-        // CR 502.1), and with that phantom cost gone the Hill Giant outranks
+        // CR 502.3), and with that phantom cost gone the Hill Giant outranks
         // the extra land. What this test pins is that the knob DISCRIMINATES —
         // `pass` off, a developing move on — and it still does.
         const state = priorBoard();

@@ -23,6 +23,18 @@ import {
 import { island } from "../../../cards/sets/lea/colorless";
 
 describe("DEFAULT_EVAL_WEIGHTS (issue #2683)", () => {
+    it("a TAPPED source is worth strictly less than an untapped one (issue #3377)", () => {
+        // The ordering, not the numbers: `evaluate` reads both weights off the
+        // vector, so a variant overriding `manaWeight` alone (as
+        // `eval-weights-demo` does) could otherwise silently make a tapped
+        // source worth MORE than an untapped one — the inversion the weight's
+        // own doc says must never happen.
+        expect(DEFAULT_EVAL_WEIGHTS.tappedManaWeight).toBeLessThan(
+            DEFAULT_EVAL_WEIGHTS.manaWeight
+        );
+        expect(DEFAULT_EVAL_WEIGHTS.tappedManaWeight).toBeGreaterThan(0);
+    });
+
     it("is byte-for-byte the production values this refactor extracted", () => {
         // One literal per field, deliberately spelled out rather than
         // constructed — a copy-paste from this object back into itself would
