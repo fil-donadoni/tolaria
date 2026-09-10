@@ -22838,7 +22838,7 @@ export function isUnrestrictedRiderUnit(unit: RestrictedMana): boolean {
 /** The pool a payment that is NEITHER a spell cast NOR an ability activation
  *  may draw on (CR 106.6, issue #3354): the fungible `manaPool` plus every
  *  bare-rider unit. The attack tax (CR 508.1g), a pay-to-block charge, the
- *  companion tax (CR 702.139a) and a morph turn-up cost (CR 702.36b) all read
+ *  companion tax (CR 702.139a) and a Morph turn-up cost (CR 702.37e) all read
  *  it — none of them is gated by a `ManaRestriction`, so a genuinely
  *  restricted unit stays out and only the tagged-but-unrestricted one joins.
  *
