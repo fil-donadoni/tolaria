@@ -53,7 +53,7 @@ import type {
     StackItem,
 } from "./state";
 import {
-    noteGraveyardDeparture,
+    exileCardFromGraveyard,
     removeFromZone,
     removePermanentTo,
     resolveTopOfStack,
@@ -496,15 +496,16 @@ export function applyCastCostPicksForSearch(
     if (exileIds.length > 0 && exileZone) {
         const source = exileZone === "hand" ? player.hand : player.graveyard;
         for (const id of exileIds) {
-            const idx = source.findIndex((c) => c.id === id);
-            if (idx === -1) continue;
-            const [moved] = source.splice(idx, 1);
-            player.exile.push(moved);
-            // CR 400.7 — the search-side twin of the real cast's exile cost
-            // (`game.ts`, which routes through `moveCard`): a graveyard-sourced
-            // escape/delve cost is a departure here too, so the tally the
-            // opponent model reads matches the one the real game would show.
-            if (exileZone === "graveyard") noteGraveyardDeparture(player);
+            // CR 608.2b — a stale Move naming a card that has since left the
+            // zone charges nothing; `moveCard` THROWS on a miss, so the
+            // presence check stays.
+            if (!source.some((c) => c.id === id)) continue;
+            // Through the general zone-mover, exactly as `tryCommitCast`
+            // (`game.ts`) does on the live path — so the sandbox pays the same
+            // side effects the real cast does, the CR 400.7 graveyard-departure
+            // tally (issue #3240) included, rather than a hand-rolled splice
+            // that has to remember each of them.
+            moveCard(player, id, exileZone, "exile");
         }
     }
     return true;
@@ -963,14 +964,11 @@ export function applyActivationCostsForSearch(
             }
         }
         for (const id of exile.cardInstanceIds) {
-            const idx = gyOwner?.graveyard.findIndex((c) => c.id === id) ?? -1;
-            if (!gyOwner || idx < 0) continue;
-            const [card] = gyOwner.graveyard.splice(idx, 1);
-            card.zone = "exile";
-            gyOwner.exile.push(card);
-            // CR 400.7 — same reasoning as the cast-cost leg above: an
-            // ADDITIONAL-cost exile from a graveyard is a departure.
-            noteGraveyardDeparture(gyOwner);
+            // Through the shared `exileCardFromGraveyard` primitive the live
+            // activation path uses (`game.ts`), so the sandbox inherits its
+            // CR 608.2b miss guard and the CR 400.7 graveyard-departure tally
+            // (issue #3240) instead of restating either.
+            if (gyOwner) exileCardFromGraveyard(gyOwner, id);
         }
     }
     // CR 118.3 — the discard leg (Survival of the Fittest, Iron-Shield Elf).

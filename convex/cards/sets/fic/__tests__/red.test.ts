@@ -87,8 +87,8 @@ describe("Gau, Feral Youth — Rage attack trigger (CR 207.2c / 122)", () => {
         const { state, gau } = setup();
         resolveTrigger(state, gau, "gau-feral-youth-rage", {
             type: "ATTACKERS_DECLARED",
-            attackers: [{ id: "gau", controllerId: "p1" }],
             attackingPlayerId: "p1",
+            attackerIds: ["gau"],
         } as StackItem["triggerEvent"]);
         const live = state.players[0].battlefield.find((c) => c.id === "gau")!;
         expect(live.counters?.["+1/+1"]).toBe(1);
