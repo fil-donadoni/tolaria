@@ -19466,6 +19466,14 @@
         "source": "compiled"
     },
     {
+        "name": "Life // Death",
+        "scryfallId": "7ab75cdb-93a1-4f78-b404-37566295c321",
+        "oracleId": "d476f4b3-db63-4756-ab76-4b35f63c2825",
+        "firstSet": "apc",
+        "firstPrintId": "7ab75cdb-93a1-4f78-b404-37566295c321",
+        "firstPrintSet": "apc"
+    },
+    {
         "name": "Life and Limb",
         "scryfallId": "0efe9e8e-7fb3-4a6d-be3d-7965d2ffb0a3",
         "oracleId": "d0d7250b-70d2-43f9-ae15-837227061ccb",
