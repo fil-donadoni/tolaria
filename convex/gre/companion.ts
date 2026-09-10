@@ -17,7 +17,7 @@ import type { CardDefinition, CardType } from "../cards/types";
 import { PERMANENT_TYPES } from "../cards/types";
 import { tryGetDefinition } from "../cards";
 import type { GameState, PlayerState } from "./state";
-import { getManaSubstitutions } from "./state";
+import { getManaSubstitutions, spendablePoolWithRiders } from "./state";
 import { isSorceryTiming } from "./phases";
 import { buildAutoTapSources, solveSmartAutoTap } from "./autoTap";
 import { manaGateBattlefields, manaValue } from "./constants";
@@ -181,8 +181,10 @@ export function canSummonCompanion(
         manaGateBattlefields(state)
     );
     return (
+        // CR 106.6 (issue #3354) — counts a bare-rider unit, matching the
+        // `summonCompanion` mutation's own plan and its payment.
         solveSmartAutoTap(
-            player.manaPool,
+            spendablePoolWithRiders(player),
             COMPANION_SUMMON_COST,
             subs,
             sources

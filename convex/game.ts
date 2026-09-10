@@ -40,6 +40,8 @@ import {
     genericSpendAmbiguityForPayment,
     validateManaSpendOrder,
     payManaCostForSpell,
+    payManaCostWithRiders,
+    spendablePoolWithRiders,
     spendablePoolForSpell,
     payManaCostForAbility,
     spendablePoolForAbility,
@@ -1230,15 +1232,34 @@ export function applyManaAbilityManaCost(
     const cost = normalizeManaCost(ability.cost.mana);
     if (Object.keys(cost).length === 0) return;
     const substitutions = getAbilityManaSubstitutions(state, player.id, card);
-    if (!isManaCostCovered(player.manaPool, cost, substitutions)) {
+    // CR 106.6 (issue #3354) — "This doesn't affect the mana's type": a
+    // bare-rider unit (Arena of Glory's {R}{R}) imposes NO spend restriction
+    // and must pay this exactly like pool mana. It lives outside `manaPool`
+    // only because a per-colour count has nowhere to record the tag, so every
+    // payment site that used to read the raw pool now reads
+    // `spendablePoolWithRiders` / pays through `payManaCostWithRiders`, which
+    // draws the fungible pool FIRST and touches a tagged unit only for what
+    // the pool cannot cover.
+    if (
+        !isManaCostCovered(spendablePoolWithRiders(player), cost, substitutions)
+    ) {
         throw new Error("Not enough mana to activate this ability");
     }
     const before = { ...player.manaPool };
-    payManaCost(player.manaPool, cost, substitutions);
+    const fromRiders = payManaCostWithRiders(player, cost, substitutions);
     if (!card) return;
     const paid: Record<string, number> = {};
     for (const color of Object.keys(before) as (keyof typeof before)[]) {
-        const delta = (before[color] ?? 0) - (player.manaPool[color] ?? 0);
+        // The rider draw is folded in so the refund gives back everything the
+        // activation took. `restoreManaPaidOnUntap` returns it to the fungible
+        // pool, which DOWNGRADES a tagged unit to plain mana on an undo — the
+        // conservative direction (it can never mint mana, and never hands back
+        // a rider that was not paid for), and unreachable whenever the pool
+        // covered the cost, which fungible-first makes the normal case.
+        const delta =
+            (before[color] ?? 0) -
+            (player.manaPool[color] ?? 0) +
+            (fromRiders[color] ?? 0);
         if (delta > 0) paid[color] = delta;
     }
     card.manaPaidThisTap =
@@ -1291,7 +1312,9 @@ export function autoTapForManaAbilityCost(
     // activation-scoped substitution static (Agatha's Soul Cauldron) for the
     // auto-tap plan, so this plan and the payment that follows see one set.
     const substitutions = getAbilityManaSubstitutions(state, player.id, card);
-    if (isManaCostCovered(player.manaPool, cost, substitutions)) return;
+    // CR 106.6 (issue #3354) — bare-rider mana already covers it: plan no taps.
+    if (isManaCostCovered(spendablePoolWithRiders(player), cost, substitutions))
+        return;
     // The activating permanent can't fund its own activation cost.
     const sources = buildAutoTapSources(
         player.battlefield,
@@ -3884,7 +3907,9 @@ export function tryAutoCommitPendingCast(
         // and/or `hasteRider` (Arena of Glory, handed off to the permanent at
         // resolution). One helper stamps both, so the five cast-commit paths
         // cannot disagree.
-        ...manaRiderStackStamps(castManaRiders),
+        ...manaRiderStackStamps(castManaRiders, {
+            bestowed: state.pendingCast.bestowed,
+        }),
         // CR 702.74a — a parked Evoke cast (real hand-cost choice) carries the
         // marker through `PendingCast.evoked` (set at announcement) so it
         // still lands on the stack item once the picker completes.
@@ -6015,8 +6040,12 @@ export const summonCompanion = mutation({
             player.battlefield,
             manaGateBattlefields(state)
         );
+        // CR 106.6 (issue #3354) — the payment below already admits a
+        // bare-rider unit (`payManaCostForSpell` with no spell types), so the
+        // PLAN must count it too or the two disagree and the button refuses a
+        // tax the payer could cover.
         const plan = solveSmartAutoTap(
-            player.manaPool,
+            spendablePoolWithRiders(player),
             COMPANION_SUMMON_COST,
             subs,
             sources
@@ -6042,8 +6071,10 @@ export const summonCompanion = mutation({
             const v2 = produced[color];
             if (v2) player.manaPool[color] = (player.manaPool[color] ?? 0) + v2;
         }
-        // CR 702.139a — pay the flat {3}, no card/restricted-mana eligibility
-        // (a special action, not a spell cast — restricted mana never applies).
+        // CR 702.139a — pay the flat {3} with no card types, so a genuinely
+        // RESTRICTED unit is ineligible (a special action is not a spell cast)
+        // while a bare-rider one, which restricts nothing, is admitted and
+        // spent last (CR 106.6, issue #3354).
         payManaCostForSpell(player, COMPANION_SUMMON_COST, [], subs);
         commitLandsForCost(player, COMPANION_SUMMON_COST);
 
@@ -6163,9 +6194,10 @@ export function applyTurnPermanentFaceUp(
             player.manaPool[color] = (player.manaPool[color] ?? 0) + amount;
         }
     }
-    // CR 702.37e — pay the morph cost. No card/restricted-mana eligibility: a
-    // special action is not a spell cast, so restricted mana never applies (the
-    // same reasoning `summonCompanion` records for its {3}).
+    // CR 702.37e — pay the morph cost with no card types: a genuinely
+    // RESTRICTED unit is ineligible (a special action is not a spell cast),
+    // a bare-rider one is admitted and spent last (CR 106.6, issue #3354).
+    // Same reasoning `summonCompanion` records for its {3}.
     payManaCostForSpell(player, morphCost, [], subs);
     commitLandsForCost(player, morphCost);
 
@@ -7617,7 +7649,9 @@ export function finalizeTargetSelection(
                 : {}),
             // CR 106.6 riders (issues #1559 / #3354) — see the matching
             // comment on the `tryAutoCommitPendingCast` stack item above.
-            ...manaRiderStackStamps(immediateManaRiders),
+            ...manaRiderStackStamps(immediateManaRiders, {
+                bestowed: isBestowCost,
+            }),
             ...(isEvokeCost ? { evoked: true } : {}),
             ...(isDashCost ? { dashed: true } : {}),
             // CR 601.2 (issue #2473) — targeted-spell immediate-commit branch
@@ -9193,7 +9227,9 @@ export const announceCast = mutation({
                     : {}),
                 // CR 106.6 riders (issues #1559 / #3354) — see the matching
                 // comment on the `tryAutoCommitPendingCast` stack item.
-                ...manaRiderStackStamps(altManaRiders),
+                ...manaRiderStackStamps(altManaRiders, {
+                    bestowed: isBestowCost,
+                }),
                 // CR 106.4 / 202.3 / 702.44a (issue #2378) — the mana actually
                 // spent, for Soul Burn's resolution and Sunburst's colour count.
                 ...(altNotedManaSpent
@@ -12573,7 +12609,20 @@ function chargeManaCostOrThrow(
         manaGateBattlefields(state)
     );
     const cost = normalizeManaCost(rawCost);
-    const plan = solveSmartAutoTap(payer.manaPool, cost, subs, sources);
+    // CR 106.6 (issue #3354) — "This doesn't affect the mana's type": a
+    // bare-rider unit (Arena of Glory's {R}{R}) imposes NO spend restriction
+    // and must pay this exactly like pool mana. It lives outside `manaPool`
+    // only because a per-colour count has nowhere to record the tag, so every
+    // payment site that used to read the raw pool now reads
+    // `spendablePoolWithRiders` / pays through `payManaCostWithRiders`, which
+    // draws the fungible pool FIRST and touches a tagged unit only for what
+    // the pool cannot cover.
+    const plan = solveSmartAutoTap(
+        spendablePoolWithRiders(payer),
+        cost,
+        subs,
+        sources
+    );
     if (plan === null) {
         throw new Error(reason);
     }
@@ -12590,7 +12639,7 @@ function chargeManaCostOrThrow(
             payer.manaPool[color] = (payer.manaPool[color] ?? 0) + v;
         }
     }
-    payManaCost(payer.manaPool, cost, subs);
+    payManaCostWithRiders(payer, cost, subs);
     commitLandsForCost(payer, cost);
 }
 
@@ -12743,8 +12792,14 @@ export function tryCommitAttackManaTax(state: GameState): boolean {
     const payer = getPlayer(state, pending.playerId);
     const subs = getManaSubstitutions(state, pending.playerId);
     const cost = normalizeManaCost(pending.cost);
-    if (!isManaCostCovered(payer.manaPool, cost, subs)) return false;
-    payManaCost(payer.manaPool, cost, subs);
+    // CR 106.6 / 508.1g (issue #3354) — the attack tax is not a spell cast and
+    // not an ability activation, so no `ManaRestriction` admits mana to it; a
+    // bare-rider unit carries no restriction and must pay it like pool mana,
+    // or a player who floated Arena of Glory's {R}{R} cannot commit the
+    // declaration at all and the window parks with nothing but cancel.
+    if (!isManaCostCovered(spendablePoolWithRiders(payer), cost, subs))
+        return false;
+    payManaCostWithRiders(payer, cost, subs);
     commitLandsForCost(payer, cost);
     combat.pendingAttackManaTax = undefined;
     applyAttackSacrificeTaxAndFinalize(state);
@@ -15791,13 +15846,25 @@ export const tapUntap = mutation({
                 // unless `!manaCommitted`, so the full amount is still
                 // floating) removes it from the same pool.
                 const restriction = getActivatedManaRestriction(card);
-                if (restriction) {
+                // CR 106.6 (issue #3354) — a rider banks in the parallel pool
+                // with or without a restriction, and `refundFixedManaOutput`
+                // (the OTHER untap sites: `untapForPayment`,
+                // `untapSourceFromPayment`) now reverses out of the tagged
+                // bucket. Depositing untagged here while those reverse tagged
+                // is a free-mana mint on the tap→untap toggle, one
+                // single-ability rider land away from live.
+                const fixedRiders = manaRidersForAbility(
+                    getActivatedManaAbility(card)
+                );
+                if (restriction || hasAnyManaRider(fixedRiders)) {
                     if (!wasTapped) {
                         addRestrictedManaToPool(
                             player,
                             manaColor,
                             amount,
-                            restriction
+                            restriction ?? undefined,
+                            undefined,
+                            fixedRiders
                         );
                         producedThisActivation = {
                             [manaColor]: amount,
@@ -15813,7 +15880,8 @@ export const tapUntap = mutation({
                             player,
                             manaColor,
                             amount,
-                            restriction
+                            restriction ?? undefined,
+                            fixedRiders
                         );
                     }
                 } else if (!wasTapped) {
@@ -16258,10 +16326,18 @@ export const activateManaAbility = mutation({
             player.id,
             card
         );
-        if (!isManaCostCovered(player.manaPool, manaCost, manaAbilitySubs)) {
+        // CR 106.6 (issue #3354) — same bare-rider admission as
+        // `applyManaAbilityManaCost`, the tap-path twin of this branch.
+        if (
+            !isManaCostCovered(
+                spendablePoolWithRiders(player),
+                manaCost,
+                manaAbilitySubs
+            )
+        ) {
             throw new Error("Not enough mana");
         }
-        payManaCost(player.manaPool, manaCost, manaAbilitySubs);
+        payManaCostWithRiders(player, manaCost, manaAbilitySubs);
         commitLandsForCost(player, manaCost);
 
         // CR 605.1a / 613.4 (issue #1179) — a non-tap mana ability that

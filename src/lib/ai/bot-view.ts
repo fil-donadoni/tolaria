@@ -34,6 +34,7 @@ import {
 } from "@convex/gre";
 import { cardValueById } from "@convex/gre";
 import { manaValue, parseHybridCostKey } from "@convex/gre/constants";
+import { mayPayUnitIsEligible } from "@convex/gre/state";
 import { matchesPermanentFilter } from "@convex/cards/filters";
 import { hasControlledSinceTurnStart } from "@convex/gre/controlContinuity";
 import { getColorsFromCost, getCardColorIdentity } from "@convex/cards/colors";
@@ -476,20 +477,14 @@ function spendableManaPoolForRestriction(
 ): Record<string, number> {
     const pool = { ...bot.manaPool };
     for (const r of bot.restrictedMana ?? []) {
-        // CR 601.3 — an instance-keyed unit (Ice Cauldron) is a CAST
-        // permission and never pays a may-pay.
-        if (r.castableCardId !== undefined) continue;
-        // CR 106.6 (issue #3354) — an UNRESTRICTED unit sits in
-        // `restrictedMana` only because a rider tagged it (Arena of Glory);
-        // its mana may pay for anything, so it counts whatever the leg's
-        // restriction is. Mirrors the server's `mayPayUnitIsEligible`
-        // (`convex/gre/state.ts`) exactly, so this gate stays no more
-        // permissive than `canPayMayPayCost` (issue #2222).
-        if (r.restriction === undefined) {
-            pool[r.color] = (pool[r.color] ?? 0) + r.amount;
-            continue;
-        }
-        if (manaRestriction && r.restriction === manaRestriction) {
+        // The SERVER's own predicate, not a hand-mirrored copy of the rule —
+        // an exact-restriction match, plus (CR 106.6, issue #3354) the
+        // bare-rider unit that restricts nothing and only sits in
+        // `restrictedMana` because the fungible pool has nowhere to record its
+        // tag. Calling it is what keeps this gate provably no more permissive
+        // than `canPayMayPayCost` (issue #2222) instead of merely intended to
+        // be.
+        if (mayPayUnitIsEligible(r, manaRestriction)) {
             pool[r.color] = (pool[r.color] ?? 0) + r.amount;
         }
     }

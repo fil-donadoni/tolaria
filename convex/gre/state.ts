@@ -3066,13 +3066,29 @@ export const NO_SPELL_MANA_RIDERS: SpellManaRiders = {
  *  rider reaches all five by editing one function. Fields are omitted rather
  *  than written `false`, matching how each site used to spread them and
  *  keeping the persisted snapshot free of dead keys. */
-export function manaRiderStackStamps(riders: SpellManaRiders): {
+export function manaRiderStackStamps(
+    riders: SpellManaRiders,
+    opts?: {
+        /** CR 702.103b — "As a spell cast bestowed is put onto the stack, it
+         *  becomes an Aura enchantment". A bestowed cast is therefore an AURA
+         *  spell, not a creature spell, so Arena of Glory's rider must not
+         *  fire on it (issue #3354). Settled here rather than in
+         *  `payManaCostForSpell` because the payment sees the card's PRINTED
+         *  types — the same reason a `creature-spell` mana RESTRICTION still
+         *  admits a bestowed cast today, which is a pre-existing divergence
+         *  this rider neither introduces nor closes
+         *  (`docs/findings/bestow-cast-uses-printed-types.md`). */
+        bestowed?: boolean;
+    }
+): {
     dynamicCantBeCountered?: true;
     dynamicHasteFromMana?: true;
 } {
     return {
         ...(riders.cantBeCountered ? { dynamicCantBeCountered: true } : {}),
-        ...(riders.haste ? { dynamicHasteFromMana: true } : {}),
+        ...(riders.haste && !opts?.bestowed
+            ? { dynamicHasteFromMana: true }
+            : {}),
     };
 }
 
@@ -22721,6 +22737,11 @@ export function reverseRestrictedManaFromPool(
         (r) =>
             r.color === color &&
             r.restriction === restriction &&
+            // CR 601.3 — the same instance-keyed exclusion the balance lookups
+            // make: an Ice Cauldron unit is its own bucket and is never what a
+            // restriction-keyed (or bare-rider) reversal is addressing. The
+            // two are one key and must stay one key.
+            r.castableCardId === undefined &&
             manaRidersEqual(r, riders)
     );
     if (entry) entry.amount = Math.max(0, entry.amount - amount);
@@ -22801,6 +22822,93 @@ export function manaBalanceForRestrictionAnyRider(
     );
 }
 
+/** CR 106.6 (issue #3354) — true for a `restrictedMana` unit that imposes NO
+ *  spend restriction at all: it sits in the parallel pool only because a rider
+ *  tagged it (Arena of Glory), and "this doesn't affect the mana's type" (CR
+ *  106.6) means it may pay for anything the fungible pool could.
+ *
+ *  This predicate is what every payment site outside the spell-cast and
+ *  ability-activation seams needs: before this rider existed, "in
+ *  `restrictedMana`" and "restricted" were the same statement and reading
+ *  `player.manaPool` raw was correct for unrestricted mana. It no longer is. */
+export function isUnrestrictedRiderUnit(unit: RestrictedMana): boolean {
+    return unit.restriction === undefined && unit.castableCardId === undefined;
+}
+
+/** The pool a payment that is NEITHER a spell cast NOR an ability activation
+ *  may draw on (CR 106.6, issue #3354): the fungible `manaPool` plus every
+ *  bare-rider unit. The attack tax (CR 508.1g), a pay-to-block charge, the
+ *  companion tax (CR 702.139a) and a morph turn-up cost (CR 702.36b) all read
+ *  it — none of them is gated by a `ManaRestriction`, so a genuinely
+ *  restricted unit stays out and only the tagged-but-unrestricted one joins.
+ *
+ *  Narrowed to a `Pick` for the same reason as `spendablePoolForAbility`
+ *  (issue #1713) — the client's `Player` wire type satisfies it structurally. */
+export function spendablePoolWithRiders(
+    player: Pick<PlayerState, "manaPool" | "restrictedMana">
+): Record<string, number> {
+    const pool = { ...player.manaPool };
+    for (const r of player.restrictedMana ?? []) {
+        if (isUnrestrictedRiderUnit(r)) {
+            pool[r.color] = (pool[r.color] ?? 0) + r.amount;
+        }
+    }
+    return pool;
+}
+
+/** The payer for {@link spendablePoolWithRiders}'s coverage check. Draws the
+ *  FUNGIBLE pool FIRST — the inverse of `payManaCostForSpell`'s restricted-first
+ *  policy, and for the mirror-image reason: a restricted unit is LESS flexible
+ *  than pool mana, so spending it first is free, whereas a bare-rider unit is
+ *  exactly as flexible AND carries something the player floated it for. Burning
+ *  Arena of Glory's haste mana on an attack tax while an untagged red sits in
+ *  the pool would be strictly worse than the play the player meant.
+ *
+ *  Returns the per-colour amount that did come out of rider buckets, for the
+ *  one caller that snapshots its payment for a later refund
+ *  (`applyManaAbilityManaCost`). Caller must have confirmed coverage. */
+export function payManaCostWithRiders(
+    player: PlayerState,
+    cost: Record<string, number>,
+    substitutions: ManaSubstitution[] = [],
+    genericSpendOrder?: readonly string[]
+): Record<string, number> {
+    const eligible = (player.restrictedMana ?? []).filter(
+        isUnrestrictedRiderUnit
+    );
+    if (eligible.length === 0) {
+        payManaCost(player.manaPool, cost, substitutions, genericSpendOrder);
+        return {};
+    }
+    const merged = { ...player.manaPool };
+    for (const r of eligible) {
+        merged[r.color] = (merged[r.color] ?? 0) + r.amount;
+    }
+    const before = { ...merged };
+    payManaCost(merged, cost, substitutions, genericSpendOrder);
+
+    const fromRiders: Record<string, number> = {};
+    for (const color of MANA_COLORS) {
+        const consumed = (before[color] ?? 0) - (merged[color] ?? 0);
+        if (consumed <= 0) continue;
+        const fromReal = Math.min(consumed, player.manaPool[color] ?? 0);
+        player.manaPool[color] = (player.manaPool[color] ?? 0) - fromReal;
+        let remaining = consumed - fromReal;
+        if (remaining <= 0) continue;
+        fromRiders[color] = remaining;
+        for (const r of eligible) {
+            if (remaining <= 0) break;
+            if (r.color !== color) continue;
+            const take = Math.min(r.amount, remaining);
+            r.amount -= take;
+            remaining -= take;
+        }
+    }
+    const rest = (player.restrictedMana ?? []).filter((r) => r.amount > 0);
+    player.restrictedMana = rest.length > 0 ? rest : undefined;
+    return fromRiders;
+}
+
 /** Builds the spendable pool for casting a spell: the base `manaPool` plus any
  *  restricted mana whose restriction permits this spell (CR 106.6). Used for
  *  the affordability check at spell-cast sites — callers pass whether the
@@ -22861,28 +22969,53 @@ export function payManaCostForSpell(
     }
 
     // Merge eligible restricted mana into a working copy of the pool, pay
-    // against it, then settle the consumption restricted-first.
-    const merged = { ...player.manaPool };
-    const restrictedByColor: Record<string, number> = {};
+    // against it, then settle the consumption in THREE tiers.
+    //
+    // Restricted-first was the whole policy while every unit in this pool was
+    // restricted: a restricted unit is strictly LESS flexible than pool mana,
+    // so spending it first is free. A bare-rider unit (CR 106.6, issue #3354 —
+    // no `restriction`, no `castableCardId`) breaks that: it is exactly as
+    // flexible as pool mana AND carries something the player floated it for.
+    // Spent second-tier by the same blanket rule, Arena of Glory's {R}{R}
+    // would be eaten by the first Lightning Bolt of the turn while an
+    // untagged red sat in the pool, and the creature behind it would enter
+    // without haste — a settlement the player would never have chosen.
+    //
+    // So a bare-rider unit whose riders this particular spell CANNOT use is
+    // deferred behind the fungible pool; one it CAN use stays first, which is
+    // what floating it was for. Genuinely restricted units are unaffected.
+    const preferred: RestrictedMana[] = [];
+    const deferred: RestrictedMana[] = [];
     for (const r of eligible) {
+        const useful =
+            !!r.cantBeCounteredRider ||
+            (!!r.hasteRider && spellTypes.includes("Creature"));
+        if (isUnrestrictedRiderUnit(r) && !useful) deferred.push(r);
+        else preferred.push(r);
+    }
+    const merged = { ...player.manaPool };
+    const preferredByColor: Record<string, number> = {};
+    for (const r of eligible)
         merged[r.color] = (merged[r.color] ?? 0) + r.amount;
-        restrictedByColor[r.color] =
-            (restrictedByColor[r.color] ?? 0) + r.amount;
+    for (const r of preferred) {
+        preferredByColor[r.color] = (preferredByColor[r.color] ?? 0) + r.amount;
     }
     const before = { ...merged };
     payManaCost(merged, cost, substitutions, genericSpendOrder);
 
     const riders: SpellManaRiders = { ...NO_SPELL_MANA_RIDERS };
-    for (const color of MANA_COLORS) {
-        const consumed = (before[color] ?? 0) - (merged[color] ?? 0);
-        if (consumed <= 0) continue;
-        // Drain from restricted mana of this color first.
-        let fromRestricted = Math.min(consumed, restrictedByColor[color] ?? 0);
-        const fromReal = consumed - fromRestricted;
-        for (const r of eligible) {
-            if (fromRestricted <= 0) break;
+    /** Drains `units` of `color` for up to `amount`, recording the riders any
+     *  actually-spent unit carried. Returns what it could not take. */
+    const drain = (
+        units: readonly RestrictedMana[],
+        color: string,
+        amount: number
+    ): number => {
+        let remaining = amount;
+        for (const r of units) {
+            if (remaining <= 0) break;
             if (r.color !== color) continue;
-            const take = Math.min(r.amount, fromRestricted);
+            const take = Math.min(r.amount, remaining);
             if (take > 0) {
                 if (r.cantBeCounteredRider) riders.cantBeCountered = true;
                 // Arena of Glory (CR 106.6, issue #3354) — "If that mana is
@@ -22897,9 +23030,21 @@ export function payManaCostForSpell(
                 }
             }
             r.amount -= take;
-            fromRestricted -= take;
+            remaining -= take;
         }
+        return remaining;
+    };
+    for (const color of MANA_COLORS) {
+        const consumed = (before[color] ?? 0) - (merged[color] ?? 0);
+        if (consumed <= 0) continue;
+        const fromPreferred = Math.min(consumed, preferredByColor[color] ?? 0);
+        drain(preferred, color, fromPreferred);
+        const fromReal = Math.min(
+            consumed - fromPreferred,
+            player.manaPool[color] ?? 0
+        );
         player.manaPool[color] = (player.manaPool[color] ?? 0) - fromReal;
+        drain(deferred, color, consumed - fromPreferred - fromReal);
     }
 
     // Drop emptied entries; clear the field entirely when nothing remains.
@@ -24294,7 +24439,7 @@ function spendablePoolForRestriction(
  *  record the tag — reading `manaPool` alone would make that mana vanish from
  *  every may-pay cost the moment the rider shipped. An instance-keyed unit
  *  (Ice Cauldron, CR 601.3) is a CAST permission and never pays a may-pay. */
-function mayPayUnitIsEligible(
+export function mayPayUnitIsEligible(
     unit: RestrictedMana,
     restriction: ManaRestriction | undefined
 ): boolean {
