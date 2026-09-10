@@ -199,3 +199,39 @@ export const satyaAetherfluxGenius: CardDefinition = {
         },
     ],
 };
+
+// Bloodbraid Challenger — {3}{R}{G} Creature — Elf Berserker, 4/3 (issue #3216,
+// parent PRD #1525 Vintage Cube). "Cascade / Haste / Escape—{3}{R}{G}, Exile
+// three other cards from your graveyard."
+//
+// Pure DATA (ADR 0045) — no `effects`, no `resolve()`. All three lines are
+// declarations the engine already owns:
+//
+//   * CASCADE (CR 702.85) is the keyword string, and this card is the first to
+//     ship it. `expandCascade` (cards/abilities/cascade.ts) injects the
+//     CR 702.85a "when you cast this spell" trigger at the `getDefinition` seam
+//     (ADR 0054), whose whole body is the `cascade` Op. Mana value 5, so the
+//     walk stops on the first nonland card with mana value 4 or less.
+//   * HASTE (CR 702.10) is a plain shipped static keyword.
+//   * ESCAPE (CR 702.138) is the `escape` DATA field (`gre/escape.ts`), the
+//     Uro / Phlage shape — {3}{R}{G} plus exiling three OTHER graveyard cards.
+//     Escaping is a CAST (CR 702.138a), so a spell cast for its escape cost
+//     cascades exactly like one cast from hand: the trigger fires on the cast,
+//     not on the zone it was cast from.
+//
+// compiler-gap: "Escape—{3}{R}{G}, Exile three other cards from your graveyard." (#2693)
+export const bloodbraidChallenger: CardDefinition = {
+    id: "fbca967e-578f-4b05-b697-2e2ee1a40dfb",
+    name: "Bloodbraid Challenger",
+    rarity: "rare",
+    oracleText:
+        "Cascade\nHaste\nEscape—{3}{R}{G}, Exile three other cards from your graveyard. (You may cast this card from your graveyard for its escape cost.)",
+    manaCost: { X: 3, R: 1, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Elf", "Berserker"],
+    power: 4,
+    toughness: 3,
+    staticAbilities: ["cascade", "haste"],
+    // CR 702.138 — Escape. {3}{R}{G} + exile three OTHER graveyard cards.
+    escape: { mana: { X: 3, R: 1, G: 1 }, exile: { count: 3 } },
+};

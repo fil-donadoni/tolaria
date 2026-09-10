@@ -1378,6 +1378,19 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // library"). Explicit skip for exhaustiveness.
             req.skip ??= `Op "digMatchingToHand" depends on a filter match against library contents — covered by the Op's interpreter tests`;
             return;
+        case "cascade":
+            // CR 702.85a (issue #3216) — the cascade keyword's whole triggered
+            // ability. It needs a spell ON THE STACK to read its own mana-value
+            // threshold from (`ctx.sourceInstanceId`), a stacked library whose
+            // top few cards straddle that threshold, AND a live Cast/Decline
+            // for the card the walk stops on — none of which the canned
+            // single-resolution generator models (it inherits
+            // `castDuringResolution`'s own suspension wholesale, since that is
+            // literally the Op it runs for the middle clause). Explicit skip;
+            // execution coverage is the Op's own interpreter tests (hit / no
+            // hit / decline / land skipped / random bottom / empty library).
+            req.skip ??= `Op "cascade" needs its own spell on the stack for the CR 702.85a threshold and suspends for a live Cast/Decline — covered by the Op's interpreter tests`;
+            return;
         case "castDuringResolution":
             // CR 608.2g (issues #1477 / #1961) — offers the controller a live
             // Cast/Decline (or Play/Decline, for the `includesLand` land
@@ -2857,6 +2870,14 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // generator can't drive). Kept for the 1:1 coverage guard; the Op's own
     // interpreter tests are the behavioural guarantor.
     castDuringResolution() {
+        return null;
+    },
+    // `cascade` (CR 702.85a, issue #3216) — never reached: `analyseOp` skips
+    // every script with this Op (it needs its own spell on the stack for the
+    // mana-value threshold and suspends for the free cast's Cast/Decline).
+    // Kept for the 1:1 coverage guard; the Op's own interpreter tests are the
+    // behavioural guarantor.
+    cascade() {
         return null;
     },
     // `setIslandSanctuaryProtection` (CR 508.1c, issue #1283) — never reached:

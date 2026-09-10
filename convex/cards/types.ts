@@ -4217,6 +4217,42 @@ export interface SpellContext {
      *  knowledge on the moved cards is cleared (ADR 0026, like a shuffle).
      *  No-op when the graveyard is empty. */
     putGraveyardOnBottomOfLibrary: (playerId: string) => void;
+    /** Puts a NAMED SET of cards, currently sitting in one zone, onto the
+     *  BOTTOM of their owner's library in a RANDOM order (CR 702.85a — "put
+     *  all cards exiled this way that weren't cast on the bottom of your
+     *  library in a random order", issue #3216).
+     *
+     *  The set-scoped sibling of {@link putGraveyardOnBottomOfLibrary}, which
+     *  can only move a WHOLE graveyard: cascade's remainder is an arbitrary
+     *  subset of one player's exile (the cards this resolution put there, minus
+     *  whichever one was cast), so the source pile cannot be named by its zone
+     *  alone. Same three steps in the same order — detach, `seededShuffle`,
+     *  append — so the ordering is deterministic under replay off
+     *  `rngSeed`/`rngCounter` and never `Math.random`.
+     *
+     *  Each card travels through the SAME `moveCardById` funnel every other
+     *  cross-zone move uses (one call per card, in the shuffled order), so a
+     *  card that is no longer in `from` — the cascade hit that WAS cast, and
+     *  now sits on the stack — is silently skipped rather than resurrected
+     *  (CR 608.2b). `library.push` is the bottom (`library[0]` is the top), so
+     *  moving in shuffled order lands the pile bottom-first in that order.
+     *  `from` is deliberately NARROWER than `MovableZone`: a battlefield card
+     *  must leave through `removePermanentTo` (leave-the-battlefield triggers,
+     *  the CR 608.2h `sourceLki` stamp, counter memory), which this funnel
+     *  bypasses, and `"library"` would be a self-move with no bottom. Both are
+     *  unrepresentable rather than silently no-oped.
+     *
+     *  The resulting bottom ordering is unwitnessed, so knowledge of every
+     *  moved card is cleared (ADR 0026, exactly like a shuffle): both players
+     *  saw WHICH cards went back, neither knows WHERE. For a PUBLIC `from`
+     *  (exile, graveyard) the move in already stripped every private grant, so
+     *  the clear is belt-and-braces; it is load-bearing for a hidden `from` (a
+     *  revealed card leaving a hand). No-op for an empty/absent set. */
+    putCardsOnBottomInRandomOrder: (
+        playerId: string,
+        cardInstanceIds: readonly string[],
+        from: "exile" | "graveyard" | "hand"
+    ) => void;
     /** Counters a spell or ability on the stack (CR 701.6a), and REPORTS what
      *  it did (issue #2708) — the primitive is the only place that knows
      *  whether the attempt actually removed the object (CR 113.6g "can't be
@@ -13080,6 +13116,80 @@ export type EffectOp =
           includesLand?: boolean;
           resultBind?: string;
       }
+    /** CR 702.85a (issue #3216) — the CASCADE keyword's entire triggered
+     *  ability, in one Op: "exile cards from the top of your library until you
+     *  exile a nonland card whose mana value is less than this spell's mana
+     *  value. You may cast that card without paying its mana cost if the
+     *  resulting spell's mana value is less than this spell's mana value. Then
+     *  put all cards exiled this way that weren't cast on the bottom of your
+     *  library in a random order."
+     *
+     *  Emitted ONLY by `expandCascade` (convex/cards/abilities/cascade.ts) from
+     *  a card's bare `cascade` keyword string — a card never writes this Op by
+     *  hand, exactly like `hideaway`. The keyword's rules text therefore lives
+     *  in one place, and the keyword can never be printed with nothing
+     *  enforcing it (the deathtouch/hexproof shape Guard A catches).
+     *
+     *  WHY AN OP AND NOT A COMPOSITION (`.claude/rules/gre-development.md`
+     *  § Primitive reuse). Decompose: the three clauses are one atomic
+     *  sequence — the middle one SUSPENDS on a live Cast/Decline, and the third
+     *  must run after it with the SAME exiled set in hand, which no binding can
+     *  carry (`revealUntilMatch` deliberately has no `bind`, and a `forEach`
+     *  walks a fixed set computed up front rather than a library with a stop
+     *  condition). Generalize: the nearest neighbour, `castDuringResolution`
+     *  `fromTopOfLibrary`, exiles exactly ONE card and stops — widening it to a
+     *  conditional WALK plus a random-order tail would bolt a cascade-shaped
+     *  mode onto an Op whose contract is "offer one named card", the mode-flag
+     *  shape ADR 0045 forbids. Orthogonal: this is a keyword's whole rules
+     *  text, the `hideaway` / `explore` precedent.
+     *
+     *  ONE EXECUTION PATH for the cast (ADR 0045): the middle clause calls
+     *  `runCastDuringResolution` — literally the `castDuringResolution`
+     *  executor, extracted to a named module function — not a second copy of
+     *  the Cast/Decline + mode + X + additional-cost + target + commit
+     *  sequence.
+     *
+     *  THRESHOLD (CR 202.3 / 702.85a) — "this spell's mana value" is read at
+     *  RESOLUTION off the cascading spell itself, `getManaValue({ type:
+     *  "spell", id: ctx.sourceInstanceId })`: the cascade trigger resolves
+     *  ABOVE its own spell (CR 603.3b), so the spell is still on the stack and
+     *  its `chosenX` is folded in (CR 202.3b). Never the printed cost read at
+     *  definition time, which would be wrong the day a cascade card with {X}
+     *  is printed. (A cost printing {X} MORE THAN ONCE still reads one X too
+     *  few — `getManaValue` does not multiply by `ManaCost.xFactor`. That is
+     *  pre-existing and reaches every consumer of that branch, not just this
+     *  Op; drafted in `docs/findings/3216-manavalue-ignores-xfactor.md`.)
+     *
+     *  THE SECOND COMPARISON ("if the resulting spell's mana value is less
+     *  than this spell's mana value") is not a second check in this engine, and
+     *  that is a proof rather than a simplification: the offer is a FREE cast,
+     *  so the waived cost's X is 0 (CR 107.3b), and a card in exile is read
+     *  with X = 0 too (CR 202.3b) — the resulting spell's mana value is
+     *  therefore EQUAL to the mana value the walk already compared. Choosing a
+     *  mode (CR 700.2c) does not change a card's mana cost either. The only
+     *  shapes that could diverge are split / modal-DFC / Adventure cards, whose
+     *  castable half has a different cost; none is castable in this engine
+     *  through this path (a Land face is refused outright — the offer is a
+     *  "cast", not a "play").
+     *
+     *  `player` is the cascading spell's controller ("controller"); the field
+     *  exists so the Op reads like every other player-scoped Op rather than
+     *  hiding the actor. A player that can no longer be resolved is a clean
+     *  CR 608.2b no-op that never suspends, as are an empty library and a walk
+     *  that reaches the bottom without a qualifying card (the whole library is
+     *  exiled, nothing is cast, and every card goes straight back to the
+     *  bottom in a random order — CR 609.3, as far as possible).
+     *
+     *  VISIBILITY (CR 406.3) — the exiled cards are face up and public, which
+     *  costs no call: exile is an open zone, the move strips any private
+     *  `knownTo` grant, and the projection shows a `knownTo`-less exiled card
+     *  to everyone. `exileFaceDown` is the call that would be wrong here.
+     *
+     *  SUSPENDS like `choice` / `castDuringResolution`: the walk and the
+     *  exiled set are checkpointed under this Op's script position, so a
+     *  resume re-enters here and re-uses them instead of exiling a second
+     *  prefix (CR 608.3). */
+    | { op: "cascade"; player: EffectPlayerRef }
     /** CR 106.1 (issue #850) — add mana to a player's mana pool (a one-shot
      *  effect that produces mana: a ritual like Dark Ritual "Add {B}{B}{B}").
      *  A thin declarative skin over the SpellContext mana-add primitives

@@ -16315,6 +16315,42 @@ export function buildSpellContext(
             clearKnowledge(moved, null);
             player.library.push(...moved);
         },
+        // CR 702.85a (issue #3216) — cascade's tail: "put all cards exiled
+        // this way that weren't cast on the bottom of your library in a random
+        // order". The set-scoped sibling of `putGraveyardOnBottomOfLibrary`
+        // above: the pile is an arbitrary SUBSET of one zone, so it is named by
+        // ids rather than by the zone. Shuffle the ids with the seeded PRNG
+        // (deterministic under replay — never `Math.random`), then move them
+        // one at a time through the SAME `moveCardById` funnel every other
+        // cross-zone move uses, which appends to the library (`library[0]` is
+        // the top, so push is the bottom) and silently skips a card that is no
+        // longer in `from` — the cascade hit that was cast and now sits on the
+        // stack (CR 608.2b). The resulting order is unwitnessed, so knowledge
+        // is cleared on exactly the cards that moved (ADR 0026, like a
+        // shuffle): both players saw WHICH cards went back, neither knows
+        // WHERE. For the cascade caller that clear is already satisfied on
+        // arrival — exile is a PUBLIC zone, so the move INTO it stripped every
+        // private `knownTo` — and it is load-bearing for a hidden `from` (a
+        // revealed card leaving a hand), which is why the primitive does it
+        // rather than the caller.
+        putCardsOnBottomInRandomOrder(playerId, cardInstanceIds, from) {
+            const player = getPlayer(state, playerId);
+            const fromField = ZONE_TO_FIELD[from];
+            const present = new Set(
+                (player[fromField] as CardInstanceState[]).map((c) => c.id)
+            );
+            const moving = cardInstanceIds.filter((id) => present.has(id));
+            if (moving.length === 0) return;
+            seededShuffle(state, moving);
+            for (const id of moving) {
+                ctx.moveCardById(playerId, id, from, "library");
+            }
+            const movedSet = new Set(moving);
+            clearKnowledge(
+                player.library.filter((c) => movedSet.has(c.id)),
+                null
+            );
+        },
         // CR 701.6a: to counter a spell is to remove it from the stack and put
         // it into its owner's graveyard. If the target is no longer on the
         // stack (already resolved/countered), this is a silent no-op — the
@@ -16910,7 +16946,30 @@ export function buildSpellContext(
                 return manaValue(def?.manaCost);
             }
             if (target.type === "spell") {
-                const stackItem = state.stack.find((s) => s.id === target.id);
+                const stackItem =
+                    state.stack.find((s) => s.id === target.id) ??
+                    // CR 608.2h / 603.10a (issue #3216) — LAST KNOWN
+                    // INFORMATION for the ONE case where the object being
+                    // measured is the resolving ability's OWN source spell. A
+                    // triggered ability is independent of its source once on
+                    // the stack, so a cascade trigger still resolves after its
+                    // spell has been countered or bounced in response — and
+                    // "this spell's mana value" then names an object that has
+                    // left the stack, which CR 608.2h answers with last known
+                    // information, not with nothing. Without this the threshold
+                    // read 0, the walk's filter became "mana value at most -1",
+                    // nothing could match, and a countered cascade spell exiled
+                    // and randomized the caster's ENTIRE library.
+                    //
+                    // The snapshot is free: `collectSelfCastTriggers` /
+                    // `collectCastTriggers` build the trigger item by spreading
+                    // the cast spell, so the resolving item already carries that
+                    // spell's `card` and `chosenX`. Scoped to
+                    // `triggerSourceId === target.id` so every OTHER consumer —
+                    // an effect reading the mana value of some other spell it
+                    // targeted, which may legitimately have ceased to exist —
+                    // keeps the CR 608.2b "no object, no value" behaviour.
+                    (item.triggerSourceId === target.id ? item : undefined);
                 if (!stackItem) return 0;
                 const cardId = (stackItem.card as { id?: string }).id;
                 const def = cardId ? tryGetDefinition(cardId) : undefined;

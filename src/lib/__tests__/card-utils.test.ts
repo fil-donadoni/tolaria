@@ -2539,6 +2539,35 @@ describe("getTriggeredAbilityOracleText — emblem source (CR 114)", () => {
     });
 });
 
+// ---------------------------------------------------------------------------
+// getTriggeredAbilityOracleText — CASCADE, an ADR 0054 keyword-expanded trigger
+// (CR 702.85a, issue #3216)
+// ---------------------------------------------------------------------------
+
+describe("getTriggeredAbilityOracleText — cascade (CR 702.85a, issue #3216)", () => {
+    // The frontend-wiring half of the keyword. Cascade's trigger is INJECTED at
+    // the `getDefinition` seam from a bare `staticAbilities: ["cascade"]`
+    // string, so it exists on no card FILE — if this lookup went through the
+    // raw registry instead of the expansion seam, <StackRow> would render the
+    // cascade trigger with no rules text at all and nothing would fail.
+    //
+    // Deliberately NOT the `"storm"` shape directly above it: storm is
+    // engine-synthesized with no definition-level ability, which is why
+    // `getTriggeredAbilityOracleText` special-cases its text. Cascade needs no
+    // special case, and this test is what says so.
+    const BLOODBRAID_CHALLENGER_ID = "fbca967e-578f-4b05-b697-2e2ee1a40dfb";
+
+    it("resolves the CR 702.85a rules text off the expanded definition, with no engine special case", () => {
+        const text = getTriggeredAbilityOracleText(
+            BLOODBRAID_CHALLENGER_ID,
+            "cascade"
+        );
+        expect(text).toBe(
+            "When you cast this spell, exile cards from the top of your library until you exile a nonland card whose mana value is less than this spell's mana value. You may cast that card without paying its mana cost if the resulting spell's mana value is less than this spell's mana value. Then put all cards exiled this way that weren't cast on the bottom of your library in a random order."
+        );
+    });
+});
+
 // getDelayedTriggerOracleText (delayed triggered ability, CR 603.7a, #935)
 // ---------------------------------------------------------------------------
 
