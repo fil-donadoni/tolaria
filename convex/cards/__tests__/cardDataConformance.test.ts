@@ -16,10 +16,21 @@
 // Scope: only sets that ship a vendored MTGJSON file under `data/json/` can
 // be checked at all — a definition whose id isn't in ANY vendored file is
 // silently skipped (its home set isn't vendored, not a conformance failure).
-// Split/flip/meld cards are out of scope catalogue-wide (ADR 0010/0041) and
-// are never registered as CardDefinitions in the first place, so they cannot
-// appear here — see inv/white.ts's own "out of scope" note for Stand //
-// Deliver / Wax // Wane.
+// Flip and meld cards are out of scope catalogue-wide (ADR 0041) and are
+// never registered as CardDefinitions in the first place, so they cannot
+// appear here.
+//
+// SPLIT left that bucket with ADR 0121 (issue #3307), and it is the one shape
+// this join cannot take at face value: MTGJSON records one ROW PER FACE, and
+// both rows of Stand // Deliver carry the SAME `identifiers.scryfallId`
+// (one card, one printing, CR 709.2). Comparing the combined definition
+// against whichever row won the map would fail on `manaCost` by construction
+// — CR 709.4b says the card's cost is the SUM, and no printed face carries
+// the sum. So a split card is compared HALF BY HALF, each half against the
+// face row of the same name, through the very twin definitions the engine
+// puts on the stack (CR 709.3b). The combined fields get their own guard
+// below: they must equal `defineSplitCard`'s derivation, which is the only
+// thing allowed to write them.
 //
 // ADVENTURE left that bucket with ADR 0120 (issue #3302): an adventurer card
 // IS one `CardDefinition`, with its inset half on `insetSpell`, so Brazen
@@ -43,6 +54,13 @@ import { dirname, join } from "path";
 import { getAllCards } from "../index";
 import { manaCostsEqual } from "../../gre/constants";
 import type { CardDefinition, ManaCost } from "../types";
+import {
+    combineSplitManaCosts,
+    combineSplitNames,
+    combineSplitTypes,
+    SPLIT_HALF_SIDES,
+    splitHalfTwinDefinition,
+} from "../splitCard";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const jsonDir = join(here, "../../../data/json");
@@ -50,6 +68,8 @@ const jsonDir = join(here, "../../../data/json");
 interface MtgJsonCard {
     identifiers?: { scryfallId?: string };
     name: string;
+    /** MTGJSON's per-FACE name on a multi-face row ("Stand", "Deliver"). */
+    faceName?: string;
     types?: string[];
     supertypes?: string[];
     subtypes?: string[];
@@ -61,18 +81,48 @@ interface MtgJsonCard {
 /** Every vendored MTGJSON set file, merged into one scryfallId → card map.
  *  A definition's `id` matches at most one entry across all files (each
  *  printing carries its own distinct scryfallId), so merging is safe. */
-function loadAllMtgJsonCards(): Map<string, MtgJsonCard> {
-    const map = new Map<string, MtgJsonCard>();
+function loadAllMtgJsonCards(): Map<string, MtgJsonCard[]> {
+    const map = new Map<string, MtgJsonCard[]>();
     const files = readdirSync(jsonDir).filter((f) => f.endsWith(".json"));
     for (const file of files) {
         const raw = readFileSync(join(jsonDir, file), "utf8");
         const parsed = JSON.parse(raw) as { data: { cards: MtgJsonCard[] } };
         for (const card of parsed.data.cards) {
             const id = card.identifiers?.scryfallId;
-            if (id) map.set(id, card);
+            if (!id) continue;
+            const rows = map.get(id);
+            if (rows) rows.push(card);
+            else map.set(id, [card]);
         }
     }
     return map;
+}
+
+/** The (definition, MTGJSON row) pairs a catalogue card contributes to the
+ *  comparison.
+ *
+ *  One pair for an ordinary card. For a SPLIT card, one pair per half — the
+ *  registered twin (CR 709.3b: the object the stack actually sees, carrying
+ *  the half's own name, cost and type line) against the MTGJSON face row of
+ *  the same name. Empty when a face has no matching row, which fails LOUDLY
+ *  through the `faces match` guard below rather than silently here: a split
+ *  card whose half names do not match the printed ones is a data bug, not an
+ *  exemption. */
+function comparablePairs(
+    card: CardDefinition,
+    rows: MtgJsonCard[]
+): Array<{ def: CardDefinition; json: MtgJsonCard }> {
+    if (!card.splitHalves) {
+        return rows.length > 0 ? [{ def: card, json: rows[0] }] : [];
+    }
+    const pairs: Array<{ def: CardDefinition; json: MtgJsonCard }> = [];
+    for (const side of SPLIT_HALF_SIDES) {
+        const twin = splitHalfTwinDefinition(card, side);
+        if (!twin) continue;
+        const json = rows.find((r) => (r.faceName ?? r.name) === twin.name);
+        if (json) pairs.push({ def: twin, json });
+    }
+    return pairs;
 }
 
 /** Parses an MTGJSON printed mana-cost string (e.g. `"{1}{G}{W}{U}"`,
@@ -178,18 +228,20 @@ describe("card definition conforms to data/json/<SET>.json (guard gap, PR #2047)
     ): Offender[] {
         const offenders: Offender[] = [];
         for (const card of getAllCards()) {
-            const json = mtgJsonCards.get(card.id);
-            if (!json) continue; // home set not vendored — out of guard scope
+            const rows = mtgJsonCards.get(card.id);
+            if (!rows) continue; // home set not vendored — out of guard scope
             if (isAllowlisted(card.id, field)) continue;
-            const { ok, expected, actual } = checkField(card, json);
-            if (!ok) {
-                offenders.push({
-                    name: card.name,
-                    id: card.id,
-                    field,
-                    expected,
-                    actual,
-                });
+            for (const { def, json } of comparablePairs(card, rows)) {
+                const { ok, expected, actual } = checkField(def, json);
+                if (!ok) {
+                    offenders.push({
+                        name: def.name,
+                        id: card.id,
+                        field,
+                        expected,
+                        actual,
+                    });
+                }
             }
         }
         return offenders;
@@ -284,6 +336,70 @@ describe("card definition conforms to data/json/<SET>.json (guard gap, PR #2047)
                     `${o.name} (${o.id}): expected ${JSON.stringify(o.expected)}, got ${JSON.stringify(o.actual)}`
             )
         ).toEqual([]);
+    });
+});
+
+describe("split cards are their halves COMBINED (CR 709.4, ADR 0121)", () => {
+    const mtgJsonCards = loadAllMtgJsonCards();
+    const splitCards = getAllCards().filter((c) => c.splitHalves);
+
+    it("ships at least one, so the guards below are not vacuous", () => {
+        expect(splitCards.length).toBeGreaterThan(0);
+    });
+
+    // CR 709.4a/709.4b/709.4c — the top-level `name`, `manaCost` and `types`
+    // of a split card are a FUNCTION of its halves, and `defineSplitCard` is
+    // the only thing allowed to write them (ADR 0121 §1). This is the guard
+    // that makes that a rule rather than a convention: a set file that typed
+    // its own combination — or a future edit that changed a half's cost and
+    // forgot the sum — reds here.
+    it("top-level name, mana cost and types ARE the derivation", () => {
+        const offenders = splitCards
+            .map((card) => {
+                const halves = card.splitHalves!;
+                const derivedName = combineSplitNames(halves);
+                const derivedTypes = combineSplitTypes(halves);
+                const derivedCost = combineSplitManaCosts(
+                    halves[0].manaCost,
+                    halves[1].manaCost
+                );
+                const nameOk = card.name === derivedName;
+                const typesOk = sameSet(card.types, derivedTypes);
+                const costOk = manaCostsEqual(
+                    card.manaCost ?? {},
+                    derivedCost ?? {}
+                );
+                return nameOk && typesOk && costOk
+                    ? null
+                    : {
+                          id: card.id,
+                          name: card.name,
+                          derivedName,
+                          types: card.types,
+                          derivedTypes,
+                          manaCost: card.manaCost,
+                          derivedCost,
+                      };
+            })
+            .filter((o) => o !== null);
+        expect(offenders).toEqual([]);
+    });
+
+    // Every half must join to an MTGJSON face row of the same name, or
+    // `comparablePairs` above silently compares NOTHING for that half and the
+    // whole per-field sweep goes vacuous for this card.
+    it("every half joins to an MTGJSON face row of the same name", () => {
+        const offenders: Array<{ id: string; missing: string[] }> = [];
+        for (const card of splitCards) {
+            const rows = mtgJsonCards.get(card.id);
+            if (!rows) continue; // home set not vendored
+            const faceNames = new Set(rows.map((r) => r.faceName ?? r.name));
+            const missing = card
+                .splitHalves!.map((h) => h.name)
+                .filter((n) => !faceNames.has(n));
+            if (missing.length > 0) offenders.push({ id: card.id, missing });
+        }
+        expect(offenders).toEqual([]);
     });
 });
 

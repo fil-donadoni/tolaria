@@ -57,6 +57,7 @@ const FULL_CAST: Required<PendingCast> = {
     // CR 702.37a/c — the morph face-down cast-mode marker (issue #2705).
     morphed: false,
     castAsAdventure: false,
+    castAsSplitHalf: "left",
     overloaded: false,
     actingPlayerId: P1,
     additionalCost: { kind: "exile", filter: {}, pickedId: undefined },

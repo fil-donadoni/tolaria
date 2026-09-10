@@ -229,6 +229,7 @@ import {
     castPermissionRequiredFor,
     castTimingBaseLegal,
 } from "./gre/rules";
+import { castProhibitionReason } from "./cards/castRestrictions";
 // issue #2283 — the raised-origin (`trigger`/`retarget`/`copy-retarget`)
 // finalization and its divide split live in one module shared with the bot's
 // in-search applier, so the two can never drift.
@@ -455,6 +456,11 @@ import {
     isAdventureCastAlternativeCost,
 } from "./gre/adventure";
 import { castSubjectDefinition, castSubjectView } from "./gre/castMode";
+import {
+    castAsSplitHalf,
+    isSplitCastId,
+    offersPrintedCast,
+} from "./gre/splitCast";
 import {
     applyPlayLand,
     applyPlayLandFromExile,
@@ -3853,6 +3859,12 @@ export function tryAutoCommitPendingCast(
     // rode here on `PendingCast.castAsAdventure` (set at announcement, the
     // `bestowed`/`morphed` shape).
     if (state.pendingCast.castAsAdventure) castAsAdventure(stackItem);
+    // CR 709.3b (ADR 0121) — the same deferred half, for a SPLIT card: the
+    // announced side rode here on `PendingCast.castAsSplitHalf`, and the item
+    // must become that half at exactly this seam.
+    if (state.pendingCast.castAsSplitHalf) {
+        castAsSplitHalf(stackItem, state.pendingCast.castAsSplitHalf);
+    }
     state.stack.push(stackItem);
 
     const cardName = (spellCard.card as { name?: string }).name;
@@ -7038,6 +7050,10 @@ export function finalizeTargetSelection(
         cardDef,
         chosenAltCost
     );
+    // CR 709.3 (ADR 0121) — WHICH half of a split card this cast announced.
+    // Like the Adventure above this is not a marker for a later trigger: the
+    // object put on the stack becomes that half (`castAsSplitHalf` below).
+    const splitCastSide = isSplitCastId(cardDef, chosenAltCost?.id);
     // CR 601.2 / 307.1 / 117.1a / 601.3a (issue #2473) — the ANNOUNCEMENT-time
     // timing snapshot, taken in `announceCast` and ridden here on
     // `pendingTarget` (target selection is a separate mutation, so the board
@@ -7368,6 +7384,8 @@ export function finalizeTargetSelection(
             // the deferred commit still puts the INSET HALF on the stack; same
             // shape and same reason as `bestowed`/`morphed` above.
             ...(isAdventureCast ? { castAsAdventure: true } : {}),
+            // CR 709.3b — the same, for a parked SPLIT-half cast.
+            ...(splitCastSide ? { castAsSplitHalf: splitCastSide } : {}),
             // CR 601.2 (issue #2473) — carry the announcement-time timing
             // snapshot one more hop, to the deferred commit.
             ...(castOffSorceryTiming ? { castOffSorceryTiming: true } : {}),
@@ -7521,6 +7539,11 @@ export function finalizeTargetSelection(
         // `emitSpellCastEvent` below, so no viewer and no cast trigger ever
         // observes the creature half on the stack.
         if (isAdventureCast) castAsAdventure(stackItem);
+        // CR 709.3b — "while on the stack, only the characteristics of the
+        // half being cast exist." Swapped BEFORE the push and before
+        // `emitSpellCastEvent` below, so no viewer and no cast trigger ever
+        // observes the combined card on the stack.
+        if (splitCastSide) castAsSplitHalf(stackItem, splitCastSide);
         state.stack.push(stackItem);
         state.passCount = 0;
         state.priorityPlayerId = getOpponentId(state, playerId);
@@ -7580,6 +7603,9 @@ export function finalizeTargetSelection(
             // flag rides to `tryAutoCommitPendingCast`, which performs the
             // identity swap there.
             ...(isAdventureCast ? { castAsAdventure: true } : {}),
+            // CR 709.3b — the same, for a targeted split half whose mana is
+            // not covered yet (Deliver's {2}{U} tapped one land at a time).
+            ...(splitCastSide ? { castAsSplitHalf: splitCastSide } : {}),
             // CR 601.2 (issue #2473) — the announcement-time timing snapshot
             // rides through the payment park exactly like `dashed` above; it
             // must NOT be re-derived once `tapForPayment` has run (CR 605.4a).
@@ -8156,6 +8182,24 @@ export const announceCast = mutation({
             cardDef,
             chosenAltCost
         );
+        // CR 709.3 (ADR 0121) — WHICH half of a split card was announced.
+        // Read off the ID rather than the resolved cost, because it is the id
+        // that the client, the Bot's `Move` and this mutation all carry.
+        const splitCastSide = isSplitCastId(cardDef, args.alternativeCostId);
+        // CR 709.3 — "a player chooses which half of a split card they are
+        // casting BEFORE putting it onto the stack", so a split card has NO
+        // printed cast: there is no object with its combined characteristics
+        // that could go on the stack, and its CR 709.4b summed cost is a
+        // characteristic in a zone, never a price. Rejected here so no path
+        // can commit one — `assertLegalAction` above asked only whether the
+        // CARD is castable at all, which for a split card is true whenever
+        // EITHER half is. `offersPrintedCast` is the same predicate every
+        // offering surface reads.
+        if (!offersPrintedCast(cardDef) && splitCastSide === undefined) {
+            throw new Error(
+                "A split card is cast one half at a time (CR 709.3)"
+            );
+        }
         // CR 715.3d — "it can't be cast as an Adventure this way." The card
         // exiled by its own Adventure carries the restriction on the PERMISSION
         // (`castFromExileNotAsAdventure`), and `getAlternativeCost` above
@@ -8187,8 +8231,15 @@ export const announceCast = mutation({
         // instant speed on the strength of Petty Theft's legality. Scoped to
         // cards that HAVE an inset spell — for every other card the two
         // questions are the same question, already answered above.
+        //
+        // CR 709.3a says the same of a SPLIT half — "only the chosen half is
+        // evaluated to see if it can be cast" — so the gate is scoped to
+        // "this card has an independent cast option", not to `insetSpell`.
+        const hasIndependentCastOption =
+            cardDef.insetSpell !== undefined ||
+            cardDef.splitHalves !== undefined;
         if (
-            cardDef.insetSpell !== undefined &&
+            hasIndependentCastOption &&
             !castTimingBaseLegal(
                 state,
                 args.playerId,
@@ -8200,6 +8251,21 @@ export const announceCast = mutation({
             throw new Error(
                 `${castSubjectDef.name} can't be cast right now (CR 715.3a)`
             );
+        }
+        // CR 601.3a / 709.3b / 715.3b — and the same for a cast PROHIBITION,
+        // for the same reason: `assertLegalAction` asked whether the CARD is
+        // castable, which is true whenever ANY half is, and a name- or
+        // type-keyed restriction is a statement about the SPELL. Without this
+        // a Meddling Mage naming "Wane" left Wane announceable on the
+        // strength of Wax's legality. `getLegalActions` asks the identical
+        // question of the identical subject (`gre/rules.ts`).
+        if (hasIndependentCastOption) {
+            const prohibition = castProhibitionReason(
+                args.playerId,
+                castSubjectView(cardInHand, args.alternativeCostId),
+                state
+            );
+            if (prohibition !== undefined) throw new Error(prohibition);
         }
 
         // Validate X is provided iff the cost contains a string X (CR 107.3).
@@ -8896,6 +8962,11 @@ export const announceCast = mutation({
                     // `bestowed` is stamped on a branch it cannot reach: a
                     // silently dropped cast mode is not cheap.
                     ...(isAdventureCast ? { castAsAdventure: true } : {}),
+                    // CR 709.3b — the same, for a split half parked on its
+                    // mana (Deliver's {2}{U} with no targets yet available).
+                    ...(splitCastSide
+                        ? { castAsSplitHalf: splitCastSide }
+                        : {}),
                     // CR 601.2 (issue #2473) — the announcement-time timing
                     // snapshot rides to the deferred commit.
                     ...(castOffSorceryTiming
@@ -9013,6 +9084,10 @@ export const announceCast = mutation({
             // "whenever a player casts a spell" trigger must see the Adventure
             // spell, which is what the object IS at that moment.
             if (isAdventureCast) castAsAdventure(stackItem);
+            // CR 709.3b — the SPLIT half's identity swap, at the same seam and
+            // for the same reason: a "whenever a player casts a spell" trigger
+            // must see the half, which is what the object IS at that moment.
+            if (splitCastSide) castAsSplitHalf(stackItem, splitCastSide);
             state.stack.push(stackItem);
             state.passCount = 0;
             state.priorityPlayerId = getOpponentId(state, args.playerId);

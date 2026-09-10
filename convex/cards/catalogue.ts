@@ -166,7 +166,10 @@ import {
 // the full contract. Registered into the SAME `registry` map hand-written
 // cards use, so `getDefinition`/`tryGetDefinition` never distinguish the two.
 import { excludeHandWritten } from "./compiledCatalogue";
-import { insetSpellDefinitionId, isInsetSpellDefinitionId } from "./insetSpell";
+import { insetSpellDefinitionId } from "./insetSpell";
+import { chooseableNamesOf } from "./cardNames";
+import { SPLIT_HALF_SIDES, splitHalfDefinitionId } from "./splitCard";
+import { isTwinDefinitionId } from "./twinId";
 // The pool as a BUNDLED module. On the SERVER this is
 // `data/oracle-compiled-pool.json`; in a CLIENT build `vite.config.ts`
 // aliases this exact relative specifier to an empty array and the rows arrive
@@ -424,6 +427,34 @@ const nameRegistry = new Map<string, CardDefinition>(
     allCards.map((card) => [card.name.toLowerCase(), card])
 );
 
+/** Every `[nameKey, twinDefinition]` pair a card contributes to the name
+ *  registry BESIDE its own printed name — an inset spell's alternative name
+ *  (CR 715.5 / 722.5) and a split card's two half names (CR 709.4a).
+ *
+ *  The twin is looked up rather than rebuilt: `preloadDefinitions` registered
+ *  it, so a name resolves to the SAME object every other def-derived reader
+ *  sees. A half whose twin failed to hydrate contributes nothing — fail
+ *  closed, so a resolvable name always names a real definition. */
+function twinNameEntries(
+    card: CardDefinition
+): Array<[string, CardDefinition]> {
+    const entries: Array<[string, CardDefinition]> = [];
+    const inset = card.insetSpell;
+    if (inset) {
+        const twin = tryGetDefinition(
+            insetSpellDefinitionId(card.id, inset.kind)
+        );
+        if (twin) entries.push([inset.name.toLowerCase(), twin]);
+    }
+    if (card.splitHalves) {
+        for (const side of SPLIT_HALF_SIDES) {
+            const twin = tryGetDefinition(splitHalfDefinitionId(card.id, side));
+            if (twin) entries.push([twin.name.toLowerCase(), twin]);
+        }
+    }
+    return entries;
+}
+
 // CR 715.5 / 722.5 (ADR 0120) — "if an effect instructs a player to choose a
 // card name and the player wants to choose an adventurer card's ALTERNATIVE
 // name, the player may do so." So the inset half's name resolves here, to the
@@ -437,12 +468,10 @@ const nameRegistry = new Map<string, CardDefinition>(
 // A printed name always wins the key, the same first-write-wins precedence
 // compiled rows get below.
 for (const card of allCards) {
-    const inset = card.insetSpell;
-    if (!inset) continue;
-    const key = inset.name.toLowerCase();
-    if (nameRegistry.has(key)) continue;
-    const twin = getDefinition(insetSpellDefinitionId(card.id, inset.kind));
-    nameRegistry.set(key, twin);
+    for (const [key, twin] of twinNameEntries(card)) {
+        if (nameRegistry.has(key)) continue;
+        nameRegistry.set(key, twin);
+    }
 }
 
 // The compiled rows this graph actually registered, kept because the runtime
@@ -480,17 +509,13 @@ export function registerCompiledDefinitions(
     for (const card of fresh) {
         const key = card.name.toLowerCase();
         if (!nameRegistry.has(key)) nameRegistry.set(key, card);
-        // CR 715.5 — the same alternative-name key the hand-written loop above
-        // seeds, for a COMPILED adventurer row. `preloadDefinitions` has
-        // already registered its twin.
-        const inset = card.insetSpell;
-        if (!inset) continue;
-        const insetKey = inset.name.toLowerCase();
-        if (nameRegistry.has(insetKey)) continue;
-        const twin = tryGetDefinition(
-            insetSpellDefinitionId(card.id, inset.kind)
-        );
-        if (twin) nameRegistry.set(insetKey, twin);
+        // CR 715.5 / 709.4a — the same half-name keys the hand-written loop
+        // above seeds, for a COMPILED adventurer or split row.
+        // `preloadDefinitions` has already registered their twins.
+        for (const [key, twin] of twinNameEntries(card)) {
+            if (nameRegistry.has(key)) continue;
+            nameRegistry.set(key, twin);
+        }
     }
     compiledRegistered.push(...fresh);
     // The CLIENT calls this after module load (from the loading gate), so a
@@ -534,7 +559,7 @@ export const tryGetPlaceableCardByName = (
     name: string
 ): CardDefinition | null => {
     const def = tryGetCardByName(name);
-    return def && !isInsetSpellDefinitionId(def.id) ? def : null;
+    return def && !isTwinDefinitionId(def.id) ? def : null;
 };
 
 /** CR 715.5 / 722.5 — every card name a player may CHOOSE when an effect says
@@ -555,12 +580,21 @@ export const tryGetPlaceableCardByName = (
  *  "Petty Theft" through `isLegalNamedCard` while the human's button stayed
  *  inert (PR #3302 review finding 4). */
 export const getChooseableCardNames = (): string[] => {
-    const names = getAllCardNames();
-    for (const card of allCards) {
-        if (card.insetSpell) names.push(card.insetSpell.name);
-    }
+    // The hand-written population's own names first — this seam WIDENS
+    // `getAllCardNames`, and the client's candidate list is built by
+    // difference against it.
+    const names: string[] = [];
+    for (const card of allCards) names.push(...chooseableNamesOf(card));
+    // A COMPILED row contributes only its EXTRA names. Its own printed name is
+    // deliberately absent, exactly as it is absent from `getAllCardNames`:
+    // ADR 0113 §2 delivers the compiled pool asymmetrically (bundled on the
+    // server, fetched on the client), so a domain that included it would
+    // differ between the two and the submit gate would accept names the
+    // button never offered. Widening BOTH seams together is its own change.
     for (const card of compiledRegistered) {
-        if (card.insetSpell) names.push(card.insetSpell.name);
+        for (const name of chooseableNamesOf(card)) {
+            if (name !== card.name) names.push(name);
+        }
     }
     return names;
 };

@@ -32,12 +32,18 @@
 // through anyway.
 
 import type { CardDefinition, InsetSpellKind } from "./types";
+import {
+    isTwinDefinitionId,
+    parentIdOfTwin,
+    TWIN_ID_SEPARATOR,
+    twinDefinitionId,
+} from "./twinId";
 
-/** Separator between a parent card's id and its inset spell's kind. `#` is
- *  absent from every Scryfall UUID and from every print id, so a twin id can
- *  never collide with a real card's (asserted catalogue-wide by
- *  `insetSpell.test.ts`). */
-export const INSET_SPELL_ID_SEPARATOR = "#";
+/** @deprecated alias of {@link TWIN_ID_SEPARATOR} — kept because this module's
+ *  own history named it, and because `insetSpell.test.ts` asserts on the name.
+ *  The separator belongs to the twin-id namespace, which split cards share
+ *  (`cards/twinId.ts`, ADR 0121). */
+export const INSET_SPELL_ID_SEPARATOR = TWIN_ID_SEPARATOR;
 
 /** Per-kind facts the rest of the engine keys on. `Record<InsetSpellKind, …>`
  *  is the guard ADR 0120 §1 asks for: a second kind cannot be added to the
@@ -83,21 +89,22 @@ export function insetSpellDefinitionId(
     parentId: string,
     kind: InsetSpellKind
 ): string {
-    return `${parentId}${INSET_SPELL_ID_SEPARATOR}${kind}`;
+    return twinDefinitionId(parentId, kind);
 }
 
-/** `true` when `cardId` names a twin rather than a printed card. */
-export function isInsetSpellDefinitionId(cardId: string): boolean {
-    return cardId.includes(INSET_SPELL_ID_SEPARATOR);
-}
+/** `true` when `cardId` names a twin rather than a printed card.
+ *
+ *  Answers for EVERY twin, not only an inset spell's: a split card's half
+ *  (CR 709.3b) shares the namespace, and the two consumers of this predicate —
+ *  `tryGetPlaceableCardByName` and the scenario builder — must exclude both or
+ *  they exclude neither. Re-exported here under its historical name;
+ *  `isTwinDefinitionId` (`cards/twinId.ts`) is the one to call from new code. */
+export const isInsetSpellDefinitionId = isTwinDefinitionId;
 
 /** CR 715.4 — the id of the card a twin id belongs to, i.e. the identity the
  *  object reverts to the moment it stops being on the stack as an Adventure.
  *  `undefined` for an ordinary card id. */
-export function parentIdOfInsetSpell(cardId: string): string | undefined {
-    const at = cardId.indexOf(INSET_SPELL_ID_SEPARATOR);
-    return at <= 0 ? undefined : cardId.slice(0, at);
-}
+export const parentIdOfInsetSpell = parentIdOfTwin;
 
 /** The twin `CardDefinition` for `parent`'s inset spell, or `undefined` when
  *  the card has none.
@@ -178,13 +185,8 @@ export function hasAdventure(def: CardDefinition | undefined): boolean {
     return def?.insetSpell?.kind === "adventure";
 }
 
-/** CR 715.5 — every card name an effect may be given for `def`: its own, plus
- *  its inset spell's when it has one ("if an effect instructs a player to
- *  choose a card name and the player wants to choose an adventurer card's
- *  alternative name, the player may do so").
- *
- *  Both kinds, deliberately: CR 722.5 is CR 715.5 verbatim, so this is not
- *  gated on `castableFromParent`. */
-export function chooseableCardNames(def: CardDefinition): string[] {
-    return def.insetSpell ? [def.name, def.insetSpell.name] : [def.name];
-}
+/** @deprecated CR 715.5 — the inset half's contribution to the name-choice
+ *  domain. Superseded by `chooseableNamesOf` (`cards/cardNames.ts`), which
+ *  answers for CR 709.4a's split card too; kept as an alias because this
+ *  module's own history named it. */
+export { chooseableNamesOf as chooseableCardNames } from "./cardNames";

@@ -57,6 +57,11 @@ import {
     adventureCastOptionFor,
     isAdventureCastId,
 } from "./adventure";
+import {
+    isSplitCastId,
+    splitCastAlternativeCost,
+    splitCastOptionsFor,
+} from "./splitCast";
 import { MORPH_CAST_ALT_COST_ID, morphCastAlternativeCost } from "./morph";
 import { resolveZoneCharacteristics } from "./zoneCharacteristics";
 import type {
@@ -377,6 +382,14 @@ export function getAlternativeCost(
     if (isAdventureCastId(def, altCostId)) {
         return adventureCastAlternativeCost(def);
     }
+    // CR 709.3 — a split half's cast option, SYNTHESIZED in the same way: the
+    // cost is the half's own printed cost, read off the registered twin
+    // (`gre/splitCast.ts`), so no card can state it apart from the half it
+    // casts.
+    const splitSide = isSplitCastId(def, altCostId);
+    if (splitSide) {
+        return splitCastAlternativeCost(def, splitSide);
+    }
     return def?.alternativeCosts?.find((a) => a.id === altCostId);
 }
 
@@ -405,7 +418,13 @@ export function affordableAlternativeCosts(
     // CR 715.3 / 715.3d — instance-aware: the option is withdrawn on a card
     // exiled by its OWN Adventure (`adventureCastOptionFor`).
     const adventureCast = adventureCastOptionFor(card);
+    // CR 709.3 — BOTH half options, and they are the card's WHOLE cast menu:
+    // "a player chooses which half of a split card they are casting before
+    // putting it onto the stack", so there is no printed cast beside them
+    // (`offersPrintedCast`, read by every other offering surface).
+    const splitCasts = splitCastOptionsFor(card);
     const variants = [
+        ...splitCasts,
         ...(def.alternativeCosts ?? []),
         ...(def.evoke ? [def.evoke] : []),
         ...(def.dash ? [def.dash] : []),

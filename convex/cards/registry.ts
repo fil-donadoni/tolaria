@@ -31,6 +31,7 @@ import { expandChapterAbilities } from "./abilities/sagas";
 import { expandCompiledStatics } from "./compiledStatics";
 import { expandCompiledTriggers } from "./compiledTriggers";
 import { insetSpellTwinDefinition } from "./insetSpell";
+import { SPLIT_HALF_SIDES, splitHalfTwinDefinition } from "./splitCard";
 import { setCardManaCostLookup } from "./manaCostLookup";
 import { setCardSupertypeLookup } from "./supertypeLookup";
 
@@ -303,6 +304,17 @@ export function preloadDefinitions(defs: CardDefinition[]): void {
         // card is one card).
         const twin = insetSpellTwinDefinition(def);
         if (twin) setRegistryEntry(twin.id, twin);
+        // CR 709.3b (ADR 0121 §2) — the same seam for a SPLIT card's two
+        // halves: "while on the stack, only the characteristics of the half
+        // being cast exist", so each half is a real definition under
+        // `${parent.id}#left` / `#right`, registered here and NOWHERE else.
+        // CR 709.2 — one card is one card: `allCards` is built from set-module
+        // exports, so deck legality, the Limited pool, `check:index` and
+        // `getAllCardNames` keep seeing exactly one Wax // Wane.
+        for (const side of SPLIT_HALF_SIDES) {
+            const half = splitHalfTwinDefinition(def, side);
+            if (half) setRegistryEntry(half.id, half);
+        }
     }
 }
 

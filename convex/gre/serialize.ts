@@ -189,6 +189,7 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "baseTypes",
     "activationsThisTurn",
     "adventureOf",
+    "splitHalfOf",
     "animation",
     "attachedTo",
     "attackedDuringLastTurn",
@@ -563,6 +564,7 @@ function compactCard(
     // CR 715.3b/715.4 — the front id of a stack item cast as an Adventure.
     // Public to both players (unlike faceDownOf), so no per-viewer stripping.
     if (card.adventureOf) out.adventureOf = card.adventureOf;
+    if (card.splitHalfOf) out.splitHalfOf = card.splitHalfOf;
     // CR 712 / ADR 0067 (issue #1210) — transform face flag + the front
     // face's own definition id, so a later flip back can restore it. Public
     // to both players (unlike faceDown/faceDownOf), no per-viewer stripping.
@@ -1040,6 +1042,7 @@ function expandCard(
     }
     if (compact.faceDownOf) result.faceDownOf = compact.faceDownOf as string;
     if (compact.adventureOf) result.adventureOf = compact.adventureOf as string;
+    if (compact.splitHalfOf) result.splitHalfOf = compact.splitHalfOf as string;
     if (compact.transformed) result.transformed = true;
     if (compact.transformedFrom) {
         result.transformedFrom = compact.transformedFrom as string;

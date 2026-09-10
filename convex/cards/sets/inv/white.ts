@@ -1511,12 +1511,10 @@ export const fightOrFlight: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────
-// Out of scope — split cards (ADR 0010/0041, unmodelled `split` layout). NO
-// stub emitted (per parent PRD #1063 scope manifest).
+// Stand // Deliver and Wax // Wane are SHIPPED, and they ship from
+// `inv/multicolor.ts` (ADR 0121, issue #3307). CR 709.4b — "a split card's
+// colours and mana value are determined from its combined mana cost" — makes
+// both of them GOLD cards ({W} // {2}{U}, {G} // {W}), so the multicolour
+// module is their home, not this one. The costs recorded in the out-of-scope
+// stubs that used to sit here were also wrong on both cards.
 // ─────────────────────────────────────────────────────────────────────────
-
-// Stand // Deliver — {W} // {2}{W} Instant // Instant. Out of scope (split
-// card, ADR 0010).
-
-// Wax // Wane — {W} // {1}{W} Instant // Instant. Out of scope (split card,
-// ADR 0010).

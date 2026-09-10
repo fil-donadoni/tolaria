@@ -100,6 +100,8 @@ setControlRelocation((state, card, previousControllerId, nextControllerId) => {
 });
 import { turnFaceDown, turnFaceUp } from "./faceDown";
 import { revertAdventureIdentity, wasCastAsAdventure } from "./adventure";
+import { revertSplitIdentity } from "./splitCast";
+import type { SplitHalfSide } from "../cards/splitCard";
 import type { FaceDownProducer } from "./faceDown";
 import {
     revertTransform,
@@ -1133,6 +1135,16 @@ export type CardInstanceState = {
      *  alternative characteristics to both players (CR 715.3b), so nothing is
      *  hidden at the projection boundary. */
     adventureOf?: string;
+    /** CR 709.3b/709.4 — the PARENT (combined) card id of a stack item cast as
+     *  one half of a split card, retained for the revert the moment the object
+     *  leaves the stack. Its presence IS the "was cast as a split half" mark,
+     *  exactly as `adventureOf`'s presence marks an Adventure — one field,
+     *  never a flag beside an id that could be set apart from it.
+     *
+     *  PUBLIC information: a split half on the stack shows its own
+     *  characteristics to both players (CR 709.3b), so nothing is hidden at
+     *  the projection boundary. */
+    splitHalfOf?: string;
     /** WHICH mechanic put this object face down (issue #2904) — see
      *  {@link FaceDownProducer}. Public information: an opponent watching a
      *  morph cast knows it was a morph, and the face-down FACE the client
@@ -2601,6 +2613,16 @@ export type PendingCast = {
      *  CREATURE half on the stack for a cast the caster paid the Adventure's
      *  price for. */
     castAsAdventure?: boolean;
+    /** CR 709.3 (ADR 0121) — which HALF of a split card this cast announced,
+     *  or `undefined` for every other cast. Same kind of thing as
+     *  `castAsAdventure` beside it and carried for the same reason: it is not
+     *  a marker for a later trigger but a rewrite of the object put on the
+     *  stack (CR 709.3b — "while on the stack, only the characteristics of the
+     *  half being cast exist"). Without it the deferred commit — a cast whose
+     *  mana was paid across a separate `tapForPayment` mutation — would put
+     *  the COMBINED card on the stack for a cast the caster paid one half's
+     *  price for. */
+    castAsSplitHalf?: SplitHalfSide;
     /** CR 601.2 / 307.1 / 117.1a / 601.3a (issue #2473) — the "a sorcery
      *  couldn't have been cast right now" snapshot, taken at ANNOUNCEMENT
      *  (`announceCast`, before any cost is paid) and carried here so the
@@ -7138,6 +7160,10 @@ function resetStackTransientState(item: StackItem): void {
     // only the graveyard and 715.3d paths called it (PR #3302 review finding 2).
     // A no-op on every item not cast as an Adventure.
     revertAdventureIdentity(item);
+    // CR 709.4 — the same rule for a SPLIT half: "in every zone except the
+    // stack, the characteristics of a split card are those of its two halves
+    // combined." A no-op on every item not cast as a split half.
+    revertSplitIdentity(item);
     // CR 307.1 / 117.1a / 601.3a (issue #2473) — same leak shape as
     // `evoked`/`dashed`/`escaped` immediately above: a COUNTERED (or
     // otherwise stack-leaving-without-resolving) spell must not carry this
@@ -7234,6 +7260,10 @@ function sendStackItemToGraveyard(state: GameState, item: StackItem): void {
     // exactly as a countered face-down morph spell reaches it as its real card
     // one line above (CR 708.11).
     revertAdventureIdentity(item);
+    // CR 709.4 — the same rule for a SPLIT half: "in every zone except the
+    // stack, the characteristics of a split card are those of its two halves
+    // combined." A no-op on every item not cast as a split half.
+    revertSplitIdentity(item);
     const { destination, tagCounters } = graveyardDestinationFor(
         state,
         item.id,

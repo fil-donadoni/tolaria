@@ -136,8 +136,12 @@ import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { matchesPermanentFilter } from "../cards/filters";
 import { liveSupertypesOf, countSnowLands } from "./snow";
 import { canSummonCompanion } from "./companion";
-import { adventureCastOptionFor, adventureTwin } from "./adventure";
-import { castSubjectView } from "./castMode";
+import {
+    castSubjectDefinition,
+    castSubjectView,
+    independentCastOptionsFor,
+} from "./castMode";
+import { offersPrintedCast } from "./splitCast";
 import { morphCastAlternativeCost, turnableFaceUpPermanents } from "./morph";
 import { hasRetrace } from "./retrace";
 import { flashbackExileEligibleCount } from "./flashback";
@@ -1837,11 +1841,22 @@ export function enumerateCastMoves(
     // replaced — so modes, kickers, buyback, additional-cost legs, X and target
     // groups are all the machinery the printed branch already has, never a
     // parallel copy that can drift (the `lifeInsteadOfMana` precedent).
-    const permissionMoves = castPermissionAltCosts(
-        state,
-        player.id,
-        card,
-        castFromZone
+    //
+    // CR 709.3 / 118.9a (ADR 0121) — a SPLIT card is skipped here entirely.
+    // The rewrite below stamps the PERMISSION's id onto every Move the
+    // re-entered builder produced, and for a split card those are the two
+    // half casts: the result names a permission cast with no way to say WHICH
+    // half, which `announceCast` refuses — the #2283/#2284 freeze shape.
+    // Unreachable today (Aluren covers creature spells; a split card with a
+    // creature half has a permanent face, CR 709.5, out of scope) and
+    // unmodelled if one ever ships. tracked-by: #3345
+    const permissionMoves = (
+        offersPrintedCast(
+            tryGetDefinition((card.card as { id?: string }).id ?? "") ??
+                undefined
+        )
+            ? castPermissionAltCosts(state, player.id, card, castFromZone)
+            : []
     ).flatMap((alt) =>
         enumerateCastMovesFromZone(state, player, card, {
             ...opts,
@@ -2202,13 +2217,20 @@ function enumerateCastMovesFromZone(
     const flashSurcharge = flashSurchargeOf(card);
 
     const moves: Move[] = [];
+    // CR 709.3 — a SPLIT card has NO printed cast: "a player chooses which
+    // half of a split card they are casting before putting it onto the
+    // stack", so the only casts it offers are the two half options the
+    // independent-options block below enumerates. Without this the Bot would
+    // offer a cast for the 709.4b summed cost that `announceCast` rejects —
+    // the #2283/#2284 bot-freeze shape. `offersPrintedCast`
+    // (`cards/splitCard.ts`) is the same predicate the human gate reads.
     for (const {
         modeId,
         groups,
         additionalCostLegId,
         kickerPayments,
         buybackPaid,
-    } of announceVariants) {
+    } of offersPrintedCast(def ?? undefined) ? announceVariants : []) {
         // CR 601.2c — the executor sends every announced target in ONE batched
         // `selectTargets` call and then AT MOST ONE trailing `confirmTargets`.
         // A fixed-count group auto-advances inside that batch
@@ -2663,65 +2685,61 @@ function enumerateCastMovesFromZone(
         }
     }
 
-    // CR 715.3 (ADR 0120) — the ADVENTURE cast mode: a SIXTH variant axis, and
-    // the seam that makes the whole mechanic reachable for the Bot
-    // (`.claude/rules/gre-development.md` § Bot reachability). Like overload it
-    // is a different SPELL rather than a cheaper one — Petty Theft is an
-    // instant-speed bounce, Brazen Borrower a 3/1 flier — so the two enumerate
-    // side by side and the tree picks on the resulting board.
+    // CR 715.3 / 709.3 — the INDEPENDENT cast options (`castMode.ts`): the
+    // Adventure and a split card's two halves, i.e. every option that is a
+    // different SPELL rather than a cheaper price for the printed one. This is
+    // the seam that makes both mechanics reachable for the Bot
+    // (`.claude/rules/gre-development.md` § Bot reachability): Petty Theft is
+    // an instant-speed bounce and Brazen Borrower a 3/1 flier, Wane is a
+    // Disenchant and Wax a combat trick, so each enumerates side by side with
+    // the others and the tree picks on the resulting board.
     //
-    // Unlike every branch above it must enumerate TARGETS: the inset half
-    // carries its own `targetRequirement` (CR 715.3a — only the alternative
-    // characteristics are evaluated), so the target tuples are built against
-    // the SUBJECT view, not the printed card. Without that the Bot would offer
-    // a zero-target cast the mutation refuses, which is the #2283/#2284
-    // bot-freeze shape.
+    // Unlike every branch above they must enumerate TARGETS: each half carries
+    // its own `targetRequirement` (CR 715.3a / 709.3a — only the chosen half is
+    // evaluated), so the target tuples are built against the SUBJECT view, not
+    // the printed card. Without that the Bot would offer a zero-target cast the
+    // mutation refuses, which is the #2283/#2284 bot-freeze shape.
     //
-    // `adventureCastOptionFor` (not `adventureCastAlternativeCost`) is what
-    // withdraws the option on a card exiled by its own Adventure (CR 715.3d).
-    const adventureAlt = adventureCastOptionFor(card);
-    if (adventureAlt && lifeInsteadOfMana === undefined) {
-        const adventureSubject = castSubjectView(card, adventureAlt.id);
-        const adventureDef = adventureTwin(def ?? undefined);
-        const adventureCost = normalizeManaCost(adventureAlt.mana ?? {}, {
-            chosenX: 0,
-        });
-        foldFlashSurchargeCost(
-            adventureCost,
-            flashSurcharge,
-            flashSurchargeOwed
-        );
-        // CR 601.2f–h — 715.3 routes the Adventure cast through the ordinary
-        // alternative-cost rules, so the battlefield cost modifiers every other
-        // cast branch folds apply to the INSET half's cost.
-        applyCostModifiers(
-            adventureCost,
-            getCostModifiers(state, adventureSubject, "spell")
-        );
-        const adventureTapPlan = planManaPayment(state, player, adventureCost, {
-            cardInstanceId: card.id,
-            cardDef: adventureDef,
-        });
-        if (adventureTapPlan !== null) {
-            const adventureReq = adventureDef?.targetRequirement;
+    // `independentCastOptionsFor` (not the per-mechanic builders) is what
+    // withdraws the Adventure on a card exiled by its own Adventure
+    // (CR 715.3d) and what a third such mode would join.
+    if (lifeInsteadOfMana === undefined) {
+        for (const alt of independentCastOptionsFor(card)) {
+            const subject = castSubjectView(card, alt.id);
+            const subjectDef = castSubjectDefinition(def ?? undefined, alt.id);
+            const altCost = normalizeManaCost(alt.mana ?? {}, { chosenX: 0 });
+            foldFlashSurchargeCost(altCost, flashSurcharge, flashSurchargeOwed);
+            // CR 601.2f–h — 715.3 / 709.3 route these casts through the
+            // ordinary alternative-cost rules, so the battlefield cost
+            // modifiers every other cast branch folds apply to the HALF's cost.
+            applyCostModifiers(
+                altCost,
+                getCostModifiers(state, subject, "spell")
+            );
+            const altTapPlan = planManaPayment(state, player, altCost, {
+                cardInstanceId: card.id,
+                cardDef: subjectDef,
+            });
+            if (altTapPlan === null) continue;
+            const altReq = subjectDef?.targetRequirement;
             for (const { targets, lastGroupSize } of enumerateTargetGroupTuples(
                 state,
                 player,
-                adventureSubject,
-                [adventureReq],
+                subject,
+                [altReq],
                 undefined
             )) {
                 moves.push({
                     kind: "cast-spell",
                     cardInstanceId: card.id,
-                    alternativeCostId: adventureAlt.id,
+                    alternativeCostId: alt.id,
                     targets,
                     confirmTargets: announcedTargetsNeedConfirm(
-                        adventureReq,
+                        altReq,
                         lastGroupSize,
                         undefined
                     ),
-                    tapPlan: adventureTapPlan,
+                    tapPlan: altTapPlan,
                 });
             }
         }

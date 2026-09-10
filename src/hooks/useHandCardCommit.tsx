@@ -390,11 +390,34 @@ export function useHandCardCommit(
             // shipped pool, not a hypothetical. Filtering only the printed row
             // left Ragavan's "Dash" standing under Aluren, one click from the
             // same rejection this whole change exists to remove.
-            const options = printedCostAvailable
-                ? affordableAlts
-                : affordableAlts.filter((alt) =>
+            //
+            // CR 709.3 (ADR 0121) — but the filter is keyed on the PERMISSION,
+            // not on the flag. `printedCostCastUnavailable` now covers a
+            // second, unrelated reason: a SPLIT card has no printed cast at
+            // all, and its two half options are the whole menu — filtering
+            // them to "the permission's own" would leave the picker empty and
+            // the card uncastable. A permission that licenses a cast is always
+            // itself in `affordableAlts` (`castOptionAlternativeCosts` emits
+            // it), so its presence is what distinguishes the two cases.
+            //
+            // What it does NOT distinguish is a card where BOTH are true — a
+            // split card under a covering permission. Unreachable by
+            // construction today (the only shipped permission, Aluren, covers
+            // creature spells, and a split card with a creature half has a
+            // PERMANENT face, which is CR 709.5 and out of scope) and
+            // unmodelled if one ever ships: CR 118.9a allows one alternative
+            // cost per spell, and a permission that waives the cost carries
+            // no way to say WHICH half was announced. `announceCast` refuses
+            // such an announcement either way, so this fails closed rather
+            // than wrong. tracked-by: #3345
+            const permissionRestricted =
+                !printedCostAvailable &&
+                affordableAlts.some((alt) => isCastPermissionAltCostId(alt.id));
+            const options = permissionRestricted
+                ? affordableAlts.filter((alt) =>
                       isCastPermissionAltCostId(alt.id)
-                  );
+                  )
+                : affordableAlts;
             const optionCount = options.length + (printedCostAvailable ? 1 : 0);
             if (!printedCostAvailable && options.length === 1) {
                 // The permission's free cast is the only legal announcement —

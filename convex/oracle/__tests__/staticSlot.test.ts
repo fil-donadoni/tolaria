@@ -967,6 +967,7 @@ describe("resolveCompiledStatic (cards/compiledStatics.ts)", () => {
         getManaValue: () => 0,
         getPrintedTypes: (card) => [...card.types],
         getName: () => "",
+        hasChosenName: () => false,
         getCounterCount: () => 0,
     };
 

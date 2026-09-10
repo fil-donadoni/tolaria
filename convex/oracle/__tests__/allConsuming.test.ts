@@ -43,6 +43,36 @@ function mutate(card: OracleCard, oracleText: string): OracleCard {
     return { ...card, oracleText };
 }
 
+/** Every perturbation of `card` this invariant has to survive, as
+ *  `[label, perturbed]` pairs.
+ *
+ *  For a single-faced card that is one variant: the transform applied to its
+ *  Oracle text. For a MULTI-FACED card (an inset-spell layout, CR 715; a
+ *  split card, CR 709) it is one variant PER FACE, because the compiler reads
+ *  `card_faces` and never the top-level text — perturbing only `oracleText`
+ *  there is a no-op, so the whole class silently stopped being tested at all
+ *  the moment the first such layout was admitted (issue #3307). One variant
+ *  per face rather than one perturbing both: a compiler that read face 0 and
+ *  ignored face 1 must red, and perturbing both would let it pass. */
+function perturbations(
+    card: OracleCard,
+    transform: (text: string) => string
+): Array<[string, OracleCard]> {
+    const faces = card.faces;
+    if (!faces || faces.length === 0) {
+        return [[card.name, mutate(card, transform(card.oracleText))]];
+    }
+    return faces.map((face, index) => [
+        `${card.name} (face ${index}: ${face.name})`,
+        {
+            ...card,
+            faces: faces.map((f, j) =>
+                j === index ? { ...f, oracleText: transform(f.oracleText) } : f
+            ),
+        },
+    ]);
+}
+
 describe("all-consuming invariant (PRD #2693)", () => {
     const accepted = getAllCards()
         .filter((definition) => definition.oracleText !== undefined)
@@ -70,12 +100,16 @@ describe("all-consuming invariant (PRD #2693)", () => {
     it("a clause APPENDED TO THE LAST LINE flips every accepted card to unparsed", () => {
         const survivors: string[] = [];
         for (const card of accepted) {
-            const lines = card.oracleText.split("\n");
-            lines[lines.length - 1] =
-                `${lines[lines.length - 1]} ${UNREADABLE_CLAUSE}`;
-            const outcome = compileCard(mutate(card, lines.join("\n")));
-            if (outcome.state !== "unparsed")
-                survivors.push(`${card.name} -> ${outcome.state}`);
+            for (const [label, perturbed] of perturbations(card, (text) => {
+                const lines = text.split("\n");
+                lines[lines.length - 1] =
+                    `${lines[lines.length - 1]} ${UNREADABLE_CLAUSE}`;
+                return lines.join("\n");
+            })) {
+                const outcome = compileCard(perturbed);
+                if (outcome.state !== "unparsed")
+                    survivors.push(`${label} -> ${outcome.state}`);
+            }
         }
         expect(survivors).toEqual([]);
     });
@@ -83,11 +117,13 @@ describe("all-consuming invariant (PRD #2693)", () => {
     it("a NEW TRAILING LINE flips every accepted card to unparsed", () => {
         const survivors: string[] = [];
         for (const card of accepted) {
-            const outcome = compileCard(
-                mutate(card, `${card.oracleText}\n${UNREADABLE_CLAUSE}`.trim())
-            );
-            if (outcome.state !== "unparsed")
-                survivors.push(`${card.name} -> ${outcome.state}`);
+            for (const [label, perturbed] of perturbations(card, (text) =>
+                `${text}\n${UNREADABLE_CLAUSE}`.trim()
+            )) {
+                const outcome = compileCard(perturbed);
+                if (outcome.state !== "unparsed")
+                    survivors.push(`${label} -> ${outcome.state}`);
+            }
         }
         expect(survivors).toEqual([]);
     });
@@ -96,11 +132,13 @@ describe("all-consuming invariant (PRD #2693)", () => {
         // The one a "stop at the first slot that works" compiler would miss.
         const survivors: string[] = [];
         for (const card of accepted) {
-            const outcome = compileCard(
-                mutate(card, `${UNREADABLE_CLAUSE}\n${card.oracleText}`.trim())
-            );
-            if (outcome.state !== "unparsed")
-                survivors.push(`${card.name} -> ${outcome.state}`);
+            for (const [label, perturbed] of perturbations(card, (text) =>
+                `${UNREADABLE_CLAUSE}\n${text}`.trim()
+            )) {
+                const outcome = compileCard(perturbed);
+                if (outcome.state !== "unparsed")
+                    survivors.push(`${label} -> ${outcome.state}`);
+            }
         }
         expect(survivors).toEqual([]);
     });

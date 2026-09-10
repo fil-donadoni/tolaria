@@ -29,6 +29,7 @@ import {
 import { enumerateMoves, type Move } from "../moves";
 import { MORPH_CAST_ALT_COST_ID } from "../morph";
 import { adventureCastAltCostId } from "../adventure";
+import { splitCastAltCostId } from "../splitCast";
 import { applyMoveForSearch } from "../applyMove";
 import { applyMoveInSearch, policyValue } from "../search";
 import {
@@ -67,6 +68,9 @@ function modeMarkersOf(card: CardInstanceState) {
         // (`adventureOf`), not a boolean beside it; the identity swap it
         // records is what the type/subtype/P-T fields below then show.
         adventure: card.adventureOf !== undefined,
+        // CR 709.3b — the split half's mark is likewise the retained PARENT
+        // id (`splitHalfOf`), never a boolean beside it.
+        splitHalf: card.splitHalfOf !== undefined,
         cardId: (card.card as { id?: string }).id,
         types: [...(card.types ?? [])].sort(),
         subtypes: [...(card.subtypes ?? [])].sort(),
@@ -251,6 +255,47 @@ const MODE_FIXTURES: Record<CastMode, ModeFixture> = {
             expect(m.toughness).toBeUndefined();
         },
     },
+    // CR 709.3b — "while on the stack, only the characteristics of the half
+    // being cast exist." Stand // Deliver is a {2}{W}{U} card in every zone
+    // (CR 709.4b) and NEITHER half costs that: the left is a {W} Instant, so
+    // one Plains is the whole price and the object on the stack is the twin.
+    "split-left": {
+        card: "Stand // Deliver",
+        land: PLAINS,
+        landCount: 1,
+        enumerated: true,
+        clearsOnResolve: true,
+        assertStamped: (m) => {
+            expect(m.splitHalf).toBe(true);
+            expect(m.cardId).toBe(
+                `${getCardByName("Stand // Deliver").id}#left`
+            );
+            expect(m.types).toEqual(["Instant"]);
+            expect(m.subtypes).toEqual([]);
+            expect(m.power).toBeUndefined();
+            expect(m.toughness).toBeUndefined();
+        },
+    },
+    // The OTHER half of the same card, on its own {2}{U} price — the pair is
+    // what proves the two rows are not one row twice: a census that resolved
+    // both ids to the same twin would pass either alone.
+    "split-right": {
+        card: "Stand // Deliver",
+        land: ISLAND,
+        landCount: 3,
+        enumerated: true,
+        clearsOnResolve: true,
+        assertStamped: (m) => {
+            expect(m.splitHalf).toBe(true);
+            expect(m.cardId).toBe(
+                `${getCardByName("Stand // Deliver").id}#right`
+            );
+            expect(m.types).toEqual(["Instant"]);
+            expect(m.subtypes).toEqual([]);
+            expect(m.power).toBeUndefined();
+            expect(m.toughness).toBeUndefined();
+        },
+    },
 };
 
 /** The enumerated cast of `subject` paying `mode`'s alternative cost. */
@@ -260,7 +305,12 @@ function modeCastMove(state: GameState, mode: CastMode): Move {
         (m): m is Extract<Move, { kind: "cast-spell" }> =>
             m.kind === "cast-spell" && m.cardInstanceId === "subject"
     );
-    const variant = casts.find((m) => m.alternativeCostId !== undefined);
+    // Keyed on the mode's OWN id, not merely "has an alternative cost": a
+    // split card enumerates BOTH halves, so a bare `find` would hand the
+    // right-half fixture the left half's move and the row would assert
+    // nothing (CR 709.3).
+    const wanted = altCostIdFor(def, mode);
+    const variant = casts.find((m) => m.alternativeCostId === wanted);
     if (!variant) {
         throw new Error(
             `no alternative-cost cast enumerated for ${def.name} — the fixture, not the executor, is wrong`
@@ -308,6 +358,12 @@ function altCostIdFor(def: CardDefinition, mode: CastMode): string {
         // parent's own id, since it is the twin's identity the stamp needs).
         case "adventure":
             return adventureCastAltCostId(def);
+        // CR 709.3 — synthesized per card AND per side: the id names which
+        // half is being announced, which is the whole choice CR 709.3 makes.
+        case "split-left":
+            return splitCastAltCostId(def, "left");
+        case "split-right":
+            return splitCastAltCostId(def, "right");
     }
 }
 

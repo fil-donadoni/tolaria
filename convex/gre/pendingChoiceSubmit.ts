@@ -27,6 +27,7 @@ import {
     type PendingChoice,
 } from "./state";
 import { handCardMatchesFilter } from "./alternativeCost";
+import { hasName as isChooseableName } from "../cards/cardNames";
 import type { CardDefinition, EffectCardFilter } from "../cards/types";
 import { finalizeAsEnters } from "./asEnters";
 import {
@@ -419,6 +420,7 @@ export function isLegalNamedCard(
 ): boolean {
     const def = tryGetCardByName(name.trim());
     if (!def) return false;
+    if (!isChooseableName(def, def.name)) return false;
     if (violatesNameRestriction(head, def)) return false;
     const filter = asEntersNameFilter(state, head);
     return (
@@ -460,6 +462,20 @@ export function applyNameCardSubmit(
     // Normalize to the registry's canonical casing so the resolve step's name
     // comparison is exact.
     const canonical = def.name;
+    // CR 709.4a (ADR 0121) — "if an effect instructs a player to choose a card
+    // name and the player wants to choose a split card's name, the player must
+    // choose one of those names and NOT BOTH." `tryGetCardByName` resolves the
+    // combined string to the parent definition — it is a lookup key, and deck
+    // lists, cubes and banlists need it — but it is not a name anyone may
+    // CHOOSE. Rejected here and in `isLegalNamedCard` above so the gate and
+    // the client's candidate list (`getChooseableCardNames`) agree; a server
+    // that accepted a name the button never offered is the asymmetry PR #3302
+    // review finding 4 closed for Adventure, in the other direction.
+    if (!isChooseableName(def, canonical)) {
+        throw new Error(
+            "Choose one of the card's two names, not both (CR 709.4a)"
+        );
+    }
     // CR 201.3 (issue #1085) — "a card name other than a basic land card
     // name" (Desperate Research). Routed through the shared predicate so the
     // bot's default picker cannot disagree with this check (#2497).
