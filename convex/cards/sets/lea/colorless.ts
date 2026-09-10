@@ -273,6 +273,8 @@ export const conservator: CardDefinition = {
     id: "c7824e2a-4eff-4f72-9216-0db30a4f4252",
     rarity: "uncommon",
     name: "Conservator",
+    oracleText:
+        "{3}, {T}: Prevent the next 2 damage that would be dealt to you this turn.",
     manaCost: { X: 4 },
     types: ["Artifact"],
     activatedAbilities: [
@@ -1297,6 +1299,7 @@ export const obsianusGolem: CardDefinition = {
     id: "4c8e9f5c-deba-4443-bf9d-fb2be75c5418",
     rarity: "uncommon",
     name: "Obsianus Golem",
+    oracleText: "",
     manaCost: { X: 6 },
     types: ["Artifact", "Creature"],
     subtypes: ["Golem"],
@@ -1410,6 +1413,8 @@ export const theHive: CardDefinition = {
     id: HIVE_ID,
     rarity: "rare",
     name: "The Hive",
+    oracleText:
+        "{5}, {T}: Create a 1/1 colorless Insect artifact creature token with flying named Wasp. (It can't be blocked except by creatures with flying or reach.)",
     manaCost: { X: 5 },
     types: ["Artifact"],
     activatedAbilities: [

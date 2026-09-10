@@ -183,13 +183,25 @@ describe("gold round-trip — the harness is not vacuous", () => {
         expect(slotKeys).toContain("spell");
     });
 
-    it("reports the hand-written cards that carry no Oracle text at all", () => {
-        // Excluded from the counts on purpose: the compiler's INPUT is missing,
-        // so compiling "" would score a card with real rules text as a vanilla
-        // match. The number is asserted to be bounded so the hole cannot grow
-        // silently — see docs/findings/2694-gold-cards-without-oracletext.md.
-        expect(REPORT.withoutOracleText.length).toBeLessThan(40);
-        expect(REPORT.withoutOracleText).toContain("Grizzly Bears");
+    it("no hand-written card carries a MISSING Oracle text", () => {
+        // Zero, not a bound. A card with no `oracleText` is excluded from every
+        // count above on purpose — the compiler's INPUT is missing, so compiling
+        // "" would score a card with real rules text (Berserk, Channel, Fear …)
+        // as a vanilla match, and a missing fixture is not a passing test. The
+        // 23 that predate this were backfilled by issue #3075; what keeps the
+        // hole shut is THIS assertion, not that backfill, because the field is
+        // optional in the type and the next hand-written card can omit it just
+        // as silently.
+        //
+        // An EMPTY `oracleText` is not this failure: a vanilla creature's Oracle
+        // text genuinely is "", and 15 of the 23 now say so. Only the FIELD may
+        // never be absent.
+        expect(
+            REPORT.withoutOracleText,
+            "a hand-written card omits `oracleText` entirely, so the Oracle compiler has no " +
+                'input for it and it can never round-trip. Add the field — `oracleText: ""` ' +
+                "if the card really is vanilla — rather than lowering this assertion."
+        ).toEqual([]);
     });
 });
 

@@ -36,12 +36,13 @@
 // which side is wrong; a `card-defect` row leaves the file entirely when its
 // card is fixed; a `compiler-gap` row leaves when the grammar catches up. A row
 // never arrives in the FILE — see SHRINK-ONLY below — but it may move BETWEEN
-// the arrays, and one such move is already scheduled: backfilling `oracleText`
-// on the 23 `no-oracle-text` rows (#3075) turns 8 of them (Berserk, Channel,
+// the arrays, and one such move has already happened: issue #3075 backfilled
+// `oracleText` on the 23 `no-oracle-text` rows, 15 of which round-trip
+// immediately (deleted) while 8 became `unparsed` (Berserk, Channel,
 // Conservator, Dwarven Warriors, Fear, Samite Healer, The Hive, Tireless
-// Tracker) into `unparsed`, so those 8 must be INSERTED into
-// `COMPILER_GAP_ROWS` in the same change — the union does not grow, the ceiling
-// holds, and refusing that insertion is the only way to leave the guard red.
+// Tracker) and moved to `COMPILER_GAP_ROWS`. That is the shape such a move
+// takes: the union shrinks by the graduates alone, the ceiling comes down by
+// exactly that many, and the 8 are now ranked with every other grammar gap.
 //
 // The limit, stated rather than overclaimed: on a `mismatch` the table
 // constrains nothing — all three directions are legal — so a card defect
@@ -232,6 +233,7 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Benalish Emissary",
     "Benalish Lancer",
     "Bend or Break",
+    "Berserk",
     "Bind",
     "Binding Grasp",
     "Birds of Paradise",
@@ -319,6 +321,7 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Chain Lightning",
     "Chain of Vapor",
     "Chandra, Torch of Defiance",
+    "Channel",
     "Chaos Lord",
     "Chaos Moon",
     "Chaoslace",
@@ -360,6 +363,7 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Confound",
     "Conquer",
     "Consecrate Land",
+    "Conservator",
     "Consider",
     "Consult the Star Charts",
     "Consuming Aetherborn",
@@ -495,6 +499,7 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Dwarven Hold",
     "Dwarven Soldier",
     "Dwarven Song",
+    "Dwarven Warriors",
     "Eagles of the North",
     "Earthbind",
     "Earthcraft",
@@ -581,6 +586,7 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Fastbond",
     "Fasting",
     "Fatal Push",
+    "Fear",
     "Fear of Missing Out",
     "Feedback",
     "Feldon's Cane",
@@ -1324,6 +1330,7 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Safe Haven",
     "Samite Archer",
     "Samite Elder",
+    "Samite Healer",
     "Samite Pilgrim",
     "Sand Silos",
     "Sandstorm",
@@ -1562,6 +1569,7 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "The Abyss",
     "The Brute",
     "The Fallen",
+    "The Hive",
     "The One Ring",
     "The Rack",
     "The Tabernacle at Pendrell Vale",
@@ -1606,6 +1614,7 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Timetwister",
     "Tinder Wall",
     "Tinker",
+    "Tireless Tracker",
     "Tishana's Tidebinder",
     "Titania's Song",
     "Titania, Protector of Argoth",
@@ -1805,12 +1814,14 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
  * encoding implies. "Card-defect" names the SIDE the defect is on, never the
  * shape of its fix.
  *
- * The six adjudicated mismatches carry their ticket inline. The remaining 23
- * are the `no-oracle-text` half (#3075): the definition omits `oracleText`, so
- * the compiler's input is missing rather than empty and the card can never
- * round-trip until it is backfilled — no grammar is involved at any point,
- * which is exactly why the direction is `card-defect` and not `compiler-gap`
- * (`docs/findings/2694-gold-cards-without-oracletext.md`).
+ * Every row is now an adjudicated mismatch carrying its ticket inline. The
+ * `no-oracle-text` half — 23 definitions that omitted `oracleText` entirely, so
+ * the compiler's input was missing rather than empty — is gone: issue #3075
+ * backfilled the field, 15 graduated on the spot and the 8 with real rules text
+ * moved to `COMPILER_GAP_ROWS` as `unparsed`, which is what a card with an
+ * Oracle line no grammar slot reads has always meant. The class cannot reopen:
+ * `convex/oracle/__tests__/gold.test.ts` pins `withoutOracleText` at zero, and
+ * that assertion is the durable guard, not the backfill.
  */
 export const CARD_DEFECT_ROWS: readonly string[] = [
     "Active Volcano", // #3073 — `type: ["any"]` for "blue permanent"
@@ -1821,33 +1832,10 @@ export const CARD_DEFECT_ROWS: readonly string[] = [
     // Still `card-defect` — CR 605.1a says the compiler's reading is the right
     // one — but the fix is the engine gap, not the flag.
     "Ashnod's Altar", // #3047 — mana ability on the stack, CR 605.3b
-    "Berserk",
-    "Channel",
-    "Conservator",
-    "Craw Wurm",
     "Desert Twister", // #3073 — `type: ["any"]` for "permanent"
-    "Dwarven Warriors",
-    "Earth Elemental",
-    "Fear",
-    "Fire Elemental",
     "Flash Flood", // #3073 — `type: ["any"]` for "red permanent"
-    "Gray Ogre",
-    "Grizzly Bears",
-    "Hill Giant",
-    "Hurloon Minotaur",
-    "Ironroot Treefolk",
-    "Merfolk of the Pearl Trident",
-    "Mons's Goblin Raiders",
     "Northern Paladin", // #3046 — "black creature" for "black permanent"
-    "Obsianus Golem",
-    "Pearled Unicorn",
-    "Samite Healer",
-    "Savannah Lions",
-    "Scathe Zombies",
-    "The Hive",
-    "Tireless Tracker",
     "Wall of Brambles", // #3074 — ships without its regenerate ability
-    "Water Elemental",
 ];
 
 /**

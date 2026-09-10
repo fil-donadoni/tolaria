@@ -463,6 +463,8 @@ export const fear: CardDefinition = {
     id: "0cd927be-e63f-4371-a1d8-7a0489cb187e",
     rarity: "common",
     name: "Fear",
+    oracleText:
+        "Enchant creature (Target a creature as you cast this. This card enters attached to that creature.)\nEnchanted creature has fear. (It can't be blocked except by artifact creatures and/or black creatures.)",
     manaCost: { B: 2 },
     types: ["Enchantment"],
     subtypes: ["Aura"],
@@ -1272,6 +1274,7 @@ export const scatheZombies: CardDefinition = {
     id: "e9be6dcf-5e25-4b8c-9cd0-badf3771f81e",
     rarity: "common",
     name: "Scathe Zombies",
+    oracleText: "",
     manaCost: { X: 2, B: 1 },
     types: ["Creature"],
     subtypes: ["Zombie"],

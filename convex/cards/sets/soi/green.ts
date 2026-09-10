@@ -24,6 +24,8 @@ import { investigateOp } from "../../abilities/tokens/clueToken";
 export const tirelessTracker: CardDefinition = {
     id: "ee8e9928-d9b2-4570-adb8-44b34115decd",
     name: "Tireless Tracker",
+    oracleText:
+        'Landfall — Whenever a land you control enters, investigate. (Create a Clue token. It\'s an artifact with "{2}, Sacrifice this token: Draw a card.")\nWhenever you sacrifice a Clue, put a +1/+1 counter on this creature.',
     rarity: "rare",
     manaCost: { X: 2, G: 1 },
     types: ["Creature"],
