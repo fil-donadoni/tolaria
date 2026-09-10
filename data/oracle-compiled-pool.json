@@ -7606,6 +7606,29 @@
         "rarity": "common"
     },
     {
+        "name": "Boarding Party",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Pirate"
+        ],
+        "manaCost": {
+            "X": 5,
+            "R": 1
+        },
+        "power": 6,
+        "toughness": 3,
+        "oracleText": "Haste\nCascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)",
+        "staticAbilities": [
+            "haste",
+            "cascade"
+        ],
+        "id": "186adacf-434b-475b-9b85-749615ae002b",
+        "rarity": "common"
+    },
+    {
         "name": "Reckless Reveler",
         "types": [
             "Creature"
@@ -15413,6 +15436,27 @@
         "rarity": "common"
     },
     {
+        "name": "Maelstrom Colossus",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Golem"
+        ],
+        "manaCost": {
+            "X": 8
+        },
+        "power": 7,
+        "toughness": 7,
+        "oracleText": "Cascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)",
+        "staticAbilities": [
+            "cascade"
+        ],
+        "id": "322491d2-d082-4d38-8d81-8588c011e725",
+        "rarity": "common"
+    },
+    {
         "name": "Generous Stray",
         "types": [
             "Creature"
@@ -18577,6 +18621,37 @@
         ],
         "id": "3e644ab8-3cc3-413d-a918-44fc636087ae",
         "rarity": "rare"
+    },
+    {
+        "name": "Natural Reclamation",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 4,
+            "G": 1
+        },
+        "oracleText": "Cascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)\nDestroy target artifact or enchantment.",
+        "staticAbilities": [
+            "cascade"
+        ],
+        "effects": [
+            {
+                "op": "destroy",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Artifact",
+                "Enchantment"
+            ],
+            "count": 1
+        },
+        "id": "3e98fb7c-6962-4b57-b7b7-c71899564002",
+        "rarity": "common"
     },
     {
         "name": "Composite Golem",
@@ -29396,6 +29471,28 @@
         "rarity": "common"
     },
     {
+        "name": "Enlisted Wurm",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Wurm"
+        ],
+        "manaCost": {
+            "X": 4,
+            "W": 1,
+            "G": 1
+        },
+        "power": 5,
+        "toughness": 5,
+        "oracleText": "Cascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)",
+        "staticAbilities": [
+            "cascade"
+        ],
+        "id": "66605149-3959-4a51-8400-350e6fac2ab2",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Sedge Scorpion",
         "types": [
             "Creature"
@@ -30997,6 +31094,23 @@
         "entersTapped": true,
         "id": "6bf0de91-765a-49e3-bd8a-94f266b3bdd8",
         "rarity": "common"
+    },
+    {
+        "name": "Throes of Chaos",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "R": 1
+        },
+        "oracleText": "Cascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)\nRetrace (You may cast this card from your graveyard by discarding a land card in addition to paying its other costs.)",
+        "staticAbilities": [
+            "cascade",
+            "retrace"
+        ],
+        "id": "6c02cc57-f589-4c5d-b306-cceb0ab3ce8b",
+        "rarity": "uncommon"
     },
     {
         "name": "Embereth Shieldbreaker",
@@ -33071,6 +33185,29 @@
             }
         ],
         "id": "75256550-bbe0-499d-909e-af10691749c2",
+        "rarity": "common"
+    },
+    {
+        "name": "Annoyed Altisaur",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dinosaur"
+        ],
+        "manaCost": {
+            "X": 5,
+            "G": 2
+        },
+        "power": 6,
+        "toughness": 5,
+        "oracleText": "Reach, trample\nCascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)",
+        "staticAbilities": [
+            "reach",
+            "trample",
+            "cascade"
+        ],
+        "id": "7536d618-0c98-45bb-913b-b8117b4acf87",
         "rarity": "common"
     },
     {
@@ -36234,6 +36371,30 @@
         },
         "id": "7ef37cb3-d803-47d7-8a01-9c803aa2eadc",
         "rarity": "rare"
+    },
+    {
+        "name": "Bloodbraid Elf",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elf",
+            "Berserker"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1,
+            "G": 1
+        },
+        "power": 3,
+        "toughness": 2,
+        "oracleText": "Haste (This creature can attack and {T} as soon as it comes under your control.)\nCascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)",
+        "staticAbilities": [
+            "haste",
+            "cascade"
+        ],
+        "id": "7ef67487-c8e5-49bb-b0f7-e073ff2e31f1",
+        "rarity": "uncommon"
     },
     {
         "name": "Ana Disciple",
@@ -45480,6 +45641,24 @@
         "rarity": "common"
     },
     {
+        "name": "Ardent Plea",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1,
+            "U": 1
+        },
+        "oracleText": "Exalted (Whenever a creature you control attacks alone, that creature gets +1/+1 until end of turn.)\nCascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)",
+        "staticAbilities": [
+            "exalted",
+            "cascade"
+        ],
+        "id": "9d521737-ee07-4387-bc07-5ced53db374d",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Reach Through Mists",
         "types": [
             "Instant"
@@ -47405,6 +47584,23 @@
         ],
         "id": "a4a1f9c1-25a3-465f-b3d8-98f0867c9bb6",
         "rarity": "common"
+    },
+    {
+        "name": "Into the Time Vortex",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 4,
+            "R": 1
+        },
+        "oracleText": "Cascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)\nRebound (If you cast this spell from your hand, exile it as it resolves. At the beginning of your next upkeep, you may cast this card from exile without paying its mana cost.)",
+        "staticAbilities": [
+            "cascade",
+            "rebound"
+        ],
+        "id": "a4a3cb61-b760-4cd4-838c-b26310103719",
+        "rarity": "rare"
     },
     {
         "name": "Loxodon Partisan",
@@ -49811,6 +50007,28 @@
         ],
         "id": "ace86fac-769c-4440-9a40-318d7172555b",
         "rarity": "common"
+    },
+    {
+        "name": "Heralds of Tzeentch",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Demon"
+        ],
+        "manaCost": {
+            "X": 4,
+            "U": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "Flying\nCascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)",
+        "staticAbilities": [
+            "flying",
+            "cascade"
+        ],
+        "id": "ad145868-bb3a-4a7a-a8ca-51f3ebc2c11e",
+        "rarity": "uncommon"
     },
     {
         "name": "Alabaster Kirin",
@@ -60400,6 +60618,30 @@
         ],
         "id": "ce9ed217-8378-4a58-a00d-fa4e4cb27c9d",
         "rarity": "common"
+    },
+    {
+        "name": "Shardless Agent",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Rogue"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Cascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)",
+        "staticAbilities": [
+            "cascade"
+        ],
+        "id": "ceb4df89-a97e-4479-b7f0-7083417a9565",
+        "rarity": "uncommon"
     },
     {
         "name": "Enormous Baloth",
@@ -72995,6 +73237,30 @@
         "rarity": "common"
     },
     {
+        "name": "Captured Sunlight",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1,
+            "G": 1
+        },
+        "oracleText": "Cascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)\nYou gain 4 life.",
+        "staticAbilities": [
+            "cascade"
+        ],
+        "effects": [
+            {
+                "op": "gainLife",
+                "player": "controller",
+                "amount": 4
+            }
+        ],
+        "id": "fcafc9eb-efa3-4f6c-a2ca-aec8692fddc1",
+        "rarity": "common"
+    },
+    {
         "name": "Faerie Invaders",
         "types": [
             "Creature"
@@ -73090,6 +73356,36 @@
         "toughness": 3,
         "id": "fd2a923a-1f9c-4a29-9c6b-344ae4d5ae8f",
         "rarity": "common"
+    },
+    {
+        "name": "Bituminous Blast",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1,
+            "R": 1
+        },
+        "oracleText": "Cascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)\nBituminous Blast deals 4 damage to target creature.",
+        "staticAbilities": [
+            "cascade"
+        ],
+        "effects": [
+            {
+                "op": "dealDamage",
+                "amount": 4,
+                "to": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "fd6a3c48-b01e-4462-a4a1-8d5009a6a844",
+        "rarity": "uncommon"
     },
     {
         "name": "Shambling Ghoul",
