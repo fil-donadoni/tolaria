@@ -1055,6 +1055,46 @@ describe("selectRootMove — a sacrifice engine is held, then converted (issue #
         ).toBe("activate-ability");
     });
 
+    it("HOLD: a favourable exchange ELSEWHERE does not buy the spend (probe symmetry)", () => {
+        // Issue #3369. `firingBeatsHolding` puts both sides through
+        // `policyValue`, which folds in `declaredBlockDelta` — a term that
+        // reads the WHOLE declared combat, not just the source being spent.
+        // Scoring the firing side with `policyValue` and the holding side with
+        // a bare `evaluate` hands the firing side that whole exchange for free,
+        // so a profitable block somewhere else on the board pays for throwing
+        // an unrelated permanent away.
+        //
+        // The source here (`orb`) is NOT in the exchange — a Hill Giant of the
+        // bot's is, blocked by a 2/2 it kills and survives — so
+        // `isInPendingCombatExchange` is silent and only the probe decides.
+        const state = spendIsRobust([
+            ...unpayingBoard(),
+            perm(GIANT, "gnt", { isAttacking: true }),
+        ]);
+        state.phase = "DECLARE_BLOCKERS";
+        state.players[1].battlefield = [
+            makeInstance(getCardByName("Grizzly Bears").id, {
+                controllerId: "p2",
+                ownerId: "p2",
+                id: "blk",
+                isSummoningSick: false,
+                isBlocking: true,
+            }),
+        ];
+        state.activePlayerId = "p1";
+        state.priorityPlayerId = "p1";
+        state.combat = {
+            attackerIds: ["gnt"],
+            confirmed: true,
+            blockersConfirmed: true,
+            blockerAssignments: { blk: ["gnt"] },
+        };
+        expect(
+            selectRootMove(spendIsRobustRoot(), [ACTIVATE, PASS], state, "p1")
+                .kind
+        ).toBe("pass");
+    });
+
     it("records `standing-spend-hold` as the deciding mechanism", () => {
         // The telemetry seam, asserted exactly as `last-window-fire` asserts
         // its own: a `RootDecisionMechanism` value `finish` never emits is a
