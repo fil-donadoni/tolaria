@@ -187,7 +187,9 @@ export { PLACEHOLDER_CARD_ID } from "./constants";
 export {
     DIFFICULTIES,
     DIFFICULTY_BUDGETS,
+    DIFFICULTY_KNOWS_OPPONENT,
     DEFAULT_DIFFICULTY,
     budgetFor,
+    knowsOpponent,
 } from "./difficulty";
 export type { Difficulty } from "./difficulty";

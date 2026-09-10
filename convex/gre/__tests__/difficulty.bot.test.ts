@@ -2,14 +2,21 @@
 // one knob (just budgets — no separate logic), and a higher preset measurably
 // plays better than a lower one on a fixed seeded scenario. See
 // `convex/gre/difficulty.ts`.
+//
+// `expert` (issue #2790, PRD #2787) amends the first claim: a preset now
+// carries a budget AND an opponent-knowledge mode. The budget gradient is
+// still asserted the same way (strictly increasing, expert now the top of
+// it); the knowledge axis gets its own describe block below.
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
 import { search } from "../search";
 import {
     DIFFICULTIES,
     DIFFICULTY_BUDGETS,
+    DIFFICULTY_KNOWS_OPPONENT,
     DEFAULT_DIFFICULTY,
     budgetFor,
+    knowsOpponent,
 } from "../difficulty";
 import {
     makeInstance,
@@ -48,9 +55,30 @@ describe("difficulty presets — one knob (issue #114)", () => {
     it("budgetFor maps a difficulty and falls back to the default for junk", () => {
         expect(budgetFor("hard")).toBe(DIFFICULTY_BUDGETS.hard);
         expect(budgetFor("easy")).toBe(DIFFICULTY_BUDGETS.easy);
+        expect(budgetFor("expert")).toBe(DIFFICULTY_BUDGETS.expert);
         expect(budgetFor(null)).toBe(DIFFICULTY_BUDGETS[DEFAULT_DIFFICULTY]);
         expect(budgetFor("nonsense")).toBe(
             DIFFICULTY_BUDGETS[DEFAULT_DIFFICULTY]
+        );
+    });
+});
+
+describe("opponent-knowledge mode — the second axis (issue #2790, PRD #2787)", () => {
+    it("only expert feeds the search the opponent's real decklist", () => {
+        expect(DIFFICULTY_KNOWS_OPPONENT.easy).toBe(false);
+        expect(DIFFICULTY_KNOWS_OPPONENT.medium).toBe(false);
+        expect(DIFFICULTY_KNOWS_OPPONENT.hard).toBe(false);
+        expect(DIFFICULTY_KNOWS_OPPONENT.expert).toBe(true);
+    });
+
+    it("knowsOpponent maps a difficulty and falls back to the default for junk", () => {
+        expect(knowsOpponent("expert")).toBe(true);
+        expect(knowsOpponent("hard")).toBe(false);
+        expect(knowsOpponent(null)).toBe(
+            DIFFICULTY_KNOWS_OPPONENT[DEFAULT_DIFFICULTY]
+        );
+        expect(knowsOpponent("nonsense")).toBe(
+            DIFFICULTY_KNOWS_OPPONENT[DEFAULT_DIFFICULTY]
         );
     });
 });
@@ -115,6 +143,7 @@ describe("difficulty — a higher preset plays measurably better (issue #114)", 
     const itersOnly = (n: number) => ({ iterations: n });
     const EASY = itersOnly(DIFFICULTY_BUDGETS.easy.iterations ?? 1);
     const HARD = itersOnly(DIFFICULTY_BUDGETS.hard.iterations ?? 1);
+    const EXPERT = itersOnly(DIFFICULTY_BUDGETS.expert.iterations ?? 1);
 
     const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
@@ -129,5 +158,19 @@ describe("difficulty — a higher preset plays measurably better (issue #114)", 
         // Hard reads the forced response every time; easy misses it often.
         expect(hardHits).toBe(SEEDS.length);
         expect(hardHits).toBeGreaterThan(easyHits);
+    });
+
+    // issue #2790, PRD #2787's explicit risk: `expert`'s per-iteration cost is
+    // higher (an opponent with real cards to enumerate), so under a wall-clock
+    // cap a naively-scaled preset could complete FEWER iterations and end up
+    // weaker than `hard` despite a nominally deeper search. Iteration-only
+    // budgets isolate the raw-strength claim from that wall-clock risk: on
+    // pure iteration count, `expert` must never be weaker than `hard` on this
+    // same forced-tactic position — the gradient the other levels already
+    // assert, extended to the new top of the ladder.
+    it("the expert preset is not weaker than hard on the same forced tactic", () => {
+        const hardHits = SEEDS.filter((s) => survives(HARD, s)).length;
+        const expertHits = SEEDS.filter((s) => survives(EXPERT, s)).length;
+        expect(expertHits).toBeGreaterThanOrEqual(hardHits);
     });
 });

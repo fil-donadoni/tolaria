@@ -10,6 +10,20 @@ const LABELS: Record<Difficulty, string> = {
     easy: "Easy",
     medium: "Medium",
     hard: "Hard",
+    expert: "Expert",
+};
+
+/** One plain-language line per level, shown for the currently selected value
+ *  so the player is never surprised by what the bot knows (issue #2790,
+ *  PRD #2787 — the acceptance criterion is explicit: "the player must not be
+ *  surprised by a Bot that appears to read their hand"). `expert` is the only
+ *  level that reads the player's decklist; the others say so by omission but
+ *  still get a line for consistency. */
+const DESCRIPTIONS: Record<Difficulty, string> = {
+    easy: "Searches only a few moves ahead — genuinely beatable.",
+    medium: "A solid, fast opponent that reads clean tactics.",
+    hard: "The deepest blind search — reads tactics perfectly, but does not know your decklist.",
+    expert: "Knows your decklist and plays around it.",
 };
 
 export default function DifficultySelector({
@@ -41,6 +55,7 @@ export default function DifficultySelector({
                             aria-checked={selected}
                             disabled={disabled}
                             onClick={() => onChange(d)}
+                            title={DESCRIPTIONS[d]}
                             className={cn(
                                 "px-3 py-1 text-xs font-medium transition",
                                 "disabled:cursor-not-allowed disabled:opacity-40",
@@ -54,6 +69,9 @@ export default function DifficultySelector({
                     );
                 })}
             </div>
+            <span className="text-[11px] text-text-muted">
+                {DESCRIPTIONS[value]}
+            </span>
         </div>
     );
 }

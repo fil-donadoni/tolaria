@@ -651,6 +651,9 @@ const PREVIEW_ANCHORED = "[data-card-preview-anchored]";
 const ENGINE_VIEW_TREE = "[data-engine-view-tree]";
 const DECK_TILE_SELECT = "[data-deck-tile] [data-deck-select]:not([disabled])";
 const MODE_TILE_SOLO = '[data-mode-tile="solo"]';
+/** The lobby's DEFAULT mode tile — the one whose primary action opens the
+ *  vs-AI setup dialog rather than creating a game (`lobby-vs-ai` below). */
+const MODE_TILE_BOT = '[data-mode-tile="bot"]';
 const LOBBY_PRIMARY = "[data-lobby-primary]:not([disabled])";
 
 /**
@@ -842,6 +845,67 @@ export const SURFACES: readonly Surface[] = [
             if (!(await visible(page, "main, [role=main]", 10_000))) {
                 throw new Unreachable("the lobby rendered no main region");
             }
+        },
+    },
+    {
+        id: "lobby-vs-ai",
+        label: "vs-AI setup dialog (/ \u2192 Play vs Bot \u2192 primary)",
+        async walk(page, ctx) {
+            // The difficulty selector lives BEHIND this dialog, so the `lobby`
+            // row above — which only asserts a main region on `/` — has never
+            // measured it. Issue #2790 added a fourth level (`Expert`) plus a
+            // per-level description line to that selector, i.e. a wider
+            // segmented control and one more text row at every viewport, which
+            // is precisely the shape of change a lobby-only walk cannot see.
+            await goto(page, ctx, "/");
+            // `bot` is the lobby's DEFAULT mode tile, but the walk selects it
+            // explicitly rather than trusting the default: a viewport that
+            // reached a board earlier in the same context has already clicked
+            // `solo` (`ensureBoard` above), and the tile selection is React
+            // state, not storage — pinning it here keeps this row independent
+            // of surface order.
+            if (!(await clickIfVisible(page, MODE_TILE_BOT, 6000))) {
+                throw new Unreachable(
+                    "the lobby's Mode Tiles offered no 'Play vs Bot' tile"
+                );
+            }
+            // The primary plate stays disabled until a deck is the Loadout's
+            // active one. An already-selected tile is itself `disabled`, so
+            // this step is skipped when the selection is already made.
+            if (!(await visible(page, DECK_TILE_SELECTED, 2000))) {
+                if (!(await clickIfVisible(page, DECK_TILE_SELECT, 6000))) {
+                    throw new Unreachable(
+                        "the lobby offered no selectable Deck Shelf tile \u2014 is the deployment seeded with preset decks?"
+                    );
+                }
+                await page.waitForTimeout(400);
+            }
+            if (!(await clickIfVisible(page, LOBBY_PRIMARY, 6000))) {
+                throw new Unreachable(
+                    "the Loadout's primary action stayed disabled after selecting a deck and the 'Play vs Bot' Mode Tile"
+                );
+            }
+            // The dialog is the subject; the difficulty radiogroup is what
+            // makes it the RIGHT dialog (`difficulty-selector.tsx` declares the
+            // `aria-label` as its walk seam, and the lobby's other dialogs —
+            // join-by-code, delete-deck — carry none).
+            if (!(await visible(page, "[role=dialog]", STEP_TIMEOUT))) {
+                throw new Unreachable(
+                    "the 'Play vs Bot' primary action did not open a dialog within 8s"
+                );
+            }
+            if (
+                !(await visible(
+                    page,
+                    '[role=dialog] [role=radiogroup][aria-label="AI Difficulty"]',
+                    STEP_TIMEOUT
+                ))
+            ) {
+                throw new Unreachable(
+                    "the vs-AI setup dialog opened without its AI Difficulty selector"
+                );
+            }
+            await page.waitForTimeout(400);
         },
     },
     {

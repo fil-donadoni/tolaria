@@ -600,10 +600,15 @@ describe("bot liveness invariant (issue #2284)", () => {
     });
 
     it("never escalates a slow search at the HARDEST budget", async () => {
-        // `DIFFICULTY_BUDGETS.hard` is `{ iterations: 1200, timeMs: 3000 }`
-        // (raised from 600 by issue #2682, keeping `hard`'s pre-#2682 2×
-        // ratio to `medium.timeMs` once `medium` was re-aligned to the real
-        // `DEFAULT_BUDGET`, 1500ms). With `THINK_DELAY_MS` and a Worker
+        // The hardest preset is `DIFFICULTY_BUDGETS.expert`,
+        // `{ iterations: 1320, timeMs: 3300 }` (issue #2790 — a +10% margin
+        // over `hard`'s `{ iterations: 1200, timeMs: 3000 }`, itself raised
+        // from 600 by issue #2682, keeping `hard`'s pre-#2682 2× ratio to
+        // `medium.timeMs` once `medium` was re-aligned to the real
+        // `DEFAULT_BUDGET`, 1500ms). The floor below is taken as the MAX over
+        // every preset, not a named one, so a future harder level re-proves
+        // this margin here instead of eroding it in silence. With
+        // `THINK_DELAY_MS` and a Worker
         // round-trip on top, a legitimate think still sits comfortably inside
         // the watchdog interval — no longer "an order of magnitude" at this
         // scale (that flat 5× margin was calibrated against the old 600ms
