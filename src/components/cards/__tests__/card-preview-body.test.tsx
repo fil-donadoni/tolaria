@@ -75,3 +75,56 @@ describe("CardPreviewBody seeds its toggle from the saved preview default (issue
         expect(img.getAttribute("alt")).toBe(CONTENT.cardName);
     });
 });
+
+// CR 715.2 (issue #3303) — the inset half reaches the DOM. `buildPreviewBody`'s
+// own suite pins the derivation; what is asserted here is the half a player can
+// actually READ, in the surface every preview host composes: before this, the
+// live-text face of an adventurer card rendered only the creature half and the
+// Adventure the player is being offered appeared nowhere.
+describe("CardPreviewBody renders the inset half of a two-part frame (CR 715.2)", () => {
+    const WITH_INSET: PreviewBodyContent = {
+        ...CONTENT,
+        cardName: "Brazen Borrower",
+        displayName: "Brazen Borrower",
+        typeLine: "Creature — Faerie Rogue",
+        oracleParagraphs: ["Flash", "Flying"],
+        insetHalf: {
+            role: "inset",
+            label: "Adventure",
+            name: "Petty Theft",
+            manaCost: "{1}{U}",
+            typeLine: "Instant — Adventure",
+            oracleParagraphs: [
+                "Return target nonland permanent an opponent controls to its owner's hand.",
+            ],
+        },
+    };
+
+    it("prints the half's label, name, cost, type line and text", () => {
+        const { container } = render(
+            <CardPreviewBody {...WITH_INSET} size="sm" />
+        );
+        const text = container.textContent ?? "";
+        expect(text).toContain("Adventure");
+        expect(text).toContain("Petty Theft");
+        expect(text).toContain("Instant — Adventure");
+        // Mana costs render as symbol images (`formatOracleText`), so the cost
+        // is asserted through their alts rather than through text content.
+        const symbolAlts = Array.from(container.querySelectorAll("img")).map(
+            (img) => img.getAttribute("alt")
+        );
+        expect(symbolAlts).toContain("{1}");
+        expect(symbolAlts).toContain("{U}");
+        expect(text).toContain("Return target nonland permanent");
+        // The card's own half is still the primary block, not replaced.
+        expect(text).toContain("Brazen Borrower");
+        expect(text).toContain("Flying");
+    });
+
+    it("renders nothing extra for an ordinary card", () => {
+        const { container } = render(
+            <CardPreviewBody {...CONTENT} size="sm" />
+        );
+        expect(container.textContent ?? "").not.toContain("Adventure");
+    });
+});

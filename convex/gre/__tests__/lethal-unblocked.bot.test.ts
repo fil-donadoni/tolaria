@@ -314,7 +314,9 @@ describe("lethalUnblockedDelta — EXACTLY ZERO off-pattern (ADR 0070 §5)", () 
         state.damageUnpreventableThisTurn = true;
         expect(lethalUnblockedDelta(state, DEFENDER)).toBe(-WIN_SCORE);
         // And the engine agrees — the swing really is lethal on this board.
-        applyAllCombatDamage(state);
+        // No assignments: all four attackers are unblocked, which is the
+        // unblocked-to-player leg the term models.
+        applyAllCombatDamage(state, {});
         expect(state.players[1].life).toBeLessThanOrEqual(0);
     });
 

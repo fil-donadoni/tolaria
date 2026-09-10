@@ -69,6 +69,7 @@ export default function CardPreviewFace({
     engineView,
     engineTree,
     engineReportGameId,
+    insetHalf,
     size,
     onImageLoaded,
     imageLoaded = true,
@@ -193,6 +194,48 @@ export default function CardPreviewFace({
                     </div>
                 )}
                 {hasBody && <CardPreviewAbilities abilities={bodyAbilities} />}
+                {/* CR 715.2 / 722.2 — the other half of a two-part card frame,
+                    mirroring the printed inset: its own name, cost, type line
+                    and text, visually subordinate to the block above and inside
+                    the SAME text column, so the `split` layout's scroll
+                    container carries it rather than dropping it below the row.
+                    Labelled (`Adventure` / `Adventurer card`, off
+                    `INSET_SPELL_KINDS`) so it can never read as a live
+                    characteristic of the half this face is actually about. */}
+                {insetHalf && (
+                    <div className="border-t border-border-subtle pt-2">
+                        <div className="border border-border-subtle rounded-md p-2 space-y-1 bg-surface-raised/40">
+                            <div
+                                className={`${sectionSize} font-semibold uppercase tracking-wide text-text-muted`}
+                            >
+                                {insetHalf.label}
+                            </div>
+                            <div className="flex items-baseline justify-between gap-2">
+                                <span className="font-semibold truncate">
+                                    {insetHalf.name}
+                                </span>
+                                {insetHalf.manaCost && (
+                                    <span
+                                        className={`shrink-0 ${manaSize} leading-none`}
+                                    >
+                                        {formatOracleText(insetHalf.manaCost)}
+                                    </span>
+                                )}
+                            </div>
+                            <div className="text-text-muted">
+                                {insetHalf.typeLine}
+                            </div>
+                            {insetHalf.oracleParagraphs.map((p, i) => (
+                                <div key={`inset-oracle-${i}`}>
+                                    <OracleParagraph
+                                        text={p}
+                                        milestones={null}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
                 <CardPreviewEngineView
                     badge={engineView}
                     tree={engineTree}
