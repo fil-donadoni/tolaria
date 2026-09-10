@@ -13,8 +13,10 @@ import {
     normalizeScenarioSpec,
     resolveScenarioGolden,
     scenarioSpecValidator,
+    projectScenarioListing,
     selectEphemeralIdsToPrune,
     selectScenarioUpsert,
+    selectScenariosByLabel,
     SCENARIO_SCHEMA_VERSION,
     type ScenarioSpec,
 } from "./debugScenarioSpec";
@@ -301,5 +303,75 @@ export const seedScenarioDirect = internalMutation({
             createdAt: Date.now(),
         });
         return { action: "insert" as const, id };
+    },
+});
+
+/**
+ * CLI-reachable LIST — the read half of the deploy-access door
+ * `seedScenarioDirect` opened above (issue #3331).
+ *
+ * `bunx convex run` authenticates with the DEPLOY KEY, not as a user, so
+ * `auth.getUserId(ctx)` is null and every `assertIsAdmin` function throws
+ * `Forbidden: admin only` no matter who is signed into the app. The write
+ * path had its own ungated door and the read path did not, which made the
+ * gap compound: with no CLI list, a caller cannot discover the handle of a
+ * row it did not itself just seed, so it cannot act on one either.
+ *
+ * `internalQuery`, ungated, for exactly the reason `seedScenarioDirect`
+ * states: there is no caller identity to check, and the access control is
+ * "can you run internal functions against this deployment at all". The
+ * CLIENT-facing `listDebugScenarios` above keeps its `assertIsAdmin` — this
+ * adds no reach to the app, only to a caller that already holds deploy access.
+ *
+ * Returns the LABEL as the handle rather than the id, because that is what
+ * `seedScenarioDirect` upserts on and what `deleteScenariosDirect` below
+ * deletes on — one string, the same in both directions.
+ */
+export const listScenariosDirect = internalQuery({
+    args: {},
+    returns: v.array(
+        v.object({
+            label: v.string(),
+            golden: v.boolean(),
+            createdAt: v.optional(v.number()),
+        })
+    ),
+    handler: async (ctx) => {
+        // Same bounded scan the seed path uses — the table is kept small by
+        // `cleanupEphemeralScenarios`.
+        const rows = await ctx.db.query("debugScenarios").take(1000);
+        return projectScenarioListing(rows);
+    },
+});
+
+/**
+ * CLI-reachable DELETE, BY LABEL (issue #3331) — the destructive half of the
+ * same door. Ungated for the reason spelled out on `listScenariosDirect`; the
+ * client-facing `deleteDebugScenario` keeps `assertIsAdmin` and its id
+ * argument, because the admin panel has a signed-in user and a row in hand.
+ *
+ * By LABEL, not by id, deliberately: `seedScenarioDirect` upserts by label, so
+ * the label is the handle a CLI caller already has — an id is a value it can
+ * only obtain from a seed it performed in that same session, which is the
+ * dead end this issue is about.
+ *
+ * Returns the COUNT rather than null: labels are not unique by schema
+ * (`selectScenarioUpsert` only picks one to patch), so a caller needs to see
+ * both `0` — a typo, nothing removed — and an unexpected `2`. A no-match is
+ * not an error; the callers are housekeeping and want a verdict, not a throw.
+ */
+export const deleteScenariosDirect = internalMutation({
+    args: { label: v.string() },
+    returns: v.object({ deleted: v.number() }),
+    handler: async (ctx, args) => {
+        if (args.label.trim() === "") {
+            throw new Error("label is required");
+        }
+        const rows = await ctx.db.query("debugScenarios").take(1000);
+        const doomed = selectScenariosByLabel(rows, args.label);
+        for (const id of doomed) {
+            await ctx.db.delete(id);
+        }
+        return { deleted: doomed.length };
     },
 });

@@ -85,7 +85,9 @@
         "worktree:init": "bun scripts/bootstrap-worktree.ts",
         "wt:docs": "bun scripts/docs-lane.ts new",
         "wt:gc": "bun scripts/worktree-gc.ts",
-        "wt:new": "bun scripts/wt-new.ts"
+        "wt:new": "bun scripts/wt-new.ts",
+        "scenario:ls": "bun scripts/scenario-admin.ts ls",
+        "scenario:rm": "bun scripts/scenario-admin.ts rm"
     },
     "lint-staged": {
         "*.{ts,tsx,js,jsx,json,css,md}": "prettier --write"
