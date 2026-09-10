@@ -30,16 +30,23 @@ export const gitaxianProbe: CardDefinition = {
     // stays resolve(); the unconditional draw follows in the same closure.
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
-        // First call enqueues the reveal-hand display choice and returns
-        // undefined (suspend; the resolve returns early). The re-invocation
-        // after the caster acknowledges returns a non-undefined value.
-        const ack = ctx.revealHand(target.id);
-        if (ack === undefined) return;
-        // CR 401.4 — the caster now knows the hand; stamp every card currently
-        // in the target's hand `knownTo` the caster so the knowledge outlives
-        // the spell.
-        const handIds = ctx.getHandCards(target.id).map((c) => c.id);
-        ctx.markKnown(target.id, handIds, ctx.controller);
+        // CR 608.2b (issue #2985) — the reveal is the part that names the
+        // target; the draw below is a part that does not, so it still happens
+        // if the slot was blanked. (Unreachable while this spell announces one
+        // target — one illegal target out of one fizzles the whole spell — but
+        // the two parts are split the way 608.2b splits them.)
+        if (target) {
+            // First call enqueues the reveal-hand display choice and returns
+            // undefined (suspend; the resolve returns early). The re-invocation
+            // after the caster acknowledges returns a non-undefined value.
+            const ack = ctx.revealHand(target.id);
+            if (ack === undefined) return;
+            // CR 401.4 — the caster now knows the hand; stamp every card
+            // currently in the target's hand `knownTo` the caster so the
+            // knowledge outlives the spell.
+            const handIds = ctx.getHandCards(target.id).map((c) => c.id);
+            ctx.markKnown(target.id, handIds, ctx.controller);
+        }
         // CR 121.1 — then draw a card (unconditional, even on an empty hand).
         ctx.drawCards(ctx.controller, 1);
     },

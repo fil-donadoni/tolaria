@@ -9,6 +9,7 @@
 
 import type { CardDefinition, ManaCost, SpellContext } from "../../types";
 import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
+import { legalTargetSlots } from "../../../gre/constants";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
@@ -349,7 +350,9 @@ export const fireball: CardDefinition = {
     // `dealDamage` deals its `amount` to ONE object/selector, not a split
     // across several. Blocked on: a divided-damage Op.
     resolve: (ctx: SpellContext) => {
-        ctx.dealDividedDamage(ctx.targets, ctx.getX());
+        // CR 608.2b (issue #2985) — the even split is over the slots that
+        // are still legal; a blanked one takes no share.
+        ctx.dealDividedDamage(legalTargetSlots(ctx.targets), ctx.getX());
     },
 };
 

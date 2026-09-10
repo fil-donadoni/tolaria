@@ -13,6 +13,7 @@ import type {
     SpellContext,
     TargetSelection,
 } from "../../types";
+import { legalTargetSlots } from "../../../gre/constants";
 import { controlsSnowSubtype } from "../../snowReads";
 import { creatureCardsAboveInGraveyard } from "../../graveyardOrder";
 import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
@@ -2938,7 +2939,9 @@ export const soulBurn: CardDefinition = {
     // read + clamp). Blocked on a noted-mana-spent value + arithmetic, not on X.
     resolve: (ctx: SpellContext) => {
         const x = ctx.getX();
-        ctx.dealDamage(ctx.targets[0], x);
+        const target = ctx.targets[0];
+        if (!target) return; // CR 608.2b (issue #2985) — blanked slot
+        ctx.dealDamage(target, x);
         // CR 119 — gain life equal to the damage dealt, but not more than the
         // {B} spent on X. `notedManaSpent.B` includes the one fixed {B} pip; the
         // remainder is the black spent on the X portion (clamped to [0, X]). The
@@ -3256,6 +3259,12 @@ export const spoilsOfWar: CardDefinition = {
         divideAsChosen: { total: "X" },
     },
     resolve: (ctx: SpellContext) => {
-        ctx.distributeCountersAsChosen(ctx.targets, ctx.getX(), "+1/+1");
+        // CR 608.2b (issue #2985) — the division is announced per object;
+        // a blanked slot is simply not one of the recipients.
+        ctx.distributeCountersAsChosen(
+            legalTargetSlots(ctx.targets),
+            ctx.getX(),
+            "+1/+1"
+        );
     },
 };

@@ -2052,8 +2052,32 @@ export type StackItem = CardInstanceState & {
     castById: string;
     /** Targets chosen during spell announcement (CR 601.2c). Never a
      *  `lookDistribute`-bind-only "hand-card" in practice (issue #1101) — see the
-     *  note on `SpellContext.targets` in `cards/types.ts`. */
+     *  note on `SpellContext.targets` in `cards/types.ts`.
+     *
+     *  **Its INDEX is load-bearing.** A `{ target: N }` reference in an Effect
+     *  Script — and every `ctx.targets[N]` in an imperative `resolve()` — names
+     *  the object announced in slot `N`, so this list is never reordered and
+     *  never closed up after announcement. The resolution-time legality verdict
+     *  (CR 608.2b) is recorded out-of-band in `illegalTargetSlots` instead;
+     *  issue #2985. */
     targets?: TargetSelection[];
+    /** CR 608.2b — the indices into `targets` the resolution-time legality gate
+     *  found ILLEGAL for this resolution ("Illegal targets, if any, won't be
+     *  affected by parts of a resolving spell's effect for which they're
+     *  illegal"). Written once by `targetLegalityGate` on a fresh resolution and
+     *  read only through `buildSpellContext`, which blanks those slots in
+     *  `ctx.targets` so the parts that name them are skipped while the rest of
+     *  the script runs. Absent = every announced target is still legal.
+     *
+     *  Out-of-band rather than a flag on `TargetSelection` because the SAME
+     *  object may be announced in two slots and be illegal for only one of them
+     *  (CR 608.2b's Plague Spores example: one creature land chosen both as the
+     *  "target nonblack creature" and as the "target land"), so the verdict
+     *  belongs to the SLOT, not to the selection. Persisted (`serialize.ts`) —
+     *  a resolution that suspends on a choice must resume with the same
+     *  positions. Cleared wherever `targets` is re-chosen (a copy's retarget).
+     *  Issue #2985. */
+    illegalTargetSlots?: number[];
     /** Value chosen for X at cast-time for spells with X in their cost
      *  (CR 107.3, 601.2b). Undefined for spells without X. Read on
      *  resolution by SpellContext.getX(). */
@@ -6315,15 +6339,31 @@ function isTargetStillLegal(
 }
 
 /** Global target-legality gate run before any `resolve()` dispatch (CR
- *  608.2b/608.2c). Returns one of:
+ *  608.2b). Returns one of:
  *   - `"fizzle"`  — the item has one or more targets and EVERY target is now
  *                   illegal; it must be countered by the game rules and must
  *                   NOT resolve (CR 608.2b).
  *   - `"resolve"` — the item is untargeted, or at least one target is still
- *                   legal. For the partially-illegal case the item's `targets`
- *                   array is pruned in place to the legal subset so each card's
- *                   `resolve()` only reads legal targets (CR 608.2c "does as
- *                   much as possible"; an illegal target is skipped).
+ *                   legal.
+ *
+ *  For the partially-illegal case the announced list is left EXACTLY as it was
+ *  announced and the illegal SLOTS are recorded in `item.illegalTargetSlots`
+ *  (issue #2985). CR 608.2b does not say to remove an illegal target from the
+ *  list — it says illegal targets "won't be affected by parts of a resolving
+ *  spell's effect for which they're illegal", i.e. the target keeps its
+ *  position and only the parts naming it are skipped. Closing the list up
+ *  instead (what shipped until #2985) renumbers every later slot, so a
+ *  `{ target: 1 }` reference silently starts naming what was announced in slot
+ *  0 — no error, no red test, and the wrong Op acts on the wrong object as soon
+ *  as a script applies DIFFERENT Ops to different slots. It also loses CR
+ *  608.2b's own Plague Spores case outright: one creature land announced both
+ *  as the "target nonblack creature" (now illegal) and as the "target land"
+ *  (still legal) must be destroyed by the LAND clause and untouched by the
+ *  creature clause — two slots, one object, one verdict each.
+ *
+ *  `buildSpellContext` is the only reader: it blanks the recorded slots in
+ *  `ctx.targets`, so a reference to an illegal slot resolves to `undefined` and
+ *  its Op skips, exactly like a slot that was never filled.
  *
  *  Untargeted spells/abilities (`targets` empty/undefined) always resolve. */
 function targetLegalityGate(
@@ -6333,11 +6373,16 @@ function targetLegalityGate(
     const targets = item.targets ?? [];
     if (targets.length === 0) return "resolve"; // untargeted — unaffected
 
-    const legal = targets.filter((t) => isTargetStillLegal(state, t, item));
-    if (legal.length === 0) return "fizzle"; // CR 608.2b — all targets illegal
+    const illegal: number[] = [];
+    targets.forEach((t, i) => {
+        if (!isTargetStillLegal(state, t, item)) illegal.push(i);
+    });
+    if (illegal.length === targets.length) return "fizzle"; // CR 608.2b
 
-    // CR 608.2c — prune illegal targets; the spell does as much as possible.
-    if (legal.length !== targets.length) item.targets = legal;
+    // CR 608.2b — record the illegal slots; the list keeps its positions and
+    // the spell does as much as possible.
+    if (illegal.length > 0) item.illegalTargetSlots = illegal;
+    else delete item.illegalTargetSlots;
     return "resolve";
 }
 
@@ -6485,6 +6530,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
             // there.
             revertBestow(top);
             delete top.targets;
+            delete top.illegalTargetSlots;
         } else if (legality === "fizzle") {
             delete top.collectedChoices;
             state.stack.pop();
@@ -7228,6 +7274,9 @@ export function emitEntersWithCounterEvents(
 function resetStackTransientState(item: StackItem): void {
     delete (item as { castById?: string }).castById;
     delete item.targets;
+    // CR 608.2b (issue #2985) — the illegal-slot verdict indexes into
+    // `targets`; it can never outlive the list it indexes.
+    delete item.illegalTargetSlots;
     delete item.chosenX;
     delete item.kickerPayments;
     // ADR 0085 — the sibling half of the same partitioned snapshot; a record
@@ -7531,7 +7580,13 @@ function finalizeSpellResolution(
         // CR 608.2b: re-check target legality at resolution; if illegal, the
         // aura fizzles to the graveyard (CR 303.4i) instead of entering play.
         if (isAura(item)) {
-            const target = item.targets?.[0];
+            // CR 608.2b (issue #2985) — through the SLOT view, so an illegal
+            // slot reads as absent instead of as its announced object. Not
+            // reachable today (an Aura announces one target, and one illegal
+            // target out of one is the all-illegal fizzle the gate already
+            // took), but the positional read has to be fail-closed the same
+            // way every other one is.
+            const target = announcedTargetSlots(item)[0];
             let host: CardInstanceState | undefined;
             let hostPlayerId: string | undefined;
 
@@ -7595,6 +7650,7 @@ function finalizeSpellResolution(
                 if (item.bestowed) {
                     revertBestow(item);
                     delete item.targets;
+                    delete item.illegalTargetSlots;
                 } else {
                     sendStackItemToGraveyard(state, item);
                     return;
@@ -13762,6 +13818,9 @@ function cloneSpellOntoStack(
     // state (CR 608.2 / 707.12).
     delete copy.resolutionStep;
     delete copy.collectedChoices;
+    // CR 608.2b (issue #2985) — the copy runs its OWN legality gate against
+    // its own targets; the original's verdict is not the copy's.
+    delete copy.illegalTargetSlots;
     // CR 707.10 — a copy is created, not *cast*. Any "cast" provenance the
     // original carried must be cleared so the copy doesn't inherit it: a copy
     // of a flashed-back spell (Sevinne's Reclamation) was NOT cast from a
@@ -14102,6 +14161,28 @@ function abilityActivatedFromGraveyard(item: StackItem): boolean {
     return ability?.activateFromGraveyard === true;
 }
 
+/** The announced-target list as the RESOLUTION sees it (CR 608.2b, issue
+ *  #2985): every announced slot at its announced index, with the slots
+ *  `targetLegalityGate` found illegal blanked to `undefined`.
+ *
+ *  A blanked slot is indistinguishable from a slot that was never filled (an
+ *  "up to N" requirement the caster under-filled), which is the point: both
+ *  mean "this reference names nothing", and every reference resolver already
+ *  skips its Op on `undefined`. What must NOT happen is closing the list up —
+ *  that renumbers every later slot (see `targetLegalityGate`).
+ *
+ *  Returns a fresh array: the context view is derived, never the stored list,
+ *  so nothing a resolution does to `ctx.targets` can corrupt what was
+ *  announced. */
+function announcedTargetSlots(
+    item: StackItem
+): (TargetSelection | undefined)[] {
+    const targets = item.targets ?? [];
+    const illegal = item.illegalTargetSlots;
+    if (!illegal || illegal.length === 0) return targets;
+    return targets.map((t, i) => (illegal.includes(i) ? undefined : t));
+}
+
 export function buildSpellContext(
     state: GameState,
     item: StackItem
@@ -14189,7 +14270,7 @@ export function buildSpellContext(
         // on the stack — not a set snapshotted at announcement.
         targets: item.overloaded
             ? overloadAffectedTargets(state, item, item.castById)
-            : (item.targets ?? []),
+            : announcedTargetSlots(item),
         allPlayerIds: state.players.map((p) => p.id),
 
         getAttachedToId(): string | undefined {

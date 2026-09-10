@@ -597,7 +597,9 @@ export const winterBlast: CardDefinition = {
             }
         }
         for (const target of ctx.targets) {
-            if (target.type !== "permanent") continue;
+            // CR 608.2b (issue #2985) — a blanked slot is neither tapped nor
+            // dealt damage; the surviving slots still are.
+            if (!target || target.type !== "permanent") continue;
             ctx.tap(target);
             if (flyers.has(target.id)) ctx.dealDamage(target, 2);
         }

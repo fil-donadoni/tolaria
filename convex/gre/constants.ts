@@ -6,6 +6,7 @@ import type {
     Color,
     ManaCost,
     PermanentView,
+    TargetSelection,
     TriggerStateView,
 } from "../cards/types";
 // CR 605.1a — the DECLARATIVE board-derived mana-colour descriptor
@@ -2101,4 +2102,21 @@ export function sameOrder(a: readonly string[], b: readonly string[]): boolean {
     if (a.length !== b.length) return false;
     for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
     return true;
+}
+
+/** The announced target slots that are still LEGAL, in announced order, with
+ *  the blanked ones dropped (CR 608.2b, issue #2985).
+ *
+ *  `SpellContext.targets` is POSITIONAL: index `N` is the object announced in
+ *  slot `N` for the whole resolution, and a slot the resolution-time legality
+ *  gate found illegal reads `undefined` there rather than being closed up —
+ *  "Illegal targets, if any, won't be affected by parts of a resolving spell's
+ *  effect for which they're illegal". Any code that iterates the target GROUP
+ *  as a whole (a spell that applies the SAME clause to each of its targets)
+ *  wants this; any code that names a SPECIFIC slot must index `ctx.targets`
+ *  directly and skip on `undefined`, never renumber. */
+export function legalTargetSlots(
+    targets: readonly (TargetSelection | undefined)[]
+): TargetSelection[] {
+    return targets.filter((t): t is TargetSelection => t !== undefined);
 }

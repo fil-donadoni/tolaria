@@ -111,7 +111,7 @@ import {
     minCategorizedCover,
     forcedCategorizedCover,
 } from "../categorizedPick";
-import { manaCostsEqual } from "../constants";
+import { legalTargetSlots, manaCostsEqual } from "../constants";
 
 type OpOf<K extends EffectOp["op"]> = Extract<EffectOp, { op: K }>;
 
@@ -2129,7 +2129,11 @@ export const OP_EXECUTORS: {
                 : op.total === "X+1"
                   ? ctx.getX() + 1
                   : op.total;
-        ctx.dealDamageDividedAsChosen(ctx.targets, total);
+        // CR 608.2b (issue #2985) — a slot the legality gate blanked is not
+        // affected by this part of the effect; the split among the survivors
+        // is unchanged (each entry keeps the amount announced against its own
+        // object, read back by id inside the primitive).
+        ctx.dealDamageDividedAsChosen(legalTargetSlots(ctx.targets), total);
     },
     // CR 121.1 — draw from the top of the library, one card at a time, through
     // the unified suspend-capable draw seam (ADR 0061). A DETERMINISTIC draw
@@ -4455,7 +4459,8 @@ export const OP_EXECUTORS: {
                       ? ctx.getX() + 1
                       : op.total;
             ctx.preventNextNDamageDividedAsChosen(
-                ctx.targets,
+                // CR 608.2b (issue #2985) — see `dealDamageDividedAsChosen`.
+                legalTargetSlots(ctx.targets),
                 total,
                 op.duration
             );
@@ -6036,7 +6041,7 @@ function selectForEachMembers(
     // generic (non-"players"/"graveyard") branch of `execForEach`'s per-member
     // loop below, exactly like the `permanents` set.
     if (select.set === "targets") {
-        return ctx.targets
+        return legalTargetSlots(ctx.targets)
             .filter((t) => t.type === "permanent")
             .map((t) => t.id);
     }

@@ -594,6 +594,7 @@ export const glassesOfUrza: CardDefinition = {
             targetRequirement: { type: "player", count: 1 },
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
+                if (!target) return; // CR 608.2b (issue #2985) — blanked slot
                 // First call enqueues the reveal-hand display choice and
                 // returns undefined (suspend; the resolve must return early).
                 // The re-invocation after the controller acknowledges returns a

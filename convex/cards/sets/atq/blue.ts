@@ -9,6 +9,7 @@
 // colorless.ts.
 
 import type { CardDefinition, PermanentView, SpellContext } from "../../types";
+import { legalTargetSlots } from "../../../gre/constants";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
 // Hurkyl's Recall — {1}{U} Instant. "Return all artifacts target player owns
@@ -143,7 +144,11 @@ export const drafnasRestoration: CardDefinition = {
     // protocol — worth an issue if/when that construct ships.
     resolveSteps: [
         (ctx: SpellContext) => {
-            const targets = ctx.targets.filter(
+            // CR 608.2b (issue #2985) — `ctx.targets` is positional and a
+            // slot the legality gate blanked reads `undefined`; this clause
+            // applies the SAME move to every surviving slot, so dropping the
+            // blanks is the whole of what 608.2b asks for here.
+            const targets = legalTargetSlots(ctx.targets).filter(
                 (t) => t.type === "graveyard-card" && t.playerId
             );
             if (targets.length === 0) return;

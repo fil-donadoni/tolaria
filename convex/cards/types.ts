@@ -3253,7 +3253,7 @@ export interface SpellContext {
      *  hand-card fallback), so this stays the broader `TargetSelection[]`
      *  rather than forking a second announced-only type across the whole
      *  targeting plumbing. */
-    targets: TargetSelection[];
+    targets: (TargetSelection | undefined)[];
     /** Ids of all players in the game. Used by "each player ~" spells like
      *  Timetwister and Wheel of Fortune. Order currently follows
      *  `state.players`; APNAP ordering (CR 101.4) for simultaneous triggers
