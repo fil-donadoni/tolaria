@@ -63,6 +63,7 @@ export default function CardPreviewFace({
     notedMana,
     colorName,
     ownerName,
+    isToken,
     attachedToName,
     skipNextUntap,
     milestones,
@@ -264,6 +265,21 @@ export default function CardPreviewFace({
                 )}
                 <CardPreviewCounters counters={counterDisplays} />
                 <CardPreviewNotedMana noted={notedMana} />
+                {/* CR 111.1 / 111.7 — a token is a marker for a permanent
+                    not represented by a card, and one that leaves the
+                    battlefield ceases to exist as a state-based action. Stated
+                    explicitly rather than left to the art, because a token
+                    created as a COPY (CR 707.2) wears the copied card's name
+                    and art: the preview is the only place a player can learn
+                    that bouncing THIS one annihilates it. Pairs with the
+                    on-card `TokenBadge` (board/token-badge.tsx). */}
+                {isToken && (
+                    <div
+                        className={`border-t border-border-subtle pt-2 ${sectionSize} font-semibold text-secondary-accent-strong`}
+                    >
+                        Token — ceases to exist if it leaves the battlefield.
+                    </div>
+                )}
                 {colorName && (
                     <div
                         className={`border-t border-border-subtle pt-2 ${sectionSize} font-semibold text-accent-strong`}
