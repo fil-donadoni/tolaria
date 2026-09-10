@@ -1288,7 +1288,7 @@ function isLifeGainedThisTurnValue(value: unknown): boolean {
 }
 
 /** `{ cardsDrawnThisTurn: { of } }` — SHAPE of the per-turn draw-count value
- *  construct (CR 121.1, issue #3240, sixteenth EffectValue member). The exact
+ *  construct (CR 121.1, issue #3240, eighteenth EffectValue member). The exact
  *  twin of `isLifeGainedThisTurnValue` above: `of` is a PLAYER selector
  *  (`EffectPlayerRef`), family-checked as a PLAYER position by the ordered ref
  *  pass (the `keyHint === "cardsDrawnThisTurn"` case in `collectRefUses`,

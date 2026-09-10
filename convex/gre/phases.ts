@@ -3365,9 +3365,14 @@ function advanceTurn(state: GameState): void {
     for (const p of state.players) p.drawnThisTurn = undefined;
     // CR 400.7 / 603.4 — the "a card left your graveyard this turn" tally
     // (Gau, Feral Youth) is turn-scoped. Cleared HERE, at the turn boundary,
-    // and nowhere else: an end-step trigger re-checks its intervening if on
-    // resolution, and Gau's fires at BOTH players' end steps, so anything that
-    // cleared the tally mid-turn would answer "no" the second time.
+    // and NOWHERE else. There is exactly one end step per turn (CR 500.1 /
+    // 513.1), and "at the beginning of each end step" means the trigger fires
+    // in every player's turn — each firing in a DIFFERENT turn, reading that
+    // turn's own tally. What the CR 603.4 rule needs from this field is
+    // narrower and strictly within one turn: the condition is checked TWICE in
+    // that single end step, once when the trigger would go on the stack and
+    // again as it resolves, so a mid-turn clear would answer "no" on the
+    // second check for a departure that really happened.
     for (const p of state.players) p.leftGraveyardThisTurn = undefined;
     // CR 614 — Aladdin's Lamp's draw replacement is "this turn"; any entry not
     // consumed by a draw expires when the next turn begins.

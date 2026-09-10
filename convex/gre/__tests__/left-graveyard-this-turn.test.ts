@@ -6,13 +6,17 @@
 // (reanimation), the hand, the library and the stack (a cast from the
 // graveyard) all count. `PlayerState.leftGraveyardThisTurn` is that per-player
 // per-turn tally, written at ONE chokepoint (`noteGraveyardDeparture`) and
-// reset at the turn boundary — never mid-turn, because Gau, Feral Youth's
-// CR 603.4 intervening-if re-checks at BOTH players' end steps.
+// reset at the turn boundary — never mid-turn, because CR 603.4 checks Gau,
+// Feral Youth's intervening if TWICE inside this turn's OWN end step (once
+// when the trigger would fire, once as it resolves). There is one end step per
+// turn (CR 500.1 / 513.1), so the opponent's is a different turn and the reset
+// there is correct, not a loss.
 import { describe, it, expect } from "vitest";
 import type { CardInstanceState, GameState } from "../state";
 import {
     buildSpellContext,
     exileCardFromGraveyard,
+    exileFaceDownCard,
     moveCard,
     noteGraveyardDeparture,
     removeFromZone,
@@ -90,6 +94,26 @@ describe("leftGraveyardThisTurn tally (CR 400.7)", () => {
         expect(state.players[0].leftGraveyardThisTurn).toBe(1);
     });
 
+    it("a FACE-DOWN exile off the graveyard tallies too (the third removal primitive)", () => {
+        // `exileFaceDownCard` deliberately bypasses `moveCard` (exile is a
+        // public zone; a face-down exile is CR 406.3's exception), and its
+        // `from` admits the graveyard. No shipped card passes "graveyard"
+        // today — every caller exiles from the library — so this is the latent
+        // exit PR #3410's review found missing from the census.
+        const state = state2p(["gy-a"]);
+        state.players[0].library.push({
+            ...gyCard("lib-a", "p1"),
+            zone: "library",
+        });
+        expect(
+            exileFaceDownCard(state.players[0], "gy-a", "graveyard", "p1")
+        ).not.toBeNull();
+        expect(state.players[0].leftGraveyardThisTurn).toBe(1);
+        // The library leg is not a graveyard departure and must not tally.
+        exileFaceDownCard(state.players[0], "lib-a", "library", "p1");
+        expect(state.players[0].leftGraveyardThisTurn).toBe(1);
+    });
+
     it("accumulates per player and never crosses over", () => {
         const state = state2p(["a1", "a2"], ["b1"]);
         moveCard(state.players[0], "a1", "graveyard", "exile");
@@ -133,14 +157,14 @@ describe("leftGraveyardThisTurn tally (CR 400.7)", () => {
         expect(state.players[1].leftGraveyardThisTurn).toBeUndefined();
     });
 
-    it("survives BOTH end steps of a turn and resets only at the boundary (CR 603.4)", () => {
+    it("stands through THIS turn's end step and clears only at the boundary (CR 603.4 / 513.1)", () => {
         const state = state2p(["gy-a"]);
         moveCard(state.players[0], "gy-a", "graveyard", "exile");
         expect(state.players[0].leftGraveyardThisTurn).toBe(1);
-        // p1's own end step: the tally is still standing for the re-check.
+        // This turn's own end step, where CR 603.4 reads the condition twice.
         state.phase = "END_STEP";
         expect(state.players[0].leftGraveyardThisTurn).toBe(1);
-        // Into p2's turn — the boundary is the ONLY place it clears.
+        // Into the NEXT turn — the boundary is the ONLY place it clears.
         advancePhase(state);
         expect(state.activePlayerId).toBe("p2");
         expect(state.players[0].leftGraveyardThisTurn).toBeUndefined();

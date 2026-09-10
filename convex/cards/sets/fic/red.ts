@@ -20,11 +20,13 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 // your graveyard this turn" tally (`PlayerState.leftGraveyardThisTurn`, issue
 // #3240), written at the shared `noteGraveyardDeparture` chokepoint on every
 // graveyard exit — a flashback / escape / delve exile, reanimation, or any
-// plain zone move off the graveyard (CR 400.7). Two things follow from the
-// rule and both are load-bearing here: the trigger fires at BOTH players' end
-// steps ("each end step"), and each firing re-checks the condition as it
-// resolves, so the tally must live until the turn boundary and not be cleared
-// between the two.
+// plain zone move off the graveyard (CR 400.7). "Each end step" means every
+// player's, and there is exactly one end step per turn (CR 500.1 / 513.1), so
+// each firing is in a different turn and reads that turn's own tally: the
+// opponent's end step correctly sees zero unless something left YOUR graveyard
+// during THEIR turn. Within the one end step, CR 603.4 checks the condition
+// twice — when the trigger would fire and again as it resolves — which is why
+// the tally is cleared only at the turn boundary.
 //
 // CR 120.1 — "each opponent" is the single opponent in this engine's
 // two-player / solo-two-seat scope (3+ player multiplayer is out of scope).

@@ -10,6 +10,7 @@ import {
     type StackItem,
 } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
+import { advancePhase } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 
@@ -122,17 +123,32 @@ describe("Gau, Feral Youth — end-step damage (CR 603.4 / 400.7 / 120.1)", () =
         expect(state.players[1].life).toBe(15); // 20 - (2 + 3)
     });
 
-    it("fires and re-checks at BOTH end steps of the turn (CR 603.4)", () => {
-        const { state, gau } = setup({ graveyard: 1 });
+    it("the opponent's end step is a LATER TURN, so the tally has reset (CR 500.1 / 513.1)", () => {
+        // "At the beginning of EACH end step" fires in every player's turn,
+        // but there is exactly one end step per turn — so the second firing is
+        // in the OPPONENT's turn, reading that turn's own tally. Walked through
+        // the real phase machine rather than by hand-setting `activePlayerId`,
+        // which would fabricate a state the engine never produces.
+        const { state } = setup({ graveyard: 1 });
         moveCard(state.players[0], "gy-0", "graveyard", "exile");
-        // The controller's own end step.
-        resolveTrigger(state, gau, "gau-feral-youth-end-step", endStep("p1"));
-        expect(state.players[1].life).toBe(18);
-        // The OPPONENT's end step, same turn's tally still standing: "each end
-        // step" fires again, and nothing cleared the tally in between.
-        state.activePlayerId = "p2";
-        resolveTrigger(state, gau, "gau-feral-youth-end-step", endStep("p2"));
-        expect(state.players[1].life).toBe(16);
+        const gauTrigger = (s: GameState, activePlayerId: string) =>
+            collectTriggers(s, [
+                {
+                    type: "PHASE_BEGIN" as const,
+                    phase: "END_STEP" as const,
+                    activePlayerId,
+                } as never,
+            ]).filter(
+                (t) => t.triggeredAbilityId === "gau-feral-youth-end-step"
+            );
+        // This turn's end step: the departure happened, so it fires.
+        expect(gauTrigger(state, "p1")).toHaveLength(1);
+        // Into the opponent's turn. Nothing has left the graveyard during it.
+        state.phase = "END_STEP";
+        advancePhase(state);
+        expect(state.activePlayerId).toBe("p2");
+        expect(state.players[0].leftGraveyardThisTurn).toBeUndefined();
+        expect(gauTrigger(state, "p2")).toHaveLength(0);
     });
 
     it("the CHECK-TIME half of the intervening if gates the trigger too (CR 603.4)", () => {

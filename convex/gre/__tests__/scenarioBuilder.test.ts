@@ -356,6 +356,59 @@ describe("buildStateFromScenario (issue #1424)", () => {
 // from"), and the symptom was a library card that simply never appeared.
 // ---------------------------------------------------------------------------
 
+// CR 121.1 / 400.7 (issue #3240) — a scenario PLACES a position, it does not
+// replay the turn that reached it. The per-turn player tallies therefore reset
+// with the zones. This is not hygiene: the opening hand is dealt through
+// `drawCard`, and `finalizeMulligan` walks to UPKEEP via `advancePhase`, never
+// `advanceTurn` — so a scenario built without this clear arrives on turn 1
+// carrying SEVEN drawn cards, and the first "if you've drawn more than one card
+// this turn" trigger fires for 7 on a board where nothing was drawn.
+describe("buildStateFromScenario — per-turn player tallies (CR 121.1 / 400.7)", () => {
+    it("clears drawnThisTurn and leftGraveyardThisTurn on both seats", () => {
+        const base = makeState();
+        base.players[0].drawnThisTurn = ["a", "b", "c", "d", "e", "f", "g"];
+        base.players[1].drawnThisTurn = ["x"];
+        base.players[0].leftGraveyardThisTurn = 3;
+        base.players[1].leftGraveyardThisTurn = 1;
+        const built = buildStateFromScenario(base, { cards: [] });
+        for (const p of built.players) {
+            expect(p.drawnThisTurn ?? []).toEqual([]);
+            expect(p.leftGraveyardThisTurn ?? 0).toBe(0);
+        }
+    });
+
+    it("specFromState reports a longer draw tally as dropped — the spec expresses one card, not seven", () => {
+        const base = makeState();
+        const built = buildStateFromScenario(base, {
+            cards: [{ name: "Grizzly Bears", owner: "me", zone: "hand" }],
+        });
+        built.players[0].drawnThisTurn = ["d1", "d2", "d3"];
+        const { dropped } = specFromState(projectFullState(built, 0), {
+            mySeatId: "p1",
+        });
+        expect(
+            dropped.some((d) => /drawnThisTurn beyond the single/.test(d))
+        ).toBe(true);
+    });
+
+    it("markLastDrawn re-seeds the draw tally with exactly that one card", () => {
+        const base = makeState();
+        base.players[0].drawnThisTurn = ["stale-1", "stale-2"];
+        const built = buildStateFromScenario(base, {
+            cards: [
+                { name: "Grizzly Bears", owner: "me", zone: "hand" },
+                { name: "Shivan Dragon", owner: "me", zone: "hand" },
+            ],
+            markLastDrawn: true,
+        });
+        const me = built.players[0];
+        // "The last card you drew this turn" and "the number of cards you've
+        // drawn this turn" are two readings of one fact; they must agree.
+        expect(me.lastDrawnCardId).toBe(me.hand[me.hand.length - 1].id);
+        expect(me.drawnThisTurn).toEqual([me.lastDrawnCardId]);
+    });
+});
+
 describe("buildStateFromScenario — library placement + libraryCount", () => {
     it("keeps cards placed in the library when `libraryCount` also seeds filler basics", () => {
         const base = makeState();

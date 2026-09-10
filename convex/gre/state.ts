@@ -1960,9 +1960,12 @@ export type PlayerState = {
      *  turn, by any means and to any zone — exile (flashback / escape / delve
      *  cost, Bojuka Bog), the battlefield (reanimation), hand, or library
      *  (CR 400.7 — every one of those is a zone change out of the graveyard).
-     *  Cleared at the start of each turn (`advanceTurn`), so a tally raised
-     *  during a turn survives BOTH players' end steps and every intervening-if
-     *  re-check the CR 603.4 rule forces (Gau, Feral Youth).
+     *  Cleared at the start of each turn (`advanceTurn`) and nowhere else, so
+     *  a tally raised during a turn is still standing at that turn's own end
+     *  step for BOTH of the CR 603.4 checks the rule forces there — once when
+     *  the trigger would fire, once as it resolves (Gau, Feral Youth). The
+     *  opponent's end step is a DIFFERENT turn (CR 500.1 / 513.1: one ending
+     *  phase per turn), by which point this has correctly reset.
      *
      *  Written at ONE chokepoint, {@link noteGraveyardDeparture} — never
      *  incremented inline by a caller. A card that never reached the graveyard
@@ -21822,14 +21825,6 @@ export function putHandCardOnTopOfLibrary(
     return true;
 }
 
-/** CR 406 / 118.3 — moves one card from `player`'s graveyard to their exile
- *  zone, reporting whether it was there to move. The non-throwing choke point
- *  for an "exile this card from your graveyard" ACTIVATION COST (CR 702.129a
- *  Eternalize, CR 702.128a Embalm): the cost is applied at commit, by which
- *  point the card may have left the graveyard (another effect exiled or
- *  reanimated it while mana was being tapped), and that must drop the payment
- *  quietly rather than throw — the same vanished-source policy every other
- *  deferred cost leg follows. */
 /** SINGLE AUTHORITY for the per-turn "a card left your graveyard" tally
  *  (`PlayerState.leftGraveyardThisTurn`). CR 400.7 — an object that moves from
  *  one zone to another becomes a new object; the graveyard DEPARTURE is that
@@ -21839,13 +21834,17 @@ export function putHandCardOnTopOfLibrary(
  *  graveyard).
  *
  *  Every departure funnels through this ONE function rather than each caller
- *  keeping its own `+= 1`: the two general zone primitives (`moveCard`,
- *  `removeFromZone`) cover the bulk, and the four graveyard-specific splices
- *  that predate them — the two reanimation funnels, the Animate Dead aura
- *  path and `putGraveyardOnBottomOfLibrary` — call it directly because they
- *  never routed through a primitive at all. A fifth exit added tomorrow that
+ *  keeping its own `+= 1`. The complete census of callers, which is the whole
+ *  claim this function makes: the THREE zone-removal primitives — `moveCard`,
+ *  `removeFromZone` and `exileFaceDownCard`, whose `from` also admits the
+ *  graveyard — plus the FOUR graveyard-specific splices that predate them (the
+ *  two reanimation funnels, the Animate Dead aura path and
+ *  `putGraveyardOnBottomOfLibrary`), which call it directly because they never
+ *  routed through a primitive at all. An eighth exit added tomorrow that
  *  forgets this call is a silent under-count, which is why the invariant lives
- *  in one named place a grep can find rather than in six comments.
+ *  in one named place a grep can find rather than in seven comments — and why
+ *  the census above is a list to re-derive, not to trust: PR #3410's review
+ *  found `exileFaceDownCard` missing from an earlier version of it.
  *
  *  `count` exists for the one bulk mover (Endurance's whole-graveyard sweep):
  *  N cards left, so the tally rises by N. */
@@ -21857,6 +21856,14 @@ export function noteGraveyardDeparture(
     player.leftGraveyardThisTurn = (player.leftGraveyardThisTurn ?? 0) + count;
 }
 
+/** CR 406 / 118.3 — moves one card from `player`'s graveyard to their exile
+ *  zone, reporting whether it was there to move. The non-throwing choke point
+ *  for an "exile this card from your graveyard" ACTIVATION COST (CR 702.129a
+ *  Eternalize, CR 702.128a Embalm): the cost is applied at commit, by which
+ *  point the card may have left the graveyard (another effect exiled or
+ *  reanimated it while mana was being tapped), and that must drop the payment
+ *  quietly rather than throw — the same vanished-source policy every other
+ *  deferred cost leg follows. */
 export function exileCardFromGraveyard(
     player: PlayerState,
     cardInstanceId: string
@@ -22173,6 +22180,13 @@ export function exileFaceDownCard(
 
     const [card] = sourceZone.splice(cardIndex, 1);
     card.zone = "exile";
+    // CR 400.7 (issue #3240) — the THIRD zone-removal primitive, and its `from`
+    // admits the graveyard (`SpellContext.exileFaceDown` re-exports the same
+    // union). No shipped card passes `"graveyard"` today — all nine callers
+    // exile from the library — so this is latent, which is exactly why it is
+    // closed here rather than left for the first "exile a card from your
+    // graveyard face down" card to discover it silently.
+    if (from === "graveyard") noteGraveyardDeparture(player);
     // The whole point of a face-down exile: knowledge is granted, not stripped.
     card.knownTo = [knowerId];
     // issue #2904 — the DISPLAY census: which mechanic hid this card, so the
