@@ -7,28 +7,148 @@ import type { CardDefinition } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
-// Palantír of Orthanc — {3} Legendary Artifact. "At the beginning of your end
-// step, put an influence counter on this artifact and scry 2. Then target
-// opponent may have you draw a card. If that player doesn't, you mill X cards,
-// where X is the number of influence counters on it, and that player loses
-// life equal to the total mana value of those cards."
+// Palantír of Orthanc (issue #3243). The 2026-08-25 triage named three gaps;
+// two had already closed by the time this landed and the third is what this
+// slice built:
 //
-// TRIAGED 2026-08-25 (#1841 audit) — the marker used to read "needs a new
-// engine capability" with no gap named. Three distinct gaps, none of them
-// this card's alone: an OPPONENT-made may-choice inside the controller's own
-// trigger (a punisher branch, not a `mayPay`); an amount read off a named
-// counter on the source; and a life-loss amount equal to the total mana value
-// of the cards a preceding `mill` moved — a value that must be captured from
-// the Op's own result. Classified on the living cube tracker.
-// tracked-by: #1525
-// export const palantROfOrthanc: CardDefinition = {
-//     id: "6efb6a69-562c-4d95-858d-b067444cfd7e",
-//     name: "Palantír of Orthanc",
-//     rarity: "mythic",
-//     manaCost: { X: 3 },
-//     types: ["Artifact"],
-//     supertypes: ["Legendary"],
-// };
+//   * an OPPONENT-made may-choice inside the controller's own trigger — a
+//     `mayPay` whose `player` is a generic `EffectPlayerRef`, shipped and in
+//     use by Questing Phelddagrif (`pls/multicolor.ts`) and Sibilant Spirit
+//     (`ice/blue.ts`). Not a punisher `mayPay` with a cost: this one is the
+//     bare cost-free "you may" shape (issue #680);
+//   * an amount read off a NAMED counter on the source — the `counters`
+//     EffectValue member (CR 122.6, issue #1015), which The One Ring below
+//     already reads the same way;
+//   * a life-loss amount equal to the total mana value of the cards a
+//     preceding `mill` moved. THAT was the real gap, and it needed two halves:
+//     `mill`'s `bindAll` (issue #2600) to bind the whole milled set rather
+//     than only its first card, and the `sum` EffectValue member (issue #3243)
+//     to total one characteristic across that bound set. Both are general —
+//     nothing in either names this card.
+//
+// compiler-gap: "Then target opponent may have you draw a card. If that player doesn't, you mill X cards, where X is the number of influence counters on Palantír of Orthanc, and that player loses life equal to the total mana value of those cards." (#2693)
+export const palantirOfOrthanc: CardDefinition = {
+    id: "6efb6a69-562c-4d95-858d-b067444cfd7e",
+    name: "Palantír of Orthanc",
+    rarity: "mythic",
+    oracleText:
+        "At the beginning of your end step, put an influence counter on Palantír of Orthanc and scry 2. Then target opponent may have you draw a card. If that player doesn't, you mill X cards, where X is the number of influence counters on Palantír of Orthanc, and that player loses life equal to the total mana value of those cards.",
+    manaCost: { X: 3 },
+    types: ["Artifact"],
+    // CR 205.4a — "Legendary Artifact"; the legend rule (CR 704.5j) applies
+    // only via this supertype.
+    supertypes: ["Legendary"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "palantir-of-orthanc-end-step",
+            oracleText:
+                "At the beginning of your end step, put an influence counter on Palantír of Orthanc and scry 2. Then target opponent may have you draw a card. If that player doesn't, you mill X cards, where X is the number of influence counters on Palantír of Orthanc, and that player loses life equal to the total mana value of those cards.",
+            phase: "END_STEP",
+            scope: "your",
+            // CR 603.3d — the opponent is announced as the trigger goes on the
+            // stack, so the `mayPay` below can address `{ target: 0 }`. In a
+            // two-player game the slot has exactly one legal occupant, which is
+            // why the card carries no announcement DECISION for the bot to make
+            // (see the PR's Bot reachability walk).
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
+            effects: [
+                // CR 608.2c — the controller follows the instructions in the
+                // order written, so the counter goes on FIRST and the mill
+                // below reads a count INCLUDING it (CR 122.6) ("put an influence counter on Palantír
+                // of Orthanc … you mill X cards, where X is the number of
+                // influence counters on Palantír of Orthanc"). The first
+                // trigger therefore mills 1, not 0.
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "influence",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+                // CR 701.22 Scry 2 — the controller looks at the top two and
+                // decides which go to the bottom. `chooser` is deliberately
+                // unset: the library's own owner decides, which is what makes
+                // this a scry rather than a fateseal (CR 701.29).
+                {
+                    op: "scryReorder",
+                    player: "controller",
+                    count: 2,
+                    destination: "library-bottom",
+                },
+                // CR 608.2d / 121.3a — "target opponent MAY have you draw a
+                // card": the choice is announced while the effect is applied,
+                // and CR 121.3a is explicit that the player MAKING it need not
+                // be the player who would draw. It costs them nothing. The
+                // cost-free `mayPay` shape (issue #680) with a non-controller
+                // `player` is exactly that, and the required boolean `bind` is
+                // what the punisher branch below reads.
+                {
+                    op: "mayPay",
+                    player: { target: 0 },
+                    prompt: "Have Palantír of Orthanc's controller draw a card?",
+                    bind: "$letThemDraw",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$letThemDraw" },
+                    then: [{ op: "draw", player: "controller", count: 1 }],
+                    // "If that player doesn't" — the punisher half. Both Ops
+                    // run: milling zero cards (an empty library) still loses 0
+                    // life rather than skipping the clause, because `sum` over
+                    // an uncaptured binding is 0 (CR 608.2 — the effect does as
+                    // much as it can).
+                    else: [
+                        // CR 701.17a mill; X is the LIVE influence count on
+                        // the source (CR 122.6), read at resolution in the
+                        // order written (CR 608.2c) — the same way The One
+                        // Ring's upkeep loss reads its burden counters. A
+                        // library shorter than X mills as many as possible
+                        // (CR 701.17b). `bindAll`
+                        // (issue #2600) captures every card that genuinely
+                        // reached the graveyard, in mill order — a short
+                        // library mills what it has, and the sum below covers
+                        // only those cards.
+                        {
+                            op: "mill",
+                            player: "controller",
+                            count: {
+                                counters: {
+                                    of: { ref: "$source" },
+                                    type: "influence",
+                                },
+                            },
+                            bindAll: "$milled",
+                        },
+                        // CR 119.3 / 202.3 — ONE loss of the total, not one
+                        // loss per card: a per-card `forEach` would be a
+                        // different game action (N life-loss events, N CR 614
+                        // replacement windows). `{X}` in a milled card's cost
+                        // counts as 0 outside the stack (CR 202.3e), which the
+                        // registry's own mana-value read already folds.
+                        //
+                        // simplification: a milled card that a CR 614 graveyard-bound replacement sends elsewhere is not counted, though CR 701.17c says a milled card can be found in whatever public zone it reached — out-of-scope here, the miss is upstream in `mill`'s `bindAll` (#2600), which binds only cards that reached the graveyard; see docs/findings/3243-milled-card-redirected-out-of-the-graveyard.md
+                        {
+                            op: "loseLife",
+                            player: { target: 0 },
+                            amount: {
+                                sum: {
+                                    of: { ref: "$milled" },
+                                    read: "manaValue",
+                                    zone: "graveyard",
+                                    player: "controller",
+                                },
+                            },
+                        },
+                    ],
+                },
+            ],
+        }),
+    ],
+};
 
 // The One Ring (issue #674). Every clause is declarative: the keyword rides
 // `staticAbilities`, and all three abilities are Effect Scripts (ADR 0045) —
@@ -115,7 +235,7 @@ export const theOneRing: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             effects: [
-                // CR 122.1 — the counter goes on FIRST…
+                // CR 608.2c — the counter goes on FIRST…
                 {
                     op: "counters",
                     action: "add",

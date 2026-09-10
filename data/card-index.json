@@ -24446,6 +24446,14 @@
         "firstPrintSet": "cn2"
     },
     {
+        "name": "Palantír of Orthanc",
+        "scryfallId": "6efb6a69-562c-4d95-858d-b067444cfd7e",
+        "oracleId": "7798a4d9-1c1d-48e6-b9a2-ecd6aec1efa7",
+        "firstSet": "ltr",
+        "firstPrintId": "6efb6a69-562c-4d95-858d-b067444cfd7e",
+        "firstPrintSet": "ltr"
+    },
+    {
         "name": "Pale Bears",
         "scryfallId": "7f19c2a3-6403-4a78-bf45-6e339578d673",
         "oracleId": "0acb070b-6e81-4e0e-925d-14da9b931355",

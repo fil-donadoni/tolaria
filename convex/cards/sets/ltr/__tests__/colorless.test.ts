@@ -24,6 +24,10 @@ import {
     playerHasProtectionFromEverything,
     NO_TARGETING_SOURCE,
 } from "../../../../gre/rules";
+import {
+    applyMayPaySubmit,
+    applyPendingChoiceSubmit,
+} from "../../../../gre/pendingChoiceSubmit";
 import { advancePhase } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
 import type { CardType, TargetRequirement } from "../../../types";
@@ -386,5 +390,194 @@ describe("The One Ring — burden counters (CR 122.1 / 122.6)", () => {
             }) as const;
         expect(trigger.matches(event("p1"), self)).toBe(true);
         expect(trigger.matches(event("p2"), self)).toBe(false);
+    });
+});
+
+// Palantír of Orthanc (issue #3243). The DSL card's individual Ops are all
+// already-exercised (`counters` / `scryReorder` / `mayPay` / `draw` / `mill`),
+// so the per-Op regime covers them; what earns hand-written tests here is the
+// FULL PATH the card is the first to walk end to end — an opponent-made
+// may-choice inside the controller's own trigger, whose decline branch mills a
+// counter-scaled X and drains the opponent for the total mana value of exactly
+// those cards (the `sum` value member's first consumer).
+describe("Palantír of Orthanc — the opponent's choice and its punisher (CR 608.2d / 122.6 / 202.3)", () => {
+    const palantir = getDefinition("6efb6a69-562c-4d95-858d-b067444cfd7e");
+    /** MV 4 over MV 1 — a total of 5, and each distinguishable from the other
+     *  so a half-counted set is not mistaken for a correct one. */
+    const bolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+
+    function makePalantir(counters?: Record<string, number>) {
+        return makeInstance(palantir.id, {
+            id: "palantir1",
+            controllerId: "p1",
+            ownerId: "p1",
+            ...(counters ? { counters } : {}),
+        });
+    }
+
+    /** p1 holds The One Ring (MV 4) over Lightning Bolt (MV 1) on top of a
+     *  library deep enough for the scry to look at two. */
+    function palantirState(library = [theOneRing.id, bolt.id, bolt.id]) {
+        const permanent = makePalantir({ influence: 1 });
+        return {
+            state: makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: [permanent],
+                        library: library.map((defId, i) =>
+                            makeInstance(defId, {
+                                id: `lib-${i}`,
+                                controllerId: "p1",
+                                ownerId: "p1",
+                                zone: "library",
+                            })
+                        ),
+                    }),
+                    makePlayer("p2"),
+                ],
+            }),
+            permanent,
+        };
+    }
+
+    /** Fire the end-step trigger at `p2` and answer the scry by keeping
+     *  everything looked at on top, so the mill below sees the same order the
+     *  fixture declared. Returns the may-pay choice the opponent now owns. */
+    function fireEndStep(state: GameState, permanent: CardInstanceState) {
+        state.stack.push({
+            ...permanent,
+            id: "trig-palantir",
+            castById: "p1",
+            zone: "stack",
+            triggeredAbilityId: "palantir-of-orthanc-end-step",
+            triggerSourceId: permanent.id,
+            triggerEvent: { type: "PHASE_BEGIN", phase: "END_STEP" },
+            targets: [{ type: "player", id: "p2" }],
+        } as StackItem);
+        // Suspends on the scry (CR 701.22) before the opponent's decision —
+        // unless the library is empty, which makes the look a clean no-op
+        // (CR 608.2b) and lands straight on the may-pay.
+        expect(resolveTopOfStack(state)).toBeNull();
+        const scry = state.pendingChoices![0];
+        if (scry.kind === "order-top") {
+            expect(scry.playerId).toBe("p1");
+            applyPendingChoiceSubmit(state, {
+                playerId: scry.playerId,
+                stackItemId: scry.stackItemId,
+                step: scry.step,
+                choiceId: scry.choiceId,
+                cardInstanceIds: [...(scry.candidateIds ?? [])],
+                secondZoneIds: [],
+            });
+        }
+        return state.pendingChoices?.[0];
+    }
+
+    it("adds an influence counter and hands the DECISION to the targeted opponent", () => {
+        const { state, permanent } = palantirState();
+        const mayPay = fireEndStep(state, permanent);
+
+        // CR 608.2c — instructions run in the order written, so the counter
+        // goes on before the mill reads the count (CR 122.6).
+        expect(
+            state.players[0].battlefield.find((c) => c.id === permanent.id)
+                ?.counters?.influence
+        ).toBe(2);
+        // CR 608.2d / 121.3a — the choice belongs to the ANNOUNCED opponent,
+        // and CR 121.3a is explicit that the chooser need not be the player
+        // who would draw. Not to the
+        // controller of the trigger. A controller-locked `mayPay` would put
+        // p1's own name here and let the Palantír's controller decline for
+        // them.
+        expect(mayPay?.kind).toBe("may-pay");
+        expect(mayPay?.playerId).toBe("p2");
+    });
+
+    it("the offer is ADDRESSED to the chooser — only p2 can answer it (CR 608.2d)", () => {
+        const { state, permanent } = palantirState();
+        fireEndStep(state, permanent);
+        // The projection ships `pendingChoices` verbatim to BOTH seats, so a
+        // prompt's TEXT is visible to the non-chooser as well — an engine-wide
+        // property of every choice, not of this card, tracked by issue #1982.
+        // What IS this card's to guarantee is the ADDRESSING: the offer names
+        // p2, and the submit path refuses anyone else.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.pendingChoices?.[0].playerId).toBe("p2");
+        expect(() =>
+            applyMayPaySubmit(state, { playerId: "p1", accept: true })
+        ).toThrow();
+        expect(state.players[0].hand).toHaveLength(0);
+    });
+
+    it("ACCEPTING makes the Palantír's controller draw, and nothing is milled", () => {
+        const { state, permanent } = palantirState();
+        const mayPay = fireEndStep(state, permanent)!;
+        const life = state.players[1].life;
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["lib-0"]);
+        expect(state.players[0].graveyard).toHaveLength(0);
+        expect(state.players[1].life).toBe(life);
+        expect(mayPay.playerId).toBe("p2");
+    });
+
+    it("DECLINING mills X and drains the decliner for the total mana value of those cards", () => {
+        const { state, permanent } = palantirState();
+        fireEndStep(state, permanent);
+        const life = state.players[1].life;
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+
+        // Two influence counters → mill 2: The One Ring (MV 4) + a Lightning
+        // Bolt (MV 1) = 5 life, in ONE loss (CR 119.3), and paid by the player
+        // who declined — not by the Palantír's controller.
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual([
+            "lib-0",
+            "lib-1",
+        ]);
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.players[1].life).toBe(life - 5);
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it("the opponent may accept even with the controller's library EMPTY (CR 121.3a)", () => {
+        // CR 121.3a — the chooser is not the player who would draw, and "if
+        // the latter player has no cards in their library, the choice can be
+        // taken". Accepting is then a kill: the draw from an empty library
+        // makes the Palantír's controller lose the next time SBAs are checked
+        // (CR 104.3c), which is exactly why the rule lets the choice be made.
+        const { state, permanent } = palantirState([]);
+        fireEndStep(state, permanent);
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+
+        expect(state.players[0].library).toHaveLength(0);
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.players[0].hasDrawnFromEmpty).toBe(true);
+    });
+
+    it("a library SHORTER than X mills what it has and drains only for that (CR 701.17b)", () => {
+        const { state, permanent } = palantirState([bolt.id]);
+        fireEndStep(state, permanent);
+        const life = state.players[1].life;
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+
+        expect(state.players[0].library).toHaveLength(0);
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual(["lib-0"]);
+        expect(state.players[1].life).toBe(life - 1);
+    });
+
+    it("an EMPTY library mills nothing and loses 0 life — the clause still resolves", () => {
+        const { state, permanent } = palantirState([]);
+        fireEndStep(state, permanent);
+        const life = state.players[1].life;
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+
+        expect(state.players[0].graveyard).toHaveLength(0);
+        expect(state.players[1].life).toBe(life);
+        // The trigger ran to completion. NOT a proof that the empty sum is 0
+        // rather than unresolvable — `loseLife` returns early on both, so the
+        // two are indistinguishable HERE; the case that actually discriminates
+        // them is the comparison-predicate one in `interpreter.test.ts`.
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
     });
 });

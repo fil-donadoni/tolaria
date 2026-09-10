@@ -6110,3 +6110,128 @@ describe("validateEffectScript — per-cost payment value (ADR 0085 decision 3, 
         ).not.toEqual([]);
     });
 });
+
+// CR 122 counting / CR 404 (issue #3243) — the `sum` value member's SHAPE and,
+// more importantly, its ref FAMILY: `of` is a picks position even though the
+// bare key `of` means an OBJECT everywhere else in the value grammar
+// (`counters` / `manaValue`), so the ordered ref pass needs its own case.
+describe("Effect Script value: sum shape + ref family (CR 122 / 404)", () => {
+    const millAll: EffectOp = {
+        op: "mill",
+        player: "controller",
+        count: 2,
+        bindAll: "$milled",
+    };
+    const drain = (of: unknown): EffectOp =>
+        ({
+            op: "loseLife",
+            player: "opponent",
+            amount: {
+                sum: {
+                    of,
+                    read: "manaValue",
+                    zone: "graveyard",
+                    player: "controller",
+                },
+            },
+        }) as EffectOp;
+
+    it("accepts a well-formed sum over a mill bindAll", () => {
+        expect(
+            validateEffectScript(
+                host({ effects: [millAll, drain({ ref: "$milled" })] })
+            )
+        ).toEqual([]);
+    });
+
+    it("accepts a sum whose `player` is an announced slot", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "mill",
+                            player: { target: 0 },
+                            count: 2,
+                            bindAll: "$m",
+                        },
+                        {
+                            op: "loseLife",
+                            player: { target: 0 },
+                            amount: {
+                                sum: {
+                                    of: { ref: "$m" },
+                                    read: "manaValue",
+                                    zone: "graveyard",
+                                    player: { target: 0 },
+                                },
+                            },
+                        },
+                    ],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("rejects a sum naming an UNDEFINED binding", () => {
+        expect(
+            validateEffectScript(host({ effects: [drain({ ref: "$nope" })] }))
+        ).not.toEqual([]);
+    });
+
+    it("rejects a sum reading a SNAPSHOT binding (family mismatch)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    { op: "exile", target: { target: 0 }, bind: "$gone" },
+                    drain({ ref: "$gone" }),
+                ],
+            })
+        );
+        expect(
+            errors.some((e) =>
+                /names a snapshot binding in a picks position/.test(e)
+            )
+        ).toBe(true);
+    });
+
+    it("rejects a sum whose `of` carries a property path — it is a BARE picks ref", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [millAll, drain({ ref: "$milled.manaValue" })],
+                })
+            )
+        ).not.toEqual([]);
+    });
+
+    it("rejects an unknown characteristic and an unknown zone", () => {
+        const bad = (spec: Record<string, unknown>): EffectOp =>
+            ({
+                op: "loseLife",
+                player: "opponent",
+                amount: { sum: spec },
+            }) as EffectOp;
+        for (const spec of [
+            {
+                of: { ref: "$milled" },
+                read: "power",
+                zone: "graveyard",
+                player: "controller",
+            },
+            {
+                of: { ref: "$milled" },
+                read: "manaValue",
+                zone: "exile",
+                player: "controller",
+            },
+            { of: { ref: "$milled" }, read: "manaValue", player: "controller" },
+            { of: { ref: "$milled" }, read: "manaValue", zone: "graveyard" },
+        ]) {
+            expect(
+                validateEffectScript(host({ effects: [millAll, bad(spec)] })),
+                JSON.stringify(spec)
+            ).not.toEqual([]);
+        }
+    });
+});

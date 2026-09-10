@@ -714,6 +714,41 @@ function resolveValue(
         const target = resolveObjectRef(ctx, value.manaValue.of);
         return target ? ctx.getManaValue(target) : undefined;
     }
+    // sum (CR 122 counting / CR 404, issue #3243) — the TOTAL of one
+    // characteristic across the SET of cards a preceding Op bound, the
+    // aggregate sibling of the single-object `manaValue` above. `of` is a bare
+    // picks ref read through the SAME `resolvePicks` every other picks consumer
+    // uses; the ids are looked up in `player`'s graveyard through the SAME
+    // `ctx.getGraveyardCards` reader `picksMatchFilter` uses (CR 404), and
+    // `read` names the characteristic (CR 202.3 mana value, with {X} folded to
+    // 0 outside the stack per CR 202.3e — the registry read already does that).
+    //
+    // An UNCAPTURED binding is 0, NOT undefined: "you mill X cards … and that
+    // player loses life equal to the total mana value of those cards" with an
+    // empty library milled nothing and costs 0 life — the clause resolved and
+    // the impossible part was ignored (CR 101.3), and the sum over an empty
+    // set is 0.
+    // An unresolvable `player` IS undefined, so the consuming Op skips exactly
+    // as it does for any other missing player ref. An id that has since left
+    // the graveyard simply contributes nothing — the read is live rather than a
+    // CR 608.2h snapshot replay, a deliberate deviation documented on the
+    // type.
+    if ("sum" in value) {
+        const playerId = resolvePlayerRef(ctx, value.sum.player);
+        if (!playerId) return undefined;
+        const picks = resolvePicks(ctx, value.sum.of);
+        if (!picks || picks.length === 0) return 0;
+        const cards = ctx.getGraveyardCards(playerId);
+        let total = 0;
+        for (const id of picks) {
+            const card = cards.find((c) => c.id === id);
+            // Indexed by `read` rather than hard-coded, so the
+            // characteristic axis the type names is the one the runtime
+            // actually reads and widening it stays a type-level change.
+            if (card) total += card[value.sum.read];
+        }
+        return total;
+    }
     // sacrificed (CR 601.2f / 608.2h, issue #2375) — a characteristic of the
     // permanent SACRIFICED TO PAY this spell/ability's additional cost, read
     // as LAST KNOWN INFORMATION off the stack item's
