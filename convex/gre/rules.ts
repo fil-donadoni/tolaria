@@ -1604,13 +1604,6 @@ export function getLegalActions(
  *  game.ts) so a `colors` filter (Natural Order's "a green creature") reads the
  *  same colour the rest of the engine sees. Cards with no additional cost are
  *  unaffected. */
-/** `card`'s registry definition, or `undefined` — the one-line form the zone
- *  gates above need before any branch has resolved one. */
-function cardDefinitionOf(card: CardInstanceState): CardDefinition | undefined {
-    const cardId = (card.card as { id?: string }).id;
-    return (cardId ? tryGetDefinition(cardId) : undefined) ?? undefined;
-}
-
 function hasPayableAdditionalCost(
     player: PlayerState,
     card: CardInstanceState

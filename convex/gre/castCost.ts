@@ -252,7 +252,8 @@ export function castAlternativeCostForZone(
     // mana portion (CR 702.34a — Lava Dart's flashback is a sacrifice and
     // nothing else): every downstream reader spells that `alt.mana ?? {}`, and
     // an inherited printed cost left standing here would be charged twice.
-    const { mana: _printedHalfCost, ...rest } = resolved;
+    const rest: AlternativeCost = { ...resolved };
+    delete rest.mana;
     return mana ? { ...rest, mana } : rest;
 }
 
