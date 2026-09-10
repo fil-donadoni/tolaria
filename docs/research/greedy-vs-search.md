@@ -95,8 +95,74 @@ the root rules and priors rather than from depth. It does not yet say how
 often the two disagree in real play, or whether the search's disagreements
 are improvements — that is the corpus half.
 
-## Corpus half — pending
+## Corpus half — measured 2026-09-10 (run started 20:32, three shards)
 
-Run: `bash scripts/greedy-corpus.sh` (three shards, ~1.5–2.5 h wall-clock).
-Read `greedyAgreeShare`, `greedyAgreeByMechanism` and `greedyAgreeByMoveKind`
-from each shard's `selfPlaySummary`; shard A also carries `bladeSummary`.
+`bash scripts/greedy-corpus.sh` (3 games per pairing per shard, seeds
+1893 / 2893 / 3893, 400 iterations): 54 self-play games over the six
+issue #1893 pairings, all decisive by life, **4 760 root decisions** with a
+greedy field (single-candidate roots emit no record), plus the 129-entry
+blade corpus (531 decisions, shard A). Raw JSON:
+`ladder-runs/2026-09-10-20-32-greedy-concordance-{A,B,C}.json`.
+
+**The search's pick equals the greedy pick in 63.1% of real decisions**
+(3 002 / 4 760; shards 64.8% / 62.5% / 61.8%). On the blade positions,
+59.3% (315 / 531).
+
+By the mechanism that decided the search's pick (self-play):
+
+| mechanism            | agree / total | share |
+| -------------------- | ------------- | ----- |
+| material-tiebreak    | 1543 / 2682   | 57.5% |
+| mean-reward          | 657 / 919     | 71.5% |
+| self-harm-removal    | 458 / 577     | 79.4% |
+| free-development     | 186 / 291     | 63.9% |
+| block-quality        | 32 / 71       | 45.1% |
+| wasteful-attack      | 35 / 67       | 52.2% |
+| wasted-mana-hold     | 41 / 50       | 82.0% |
+| announcement-variant | 15 / 46       | 32.6% |
+| standing-spend-hold  | 26 / 40       | 65.0% |
+| hold-trick           | 9 / 16        | 56.2% |
+
+By the kind of move the search chose:
+
+| kind              | agree / total | share |
+| ----------------- | ------------- | ----- |
+| pass              | 1280 / 1723   | 74.3% |
+| cast-spell        | 750 / 1179    | 63.6% |
+| declare-attackers | 402 / 840     | 47.9% |
+| play-land         | 445 / 782     | 56.9% |
+| declare-blockers  | 107 / 192     | 55.7% |
+| activate-ability  | 13 / 34       | 38.2% |
+
+### Reading
+
+- **56% of real decisions (2 682) reach the root as a tie** and are settled
+  by the material tie-break; there the search and the greedy policy agree
+  only 57.5% of the time — barely above what two noisy readings of the same
+  evaluation would give. Where the search's own reward decided (19%), they
+  agree 71.5%.
+- **Attack declarations and land plays are where they disagree most** (48%
+  and 57%): both are multi-candidate roots (which attackers, which land)
+  whose candidates the evaluation scores identically, so each decider breaks
+  the tie its own way. Disagreement there is mostly not a preference.
+- **The concordance cannot say who is right.** The blade half can: on the
+  judged positions the search holds 100% of `must` against the greedy
+  policy's 71%, and the greedy-only set is one stretch entry. So the search
+  is not merely re-deriving the policy — on the positions a human has
+  judged it adds 29 points, most of them through the root rules and choice
+  priors.
+
+### Verdict on the policy-first question
+
+**Not supported as a replacement.** The greedy policy is a cheap, strong
+floor (71% of `must` in under a second) and a one-second regression
+instrument, but the search adds real correctness on judged positions, and
+in real play the two disagree on 37% of decisions with no evidence about
+which side is right. The lever this measurement points at is the same one
+the blade half named: the evaluation's own exchange rates (17 of the 35
+search-only entries are the act-versus-hold bias of issue #3377; Stone Rain
+loses 205 margin points at announcement). That is ADR 0124 and PRD #3397 —
+fit the evaluation from player Verdicts, re-measure the greedy floor, and
+revisit the root decider only once the value function is right. The greedy
+report (`BLADE_GREEDY=1`) and this corpus (`scripts/greedy-corpus.sh`) are
+the before/after instruments.
