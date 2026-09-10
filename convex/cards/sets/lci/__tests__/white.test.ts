@@ -26,6 +26,8 @@ import {
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
+import { collectTriggers } from "../../../../gre/triggers";
+import type { GameEvent } from "../../../types";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     getEffectivePower,
@@ -145,6 +147,22 @@ describe("Sanguine Evangelist (LCI, CR 603.2 + CR 702.91)", () => {
 
     it("creates the Bat when it DIES, resolving from the graveyard (CR 603.10)", () => {
         const { state, evangelist } = boardWithEvangelist("graveyard");
+
+        // The real trigger scan, not a hand-pushed stack item: the source has
+        // already left the battlefield, so `collectTriggers` has to find it in
+        // the graveyard for the dies half to fire at all.
+        const death: GameEvent = {
+            type: "CREATURE_DIED",
+            creatureInstanceId: evangelist.id,
+            creatureControllerId: "p1",
+            creatureTypes: ["Creature"],
+            lastKnownPower: 2,
+            lastKnownToughness: 1,
+        } as GameEvent;
+        const collected = collectTriggers(state, [death]);
+        expect(
+            collected.filter((t) => t.triggeredAbilityId === TRIGGER_ID)
+        ).toHaveLength(1);
 
         resolveBatTrigger(state, evangelist, "CREATURE_DIED");
 
