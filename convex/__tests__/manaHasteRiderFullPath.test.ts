@@ -28,7 +28,7 @@ import { lightningBolt } from "../cards/sets/lea/red";
 import { resolveTopOfStack } from "../gre/state";
 import { advancePhase } from "../gre/phases";
 import { validateAttackerEligibility } from "../gre/combat";
-import type { GameState, PendingCast } from "../gre/state";
+import type { GameState, PendingCast, StackItem } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
 import {
     makeMutationCtx,
@@ -216,9 +216,14 @@ describe("Arena of Glory's haste rider — the spell to permanent hand-off (CR 6
                 state
             ).eligible
         ).toBe(true);
-        // The flag did NOT ride onto the permanent — a stack item IS its
-        // `CardInstanceState`, so a leak here would survive a bounce-and-recast.
-        expect(bears.dynamicHasteFromMana).toBeUndefined();
+        // The flag did NOT ride onto the permanent. The cast is the point:
+        // `dynamicHasteFromMana` is declared on `StackItem`, and a stack item
+        // IS its `CardInstanceState` — the same object, which is exactly why a
+        // leak here would survive onto the battlefield and through a
+        // bounce-and-recast without any type ever complaining.
+        expect(
+            (bears as Partial<StackItem>).dynamicHasteFromMana
+        ).toBeUndefined();
     });
 
     it("the grant is a duration-scoped registry entry, not a materialised keyword (ADR 0082)", async () => {
