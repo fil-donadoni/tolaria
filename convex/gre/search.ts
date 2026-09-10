@@ -2763,6 +2763,13 @@ export type DecisionTrace = {
     elapsedMs: number;
     /** Which bound ended the loop. */
     stoppedBy: SearchStopReason;
+    /** WHICH root rule settled the pick (issue #3388) — the same
+     *  `RootDecisionMechanism` the decision-telemetry sink records, surfaced on
+     *  the artifact a human actually reads. `"mean-reward"` / `"material-tiebreak"`
+     *  mean the search's own argmax decided; anything else names the tie-break
+     *  that OVERRODE it, which is the question a trace showing a higher-margin,
+     *  higher-visit candidate losing cannot otherwise answer. */
+    mechanism: RootDecisionMechanism;
     /** Every root candidate weighed, most-visited first. */
     candidates: CandidateTrace[];
 };
@@ -2803,10 +2810,128 @@ export function settleStackForBreakdown(
     weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
     depth = 0,
     budget: { left: number } = { left: MAX_CHOICE_BRANCH_WORK },
-    floorDepth = 0
+    floorDepth = 0,
+    report?: { complete: boolean }
 ): GameState {
+    // Nothing owed: no clone, no work, byte-identical state back. This is the
+    // overwhelmingly common case (every position that is not mid-resolution)
+    // and it is what keeps the snapshot below off the hot path.
+    if (!settleHasWork(state, floorDepth)) {
+        if (report) report.complete = true;
+        return state;
+    }
+    // Issue #3388 — the snapshot the BAIL path returns. A settle that cannot
+    // finish leaves a state where the announcement's early Ops have been
+    // applied and its LATER, paying Ops have not (the body is on the
+    // battlefield, the sacrifice that pays for it has not happened), and every
+    // caller below feeds what it gets straight to `evaluate`/`materialMargin`.
+    // Scoring that partial state is strictly worse information than scoring the
+    // un-resolved announcement: it is the announced cost with the payoff
+    // deleted, which is precisely how a cast that pays reads as a blank card.
+    // So a bail returns the position as it was AT ENTRY — the documented
+    // pre-#3194 fallback, which `bestBranchThroughChoice` already took for a
+    // null branch and the loop below silently did not.
+    //
+    // AT ENTRY is the exact limit, and it is worth stating (PR review finding
+    // A1): this rewinds the SETTLE's own work, never the caller's. `policyValue`
+    // resolves the top of the stack before it settles, and a rollout probing a
+    // `resolution-choice` has already advanced the interpreter past the choice
+    // in `applyMoveInSearch`, so a bail there still hands back a state one Op
+    // into a resolution — the body on the battlefield, the sacrifice unrun.
+    // Unchanged from before this issue, and not closable from inside here: the
+    // caller owns the clone and the move that half-applied it.
+    const before = cloneGameState(state);
+    const settled = settleFrom(
+        state,
+        moverId,
+        weights,
+        depth,
+        budget,
+        floorDepth
+    );
+    if (report) report.complete = settled.complete;
+    return settled.complete ? settled.state : before;
+}
+
+/** Is anything still owed to the resolution being settled?
+ *
+ *  Three kinds of owed work, and reading only the first is issue #3388: a stack
+ *  item above the floor, a queued player CHOICE, or a half-made announcement
+ *  (`pendingTarget` / `pendingCast` / `pendingActivation`). A choice does NOT
+ *  imply a non-empty stack — CR 603.3b puts a simultaneous-trigger batch's
+ *  ORDERING question to the player BEFORE the triggers go on the stack, so the
+ *  sacrifice at the end of a cheat-into-play resolution empties the stack and
+ *  immediately raises a `trigger-order` choice with `stack.length === 0`. A loop
+ *  conditioned on the stack alone exits right there, and the triggers it exits
+ *  on are the entire payoff of the line (three 5/5 tokens off a dies trigger),
+ *  so the probe reads the spell as resolving to NOTHING.
+ *
+ *  The third arm exists so this predicate and `settleFrom` agree on the word
+ *  "complete": the loop treats a half-made announcement as a bail, and without
+ *  it the entry point's early-out would answer `complete: true` for the same
+ *  state (PR review finding A3).
+ *
+ *  The choice arm is FLOOR-BLIND, deliberately and only safely while every
+ *  caller passes `floorDepth: 0` (`policyValue` passes 0 or does not settle at
+ *  all; every other call site takes the default). A trigger batch raised as the
+ *  stack empties legitimately sits AT the floor, so the floor cannot gate it by
+ *  depth — a non-zero floor would have to ask which stack item raised the
+ *  choice instead, and there is no caller to measure that against today. */
+function settleHasWork(state: GameState, floorDepth: number): boolean {
+    return (
+        state.stack.length > floorDepth ||
+        (state.pendingChoices?.length ?? 0) > 0 ||
+        !!state.pendingTarget ||
+        !!state.pendingCast ||
+        !!state.pendingActivation
+    );
+}
+
+/** The settle proper: mutates `state`, and says whether it got to the end.
+ *
+ *  `complete` is the load-bearing half. `false` means the resolution was left
+ *  PART-APPLIED — the depth cap, the branch-work budget, a choice owned by
+ *  someone else, an answer kind no generator could build, or a throw — and a
+ *  part-applied state is not a position: it is the cost of an announcement
+ *  with its payoff still queued. Only `settleStackForBreakdown` may hand a
+ *  state to a caller, and it hands back the snapshot when this is `false`. */
+function settleFrom(
+    state: GameState,
+    moverId: string | undefined,
+    weights: EvalWeights,
+    depth: number,
+    budget: { left: number },
+    floorDepth: number
+): { state: GameState; complete: boolean } {
     let guard = 0;
-    while (state.stack.length > 0 && guard++ < 16) {
+    while (guard++ < 16) {
+        if (
+            state.pendingTarget ||
+            state.pendingCast ||
+            state.pendingActivation
+        ) {
+            return { state, complete: false };
+        }
+        const head = state.pendingChoices?.[0];
+        if (head) {
+            if (
+                !moverId ||
+                head.playerId !== moverId ||
+                depth >= MAX_CHOICE_DEPTH
+            ) {
+                return { state, complete: false };
+            }
+            const best = bestBranchThroughChoice(
+                state,
+                moverId,
+                weights,
+                depth,
+                budget,
+                floorDepth
+            );
+            if (!best) return { state, complete: false };
+            return { state: best, complete: true };
+        }
         // Issue #3293 — `floorDepth` bounds the settle to the items ABOVE a
         // given stack depth: the resolution that suspended, plus whatever it
         // puts on the stack on the way out (a dies trigger the sacrifice
@@ -2820,44 +2945,31 @@ export function settleStackForBreakdown(
         // strictly above an activation it must be neutral on
         // (`activationTiming.bot.test.ts`, issue #1890). Zero — the default and
         // every pre-existing caller — is the old drain-the-stack behaviour.
-        if (state.stack.length <= floorDepth) break;
-        if (
-            state.pendingTarget ||
-            state.pendingCast ||
-            state.pendingActivation
-        ) {
-            break;
-        }
-        const head = state.pendingChoices?.[0];
-        if (head) {
-            if (
-                !moverId ||
-                head.playerId !== moverId ||
-                depth >= MAX_CHOICE_DEPTH
-            ) {
-                break;
-            }
-            const best = bestBranchThroughChoice(
-                state,
-                moverId,
-                weights,
-                depth,
-                budget,
-                floorDepth
-            );
-            if (!best) break;
-            return best;
-        }
+        //
+        // Reaching the floor with no choice queued is the SUCCESS exit: every
+        // item this resolution put on the stack has resolved.
+        if (state.stack.length <= floorDepth) return { state, complete: true };
         resolveTopOfStack(state);
         checkStateBasedActions(state);
     }
-    return state;
+    // The iteration guard is a runaway bound, not an exit: a resolution still
+    // owing work after 16 steps is unfinished like any other bail.
+    return { state, complete: !settleHasWork(state, floorDepth) };
 }
 
 /** The settled branch of the head choice that leaves `moverId` best off, or
- *  `null` when none could be applied (an unsupported answer kind, a throw, or
- *  an exhausted work budget) — in which case the caller keeps the un-resolved
- *  state, exactly as before issue #3194. */
+ *  `null` when none could be COMPLETELY settled (an unsupported answer kind, a
+ *  throw, an exhausted work budget, or a branch that bails deeper down) — in
+ *  which case the caller keeps the un-resolved state, exactly as before issue
+ *  #3194.
+ *
+ *  A branch that bailed is skipped rather than scored (issue #3388). The argmax
+ *  is over MATERIAL MARGIN, and a part-settled branch's margin is measured on a
+ *  different quantity from a settled sibling's — the announcement's cost with
+ *  its payoff still queued — so mixing the two makes the max fall to whichever
+ *  branch happened to stop earliest. That is the same all-or-nothing argument
+ *  the budget check below has always made, applied to the other way a branch
+ *  can fail to finish. */
 function bestBranchThroughChoice(
     state: GameState,
     moverId: string,
@@ -2879,10 +2991,10 @@ function bestBranchThroughChoice(
         // which is at least one consistent measurement.
         if (budget.left-- <= 0) return null;
         const branch = cloneGameState(state);
-        let settled: GameState;
+        let settled: { state: GameState; complete: boolean };
         try {
             applyMoveInSearch(branch, moverId, candidate.move);
-            settled = settleStackForBreakdown(
+            settled = settleFrom(
                 branch,
                 moverId,
                 weights,
@@ -2893,10 +3005,11 @@ function bestBranchThroughChoice(
         } catch {
             continue;
         }
-        const score = materialMargin(settled, moverId, weights);
+        if (!settled.complete) continue;
+        const score = materialMargin(settled.state, moverId, weights);
         if (score > bestScore) {
             bestScore = score;
-            best = settled;
+            best = settled.state;
         }
     }
     return best;
@@ -2914,7 +3027,8 @@ export function buildTrace(
     botId: string,
     stats: SearchStats,
     chosen: Move,
-    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
+    mechanism: RootDecisionMechanism = "mean-reward"
 ): DecisionTrace {
     const candidates: CandidateTrace[] = [];
     for (const edge of root.children.values()) {
@@ -2964,6 +3078,7 @@ export function buildTrace(
         iterationsRequested: stats.iterationsRequested,
         elapsedMs: stats.elapsedMs,
         stoppedBy: stats.stoppedBy,
+        mechanism,
         candidates,
     };
 }
@@ -3733,7 +3848,16 @@ export function selectRootMove(
     // (every test that hand-builds a `Node`), where the tie-break falls back
     // to reading `rootState` exactly as it did before. The fallback is not a
     // second opinion — a hand-built root has no sampler behind it at all.
-    blockLens?: BlockDeltaLens
+    blockLens?: BlockDeltaLens,
+    // Issue #3388 — the RULE that settled the pick, written back for the
+    // DecisionTrace. The telemetry sink has always carried it, but a sink is
+    // installed only by the corpus tooling, so the one artifact a human reads
+    // when the bot does something inexplicable — the trace JSON the debug box
+    // copies — could not say WHICH of a dozen root rules moved the pick. The
+    // issue's own report is that gap: a cast with more visits and a higher
+    // `meanMargin` than `pass`, and `pass` chosen, with nothing naming the
+    // rule. Optional and write-only, so every existing caller is untouched.
+    out?: { mechanism: RootDecisionMechanism }
 ): Move {
     const pool = [...root.children.values()].filter((e) => e.visits > 0);
     if (pool.length === 0) return moves[0];
@@ -3768,6 +3892,7 @@ export function selectRootMove(
     let mechanism: RootDecisionMechanism =
         contenders.length > 1 ? "material-tiebreak" : "mean-reward";
     const finish = (edge: Edge, mech: RootDecisionMechanism): Move => {
+        if (out) out.mechanism = mech;
         if (sink) {
             const meansDesc = explored
                 .map((e) => mean(e))
@@ -4201,6 +4326,70 @@ export function selectRootMove(
         if (hold) return finish(hold, "standing-spend-hold");
     }
 
+    // Resolved-payoff CREDIT (issue #3388) — the POSITIVE half of the
+    // self-harm hold above, and the half without which the bot can refuse a
+    // cheat-into-play line but never take one.
+    //
+    // `self-harm-removal` asks exactly one question of a self-confined cast —
+    // does its SETTLED resolution lower my material margin — and acts on the
+    // answer in one direction only. A hold rule can only ever refuse
+    // (`ai/blade/registry.ts`, the cheat-into-play pair's note), so the line
+    // whose settled resolution strictly PAYS was left to the ordinary material
+    // tie-break, and that tie-break cannot see it: the `meanMargin` it compares
+    // is accumulated over the whole SUBTREE, and the `pass` subtree explores
+    // casting the SAME spell one ply later, so it carries the identical payoff
+    // (and the identical cost) and the two means differ by rollout noise.
+    // MEASURED on the issue-#3293 pair at the production budget: cheating a
+    // Vaultborn Tyrant in for {1}{U} settles at +201.6 material against
+    // declining, and `pass` still won on `mechanism: material-tiebreak` with
+    // both edges inside `OUTCOME_EPS` — which is why that half of the pair
+    // shipped `stretch` with a `beyondBudget` block naming this exact artifact.
+    //
+    // Same gate as the hold, so the two are one rule read in both directions:
+    // `reachesOnlyOwnSideThroughChoice` keeps it to an announcement whose whole
+    // reach is the mover's own side (a resolution that can touch the opponent
+    // is priced by the search, not by a leaf probe of the mover's own board),
+    // and `resolvedMarginDelta` is the same leaf-decisive measurement, read for
+    // a strict GAIN instead of a strict loss. Fires only on outcome-equality,
+    // so a cast with real reward already wins on mean and never reaches here,
+    // and only when the robust pick is `pass` — with a cast already picked
+    // there is nothing to credit.
+    //
+    // `stack.length === 0`, for the reason `standing-spend-hold` and
+    // `last-window-fire` both give in this same vocabulary (PR review finding
+    // B1): `resolvedMarginDelta` settles with `floorDepth: 0`, so with an
+    // opponent's announcement underneath it drains that one too while its
+    // `before` baseline does not, and the two sides then differ by the
+    // opponent's spell rather than by the decision. A symmetric sweeper on the
+    // stack would read as a self-confined cast "paying" for a resolution worth
+    // nothing.
+    //
+    // ORDER. Both holds require `best` to be a cast/activation, and it is
+    // `pass` here, so neither can collide. Two rules can: `free-development`
+    // above returns on an outcome-equal land drop and is deliberately left
+    // AHEAD — an untaken land drop is a turn the cheat-into-play line still
+    // has — and `last-window-fire` below credits an ACTIVATION where this
+    // credits a `cast-spell`, so the two are disjoint per EDGE but not per
+    // POSITION. With a qualifying cast and a qualifying last-window activation
+    // both outcome-equal, this placement takes the cast: the deferred
+    // activation is by construction still there next turn, and the cast is
+    // priced on its own resolution.
+    if (
+        rootState &&
+        !!botId &&
+        rootState.stack.length === 0 &&
+        best.move.kind === "pass"
+    ) {
+        const payoff = pool.find(
+            (e) =>
+                e.move.kind === "cast-spell" &&
+                mean(e) >= bestMean - weights.outcomeEps &&
+                reachesOnlyOwnSideThroughChoice(rootState, e.move, botId) &&
+                resolvedMarginDelta(rootState, e.move, botId, weights) > 0
+        );
+        if (payoff) return finish(payoff, "resolved-payoff");
+    }
+
     // Last-window FIRE (issue #2939) — the mirror of the hold rule above, and
     // the half that makes it a discipline rather than a refusal. The hold rule
     // defers a sacrifice engine out of the mover's own main phase; something has
@@ -4242,6 +4431,7 @@ export function selectRootMove(
     // Sylvan Safekeeper class (#2422/#2938) this rule exists to refuse. A
     // response window is not this rule's business anyway; the HOLD rule above
     // makes the same exclusion for the same reason.
+
     if (
         rootState &&
         !!botId &&
@@ -4831,6 +5021,9 @@ function runSearchWithTrace(
         stoppedBy,
     };
 
+    const picked: { mechanism: RootDecisionMechanism } = {
+        mechanism: "mean-reward",
+    };
     const move = selectRootMove(
         root,
         moves,
@@ -4848,11 +5041,20 @@ function runSearchWithTrace(
             weights,
             deckKnowledge,
             opponentModel
-        )
+        ),
+        picked
     );
     return {
         move,
-        trace: buildTrace(root, state, playerId, stats, move, weights),
+        trace: buildTrace(
+            root,
+            state,
+            playerId,
+            stats,
+            move,
+            weights,
+            picked.mechanism
+        ),
     };
 }
 

@@ -211,7 +211,30 @@ export function heuristicChoicePrior(
     // keep/bin policy would otherwise sit at the flat `NEUTRAL_PRIOR` and the
     // whole decision would be rollout noise at the opening.
     if (choice.kind === "order-top") {
-        return orderTopPrior(candidate);
+        return signedMaterialPrior(candidate);
+    }
+    // CR 608.2c (issue #3388) — an optional hand pick is not a yes/no answer
+    // either: its answers are `resolution-choice` submissions, so `acceptOf`
+    // returns `undefined` and every branch would sit at the flat
+    // `NEUTRAL_PRIOR`, leaving pick-vs-decline (and pick-WHICH) pure rollout
+    // noise. The generator now says which way the pick points — `materialGivenUp`
+    // for a discard/exile cost, `materialGained` for a pick whose destination is
+    // the mover's own battlefield — so the same signed band the ordered-top
+    // choice uses reads both shapes with one formula and no second copy of the
+    // rule.
+    //
+    // OWN HAND ONLY (PR review finding C1). A pick out of ANOTHER player's hand
+    // (`zoneOwnerId` — the Deep-Cavern Bat / Elite Spellbinder strip) carries a
+    // `materialGivenUp` hint measuring the OPPONENT's card, and reading it here
+    // would subtract their loss from the decider's prior: exiling their best
+    // card would open LAST. Those picks keep the flat `NEUTRAL_PRIOR` they have
+    // always had; signing them correctly is a preference change owing its own
+    // blade pair, drafted in the findings drawer.
+    if (
+        choice.kind === "choose-hand-card" &&
+        (choice.zoneOwnerId ?? choice.playerId) === choice.playerId
+    ) {
+        return signedMaterialPrior(candidate);
     }
 
     const accept = acceptOf(candidate.move);
@@ -275,8 +298,14 @@ function castWindowPrior(
     return isDecline ? 0.4 : 0.65;
 }
 
-/** CR 701.22 / 701.25 / 701.44a (issue #2996) — prior for one keep/bin policy
- *  at an ordered-top choice.
+/** CR 701.22 / 701.25 / 701.44a (issue #2996) — the SIGNED-MATERIAL prior:
+ *  one formula for every choice whose answers are `resolution-choice`
+ *  submissions rather than a yes/no `accept`, read off the two hints the
+ *  generator already fills in. Written for one keep/bin policy at an
+ *  ordered-top choice; shared since issue #3388 with the optional HAND pick,
+ *  whose answers have the same shape and the same two directions (a discard or
+ *  exile cost is `materialGivenUp`, a put-onto-the-battlefield pick is
+ *  `materialGained`).
  *
  *  Keeping everything is the baseline: it is what the pre-#2996 default did and
  *  it is never illegal. Every bin is scored by what the generator says that bin
@@ -290,7 +319,7 @@ function castWindowPrior(
  *  only — the band keeps every policy reachable, and which one is actually
  *  chosen is settled by reward, on a top the search can now see because
  *  `determinize` pins the peeked run (issue #1524 + the open-peek pin here). */
-function orderTopPrior(candidate: PriorCandidate): number {
+function signedMaterialPrior(candidate: PriorCandidate): number {
     const givenUp = candidate.hint?.materialGivenUp ?? 0;
     const gained = candidate.hint?.materialGained ?? 0;
     // Keep-everything: no cards move, so both hints are 0 and this is exactly

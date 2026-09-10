@@ -82,7 +82,10 @@ import {
     permanentWorth,
     prospectiveCardWorth,
 } from "./candidateValue";
-import { searchFindDestination } from "./searchDestination";
+import {
+    choiceFindDestination,
+    searchFindDestination,
+} from "./searchDestination";
 
 /** One opened branch of a choice node. */
 export type ChoiceCandidate = {
@@ -693,11 +696,39 @@ const handPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
     // be right (the card is worth more in hand than the payoff). It just stops
     // being the DEFAULT: `dslChoicePrior` proves it a no-op and floors its
     // prior, so it opens last.
+    // WHERE THE PICK GOES decides whether picking is a COST or a GAIN, and
+    // reading it is issue #3388. Every hand pick used to be priced as material
+    // GIVEN UP and ordered cheapest-first — right for the shape this generator
+    // was written for ("you may EXILE a card", "discard a card"), and exactly
+    // backwards for "put a creature card from your hand onto the BATTLEFIELD",
+    // where the same `moveZone` shape puts the pick on the mover's own board.
+    // Both the ordering and the hint's sign flip on that one fact, and it is
+    // already on the source's Effect Script — the derivation is the library
+    // search's, generalised off its `search-library` gate, never a new
+    // mechanism (`choiceFindDestination`). It fails closed: a `resolve()` card
+    // or an unwalkable script answers `undefined`, which is priced exactly as
+    // before this existed.
+    // …and WHOSE hand it comes out of. The destination alone is not the sign
+    // (PR review finding C1): a `choose-hand-card` can pick from ANOTHER
+    // player's hand (`zoneOwnerId`, the Deep-Cavern Bat / Elite Spellbinder
+    // strip), and there the worth moves away from the opponent, not from the
+    // decider. That shape is deliberately NOT re-signed here — stripping the
+    // opponent's BEST card is the play, so it wants a `materialGained` hint and
+    // a descending order of its own, and it is a preference change that owes
+    // its own discriminating blade pair rather than a line in a settle fix
+    // (`docs/findings/3388-a-strip-from-the-opponents-hand-is-priced-as-the-movers-own-cost.md`).
+    // What matters here is that it must not be swept into the NEW direction on
+    // the destination alone: this stays exactly as it was, and
+    // `heuristicChoicePrior` keeps it at the flat neutral it has always had.
+    const ownHand = (choice.zoneOwnerId ?? choice.playerId) === choice.playerId;
+    const gained =
+        ownHand && choiceFindDestination(state, choice) === "battlefield";
+
     const out: Omit<ChoiceCandidate, "prior">[] = [
         {
             key: "hand-pick:none",
             move: submit([]),
-            hint: { materialGivenUp: 0 },
+            hint: gained ? { materialGained: 0 } : { materialGivenUp: 0 },
         },
     ];
 
@@ -707,9 +738,13 @@ const handPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
             identity: stableCardIdentity(card),
             worth: prospectiveCardWorth(state, card),
         }))
+        // Cheapest first when the pick is a cost, BEST first when it is a gain.
+        // `CHOICE_TOP_K` truncates this list, so the direction is not cosmetic:
+        // with nine creature cards in hand, ordering a put-onto-the-battlefield
+        // pick ascending opens the eight WORST bodies and drops the bomb.
         .sort(
             (a, b) =>
-                a.worth - b.worth ||
+                (gained ? b.worth - a.worth : a.worth - b.worth) ||
                 (a.identity < b.identity ? -1 : a.identity > b.identity ? 1 : 0)
         );
 
@@ -725,12 +760,13 @@ const handPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
             picked.push(other);
         }
         const cards = picked.map((p) => p.card);
+        const worth = picked.reduce((s, p) => s + p.worth, 0);
         out.push({
             key: `hand-pick:${stableSetIdentity(cards)}`,
             move: submit(cards),
-            hint: {
-                materialGivenUp: picked.reduce((s, p) => s + p.worth, 0),
-            },
+            hint: gained
+                ? { materialGained: worth }
+                : { materialGivenUp: worth },
         });
     }
     return out;

@@ -34,7 +34,11 @@ export type RootDecisionMechanism =
     | "colour-mode-evidence"
     | "wasted-mana-hold"
     | "last-window-fire"
-    | "standing-spend-hold";
+    | "standing-spend-hold"
+    /** Issue #3388 — the POSITIVE half of `self-harm-removal`: a
+     *  self-confined cast whose settled resolution strictly IMPROVES the
+     *  mover's material margin, taken over an outcome-equal `pass`. */
+    | "resolved-payoff";
 
 /** Which bound ended a search loop — the iteration budget (`SearchBudget.
  *  iterations`) was reached, the wall-clock bound (`SearchBudget.timeMs`)

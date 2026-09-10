@@ -74,12 +74,31 @@ describe("a mode whose whole effect is behind a Pending Choice", () => {
         const probe = cloneGameState(state);
         applyMoveInSearch(probe, botId, landTypeMode(state, botId));
 
-        // Without a mover the old behaviour is kept verbatim: the spell is
-        // still on the stack, waiting on a choice nobody answers. That state is
-        // what every payoff term used to be measured on.
+        // Without a mover there is nobody to answer the choice, so the settle
+        // cannot finish — and since issue #3388 a settle that cannot finish
+        // hands back the position AS IT WAS rather than the half-applied one it
+        // reached. The spell is still on the stack, un-resolved, with NO choice
+        // queued: the caller scores an announcement, which is a position, and
+        // not "the Ops before the choice have run and the ones that pay for
+        // them have not", which is not. (Before #3388 this returned the
+        // mid-resolution state — stack 1 AND one pending choice — and every
+        // payoff term was measured on it.)
         const stopped = settleStackForBreakdown(cloneGameState(probe));
         expect(stopped.stack.length).toBe(1);
-        expect(stopped.pendingChoices?.length ?? 0).toBe(1);
+        expect(stopped.pendingChoices?.length ?? 0).toBe(0);
+        // …and the caller can SEE that it bailed, rather than having to infer
+        // it from a state that looks settled.
+        const report = { complete: true };
+        settleStackForBreakdown(
+            cloneGameState(probe),
+            undefined,
+            undefined,
+            0,
+            undefined,
+            0,
+            report
+        );
+        expect(report.complete).toBe(false);
 
         // With the mover named, the choice is the mover's own to make, so the
         // probe makes it — through BOTH nested levels — and reaches a resolved
