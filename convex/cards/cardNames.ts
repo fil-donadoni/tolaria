@@ -52,3 +52,24 @@ export function hasName(
     if (!def || chosen === undefined) return false;
     return chooseableNamesOf(def).includes(chosen);
 }
+
+/** CR 709.4a — {@link hasName} for a card INSTANCE rather than a definition:
+ *  "an object has the chosen name if one of its names is the chosen name."
+ *
+ *  The `StaticEffectContext.hasChosenName` implementation, shared by the three
+ *  contexts that build one (`cards/castRestrictions.ts`,
+ *  `cards/attackRestrictions.ts`, `gre/layers.ts`) so a name-keyed restriction
+ *  cannot disagree with a name-keyed static about what an object is called.
+ *
+ *  An EMBEDDED name (a synthesized token, a fixture card with no registry
+ *  definition) answers for itself: it has exactly one name and no halves. */
+export function objectHasChosenName(
+    card: { card?: unknown },
+    name: string,
+    resolve: (cardId: string) => CardDefinition | null | undefined
+): boolean {
+    const cardId = (card.card as { id?: string } | undefined)?.id;
+    const def = cardId ? resolve(cardId) : undefined;
+    if (def) return chooseableNamesOf(def).includes(name);
+    return ((card.card as { name?: string } | undefined)?.name ?? "") === name;
+}

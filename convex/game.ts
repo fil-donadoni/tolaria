@@ -229,6 +229,7 @@ import {
     castPermissionRequiredFor,
     castTimingBaseLegal,
 } from "./gre/rules";
+import { castProhibitionReason } from "./cards/castRestrictions";
 // issue #2283 — the raised-origin (`trigger`/`retarget`/`copy-retarget`)
 // finalization and its divide split live in one module shared with the bot's
 // in-search applier, so the two can never drift.
@@ -8230,8 +8231,15 @@ export const announceCast = mutation({
         // instant speed on the strength of Petty Theft's legality. Scoped to
         // cards that HAVE an inset spell — for every other card the two
         // questions are the same question, already answered above.
+        //
+        // CR 709.3a says the same of a SPLIT half — "only the chosen half is
+        // evaluated to see if it can be cast" — so the gate is scoped to
+        // "this card has an independent cast option", not to `insetSpell`.
+        const hasIndependentCastOption =
+            cardDef.insetSpell !== undefined ||
+            cardDef.splitHalves !== undefined;
         if (
-            cardDef.insetSpell !== undefined &&
+            hasIndependentCastOption &&
             !castTimingBaseLegal(
                 state,
                 args.playerId,
@@ -8243,6 +8251,21 @@ export const announceCast = mutation({
             throw new Error(
                 `${castSubjectDef.name} can't be cast right now (CR 715.3a)`
             );
+        }
+        // CR 601.3a / 709.3b / 715.3b — and the same for a cast PROHIBITION,
+        // for the same reason: `assertLegalAction` asked whether the CARD is
+        // castable, which is true whenever ANY half is, and a name- or
+        // type-keyed restriction is a statement about the SPELL. Without this
+        // a Meddling Mage naming "Wane" left Wane announceable on the
+        // strength of Wax's legality. `getLegalActions` asks the identical
+        // question of the identical subject (`gre/rules.ts`).
+        if (hasIndependentCastOption) {
+            const prohibition = castProhibitionReason(
+                args.playerId,
+                castSubjectView(cardInHand, args.alternativeCostId),
+                state
+            );
+            if (prohibition !== undefined) throw new Error(prohibition);
         }
 
         // Validate X is provided iff the cost contains a string X (CR 107.3).

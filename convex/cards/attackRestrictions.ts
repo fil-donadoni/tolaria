@@ -11,6 +11,7 @@
 // Crusade-style anthems (`pt-buff`) scan all permanents and buff a filtered set.
 
 import { getInstanceManaCost, tryGetDefinition } from ".";
+import { objectHasChosenName } from "./cardNames";
 import { getEffectiveColors } from "./effectiveColors";
 import type { CardType, PermanentView, StaticEffectContext } from "./types";
 
@@ -63,6 +64,12 @@ export const ATTACK_RESTRICTION_CTX: StaticEffectContext = {
         const cardId = (card.card as { id?: string }).id;
         const def = cardId ? tryGetDefinition(cardId) : undefined;
         return def?.name ?? "";
+    },
+    // CR 709.4a / 715.5 — shared with `cards/castRestrictions.ts` so a
+    // name-keyed static and a name-keyed cast restriction cannot disagree
+    // about what an object is called.
+    hasChosenName(card: PermanentView, name: string): boolean {
+        return objectHasChosenName(card, name, tryGetDefinition);
     },
     getCounterCount(card: PermanentView, type: string): number {
         return card.counters?.[type] ?? 0;

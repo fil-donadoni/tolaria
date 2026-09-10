@@ -147,14 +147,17 @@ describe("the layout gate fails CLOSED on a shape it cannot read", () => {
         // `SplitHalf` field. Truncating it would produce a card that looks
         // playable and plays wrong — the invariant the whole module exists
         // for — so the card is refused instead.
+        // An INSTANT half, deliberately: a creature half would be refused by
+        // the CR 709.5 permanence loop above, which runs first — the fixture
+        // would then test that gate twice and this one not at all.
         const keyworded = splitCard([
             face({
                 name: "Left",
-                typeLine: "Creature — Bear",
-                oracleText: "Flying",
+                oracleText: "Destroy target enchantment.\nFlashback {1}{G}",
             }),
             face({ name: "Right", manaCost: "{W}" }),
         ]);
-        expect(reasonsOf(keyworded)).not.toBe("(ready)");
+        expect(reasonsOf(keyworded)).toContain("a SplitHalf cannot hold");
+        expect(reasonsOf(keyworded)).not.toContain("CR 709.5");
     });
 });

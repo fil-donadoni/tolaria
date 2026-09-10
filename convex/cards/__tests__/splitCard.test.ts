@@ -38,6 +38,9 @@ import {
 import { getColorsFromCost } from "../colors";
 import { manaValue } from "../../gre/constants";
 import type { SplitHalf } from "../types";
+import { isLegalNamedCard } from "../../gre/pendingChoiceSubmit";
+import type { PendingChoice } from "../../gre/state";
+import type { GameState } from "../../gre/state";
 
 const CARD = "Stand // Deliver";
 const LEFT = "Stand";
@@ -205,6 +208,28 @@ describe("two names, and not both (CR 709.4a)", () => {
         expect(hasName(card, RIGHT)).toBe(true);
         expect(hasName(card, CARD)).toBe(false);
         expect(hasName(card, "Boomerang")).toBe(false);
+    });
+
+    it("the SERVER refuses the combined name too — the gate matches the list", () => {
+        // A gate that accepted a name the button never offers is the exact
+        // asymmetry PR #3302 review finding 4 closed for Adventure. Reachable
+        // without a hand-crafted mutation: the Bot's `firstLegalRegisteredName`
+        // walks the registry filtered only by `isLegalNamedCard`.
+        const head = {
+            kind: "name-card",
+            playerId: "p1",
+            stackItemId: "s1",
+            step: 0,
+            choiceId: "c1",
+        } as unknown as PendingChoice;
+        const empty = {} as Pick<GameState, "stagedEntries">;
+        expect(isLegalNamedCard(empty, head, LEFT)).toBe(true);
+        expect(isLegalNamedCard(empty, head, RIGHT)).toBe(true);
+        expect(isLegalNamedCard(empty, head, CARD)).toBe(false);
+        // An ordinary card and an Adventure's alternative name are untouched.
+        expect(isLegalNamedCard(empty, head, "Boomerang")).toBe(true);
+        expect(isLegalNamedCard(empty, head, "Petty Theft")).toBe(true);
+        expect(isLegalNamedCard(empty, head, "Brazen Borrower")).toBe(true);
     });
 
     it("`hasName` still answers CR 715.5 and the ordinary one-name case", () => {

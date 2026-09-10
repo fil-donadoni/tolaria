@@ -33,7 +33,9 @@ import {
 import { castOptionAlternativeCosts } from "../castPermissions";
 import { NO_BOARD_LAYER_VIEW } from "../layers";
 import { getLegalActions } from "../rules";
+import { castProhibitionReason } from "../../cards/castRestrictions";
 import {
+    castAsSplitHalf,
     splitCastAltCostId,
     splitCastOptionsFor,
     revertSplitIdentity,
@@ -262,15 +264,17 @@ describe("CR 709.3b — on the stack only the chosen half exists", () => {
     });
 
     it("the stamp is idempotent — a re-walked commit cannot lose the parent", () => {
+        // The stamper DIRECTLY, not through the census: once the item carries
+        // the twin id, `castModeOf` resolves a definition with no
+        // `splitHalves` and never reaches a stamper at all, so a census call
+        // would pass on the lookup and leave `castAsSplitHalf`'s own guard
+        // unexercised.
         const state = position(1, 3);
         const item = pushHalf(state, "left");
-        applyCastModeCharacteristics(
-            NO_BOARD_LAYER_VIEW,
-            item,
-            splitCastAltCostId(STAND_DELIVER, "right")
-        );
+        castAsSplitHalf(item, "right");
         expect((item.card as { id?: string }).id).toBe(LEFT_ID);
         expect(item.splitHalfOf).toBe(STAND_DELIVER.id);
+        expect(item.types).toEqual(["Instant"]);
     });
 });
 
@@ -290,5 +294,119 @@ describe("CR 709.4 — off the stack the card is its halves combined again", () 
         const before = (card.card as { id?: string }).id;
         revertSplitIdentity(card);
         expect((card.card as { id?: string }).id).toBe(before);
+    });
+});
+
+describe("outside the HAND a split card offers no cast (CR 709.3, review finding 1)", () => {
+    /** The same board, with the split card in `zone` instead of the hand and
+     *  `permission` on p1's battlefield — the shipped permissions that make a
+     *  non-hand card castable at all. */
+    function inZone(zone: "graveyard" | "library", permission: string) {
+        const state = position(1, 3);
+        const p1 = state.players[0];
+        const card = p1.hand.splice(0, 1)[0];
+        card.zone = zone;
+        if (zone === "graveyard") p1.graveyard.push(card);
+        else p1.library.unshift(card);
+        p1.battlefield.push(
+            makeInstance(permission, {
+                id: "permission",
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        return { state, card };
+    }
+
+    it("Yawgmoth's Will does NOT offer a graveyard cast of a split card", () => {
+        // Every non-hand branch prices the CR 709.4b SUMMED cost, which no
+        // announcement can pay — `announceCast` refuses a printed-cost
+        // announcement outright. Offering it is an affordance whose every
+        // click is a guaranteed rejection, so the gate fails CLOSED.
+        const { state, card } = inZone(
+            "graveyard",
+            getCardByName("Yawgmoth's Will").id
+        );
+        expect(getLegalActions(state, state.players[0], card)).not.toContain(
+            "cast"
+        );
+        // The premise: the SAME permission does license an ordinary card from
+        // the same graveyard, so this is a split-specific refusal and not an
+        // inert fixture.
+        const ordinary = makeInstance(getCardByName("Boomerang").id, {
+            id: "boomerang",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        state.players[0].graveyard.push(ordinary);
+        expect(getLegalActions(state, state.players[0], ordinary)).toContain(
+            "cast"
+        );
+    });
+
+    it("Bolas's Citadel does NOT offer a library-top cast of a split card", () => {
+        const { state, card } = inZone(
+            "library",
+            getCardByName("Bolas's Citadel").id
+        );
+        expect(getLegalActions(state, state.players[0], card)).not.toContain(
+            "cast"
+        );
+    });
+});
+
+describe("a cast PROHIBITION is asked of the HALF (CR 601.3a / 709.3b)", () => {
+    /** p2's Meddling Mage, having named `named`. */
+    function withMage(named: string): GameState {
+        const state = position(1, 3);
+        const mage = makeInstance(getCardByName("Meddling Mage").id, {
+            id: "mage",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        mage.chosenName = named;
+        state.players[1].battlefield.push(mage);
+        return state;
+    }
+
+    const optionsLegalUnder = (state: GameState): string[] =>
+        independentCastOptionsFor(handCard(state))
+            .filter(
+                (alt) =>
+                    castProhibitionReason(
+                        "p1",
+                        castSubjectView(handCard(state), alt.id),
+                        state
+                    ) === undefined
+            )
+            .map((alt) => alt.id);
+
+    it("naming ONE half locks that half and leaves the other castable", () => {
+        // CR 709.4a — the two half names are the only ones a player may
+        // choose, so if naming one locked neither (or both) the card would be
+        // unlockable (or unplayable) by Meddling Mage entirely.
+        const named = withMage("Deliver");
+        expect(optionsLegalUnder(named)).toEqual([
+            splitCastAltCostId(STAND_DELIVER, "left"),
+        ]);
+        expect(
+            getLegalActions(named, named.players[0], handCard(named))
+        ).toContain("cast");
+    });
+
+    it("naming the OTHER half locks the other one — the discriminating pair", () => {
+        const named = withMage("Stand");
+        expect(optionsLegalUnder(named)).toEqual([
+            splitCastAltCostId(STAND_DELIVER, "right"),
+        ]);
+    });
+
+    it("naming the COMBINED string locks nothing (CR 709.4a)", () => {
+        // Not a name a player may choose at all — `getChooseableCardNames`
+        // never offers it and the submit gate refuses it — so a board that
+        // somehow carried it must not lock a half either.
+        const named = withMage("Stand // Deliver");
+        expect(optionsLegalUnder(named)).toHaveLength(2);
     });
 });

@@ -398,8 +398,18 @@ export function useHandCardCommit(
             // them to "the permission's own" would leave the picker empty and
             // the card uncastable. A permission that licenses a cast is always
             // itself in `affordableAlts` (`castOptionAlternativeCosts` emits
-            // it), so its presence is what distinguishes the two cases, and
-            // the client infers nothing the server did not already say.
+            // it), so its presence is what distinguishes the two cases.
+            //
+            // What it does NOT distinguish is a card where BOTH are true — a
+            // split card under a covering permission. Unreachable by
+            // construction today (the only shipped permission, Aluren, covers
+            // creature spells, and a split card with a creature half has a
+            // PERMANENT face, which is CR 709.5 and out of scope) and
+            // unmodelled if one ever ships: CR 118.9a allows one alternative
+            // cost per spell, and a permission that waives the cost carries
+            // no way to say WHICH half was announced. `announceCast` refuses
+            // such an announcement either way, so this fails closed rather
+            // than wrong. tracked-by: #3345
             const permissionRestricted =
                 !printedCostAvailable &&
                 affordableAlts.some((alt) => isCastPermissionAltCostId(alt.id));

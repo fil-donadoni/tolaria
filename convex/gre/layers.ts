@@ -10,6 +10,7 @@
 // scopes/filters to maintain.
 
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
+import { objectHasChosenName } from "../cards/cardNames";
 import { declaresLayer7StaticEffect } from "../cards/registry";
 import { tryGetEmblemDefinition } from "../cards/emblems";
 import { getEffectiveColors } from "../cards/effectiveColors";
@@ -180,6 +181,12 @@ export const STATIC_EFFECT_CTX: StaticEffectContext = {
             if (typeof v === "number") total += v;
         }
         return total;
+    },
+    // CR 709.4a / 715.5 — shared with `cards/castRestrictions.ts` so a
+    // name-keyed static and a name-keyed cast restriction cannot disagree
+    // about what an object is called.
+    hasChosenName(card: PermanentView, name: string): boolean {
+        return objectHasChosenName(card, name, tryGetDefinition);
     },
     getCounterCount(card: PermanentView, type: string): number {
         // CR 122.1 — mirrors `SpellContext.getCounterCount` (state.ts) for

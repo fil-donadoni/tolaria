@@ -1841,11 +1841,22 @@ export function enumerateCastMoves(
     // replaced — so modes, kickers, buyback, additional-cost legs, X and target
     // groups are all the machinery the printed branch already has, never a
     // parallel copy that can drift (the `lifeInsteadOfMana` precedent).
-    const permissionMoves = castPermissionAltCosts(
-        state,
-        player.id,
-        card,
-        castFromZone
+    //
+    // CR 709.3 / 118.9a (ADR 0121) — a SPLIT card is skipped here entirely.
+    // The rewrite below stamps the PERMISSION's id onto every Move the
+    // re-entered builder produced, and for a split card those are the two
+    // half casts: the result names a permission cast with no way to say WHICH
+    // half, which `announceCast` refuses — the #2283/#2284 freeze shape.
+    // Unreachable today (Aluren covers creature spells; a split card with a
+    // creature half has a permanent face, CR 709.5, out of scope) and
+    // unmodelled if one ever ships. tracked-by: #3345
+    const permissionMoves = (
+        offersPrintedCast(
+            tryGetDefinition((card.card as { id?: string }).id ?? "") ??
+                undefined
+        )
+            ? castPermissionAltCosts(state, player.id, card, castFromZone)
+            : []
     ).flatMap((alt) =>
         enumerateCastMovesFromZone(state, player, card, {
             ...opts,

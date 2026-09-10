@@ -1214,9 +1214,17 @@ export const meddlingMage: CardDefinition = {
             // choice is mandatory (CR 614.12) and raised on every entry path
             // (#2467), so `chosenName` is set the instant the Mage exists; the
             // `undefined` guard is defensive, not a documented gap.
+            //
+            // CR 709.4a — `hasChosenName`, never `getName(spell) === chosen`:
+            // a split card has TWO names, and the name a player may choose is
+            // one of those two (never the combined string). The spell this
+            // scan sees is the announced SUBJECT — for a split card that is
+            // the half being cast (CR 709.3b) — so naming "Wane" locks Wane
+            // and leaves Wax castable, and an equality on the parent's
+            // combined name would have locked neither.
             forbids: (_caster, spell, source, _state, ctx) =>
                 source.chosenName !== undefined &&
-                ctx.getName(spell) === source.chosenName,
+                ctx.hasChosenName(spell, source.chosenName),
         },
     ],
 };

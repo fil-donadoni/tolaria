@@ -7138,6 +7138,12 @@ export interface StaticEffectContext {
      *  Akron Legionnaire's "Except for creatures named Akron Legionnaire ...".
      *  Returns `""` when the card id is unknown. */
     getName: (card: PermanentView) => string;
+    /** CR 709.4a — "an object has the chosen name if ONE of its names is the
+     *  chosen name." True when `name` is any of `card`'s names: its printed
+     *  one, an inset spell's alternative name (CR 715.5), or either half of a
+     *  split card. A restriction comparing `getName(card) === chosen` is
+     *  correct only for a one-name object — read this instead. */
+    hasChosenName: (card: PermanentView, name: string) => boolean;
     /** Number of counters of `type` on `card` (CR 122.1), read from
      *  `PermanentView.counters`. Returns 0 when the card carries no counters
      *  of that type. Mirrors `SpellContext.getCounterCount` (the DSL/spell

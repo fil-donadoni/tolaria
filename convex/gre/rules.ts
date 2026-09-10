@@ -796,6 +796,26 @@ export function getLegalActions(
         return actions;
     }
 
+    // CR 709.3 (ADR 0121) — a SPLIT card is cast ONE HALF AT A TIME, and the
+    // hand branch below is the only one that offers those halves: every other
+    // cast branch (flashback, escape, Yawgmoth's Will, madness, retrace, the
+    // free exile cast, Bolas's Citadel's library top, …) judges affordability
+    // against `getInstanceManaCost`, i.e. the CR 709.4b SUMMED cost that no
+    // announcement can pay — and `announceCast` then refuses the printed
+    // announcement outright. Left standing, those branches surfaced a "cast"
+    // affordance whose every click is a guaranteed mutation rejection (PR
+    // review finding 1: Wax // Wane in a graveyard under Yawgmoth's Will).
+    //
+    // Fail CLOSED here, once, rather than at ten branches: outside the hand a
+    // split card offers no cast at all. That is a MISSING capability — casting
+    // a half from a graveyard or a library top, which needs its own reading of
+    // how each permission's cost (Bolas's Citadel pays life equal to the
+    // COMBINED mana value, CR 709.4b) meets CR 709.3 — and not a wrong one.
+    // tracked-by: #3344
+    if (card.zone !== "hand" && !offersPrintedCast(cardDefinitionOf(card))) {
+        return actions;
+    }
+
     const types = card.types;
 
     // "Play" is for lands only — requires sorcery timing (main phase, empty stack, active player)
@@ -1352,7 +1372,22 @@ export function getLegalActions(
                     state,
                     caster,
                     castSubjectView(card, alt.id)
-                )
+                ) &&
+                // CR 601.3a / 709.3b / 715.3b — the prohibition scan reads
+                // the announced SUBJECT, not the card. A cast restriction
+                // keyed on a NAME (Meddling Mage) or on a card TYPE (Brand of
+                // Ill Omen) is a statement about the SPELL, and the spell an
+                // independent option puts on the stack is the half: "while on
+                // the stack, only the characteristics of the half being cast
+                // exist." Naming "Wane" must lock Wane and leave Wax
+                // castable, and naming "Petty Theft" must lock the Adventure
+                // and leave the 3/1 creature castable — asking the parent
+                // locked neither.
+                castProhibitionReason(
+                    caster.id,
+                    castSubjectView(card, alt.id),
+                    state
+                ) === undefined
         );
         // The PRINTED cast's own conjunction, unchanged. The independent
         // options are OR'd in below, never folded into it.
@@ -1471,12 +1506,17 @@ export function getLegalActions(
         if (
             (printedCastLegal || independentCastLegal) &&
             // CR 601.3a / CR 715.2c — the whole-card gates, shared by both
-            // options: a cast prohibition and a phase restriction are stated
+            // options: a phase restriction and an additional cost are stated
             // about the CARD, and one card is one card. `printedCastLegal`
             // already carries them; re-asserting them here is what keeps the
-            // Adventure leg from bypassing them, and they are idempotent.
+            // independent legs from bypassing them, and they are idempotent.
+            //
+            // The cast PROHIBITION is deliberately NOT among them any more: it
+            // is a statement about the SPELL, so each leg now asks it of its
+            // own subject (see the independent leg above). Re-asserting it
+            // here would put the parent's combined name and type line back in
+            // front of every half.
             passesCastPhaseRestriction(state, card) &&
-            castProhibitionReason(caster.id, card, state) === undefined &&
             hasPayableAdditionalCost(caster, card)
         ) {
             actions.push("cast");
@@ -1505,6 +1545,13 @@ export function getLegalActions(
  *  game.ts) so a `colors` filter (Natural Order's "a green creature") reads the
  *  same colour the rest of the engine sees. Cards with no additional cost are
  *  unaffected. */
+/** `card`'s registry definition, or `undefined` — the one-line form the zone
+ *  gates above need before any branch has resolved one. */
+function cardDefinitionOf(card: CardInstanceState): CardDefinition | undefined {
+    const cardId = (card.card as { id?: string }).id;
+    return (cardId ? tryGetDefinition(cardId) : undefined) ?? undefined;
+}
+
 function hasPayableAdditionalCost(
     player: PlayerState,
     card: CardInstanceState

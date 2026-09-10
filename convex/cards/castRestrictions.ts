@@ -15,6 +15,7 @@
 // it carries no per-instance flag and auto-reverts when the source leaves play.
 
 import { getInstanceManaCost, tryGetDefinition } from ".";
+import { objectHasChosenName } from "./cardNames";
 import { getEffectiveColors } from "./effectiveColors";
 import { matchesPermanentFilter } from "./filters";
 import type { MatchablePermanent } from "./filters";
@@ -75,6 +76,13 @@ export const CAST_RESTRICTION_CTX: StaticEffectContext = {
         const cardId = (card.card as { id?: string }).id;
         const def = cardId ? tryGetDefinition(cardId) : undefined;
         return def?.name ?? "";
+    },
+    // CR 709.4a / 715.5 — every name the object HAS, not the one string a
+    // definition happens to print. Shared with the other two contexts
+    // (`attackRestrictions.ts`, `gre/layers.ts`), so a name-keyed restriction
+    // and a name-keyed static cannot disagree about what an object is called.
+    hasChosenName(card: PermanentView, name: string): boolean {
+        return objectHasChosenName(card, name, tryGetDefinition);
     },
     getCounterCount(card: PermanentView, type: string): number {
         return card.counters?.[type] ?? 0;
