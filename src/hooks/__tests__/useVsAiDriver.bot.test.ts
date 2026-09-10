@@ -515,6 +515,52 @@ describe("useVsAiDriver (issue #110)", () => {
         ]);
     });
 
+    it("a difficulty switched AFTER mount reaches the next search, without a remount", async () => {
+        // The staleness this guards (issue #2790 review): `getStoredDifficulty`
+        // reads localStorage, which is NOT a reactive input, so a difficulty
+        // consulted during render — in a hook argument or inside a `useMemo` —
+        // freezes at whatever the last recomputation saw. The gate therefore
+        // lives at the SEARCH SITE, beside `budgetFor`, which already reads the
+        // same value the same way. This test is what proves the two agree: the
+        // driver mounts on the default preset, searches blind, then the stored
+        // value flips to `expert` with the component instance untouched, and
+        // the NEXT search must carry the human seat.
+        seatDecks[BOT] = {
+            playerId: BOT,
+            cards: [{ cardId: MOUNTAIN, cardName: "Mountain" }],
+        };
+        seatDecks[HUMAN] = {
+            playerId: HUMAN,
+            cards: [{ cardId: BEARS, cardName: "Grizzly Bears" }],
+        };
+        currentState = botStateWithLibrary(2);
+        const { rerender } = renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+
+        const blind = searchAdapterCalls();
+        expect(blind.length).toBeGreaterThan(0);
+        expect(blind[0].deckKnowledge).toEqual([
+            { playerId: BOT, cardIds: [MOUNTAIN] },
+        ]);
+
+        // Same mounted hook, new stored preset, a fresh state version so the
+        // driver has something to think about again.
+        storeDifficulty("expert");
+        adapterCalls.length = 0;
+        // A NEW state version: the driver keys "have I already answered this?"
+        // on the seq, so re-driving the same one is a no-op by design.
+        currentState = { ...botStateWithLibrary(2), seq: 2 };
+        rerender();
+        await settleDriver();
+
+        const informed = searchAdapterCalls();
+        expect(informed.length).toBeGreaterThan(0);
+        expect(informed[0].deckKnowledge).toEqual([
+            { playerId: BOT, cardIds: [MOUNTAIN] },
+            { playerId: HUMAN, cardIds: [BEARS] },
+        ]);
+    });
+
     it("passes on the bot seat when the bot holds priority with no other move", async () => {
         currentState = botState({ priorityPlayerId: BOT });
         renderHook(() => useVsAiDriver(GAME, BOT));

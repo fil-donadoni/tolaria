@@ -228,44 +228,58 @@ export function useVsAiDriver(
     // `getSeatDeck`'s ownership gate admits it exactly as it does the bot's
     // own lookup above — no new authorisation surface, and a real 2-player
     // game never mounts this hook at all (it runs no Brain, see the module
-    // header). Whether this seat's cards actually reach the search is gated
-    // below, by difficulty alone — fetching it eagerly here just avoids a
-    // second round trip once `expert` is selected mid-render.
+    // header).
+    //
+    // This subscription is UNCONDITIONAL, one extra `getSeatDeck` per vs-AI
+    // game whatever the difficulty, and that is deliberate: the difficulty
+    // gate lives at the SEARCH SITE (below, beside `budgetFor`), because
+    // `getStoredDifficulty` reads localStorage and localStorage is not a
+    // reactive input — a difficulty read during render, whether in a hook
+    // argument or inside a `useMemo`, is frozen at whatever the last
+    // recomputation saw. So the map has to be READY before the gate is
+    // consulted, which means fetching both seats and choosing between them
+    // at the moment of use.
     const humanId = botState?.players.find((p) => p.id !== botId)?.id ?? null;
     const humanDeck = useQuery(
         api.game.getSeatDeck,
         humanId ? { gameId, playerId: humanId } : "skip"
     );
     // Per-seat deck knowledge (issue #2788, generalised to two seats by
-    // #2790). The bot's OWN seat is populated unconditionally (issue #1509,
-    // unrelated to difficulty — a bot always knows its own decklist); the
-    // HUMAN seat is populated only at `expert` (`knowsOpponent`,
-    // `convex/gre/difficulty.ts`), so `easy`/`medium`/`hard` stay on the
-    // blind/placeholder path for the opponent, exactly as `getSeatDeck`'s
-    // ownership gate (`seatBelongsToUser`, `convex/game.ts`) already enforces
-    // server-side regardless.
+    // #2790), pre-computed in BOTH shapes so the difficulty gate at the search
+    // site is a choice between two ready values rather than a render-time read
+    // of mutable storage:
+    //
+    //   `blind`    — the bot's OWN seat only (issue #1509, unrelated to
+    //                difficulty: a bot always knows its own decklist). This is
+    //                byte-for-byte what `easy`/`medium`/`hard` fed the search
+    //                before this issue.
+    //   `informed` — plus the human seat, which only `expert` ever receives
+    //                (`knowsOpponent`, `convex/gre/difficulty.ts`).
+    //
+    // `getSeatDeck`'s ownership gate (`seatBelongsToUser`, `convex/game.ts`)
+    // enforces the seat rule server-side regardless of which shape is chosen.
     const deckKnowledge = useMemo(() => {
         // `null` when the seat has no decklist row (or the caller does not own
         // the seat) — deckKnowledge stays undefined and the search falls back
         // to the placeholder library, exactly as it did before issue #1509.
         if (!botId || !botDeck?.cards) return undefined;
-        const knowledge = [
+        const blind = [
             {
                 playerId: botId,
                 cardIds: botDeck.cards.map((c) => c.cardId),
             },
         ];
-        if (
-            knowsOpponent(getStoredDifficulty()) &&
-            humanId &&
-            humanDeck?.cards
-        ) {
-            knowledge.push({
-                playerId: humanId,
-                cardIds: humanDeck.cards.map((c) => c.cardId),
-            });
-        }
-        return knowledge;
+        if (!humanId || !humanDeck?.cards) return { blind, informed: blind };
+        return {
+            blind,
+            informed: [
+                ...blind,
+                {
+                    playerId: humanId,
+                    cardIds: humanDeck.cards.map((c) => c.cardId),
+                },
+            ],
+        };
     }, [botDeck, botId, humanDeck, humanId]);
     const [thinking, setThinking] = useState(false);
     // Rung 5's banner, stored WITH the state version it belongs to so the
@@ -883,7 +897,16 @@ export function useVsAiDriver(
             // preset (persisted in localStorage) maps to the search budget. The
             // server move path is untouched — this only tunes how hard the
             // client-side brain thinks.
-            const budget = budgetFor(getStoredDifficulty());
+            // ONE read of the stored difficulty, at the moment of use, for
+            // both knobs a preset now carries (issue #2790): the search budget
+            // and the opponent-knowledge mode. Reading it here rather than
+            // during render is what keeps the two in step — see the
+            // `deckKnowledge` memo above.
+            const difficulty = getStoredDifficulty();
+            const budget = budgetFor(difficulty);
+            const knowledge = knowsOpponent(difficulty)
+                ? deckKnowledge?.informed
+                : deckKnowledge?.blind;
             // The version the SEARCH is about to run on. Captured before the
             // consult, not read when it resolves: a search takes up to a full
             // difficulty budget plus Worker startup, and its verdict —
@@ -895,7 +918,7 @@ export function useVsAiDriver(
             dispatch(
                 signature,
                 () =>
-                    consultBrain(botState, botId, budget, deckKnowledge).then(
+                    consultBrain(botState, botId, budget, knowledge).then(
                         ({ move, trace, outcome, via, message }) => {
                             // Surface the reasoning to the Debug panel (client-only).
                             setLatestAiTrace(trace);
