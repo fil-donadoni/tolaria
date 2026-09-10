@@ -1215,7 +1215,7 @@ function sacrificePermanentsIsSearchable(choice: PendingChoice): boolean {
     return getPendingChoiceMax(choice.count) > 0;
 }
 
-/** `sacrifice-permanents` (CR 701.16), issue #3377.
+/** `sacrifice-permanents` (CR 701.21a), issue #3377.
  *
  *  Registered as an in-tree node for a reason that is NOT primarily about
  *  picking better victims: with no generator at all, `settleStackForBreakdown`
@@ -1363,7 +1363,7 @@ export const CHOICE_CANDIDATE_GENERATORS: Partial<
     // so a simultaneous-trigger batch is a node the search can DESCEND past
     // rather than a wall it leaf-scores at. See the generator's own header.
     "trigger-order": triggerOrderCandidates,
-    // CR 701.16 (issue #3377) — see `sacrificePermanentsCandidates`: without a
+    // CR 701.21a (issue #3377) — see `sacrificePermanentsCandidates`: without a
     // generator the settle cannot get past the suspended choice, so a probe
     // scores the entering body and never the sacrifice that pays for it.
     "sacrifice-permanents": sacrificePermanentsCandidates,

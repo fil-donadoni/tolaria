@@ -1,5 +1,5 @@
 /**
- * `sacrifice-permanents` is an in-tree choice node (CR 701.16, issue #3377).
+ * `sacrifice-permanents` is an in-tree choice node (CR 701.21a, issue #3377).
  *
  * Before this it had no candidate generator at all, which cost more than a
  * worse victim pick: `settleStackForBreakdown` cannot get past a suspended
