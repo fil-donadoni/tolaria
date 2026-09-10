@@ -1,9 +1,18 @@
 ---
 title: "sacrifice-permanents" pending choices have no in-tree ISMCTS candidate generator
 discoveredBy: 2373
-status: draft
+status: triaged
+issue: 3377
 confidence: medium
 ---
+
+> **Closed by PR #3389 (issue #3377).** `sacrifice-permanents` is a registered
+> generator: the pool goes through the same allow-list and
+> `matchesPermanentFilter` gates `pendingChoiceSubmit` enforces, distinct SETS
+> are deduped by `stableSetIdentity`, and an OPTIONAL (`min: 0`) choice keeps
+> the decline branch this finding asked for — without it the registration would
+> have flipped the gap's sign rather than closing it. `choose-permanents`, the
+> sibling named below, is still unregistered.
 
 **What is wrong.** `CHOICE_CANDIDATE_GENERATORS` (`convex/gre/ai/
 choiceCandidates.ts`) — the registry that turns a live `PendingChoice` into an
