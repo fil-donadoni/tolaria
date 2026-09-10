@@ -2,15 +2,22 @@ import type { Color } from "../cards/types";
 import {
     getActivatedManaAbility,
     getManaChoiceCounterCost,
+    getManaTapOptionManaCost,
     getManaTapOptionRestriction,
     getManaTapOptionsDetailed,
     isTapLockedBySummoningSickness,
+    manaTapOptionCarriesSoughtRider,
     manaTapOptionSpendsUnplannedResource,
     MANA_COLORS,
     normalizedHybridPips,
 } from "./constants";
+import type { ManaTapPlanContext } from "./constants";
 import type { CardInstanceState } from "./state";
-import { isManaCostCovered, type ManaSubstitution } from "./state";
+import {
+    isManaCostCovered,
+    normalizeManaCost,
+    type ManaSubstitution,
+} from "./state";
 import { extraTapManaForOption } from "./tapManaBonus";
 
 /**
@@ -45,14 +52,39 @@ export type ManaContribution = Partial<Record<Color, number>>;
  */
 export type AutoTapSource = {
     cardId: string;
-    options: { manaChoiceIndex?: number; mana: ManaContribution }[];
+    options: {
+        manaChoiceIndex?: number;
+        mana: ManaContribution;
+        /** CR 601.2f / 605.1a (issue #3384) — the option's OWN normalized mana
+         *  leg (Arena of Glory's "{R}" before its "{T}, Exert"). Present only
+         *  for an option `buildAutoTapSources` was given a context to admit:
+         *  every solver here refuses to tap it until an EARLIER step in the
+         *  same plan has floated what it needs, and nets it out of the pool —
+         *  which is exactly the sequence `tapSourceIntoPayment` then executes,
+         *  paying through `applyManaAbilityManaCost`. Absent = free option. */
+        cost?: Record<string, number>;
+        /** CR 609.4b — the substitutions the ABILITY payment will see for this
+         *  option's own `cost` (`ManaTapPlanContext.abilityManaSubstitutions`),
+         *  never the surrounding cast's set. Empty when the caller supplied
+         *  none: the leg then has to be payable with no substitution at all,
+         *  which can only under-admit. */
+        costSubstitutions?: ManaSubstitution[];
+        /** CR 106.6 (issue #3384) — this option's mana carries the rider the
+         *  plan context was reaching for (Arena of Glory's haste on a creature
+         *  spell). Ranked above an equal-tap-count plan without it. */
+        soughtRider?: boolean;
+    }[];
 };
 
 /** Ordered list of taps to perform (card + chosen mana option). */
 export type AutoTapPlan = { cardId: string; manaChoiceIndex?: number }[];
 
 /** Total the mana an executed {@link AutoTapPlan} adds to the pool, summed over
- *  each tapped source's chosen option (CR 605.1a). Pairs `solveSmartAutoTap` /
+ *  each tapped source's chosen option (CR 605.1a). Gross, not net: it is for
+ *  the callers that tap sources STRAIGHT into a pool rather than through
+ *  `tapSourceIntoPayment`, and those callers pass no `ManaTapPlanContext` to
+ *  `buildAutoTapSources`, so no option carrying its own `cost` can reach them
+ *  (issue #3384). A future opt-in caller of this helper owes the netting. Pairs `solveSmartAutoTap` /
  *  `solveAutoTap` with a way to apply the plan when the caller taps sources
  *  directly into a pool rather than through the per-click payment mutation —
  *  used by a controlled cast (Word of Command) auto-tapping the opponent's
@@ -164,7 +196,8 @@ export function buildAutoTapSources(
     battlefields?: ReadonlyArray<{
         playerId: string;
         battlefield: readonly CardInstanceState[];
-    }>
+    }>,
+    context?: ManaTapPlanContext
 ): AutoTapSource[] {
     const sources: AutoTapSource[] = [];
     for (const card of battlefield) {
@@ -239,26 +272,68 @@ export function buildAutoTapSources(
         // Indices are kept against the FULL unified `options` list — the same
         // list `tapSourceIntoPayment` / `resolveManaTapChoice` resolve
         // `manaChoiceIndex` against — so filtering never renumbers them.
+        // CR 106.6 (issue #3384) — `context` is what turns the third exclusion
+        // from unconditional into a statement about THIS plan: paying for a
+        // creature spell, Arena of Glory's exert option is the one the plan is
+        // reaching for, so it is admitted with its own mana leg attached.
         const usable = options
             .map((opt, index) => ({ opt, index }))
             .filter(
                 ({ opt }) =>
                     getManaTapOptionRestriction(card, opt.source) === null &&
                     getManaChoiceCounterCost(card, opt.source) === null &&
-                    !manaTapOptionSpendsUnplannedResource(card, opt.source)
+                    !manaTapOptionSpendsUnplannedResource(
+                        card,
+                        opt.source,
+                        context
+                    )
             );
         if (usable.length === 0) continue; // wholly restricted: leave manual
         sources.push({
             cardId: card.id,
-            options: usable.map(({ opt, index }) => ({
-                ...(needsIndex ? { manaChoiceIndex: index } : {}),
-                mana: withTapBonus(battlefield, card, toContribution(opt.mana)),
-            })),
+            options: usable.map(({ opt, index }) => {
+                const manaLeg = getManaTapOptionManaCost(card, opt.source);
+                const normalized = manaLeg
+                    ? normalizeManaCost(manaLeg)
+                    : undefined;
+                return {
+                    ...(needsIndex ? { manaChoiceIndex: index } : {}),
+                    mana: withTapBonus(
+                        battlefield,
+                        card,
+                        toContribution(opt.mana)
+                    ),
+                    ...(normalized && Object.keys(normalized).length > 0
+                        ? {
+                              cost: normalized,
+                              costSubstitutions:
+                                  context?.abilityManaSubstitutions ?? [],
+                          }
+                        : {}),
+                    ...(manaTapOptionCarriesSoughtRider(
+                        card,
+                        opt.source,
+                        context
+                    )
+                        ? { soughtRider: true as const }
+                        : {}),
+                };
+            }),
         });
     }
 
     // Restricted-first: single-option sources before multi-option ones.
-    sources.sort((a, b) => a.options.length - b.options.length);
+    // CR 601.2g (issue #3384) — and COSTED-last within that, because the DFS
+    // walks sources once in this order: a source whose option must be funded by
+    // another tap has to come after its funder, or the only feasible ordering
+    // is never enumerated.
+    const hasCostedOption = (src: AutoTapSource): number =>
+        src.options.some((opt) => opt.cost) ? 1 : 0;
+    sources.sort(
+        (a, b) =>
+            hasCostedOption(a) - hasCostedOption(b) ||
+            a.options.length - b.options.length
+    );
     return sources;
 }
 
@@ -287,6 +362,91 @@ function addContribution(
         if (v) next[color] = (next[color] ?? 0) + v;
     }
     return next;
+}
+
+/** CR 601.2g / 609.4b — spend `cost` out of `pool`: exact colour first, then a
+ *  substitution, then the generic remainder from whatever is left. The single
+ *  arithmetic both `floatingAfterPlan` (what a plan leaves floating) and the
+ *  per-option cost legs below (what an option's activation takes) read, so the
+ *  two can never disagree about which pool paid which pip. Caller has already
+ *  confirmed coverage — an uncovered pip simply leaves the pool unchanged for
+ *  that pip, which is why {@link applyOption} checks coverage first. */
+function poolAfterSpending(
+    pool: Record<string, number>,
+    cost: Record<string, number>,
+    substitutions: ManaSubstitution[]
+): Record<string, number> {
+    const remaining = { ...pool };
+    for (const color of MANA_COLORS) {
+        let required = cost[color] ?? 0;
+        if (required <= 0) continue;
+        const direct = Math.min(remaining[color] ?? 0, required);
+        remaining[color] = (remaining[color] ?? 0) - direct;
+        required -= direct;
+        for (const sub of substitutions) {
+            if (required <= 0) break;
+            if (sub.to !== color) continue;
+            const take = Math.min(remaining[sub.from] ?? 0, required);
+            remaining[sub.from] = (remaining[sub.from] ?? 0) - take;
+            required -= take;
+        }
+    }
+    let generic = cost.X ?? 0;
+    for (const color of MANA_COLORS) {
+        if (generic <= 0) break;
+        const take = Math.min(remaining[color] ?? 0, generic);
+        remaining[color] = (remaining[color] ?? 0) - take;
+        generic -= take;
+    }
+    return remaining;
+}
+
+/** CR 601.2g / 605.1a (issue #3384) — the pool after tapping `opt` at this
+ *  point in a plan, or `null` when the option cannot legally be tapped yet: its
+ *  own mana leg is not covered by what the plan has floated SO FAR. Returning
+ *  null is what forces the funding tap to come first in plan ORDER — the same
+ *  order `tapSourceIntoPayment` replays, where `applyManaAbilityManaCost`
+ *  would otherwise throw "Not enough mana to activate this ability" and roll
+ *  the whole mutation back. A free option (no `cost`) is a plain add. */
+function applyOption(
+    pool: Record<string, number>,
+    opt: AutoTapSource["options"][number]
+): Record<string, number> | null {
+    if (!opt.cost) return addContribution(pool, opt.mana);
+    // CR 609.4b — the option's own leg is an ACTIVATION cost, so it is judged
+    // with the substitutions its own payment will see, NOT with the plan's
+    // (which for a cast carries cast-scoped permissions a mana ability never
+    // gets). The plan's own set governs everything the plan is paying FOR.
+    const costSubs = opt.costSubstitutions ?? [];
+    if (!isManaCostCovered(pool, opt.cost, costSubs)) return null;
+    return addContribution(
+        poolAfterSpending(pool, opt.cost, costSubs),
+        opt.mana
+    );
+}
+
+/** CR 106.6 (issue #3384) — how many steps of a plan take an option whose mana
+ *  carries the rider the plan context was reaching for. Ranked by
+ *  `solveSmartAutoTapCore`; always 0 when no caller supplied a context, since
+ *  no option is then flagged. */
+export function planSoughtRiders(
+    sources: AutoTapSource[],
+    plan: AutoTapPlan
+): number {
+    const byId = new Map(sources.map((src) => [src.cardId, src]));
+    let count = 0;
+    for (const step of plan) {
+        const src = byId.get(step.cardId);
+        if (!src) continue;
+        const opt =
+            step.manaChoiceIndex !== undefined
+                ? src.options.find(
+                      (o) => o.manaChoiceIndex === step.manaChoiceIndex
+                  )
+                : src.options[0];
+        if (opt?.soughtRider) count += 1;
+    }
+    return count;
 }
 
 /** True if tapping this option would advance an as-yet-unmet colored
@@ -365,9 +525,13 @@ export function solveAutoTap(
 
         // Prefer tapping this source (in option order) over skipping it.
         for (const opt of ordered) {
+            // CR 601.2g (issue #3384) — an option with its own mana leg is
+            // tappable only once an EARLIER step floated what it costs.
+            const nextPool = applyOption(trialPool, opt);
+            if (nextPool === null) continue;
             const result = dfs(
                 index + 1,
-                addContribution(trialPool, opt.mana),
+                nextPool,
                 [
                     ...chosen,
                     {
@@ -453,6 +617,27 @@ export const W_SURPLUS = 100;
  *  (800) stays strictly below `W_PRESERVED_DEMAND` (1000). */
 export const SURPLUS_CAP = 8;
 
+/** CR 106.6 — weight of one plan step that obtains the rider the plan context
+ *  was reaching for (issue #3384: Arena of Glory's haste while paying for a
+ *  creature spell).
+ *
+ *  What this term has to beat is NOTHING, and what it has to lose to is
+ *  `W_SURPLUS`. A rider plan and the free-option plan it competes with tap the
+ *  SAME source set — the rider option differs from the free one only in netting
+ *  its own cost leg back out — so they leave the same sources untapped and the
+ *  same pool floating: `evalScore`, `demandScore` and `flex` tie by
+ *  construction, and only `surplus` and this term can separate them. Sitting
+ *  strictly below `W_SURPLUS` (100) is therefore the whole placement claim: a
+ *  plan is never steered into wasting a mana CR 500.5 is about to empty in
+ *  order to collect a rider. Far below `W_PRESERVED_DEMAND` (1000) for the same
+ *  reason a concrete future play outranks everything here. Deliberately NOT
+ *  justified against the eval's source-quality swing — that swing's own doc
+ *  (`W_SURPLUS` above) disclaims a bound for the uncapped mana-proxy term, and
+ *  a claim this term does not need is a claim that rots. Zero across plans when
+ *  no caller supplied a context, so the ranking is byte-identical for every
+ *  existing path. */
+export const W_SOUGHT_RIDER = 50;
+
 /** Smallest number of taps that covers `cost`, or `null` if uncoverable.
  *  Iterative deepening, identical contract to `solveAutoTap`'s budget loop. */
 function minimalTapCount(
@@ -509,7 +694,11 @@ function enumerateKTapPlans(
                 overflow = true;
                 return;
             }
-            dfs(index + 1, addContribution(trialPool, opt.mana), [
+            // CR 601.2g (issue #3384) — same ordering rule as `solveAutoTap`:
+            // a costed option is unreachable until the plan has funded it.
+            const nextPool = applyOption(trialPool, opt);
+            if (nextPool === null) continue;
+            dfs(index + 1, nextPool, [
                 ...chosen,
                 {
                     cardId: src.cardId,
@@ -563,33 +752,21 @@ export function floatingAfterPlan(
                       (o) => o.manaChoiceIndex === step.manaChoiceIndex
                   )
                 : src.options[0];
-        if (opt) remaining = addContribution(remaining, opt.mana);
+        // CR 601.2f (issue #3384) — a costed option's own mana leg comes back
+        // OUT of the pool before its output goes in, or the leftover (and the
+        // surplus / demand scoring built on it) reads mana the activation
+        // already spent. `applyOption` returns null only when the plan is
+        // infeasible, which the solvers have already excluded.
+        if (opt) {
+            remaining =
+                applyOption(remaining, opt) ??
+                addContribution(remaining, opt.mana);
+        }
     }
 
     // Spend the cost out of `remaining`: colored/colorless pips first (exact,
     // then substitutes), then the generic remainder from anything left.
-    for (const color of MANA_COLORS) {
-        let required = cost[color] ?? 0;
-        if (required <= 0) continue;
-        const direct = Math.min(remaining[color] ?? 0, required);
-        remaining[color] = (remaining[color] ?? 0) - direct;
-        required -= direct;
-        for (const sub of substitutions) {
-            if (required <= 0) break;
-            if (sub.to !== color) continue;
-            const take = Math.min(remaining[sub.from] ?? 0, required);
-            remaining[sub.from] = (remaining[sub.from] ?? 0) - take;
-            required -= take;
-        }
-    }
-    let generic = cost.X ?? 0;
-    for (const color of MANA_COLORS) {
-        if (generic <= 0) break;
-        const take = Math.min(remaining[color] ?? 0, generic);
-        remaining[color] = (remaining[color] ?? 0) - take;
-        generic -= take;
-    }
-    return remaining;
+    return poolAfterSpending(remaining, cost, substitutions);
 }
 
 /**
@@ -680,7 +857,16 @@ export function scorePreservedDemands(
     return score;
 }
 
-/** Distinct colors a source can produce across all its mana options. */
+/** Distinct colors a source can produce across all its mana options.
+ *
+ *  GROSS, like `manaFromPlan`: an option's own `cost` leg is not netted out
+ *  here, nor in `scorePreservedDemands`'s feasibility probe, so a costed option
+ *  credits its source with colours a Demand could only reach by paying that leg
+ *  under a context the Demand does not have. Unreachable today — the one
+ *  admitted shape (Arena of Glory) nets exactly what its free option produces,
+ *  so it can never make a Demand affordable the free option cannot — but a
+ *  second carrier whose costed option nets MORE would need these two to become
+ *  cost-aware, not just `applyOption` (issue #3384). */
 function sourceColorBreadth(source: AutoTapSource): number {
     const colors = new Set<Color>();
     for (const opt of source.options) {
@@ -883,8 +1069,14 @@ function solveSmartAutoTapCore(
             liveDemands
         );
         const surplus = planSurplus(pool, cost, substitutions, sources, plan);
+        // CR 106.6 (issue #3384) — among plans that tie on everything above,
+        // take the one that actually collects the rider the context asked for.
+        const riders = planSoughtRiders(sources, plan);
         const position =
-            evalScore + W_PRESERVED_DEMAND * demandScore - W_SURPLUS * surplus;
+            evalScore +
+            W_PRESERVED_DEMAND * demandScore -
+            W_SURPLUS * surplus +
+            W_SOUGHT_RIDER * riders;
         const flex = remainingFlexibility(sources, plan);
         const lex = planLexKey(plan);
         // Lexicographic on (position desc, flex desc, lex asc).
@@ -984,19 +1176,22 @@ export function solveAutoTapPartial(
             // Best option = the one that reduces the deficit the most.
             let bestOpt: AutoTapSource["options"][number] | undefined;
             let bestDeficit = deficit;
+            let bestPool = currentPool;
             for (const opt of src.options) {
-                const after = remainingDeficit(
-                    addContribution(currentPool, opt.mana),
-                    cost,
-                    substitutions
-                );
+                // CR 601.2g (issue #3384) — an unfunded costed option is not a
+                // candidate: the partial plan is EXECUTED, so a step the
+                // payment primitive would refuse must never enter it.
+                const next = applyOption(currentPool, opt);
+                if (next === null) continue;
+                const after = remainingDeficit(next, cost, substitutions);
                 if (after < bestDeficit) {
                     bestDeficit = after;
                     bestOpt = opt;
+                    bestPool = next;
                 }
             }
             if (!bestOpt) continue; // this source can't advance the cost
-            currentPool = addContribution(currentPool, bestOpt.mana);
+            currentPool = bestPool;
             plan.push({
                 cardId: src.cardId,
                 ...(bestOpt.manaChoiceIndex !== undefined

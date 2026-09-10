@@ -30,7 +30,12 @@ import { getDefinition, tryGetDefinition } from "../cards";
 // `{T}: Add …` (Urza's Saga chapter I) is visible to the auto-tap solver and
 // the castability probe exactly like a printed one.
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
-import type { CardInstanceState, GameState, PendingTarget } from "./state";
+import type {
+    CardInstanceState,
+    GameState,
+    ManaSubstitution,
+    PendingTarget,
+} from "./state";
 import type { ContinuousEffect } from "./continuousEffects";
 import { applySubstitution } from "./textChanges";
 import {
@@ -1839,6 +1844,68 @@ export function getManaTapOptionRestriction(
     return ability?.manaRestriction ?? null;
 }
 
+/** CR 601.2g / 106.6 — what an AUTOMATIC mana plan is being built FOR, so an
+ *  option carrying its own cost legs can be judged against the payment it is
+ *  meant to fund instead of being excluded unconditionally.
+ *
+ *  Empty / omitted is the conservative default every existing caller keeps: no
+ *  costed option is ever admitted, exactly as before this type existed. Only
+ *  the human payment path (`autoTapForPayment`, `convex/game.ts`) fills it in,
+ *  from the SAME `cardDef.types` the payment seam itself reads
+ *  (`payManaCostForSpell`) — so planner and payment agree about what the mana
+ *  is being spent on. The Bot's own planner is issue #3359 and passes nothing
+ *  yet, which is precisely why the default must stay exclusion. */
+export type ManaTapPlanContext = {
+    /** CR 106.6 / 702.103b — the cost being planned for belongs to a CREATURE
+     *  spell, so a creature-only mana rider (Arena of Glory's haste) is worth
+     *  reaching for. A BESTOWED cast is an Aura spell, not a creature spell, so
+     *  it is false there — the same gate `manaRiderStackStamps` applies when it
+     *  decides whether to stamp `dynamicHasteFromMana`, and the two must agree
+     *  or the plan pays an exert for a rider the stack item then discards. */
+    payingForCreatureSpell?: boolean;
+    /** CR 702.10b — the spell already HAS haste from its own text, so the rider
+     *  would buy nothing and the exert leg is a resource spent for free. */
+    spellAlreadyHasHaste?: boolean;
+    /** CR 609.4b — the substitutions an ABILITY payment will see when it pays a
+     *  planned option's own mana leg (`applyManaAbilityManaCost` →
+     *  `getAbilityManaSubstitutions`). It is NOT the set the surrounding cast is
+     *  planned with: a CAST-scoped permission (Robber of the Rich's exiled
+     *  card, a North Star one-shot grant) reaches the spell's total cost and not
+     *  a mana ability's activation cost, so validating the leg with the cast set
+     *  would admit a plan `applyManaAbilityManaCost` then refuses — the exact
+     *  planner/payment disagreement issue #3384 exists to remove. Omitted means
+     *  none: the leg must be payable with no substitution at all, which
+     *  under-admits and never over-admits. */
+    abilityManaSubstitutions?: ManaSubstitution[];
+};
+
+/** CR 106.6 — does this option's mana carry a rider the current plan is
+ *  actually reaching FOR? Only then may the planner spend the option's own
+ *  cost legs on the player's behalf: the exert / mana leg buys something the
+ *  payment would otherwise not get, rather than being a resource silently
+ *  taken. Today that is `manaHasteRider` under `payingForCreatureSpell`; a
+ *  rider whose condition the context cannot express answers false and the
+ *  option stays manual.
+ *
+ *  The mana leg must also be a shape the solver can fund — every entry a plain
+ *  number. A variable `X` cost has no value at plan time, so it is refused
+ *  here rather than planned at a price the payment primitive would reject. */
+function manaTapOptionRiderIsSought(
+    ability: ActivatedAbility,
+    context: ManaTapPlanContext | undefined
+): boolean {
+    if (!context?.payingForCreatureSpell) return false;
+    if (context.spellAlreadyHasHaste) return false;
+    if (!ability.manaHasteRider) return false;
+    const mana = ability.cost.mana;
+    if (mana) {
+        for (const value of Object.values(mana)) {
+            if (typeof value !== "number") return false;
+        }
+    }
+    return true;
+}
+
 /** True when the SPECIFIC option a `manaChoiceIndex` resolves to carries an
  *  activation-cost leg the AUTOMATIC planner must never pay on the player's
  *  behalf, beyond what `getManaTapOptionRestriction` / `getManaChoiceCounterCost`
@@ -1863,10 +1930,20 @@ export function getManaTapOptionRestriction(
  *
  *  Per-OPTION, not per-source, and indices are never renumbered: a card mixing
  *  a free ability with a costed one (Arena of Glory's plain "{T}: Add {R}")
- *  stays auto-tappable on the free option. */
+ *  stays auto-tappable on the free option.
+ *
+ *  CR 106.6 (issue #3384) — CONTEXT-AWARE, not unconditional: "a resource the
+ *  player must not have spent on their behalf" is a statement about the plan,
+ *  not about the option. When the plan is paying for a creature spell and the
+ *  option's mana carries the creature-only haste rider, the exert IS what the
+ *  plan is reaching for and the mana leg is fundable by an earlier tap in the
+ *  same plan, so the option is admitted (`manaTapOptionRiderIsSought` above).
+ *  With no context — every caller but the human payment path — the answer is
+ *  byte-identical to the unconditional one. */
 export function manaTapOptionSpendsUnplannedResource(
     card: CardInstanceState,
-    source: ManaTapOptionSource
+    source: ManaTapOptionSource,
+    context?: ManaTapPlanContext
 ): boolean {
     if (source.kind !== "activated") return false;
     const cardId = (card.card as { id?: string }).id;
@@ -1874,7 +1951,46 @@ export function manaTapOptionSpendsUnplannedResource(
         (a) => a.id === source.abilityId
     );
     if (!ability) return false;
-    return !!ability.cost.exertThis || ability.cost.mana !== undefined;
+    if (!ability.cost.exertThis && ability.cost.mana === undefined) {
+        return false;
+    }
+    return !manaTapOptionRiderIsSought(ability, context);
+}
+
+/** CR 106.6 — the option's own MANA leg (`ActivatedAbility.cost.mana`), or null
+ *  when it has none. The auto-tap solver reads it to plan a funding tap BEFORE
+ *  the costed option in the same plan, so `applyManaAbilityManaCost` finds the
+ *  pool it needs when the plan executes. Per-OPTION for the same reason
+ *  {@link manaTapOptionSpendsUnplannedResource} is. */
+export function getManaTapOptionManaCost(
+    card: CardInstanceState,
+    source: ManaTapOptionSource
+): ManaCost | null {
+    if (source.kind !== "activated") return null;
+    const cardId = (card.card as { id?: string }).id;
+    const ability = tryGetDefinition(cardId ?? "")?.activatedAbilities?.find(
+        (a) => a.id === source.abilityId
+    );
+    return ability?.cost.mana ?? null;
+}
+
+/** CR 106.6 — true when this option's mana carries a rider the supplied plan
+ *  context is reaching for (Arena of Glory's haste while paying for a creature
+ *  spell). The solver ranks a plan that obtains it above an equal-tap-count
+ *  plan that does not. False with no context, so every other caller is
+ *  unchanged. */
+export function manaTapOptionCarriesSoughtRider(
+    card: CardInstanceState,
+    source: ManaTapOptionSource,
+    context?: ManaTapPlanContext
+): boolean {
+    if (source.kind !== "activated") return false;
+    const cardId = (card.card as { id?: string }).id;
+    const ability = tryGetDefinition(cardId ?? "")?.activatedAbilities?.find(
+        (a) => a.id === source.abilityId
+    );
+    if (!ability) return false;
+    return manaTapOptionRiderIsSought(ability, context);
 }
 
 /** Counter cost (CR 122.6) carried by the SPECIFIC option a `getManaChoices`

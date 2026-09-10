@@ -421,6 +421,7 @@ import {
     manaValue,
     resolvePendingTargetKind,
 } from "./gre/constants";
+import type { ManaTapPlanContext } from "./gre/constants";
 import {
     validateAttackerEligibility,
     validateBlockerEligibility,
@@ -10617,9 +10618,41 @@ export const autoTapForPayment = mutation({
                             )
                           : undefined
                   );
+        // CR 106.6 (issue #3384) — the plan context: what this mana is about
+        // to be spent on. Read from the SAME `cardDef.types` the payment seam
+        // itself reads (`payManaCostForSpell`), so the planner and the payment
+        // settle the oracle's "spent on a creature spell" condition off one
+        // source of truth. It is what lets the solver reach a mana option whose
+        // own cost legs it must otherwise never spend — Arena of Glory's "{R},
+        // {T}, Exert this land: Add {R}{R}" and its haste rider. Absent for an
+        // activation payment or a bare auto-tap: no costed option is admitted
+        // there, exactly as before.
+        //
+        // CR 702.103b — a BESTOWED cast is an Aura spell, so the rider never
+        // fires on it: `manaRiderStackStamps` drops `dynamicHasteFromMana`
+        // there, and a planner that did not apply the same gate would pay the
+        // exert and the {R} for a stamp the stack item discards.
+        // CR 702.10b — and a spell that already HAS haste from its own text
+        // gains nothing, so the exert would again be spent for free.
+        const castDef = castCard
+            ? tryGetDefinition((castCard.card as { id?: string }).id ?? "")
+            : null;
+        const planContext: ManaTapPlanContext = {
+            payingForCreatureSpell:
+                !state.pendingCast?.bestowed &&
+                (castDef?.types.includes("Creature") ?? false),
+            spellAlreadyHasHaste:
+                castDef?.staticAbilities?.includes("haste") ?? false,
+            // CR 609.4b — an ACTIVATION cost sees the unscoped set, never the
+            // cast-scoped permissions `substitutions` above carries; a subset
+            // of what `getAbilityManaSubstitutions` will hand the payment, so
+            // the plan can under-admit a costed option but never over-admit one.
+            abilityManaSubstitutions: getManaSubstitutions(state, player.id),
+        };
         const sources = buildAutoTapSources(
             player.battlefield,
-            manaGateBattlefields(state)
+            manaGateBattlefields(state),
+            planContext
         );
         // Smart auto-tap (PRD #472, ADR 0034): among all minimal-tap plans that
         // cover the cost, prefer the one that best preserves the paying
@@ -15592,21 +15625,6 @@ export const tapUntap = mutation({
         // trigger) read this so they fire only for the ability that was used.
         let tapAbility: ActivatedAbility | null = ability;
 
-        // CR 601.2g / 605.3a — a mana ability with its own MANA cost leg (Mana
-        // Cylix "{1}, {T}: Add one mana of any color", Chromatic Star, Fire
-        // Sprites) gets the same auto-tap convenience every other costed play
-        // has: float the mana it needs from the player's other sources instead
-        // of rejecting the tap. Runs BEFORE either branch pays
-        // (`applyManaAbilityManaCost`) and only on a TAP — an untap toggle
-        // refunds the cost instead. Keyed off `ability`, the source's single
-        // activated mana ability, which for every shipped filter IS the ability
-        // that carries the cost; a hypothetical card whose SECOND mana ability
-        // were the costed one would simply not be pre-funded here and fall
-        // through to the payment check as before.
-        if (!wasTapped) {
-            autoTapForManaAbilityCost(state, player, card, ability);
-        }
-
         // Determine mana to add/remove
         if (
             manaTapNeedsChoice(
@@ -15642,6 +15660,21 @@ export const tapUntap = mutation({
                 const effAbility = resolved.ability;
                 const choiceIndex = resolved.choiceIndex;
                 tapAbility = effAbility;
+                // CR 601.2g / 605.3a — a mana ability with its own MANA cost
+                // leg (Mana Cylix "{1}, {T}: Add one mana of any color",
+                // Chromatic Star, Fire Sprites, Arena of Glory's "{R}, {T},
+                // Exert this land") gets the same auto-tap convenience every
+                // other costed play has: float the mana it needs from the
+                // player's other sources instead of rejecting the tap.
+                // Keyed off the ability the submitted CHOICE resolved to, and
+                // therefore run AFTER that resolution (issue #3384): the
+                // source's FIRST mana ability is not necessarily the one being
+                // activated, and pre-funding one option while
+                // `applyManaAbilityManaCost` charges another is exactly the
+                // disagreement its own doc comment forbids — it surfaced as an
+                // uncaught "Not enough mana to activate this ability" that
+                // rolled the whole mutation back.
+                autoTapForManaAbilityCost(state, player, card, effAbility);
                 // CR 614 — Deep Water rewrites a land's produced mana to {U}.
                 const chosen = applyLandManaReplacement(
                     state,
@@ -15808,8 +15841,14 @@ export const tapUntap = mutation({
             // Identical to `ability` whenever the probe found nothing, so no
             // existing shape moves. Mirrors `tapSourceIntoPayment`.
             const acting = multiColorAbility ?? ability;
-            if (!wasTapped)
+            // CR 601.2g / 605.3a — pre-fund the ability this activation
+            // actually pays for (issue #3384: `acting`, not the source's first
+            // mana ability), so the payment below and the plan above can never
+            // read different options. Tap only — an untap toggle refunds.
+            if (!wasTapped) {
+                autoTapForManaAbilityCost(state, player, card, acting);
                 applyManaAbilityManaCost(state, player, acting, card);
+            }
             if (!isSacrifice) card.isTapped = !card.isTapped;
             if (multiColorAbility) tapAbility = acting;
             if (manaColor) {
