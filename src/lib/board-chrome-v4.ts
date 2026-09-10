@@ -68,9 +68,15 @@ export const V4_CHIP =
  *  (`--color-accent-strong: #f7f3ea`), so white-on-ivory measured ~1.05:1 and
  *  every one of these labels was invisible while ENABLED — only the disabled
  *  state, which overrides the colour, could be read. The pairing is asserted
- *  in `src/__tests__/design-tokens.test.ts` rather than eyeballed. */
+ *  in `src/__tests__/design-tokens.test.ts` rather than eyeballed.
+ *
+ *  The plate rests on `accent` and moves to `accent-strong` on hover, the
+ *  same two-token step `.btn-tone-primary` makes (`src/index.css`): the two
+ *  ivories ARE the rest/hover pair, so a plate that already rests on
+ *  `accent-strong` has nowhere to go and hovers as a pure alpha nudge
+ *  (issue #2900). */
 export const V4_ZONE_CTA_PLATE =
-    "bg-accent-strong/90 text-xs font-bold text-surface-base shadow hover:bg-accent-strong";
+    "bg-accent/90 text-xs font-bold text-surface-base shadow hover:bg-accent-strong";
 
 /** The disabled half of a zone CTA: a CTA whose action is not legal right now
  *  stays visible and goes flat + muted rather than disappearing, so the tile

@@ -217,7 +217,7 @@ describe("design tokens — WCAG contrast (phase 3)", () => {
         ).toBeGreaterThanOrEqual(4.5);
     });
 
-    it("zone-CTA labels pass: surface-base on accent-strong ≥4.5:1 (issue #3280)", () => {
+    it("zone-CTA labels pass on BOTH ivories: rest and hover ≥4.5:1 (issues #3280/#2900)", () => {
         // ADR 0103 retired `accent-strong` as a "brighter accent" and
         // re-derived it off ivory, but the eight zone CTAs (exile Cast,
         // graveyard/library Play, Flashback, Activate, companion Summon, Turn
@@ -225,10 +225,17 @@ describe("design tokens — WCAG contrast (phase 3)", () => {
         // invisible label while ENABLED, readable only once disabled. The
         // shared recipe is `V4_ZONE_CTA_PLATE` (`src/lib/board-chrome-v4.ts`);
         // this row is what keeps the pairing measured rather than eyeballed.
+        // The plate rests on `accent` and hovers to `accent-strong`
+        // (issue #2900 — a plate already resting on `accent-strong` has no
+        // hover to move to), so BOTH ivories carry the label.
+        expect(
+            ratio(colors["surface-base"], colors["accent"])
+        ).toBeGreaterThanOrEqual(4.5);
         expect(
             ratio(colors["surface-base"], colors["accent-strong"])
         ).toBeGreaterThanOrEqual(4.5);
         // The retired pairing, named so it can never come back quietly.
+        expect(ratio("#ffffff", colors["accent"])).toBeLessThan(1.5);
         expect(ratio("#ffffff", colors["accent-strong"])).toBeLessThan(1.5);
     });
 
@@ -1047,13 +1054,23 @@ describe("identity v4 — primitive recipes (ADR 0103, issue #2723)", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 describe("identity v4 — zone CTA plate (ADR 0103 §3, issue #3280)", () => {
     it("the shared recipe pairs the ivory plate with the on-ivory graphite foreground", () => {
-        expect(V4_ZONE_CTA_PLATE).toContain("bg-accent-strong/90");
+        expect(V4_ZONE_CTA_PLATE).toContain("bg-accent/90");
         expect(V4_ZONE_CTA_PLATE).toContain("text-surface-base");
         expect(V4_ZONE_CTA_PLATE).not.toContain("text-white");
         // The bottom-edge form is the plate plus its disabled half — the shape
         // six of the eight CTAs use verbatim.
         expect(V4_ZONE_CTA).toContain(V4_ZONE_CTA_PLATE);
         expect(V4_ZONE_CTA).toContain(V4_ZONE_CTA_DISABLED);
+    });
+
+    it("hover is a real token step, not an alpha nudge (issue #2900)", () => {
+        // `.btn-tone-primary` (src/index.css) is the shipped convention:
+        // `accent` at rest, `accent-strong` on hover. The plate shipped
+        // resting on `accent-strong` with `hover:bg-accent-strong`, so hover
+        // moved the ALPHA (/90 → opaque) and nothing else — no state change a
+        // pointer user can read. Assert the two ends are different tokens.
+        expect(V4_ZONE_CTA_PLATE).toContain("hover:bg-accent-strong");
+        expect(V4_ZONE_CTA_PLATE).not.toContain("bg-accent-strong/90");
     });
 
     it("no source file spells `bg-accent-strong` with `text-white` by hand", () => {
