@@ -630,9 +630,25 @@ _Avoid_: Acceptance test, milestone scenario
 Two **Blade Scenarios** identical except for one card, asserting opposite verdicts. Neither proves anything alone — only the pair distinguishes a **Brain** that reads the consequence from one that always, or never, makes the play.
 _Avoid_: A/B test, control pair
 
+**Verdict**:
+A player's answer to one decision the **Brain** faced: the position, every candidate move the **Brain** could legally make there, and which one is right (the **Brain**'s own move being one possible answer). The unit of training data for the **Evaluation**: kept as the position and the answer, never as numbers, so it stays valid when the **Evaluation** gains a new term. Collected in play, from a quiz, or from the **Blade Scenario** registry, whose expected moves are verdicts already.
+_Avoid_: Label, rating, feedback, thumbs up
+
+**Eval Pair**:
+Two positions ordered by a **Verdict** — the board after the right move against the board after any other candidate — checked against the **Evaluation** alone: no search, microseconds. The **Evaluation**'s own correctness metric, as the **Blade Scenario** is the search's: a blade proves a forced play is not missed, an eval pair proves the value function orders two boards the way a player would.
+_Avoid_: Eval test, weight test, position test
+
+**Weight Fit**:
+The deterministic procedure that turns the accumulated **Verdicts** into the **Evaluation**'s weights: every **Eval Pair** is a constraint the weights should satisfy by a fixed margin, the fit moves the weights as little as possible from where they are to satisfy as many as it can, and reports the pairs it could not — those name a missing term, never a bad player. Same verdicts, same weights, to the bit; no self-play, no **Ladder**.
+_Avoid_: Training, machine learning, tuning run, calibration
+
 **Beyond Budget**:
 A position the **Brain** solves only with more search than a real game grants. Recorded with _why_ — too many candidate moves at one decision, a payoff too far ahead, or a hidden-information coincidence that rarely occurs — because each cause names a missing piece of **Brain** knowledge, not a shortfall of thinking time.
 _Avoid_: Too slow, needs more iterations, timeout
+
+**Greedy Pick**:
+The move the **Brain**'s one-ply policy chooses on its own — score every legal move by the position it leaves after resolving, take the best — with no search at all. It is the policy the search already uses to finish its rollouts, asked at the root instead. Not a way the **Brain** plays; a yardstick: run against the **Blade Scenarios** and beside the search's own pick, it says how much of the **Brain**'s judgement the search adds over the policy it contains.
+_Avoid_: Heuristic bot, easy mode, fallback
 
 **Ladder**:
 The **Brain**'s strength metric: paired bot-vs-bot games in which the two **Players** use the same decks and the same shuffles and only the **Brain** configuration differs by seat, so the verdict ("stronger", "weaker", "inconclusive") is about the **Brain**, never about the decks. Complements the **Blade Scenario**: a blade proves a forced play is not missed, a ladder proves a change that shifts every decision a little is a net gain.

@@ -22,7 +22,7 @@
 import { getCardByName } from "../../../cards";
 import { createInitialGameState, type PlayerInput } from "../../setup";
 import { buildStateFromScenario } from "../../scenarioBuilder";
-import { decidingPlayer, searchWithTrace } from "../../search";
+import { decidingPlayer, greedyRootPick, searchWithTrace } from "../../search";
 import type { DeckKnowledgeBySeat } from "../../deckKnowledge";
 import type { GameState } from "../../state";
 import type { Move } from "../../moves";
@@ -342,9 +342,17 @@ function checkExpectation(
  * name, a matcher name with no instance in the built state, empty seed list,
  * a seat that owes no action), which is an authoring bug, not a bot result.
  */
+/** Which decider a blade run asks (issue #3393). `"search"` is the suite —
+ *  the real ISMCTS at the entry's budget. `"greedy"` is the measurement leg:
+ *  the 1-ply rollout policy applied at the root with no search
+ *  (`greedyRootPick`), so the same registry answers "how many of these
+ *  positions does the policy alone already get right?". Never a gate. */
+export type BladePick = "search" | "greedy";
+
 export function runBladeScenario(
     scenario: BladeScenario,
-    variant: SearchVariant | null = null
+    variant: SearchVariant | null = null,
+    pick: BladePick = "search"
 ): BladeResult {
     if (scenario.budget.iterations <= 0) {
         throw new Error(
@@ -361,11 +369,11 @@ export function runBladeScenario(
     // corpus, `decisionCorpus.ts`) is not silently reset mid-run. `null` — the
     // default, and every existing call site — touches the module state not at
     // all, so the historical behaviour is byte-identical.
-    if (!variant) return runBladeScenarioInner(scenario);
+    if (!variant) return runBladeScenarioInner(scenario, pick);
     const previous = getSearchVariant();
     setSearchVariant(variant);
     try {
-        return runBladeScenarioInner(scenario);
+        return runBladeScenarioInner(scenario, pick);
     } finally {
         setSearchVariant(previous);
     }
@@ -389,7 +397,10 @@ function bladeDeckKnowledge(
     }));
 }
 
-function runBladeScenarioInner(scenario: BladeScenario): BladeResult {
+function runBladeScenarioInner(
+    scenario: BladeScenario,
+    pick: BladePick
+): BladeResult {
     const seeds: BladeSeedResult[] = [];
     for (const seed of seedsFor(scenario)) {
         // A fresh state per seed: `searchWithTrace` never mutates the root
@@ -413,13 +424,16 @@ function runBladeScenarioInner(scenario: BladeScenario): BladeResult {
                 decider
             );
         }
-        const { move } = searchWithTrace(
-            state,
-            botId,
-            { iterations: scenario.budget.iterations },
-            seed,
-            bladeDeckKnowledge(state, scenario)
-        );
+        const move =
+            pick === "greedy"
+                ? greedyRootPick(state, botId, seed)
+                : searchWithTrace(
+                      state,
+                      botId,
+                      { iterations: scenario.budget.iterations },
+                      seed,
+                      bladeDeckKnowledge(state, scenario)
+                  ).move;
         const reason = checkExpectation(scenario, state, move);
         seeds.push({
             seed,

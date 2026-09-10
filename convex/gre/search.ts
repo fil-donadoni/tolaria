@@ -3857,7 +3857,8 @@ export function selectRootMove(
     // issue's own report is that gap: a cast with more visits and a higher
     // `meanMargin` than `pass`, and `pass` chosen, with nothing naming the
     // rule. Optional and write-only, so every existing caller is untouched.
-    out?: { mechanism: RootDecisionMechanism }
+    out?: { mechanism: RootDecisionMechanism },
+    greedyMoveKey?: string
 ): Move {
     const pool = [...root.children.values()].filter((e) => e.visits > 0);
     if (pool.length === 0) return moves[0];
@@ -3917,6 +3918,13 @@ export function selectRootMove(
                 mechanism: mech,
                 pickIsMeanArgmax: mean(edge) === bestMean,
                 ...(searchStats ?? {}),
+                ...(greedyMoveKey === undefined
+                    ? {}
+                    : {
+                          greedyMoveKey,
+                          chosenMoveKey: moveKey(edge.move),
+                          greedyAgrees: moveKey(edge.move) === greedyMoveKey,
+                      }),
             });
         }
         return rootMoveFor(edge, rootState);
@@ -4932,6 +4940,26 @@ function runSearchWithTrace(
         return { move: moves[0], trace: null };
     }
 
+    // Issue #3393 — the greedy-concordance measurement. Only when a
+    // telemetry sink is installed (never in production play): the 1-ply
+    // greedy pick on this very root and move list, so the record can say
+    // whether the search agreed with the policy it already contains. Its
+    // own rng instance, so the search's stream below is byte-identical with
+    // or without a sink — a corpus leg must not perturb the decisions it
+    // measures.
+    const greedyMoveKey = getRootDecisionSink()
+        ? moveKey(
+              selectRolloutMove(
+                  state,
+                  playerId,
+                  playerId,
+                  moves,
+                  makeRng(seed),
+                  weights
+              )
+          )
+        : undefined;
+
     const rng = makeRng(seed);
     const root = newNode();
 
@@ -5042,7 +5070,8 @@ function runSearchWithTrace(
             deckKnowledge,
             opponentModel
         ),
-        picked
+        picked,
+        greedyMoveKey
     );
     return {
         move,
@@ -5056,6 +5085,41 @@ function runSearchWithTrace(
             picked.mechanism
         ),
     };
+}
+
+/** The 1-ply greedy pick for `playerId` at `state` — the rollout policy
+ *  (`selectRolloutMove`) applied to the ROOT, no search at all (issue #3393).
+ *  Same candidate set as `search` (dominance-pruned `enumerateMoves`, same
+ *  single-move / mulligan short-circuits), so a comparison between the two is
+ *  over identical options; `seed` only breaks exact ties between equal-scored
+ *  moves, as it does inside a rollout. Exported for the blade runner's
+ *  `pick: "greedy"` leg and its report script — it is a measurement seam,
+ *  not a production decider. */
+export function greedyRootPick(
+    state: GameState,
+    playerId: string,
+    seed: number,
+    weights: EvalWeights = resolveEvalWeights(getSearchVariant())
+): Move | null {
+    if (decidingPlayer(state) !== playerId) return null;
+    beginDominanceDecision();
+    try {
+        const moves = enumerateMoves(state, playerId, {
+            pruneDominatedNoOps: true,
+        });
+        if (moves.length === 0) return null;
+        if (moves.length === 1 || state.phase === "MULLIGAN") return moves[0];
+        return selectRolloutMove(
+            state,
+            playerId,
+            playerId,
+            moves,
+            makeRng(seed),
+            weights
+        );
+    } finally {
+        endDominanceDecision();
+    }
 }
 
 /** Choose a move for `playerId` by ISMCTS. Deterministic given `seed` and an
