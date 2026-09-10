@@ -9,6 +9,9 @@ import { unseenRemainder } from "../deckKnowledge";
 import { determinize } from "../determinize";
 import type { GameState } from "../state";
 import { makeRng } from "../rng";
+import { LADDER_VARIANTS, resolveOpponentModel } from "../ai/searchVariant";
+import { runBladeScenario } from "../ai/blade/runner";
+import type { BladeScenario } from "../ai/blade/types";
 import {
     makeInstance,
     makePlayer,
@@ -895,5 +898,146 @@ describe("determinize — known library runs are pinned (issue #1524)", () => {
         const b = determinize(state, "p1", makeRng(5));
         expect(JSON.stringify(a)).toEqual(JSON.stringify(b));
         expect(JSON.stringify(state)).toEqual(before);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Blinded seats — the ladder's information-REMOVAL knob (issue #2791,
+// PRD #2787). `opponentModel: "blind"` is what manufactures the blind arm of
+// the informed-vs-blind ceiling experiment: headless self-play searches the
+// FULL-INFORMATION state, where the ordinary `determinizeOpponent` pools the
+// opponent's real hand with its real library and re-deals — already the deck's
+// unseen remainder — so without this knob both arms of that experiment are
+// informed and the run measures nothing.
+// ---------------------------------------------------------------------------
+
+const hiddenIds = (state: GameState) =>
+    [...state.players[1].hand, ...state.players[1].library].map((c) =>
+        String(c.card.id)
+    );
+
+describe("determinize — blinded opponent (issue #2791)", () => {
+    it("replaces every unseen opponent card with an opaque placeholder, where the same seed left real cards", () => {
+        const state = fullInfoState();
+
+        const blind = determinize(state, "p1", makeRng(7), undefined, "blind");
+        const seeing = determinize(state, "p1", makeRng(7));
+
+        // Zone counts are public facts and survive either way (CR 704.5b reads
+        // the library size, so a short pile would deck the opponent out early).
+        expect(blind.players[1].hand).toHaveLength(3);
+        expect(blind.players[1].library).toHaveLength(4);
+
+        // Blinded: nothing the observer was not shown has an identity, so the
+        // simulated opponent can never cast anything again.
+        expect(hiddenIds(blind)).toEqual(Array(7).fill(PLACEHOLDER_CARD_ID));
+        // Same seed, knob off: the pooled re-deal hands back REAL cards — the
+        // opponent's own remaining multiset. That is the contrast the ladder
+        // experiment needs and could not otherwise get.
+        expect(hiddenIds(seeing)).not.toContain(PLACEHOLDER_CARD_ID);
+    });
+
+    it("leaves the observer's own seat alone", () => {
+        const state = fullInfoState();
+        const blind = determinize(state, "p1", makeRng(7), undefined, "blind");
+
+        // Own hand kept exactly; own library keeps its real content (only the
+        // ORDER is hidden from its owner).
+        expect(sortedIds(blind.players[0].hand)).toEqual([
+            "p1-hand-0",
+            "p1-hand-1",
+        ]);
+        expect(
+            blind.players[0].library.map((c) => String(c.card.id))
+        ).not.toContain(PLACEHOLDER_CARD_ID);
+    });
+
+    it("keeps a hand card the observer has been SHOWN", () => {
+        const state = fullInfoState();
+        // A face-up-revealed hand card: `knownTo` is the engine's record that
+        // the observer may act on this identity. Blinding is about what it was
+        // never shown, so this one is a fact to keep, not a guess to erase.
+        state.players[1].hand[0].knownTo = ["p1"];
+        const shownId = String(state.players[1].hand[0].card.id);
+
+        const blind = determinize(state, "p1", makeRng(7), undefined, "blind");
+
+        expect(blind.players[1].hand[0].card.id).toBe(shownId);
+        expect(blind.players[1].hand[0].knownTo).toEqual(["p1"]);
+        // Every other hidden slot is still opaque.
+        expect(hiddenIds(blind).slice(1)).toEqual(
+            Array(6).fill(PLACEHOLDER_CARD_ID)
+        );
+    });
+
+    it("is the VARIANT that asks for it — no other registry entry does", () => {
+        expect(resolveOpponentModel(LADDER_VARIANTS["opponent-blind"])).toBe(
+            "blind"
+        );
+        expect(resolveOpponentModel(LADDER_VARIANTS.placebo)).toBeNull();
+        // Live play and every test that installs no variant.
+        expect(resolveOpponentModel(null)).toBeNull();
+    });
+});
+
+/** The board the informed-opponent blade pair uses (issue #2789), with the
+ *  opponent's hidden pool CONCENTRATED: three tricks in hand against a
+ *  three-card library of inert Plains, so a pooled re-deal of the real cards
+ *  puts a trick in the imagined hand essentially every iteration. Hill Giant
+ *  attacking into an untapped Grizzly Bears behind one Forest is a 3-damage
+ *  gift when the trick exists and a free hit when it does not. */
+const CONCENTRATED_TRICK: BladeScenario = {
+    label: "issue #2791 wiring: opponent-blind reaches determinize",
+    spec: {
+        cards: [
+            {
+                name: "Hill Giant",
+                owner: "me",
+                zone: "battlefield",
+                summoningSick: false,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "opp",
+                zone: "battlefield",
+                summoningSick: false,
+            },
+            { name: "Forest", owner: "opp", zone: "battlefield" },
+            { name: "Giant Growth", owner: "opp", zone: "hand" },
+            { name: "Giant Growth", owner: "opp", zone: "hand" },
+            { name: "Giant Growth", owner: "opp", zone: "hand" },
+        ],
+        phase: "DECLARE_ATTACKERS",
+        turn: 3,
+        landCount: 0,
+        libraryCount: 3,
+    },
+    bot: "me",
+    budget: { iterations: 400 },
+    seeds: [0xb1ade, 1, 2],
+    tier: "must",
+    expect: { forbidden: [{ kind: "declare-attackers", card: "Hill Giant" }] },
+};
+
+describe("opponent-blind variant — end to end through search (issue #2791)", () => {
+    it("changes the DECISION: seeing the real hand holds back, blinded walks in", () => {
+        // Control: the ladder's default arm. The hidden pool is the opponent's
+        // real cards, so the search imagines the trick and declines the attack.
+        const seeing = runBladeScenario(CONCENTRATED_TRICK, null);
+        expect(seeing.ok, seeing.failureMessage).toBe(true);
+
+        // Candidate: the same position, the same seeds, the same budget — only
+        // the imagined opponent is blinded. Placeholders resolve to no
+        // `CardDefinition`, so the simulated opponent never casts the trick and
+        // the attack looks free. This is the wiring proof: nothing but the
+        // variant differs, and it reaches `determinize` through `search`.
+        const blinded = runBladeScenario(
+            CONCENTRATED_TRICK,
+            LADDER_VARIANTS["opponent-blind"]
+        );
+        expect(blinded.ok).toBe(false);
+        expect(
+            blinded.seeds.every((s) => s.move?.kind === "declare-attackers")
+        ).toBe(true);
     });
 });

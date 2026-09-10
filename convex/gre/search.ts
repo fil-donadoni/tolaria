@@ -191,7 +191,9 @@ import {
     getSearchVariant,
     resolveActionPriors,
     resolveEvalWeights,
+    resolveOpponentModel,
     type ActionPriorConfig,
+    type OpponentModel,
 } from "./ai/searchVariant";
 import {
     applyLandEntrySubmit,
@@ -2579,9 +2581,16 @@ function iterate(
     weights: EvalWeights,
     prunedRootKeys?: ReadonlySet<string>,
     actionPriors: ActionPriorConfig | null = null,
-    deckKnowledge?: DeckKnowledgeBySeat
+    deckKnowledge?: DeckKnowledgeBySeat,
+    opponentModel: OpponentModel | null = null
 ): void {
-    const world = determinize(rootState, botId, rng, deckKnowledge);
+    const world = determinize(
+        rootState,
+        botId,
+        rng,
+        deckKnowledge,
+        opponentModel
+    );
     const path: Edge[] = [];
     let node = root;
 
@@ -4602,6 +4611,11 @@ function runSearchWithTrace(
     // does not ask for it (so live play never pays a branch below the top of
     // this function).
     const actionPriors = resolveActionPriors(getSearchVariant());
+    // How the search imagines the seats it cannot see (issue #2791). Same one
+    // place, same reason: `determinize` takes it as an argument rather than
+    // reading the module-global itself, so a determinization is reproducible
+    // from its inputs alone.
+    const opponentModel = resolveOpponentModel(getSearchVariant());
 
     // Dominance pruning (issue #1887) runs EXACTLY ONCE per search, here, on
     // the real root state — not at every tree node (issue #1905 review finding
@@ -4676,7 +4690,8 @@ function runSearchWithTrace(
             weights,
             prunedRootKeys,
             actionPriors,
-            deckKnowledge
+            deckKnowledge,
+            opponentModel
         );
         i++;
         if (timeMs !== undefined && now() - start >= timeMs) {
