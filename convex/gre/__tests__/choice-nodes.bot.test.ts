@@ -199,6 +199,12 @@ describe("choice-node candidate contract (CR 608.2 / ADR 0016, issue #1425)", ()
         // A kind outside these tranches is NOT an in-tree node yet — additive
         // by design: no generator means the historical no-decision behavior.
         expect(hasChoiceCandidateGenerator("discard-hand")).toBe(false);
+        // CR 701.21a (issue #3377) — registered for a reason that is only
+        // partly about picking better victims: with NO generator,
+        // `settleStackForBreakdown` cannot get past the suspended choice, so
+        // every probe resolving a spell or ability that leads to one scored the
+        // entering BODY and never the sacrifice paying for it.
+        expect(hasChoiceCandidateGenerator("sacrifice-permanents")).toBe(true);
         // CR 603.3c (issue #2461) — announcing a modal TRIGGER's mode is a real
         // decision (which arm the trigger becomes), so it is an in-tree node,
         // sharing `option-pick`'s options-shaped generator.
@@ -223,7 +229,7 @@ describe("choice-node candidate contract (CR 608.2 / ADR 0016, issue #1425)", ()
         // node the playout descends past and a wall it leaf-scores at, which
         // is what an unregistered kind actually is.
         expect(hasChoiceCandidateGenerator("trigger-order")).toBe(true);
-        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(12);
+        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(13);
     });
 
     it("searchable is per-CHOICE, not per-kind: a mandatory hand pick is not a node (PR #1914 review finding 2)", () => {

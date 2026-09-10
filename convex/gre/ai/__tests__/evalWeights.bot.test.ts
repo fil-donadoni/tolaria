@@ -49,6 +49,7 @@ describe("DEFAULT_EVAL_WEIGHTS (issue #2683)", () => {
             graveyardReachCap: 2,
             permanentWeight: 5,
             manaWeight: 12,
+            tappedManaWeight: 9,
             manaDevWeight: 12,
             flexWeight: 6,
             flexCardCap: 3,

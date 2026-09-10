@@ -304,6 +304,33 @@ function stateWithBotTriggerOrder(): GameState {
  *  that is the point: the new kind must be proven to reach the search. */
 const FIXTURES: Partial<Record<PendingChoiceKind, () => GameState>> = {
     "may-pay": () => stateWithBotChoice({ kind: "may-pay", cost: {} }),
+    // CR 701.21a (issue #3377) — a forced sacrifice. Two creatures of clearly
+    // different worth on the bot's battlefield, so the choice is a real
+    // decision rather than a degenerate single-candidate acknowledge, and the
+    // driver must hand it to the search rather than answer it heuristically.
+    "sacrifice-permanents": () =>
+        stateWithBotChoice(
+            {
+                kind: "sacrifice-permanents",
+                zone: "battlefield",
+                count: 1,
+                prompt: "Sacrifice a creature.",
+            },
+            {
+                battlefield: [
+                    makeInstance(getCardByName("Grizzly Bears").id, {
+                        id: "bf-bears",
+                        controllerId: BOT,
+                        ownerId: BOT,
+                    }),
+                    makeInstance(getCardByName("Craw Wurm").id, {
+                        id: "bf-wurm",
+                        controllerId: BOT,
+                        ownerId: BOT,
+                    }),
+                ],
+            }
+        ),
     "land-entry-tapped": () =>
         stateWithBotChoice(
             {

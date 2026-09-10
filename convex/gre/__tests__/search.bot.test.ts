@@ -2540,7 +2540,14 @@ describe("search — action priors + FPU (issue #2684)", () => {
         // A registered variant whose knob is never consulted turns a 4–5h
         // ladder A/B into a silent control-vs-control null run (the #1929
         // lesson). Seed 7 opens `pass` under the historical uniform-random
-        // expansion and the highest-prior land drop under the knob.
+        // expansion and the highest-prior DEVELOPING move under the knob.
+        //
+        // That move was the land drop until issue #3377 made the `mana` term
+        // tap-aware: a 3-mana cast used to start `3 x manaWeight` down purely
+        // for tapping out, which is not a material loss (the sources untap,
+        // CR 502.1), and with that phantom cost gone the Hill Giant outranks
+        // the extra land. What this test pins is that the knob DISCRIMINATES —
+        // `pass` off, a developing move on — and it still does.
         const state = priorBoard();
         const first = (v: SearchVariant | null) =>
             underVariant(
@@ -2550,7 +2557,7 @@ describe("search — action priors + FPU (issue #2684)", () => {
                         .candidates[0].label
             );
         expect(first(null)).toBe("pass");
-        expect(first(ACTION_PRIORS)).toBe("play Mountain");
+        expect(first(ACTION_PRIORS)).toBe("cast Hill Giant");
     });
 
     it("is deterministic under the seeded RNG with the knob on", () => {
