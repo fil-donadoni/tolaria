@@ -1,16 +1,21 @@
 // Gut, True Soul Zealot (CLB, issue #2373) — bot decision-surface proof.
 //
-// `sacrifice-permanents` has no registered `CHOICE_CANDIDATE_GENERATORS`
-// entry (`convex/gre/ai/choiceCandidates.ts`) — it is not (yet) an in-tree
-// ISMCTS search node, a PRE-EXISTING gap shared by every other
-// `sacrifice-permanents` card (Minsc & Boo included, `sets/clb/
-// multicolor.ts`), not something this card introduces. `enumerateMoves`
-// (proven `[]` for this pending choice in `convex/cards/sets/clb/__tests__/
-// red.bot.test.ts`) therefore is NOT how the bot answers it — the driver
-// instead answers through the ADR 0016 heuristic default (`chooseResolution`,
-// `src/lib/ai/brain.ts`), the SAME mechanism `resolution-choice-integration.
-// bot.test.ts` proves for every other resolution-choice kind. This file adds
-// the `sacrifice-permanents` case to that same proof shape.
+// HISTORICAL NOTE, kept because the file's shape only makes sense with it:
+// `sacrifice-permanents` had NO registered `CHOICE_CANDIDATE_GENERATORS` entry
+// until issue #3377, so the driver answered it through the ADR 0016 heuristic
+// default (`chooseResolution`, `src/lib/ai/brain.ts`) and this file proved
+// that path, in the same shape `resolution-choice-integration.bot.test.ts`
+// uses for every other kind.
+//
+// SINCE #3377 the kind IS generator-covered, so `OwedChoice.searchable` is
+// true for it and `answerOwedInput` returns `search-choice` — the heuristic
+// below is now the FALLBACK the driver takes only when the search surfaces no
+// move (`chooseResolution` is still `brain.ts`'s documented safety net), not
+// the normal path. What it asserts stays true and is still worth pinning: the
+// net must keep declining an optional sacrifice rather than eating a creature.
+// The routing itself is proven in `root-choice-search-routing.bot.test.ts`,
+// and the decline branch the SEARCH now sees in
+// `convex/gre/ai/__tests__/sacrifice-choice-node.bot.test.ts`.
 //
 // Lives under `src/lib/ai/__tests__/`, not `convex/cards/sets/clb/__tests__/`
 // — a convex-side test may not import `src/lib/ai` (the frontend-only bot

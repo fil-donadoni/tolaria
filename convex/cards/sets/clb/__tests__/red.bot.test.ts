@@ -14,15 +14,19 @@
 // proof lives in `src/lib/ai/__tests__/gutTrueSoulZealot.bot.test.ts`
 // instead, alongside the other resolution-choice integration coverage.
 //
-// `sacrifice-permanents` has no registered `CHOICE_CANDIDATE_GENERATORS`
-// entry (`convex/gre/ai/choiceCandidates.ts`) — it is not (yet) an in-tree
-// ISMCTS search node, a PRE-EXISTING gap shared by every other
-// `sacrifice-permanents` card (Minsc & Boo included), not something this card
-// introduces. `enumerateMoves` therefore surfaces no in-tree Move for it (by
-// design — see the comment at its `headChoice` branch, `convex/gre/moves.ts`);
-// the driver instead answers it through the ADR 0016 heuristic default,
-// proven in the sibling frontend suite. See `docs/findings/` for the
-// catalogue-wide follow-up this surfaced.
+// `sacrifice-permanents` IS a registered `CHOICE_CANDIDATE_GENERATORS` entry
+// since issue #3377 — an in-tree ISMCTS search node, closing the pre-existing
+// catalogue-wide gap this file used to document (shared by every other
+// `sacrifice-permanents` card, Minsc & Boo included), not something this card
+// introduces. `enumerateMoves` therefore surfaces the sacrifice as a real
+// in-tree Move, and the driver hands it to the SEARCH rather than to the
+// ADR 0016 heuristic default (`OwedChoice.searchable` flips with the
+// registration — see `src/lib/ai/__tests__/root-choice-search-routing.
+// bot.test.ts`, whose registry-driven guard demands a fixture for every
+// generator-covered kind). Gut's own choice is OPTIONAL (`min: 0`), so the
+// generator emits a decline branch beside the victims; without it,
+// registering the kind would have flipped the gap's sign rather than closing
+// it (issue #3377 review finding 1).
 
 import { describe, it, expect } from "vitest";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
@@ -46,7 +50,7 @@ function declareAttackers(state: GameState, attackerIds: string[]): void {
 }
 
 describe("Gut, True Soul Zealot — bot decision surface (ADR 0016, issue #2373)", () => {
-    it("enumerateMoves surfaces NO in-tree move (sacrifice-permanents has no ISMCTS generator — a pre-existing, catalogue-wide gap)", () => {
+    it("enumerateMoves surfaces the sacrifice as an in-tree move (issue #3377)", () => {
         const gut = makeInstance(gutTrueSoulZealot.id, { id: "gut" });
         const fodder = makeInstance(grizzlyBears.id, { id: "fodder" });
         const state = makeState({
@@ -60,6 +64,25 @@ describe("Gut, True Soul Zealot — bot decision surface (ADR 0016, issue #2373)
         resolveTopOfStack(state);
         expect(state.pendingChoices?.[0]?.kind).toBe("sacrifice-permanents");
 
-        expect(enumerateMoves(state, "p1")).toEqual([]);
+        // Was `toEqual([])` until issue #3377 registered the generator. The
+        // gap cost more than a worse victim pick: with no candidates,
+        // `settleStackForBreakdown` could not get past the suspended choice, so
+        // every probe resolving something that leads to one scored the entering
+        // BODY and never the sacrifice paying for it.
+        const moves = enumerateMoves(state, "p1");
+        expect(moves.length).toBeGreaterThan(0);
+        for (const move of moves) {
+            expect(move.kind).toBe("resolution-choice");
+        }
+        // Only the FODDER is offered: Gut is attacking, and the choice's own
+        // filter is what decides — the generator reads the same
+        // `matchesPermanentFilter` gate `pendingChoiceSubmit` enforces.
+        const offered = new Set(
+            moves.flatMap(
+                (m) =>
+                    (m as { cardInstanceIds?: string[] }).cardInstanceIds ?? []
+            )
+        );
+        expect(offered.size).toBeGreaterThan(0);
     });
 });

@@ -48,6 +48,7 @@ import {
     getProducibleColorsOnBoard,
     hasInstantSpeed,
     manaValue,
+    hasManaAbility,
 } from "./constants";
 import type { ActivatedAbility } from "../cards/types";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
@@ -307,6 +308,43 @@ function availableManaFor(player: PlayerState): number {
         n += player.manaPool[c] ?? 0;
     }
     return n;
+}
+
+/** How many MANA SOURCES `player` controls, tapped or not (CR 502.3, issue
+ *  #3377) — the `mana` term's MATERIAL half, as against `availableManaFor`'s
+ *  "what can I spend right now".
+ *
+ *  The distinction is the whole fix. `terms.mana` used to be the untapped
+ *  count, so tapping four lands to activate an ability read as losing
+ *  `4 × manaWeight` = 48 points of material — and it is not material that was
+ *  lost, because every source untaps in its controller's next untap step. The
+ *  measured consequence (issue #3377, from a real DecisionTrace): putting a
+ *  permanent +1/+1 counter on a creature scored 25 points WORSE than passing
+ *  — `creatures` +29 against `mana` −48 and `flexibility` −6 — so the material
+ *  tie-break refused every mana-costed activation whose payoff was smaller
+ *  than the sources it tapped. Which is nearly all of them.
+ *
+ *  What the untapped count was really measuring is the OPTION to act this
+ *  turn, and `flexibilityTerm` already prices that, off the same
+ *  `availableManaFor` number. Counting sources here leaves the two terms
+ *  saying different things instead of one saying both badly.
+ *
+ *  The land-drop invariant (issue #149) is preserved exactly: playing a land
+ *  still ADDS a source, so the delta stays −cardValue(land) + permanentWeight
+ *  + manaWeight = −8 + 5 + 12 = +9 at the default vector. Tapping one no
+ *  longer moves the term at all.
+ *
+ *  The floating POOL is deliberately not counted here: it empties at the end
+ *  of every step and phase (CR 500.5), so it is the least durable thing on the
+ *  board. It stays in `availableManaFor`, where "can I pay for this right now"
+ *  is the question being asked. */
+function manaSourceTermFor(player: PlayerState, weights: EvalWeights): number {
+    let total = 0;
+    for (const perm of player.battlefield) {
+        if (!hasManaAbility(perm, undefined, player.battlefield)) continue;
+        total += perm.isTapped ? weights.tappedManaWeight : weights.manaWeight;
+    }
+    return total;
 }
 
 /** Whether `playerId` holds at least one instant-speed card it can afford to
@@ -968,7 +1006,12 @@ function playerTerms(
         }
     }
     const availableMana = availableManaFor(player);
-    terms.mana = availableMana * weights.manaWeight;
+    // MATERIAL: how many sources are owned, not how many are untapped right
+    // now (issue #3377 — see `manaSourceTermFor`). Tapping a source to pay for
+    // something forfeits nothing durable; it untaps next turn (CR 502.3), and
+    // the option it gave up THIS turn is `flexibility`'s job, priced below off
+    // `availableMana`.
+    terms.mana = manaSourceTermFor(player, weights);
     // The mana-development term prices the base against the hand's castability
     // (issue #2686) — additive to `mana`, never a replacement for it, and zero
     // on any board whose land count already covers the hand's mana needs.
