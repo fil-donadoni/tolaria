@@ -5,6 +5,7 @@
     "type": "module",
     "scripts": {
         "agents:build": "bun scripts/build-agents-md.ts",
+        "ai:allowlist": "bun scripts/ai-effects-allowlist.ts",
         "build": "bun run catalogue:ensure && tsc -b && vite build",
         "catalogue:build": "node scripts/fetch-full-catalogue.mjs",
         "catalogue:check": "bun scripts/catalogue-artifact.ts --check",
