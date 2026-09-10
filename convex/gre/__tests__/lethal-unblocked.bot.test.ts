@@ -329,7 +329,13 @@ describe("lethalUnblockedDelta — EXACTLY ZERO off-pattern (ADR 0070 §5)", () 
             defenderLife: 20,
         });
         state.playerDamagePrevention = [
-            { playerId: DEFENDER, remaining: 3, duration: { turns: 1 } },
+            {
+                playerId: DEFENDER,
+                match: {},
+                mode: "all",
+                remaining: 3,
+                duration: { phase: "end-of-turn" },
+            },
         ];
         // Off-lock the term under-reports on purpose: it cannot resolve whether
         // the shield matches without mutating state.
