@@ -414,6 +414,25 @@ describe("regression — Questing Phelddagrif is NOT legendary (PR #2047 fix)", 
         expect(card!.supertypes ?? []).not.toContain("Legendary");
     });
 
+    it("CR 712.2 / 614.12 — no NONMODAL back face declares an entry replacement", () => {
+        // `CardBackFace.entersTappedUnlessPay` is modal-only, and this is the
+        // assertion its own doc claims (PR #3412 review). The reason is the
+        // REGISTRATION, not the rule: a nonmodal face is synthesized through
+        // `registerBackFaceDefinition`'s content-derived `tokenDefinitionId`
+        // codec (`gre/transform.ts`), which carries a `TokenSpec`'s fields and
+        // has no slot for a `MayPayCost` — so the clause would be silently
+        // lost the first time a client rebuilt the face from its id, which is
+        // the failure mode nothing else in the suite can see.
+        const offenders = getAllCards()
+            .filter(
+                (c) =>
+                    c.backFace?.entersTappedUnlessPay !== undefined &&
+                    (c.backFace.kind ?? "nonmodal") !== "modal"
+            )
+            .map((c) => `${c.name} (${c.id})`);
+        expect(offenders).toEqual([]);
+    });
+
     it("matches data/json/PLS.json exactly (supertypes: [])", () => {
         const raw = readFileSync(join(jsonDir, "PLS.json"), "utf8");
         const parsed = JSON.parse(raw) as { data: { cards: MtgJsonCard[] } };

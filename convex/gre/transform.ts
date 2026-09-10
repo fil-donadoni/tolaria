@@ -44,15 +44,10 @@ import {
     tryGetDefinition,
 } from "../cards";
 import { resolveTokenStaticEffects } from "../cards/tokenStaticEffects";
-import type {
-    CardBackFace,
-    CardType,
-    ManaCost,
-    TokenSpec,
-} from "../cards/types";
-import { PERMANENT_TYPES } from "../cards/types";
+import type { CardBackFace, ManaCost, TokenSpec } from "../cards/types";
 import {
     isModalDoubleFaced,
+    isPermanentTypeLine,
     modalBackFaceDefinitionId,
 } from "../cards/modalDfc";
 import { rebuildCopiableValuesAndReplayOverlays } from "./identitySwap";
@@ -74,15 +69,6 @@ import type { LayerStateView } from "./layers";
  *  server-side registration call ever reaching it (`transformPermanent`
  *  runs server-side only). Without this, `maybeSynthesizeToken`'s
  *  from-scratch decode has no way to know the face was "back". */
-/** CR 712.10 — is this face a PERMANENT card face? The one predicate the two
- *  transform legs share, so the clause cannot be enforced on one direction and
- *  forgotten on the other. */
-function isPermanentFaceTypes(types: readonly CardType[]): boolean {
-    return types.some((t) =>
-        (PERMANENT_TYPES as readonly CardType[]).includes(t)
-    );
-}
-
 function backFaceAsTokenSpec(backFace: CardBackFace): TokenSpec {
     return {
         name: backFace.name,
@@ -350,7 +336,7 @@ export function transformPermanent(
         // instant or sorcery card face … nothing happens." No printed NONMODAL
         // back face is one, so this leg is latent for the 401 transform cards;
         // it is stated because the modal kind makes the mirror leg below live.
-        if (!isPermanentFaceTypes(backFace.types)) return;
+        if (!isPermanentTypeLine(backFace.types)) return;
         // CR 712.3 / 712.8f (ADR 0122 §1) — a MODAL back face is already a
         // registered twin, so transform points at THAT definition rather than
         // minting a second one through the token codec. One face, one
@@ -388,7 +374,7 @@ export function transformPermanent(
         // `removePermanentTo`.
         const frontId = card.transformedFrom;
         const frontDef = frontId ? tryGetDefinition(frontId) : undefined;
-        if (frontDef && !isPermanentFaceTypes(frontDef.types)) return;
+        if (frontDef && !isPermanentTypeLine(frontDef.types)) return;
         // Back → front is exactly the CR 712.8a restore, so it IS that
         // function — one front-face rebuild, not two that can drift apart.
         revertTransform(state, card);

@@ -37,6 +37,7 @@ import type {
     CardType,
 } from "./types";
 import { PERMANENT_TYPES } from "./types";
+import { resolveTokenStaticEffects } from "./tokenStaticEffects";
 import { twinDefinitionId } from "./twinId";
 
 /** The twin-id suffix a modal back face is registered under. One word, in the
@@ -70,14 +71,29 @@ export const CARD_BACK_FACE_KINDS: Record<
          *  only registration that can carry a face's entry replacement. */
         registration: "token-codec" | "twin";
         /** CR 712.19 — whether the face's name joins the card's name-choice
-         *  domain. True for both kinds: "the player may choose the name of
-         *  either face of a double-faced card but not both", which 712.2's
-         *  transform face satisfies as squarely as 712.3's modal one. Named
-         *  rather than assumed so a kind added later has to answer it. */
+         *  domain today ("the player may choose the name of either face of a
+         *  double-faced card but not both").
+         *
+         *  The RULE does not distinguish the kinds; this engine does, and the
+         *  reason is registration rather than rules. A choosable name must
+         *  RESOLVE through `tryGetCardByName` — the server's own name-card
+         *  submit gate — or the button offers a name the mutation refuses (PR
+         *  #3302 review finding 4). A modal face is a module-registered twin
+         *  with a stable `${parentId}#back` id, so it resolves; a NONMODAL
+         *  face has no definition at all until some permanent transforms and
+         *  `registerBackFaceDefinition` synthesizes one on the fly, so there
+         *  is nothing for a name to resolve to at choice time. Turning it on
+         *  for the 401 transform cards is the record that retires that id
+         *  codec (ADR 0122 § Consequences), not this one — and the flag is
+         *  here, false and argued, rather than absent, so that record has to
+         *  flip it deliberately. */
         contributesChooseableName: boolean;
     }
 > = {
-    nonmodal: { registration: "token-codec", contributesChooseableName: true },
+    nonmodal: {
+        registration: "token-codec",
+        contributesChooseableName: false,
+    },
     modal: { registration: "twin", contributesChooseableName: true },
 };
 
@@ -139,6 +155,7 @@ export function modalBackTwinDefinition(
 ): CardDefinition | undefined {
     const back = parent.backFace;
     if (!back || backFaceKind(back) !== "modal") return undefined;
+    const backStaticEffects = resolveTokenStaticEffects(back.staticEffectKeys);
     return {
         id: modalBackFaceDefinitionId(parent.id),
         name: back.name,
@@ -152,6 +169,16 @@ export function modalBackTwinDefinition(
         ...(back.colors ? { colors: [...back.colors] } : {}),
         ...(back.staticAbilities
             ? { staticAbilities: [...back.staticAbilities] }
+            : {}),
+        // CR 611 — the face's continuous effects, rebuilt through the SAME
+        // shared factory table `registerBackFaceDefinition` resolves them with
+        // (`cards/tokenStaticEffects.ts`). Carried rather than dropped because
+        // the drop would be silent: a modal back face declaring a
+        // `staticEffectKeys` entry would register a twin without it and the
+        // face would simply not have the ability, which is the failure mode
+        // this whole module exists to avoid (PR #3412 review).
+        ...(backStaticEffects.length > 0
+            ? { staticEffects: backStaticEffects }
             : {}),
         ...(back.activatedAbilities
             ? { activatedAbilities: back.activatedAbilities }
@@ -213,7 +240,19 @@ export type PlayLandFace = (typeof PLAY_LAND_FACES)[number];
  *  nonpermanent card in a graveyard is) must not turn "its front face isn't a
  *  permanent card" into "it is now". The rule speaks about the printed face. */
 export function modalFrontFaceIsPermanentCard(def: CardDefinition): boolean {
-    return def.types.some((t: CardType) =>
+    return isPermanentTypeLine(def.types);
+}
+
+/** CR 712.10 / 712.14b — does this type line belong to a PERMANENT card?
+ *
+ *  THE predicate both clauses read, and they are the same question asked of
+ *  two faces: 712.14b about the FRONT face at the put-onto-battlefield
+ *  chokepoint, 712.10 about whichever face a transform would turn up. Two
+ *  copies of a `PERMANENT_TYPES.some(...)` would let one direction be enforced
+ *  and the other forgotten, which is exactly what nearly shipped (PR #3412
+ *  review). */
+export function isPermanentTypeLine(types: readonly CardType[]): boolean {
+    return types.some((t: CardType) =>
         (PERMANENT_TYPES as readonly CardType[]).includes(t)
     );
 }

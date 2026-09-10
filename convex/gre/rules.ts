@@ -252,10 +252,14 @@ export function isPlayableLibraryTopLand(
 ): boolean {
     if (!canPlayLandsFromTopOfLibrary(state, player)) return false;
     const top = player.library[0];
+    // CR 712.12 — a FACE test, not a card test, for the same reason the
+    // graveyard permission and `getLegalActions`' own land branch use it: a
+    // modal double-faced card on top of the library is its front face
+    // (CR 712.8a) and may still be played as its land face.
     return (
         top !== undefined &&
         top.id === cardInstanceId &&
-        top.types.includes("Land")
+        landPlayFaces(top).length > 0
     );
 }
 

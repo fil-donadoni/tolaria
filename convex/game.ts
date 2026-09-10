@@ -209,9 +209,7 @@ import {
     assertLegalAction,
     canCastFromGraveyardByPermission,
     canCastPermanentFromGraveyardByPermission,
-    canPlayLandsFromGraveyard,
     isCastableLibraryTopSpell,
-    isPlayableLibraryTopLand,
     markGraveyardPermanentCastUsed,
     getLegalTargets,
     checkPermanentTargetFilters,
@@ -475,10 +473,8 @@ import {
     offersPrintedCast,
 } from "./gre/splitCast";
 import {
-    applyPlayLand,
-    applyPlayLandFromExile,
-    applyPlayLandFromGraveyard,
-    applyPlayLandFromLibraryTop,
+    applyPlayLandFromAnyZone,
+    resolvePlayLandSourceZone,
 } from "./gre/playLand";
 import { isPlayableLandFace, type PlayLandFace } from "./gre/modalLandPlay";
 import {
@@ -2505,41 +2501,6 @@ export function castZoneOwner(
             p.exile.some((c) => c.id === cardInstanceId)
         ) ?? player
     );
-}
-
-/** Play-from-graveyard lookup (CR 305.1-analog permission, issue #1190 —
- *  Icetill Explorer). Returns the LAND in `player`'s graveyard matching
- *  `instanceId` while `player` holds the unconditional, player-wide
- *  play-lands-from-graveyard permission (`canPlayLandsFromGraveyard`), or
- *  undefined. Unlike the exile permission (`castableFromExileBy`, a per-card
- *  grant), this permission is derived live from the battlefield every call —
- *  there is nothing to check or clear on the card itself. */
-function findPlayableGraveyardLand(
-    state: GameState,
-    player: PlayerState,
-    instanceId: string
-): CardInstanceState | undefined {
-    if (!canPlayLandsFromGraveyard(state, player)) return undefined;
-    const card = player.graveyard.find((c) => c.id === instanceId);
-    return card && card.types.includes("Land") ? card : undefined;
-}
-
-/** Play-from-top-of-library lookup (CR 305.1-analog permission — Courser of
- *  Kruphix). Returns the LAND on top of `player`'s own library when it matches
- *  `instanceId` and `player` holds the play-from-top permission, or undefined.
- *  Position-strict: only index 0 qualifies, because the permission names the
- *  TOP card and the rest of the library is a hidden zone (CR 400.2) — a stale
- *  client id naming a card the library has since moved must not become a play
- *  from the middle of the deck. Like the graveyard permission this is derived
- *  live from the battlefield every call, so there is nothing on the card
- *  itself to check or clear. */
-function findPlayableLibraryTopLand(
-    state: GameState,
-    player: PlayerState,
-    instanceId: string
-): CardInstanceState | undefined {
-    if (!isPlayableLibraryTopLand(state, player, instanceId)) return undefined;
-    return player.library[0];
 }
 
 /** CR 305.1-analog / 601 (issue #1149) — the SPELL half of the BROAD,
@@ -5955,31 +5916,36 @@ export const playCard = mutation({
         // top of the controller's own library is a legal play source while
         // they hold the play-from-top permission (Courser of Kruphix —
         // `isPlayableLibraryTopLand`, position-strict at index 0).
-        const cardInHand = player.hand.find(
-            (c) => c.id === args.cardInstanceId
+        //
+        // WHICH zone, through the shared resolver rather than a second set of
+        // finders here. `resolvePlayLandSourceZone` (`gre/playLand.ts`) is the
+        // authority the Bot's two executors already read, and its own doc has
+        // always named this mutation as one of its three callers — it was not
+        // one, and the divergence was a rules bug: the local finders filtered
+        // candidates on `card.types.includes("Land")`, which for a MODAL
+        // double-faced card is its FRONT face (CR 712.8a) and can be an
+        // instant. `getLegalActions` and `enumerateMoves` both offered the
+        // play; this mutation then threw "Card not in hand" on it (PR #3412
+        // review). One resolver, one answer.
+        const sourceZone = resolvePlayLandSourceZone(
+            state,
+            player,
+            args.cardInstanceId
         );
-        const exileLand = cardInHand
-            ? undefined
-            : findCastableExileCard(state, player.id, args.cardInstanceId);
-        const graveyardLand =
-            cardInHand || exileLand
-                ? undefined
-                : findPlayableGraveyardLand(state, player, args.cardInstanceId);
-        const libraryTopLand =
-            cardInHand || exileLand || graveyardLand
-                ? undefined
-                : findPlayableLibraryTopLand(
-                      state,
-                      player,
-                      args.cardInstanceId
-                  );
         const playSource =
-            cardInHand ?? exileLand ?? graveyardLand ?? libraryTopLand;
+            sourceZone === "hand"
+                ? player.hand.find((c) => c.id === args.cardInstanceId)
+                : sourceZone === "graveyard"
+                  ? player.graveyard.find((c) => c.id === args.cardInstanceId)
+                  : sourceZone === "library-top"
+                    ? player.library[0]
+                    : sourceZone === "exile"
+                      ? state.players
+                            .flatMap((p) => p.exile)
+                            .find((c) => c.id === args.cardInstanceId)
+                      : undefined;
         if (!playSource) throw new Error("Card not in hand");
-        if (exileLand && !exileLand.types.includes("Land")) {
-            // A non-land exile card is cast (announceCast), never played here.
-            throw new Error("Card not in hand");
-        }
+        const face: PlayLandFace = args.face ?? "front";
         if (!args.skipValidation) {
             assertLegalAction(state, player, playSource, "play");
         }
@@ -5990,7 +5956,6 @@ export const playCard = mutation({
         // land, which is the whole of what 712.12 lets the player choose. A
         // client naming `"back"` on a Forest would otherwise stamp an
         // unresolvable twin id onto the permanent.
-        const face: PlayLandFace = args.face ?? "front";
         if (!isPlayableLandFace(playSource, face)) {
             throw new Error("That face isn't a land you can play");
         }
@@ -6002,25 +5967,7 @@ export const playCard = mutation({
         // simulated paths cannot drift. (Pre-fix this mutation skipped
         // `markEnteredThisTurn`, so a Mishra's Factory played and animated the
         // same turn could illegally attack — issue: manland summoning sickness.)
-        if (exileLand) {
-            applyPlayLandFromExile(state, player, args.cardInstanceId, face);
-        } else if (graveyardLand) {
-            applyPlayLandFromGraveyard(
-                state,
-                player,
-                args.cardInstanceId,
-                face
-            );
-        } else if (libraryTopLand) {
-            applyPlayLandFromLibraryTop(
-                state,
-                player,
-                args.cardInstanceId,
-                face
-            );
-        } else {
-            applyPlayLand(state, player, args.cardInstanceId, face);
-        }
+        applyPlayLandFromAnyZone(state, player, args.cardInstanceId, face);
 
         const nextSeq = gameState.seq + 1;
 

@@ -69,9 +69,18 @@ export function playLandFaceDefinition(
  *  has ever applied to it. */
 export function landPlayFaces(card: CardInstanceState): PlayLandFace[] {
     const faces: PlayLandFace[] = [];
-    if (card.types.includes("Land")) faces.push("front");
     const cardId = (card.card as { id?: string } | undefined)?.id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
+    // A wire card that carries no type line at all (a Manual Board catalogue
+    // card, ADR 0080; a hand-built fixture) answers off the PRINTED front
+    // face instead of crashing. That is the rules answer, not a fallback: the
+    // instance `types` this normally reads exist to carry a layer-4 change,
+    // and an object no continuous effect has touched has exactly its printed
+    // line. Empty for an instance whose definition does not resolve either —
+    // fail closed, since the alternative is offering a "Play land" over a card
+    // the mutation will refuse.
+    const frontTypes = card.types ?? def?.types ?? [];
+    if (frontTypes.includes("Land")) faces.push("front");
     if (
         isModalDoubleFaced(def ?? undefined) &&
         def?.backFace?.types.includes("Land")

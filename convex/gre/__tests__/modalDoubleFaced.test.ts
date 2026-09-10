@@ -22,13 +22,19 @@ import {
 } from "../../cards/modalDfc";
 import { getLegalActions } from "../rules";
 import { landPlayFaces } from "../modalLandPlay";
-import { applyPlayLand, finalizeLandEntry } from "../playLand";
+import {
+    applyPlayLand,
+    applyPlayLandFromAnyZone,
+    finalizeLandEntry,
+    resolvePlayLandSourceZone,
+} from "../playLand";
 import { transformPermanent } from "../transform";
 import { projectPublicState } from "../../gameProjections";
 import type { GameState, PlayerState } from "../state";
 
 const SINK_INTO_STUPOR = "5358b87a-1a29-426d-b165-40c97da2c14d";
 const WITCH_ENCHANTER = "62061e7c-cf19-4f03-b8fa-2bdba62d6b0b";
+const CRUCIBLE_OF_WORLDS = "312a6058-de08-487d-95bd-b3c56807fdd6";
 
 /** A main phase, empty stack, `p1` active with priority and a land drop left —
  *  the window CR 116.2a gives a land play, with `card` in `p1`'s hand. */
@@ -183,6 +189,74 @@ describe("modal double-faced cards (CR 712.3)", () => {
         expect((land.card as { id: string }).id).toBe(
             modalBackFaceDefinitionId(SINK_INTO_STUPOR)
         );
+    });
+
+    it("CR 305.9 / 712.12: a play-from-graveyard permission reaches the LAND FACE, and one resolver answers for both the offer and the commit", () => {
+        // PR #3412 review, BLOCKING: `getLegalActions` and `enumerateMoves`
+        // both offered this play while `playCard`'s own local finder filtered
+        // candidates on the FRONT face's type line — an instant — and threw
+        // "Card not in hand" on the Move it had just offered. The fix deleted
+        // that second authority, so the guard is that the SHARED resolver
+        // (`resolvePlayLandSourceZone`, which the mutation now calls) and the
+        // offering surface agree.
+        const card = makeInstance(SINK_INTO_STUPOR, {
+            id: "gy-mdfc",
+            controllerId: "p1",
+            zone: "graveyard",
+        });
+        const crucible = makeInstance(CRUCIBLE_OF_WORLDS, {
+            id: "crucible",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [card],
+                    battlefield: [crucible],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const player = state.players[0];
+
+        expect(getLegalActions(state, player, card)).toContain("play");
+        expect(resolvePlayLandSourceZone(state, player, card.id)).toBe(
+            "graveyard"
+        );
+
+        applyPlayLandFromAnyZone(state, player, card.id, "back");
+        finalizeLandEntry(
+            state,
+            "p1",
+            card.id,
+            { life: 3 },
+            false,
+            state.pendingChoices?.[0]?.landSourceZone,
+            state.pendingChoices?.[0]?.landEntryFace
+        );
+        const entered = player.battlefield.find((c) => c.id === card.id);
+        expect(entered?.types).toEqual(["Land"]);
+        expect(player.graveyard).toHaveLength(0);
+    });
+
+    it("CR 305.9 / 712.12: a land-inclusive EXILE grant reaches the land face too", () => {
+        // The sibling of the finding above, on the origin whose own guard was
+        // `!exileLand.types.includes("Land")` — a throw that fired for exactly
+        // the card the grant was meant to let you play.
+        const card = makeInstance(SINK_INTO_STUPOR, {
+            id: "ex-mdfc",
+            controllerId: "p1",
+            zone: "exile",
+            castableFromExileBy: "p1",
+            castableFromExileIncludesLand: true,
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { exile: [card] }), makePlayer("p2")],
+        });
+        const player = state.players[0];
+
+        expect(getLegalActions(state, player, card)).toContain("play");
+        expect(resolvePlayLandSourceZone(state, player, card.id)).toBe("exile");
     });
 
     it("CR 712.19: the name-choice list offers both face names, and the card's name is the front face's", () => {

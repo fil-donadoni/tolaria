@@ -14,6 +14,8 @@ import {
     landPlayFaces,
     playLandFaceDefinition,
 } from "@convex/gre/modalLandPlay";
+import { isModalDoubleFaced } from "@convex/cards/modalDfc";
+import { tryGetDefinition } from "@convex/cards";
 import type { CardInstanceState } from "@convex/gre/state";
 import type { PlayLandFace } from "@convex/cards/modalDfc";
 import { extractMutationErrorMessage } from "~/lib/mutation-error";
@@ -244,17 +246,27 @@ export default function GreHandCard({
     // Ordered cast-then-play so a card whose front face is the marquee half
     // reads that way in the menu; an ordinary land has no cast entry, so its
     // single "Play land" is unchanged.
-    // The wire card is a `CardInstanceState` minus its fat `card` payload, but
-    // a hand-built fixture (and a Manual Board catalogue card, ADR 0080) can
-    // reach here with no type line at all. Fall back to the single front-face
-    // play this surface has always offered rather than reading `types` off
-    // nothing: the server re-derives the legal face set and refuses anything
-    // else, so the fallback can only ever offer LESS than the truth.
+    // The wire card is a `CardInstanceState` minus its fat `card` payload.
+    // WHETHER a land play is legal is the server's answer (`legalActions`,
+    // ADR 0074); WHICH faces it may name is the shared predicate's, asked here
+    // exactly as `playCard` asks it server-side.
+    //
+    // When the predicate names no face on a card the server says is playable,
+    // the client's own definition data is incomplete — a Manual Board
+    // catalogue card (ADR 0080) whose id the registry does not know, a card
+    // whose def carries no type line. Offer the FRONT face then, which is what
+    // a land play meant before modal cards existed: a dead CTA over an action
+    // the server has already declared legal is the worse failure, and the
+    // mutation re-derives the face set and refuses anything wrong.
     const instance = card as unknown as CardInstanceState;
-    const derivedFaces =
-        canPlay && Array.isArray(instance.types) ? landPlayFaces(instance) : [];
+    const derivedFaces = canPlay ? landPlayFaces(instance) : [];
     const landFaces: PlayLandFace[] =
         derivedFaces.length > 0 ? derivedFaces : canPlay ? ["front"] : [];
+    const isModalCard = isModalDoubleFaced(
+        tryGetDefinition(
+            (card.card as { id?: string } | undefined)?.id ?? ""
+        ) ?? undefined
+    );
     const primaryActions: HandCardPrimaryAction[] = [
         ...(canCast
             ? [
@@ -266,14 +278,15 @@ export default function GreHandCard({
               ]
             : []),
         ...landFaces.map((face) => ({
-            // One face and no cast: the historic "Play land" wording, so an
-            // ordinary land's affordance is untouched. Two options: name the
-            // FACE, because "Play land" would read identically for both halves
-            // of a `land // land` pathway.
-            label:
-                landFaces.length === 1 && !canCast
-                    ? "Play land"
-                    : `Play ${playLandFaceDefinition(instance, face)?.name ?? "land"}`,
+            // An ordinary land keeps the historic "Play land" wording. A
+            // MODAL card always names the face, whether or not its front face
+            // happens to be castable right now: the card's art and name read
+            // "Sink into Stupor", so a row saying "Play land" over it is at
+            // its least readable in exactly the case the player most needs
+            // told which face enters (PR #3412 review).
+            label: isModalCard
+                ? `Play ${playLandFaceDefinition(instance, face)?.name ?? "land"}`
+                : "Play land",
             onSelect: () => onPlayClick(face),
         })),
     ];

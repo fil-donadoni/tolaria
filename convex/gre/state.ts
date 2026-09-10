@@ -107,6 +107,7 @@ import {
     isModalDoubleFaced,
     modalFrontFaceIsPermanentCard,
 } from "../cards/modalDfc";
+import { landPlayFaces } from "./modalLandPlay";
 import type { FaceDownProducer } from "./faceDown";
 import {
     revertTransform,
@@ -12440,10 +12441,14 @@ function restoreToCurrentZone(state: GameState, card: CardInstanceState): void {
         default:
             // Stack / battlefield: no caller reaches this chokepoint from
             // either (a resolving permanent spell goes through
-            // `finalizeSpellResolution`, and CR 712.13 governs it), so there
-            // is nothing to restore and dropping the card would be the bug.
-            owner.graveyard.push(card);
-            return;
+            // `finalizeSpellResolution`, and CR 712.13 governs it). Loud
+            // rather than silently relocating a card to a zone no rule sent it
+            // to: "stays in its current zone" has no reading for an origin
+            // this function cannot name, and a quiet graveyard push would be a
+            // card in the wrong pile instead of an obvious failure.
+            throw new Error(
+                `CR 712.14b: cannot restore ${card.id} to zone "${card.zone}"`
+            );
     }
 }
 
@@ -12509,6 +12514,13 @@ function stageReanimatedOnBattlefield(
     // of the instance's live `types`, because that is what the rule speaks
     // about.
     if (refusedByModalFrontFace(card)) {
+        // CR 611.2c — it never entered, so the entry type line never began
+        // ("return it to the battlefield. It's an enchantment" stamps
+        // `entersAsTypeLine` BEFORE this chokepoint). Drop the stamp with it,
+        // exactly as the land-block and exile-redirect branches below do, or a
+        // later unrelated entry of this same instance consumes it (PR #3023
+        // review B1 / PR #3412 review).
+        discardEntryTypeLine(card);
         restoreToCurrentZone(state, card);
         return false;
     }
@@ -15882,7 +15894,18 @@ export function buildSpellContext(
             const card = player[sourceZone].find(
                 (c) => c.id === cardInstanceId
             );
-            if (!card || !card.types.includes("Land")) return false;
+            // CR 712.12 (ADR 0122 §2) — "a land" is a FACE question here too:
+            // "that player plays that card if able" (CR 608.2g) can name a
+            // modal double-faced card, whose own type line (CR 712.8a) is its
+            // front face's. The face is not a parameter because this primitive
+            // has no chooser to ask — the CHOSEN card's controller plays it,
+            // and every printed land-backed modal card has exactly one land
+            // face, so the choice CR 712.12 gives has one answer. A
+            // `land // land` pathway reaching here would be played as its
+            // front face; none is in a shipped pool, and the day one is, the
+            // choice belongs to the played player, not to this call site.
+            const faces = card ? landPlayFaces(card) : [];
+            if (!card || faces.length === 0) return false;
             // CR 614 — a land-play lock (Worms of the Earth) blocks the play.
             if (landPlayLockActive(state)) return false;
             // CR 305.2 — one land per turn, plus any extra-drop grants (e.g.
@@ -15896,15 +15919,23 @@ export function buildSpellContext(
             // ETB (CR 603.6a) and settles SBAs through the SAME
             // `settleEnteredLand` tail (`gre/playLand.ts`), so a resolve-time
             // exile play and a normal hand drop can never drift.
+            // CR 712.12 — the face the play puts onto the battlefield: the
+            // card's only land face (see above).
+            const face = faces[0];
             switch (sourceZone) {
                 case "hand":
-                    applyPlayLand(state, player, cardInstanceId);
+                    applyPlayLand(state, player, cardInstanceId, face);
                     return true;
                 case "exile":
-                    applyPlayLandFromExile(state, player, cardInstanceId);
+                    applyPlayLandFromExile(state, player, cardInstanceId, face);
                     return true;
                 case "graveyard":
-                    applyPlayLandFromGraveyard(state, player, cardInstanceId);
+                    applyPlayLandFromGraveyard(
+                        state,
+                        player,
+                        cardInstanceId,
+                        face
+                    );
                     return true;
                 default: {
                     // Exhaustive: a newly added source zone must break the
