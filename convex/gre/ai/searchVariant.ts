@@ -33,6 +33,11 @@
 // it, so there is exactly one mechanism, not two competing ones.
 
 import { DEFAULT_EVAL_WEIGHTS, type EvalWeights } from "./evalWeights";
+import {
+    ROOT_DECISION_MECHANISMS,
+    ROOT_RULE_ALLOWLIST,
+    type RootDecisionMechanism,
+} from "./decisionTelemetry";
 
 /** PUCT priors + first-play urgency on the MAIN action space (issue #2684).
  *
@@ -95,6 +100,19 @@ export type SearchVariant = {
      *  Consulted once, in `runSearchWithTrace`, and threaded into
      *  `determinize`. */
     opponentModel?: OpponentModel;
+    /** Root rules turned OFF for this search (issue #3399, PRD #3397, ADR
+     *  0124 §5). Each named `RootDecisionMechanism` becomes a no-op in
+     *  `selectRootMove`, so the pick falls through to whatever the stage
+     *  before it held. Absent/empty = production: every rule runs.
+     *
+     *  This is the moratorium's measuring instrument, not a strength knob. A
+     *  rule is INERT when its `flipped` count is zero on the decision corpus
+     *  AND the blade `must` tier stays green with it disabled — and the check
+     *  is `BLADE_VARIANT=no-rule:<mechanism> bun run test:blade`, five
+     *  minutes, no code edit. Only `kind: "rule"` members may appear here;
+     *  the two structural mechanisms are the search's own selection and
+     *  `resolveDisabledRootRules` throws on them. */
+    disabledRootRules?: RootDecisionMechanism[];
 };
 
 /** The imagined-opponent modes a variant may force (issue #2791). One member
@@ -151,6 +169,77 @@ export function resolveOpponentModel(
     variant: SearchVariant | null
 ): OpponentModel | null {
     return variant?.opponentModel ?? null;
+}
+
+/** Resolve the root rules disabled for one search (issue #3399). Same
+ *  discipline as the resolvers above — read ONCE, at the top of
+ *  `runSearchWithTrace`, and threaded into `selectRootMove` explicitly, so
+ *  nothing deeper re-reads the module-global and a decision stays reproducible
+ *  from its inputs alone. Live play and every test that installs no variant
+ *  get the empty set, and an empty set costs one `Set.has` per rule per
+ *  DECISION (not per iteration).
+ *
+ *  FAIL-LOUD on a bad member, the same rule `resolveCorpusVariant` and the
+ *  blade runner's `BLADE_VARIANT` follow: a mechanism that is not a rule (or
+ *  not a mechanism at all) would silently disable nothing, and "the `must`
+ *  tier is green without rule X" would then be a statement about a typo. */
+export function resolveDisabledRootRules(
+    variant: SearchVariant | null
+): ReadonlySet<RootDecisionMechanism> {
+    const names = variant?.disabledRootRules;
+    if (!names || names.length === 0) return EMPTY_DISABLED_RULES;
+    for (const name of names) assertDisableableRootRule(name);
+    return new Set(names);
+}
+
+/** The shared empty set — production, and the default every `selectRootMove`
+ *  caller that installs no variant gets. */
+export const EMPTY_DISABLED_RULES: ReadonlySet<RootDecisionMechanism> =
+    new Set();
+
+/** Throw unless `name` is an allowlisted root rule that can be disabled.
+ *  Exported for the blade runner, which parses the same names out of an
+ *  environment variable and owes the same fail-loud reading. */
+export function assertDisableableRootRule(
+    name: string
+): asserts name is RootDecisionMechanism {
+    const row = ROOT_RULE_ALLOWLIST[name as RootDecisionMechanism];
+    if (!row) {
+        throw new Error(
+            `disabledRootRules: "${name}" is not a RootDecisionMechanism — known: ${ROOT_DECISION_MECHANISMS.join(
+                ", "
+            )}`
+        );
+    }
+    if (row.kind !== "rule") {
+        throw new Error(
+            `disabledRootRules: "${name}" is structural (the search's own selection), not a disableable root rule`
+        );
+    }
+}
+
+/** The synthetic variant behind `BLADE_VARIANT=no-rule:<mechanism>[,<…>]`
+ *  (issue #3399) — a per-rule blade leg without thirteen registry entries
+ *  that would each have to be deleted with their rule. Throws on any name
+ *  that is not a disableable rule. */
+export const NO_RULE_VARIANT_PREFIX = "no-rule:";
+
+export function noRuleVariant(spec: string): SearchVariant {
+    const names = spec
+        .slice(NO_RULE_VARIANT_PREFIX.length)
+        .split(",")
+        .map((n) => n.trim())
+        .filter((n) => n.length > 0);
+    if (names.length === 0) {
+        throw new Error(
+            `BLADE_VARIANT "${spec}" names no rule — use ${NO_RULE_VARIANT_PREFIX}<mechanism>[,<mechanism>]`
+        );
+    }
+    for (const name of names) assertDisableableRootRule(name);
+    return {
+        name: spec,
+        disabledRootRules: names as RootDecisionMechanism[],
+    };
 }
 
 /** The named candidate configs `bun run ladder --variant <name>` can run.

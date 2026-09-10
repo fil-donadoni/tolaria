@@ -163,6 +163,7 @@ describe("summarizeRootDecisions (pure aggregation)", () => {
         gapMarginPoints: 40,
         chosenDeficitReward: 0,
         mechanism: "mean-reward",
+        flipped: false,
         pickIsMeanArgmax: true,
         ...over,
     });

@@ -18,27 +18,140 @@
  *  the named hand-written rules. `mean-reward` = a single contender survived
  *  the `OUTCOME_EPS` window (the search's argmax stood alone).
  *  `material-tiebreak` = several outcome-equal contenders, the saturation-
- *  proof material margin picked among them. The named values = that rule
- *  CHANGED the pick (a branch that re-selected the same edge does not count
- *  as deciding). */
-export type RootDecisionMechanism =
-    | "mean-reward"
-    | "material-tiebreak"
-    | "extra-turn-credit"
-    | "wasteful-attack"
-    | "block-quality"
-    | "announcement-variant"
-    | "self-harm-removal"
-    | "free-development"
-    | "hold-trick"
-    | "colour-mode-evidence"
-    | "wasted-mana-hold"
-    | "last-window-fire"
-    | "standing-spend-hold"
-    /** Issue #3388 — the POSITIVE half of `self-harm-removal`: a
-     *  self-confined cast whose settled resolution strictly IMPROVES the
-     *  mover's material margin, taken over an outcome-equal `pass`. */
-    | "resolved-payoff";
+ *  proof material margin picked among them. A named value = that rule was the
+ *  LAST one to touch the pick; whether it actually CHANGED it is the record's
+ *  own `flipped` field (issue #3399), not something the name asserts.
+ *
+ *  FROZEN — the root-rule moratorium (issue #3399, PRD #3397, ADR 0124 §5).
+ *  The union is DERIVED from the runtime list below, and every member owes a
+ *  `ROOT_RULE_ALLOWLIST` row naming the issue whose body carries its
+ *  justification. For a NEW rule that justification has one shape: the proof
+ *  that the two candidates the rule separates share ONE feature vector under
+ *  every evaluation term — a distinction a term could express is a TERM, to
+ *  be fitted from verdicts (ADR 0124), not a fourteenth hand-written rule at
+ *  the root. Enforced twice: `Record<RootDecisionMechanism, …>` reds in `tsc`
+ *  on a missing row, and `rootRuleAllowlist.bot.test.ts` reds at runtime in
+ *  both directions (vitest transpiles, it does not typecheck). */
+export const ROOT_DECISION_MECHANISMS = [
+    "mean-reward",
+    "material-tiebreak",
+    "extra-turn-credit",
+    "wasteful-attack",
+    "block-quality",
+    "announcement-variant",
+    "self-harm-removal",
+    "free-development",
+    "hold-trick",
+    "colour-mode-evidence",
+    "wasted-mana-hold",
+    "last-window-fire",
+    "standing-spend-hold",
+    "resolved-payoff",
+] as const;
+
+export type RootDecisionMechanism = (typeof ROOT_DECISION_MECHANISMS)[number];
+
+/** One allowlist row. `structural` marks the two outcomes of the search's own
+ *  selection — the mean-reward argmax and the material tie-break among
+ *  outcome-equal contenders. They are not rules and cannot be disabled: with
+ *  no argmax there is no pick at all. Everything else is `rule` — a named
+ *  hand-written root tie-break, subject to the moratorium and to
+ *  `SearchVariant.disabledRootRules`. */
+export type RootRuleProvenance = {
+    kind: "structural" | "rule";
+    /** The issue whose body records the justification. */
+    issue: number;
+    /** One line: what the rule buys, in the vocabulary of the position it was
+     *  written for. */
+    why: string;
+};
+
+/** The moratorium allowlist (issue #3399). A new `ROOT_DECISION_MECHANISMS`
+ *  member without a row here does not compile and does not pass the guard
+ *  test — which is the whole point: the queue's answer to "the bot blundered"
+ *  became a fourteenth root rule thirteen times, and ADR 0124 §5 replaced that
+ *  reflex with Verdicts → fit → report. */
+export const ROOT_RULE_ALLOWLIST: Record<
+    RootDecisionMechanism,
+    RootRuleProvenance
+> = {
+    "mean-reward": {
+        kind: "structural",
+        issue: 1893,
+        why: "one contender survived the OUTCOME_EPS window — the search's own argmax",
+    },
+    "material-tiebreak": {
+        kind: "structural",
+        issue: 1893,
+        why: "several outcome-equal contenders, ranked by saturation-proof material margin",
+    },
+    "extra-turn-credit": {
+        kind: "rule",
+        issue: 244,
+        why: "an extra turn is washed out of the rollout (ADR 0015 horizon), so a grant is both low-reward and under-visited",
+    },
+    "wasteful-attack": {
+        kind: "rule",
+        issue: 1893,
+        why: "a fully-absorbed attack that kills nothing leaves board material unchanged, so it ties with staying back; provenance predates the issue-tracked workflow, named and measured in the telemetry corpus",
+    },
+    "block-quality": {
+        kind: "rule",
+        issue: 1893,
+        why: "a double chump and a single chump leave the same board in most rollouts; provenance predates the issue-tracked workflow, refined by #2876 (determinized lens) and #3106 (the empty declaration is always a contender)",
+    },
+    "announcement-variant": {
+        kind: "rule",
+        issue: 1888,
+        why: "sibling variants of one announcement (other targets, other X, other modes) are outcome-equal to the search and separated only by the resolved payoff",
+    },
+    "self-harm-removal": {
+        kind: "rule",
+        issue: 365,
+        why: "a self-confined cast whose settled resolution strictly LOWERS the mover's margin, held over an outcome-equal pass",
+    },
+    "free-development": {
+        kind: "rule",
+        issue: 206,
+        why: "a land drop / free mana source / mana dork has no option cost, and its development washes out of the rollout (ADR 0020 §1)",
+    },
+    "hold-trick": {
+        kind: "rule",
+        issue: 229,
+        why: "an instant-speed answer dumped at sorcery speed destroys option value the reward cannot price (ADR 0021)",
+    },
+    "colour-mode-evidence": {
+        kind: "rule",
+        issue: 2306,
+        why: "a protection-from-the-colour-of-your-choice pick has no material signature at all until something of that colour appears",
+    },
+    "wasted-mana-hold": {
+        kind: "rule",
+        issue: 2955,
+        why: "a ritual whose mana nothing in the position can spend burns a card for a resource that empties unused (CR 106.4 / 500.4)",
+    },
+    "last-window-fire": {
+        kind: "rule",
+        issue: 2939,
+        why: "past the opponent's end step (CR 513.1) deferring buys no information, and both subtrees contain the same future activation",
+    },
+    "standing-spend-hold": {
+        kind: "rule",
+        issue: 3319,
+        why: "the missing half of the fire rule outside the mover's own sorcery window: a spend that leaves the position no better is dominated by keeping the permanent",
+    },
+    "resolved-payoff": {
+        kind: "rule",
+        issue: 3388,
+        why: "the POSITIVE half of self-harm-removal: a self-confined cast whose settled resolution strictly IMPROVES the mover's margin, taken over an outcome-equal pass",
+    },
+};
+
+/** Whether a mechanism can be turned off by `SearchVariant.disabledRootRules`
+ *  — every `rule` row, never a `structural` one. */
+export function isDisableableRootRule(m: RootDecisionMechanism): boolean {
+    return ROOT_RULE_ALLOWLIST[m].kind === "rule";
+}
 
 /** Which bound ended a search loop — the iteration budget (`SearchBudget.
  *  iterations`) was reached, the wall-clock bound (`SearchBudget.timeMs`)
@@ -106,6 +219,22 @@ export type RootDecisionRecord = {
      *  argmax). */
     chosenDeficitReward: number;
     mechanism: RootDecisionMechanism;
+    /** Whether `mechanism` actually CHANGED the pick relative to the chain
+     *  stage before it (issue #3399, the root-rule moratorium). A rule that
+     *  re-selects the edge the stage before it already held CONFIRMED the
+     *  pick; it did not decide it, and it is the count of records where it
+     *  did that says whether the rule earns its place.
+     *
+     *  Per mechanism kind:
+     *  - `mean-reward` — always false. There is no stage before the argmax.
+     *  - `material-tiebreak` — true when the chosen edge sits strictly BELOW
+     *    `bestMean`, i.e. the margin ranking traded reward away. Equal-mean
+     *    edges are not a change: the reward stage had no opinion between
+     *    them, so calling the pick a flip would count the order `pool`
+     *    happened to be built in.
+     *  - a named rule — true when the edge it selected is not the one the
+     *    chain held when it ran. */
+    flipped: boolean;
     /** True when the chosen edge is also the strict mean-reward argmax. */
     pickIsMeanArgmax: boolean;
     /** Issue #3393 — the 1-ply greedy policy's pick on the SAME root (the
@@ -147,19 +276,16 @@ export const GAP_BUCKET_EDGES = [
     5, 10, 25, 50, 100, 150, 250, 500, 1000,
 ] as const;
 
-const NAMED_RULES: RootDecisionMechanism[] = [
-    "extra-turn-credit",
-    "wasteful-attack",
-    "block-quality",
-    "announcement-variant",
-    "self-harm-removal",
-    "free-development",
-    "hold-trick",
-    "colour-mode-evidence",
-    "wasted-mana-hold",
-    "last-window-fire",
-    "standing-spend-hold",
-];
+/** The named hand-written rules — every allowlisted mechanism that is not
+ *  structural. DERIVED from `ROOT_RULE_ALLOWLIST`, never a second
+ *  hand-maintained list: the literal this replaced shipped WITHOUT
+ *  `resolved-payoff` (issue #3388 added the mechanism and forgot the row), so
+ *  `namedRuleShare` silently under-counted from the day that rule landed —
+ *  precisely the drift the moratorium's single registry exists to make
+ *  impossible. */
+const NAMED_RULES: RootDecisionMechanism[] = ROOT_DECISION_MECHANISMS.filter(
+    (m) => ROOT_RULE_ALLOWLIST[m].kind === "rule"
+);
 
 export type RootDecisionSummary = {
     total: number;
@@ -180,6 +306,18 @@ export type RootDecisionSummary = {
     namedRuleShare: number;
     /** Share of decisions whose final pick is the strict mean-reward argmax. */
     meanArgmaxShare: number;
+    /** Issue #3399 — per mechanism, how many of the decisions it was
+     *  attributed actually CHANGED the pick, out of how many it was
+     *  attributed at all. A named rule sitting at `flipped: 0` over a real
+     *  corpus decided NOTHING on it: it only ever confirmed what the stage
+     *  before it already held. That is half the moratorium's removal test
+     *  (the other half is the `must` tier staying green with the rule
+     *  disabled — `SearchVariant.disabledRootRules`). */
+    flipsByMechanism: Partial<
+        Record<RootDecisionMechanism, { flipped: number; total: number }>
+    >;
+    /** Share of decisions whose attributed mechanism changed the pick. */
+    flippedShare: number;
     /** Issue #3393 — share of records whose search pick equals the 1-ply
      *  greedy pick, over the records that carry `greedyAgrees` (null when
      *  none does), and the same agreement split by deciding mechanism and
@@ -215,9 +353,11 @@ export function summarizeRootDecisions(
     const byPhase: RootDecisionSummary["byPhase"] = {};
     const byMoveKind: RootDecisionSummary["byMoveKind"] = {};
     const gapHistogram: Record<string, number> = {};
+    const flipsByMechanism: RootDecisionSummary["flipsByMechanism"] = {};
     let multiContender = 0;
     let named = 0;
     let meanArgmax = 0;
+    let flipped = 0;
     let greedyTotal = 0;
     let greedyAgree = 0;
     const greedyAgreeByMechanism: RootDecisionSummary["greedyAgreeByMechanism"] =
@@ -259,6 +399,15 @@ export function summarizeRootDecisions(
         if (r.contenderCount > 1) multiContender++;
         if (NAMED_RULES.includes(r.mechanism)) named++;
         if (r.pickIsMeanArgmax) meanArgmax++;
+        const flips = (flipsByMechanism[r.mechanism] ??= {
+            flipped: 0,
+            total: 0,
+        });
+        flips.total++;
+        if (r.flipped) {
+            flips.flipped++;
+            flipped++;
+        }
     }
 
     const total = records.length;
@@ -271,6 +420,8 @@ export function summarizeRootDecisions(
         multiContenderShare: total === 0 ? 0 : multiContender / total,
         namedRuleShare: total === 0 ? 0 : named / total,
         meanArgmaxShare: total === 0 ? 0 : meanArgmax / total,
+        flipsByMechanism,
+        flippedShare: total === 0 ? 0 : flipped / total,
         greedyAgreeShare: greedyTotal === 0 ? null : greedyAgree / greedyTotal,
         greedyAgreeByMechanism,
         greedyAgreeByMoveKind,

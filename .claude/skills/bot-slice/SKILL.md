@@ -48,8 +48,18 @@ Two invariants worth internalising:
 
 The most common way this skill is invoked is a one-line observation from a real
 game: _"it cast Damnation on an empty board"_, _"it chump-blocked for no
-reason"_, _"it never uses the sac outlet"_. Do NOT jump to a fix. Four steps,
+reason"_, _"it never uses the sac outlet"_. Do NOT jump to a fix. Five steps,
 in order, and the first is the one people skip.
+
+**Where a blunder ENDS UP has changed** (ADR 0124 §5, issue #3399). It used to
+end up as a fourteenth hand-written rule at the root; twelve of them
+accumulated that way, each correct on the one position it was written for and
+unfalsifiable everywhere else. The order now is **Verdicts → fit → report**:
+the position becomes a Verdict ("which move here?"), the evaluation weights are
+re-fitted from the verdict corpus, and what the fit cannot satisfy is REPORTED
+as a missing term rather than patched at the root. `RootDecisionMechanism` is
+FROZEN behind `ROOT_RULE_ALLOWLIST` (`convex/gre/ai/decisionTelemetry.ts`) — a
+new member does not compile and does not pass its guard test.
 
 **1. Capture the position — do not reconstruct it from memory.** A symptom you
 cannot re-run is an anecdote, and a board rebuilt from recollection is a
@@ -112,6 +122,29 @@ The class here is "an effect whose observable outcome is empty is worth strictly
 less than passing" — derived from Op semantics, with zero per-card knowledge.
 Grep for the other cards that ride the same shape and confirm the fix moves them
 too.
+
+**And fix it in the EVALUATION, not at the root.** A class expressible as a
+term of the feature vector is a term: it generalises to every position, it is
+fitted rather than hand-set, and a wrong verdict about it is falsifiable. A new
+root rule is admissible only with the **identical-vector proof** — that the two
+candidates the rule separates carry the SAME feature vector under EVERY
+evaluation term, so no weight could ever tell them apart (timing and hidden
+information are where that genuinely happens). Record the proof in the issue
+and add its `ROOT_RULE_ALLOWLIST` row in the same change; without the row the
+union guard reds.
+
+**Retiring one takes two measures, both deterministic.** A rule is inert when
+(a) its `flipped` count is ZERO over the decision-telemetry corpus — it was
+attributed picks but never changed one — and (b) the blade `must` tier is green
+with it disabled:
+
+```
+BLADE_VARIANT=no-rule:<mechanism> bun run test:blade
+```
+
+Both, never one. And the rule's blade entries **stay** when the rule goes: they
+are positions a human said the bot must play correctly, and what removes the
+rule must keep answering them.
 
 **5. Pin it.** The reproduction from step 1 becomes a blade entry, tier `must`,
 in the same PR. That is what makes the answer to "impedisci che succeda ancora"
