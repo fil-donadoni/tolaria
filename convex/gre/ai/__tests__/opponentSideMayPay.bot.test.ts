@@ -126,7 +126,11 @@ function palantirOffer(): GameState {
         state,
         palantir,
         "palantir-of-orthanc-end-step",
-        { type: "PHASE_BEGIN", phase: "END_STEP" },
+        {
+            type: "PHASE_BEGIN",
+            phase: "END_STEP",
+            activePlayerId: "p1",
+        },
         [{ type: "player", id: "p2" }]
     );
     const scry = state.pendingChoices![0];
