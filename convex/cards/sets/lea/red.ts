@@ -9,6 +9,7 @@
 
 import type { CardDefinition, ManaCost, SpellContext } from "../../types";
 import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
+import { legalTargetSlots } from "../../types";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
@@ -349,7 +350,16 @@ export const fireball: CardDefinition = {
     // `dealDamage` deals its `amount` to ONE object/selector, not a split
     // across several. Blocked on: a divided-damage Op.
     resolve: (ctx: SpellContext) => {
-        ctx.dealDividedDamage(ctx.targets, ctx.getX());
+        // CR 608.2b (issue #2985) — the split is over the slots that are
+        // still legal; a blanked one takes no share. NOTE this is the one
+        // whole-group site where the COUNT is load-bearing and not just the
+        // membership: `dealDividedDamage` divides evenly (`Math.floor(total /
+        // targets.length)`), so an illegal slot RAISES every survivor's share.
+        // Unchanged from the pre-#2985 behaviour (the gate handed this the
+        // same shortened list) and the CR has no "divided evenly" text to
+        // measure it against — Fireball's even split is a Gatherer ruling, not
+        // a rule — so it is recorded here rather than changed.
+        ctx.dealDividedDamage(legalTargetSlots(ctx.targets), ctx.getX());
     },
 };
 

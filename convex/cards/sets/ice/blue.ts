@@ -2370,7 +2370,8 @@ export const wintersChill: CardDefinition = {
             const destroy: string[] = [];
             for (let i = 0; i < ctx.targets.length; i++) {
                 const t = ctx.targets[i];
-                if (t.type !== "permanent") continue;
+                // CR 608.2b (issue #2985) — a blanked slot gets no offer.
+                if (!t || t.type !== "permanent") continue;
                 // "Its controller may pay {1} or {2}" (CR 118). The attacking
                 // creature's controller — not the caster — pays.
                 const payer = ctx.getController(t);

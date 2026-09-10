@@ -1507,6 +1507,13 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
     base.ownerId = item.ownerId;
     base.castById = item.castById;
     if (item.targets?.length) base.targets = item.targets;
+    // CR 608.2b (issue #2985) — the resolution-time illegal-SLOT verdict rides
+    // the round-trip beside the announced list it indexes into. A resolution
+    // that suspends on a choice is a stable save point, and a reload that lost
+    // this would resume treating every announced target as legal again.
+    if (item.illegalTargetSlots?.length) {
+        base.illegalTargetSlots = item.illegalTargetSlots;
+    }
     if (item.chosenX !== undefined) base.chosenX = item.chosenX;
     // CR 702.33 — persist the PER-KICKER payment record so an "if this spell was
     // kicked" resolution (Overload, Burst Lightning, Everflowing Chalice's ETB
@@ -1686,6 +1693,9 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
     };
     if (compact.targets) {
         item.targets = compact.targets as StackItem["targets"];
+    }
+    if (compact.illegalTargetSlots) {
+        item.illegalTargetSlots = compact.illegalTargetSlots as number[];
     }
     if (compact.chosenX !== undefined) item.chosenX = compact.chosenX as number;
     if (compact.kickerPayments) {

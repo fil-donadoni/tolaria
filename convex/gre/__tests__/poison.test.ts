@@ -29,7 +29,9 @@ const poisonDart: CardDefinition = {
     types: ["Instant"],
     targetRequirement: { type: "player", count: 1 },
     resolve: (ctx) => {
-        ctx.addPoisonCounters(ctx.targets[0].id, 2);
+        const target = ctx.targets[0];
+        if (!target) return; // CR 608.2b — blanked slot (issue #2985)
+        ctx.addPoisonCounters(target.id, 2);
     },
 };
 

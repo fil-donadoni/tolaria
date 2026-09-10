@@ -318,7 +318,12 @@ export function applyRaisedTargetFinalization(
     // with the active player and the copy on top of the stack.
     if (kind === "copy-retarget") {
         const copy = state.stack.find((s) => s.id === cardInstanceId);
-        if (copy) copy.targets = targets;
+        if (copy) {
+            copy.targets = targets;
+            // CR 608.2b (issue #2985) — new targets, so any earlier
+            // illegal-slot verdict is void.
+            delete copy.illegalTargetSlots;
+        }
         state.priorityPlayerId = state.activePlayerId;
         state.passCount = 0;
         drainAutoPasses(state);
@@ -332,7 +337,11 @@ export function applyRaisedTargetFinalization(
     // retargeted spell still on the stack.
     if (kind === "retarget") {
         const spell = state.stack.find((s) => s.id === cardInstanceId);
-        if (spell) spell.targets = targets;
+        if (spell) {
+            spell.targets = targets;
+            // CR 608.2b (issue #2985) — see the copy branch above.
+            delete spell.illegalTargetSlots;
+        }
         state.priorityPlayerId = state.activePlayerId;
         state.passCount = 0;
         drainAutoPasses(state);
@@ -349,6 +358,7 @@ export function applyRaisedTargetFinalization(
     const trig = state.stack.find((s) => s.id === cardInstanceId);
     if (trig) {
         trig.targets = targets;
+        delete trig.illegalTargetSlots; // CR 608.2b (issue #2985)
         if (divideAmounts) trig.targetAmounts = divideAmounts;
         // CR 603.2b / 603.3d (issue #1265) — a targeted trigger's targets
         // are locked at announcement; fire "becomes the target of an ability"

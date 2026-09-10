@@ -1442,7 +1442,8 @@ export const volcanicEruption: CardDefinition = {
         });
         let destroyed = 0;
         for (const target of ctx.targets) {
-            if (target.type !== "permanent") continue;
+            // CR 608.2b (issue #2985) — a blanked slot is not destroyed.
+            if (!target || target.type !== "permanent") continue;
             if (!mountainIds.has(target.id)) continue;
             // CR 614.5 — destroy reports actual graveyard movement.
             if (ctx.destroy(target)) destroyed++;
@@ -1599,7 +1600,8 @@ export const manaShort: CardDefinition = {
     types: ["Instant"],
     targetRequirement: { type: "player", count: 1 },
     resolve: (ctx: SpellContext) => {
-        const targetPlayerId = ctx.targets[0].id;
+        const targetPlayerId = ctx.targets[0]?.id;
+        if (targetPlayerId === undefined) return; // CR 608.2b (issue #2985)
         ctx.tapAllLands(targetPlayerId);
         ctx.drainManaPool(targetPlayerId);
     },
@@ -1619,7 +1621,8 @@ export const drainPower: CardDefinition = {
     types: ["Sorcery"],
     targetRequirement: { type: "player", count: 1 },
     resolve: (ctx: SpellContext) => {
-        const targetPlayerId = ctx.targets[0].id;
+        const targetPlayerId = ctx.targets[0]?.id;
+        if (targetPlayerId === undefined) return; // CR 608.2b (issue #2985)
         ctx.tapAllLands(targetPlayerId);
         const drained = ctx.drainManaPool(targetPlayerId);
         ctx.addManaTo(ctx.controller, drained);

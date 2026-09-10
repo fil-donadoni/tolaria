@@ -905,6 +905,7 @@ export const naturalSelection: CardDefinition = {
         // Step 0: peek top 3, request reorder
         (ctx: SpellContext) => {
             const target = ctx.targets[0];
+            if (!target) return; // CR 608.2b (issue #2985) — blanked slot
             const topIds = ctx.peekLibraryTop(target.id, 3);
             const count = Math.min(topIds.length, 3);
             if (count === 0) return;
@@ -927,6 +928,7 @@ export const naturalSelection: CardDefinition = {
         // Step 1: optional shuffle
         (ctx: SpellContext) => {
             const target = ctx.targets[0];
+            if (!target) return; // CR 608.2b (issue #2985) — blanked slot
             const doShuffle = ctx.requestMayPay({
                 playerId: ctx.controller,
                 choiceId: ctx.controller,
