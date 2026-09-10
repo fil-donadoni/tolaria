@@ -98,7 +98,21 @@ function palantirOffer(): GameState {
                     })
                 ),
             }),
-            makePlayer("p2"),
+            makePlayer("p2", {
+                // The bot needs a DEEP library of its own, or the half passes
+                // for the wrong reason: with an empty one, accepting would
+                // make it draw from nothing and lose (CR 104.3c), so it would
+                // decline whoever the card went to. Twenty also clears
+                // `libraryTerm`'s 12-card decking horizon (evaluate.ts).
+                library: Array.from({ length: 20 }, (_, i) =>
+                    makeInstance(getCardByName("Forest").id, {
+                        id: `p2lib-${i}`,
+                        controllerId: "p2",
+                        ownerId: "p2",
+                        zone: "library",
+                    })
+                ),
+            }),
         ],
     });
     state.phase = "END_STEP";
