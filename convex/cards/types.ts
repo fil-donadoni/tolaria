@@ -1670,6 +1670,18 @@ export interface ActivatedAbility {
      *  like `manaRestriction` — meaningful only alongside it (or alongside
      *  `manaChoices`, for a choice ability), never alone. */
     manaCantBeCounteredRider?: true;
+    /** CR 106.6 rider #2 (issue #3354, Arena of Glory — "If that mana is spent
+     *  on a creature spell, it gains haste until end of turn") carried by the
+     *  mana this ability produces. Threaded onto the deposited
+     *  `RestrictedMana` unit exactly like `manaCantBeCounteredRider`, but
+     *  meaningful ALONE: Arena's mana carries no `manaRestriction` at all (it
+     *  may pay for anything), so this is the first rider that puts an
+     *  otherwise-unrestricted output into the parallel `restrictedMana` pool —
+     *  the fungible `manaPool` is a bare per-colour count with nowhere to
+     *  record the tag. The creature-spell condition is the RIDER's, settled at
+     *  payment by `payManaCostForSpell`; the haste itself is granted when the
+     *  spell resolves into a permanent (`finalizeSpellResolution`). */
+    manaHasteRider?: true;
     /** Multiple mana options the player can choose from (e.g. Talisman: "{T}: Add {U} or {B}"). */
     manaChoices?: ManaCost[];
     /** Counter type whose removal is the *scaling* part of a mana-choice cost

@@ -2136,6 +2136,15 @@ export type StackItem = CardInstanceState & {
      *  fizzle (the spell stays on the stack). Per-CAST, not per-card — the
      *  same spell cast without spending that mana is perfectly counterable. */
     dynamicCantBeCountered?: boolean;
+    /** CR 106.6 / 611.2c (issue #3354, Arena of Glory) — set at cast-cost
+     *  commit when this spell is a CREATURE spell and any mana leg spent on it
+     *  carried `RestrictedMana.hasteRider` (`payManaCostForSpell`'s verdict).
+     *  Unlike `dynamicCantBeCountered`, which is read while the item is still
+     *  ON the stack and dies with it, this flag exists to be HANDED OFF:
+     *  `finalizeSpellResolution` turns it into an until-end-of-turn layer-6
+     *  haste grant on the permanent the spell becomes, then drops it. Per-CAST
+     *  — the same creature cast off ordinary mana enters summoning-sick. */
+    dynamicHasteFromMana?: boolean;
     /** If set, this stack item is an activated ability (not a spell). Source permanent stays on battlefield. */
     abilityId?: string;
     /** When the activated ability was GRANTED to the source by another card
@@ -2998,7 +3007,110 @@ export type RestrictedMana = {
      *  read at counter time by `counter()` alongside the static
      *  `CardDefinition.cantBeCountered`. */
     cantBeCounteredRider?: true;
+    /** CR 106.6 rider #2 (Arena of Glory, issue #3354 — "If that mana is spent
+     *  on a creature spell, it gains haste until end of turn"). Same class as
+     *  `cantBeCounteredRider` — a property the mana carries that changes what
+     *  happens to the spell it is spent on — but the FIRST rider that rides an
+     *  UNRESTRICTED unit: Arena's mana may pay for anything, so the unit has
+     *  neither `restriction` nor `castableCardId` and
+     *  `restrictedUnitAllowsSpell` / `restrictedUnitAllowsAbility` both return
+     *  `true` for it. Detected at payment by `payManaCostForSpell`, which
+     *  reports it only when the spell paid for is a CREATURE spell (the
+     *  oracle's own condition), so the caller stamps
+     *  `StackItem.dynamicHasteFromMana`; handed off at
+     *  `finalizeSpellResolution` onto the permanent the spell becomes, as an
+     *  until-end-of-turn layer-6 keyword grant (CR 611.2c). */
+    hasteRider?: true;
 };
+
+/** CR 106.6 — the riders a unit of mana can carry: properties that never
+ *  change WHICH spells the mana may pay for (that is `ManaRestriction`'s job),
+ *  only what happens to the spell once mana carrying them is actually spent on
+ *  it. One record rather than a growing tail of booleans, so every bucket key,
+ *  every deposit and every reversal names the same shape and a third rider
+ *  costs one field instead of one parameter at eight call sites.
+ *
+ *  `undefined` and `{}` both mean "no riders" and both key the same
+ *  (untagged) bucket — see {@link manaRidersEqual}. */
+export type ManaRiders = {
+    /** Delighted Halfling (issue #1559) — the spell can't be countered. */
+    cantBeCountered?: boolean;
+    /** Arena of Glory (issue #3354) — a CREATURE spell gains haste UEOT. */
+    haste?: boolean;
+};
+
+/** What a spell's mana payment turned out to carry (CR 106.6) — the same two
+ *  riders as {@link ManaRiders}, but as a REQUIRED-field verdict rather than an
+ *  optional tag, because every cast-commit site must decide both questions and
+ *  a missing field there would read as "no" by accident. Returned by
+ *  `payManaCostForSpell` and turned into stack-item fields by
+ *  {@link manaRiderStackStamps}. */
+export type SpellManaRiders = {
+    /** Delighted Halfling (issue #1559) — stamps `dynamicCantBeCountered`. */
+    cantBeCountered: boolean;
+    /** Arena of Glory (issue #3354) — the spell WAS a creature spell and the
+     *  mana carried the haste rider; stamps `dynamicHasteFromMana`. */
+    haste: boolean;
+};
+
+/** The "no rider fired" verdict. Spread (never shared by reference) — the
+ *  callers mutate their copy as they settle each colour. */
+export const NO_SPELL_MANA_RIDERS: SpellManaRiders = {
+    cantBeCountered: false,
+    haste: false,
+};
+
+/** The stack-item fields a `payManaCostForSpell` verdict stamps (CR 106.6).
+ *  Every cast-commit path spreads THIS into its `StackItem` literal, so the
+ *  five of them cannot disagree about which flag a rider sets and a third
+ *  rider reaches all five by editing one function. Fields are omitted rather
+ *  than written `false`, matching how each site used to spread them and
+ *  keeping the persisted snapshot free of dead keys. */
+export function manaRiderStackStamps(riders: SpellManaRiders): {
+    dynamicCantBeCountered?: true;
+    dynamicHasteFromMana?: true;
+} {
+    return {
+        ...(riders.cantBeCountered ? { dynamicCantBeCountered: true } : {}),
+        ...(riders.haste ? { dynamicHasteFromMana: true } : {}),
+    };
+}
+
+/** True when `riders` tags the mana at all. A deposit carrying any rider must
+ *  land in the parallel `restrictedMana` pool even with NO `ManaRestriction`,
+ *  because the fungible `manaPool` is a bare per-colour count with nowhere to
+ *  record the tag (issue #3354). */
+export function hasAnyManaRider(riders: ManaRiders | undefined): boolean {
+    return !!riders && (!!riders.cantBeCountered || !!riders.haste);
+}
+
+/** The bucket-key comparison for {@link ManaRiders} (CR 106.4 — mana of the
+ *  same kind is fungible, and two units differing by a rider are NOT the same
+ *  kind). Compared field by field so a unit WITH a rider never silently merges
+ *  into one without it, in either direction. */
+export function manaRidersEqual(
+    unit: Pick<RestrictedMana, "cantBeCounteredRider" | "hasteRider">,
+    riders: ManaRiders | undefined
+): boolean {
+    return (
+        !!unit.cantBeCounteredRider === !!riders?.cantBeCountered &&
+        !!unit.hasteRider === !!riders?.haste
+    );
+}
+
+/** The riders an activated MANA ability declares (CR 106.6) — the one place
+ *  the per-rider `ActivatedAbility` fields are read, so a deposit site names
+ *  `manaRidersForAbility(ability)` instead of threading each flag by hand and
+ *  a third rider reaches every site by editing this function alone. */
+export function manaRidersForAbility(
+    ability: ActivatedAbility | null | undefined
+): ManaRiders | undefined {
+    if (!ability) return undefined;
+    const riders: ManaRiders = {};
+    if (ability.manaCantBeCounteredRider) riders.cantBeCountered = true;
+    if (ability.manaHasteRider) riders.haste = true;
+    return hasAnyManaRider(riders) ? riders : undefined;
+}
 
 /** The zone a play-land action is sourcing its card from (CR 305.9 — hand
  *  unless an effect explicitly says otherwise). Lives here rather than in
@@ -7112,6 +7224,7 @@ function resetStackTransientState(item: StackItem): void {
     delete item.additionalSacrificeSnapshot;
     delete item.notedManaSpent;
     delete item.dynamicCantBeCountered;
+    delete item.dynamicHasteFromMana;
     // CR 702.74a evoke / 702.109a dash / 702.138b escape (issue #2412) — `evoked`,
     // `dashed`, `escaped` are declared on `CardInstanceState` so they survive
     // resolution onto the permanent (the ETB triggers that read them run
@@ -7557,6 +7670,40 @@ function finalizeSpellResolution(
             delete item.chosenXOnCast;
         }
         controller.battlefield.push(item);
+        // CR 106.6 / 611.2c (issue #3354, Arena of Glory) — the mana-provenance
+        // haste rider's HAND-OFF, the one step of that rider with no
+        // precedent: `dynamicCantBeCountered` is read while its spell is still
+        // on the stack and dies with it, whereas haste is owed to the
+        // PERMANENT the spell becomes, and this is the instant it becomes one.
+        // The "was that mana spent on a creature spell" condition was already
+        // settled at payment (`payManaCostForSpell`), so nothing is re-derived
+        // here. Expressed as an ordinary until-end-of-turn layer-6 keyword
+        // grant — the same registry entry `SpellContext.grantStaticAbility`
+        // writes — so combat's `staticAbilities.includes("haste")` read needs
+        // no special case and the phase-boundary tick ends it like every other
+        // duration. The flag is dropped either way: a stack item IS its
+        // `CardInstanceState`, so leaving it set would ride onto the
+        // battlefield object and survive a bounce-and-recast.
+        if (item.dynamicHasteFromMana) {
+            ensureLayer6Base(item);
+            pushContinuousEffect(state, {
+                layer: 6,
+                affected: { kind: "instances", instanceIds: [item.id] },
+                expiry: {
+                    kind: "duration",
+                    duration: { phase: "end-of-turn" },
+                    // CR 611.2c — the controller of an effect from a resolving
+                    // spell is fixed when the effect is created; the spell is
+                    // gone by the time the boundary is counted, so it is
+                    // stored rather than read off a live source.
+                    controllerId: item.castById,
+                },
+                payload: { kind: "keyword-grant", keyword: "haste" },
+                characteristicDefining: false,
+            });
+            syncLayer6(state);
+        }
+        delete item.dynamicHasteFromMana;
         // CR 702.131b / 604.1 — Ascend's permanent form is a static ability
         // ("ANY TIME you control ten or more permanents…"), not an SBA, so the
         // designation is granted the instant the count rises — not at the next
@@ -20362,10 +20509,10 @@ export function buildSpellContext(
                 }
             }
 
-            // CR 106.6 rider (issue #1559) — whether the mana paid below
-            // carried `cantBeCounteredRider`; stamped onto the pushed stack
-            // item further down. Stays false on a free cast (no mana paid).
-            let usedRiderMana = false;
+            // CR 106.6 riders (issue #1559 / #3354) — which riders the mana
+            // paid below carried; stamped onto the pushed stack item further
+            // down. All false on a free cast (no mana paid).
+            let usedRiderMana: SpellManaRiders = { ...NO_SPELL_MANA_RIDERS };
             // CR 601.2b (issue #1477) — a free cast ("without paying its mana
             // cost", Malcolm) waives the mana cost entirely: no auto-tap, no
             // payment, and X in the waived cost is 0 (CR 107.3b, the Op never
@@ -20478,7 +20625,7 @@ export function buildSpellContext(
                 zone: "stack",
                 castById: controllerId,
                 actingPlayerId,
-                ...(usedRiderMana ? { dynamicCantBeCountered: true } : {}),
+                ...manaRiderStackStamps(usedRiderMana),
                 // CR 307.1 / 117.1a / 601.3a / 608.2g (issue #2473) — the
                 // timing SNAPSHOT is keyed on the spell's CASTER
                 // (`controllerId`), matching the `castProhibitionReason`
@@ -22524,7 +22671,7 @@ export function addRestrictedManaToPool(
     amount: number,
     restriction: ManaRestriction | undefined,
     castableCardId?: string,
-    cantBeCounteredRider?: boolean
+    riders?: ManaRiders
 ): void {
     if (amount <= 0) return;
     const list = player.restrictedMana ?? [];
@@ -22533,18 +22680,20 @@ export function addRestrictedManaToPool(
             r.color === color &&
             r.restriction === restriction &&
             r.castableCardId === castableCardId &&
-            !!r.cantBeCounteredRider === !!cantBeCounteredRider
+            manaRidersEqual(r, riders)
     );
     if (existing) existing.amount += amount;
     else {
         const unit: RestrictedMana = { color, amount };
         if (restriction !== undefined) unit.restriction = restriction;
         if (castableCardId !== undefined) unit.castableCardId = castableCardId;
-        // CR 106.6 rider (issue #1559) — Delighted Halfling's mana carries
-        // this alongside `restriction`; kept in the merge key so a unit WITH
-        // the rider never silently merges into one without it (or vice
-        // versa) even if a future card floats both shapes of the same color.
-        if (cantBeCounteredRider) unit.cantBeCounteredRider = true;
+        // CR 106.6 riders (issue #1559 / #3354) — Delighted Halfling's mana
+        // carries one alongside `restriction`, Arena of Glory's carries one
+        // with NO restriction at all; kept in the merge key so a unit WITH a
+        // rider never silently merges into one without it (or vice versa)
+        // even when both shapes of the same colour float at once.
+        if (riders?.cantBeCountered) unit.cantBeCounteredRider = true;
+        if (riders?.haste) unit.hasteRider = true;
         list.push(unit);
     }
     player.restrictedMana = list;
@@ -22565,14 +22714,14 @@ export function reverseRestrictedManaFromPool(
     color: string,
     amount: number,
     restriction: ManaRestriction | undefined,
-    cantBeCounteredRider?: boolean
+    riders?: ManaRiders
 ): void {
     const list = player.restrictedMana ?? [];
     const entry = list.find(
         (r) =>
             r.color === color &&
             r.restriction === restriction &&
-            !!r.cantBeCounteredRider === !!cantBeCounteredRider
+            manaRidersEqual(r, riders)
     );
     if (entry) entry.amount = Math.max(0, entry.amount - amount);
     const remaining = list.filter((r) => r.amount > 0);
@@ -22600,16 +22749,55 @@ export function manaBalanceForRestriction(
     player: Pick<PlayerState, "manaPool" | "restrictedMana">,
     color: string,
     restriction: ManaRestriction | undefined,
-    cantBeCounteredRider?: boolean
+    riders?: ManaRiders
 ): number {
-    if (restriction === undefined) return player.manaPool[color] ?? 0;
+    // CR 106.6 (issue #3354) — an UNRESTRICTED deposit lands in the fungible
+    // pool only when it is also untagged; a rider forces it into a tagged
+    // `restrictedMana` unit, which is a different bucket with the same
+    // spend eligibility.
+    if (restriction === undefined && !hasAnyManaRider(riders)) {
+        return player.manaPool[color] ?? 0;
+    }
     return (
         (player.restrictedMana ?? []).find(
             (r) =>
                 r.color === color &&
                 r.restriction === restriction &&
-                !!r.cantBeCounteredRider === !!cantBeCounteredRider
+                // CR 601.3 — an instance-keyed unit (Ice Cauldron) is a
+                // bucket of its own and is never what a restriction-keyed
+                // (or bare-rider) lookup is asking about.
+                r.castableCardId === undefined &&
+                manaRidersEqual(r, riders)
         )?.amount ?? 0
+    );
+}
+
+/** The rider-AGNOSTIC sibling of {@link manaBalanceForRestriction} (CR 106.6,
+ *  issue #3354): the total sitting in EVERY bucket a deposit with this
+ *  `restriction` could have landed in, whatever riders it carried.
+ *
+ *  Answers a strictly weaker question — "is mana this ability produced still
+ *  unspent SOMEWHERE" — and exists for the one caller that cannot know which
+ *  of a card's mana abilities actually produced the mana it is asking about
+ *  (`canRefundManaTap`, `src/lib/card-utils.ts`: a card with several mana
+ *  abilities does not project `chosenMana` to the client). Never used as a
+ *  reversal key: `reverseRestrictedManaFromPool` must hit the EXACT unit, and
+ *  the exact key is what {@link manaBalanceForRestriction} is for. */
+export function manaBalanceForRestrictionAnyRider(
+    player: Pick<PlayerState, "manaPool" | "restrictedMana">,
+    color: string,
+    restriction: ManaRestriction | undefined
+): number {
+    const untagged =
+        restriction === undefined ? (player.manaPool[color] ?? 0) : 0;
+    return (player.restrictedMana ?? []).reduce(
+        (total, r) =>
+            r.color === color &&
+            r.restriction === restriction &&
+            r.castableCardId === undefined
+                ? total + r.amount
+                : total,
+        untagged
     );
 }
 
@@ -22649,11 +22837,12 @@ export function spendablePoolForSpell(
  *  reassigning who paid each color. Caller must pass the spell's card types
  *  (drives which restricted mana is eligible).
  *
- *  Returns whether ANY consumed restricted unit carried
- *  `RestrictedMana.cantBeCounteredRider` (CR 106.6 rider, issue #1559,
- *  Delighted Halfling) — the caller stamps `StackItem.dynamicCantBeCountered`
- *  with it when pushing the resulting spell onto the stack. `false` for the
- *  overwhelming majority of casts that spend no rider-carrying mana. */
+ *  Returns which CR 106.6 riders (issue #1559 / #3354) the consumed restricted
+ *  units carried, for the caller to stamp onto the resulting stack item. A
+ *  record rather than the single boolean this used to be: the two riders are
+ *  independent, a spell can spend mana carrying both, and a third one must not
+ *  be another positional return. `NO_SPELL_MANA_RIDERS` for the overwhelming
+ *  majority of casts that spend no rider-carrying mana. */
 export function payManaCostForSpell(
     player: PlayerState,
     cost: Record<string, number>,
@@ -22662,13 +22851,13 @@ export function payManaCostForSpell(
     spellCardId?: string,
     genericSpendOrder?: readonly string[],
     spellSupertypes: readonly string[] = []
-): boolean {
+): SpellManaRiders {
     const eligible = (player.restrictedMana ?? []).filter((r) =>
         restrictedUnitAllowsSpell(r, spellTypes, spellCardId, spellSupertypes)
     );
     if (eligible.length === 0) {
         payManaCost(player.manaPool, cost, substitutions, genericSpendOrder);
-        return false;
+        return { ...NO_SPELL_MANA_RIDERS };
     }
 
     // Merge eligible restricted mana into a working copy of the pool, pay
@@ -22683,7 +22872,7 @@ export function payManaCostForSpell(
     const before = { ...merged };
     payManaCost(merged, cost, substitutions, genericSpendOrder);
 
-    let usedRiderMana = false;
+    const riders: SpellManaRiders = { ...NO_SPELL_MANA_RIDERS };
     for (const color of MANA_COLORS) {
         const consumed = (before[color] ?? 0) - (merged[color] ?? 0);
         if (consumed <= 0) continue;
@@ -22694,7 +22883,19 @@ export function payManaCostForSpell(
             if (fromRestricted <= 0) break;
             if (r.color !== color) continue;
             const take = Math.min(r.amount, fromRestricted);
-            if (take > 0 && r.cantBeCounteredRider) usedRiderMana = true;
+            if (take > 0) {
+                if (r.cantBeCounteredRider) riders.cantBeCountered = true;
+                // Arena of Glory (CR 106.6, issue #3354) — "If that mana is
+                // spent on a CREATURE spell, it gains haste until end of
+                // turn." The condition is the oracle's own and is settled
+                // here, at the moment the mana is actually spent, so a
+                // noncreature spell never carries a flag that would mean
+                // nothing: the stack item downstream only ever has to ask
+                // whether the rider fired, never re-derive why.
+                if (r.hasteRider && spellTypes.includes("Creature")) {
+                    riders.haste = true;
+                }
+            }
             r.amount -= take;
             fromRestricted -= take;
         }
@@ -22704,7 +22905,7 @@ export function payManaCostForSpell(
     // Drop emptied entries; clear the field entirely when nothing remains.
     const remaining = (player.restrictedMana ?? []).filter((r) => r.amount > 0);
     player.restrictedMana = remaining.length > 0 ? remaining : undefined;
-    return usedRiderMana;
+    return riders;
 }
 
 /**
@@ -24076,13 +24277,30 @@ function spendablePoolForRestriction(
     restriction?: ManaRestriction
 ): Record<string, number> {
     const pool = { ...player.manaPool };
-    if (!restriction) return pool;
     for (const r of player.restrictedMana ?? []) {
-        if (r.restriction === restriction) {
+        if (mayPayUnitIsEligible(r, restriction)) {
             pool[r.color] = (pool[r.color] ?? 0) + r.amount;
         }
     }
     return pool;
+}
+
+/** CR 106.6 — whether a `restrictedMana` unit may pay a `may-pay` leg gated on
+ *  `restriction`. Exact-match on the restriction (ADR 0022's rule: Adarkar
+ *  Unicorn's cumulative-upkeep mana pays a cumulative-upkeep may-pay and
+ *  nothing else), PLUS the unrestricted-but-tagged unit a CR 106.6 RIDER
+ *  floats (Arena of Glory, issue #3354): its mana may pay for anything, and it
+ *  sits in `restrictedMana` only because the fungible pool has nowhere to
+ *  record the tag — reading `manaPool` alone would make that mana vanish from
+ *  every may-pay cost the moment the rider shipped. An instance-keyed unit
+ *  (Ice Cauldron, CR 601.3) is a CAST permission and never pays a may-pay. */
+function mayPayUnitIsEligible(
+    unit: RestrictedMana,
+    restriction: ManaRestriction | undefined
+): boolean {
+    if (unit.castableCardId !== undefined) return false;
+    if (unit.restriction === undefined) return true;
+    return restriction !== undefined && unit.restriction === restriction;
 }
 
 /** Pays a `may-pay` mana leg drawing on eligible restricted mana FIRST, then
@@ -24096,8 +24314,8 @@ function payManaCostForRestriction(
     restriction: ManaRestriction | undefined,
     substitutions: ManaSubstitution[]
 ): void {
-    const eligible = (player.restrictedMana ?? []).filter(
-        (r) => restriction !== undefined && r.restriction === restriction
+    const eligible = (player.restrictedMana ?? []).filter((r) =>
+        mayPayUnitIsEligible(r, restriction)
     );
     if (eligible.length === 0) {
         payManaCost(player.manaPool, cost, substitutions);

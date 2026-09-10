@@ -468,18 +468,28 @@ function readChoiceZone(
  *  `restrictedMana` unit whose restriction EXACTLY equals `manaRestriction`
  *  (CR 106.6, ADR 0022 / 0042). Mirrors the server's
  *  `spendablePoolForRestriction` (`convex/gre/state.ts`) — same merge key,
- *  same exact-match eligibility rule, no substitutions — so this gate is
- *  never more permissive than `canPayMayPayCost` (issue #2222). Returns a
- *  plain `manaPool` copy when no restriction is given, preserving the
- *  historical mana-only path. */
+ *  same eligibility rule, no substitutions — so this gate is never more
+ *  permissive than `canPayMayPayCost` (issue #2222). */
 function spendableManaPoolForRestriction(
     bot: Pick<PublicPlayer, "manaPool" | "restrictedMana">,
     manaRestriction: ManaRestriction | undefined
 ): Record<string, number> {
     const pool = { ...bot.manaPool };
-    if (!manaRestriction) return pool;
     for (const r of bot.restrictedMana ?? []) {
-        if (r.restriction === manaRestriction) {
+        // CR 601.3 — an instance-keyed unit (Ice Cauldron) is a CAST
+        // permission and never pays a may-pay.
+        if (r.castableCardId !== undefined) continue;
+        // CR 106.6 (issue #3354) — an UNRESTRICTED unit sits in
+        // `restrictedMana` only because a rider tagged it (Arena of Glory);
+        // its mana may pay for anything, so it counts whatever the leg's
+        // restriction is. Mirrors the server's `mayPayUnitIsEligible`
+        // (`convex/gre/state.ts`) exactly, so this gate stays no more
+        // permissive than `canPayMayPayCost` (issue #2222).
+        if (r.restriction === undefined) {
+            pool[r.color] = (pool[r.color] ?? 0) + r.amount;
+            continue;
+        }
+        if (manaRestriction && r.restriction === manaRestriction) {
             pool[r.color] = (pool[r.color] ?? 0) + r.amount;
         }
     }

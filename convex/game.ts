@@ -44,6 +44,10 @@ import {
     payManaCostForAbility,
     spendablePoolForAbility,
     addRestrictedManaToPool,
+    hasAnyManaRider,
+    manaRiderStackStamps,
+    manaRidersForAbility,
+    NO_SPELL_MANA_RIDERS,
     reverseRestrictedManaFromPool,
     payRemoveCounterCost,
     canPayDiscardLastDrawn,
@@ -74,6 +78,7 @@ import {
     PENDING_TARGET_FILTER_KEYS,
     resolveTargetRequirementCount,
 } from "./gre/state";
+import type { ManaRiders, SpellManaRiders } from "./gre/state";
 import type { ContinuousEffect } from "./gre/continuousEffects";
 import {
     selectCompanion,
@@ -1647,18 +1652,23 @@ function depositTappedMana(
     player: PlayerState,
     chosen: ManaCost,
     restriction: ManaRestriction | undefined,
-    rider: boolean | undefined
+    riders: ManaRiders | undefined
 ): void {
+    // CR 106.6 (issue #3354) — a RIDER forces the deposit into the parallel
+    // pool even with no restriction at all (Arena of Glory's {R}{R} may pay
+    // for anything, but carries "if spent on a creature spell…"): the fungible
+    // `manaPool` is a bare per-colour count with nowhere to record the tag.
+    const tagged = restriction !== undefined || hasAnyManaRider(riders);
     for (const [color, amount] of Object.entries(chosen)) {
         if (color !== "X" && typeof amount === "number" && amount > 0) {
-            if (restriction) {
+            if (tagged) {
                 addRestrictedManaToPool(
                     player,
                     color,
                     amount,
                     restriction,
                     undefined,
-                    rider
+                    riders
                 );
             } else {
                 player.manaPool[color] = (player.manaPool[color] ?? 0) + amount;
@@ -1727,16 +1737,20 @@ function refundChosenManaOutput(
         getActivatedManaAbility(card)
     );
     const restriction = producingAbility?.manaRestriction;
-    const rider = producingAbility?.manaCantBeCounteredRider;
+    const riders = manaRidersForAbility(producingAbility);
+    // CR 106.6 (issue #3354) — symmetric with `depositTappedMana`: a rider
+    // banked the mana in the parallel pool even without a restriction, so the
+    // reversal must look for it there or the refund silently untaps for free.
+    const tagged = restriction !== undefined || hasAnyManaRider(riders);
     for (const [color, amount] of Object.entries(refund)) {
         if (color !== "X" && typeof amount === "number" && amount > 0) {
-            if (restriction) {
+            if (tagged) {
                 reverseRestrictedManaFromPool(
                     player,
                     color,
                     amount,
                     restriction,
-                    rider
+                    riders
                 );
             } else {
                 player.manaPool[color] = Math.max(
@@ -1763,8 +1777,18 @@ function refundFixedManaOutput(
 ): void {
     const amount = getFixedManaAmount(card, manaColor);
     const restriction = getActivatedManaRestriction(card);
-    if (restriction) {
-        reverseRestrictedManaFromPool(player, manaColor, amount, restriction);
+    // CR 106.6 (issue #3354) — the fixed-output twin of the split in
+    // `refundChosenManaOutput`: an ability whose mana carries a rider banked
+    // into the parallel pool whether or not it also carried a restriction.
+    const riders = manaRidersForAbility(getActivatedManaAbility(card));
+    if (restriction || hasAnyManaRider(riders)) {
+        reverseRestrictedManaFromPool(
+            player,
+            manaColor,
+            amount,
+            restriction ?? undefined,
+            riders
+        );
     } else {
         player.manaPool[manaColor] = Math.max(
             0,
@@ -1812,7 +1836,7 @@ function activateFixedSacrificeManaAbility(
         player,
         produced,
         ability.manaRestriction,
-        ability.manaCantBeCounteredRider
+        manaRidersForAbility(ability)
     );
     emitPermanentTapped(state, card, true, produced);
     removePermanentTo(state, card.id, "graveyard", "sacrifice");
@@ -1979,7 +2003,7 @@ export function tapSourceIntoPayment(
             player,
             chosen,
             effAbility?.manaRestriction,
-            effAbility?.manaCantBeCounteredRider
+            manaRidersForAbility(effAbility)
         );
         // CR 603.7a / ADR 0040 — arm a control-change-on-tap rider (Rainbow
         // Vale) when this source is tapped for mana during a payment.
@@ -2115,7 +2139,7 @@ export function tapSourceIntoPayment(
         (multiColorAbility
             ? multiColorAbility.manaRestriction
             : getActivatedManaRestriction(card)) ?? undefined,
-        multiColorAbility?.manaCantBeCounteredRider
+        manaRidersForAbility(multiColorAbility ?? getActivatedManaAbility(card))
     );
     // CR 605.2 — emit "tapped for mana" before the sacrifice moves the card off
     // the battlefield, so leaves-the-battlefield triggers see the mana added and
@@ -3470,10 +3494,13 @@ function payAlternativeCostHandChoice(
 }
 
 /** What a cast-time mana payment produced, beyond draining the pool: the
- *  CR 106.6 "can't be countered" rider flag (issue #1559) and the CR 106.4
+ *  CR 106.6 riders it drew on (issues #1559 / #3354) and the CR 106.4
  *  per-colour record of the mana actually spent. */
 interface CastManaPayment {
-    usedRiderMana: boolean;
+    /** CR 106.6 (issues #1559 / #3354) — which mana riders the payment drew
+     *  on. A record, not a boolean: the riders are independent and a single
+     *  payment can fire both. */
+    riders: SpellManaRiders;
     /** Present only when the card declares `noteManaSpent` (and the cost had a
      *  mana part at all) — the per-colour delta over the payment. */
     notedManaSpent?: Record<string, number>;
@@ -3509,7 +3536,9 @@ export function payCastManaCost(
      *  the printed cost the same way the caller did. */
     chosenX?: number
 ): CastManaPayment {
-    if (Object.keys(manaCost).length === 0) return { usedRiderMana: false };
+    if (Object.keys(manaCost).length === 0) {
+        return { riders: { ...NO_SPELL_MANA_RIDERS } };
+    }
     // CR 609.4b / 118.14 (issue #2890) — a one-shot "for one spell this turn,
     // you may spend mana as though it were mana of any type/color" grant (North
     // Star) is spent by the first cast the pool could not otherwise cover.
@@ -3532,7 +3561,7 @@ export function payCastManaCost(
     const poolBeforePayment = cardDef?.noteManaSpent
         ? { ...player.manaPool }
         : undefined;
-    const usedRiderMana = payManaCostForSpell(
+    const riders = payManaCostForSpell(
         player,
         manaCost,
         cardDef?.types ?? [],
@@ -3542,7 +3571,7 @@ export function payCastManaCost(
         cardDef?.supertypes ?? []
     );
     return {
-        usedRiderMana,
+        riders,
         ...(poolBeforePayment
             ? {
                   notedManaSpent: manaSpentDelta(
@@ -3679,25 +3708,23 @@ export function tryAutoCommitPendingCast(
 
     // CR 106.4 / 202.3 — cast-path payment + mana-spent tracking (Soul Burn,
     // Sunburst), through the shared `payCastManaCost` seam.
-    const {
-        usedRiderMana: castUsedRiderMana,
-        notedManaSpent: castNotedManaSpent,
-    } = payCastManaCost(
-        state,
-        player,
-        state.pendingCast.manaCost,
-        castDef,
-        getCastManaSubstitutions(
+    const { riders: castManaRiders, notedManaSpent: castNotedManaSpent } =
+        payCastManaCost(
             state,
             player,
-            castInstanceId,
-            castDef,
             state.pendingCast.manaCost,
-            state.pendingCast.chosenX
-        ),
-        castInstanceId,
-        genericSpendOrder
-    );
+            castDef,
+            getCastManaSubstitutions(
+                state,
+                player,
+                castInstanceId,
+                castDef,
+                state.pendingCast.manaCost,
+                state.pendingCast.chosenX
+            ),
+            castInstanceId,
+            genericSpendOrder
+        );
     commitLandsForCost(player, state.pendingCast.manaCost);
 
     // CR 118.8 / 701.21a — execute the player-chosen filtered sacrifice(s)
@@ -3851,10 +3878,13 @@ export function tryAutoCommitPendingCast(
         ...(pendingChosenModeId ? { chosenModeId: pendingChosenModeId } : {}),
         ...(additionalSacrificeSnapshot ? { additionalSacrificeSnapshot } : {}),
         ...(castNotedManaSpent ? { notedManaSpent: castNotedManaSpent } : {}),
-        // CR 106.6 rider (issue #1559) — mana spent on this cast carried
-        // `cantBeCounteredRider` (Delighted Halfling); `counter()` reads this
-        // alongside the static `CardDefinition.cantBeCountered`.
-        ...(castUsedRiderMana ? { dynamicCantBeCountered: true } : {}),
+        // CR 106.6 riders (issues #1559 / #3354) — mana spent on this cast
+        // carried `cantBeCounteredRider` (Delighted Halfling, read by
+        // `counter()` alongside the static `CardDefinition.cantBeCountered`)
+        // and/or `hasteRider` (Arena of Glory, handed off to the permanent at
+        // resolution). One helper stamps both, so the five cast-commit paths
+        // cannot disagree.
+        ...manaRiderStackStamps(castManaRiders),
         // CR 702.74a — a parked Evoke cast (real hand-cost choice) carries the
         // marker through `PendingCast.evoked` (set at announcement) so it
         // still lands on the stack item once the picker completes.
@@ -7510,7 +7540,9 @@ export function finalizeTargetSelection(
         let immediateNotedManaSpent: Record<string, number> | undefined;
         // CR 106.6 rider (issue #1559) — whether the mana paid below carried
         // `cantBeCounteredRider`; stamped onto the pushed stack item below.
-        let immediateUsedRiderMana = false;
+        let immediateManaRiders: SpellManaRiders = {
+            ...NO_SPELL_MANA_RIDERS,
+        };
         if (Object.keys(manaCost).length > 0) {
             const payment = payCastManaCost(
                 state,
@@ -7527,7 +7559,7 @@ export function finalizeTargetSelection(
                 ),
                 cardInstanceId
             );
-            immediateUsedRiderMana = payment.usedRiderMana;
+            immediateManaRiders = payment.riders;
             immediateNotedManaSpent = payment.notedManaSpent;
             commitLandsForCost(player, manaCost);
         }
@@ -7583,9 +7615,9 @@ export function finalizeTargetSelection(
             ...(immediateNotedManaSpent
                 ? { notedManaSpent: immediateNotedManaSpent }
                 : {}),
-            // CR 106.6 rider (issue #1559) — see the matching comment on the
-            // `tryAutoCommitPendingCast` stack item above.
-            ...(immediateUsedRiderMana ? { dynamicCantBeCountered: true } : {}),
+            // CR 106.6 riders (issues #1559 / #3354) — see the matching
+            // comment on the `tryAutoCommitPendingCast` stack item above.
+            ...manaRiderStackStamps(immediateManaRiders),
             ...(isEvokeCost ? { evoked: true } : {}),
             ...(isDashCost ? { dashed: true } : {}),
             // CR 601.2 (issue #2473) — targeted-spell immediate-commit branch
@@ -9106,7 +9138,7 @@ export const announceCast = mutation({
             // Forced/fungible choice AND mana already covered: pay + apply +
             // commit now.
             // CR 106.6 rider (issue #1559) — stamped onto the stack item below.
-            let altUsedRiderMana = false;
+            let altManaRiders: SpellManaRiders = { ...NO_SPELL_MANA_RIDERS };
             // CR 106.4 / 702.44b (issue #2378) — the alternative-cost mana leg
             // (Dash's own amount, and any future non-zero alt cost) is real
             // mana spent on the spell's costs, so its per-colour record rides
@@ -9127,7 +9159,7 @@ export const announceCast = mutation({
                     ),
                     args.cardInstanceId
                 );
-                altUsedRiderMana = payment.usedRiderMana;
+                altManaRiders = payment.riders;
                 altNotedManaSpent = payment.notedManaSpent;
                 commitLandsForCost(player, altManaCost);
             }
@@ -9159,9 +9191,9 @@ export const announceCast = mutation({
                 ...(args.chosenModeId
                     ? { chosenModeId: args.chosenModeId }
                     : {}),
-                // CR 106.6 rider (issue #1559) — see the matching comment on
-                // the `tryAutoCommitPendingCast` stack item.
-                ...(altUsedRiderMana ? { dynamicCantBeCountered: true } : {}),
+                // CR 106.6 riders (issues #1559 / #3354) — see the matching
+                // comment on the `tryAutoCommitPendingCast` stack item.
+                ...manaRiderStackStamps(altManaRiders),
                 // CR 106.4 / 202.3 / 702.44a (issue #2378) — the mana actually
                 // spent, for Soul Burn's resolution and Sunburst's colour count.
                 ...(altNotedManaSpent
@@ -9538,7 +9570,9 @@ export const announceCast = mutation({
             )
         ) {
             // CR 106.6 rider (issue #1559) — stamped onto the stack item below.
-            let normalUsedRiderMana = false;
+            let normalManaRiders: SpellManaRiders = {
+                ...NO_SPELL_MANA_RIDERS,
+            };
             // CR 106.4 / 702.44b (issue #2378) — this branch commits the cast in
             // ONE mutation because the pool already covered the cost (the
             // caster floated the mana at priority, `tapUntap`). It used to skip
@@ -9560,7 +9594,7 @@ export const announceCast = mutation({
                     ),
                     args.cardInstanceId
                 );
-                normalUsedRiderMana = payment.usedRiderMana;
+                normalManaRiders = payment.riders;
                 normalNotedManaSpent = payment.notedManaSpent;
                 commitLandsForCost(player, manaCost);
             }
@@ -9602,11 +9636,9 @@ export const announceCast = mutation({
                 ...(additionalSacrificeSnapshot
                     ? { additionalSacrificeSnapshot }
                     : {}),
-                // CR 106.6 rider (issue #1559) — see the matching comment on
-                // the `tryAutoCommitPendingCast` stack item.
-                ...(normalUsedRiderMana
-                    ? { dynamicCantBeCountered: true }
-                    : {}),
+                // CR 106.6 riders (issues #1559 / #3354) — see the matching
+                // comment on the `tryAutoCommitPendingCast` stack item.
+                ...manaRiderStackStamps(normalManaRiders),
                 // CR 106.4 / 202.3 / 702.44a (issue #2378) — the mana actually
                 // spent, for Soul Burn's resolution and Sunburst's colour count.
                 ...(normalNotedManaSpent
@@ -15617,35 +15649,19 @@ export const tapUntap = mutation({
                 // output in the parallel `restrictedMana` pool, not the fungible
                 // pool, so it pays only the costs the restriction permits. A
                 // basic-subtype pick (effAbility null) has no restriction.
-                const choiceRestriction = effAbility?.manaRestriction;
-                // CR 106.6 rider (issue #1559, Delighted Halfling) — carried
-                // alongside `manaRestriction` onto the deposited unit.
-                const choiceRider = effAbility?.manaCantBeCounteredRider;
-                for (const [color, amount] of Object.entries(chosen)) {
-                    if (
-                        color !== "X" &&
-                        typeof amount === "number" &&
-                        amount > 0
-                    ) {
-                        if (choiceRestriction) {
-                            addRestrictedManaToPool(
-                                player,
-                                color,
-                                amount,
-                                choiceRestriction,
-                                undefined,
-                                choiceRider
-                            );
-                        } else {
-                            player.manaPool[
-                                color as keyof typeof player.manaPool
-                            ] =
-                                (player.manaPool[
-                                    color as keyof typeof player.manaPool
-                                ] ?? 0) + amount;
-                        }
-                    }
-                }
+                // CR 106.6 riders (issue #1559 Delighted Halfling / #3354
+                // Arena of Glory) — carried onto the deposited unit alongside
+                // the restriction, and on their own when there is none.
+                // Routed through the shared `depositTappedMana` rather than a
+                // fourth hand-rolled copy of the same branch: the "a rider
+                // alone also banks in the parallel pool" rule must hold at
+                // every deposit site or the two halves disagree.
+                depositTappedMana(
+                    player,
+                    chosen,
+                    effAbility?.manaRestriction,
+                    manaRidersForAbility(effAbility)
+                );
                 // CR 605.1a / 120 — painland coloured-tap self-damage rider
                 // (Adarkar Wastes et al.): a coloured choice (not {C}) pings the
                 // controller for 1; the painless {C} choice does not. Fires for
@@ -15885,7 +15901,7 @@ export const tapUntap = mutation({
                         player,
                         added,
                         multiColorAbility.manaRestriction,
-                        multiColorAbility.manaCantBeCounteredRider
+                        manaRidersForAbility(multiColorAbility)
                     );
                     producedThisActivation = added;
                     emitPermanentTapped(

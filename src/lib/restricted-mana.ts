@@ -10,12 +10,15 @@ import type { RestrictedMana } from "~/types/game";
  *    one specific exiled card. Resolves the card's printed name for the label.
  *  - `restriction` (Mishra's Workshop / Adarkar Unicorn / Delighted Halfling,
  *    etc.): a spell-class, supertype, or cumulative-upkeep restriction.
- *  - `cantBeCounteredRider` (Delighted Halfling, issue #1559): appended to
- *    whichever base label applies — orthogonal to `restriction`, so it can
- *    combine with any of them.
+ *  - `cantBeCounteredRider` (Delighted Halfling, issue #1559) and
+ *    `hasteRider` (Arena of Glory, issue #3354): CR 106.6 riders, appended to
+ *    whichever base label applies — orthogonal to `restriction`, so they can
+ *    combine with any of them and with each other.
  *
- *  Falls back to a generic "Restricted" label when neither `restriction` nor
- *  `castableCardId` is set. */
+ *  With neither `restriction` nor `castableCardId`, a unit is here ONLY
+ *  because a rider tagged it (CR 106.6, issue #3354): it is spendable on
+ *  anything, so the base label says exactly that rather than lying with
+ *  "Restricted", which is kept for the genuinely unlabelled fallback. */
 export function restrictedManaLabel(
     unit: RestrictedMana,
     resolveCardName?: (instanceId: string) => string | undefined
@@ -24,7 +27,13 @@ export function restrictedManaLabel(
         const name = resolveCardName?.(unit.castableCardId);
         return name ? `Only: ${name}` : "Only: exiled card";
     }
+    const riders: string[] = [];
+    if (unit.cantBeCounteredRider) riders.push("can't be countered");
+    if (unit.hasteRider) riders.push("creature spell gains haste");
     const base = (() => {
+        if (unit.restriction === undefined) {
+            return riders.length > 0 ? "Any spell" : "Restricted";
+        }
         switch (unit.restriction) {
             case "creature-spell":
                 return "Creature spells only";
@@ -40,7 +49,7 @@ export function restrictedManaLabel(
                 return "Restricted";
         }
     })();
-    return unit.cantBeCounteredRider ? `${base} — can't be countered` : base;
+    return riders.length > 0 ? `${base} — ${riders.join(", ")}` : base;
 }
 
 /** Resolves the printed name of a card definition id (NOT an instance id) for

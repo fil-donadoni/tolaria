@@ -42,8 +42,14 @@ describe("Arena of Glory (CR 701.43a/c — exert as an activation cost leg)", ()
         // untap step. CR 701.43c is structural: an activation cost is paid by a
         // source on the battlefield.
         expect(arena.skipNextUntap).toBe(true);
-        // {R} paid in, {R}{R} added out.
-        expect(state.players[0].manaPool.R).toBe(2);
+        // {R} paid in, {R}{R} added out. CR 106.6 (issue #3354) — the output
+        // carries the haste rider, so it floats in the parallel
+        // `restrictedMana` pool TAGGED but UNGATED (no `restriction`: it may
+        // still pay for anything) rather than in the fungible pool.
+        expect(state.players[0].manaPool.R).toBe(0);
+        expect(state.players[0].restrictedMana).toEqual([
+            { color: "R", amount: 2, hasteRider: true },
+        ]);
         // CR 701.43a — the exert emitted its event for any watcher.
         expect(
             state.pendingEvents?.some((e) => e.type === "PERMANENT_EXERTED")
