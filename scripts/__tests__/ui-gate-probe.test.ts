@@ -682,7 +682,7 @@ describe("check:ui probe — square-corner check (issue #2724)", () => {
  * Symmetric on purpose, exactly like the occlusion table above: a probe change
  * proven only in the direction that REMOVES a count is how the instrument rots.
  */
-function probeSmall(opts: {
+function probeWith(opts: {
     vw: number;
     vh: number;
     html: string;
@@ -720,8 +720,20 @@ function probeSmall(opts: {
 
     runInContext(PROBE_SOURCE, context);
     runInContext("globalThis.__result = window.__tolariaProbe();", context);
-    return (window as unknown as { __result: { smallN: number } }).__result
-        .smallN;
+    return (window as unknown as { __result: ProbeShape }).__result;
+}
+
+/** The slice of `__tolariaProbe()`'s return these tests read. */
+interface ProbeShape {
+    smallN: number;
+    ctrls: { n: number };
+    shellBand: { mounted: boolean; excluded: number };
+}
+
+/** `probeWith` narrowed to the tap-target count, which is all the scroll-port
+ *  table below asserts on. */
+function probeSmall(opts: Parameters<typeof probeWith>[0]): number {
+    return probeWith(opts).smallN;
 }
 
 /** The lobby's deck shelf: a horizontal `overflow-x-auto` strip 1200px wide
@@ -824,5 +836,110 @@ describe("check:ui probe — tap targets are culled by their scroll port (issue 
                 scrollers: SHELF_SCROLLER,
             })
         ).toBe(1);
+    });
+});
+
+/**
+ * The SHELL RETURN BAND cull (issue #3337).
+ *
+ * `AppReturnBanner` is mounted by `AppShell` on every route that does not
+ * already own the return, and ONLY while the signed-in account has a game or a
+ * Limited event in flight. Its one `size="xs"` button measures 101x22, so it
+ * cleared neither the 32px `--control-h-fine` nor the 44px
+ * `--control-h-coarse` bar and entered `smallN` at all five viewports — as a
+ * function of the gate ACCOUNT's state rather than of the tree. `limited-build`
+ * moved by exactly +1 everywhere with no `src/` change, and PR #3334 banked it
+ * as a permanent ceiling with no note naming it.
+ *
+ * Symmetric on purpose, like every probe table above: the cull is pinned in the
+ * direction that REMOVES a count AND in the one that keeps it, so a selector
+ * that stopped matching (a renamed `data-slot`) or one that grew teeth (culling
+ * an identical button elsewhere) both go red here rather than silently moving
+ * every budget row in the file.
+ */
+const BAND_BUTTON = '<button id="ret">Return to game</button>';
+
+/** The band's own markup, as `app-return-banner.tsx` renders it: the
+ *  `data-slot` this cull addresses, wrapping the button. */
+const BAND_HTML = `
+    <div id="root">
+        <div id="band" data-slot="app-return-banner">
+            <span>A game is in progress.</span>
+            ${BAND_BUTTON}
+        </div>
+        <main id="main"><button id="page">Stats</button></main>
+    </div>
+`;
+
+/** Byte-identical page, with the band's `data-slot` wrapper removed — the same
+ *  two buttons, neither of them shell chrome. */
+const NO_BAND_HTML = `
+    <div id="root">
+        <div id="band">
+            <span>A game is in progress.</span>
+            ${BAND_BUTTON}
+        </div>
+        <main id="main"><button id="page">Stats</button></main>
+    </div>
+`;
+
+/** Both buttons sub-44px and fully inside a 1440x900 viewport, so nothing but
+ *  the cull can decide whether they are counted. */
+const BAND_RECTS = {
+    ret: { left: 1200, top: 4, width: 101, height: 22 },
+    page: { left: 20, top: 100, width: 54, height: 30 },
+};
+
+describe("check:ui probe — the shell return band is culled from every control count (issue #3337)", () => {
+    it("does not count the band's Return-to-game button as a tap target", () => {
+        const r = probeWith({
+            vw: 1440,
+            vh: 900,
+            html: BAND_HTML,
+            rects: BAND_RECTS,
+        });
+        // Only the page's own control survives.
+        expect(r.smallN).toBe(1);
+    });
+
+    it("does not count it as a control either — the cull is on `ctrls` itself", () => {
+        // `ctrlsZero`/`ctrlsOcc`/`ctrlsStranded` all read the same array, so a
+        // cull applied only inside the tap-target loop would leave the band
+        // moving three more budgeted numbers.
+        const r = probeWith({
+            vw: 1440,
+            vh: 900,
+            html: BAND_HTML,
+            rects: BAND_RECTS,
+        });
+        expect(r.ctrls.n).toBe(1);
+    });
+
+    it("reports the band as mounted and says how many controls it took out", () => {
+        // The exclusion must never be silent: `index.ts` prints this on both
+        // branches, which is what makes a culled control attributable rather
+        // than just gone.
+        const r = probeWith({
+            vw: 1440,
+            vh: 900,
+            html: BAND_HTML,
+            rects: BAND_RECTS,
+        });
+        expect(r.shellBand).toEqual({ mounted: true, excluded: 1 });
+    });
+
+    it("still counts an identical button that is NOT inside the band", () => {
+        // The direction that keeps the count. Same markup, same rects, only the
+        // `data-slot` gone — both controls are measured, and the run reports no
+        // band at all.
+        const r = probeWith({
+            vw: 1440,
+            vh: 900,
+            html: NO_BAND_HTML,
+            rects: BAND_RECTS,
+        });
+        expect(r.smallN).toBe(2);
+        expect(r.ctrls.n).toBe(2);
+        expect(r.shellBand).toEqual({ mounted: false, excluded: 0 });
     });
 });

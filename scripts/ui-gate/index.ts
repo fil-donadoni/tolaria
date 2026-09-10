@@ -543,6 +543,12 @@ async function main(): Promise<number> {
         const perSurface = new Map<string, Measurement[]>();
         const unreachable = new Map<string, string>();
         const consoleErrors: string[] = [];
+        /** Every walk on which the SHELL RETURN BAND was mounted, and how many
+         *  controls `probe.js` culled for it (issue #3337). Reported after the
+         *  coverage line — deliberately OUTSIDE the region `verify-receipt.ts`
+         *  re-renders (banner..rows..coverage), so a new line here can never
+         *  invalidate a pasted receipt. */
+        const bandWalks: { where: string; excluded: number }[] = [];
 
         for (const viewport of VIEWPORTS) {
             const context: BrowserContext = await browser.newContext({
@@ -591,6 +597,12 @@ async function main(): Promise<number> {
                     const probe = await runProbe(page);
                     const axe = await runAxe(page);
                     const metrics = metricsOf(probe, axe);
+                    if (probe.shellBand.mounted) {
+                        bandWalks.push({
+                            where: `${surface.id} @ ${viewport.id}`,
+                            excluded: probe.shellBand.excluded,
+                        });
+                    }
                     const shot = path.join(
                         SHOT_DIR,
                         `${surface.id}__${viewport.id}.png`
@@ -701,6 +713,21 @@ async function main(): Promise<number> {
             log(formatResultRow(row));
         }
         log(coverageLine(ev));
+        // The shell return band's attribution (issue #3337). `probe.js` culls
+        // it out of every control count because its presence is a function of
+        // the gate ACCOUNT's state — a game or Limited event in flight — and
+        // not of the tree; the point of the line is that the exclusion is
+        // never silent, so it prints on both branches.
+        if (bandWalks.length === 0) {
+            log(
+                "shell return band: absent on every walk — no controls excluded"
+            );
+        } else {
+            const excluded = bandWalks.reduce((n, w) => n + w.excluded, 0);
+            log(
+                `shell return band: MOUNTED on ${bandWalks.length} walk(s) — ${excluded} control(s) excluded from those counts (the gate account has a game or event in flight; issue #3337)`
+            );
+        }
         log(
             `console errors: ${consoleErrors.length === 0 ? "none" : consoleErrors.length}`
         );
