@@ -31909,6 +31909,44 @@ describe("Effect Script value: sum over a bound card set (CR 122 / 404)", () => 
         ).toEqual([]);
     });
 
+    it("an EMPTY bound set reads as the NUMBER 0, not as an unresolvable value", () => {
+        // The observable difference between "0" and "undefined". Every
+        // amount-taking Op clamps both to nothing (`loseLife` returns early on
+        // `undefined || <= 0`), so only a COMPARISON can tell them apart: an
+        // unresolvable operand makes the whole predicate false (CR 608.2b),
+        // while a genuine 0 satisfies "fewer than one". `lt 1` rather than
+        // `eq 0` because a literal 0 is not a legal EffectValue (CR 107.1).
+        const id = registerScript("test-sum-empty-is-zero", [
+            {
+                op: "mill",
+                player: "controller",
+                count: 3,
+                bindAll: "$milled",
+            },
+            {
+                op: "if",
+                predicate: {
+                    left: {
+                        sum: {
+                            of: { ref: "$milled" },
+                            read: "manaValue",
+                            zone: "graveyard",
+                            player: "controller",
+                        },
+                    },
+                    op: "lt",
+                    right: 1,
+                },
+                then: [{ op: "gainLife", player: "controller", amount: 3 }],
+            },
+        ]);
+        const state = drainableState([]);
+        const before = state.players[0].life;
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(before + 3);
+    });
+
     it("a variable {X} in a milled card's cost counts as 0 (CR 202.3b)", () => {
         const id = millAndDrainScript("test-sum-x-cost", 1);
         const state = drainableState([X_COST_ID]);
