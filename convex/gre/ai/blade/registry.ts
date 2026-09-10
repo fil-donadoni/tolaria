@@ -4115,6 +4115,68 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Twin of the entry above; only the decklist differs (issue #2876).",
     },
     {
+        // THE ANTI-CLAIRVOYANCE ARM of the same board (issue #2876 review
+        // finding 3). Same position, same physical Giant Growth in the
+        // attacker's hand — and NO deck knowledge, so nothing lawfully tells
+        // the bot the trick is there. It blocks, and that is the correct
+        // answer: a defender who declines HERE is reading a hidden zone it has
+        // no entitlement to.
+        //
+        // WHY THIS ENTRY EXISTS RATHER THAN BEING OBVIOUS. Before issue #2876
+        // the block tie-break read the REAL root state, so on a CI /
+        // self-play position — which `determinize.ts` searches at FULL
+        // information — `cautiousBlockPenalty` saw the actual Giant Growth and
+        // the bot declined. That is root-only clairvoyance: the tree and the
+        // rollouts were already forbidden it (they run on determinized
+        // worlds), and `evaluate.ts`'s `declaredCombatDelta` already gates its
+        // own held-pump read on `ownView`. The lens removes it, and MEASURED
+        // at the seam this board flips by 178 points — `block − decline` goes
+        // from −29.5 (old lens, reading the true hand) to +148.8 (12
+        // determinized worlds, 0 of which dealt the pooled trick into a
+        // one-card hand).
+        //
+        // So this is the entry that WOULD HAVE GONE RED on that diff, in the
+        // direction nothing else covers: the pair above only pins the
+        // deck-knowledge path, and every other block entry in this file
+        // (charter scenario 4 and its #2147 twin) is `landCount: 0` with empty
+        // hands, where `cautiousBlockPenalty` is structurally zero. Without
+        // this entry the whole full-information behaviour change is unguarded
+        // in both directions.
+        label: "blind defender: blocks anyway — the trick is in hand, but nothing lawfully says so",
+        spec: {
+            cards: [
+                {
+                    name: "Savannah Lions",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                // The real Giant Growth, and no `deckKnowledge` naming it.
+                { name: "Giant Growth", owner: "me", zone: "hand" },
+                {
+                    name: "Ironroot Treefolk",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        setup: [{ kind: "declare-attackers" }],
+        bot: "opp",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "declare-blockers", card: "Ironroot Treefolk" }],
+        },
+        note: "Anti-clairvoyance guard for the pair above (issue #2876). The bot may not price a trick it has no lawful way to know about; before the block tie-break read determinized worlds it declined here on the strength of the real hand. Blocks 5/5 seeds.",
+    },
+    {
         // CR 500.8 (issue #2886). The bot is handed the SECOND combat phase of
         // a turn — a position that did not exist before the extra-phase queue
         // shipped, reached by the `extra-combat` setup step through the real

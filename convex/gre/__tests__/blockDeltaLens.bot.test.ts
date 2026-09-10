@@ -20,14 +20,16 @@
  *      empty declaration (CR 509.1) — rather than merely moving a number;
  *   4. it is deterministic for a fixed seed (ADR 0070 §2).
  *
- * CR references: 509.1 (declaring blockers, the empty declaration included),
- * 510.1a (combat damage assignment), 704.5g (lethal damage).
+ * CR 509.1 — declaring blockers, the empty declaration included.
+ * CR 510.1a — combat damage assignment.
+ * CR 704.5g — lethal damage.
  */
 
 import { describe, it, expect } from "vitest";
 import { buildBladeState } from "../ai/blade/runner";
 import type { BladeScenario } from "../ai/blade/types";
 import { blockDeltaOf, makeBlockDeltaLens } from "../search";
+import { DEFAULT_EVAL_WEIGHTS } from "../ai/evalWeights";
 import { enumerateMoves, type Move } from "../moves";
 import { getCardByName } from "../../cards/catalogue";
 import type { DeckKnowledgeBySeat } from "../deckKnowledge";
@@ -40,7 +42,7 @@ const SEED = 0xb1ade;
  *  Forest; the bot is `opp` and can block with a lone Ironroot Treefolk (3/5).
  *  Without a trick the block is a free kill; with Giant Growth the Lions blocks
  *  out as a 5/4 and eats the Treefolk. */
-const scenario: BladeScenario = {
+const scenario = (handCard: string): BladeScenario => ({
     label: "block delta lens fixture",
     spec: {
         cards: [
@@ -51,10 +53,12 @@ const scenario: BladeScenario = {
                 summoningSick: false,
             },
             { name: "Forest", owner: "me", zone: "battlefield" },
-            // Physically a Mountain — `determinize` re-derives this seat's
-            // hidden zones from the decklist, so it is never what the bot
-            // reasons about. That is what makes point 1 above meaningful.
-            { name: "Mountain", owner: "me", zone: "hand" },
+            // `handCard` is what PHYSICALLY sits there. With deck knowledge
+            // it is irrelevant — `determinize` re-derives this seat's hidden
+            // zones from the decklist, which is what makes point 1 above
+            // meaningful; WITHOUT it, it is the card the sampler re-pools with
+            // the library, which is what the sample-count test measures.
+            { name: handCard, owner: "me", zone: "hand" },
             {
                 name: "Ironroot Treefolk",
                 owner: "opp",
@@ -73,16 +77,16 @@ const scenario: BladeScenario = {
     seeds: [SEED],
     tier: "must",
     expect: { moves: [{ kind: "declare-blockers" }] },
-};
+});
 
-function fixture(): {
+function fixture(handCard = "Mountain"): {
     state: GameState;
     botId: string;
     attackerId: string;
     block: Move;
     decline: Move;
 } {
-    const state = buildBladeState(scenario);
+    const state = buildBladeState(scenario(handCard));
     const attackerId = state.players[0].id;
     const botId = state.players[1].id;
     const moves = enumerateMoves(state, botId).filter(
@@ -106,11 +110,14 @@ function knows(attackerId: string, cardName: string): DeckKnowledgeBySeat {
 }
 
 describe("makeBlockDeltaLens — the opponent model reaches the block tie-break (issue #2876)", () => {
-    it("the ROOT position reads both opponent models identically — the answer is never in it", () => {
+    it("the pre-#2876 lens prefers the block on this board, whatever the decklist", () => {
         const { state, botId, block, decline } = fixture();
-        // The pre-#2876 lens. It takes no deck knowledge at all, so this is
-        // the whole of what the old tie-break could ever see, under EITHER
-        // decklist: one number, blind to both.
+        // `blockDeltaOf` takes no deck knowledge and no sampler: it is a pure
+        // reading of whatever state it is handed, and the state the old
+        // tie-break handed it was the root. So this ONE number is the whole of
+        // what a block decision could see under EITHER decklist — which is why
+        // the blade pair's difference cannot come from anywhere but the
+        // sampled worlds.
         expect(blockDeltaOf(state, block, botId)).toBeGreaterThan(
             blockDeltaOf(state, decline, botId)
         );
@@ -157,7 +164,7 @@ describe("makeBlockDeltaLens — the opponent model reaches the block tie-break 
         expect(rank("Giant Growth")).toBeLessThan(0);
     });
 
-    it("is deterministic for a fixed seed, and its stream is NOT the search's", () => {
+    it("is deterministic for a fixed seed, and memoised per move", () => {
         const { state, botId, attackerId, block } = fixture();
         const lensAt = (seed: number) =>
             makeBlockDeltaLens(
@@ -178,5 +185,44 @@ describe("makeBlockDeltaLens — the opponent model reaches the block tie-break 
             knows(attackerId, "Giant Growth")
         );
         expect(lens(block)).toBe(lens(block));
+    });
+
+    it("samples under the ladder's opponent model, so a `blind` arm stays blind", () => {
+        // Issue #2791's information-REMOVAL knob. `iterate` hands it to
+        // `determinize` for the tree's worlds; the lens must sample under the
+        // same model, or a `blind` variant stops being blind at exactly the
+        // seam issue #2876 made decisive and every informed-vs-blind number
+        // measured through it is contaminated. A blinded seat holds nothing
+        // the observer has not been shown — decklist included — so the trick
+        // is unpriced even with the deck knowledge that names it.
+        const { state, botId, attackerId, block } = fixture();
+        const lens = (opponentModel: "blind" | null) =>
+            makeBlockDeltaLens(
+                state,
+                botId,
+                SEED,
+                undefined,
+                knows(attackerId, "Giant Growth"),
+                opponentModel
+            )(block);
+        expect(lens("blind")).toBeGreaterThan(lens(null));
+    });
+
+    it("averages over `weights.blockWorldSamples` worlds, and reads that field", () => {
+        // The BLIND board: the trick sits PHYSICALLY in the attacker's hand and
+        // nothing tells the bot so — which is every self-play / CI position,
+        // since `determinize.ts` searches the full-information state there. The
+        // sampler re-pools that hand with the 20-card library, so a world
+        // carries the trick only sometimes, and that makes the sample count
+        // OBSERVABLE. MEASURED at this seed: 4 worlds price the block at 149.0
+        // (none of the four dealt the Giant Growth), 12 worlds at 132.8 (one
+        // did).
+        const { state, botId, block } = fixture("Giant Growth");
+        const at = (blockWorldSamples: number) =>
+            makeBlockDeltaLens(state, botId, SEED, {
+                ...DEFAULT_EVAL_WEIGHTS,
+                blockWorldSamples,
+            })(block);
+        expect(at(12)).toBeLessThan(at(4));
     });
 });

@@ -163,6 +163,14 @@ export type EvalWeights = {
     /** Dominating penalty per misdirected target slot, the announcement-
      *  variant tie-break (`MISDIRECTION_WEIGHT`, issue #1888). */
     misdirectionWeight: number;
+    /** How many determinized worlds the block-quality root tie-break averages
+     *  a candidate block over (`makeBlockDeltaLens`, issue #2876). It lives
+     *  here rather than as a module const so a ladder variant can sweep it:
+     *  the number it should be is an empirical question about how many samples
+     *  separate "the opponent model says the trick is there" from the blind
+     *  pool's dilution, and a const the ladder cannot move makes that question
+     *  unfalsifiable. */
+    blockWorldSamples: number;
 };
 
 /** Today's production values — byte-for-byte the constants this refactor
@@ -200,6 +208,13 @@ export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     outcomeEps: 0.05,
     extraTurnValue: 350,
     misdirectionWeight: 1_000_000,
+    // 12: the penalty is a step function of "does the attacker hold castable
+    // interaction", so the mean is a proportion, and a proportion needs only
+    // enough samples to separate a deck knowledge that names the trick (every
+    // world) from the blind pool's dilution (issue #2789 measured ~1 world in
+    // 21 on its own board). Its cost is per CONTENDER block edge — see
+    // `makeBlockDeltaLens`' measurement.
+    blockWorldSamples: 12,
 });
 
 /** Reward gained per `evaluate` margin point in the OPEN band of

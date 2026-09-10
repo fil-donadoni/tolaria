@@ -3085,20 +3085,17 @@ export function blockDeltaOf(
 // seed reproducible while leaving every off-pattern decision byte-identical to
 // what it was before this slice.
 //
-// COST. The worlds are built LAZILY, on the first move the lens is asked
-// about, and each move's mean is memoised by `moveKey`, so a decision that
-// never reaches the block tie-break pays exactly nothing — every non-combat
-// root, and every block root the search settles outside the tie-break.
-
-/** How many determinized worlds the block-quality tie-break averages a
- *  candidate block over. Chosen for the shape of what it is estimating: the
- *  penalty is a step function of "does the attacker hold castable
- *  interaction", so the mean is a proportion, and a proportion needs only
- *  enough samples to separate "the deck says yes" (every world) from "the
- *  blind pool deals it about one world in twenty" (issue #2789's measured
- *  dilution). Its cost is paid per CONTENDER block edge, so it is deliberately
- *  small — see the measurement in the PR. */
-const BLOCK_WORLD_SAMPLES = 12;
+// COST, and its SHAPE. The determinizations are amortised once per decision;
+// what is paid per CONTENDER block edge is `weights.blockWorldSamples` calls
+// to `blockDeltaOf` instead of one. MEASURED on this machine, per decision, at
+// a 400-iteration budget: the blade pair's board (2 candidate declarations)
+// costs 1.6 ms against a 433 ms decision, 0.4%; a deliberately wide board (4
+// attackers into 4 blockers, 64 enumerated declarations, EVERY one asked)
+// costs 54.8 ms against 547 ms, 10.0% — 11.9x the 4.6 ms the pre-#2876 root
+// pass paid over the same 64. Off-pattern it is exactly zero: the worlds are
+// built LAZILY, on the first move the lens is asked about, and each move's
+// mean is memoised by `moveKey`, so every non-combat root — and every block
+// root the search settles before the tie-break — allocates no world at all.
 
 /** Salt for the lens's derived RNG stream — any fixed constant works; what
  *  matters is that it is NOT the search's stream (see the note above). */
@@ -3121,7 +3118,13 @@ export function makeBlockDeltaLens(
     seed: number,
     weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
     deckKnowledge?: DeckKnowledgeBySeat,
-    samples: number = BLOCK_WORLD_SAMPLES
+    // The ladder's information-REMOVAL arm (issue #2791). `iterate` hands it
+    // to `determinize` for the tree's worlds, and the lens MUST sample under
+    // the same model: a `blind` variant whose block tie-break kept sampling
+    // informed worlds would stop being blind at exactly the seam this lens
+    // makes decisive, and every informed-vs-blind number measured through it
+    // would be contaminated.
+    opponentModel: OpponentModel | null = null
 ): BlockDeltaLens {
     let worlds: GameState[] | null = null;
     const memo = new Map<string, number>();
@@ -3131,8 +3134,8 @@ export function makeBlockDeltaLens(
         if (hit !== undefined) return hit;
         if (!worlds) {
             const rng = makeRng(seed ^ BLOCK_LENS_SEED_SALT);
-            worlds = Array.from({ length: samples }, () =>
-                determinize(rootState, botId, rng, deckKnowledge)
+            worlds = Array.from({ length: weights.blockWorldSamples }, () =>
+                determinize(rootState, botId, rng, deckKnowledge, opponentModel)
             );
         }
         const mean =
@@ -4838,7 +4841,14 @@ function runSearchWithTrace(
         // Lazy (issue #2876): the worlds are sampled on the first move the
         // block tie-break asks about, so a decision that never reaches it —
         // every non-block root — pays nothing for holding the lens.
-        makeBlockDeltaLens(state, playerId, seed, weights, deckKnowledge)
+        makeBlockDeltaLens(
+            state,
+            playerId,
+            seed,
+            weights,
+            deckKnowledge,
+            opponentModel
+        )
     );
     return {
         move,
