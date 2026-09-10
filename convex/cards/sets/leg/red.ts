@@ -67,8 +67,10 @@ export const gravitySphere: CardDefinition = {
 //     (Great Wall / Undertow, #484), `subtypes: ["Mountain"]`. Deferred to its
 //     tranche.
 //   • Crimson Manticore — "{R}, {T}: deal 1 damage to target attacking OR
-//     blocking creature"; `combatRoleFilter` admits only one role at a time, no
-//     combined "attacking-or-blocking" target filter.
+//     blocking creature" is NOT blocked: `combatRoleFilter` is array-capable
+//     and D'Avenant Archer (leg/white.ts) already ships the exact
+//     `["attacking", "blocking"]` form in this same set. Deferred to its
+//     tranche for authoring only — owned by #2124.
 //   • Disharmony — "untap target attacking creature, remove it from combat,
 //     gain control of it until end of turn"; no "until end of turn" control-
 //     change condition (only controls-source / source-tapped-power conditions).
@@ -80,14 +82,19 @@ export const gravitySphere: CardDefinition = {
 //     player's next turn play with it revealed and can't play it") needs a
 //     can't-play + revealed-in-hand restriction with no primitive.
 //   • Pyrotechnics — "4 damage divided AS YOU CHOOSE among any number of
-//     targets"; only `dealDividedDamage` (divided EVENLY, Fireball) exists, no
-//     player-chosen damage division.
+//     targets" is NOT blocked: the `dealDamageDividedAsChosen` Op with
+//     `targetRequirement.divideAsChosen` ships, and Pyrokinesis (all/red.ts)
+//     writes the identical wording. Deferred to its tranche for authoring only
+//     — owned by #2124.
 //   • Quarum Trench Gnomes — "{T}: target Plains produces colorless mana
 //     instead of white (indefinitely)" needs a continuous tap-for-mana
 //     replacement; no mana-production override static.
 //   • Wall of Dust — "whenever this blocks a creature, that creature can't
 //     attack during its controller's next turn" needs an other-creature
-//     cross-turn attack-lock (same gap flagged for Demonic Torment in black).
+//     cross-turn attack-lock: `restrictCombat` writes booleans that CLEANUP
+//     clears every turn, and `DurationSpec` has no "during that player's next
+//     turn" span (tracked-by: #2131; same gap flagged for Demonic Torment in
+//     black).
 // ─────────────────────────────────────────────────────────────────────────────
 
 // --- Burn / copy spells (CR 119 damage, CR 707.12 "copy this spell") -------

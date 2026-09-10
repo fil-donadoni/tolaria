@@ -697,10 +697,13 @@ export const safeHaven: CardDefinition = {
 // definitions land with their mechanic. Flagged in the PR. TODO(#411):
 //
 //   • Brainwash (Aura) — "Enchanted creature can't attack unless its controller
-//     pays {3}." Needs an ATTACK TAX (an optional mana cost to declare a
-//     creature as an attacker), sourced from an aura attached to the creature.
-//     The shipped `attack-restriction` static is a hard predicate, not a cost,
-//     and is read only from the creature's own definition (not its auras).
+//     pays {3}." The ATTACK TAX itself now ships end to end (the
+//     `attack-mana-tax` static, its payment prompt and its UI — Propaganda /
+//     Windborn Muse / Elephant Grass, #733/#1053), so the "no cost primitive"
+//     claim recorded here is stale. What is still missing is one axis: the tax
+//     is DIRECTED — the collector skips every source the ATTACKING player
+//     controls before the per-attacker predicate runs — so an aura on your own
+//     creature can never tax that creature's attack. tracked-by: #2128.
 //
 //   • Blood of the Martyr (Instant) — "Until end of turn, if damage would be
 //     dealt to any creature, you may have that damage dealt to you instead."
@@ -732,11 +735,13 @@ export const safeHaven: CardDefinition = {
 //     (entersTapped + `does-not-untap` keyword + may-pay-to-untap upkeep
 //     trigger — the Island Fish Jasconius template). The last clause is an
 //     ATTACK COST: sacrificing two Islands as a cost paid WHEN attackers are
-//     declared. `attack-restriction` is a pure board predicate (no cost
-//     payment), and `validateAttackerEligibility` has no cost-payment plumbing
-//     at declaration. Shipping Leviathan without an enforced attack cost would
-//     be a free attacker — defer the whole card until the attack-cost primitive
-//     lands.
+//     declared. The attack-cost seam now exists — the `attack-sacrifice-tax`
+//     static charges a sacrifice at declare-attackers (Flooded Woodlands,
+//     #733) — so the "no cost-payment plumbing" claim recorded here is stale.
+//     It is not yet PARAMETRIC, which is what this card needs on both axes:
+//     the sacrificed permanent is hardcoded to a land filter at the payment
+//     site (Leviathan wants Islands specifically) and the per-attacker count is
+//     fixed at one (Leviathan wants two). tracked-by: #2129.
 //
 //   • Tangle Kelp (Aura) — "Enchant creature\nWhen this Aura enters, tap
 //     enchanted creature.\nEnchanted creature doesn't untap during its

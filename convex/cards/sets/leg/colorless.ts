@@ -81,9 +81,12 @@ export const koboldsOfKherKeep: CardDefinition = {
 // (data-only tranche must not build engine support); each lands in a later
 // batch when its primitive ships:
 //   • Hammerheim, Urborg — "target creature loses all landwalk / loses first
-//     strike or swampwalk until end of turn" needs a duration-scoped keyword
-//     REMOVAL; only static keyword-remove and keyword GRANT exist (same gap
-//     flagged for Radjan Spirit).
+//     strike or swampwalk until end of turn" needs a duration-scoped SELECTIVE
+//     keyword removal as an Op; the `loseAllAbilities` Op removes everything
+//     and indefinitely, the `keyword-remove` static is continuous and
+//     source-tied, and the raw `removeStaticAbilities` primitive is reachable
+//     only from a resolve() closure. Same gap as Radjan Spirit —
+//     tracked-by: #2125.
 //   • Arena of the Ancients — "Legendary creatures don't untap" needs a
 //     supertype-scoped untap-restriction; PermanentFilter has no supertypes
 //     field.

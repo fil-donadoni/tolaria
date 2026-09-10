@@ -23,17 +23,29 @@ import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 //   • Spirit Shackle, Takklemaggot, All Hallow's Eve → C5 (named counters:
 //     -0/-2, -0/-1, scream).
 //   • Wall of Shadows → C6 (can't-be-the-target-of Wall-only spells/abilities).
-//   • Pit Scorpion → C5 (poison counters — no named-counter primitive yet).
+//   • Pit Scorpion — was C5 (poison counters). No longer blocked: poison ships
+//     as a leg of the `addPlayerCounter` Op (Marsh Viper, drk/green.ts). Owned
+//     by #2230 — see the note further down this file.
 //   • Lesser Werewolf → C5 (-0/-1 counters on a combatant).
 //
 // Cards that genuinely need an unbuilt primitive are SKIPPED (not built here) (tracked-by: #2785):
 //   • Transmutation — "switch power and toughness" has no swap primitive.
-//   • Abomination, Infernal Medusa — "whenever this blocks / becomes blocked by
-//     [a creature], destroy that creature at end of combat". UNBLOCKED by the
-//     shared `combatPairKill` primitive (#486, combatPairKillTrigger.ts):
-//     `combatant: "self"` + an `opponentFilter` (Abomination: non-black/non-
-//     artifact; Infernal Medusa: blocked-by-only). Deferred to their tranche
-//     only for the per-card filter wiring; the primitive now exists.
+//   • Abomination — "whenever this blocks or becomes blocked by a GREEN OR
+//     WHITE creature, destroy that creature at end of combat" (current oracle;
+//     the "non-black/non-artifact" gate recorded here earlier was the printed
+//     text). The shared `combatPairKill` primitive (#486,
+//     abilities/triggers/combatPairKillTrigger.ts) covers the shape, but
+//     `CombatPairOpponent` drops the event's `attackerColors`/`blockerColors`
+//     (types.ts, BlockersConfirmedEvent) — a `colors` field forward. Owned by
+//     #2124.
+//   • Infernal Medusa — TWO oracle lines with different gates on different
+//     directions: "whenever this blocks a creature" (no filter) and "whenever
+//     this becomes blocked by a NON-WALL creature". It is not Abomination's
+//     colour-gated twin and does not ride that forward: the subtype gate
+//     already ships (Cockatrice, lea/green.ts), what is missing is a DIRECTION
+//     discriminator — `opponentInPair` knows which side the source is on and
+//     discards it, so `opponentFilter` cannot tell "blocks" from "becomes
+//     blocked by". Owned by #2124.
 //   • Glyph of Doom — "at the next end of combat, destroy all creatures blocked
 //     by that Wall this turn". The deferred-end-of-combat destroy now exists
 //     (#486); it still needs per-combat "blocked by that Wall" set tracking,
@@ -49,8 +61,13 @@ import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 //     attacker; no such redirection primitive.
 //   • Underworld Dreams — "whenever an opponent draws a card" needs a card-drawn
 //     trigger that doesn't exist yet.
-//   • Vampire Bats — "{B}: +1/+0, activate no more than TWICE each turn" needs a
-//     numeric per-turn activation cap (only `oncePerTurn` exists).
+//   • Vampire Bats — "{B}: +1/+0, activate no more than TWICE each turn" is NOT
+//     blocked: `CardInstanceState.activationsThisTurn` is a per-ability tally
+//     and `canActivate` reads it against any threshold (Phyrexian Battleflies,
+//     inv/black.ts; Soul Kiss, ice/black.ts). Deferred to its tranche only for
+//     authoring — owned by #2124. The declarative numeric cap is a separate,
+//     bot-reachability concern (#2127): `moves.ts` skips every `canActivate`
+//     ability, so all three cards are invisible to the move enumerator.
 //   • Quagmire — "creatures with swampwalk can be blocked as though they didn't
 //     have swampwalk" — buildable with the `landwalk-negation` static (Great
 //     Wall / Undertow, #484), `subtypes: ["Swamp"]`. Deferred to its tranche.
