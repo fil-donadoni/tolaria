@@ -3506,11 +3506,13 @@ describe("aiEffects shadow-script guard — delayedTriggers[] residue (issue #14
         }
         expect(
             actual,
-            "the live count of delayedTriggers[] resolve()-only sites with no aiEffects (and no " +
+            "the live count of delayedTriggers[] resolve()-only sites (on cards with no " +
                 "owning-card aiValue) no longer matches DELAYED_TRIGGER_AI_EFFECTS_ALLOWLIST.length " +
-                "— either a NEW offender landed (never allowed — a new delayed trigger must ship " +
-                "with a real aiEffects shadow or the card's aiValue, not a new allowlist row) or an " +
-                "allowlisted trigger was fixed without removing its entry (see the first test)"
+                "— either a NEW offender landed (never allowed: a new delayed trigger must ship on " +
+                "a card the value model can see, i.e. real effects[] or the card's aiValue — an " +
+                "aiEffects script on the TEMPLATE is read by nothing and excuses nothing here) or " +
+                "an allowlisted trigger's card was fixed without removing its entry (see the " +
+                "first test)"
         ).toBe(DELAYED_TRIGGER_AI_EFFECTS_ALLOWLIST.length);
     });
 });
