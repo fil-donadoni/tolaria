@@ -16325,9 +16325,14 @@ export function buildSpellContext(
         // cross-zone move uses, which appends to the library (`library[0]` is
         // the top, so push is the bottom) and silently skips a card that is no
         // longer in `from` — the cascade hit that was cast and now sits on the
-        // stack (CR 608.2b). The resulting order is unwitnessed even though the
-        // cards were public in exile a moment ago, so knowledge is cleared on
-        // exactly the cards that moved (ADR 0026, like a shuffle).
+        // stack (CR 608.2b). The resulting order is unwitnessed, so knowledge
+        // is cleared on exactly the cards that moved (ADR 0026, like a
+        // shuffle): both players saw WHICH cards went back, neither knows
+        // WHERE. For the cascade caller that clear is already satisfied on
+        // arrival — exile is a PUBLIC zone, so the move INTO it stripped every
+        // private `knownTo` — and it is load-bearing for a hidden `from` (a
+        // revealed card leaving a hand), which is why the primitive does it
+        // rather than the caller.
         putCardsOnBottomInRandomOrder(playerId, cardInstanceIds, from) {
             if (from === "library") return; // a self-move has no bottom
             const player = getPlayer(state, playerId);

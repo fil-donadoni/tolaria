@@ -4238,9 +4238,11 @@ export interface SpellContext {
      *  moving in shuffled order lands the pile bottom-first in that order.
      *
      *  The resulting bottom ordering is unwitnessed, so knowledge of every
-     *  moved card is cleared (ADR 0026, exactly like a shuffle) even though the
-     *  cards were PUBLIC in exile a moment earlier: both players saw WHICH
-     *  cards went back, neither knows WHERE. No-op for an empty/absent set. */
+     *  moved card is cleared (ADR 0026, exactly like a shuffle): both players
+     *  saw WHICH cards went back, neither knows WHERE. For a PUBLIC `from`
+     *  (exile, graveyard) the move in already stripped every private grant, so
+     *  the clear is belt-and-braces; it is load-bearing for a hidden `from` (a
+     *  revealed card leaving a hand). No-op for an empty/absent set. */
     putCardsOnBottomInRandomOrder: (
         playerId: string,
         cardInstanceIds: readonly string[],
