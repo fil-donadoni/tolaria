@@ -63,6 +63,7 @@ import { checkStateBasedActions } from "./sba";
 import {
     advancePhase,
     drainAutoPasses,
+    emitAttackersDeclaredEvents,
     emitBlockersConfirmedEvents,
     applyAllCombatDamage,
     buildAutoDamageAssignments,
@@ -1514,6 +1515,17 @@ export function applyMoveInSearch(
                     tapPermanent(state, atk);
                 }
             }
+            // CR 508.1m (issue #3222) — the attack triggers, the exact mirror
+            // of `emitBlockersConfirmedEvents` in the branch below and of what
+            // the `confirmAttackers` path does on the server. Without it every
+            // ATTACKERS_DECLARED ability — battle cry's pump, exalted's,
+            // annihilator's sacrifice, a token-making attack trigger — was
+            // invisible to the search: the bot weighed a swing at the printed
+            // P/T and never saw what attacking with the creature actually buys.
+            // The emission owns its own priority/passCount reset when it places
+            // something on the stack; the unconditional reset below is the
+            // no-trigger case and agrees with it.
+            emitAttackersDeclaredEvents(state);
             // CR 508 — active player gets priority after attackers are declared.
             state.priorityPlayerId = state.activePlayerId;
             state.passCount = 0;

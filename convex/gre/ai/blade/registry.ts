@@ -601,6 +601,78 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Bot reachability for Ninjutsu (issue #2390). Guards the hand scan `enumerateAbilityMoves` gained in the same change: without it no `activateFromHand` ability is ever enumerated, and the bot holds a Fallen Shinobi it can never play. The window is the cost's own (CR 509.1h), which is why the setup walks all the way through the block declaration.",
     },
     {
+        // ATTACK-TRIGGER VISIBILITY (CR 508.1m, issue #3222). Until this
+        // change neither search sandbox emitted ATTACKERS_DECLARED at all —
+        // `applyMoveInSearch`'s `declare-attackers` marked the attackers and
+        // went straight to priority, while its `declare-blockers` sibling two
+        // cases below had always called `emitBlockersConfirmedEvents`. So every
+        // attack trigger in the catalogue was invisible to the bot: battle
+        // cry's pump, exalted's, annihilator's sacrifice, a token-making swing.
+        //
+        // DISCRIMINATING BY CONSTRUCTION, and MEASURED both ways: the
+        // opponent sits at 5 behind a TAPPED Craw Wurm (6/4) — it cannot block
+        // (CR 509.1a) but it untaps and swings for six next turn, and the bot
+        // is at 4. Sanguine Evangelist (2/1, battle cry) plus a Grizzly Bears
+        // (2/2) is FOUR printed power, one short; the CR 702.91a trigger pumps
+        // the Bears to 3/2 and makes the swing exactly lethal. With the
+        // trigger visible, attacking with BOTH wins on the spot; with it
+        // unseen the same swing leaves the opponent at 1 and hands the bot a
+        // lethal crackback it kept no blocker for, so keeping the Bears home
+        // to chump scores better. The Wurm is deliberately a GROUND fatty: a
+        // flier the Bears could not block would make holding back worthless
+        // and the position would swing all-in either way.
+        //
+        // MEASURED at 400 iterations across all five seeds: WITH the emission
+        // the chosen move is `declare-attackers` with both creatures on every
+        // seed; with `emitAttackersDeclaredEvents` deleted from
+        // `applyMoveInSearch` it is `declare-attackers` with an EMPTY attacker
+        // set on every seed. The two worlds pick different moves, which is
+        // what makes this a pin rather than a position the bot swings into
+        // regardless.
+        label: "battle cry: swings for exactly-lethal only the pump provides",
+        spec: {
+            cards: [
+                {
+                    name: "Sanguine Evangelist",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    tapped: true,
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 3,
+            libraryCount: 20,
+            life: { me: 4, opp: 5 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "declare-attackers",
+                    cards: ["Sanguine Evangelist", "Grizzly Bears"],
+                },
+            ],
+        },
+        note: 'Issue #3222 — the attack-trigger seam, pinned by the one shape that cannot be argued with: five life, four printed power, and the fifth point coming only from battle cry\'s +1/+0 on the OTHER attacker (CR 702.91a). Guards `emitAttackersDeclaredEvents` in `applyMoveInSearch` (`gre/search.ts`); deleting it flips every seed from "attack with both" to "attack with nobody", measured. Not battle-cry-specific by construction — the emission is the class fix, and exalted / annihilator / attack-token triggers ride the same line.',
+    },
+    {
         // STRETCH. A lone 3/3 facing an empty board: attacking is free damage
         // (no blockers, no crackback the position can produce) and passing the
         // combat step throws a turn away. It PASSES today; it is kept in the

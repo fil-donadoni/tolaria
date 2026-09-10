@@ -1,12 +1,13 @@
-// Exalted (CR 702.83) & Prowess (CR 702.108) — triggered-ability keywords
-// expanded implicitly from a single `staticAbilities` string at the
-// `getDefinition` seam (convex/cards/index.ts), the same ADR 0054 mechanism
-// fading/vanishing use. A card declares only `staticAbilities: ["exalted"]` /
-// `["prowess"]`; `expandKeywordTriggers` injects the synthesized triggered
-// ability so the keyword's rules text lives in exactly one place — the string.
-// Issue #699.
+// Exalted (CR 702.83), Prowess (CR 702.108) & Battle cry (CR 702.91) —
+// triggered-ability keywords expanded implicitly from a single
+// `staticAbilities` string at the `getDefinition` seam (convex/cards/index.ts),
+// the same ADR 0054 mechanism fading/vanishing use. A card declares only
+// `staticAbilities: ["exalted"]` / `["prowess"]` / `["battle cry"]`;
+// `expandKeywordTriggers` injects the synthesized triggered ability so the
+// keyword's rules text lives in exactly one place — the string.
+// Issues #699 / #3222.
 //
-// Both keywords resolve to the shipped `pump` Op (CR 613.4c, until-end-of-turn
+// All three resolve to the shipped `pump` Op (CR 613.4c, until-end-of-turn
 // P/T buff via SpellContext.addTemporaryPTBuff) and are therefore fully
 // declarative (DSL-first, ADR 0045) — no `resolve()` closure:
 //
@@ -21,6 +22,16 @@
 //   * Prowess (CR 702.108a) — "Whenever you cast a noncreature spell, this
 //     creature gets +1/+1 until end of turn." A SPELL_CAST trigger (scope
 //     "you", filter excludeTypes "Creature") pumping the source itself.
+//   * Battle cry (CR 702.91a) — "Whenever this creature attacks, each other
+//     attacking creature gets +1/+0 until end of turn." An `attacksTrigger`
+//     (CR 508.1m) with `scope: "self"`, whose body is a `forEach` over the
+//     battlefield filtered to `isAttacking` with `excludeSource` — "each
+//     OTHER attacking creature" — pumping +1/+0. CR 702.91b (multiple
+//     instances trigger separately) is out of reach by construction: a
+//     `staticAbilities` list is a set of strings and the injected ability
+//     carries ONE fixed id, so a card printing battle cry twice would need
+//     the `expandAnnihilator` count-every-match shape; no card in the pool
+//     does, and the vocabulary would have to grow a second spelling anyway.
 
 import type {
     CardDefinition,
@@ -28,16 +39,19 @@ import type {
     EffectOp,
     TriggeredAbility,
 } from "../types";
+import { attacksTrigger } from "./triggers/attacksTrigger";
 import { spellCastTrigger } from "./triggers/spellCastTrigger";
 
 const EXALTED_KEYWORD = "exalted";
 const PROWESS_KEYWORD = "prowess";
+const BATTLE_CRY_KEYWORD = "battle cry";
 
 const EXALTED_TRIGGER_ID = "exalted";
 const PROWESS_TRIGGER_ID = "prowess";
+const BATTLE_CRY_TRIGGER_ID = "battle-cry";
 
-/** +1/+1 until end of turn (CR 613.4c) — the shared pump payload both keywords
- *  apply, differing only in target. */
+/** +1/+1 until end of turn (CR 613.4c) — the shared pump payload exalted and
+ *  prowess apply, differing only in target. */
 function pumpPlusOne(target: EffectObjectSelector): EffectOp {
     return {
         op: "pump",
@@ -76,6 +90,60 @@ function prowessTrigger(): TriggeredAbility {
     });
 }
 
+/** Battle cry's CR 702.91a triggered ability: whenever the source attacks,
+ *  every OTHER attacking creature gets +1/+0 until end of turn.
+ *
+ *  The member set is a fresh battlefield scan taken when the trigger
+ *  RESOLVES, frozen there: CR 608.2h — information the effect requires is
+ *  determined only once, when the effect is applied — and CR 611.2c, which
+ *  fixes the set a resolution-generated continuous effect affects at the
+ *  moment it begins. That is the rules-correct reading of "each other
+ *  attacking creature": a creature put onto the battlefield attacking while
+ *  the trigger is still on the stack IS attacking when it resolves and does
+ *  get the buff; one that enters attacking afterwards does not, and neither
+ *  does one that has left combat by then (CR 608.2h again — the ability is
+ *  untargeted, so CR 608.2b's target-legality check never applies to it).
+ *
+ *  `controller: "controller"` narrows the scan to the trigger controller's
+ *  own battlefield. CR 508.1a already guarantees that is where every attacker
+ *  is — the source can only have triggered by attacking, so its controller IS
+ *  the active player — but stating it makes the selector fail CLOSED: any
+ *  future path that left `isAttacking` set on a defender-controlled permanent
+ *  would otherwise pump an enemy creature.
+ *  `excludeSource` is what makes it "each OTHER" (CR 702.91a); without it a
+ *  lone battle-cry attacker would pump itself. Two battle-cry creatures
+ *  attacking together each drop THEMSELVES from their own scan and so pump
+ *  the other, which is exactly the printed behaviour. */
+function battleCryTrigger(): TriggeredAbility {
+    return attacksTrigger({
+        id: BATTLE_CRY_TRIGGER_ID,
+        oracleText:
+            "Whenever this creature attacks, each other attacking creature gets +1/+0 until end of turn.",
+        scope: "self",
+        effects: [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    controller: "controller",
+                    filter: { type: "Creature", isAttacking: true },
+                    excludeSource: true,
+                },
+                effects: [
+                    {
+                        op: "pump",
+                        target: { ref: "$each" },
+                        power: 1,
+                        toughness: 0,
+                        duration: { phase: "end-of-turn" },
+                    },
+                ],
+            },
+        ],
+    });
+}
+
 /** Case-insensitively tests whether a `staticAbilities` list carries `keyword`
  *  as a bare string (CR 702 keyword abilities are declared lowercase). */
 function hasKeyword(
@@ -85,17 +153,19 @@ function hasKeyword(
     return staticAbilities?.some((a) => a.toLowerCase() === keyword) ?? false;
 }
 
-/** Expands a card carrying `exalted` / `prowess` into a definition that also
- *  carries the synthesized triggered ability. Returns the input unchanged when
- *  neither keyword is present. Never mutates the input — clones only
- *  `triggeredAbilities`, so the base definition stays shared. Idempotent by
- *  construction (the `getDefinition` seam memo dedups) and additionally guarded
- *  against double-injection by the trigger-id presence check. A card may carry
- *  both keywords; both triggers are injected. */
+/** Expands a card carrying `exalted` / `prowess` / `battle cry` into a
+ *  definition that also carries the synthesized triggered ability. Returns the
+ *  input unchanged when no such keyword is present. Never mutates the input —
+ *  clones only `triggeredAbilities`, so the base definition stays shared.
+ *  Idempotent by construction (the `getDefinition` seam memo dedups) and
+ *  additionally guarded against double-injection by the trigger-id presence
+ *  check. A card may carry several of the keywords; every matching trigger is
+ *  injected. */
 export function expandKeywordTriggers(def: CardDefinition): CardDefinition {
     const hasExalted = hasKeyword(def.staticAbilities, EXALTED_KEYWORD);
     const hasProwess = hasKeyword(def.staticAbilities, PROWESS_KEYWORD);
-    if (!hasExalted && !hasProwess) return def;
+    const hasBattleCry = hasKeyword(def.staticAbilities, BATTLE_CRY_KEYWORD);
+    if (!hasExalted && !hasProwess && !hasBattleCry) return def;
 
     const existing = def.triggeredAbilities ?? [];
     const injected: TriggeredAbility[] = [];
@@ -104,6 +174,9 @@ export function expandKeywordTriggers(def: CardDefinition): CardDefinition {
     }
     if (hasProwess && !existing.some((t) => t.id === PROWESS_TRIGGER_ID)) {
         injected.push(prowessTrigger());
+    }
+    if (hasBattleCry && !existing.some((t) => t.id === BATTLE_CRY_TRIGGER_ID)) {
+        injected.push(battleCryTrigger());
     }
     if (injected.length === 0) return def;
 

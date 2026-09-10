@@ -136,6 +136,16 @@
         "source": "compiled"
     },
     {
+        "name": "Accorder Paladin",
+        "scryfallId": "df0a4370-729d-40e7-b68b-21902648492d",
+        "oracleId": "6891c8b7-7112-40dc-8b94-b84ad1885e5e",
+        "firstSet": "mbs",
+        "firstPrintId": "df0a4370-729d-40e7-b68b-21902648492d",
+        "firstPrintSet": "mbs",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Accumulated Knowledge",
         "scryfallId": "ab061406-38f4-40e7-a9ea-e3cbcaabc127",
         "oracleId": "1ca25379-d194-4670-a7bf-525ad11cf436",
@@ -13982,6 +13992,16 @@
         "source": "compiled"
     },
     {
+        "name": "Goblin Wardriver",
+        "scryfallId": "2e220c87-1223-4998-b0e5-23e2d930fa6b",
+        "oracleId": "10849bbb-50ca-4194-a7cb-fa872272b29b",
+        "firstSet": "mbs",
+        "firstPrintId": "2e220c87-1223-4998-b0e5-23e2d930fa6b",
+        "firstPrintSet": "mbs",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Goblin Warrens",
         "scryfallId": "bbec4aa5-3319-43dc-8347-5633edbd7018",
         "oracleId": "c1161505-1623-4475-a88e-2e48072cc2f1",
@@ -20008,6 +20028,16 @@
         "firstSet": "dst",
         "firstPrintId": "5976c352-ac49-4e0d-a4c0-ec9b6b78db9c",
         "firstPrintSet": "dst",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Loxodon Partisan",
+        "scryfallId": "a4a76016-96a1-40f5-9002-4b3bed65cd5c",
+        "oracleId": "9d2bfbb2-84df-4d7c-9989-7f5577f90d97",
+        "firstSet": "mbs",
+        "firstPrintId": "a4a76016-96a1-40f5-9002-4b3bed65cd5c",
+        "firstPrintSet": "mbs",
         "rarity": "common",
         "source": "compiled"
     },
@@ -27390,6 +27420,16 @@
         "source": "compiled"
     },
     {
+        "name": "Rhox Veteran",
+        "scryfallId": "6384e266-d0dc-4af1-b3ab-ecaf9be2553c",
+        "oracleId": "a681c6ea-b10a-4061-abf4-7b45e06ccebd",
+        "firstSet": "mh1",
+        "firstPrintId": "6384e266-d0dc-4af1-b3ab-ecaf9be2553c",
+        "firstPrintSet": "mh1",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Rhox War Monk",
         "scryfallId": "19fb67e1-b791-4246-aebc-49fcf0f92c6c",
         "oracleId": "5c05c350-1b11-4dda-9de6-01c7e0f07ffc",
@@ -28386,6 +28426,14 @@
         "firstPrintSet": "soi",
         "rarity": "common",
         "source": "compiled"
+    },
+    {
+        "name": "Sanguine Evangelist",
+        "scryfallId": "269ddd84-fdc4-4c94-b183-32ecec56967c",
+        "oracleId": "a70d9645-7c25-4fcb-9d16-fb73ce8b55e2",
+        "firstSet": "lci",
+        "firstPrintId": "269ddd84-fdc4-4c94-b183-32ecec56967c",
+        "firstPrintSet": "lci"
     },
     {
         "name": "Sapphire Leech",

@@ -1,5 +1,6 @@
-// Capability tests for the Exalted (CR 702.83) & Prowess (CR 702.108) keyword
-// expansions (convex/cards/abilities/keywordTriggers.ts, issue #699). Built
+// Capability tests for the Exalted (CR 702.83), Prowess (CR 702.108) & Battle
+// cry (CR 702.91) keyword expansions
+// (convex/cards/abilities/keywordTriggers.ts, issues #699 / #3222). Built
 // once here and reused by every card that declares the keyword — the two
 // Vintage Cube Hierarchs (Noble/Ignoble) declare `staticAbilities: ["exalted"]`
 // and inherit the trigger through the `getDefinition` seam.
@@ -230,6 +231,192 @@ describe("Prowess keyword expansion (CR 702.108)", () => {
                 duration: { phase: "end-of-turn" },
             },
         ]);
+    });
+});
+
+describe("Battle cry keyword expansion (CR 702.91)", () => {
+    /** Three attackers under p1 — the battle-cry source plus two 2/2 Grizzly
+     *  Bears — with a fourth Bears sitting home, untapped and not attacking.
+     *  Returns the state and the instances so each test asserts on the same
+     *  board shape. */
+    function attackingBoard(): {
+        state: GameState;
+        source: CardInstanceState;
+        ids: { ally: string; ally2: string; homebody: string };
+    } {
+        // Sanguine Evangelist (2/1, `staticAbilities: ["battle cry"]`) is the
+        // registered card the seam expands — a synthetic definition is not in
+        // the registry, so the engine could not resolve its instances.
+        const def = getCardByName("Sanguine Evangelist");
+        const source = makeInstance(def.id, {
+            id: "crier",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isAttacking: true,
+        });
+        const bears = getCardByName("Grizzly Bears");
+        const mk = (id: string, attacking: boolean): CardInstanceState =>
+            makeInstance(bears.id, {
+                id,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "battlefield",
+                isAttacking: attacking,
+            });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        source,
+                        mk("ally", true),
+                        mk("ally2", true),
+                        mk("homebody", false),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+            phase: "DECLARE_ATTACKERS",
+        });
+        return {
+            state,
+            source,
+            ids: { ally: "ally", ally2: "ally2", homebody: "homebody" },
+        };
+    }
+
+    const power = (state: GameState, id: string): number => {
+        const inst = state.players[0].battlefield.find((c) => c.id === id)!;
+        return getEffectivePower(state, inst);
+    };
+
+    function fireBattleCry(state: GameState, sourceId: string): void {
+        const src = state.players[0].battlefield.find(
+            (c) => c.id === sourceId
+        )!;
+        const attackerIds = state.players[0].battlefield
+            .filter((c) => c.isAttacking)
+            .map((c) => c.id);
+        resolveTrigger(state, src, "battle-cry", {
+            type: "ATTACKERS_DECLARED",
+            attackingPlayerId: "p1",
+            attackerIds,
+        } as StackItem["triggerEvent"]);
+    }
+
+    it("injects a single ATTACKERS_DECLARED triggered ability from the bare keyword", () => {
+        const def = expandedWith("battle cry");
+        const trig = def.triggeredAbilities ?? [];
+        expect(trig).toHaveLength(1);
+        expect(trig[0].id).toBe("battle-cry");
+        expect(trig[0].event).toBe("ATTACKERS_DECLARED");
+    });
+
+    it("is idempotent — re-expanding never double-injects", () => {
+        const once = expandedWith("battle cry");
+        const twice = expandKeywordTriggers(once);
+        expect(twice.triggeredAbilities ?? []).toHaveLength(1);
+    });
+
+    it("fires only when the source itself attacks (CR 702.91a scope self)", () => {
+        const def = expandedWith("battle cry");
+        const trig = def.triggeredAbilities![0];
+        const self = { id: "src", controllerId: "p1" } as PermanentView;
+        const withSource: GameEvent = {
+            type: "ATTACKERS_DECLARED",
+            attackingPlayerId: "p1",
+            attackerIds: ["src", "other"],
+        } as GameEvent;
+        const withoutSource: GameEvent = {
+            type: "ATTACKERS_DECLARED",
+            attackingPlayerId: "p1",
+            attackerIds: ["other"],
+        } as GameEvent;
+        expect(trig.matches(withSource, self)).toBe(true);
+        // "Whenever THIS creature attacks" — an ally attacking alone is not it.
+        expect(trig.matches(withoutSource, self)).toBe(false);
+    });
+
+    it("pumps each other attacking creature +1/+0 and never itself, surviving the wire", () => {
+        const { state, ids } = attackingBoard();
+        expect(power(state, "crier")).toBe(2);
+        expect(power(state, ids.ally)).toBe(2);
+
+        fireBattleCry(state, "crier");
+
+        // CR 702.91a — "each OTHER attacking creature": both allies, +1/+0.
+        expect(power(state, ids.ally)).toBe(3);
+        expect(power(state, ids.ally2)).toBe(3);
+        // The source excludes itself (`excludeSource`), so it stays 2/1 …
+        expect(power(state, "crier")).toBe(2);
+        // … and a creature that never attacked is untouched.
+        expect(power(state, ids.homebody)).toBe(2);
+        // Toughness is unchanged by a +1/+0 (CR 613.4c signed amounts).
+        const ally = state.players[0].battlefield.find(
+            (c) => c.id === ids.ally
+        )!;
+        expect(getEffectiveToughness(state, ally)).toBe(2);
+
+        // Wire format: the buff is client-visible, so it must survive the
+        // projection (the mandatory wire test for a board-visible outcome).
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === ids.ally
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(3);
+        expect(getEffectiveToughness(projected, slim)).toBe(2);
+    });
+
+    it("two battle-cry attackers each pump the other, neither itself", () => {
+        const def = getCardByName("Sanguine Evangelist");
+        const mk = (id: string): CardInstanceState =>
+            makeInstance(def.id, {
+                id,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "battlefield",
+                isAttacking: true,
+            });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mk("criA"), mk("criB")] }),
+                makePlayer("p2"),
+            ],
+            phase: "DECLARE_ATTACKERS",
+        });
+
+        fireBattleCry(state, "criA");
+        fireBattleCry(state, "criB");
+
+        // Each 2/1 got exactly ONE +1/+0 — from the other, never from itself.
+        expect(power(state, "criA")).toBe(3);
+        expect(power(state, "criB")).toBe(3);
+    });
+
+    it("a creature that ENTERS attacking after the trigger resolved is not pumped (CR 611.2c)", () => {
+        const { state } = attackingBoard();
+        fireBattleCry(state, "crier");
+
+        // CR 611.2c — the set a resolution-generated continuous effect affects
+        // is fixed when it begins, so a creature that was not on the
+        // battlefield at all when the trigger resolved gets nothing however
+        // attacking it is. Modelled as the real shape: a NEW permanent
+        // entering the battlefield attacking (a token made by a later
+        // trigger), not a flag flipped on a creature that was already there.
+        const bears = getCardByName("Grizzly Bears");
+        const late = makeInstance(bears.id, {
+            id: "late",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isAttacking: true,
+        });
+        state.players[0].battlefield.push(late);
+        expect(getEffectivePower(state, late)).toBe(2);
+        // And the creatures the effect DID catch keep their buff — the
+        // assertion pairs, so a "nothing is ever pumped" regression cannot
+        // pass this test.
+        expect(power(state, "ally")).toBe(3);
     });
 });
 
