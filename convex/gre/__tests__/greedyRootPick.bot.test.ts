@@ -27,8 +27,14 @@ import { seatPlayerId } from "../ai/blade/matcher";
 const LABEL = "positive-control: plays its only land on an empty board";
 const RICH = "overloads Damn to wrath three creatures instead of killing one";
 
-function position(label: string) {
+function scenarioNamed(label: string) {
     const scenario = findBladeScenario(label);
+    if (!scenario) throw new Error(`no blade entry labelled "${label}"`);
+    return scenario;
+}
+
+function position(label: string) {
+    const scenario = scenarioNamed(label);
     const state = buildBladeState(scenario);
     const botId = seatPlayerId(state, scenario.bot);
     return { scenario, state, botId };
@@ -109,7 +115,7 @@ describe("greedy concordance in the telemetry record (issue #3393)", () => {
 
 describe('blade runner pick: "greedy" (issue #3393)', () => {
     it("answers with a legal move at a budget the search could not afford here", () => {
-        const scenario = findBladeScenario(LABEL);
+        const scenario = scenarioNamed(LABEL);
         const t0 = performance.now();
         const result = runBladeScenario(
             { ...scenario, budget: { iterations: 100_000 } },
