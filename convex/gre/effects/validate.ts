@@ -3811,6 +3811,14 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             target: isObjectSelector,
         },
     },
+    // CR 615.12 (issue #3303) — the GAME-scoped sibling of `lockDamage`: no
+    // damage can be prevented this turn, from any source and to any recipient
+    // (Stomp). No fields at all: the clause names no source, no recipient and
+    // no duration but the turn, so an object selector here would be a lie
+    // about the scope. Prevention only — CR 614.9 redirection is untouched.
+    suppressDamagePrevention: {
+        required: {},
+    },
     // CR 510.1c (issue #1283) — mark a permanent to assign no combat damage
     // this turn. `target` is an object selector (announced slot, `$source`, or
     // a forEach `$each`). No other fields.

@@ -3239,6 +3239,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: "Lock a permanent so that damage which would be dealt TO it for the rest of the turn \"can't be prevented or dealt instead to another permanent or player\" (Whippoorwill; CR 615.12 for the first clause and CR 614.9 for the second, issue #2231). A thin declarative skin over the single SpellContext primitive `setDamageLockThisTurn`, one execution path (ADR 0045): it sets the `damageLockThisTurn` per-instance flag, read by all four damage sinks — the spell/ability path, the permanent-source player path, the fight/redirect marker and the combat-damage step — and cleared at CLEANUP (CR 514.2). `target` is an announced target slot (`{ target: N }`), the resolving source (`$source`), or a forEach `$each`. ONE boolean covers both clauses at this scope: no printed card locks only half of them target-side, and a pair of flags would be two things to forget at each sink. Suppression is applied PER REPLACEMENT EFFECT via `ReplacementEffect.damageEffectKind` / the transient-shield kind map, never by skipping the CR 614 loops wholesale — an amount rewrite that never says \"prevent\" (Divine Presence, Ali from Cairo, Lashknife Barrier) still applies under the lock, and so does Eye for an Eye's reflection, which deals a SECOND amount rather than moving the first. DISTINCT from `dealDamage`'s `unpreventable` / `unredirectable` fields, which lock ONE event dealt BY the resolving spell (Lava Burst) and are split because kicked Urza's Rage wants only the first; and DISTINCT from the `combat-damage-unpreventable` staticEffect (Questing Beast), which is SOURCE-bound, continuous and combat-only. No-op on a non-permanent selection, a non-CREATURE permanent, or one already gone (CR 608.2b).",
     },
     {
+        op: "suppressDamagePrevention",
+        status: "implemented",
+        cr: "615.12",
+        binding: "SpellContext.suppressDamagePreventionThisTurn",
+        note: 'Make damage unpreventable for the rest of the turn, GAME-wide: from any source, to any recipient (Stomp\'s first line, "Damage can\'t be prevented this turn"; CR 615.12, issue #3303). A thin declarative skin over the single SpellContext primitive `suppressDamagePreventionThisTurn`, one execution path (ADR 0045): it sets the game-scoped `damageUnpreventableThisTurn` flag, ORed into the `unpreventable` boolean all four damage sinks already compute (the spell/ability path, the permanent-source player path, the fight/redirect marker and the combat-damage step) and cleared at CLEANUP (CR 514.2) with the other turn-scoped global flags. No fields: the clause names no source, no recipient and no duration but the turn. DISTINCT from `lockDamage`, which binds the same override to ONE RECIPIENT (Whippoorwill) and also carries the CR 614.9 unredirectable clause; from the `combat-damage-unpreventable` staticEffect (Questing Beast), which binds it to ONE SOURCE and to combat only; and from `dealDamage`\'s `unpreventable` field, which locks ONE event dealt by the resolving spell (Lava Burst). Prevention ONLY — a redirect is not a prevention (CR 614.9), so Harsh Judgment still moves damage dealt under this lock. Per CR 615.12 the suppression is applied PER REPLACEMENT EFFECT, never by skipping the CR 614/615 loops wholesale: an amount rewrite that never says "prevent" (Divine Presence, Ali from Cairo) still applies, and an unspent prevention shield stays unspent rather than being consumed. It is symmetric by construction, which is the point of the flag being on the game: the lock also unprevents damage dealt to its own caster.',
+    },
+    {
         op: "markAssignsNoCombatDamage",
         status: "implemented",
         cr: "510.1",
@@ -4012,7 +4019,21 @@ export const EVENT_FIELD_REGISTRY: Record<
             resolve: (e) => (e.type === "SPELL_CAST" ? e.casterId : undefined),
         },
     },
+    // CR 603.2b / 109.5 / issue #3303 — "whenever this creature becomes the
+    // target of a spell, this creature deals 2 damage to THAT SPELL'S
+    // CONTROLLER" (Bonecrusher Giant). Every card that read `BECAME_TARGET`
+    // before this row acted on `self`, on an announced slot, or on the object
+    // that became the target (`targetPermanent` below) — none needed to name
+    // the player on the OTHER side of the targeting, which is why the event's
+    // `sourceControllerId` had no censused field. Player-family, exactly like
+    // `SPELL_CAST.caster` and `SPELL_KICKED.casterId`: no interpreter change,
+    // the generic `$event.<field>` branch (ADR 0049) resolves it.
     BECAME_TARGET: {
+        sourceController: {
+            family: "player",
+            resolve: (e) =>
+                e.type === "BECAME_TARGET" ? e.sourceControllerId : undefined,
+        },
         targetPermanent: {
             family: "object",
             resolve: (e) =>

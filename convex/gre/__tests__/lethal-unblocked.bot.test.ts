@@ -294,6 +294,56 @@ describe("lethalUnblockedDelta — EXACTLY ZERO off-pattern (ADR 0070 §5)", () 
         expect(lethalUnblockedDelta(state, ATTACKER)).toBe(0);
     });
 
+    it("is lethal again under a Fog once the GAME-scoped lock is up (CR 615.12, Stomp)", () => {
+        // The engine's damage step honours the lock at two places — the
+        // step-level Fog short-circuit and the per-source `unpreventable`
+        // boolean (`applyAllCombatDamage` / `applyOneCombatDamage`) — so this
+        // term must mirror BOTH or the bot writes off a swing that connects.
+        // The failure it guards is the one `anyCombatDamageUnpreventableStatic`
+        // already guards for Questing Beast: a false zero in the most
+        // decision-critical term the evaluator has.
+        const state = position({
+            attackers: Array.from({ length: 4 }, () => ({
+                power: 6,
+                toughness: 4,
+            })),
+            defenderLife: 20,
+        });
+        state.preventAllCombatDamageThisTurn = true;
+        expect(lethalUnblockedDelta(state, DEFENDER)).toBe(0);
+        state.damageUnpreventableThisTurn = true;
+        expect(lethalUnblockedDelta(state, DEFENDER)).toBe(-WIN_SCORE);
+        // And the engine agrees — the swing really is lethal on this board.
+        // No assignments: all four attackers are unblocked, which is the
+        // unblocked-to-player leg the term models.
+        applyAllCombatDamage(state, {});
+        expect(state.players[1].life).toBeLessThanOrEqual(0);
+    });
+
+    it("stops declining on an unspent PLAYER shield once the lock is up (CR 615.12)", () => {
+        const state = position({
+            attackers: Array.from({ length: 4 }, () => ({
+                power: 6,
+                toughness: 4,
+            })),
+            defenderLife: 20,
+        });
+        state.playerDamagePrevention = [
+            {
+                playerId: DEFENDER,
+                match: {},
+                mode: "all",
+                remaining: 3,
+                duration: { phase: "end-of-turn" },
+            },
+        ];
+        // Off-lock the term under-reports on purpose: it cannot resolve whether
+        // the shield matches without mutating state.
+        expect(lethalUnblockedDelta(state, DEFENDER)).toBe(0);
+        state.damageUnpreventableThisTurn = true;
+        expect(lethalUnblockedDelta(state, DEFENDER)).toBe(-WIN_SCORE);
+    });
+
     it("skips attackers covered by a source-scoped prevention shield (CR 510.1c / 615)", () => {
         const state = position({
             attackers: Array.from({ length: 4 }, () => ({

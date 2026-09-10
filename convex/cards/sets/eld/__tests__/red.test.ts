@@ -2,8 +2,19 @@
 // `convex/cards/sets/eld/red.ts` (set split by colour, ADR 0043).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { resolveTopOfStack } from "../../../../gre/state";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../../../__tests__/setup";
+import {
+    emitBecameTargetEvents,
+    processPendingActionTriggers,
+    resolveTopOfStack,
+} from "../../../../gre/state";
+import { applyCastModeCharacteristics } from "../../../../gre/castMode";
+import { NO_BOARD_LAYER_VIEW } from "../../../../gre/layers";
 import { getLegalActions } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
 import type { GameState, StackItem } from "../../../../gre/state";
@@ -217,5 +228,215 @@ describe("Robber of the Rich (CR 508.1 attack trigger + CR 601.3 cast-from-exile
             )!;
             expect(slim.legalActions ?? []).toEqual([]);
         }
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bonecrusher Giant // Stomp (issue #3303, ADR 0120 slice 2). Two mechanisms,
+// both new to this card:
+//
+//   - the "becomes the target of A SPELL" trigger — the shipped `BECAME_TARGET`
+//     event (CR 603.2b) narrowed by `sourceKind`, which no card had narrowed
+//     before, plus the `$event.sourceController` field row this slice censuses
+//     (EVENT_FIELD_REGISTRY, ADR 0049) so the ping can name "that spell's
+//     controller";
+//   - Stomp, the Adventure half, whose first line is the new game-scoped
+//     `suppressDamagePrevention` Op (CR 615.12). The Op's own coverage is in
+//     `gre/effects/__tests__/interpreter.test.ts` and
+//     `gre/__tests__/damagePreventionLock.test.ts`; what is asserted here is
+//     that the CARD wires the two Ops together in the printed order, so the
+//     lock covers Stomp's own damage.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const bonecrusherGiant = getDefinition("ff984a4c-1818-4f8f-a9d7-fce57e77937d");
+// ADR 0046 — every subject resolves through the registry seam, never through a
+// set module's own export (`card-test-seam-boundary.test.ts`).
+const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
+
+function giantBoard(): GameState {
+    return makeState({
+        players: [
+            makePlayer("p1", {
+                battlefield: [
+                    makeInstance(bonecrusherGiant.id, {
+                        id: "giant",
+                        controllerId: "p1",
+                        ownerId: "p1",
+                    }),
+                ],
+            }),
+            makePlayer("p2"),
+        ],
+    });
+}
+
+describe("Bonecrusher Giant — 'becomes the target of a spell' (CR 603.2b)", () => {
+    it("pings that spell's controller for 2 when a SPELL targets it", () => {
+        const state = giantBoard();
+        const removal = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "permanent", id: "giant" },
+        ]);
+        emitBecameTargetEvents(
+            state,
+            removal.targets,
+            "p2",
+            removal.id,
+            "spell"
+        );
+        processPendingActionTriggers(state);
+        // The trigger is ON TOP of the removal spell — assert that, not just
+        // the eventual life total, so the test can tell the ping apart from any
+        // other reason p2 might lose life.
+        expect(state.stack).toHaveLength(2);
+        expect(state.stack[state.stack.length - 1].triggeredAbilityId).toBe(
+            "bonecrusher-giant-targeted-ping"
+        );
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(18);
+    });
+
+    it("does NOT fire for an ABILITY that targets it — the Oracle says 'a spell'", () => {
+        const state = giantBoard();
+        emitBecameTargetEvents(
+            state,
+            [{ type: "permanent", id: "giant" }],
+            "p2",
+            "some-ability-item",
+            "activated-ability"
+        );
+        processPendingActionTriggers(state);
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("does NOT fire when the spell targets something else", () => {
+        const state = giantBoard();
+        emitBecameTargetEvents(
+            state,
+            [{ type: "player", id: "p1" }],
+            "p2",
+            "some-spell-item",
+            "spell"
+        );
+        processPendingActionTriggers(state);
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("pings its OWN controller when they target it themselves (the card is symmetric)", () => {
+        const state = giantBoard();
+        emitBecameTargetEvents(
+            state,
+            [{ type: "permanent", id: "giant" }],
+            "p1",
+            "own-spell-item",
+            "spell"
+        );
+        processPendingActionTriggers(state);
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(18);
+    });
+});
+
+describe("Stomp — 'Damage can't be prevented this turn' (CR 615.12 / 715.3)", () => {
+    /** p2's creature behind a 100-point prevention shield; p1 resolves Stomp at
+     *  it as the Adventure half of the card in hand. */
+    function stompBoard(): GameState {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        makeInstance(bonecrusherGiant.id, {
+                            id: "card",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(bonecrusherGiant.id, {
+                            id: "victim",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        state.targetPreventionShields = [
+            {
+                targetType: "permanent",
+                targetId: "victim",
+                remaining: 100,
+                duration: { phase: "end-of-turn" },
+            },
+        ];
+        return state;
+    }
+
+    /** Puts the card on the stack as its Adventure half, targeting `targetId`,
+     *  through the same commit path every real cast site uses. */
+    function pushStomp(state: GameState, targetId: string): StackItem {
+        const card = state.players[0].hand.splice(0, 1)[0];
+        const item: StackItem = {
+            ...card,
+            zone: "stack",
+            castById: "p1",
+            targets: [{ type: "permanent", id: targetId }],
+        };
+        applyCastModeCharacteristics(
+            NO_BOARD_LAYER_VIEW,
+            item,
+            `adventure:${bonecrusherGiant.id}`
+        );
+        state.stack.push(item);
+        return item;
+    }
+
+    it("deals its 2 damage THROUGH a prevention shield, and leaves the shield unspent", () => {
+        const state = stompBoard();
+        pushStomp(state, "victim");
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "victim")!
+                .damageMarked
+        ).toBe(2);
+        // CR 615.12's last sentence — the shield was never reduced.
+        expect(state.targetPreventionShields?.[0]?.remaining).toBe(100);
+    });
+
+    it("the lock outlives the resolution: later damage the same turn is unpreventable too", () => {
+        const state = stompBoard();
+        // A second shield, on the PLAYER, for a burn spell cast after Stomp has
+        // already resolved: the lock is a turn effect on the game, not a rider
+        // on Stomp's own damage event.
+        state.targetPreventionShields!.push({
+            targetType: "player",
+            targetId: "p2",
+            remaining: 100,
+            duration: { phase: "end-of-turn" },
+        });
+        pushStomp(state, "victim");
+        resolveTopOfStack(state);
+        expect(state.damageUnpreventableThisTurn).toBe(true);
+        pushSpell(state, lightningBolt.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(17);
+    });
+
+    it("the same shield DOES prevent an unaccompanied Bolt (the contrast case)", () => {
+        const state = stompBoard();
+        pushSpell(state, lightningBolt.id, "p1", [
+            { type: "permanent", id: "victim" },
+        ]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "victim")!
+                .damageMarked
+        ).toBeUndefined();
     });
 });

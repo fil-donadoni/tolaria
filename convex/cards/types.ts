@@ -3347,6 +3347,11 @@ export interface SpellContext {
      *  non-CREATURE permanent, or one that has left the battlefield
      *  (CR 608.2b). */
     setDamageLockThisTurn: (target: TargetSelection) => void;
+    /** CR 615.12 (issue #3303) — arm the GAME-scoped "damage can't be prevented
+     *  this turn" lock (Stomp). Recipient- and source-agnostic; cleared at
+     *  CLEANUP (CR 514.2). The board-wide sibling of `setDamageLockThisTurn`,
+     *  and prevention-only: it never makes damage unredirectable. */
+    suppressDamagePreventionThisTurn: () => void;
     /** CR 120.1 — deals `amount` damage to ANY target (player, creature,
      *  planeswalker or battle) FROM an explicit battlefield permanent
      *  (`sourceInstanceId`), rather than from the resolving stack item. The
@@ -14646,6 +14651,32 @@ export type EffectOp =
      *  Whippoorwill's own Oracle sentence pairs it with. No-op on a
      *  non-permanent selection or one already gone (CR 608.2b). */
     | { op: "lockDamage"; target: EffectObjectSelector }
+    /** CR 615.12 (issue #3303) — for the rest of THIS TURN, no damage can be
+     *  prevented: not damage from any source, not damage to any recipient
+     *  (Stomp: "Damage can't be prevented this turn"). A thin declarative skin
+     *  over the single SpellContext primitive
+     *  `suppressDamagePreventionThisTurn`, one execution path (ADR 0045): it
+     *  sets the game-scoped `damageUnpreventableThisTurn` flag, ORed into the
+     *  `unpreventable` boolean each of the four damage sinks already computes
+     *  (the spell/ability path, the permanent-source player path, the
+     *  fight/redirect marker and the combat-damage step) and cleared at
+     *  CLEANUP (CR 514.2).
+     *
+     *  No fields at all — the clause names no source, no recipient and no
+     *  duration but the turn, which is what separates it from the three
+     *  neighbours it is easy to confuse it with: `lockDamage` is bound to ONE
+     *  RECIPIENT (Whippoorwill), the `combat-damage-unpreventable` static
+     *  effect is bound to ONE SOURCE and to combat (Questing Beast), and
+     *  `dealDamage`'s `unpreventable` field locks ONE EVENT dealt by the
+     *  resolving spell (Lava Burst).
+     *
+     *  Prevention ONLY, deliberately: it does NOT make damage unredirectable
+     *  (CR 614.9 — a redirect is not a prevention), where `lockDamage` carries
+     *  both clauses because Whippoorwill's Oracle sentence does. It also does
+     *  not stop a prevention effect from applying and producing its OTHER
+     *  effects (CR 615.12), which is why the suppression is per replacement
+     *  effect at the sinks rather than a skipped loop. */
+    | { op: "suppressDamagePrevention" }
     /** CR 510.1c (issue #1283) — mark a permanent so it assigns NO combat
      *  damage for the rest of the turn: a SOURCE-side prevention (the creature
      *  still fights and can be dealt damage / die, it merely deals 0 in every

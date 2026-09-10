@@ -18873,6 +18873,144 @@ describe("Effect Script Op: lockDamage (CR 615.12 / 614.9)", () => {
     });
 });
 
+// CR 615.12 (issue #3303) — the `suppressDamagePrevention` Op: the GAME-scoped,
+// turn-long "damage can't be prevented this turn" lock (Stomp). The DSL skin
+// over `SpellContext.suppressDamagePreventionThisTurn`. End-to-end behaviour of
+// the lock itself (all four sinks, the redirect that must still fire, CLEANUP,
+// the serialization round-trip) lives in
+// `convex/gre/__tests__/damagePreventionLock.test.ts`; this is the Op's own
+// entry-fee test — that it reaches the primitive, that the lock is live for the
+// REST of the same script, and that what it lets through crosses the wire.
+describe("Effect Script Op: suppressDamagePrevention (CR 615.12)", () => {
+    function shieldedBear(): GameState {
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(BEAR_ID, {
+                            controllerId: "p2",
+                            id: "bearA",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        state.targetPreventionShields = [
+            {
+                targetType: "permanent",
+                targetId: "bearA",
+                remaining: 100,
+                duration: { phase: "end-of-turn" },
+            },
+        ];
+        return state;
+    }
+
+    it("arms the game-scoped flag", () => {
+        const id = registerScript("test-op-suppressprevention-arms", [
+            { op: "suppressDamagePrevention" },
+        ]);
+        const state = shieldedBear();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.damageUnpreventableThisTurn).toBe(true);
+    });
+
+    it("the lock covers damage dealt LATER IN THE SAME script (Stomp's own line order)", () => {
+        const id = registerScript("test-op-suppressprevention-fires", [
+            { op: "suppressDamagePrevention" },
+            { op: "dealDamage", amount: 2, to: { target: 0 } },
+        ]);
+        const state = shieldedBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bearA")!
+                .damageMarked
+        ).toBe(2);
+    });
+
+    it("without the Op the same shield DOES prevent the damage (the contrast case)", () => {
+        const id = registerScript("test-op-suppressprevention-absent", [
+            { op: "dealDamage", amount: 2, to: { target: 0 } },
+        ]);
+        const state = shieldedBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bearA")!
+                .damageMarked
+        ).toBeUndefined();
+    });
+
+    it("runs inside an `if` arm like any other Op (construct coverage)", () => {
+        const id = registerScript("test-op-suppressprevention-if", [
+            {
+                op: "if",
+                predicate: { left: 2, op: "gt", right: 1 },
+                then: [{ op: "suppressDamagePrevention" }],
+            },
+        ]);
+        const state = shieldedBear();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.damageUnpreventableThisTurn).toBe(true);
+    });
+
+    it("the untaken `if` arm leaves the lock unarmed", () => {
+        const id = registerScript("test-op-suppressprevention-if-else", [
+            {
+                op: "if",
+                predicate: { left: 0, op: "gt", right: 1 },
+                then: [{ op: "suppressDamagePrevention" }],
+            },
+        ]);
+        const state = shieldedBear();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.damageUnpreventableThisTurn).toBeUndefined();
+    });
+
+    it("covers the PERMANENT-SOURCE marker sink as well (CR 120.1)", () => {
+        // `dealDamage` with a `source` routes through
+        // `markDamageFromPermanentSource` — a different sink from the plain
+        // spell path above, and one whose own `unpreventable` boolean is
+        // computed locally rather than passed in.
+        const id = registerScript("test-op-suppressprevention-marker", [
+            { op: "suppressDamagePrevention" },
+            {
+                op: "dealDamage",
+                amount: 2,
+                to: { target: 0 },
+                source: { target: 0 },
+            },
+        ]);
+        const state = shieldedBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bearA")!
+                .damageMarked
+        ).toBe(2);
+    });
+
+    it("the damage it lets through survives projection (wire format)", () => {
+        const id = registerScript("test-op-suppressprevention-wire", [
+            { op: "suppressDamagePrevention" },
+            { op: "dealDamage", amount: 2, to: { target: 0 } },
+        ]);
+        const state = shieldedBear();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearA" }]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "bearA"
+        )!;
+        expect(slim.damageMarked).toBe(2);
+    });
+});
+
 // --- lookDistribute Op: look at top N, put one (or K) into hand, rest on the bottom
 // (CR 401.4, issue #984) ---------------------------------------------------------
 // lookDistribute SUSPENDS on a `look-distribute` choice over exactly the looked-at

@@ -51,10 +51,30 @@ export const INSET_SPELL_KINDS: Record<
         /** CR 715.3 vs CR 722.3 — whether playing the parent card offers the
          *  choice of casting the inset half. */
         castableFromParent: boolean;
+        /** What the RULES call the inset frame's half (CR 715.2a "Adventure",
+         *  CR 722.2a "prepare spell") — the label a surface prints when it
+         *  names that half. Here rather than at the surface for the same reason
+         *  `castableFromParent` is: a kind added to the union must answer it,
+         *  and a `kind === "adventure"` literal in a component is exactly the
+         *  drift this table exists to prevent (PR #3302 review finding 6). */
+        insetLabel: string;
+        /** What the rules call the CARD carrying that inset frame (CR 715.1
+         *  "adventurer card", CR 722.1 "preparation card") — the label a
+         *  surface prints when it names the OTHER half, i.e. when the object
+         *  being described is the inset spell itself (CR 715.3b). */
+        cardLabel: string;
     }
 > = {
-    adventure: { castableFromParent: true },
-    prepare: { castableFromParent: false },
+    adventure: {
+        castableFromParent: true,
+        insetLabel: "Adventure",
+        cardLabel: "Adventurer card",
+    },
+    prepare: {
+        castableFromParent: false,
+        insetLabel: "Prepare spell",
+        cardLabel: "Preparation card",
+    },
 };
 
 /** The registry id of `parentId`'s inset spell of `kind`. Derived, stable, and

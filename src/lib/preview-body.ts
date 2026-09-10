@@ -1,5 +1,9 @@
 import { tryGetDefinition, FACE_DOWN_CARD_ID } from "@convex/cards";
 import {
+    INSET_SPELL_KINDS,
+    parentIdOfInsetSpell,
+} from "@convex/cards/insetSpell";
+import {
     getArtCropImageUrl,
     getArtImageUrl,
     getPrintedCardImageUrl,
@@ -49,6 +53,36 @@ export { computeEngineViewBadge, type EngineViewBadge };
 // derivation feeds both the CURRENT face (presented identity, live instance)
 // and the ORIGINAL face of a copy (printed identity, no instance overrides —
 // CR 707.2). See the copy-card-preview design (#-copy-preview).
+/** CR 715.2 / 722.2 (issue #3303) — the OTHER half of a two-part card frame,
+ *  rendered as a subordinate section of the SAME face.
+ *
+ *  Never a second face: the twin carries the parent's `imagePrintId` (the art
+ *  is the print's, not a characteristic — CR 206.1 / 111.1), so composing the
+ *  two halves the way a copy's CURRENT/ORIGINAL faces compose would render the
+ *  identical art crop twice.
+ *
+ *  Populated in BOTH directions. Previewing the adventurer card, this is its
+ *  Adventure; previewing the Adventure on the stack (def id
+ *  `${parentId}#adventure`), this is the card half — CR 715.3b makes the twin's
+ *  own characteristics the only real ones, and rendering the other half is what
+ *  tells the player which of the two is on the stack. Shown in EVERY zone: the
+ *  inset text is PRINTED text, and CR 715.2a keeps "has an Adventure" true for
+ *  a card in a graveyard. `label` is what stops the section reading as a live
+ *  characteristic, the discipline `abilitiesStripped` already applies. */
+export type PreviewInsetHalf = {
+    /** Whose half this is, relative to the face rendering it: `"inset"` = the
+     *  inset frame's spell (the face is the card), `"card"` = the card's normal
+     *  characteristics (the face is the inset spell). */
+    role: "inset" | "card";
+    /** The rules' name for this half — `INSET_SPELL_KINDS[kind].insetLabel` /
+     *  `.cardLabel`, never a `kind === "adventure"` literal. */
+    label: string;
+    name: string;
+    manaCost: string | null;
+    typeLine: string;
+    oracleParagraphs: string[];
+};
+
 export type PreviewBodyContent = {
     cardName: string;
     displayName: string;
@@ -134,7 +168,53 @@ export type PreviewBodyContent = {
      *  happened in. Absent out of game (deck builder, Draft Lab) and for a
      *  face with no game context at all. */
     engineReportGameId?: string | null;
+    /** CR 715.2 / 722.2 — the other half of a two-part card frame, or null for
+     *  every ordinary card. Optional (not merely nullable) so hand-built
+     *  `PreviewBodyContent` fixtures predating the field keep compiling. */
+    insetHalf?: PreviewInsetHalf | null;
 };
+
+/** Builds the subordinate half-section for `defId` (see {@link
+ *  PreviewInsetHalf}), in whichever of the two directions applies. Returns null
+ *  for an ordinary card — and for a twin whose parent is not registered, which
+ *  is a no-op rather than a throw for the same CR 608.2b-ish reason every other
+ *  lookup here is: a preview never blocks on a missing definition. */
+function buildInsetHalf(defId: string): PreviewInsetHalf | null {
+    const def = tryGetDefinition(defId);
+    const inset = def?.insetSpell;
+    if (inset) {
+        return {
+            role: "inset",
+            label: INSET_SPELL_KINDS[inset.kind].insetLabel,
+            name: inset.name,
+            manaCost: manaCostToString(inset.manaCost),
+            typeLine: formatTypeLine(inset.types, inset.subtypes, undefined),
+            oracleParagraphs: inset.oracleText
+                .split("\n")
+                .filter((p) => p.length > 0),
+        };
+    }
+    // The twin direction: this face IS the inset spell, so the other half is
+    // the parent card's normal characteristics (CR 715.4).
+    const parentId = parentIdOfInsetSpell(defId);
+    if (!parentId) return null;
+    const parent = tryGetDefinition(parentId);
+    if (!parent?.insetSpell) return null;
+    return {
+        role: "card",
+        label: INSET_SPELL_KINDS[parent.insetSpell.kind].cardLabel,
+        name: parent.name,
+        manaCost: manaCostToString(parent.manaCost),
+        typeLine: formatTypeLine(
+            parent.types,
+            parent.subtypes,
+            parent.supertypes
+        ),
+        oracleParagraphs: (parent.oracleText ?? "")
+            .split("\n")
+            .filter((p) => p.length > 0),
+    };
+}
 
 // Only the fields of the game context that a preview face reads. Accepting a
 // structural subset keeps this pure-ish builder decoupled from the full
@@ -327,6 +407,7 @@ export function buildPreviewBody(
         skipNextUntap: !!cardInstance?.skipNextUntap,
         milestones,
         isManualGame: !!gameCtx?.isManualGame,
+        insetHalf: buildInsetHalf(defId),
         engineView: def ? computeEngineViewBadge(def) : null,
         engineTree: def ? buildEngineViewTree(def) : null,
         engineReportGameId: gameCtx?.gameId ?? null,

@@ -4082,6 +4082,14 @@
         "source": "compiled"
     },
     {
+        "name": "Bonecrusher Giant",
+        "scryfallId": "ff984a4c-1818-4f8f-a9d7-fce57e77937d",
+        "oracleId": "d6d72f5f-8f5d-4180-b514-f22ff5482902",
+        "firstSet": "eld",
+        "firstPrintId": "ff984a4c-1818-4f8f-a9d7-fce57e77937d",
+        "firstPrintSet": "eld"
+    },
+    {
         "name": "Bonescythe Sliver",
         "scryfallId": "73419af6-7df0-48d5-b6f4-e621c75a1acd",
         "oracleId": "1d95ad32-768f-40a1-a461-e0562326b2b7",

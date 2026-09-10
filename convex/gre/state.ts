@@ -4521,6 +4521,20 @@ export type GameState = {
     /** When true, all combat damage is prevented this turn (CR 615, Fog).
      *  Checked at the top of `applyAllCombatDamage`; cleared at CLEANUP. */
     preventAllCombatDamageThisTurn?: boolean;
+    /** CR 615.12 (issue #3303) — when true, NO damage can be prevented this
+     *  turn, whatever its source and whatever its recipient (Stomp: "Damage
+     *  can't be prevented this turn"). The GAME-scoped sibling of the
+     *  per-permanent `damageLockThisTurn` flag: read through
+     *  `isDamageUnpreventableThisTurn` and ORed into the `unpreventable`
+     *  boolean every damage sink already computes, so no sink learns a second
+     *  vocabulary. Cleared at CLEANUP (CR 514.2).
+     *
+     *  Deliberately prevention-ONLY: unlike `damageLockThisTurn`, which also
+     *  carries Whippoorwill's CR 614.9 "or dealt instead to another permanent
+     *  or player" clause, this flag never touches `unredirectable` — Stomp's
+     *  Oracle line says only "can't be prevented", and a redirect is not a
+     *  prevention (CR 614.9). */
+    damageUnpreventableThisTurn?: boolean;
     /** CR 615 / 510.1c — SOURCE-scoped damage-prevention shields: each entry
      *  prevents damage a matched SOURCE would deal, to ANY recipient (a
      *  player, a creature, a planeswalker — recipient-agnostic, which is what
@@ -9064,6 +9078,19 @@ export function anyDamageLockOnBoard(state: GameState): boolean {
     );
 }
 
+/** CR 615.12 (issue #3303) — is the GAME-scoped "damage can't be prevented this
+ *  turn" lock up (Stomp)?
+ *
+ *  Recipient-agnostic and source-agnostic by construction, which is exactly
+ *  what distinguishes it from its two neighbours: `isDamageLockedTarget`
+ *  (Whippoorwill) asks about ONE recipient, and the
+ *  `combat-damage-unpreventable` static (Questing Beast) asks about ONE source
+ *  in combat only. Every damage sink ORs this into the `unpreventable` boolean
+ *  it already computes; nothing reads the raw field. */
+export function isDamageUnpreventableThisTurn(state: GameState): boolean {
+    return state.damageUnpreventableThisTurn === true;
+}
+
 /** Deals `amount` damage from an explicit battlefield-permanent source to a
  *  player (CR 120), routing through the same CR 614 replacement → CR 615
  *  prevention pipeline that `SpellContext.dealDamage` uses, but sourced from an
@@ -9081,10 +9108,15 @@ export function dealDamageFromPermanentToPlayer(
     sourceControllerId: string,
     playerId: string,
     amount: number,
-    unpreventable: boolean = false,
+    unpreventableArg: boolean = false,
     unredirectable: boolean = false
 ): void {
     if (amount <= 0) return;
+    // CR 615.12 (issue #3303) — the GAME-scoped "damage can't be prevented this
+    // turn" lock (Stomp) ORs into whatever the caller already locked, exactly
+    // as the target-bound lock does at the other three sinks.
+    const unpreventable =
+        unpreventableArg || isDamageUnpreventableThisTurn(state);
     // CR 614 — replacement effects (redirects/cancels) run first, keyed on the
     // permanent source's identity (colors/types).
     const replaced = runDamageReplacement(
@@ -9228,6 +9260,7 @@ function markDamageFromPermanentSource(
     // and either alone is enough. Read off the RAW target, before CR 614.
     const unpreventable =
         forcedUnpreventable ||
+        isDamageUnpreventableThisTurn(state) ||
         isDamageLockedTarget(state, { type: "permanent", id: targetId });
     const unredirectable =
         forcedUnredirectable ||
@@ -14123,8 +14156,16 @@ export function buildSpellContext(
             // the lock belongs to the CREATURE, so a burn spell that has never
             // heard of it is still locked. Read off the RAW target, before any
             // CR 614 replacement can move the event off the locked creature.
+            //
+            // CR 615.12 (issue #3303) — the GAME-scoped lock (Stomp) ORs into
+            // `unpreventable` ONLY: "Damage can't be prevented this turn" says
+            // nothing about redirection (CR 614.9), so Harsh Judgment still
+            // moves a Stomp.
             const targetLocked = isDamageLockedTarget(state, target);
-            const unpreventable = unpreventableArg || targetLocked;
+            const unpreventable =
+                unpreventableArg ||
+                targetLocked ||
+                isDamageUnpreventableThisTurn(state);
             const unredirectable = unredirectableArg || targetLocked;
             const replaced = runDamageReplacement(
                 state,
@@ -17586,6 +17627,14 @@ export function buildSpellContext(
 
         preventAllCombatDamage(): void {
             state.preventAllCombatDamageThisTurn = true;
+        },
+
+        suppressDamagePreventionThisTurn(): void {
+            // CR 615.12 (issue #3303) — Stomp's "Damage can't be prevented this
+            // turn". One boolean on the GAME, not a shield and not a per-object
+            // flag: the clause names neither a source nor a recipient. Cleared
+            // at CLEANUP (CR 514.2) with the other turn-scoped global flags.
+            state.damageUnpreventableThisTurn = true;
         },
 
         restrictSpellCasting(playerId: string, cardTypes?: CardType[]): void {

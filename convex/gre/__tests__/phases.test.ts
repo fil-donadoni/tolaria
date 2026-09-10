@@ -3185,6 +3185,7 @@ describe("CR 514.2 — turn-scoped global flags clear at CLEANUP, not END_OF_COM
     const ARMED: Array<[string, unknown]> = [
         ["preventionTallies", { p1: 2 }],
         ["preventAllCombatDamageThisTurn", true],
+        ["damageUnpreventableThisTurn", true],
         ["sourcePreventionShields", [{ sourceIds: ["atk"], combatOnly: true }]],
         [
             "combatDamageRedirectToPermanent",

@@ -44,6 +44,7 @@ import {
     isCombatDamageImmune,
     anyDamageLockOnBoard,
     isDamageLockedTarget,
+    isDamageUnpreventableThisTurn,
     matchesPermanentFilter,
     discardToGraveyard,
     resolveTopOfStack,
@@ -1200,10 +1201,15 @@ export function applyAllCombatDamage(
     // creature unpreventable, and a step-level short-circuit would skip the
     // per-event check that reads it. Board-wide rather than per-creature
     // because the decision here is whether the step runs at all.
+    //
+    // The GAME-scoped lock (Stomp, issue #3303) punches through it too, and is
+    // the bluntest of the three: while it is up NO damage can be prevented, so
+    // the Fog stops nothing at all and the step must run in full.
     if (
         state.preventAllCombatDamageThisTurn &&
         !anyCombatDamageUnpreventableStatic(state) &&
-        !anyDamageLockOnBoard(state)
+        !anyDamageLockOnBoard(state) &&
+        !isDamageUnpreventableThisTurn(state)
     ) {
         return;
     }
@@ -1274,9 +1280,14 @@ export function applyAllCombatDamage(
         // source-side flag: the two are independent grants of the same
         // override. Whippoorwill's lock is the ONLY thing that makes combat
         // damage unredirectable today, hence `unredirectable` reads only it.
+        // CR 615.12 (issue #3303) — the GAME-scoped lock (Stomp) is the third
+        // independent grant of the same override, and like the source-side one
+        // it says nothing about redirection.
         const targetLocked = isDamageLockedTarget(state, rawTarget);
         const unpreventable =
-            isCombatDamageUnpreventable(state, source) || targetLocked;
+            isCombatDamageUnpreventable(state, source) ||
+            targetLocked ||
+            isDamageUnpreventableThisTurn(state);
         const unredirectable = targetLocked;
         // CR 615 — a resolved Fog. Checked per damage event rather than once
         // for the whole step (see `applyAllCombatDamage` above): with an
@@ -1644,10 +1655,18 @@ export function applyAllCombatDamage(
                     // untouched AND leaves the shield unspent ("existing
                     // damage prevention shields won't be reduced by damage
                     // that can't be prevented").
+                    //
+                    // The GAME-scoped lock (Stomp, CR 615.12, issue #3303) is
+                    // the second grant of that same override and reads here for
+                    // the same reason: the cap is applied BEFORE
+                    // `applyOneCombatDamage`, so it is the one prevention site
+                    // the sinks' shared `unpreventable` boolean never reaches.
                     let damage = attackerPower;
-                    const caps = isCombatDamageUnpreventable(state, attacker)
-                        ? undefined
-                        : state.damageCapShields;
+                    const caps =
+                        isCombatDamageUnpreventable(state, attacker) ||
+                        isDamageUnpreventableThisTurn(state)
+                            ? undefined
+                            : state.damageCapShields;
                     if (caps && caps.length > 0) {
                         const capIdx = caps.findIndex(
                             (s) => s.playerId === defenderId
@@ -2804,6 +2823,10 @@ const TURN_SCOPED_GLOBAL_FLAGS = [
     // would be dealt this turn". Read by `applyAllCombatDamage`, so it must
     // still apply in a second combat phase the same turn (CR 500.8).
     "preventAllCombatDamageThisTurn",
+    // CR 615.12 / 514.2 (issue #3303) — Stomp's "Damage can't be prevented this
+    // turn": a GAME-scoped override that must survive to a second combat phase
+    // and to every post-combat burn spell of the same turn (CR 500.8).
+    "damageUnpreventableThisTurn",
     // CR 615 / 510.1c / 514.2 — SOURCE-scoped prevention shields (Farrel's
     // Mantle, Falling Timber, Guard Dogs, Radiant Kavu, Rith's Charm). An
     // unconsumed shield is a "this turn" effect.

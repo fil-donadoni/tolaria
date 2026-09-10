@@ -512,3 +512,56 @@ describe("buildPreviewBody — engineView field (issue #2728)", () => {
         expect(body.engineView).toBeNull();
     });
 });
+
+// CR 715.2 / 722.2 (issue #3303) — a two-part card frame's OTHER half. The
+// builder is the one place it is derived; every preview surface inherits it
+// through `CardPreviewFace` with no diff of its own, which is why this suite
+// pins the DATA and `card-preview-body.test.tsx` pins that it reaches the DOM.
+describe("buildPreviewBody — the inset half of a two-part frame (CR 715.2)", () => {
+    const BORROWER = getCardByName("Brazen Borrower");
+    const GIANT = getCardByName("Bonecrusher Giant");
+
+    it("carries the Adventure half when the face is the adventurer card", () => {
+        const half = buildPreviewBody(BORROWER.id).insetHalf;
+
+        expect(half).not.toBeNull();
+        expect(half!.role).toBe("inset");
+        // The label comes off `INSET_SPELL_KINDS`, not off the card.
+        expect(half!.label).toBe("Adventure");
+        expect(half!.name).toBe("Petty Theft");
+        expect(half!.manaCost).toBe("{1}{U}");
+        expect(half!.typeLine).toContain("Instant");
+        expect(half!.typeLine).toContain("Adventure");
+        expect(half!.oracleParagraphs.join(" ")).toContain(
+            "Return target nonland permanent"
+        );
+    });
+
+    it("carries the CARD half when the face is the Adventure on the stack (CR 715.3b)", () => {
+        const half = buildPreviewBody(`${GIANT.id}#adventure`).insetHalf;
+
+        expect(half).not.toBeNull();
+        expect(half!.role).toBe("card");
+        expect(half!.label).toBe("Adventurer card");
+        expect(half!.name).toBe("Bonecrusher Giant");
+        expect(half!.manaCost).toBe("{2}{R}");
+        expect(half!.typeLine).toContain("Giant");
+        expect(half!.oracleParagraphs.join(" ")).toContain(
+            "becomes the target of a spell"
+        );
+    });
+
+    it("the twin face's OWN identity stays the Adventure's (the half is context, not a swap)", () => {
+        const body = buildPreviewBody(`${GIANT.id}#adventure`);
+
+        expect(body.displayName).toBe("Stomp");
+        expect(body.manaCost).toBe("{1}{R}");
+        expect(body.oracleParagraphs?.join(" ")).toContain(
+            "Damage can't be prevented this turn"
+        );
+    });
+
+    it("is null for an ordinary card", () => {
+        expect(buildPreviewBody(SERRA.id).insetHalf).toBeNull();
+    });
+});

@@ -4520,6 +4520,14 @@ export const OP_EXECUTORS: {
         if (!target || target.type !== "permanent") return;
         ctx.setDamageLockThisTurn(target);
     },
+    // CR 615.12 (issue #3303) — arm the GAME-scoped "damage can't be prevented
+    // this turn" lock (Stomp). Thin skin over the single primitive
+    // `suppressDamagePreventionThisTurn`, one execution path (ADR 0045). No
+    // target to resolve and no failure mode: the flag is on the game, so
+    // nothing it depends on can have left the battlefield (CR 608.2b).
+    suppressDamagePrevention(ctx) {
+        ctx.suppressDamagePreventionThisTurn();
+    },
     // CR 510.1c (issue #1283) — mark a permanent so it assigns no combat damage
     // this turn (source-side prevention). Thin skin over the single primitive
     // `markAssignsNoCombatDamage`, one execution path (ADR 0045). No-op when the
