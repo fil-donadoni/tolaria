@@ -32206,6 +32206,14 @@
         "source": "compiled"
     },
     {
+        "name": "Stand // Deliver",
+        "scryfallId": "be8b338f-6f05-43c6-beeb-c5052cc0d6a9",
+        "oracleId": "6343aa78-2df6-41f3-9366-4933f9e6a93e",
+        "firstSet": "inv",
+        "firstPrintId": "be8b338f-6f05-43c6-beeb-c5052cc0d6a9",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Stand or Fall",
         "scryfallId": "60c34970-a106-490c-ac37-6156eb7f34ce",
         "oracleId": "927d0085-9bd9-4454-8ac5-0e374237ed35",
@@ -38384,6 +38392,14 @@
         "firstPrintSet": "ala",
         "rarity": "common",
         "source": "compiled"
+    },
+    {
+        "name": "Wax // Wane",
+        "scryfallId": "19859061-f5ec-4b7f-86a1-196f98648e0a",
+        "oracleId": "4744b086-fea2-4992-bfef-68c58cdf9cf0",
+        "firstSet": "inv",
+        "firstPrintId": "19859061-f5ec-4b7f-86a1-196f98648e0a",
+        "firstPrintSet": "inv"
     },
     {
         "name": "Wayfaring Giant",

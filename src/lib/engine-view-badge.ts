@@ -62,6 +62,7 @@ type ResolutionSite = {
  *  | `grantTemplates[]` + their modes      | idem — a granted activated ability       |
  *  | `triggeredGrantTemplates[]` + modes   | idem — a granted triggered ability       |
  *  | `delayedTriggers[]` (CR 603.7a)       | `resolve`, `resolveSteps`, `effects`     |
+ *  | `splitHalves[]` (CR 709.3b)           | `effects` — each half is castable        |
  *
  *  (*) on the CARD, `effect` is the declarative `EffectShorthand` registry key,
  *  never a closure — see {@link hasHandWrittenBody}.
@@ -94,6 +95,12 @@ function resolutionSites(def: CardDefinition): ResolutionSite[] {
     // (`engine-view-badge.catalogue.test.ts`) saw the script — which is the
     // stale-census failure this whole file exists to make loud.
     if (def.insetSpell) sites.push(def.insetSpell);
+    // CR 709.2 (ADR 0121) — the same for a SPLIT card's two halves: one card,
+    // one badge, and both halves are resolution sites of it. Cast either one
+    // and the engine resolves that half's `effects` (CR 709.3b). Omitting
+    // them read Stand // Deliver as `none` while the deep-walk guard saw two
+    // scripts.
+    for (const half of def.splitHalves ?? []) sites.push(half);
     return sites;
 }
 
