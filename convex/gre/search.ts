@@ -4066,10 +4066,10 @@ export function selectRootMove(
     // goes here.
     if (
         rootState &&
-        !rootState.combat &&
         rootState.stack.length === 0 &&
         !!botId &&
         isStandingSpendActivation(rootState, botId, best.move) &&
+        !isInPendingCombatExchange(rootState, best.move.cardInstanceId) &&
         !firingBeatsHolding(rootState, botId, best.move, weights)
     ) {
         const hold = pool.find(
@@ -4257,6 +4257,51 @@ function isLastDeferralWindow(state: GameState, pid: string): boolean {
     return state.phase === "END_STEP" && state.activePlayerId !== pid;
 }
 
+/** Whether `sourceId` is inside a combat exchange whose damage has not been
+ *  dealt yet — a declared attacker that has been BLOCKED, or a declared
+ *  BLOCKER (issue #3369).
+ *
+ *  The hold rule needs it because "keep the permanent" is only worth something
+ *  when the permanent would still be there to keep. A creature standing in a
+ *  confirmed exchange may be about to die for free, and spending it first is
+ *  then the right play rather than the blunder the rule exists to stop — the
+ *  measured shape is a 1/1 Walking Ballista blocked by a 2/2: it dies either
+ *  way, so shooting the last counter at the face before damage is value the
+ *  bot would otherwise throw away.
+ *
+ *  Deliberately NOT a lethality calculation. Asking "will this exchange
+ *  actually kill it" means re-deriving assignment, deathtouch, protection and
+ *  prevention outside the authorities that own them (`lethalDamage.ts`,
+ *  `damageAssignment.ts`, `combatDamagePrevention.ts`), and a tie-break that
+ *  redirects a root pick has no business carrying a second copy of the combat
+ *  rules. The predicate FAILS OPEN instead, matching the module's discipline
+ *  everywhere else: an exchange the rule cannot argue about is left to win or
+ *  lose on mean reward. The cost of that is an attacker blocked by something
+ *  too small to kill it, where the rule stays silent and the spend is merely
+ *  sub-optimal rather than a blunder.
+ *
+ *  An UNBLOCKED attacker is not in an exchange: nothing is assigning damage to
+ *  it, so it is standing exactly as it stands outside combat. That is the
+ *  issue's own position, one window after the attack.
+ *
+ *  Pre-damage only, via `blockersConfirmed`: once the damage step has been
+ *  taken the survivors are simply on the battlefield, and a creature that came
+ *  through is standing again. */
+function isInPendingCombatExchange(
+    state: GameState,
+    sourceId: string
+): boolean {
+    const combat = state.combat;
+    if (!combat || !combat.confirmed || !combat.blockersConfirmed) return false;
+    // A declared blocker — it is assigning and being assigned damage.
+    if (combat.blockerAssignments[sourceId]?.length) return true;
+    // A declared attacker, but only once something has blocked it.
+    if (!combat.attackerIds.includes(sourceId)) return false;
+    return Object.values(combat.blockerAssignments).some((atkIds) =>
+        atkIds.includes(sourceId)
+    );
+}
+
 /** Whether `move` is an activation `pid` controls that GIVES UP A PERMANENT
  *  STILL DOING ITS JOB for a payoff that does not decay — the shape both
  *  deferral rules are about, extracted (issue #3319) so the FIRE half and the
@@ -4369,11 +4414,25 @@ function firingBeatsHolding(
     move: Move,
     weights: EvalWeights
 ): boolean {
-    const probe = cloneGameState(state);
-    applyMoveInSearch(probe, pid, move);
+    const fired = cloneGameState(state);
+    applyMoveInSearch(fired, pid, move);
+    // BOTH sides through `policyValue` (issue #3369). The holding side used to
+    // be a bare `evaluate`, which is only equivalent while `state.combat` is
+    // torn down: `policyValue` folds in `declaredBlockDelta` (and strips
+    // `declaredCombatDelta` behind a held trick), so with a live combat the
+    // FIRING side collected combat corrections the HOLDING side did not and the
+    // probe measured the correction rather than the decision. Passing the
+    // untouched clone through the same function makes the two comparable in
+    // every window. `move` is handed to the holding call only to select the
+    // same code path; with the empty stack the callers require, `policyValue`
+    // resolves nothing, so the holding side is `evaluate` plus exactly the
+    // corrections the firing side also gets. In a torn-down combat both
+    // corrections are zero and this is byte-identical to the previous
+    // comparison — the issue-#2939 FIRE rule's own window.
+    const held = cloneGameState(state);
     return (
-        policyValue(probe, pid, move, weights, pid) >
-        evaluate(state, pid, weights)
+        policyValue(fired, pid, move, weights, pid) >
+        policyValue(held, pid, move, weights, pid)
     );
 }
 
