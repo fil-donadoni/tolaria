@@ -359,8 +359,12 @@ function findClientManaAbility(card: CardInstance) {
  *  CR 602.5b (issue #947) — an ability whose own `canActivate` precondition
  *  fails against `stateView` is not one of them: an un-imprinted Chrome Mox has
  *  NO usable mana ability, which is exactly what `getActivatedManaAbility`
- *  answers server-side. Callers with no view (shape-only introspection) skip
- *  the gate, matching the existing UI-hint convention (#436). */
+ *  answers server-side. The gate runs ONLY when a view is supplied — with none
+ *  it would judge every precondition against an empty board and answer "no
+ *  mana ability" for a Mox Opal whose metalcraft is live, which is why
+ *  `findClientManaAbility` (whose own callers apply the gate themselves,
+ *  against the REAL view) deliberately passes none. Same convention
+ *  `getActivatedManaAbility` follows with an omitted `state` (#436/#947). */
 function clientManaAbilities(
     card: CardInstance,
     stateView?: TriggerStateView
@@ -377,11 +381,9 @@ function clientManaAbilities(
         .map(({ ability }) => ability)
         .filter(
             (a) =>
+                stateView === undefined ||
                 !a.canActivate ||
-                a.canActivate(
-                    card as unknown as PermanentView,
-                    stateView ?? { players: [] }
-                )
+                a.canActivate(card as unknown as PermanentView, stateView)
         );
 }
 

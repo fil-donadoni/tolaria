@@ -92,6 +92,29 @@ describe("canAffordManaAbilityCost — per option (CR 605.1a, issue #3384)", () 
         });
     });
 
+    it("does not judge the card by an ability its own canActivate refuses (CR 602.5b)", () => {
+        // CR 602.5b (issue #947) — an un-imprinted Chrome Mox has NO usable
+        // mana ability, not one whose cost happens to be unpayable. Reading the
+        // ability anyway would grey out a source for a cost it can never be
+        // asked to pay. The gate needs a VIEW: with none supplied every
+        // precondition would judge against an empty board (that is the Mox Opal
+        // metalcraft regression `card-utils.test.ts` caught).
+        const gated: CardDefinition = {
+            ...costedOnly,
+            activatedAbilities: (costedOnly.activatedAbilities ?? []).map(
+                (a) => ({ ...a, canActivate: () => false })
+            ),
+        };
+        withTemporaryDefinition(gated, () => {
+            const arena = instanceOf(gated.id, "arena");
+            expect(
+                canAffordManaAbilityCost(arena, EMPTY_POOL, [arena], {
+                    players: [],
+                })
+            ).toBe(true);
+        });
+    });
+
     it("leaves the shipped shape (free option first) tappable, as before", () => {
         const arena = instanceOf(arenaOfGlory.id, "arena");
         expect(canAffordManaAbilityCost(arena, EMPTY_POOL, [arena])).toBe(true);
