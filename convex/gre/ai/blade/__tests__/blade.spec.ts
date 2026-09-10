@@ -28,7 +28,12 @@ import {
     runBladeScenario,
     type BladeTier,
 } from "..";
-import { LADDER_VARIANTS, type SearchVariant } from "../../searchVariant";
+import {
+    LADDER_VARIANTS,
+    NO_RULE_VARIANT_PREFIX,
+    noRuleVariant,
+    type SearchVariant,
+} from "../../searchVariant";
 
 const TIER = (process.env.BLADE_TIER ?? "must") as BladeTier;
 
@@ -49,16 +54,27 @@ if (TIER !== "must" && TIER !== "stretch") {
 // fail-loud rule `resolveCorpusVariant` follows (`decisionCorpus.ts`): a
 // typo'd variant that silently ran the baseline would report "the variant
 // breaks nothing", which is indistinguishable from the real answer and wrong.
+//
+// One name is SYNTHETIC rather than a registry entry (issue #3399, the
+// root-rule moratorium): `BLADE_VARIANT=no-rule:<mechanism>[,<mechanism>]`
+// turns the named root rules off for every entry of the tier. That is half
+// the moratorium's removal test — "`must` stays green without rule X" — and
+// it deliberately does NOT live in `LADDER_VARIANTS`: that would be one
+// registry entry per rule, each of which would then have to be remembered and
+// deleted alongside its rule. An unknown or structural
+// mechanism throws exactly as an unknown registry name does.
 const VARIANT_NAME = process.env.BLADE_VARIANT;
 const VARIANT: SearchVariant | null = VARIANT_NAME
-    ? (LADDER_VARIANTS[VARIANT_NAME] ??
-      (() => {
-          throw new Error(
-              `BLADE_VARIANT "${VARIANT_NAME}" is not in LADDER_VARIANTS — known: ${Object.keys(
-                  LADDER_VARIANTS
-              ).join(", ")}`
-          );
-      })())
+    ? VARIANT_NAME.startsWith(NO_RULE_VARIANT_PREFIX)
+        ? noRuleVariant(VARIANT_NAME)
+        : (LADDER_VARIANTS[VARIANT_NAME] ??
+          (() => {
+              throw new Error(
+                  `BLADE_VARIANT "${VARIANT_NAME}" is not in LADDER_VARIANTS — known: ${Object.keys(
+                      LADDER_VARIANTS
+                  ).join(", ")}`
+              );
+          })())
     : null;
 const VARIANT_SUFFIX = VARIANT ? ` [variant: ${VARIANT.name}]` : "";
 

@@ -188,8 +188,10 @@ import {
 // Ladder A/B config seam (issue #1924) — null in live play, so every knob
 // below stays at its production default outside a ladder run.
 import {
+    EMPTY_DISABLED_RULES,
     getSearchVariant,
     resolveActionPriors,
+    resolveDisabledRootRules,
     resolveEvalWeights,
     resolveOpponentModel,
     type ActionPriorConfig,
@@ -3858,7 +3860,15 @@ export function selectRootMove(
     // `meanMargin` than `pass`, and `pass` chosen, with nothing naming the
     // rule. Optional and write-only, so every existing caller is untouched.
     out?: { mechanism: RootDecisionMechanism },
-    greedyMoveKey?: string
+    greedyMoveKey?: string,
+    // Root rules turned OFF for this decision (issue #3399, the moratorium's
+    // measuring instrument). Resolved once from the active `SearchVariant` at
+    // the top of `runSearchWithTrace` and threaded here; the empty set is
+    // production, and every caller that hand-builds a `Node` gets it by
+    // default. A disabled rule is a NO-OP, never a different rule: the pick
+    // falls through to whatever the stage before it held, which is exactly
+    // what "is this rule inert?" has to measure.
+    disabledRules: ReadonlySet<RootDecisionMechanism> = EMPTY_DISABLED_RULES
 ): Move {
     const pool = [...root.children.values()].filter((e) => e.visits > 0);
     if (pool.length === 0) return moves[0];
@@ -3890,9 +3900,22 @@ export function selectRootMove(
     // The degenerate empty-pool return above is deliberately not recorded —
     // there was no decision to classify.
     const sink = getRootDecisionSink();
+    const ruleOn = (m: RootDecisionMechanism) => !disabledRules.has(m);
     let mechanism: RootDecisionMechanism =
         contenders.length > 1 ? "material-tiebreak" : "mean-reward";
-    const finish = (edge: Edge, mech: RootDecisionMechanism): Move => {
+    // Did the mechanism currently attributed actually CHANGE the pick (issue
+    // #3399)? For the material tie-break the stage before it is the search's
+    // own argmax, so a flip is a pick sitting strictly BELOW `bestMean` —
+    // reward traded away for margin. Two outcome-equal edges with the SAME
+    // mean are not a change: the reward stage had no opinion between them,
+    // and counting that as a flip would count the order `pool` was built in.
+    // `mean-reward` has nothing before it and never flips.
+    let flipped = contenders.length > 1 && mean(best) < bestMean;
+    const finish = (
+        edge: Edge,
+        mech: RootDecisionMechanism,
+        didFlip: boolean
+    ): Move => {
         if (out) out.mechanism = mech;
         if (sink) {
             const meansDesc = explored
@@ -3916,6 +3939,7 @@ export function selectRootMove(
                         : gapReward / rewardPerMarginPoint(weights),
                 chosenDeficitReward: bestMean - mean(edge),
                 mechanism: mech,
+                flipped: didFlip,
                 pickIsMeanArgmax: mean(edge) === bestMean,
                 ...(searchStats ?? {}),
                 ...(greedyMoveKey === undefined
@@ -3937,7 +3961,7 @@ export function selectRootMove(
     // choice, so it cannot collide with the attack/block/cast-variant rules
     // that follow, and firing early keeps this rule visible in `mechanism`
     // rather than silently overwritten by a later, unrelated pass.
-    if (rootState) {
+    if (rootState && ruleOn("colour-mode-evidence")) {
         const colorPick = colorModeTiebreak(
             rootState,
             pool,
@@ -3948,6 +3972,7 @@ export function selectRootMove(
         if (colorPick && colorPick !== best) {
             best = colorPick;
             mechanism = "colour-mode-evidence";
+            flipped = true;
         }
     }
 
@@ -3960,7 +3985,7 @@ export function selectRootMove(
     // cast it. Placed BEFORE the land-drop / hold-trick branches (which `return`
     // early on a `pass`/dump robust pick) so a winning Time Walk pre-empts them —
     // taking the extra turn beats developing a land or holding a trick.
-    if (rootState && botId) {
+    if (rootState && botId && ruleOn("extra-turn-credit")) {
         const creditCache = new Map<Edge, number>();
         const creditOf = (e: Edge) => {
             let c = creditCache.get(e);
@@ -3977,7 +4002,11 @@ export function selectRootMove(
                 credited(e) > credited(m) ? e : m
             );
             if (credited(bestGrant) > credited(best))
-                return finish(bestGrant, "extra-turn-credit");
+                return finish(
+                    bestGrant,
+                    "extra-turn-credit",
+                    bestGrant !== best
+                );
         }
     }
 
@@ -3992,7 +4021,11 @@ export function selectRootMove(
     // damage / kills) or simply staying back. Fires only among outcome-equal
     // contenders, so an attack with real value out-rewards the field and never
     // reaches here.
-    if (rootState && isWastefulAttack(rootState, best.move)) {
+    if (
+        rootState &&
+        ruleOn("wasteful-attack") &&
+        isWastefulAttack(rootState, best.move)
+    ) {
         // Pull the alternative from the FULL pool on outcome-equality alone (not
         // the `VISIT_TOL` visit band), as the hold-trick rule does: staying back
         // is the lower-variance, lower-visit line, so UCB explores the neutral
@@ -4009,7 +4042,10 @@ export function selectRootMove(
             best = productive.reduce((m, e) =>
                 meanMargin(e) > meanMargin(m) ? e : m
             );
-            if (best !== prev) mechanism = "wasteful-attack";
+            if (best !== prev) {
+                mechanism = "wasteful-attack";
+                flipped = true;
+            }
         }
     }
 
@@ -4050,7 +4086,12 @@ export function selectRootMove(
     // while rejecting a dominated over-commit. Pulled from the full pool on
     // outcome-equality (not the visit band), as the hold-trick rule is: the
     // lighter block is the lower-variance, lower-visit line.
-    if (rootState && botId && best.move.kind === "declare-blockers") {
+    if (
+        rootState &&
+        botId &&
+        ruleOn("block-quality") &&
+        best.move.kind === "declare-blockers"
+    ) {
         const blocks = pool.filter(
             (e) =>
                 e.move.kind === "declare-blockers" &&
@@ -4070,7 +4111,10 @@ export function selectRootMove(
             best = blocks
                 .map((e) => ({ e, delta: deltaOf(e) }))
                 .reduce((m, x) => (x.delta > m.delta ? x : m)).e;
-            if (best !== prev) mechanism = "block-quality";
+            if (best !== prev) {
+                mechanism = "block-quality";
+                flipped = true;
+            }
         }
     }
 
@@ -4102,24 +4146,27 @@ export function selectRootMove(
         (best.move.kind === "cast-spell" ||
             best.move.kind === "activate-ability")
     ) {
-        const scoreCache = new Map<Edge, number>();
-        const scoreOf = (e: Edge) => {
-            let s = scoreCache.get(e);
-            if (s === undefined) {
-                s = castVariantScore(rootState, e.move, botId, weights);
-                scoreCache.set(e, s);
-            }
-            return s;
-        };
-        const variants = pool.filter(
-            (e) =>
-                mean(e) >= bestMean - weights.outcomeEps &&
-                isCastVariantOf(e.move, best.move)
-        );
-        for (const edge of variants) {
-            if (scoreOf(edge) > scoreOf(best)) {
-                best = edge;
-                mechanism = "announcement-variant";
+        if (ruleOn("announcement-variant")) {
+            const scoreCache = new Map<Edge, number>();
+            const scoreOf = (e: Edge) => {
+                let s = scoreCache.get(e);
+                if (s === undefined) {
+                    s = castVariantScore(rootState, e.move, botId, weights);
+                    scoreCache.set(e, s);
+                }
+                return s;
+            };
+            const variants = pool.filter(
+                (e) =>
+                    mean(e) >= bestMean - weights.outcomeEps &&
+                    isCastVariantOf(e.move, best.move)
+            );
+            for (const edge of variants) {
+                if (scoreOf(edge) > scoreOf(best)) {
+                    best = edge;
+                    mechanism = "announcement-variant";
+                    flipped = true;
+                }
             }
         }
 
@@ -4133,13 +4180,16 @@ export function selectRootMove(
         // (`targetsOnlyOwnPermanents` rejects any other kind): "hold it for
         // later" is a spell-in-hand affordance, and an already-on-board ability
         // that only hurts the bot loses on reward, not by being held.
-        if (isSelfHarmRemovalCast(rootState, best.move, botId, weights)) {
+        if (
+            ruleOn("self-harm-removal") &&
+            isSelfHarmRemovalCast(rootState, best.move, botId, weights)
+        ) {
             const hold = pool.find(
                 (e) =>
                     e.move.kind === "pass" &&
                     mean(e) >= bestMean - weights.outcomeEps
             );
-            if (hold) return finish(hold, "self-harm-removal");
+            if (hold) return finish(hold, "self-harm-removal", hold !== best);
         }
 
         // Wasted-mana hold (CR 106.4 / 500.4). A cast whose resolution leaves
@@ -4160,13 +4210,16 @@ export function selectRootMove(
         // enables something out-rewards the field and never reaches here, and
         // the spender test is the position's own legal move list — no card
         // names, no per-card registry (ADR 0102).
-        if (isWastedManaCast(rootState, best.move, botId, weights)) {
+        if (
+            ruleOn("wasted-mana-hold") &&
+            isWastedManaCast(rootState, best.move, botId, weights)
+        ) {
             const hold = pool.find(
                 (e) =>
                     e.move.kind === "pass" &&
                     mean(e) >= bestMean - weights.outcomeEps
             );
-            if (hold) return finish(hold, "wasted-mana-hold");
+            if (hold) return finish(hold, "wasted-mana-hold", hold !== best);
         }
     }
 
@@ -4195,7 +4248,7 @@ export function selectRootMove(
     // even though the two are outcome-equal. Gating on `contenders` (visit-band)
     // would then silently drop it — exactly the mana-screwed case where the bot
     // sat on its only land rather than developing it.
-    if (best.move.kind === "pass") {
+    if (best.move.kind === "pass" && ruleOn("free-development")) {
         const develop = pool.find(
             (e) =>
                 mean(e) >= bestMean - weights.outcomeEps &&
@@ -4204,7 +4257,8 @@ export function selectRootMove(
                         (isFreeManaSourceCast(rootState, e.move, botId) ||
                             isManaDorkCast(rootState, e.move, botId))))
         );
-        if (develop) return finish(develop, "free-development");
+        if (develop)
+            return finish(develop, "free-development", develop !== best);
     }
 
     // Hold-the-trick tie-break (ADR 0021, issue #229). The mirror image of the
@@ -4227,6 +4281,7 @@ export function selectRootMove(
     // on outcome-equality alone, exactly as the cast case is.
     if (
         rootState &&
+        ruleOn("hold-trick") &&
         (isSorcerySpeedTrickDump(rootState, best.move) ||
             (!!botId && isPointlessSelfAnimation(rootState, botId, best.move)))
     ) {
@@ -4244,7 +4299,7 @@ export function selectRootMove(
                 e.move.kind === "pass" &&
                 mean(e) >= bestMean - weights.outcomeEps
         );
-        if (hold) return finish(hold, "hold-trick");
+        if (hold) return finish(hold, "hold-trick", hold !== best);
     }
 
     // Standing-spend HOLD (issue #3319) — the MISSING HALF of the last-window
@@ -4322,6 +4377,7 @@ export function selectRootMove(
         rootState &&
         rootState.stack.length === 0 &&
         !!botId &&
+        ruleOn("standing-spend-hold") &&
         isStandingSpendActivation(rootState, botId, best.move) &&
         !isInPendingCombatExchange(rootState, best.move.cardInstanceId) &&
         !firingBeatsHolding(rootState, botId, best.move, weights)
@@ -4331,7 +4387,7 @@ export function selectRootMove(
                 e.move.kind === "pass" &&
                 mean(e) >= bestMean - weights.outcomeEps
         );
-        if (hold) return finish(hold, "standing-spend-hold");
+        if (hold) return finish(hold, "standing-spend-hold", hold !== best);
     }
 
     // Resolved-payoff CREDIT (issue #3388) — the POSITIVE half of the
@@ -4386,6 +4442,7 @@ export function selectRootMove(
         rootState &&
         !!botId &&
         rootState.stack.length === 0 &&
+        ruleOn("resolved-payoff") &&
         best.move.kind === "pass"
     ) {
         const payoff = pool.find(
@@ -4395,7 +4452,7 @@ export function selectRootMove(
                 reachesOnlyOwnSideThroughChoice(rootState, e.move, botId) &&
                 resolvedMarginDelta(rootState, e.move, botId, weights) > 0
         );
-        if (payoff) return finish(payoff, "resolved-payoff");
+        if (payoff) return finish(payoff, "resolved-payoff", payoff !== best);
     }
 
     // Last-window FIRE (issue #2939) — the mirror of the hold rule above, and
@@ -4444,6 +4501,7 @@ export function selectRootMove(
         rootState &&
         !!botId &&
         rootState.stack.length === 0 &&
+        ruleOn("last-window-fire") &&
         best.move.kind === "pass" &&
         isLastDeferralWindow(rootState, botId)
     ) {
@@ -4453,9 +4511,9 @@ export function selectRootMove(
                 isDeferredEngineActivation(rootState, botId, e.move) &&
                 firingBeatsHolding(rootState, botId, e.move, weights)
         );
-        if (fire) return finish(fire, "last-window-fire");
+        if (fire) return finish(fire, "last-window-fire", fire !== best);
     }
-    return finish(best, mechanism);
+    return finish(best, mechanism, flipped);
 }
 
 /** Whether `move` spends a REACTIVE OPTION in a window where the same option
@@ -4922,6 +4980,10 @@ function runSearchWithTrace(
     // reading the module-global itself, so a determinization is reproducible
     // from its inputs alone.
     const opponentModel = resolveOpponentModel(getSearchVariant());
+    // Root rules disabled for this search (issue #3399). Same one place, same
+    // reason: `selectRootMove` takes the set as an argument rather than
+    // reading the module-global itself. Empty outside a run that asks.
+    const disabledRootRules = resolveDisabledRootRules(getSearchVariant());
 
     // Dominance pruning (issue #1887) runs EXACTLY ONCE per search, here, on
     // the real root state — not at every tree node (issue #1905 review finding
@@ -5071,7 +5133,8 @@ function runSearchWithTrace(
             opponentModel
         ),
         picked,
-        greedyMoveKey
+        greedyMoveKey,
+        disabledRootRules
     );
     return {
         move,
