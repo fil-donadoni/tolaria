@@ -157,7 +157,7 @@ function extractOracleText(card) {
     // An EMPTY `oracle_text` is data, not absence: a vanilla creature's Oracle
     // text genuinely is the empty string, and the catalogue writes it as
     // `oracleText: ""` (28 cards did so before this script could). Treating ""
-    // as "nothing fetched" is what left Grizzly Bears and its 16 siblings
+    // as "nothing fetched" is what left Grizzly Bears and its 14 siblings
     // unbackfillable by this script for as long as it existed (#3075) — a
     // missing field and an empty one are the distinction the compiler's input
     // turns on, and only the FIELD may be missing.
