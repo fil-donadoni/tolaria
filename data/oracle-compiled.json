@@ -3,8 +3,8 @@
     "header": {
         "grammarVersion": "v0",
         "compilerHash": "sha256:1ad19410cb7fb80041225ba0b84e2dee2921f66cf8831fbd9206d3be53ce7db3",
-        "registryHash": "sha256:98b1c124a2772e3481dae2721e98618d20f2d36cabc8bbb11ea710ab5f1c8d72",
-        "poolHash": "sha256:a97876176f8c9775797bbd35fed4cbd4916479aa83e725286fcd31b8142c8a08",
+        "registryHash": "sha256:e9697a2aa709ee96b48a911c7a5a617a62a1726c1fe81097a4033a056849ffd6",
+        "poolHash": "sha256:3cc6cb4830cada41c45f27ac6cf444d3c7262fd1ebd9859623e89b4bed45b154",
         "corpus": {
             "source": "https://api.scryfall.com/bulk-data/oracle-cards",
             "downloadUri": "https://data.scryfall.io/oracle-cards/oracle-cards-20260830090156.jsonl.gz",
@@ -13,8 +13,8 @@
             "sha256": "fe9122363a58e687b7531f1291bb5475e40f497b39ec97a0b400518adb2e2dd6"
         },
         "counts": {
-            "ready": 2576,
-            "quarantine": 832,
+            "ready": 2580,
+            "quarantine": 828,
             "unparsed": 31482,
             "total": 34890
         }
@@ -29,38 +29,38 @@
         },
         "pauper": {
             "total": 10793,
-            "ready": 1767,
-            "quarantine": 521,
+            "ready": 1769,
+            "quarantine": 519,
             "unparsed": 8505,
             "pool": 695
         },
         "modern": {
             "total": 22450,
-            "ready": 1880,
-            "quarantine": 558,
+            "ready": 1884,
+            "quarantine": 554,
             "unparsed": 20012,
-            "pool": 648
+            "pool": 649
         },
         "legacy": {
             "total": 31672,
-            "ready": 2517,
-            "quarantine": 829,
+            "ready": 2521,
+            "quarantine": 825,
             "unparsed": 28326,
-            "pool": 2028
+            "pool": 2029
         },
         "vintage": {
             "total": 31690,
-            "ready": 2517,
-            "quarantine": 830,
+            "ready": 2521,
+            "quarantine": 826,
             "unparsed": 28343,
-            "pool": 2047
+            "pool": 2048
         },
         "commander": {
             "total": 31830,
-            "ready": 2519,
-            "quarantine": 829,
+            "ready": 2523,
+            "quarantine": 825,
             "unparsed": 28482,
-            "pool": 2060
+            "pool": 2061
         }
     },
     "fragments": [
@@ -36737,7 +36737,7 @@
         {"oracleId":"107f204c-9fd3-490d-8887-be63d14fc6a4","name":"Akroma, Angel of Wrath","state":"unparsed","gaps":[12146]},
         {"oracleId":"1080c5b5-6651-4c6a-93e6-099fbe389e26","name":"Murderous Rider // Swift End","state":"unparsed","gaps":[2353]},
         {"oracleId":"10821e37-8a83-4d8e-a12f-249a10933a22","name":"Qasali Pridemage","state":"ready","slots":["activated","keyword-line"],"opsUsed":["destroy"],"definition":{"name":"Qasali Pridemage","types":["Creature"],"subtypes":["Cat","Wizard"],"manaCost":{"W":1,"G":1},"power":2,"toughness":2,"oracleText":"Exalted (Whenever a creature you control attacks alone, that creature gets +1/+1 until end of turn.)\n{1}, Sacrifice this creature: Destroy target artifact or enchantment.","staticAbilities":["exalted"],"activatedAbilities":[{"id":"qasali-pridemage-ability","oracleText":"{1}, Sacrifice this creature: Destroy target artifact or enchantment.","cost":{"mana":{"X":1},"sacrifice":true},"useStack":true,"effects":[{"op":"destroy","target":{"target":0}}],"targetRequirement":{"type":["Artifact","Enchantment"],"count":1}}]}},
-        {"oracleId":"10849bbb-50ca-4194-a7cb-fa872272b29b","name":"Goblin Wardriver","state":"quarantine","slots":["keyword-line"],"opsUsed":[],"quarantineReasons":[{"kind":"planned-mechanic","detail":"keyword \"battle cry\" is not implemented in the Mechanics Registry"}],"definition":{"name":"Goblin Wardriver","types":["Creature"],"subtypes":["Goblin","Warrior"],"manaCost":{"R":2},"power":2,"toughness":2,"oracleText":"Battle cry (Whenever this creature attacks, each other attacking creature gets +1/+0 until end of turn.)","staticAbilities":["battle cry"]}},
+        {"oracleId":"10849bbb-50ca-4194-a7cb-fa872272b29b","name":"Goblin Wardriver","state":"ready","slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Goblin Wardriver","types":["Creature"],"subtypes":["Goblin","Warrior"],"manaCost":{"R":2},"power":2,"toughness":2,"oracleText":"Battle cry (Whenever this creature attacks, each other attacking creature gets +1/+0 until end of turn.)","staticAbilities":["battle cry"]}},
         {"oracleId":"10871545-1c44-4e31-a49a-5b16c3b5cac5","name":"Felhide Minotaur","state":"ready","slots":[],"opsUsed":[],"definition":{"name":"Felhide Minotaur","types":["Creature"],"subtypes":["Minotaur"],"manaCost":{"X":2,"B":1},"power":2,"toughness":3}},
         {"oracleId":"10889b44-d031-413c-a8c4-d6c13c400e01","name":"Wall of Wonder","state":"unparsed","gaps":[31012]},
         {"oracleId":"10891656-070f-49f4-80e0-78061b773f17","name":"Geistblast","state":"unparsed","gaps":[30933]},
@@ -48617,7 +48617,7 @@
         {"oracleId":"688c232f-385b-4bd5-aed0-e55059111fb3","name":"Rusting Golem","state":"unparsed","gaps":[467,15887]},
         {"oracleId":"688e5e19-8f28-45c4-ace4-a38144f494f1","name":"Sifter of Skulls","state":"unparsed","gaps":[25244]},
         {"oracleId":"68919931-b995-4aa0-9d2a-e80eae2f335f","name":"Ravaged Highlands","state":"unparsed","gaps":[416]},
-        {"oracleId":"6891c8b7-7112-40dc-8b94-b84ad1885e5e","name":"Accorder Paladin","state":"quarantine","slots":["keyword-line"],"opsUsed":[],"quarantineReasons":[{"kind":"planned-mechanic","detail":"keyword \"battle cry\" is not implemented in the Mechanics Registry"}],"definition":{"name":"Accorder Paladin","types":["Creature"],"subtypes":["Human","Knight"],"manaCost":{"X":1,"W":1},"power":3,"toughness":1,"oracleText":"Battle cry (Whenever this creature attacks, each other attacking creature gets +1/+0 until end of turn.)","staticAbilities":["battle cry"]}},
+        {"oracleId":"6891c8b7-7112-40dc-8b94-b84ad1885e5e","name":"Accorder Paladin","state":"ready","slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Accorder Paladin","types":["Creature"],"subtypes":["Human","Knight"],"manaCost":{"X":1,"W":1},"power":3,"toughness":1,"oracleText":"Battle cry (Whenever this creature attacks, each other attacking creature gets +1/+0 until end of turn.)","staticAbilities":["battle cry"]}},
         {"oracleId":"68930fb6-d833-40cf-8917-1a1bf60edbe3","name":"Reach for the Sky","state":"unparsed","gaps":[0,1137,10823]},
         {"oracleId":"68936cc2-f063-4d7e-a319-d55659a22919","name":"Guildmark","state":"unparsed","gaps":[1997,32858]},
         {"oracleId":"6894bbfd-69c0-47d5-80f1-c194ed567b34","name":"Terrors of the Track","state":"unparsed","gaps":[95,26950]},
@@ -55855,7 +55855,7 @@
         {"oracleId":"9d2ad65f-fba0-45e9-a5e6-bec63a9db979","name":"Predatory Nightstalker","state":"unparsed","gaps":[21880]},
         {"oracleId":"9d2aea05-f55c-4355-950f-bfdc4e985e80","name":"Selvala's Stampede","state":"unparsed","gaps":[8137]},
         {"oracleId":"9d2b9f3b-9ba1-4f28-8cd9-490803190e24","name":"March from the Tomb","state":"unparsed","gaps":[15505]},
-        {"oracleId":"9d2bfbb2-84df-4d7c-9989-7f5577f90d97","name":"Loxodon Partisan","state":"quarantine","slots":["keyword-line"],"opsUsed":[],"quarantineReasons":[{"kind":"planned-mechanic","detail":"keyword \"battle cry\" is not implemented in the Mechanics Registry"}],"definition":{"name":"Loxodon Partisan","types":["Creature"],"subtypes":["Elephant","Soldier"],"manaCost":{"X":4,"W":1},"power":3,"toughness":4,"oracleText":"Battle cry (Whenever this creature attacks, each other attacking creature gets +1/+0 until end of turn.)","staticAbilities":["battle cry"]}},
+        {"oracleId":"9d2bfbb2-84df-4d7c-9989-7f5577f90d97","name":"Loxodon Partisan","state":"ready","slots":["keyword-line"],"opsUsed":[],"definition":{"name":"Loxodon Partisan","types":["Creature"],"subtypes":["Elephant","Soldier"],"manaCost":{"X":4,"W":1},"power":3,"toughness":4,"oracleText":"Battle cry (Whenever this creature attacks, each other attacking creature gets +1/+0 until end of turn.)","staticAbilities":["battle cry"]}},
         {"oracleId":"9d2d6479-531c-4ce1-b52b-00e36fa63b64","name":"Rancor","state":"unparsed","gaps":[0,80,1700]},
         {"oracleId":"9d2dd032-bcef-4d04-8836-1eaff1c56b98","name":"Niall Silvain","state":"quarantine","slots":["activated"],"opsUsed":["regenerate"],"quarantineReasons":[{"kind":"smoke-scenario","detail":"Op \"regenerate\" registers a dormant regeneration shield (no same-resolution destroy event) — covered by the Op's interpreter tests"}],"definition":{"name":"Niall Silvain","types":["Creature"],"subtypes":["Ouphe"],"manaCost":{"G":3},"power":2,"toughness":2,"oracleText":"{G}{G}{G}{G}, {T}: Regenerate target creature.","activatedAbilities":[{"id":"niall-silvain-ability","oracleText":"{G}{G}{G}{G}, {T}: Regenerate target creature.","cost":{"mana":{"G":4},"tap":true},"useStack":true,"effects":[{"op":"regenerate","target":{"target":0}}],"targetRequirement":{"type":"Creature","count":1}}]}},
         {"oracleId":"9d2e7099-dcd5-428f-a732-2a82b8d1dd1a","name":"Frantic Salvage","state":"unparsed","gaps":[15126]},
@@ -57073,7 +57073,7 @@
         {"oracleId":"a671fedf-3766-4fda-abeb-6f63e2fdd20b","name":"Devkarin Dissident","state":"quarantine","slots":["activated"],"opsUsed":["pump"],"quarantineReasons":[{"kind":"smoke-scenario","detail":"Op \"pump\" targets $source/$each — covered by the card's own per-card test"}],"definition":{"name":"Devkarin Dissident","types":["Creature"],"subtypes":["Elf","Warrior"],"manaCost":{"X":1,"G":1},"power":2,"toughness":2,"oracleText":"{4}{G}: This creature gets +2/+2 until end of turn.","activatedAbilities":[{"id":"devkarin-dissident-ability","oracleText":"{4}{G}: This creature gets +2/+2 until end of turn.","cost":{"mana":{"X":4,"G":1}},"useStack":true,"effects":[{"op":"pump","target":{"ref":"$source"},"power":2,"toughness":2,"duration":{"phase":"end-of-turn"}}]}]}},
         {"oracleId":"a6763205-47c7-4d7f-be8c-2f69e8321048","name":"Mephidross Vampire","state":"unparsed","gaps":[10187]},
         {"oracleId":"a67f78be-8fbe-414a-9574-bb11ac50e1a5","name":"Anointed Peacekeeper","state":"unparsed","gaps":[4041,5087,16599]},
-        {"oracleId":"a681c6ea-b10a-4061-abf4-7b45e06ccebd","name":"Rhox Veteran","state":"quarantine","slots":["keyword-line","triggered"],"opsUsed":["tapUntap"],"quarantineReasons":[{"kind":"planned-mechanic","detail":"keyword \"battle cry\" is not implemented in the Mechanics Registry"}],"definition":{"name":"Rhox Veteran","types":["Creature"],"subtypes":["Rhino","Soldier"],"manaCost":{"X":3,"W":1},"power":2,"toughness":4,"oracleText":"Battle cry (Whenever this creature attacks, each other attacking creature gets +1/+0 until end of turn.)\nWhenever this creature attacks, tap target creature an opponent controls.","staticAbilities":["battle cry"],"compiledTriggeredAbilities":[{"id":"rhox-veteran-trigger","oracleText":"Whenever this creature attacks, tap target creature an opponent controls.","head":{"kind":"attacks"},"targetRequirement":{"type":"Creature","count":1,"controller":"opponent"},"effects":[{"op":"tapUntap","action":"tap","target":{"target":0}}]}]}},
+        {"oracleId":"a681c6ea-b10a-4061-abf4-7b45e06ccebd","name":"Rhox Veteran","state":"ready","slots":["keyword-line","triggered"],"opsUsed":["tapUntap"],"definition":{"name":"Rhox Veteran","types":["Creature"],"subtypes":["Rhino","Soldier"],"manaCost":{"X":3,"W":1},"power":2,"toughness":4,"oracleText":"Battle cry (Whenever this creature attacks, each other attacking creature gets +1/+0 until end of turn.)\nWhenever this creature attacks, tap target creature an opponent controls.","staticAbilities":["battle cry"],"compiledTriggeredAbilities":[{"id":"rhox-veteran-trigger","oracleText":"Whenever this creature attacks, tap target creature an opponent controls.","head":{"kind":"attacks"},"targetRequirement":{"type":"Creature","count":1,"controller":"opponent"},"effects":[{"op":"tapUntap","action":"tap","target":{"target":0}}]}]}},
         {"oracleId":"a684df3a-5441-4daa-86d1-c47a91b35e6a","name":"Reckless Spite","state":"unparsed","gaps":[1613]},
         {"oracleId":"a6861402-4819-4d85-8b60-677471f40d7d","name":"Ordeal of Heliod","state":"unparsed","gaps":[0,570,22707]},
         {"oracleId":"a6872d7a-b647-4baf-bd1e-06707ccbb71a","name":"Symbiotic Deployment","state":"unparsed","gaps":[111,29493]},
