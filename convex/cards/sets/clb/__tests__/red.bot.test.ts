@@ -18,11 +18,15 @@
 // since issue #3377 — an in-tree ISMCTS search node, closing the pre-existing
 // catalogue-wide gap this file used to document (shared by every other
 // `sacrifice-permanents` card, Minsc & Boo included), not something this card
-// introduces. `enumerateMoves` therefore surfaces no in-tree Move for it (by
-// design — see the comment at its `headChoice` branch, `convex/gre/moves.ts`);
-// the driver instead answers it through the ADR 0016 heuristic default,
-// proven in the sibling frontend suite. See `docs/findings/` for the
-// catalogue-wide follow-up this surfaced.
+// introduces. `enumerateMoves` therefore surfaces the sacrifice as a real
+// in-tree Move, and the driver hands it to the SEARCH rather than to the
+// ADR 0016 heuristic default (`OwedChoice.searchable` flips with the
+// registration — see `src/lib/ai/__tests__/root-choice-search-routing.
+// bot.test.ts`, whose registry-driven guard demands a fixture for every
+// generator-covered kind). Gut's own choice is OPTIONAL (`min: 0`), so the
+// generator emits a decline branch beside the victims; without it,
+// registering the kind would have flipped the gap's sign rather than closing
+// it (issue #3377 review finding 1).
 
 import { describe, it, expect } from "vitest";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
