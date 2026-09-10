@@ -1065,7 +1065,7 @@ describe("selectRootMove — a sacrifice engine is held, then converted (issue #
     /** p1 attacking with a Walking Ballista on its last counter, p2 holding one
      *  blocker, at `phase`, with `blocks` as the confirmed declaration. */
     function attackingBallista(
-        phase: string,
+        phase: GameState["phase"],
         blocks: Record<string, string[]>
     ): GameState {
         const state = makeState({
