@@ -162,17 +162,23 @@ function flattenOps(effects: readonly EffectOp[], out: EffectOp[]): EffectOp[] {
     return out;
 }
 
-/** The `search-library` `choice` Op that raised `choiceId`, if the script has
- *  exactly one. The interpreter keys the pending choice by `op.id ?? op.bind`
- *  (issue #1282's author-supplied stable id, defaulting to the binding name),
- *  so the match is against that pair and never `bind` alone. */
-function searchChoiceOpFor(
+/** The `choice` Op that raised `choiceId`, if the script has exactly one. The
+ *  interpreter keys the pending choice by `op.id ?? op.bind` (issue #1282's
+ *  author-supplied stable id, defaulting to the binding name), so the match is
+ *  against that pair and never `bind` alone.
+ *
+ *  Kind-agnostic since issue #3388: the derivation never depended on the
+ *  choice's KIND — it reads the binding the choice writes and the `moveZone`
+ *  that consumes it, which is the same shape whether the cards come off a
+ *  library (`search-library`) or out of a hand (`choose-hand-card`). The gate
+ *  lived on the one caller that existed. */
+function choiceOpFor(
     ops: readonly EffectOp[],
     choiceId: string
 ): { bind: string } | undefined {
     let found: { bind: string } | undefined;
     for (const op of ops) {
-        if (op.op !== "choice" || op.kind !== "search-library") continue;
+        if (op.op !== "choice") continue;
         if ((op.id ?? op.bind) !== choiceId) continue;
         // A second match means the script names one choiceId twice — the
         // validator forbids it, so this is unreachable rather than tolerated;
@@ -216,12 +222,35 @@ export function searchFindDestination(
     choice: PendingChoice
 ): SearchFindDestination | undefined {
     if (choice.kind !== "search-library") return undefined;
+    return choiceFindDestination(state, choice);
+}
+
+/** The zone the cards picked at ANY resolution-time `choice` will actually be
+ *  moved to, derived from the SOURCE's Effect Script, or `undefined` when it
+ *  cannot be derived (issue #3388 — the kind-agnostic form of
+ *  {@link searchFindDestination}, whose header owns the whole derivation and
+ *  its fail-closed contract).
+ *
+ *  The generalisation is why a hand pick can tell a COST from a GAIN. Every
+ *  pick out of the hand was priced as material GIVEN UP — right for a discard
+ *  or an exile cost, and exactly backwards for "put a creature card from your
+ *  hand onto the battlefield", where the same `moveZone` shape sends the pick
+ *  to the mover's own board. The destination is the one thing that separates
+ *  the two, and it is already on the source's script; nothing about reading it
+ *  was ever specific to a library.
+ *
+ *  Pure — no mutation, no `GameState` write; `state` is read only to find the
+ *  stack item the choice belongs to. */
+export function choiceFindDestination(
+    state: GameState,
+    choice: PendingChoice
+): SearchFindDestination | undefined {
     const item = state.stack.find((s) => s.id === choice.stackItemId);
     if (!item) return undefined;
     const script = resolvingEffectScript(item);
     if (!script) return undefined;
     const ops = flattenOps(script, []);
-    const choiceOp = searchChoiceOpFor(ops, choice.choiceId);
+    const choiceOp = choiceOpFor(ops, choice.choiceId);
     if (!choiceOp) return undefined;
     return moveDestinationFor(ops, choiceOp.bind);
 }

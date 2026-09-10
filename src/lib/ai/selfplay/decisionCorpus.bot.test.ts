@@ -20,6 +20,7 @@ import { describe, it, expect } from "vitest";
 import {
     getRootDecisionSink,
     summarizeRootDecisions,
+    type RootDecisionMechanism,
     type RootDecisionRecord,
 } from "@convex/gre/ai/decisionTelemetry";
 import { REWARD_PER_MARGIN_POINT } from "@convex/gre";
@@ -36,18 +37,30 @@ import {
     type SelfPlayCorpusReport,
 } from "./decisionCorpus";
 
-const MECHANISMS = [
-    "mean-reward",
-    "material-tiebreak",
-    "extra-turn-credit",
-    "wasteful-attack",
-    "block-quality",
-    "announcement-variant",
-    "self-harm-removal",
-    "free-development",
-    "hold-trick",
-    "standing-spend-hold",
-];
+/** Every root mechanism, as a TOTAL `Record` rather than an array — so `tsc`
+ *  reds on a rule this list has not heard of instead of the suite failing at
+ *  runtime, and only when a corpus run happens to land on one (issue #3388).
+ *  It was an array, and it had already drifted three rules behind
+ *  (`colour-mode-evidence`, `wasted-mana-hold`, `last-window-fire`): the same
+ *  compiler-forced census `eval-term-labels.ts` and `RAISES_RESOLUTION_CHOICE`
+ *  use, for the same reason. */
+const MECHANISM_CENSUS: Record<RootDecisionMechanism, true> = {
+    "mean-reward": true,
+    "material-tiebreak": true,
+    "extra-turn-credit": true,
+    "wasteful-attack": true,
+    "block-quality": true,
+    "announcement-variant": true,
+    "self-harm-removal": true,
+    "free-development": true,
+    "hold-trick": true,
+    "colour-mode-evidence": true,
+    "wasted-mana-hold": true,
+    "last-window-fire": true,
+    "standing-spend-hold": true,
+    "resolved-payoff": true,
+};
+const MECHANISMS = Object.keys(MECHANISM_CENSUS);
 
 /** Structural sanity every record must satisfy, whatever the position. */
 function expectWellFormed(r: RootDecisionRecord): void {

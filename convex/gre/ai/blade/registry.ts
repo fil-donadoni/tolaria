@@ -6166,8 +6166,14 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     // identical and unpayable in both, and the trailing sacrifice is the only
     // reachable end of the resolution either way.
     //
-    // The NEGATIVE control is `must` at the production budget; the positive
-    // half stays `stretch`, and the split is the honest state of the shape.
+    // Both halves are `must` at the production budget since issue #3388. The
+    // split that used to exist here — negative control forced, positive half
+    // `stretch` — was the honest state of a shape the bot could only ever
+    // REFUSE, and issue #3388 closed the other direction (`resolved-payoff`,
+    // `search.ts`): a self-confined cast whose SETTLED resolution strictly
+    // improves the mover's material margin now beats an outcome-equal `pass`,
+    // on the same measurement and the same gate the self-harm hold already
+    // refuses on. 0/5 → 5/5 at the unchanged 400 iterations.
     //
     // Two slices got here. The first fixed the 1-ply probe: `policyValue` now
     // settles a suspended resolution, so cast-vs-pass and put-vs-decline are
@@ -6186,11 +6192,22 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     // (`deathsThisTurn`, `lastKnownCopiable`), so a resolution that never left
     // the mover's side read as reaching the opponent. 0/5 → 5/5 at 400.
     //
-    // What that cannot do is make the bot WANT the payoff line: a hold rule only
-    // ever refuses. The positive half still needs 1200 iterations to separate
-    // its cast from `pass` at the root, so it keeps its `beyondBudget` block and
-    // its tier. Raising a budget to turn an entry green is not legitimate
-    // (ADR 0070 §2).
+    // What that could not do is make the bot WANT the payoff line: a hold rule
+    // only ever refuses, and the positive half needed 1200 iterations to
+    // separate its cast from `pass` at the root. The THIRD slice (issue #3388)
+    // is that missing direction, and it took two fixes:
+    //
+    //   * the settle stopped bailing on a choice raised with an EMPTY STACK.
+    //     CR 603.3b asks the simultaneous-trigger ORDER before the triggers go
+    //     on the stack, so the sacrifice at the end of this resolution empties
+    //     the stack and immediately queues a `trigger-order` choice — and the
+    //     settle loop, conditioned on the stack alone, exited on it. Every
+    //     dies-trigger payoff was therefore invisible to every probe;
+    //   * `resolved-payoff` (`selectRootMove`) credits the cast the hold would
+    //     have refused had the sign gone the other way.
+    //
+    // The WURM entry below is what is still open, and it is not a budget
+    // question — see its own note.
     {
         label: "cheat into play: casts for a body that pays on the way out",
         spec: {
@@ -6206,14 +6223,9 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         bot: "me",
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "stretch",
-        beyondBudget: {
-            cause: "valuation",
-            passesAt: { iterations: 1200 },
-            note: "Filed `valuation`, not `branching`: the root offers a handful of moves, so no candidate set is too wide — what mis-scores is `selectRootMove`'s material tie-break, which reads a mean accumulated over the whole SUBTREE. The right move is in the set and is correctly priced at the 1-ply probe — cast settles above passing (756.4 against 509.8) because the Tyrant leaves a token copy of itself behind when the sacrifice takes it. What it does not get at 400 iterations is enough visits to separate from `pass` at the root, where the two tie inside the outcome epsilon and the tie-break reads that subtree mean; at 1200 the payoff separates the means before the artifact bites. 0/5 at 400, 5/5 at 1200 — measured byte-identically before and after the confinement fix that made the negative control below `must`, because a hold rule can only ever refuse a cast, never want one.",
-        },
+        tier: "must",
         expect: { moves: [{ kind: "cast-spell", card: "Flash" }] },
-        note: 'Issue #3293, the half the shape exists for. PAIRED WITH "cheat into play NEGATIVE CONTROL: passes for a vanilla body of the same mana value". Cheating a seven-drop in for {1}{U} and sacrificing it is a REAL play when the body pays on the way out, and this slice is what makes that payoff visible at all: before it, every probe that ranked the cast or the hand-pick branch stopped at the first suspension and scored the phantom body still on the battlefield, so a payoff body and a vanilla one measured the same.',
+        note: 'Issues #3293 and #3388, the half the shape exists for. PAIRED WITH "cheat into play NEGATIVE CONTROL: passes for a vanilla body of the same mana value". Cheating a seven-drop in for {1}{U} and sacrificing it is a REAL play when the body pays on the way out: the Tyrant leaves a token copy of itself behind when the sacrifice takes it, and the 1-ply probe prices that correctly (the settled cast scores 756.4 against 509.8 for passing, +201.6 on material margin). DISCRIMINATING at the DEFAULT budget: 0/5 seeds at 400 while the root pick fell to `selectRootMove`\'s material tie-break — which reads a mean accumulated over the whole SUBTREE, and the `pass` subtree casts the same spell one ply later, so the two means differ by rollout noise — and 5/5 at the same 400 once `resolved-payoff` (issue #3388) credited the cast on the leaf-decisive measurement the self-harm hold already refuses on. The negative control below is byte-identically unchanged by that rule, which is what says it reads the SIGN of the resolution rather than the shape.',
     },
     {
         label: "cheat into play NEGATIVE CONTROL: passes for a vanilla body of the same mana value",
@@ -6233,6 +6245,29 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         tier: "must",
         expect: { forbidden: [{ kind: "cast-spell", card: "Flash" }] },
         note: "Issue #3293's negative control, and the half that is now forced. PAIRED WITH \"cheat into play: casts for a body that pays on the way out\". Lady Orca is a 7/4 vanilla of the same mana value as the Tyrant above, so every cost in the position is identical and the ONLY difference is that nothing survives the sacrifice: two cards and the turn's mana for an empty board. DISCRIMINATING: 0/5 seeds before the confinement probe stopped counting the death bookkeeping a self-inflicted sacrifice writes, 5/5 after, at the same 400 iterations — and byte-identically unchanged on the payoff half above, which is what says the fix reads the position rather than the card.",
+    },
+    {
+        label: "cheat into play: the reported Worldspine Wurm position",
+        spec: {
+            cards: [
+                { name: "Flash", owner: "me", zone: "hand" },
+                { name: "Worldspine Wurm", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        beyondBudget: {
+            cause: "valuation",
+            note: "Issue #3388's ORIGINAL report, kept as the record of what is still open on this shape — and filed `valuation` with no `passesAt` on purpose: no budget clears it, because the position is scored wrong rather than reached too rarely. The settle half of #3388 IS working here: the probe now settles through the hand pick, the forced sacrifice and the CR 603.3b trigger-order batch, and reads the real outcome — three 5/5 trample tokens (825 `creatures` + 15 `permanents`) with the Wurm shuffled back into the library. It loses to 932 for keeping the Wurm in hand, because the `hand` term prices an {8}{G}{G}{G} 15/15 held on TWO LANDS at full latent worth: there is no castability factor anywhere in `cardValue`, so a card nine turns from castable scores what it would score on eleven lands. `self-harm-removal` then refuses a cast whose settled margin drops, which is the right rule reading the one wrong number in the position. Fixing it is a change to a term on every ISMCTS leaf in every game, not a line in a settle fix — drafted in `docs/findings/3388-hand-term-prices-an-uncastable-fatty-at-full-latent-worth.md`. The pair above discriminates the MECHANISM this issue was about at the same 400 iterations; this entry pins the VALUATION that is left.",
+        },
+        expect: { moves: [{ kind: "cast-spell", card: "Flash" }] },
+        note: 'Issue #3388. The position a real game produced — three consecutive turns holding Flash + Worldspine Wurm with the mana up, passing every time. PAIRED WITH "cheat into play: casts for a body that pays on the way out", which is the same shape on a body whose hand worth its payoff can actually beat.',
     },
     {
         label: "sacrifice sign: does not cast a creature whose ETB eats its own board",
