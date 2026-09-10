@@ -42,6 +42,7 @@ import {
 import { handCardMatchesFilter } from "./alternativeCost";
 import { mayExertAsAttacks } from "./exert";
 import {
+    castAlternativeCostForZone,
     castExileCostOccupiesPayWithSlot,
     castRawManaCost,
     exileCastPermission,
@@ -142,7 +143,7 @@ import {
     castSubjectView,
     independentCastOptionsFor,
 } from "./castMode";
-import { offersPrintedCast } from "./splitCast";
+import { isSplitCastId, offersPrintedCast } from "./splitCast";
 import { morphCastAlternativeCost, turnableFaceUpPermanents } from "./morph";
 import { hasRetrace } from "./retrace";
 import { flashbackExileEligibleCount } from "./flashback";
@@ -1916,7 +1917,22 @@ function enumerateCastMovesFromZone(
     const def = cardId ? tryGetDefinition(cardId) : undefined;
     const lifeInsteadOfMana = opts?.lifeInsteadOfMana;
     // CR 119.4 — a player may pay life only while their life total covers it.
-    if (lifeInsteadOfMana !== undefined && player.life < lifeInsteadOfMana) {
+    //
+    // CR 709.3b (issue #3344) — for a SPLIT card the amount depends on WHICH
+    // half is announced ("if you cast Assault, the resulting spell is a red
+    // spell with a mana value of 1", CR 709.4b), and the caller can only
+    // compute it for the card. So a split card skips this WHOLE-CARD refusal —
+    // it has no printed cast for the refusal to be about (`offersPrintedCast`)
+    // — and each half prices its own life in the independent-options loop at
+    // the bottom of this function.
+    if (
+        lifeInsteadOfMana !== undefined &&
+        player.life < lifeInsteadOfMana &&
+        offersPrintedCast(
+            tryGetDefinition((card.card as { id?: string }).id ?? "") ??
+                undefined
+        )
+    ) {
         return [];
     }
     // CR 601.3 / 702.34a / 702.35a — what this cast actually PAYS from the zone
@@ -2711,45 +2727,82 @@ function enumerateCastMovesFromZone(
     // `independentCastOptionsFor` (not the per-mechanic builders) is what
     // withdraws the Adventure on a card exiled by its own Adventure
     // (CR 715.3d) and what a third such mode would join.
-    if (lifeInsteadOfMana === undefined) {
-        for (const alt of independentCastOptionsFor(card)) {
-            const subject = castSubjectView(card, alt.id);
-            const subjectDef = castSubjectDefinition(def ?? undefined, alt.id);
-            const altCost = normalizeManaCost(alt.mana ?? {}, { chosenX: 0 });
-            foldFlashSurchargeCost(altCost, flashSurcharge, flashSurchargeOwed);
-            // CR 601.2f–h — 715.3 / 709.3 route these casts through the
-            // ordinary alternative-cost rules, so the battlefield cost
-            // modifiers every other cast branch folds apply to the HALF's cost.
-            applyCostModifiers(
-                altCost,
-                getCostModifiers(state, subject, "spell")
-            );
-            const altTapPlan = planManaPayment(state, player, altCost, {
+    for (const alt of independentCastOptionsFor(card)) {
+        // CR 601.2b / 118.9a (PR review finding 1) — "a player can't apply two
+        // alternative methods of casting … to a single spell", and a cast off
+        // a permission that REPLACES the mana cost with life (Bolas's Citadel)
+        // is one such method. An ADVENTURE is a second, so `announceCast`
+        // refuses it there and the Move must not be enumerated — the
+        // #2283/#2284 freeze shape, and the reason the dash and overload
+        // branches above keep their own `lifeInsteadOfMana` guards. A SPLIT
+        // half is the one exemption, for the reason `announceCast`'s own
+        // exemption states: CR 709.3's choice of half is not a price at all.
+        if (
+            lifeInsteadOfMana !== undefined &&
+            isSplitCastId(def ?? undefined, alt.id) === undefined
+        ) {
+            continue;
+        }
+        const subject = castSubjectView(card, alt.id);
+        const subjectDef = castSubjectDefinition(def ?? undefined, alt.id);
+        // CR 709.3 (issue #3344) — from a NON-hand zone the half pays what
+        // that zone's permission says, not its own printed cost: the escape
+        // cost under Underworld Breach, no mana at all off a Bolas's Citadel.
+        // `castAlternativeCostForZone` is the SAME seam `announceCast`
+        // resolves the announced option through, so the tap plan the Bot
+        // builds and the total the mutation charges cannot disagree — the
+        // #2283/#2284 bot-freeze shape. Identity for a hand cast and for the
+        // Adventure, which is priced by its own alternative characteristics in
+        // every zone (CR 715.3a).
+        const zoneAlt = castAlternativeCostForZone(
+            state,
+            card,
+            castFromZone,
+            alt.id,
+            alt
+        );
+        const altCost = normalizeManaCost(zoneAlt?.mana ?? {}, { chosenX: 0 });
+        foldFlashSurchargeCost(altCost, flashSurcharge, flashSurchargeOwed);
+        // CR 601.2f–h — 715.3 / 709.3 route these casts through the
+        // ordinary alternative-cost rules, so the battlefield cost
+        // modifiers every other cast branch folds apply to the HALF's cost.
+        applyCostModifiers(altCost, getCostModifiers(state, subject, "spell"));
+        const altTapPlan = planManaPayment(state, player, altCost, {
+            cardInstanceId: card.id,
+            cardDef: subjectDef,
+        });
+        if (altTapPlan === null) continue;
+        // CR 119.4 / 709.3b — the life a cost-replacing library-top permission
+        // (Bolas's Citadel) charges for THIS half, read from the same single
+        // authority the gate and all three commit sites read. 0 for every other
+        // cast, and a half the caster cannot pay for is dropped rather than
+        // offered — `getLegalActions` refuses it too.
+        const altPayLife =
+            lifeInsteadOfMana === undefined
+                ? 0
+                : libraryTopCastLifeCost(state, player, card, alt.id);
+        if (altPayLife > player.life) continue;
+        const altReq = subjectDef?.targetRequirement;
+        for (const { targets, lastGroupSize } of enumerateTargetGroupTuples(
+            state,
+            player,
+            subject,
+            [altReq],
+            undefined
+        )) {
+            moves.push({
+                kind: "cast-spell",
                 cardInstanceId: card.id,
-                cardDef: subjectDef,
+                alternativeCostId: alt.id,
+                targets,
+                confirmTargets: announcedTargetsNeedConfirm(
+                    altReq,
+                    lastGroupSize,
+                    undefined
+                ),
+                tapPlan: altTapPlan,
+                ...(altPayLife > 0 ? { payLife: altPayLife } : {}),
             });
-            if (altTapPlan === null) continue;
-            const altReq = subjectDef?.targetRequirement;
-            for (const { targets, lastGroupSize } of enumerateTargetGroupTuples(
-                state,
-                player,
-                subject,
-                [altReq],
-                undefined
-            )) {
-                moves.push({
-                    kind: "cast-spell",
-                    cardInstanceId: card.id,
-                    alternativeCostId: alt.id,
-                    targets,
-                    confirmTargets: announcedTargetsNeedConfirm(
-                        altReq,
-                        lastGroupSize,
-                        undefined
-                    ),
-                    tapPlan: altTapPlan,
-                });
-            }
         }
     }
     return moves;

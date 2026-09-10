@@ -32,7 +32,8 @@ import {
 } from "../castMode";
 import { castOptionAlternativeCosts } from "../castPermissions";
 import { NO_BOARD_LAYER_VIEW } from "../layers";
-import { getLegalActions } from "../rules";
+import { getLegalActions, libraryTopCastLifeCost } from "../rules";
+import { castRawManaCost } from "../castCost";
 import { castProhibitionReason } from "../../cards/castRestrictions";
 import {
     castAsSplitHalf,
@@ -305,62 +306,186 @@ describe("CR 709.4 — off the stack the card is its halves combined again", () 
     });
 });
 
-describe("outside the HAND a split card offers no cast (CR 709.3, review finding 1)", () => {
+describe("CR 709.3 outside the HAND — the halves are offered there too (issue #3344)", () => {
     /** The same board, with the split card in `zone` instead of the hand and
      *  `permission` on p1's battlefield — the shipped permissions that make a
      *  non-hand card castable at all. */
-    function inZone(zone: "graveyard" | "library", permission: string) {
-        const state = position(1, 3);
+    function inZone(
+        zone: "graveyard" | "library",
+        permission: string | "yawgmoths-will",
+        plains = 1,
+        islands = 3
+    ) {
+        const state = position(plains, islands);
         const p1 = state.players[0];
         const card = p1.hand.splice(0, 1)[0];
         card.zone = zone;
         if (zone === "graveyard") p1.graveyard.push(card);
         else p1.library.unshift(card);
-        p1.battlefield.push(
-            makeInstance(permission, {
-                id: "permission",
-                controllerId: "p1",
-                ownerId: "p1",
-            })
-        );
+        if (permission === "yawgmoths-will") {
+            // CR 305.1-analog / 601 (issue #1149) — the BROAD permission is
+            // turn-scoped STATE written by the `grantGraveyardPlay` Op when
+            // Yawgmoth's Will resolves, not a battlefield-derived scan. A
+            // Yawgmoth's Will sitting on the battlefield grants nothing, so
+            // the state is what the fixture has to set — otherwise the card
+            // reaches `getLegalActions`'s zone-BLIND final branch instead and
+            // the graveyard branch under test is never entered.
+            state.graveyardPlayPermissionThisTurn = [
+                { playerId: "p1", zones: ["spell", "land"] },
+            ];
+        } else {
+            p1.battlefield.push(
+                makeInstance(permission, {
+                    id: "permission",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                })
+            );
+        }
         return { state, card };
     }
 
-    it("Yawgmoth's Will does NOT offer a graveyard cast of a split card", () => {
-        // Every non-hand branch prices the CR 709.4b SUMMED cost, which no
-        // announcement can pay — `announceCast` refuses a printed-cost
-        // announcement outright. Offering it is an affordance whose every
-        // click is a guaranteed rejection, so the gate fails CLOSED.
-        const { state, card } = inZone(
-            "graveyard",
-            getCardByName("Yawgmoth's Will").id
-        );
-        expect(getLegalActions(state, state.players[0], card)).not.toContain(
-            "cast"
-        );
-        // The premise: the SAME permission does license an ordinary card from
-        // the same graveyard, so this is a split-specific refusal and not an
-        // inert fixture.
-        const ordinary = makeInstance(getCardByName("Boomerang").id, {
-            id: "boomerang",
-            controllerId: "p1",
-            ownerId: "p1",
-            zone: "graveyard",
-        });
-        state.players[0].graveyard.push(ordinary);
-        expect(getLegalActions(state, state.players[0], ordinary)).toContain(
+    const YAWGMOTHS_WILL = "yawgmoths-will" as const;
+    const CITADEL = getCardByName("Bolas's Citadel").id;
+
+    it("Yawgmoth's Will offers a graveyard cast of a split card", () => {
+        const { state, card } = inZone("graveyard", YAWGMOTHS_WILL);
+        expect(getLegalActions(state, state.players[0], card)).toContain(
             "cast"
         );
     });
 
-    it("Bolas's Citadel does NOT offer a library-top cast of a split card", () => {
-        const { state, card } = inZone(
-            "library",
-            getCardByName("Bolas's Citadel").id
+    it("each half is priced as ITSELF from the graveyard, not as the summed card (CR 709.3a)", () => {
+        // Stand is {W}, Deliver is {2}{U}; the card in the graveyard is
+        // {2}{U}{W} (CR 709.4b). ONE Plains and no Islands pays for Stand and
+        // for nothing else — so the summed cost would refuse the whole card.
+        const { state, card } = inZone("graveyard", YAWGMOTHS_WILL, 1, 0);
+        expect(getLegalActions(state, state.players[0], card)).toContain(
+            "cast"
         );
+        expect(
+            castRawManaCost(
+                state,
+                card,
+                "graveyard",
+                splitCastAltCostId(STAND_DELIVER, "left")
+            )
+        ).toEqual({ W: 1 });
+        expect(
+            castRawManaCost(
+                state,
+                card,
+                "graveyard",
+                splitCastAltCostId(STAND_DELIVER, "right")
+            )
+        ).toEqual({ X: 2, U: 1 });
+        // The premise: neither half's cost is the card's own, which is what
+        // every non-hand branch used to price.
+        expect(castRawManaCost(state, card, "graveyard")).toEqual(
+            STAND_DELIVER.manaCost
+        );
+    });
+
+    it("a graveyard cast with NO affordable half is still refused", () => {
+        const { state, card } = inZone("graveyard", YAWGMOTHS_WILL, 0, 0);
         expect(getLegalActions(state, state.players[0], card)).not.toContain(
             "cast"
         );
+    });
+
+    it("Bolas's Citadel charges the HALF's mana value, never the combined one (CR 709.4b)", () => {
+        const { state, card } = inZone("library", CITADEL);
+        const p1 = state.players[0];
+        expect(getLegalActions(state, p1, card)).toContain("cast");
+        // Stand's mana value is 1, Deliver's is 3; the CARD's is 4 — "if you
+        // cast Assault, the resulting spell is a red spell with a mana value
+        // of 1" (CR 709.4b), and that spell is what pays.
+        expect(
+            libraryTopCastLifeCost(
+                state,
+                p1,
+                card,
+                splitCastAltCostId(STAND_DELIVER, "left")
+            )
+        ).toBe(1);
+        expect(
+            libraryTopCastLifeCost(
+                state,
+                p1,
+                card,
+                splitCastAltCostId(STAND_DELIVER, "right")
+            )
+        ).toBe(3);
+        expect(libraryTopCastLifeCost(state, p1, card)).toBe(4);
+    });
+
+    it("a life total that covers only ONE half still licenses the cast (CR 119.4)", () => {
+        const { state, card } = inZone("library", CITADEL);
+        const p1 = state.players[0];
+        p1.life = 2;
+        // Stand costs 1 life, Deliver 3 — and the card's own summed 4 would
+        // have refused both.
+        expect(getLegalActions(state, p1, card)).toContain("cast");
+        p1.life = 0;
+        expect(getLegalActions(state, p1, card)).not.toContain("cast");
+    });
+
+    it("the escape cost stays the COMBINED cost, whichever half is announced (CR 702.138a / 709.4b)", () => {
+        // Underworld Breach's escape is "equal to that card's mana cost", and
+        // escape "functions while the card is in a graveyard" — where CR 709.4
+        // makes the characteristics those of the two halves combined. So this
+        // is the one family the announcement does NOT re-price.
+        const { state, card } = inZone(
+            "graveyard",
+            getCardByName("Underworld Breach").id
+        );
+        for (const side of ["left", "right"] as const) {
+            expect(
+                castRawManaCost(
+                    state,
+                    card,
+                    "graveyard",
+                    splitCastAltCostId(STAND_DELIVER, side)
+                )
+            ).toEqual(STAND_DELIVER.manaCost);
+        }
+        // And the cast is genuinely offered once its CARD-level legs are
+        // payable — the escape cost CR 702.138a states, plus the {2}{U}{W}
+        // the board's four lands cover — so this is the escape BRANCH walking
+        // the halves, not an inert cost read. Underworld Breach's non-mana leg
+        // is three other cards moved out of the graveyard.
+        for (const i of [0, 1, 2]) {
+            state.players[0].graveyard.push(
+                makeInstance(HILL_GIANT, {
+                    id: `fodder${i}`,
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    zone: "graveyard",
+                })
+            );
+        }
+        expect(getLegalActions(state, state.players[0], card)).toContain(
+            "cast"
+        );
+    });
+
+    it("the client is told the printed row does not exist in EVERY zone (CR 709.3)", () => {
+        // SURFACE, through the real reducer: without the flag the cast picker
+        // renders a "Pay mana cost" row whose click `announceCast` refuses
+        // outright ("A split card is cast one half at a time").
+        const gy = inZone("graveyard", YAWGMOTHS_WILL);
+        const gyView = projectPublicState(gy.state, 1, "p1");
+        expect(
+            gyView.players[0].graveyard.find((c) => c.id === gy.card.id)
+                ?.printedCostCastUnavailable
+        ).toBe(true);
+
+        const lib = inZone("library", CITADEL);
+        const libView = projectPublicState(lib.state, 1, "p1");
+        const top = libView.players[0].library.known.find(
+            (k) => k.index === 0
+        )?.card;
+        expect(top?.printedCostCastUnavailable).toBe(true);
     });
 });
 

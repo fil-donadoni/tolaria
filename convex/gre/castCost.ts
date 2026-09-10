@@ -15,7 +15,11 @@
 // of `GameState` plus the card, which is what makes the move legal to make.
 
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
-import type { AdditionalCostSpec, ManaCost } from "../cards/types";
+import type {
+    AdditionalCostSpec,
+    AlternativeCost,
+    ManaCost,
+} from "../cards/types";
 import type {
     CardInstanceState,
     GameState,
@@ -37,6 +41,8 @@ import {
 } from "./flashback";
 import { isExileCostEligible } from "../cards/exileCostEligibility";
 import { hasRetrace } from "./retrace";
+import { castSubjectView } from "./castMode";
+import { isSplitCastId } from "./splitCast";
 import { hasRebound } from "./rebound";
 import {
     canCastFromGraveyardByPermission,
@@ -145,13 +151,6 @@ export function reboundCastStackFlags(
     return zone === "hand" && hasRebound(card) ? { reboundFromHand: true } : {};
 }
 
-/** The mana cost a cast pays: the Escape cost or Flashback cost when cast from
- *  the graveyard (CR 702.138a / 702.34a — "rather than paying its mana cost"),
- *  the card's normal printed mana cost under the BROAD graveyard-cast
- *  permission (CR 305.1-analog / 601, issue #1149 — Yawgmoth's Will pays no
- *  alternative cost, just the printed one), else the card's printed mana cost
- *  for a hand/exile cast. Exported for the flashback/escape integration tests
- *  (issue #944 pattern). */
 /** CR 118.9-analog / 119.4 / 107.3b (issue #2398, Bolas's Citadel) — the
  *  payment a cast owes INSTEAD of its mana cost when it comes off the top of
  *  the caster's library under a permission that replaces the mana cost.
@@ -173,7 +172,13 @@ export function reboundCastStackFlags(
 export function libraryTopCastPayment(
     state: GameState,
     card: CardInstanceState,
-    zone: CastFromZone
+    zone: CastFromZone,
+    /** CR 709.3b (issue #3344) — the announced cast option. Bolas's Citadel
+     *  charges "life equal to its mana value", and "it" is the SPELL, which
+     *  once a split half is announced is that half (CR 709.4b's Assault
+     *  example: "the resulting spell is a red spell with a mana value of 1").
+     *  Absent means the printed card. */
+    alternativeCostId?: string
 ): { life: number } | undefined {
     if (zone !== "library") return undefined;
     const owner = state.players.find((p) => p.id === card.ownerId);
@@ -182,13 +187,90 @@ export function libraryTopCastPayment(
     if (grant?.manaCostReplacement !== "life-equal-to-mana-value") {
         return undefined;
     }
-    return { life: libraryTopCastLifeCost(state, owner, card) };
+    return {
+        life: libraryTopCastLifeCost(state, owner, card, alternativeCostId),
+    };
 }
 
+/** CR 709.3 (issue #3344) — the alternative cost a cast ACTUALLY pays once the
+ *  zone it comes from is known.
+ *
+ *  Identity for every announcement but one: a SPLIT half cast from outside the
+ *  hand. That announcement rides the CR 601.2b alternative-cost channel (it is
+ *  how "which half" is said at all, `gre/splitCast.ts`) but it is NOT an
+ *  alternative cost in the CR 118.9 sense — the half's printed cost is a price
+ *  only when the permission licensing the cast says the spell pays its mana
+ *  cost. From a graveyard under Underworld Breach the cast pays the ESCAPE
+ *  cost; off a Bolas's Citadel it pays life and no mana at all. Both live in
+ *  `castRawManaCost`, so the fix is to let it, not this channel, name the
+ *  mana — otherwise the caster pays the half's printed cost on top of, or
+ *  instead of, what the permission demands.
+ *
+ *  Applied at the ONE place both commit paths resolve the announced option
+ *  (`resolveCastAlternativeCost`'s two call sites in `convex/game.ts`), so the
+ *  legality gate, the payment and the park cannot disagree. */
+export function castAlternativeCostForZone(
+    state: GameState,
+    card: CardInstanceState,
+    zone: CastFromZone,
+    alternativeCostId: string | undefined,
+    resolved: AlternativeCost | undefined
+): AlternativeCost | undefined {
+    if (!resolved || zone === "hand") return resolved;
+    const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
+    if (!isSplitCastId(def ?? undefined, alternativeCostId)) return resolved;
+    const mana = castRawManaCost(state, card, zone, alternativeCostId);
+    // The `mana` key is DROPPED, never zeroed, when the zone's cost has no
+    // mana portion (CR 702.34a — Lava Dart's flashback is a sacrifice and
+    // nothing else): every downstream reader spells that `alt.mana ?? {}`, and
+    // an inherited printed cost left standing here would be charged twice.
+    const rest: AlternativeCost = { ...resolved };
+    delete rest.mana;
+    return mana ? { ...rest, mana } : rest;
+}
+
+/** The mana cost a cast pays: the Escape cost or Flashback cost when cast from
+ *  the graveyard (CR 702.138a / 702.34a — "rather than paying its mana cost"),
+ *  the card's normal printed mana cost under the BROAD graveyard-cast
+ *  permission (CR 305.1-analog / 601, issue #1149 — Yawgmoth's Will pays no
+ *  alternative cost, just the printed one), else the card's printed mana cost
+ *  for a hand/exile cast. Exported for the flashback/escape integration tests
+ *  (issue #944 pattern).
+ *
+ *  CR 709.3 (issue #3344) — WHICH object's printed cost that is, once a SPLIT
+ *  half has been announced, is the one reading this function has to take, and
+ *  it is not the same answer for every branch:
+ *
+ *   * a permission that has the cast pay "its mana cost" (Yawgmoth's Will,
+ *     Hogaak's intrinsic grant, Lurrus, retrace — CR 702.81a adds a discard
+ *     ALONGSIDE the mana cost rather than replacing it — and an unreplaced
+ *     library-top cast) is talking about the SPELL. CR 709.3a: "only the
+ *     chosen half is … put onto the stack"; CR 709.3b: "while on the stack,
+ *     only the characteristics of the half being cast exist". CR 709.4b's own
+ *     example settles it — "If you cast Assault, the resulting spell is a red
+ *     spell with a mana value of 1." So those branches price the announced
+ *     HALF, through `castSubjectView`.
+ *   * a cost an ability STATES about the card — escape (CR 702.138a),
+ *     flashback (CR 702.34a), madness (CR 702.35a) — is stated by an ability
+ *     that functions in the zone the card is IN, and CR 709.4 makes the
+ *     characteristics there "those of its two halves combined". A granted
+ *     escape "equal to that card's mana cost" (Underworld Breach) therefore
+ *     reads the COMBINED cost, so those branches stay blind to the
+ *     announcement. */
 export function castRawManaCost(
     state: GameState,
     card: CardInstanceState,
-    zone: CastFromZone
+    zone: CastFromZone,
+    /** CR 709.3 (issue #3344) — the cast option being announced, so a SPLIT
+     *  half is priced as the half rather than as the CR 709.4b summed card.
+     *  Only the branches that pay "the card's mana cost" read it (see
+     *  {@link castCostSubject}); the branches that pay a cost some ability
+     *  STATES about the card in its zone — escape, flashback, madness — are
+     *  deliberately blind to it.
+     *
+     *  Absent (the overwhelming default) means "the printed card", and every
+     *  existing caller is unchanged by construction. */
+    alternativeCostId?: string
 ): ManaCost | undefined {
     // CR 601.3 / 118.9 (issue #1156) — Dauthi Voidwalker's "play it without
     // paying its mana cost" free-cast waiver: this specific exile-sourced
@@ -216,7 +298,9 @@ export function castRawManaCost(
     if (libraryTopCastPayment(state, card, zone)) {
         return {};
     }
-    if (zone !== "graveyard") return getInstanceManaCost(card);
+    if (zone !== "graveyard") {
+        return getInstanceManaCost(castSubjectView(card, alternativeCostId));
+    }
     // CR 601.3 / 118.9 (issue #1344) — Malcolm, Alluring Scoundrel's
     // "cast the discarded card without paying its mana cost" free-cast
     // waiver: this specific graveyard-sourced card was granted a cost-free
@@ -237,9 +321,13 @@ export function castRawManaCost(
     // to pay", NOT "fall back to the printed cost".
     if (hasFlashback(card)) return getFlashbackCost(card);
     // CR 305.1-analog / 601 (issue #1149) — neither Escape nor Flashback: a
-    // plain cast under the BROAD graveyard-cast permission (Yawgmoth's Will)
-    // pays the card's normal printed mana cost.
-    return getInstanceManaCost(card);
+    // plain cast under the BROAD graveyard-cast permission (Yawgmoth's Will),
+    // the intrinsic "you may cast this from your graveyard" (Hogaak), Lurrus's
+    // once-per-turn permission or a RETRACE cast (CR 702.81a adds a discard
+    // ALONGSIDE the mana cost, it does not replace it) pays the card's normal
+    // printed mana cost — which, for an announced split half, is the HALF's
+    // (CR 709.3a).
+    return getInstanceManaCost(castSubjectView(card, alternativeCostId));
 }
 
 // ---------------------------------------------------------------------------

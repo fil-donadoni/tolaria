@@ -74,7 +74,7 @@ import {
     castSubjectView,
     independentCastOptionsFor,
 } from "./castMode";
-import { offersPrintedCast } from "./splitCast";
+import { offersPrintedCast, splitCastOptionsFor } from "./splitCast";
 import { canPayAnyAdditionalCost } from "./additionalCost";
 import {
     getFlashbackCost,
@@ -323,11 +323,22 @@ export function isCastableLibraryTopSpell(
 export function libraryTopCastLifeCost(
     state: GameState,
     player: PlayerState,
-    card: CardInstanceState
+    card: CardInstanceState,
+    /** CR 709.3b (issue #3344) — the announced cast option. Bolas's Citadel
+     *  charges "life equal to ITS mana value", and "it" is the spell, which
+     *  once a split half is announced is that half: CR 709.3b — "while on the
+     *  stack, only the characteristics of the half being cast exist" — and CR
+     *  709.4b's own example, "If you cast Assault, the resulting spell is a
+     *  red spell with a mana value of 1." The card's CR 709.4b SUMMED mana
+     *  value is a characteristic in a ZONE and is never what a spell pays.
+     *  Absent means the printed card, so nothing else moves. */
+    alternativeCostId?: string
 ): number {
     const grant = canCastSpellsFromTopOfLibrary(state, player);
     if (grant?.manaCostReplacement !== "life-equal-to-mana-value") return 0;
-    return manaValue(getInstanceManaCost(card));
+    return manaValue(
+        getInstanceManaCost(castSubjectView(card, alternativeCostId))
+    );
 }
 
 /** Reads the turn-scoped, player-wide graveyard play/cast permission granted
@@ -706,6 +717,94 @@ export function castPermissionRequiredFor(
     );
 }
 
+/** CR 709.3 (issue #3344) — every announcement a cast of `card` from a NON-hand
+ *  zone could make, as the `alternativeCostId` that says which.
+ *
+ *  Exactly ONE entry — `undefined`, the printed cast — for every card but a
+ *  split one, which offers its two halves and no printed cast at all
+ *  (`offersPrintedCast`, CR 709.3: "a player chooses which half of a split
+ *  card they are casting BEFORE putting it onto the stack"). So each non-hand
+ *  branch below runs its existing conjunction once per entry and pushes "cast"
+ *  when ANY of them passes — byte-identical to the single pass it used to run
+ *  for every non-split card.
+ *
+ *  Deliberately NOT `independentCastOptionsFor`: an ADVENTURE card still has a
+ *  printed cast outside the hand (CR 715.3 leaves the choice at play time, and
+ *  it is the printed cast every non-hand branch already prices), so widening
+ *  the Adventure to these zones is CR 715.3's question and not this one's. */
+function nonHandCastAnnouncements(
+    card: CardInstanceState
+): (string | undefined)[] {
+    const halves = splitCastOptionsFor(card);
+    return halves.length > 0 ? halves.map((alt) => alt.id) : [undefined];
+}
+
+/** CR 709.3a — run the SUBJECT-level cast gates once per announcement
+ *  {@link nonHandCastAnnouncements} offers, and report whether ANY passes.
+ *
+ *  "Only the chosen half is evaluated to see if it can be cast", so timing,
+ *  affordability, targeting and the cast prohibition are all asked of the
+ *  announced half (`castSubjectView`) and none of them lends legality to the
+ *  other — the same shape the HAND branch's `independentCastLegal` already
+ *  uses. What stays at each call site is the CARD-level gate, which one card
+ *  answers once however many halves it has: the phase restriction (CR 601.3a)
+ *  and each mechanism's own non-mana cost (the escape exile, the flashback
+ *  sacrifice, the retrace discard).
+ *
+ *  One helper rather than ten inline conjunctions because a mechanism added
+ *  later inherits the CR 709.3 walk instead of silently pricing the summed
+ *  card — which is what every one of them did before this existed. */
+function anyCastAnnouncementLegal(
+    state: GameState,
+    caster: PlayerState,
+    card: CardInstanceState,
+    opts: {
+        /** The zone for the timing gate. Omitted for the Madness window (CR
+         *  702.35a), which is instant-speed by construction and runs no
+         *  timing gate at all. */
+        timingZone?: CastFromZone;
+        /** The mana this cast pays for the announced subject. A closure, not a
+         *  value: a permission that pays "the card's printed mana cost" owes
+         *  the HALF's (CR 709.3a), while escape / flashback / madness owe what
+         *  their own ability states about the card in its zone (CR 709.4b). */
+        cost: (
+            subject: CardInstanceState,
+            alternativeCostId: string | undefined
+        ) => ManaCost;
+        /** Anything else this mechanism asks OF THE SUBJECT — Bolas's Citadel's
+         *  life total against the half's mana value, and nothing else today. */
+        alsoLegal?: (
+            subject: CardInstanceState,
+            alternativeCostId: string | undefined
+        ) => boolean;
+        costOpts?: { extraMana?: ManaCost };
+    }
+): boolean {
+    return nonHandCastAnnouncements(card).some((altCostId) => {
+        const subject = castSubjectView(card, altCostId);
+        return (
+            (opts.timingZone === undefined ||
+                castTimingBaseLegal(
+                    state,
+                    caster.id,
+                    card,
+                    opts.timingZone,
+                    altCostId
+                )) &&
+            castProhibitionReason(caster.id, subject, state) === undefined &&
+            canPotentiallyPayCost(
+                caster,
+                subject,
+                opts.cost(subject, altCostId),
+                state,
+                opts.costOpts
+            ) &&
+            hasEnoughLegalTargets(state, caster, subject) &&
+            (opts.alsoLegal?.(subject, altCostId) ?? true)
+        );
+    });
+}
+
 export function getLegalActions(
     state: GameState,
     player: PlayerState,
@@ -796,25 +895,20 @@ export function getLegalActions(
         return actions;
     }
 
-    // CR 709.3 (ADR 0121) — a SPLIT card is cast ONE HALF AT A TIME, and the
-    // hand branch below is the only one that offers those halves: every other
-    // cast branch (flashback, escape, Yawgmoth's Will, madness, retrace, the
-    // free exile cast, Bolas's Citadel's library top, …) judges affordability
-    // against `getInstanceManaCost`, i.e. the CR 709.4b SUMMED cost that no
-    // announcement can pay — and `announceCast` then refuses the printed
-    // announcement outright. Left standing, those branches surfaced a "cast"
-    // affordance whose every click is a guaranteed mutation rejection (PR
-    // review finding 1: Wax // Wane in a graveyard under Yawgmoth's Will).
+    // CR 709.3 (ADR 0121, issue #3344) — a SPLIT card is cast ONE HALF AT A
+    // TIME, in EVERY zone. Each non-hand branch below (flashback, escape,
+    // Yawgmoth's Will, the intrinsic and granted graveyard casts, Lurrus,
+    // retrace, madness, the free exile cast, Bolas's Citadel's library top)
+    // therefore runs its conjunction once per ANNOUNCEMENT rather than once
+    // per card — `anyCastAnnouncementLegal`, which is the same walk the hand
+    // branch does for its independent options. What each branch still owns is
+    // the COST that announcement pays from its zone, because CR 709 gives two
+    // different answers (see `castRawManaCost`, `gre/castCost.ts`).
     //
-    // Fail CLOSED here, once, rather than at ten branches: outside the hand a
-    // split card offers no cast at all. That is a MISSING capability — casting
-    // a half from a graveyard or a library top, which needs its own reading of
-    // how each permission's cost (Bolas's Citadel pays life equal to the
-    // COMBINED mana value, CR 709.4b) meets CR 709.3 — and not a wrong one.
-    // tracked-by: #3344
-    if (card.zone !== "hand" && !offersPrintedCast(cardDefinitionOf(card))) {
-        return actions;
-    }
+    // The predicate that used to fail the whole card closed here is gone; what
+    // remains of it is the invariant that a split card never offers a PRINTED
+    // cast anywhere — `nonHandCastAnnouncements` returns the halves and only
+    // the halves, so no branch can price the CR 709.4b summed cost.
 
     const types = card.types;
 
@@ -931,21 +1025,11 @@ export function getLegalActions(
         hasFlashback(card) &&
         !hasEscape(state, card);
     if (isFlashbackCast) {
-        const baseLegal = castTimingBaseLegal(
-            state,
-            caster.id,
-            card,
-            "graveyard"
-        );
         // CR 702.34a — the mana portion may be absent (Lava Dart pays only a
         // sacrifice); an empty cost is always affordable.
         const flashbackMana = getFlashbackCost(card) ?? {};
         if (
-            baseLegal &&
             passesCastPhaseRestriction(state, card) &&
-            castProhibitionReason(player.id, card, state) === undefined &&
-            canPotentiallyPayCost(player, card, flashbackMana, state) &&
-            hasEnoughLegalTargets(state, player, card) &&
             // CR 702.34a / 118.5 — the flashback-only non-mana cost (sacrifice a
             // matching permanent / exile a matching card from hand) must itself
             // be payable, or the flashback cast can't be announced.
@@ -953,7 +1037,15 @@ export function getLegalActions(
                 player,
                 getFlashbackAdditionalCost(card),
                 card.id
-            )
+            ) &&
+            anyCastAnnouncementLegal(state, caster, card, {
+                timingZone: "graveyard",
+                // CR 702.34a / 709.4b — the flashback cost is stated by an
+                // ability that functions in the GRAVEYARD, where a split card's
+                // characteristics are "those of its two halves combined". It is
+                // the same cost whichever half is announced.
+                cost: () => flashbackMana,
+            })
         ) {
             actions.push("cast");
         }
@@ -970,24 +1062,18 @@ export function getLegalActions(
         player.graveyard.some((c) => c.id === card.id) &&
         hasEscape(state, card);
     if (isEscapeCast) {
-        const baseLegal = castTimingBaseLegal(
-            state,
-            caster.id,
-            card,
-            "graveyard"
-        );
         if (
-            baseLegal &&
             passesCastPhaseRestriction(state, card) &&
-            castProhibitionReason(player.id, card, state) === undefined &&
-            canPotentiallyPayCost(
-                player,
-                card,
-                getEscapeManaCost(state, card) ?? {},
-                state
-            ) &&
-            hasEnoughLegalTargets(state, player, card) &&
-            hasPayableEscapeExileCost(state, player, card)
+            hasPayableEscapeExileCost(state, player, card) &&
+            anyCastAnnouncementLegal(state, caster, card, {
+                timingZone: "graveyard",
+                // CR 702.138a / 709.4b — escape is "a static ability that
+                // functions while the card is in a graveyard", so its cost —
+                // printed, or Underworld Breach's "equal to that card's mana
+                // cost" — is read where CR 709.4 combines the two halves. The
+                // same cost whichever half is announced.
+                cost: () => getEscapeManaCost(state, card) ?? {},
+            })
         ) {
             actions.push("cast");
         }
@@ -1004,23 +1090,14 @@ export function getLegalActions(
         player.graveyard.some((c) => c.id === card.id) &&
         canCastFromGraveyardByPermission(state, player, card);
     if (isPermissionCast) {
-        const baseLegal = castTimingBaseLegal(
-            state,
-            caster.id,
-            card,
-            "graveyard"
-        );
         if (
-            baseLegal &&
             passesCastPhaseRestriction(state, card) &&
-            castProhibitionReason(player.id, card, state) === undefined &&
-            canPotentiallyPayCost(
-                player,
-                card,
-                getInstanceManaCost(card) ?? {},
-                state
-            ) &&
-            hasEnoughLegalTargets(state, player, card)
+            anyCastAnnouncementLegal(state, caster, card, {
+                timingZone: "graveyard",
+                // CR 709.3a — the permission pays "its mana cost", and the
+                // spell it puts on the stack is the announced HALF.
+                cost: (subject) => getInstanceManaCost(subject) ?? {},
+            })
         ) {
             actions.push("cast");
         }
@@ -1041,23 +1118,13 @@ export function getLegalActions(
             ?.castableFromOwnGraveyard ??
             false);
     if (isIntrinsicGraveyardCast) {
-        const baseLegal = castTimingBaseLegal(
-            state,
-            caster.id,
-            card,
-            "graveyard"
-        );
         if (
-            baseLegal &&
             passesCastPhaseRestriction(state, card) &&
-            castProhibitionReason(player.id, card, state) === undefined &&
-            canPotentiallyPayCost(
-                player,
-                card,
-                getInstanceManaCost(card) ?? {},
-                state
-            ) &&
-            hasEnoughLegalTargets(state, player, card)
+            anyCastAnnouncementLegal(state, caster, card, {
+                timingZone: "graveyard",
+                // CR 709.3a — as above: the printed cost of the announced half.
+                cost: (subject) => getInstanceManaCost(subject) ?? {},
+            })
         ) {
             actions.push("cast");
         }
@@ -1085,21 +1152,17 @@ export function getLegalActions(
         player.graveyard.some((c) => c.id === card.id) &&
         card.castableFromGraveyardBy === casterId;
     if (isGraveyardGrantCast) {
-        const baseLegal = castTimingBaseLegal(
-            state,
-            caster.id,
-            card,
-            "graveyard"
-        );
-        const costOverride = card.castFromGraveyardWithoutPayingManaCost
-            ? {}
-            : (getInstanceManaCost(card) ?? {});
         if (
-            baseLegal &&
             passesCastPhaseRestriction(state, card) &&
-            castProhibitionReason(caster.id, card, state) === undefined &&
-            canPotentiallyPayCost(caster, card, costOverride, state) &&
-            hasEnoughLegalTargets(state, caster, card)
+            anyCastAnnouncementLegal(state, caster, card, {
+                timingZone: "graveyard",
+                // CR 118.9 / 709.3a — free when the grant waives the mana
+                // cost, else the printed cost of the announced half.
+                cost: (subject) =>
+                    card.castFromGraveyardWithoutPayingManaCost
+                        ? {}
+                        : (getInstanceManaCost(subject) ?? {}),
+            })
         ) {
             actions.push("cast");
         }
@@ -1125,23 +1188,17 @@ export function getLegalActions(
         player.graveyard.some((c) => c.id === card.id) &&
         canCastPermanentFromGraveyardByPermission(state, player, card);
     if (isPermanentPermissionCast) {
-        const baseLegal = castTimingBaseLegal(
-            state,
-            caster.id,
-            card,
-            "graveyard"
-        );
         if (
-            baseLegal &&
             passesCastPhaseRestriction(state, card) &&
-            castProhibitionReason(player.id, card, state) === undefined &&
-            canPotentiallyPayCost(
-                player,
-                card,
-                getInstanceManaCost(card) ?? {},
-                state
-            ) &&
-            hasEnoughLegalTargets(state, player, card)
+            anyCastAnnouncementLegal(state, caster, card, {
+                timingZone: "graveyard",
+                // CR 709.3a — as above. Unreachable for a split card in the
+                // admitted class (this branch takes PERMANENT cards only, and
+                // a split card with a permanent face is CR 709.5, out of scope
+                // per ADR 0121) — walked anyway, so the day 709.5 ships this
+                // branch is not the one that forgot.
+                cost: (subject) => getInstanceManaCost(subject) ?? {},
+            })
         ) {
             actions.push("cast");
         }
@@ -1162,26 +1219,18 @@ export function getLegalActions(
         player.graveyard.some((c) => c.id === card.id) &&
         hasRetrace(state, card);
     if (isRetraceCast) {
-        const baseLegal = castTimingBaseLegal(
-            state,
-            caster.id,
-            card,
-            "graveyard"
-        );
         if (
-            baseLegal &&
             passesCastPhaseRestriction(state, card) &&
-            castProhibitionReason(player.id, card, state) === undefined &&
-            canPotentiallyPayCost(
-                player,
-                card,
-                getInstanceManaCost(card) ?? {},
-                state
-            ) &&
-            hasEnoughLegalTargets(state, player, card) &&
             // CR 702.81a / 601.2f — the additional cost must itself be payable,
             // or the retrace cast can't be announced.
-            canPayRetraceDiscard(player, card.id)
+            canPayRetraceDiscard(player, card.id) &&
+            anyCastAnnouncementLegal(state, caster, card, {
+                timingZone: "graveyard",
+                // CR 702.81a / 709.3a — retrace ADDS the discard to "its other
+                // costs" instead of replacing the mana cost, so the mana is the
+                // spell's own: the announced half's printed cost.
+                cost: (subject) => getInstanceManaCost(subject) ?? {},
+            })
         ) {
             actions.push("cast");
         }
@@ -1201,9 +1250,16 @@ export function getLegalActions(
     if (isMadnessCast) {
         const madnessMana = getMadnessCost(card) ?? {};
         if (
-            castProhibitionReason(player.id, card, state) === undefined &&
-            canPotentiallyPayCost(player, card, madnessMana, state) &&
-            hasEnoughLegalTargets(state, player, card)
+            anyCastAnnouncementLegal(state, caster, card, {
+                // No `timingZone`: the madness window is instant-speed (CR
+                // 702.35a — the reflexive trigger resolves on any player's
+                // turn), exactly as this branch has always been.
+                //
+                // CR 702.35a / 709.4b — the madness cost is printed on the card
+                // and read where CR 709.4 combines the halves, so it is the
+                // same cost whichever half is announced.
+                cost: () => madnessMana,
+            })
         ) {
             actions.push("cast");
         }
@@ -1234,13 +1290,15 @@ export function getLegalActions(
         !types.includes("Land") &&
         card.castFromExileWithoutPayingManaCost === true;
     if (isFreeExileCast) {
-        const baseLegal = castTimingBaseLegal(state, caster.id, card, "exile");
         if (
-            baseLegal &&
             passesCastPhaseRestriction(state, card) &&
-            castProhibitionReason(caster.id, card, state) === undefined &&
-            canPotentiallyPayCost(caster, card, {}, state) &&
-            hasEnoughLegalTargets(state, caster, card)
+            anyCastAnnouncementLegal(state, caster, card, {
+                timingZone: "exile",
+                // CR 118.6a — the mana cost is waived entirely, for either
+                // half. `{}` is the waived cost, never a short-circuit: cost
+                // increases still fold onto it inside `canPotentiallyPayCost`.
+                cost: () => ({}),
+            })
         ) {
             actions.push("cast");
         }
@@ -1262,7 +1320,6 @@ export function getLegalActions(
     // cost, else the printed mana cost.
     const isLibraryTopCast = isCastableLibraryTopSpell(state, player, card.id);
     if (isLibraryTopCast) {
-        const lifeCost = libraryTopCastLifeCost(state, player, card);
         const grant = canCastSpellsFromTopOfLibrary(state, player);
         // CR 601.3c (issue #2146) — the conditional-flash SURCHARGE, when
         // this cast is only legal inside that permission: `announceCast` folds
@@ -1281,45 +1338,48 @@ export function getLegalActions(
                 ? { extraMana: flashSurchargeOf(card) }
                 : {}),
         };
-        const affordable =
-            grant?.manaCostReplacement === "life-equal-to-mana-value"
-                ? // CR 119.4 — a player may pay life only while their life
-                  // total is at least the amount. Paying down to exactly 0 is
-                  // legal (SBAs then end the game); paying below it is not.
-                  //
-                  // CR 118.9-analog — the mana cost is REPLACED (an empty
-                  // cost, exactly what `castRawManaCost` returns), but a cost
-                  // INCREASE and the flash surcharge still apply on top of
-                  // that empty cost at the real payment site, so the mana
-                  // probe runs against `{}` rather than being skipped.
-                  player.life >= lifeCost &&
-                  canPotentiallyPayCost(
-                      player,
-                      card,
-                      {},
-                      state,
-                      mandatoryCostOpts
-                  )
-                : canPotentiallyPayCost(
-                      player,
-                      card,
-                      getInstanceManaCost(card) ?? {},
-                      state,
-                      mandatoryCostOpts
-                  );
+        const replacesManaCost =
+            grant?.manaCostReplacement === "life-equal-to-mana-value";
         if (
-            castTimingBaseLegal(state, player.id, card, "library") &&
             passesCastPhaseRestriction(state, card) &&
-            castProhibitionReason(player.id, card, state) === undefined &&
-            affordable &&
-            hasEnoughLegalTargets(state, player, card) &&
             // CR 118.8 / 601.2f — a spell whose additional cost is "sacrifice /
             // exile a permanent matching a filter" (Natural Order) is
             // unannounceable with no legal permanent to pay it. Every other
             // cast branch that can reach `buildAdditionalCostPicker`'s
             // zero-candidate throw gates on this; the library zone is no
             // different (issue #2398 review round 1, finding 4).
-            hasPayableAdditionalCost(player, card)
+            hasPayableAdditionalCost(player, card) &&
+            anyCastAnnouncementLegal(state, player, card, {
+                timingZone: "library",
+                // CR 118.9-analog — when the permission REPLACES the mana cost
+                // the probe runs against `{}` (exactly what `castRawManaCost`
+                // returns), because a cost INCREASE and the flash surcharge
+                // still apply on top of that empty cost at the real payment
+                // site. Otherwise the cast pays "its mana cost", which CR
+                // 709.3a makes the announced HALF's.
+                cost: (subject) =>
+                    replacesManaCost
+                        ? {}
+                        : (getInstanceManaCost(subject) ?? {}),
+                costOpts: mandatoryCostOpts,
+                // CR 119.4 — a player may pay life only while their life total
+                // is at least the amount. Paying down to exactly 0 is legal
+                // (SBAs then end the game); paying below it is not.
+                //
+                // CR 709.3b / 709.4b (issue #3344) — and the amount is the
+                // ANNOUNCED HALF's mana value: Bolas's Citadel charges "life
+                // equal to its mana value", "it" is the spell, and "if you cast
+                // Assault, the resulting spell is a red spell with a mana value
+                // of 1." So Life // Death off the top costs 1 life for Life and
+                // 2 for Death, never the summed 3. `libraryTopCastLifeCost` is
+                // the single authority the wire affordance, the Bot and all
+                // three commit sites read, so none of them can charge another
+                // number.
+                alsoLegal: (_subject, altCostId) =>
+                    !replacesManaCost ||
+                    player.life >=
+                        libraryTopCastLifeCost(state, player, card, altCostId),
+            })
         ) {
             actions.push("cast");
         }
@@ -1545,13 +1605,6 @@ export function getLegalActions(
  *  game.ts) so a `colors` filter (Natural Order's "a green creature") reads the
  *  same colour the rest of the engine sees. Cards with no additional cost are
  *  unaffected. */
-/** `card`'s registry definition, or `undefined` — the one-line form the zone
- *  gates above need before any branch has resolved one. */
-function cardDefinitionOf(card: CardInstanceState): CardDefinition | undefined {
-    const cardId = (card.card as { id?: string }).id;
-    return (cardId ? tryGetDefinition(cardId) : undefined) ?? undefined;
-}
-
 function hasPayableAdditionalCost(
     player: PlayerState,
     card: CardInstanceState
