@@ -27,6 +27,7 @@ import {
 } from "../searchVariant";
 import { selectRootMove, type Edge, type Node } from "../../search";
 import type { Move } from "../../moves";
+import { BLADE_SCENARIOS, runBladeScenario } from "../blade";
 
 // ---------------------------------------------------------------------------
 // 1. The frozen union
@@ -368,5 +369,41 @@ describe("disabledRootRules makes a named rule a no-op (issue #3399)", () => {
         expect(() =>
             noRuleVariant(`${NO_RULE_VARIANT_PREFIX}material-tiebreak`)
         ).toThrow(/structural/);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// 4. The knob, end to end — a real blade entry through the real search
+// ---------------------------------------------------------------------------
+
+describe("a blade entry that depends on a rule flips when the rule is disabled", () => {
+    // The other half of the moratorium's removal test, run for real rather
+    // than asserted: this is what `BLADE_VARIANT=no-rule:<mechanism> bun run
+    // test:blade` does for a whole tier, and it also proves the plumbing the
+    // unit tests above cannot see — `SearchVariant` → `runSearchWithTrace` →
+    // `selectRootMove`. A rule that is genuinely inert leaves its entries
+    // green here; a load-bearing one turns them red, and this one is
+    // load-bearing.
+    const LABEL =
+        "activation timing: does not shoot away its own last counter at the opponent's end step";
+
+    it("`standing-spend-hold` (issue #3319) is what keeps the Ballista alive at the opponent's end step", () => {
+        const entry = BLADE_SCENARIOS.find((s) => s.label === LABEL);
+        expect(entry, `blade entry "${LABEL}" not found`).toBeDefined();
+        // ONE seed, not the entry's five: the blade suite owns the full run,
+        // and this test owns the DIFFERENCE between two configs. Fixed
+        // iterations, never wall-clock, so the verdict is byte-reproducible.
+        const oneSeed = { ...entry!, seeds: [entry!.seeds[0]] };
+
+        const baseline = runBladeScenario(oneSeed, null);
+        expect(baseline.ok, baseline.failureMessage).toBe(true);
+        expect(baseline.seeds[0].move.kind).toBe("pass");
+
+        const withoutRule = runBladeScenario(
+            oneSeed,
+            noRuleVariant(`${NO_RULE_VARIANT_PREFIX}standing-spend-hold`)
+        );
+        expect(withoutRule.ok).toBe(false);
+        expect(withoutRule.seeds[0].move.kind).toBe("activate-ability");
     });
 });
