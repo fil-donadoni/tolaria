@@ -32,6 +32,8 @@
 // `search-library` (CR 701.23 fetchlands / tutors, issue #1429). Later tranches
 // register here against this same contract.
 
+import { matchesPermanentFilter } from "../../cards/filters";
+import { effectivePermanentView } from "../permanentView";
 import type {
     CardInstanceState,
     GameState,
@@ -1205,6 +1207,124 @@ const triggerOrderCandidates: ChoiceCandidateGenerator = (_state, choice) => [
     },
 ];
 
+/** The applicability gate `sacrificePermanentsCandidates` declines on — hoisted
+ *  out so gate and generator are ONE predicate (the same discipline
+ *  `handPickIsSearchable` follows). A choice that forces nothing
+ *  (`max === 0`) is no decision. */
+function sacrificePermanentsIsSearchable(choice: PendingChoice): boolean {
+    return getPendingChoiceMax(choice.count) > 0;
+}
+
+/** `sacrifice-permanents` (CR 701.16), issue #3377.
+ *
+ *  Registered as an in-tree node for a reason that is NOT primarily about
+ *  picking better victims: with no generator at all, `settleStackForBreakdown`
+ *  cannot get past the suspended choice, so every probe that resolves a spell
+ *  or ability leading to one SCORES THE BODY WITHOUT THE COST. Measured on
+ *  Kjeldoran Dead (a 3/1 whose ETB sacrifices one of your own creatures,
+ *  CR 701.21): the settle stopped with `pendingChoices: ["sacrifice-permanents"]`
+ *  still standing and the margin read 512 with BOTH creatures on the
+ *  battlefield — the entering body credited, the sacrifice it pays for
+ *  invisible. That is the same shape issue #3293 documents for `policyValue`:
+ *  a suspended resolution is not a ply boundary, and scoring one is how the
+ *  policy learns to want a body that is already dead.
+ *
+ *  Covers MANDATORY picks (`min > 0`), deliberately unlike
+ *  `handPickCandidates`, which scopes itself to the optional shape and leaves
+ *  mandatory hand picks off the tree as "costs already priced elsewhere". A
+ *  forced sacrifice is exactly a cost that was NOT priced anywhere: it is the
+ *  gap this generator closes.
+ *
+ *  Self-pruning the same way (property 1): one branch per distinct card
+ *  IDENTITY, cheapest-first, top-K — never the 2^n subset lattice. A `count`
+ *  above 1 (annihilator N, CR 702.86a; Portal to Phyrexia) takes the
+ *  cheapest-worth PREFIX led by each distinct identity rather than enumerating
+ *  combinations, the same containment `searchLibraryCandidates` and
+ *  `handPickCandidates` use.
+ *
+ *  `materialGivenUp` is reported as a hint so the prior seam can float the
+ *  cheapest victim without this generator hard-coding the preference — the
+ *  bot must still be able to sacrifice something expensive when the search
+ *  finds a reason to. */
+const sacrificePermanentsCandidates: ChoiceCandidateGenerator = (
+    state,
+    choice
+) => {
+    if (!sacrificePermanentsIsSearchable(choice)) return [];
+    const owner = getPlayer(state, choice.zoneOwnerId ?? choice.playerId);
+    const allow = choice.candidateIds ? new Set(choice.candidateIds) : null;
+    // Through the SAME two gates `pendingChoiceSubmit` enforces — the
+    // eligibility allow-list and `matchesPermanentFilter` over the EFFECTIVE
+    // view (CR 202.2, so colour/tapped filters see populated colours). A
+    // candidate this generator emits that the submit path would reject is not
+    // a worse branch, it is a THROW mid-search, so the two must read the same
+    // predicate rather than two copies of it.
+    const pool = owner.battlefield.filter(
+        (c) =>
+            (!allow || allow.has(c.id)) &&
+            (!choice.filter ||
+                matchesPermanentFilter(
+                    effectivePermanentView(state, c),
+                    choice.filter
+                ))
+    );
+    if (pool.length === 0) return [];
+
+    // CR 608.2b — the requirement clamps to what is actually there.
+    const max = Math.min(getPendingChoiceMax(choice.count), pool.length);
+    const min = Math.min(
+        Math.max(0, getPendingChoiceMin(choice.count)),
+        pool.length
+    );
+    const pick = Math.max(min, 1);
+    if (pick > max) return [];
+
+    const submit = (cards: CardInstanceState[]): Move => ({
+        kind: "resolution-choice",
+        stackItemId: choice.stackItemId,
+        step: choice.step,
+        choiceId: choice.choiceId,
+        cardInstanceIds: cards.map((c) => c.id),
+    });
+
+    const ranked = pool
+        .map((card) => ({
+            card,
+            identity: stableCardIdentity(card),
+            worth: prospectiveCardWorth(state, card),
+        }))
+        .sort(
+            (a, b) =>
+                a.worth - b.worth ||
+                (a.identity < b.identity ? -1 : a.identity > b.identity ? 1 : 0)
+        );
+
+    const out: Omit<ChoiceCandidate, "prior">[] = [];
+    const seen = new Set<string>();
+    for (const lead of ranked) {
+        if (out.length >= CHOICE_TOP_K) break;
+        if (seen.has(lead.identity)) continue;
+        seen.add(lead.identity);
+        const picked = [lead];
+        for (const other of ranked) {
+            if (picked.length >= pick) break;
+            if (other === lead) continue;
+            picked.push(other);
+        }
+        if (picked.length < pick) continue;
+        out.push({
+            key: `sacrifice-permanents:${picked
+                .map((p) => stableCardIdentity(p.card))
+                .join("+")}`,
+            move: submit(picked.map((p) => p.card)),
+            hint: {
+                materialGivenUp: picked.reduce((sum, p) => sum + p.worth, 0),
+            },
+        });
+    }
+    return out;
+};
+
 /** The registry: choice kind → candidate generator. A kind with NO generator is
  *  not yet an in-tree decision node — the search treats it exactly as before
  *  (no decider, playout stops there), so adding a tranche is purely additive. */
@@ -1243,6 +1363,10 @@ export const CHOICE_CANDIDATE_GENERATORS: Partial<
     // so a simultaneous-trigger batch is a node the search can DESCEND past
     // rather than a wall it leaf-scores at. See the generator's own header.
     "trigger-order": triggerOrderCandidates,
+    // CR 701.16 (issue #3377) — see `sacrificePermanentsCandidates`: without a
+    // generator the settle cannot get past the suspended choice, so a probe
+    // scores the entering body and never the sacrifice that pays for it.
+    "sacrifice-permanents": sacrificePermanentsCandidates,
 };
 
 /** Per-kind APPLICABILITY predicate, read from the `PendingChoice` alone.
@@ -1269,6 +1393,7 @@ const CHOICE_GENERATOR_APPLIES: Partial<
     // it, so the client-side `searchable` gate must say so too rather than pay
     // a Worker round-trip that enumerates nothing.
     "order-top": orderTopIsSearchable,
+    "sacrifice-permanents": sacrificePermanentsIsSearchable,
 };
 
 /** Whether `kind` is an in-tree choice node (has a registered generator).
