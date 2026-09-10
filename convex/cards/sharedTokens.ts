@@ -463,6 +463,28 @@ export const CAT_TOKEN: EffectTokenSpec = {
     colors: ["G"],
 };
 
+/** Bat token (CR 111 / 707.2, issue #3222). "1/1 black Bat creature token with
+ *  flying" — created today by Sanguine Evangelist's enters-or-dies trigger
+ *  (`sets/lci/white.ts`). Vanilla apart from the keyword, so
+ *  `EffectTokenSpec` (JSON-pure, ADR 0046) rather than `TokenSpec`.
+ *
+ *  Deliberately NO pinned `imagePrintId`, the `KNIGHT_TOKEN` / `CAT_TOKEN`
+ *  treatment: Bat is a printed token across several sets with different
+ *  characteristics (VOW's 1/1 black flier, MID's, LCI's), and the art-match
+ *  rule is "the token associated with the PRODUCING card's own printing" —
+ *  `SpellContext.createToken` resolves it per producer from
+ *  `generated/token-prints.json` (`tokenPrintIdFor`), reverse-linked from
+ *  Sanguine Evangelist's own LCI #34 printing's `all_parts` Bat token. */
+export const BAT_TOKEN: EffectTokenSpec = {
+    name: "Bat",
+    types: ["Creature"],
+    subtypes: ["Bat"],
+    power: 1,
+    toughness: 1,
+    colors: ["B"],
+    staticAbilities: ["flying"],
+};
+
 /** Food token (CR 111.10b — "A Food token is a colorless Food artifact token
  *  with '{2}, {T}, Sacrifice this token: You gain 3 life.'"; issue #2361).
  *  Created today by Oko, Thief of Crowns' `+2` (`sets/eld/multicolor.ts`);

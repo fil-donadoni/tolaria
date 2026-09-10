@@ -1572,7 +1572,26 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Battle Cry",
         kind: "keyword-ability",
         cr: "702.91",
-        status: "planned",
+        status: "implemented",
+        // Issue #3222 — expanded from the bare `staticAbilities: ["battle cry"]`
+        // string at the `getDefinition` seam, the exalted/prowess mechanism
+        // (`convex/cards/abilities/keywordTriggers.ts`, ADR 0054): the card
+        // declares only the string and `expandKeywordTriggers` injects the CR
+        // 702.91a triggered ability, so the keyword can never be printed with
+        // nothing enforcing it and the trigger can never be declared without
+        // the keyword. Fully declarative (DSL-first, ADR 0045): an
+        // `attacksTrigger` (ATTACKERS_DECLARED, CR 508.1m) with `scope:
+        // "self"`, body `forEach { set: "permanents", filter: { type:
+        // "Creature", isAttacking: true }, excludeSource: true }` → `pump`
+        // +1/+0 until end of turn (CR 613.4c). `excludeSource` is what makes
+        // it "each OTHER attacking creature"; no `controller` scope, because
+        // CR 508.1a already makes every attacker the active player's. The
+        // member set freezes when the TRIGGER RESOLVES (CR 608.2i), so a
+        // creature put onto the battlefield attacking in response is pumped
+        // and one entering after resolution is not. CR 702.91b (multiple
+        // instances trigger separately) is unreachable through a string-set
+        // `staticAbilities` and no card in the pool prints it twice.
+        binding: "battle cry",
     },
     // 702.92 Living Weapon (issue #1340) — a self-ETB triggered ability
     // (CR 702.92a) built from two ALREADY-CENSUSED Ops, no new engine

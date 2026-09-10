@@ -28388,6 +28388,14 @@
         "source": "compiled"
     },
     {
+        "name": "Sanguine Evangelist",
+        "scryfallId": "269ddd84-fdc4-4c94-b183-32ecec56967c",
+        "oracleId": "a70d9645-7c25-4fcb-9d16-fb73ce8b55e2",
+        "firstSet": "lci",
+        "firstPrintId": "269ddd84-fdc4-4c94-b183-32ecec56967c",
+        "firstPrintSet": "lci"
+    },
+    {
         "name": "Sapphire Leech",
         "scryfallId": "e6763ffd-9d89-4f26-871a-be24fbdef38d",
         "oracleId": "500aff17-0d69-46ac-a4f9-2fc6db061ce7",
