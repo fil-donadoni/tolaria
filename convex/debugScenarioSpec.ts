@@ -469,3 +469,73 @@ export function collectUnresolvedCardNames(
     }
     return [...unresolved];
 }
+
+// ---- DB-direct READ / DELETE path (issue #3331) -----------------------------
+//
+// `bunx convex run` authenticates with the deploy key, not as a user, so every
+// `assertIsAdmin` function throws `Forbidden: admin only` for a CLI caller.
+// The write path already had an ungated `internalMutation` door
+// (`seedScenarioDirect`); `listScenariosDirect` / `deleteScenariosDirect`
+// (`convex/debugScenarios.ts`) are the matching read and delete doors. The
+// DECISIONS they act on live here, pure, for the same reason the upsert
+// decision does: the project has no convex-test harness, so a handler is only
+// testable to the extent it is a thin wrapper around a pure function.
+
+/** A row as the CLI listing sees it — the LABEL is the handle, because that is
+ *  what `selectScenarioUpsert` upserts on and what `selectScenariosByLabel`
+ *  deletes on. `_id` is deliberately absent: an id is a value a CLI caller can
+ *  only obtain from a seed it performed itself, which is the dead end #3331
+ *  is about. */
+export type ScenarioListingRow = {
+    label: string;
+    golden: boolean;
+    createdAt?: number;
+};
+
+export type ListableScenarioRow = {
+    label: string;
+    golden?: boolean;
+    createdAt?: number;
+};
+
+/**
+ * Pure listing projection (issue #3331). Strips a stored row to the three
+ * fields the CLI shows and sorts by label, so two runs against an unchanged
+ * deployment print identical output — a listing whose order comes from the
+ * table's scan order is one nobody can diff.
+ */
+export function projectScenarioListing(
+    rows: readonly ListableScenarioRow[]
+): ScenarioListingRow[] {
+    return rows
+        .map((row) => ({
+            label: row.label,
+            golden: row.golden === true,
+            createdAt: row.createdAt,
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+export type DeletableScenarioRow<Id> = {
+    _id: Id;
+    label: string;
+};
+
+/**
+ * Pure delete-by-label selection (issue #3331). Returns the ids of EVERY row
+ * carrying the label — not the first, because labels are not unique by schema
+ * (`selectScenarioUpsert` only picks one to patch, so a row inserted before
+ * the upsert path existed can still share a label). The caller reports the
+ * count: `0` is a typo that removed nothing and must not read as success.
+ *
+ * The label is trimmed on both sides, matching the seed path, so a scenario
+ * seeded as `" x "` (stored as `"x"`) is removable by either spelling.
+ */
+export function selectScenariosByLabel<Id>(
+    rows: readonly DeletableScenarioRow<Id>[],
+    label: string
+): Id[] {
+    const wanted = label.trim();
+    if (wanted === "") return [];
+    return rows.filter((row) => row.label.trim() === wanted).map((r) => r._id);
+}

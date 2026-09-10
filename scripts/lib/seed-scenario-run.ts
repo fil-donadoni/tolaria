@@ -47,7 +47,8 @@ export interface SeedOutcome {
     error?: string;
 }
 
-/** The `npx` argv the seed runs — a pure function so the flags are asserted
+/** The `npx` argv every scenario call runs — a pure function so the flags are
+ *  asserted
  *  directly rather than through a subprocess (the convention the rest of the
  *  scripts follow: every DECISION is a pure function, the plumbing around it
  *  is thin and untested).
@@ -69,7 +70,7 @@ export interface SeedOutcome {
  *  The timeout below is enforced on the `npx` child and kills the whole chain:
  *  measured 2026-09-09 with a 3s budget, the call returns at 3.0s with
  *  `ETIMEDOUT`/`SIGTERM` and leaves no `convex` process behind. */
-export function seedScenarioArgv(payload: string): string[] {
+export function convexRunArgv(fn: string, payload: string): string[] {
     return [
         "convex",
         "run",
@@ -78,9 +79,16 @@ export function seedScenarioArgv(payload: string): string[] {
         "disable",
         "--codegen",
         "disable",
-        "debugScenarios:seedScenarioDirect",
+        fn,
         payload,
     ];
+}
+
+/** The seed's own argv — `convexRunArgv` pinned to the seed mutation. Kept as
+ *  its own export because `seed-scenario-run.test.ts` asserts the flags
+ *  through it, and because the flags' JUSTIFICATION above is the seed's. */
+export function seedScenarioArgv(payload: string): string[] {
+    return convexRunArgv("debugScenarios:seedScenarioDirect", payload);
 }
 
 /**

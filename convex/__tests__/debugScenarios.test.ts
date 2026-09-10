@@ -19,8 +19,10 @@ import {
     normalizeScenarioSpec,
     resolveScenarioBattlefieldCounters,
     resolveScenarioGolden,
+    projectScenarioListing,
     selectEphemeralIdsToPrune,
     selectScenarioUpsert,
+    selectScenariosByLabel,
     SCENARIO_SCHEMA_VERSION,
     EPHEMERAL_KEEP_BOUND,
     type PrunableScenarioRow,
@@ -492,5 +494,80 @@ describe("seedScenarioDirect — loadability guard reused (issue #1453, ADR 0044
             cards: [{ name: "Forest", owner: "me" }],
         };
         expect(collectUnresolvedCardNames(spec, resolves)).toEqual([]);
+    });
+});
+
+// ---- DB-direct read/delete path (issue #3331) -------------------------------
+//
+// `bunx convex run` authenticates with the DEPLOY KEY, not as a user, so
+// `auth.getUserId(ctx)` is null and every `assertIsAdmin` function throws
+// `Forbidden: admin only`. The seed path had its own ungated door and the read
+// and delete paths did not, so a CLI caller could create a scenario and then
+// had no way to see it or remove it. Same testing shape as the upsert decision
+// above: the handlers are thin wrappers, the DECISION is pure and driven here.
+describe("CLI listing projection (issue #3331)", () => {
+    const rows = [
+        { label: "zulu", golden: true, createdAt: 3 },
+        { label: "alpha", createdAt: 1 },
+        { label: "mike", golden: false, createdAt: 2 },
+    ];
+
+    it("sorts by label so two runs of an unchanged deployment print the same", () => {
+        expect(projectScenarioListing(rows).map((r) => r.label)).toEqual([
+            "alpha",
+            "mike",
+            "zulu",
+        ]);
+    });
+
+    it("normalises a missing `golden` to false rather than leaking undefined", () => {
+        // The row schema has `golden` optional; the CLI renders it as a glyph,
+        // and `undefined` there would print as an un-starred row that the
+        // admin panel shows differently.
+        const listed = projectScenarioListing(rows);
+        expect(listed.find((r) => r.label === "alpha")?.golden).toBe(false);
+        expect(listed.find((r) => r.label === "zulu")?.golden).toBe(true);
+    });
+
+    it("does not expose the row id — the label is the CLI handle", () => {
+        const listed = projectScenarioListing([
+            { label: "x", createdAt: 1 } as never,
+        ]);
+        expect(Object.keys(listed[0]).sort()).toEqual([
+            "createdAt",
+            "golden",
+            "label",
+        ]);
+    });
+});
+
+describe("CLI delete-by-label selection (issue #3331)", () => {
+    const rows = [
+        { _id: "a", label: "keep me" },
+        { _id: "b", label: "kill me" },
+        { _id: "c", label: "kill me" },
+    ];
+
+    it("returns EVERY row carrying the label, not just the first", () => {
+        // Labels are not unique by schema — `selectScenarioUpsert` only picks
+        // one row to patch, so a row inserted before that path existed can
+        // still share a label. Deleting one of two is a silent half-success.
+        expect(selectScenariosByLabel(rows, "kill me")).toEqual(["b", "c"]);
+    });
+
+    it("returns nothing for an unknown label — a typo removes nothing", () => {
+        expect(selectScenariosByLabel(rows, "kil me")).toEqual([]);
+    });
+
+    it("refuses an empty or whitespace label instead of matching everything", () => {
+        expect(selectScenariosByLabel(rows, "")).toEqual([]);
+        expect(selectScenariosByLabel(rows, "   ")).toEqual([]);
+    });
+
+    it("trims both sides, so a padded spelling still finds the seeded row", () => {
+        expect(selectScenariosByLabel(rows, "  kill me  ")).toEqual(["b", "c"]);
+        expect(
+            selectScenariosByLabel([{ _id: "d", label: " padded " }], "padded")
+        ).toEqual(["d"]);
     });
 });
