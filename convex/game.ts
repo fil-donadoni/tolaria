@@ -17671,6 +17671,16 @@ export const debugSetupScenario = mutation({
                 opp: v.optional(v.number()),
             })
         ),
+        /** CR 500.1 / 117.1 / 117.4 (issue #3454) — the turn holder, the
+         *  priority holder and the passes already banked. `activePlayer:
+         *  "opp"` with `priority: "me"` places an instant-speed decision on
+         *  the opponent's turn, the shape a combat-trick or held-up-removal
+         *  position needs. All three default to the builder's pre-#3454
+         *  behaviour: the base state's turn holder, priority to the active
+         *  player, passCount 0. */
+        activePlayer: v.optional(v.union(v.literal("me"), v.literal("opp"))),
+        priority: v.optional(v.union(v.literal("me"), v.literal("opp"))),
+        passCount: v.optional(v.number()),
         /** CR 702.139c / ADR 0064 (issue #1392) — directly declare a
          *  companion into `owner`'s slot, bypassing the normal sideboard/
          *  maindeck auto-declare (`selectCompanion`, game init) that a

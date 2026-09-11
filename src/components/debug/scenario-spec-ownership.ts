@@ -48,6 +48,13 @@ export const SCENARIO_SPEC_FIELD_OWNER = {
     poison: "form-owned",
     life: "form-owned",
     experience: "form-owned",
+    // CR 102.1 / 117.1 / 117.4 (issue #3454) — the turn holder, the priority
+    // holder and the banked passes. `form-owned` like everything else since
+    // issue #3463: these are the first of PRD #3397's queued widenings, and a
+    // knob only `specFromState` can produce is the gap #3463 closed.
+    activePlayer: "form-owned",
+    priority: "form-owned",
+    passCount: "form-owned",
     companion: "form-owned",
 } as const satisfies Record<keyof ScenarioSpec, ScenarioSpecFieldOwner>;
 

@@ -17,7 +17,8 @@ import {
     makeState,
     pushSpell,
 } from "../../cards/__tests__/setup";
-import { grizzlyBears } from "../../cards/sets/lea/green";
+import { giantGrowth, grizzlyBears } from "../../cards/sets/lea/green";
+import { enumerateMoves } from "../moves";
 import { shivanDragon } from "../../cards/sets/lea/red";
 import { forest } from "../../cards/sets/lea/colorless";
 import { animateDead, fear } from "../../cards/sets/lea/black";
@@ -953,9 +954,11 @@ describe("specFromState (issue #2148)", () => {
         expect(
             spec.cards.filter((c) => c.owner === "opp").map((c) => c.name)
         ).toEqual([grizzlyBears.name]);
-        // The active player (players[0], "p1") is no longer "me" — flagged,
-        // never silently rebuilt onto the wrong seat.
-        expect(dropped.some((d) => d.startsWith("active player"))).toBe(true);
+        // CR 500.1 (issue #3454) — the active player (players[0], "p1") is no
+        // longer "me", and the spec now CARRIES that instead of reporting it
+        // as a loss: it is lowered in the same mirrored frame as the cards.
+        expect(spec.activePlayer).toBe("opp");
+        expect(dropped.some((d) => d.startsWith("active player"))).toBe(false);
     });
 
     it("throws when mySeatId matches neither player", () => {
@@ -1534,5 +1537,141 @@ describe("scenario-placed off-battlefield characteristics (CR 113.6c)", () => {
         expect(grist.types).toEqual(["Planeswalker"]);
         expect(grist.subtypes ?? []).not.toContain("Insect");
         expect(grist.power).toBeUndefined();
+    });
+});
+
+// ---- CR 500.1 / 117.1 / 117.4 (issue #3454) -------------------------------
+//
+// The turn holder and the priority holder decide WHICH decision a rebuilt
+// position poses. Before the spec could carry them, every position captured
+// with priority on the opponent's turn rebuilt as the judged seat's own turn —
+// offering the sorcery-speed moves it did not have (CR 307.1), while `pass`
+// existed in both lists, so the pick still resolved and nothing downstream
+// noticed the answer was to another question. The verdict quiz refused that
+// whole class rather than file it (PRD #3397).
+describe("buildStateFromScenario — turn holder, priority and passCount (issue #3454)", () => {
+    /** A board where "me" holds a land, a creature and an instant, with mana
+     *  to cast any of them — so the enumerated list is a direct read of what
+     *  TIMING the rebuilt position allows (CR 307.1 / 304.1 / 305.1). */
+    const TIMING_BOARD: ScenarioSpec = {
+        cards: [
+            { name: forest.name, owner: "me", zone: "hand" },
+            { name: grizzlyBears.name, owner: "me", zone: "hand" },
+            { name: giantGrowth.name, owner: "me", zone: "hand" },
+            { name: grizzlyBears.name, owner: "opp", zone: "battlefield" },
+        ],
+        landCount: 4,
+    };
+
+    function kindsFor(state: GameState, playerId: string): string[] {
+        return enumerateMoves(state, playerId).map((m) => m.kind);
+    }
+
+    /** The DEFINITION ids the seat may cast — the instance carries the
+     *  definition, never a display name, so the id is what identifies it. */
+    function castableDefIds(state: GameState, playerId: string): string[] {
+        const hands = [...state.players[0].hand, ...state.players[1].hand];
+        return enumerateMoves(state, playerId)
+            .filter((m) => m.kind === "cast-spell")
+            .map((m) => {
+                const card = hands.find((c) => c.id === m.cardInstanceId);
+                return (card?.card as { id?: string })?.id ?? "?";
+            });
+    }
+
+    it("sets the turn holder the spec names, leaving priority with the judged seat", () => {
+        const state = buildStateFromScenario(makeState(), {
+            ...TIMING_BOARD,
+            activePlayer: "opp",
+            priority: "me",
+            passCount: 1,
+        });
+
+        expect(state.activePlayerId).toBe(state.players[1].id);
+        expect(state.priorityPlayerId).toBe(state.players[0].id);
+        expect(state.passCount).toBe(1);
+    });
+
+    // THE behavioural claim (CR 307.1): on the opponent's turn the judged seat
+    // may only act at instant speed. A rebuild that got the turn holder wrong
+    // fails HERE, loudly, rather than by quietly offering a bigger list.
+    it("offers the judged seat ONLY instant-speed moves on the opponent's turn (CR 307.1)", () => {
+        const onOppTurn = buildStateFromScenario(makeState(), {
+            ...TIMING_BOARD,
+            activePlayer: "opp",
+            priority: "me",
+        });
+        const meId = onOppTurn.players[0].id;
+
+        // No land drop (CR 305.1: active player, main phase, empty stack).
+        expect(kindsFor(onOppTurn, meId)).not.toContain("play-land");
+        // No creature — sorcery timing (CR 302.1 / 307.1).
+        expect(castableDefIds(onOppTurn, meId)).not.toContain(grizzlyBears.id);
+        // The instant IS offered: the seat still has priority, it is only the
+        // timing that narrowed.
+        expect(castableDefIds(onOppTurn, meId)).toContain(giantGrowth.id);
+
+        // The control: the SAME board on the judged seat's own turn offers all
+        // three, so the assertion above is measuring the turn holder and not
+        // some unrelated legality of this fixture.
+        const onOwnTurn = buildStateFromScenario(makeState(), TIMING_BOARD);
+        expect(kindsFor(onOwnTurn, onOwnTurn.players[0].id)).toContain(
+            "play-land"
+        );
+        expect(castableDefIds(onOwnTurn, onOwnTurn.players[0].id)).toContain(
+            grizzlyBears.id
+        );
+    });
+
+    it("leaves the base state's turn holder alone, and starts a fresh priority round, when the spec omits all three", () => {
+        // The pre-#3454 contract every stored spec and every blade entry was
+        // written against: absent means unchanged, exactly as `phase` is.
+        const base = makeState();
+        base.activePlayerId = base.players[1].id;
+        base.priorityPlayerId = base.players[0].id;
+        base.passCount = 1;
+
+        const state = buildStateFromScenario(base, { cards: [] });
+
+        expect(state.activePlayerId).toBe(state.players[1].id);
+        expect(state.priorityPlayerId).toBe(state.players[1].id);
+        expect(state.passCount).toBe(0);
+    });
+
+    it("round-trips a position taken on the opponent's turn through specFromState", () => {
+        const live = buildStateFromScenario(makeState(), TIMING_BOARD);
+        live.activePlayerId = live.players[1].id;
+        live.priorityPlayerId = live.players[0].id;
+        live.passCount = 1;
+
+        const { spec, dropped } = specFromState(live, {
+            mySeatId: live.players[0].id,
+        });
+
+        expect(spec.activePlayer).toBe("opp");
+        expect(spec.priority).toBe("me");
+        expect(spec.passCount).toBe(1);
+        // Both notes are gone: the spec carries the fact, so it is no longer a
+        // loss to report.
+        expect(dropped.some((d) => d.startsWith("active player"))).toBe(false);
+        expect(dropped.some((d) => d.startsWith("priority:"))).toBe(false);
+
+        const rebuilt = buildStateFromScenario(makeState(), spec);
+        expect(rebuilt.activePlayerId).toBe(rebuilt.players[1].id);
+        expect(rebuilt.priorityPlayerId).toBe(rebuilt.players[0].id);
+        expect(rebuilt.passCount).toBe(1);
+    });
+
+    it("lowers the quiet case explicitly rather than as an absence", () => {
+        // Mirrors `life`: "me is active, fresh round" is a real position, and a
+        // captured spec must REBUILD it rather than inherit whatever game it is
+        // loaded into.
+        const { spec } = specFromState(
+            buildStateFromScenario(makeState(), { cards: [] }),
+            { mySeatId: makeState().players[0].id }
+        );
+        expect(spec.activePlayer).toBe("me");
+        expect(spec.priority).toBe("me");
+        expect(spec.passCount).toBe(0);
     });
 });

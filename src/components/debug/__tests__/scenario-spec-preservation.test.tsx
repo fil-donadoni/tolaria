@@ -68,6 +68,11 @@ const STORED: Required<ScenarioSpec> = {
     poison: { me: 3, opp: 1 },
     life: { me: 5, opp: 2 },
     experience: { me: 2, opp: 0 },
+    // CR 500.1 / 117.1 / 117.4 (issue #3454) — a curated row pinning an
+    // instant-speed decision on the opponent's turn.
+    activePlayer: "opp",
+    priority: "me",
+    passCount: 1,
     companion: { name: "Lurrus of the Dream-Den", owner: "me", used: true },
 };
 

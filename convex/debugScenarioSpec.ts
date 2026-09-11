@@ -115,6 +115,24 @@ export const scenarioSpecValidator = v.object({
             opp: v.optional(v.number()),
         })
     ),
+    // CR 500.1 / 117.1 (issue #3454) — the TURN HOLDER and the PRIORITY
+    // holder, the two facts that decide WHICH decision a rebuilt position
+    // poses. Without them every position captured with priority on the
+    // opponent's turn rebuilds as the judged seat's own turn, offering the
+    // sorcery-speed moves it did not have (CR 307.1) — a different question
+    // under the same name, which is why the verdict quiz used to REFUSE that
+    // whole class outright (`src/lib/ai/verdict-quiz.ts`, PRD #3397).
+    //
+    // Both default to today's behaviour: no `activePlayer` leaves the base
+    // state's turn holder untouched, and no `priority` gives priority to
+    // whoever ends up active.
+    activePlayer: v.optional(v.union(v.literal("me"), v.literal("opp"))),
+    priority: v.optional(v.union(v.literal("me"), v.literal("opp"))),
+    // CR 117.4 — consecutive passes are what END something (a resolution, a
+    // step). A position captured with one pass already banked rebuilds as a
+    // fresh priority round without this, which is a different decision
+    // whenever passing is the move under judgement. Default 0.
+    passCount: v.optional(v.number()),
     // CR 702.139c / ADR 0064 (issue #1392) — directly declare a companion
     // into a slot, bypassing the sideboard/maindeck auto-declare a
     // scenario's synthetic board never runs through. Mirrors
@@ -168,6 +186,18 @@ export type ScenarioSpec = {
      *  scenario can start at the SCALING state a card's "for each experience
      *  counter you have" reads (Otharri, Suns' Glory). */
     experience?: { me?: number; opp?: number };
+    /** CR 500.1 (issue #3454) — whose turn the position is. Omitted leaves the
+     *  base state's turn holder untouched, which is what every spec written
+     *  before this field meant. */
+    activePlayer?: "me" | "opp";
+    /** CR 117.1 (issue #3454) — who holds priority. Omitted gives it to the
+     *  active player, the pre-#3454 behaviour. `activePlayer: "opp"` with
+     *  `priority: "me"` is the shape an instant-speed decision on the
+     *  opponent's turn needs (holding up removal, a combat trick). */
+    priority?: "me" | "opp";
+    /** CR 117.4 (issue #3454) — passes already banked in this priority round.
+     *  Omitted means 0, the pre-#3454 behaviour. */
+    passCount?: number;
     companion?: { name: string; owner?: "me" | "opp"; used?: boolean };
 };
 
@@ -460,6 +490,13 @@ export function normalizeScenarioSpec(raw: unknown): ScenarioSpec {
         set(experience, "opp", pickNumber(raw.experience.opp));
         spec.experience = experience;
     }
+    const activePlayer = pickString(raw.activePlayer);
+    if (activePlayer === "me" || activePlayer === "opp") {
+        spec.activePlayer = activePlayer;
+    }
+    const priority = pickString(raw.priority);
+    if (priority === "me" || priority === "opp") spec.priority = priority;
+    set(spec, "passCount", pickNumber(raw.passCount));
     if (isRecord(raw.companion)) {
         const name = pickString(raw.companion.name);
         if (name !== undefined) {

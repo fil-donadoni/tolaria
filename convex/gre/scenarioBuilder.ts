@@ -635,8 +635,35 @@ export function buildStateFromScenario(
         }
     }
 
-    state.priorityPlayerId = state.activePlayerId;
-    state.passCount = 0;
+    // CR 500.1 / 117.1 / 117.4 (issue #3454) — the turn holder, the priority
+    // holder and the passes already banked. These decide WHICH decision the
+    // rebuilt position poses, and before this field existed the rebuild could
+    // only ever pose the active player's own turn: an instant-speed decision
+    // taken during the opponent's turn (holding up removal, a combat trick,
+    // declining to act under an attack) came back offering the sorcery-speed
+    // moves the seat did not have (CR 307.1), while `pass` existed in both
+    // lists — so the pick still resolved and nothing downstream noticed the
+    // answer was to another question. The verdict quiz refused that whole
+    // class outright rather than file it (PRD #3397).
+    //
+    // All three follow this builder's standing convention for an optional
+    // field: ABSENT means unchanged, exactly as `phase` and `turn` above do.
+    // So a spec written before #3454 keeps its meaning — it inherits the base
+    // state's turn holder and gets a fresh priority round, which is what it
+    // has always got. `specFromState` below always lowers all three
+    // explicitly, so a CAPTURED position round-trips regardless.
+    if (spec.activePlayer) {
+        state.activePlayerId = spec.activePlayer === "me" ? p1.id : p2.id;
+    }
+    // Priority defaults to the active player — the start of a fresh round, the
+    // pre-#3454 behaviour. `activePlayer: "opp"` with `priority: "me"` is the
+    // shape a combat-trick verdict needs, and the caller states it.
+    state.priorityPlayerId = spec.priority
+        ? spec.priority === "me"
+            ? p1.id
+            : p2.id
+        : state.activePlayerId;
+    state.passCount = spec.passCount ?? 0;
     state.pendingCast = undefined;
     state.stack = [];
 
@@ -1430,6 +1457,14 @@ export function specFromState(
         // position, not "absent" (mirrors the builder's own `!== undefined`
         // check), and the default (20) is only a coincidence, never a signal.
         life: { me: me.life, opp: opp.life },
+        // CR 500.1 / 117.1 / 117.4 (issue #3454) — always explicit, for the
+        // same reason as `life` above: "me is active with a fresh priority
+        // round" is a real position, never "absent", and a captured spec must
+        // rebuild the decision it was captured from rather than inherit
+        // whatever game it is loaded into.
+        activePlayer: state.activePlayerId === opts.mySeatId ? "me" : "opp",
+        priority: state.priorityPlayerId === opts.mySeatId ? "me" : "opp",
+        passCount: state.passCount,
     };
     if (markLastDrawn) spec.markLastDrawn = true;
 
@@ -1476,23 +1511,10 @@ export function specFromState(
             `stack: ${state.stack.length} item(s) — the spell/ability stack isn't spec-expressible (see the blade suite's "setup" steps for a response-window position instead)`
         );
     }
-    if (state.activePlayerId !== opts.mySeatId) {
-        dropped.push(
-            `active player is "opp" — buildStateFromScenario has no field to choose the turn holder; the rebuilt state's active player is whatever the fresh base game started with (normally "me")`
-        );
-    }
-    if (
-        state.priorityPlayerId !== state.activePlayerId ||
-        state.passCount !== 0
-    ) {
-        dropped.push(
-            `priority: held by ${
-                state.priorityPlayerId === state.activePlayerId
-                    ? "the active player, with a pass already banked"
-                    : "the non-active player"
-            } (passCount=${state.passCount}) — buildStateFromScenario always resets priority to the active player with passCount 0`
-        );
-    }
+    // The turn holder, the priority holder and the pass count used to be two
+    // `dropped[]` notes here; issue #3454 gave the spec `activePlayer`,
+    // `priority` and `passCount`, and the lowering above carries all three —
+    // so they are no longer losses to report.
     const combat = state.combat;
     if (
         combat &&
