@@ -16,13 +16,14 @@ import { cardsExiledTrigger } from "../../abilities/triggers/cardsExiledTrigger"
 // ABILITY 1 — PROTOCOL (impulse-draw off your own library — no Op skin,
 // precedent: Elkin Bottle / Ice Cauldron, ice/colorless.ts; the SAME idiom
 // shipped for Ragavan / Robber of the Rich / Headliner Scarlett): composes
-// `peekLibraryTop` + `exileFaceDown` + `grantCastFromExile(..., "this-turn")`.
+// `peekLibraryTop` + `moveCardById(..., "exile")` + `grantCastFromExile(...,
+// "this-turn")` — a FACE-UP exile (CR 406.3, issue #3001).
 //
 // ABILITY 2 — `cardsExiledTrigger` (issue #1558's new `CARDS_EXILED` event,
 // `cards/types.ts` / `state.ts`): fires once per exile OCCURRENCE from
 // Laelia's controller's library and/or graveyard (CR 603.3b / 608.2i — the
 // official ruling: once per occurrence, never once per card). Notably this
-// fires off Laelia's OWN first ability — attacking impulse-exiles a card
+// fires off Laelia's OWN first ability — attacking exiles a card
 // from her controller's library, which is itself a qualifying occurrence —
 // the card's core growth loop (attack → exile → +1/+1 counter).
 export const laeliaTheBladeReforged: CardDefinition = {
@@ -51,16 +52,10 @@ export const laeliaTheBladeReforged: CardDefinition = {
                 const top = ctx.peekLibraryTop(ctx.controller, 1);
                 if (top.length === 0) return; // empty library
                 const cardId = top[0];
-                // CR 406.3 — the impulse idiom exiles face down (a no-op
-                // secrecy distinction here, since it's the controller's own
-                // top card, but keeps this identical to the shared sibling
-                // cards' shape).
-                ctx.exileFaceDown(
-                    ctx.controller,
-                    cardId,
-                    "library",
-                    ctx.controller
-                );
+                // CR 406.3 — exiled FACE UP: the oracle text says nothing
+                // about a face-down exile, so the opponent may examine it
+                // too (issue #3001).
+                ctx.moveCardById(ctx.controller, cardId, "library", "exile");
                 // CR 305.9 (issue #1689) — oracle says "you may PLAY that
                 // card this turn", land-inclusive.
                 ctx.grantCastFromExile(

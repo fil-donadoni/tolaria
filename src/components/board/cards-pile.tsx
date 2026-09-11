@@ -854,7 +854,7 @@ export default function CardsPile({
         // reveal dialog (the wrapping `onClick={setIsOpen(true)}` below). It must
         // stay non-interactive per card — a `SelectableCard` bound to the card's
         // `legalActions` turns a playable pile card (e.g. a Headliner Scarlett
-        // impulse-exiled card whose exile projection carries `["play"|"cast"]`,
+        // exiled card whose exile projection carries `["play"|"cast"]`,
         // gameProjections) into a `<div onClick={play}>`, so the single pile click
         // both PLAYS the card and opens the dialog. Per-card actions belong in the
         // dialog only, surfaced via `renderCardAction` (Exile → ExileCastButton).

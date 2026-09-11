@@ -5,7 +5,7 @@
 // impulse-draw protocol (Robber of the Rich / Headliner Scarlett idiom);
 // ability 2 is the new `CARDS_EXILED` consumer (CR 400.1 / 603.3b / 608.2i).
 // The batching/emission plumbing itself (millCards, exileWithAttachments,
-// ctx.exile/exileFaceDown) is exercised generically in
+// ctx.exile/moveCardById) is exercised generically in
 // `convex/gre/__tests__/cardsExiled.test.ts`; this file proves Laelia's
 // TRIGGER-SIDE consumer behavior: scope ("your" library/graveyard only),
 // fromZone filtering (library/graveyard only, not battlefield/hand), and the
@@ -22,7 +22,7 @@ import {
 } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import { projectPublicState } from "../../../../gameProjections";
-import { getDefinition } from "../../../index";
+import { getDefinition, FACE_DOWN_CARD_ID } from "../../../index";
 
 const laeliaTheBladeReforged = getDefinition(
     "a3bb2881-e8fb-4fba-a9f9-d93e6ca24378"
@@ -72,7 +72,7 @@ function counterCount(state: GameState, id: string): number {
 
 describe("Laelia, the Blade Reforged (issue #1558, CR 400.1 / 603.3b / 608.2i)", () => {
     describe("ability 1 — attack impulse-draw (CR 508.1)", () => {
-        it("exiles the top card of its controller's library face down, castable this turn", () => {
+        it("exiles the top card of its controller's library FACE UP, castable this turn", () => {
             const laelia = makeInstance(laeliaTheBladeReforged.id, {
                 id: "laelia",
                 controllerId: "p1",
@@ -109,7 +109,60 @@ describe("Laelia, the Blade Reforged (issue #1558, CR 400.1 / 603.3b / 608.2i)",
             // this turn": a land drawn this way must be a legal land play,
             // not merely castable (a land is never cast).
             expect(exiled.castableFromExileIncludesLand).toBe(true);
-            expect(exiled.knownTo).toEqual(["p1"]);
+            // CR 406.3 (issue #3001) — exiled FACE UP: Laelia's oracle says
+            // nothing about a face-down exile, so no per-viewer knowledge is
+            // stamped and the opponent may examine the card.
+            expect(exiled.knownTo).toBeUndefined();
+            expect(exiled.faceDownBy).toBeUndefined();
+        });
+
+        // MANDATORY wire format: the exile pile is a board outcome, and the
+        // client sees only the projection. CR 406.3's first sentence — exiled
+        // cards are kept face up and may be examined by any player.
+        it("wire format — the exiled card is FACE UP to BOTH players, playable by the controller alone (CR 406.3, issue #3001)", () => {
+            const laelia = makeInstance(laeliaTheBladeReforged.id, {
+                id: "laelia",
+                controllerId: "p1",
+                ownerId: "p1",
+                isAttacking: true,
+            });
+            const top = makeInstance(CHEAP_CARD_ID, {
+                id: "top",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { battlefield: [laelia], library: [top] }),
+                    makePlayer("p2"),
+                ],
+                combat: {
+                    attackerIds: ["laelia"],
+                    confirmed: true,
+                    blockerAssignments: {},
+                    blockersConfirmed: false,
+                },
+            });
+            pushAttackTrigger(state, laelia);
+
+            for (const viewer of ["p1", "p2"] as const) {
+                const projected = projectPublicState(state, 1, viewer);
+                const slim = projected.players[0].exile.find(
+                    (c) => c.id === "top"
+                )!;
+                expect(slim.card.id).toBe(CHEAP_CARD_ID);
+                expect(slim.card.id).not.toBe(FACE_DOWN_CARD_ID);
+                expect(slim.faceDown).toBeUndefined();
+                expect(slim.faceDownBy).toBeUndefined();
+            }
+
+            // Visibility is not permission (CR 601.3).
+            const forP2 = projectPublicState(state, 1, "p2");
+            expect(
+                forP2.players[0].exile.find((c) => c.id === "top")!
+                    .legalActions ?? []
+            ).toEqual([]);
         });
 
         it("does nothing when the library is empty", () => {
@@ -161,7 +214,7 @@ describe("Laelia, the Blade Reforged (issue #1558, CR 400.1 / 603.3b / 608.2i)",
                 castById: "p1",
             };
             const ctx = buildSpellContext(state, stackItem);
-            ctx.exileFaceDown("p1", "top", "library", "p1");
+            ctx.moveCardById("p1", "top", "library", "exile");
             resolveCollectedTriggers(state);
             expect(counterCount(state, "laelia")).toBe(1);
         });
@@ -193,7 +246,7 @@ describe("Laelia, the Blade Reforged (issue #1558, CR 400.1 / 603.3b / 608.2i)",
                 castById: "p1",
             };
             const ctx = buildSpellContext(state, stackItem);
-            ctx.exileFaceDown("p1", "dead", "graveyard", "p1");
+            ctx.moveCardById("p1", "dead", "graveyard", "exile");
             resolveCollectedTriggers(state);
             expect(counterCount(state, "laelia")).toBe(1);
         });
@@ -251,7 +304,7 @@ describe("Laelia, the Blade Reforged (issue #1558, CR 400.1 / 603.3b / 608.2i)",
                 castById: "p1",
             };
             const ctx = buildSpellContext(state, stackItem);
-            ctx.exileFaceDown("p2", "opp-top", "library", "p1");
+            ctx.moveCardById("p2", "opp-top", "library", "exile");
             resolveCollectedTriggers(state);
             expect(counterCount(state, "laelia")).toBe(0);
         });
@@ -340,10 +393,10 @@ describe("Laelia, the Blade Reforged (issue #1558, CR 400.1 / 603.3b / 608.2i)",
                 castById: "p1",
             };
             const ctx = buildSpellContext(state, stackItem);
-            ctx.exileFaceDown("p1", "c1", "library", "p1");
+            ctx.moveCardById("p1", "c1", "library", "exile");
             resolveCollectedTriggers(state);
             expect(counterCount(state, "laelia")).toBe(1);
-            ctx.exileFaceDown("p1", "c2", "library", "p1");
+            ctx.moveCardById("p1", "c2", "library", "exile");
             resolveCollectedTriggers(state);
             expect(counterCount(state, "laelia")).toBe(2);
         });
@@ -413,7 +466,7 @@ describe("Laelia, the Blade Reforged (issue #1558, CR 400.1 / 603.3b / 608.2i)",
                 castById: "p1",
             };
             const ctx = buildSpellContext(state, stackItem);
-            ctx.exileFaceDown("p1", "top", "library", "p1");
+            ctx.moveCardById("p1", "top", "library", "exile");
             resolveCollectedTriggers(state);
             expect(counterCount(state, "laelia")).toBe(1);
 

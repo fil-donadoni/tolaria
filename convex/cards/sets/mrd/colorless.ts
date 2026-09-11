@@ -26,8 +26,8 @@ const CHROME_MOX_COLORS = ["W", "U", "B", "R", "G"] as const;
 // hand" has no Effect Script Op skin (the DSL `exile` Op only takes an
 // on-battlefield/stack object ref, not a hand-zone choice pick — issue #679
 // audit). The ETB composes shipped SpellContext primitives directly:
-// `requestChoice(zone:"hand")` + `exileFaceDown` (CR 406.3, hidden to the
-// opponent, known to the controller).
+// `requestChoice(zone:"hand")` + `moveCardById(..., "exile")` (CR 406.2/406.3
+// — the imprinted card is exiled FACE UP and both players may read it).
 //
 // The exiled card's colours are stamped as zero-weight counters
 // (`imprint-<color>`) on Chrome Mox's own instance — CR 122 counters are a

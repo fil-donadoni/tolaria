@@ -29,7 +29,7 @@ import {
 } from "./gre/rules";
 import { canSummonCompanion } from "./gre/companion";
 import { canTurnFaceUp } from "./gre/morph";
-import { isFaceDownExile, isHiddenFromKnower } from "./gre/faceDown";
+import { isFaceDownExile } from "./gre/faceDown";
 import {
     computeLibraryTopLookedAtPlayers,
     computeLibraryTopRevealedPlayers,
@@ -732,15 +732,14 @@ function projectExileCard(
     // the same question, and drifting apart is the one way the face-down leak
     // reopens (issue #3413).
     if (!isFaceDownExile(card)) return decorate(slimCard(card));
-    // A viewer allowed to look sees the real card. Since issue #2904 they are
-    // also TOLD it is face down — but ONLY when it genuinely is face down TO
-    // THEM. `knownTo` on an exiled card is overloaded (ADR 0026): it backs both
-    // the CR 406.3 cards whose oracle says "face down" AND the impulse idiom,
-    // whose paper card lies FACE UP in front of its controller and is routed
-    // through the same primitive purely to hide it from the opponent. Painting
-    // a Ragavan/Laelia exile as a card back to its own controller would widen
-    // that one-sided divergence into a two-sided one, so the marker is gated on
-    // the producer (`isHiddenFromKnower`) rather than on `knownTo` alone.
+    // A viewer allowed to look sees the real card, and since issue #2904 is
+    // also TOLD it is face down: every card reaching this branch is one whose
+    // ORACLE TEXT says "face down" (Memory Jar, Necropotence, Headliner
+    // Scarlett, CR 702.75a hideaway), and CR 406.3 gives its knower a LOOK —
+    // the preview's second face — not a pile tile stating the identity
+    // outright. Unconditional since issue #3001 retired the impulse idiom's
+    // knowledge stamp: `knownTo` on an exiled card no longer backs two
+    // mechanics with opposite answers, so there is no producer to gate on.
     //
     // `faceDown` is the same marker the battlefield leg carries; the exile
     // instance never sets it in raw state (CR 406.3 hides a CARD, it does not
@@ -748,12 +747,7 @@ function projectExileCard(
     // the client branch on a projected field instead of inferring face-down-ness
     // from the ABSENCE of a sentinel id.
     if (card.knownTo?.includes(viewerId)) {
-        const slimmedKnown = slimCard(card);
-        return decorate(
-            isHiddenFromKnower(card.faceDownBy)
-                ? { ...slimmedKnown, faceDown: true }
-                : slimmedKnown
-        );
+        return decorate({ ...slimCard(card), faceDown: true });
     }
     // Everyone else sees a face-down card with the identity hidden — but still
     // pinned to its permanent (the association is public; the identity is not).

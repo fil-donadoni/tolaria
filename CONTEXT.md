@@ -388,7 +388,7 @@ _Avoid_: Suspend (that exiles with time counters and casts itself), morph, "flas
 
 **Foretold Card**:
 A card in exile as a result of the **Foretell** special action: face down (a **Hidden Zone** exception inside the otherwise public **Exile**), lookable by its owner alone, castable by them for its **Foretell Cost** — but only once the turn it was foretold has _ended_. Any later turn qualifies, including an opponent's, so a foretold instant is a live response held outside the hand; the card's own type then governs timing as usual. A foretold card that is never cast simply stays exiled. All foretold cards are revealed to everyone when the game ends (CR 702.143f).
-_Avoid_: Impulse-exiled card (also face down in exile, but playable only for a limited window and never revealed at game end), suspended card
+_Avoid_: Impulse-exiled card (face **up** in exile — CR 406.3's default, since no impulse oracle text says otherwise; what distinguishes it is its one-turn play window, not secrecy), suspended card
 
 **Foretell Cost**:
 The alternative cost (CR 601.2b) a **Foretold Card** may be cast for instead of its **Mana Cost**. Distinct from the {2} paid to foretell, which is a cost of the **Special Action**, not of the spell. A foretold card may also be cast for its normal cost by any other means — it stays "foretold" either way (CR 702.143c).

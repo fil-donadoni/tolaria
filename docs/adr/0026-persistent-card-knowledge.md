@@ -1,6 +1,7 @@
 # ADR 0026 — Persistent per-card knowledge (`knownTo`) replaces choice-derived visibility
 
-**Status:** Accepted (2026-06-19)
+**Status:** Accepted (2026-06-19), amended 2026-09-11 (issue #3001 — the
+impulse idiom exiles FACE UP; see the `knownTo` bullet below)
 
 ## Context
 
@@ -39,9 +40,23 @@ make projection a pure function of it.
   field serves both information classes:
     - _look_ effects add the **looker** only.
     - _reveal_ effects add **all** players.
-    - face-down exile (impulse-draw) adds the **controller** — reusing
-      `knownTo`, **not** a parallel mechanism. `faceDownOf` stays scoped to
-      battlefield morphs.
+    - ~~face-down exile (impulse-draw) adds the **controller**~~ — **amended
+      (issue #3001):** a **face-down exile** adds the one player entitled to
+      look, reusing `knownTo`, **not** a parallel mechanism (`faceDownOf`
+      stays scoped to battlefield morphs) — but the **impulse idiom is not a
+      face-down exile**. "Exile the top card of your library; you may play
+      that card this turn" (Ragavan, Laelia, Inti, Robber of the Rich, Fallen
+      Shinobi, Urza, Elkin Bottle, Ice Cauldron) names no face-down exile, so
+      CR 406.3's first sentence holds — "exiled cards are, by default, kept
+      face up and may be examined by any player at any time" — and those
+      cards stamp **nothing**: they reach exile through the ordinary
+      zone-mover, which empties `knownTo` on entry to a public zone.
+      `exileFaceDown` now serves only the cards whose ORACLE TEXT says "face
+      down" (Memory Jar, Necropotence, Headliner Scarlett, CR 702.75a
+      hideaway), and its `producer` argument is **required** so a new call
+      site cannot inherit opponent-hiding by omission. Visibility and
+      permission are orthogonal: the play/cast grant stays scoped to one
+      player regardless.
 
 - **Persistence.** `knownTo` lives on the instance and **persists across
   hidden→hidden moves** (drawing a card whose top-of-library identity an

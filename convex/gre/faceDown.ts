@@ -51,41 +51,29 @@ export type FaceDownProducer =
      *  The object is a CARD in exile, not a permanent, and it is face down for
      *  its knower too — CR 406.3 lets them LOOK, which is the preview's second
      *  face, not the pile tile. */
-    | "face-down-exile"
-    /** The IMPULSE idiom (ADR 0026) — "exile the top card of your library;
-     *  until end of turn you may play it" (Ragavan, Laelia, Inti, Robber of
-     *  the Rich, Elkin Bottle, Ice Cauldron). In paper these exile FACE UP: no
-     *  oracle text says otherwise, and CR 406.3's first sentence makes face up
-     *  the default. The engine routes them through the same `knownTo`
-     *  primitive purely to hide them from the OPPONENT, a documented ADR 0026
-     *  divergence — so the card is NOT face down to its own controller, and
-     *  {@link isHiddenFromKnower} is what keeps that divergence one-sided
-     *  instead of letting the display widen it (issue #2904 review). */
-    | "impulse-exile";
+    | "face-down-exile";
 
-/** Is this object face down to the player ENTITLED to know it — or merely
- *  hidden from everyone else? Only the second case exists, and only in exile:
- *  the impulse idiom's paper card lies face UP in front of its controller, so
- *  painting them a card back would state a rule the game does not have. Every
- *  genuine face-down mechanic is hidden from its knower too (they may LOOK —
- *  CR 708.5 / CR 406.3 — which the preview's second face is).
+/** The runtime census of {@link FaceDownProducer} — a TOTAL `Record`, so a new
+ *  member fails the type-check here until it is listed, exactly like the
+ *  client's face table.
  *
- *  A total `Record`, like the client's face table: a new producer must decide
- *  this before it compiles. An ABSENT producer answers `false` — state
- *  persisted before #2904 renders exactly as it did then, and a face-down
- *  PERMANENT never reaches this question anyway (its `card.id` is the
- *  sentinel, which the client keys on directly). */
-const HIDDEN_FROM_KNOWER: Record<FaceDownProducer, boolean> = {
+ *  It exists because a producer can be RETIRED (issue #3001 retired
+ *  `"impulse-exile"`), and a retired member does not disappear from state that
+ *  was already persisted: `gameStates` holds ONE row per game, patched in
+ *  place, so a game in flight when the change lands still carries the old
+ *  string. The type assertion at the deserialize seam believes whatever it
+ *  reads, so without this the stale value flows to the client and indexes a
+ *  `Record` that no longer has the row. */
+const FACE_DOWN_PRODUCER_CENSUS: Record<FaceDownProducer, true> = {
     morph: true,
     "cast-face-down": true,
     "face-down-exile": true,
-    "impulse-exile": false,
 };
 
-export function isHiddenFromKnower(
-    producer: FaceDownProducer | undefined
-): boolean {
-    return producer === undefined ? false : HIDDEN_FROM_KNOWER[producer];
+/** Is `value` a producer this build still knows? `false` for a RETIRED one
+ *  read back out of persisted state (issue #3001) — see the census above. */
+export function isFaceDownProducer(value: unknown): value is FaceDownProducer {
+    return typeof value === "string" && value in FACE_DOWN_PRODUCER_CENSUS;
 }
 
 /** CR 406.3 / ADR 0026 — is this EXILED card face down: does anyone NOT know
@@ -94,8 +82,13 @@ export function isHiddenFromKnower(
  *  The gate is the per-viewer `knownTo` grant and nothing else. Exile is an
  *  open zone (CR 406.1), so a card there is public to everyone UNLESS an
  *  exiling effect scoped its identity to specific viewers — which is exactly
- *  what `exileFaceDownCard` stamps for hideaway (CR 702.75a) and for an
- *  impulse draw, and exactly what `projectExileCard` re-derives on the wire.
+ *  what `exileFaceDownCard` stamps for the cards whose ORACLE TEXT says "face
+ *  down" (Memory Jar, Necropotence, Headliner Scarlett, CR 702.75a hideaway),
+ *  and exactly what `projectExileCard` re-derives on the wire. The impulse
+ *  idiom is NOT one of them (issue #3001): "exile the top card of your
+ *  library; you may play it this turn" names no face-down exile, so CR 406.3's
+ *  first sentence leaves the card face up and examinable by any player — it
+ *  reaches exile through the ordinary zone-mover, which stamps nothing.
  *
  *  Deliberately NOT `faceDownBy` (issue #3413): `moveCard` keeps that marker
  *  alive across a move INTO exile while it deletes `knownTo`, so a card that

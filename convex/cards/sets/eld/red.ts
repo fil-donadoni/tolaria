@@ -14,8 +14,10 @@ import type { CardDefinition, SpellContext } from "../../types";
 //
 // PROTOCOL (impulse-draw off an opponent's library — no Op skin, precedent:
 // Elkin Bottle / Ice Cauldron, ice/colorless.ts): composes `peekLibraryTop` +
-// `exileFaceDown` + `grantCastFromExile`, same idiom, sourced from the
-// defending player's library instead of the caster's own.
+// `moveCardById(..., "exile")` + `grantCastFromExile`, same idiom, sourced
+// from the defending player's library instead of the caster's own. The exile
+// is FACE UP (CR 406.3, issue #3001) — the defending player watches their own
+// card leave and may examine it.
 //
 // SIMPLIFICATIONS (flagged, stacked on the above) (tracked-by: #2785):
 //   - "During any turn you attacked with a Rogue" — matching every other
@@ -65,13 +67,11 @@ export const robberOfTheRich: CardDefinition = {
                 const top = ctx.peekLibraryTop(defenderId, 1);
                 if (top.length === 0) return; // empty library
                 const cardId = top[0];
-                // CR 406.3 — exiled hidden to the opponent, known to controller.
-                ctx.exileFaceDown(
-                    defenderId,
-                    cardId,
-                    "library",
-                    ctx.controller
-                );
+                // CR 406.3 — exiled FACE UP, in the DEFENDING player's own
+                // exile (CR 400.7): the oracle text says nothing about a
+                // face-down exile, so both players — the card's own owner
+                // included — may examine it (issue #3001).
+                ctx.moveCardById(defenderId, cardId, "library", "exile");
                 // Cross-player grant (issue #679 fix): the card is owned by
                 // (and stays exiled in) the DEFENDING player's zone, CR
                 // 400.7, but the ATTACKING player is granted cast permission.

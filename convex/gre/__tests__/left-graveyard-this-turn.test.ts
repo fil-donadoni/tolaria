@@ -106,11 +106,23 @@ describe("leftGraveyardThisTurn tally (CR 400.7)", () => {
             zone: "library",
         });
         expect(
-            exileFaceDownCard(state.players[0], "gy-a", "graveyard", "p1")
+            exileFaceDownCard(
+                state.players[0],
+                "gy-a",
+                "graveyard",
+                "p1",
+                "face-down-exile"
+            )
         ).not.toBeNull();
         expect(state.players[0].leftGraveyardThisTurn).toBe(1);
         // The library leg is not a graveyard departure and must not tally.
-        exileFaceDownCard(state.players[0], "lib-a", "library", "p1");
+        exileFaceDownCard(
+            state.players[0],
+            "lib-a",
+            "library",
+            "p1",
+            "face-down-exile"
+        );
         expect(state.players[0].leftGraveyardThisTurn).toBe(1);
     });
 

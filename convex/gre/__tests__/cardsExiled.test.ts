@@ -242,7 +242,7 @@ describe("CARDS_EXILED emission (issue #1558, CR 400.1 / 603.3b / 608.2i)", () =
         });
         const stackItem = pushSpell(state, P1_SORCERY_ID, "p1");
         const ctx = buildSpellContext(state, stackItem);
-        ctx.exileFaceDown("p1", "top", "library", "p1");
+        ctx.exileFaceDown("p1", "top", "library", "p1", "face-down-exile");
         const exiledEvents = cardsExiledEvents(flushPendingEvents(state));
         expect(exiledEvents).toHaveLength(1);
         expect(exiledEvents[0].cards).toEqual([

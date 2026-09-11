@@ -1194,7 +1194,12 @@ describe("clearKnowledge (ADR 0026)", () => {
     });
 });
 
-describe("exileFaceDownCard — impulse-draw (ADR 0026 slice 6, CR 406.3)", () => {
+// The primitive for the cards whose ORACLE TEXT says "face down" (Memory Jar,
+// Necropotence, Headliner Scarlett, CR 702.75a hideaway). Since issue #3001 it
+// serves nothing else: the impulse idiom exiles FACE UP through `moveCard`,
+// and the `producer` argument is REQUIRED so a new call site cannot inherit
+// opponent-hiding by omission.
+describe("exileFaceDownCard — oracle face-down exile (ADR 0026 slice 6, CR 406.3)", () => {
     it("moves the card to exile and stamps ONLY the controller into knownTo", () => {
         const card = makeCard({
             id: "top",
@@ -1204,7 +1209,13 @@ describe("exileFaceDownCard — impulse-draw (ADR 0026 slice 6, CR 406.3)", () =
         });
         const player = makePlayer({ id: "p1", library: [card] });
 
-        const exiled = exileFaceDownCard(player, "top", "library", "p1");
+        const exiled = exileFaceDownCard(
+            player,
+            "top",
+            "library",
+            "p1",
+            "face-down-exile"
+        );
 
         expect(player.library).toHaveLength(0);
         expect(player.exile).toHaveLength(1);
@@ -1213,8 +1224,8 @@ describe("exileFaceDownCard — impulse-draw (ADR 0026 slice 6, CR 406.3)", () =
     });
 
     it("grants knowledge to the controller even when they are not the owner", () => {
-        // p1 impulse-exiles the top of p2's library (e.g. a theft effect): only
-        // p1 (the knower) ends up in knownTo, never the owner p2 by default.
+        // p1 exiles the top of p2's library face down (e.g. a theft effect):
+        // only p1 (the knower) ends up in knownTo, never the owner p2.
         const card = makeCard({
             id: "top",
             zone: "library",
@@ -1223,7 +1234,13 @@ describe("exileFaceDownCard — impulse-draw (ADR 0026 slice 6, CR 406.3)", () =
         });
         const owner = makePlayer({ id: "p2", library: [card] });
 
-        const exiled = exileFaceDownCard(owner, "top", "library", "p1");
+        const exiled = exileFaceDownCard(
+            owner,
+            "top",
+            "library",
+            "p1",
+            "face-down-exile"
+        );
 
         expect(exiled?.knownTo).toEqual(["p1"]);
         expect(exiled?.knownTo).not.toContain("p2");
@@ -1237,7 +1254,7 @@ describe("exileFaceDownCard — impulse-draw (ADR 0026 slice 6, CR 406.3)", () =
         const player = makePlayer({ id: "p1", library: [faceUp, faceDown] });
 
         moveCard(player, "up", "library", "exile");
-        exileFaceDownCard(player, "down", "library", "p1");
+        exileFaceDownCard(player, "down", "library", "p1", "face-down-exile");
 
         const upInExile = player.exile.find((c) => c.id === "up")!;
         const downInExile = player.exile.find((c) => c.id === "down")!;
@@ -1289,7 +1306,13 @@ describe("exileFaceDownCard — impulse-draw (ADR 0026 slice 6, CR 406.3)", () =
         const card = makeCard({ id: "top", zone: "library" });
         const player = makePlayer({ id: "p1", library: [card] });
 
-        const exiled = exileFaceDownCard(player, "top", "library", "p1");
+        const exiled = exileFaceDownCard(
+            player,
+            "top",
+            "library",
+            "p1",
+            "face-down-exile"
+        );
 
         expect(exiled?.faceDownOf).toBeUndefined();
     });
@@ -1297,7 +1320,13 @@ describe("exileFaceDownCard — impulse-draw (ADR 0026 slice 6, CR 406.3)", () =
     it("returns null for an id not in the source zone (no-op)", () => {
         const player = makePlayer({ id: "p1", library: [] });
         expect(
-            exileFaceDownCard(player, "missing", "library", "p1")
+            exileFaceDownCard(
+                player,
+                "missing",
+                "library",
+                "p1",
+                "face-down-exile"
+            )
         ).toBeNull();
         expect(player.exile).toHaveLength(0);
     });
@@ -1306,7 +1335,7 @@ describe("exileFaceDownCard — impulse-draw (ADR 0026 slice 6, CR 406.3)", () =
         const card = makeCard({ id: "top", zone: "library" });
         const player = makePlayer({ id: "p1", library: [card] });
 
-        exileFaceDownCard(player, "top", "library", "p1");
+        exileFaceDownCard(player, "top", "library", "p1", "face-down-exile");
         // A later face-up move out of exile to hand strips the stale knowledge
         // via moveCard's public-zone rule path on re-entry. Here we move it back
         // to hand directly: knownTo persists hidden→hidden, but a subsequent

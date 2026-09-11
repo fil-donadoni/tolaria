@@ -6269,8 +6269,8 @@ export interface SpellContext {
      *  Separate from the persistent `markKnown` / `markKnownToAll` knowledge
      *  grant (which the caller still performs): this only drives the momentary
      *  "here is what was revealed" popup. Opt-in for pure look/peek/reveal cards
-     *  (Mishra's Bauble, Gitaxian Probe) so scry / surveil / impulse-exile never
-     *  pop a dialog. `kind` is `"look"` for a private look (audience = one
+     *  (Mishra's Bauble, Gitaxian Probe) so scry / surveil / a face-down exile
+     *  never pop a dialog. `kind` is `"look"` for a private look (audience = one
      *  player) or `"reveal"` for a public reveal (audience = all). No-op for an
      *  empty audience or an empty/unresolvable card set. */
     notifyReveal: (
@@ -6280,28 +6280,33 @@ export interface SpellContext {
         kind: "look" | "reveal"
     ) => void;
 
-    /** Impulse-draw (ADR 0026, PRD #338 — slice 6). Exiles `cardInstanceId`
-     *  (owned by `ownerId`) FACE DOWN from `from`, granting knowledge to
-     *  `knowerId` alone (the controller of the effect). The card moves to its
-     *  owner's exile pile but its identity stays secret to everyone except
-     *  `knowerId`: opponents see a face-down card (CR 406.3 — a card exiled
-     *  face down is hidden from all players an effect doesn't let look at it).
-     *  Reuses the `knownTo` mechanism, NOT `faceDownOf` (which stays scoped to
+    /** Face-down exile (CR 406.3, ADR 0026 / PRD #338 slice 6). Exiles
+     *  `cardInstanceId` (owned by `ownerId`) FACE DOWN from `from`, granting
+     *  knowledge to `knowerId` alone. The card moves to its owner's exile pile
+     *  but its identity stays secret to everyone except `knowerId`: every
+     *  other player sees a face-down card (CR 406.3 — a card exiled face down
+     *  is hidden from all players an effect doesn't let look at it). Reuses
+     *  the `knownTo` mechanism, NOT `faceDownOf` (which stays scoped to
      *  battlefield morphs, CR 708). The projection re-derives the per-viewer
-     *  gate from `knownTo`. No-op for an id not currently in `from`. */
+     *  gate from `knownTo`. No-op for an id not currently in `from`.
+     *
+     *  ONLY for a card whose ORACLE TEXT says "face down" (Memory Jar,
+     *  Necropotence, Headliner Scarlett, CR 702.75a hideaway). The impulse
+     *  idiom — "exile the top card of your library; you may play it this
+     *  turn" — names no face-down exile, so CR 406.3's FIRST sentence keeps
+     *  its card face up and examinable by any player: those cards call
+     *  `moveCardById(owner, id, from, "exile")` and grant the play permission
+     *  separately (issue #3001; visibility and permission are orthogonal). */
     exileFaceDown: (
         ownerId: string,
         cardInstanceId: string,
         from: "library" | "hand" | "graveyard",
         knowerId: string,
-        /** WHICH mechanic hid it (issue #2904 review). `"face-down-exile"` for
-         *  a card whose ORACLE TEXT says "face down" (Memory Jar,
-         *  Necropotence, Headliner Scarlett, hideaway) — face down to its
-         *  knower too, who may LOOK. The default `"impulse-exile"` is the
-         *  ADR 0026 idiom, which exiles FACE UP in paper (CR 406.3's default)
-         *  and is routed through this primitive only to hide it from the
-         *  opponent: its knower keeps seeing the real card. */
-        producer?: "face-down-exile" | "impulse-exile"
+        /** WHICH mechanic hid it (issue #2904 review) — REQUIRED since issue
+         *  #3001, whose whole point is that a new call site cannot inherit
+         *  opponent-hiding by omitting an argument. One legal value: the
+         *  oracle-face-down exile. */
+        producer: "face-down-exile"
     ) => void;
 
     /** Reveals `targetPlayerId`'s hand to the controller via a display-only

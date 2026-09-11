@@ -166,8 +166,9 @@ export const forceOfNegation: CardDefinition = {
 //      601.3 / 608.2g impulse-play idiom, CR 701.24 shuffle.) Composes
 //      shipped `SpellContext` primitives exactly like Elkin Bottle
 //      (`ice/colorless.ts`) plus a leading shuffle: `shuffleLibrary` →
-//      `peekLibraryTop` → `exileFaceDown` (CR 406.3 — hidden to the opponent,
-//      known to the controller) → `grantCastFromExile` with `"this-turn"` +
+//      `peekLibraryTop` → `moveCardById(..., "exile")` (CR 406.3 — FACE UP,
+//      examinable by both players, issue #3001) → `grantCastFromExile` with
+//      `"this-turn"` +
 //      `withoutPayingManaCost: true` (Dauthi Voidwalker's own
 //      `withoutPayingManaCost` precedent, `mh2/black.ts`).
 //
@@ -287,9 +288,11 @@ export const urzaLordHighArtificer: CardDefinition = {
                 const top = ctx.peekLibraryTop(ctx.caster, 1);
                 if (top.length === 0) return; // empty library (CR 608.2b)
                 const cardId = top[0];
-                // CR 406.3 — exiled hidden to the opponent, known to the
-                // controller.
-                ctx.exileFaceDown(ctx.caster, cardId, "library", ctx.caster);
+                // CR 406.3 — exiled FACE UP: the oracle text says nothing
+                // about a face-down exile, so the default holds and BOTH
+                // players may examine the card (issue #3001). The play
+                // permission below is the separate, one-player half.
+                ctx.moveCardById(ctx.caster, cardId, "library", "exile");
                 // CR 601.3 / 118.9 — cast/play permission until end of turn,
                 // without paying the mana cost. `includesLand: true`: the
                 // oracle says "play", not "cast" (CR 305.9, issue #1689).

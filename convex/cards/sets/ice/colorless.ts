@@ -573,8 +573,9 @@ export const crownOfTheAges: CardDefinition = {
 // beginning of your next upkeep, you may play that card." (CR 601.3 / 305.1-analog / 608.2g
 // play-from-exile, the Impulse idiom.) Composes shipped primitives:
 //   - `peekLibraryTop(caster, 1)` reads the top card's instance id (CR 401.1).
-//   - `exileFaceDown(caster, id, "library", caster)` exiles it hidden to the
-//     opponent but known to its controller (CR 406.3), same as Ice Cauldron.
+//   - `moveCardById(caster, id, "library", "exile")` exiles it FACE UP — the
+//     oracle names no face-down exile, so CR 406.3's default holds and both
+//     players may examine it (issue #3001), same as Ice Cauldron.
 //   - `grantCastFromExile(id, caster)` marks it castable from exile by the
 //     controller (CR 601.3 / 305.1-analog) — the shipped impulse-play seam (#666).
 // SIMPLIFICATION (tracked-by: #2785) (flagged, CR 608.2g): the "until the beginning of your next
@@ -601,13 +602,15 @@ export const elkinBottle: CardDefinition = {
             useStack: true,
             // Long-tail impulse primitive (ADR 0045): exile-top + cast-from-exile
             // has no Op skin yet; the resolve() composes shipped SpellContext
-            // primitives (peekLibraryTop / exileFaceDown / grantCastFromExile).
+            // primitives (peekLibraryTop / moveCardById / grantCastFromExile).
             resolve: (ctx: SpellContext) => {
                 const top = ctx.peekLibraryTop(ctx.caster, 1);
                 if (top.length === 0) return; // empty library
                 const cardId = top[0];
-                // CR 406.3 — exiled hidden to the opponent, known to controller.
-                ctx.exileFaceDown(ctx.caster, cardId, "library", ctx.caster);
+                // CR 406.3 — exiled FACE UP: the oracle text says nothing
+                // about a face-down exile, so both players may examine it
+                // (issue #3001).
+                ctx.moveCardById(ctx.caster, cardId, "library", "exile");
                 // CR 601.3 / 305.1-analog — controller may play/cast from exile.
                 // CR 305.9 (issue #1689) — oracle says "you may play that
                 // card", land-inclusive.
@@ -829,8 +832,9 @@ export const hematiteTalisman: CardDefinition = makeTalisman({
 // exiled with this artifact."
 //
 // Ability 1 (`noteManaSpent: true`) captures the colours spent on {X}, exiles
-// the chosen nonland card face down (`exileFaceDown` — hidden to the opponent,
-// CR 406.3), grants it cast-from-exile (`grantCastFromExile`), and stores the
+// the chosen nonland card FACE UP (`moveCardById` to exile — the oracle names
+// no face-down exile, so CR 406.3's default holds and both players may examine
+// it, issue #3001), grants it cast-from-exile (`grantCastFromExile`), and stores the
 // noted mana on the artifact keyed to that card's instance id (so the replayed
 // mana is spendable only on it, CR 106.6 instance-restricted mana). Ability 2
 // removes the counter and replays the noted mana via `addNotedMana`; because the
@@ -880,13 +884,15 @@ export const iceCauldron: CardDefinition = {
                     if (picks === undefined) return; // suspended — resume later
                     if (picks.length > 0) {
                         exiledCardId = picks[0];
-                        // CR 406.3 — exiled face down (hidden to the opponent),
-                        // known to its controller.
-                        ctx.exileFaceDown(
+                        // CR 406.3 — exiled FACE UP: the oracle text says
+                        // nothing about a face-down exile, so both players
+                        // may examine the exiled card even though it came
+                        // from a hidden zone (issue #3001).
+                        ctx.moveCardById(
                             ctx.caster,
                             exiledCardId,
                             "hand",
-                            ctx.caster
+                            "exile"
                         );
                         // CR 601.3 — castable from exile by the controller.
                         ctx.grantCastFromExile(exiledCardId, ctx.caster);

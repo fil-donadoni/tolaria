@@ -81,7 +81,7 @@ function makeCard(id: string): CardInstance {
 }
 
 describe("CardsPile — collapsed stack is open-only (no play-on-open)", () => {
-    // Regression: an impulse-exiled card (Headliner Scarlett) whose exile
+    // Regression: an exiled card playable from exile (Headliner Scarlett) whose
     // projection carries legalActions used to render as a `SelectableCard` in
     // the COLLAPSED stack, so a single pile click both played the card and
     // opened the reveal dialog. The collapsed stack must be a plain,
