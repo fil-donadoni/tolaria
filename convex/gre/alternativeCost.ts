@@ -404,8 +404,9 @@ export function getAlternativeCost(
  *  the rules for paying alternative costs in rules 601.2b and 601.2f–h"),
  *  gated by the SAME `canPayAlternativeCost` affordability check as every
  *  other alt cost. CR 702.109 — also offers `def.dash` (Dash's cast permission
- *  is likewise CR 118.9 infra, 702.109a). CR 702.185 — and `def.warp`, on the
- *  same terms. NOTE: `canPayAlternativeCost` checks
+ *  is likewise CR 118.9 infra, 702.109a).
+ *  CR 702.185 — Warp's is the same, `def.warp`, on the same terms.
+ *  NOTE: `canPayAlternativeCost` checks
  *  only the condition/permanent/life/hand legs — Dash's `mana` leg is NOT
  *  checked here (a dash cost is always "offered"; its mana affordability is
  *  checked separately by `convex/gre/rules.ts`'s "cast" legality gate, the
