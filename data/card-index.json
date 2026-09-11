@@ -29911,11 +29911,11 @@
     },
     {
         "name": "Shadowblood Ridge",
-        "scryfallId": "d7af1d6b-ff13-4886-a212-4a6e09153475",
+        "scryfallId": "69a5f84a-9e9b-42b6-a973-864409d6e564",
         "oracleId": "15687ee3-3cdb-4a8f-a726-46b73bceb792",
-        "firstSet": "dsc",
-        "firstPrintId": "d7af1d6b-ff13-4886-a212-4a6e09153475",
-        "firstPrintSet": "dsc",
+        "firstSet": "ody",
+        "firstPrintId": "69a5f84a-9e9b-42b6-a973-864409d6e564",
+        "firstPrintSet": "ody",
         "rarity": "rare",
         "source": "compiled"
     },
