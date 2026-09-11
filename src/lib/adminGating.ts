@@ -6,6 +6,7 @@
 
 export interface AdminGateUser {
     isAdmin?: boolean;
+    isTester?: boolean;
 }
 
 /**
@@ -50,4 +51,23 @@ export function canViewAdminSection(
     user: AdminGateUser | null | undefined
 ): boolean {
     return user?.isAdmin === true;
+}
+
+/**
+ * Whether this account may give a Verdict — judge a Bot decision as
+ * "it should have played X here" (issue #3402, PRD #3397, ADR 0124 §1).
+ *
+ * The client mirror of `isTesterUser` (`convex/auth.ts`), and it must keep
+ * agreeing with it: EVERY ADMIN IS A TESTER. The role is granted from the
+ * admin area, so an admin who did not count as a tester would have to grant it
+ * to themselves before they could judge anything — a boundary that protects
+ * nobody from anyone. The converse does not hold.
+ *
+ * Cosmetic, as always: `verdicts.submit` is `assertIsTester`-gated server-side
+ * and that is the real boundary. This decides whether a control renders.
+ */
+export function canSubmitVerdicts(
+    user: AdminGateUser | null | undefined
+): boolean {
+    return user?.isTester === true || user?.isAdmin === true;
 }

@@ -40,6 +40,12 @@ export const ADMIN_NAV: readonly AdminNavEntry[] = [
             "Archetypes, Capabilities and Combo Edges per card, plus the reviewed flag over the LLM-seeded census.",
     },
     {
+        to: "/admin/testers",
+        label: "Testers",
+        description:
+            "Who may give a Verdict about a Bot decision — the role the evaluation's weight fit is sourced from (ADR 0124).",
+    },
+    {
         to: "/admin/bug-reports",
         label: "Bug Reports",
         description:

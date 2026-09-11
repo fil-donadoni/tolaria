@@ -61,6 +61,17 @@ export function makeMutationCtx(
                 docs.set(id, { ...docs.get(id), ...patch });
             },
             query: (table: string) => ({
+                // A FULL SCAN — `.query(table).collect()` with no index, which
+                // is what a small admin-facing listing does. Kept beside
+                // `withIndex` rather than in place of it: the two read
+                // differently in a handler and a stub that answered both the
+                // same way would hide an index that does not exist.
+                collect: async () =>
+                    [...docs.values()].filter((d) => d.__table === table),
+                order: () => ({
+                    collect: async () =>
+                        [...docs.values()].filter((d) => d.__table === table),
+                }),
                 withIndex: (_name: string, fn?: (q: unknown) => unknown) => {
                     const eqs: [string, unknown][] = [];
                     const builder = {
@@ -75,7 +86,15 @@ export function makeMutationCtx(
                             d.__table === table &&
                             eqs.every(([f, v]) => d[f] === v)
                     );
-                    const ordered = { first: async () => rows[0] ?? null };
+                    // `.order(...)` returns the same row set: the stub has no
+                    // index ordering to apply, so a handler that orders
+                    // explicitly is exercised for its READ, not its sort (that
+                    // is the database's job). `collect` is here so such a
+                    // handler runs at all.
+                    const ordered = {
+                        first: async () => rows[0] ?? null,
+                        collect: async () => rows,
+                    };
                     return {
                         collect: async () => rows,
                         first: async () => rows[0] ?? null,

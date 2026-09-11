@@ -50,6 +50,17 @@ export default defineSchema({
         // may curate the built-in Preset Decks from the deck editor. Optional
         // so existing rows load unchanged (absent === not an admin).
         isAdmin: v.optional(v.boolean()),
+        // Tester flag (issue #3402, PRD #3397, ADR 0124 §1). A tester may
+        // submit a Verdict — "the Bot should have played X here" — from a real
+        // game, through `verdicts.submit`. SEPARATE from `isAdmin` because the
+        // two answer different questions: admin is "may curate the shared
+        // surfaces", tester is "this person's judgement about a Bot decision
+        // is worth fitting the evaluation to". Every admin IS a tester
+        // (`isTesterUser`) — the admin area is where the flag is granted, so an
+        // admin who could not judge would have to grant it to themselves — but
+        // a tester is not an admin. Optional, so existing rows load unchanged
+        // (absent === not a tester).
+        isTester: v.optional(v.boolean()),
         // Bug-report disclosure consent (issue #3255). Recorded HERE and not in
         // browser storage on purpose: browser storage is per-browser and is
         // cleared by the very class of problem a reporter is most likely to be
@@ -1156,6 +1167,78 @@ export default defineSchema({
         schemaVersion: v.optional(v.number()),
         createdAt: v.number(),
     }).index("by_user", ["userId"]),
+
+    // Verdicts given in a real game (issue #3402, PRD #3397, ADR 0124 §1).
+    //
+    // A Verdict is a POSITION AND AN ANSWER — the board as a `ScenarioSpec`,
+    // the candidate list the Bot's own enumerator produced, and which of them
+    // the judge says was right. Never a feature vector: the evaluation's terms
+    // change and a record made of numbers dies with them, while a record made
+    // of a board and "the right move was X" survives every refit
+    // (`convex/gre/ai/verdicts/types.ts` carries the full derivation).
+    //
+    // WHY THE TABLE AT ALL, given that the corpus that FEEDS the fit is
+    // `data/verdicts/**` in git. Judgements are given in a browser, mid-game,
+    // by whoever is playing — there is no filesystem there. The table is the
+    // INTAKE; `bun run verdicts:pull` is the one-way door from it into git,
+    // and the fit never reads this table. That is deliberate: a fit whose
+    // corpus lived in a deployment would be non-reproducible from a checkout,
+    // which ADR 0124 §3 forbids.
+    //
+    // `spec`/`setup` are `v.any()` for exactly the reason `debugScenarios.spec`
+    // is (ADR 0044): the shapes grow, and a row written under today's shape
+    // must still export after a field is added. The WRITE path is where the
+    // shape is checked — `submit`'s own argument validators.
+    verdicts: defineTable({
+        // The board, in the `ScenarioSpec` vocabulary.
+        spec: v.any(),
+        // `BladeSetupStep[]` walking the built board to the decision. Absent
+        // for a decision on a freshly built board.
+        setup: v.optional(v.any()),
+        // The seat that owed the decision (`BladeSeat`).
+        seat: v.union(v.literal("me"), v.literal("opp")),
+        // The candidates in the order `enumerateMoves` produced them: the
+        // structural move key plus the describer's sentence. No `Move` object
+        // is ever stored — moves carry instance ids, an artefact of how a
+        // state was BUILT, so a stored move rots the first time the builder
+        // allocates differently.
+        candidates: v.array(
+            v.object({ key: v.string(), description: v.string() })
+        ),
+        // The judgement. A discriminated union rather than one optional index,
+        // so no reader can take a `forbidden` record for one that names a
+        // right move.
+        answer: v.union(
+            v.object({
+                kind: v.literal("right"),
+                rightIndexes: v.array(v.number()),
+            }),
+            v.object({
+                kind: v.literal("forbidden"),
+                forbiddenIndexes: v.array(v.number()),
+            })
+        ),
+        // The Bot's OWN pick at the time, by candidate index — the whole point
+        // of an in-play verdict is that the Bot already answered and a human
+        // disagreed, so this is what makes the row a counter-example rather
+        // than a bare preference.
+        botPickIndex: v.optional(v.number()),
+        // Provenance: the game and the `seq` the decision was taken at. Kept
+        // as plain strings/numbers rather than `v.id("games")` because the row
+        // must survive the game's deletion — a verdict is a permanent record
+        // of a position, not a child of the match it came from.
+        gameId: v.optional(v.string()),
+        seq: v.optional(v.number()),
+        // Stamped from `ctx.auth` by `submit`, never from the client.
+        authorId: v.id("users"),
+        // The author's nickname AT THE TIME, denormalised on purpose: the
+        // exported file is read in a diff years later, and resolving a user id
+        // to a name then is neither possible nor interesting.
+        author: v.string(),
+        createdAt: v.number(),
+        note: v.optional(v.string()),
+    }).index("by_createdAt", ["createdAt"]),
+
     // Per-user Settings (issue #2595, PRD #2405 slice 16/16, ADR 0101). The
     // v3 tokens (density/motion) and the phase-stop store were device-local
     // (`localStorage` / CSS attribute default) until this table; unlike the

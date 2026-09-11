@@ -85,6 +85,12 @@ export type Verdict = {
      *  value, never `Date.now()`, or the derivation stops being deterministic. */
     createdAt: string;
     source: VerdictSource;
+    /** Where an `in-play` verdict was taken, when it is known (issue #3402).
+     *  Provenance only — nothing rebuilds from it, because the game it names
+     *  may be long deleted and the position is already here in `spec`. It
+     *  exists so that a file in `data/verdicts/` can still be traced back to
+     *  the match that produced it while anyone remembers it. */
+    origin?: { gameId?: string; seq?: number };
     /** Optional prose carried over from the source (a blade entry's `note`). */
     note?: string;
 };

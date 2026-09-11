@@ -26,6 +26,7 @@ import DraftLabRoute from "./routes/draft-lab.route";
 import AdminLayoutRoute from "./routes/admin/admin-layout.route";
 import AdminIndexRoute from "./routes/admin/admin-index.route";
 import AdminScenariosRoute from "./routes/admin/admin-scenarios.route";
+import AdminTestersRoute from "./routes/admin/admin-testers.route";
 import AdminBanlistsRoute from "./routes/admin/admin-banlists.route";
 import AdminPickRatingsRoute from "./routes/admin/admin-pick-ratings.route";
 import AdminCardProfilesRoute from "./routes/admin/admin-card-profiles.route";
@@ -281,6 +282,14 @@ const adminCardProfilesRoute = createRoute({
     component: AdminCardProfilesRoute,
 });
 
+// Tester roster (issue #3402, PRD #3397, ADR 0124 §1): who may give a Verdict
+// about a Bot decision, granted and revoked here.
+const adminTestersRoute = createRoute({
+    getParentRoute: () => adminRoute,
+    path: "testers",
+    component: AdminTestersRoute,
+});
+
 // Bug-report evidence (issue #2250, following PR #2243's public/private
 // split): reporter email, the full game state at the moment they filed, and
 // the attachment — previously reachable only via `bunx convex run
@@ -326,6 +335,7 @@ const routeTree = rootRoute.addChildren([
     adminRoute.addChildren([
         adminIndexRoute,
         adminScenariosRoute,
+        adminTestersRoute,
         adminBanlistsRoute,
         adminPickRatingsRoute,
         adminCardProfilesRoute,
