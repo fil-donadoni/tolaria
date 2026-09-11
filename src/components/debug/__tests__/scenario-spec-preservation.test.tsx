@@ -99,6 +99,16 @@ const STORED: Required<ScenarioSpec> = {
     lifeGainedThisTurn: { me: 3, opp: 0 },
     deathsThisTurn: 2,
     creatureAttackedThisTurn: true,
+    // CR 508.1c / 500.1 / 207.2c (issue #3450) — a curated row whose
+    // opponent did nothing last turn (no attack against them with an Arboria
+    // out), on an extra turn, with a permanent already gone this turn.
+    // Only the TRUE side of each flag pair: `false` is exactly what the
+    // builder's clear leaves, so the form writes only what it must and an
+    // `opp: false` would not survive — by design, and the same board.
+    qualifyingActionThisTurn: { me: true },
+    qualifyingActionLastTurn: { me: true },
+    turnsTaken: { me: 4, opp: 3 },
+    revolt: { me: true },
     // CR 102.1 / 117.1 / 117.4 (issue #3454) — a curated row pinning an
     // instant-speed decision on the opponent's turn.
     activePlayer: "opp",

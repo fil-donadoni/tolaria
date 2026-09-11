@@ -19,7 +19,10 @@ import {
 } from "../../cards/__tests__/setup";
 import { grizzlyBears } from "../../cards/sets/lea/green";
 import { gaeasTouch } from "../../cards/sets/drk/green";
-import { shivanDragon } from "../../cards/sets/lea/red";
+import { hillGiant, shivanDragon } from "../../cards/sets/lea/red";
+import { arboria } from "../../cards/sets/leg/green";
+import { fatalPush } from "../../cards/sets/aer/black";
+import { startingTown } from "../../cards/sets/fin/colorless";
 import { forest } from "../../cards/sets/lea/colorless";
 import { animateDead, fear, simulacrum } from "../../cards/sets/lea/black";
 import { onceUponATime } from "../../cards/sets/eld/green";
@@ -31,6 +34,7 @@ import {
     buildSpellContext,
     emitSpellCastEvent,
     resolveTopOfStack,
+    shouldEnterTapped,
 } from "../state";
 import {
     NO_TARGETING_SOURCE,
@@ -39,6 +43,7 @@ import {
     raiseTriggerTargetSelection,
 } from "../rules";
 import { collectTriggers } from "../triggers";
+import { validateAttackerEligibility } from "../combat";
 import type { GameState, PendingChoice } from "../state";
 import type { GameEvent } from "../../cards/types";
 import type { ScenarioSpec } from "../../debugScenarioSpec";
@@ -2408,5 +2413,212 @@ describe("buildStateFromScenario — retrospective per-turn tallies (issue #3453
                 d.startsWith("cleanupBookkeepingTurn:")
             )
         ).toBe(false);
+    });
+});
+
+describe("buildStateFromScenario — per-seat turn history (issue #3450)", () => {
+    // The four facts the lowering used to drop. As with #3449, each
+    // behavioural test asserts on the DECISION the rebuilt position poses —
+    // an enumerated attack, a creature that dies or does not — never on the
+    // field itself: a value that survives the round trip but changes no move
+    // is a value the verdict quiz cannot use.
+
+    it("seeds both qualifying-action flags, turnsTaken and revolt", () => {
+        const state = buildStateFromScenario(makeState(), {
+            cards: [],
+            qualifyingActionThisTurn: { me: true },
+            qualifyingActionLastTurn: { opp: true },
+            turnsTaken: { me: 4, opp: 3 },
+            revolt: { opp: true },
+        });
+
+        expect(state.players[0].qualifyingActionThisTurn).toBe(true);
+        expect(state.players[1].qualifyingActionThisTurn).toBeUndefined();
+        expect(state.players[1].qualifyingActionLastTurn).toBe(true);
+        expect(state.players[0].qualifyingActionLastTurn).toBeUndefined();
+        expect(state.players[0].turnsTaken).toBe(4);
+        expect(state.players[1].turnsTaken).toBe(3);
+        expect(state.players[1].permanentYouControlledLeftThisTurn).toBe(true);
+        expect(
+            state.players[0].permanentYouControlledLeftThisTurn
+        ).toBeUndefined();
+    });
+
+    // The three FLAGS are cleared before seeding, the `landsPlayed` treatment
+    // (issue #3446): a scenario places a position rather than replaying the
+    // turns that reached it, and `debugSetupScenario` builds onto the LIVE
+    // game. Without the clear a spec that says nothing would inherit that
+    // game's Arboria history and its Revolt.
+    it("clears the three flags the spec does not set, and leaves turnsTaken alone", () => {
+        const base = makeState();
+        base.players[0].qualifyingActionThisTurn = true;
+        base.players[0].qualifyingActionLastTurn = true;
+        base.players[1].qualifyingActionLastTurn = true;
+        base.players[0].permanentYouControlledLeftThisTurn = true;
+        base.players[0].turnsTaken = 7;
+
+        const state = buildStateFromScenario(base, { cards: [] });
+
+        expect(state.players[0].qualifyingActionThisTurn).toBeUndefined();
+        expect(state.players[0].qualifyingActionLastTurn).toBeUndefined();
+        expect(state.players[1].qualifyingActionLastTurn).toBeUndefined();
+        expect(
+            state.players[0].permanentYouControlledLeftThisTurn
+        ).toBeUndefined();
+        // `turnsTaken` is a LIFETIME count, like `spellsCastThisGame`: not
+        // cleared, which is why `specFromState` lowers it unconditionally.
+        expect(state.players[0].turnsTaken).toBe(7);
+    });
+
+    // ACCEPTANCE CRITERION — Arboria (CR 508.1c): "Creatures can't attack a
+    // player unless that player cast a spell or put a nontoken permanent onto
+    // the battlefield during their last turn." Asserted through
+    // `validateAttackerEligibility`, the authority the Bot's own
+    // `enumerateAttackerMoves` filters its candidates on — reached directly
+    // rather than through that wrapper because `gre/moves` is a bot-only
+    // module and this file is an APPLICATION test
+    // (`bot-suite-boundary.test.ts`). The whole failure this field closes is
+    // a rebuild offering attacks the Bot never had.
+    it("makes no attacker eligible against a defender who took no qualifying action last turn (CR 508.1c)", () => {
+        const board: ScenarioSpec = {
+            cards: [
+                { name: arboria.name, owner: "me", zone: "battlefield" },
+                { name: grizzlyBears.name, owner: "me", zone: "battlefield" },
+            ],
+        };
+        const bearEligible = (spec: ScenarioSpec): boolean => {
+            const state = buildStateFromScenario(makeState(), spec);
+            const bear = state.players[0].battlefield.find(
+                (c) => (c.card as { id: string }).id === grizzlyBears.id
+            );
+            expect(bear).toBeDefined();
+            return validateAttackerEligibility(
+                bear as NonNullable<typeof bear>,
+                state.players[1].battlefield,
+                state
+            ).eligible;
+        };
+
+        expect(bearEligible(board)).toBe(false);
+        // …and the same board with the DEFENDER's flag set admits the attack.
+        expect(
+            bearEligible({
+                ...board,
+                qualifyingActionLastTurn: { opp: true },
+            })
+        ).toBe(true);
+        // The flag is read off the DEFENDER, never the attacker: "me" having
+        // acted last turn does not open the attack on "opp".
+        expect(
+            bearEligible({ ...board, qualifyingActionLastTurn: { me: true } })
+        ).toBe(false);
+    });
+
+    // ACCEPTANCE CRITERION — Revolt, an ability word (CR 207.2c). Fatal Push
+    // destroys a mana-value-4 creature only with a permanent having left its
+    // controller's battlefield this turn. Asserted on the OUTCOME rather than
+    // on target legality: the card's `targetRequirement` is a plain
+    // `Creature`, so the flag moves the destroy threshold (2 -> 4) at
+    // RESOLUTION, never what the spell may be pointed at.
+    it("lets Fatal Push kill a mana-value-4 creature only with revolt seeded", () => {
+        const board: ScenarioSpec = {
+            cards: [
+                { name: fatalPush.name, owner: "me", zone: "hand" },
+                { name: hillGiant.name, owner: "opp", zone: "battlefield" },
+            ],
+        };
+
+        const kill = (spec: ScenarioSpec): boolean => {
+            const state = buildStateFromScenario(makeState(), spec);
+            const giant = state.players[1].battlefield[0];
+            pushSpell(state, fatalPush.id, state.players[0].id, [
+                { type: "permanent", id: giant.id },
+            ]);
+            while (state.stack.length > 0) resolveTopOfStack(state);
+            return !state.players[1].battlefield.some((c) => c.id === giant.id);
+        };
+
+        expect(kill({ ...board, revolt: { me: true } })).toBe(true);
+        expect(kill(board)).toBe(false);
+        // The flag is the CONTROLLER's own: the opponent's revolt does not
+        // raise Fatal Push's threshold.
+        expect(kill({ ...board, revolt: { opp: true } })).toBe(false);
+    });
+
+    // The fourth field earns its own DECISION too, so the block's claim holds
+    // for all four: Starting Town "enters tapped unless it's your first,
+    // second, or third turn of the game" (CR 614.1c), a predicate reading
+    // `turnsTaken` and nothing else (`cards/sets/fin/colorless.ts`). Asserted
+    // through `shouldEnterTapped`, the shared ETB oracle every placement site
+    // calls.
+    it("decides Starting Town's entry tapped or untapped off the seeded turnsTaken (CR 614.1c)", () => {
+        const entersTapped = (turnsTaken: number): boolean => {
+            const state = buildStateFromScenario(makeState(), {
+                cards: [],
+                turnsTaken: { me: turnsTaken },
+            });
+            const town = makeInstance(startingTown.id, {
+                controllerId: state.players[0].id,
+                ownerId: state.players[0].id,
+                zone: "battlefield",
+            });
+            return shouldEnterTapped(state, town);
+        };
+
+        expect(entersTapped(3)).toBe(false);
+        expect(entersTapped(4)).toBe(true);
+    });
+
+    it("round-trips all four through specFromState with nothing dropped", () => {
+        const live = buildStateFromScenario(makeState(), { cards: [] });
+        live.players[0].qualifyingActionThisTurn = true;
+        live.players[0].qualifyingActionLastTurn = true;
+        live.players[1].qualifyingActionLastTurn = true;
+        live.players[1].permanentYouControlledLeftThisTurn = true;
+        live.players[0].turnsTaken = 4;
+        live.players[1].turnsTaken = 3;
+
+        const { spec, dropped } = specFromState(live, {
+            mySeatId: live.players[0].id,
+        });
+
+        expect(spec.qualifyingActionThisTurn).toEqual({ me: true });
+        expect(spec.qualifyingActionLastTurn).toEqual({ me: true, opp: true });
+        expect(spec.revolt).toEqual({ opp: true });
+        expect(spec.turnsTaken).toEqual({ me: 4, opp: 3 });
+        for (const field of [
+            "qualifyingActionThisTurn",
+            "qualifyingActionLastTurn",
+            "permanentYouControlledLeftThisTurn",
+            "turnsTaken",
+        ]) {
+            expect(dropped.join(" ")).not.toContain(field);
+        }
+
+        // …and the rebuild reaches the same four values, which is what makes
+        // the round trip a round trip rather than a lowering.
+        const rebuilt = buildStateFromScenario(makeState(), spec);
+        expect(rebuilt.players[0].qualifyingActionThisTurn).toBe(true);
+        expect(rebuilt.players[0].qualifyingActionLastTurn).toBe(true);
+        expect(rebuilt.players[1].qualifyingActionLastTurn).toBe(true);
+        expect(rebuilt.players[1].permanentYouControlledLeftThisTurn).toBe(
+            true
+        );
+        expect(rebuilt.players[0].turnsTaken).toBe(4);
+        expect(rebuilt.players[1].turnsTaken).toBe(3);
+
+        // A board carrying none of the three flags lowers none of them — the
+        // spec stays minimal, because false is what the builder's clear
+        // already leaves.
+        const quiet = specFromState(
+            buildStateFromScenario(makeState(), { cards: [] }),
+            { mySeatId: live.players[0].id }
+        ).spec;
+        expect(quiet.qualifyingActionThisTurn).toBeUndefined();
+        expect(quiet.qualifyingActionLastTurn).toBeUndefined();
+        expect(quiet.revolt).toBeUndefined();
+        // `turnsTaken` IS always explicit: the builder does not clear it, so
+        // an absence would inherit the loaded game's count.
+        expect(quiet.turnsTaken).toEqual({ me: 0, opp: 0 });
     });
 });

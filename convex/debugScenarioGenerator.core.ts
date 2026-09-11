@@ -224,6 +224,50 @@ export const SCENARIO_JSON_SCHEMA = {
             description:
                 "True when any player has already declared an attacker this turn (default false).",
         },
+        // CR 508.1c / 500.1 / 207.2c (issue #3450) — the per-seat turn
+        // history. A description that says "the opponent did nothing last
+        // turn" (Arboria) or "a creature died this turn" (Revolt) is a real
+        // board, and these are the only fields that can hold it.
+        qualifyingActionThisTurn: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+                me: { type: "boolean" },
+                opp: { type: "boolean" },
+            },
+            description:
+                "Whether each seat has cast a spell or put a nontoken permanent onto the battlefield during its current turn (default false).",
+        },
+        qualifyingActionLastTurn: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+                me: { type: "boolean" },
+                opp: { type: "boolean" },
+            },
+            description:
+                "Whether each seat did so during its LAST turn — Arboria forbids attacking a player who did not (default false).",
+        },
+        turnsTaken: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+                me: { type: "integer" },
+                opp: { type: "integer" },
+            },
+            description:
+                "Each seat's OWN turn count — roughly half of `turn` in normal play, pulled further apart by extra turns (CR 500.7) and skipped turns (CR 614.10).",
+        },
+        revolt: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+                me: { type: "boolean" },
+                opp: { type: "boolean" },
+            },
+            description:
+                "Revolt: whether a permanent each seat controlled has left the battlefield this turn — set it when the description says something died or was sacrificed (default false).",
+        },
         // CR 702.139c / ADR 0064 (issue #1392).
         companion: {
             type: "object",
@@ -364,9 +408,10 @@ export function buildScenarioSystemPrompt(
         "  `spellsCastThisGame`, `stormCount`,",
         "  `damageDealtToPlayerThisTurn`,",
         "  `artifactDamageToPlayerThisTurn`, `lifeGainedThisTurn`,",
-        "  `deathsThisTurn` and `creatureAttackedThisTurn`:",
-        "  emit them ONLY when the",
-        "  description actually calls for them, never as decoration. An",
+        "  `deathsThisTurn`, `creatureAttackedThisTurn`,",
+        "  `qualifyingActionThisTurn`, `qualifyingActionLastTurn`,",
+        "  `turnsTaken` and `revolt`: emit them ONLY when the description",
+        "  actually calls for them, never as decoration. An",
         "  explicit 0 is a CLAIM, not a default — `stormCount: 0` says",
         "  'no spell has been cast this turn'.",
         "",

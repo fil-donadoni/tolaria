@@ -17761,6 +17761,37 @@ export const debugSetupScenario = mutation({
         ),
         deathsThisTurn: v.optional(v.number()),
         creatureAttackedThisTurn: v.optional(v.boolean()),
+        /** CR 508.1c / 500.1 (issue #3450, PRD #3397) — the per-seat turn
+         *  history: Arboria's qualifying-action flags (this turn, and the
+         *  frozen value from the seat's last completed turn — the one that
+         *  gates whether that player can be ATTACKED at all), the seat's own
+         *  turn count, and Revolt, an ability word (CR 207.2c) recording that
+         *  a permanent this seat controlled left the battlefield this turn.
+         *  Per-seat and both-optional, mirroring `poison`/`life`. */
+        qualifyingActionThisTurn: v.optional(
+            v.object({
+                me: v.optional(v.boolean()),
+                opp: v.optional(v.boolean()),
+            })
+        ),
+        qualifyingActionLastTurn: v.optional(
+            v.object({
+                me: v.optional(v.boolean()),
+                opp: v.optional(v.boolean()),
+            })
+        ),
+        turnsTaken: v.optional(
+            v.object({
+                me: v.optional(v.number()),
+                opp: v.optional(v.number()),
+            })
+        ),
+        revolt: v.optional(
+            v.object({
+                me: v.optional(v.boolean()),
+                opp: v.optional(v.boolean()),
+            })
+        ),
         /** CR 102.1 / 117.1 / 117.4 (issue #3454) — the turn holder, the
          *  priority holder and the passes already banked. `activePlayer:
          *  "opp"` with `priority: "me"` places an instant-speed decision on
