@@ -71,3 +71,15 @@ data/oracle-retirements.json
 # bytes on every `bun run format`, so `catalogue:pack` would no longer
 # reproduce what is on disk and the file name would stop matching its content.
 data/catalogue/
+
+# The Verdict corpus (issue #3402, ADR 0124 §1) — one file per judged position,
+# written by `bun run verdicts:pull` with a deterministic serializer
+# (`scripts/lib/verdicts-file.ts`: fixed key order, 4-space indent, trailing
+# newline) so the same row exports to the same BYTES every time and the export's
+# diff is exactly the judgements that arrived. Prettier disagrees on one thing —
+# it inlines a short number array (`"rightIndexes": [3]`) that JSON.stringify
+# expands — which is enough to make `verdicts:pull` dirty the tree on every run
+# and the committed files stop reproducing from the deployment. Same rationale
+# as the three generated-data entries above. Scoped to the JSON so the
+# directory's own README stays formatted like every other document.
+data/verdicts/*.json

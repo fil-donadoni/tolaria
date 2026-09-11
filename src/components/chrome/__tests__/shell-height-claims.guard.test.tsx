@@ -708,6 +708,10 @@ const ROUTE_ROOTS: Record<
         routePath: "/admin/card-profiles",
         files: [{ rel: "components/admin/admin-page-frame.tsx" }],
     },
+    AdminTestersRoute: {
+        routePath: "/admin/testers",
+        files: [{ rel: "components/admin/admin-page-frame.tsx" }],
+    },
     AdminBugReportsRoute: {
         routePath: "/admin/bug-reports",
         files: [{ rel: "components/admin/admin-page-frame.tsx" }],

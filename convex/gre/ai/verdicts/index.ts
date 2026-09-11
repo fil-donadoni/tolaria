@@ -5,5 +5,6 @@ export * from "./types";
 export * from "./features";
 export * from "./position";
 export * from "./registrySource";
+export * from "./fileSource";
 export * from "./evalPairs";
 export * from "./report";

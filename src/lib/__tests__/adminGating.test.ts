@@ -4,6 +4,7 @@
 import { describe, it, expect } from "vitest";
 import {
     canEditPresets,
+    canSubmitVerdicts,
     canViewLimitedReviewDetail,
     canViewAdminSection,
 } from "../adminGating";
@@ -66,5 +67,28 @@ describe("canViewAdminSection (ADR 0074, admin-only section)", () => {
 
     it("hides when signed out (null)", () => {
         expect(canViewAdminSection(null)).toBe(false);
+    });
+});
+
+describe("canSubmitVerdicts (issue #3402)", () => {
+    it("is true for a flagged tester", () => {
+        expect(canSubmitVerdicts({ isTester: true })).toBe(true);
+    });
+
+    it("is true for an admin with no tester flag", () => {
+        // The fold that matters: the role is granted from the admin area, so
+        // an admin who did not count as a tester would have to grant it to
+        // themselves first. Mirrors `isTesterUser` (`convex/auth.ts`).
+        expect(canSubmitVerdicts({ isAdmin: true })).toBe(true);
+    });
+
+    it("is false for a regular player, and for a revoked tester", () => {
+        expect(canSubmitVerdicts({})).toBe(false);
+        expect(canSubmitVerdicts({ isTester: false })).toBe(false);
+    });
+
+    it("fails closed while the user query is in flight, and when signed out", () => {
+        expect(canSubmitVerdicts(undefined)).toBe(false);
+        expect(canSubmitVerdicts(null)).toBe(false);
     });
 });

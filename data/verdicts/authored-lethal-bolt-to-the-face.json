@@ -1,0 +1,56 @@
+{
+    "id": "authored:lethal-bolt-to-the-face",
+    "spec": {
+        "cards": [
+            {
+                "name": "Mountain",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Lightning Bolt",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "battlefield"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "life": {
+            "me": 20,
+            "opp": 3
+        }
+    },
+    "seat": "me",
+    "candidates": [
+        {
+            "key": "{\"kind\":\"pass\"}",
+            "description": "pass"
+        },
+        {
+            "key": "{\"kind\":\"cast-spell\",\"cardInstanceId\":\"122\",\"targets\":[{\"type\":\"permanent\",\"id\":\"123\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"121\"}]}",
+            "description": "cast Lightning Bolt → Grizzly Bears"
+        },
+        {
+            "key": "{\"kind\":\"cast-spell\",\"cardInstanceId\":\"122\",\"targets\":[{\"type\":\"player\",\"id\":\"p1\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"121\"}]}",
+            "description": "cast Lightning Bolt → Blade P1"
+        },
+        {
+            "key": "{\"kind\":\"cast-spell\",\"cardInstanceId\":\"122\",\"targets\":[{\"type\":\"player\",\"id\":\"p2\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"121\"}]}",
+            "description": "cast Lightning Bolt → Blade P2"
+        }
+    ],
+    "answer": {
+        "kind": "right",
+        "rightIndexes": [
+            3
+        ]
+    },
+    "author": "tolaria",
+    "createdAt": "2026-09-11T00:00:00.000Z",
+    "source": "authored",
+    "note": "CR 104.3b — the opponent is at 3 and Lightning Bolt deals 3, so the game ends this turn. Every other line, including killing the Bears, loses the game it could have won. Hand-authored as the ingestion fixture for `data/verdicts/**` (issue #3402): a real position, a real candidate list from the Bot's own enumerator, and an answer nobody has to argue about."
+}

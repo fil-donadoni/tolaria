@@ -96,6 +96,40 @@ export async function assertIsAdmin(ctx: AnyCtx): Promise<Doc<"users">> {
 }
 
 /**
+ * Pure tester predicate (issue #3402, PRD #3397, ADR 0124 §1). A tester may
+ * submit a Verdict about a Bot decision.
+ *
+ * EVERY ADMIN IS A TESTER, and that is not a convenience: the flag is granted
+ * from the admin area, so an admin who did not count as a tester would have to
+ * grant it to themselves before they could judge anything — a role boundary
+ * that protects nobody from anyone. The converse does NOT hold: a tester sees
+ * no admin surface and can curate nothing.
+ *
+ * Extracted from `assertIsTester` so it is unit-testable without a Convex
+ * harness, exactly as `isAdminUser` is (the project has no convex-test
+ * harness). Its client-side twin is `canSubmitVerdicts`
+ * (`src/lib/adminGating.ts`) — hiding a control is cosmetic, this is the gate.
+ */
+export function isTesterUser(user: Doc<"users"> | null): boolean {
+    return user?.isTester === true || isAdminUser(user);
+}
+
+/**
+ * Server-side tester gate (issue #3402). Loads the current user and throws
+ * unless they are a tester (or an admin). Returns the user doc — `submit`
+ * needs the nickname it stamps as the verdict's author.
+ */
+export async function assertIsTester(ctx: AnyCtx): Promise<Doc<"users">> {
+    const userId = await auth.getUserId(ctx);
+    const user = userId ? await ctx.db.get(userId) : null;
+    if (!isTesterUser(user)) {
+        throw new Error("Forbidden: tester only");
+    }
+    // `isTesterUser` guarantees user is non-null here.
+    return user as Doc<"users">;
+}
+
+/**
  * Admin gate callable from an `action` (issue #1143). Actions have no
  * `ctx.db`, so `assertIsAdmin` can't run inline in one — an action reaches it
  * via `ctx.runQuery(internal.auth.requireAdminQuery, {})`, which propagates
