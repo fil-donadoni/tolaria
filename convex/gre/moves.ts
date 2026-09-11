@@ -2686,7 +2686,16 @@ function enumerateCastMovesFromZone(
     // target group a future such card might carry. Also skipped under the
     // `lifeInsteadOfMana` replacement (CR 118.9 stacking with another cost
     // replacement is an edge case no shipped card combination reaches).
-    for (const priceOnlyCost of [def?.dash, def?.warp]) {
+    // CR 702.185a — Warp's own permission names the HAND ("you may cast this
+    // card from your hand by paying [cost]"), which Dash's (702.109a) does not.
+    // Offered from anywhere else it would let a warp-exiled card be re-cast for
+    // its warp cost, re-arming its own exile for ever; the same gate is applied
+    // by `affordableAlternativeCosts` and at both cast-commit sites.
+    const priceOnlyCosts = [
+        def?.dash,
+        ...(card.zone === "hand" ? [def?.warp] : []),
+    ];
+    for (const priceOnlyCost of priceOnlyCosts) {
         if (
             priceOnlyCost &&
             lifeInsteadOfMana === undefined &&

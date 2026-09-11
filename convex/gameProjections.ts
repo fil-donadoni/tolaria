@@ -1716,18 +1716,26 @@ export function projectFullState(
             exile: player.exile.map((c) => {
                 // CR 601.3 (issue #1156) — same `casterId` disambiguation as
                 // the public projection above (cross-player grants).
-                const out: SlimExileCard = c.castableFromExileBy
-                    ? {
-                          ...slimCard(c),
-                          legalActions: getLegalActions(
-                              state,
-                              player,
-                              c,
-                              allActions,
-                              c.castableFromExileBy
-                          ),
-                      }
-                    : slimCard(c);
+                // CR 702.185a (issue #1268) — through the shared authority, like
+                // the public projection: a grant can be stamped and not yet
+                // OPEN, and `getLegalActions`' final cast branch is zone-blind,
+                // so a raw field read here showed a warped card as castable on
+                // the turn it was warped out while the public view (correctly)
+                // did not.
+                const out: SlimExileCard =
+                    c.castableFromExileBy !== undefined &&
+                    exileCastPermission(c, c.castableFromExileBy, state.turn)
+                        ? {
+                              ...slimCard(c),
+                              legalActions: getLegalActions(
+                                  state,
+                                  player,
+                                  c,
+                                  allActions,
+                                  c.castableFromExileBy
+                              ),
+                          }
+                        : slimCard(c);
                 const host = exileAssoc.get(c.id);
                 return withPrintedCastAvailability(
                     host !== undefined

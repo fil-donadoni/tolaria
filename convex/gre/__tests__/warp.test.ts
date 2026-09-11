@@ -42,7 +42,7 @@ import { getLegalActions } from "../rules";
 import { finalizeCleanup, fireDelayedTriggers } from "../phases";
 import { tryAutoCommitPendingCast } from "../../game";
 import { compactState, expandState } from "../serialize";
-import { projectPublicState } from "../../gameProjections";
+import { projectFullState, projectPublicState } from "../../gameProjections";
 import {
     makeInstance,
     makePlayer,
@@ -180,6 +180,36 @@ describe("Warp — the delayed exile (CR 702.185a, CR 603.7a)", () => {
         expect(state.delayedTriggers).toHaveLength(1);
         expect(state.delayedTriggers![0].timing).toBe("next-end-step");
         expect(state.delayedTriggers![0].warpCardInstanceId).toBe("probe");
+    });
+
+    it("CR 603.7d — the delayed ability is controlled by the spell's CONTROLLER, not the card's owner", () => {
+        // A spell cast by a non-owner enters under the CASTER's control (CR
+        // 110.2b, issue #3000); 702.185a's "its OWNER may cast this card" is
+        // about the PERMISSION the ability grants, not about the ability.
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            phase: "PRECOMBAT_MAIN",
+        });
+        state.turn = 3;
+        const item: StackItem = {
+            ...handCard(WARP_PROBE_ID, "probe"),
+            ownerId: "p1",
+            zone: "stack",
+            castById: "p2",
+            warped: true,
+        };
+        state.stack.push(item);
+        resolveTopOfStack(state);
+
+        expect(state.delayedTriggers).toHaveLength(1);
+        expect(state.delayedTriggers![0].controller).toBe("p2");
+        // …and the GRANT the resolution opens still names the OWNER.
+        fireDelayedTriggers(state, "next-end-step");
+        resolveTopOfStack(state);
+        const exiled = state.players[0].exile.find((c) => c.id === "probe")!;
+        expect(exiled.castableFromExileBy).toBe("p1");
     });
 
     it("a permanent cast for its PRINTED cost schedules nothing and is never exiled", () => {
@@ -334,6 +364,55 @@ describe("Warp — the lower bound at every consumer (CR 702.185a, issue #1268)"
     it("the projection attaches the cast affordance once the window opens", () => {
         const open = projectedExileCard(warpedInExile(4));
         expect(open.legalActions).toContain("cast");
+    });
+
+    it("the DEBUG projection gates the same way the public one does", () => {
+        // `projectFullState` has no single viewer and reads the grant off the
+        // card, and `getLegalActions`' final cast branch is zone-blind — so a
+        // raw field read here showed a warped card as castable on the very turn
+        // it was warped out, while the public view (correctly) did not.
+        const closed = projectFullState(
+            warpedInExile(3),
+            1
+        ).players[0].exile.find((c) => c.id === "probe")!;
+        expect(closed.legalActions ?? []).not.toContain("cast");
+        const open = projectFullState(
+            warpedInExile(4),
+            1
+        ).players[0].exile.find((c) => c.id === "probe")!;
+        expect(open.legalActions).toContain("cast");
+    });
+});
+
+describe("Warp — the warp cost is a HAND permission (CR 702.185a)", () => {
+    // "You may cast this card FROM YOUR HAND by paying [cost] rather than its
+    // mana cost." Dash (702.109a) and Evoke (702.74a) name no zone; Warp does,
+    // and the difference is load-bearing: a warp-exiled card re-cast for its
+    // WARP cost would re-stamp the marker, re-schedule the end-step exile and
+    // re-open the window — a permanent rented for {R} a turn, for ever.
+    it("is NOT among the alternative costs offered for a card in EXILE", () => {
+        const state = warpedInExile(4);
+        const exiled = state.players[0].exile[0];
+        const offered = affordableAlternativeCosts(
+            state,
+            state.players[0],
+            exiled
+        ).map((a) => a.id);
+        expect(offered).not.toContain("warp");
+    });
+
+    it("IS offered for the same card in HAND", () => {
+        const probe = handCard(WARP_PROBE_ID, "probe");
+        const state = makeState({
+            players: [makePlayer("p1", { hand: [probe] }), makePlayer("p2")],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+        expect(
+            affordableAlternativeCosts(state, state.players[0], probe).map(
+                (a) => a.id
+            )
+        ).toContain("warp");
     });
 });
 

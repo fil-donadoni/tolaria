@@ -7170,8 +7170,14 @@ export function finalizeTargetSelection(
     // the resulting stack item is tagged `warped: true` below, which is the
     // "if this spell's warp cost was paid" clause the next-end-step exile
     // (`scheduleWarpExile`, `gre/warp.ts`) is scheduled from.
+    // CR 702.185a — "you may cast this card FROM YOUR HAND": the zone is part
+    // of the permission, not decoration. Without it a warp-exiled card re-cast
+    // for its WARP cost re-stamps the marker, re-schedules the exile and
+    // re-opens the window — a permanent rented for the warp cost every turn.
     const isWarpCost =
-        chosenAltCost !== undefined && chosenAltCost === cardDef.warp;
+        chosenAltCost !== undefined &&
+        chosenAltCost === cardDef.warp &&
+        castZone === "hand";
     // CR 702.103a — the chosen alt cost IS the card's Bestow cost (compared by
     // reference — `getAlternativeCost` resolves `def.bestow` for its own id).
     // Unlike `evoked`/`dashed` this is not just a marker for a later trigger:
@@ -8344,8 +8350,12 @@ export const announceCast = mutation({
         // CR 702.185a — the chosen alt cost IS the card's Warp cost. Tags the
         // resulting stack item `warped: true` at commit below, which is what
         // schedules the next-end-step exile and the recast window.
+        // CR 702.185a — hand only; see the matching gate in
+        // `finalizeTargetSelection` above.
         const isWarpCost =
-            chosenAltCost !== undefined && chosenAltCost === cardDef.warp;
+            chosenAltCost !== undefined &&
+            chosenAltCost === cardDef.warp &&
+            castFromZone === "hand";
         // CR 702.103a — the chosen alt cost IS the card's Bestow cost. Two
         // things follow from it in this mutation, and neither is a plain
         // marker: the spell takes the "enchant creature" TARGET REQUIREMENT

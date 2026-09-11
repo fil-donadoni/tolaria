@@ -133,10 +133,13 @@ describe("Warp — the Bot and the recast window's lower bound (CR 702.185a)", (
     it("enumerates the exile recast from the following turn onward", () => {
         for (const turn of [4, 6]) {
             const casts = castMovesForProbe(exiledState(turn));
-            expect(casts.length).toBeGreaterThan(0);
-            // CR 702.185a — an ORDINARY cast for the printed cost: no
-            // alternative cost, and five Mountains' worth of {4}{R}.
-            expect(casts[0].alternativeCostId).toBeUndefined();
+            // CR 702.185a — an ORDINARY cast for the printed cost, and ONLY
+            // that: the warp cost is a HAND permission ("you may cast this card
+            // from your hand"), so the recast must not be offered for it. The
+            // assertion is over the WHOLE set rather than `casts[0]`, because a
+            // warp move sitting at `casts[1]` is exactly the re-arming loop this
+            // clause exists to prevent, and a first-element check would miss it.
+            expect(casts.map((m) => m.alternativeCostId)).toEqual([undefined]);
             expect(casts[0].tapPlan).toHaveLength(5);
         }
     });

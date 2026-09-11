@@ -230,26 +230,29 @@ export function buildReboundReflexiveTrigger(
  *  trigger going on the stack and resolving, and `applyWarpExile` is what asks
  *  whether the object under that id is still the same one.
  *
- *  `ownerId`/`controllerId` are the warp card's owner (CR 702.185a — "its
- *  OWNER may cast this card"), so the recast permission the resolution opens
- *  and the ability that opens it name the same player. */
+ *  `controllerId` is the delayed ability's OWN controller (CR 603.7d — the
+ *  player who controlled the warp spell as it resolved), which is what decides
+ *  APNAP ordering against any other trigger at the same end step. The RECAST
+ *  permission it opens names the card's OWNER instead (CR 702.185a), and
+ *  `applyWarpExile` reads that off the exiled card — two clauses about two
+ *  different players, answered separately. */
 export function buildWarpExileTrigger(
     state: GameState,
     permanentCardId: string,
     permanentInstanceId: string,
-    ownerId: string
+    controllerId: string
 ): StackItem {
     return {
         id: allocInstanceId(state),
         card: { id: permanentCardId },
-        controllerId: ownerId,
-        ownerId,
+        controllerId,
+        ownerId: controllerId,
         zone: "stack",
         types: [],
         subtypes: [],
         staticAbilities: [],
         isTapped: false,
-        castById: ownerId,
+        castById: controllerId,
         warpTrigger: permanentInstanceId,
     };
 }

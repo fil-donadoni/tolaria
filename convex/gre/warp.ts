@@ -77,9 +77,9 @@ export function hasWarp(cardId: string | undefined): boolean {
  *  regardless, and it simply finds nothing to exile (CR 603.10) — which is why
  *  the liveness question belongs at fire time and not here.
  *
- *  `watchInstanceId` is set alongside the warp marker purely as documentation of
- *  the subject; the `leaves-battlefield` timing is what consumes that field, and
- *  this instance's timing is `next-end-step`. */
+ *  The subject is named by `warpCardInstanceId` alone. `watchInstanceId` is NOT
+ *  set: that field belongs to the `leaves-battlefield` timing, and this
+ *  instance's timing is `next-end-step`. */
 export function scheduleWarpExile(
     state: GameState,
     permanent: CardInstanceState
@@ -91,13 +91,15 @@ export function scheduleWarpExile(
             id: `delayed-${state.nextDelayedSeq}`,
             sourceCardId: (permanent.card as { id?: string }).id ?? "",
             triggerId: WARP_EXILE_TRIGGER_ID,
-            // CR 702.185a — "its OWNER may cast this card": the delayed ability
-            // belongs to the warp card's owner, and the recast permission it
-            // opens names that same player. For every cast this engine can make
-            // today the owner is also the caster; keying on the owner is what
-            // keeps the two clauses from disagreeing if that ever stops being
-            // true (CR 400.7 — the card is exiled into its OWNER's exile).
-            controller: permanent.ownerId,
+            // CR 603.7d — "the controller of that delayed triggered ability is
+            // the player who controlled that spell as it resolved", which for a
+            // permanent spell is the player it entered under (CR 110.2). NOT
+            // the owner: 702.185a's "its OWNER may cast this card" governs the
+            // PERMISSION the ability grants, not the ability itself, and the two
+            // genuinely differ for a spell cast by a non-owner (issue #3000).
+            // `applyWarpExile` reads the owner off the exiled card for the
+            // grant, so each clause answers about its own player.
+            controller: permanent.controllerId,
             timing: "next-end-step",
             payload: {},
             warpCardInstanceId: permanent.id,
