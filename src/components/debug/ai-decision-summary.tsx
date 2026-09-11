@@ -30,7 +30,7 @@ export default function AiDecisionSummary({
         .slice(0, MAX_ALTERNATIVES);
 
     return (
-        <div className="flex flex-col gap-1 rounded border border-border-subtle px-1.5 py-1 text-[11px] leading-snug">
+        <div className="flex min-w-0 flex-col gap-1 rounded border border-border-subtle px-1.5 py-1 text-[11px] leading-snug">
             <div className="flex items-baseline justify-between gap-2">
                 <span className="truncate font-medium text-text">
                     <span className="text-signal-self">★ </span>
@@ -50,7 +50,7 @@ export default function AiDecisionSummary({
                 )}
             </div>
 
-            <span className="text-text-muted">
+            <span className="break-words text-text-muted">
                 {MECHANISM_SENTENCES[trace.mechanism]}
             </span>
             {!isSearchMechanism(trace.mechanism) && (
@@ -83,7 +83,7 @@ export default function AiDecisionSummary({
             )}
 
             <details>
-                <summary className="cursor-pointer text-text-disabled">
+                <summary className="cursor-pointer break-words text-text-disabled">
                     Details — {trace.candidates.length} moves,{" "}
                     {trace.iterationsCompleted}/{trace.iterationsRequested}{" "}
                     iters ({trace.stoppedBy}), {Math.round(trace.elapsedMs)}ms

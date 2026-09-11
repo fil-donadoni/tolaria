@@ -29,12 +29,17 @@ export default function AiDecisionAlternative({
         : "not comparable — the search could not replay this move";
 
     return (
-        <li className="flex flex-col">
-            <span className="text-text">{candidate.label}</span>
+        // `break-words` on both lines, not `truncate`: a move label is already
+        // a sentence ("Cast Lightning Bolt targeting Grizzly Bears") and the
+        // sheet is 400px wide on a phone, so clipping it would cut exactly the
+        // half that says WHICH alternative this was. Wrapping is what keeps the
+        // panel off a horizontal scrollbar.
+        <li className="flex min-w-0 flex-col">
+            <span className="break-words text-text">{candidate.label}</span>
             <span
-                className={
+                className={`break-words ${
                     comparable ? "text-text-muted" : "text-text-disabled italic"
-                }
+                }`}
             >
                 {reading}
             </span>
