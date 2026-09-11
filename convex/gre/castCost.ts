@@ -445,7 +445,15 @@ export function graveyardCastMechanismForMember(
  *  caller filters on type — the land half has its own enumeration
  *  (`resolvePlayLandSourceZone`). */
 export function exileCastPermission(
-    card: CardInstanceState,
+    /** Narrowed to the two fields this authority reads so the CLIENT can ask
+     *  it directly about a projected `SlimExileCard` (ADR 0074 — the frontend
+     *  imports pure engine modules, it just never has authority): the Cast
+     *  button's disabled REASON has to come from the same comparison the
+     *  projection gated on, or the two drift and the button lies again. */
+    card: Pick<
+        CardInstanceState,
+        "castableFromExileBy" | "castableFromExileFromTurn"
+    >,
     casterId: string,
     /** CR 702.185a (issue #1268) — the CURRENT turn number, against which the
      *  grant's LOWER bound (`castableFromExileFromTurn`) is read. A grant made
