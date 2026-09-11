@@ -162,6 +162,14 @@ export type SpecDraft = {
     poison: SeatPairDraft;
     life: SeatPairDraft;
     experience: SeatPairDraft;
+    /** CR 102.1 / 117.1 (issue #3454) — the turn holder and the priority
+     *  holder. `""` is the spec's own "absent", which the builder reads as
+     *  "leave the base state's turn holder alone"; it is a real, selectable
+     *  value here, not a placeholder. */
+    activePlayer: "" | "me" | "opp";
+    priority: "" | "me" | "opp";
+    /** CR 117.4 (issue #3454) — passes already banked. */
+    passCount: string;
     companion: { name: string; owner: "me" | "opp"; used: boolean };
 };
 
@@ -180,6 +188,9 @@ export function emptySpecDraft(): SpecDraft {
         poison: { ...EMPTY_SEAT_PAIR },
         life: { ...EMPTY_SEAT_PAIR },
         experience: { ...EMPTY_SEAT_PAIR },
+        activePlayer: "",
+        priority: "",
+        passCount: "",
         companion: { name: "", owner: "me", used: false },
     };
 }
@@ -209,6 +220,10 @@ export function specToDraft(spec: ScenarioSpec | null): SpecDraft {
     draft.poison = seatPairToDraft(spec.poison);
     draft.life = seatPairToDraft(spec.life);
     draft.experience = seatPairToDraft(spec.experience);
+    if (spec.activePlayer !== undefined) draft.activePlayer = spec.activePlayer;
+    if (spec.priority !== undefined) draft.priority = spec.priority;
+    if (spec.passCount !== undefined)
+        draft.passCount = String(spec.passCount);
     if (spec.companion) {
         draft.companion = {
             name: spec.companion.name,
@@ -258,6 +273,11 @@ export function draftToSpec(draft: SpecDraft): Omit<ScenarioSpec, "cards"> {
     if (life) spec.life = life;
     const experience = seatPairFromDraft(draft.experience);
     if (experience) spec.experience = experience;
+
+    if (draft.activePlayer !== "") spec.activePlayer = draft.activePlayer;
+    if (draft.priority !== "") spec.priority = draft.priority;
+    const passCount = num(draft.passCount);
+    if (passCount !== undefined) spec.passCount = passCount;
 
     const companionName = draft.companion.name.trim();
     if (companionName !== "") {
