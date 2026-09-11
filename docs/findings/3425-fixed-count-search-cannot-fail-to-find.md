@@ -1,34 +1,37 @@
 ---
-title: A fixed-count search-library choice cannot express a deliberate CR 701.23b fail-to-find
+title: A typed Library Tutor cannot express a deliberate CR 701.23b fail-to-find
 discoveredBy: 3425
-status: draft
-confidence: medium
+status: triaged
+issue: 3437
+confidence: high
 ---
 
-**What is wrong.** CR 701.23b — "that player isn't required to find some or all
-of those cards even if they're present in that zone" — is modelled only for the
-`search-library` Ops that declare a `{ min, max }` count with `min: 0`. About
-half the shipped ones declare a FIXED `count` instead, and for those the picker
-demands exactly that many cards whenever the library holds them: the player
-cannot legally decline a card they can see, which is a rule the CR grants them
-unconditionally on a hidden zone.
+**What is wrong.** CR 701.23b — "if a player is searching a hidden zone for
+cards with a stated quality … that player isn't required to find some or all of
+those cards even if they're present in that zone" — is not modelled for a
+Library Tutor whose search names a quality but declares a fixed count. The
+picker demands that many cards whenever the Library holds them, so the searcher
+cannot decline a card they can see.
 
-**Evidence.** `convex/gre/effects/interpreter.ts` (the `choice` Op's library
-branch) clamps a numeric `count` to what is available and returns early at
-zero; only `searchWithNoHit` — the case where the filter matches NOTHING —
-forces `{ min: 0, max: 0 }`. So a fixed-count search comes back empty only when
-the library contains no match at all. Every fetchland (Arid Mesa, Flooded
-Strand, Prismatic Vista, Fabled Passage) plus Demonic Tutor, Entomb, Intuition
-and Natural Order are in that set.
+**Evidence.** A genuine `search-library` choice passes its declared count
+straight through, and the submit validator rejects a submission shorter than the
+choice's minimum; the engine lowers the prompt to a 0-pick one only when the
+filter matches NOTHING, purely to preserve the CR 701.23a look. Twenty shipped
+Ops are in the affected shape — all nine fetchlands, Prismatic Vista, Fabled
+Passage, Terminal Moraine, Expedition Map, Tinker, Natural Order, Captain Sisay,
+Urza's Saga, Tezzeret Cruel Captain, Formidable Speaker — plus Lobotomy, whose
+minimum equals its maximum although CR 701.23b's own Splinter example says the
+player may find fewer.
 
-Practically this matters most for a fetchland: declining to find is a real
-Legacy/Vintage line (against Ashiok, Dredger of Souls, or to keep a shuffle
-effect live), and the engine cannot express it.
+Declining carries no verification burden, which is why the engine only has to
+permit it: CR 701.23e leaves found cards unrevealed unless the effect says
+otherwise, so no opponent can check the claim. Issue #3425's public
+fail-to-find announcement is the whole — deliberately unprovable — signal.
 
-**Why it may not deserve its own issue.** The fix is one field per card
-(`count: 1` → `count: { min: 0, max: 1 }`) across ~29 definitions, which is a
-sweep, not a mechanism — and issue #3425's own fail-to-find announcement is
-identical either way, so nothing about the visibility work is blocked. It may
-belong as a line on an existing tutor/search tracker rather than a ticket of its
-own. The counter-argument: it is a CR subrule shipped PARTIALLY, which
-`gre-development.md` § DSL-first authoring treats as a defect in itself.
+**The scope is narrower than it first looks.** Seven shipped Ops declare NO
+filter and a fixed count (Demonic Tutor, Entomb, Intuition, Wishclaw Talisman,
+Diabolic Intent, Manipulate Fate, Planar Portal) and are CORRECT as written: CR
+701.23d makes a search for a bare quantity mandatory. A blanket flip of every
+fixed count would introduce a new bug, which is what raised this from a sweep to
+a rule — the minimum is DERIVABLE from whether a quality is stated, so it
+belongs in the engine with a guard rather than in 20 hand-edited definitions.
