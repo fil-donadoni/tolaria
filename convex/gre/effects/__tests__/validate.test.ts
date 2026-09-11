@@ -4980,6 +4980,84 @@ describe('validateEffectScript — count zone:"hand" + difference (issue #2006)'
         ).toBeGreaterThan(0);
     });
 
+    // CR 121.1 (issue #3240) — the third terminal `difference` accepts, and
+    // the standalone value member it is built from.
+    const drawn = (of: unknown = "controller") => ({
+        cardsDrawnThisTurn: { of },
+    });
+
+    it("accepts the cardsDrawnThisTurn value member on its own and in BOTH difference slots", () => {
+        expect(
+            validateEffectScript(host({ effects: loseLife(drawn()) }))
+        ).toEqual([]);
+        for (const difference of [
+            { from: drawn(), minus: 1 },
+            { from: 4, minus: drawn("opponent") },
+        ]) {
+            expect(
+                validateEffectScript(
+                    host({ effects: loseLife({ difference }) })
+                )
+            ).toEqual([]);
+        }
+    });
+
+    it("rejects a malformed cardsDrawnThisTurn — extra keys, missing `of`, non-player `of`", () => {
+        // `{ target: N }` IS a legal player selector (an announced slot), so
+        // the rejected shapes are the ones the SHAPE checker owns: a second
+        // key (no per-member arithmetic — that is `difference`'s job), a
+        // missing `of`, a non-object spec, and an `of` that is not a player
+        // ref at all.
+        for (const value of [
+            { cardsDrawnThisTurn: { of: "controller", minus: 1 } },
+            { cardsDrawnThisTurn: { of: "everyone" } },
+            { cardsDrawnThisTurn: {} },
+            { cardsDrawnThisTurn: true },
+        ]) {
+            expect(
+                validateEffectScript(host({ effects: loseLife(value) })).length
+            ).toBeGreaterThan(0);
+        }
+    });
+
+    it("family-checks `of` as a PLAYER position, not the object position the `of` key otherwise means", () => {
+        // The `of` key means OBJECT for `counters`/`manaValue`, so without the
+        // ordered ref pass's own `cardsDrawnThisTurn` case a players-set
+        // `$each` under it reads as an object binding and the script is
+        // wrongly rejected. Inside a players `forEach`, this must be clean.
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: { set: "players" },
+                            effects: [
+                                {
+                                    op: "loseLife",
+                                    player: { ref: "$each" },
+                                    amount: drawn({ ref: "$each" }),
+                                },
+                            ],
+                        } as never,
+                    ],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("does NOT widen `divide` — no shipped card halves a per-turn tally", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: loseLife({
+                        divide: { value: drawn(), by: 2, rounding: "up" },
+                    }),
+                })
+            ).length
+        ).toBeGreaterThan(0);
+    });
+
     it("rejects a NESTED difference — the operand type is a terminal, so the grammar stays depth-1", () => {
         expect(
             validateEffectScript(

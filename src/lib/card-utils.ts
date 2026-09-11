@@ -1590,6 +1590,15 @@ export function buildTriggerStateView(
         hand: ReadonlyArray<unknown>;
         battlefield: ReadonlyArray<CardInstance>;
         graveyard?: ReadonlyArray<CardInstance>;
+        /** CR 121.1 — cards drawn this turn, in draw order. Crosses the wire
+         *  untouched (`PublicPlayer` omits only the zone arrays), so forwarding
+         *  it costs nothing and dropping it would make any client-side
+         *  "you've drawn more than one card this turn" predicate permanently
+         *  answer no (Proft's Eidetic Memory). */
+        drawnThisTurn?: ReadonlyArray<string>;
+        /** CR 400.7 — cards that left this player's graveyard this turn. Same
+         *  wire-untouched forwarding, same drop symptom (Gau, Feral Youth). */
+        leftGraveyardThisTurn?: number;
     }>,
     activePlayerId?: string,
     /** Player ids under Abeyance's "can't activate abilities that aren't mana
@@ -1629,6 +1638,13 @@ export function buildTriggerStateView(
             id: p.id,
             life: p.life,
             hand: { length: p.hand.length },
+            // CR 121.1 / 400.7 — the two per-turn player tallies a CR 603.4
+            // intervening-if reads; forwarded verbatim so a client-side
+            // predicate sees the SAME numbers the server's check does.
+            ...(p.drawnThisTurn ? { drawnThisTurn: p.drawnThisTurn } : {}),
+            ...(p.leftGraveyardThisTurn !== undefined
+                ? { leftGraveyardThisTurn: p.leftGraveyardThisTurn }
+                : {}),
             // CR 118.5 — graveyard contents feed the exile-from-graveyard
             // activation-cost affordability hint (Grim Lavamancer, Night Soil)
             // in `getStackAbilities`; without it the ability is wrongly hidden.

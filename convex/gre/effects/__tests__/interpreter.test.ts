@@ -21879,6 +21879,150 @@ describe("Effect Script value: lifeGainedThisTurn (CR 119.3, issue #1457)", () =
     });
 });
 
+describe("Effect Script value: cardsDrawnThisTurn (CR 121.1, issue #3240)", () => {
+    it("reads back the per-turn draw tally as a plain magnitude", () => {
+        const id = registerScript("test-val-cdtt-amount", [
+            {
+                op: "dealDamage",
+                amount: { cardsDrawnThisTurn: { of: "controller" } },
+                to: { player: "opponent" },
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { drawnThisTurn: ["d1", "d2", "d3"] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(17); // 20 - 3
+    });
+
+    it("is 0 when the player has drawn nothing this turn", () => {
+        const id = registerScript("test-val-cdtt-none", [
+            {
+                op: "if",
+                predicate: {
+                    left: { cardsDrawnThisTurn: { of: "controller" } },
+                    op: "gt",
+                    right: 1,
+                },
+                then: [
+                    { op: "dealDamage", amount: 3, to: { player: "opponent" } },
+                ],
+                else: [
+                    { op: "dealDamage", amount: 1, to: { player: "opponent" } },
+                ],
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(19); // else branch — 20 - 1
+    });
+
+    it("reads back a draw made EARLIER IN THE SAME SCRIPT (CR 121.1)", () => {
+        const id = registerScript("test-val-cdtt-selfdraw", [
+            { op: "draw", player: "controller", count: 2 },
+            {
+                op: "dealDamage",
+                amount: { cardsDrawnThisTurn: { of: "controller" } },
+                to: { player: "opponent" },
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: [
+                        makeInstance(ISLAND_ID, {
+                            id: "lib-1",
+                            zone: "library",
+                        }),
+                        makeInstance(ISLAND_ID, {
+                            id: "lib-2",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].drawnThisTurn).toEqual(["lib-1", "lib-2"]);
+        expect(state.players[1].life).toBe(18); // 20 - 2
+    });
+
+    it('reads a NON-controller player via `of: "opponent"` (player-scoped selector)', () => {
+        const id = registerScript("test-val-cdtt-opponent", [
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { cardsDrawnThisTurn: { of: "opponent" } },
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { drawnThisTurn: ["a", "b", "c", "d", "e"] }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(25); // 20 + p2's 5
+    });
+
+    it("composes with `difference` as the MINUEND — Proft's 'minus one' (issue #2006)", () => {
+        const id = registerScript("test-val-cdtt-difference", [
+            {
+                op: "dealDamage",
+                amount: {
+                    difference: {
+                        from: { cardsDrawnThisTurn: { of: "controller" } },
+                        minus: 1,
+                    },
+                },
+                to: { player: "opponent" },
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { drawnThisTurn: ["d1", "d2", "d3", "d4"] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(17); // 20 - (4 - 1)
+    });
+
+    it("survives the wire projection (the tally rides PlayerState across the wire)", () => {
+        const id = registerScript("test-val-cdtt-wire", [
+            {
+                op: "dealDamage",
+                amount: { cardsDrawnThisTurn: { of: "controller" } },
+                to: { player: "opponent" },
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { drawnThisTurn: ["d1", "d2"] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(18); // 20 - 2
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].life).toBe(18);
+        // The tally itself crosses the wire on the PLAYER record, so a
+        // client-side predicate reads the SAME number the server's
+        // intervening-if does.
+        expect(projected.players[0].drawnThisTurn).toEqual(["d1", "d2"]);
+    });
+});
+
 describe("Effect Script value: abilityResolutionCount (CR 122 / 603.3, issue #1189)", () => {
     // A synthetic Landfall-shaped source: "At the beginning of your upkeep,
     // you gain 1 life. If this is the second time this ability has resolved

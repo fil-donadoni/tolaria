@@ -4304,6 +4304,37 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
 // precisely the class of bug this exists to catch).
 // ---------------------------------------------------------------------------
 
+describe("buildTriggerStateView — per-turn player tallies (CR 121.1 / 400.7, issue #3240)", () => {
+    // The drop class `.claude/rules/gre-development.md` § Frontend wiring
+    // analysis describes: both fields cross the wire on the PLAYER record, but
+    // this reducer enumerates player fields EXPLICITLY, so one it forgets is
+    // permanently `undefined` on the client and every predicate reading it
+    // silently answers "no".
+    const players = () => [
+        {
+            id: "p1",
+            life: 20,
+            hand: [],
+            battlefield: [],
+            drawnThisTurn: ["d1", "d2"],
+            leftGraveyardThisTurn: 3,
+        },
+        { id: "p2", life: 20, hand: [], battlefield: [] },
+    ];
+
+    it("forwards drawnThisTurn and leftGraveyardThisTurn verbatim", () => {
+        const view = buildTriggerStateView(players(), "p1");
+        expect(view.players[0].drawnThisTurn).toEqual(["d1", "d2"]);
+        expect(view.players[0].leftGraveyardThisTurn).toBe(3);
+    });
+
+    it("leaves both undefined for a player the wire carried nothing for", () => {
+        const view = buildTriggerStateView(players(), "p1");
+        expect(view.players[1].drawnThisTurn).toBeUndefined();
+        expect(view.players[1].leftGraveyardThisTurn).toBeUndefined();
+    });
+});
+
 describe("buildTriggerStateView — TRIGGER_STATE_VIEW_CENSUS (issue #1951 review round 3, MAJOR 5)", () => {
     /** One representative permanent exercising every "populated" filter
      *  dimension at once, run through the real `buildTriggerStateView`. */

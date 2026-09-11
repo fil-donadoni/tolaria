@@ -1956,6 +1956,27 @@ export type PlayerState = {
      *  your hand drawn this turn". Entries may name cards that have since left
      *  the hand; consumers intersect with the current hand when needed. */
     drawnThisTurn?: string[];
+    /** Count of cards that have LEFT this player's graveyard during the current
+     *  turn, by any means and to any zone — exile (flashback / escape / delve
+     *  cost, Bojuka Bog), the battlefield (reanimation), hand, or library
+     *  (CR 400.7 — every one of those is a zone change out of the graveyard).
+     *  Cleared at the start of each turn (`advanceTurn`) and nowhere else, so
+     *  a tally raised during a turn is still standing at that turn's own end
+     *  step for BOTH of the CR 603.4 checks the rule forces there — once when
+     *  the trigger would fire, once as it resolves (Gau, Feral Youth). The
+     *  opponent's end step is a DIFFERENT turn (CR 500.1 / 513.1: one ending
+     *  phase per turn), by which point this has correctly reset.
+     *
+     *  Written at ONE chokepoint, {@link noteGraveyardDeparture} — never
+     *  incremented inline by a caller. A card that never reached the graveyard
+     *  (a CR 614 replacement redirected it on the way) never left it and never
+     *  enters this tally, which is exactly the CR 400.7 reading: the departure
+     *  is the zone change, not the destination.
+     *
+     *  A COUNT rather than a boolean for the same reason `deathsThisTurn` is:
+     *  "a card left your graveyard this turn" is `> 0`, and a future "for each
+     *  card that left your graveyard this turn" reads the same field. */
+    leftGraveyardThisTurn?: number;
     /** Count of turns this player has taken so far in the game (CR 500.1).
      *  Starting player begins at 1 once UNTAP begins; the non-starting player
      *  reaches 1 when their first turn starts. Extra turns (CR 500.7)
@@ -7626,6 +7647,9 @@ function finalizeSpellResolution(
                 );
                 if (idx !== -1) {
                     const [reanimated] = ownerPlayer.graveyard.splice(idx, 1);
+                    // CR 400.7 — a graveyard-specific splice that predates the
+                    // general zone-movers; tallied at the shared chokepoint.
+                    noteGraveyardDeparture(ownerPlayer);
                     putReanimatedOnBattlefield(
                         state,
                         reanimated,
@@ -15751,6 +15775,9 @@ export function buildSpellContext(
             // through, so no caller has to remember it.
             if (pile[idx].isToken) return false;
             const [card] = pile.splice(idx, 1);
+            // CR 400.7 — reanimation is a graveyard DEPARTURE (the exile leg of
+            // this same primitive is not); tallied at the shared chokepoint.
+            if (fromZone === "graveyard") noteGraveyardDeparture(player);
             // CR 205.1a / 613.1d (issue #2993) — "return it to the battlefield.
             // It's an enchantment." Stamped on the instance NOW, between the
             // departure from the pile and the entry, mirroring
@@ -15823,6 +15850,9 @@ export function buildSpellContext(
                 // battlefield ceases to exist and never returns.
                 if (player.graveyard[idx].isToken) continue;
                 const [card] = player.graveyard.splice(idx, 1);
+                // CR 400.7 — the batch twin of `returnToBattlefield`; each
+                // entry is its own departure from its own owner's graveyard.
+                noteGraveyardDeparture(player);
                 staged.push({ card, controllerId: controllerId ?? playerId });
             }
             return putReanimatedSetOnBattlefield(state, staged, true);
@@ -16441,6 +16471,10 @@ export function buildSpellContext(
             const player = getPlayer(state, playerId);
             if (player.graveyard.length === 0) return;
             const moved = player.graveyard.splice(0, player.graveyard.length);
+            // CR 400.7 — the one BULK departure (Endurance sweeps the whole
+            // graveyard into the library): N cards left, so the tally rises by
+            // N, which is why the chokepoint takes a count.
+            noteGraveyardDeparture(player, moved.length);
             seededShuffle(state, moved);
             clearKnowledge(moved, null);
             player.library.push(...moved);
@@ -17032,6 +17066,18 @@ export function buildSpellContext(
         // effects.
         getLifeGainedThisTurn(playerId: string): number {
             return state.lifeGainedThisTurn?.[playerId] ?? 0;
+        },
+        // CR 121.1 (issue #3240) — how many cards `playerId` has DRAWN so far
+        // this turn. Powers the amount half of "the number of cards you've
+        // drawn this turn" (Proft's Eidetic Memory) from both the DSL
+        // `{ cardsDrawnThisTurn: { of } }` EffectValue and imperative effects.
+        // A pure read of the ordered per-turn tally every draw path appends
+        // to; an unknown player id resolves to a fresh record and reads 0.
+        getCardsDrawnThisTurn(playerId: string): number {
+            return (
+                state.players.find((p) => p.id === playerId)?.drawnThisTurn
+                    ?.length ?? 0
+            );
         },
         // CR 702.131b (issue #1460) — true iff `playerId` holds the city's
         // blessing (Ascend). Powers the `hasCityBlessing` Effect Script
@@ -21779,6 +21825,37 @@ export function putHandCardOnTopOfLibrary(
     return true;
 }
 
+/** SINGLE AUTHORITY for the per-turn "a card left your graveyard" tally
+ *  (`PlayerState.leftGraveyardThisTurn`). CR 400.7 — an object that moves from
+ *  one zone to another becomes a new object; the graveyard DEPARTURE is that
+ *  move, whatever the destination, so every exit counts here: exile (a
+ *  flashback / escape / delve cost, a graveyard-hate exile), the battlefield
+ *  (reanimation), the hand, the library, and the stack (a cast from the
+ *  graveyard).
+ *
+ *  Every departure funnels through this ONE function rather than each caller
+ *  keeping its own `+= 1`. The complete census of callers, which is the whole
+ *  claim this function makes: the THREE zone-removal primitives — `moveCard`,
+ *  `removeFromZone` and `exileFaceDownCard`, whose `from` also admits the
+ *  graveyard — plus the FOUR graveyard-specific splices that predate them (the
+ *  two reanimation funnels, the Animate Dead aura path and
+ *  `putGraveyardOnBottomOfLibrary`), which call it directly because they never
+ *  routed through a primitive at all. An eighth exit added tomorrow that
+ *  forgets this call is a silent under-count, which is why the invariant lives
+ *  in one named place a grep can find rather than in seven comments — and why
+ *  the census above is a list to re-derive, not to trust: PR #3410's review
+ *  found `exileFaceDownCard` missing from an earlier version of it.
+ *
+ *  `count` exists for the one bulk mover (Endurance's whole-graveyard sweep):
+ *  N cards left, so the tally rises by N. */
+export function noteGraveyardDeparture(
+    player: PlayerState,
+    count: number = 1
+): void {
+    if (count <= 0) return;
+    player.leftGraveyardThisTurn = (player.leftGraveyardThisTurn ?? 0) + count;
+}
+
 /** CR 406 / 118.3 — moves one card from `player`'s graveyard to their exile
  *  zone, reporting whether it was there to move. The non-throwing choke point
  *  for an "exile this card from your graveyard" ACTIVATION COST (CR 702.129a
@@ -21864,6 +21941,11 @@ export function moveCard(
 
     const [card] = sourceZone.splice(cardIndex, 1);
     card.zone = to;
+    // CR 400.7 — the general zone-mover is the FIRST of the two graveyard-exit
+    // chokepoints: every `SpellContext.moveZone`, `exileCardFromGraveyard`
+    // (eternalize / embalm / a cast's exile cost) and graveyard land play
+    // reaches the tally here, once, with no caller having to remember it.
+    if (from === "graveyard") noteGraveyardDeparture(player);
 
     // ADR 0026 — entering a public zone makes identity universally known, so
     // persistent per-viewer knowledge is meaningless there; empty it so a
@@ -22098,6 +22180,13 @@ export function exileFaceDownCard(
 
     const [card] = sourceZone.splice(cardIndex, 1);
     card.zone = "exile";
+    // CR 400.7 (issue #3240) — the THIRD zone-removal primitive, and its `from`
+    // admits the graveyard (`SpellContext.exileFaceDown` re-exports the same
+    // union). No shipped card passes `"graveyard"` today — all nine callers
+    // exile from the library — so this is latent, which is exactly why it is
+    // closed here rather than left for the first "exile a card from your
+    // graveyard face down" card to discover it silently.
+    if (from === "graveyard") noteGraveyardDeparture(player);
     // The whole point of a face-down exile: knowledge is granted, not stripped.
     card.knownTo = [knowerId];
     // issue #2904 — the DISPLAY census: which mechanic hid this card, so the
@@ -22127,6 +22216,10 @@ export function removeFromZone(
     }
     const [card] = sourceZone.splice(cardIndex, 1);
     card.zone = "stack";
+    // CR 400.7 — the SECOND graveyard-exit chokepoint: graveyard → STACK, i.e.
+    // every cast from the graveyard (flashback CR 702.34a, escape CR 702.138a,
+    // Ashen Ghoul's activation seam). A cast is a departure like any other.
+    if (from === "graveyard") noteGraveyardDeparture(player);
     // ADR 0026 — the stack is a public zone: putting a card on the stack makes
     // its identity universally known. Empty its persistent per-viewer knowledge
     // so that if it later returns to a hidden zone (e.g. a countered spell sent

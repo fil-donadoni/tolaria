@@ -13114,6 +13114,14 @@
         "source": "compiled"
     },
     {
+        "name": "Gau, Feral Youth",
+        "scryfallId": "89175ce1-0746-4ba1-970e-617d134b0527",
+        "oracleId": "9e96d12b-8381-4706-8089-3521aa2b5422",
+        "firstSet": "fic",
+        "firstPrintId": "89175ce1-0746-4ba1-970e-617d134b0527",
+        "firstPrintSet": "fic"
+    },
+    {
         "name": "Gauntlet of Might",
         "scryfallId": "da248001-ed75-4b68-9532-37d3cd5afc4c",
         "oracleId": "d38ad188-515e-4865-a0ed-5d0fd4c7b453",
@@ -26004,6 +26012,14 @@
         "firstPrintSet": "stx",
         "rarity": "common",
         "source": "compiled"
+    },
+    {
+        "name": "Proft's Eidetic Memory",
+        "scryfallId": "af5b29b3-974c-4200-8df8-b072c11e1600",
+        "oracleId": "b749e9e4-0f2a-4157-8cca-facd6b48157f",
+        "firstSet": "mkm",
+        "firstPrintId": "af5b29b3-974c-4200-8df8-b072c11e1600",
+        "firstPrintSet": "mkm"
     },
     {
         "name": "Prohibit",

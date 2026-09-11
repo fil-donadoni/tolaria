@@ -182,6 +182,23 @@ export function buildStateFromScenario(
     p2.exile = [];
     p1.companion = undefined;
     p2.companion = undefined;
+    // CR 121.1 / 400.7 (issue #3240) — the PER-TURN player tallies go with the
+    // zones, for the same reason: a scenario PLACES a position, it does not
+    // replay the turn that reached it, so nothing has been drawn and nothing
+    // has left a graveyard "this turn" on a freshly-built board.
+    //
+    // This is not hygiene, it is correctness of the artefact. The opening hand
+    // is dealt through `drawCard` (`gre/setup.ts`) and `finalizeMulligan` walks
+    // to UPKEEP via `advancePhase`, never `advanceTurn` — so without this clear
+    // every scenario arrives on turn 1 carrying SEVEN drawn cards, and the
+    // first "if you've drawn more than one card this turn" trigger (Proft's
+    // Eidetic Memory) fires for 7 on a board where the player has drawn
+    // nothing. `markLastDrawn` below re-seeds the draw tally deliberately when
+    // the spec asks for it, so the two stay consistent.
+    p1.drawnThisTurn = undefined;
+    p2.drawnThisTurn = undefined;
+    p1.leftGraveyardThisTurn = undefined;
+    p2.leftGraveyardThisTurn = undefined;
 
     // CR 104 (issue #3314) — a scenario starts a LIVE position, so the
     // game-over flag goes with the zones above. `debugSetupScenario` persists
@@ -547,6 +564,12 @@ export function buildStateFromScenario(
     // next turn start by advanceTurn.
     if (spec.markLastDrawn && p1.hand.length > 0) {
         p1.lastDrawnCardId = p1.hand[p1.hand.length - 1].id;
+        // CR 121.1 (issue #3240) — `lastDrawnCardId` and `drawnThisTurn` are
+        // two readings of the same fact, and the reset above emptied the
+        // second. Re-seed it with exactly the card just declared as drawn, so
+        // "the last card you drew this turn" and "the number of cards you've
+        // drawn this turn" cannot disagree on a scenario board.
+        p1.drawnThisTurn = [p1.lastDrawnCardId];
     }
 
     // CR 611.2 — replay continuous keyword-grant / activated-grant static
@@ -1259,6 +1282,13 @@ const PLAYER_STATE_ALLOWLIST = new Set<string>([
     "experienceCounters",
     "companion",
     "lastDrawnCardId",
+    // CR 121.1 (issue #3240) — the spec CAN express this, but only in the one
+    // shape `markLastDrawn` lowers and rebuilds: the single most recently drawn
+    // card. Allowlisted here so that shape stops reading as residue; a LONGER
+    // tally is still genuinely live-only and is reported by its own check in
+    // `reportPlayerStateResidue`, because a blanket allowlist entry would
+    // silently swallow "you drew seven cards this turn".
+    "drawnThisTurn",
     // Wire-projection-only additions — see this Set's doc comment.
     "librarySearch",
     "libraryPeek",
@@ -1297,6 +1327,18 @@ function reportPlayerStateResidue(
     if (extra.length > 0) {
         dropped.push(
             `${label}: live-only player state not captured (${extra.sort().join(", ")})`
+        );
+    }
+    // CR 121.1 (issue #3240) — the narrow half of the `drawnThisTurn`
+    // allowlist entry above. `markLastDrawn` lowers exactly one card, so
+    // anything else in the tally survives no round trip and must say so.
+    const drawn = player.drawnThisTurn ?? [];
+    const expressible =
+        drawn.length === 0 ||
+        (drawn.length === 1 && drawn[0] === player.lastDrawnCardId);
+    if (!expressible) {
+        dropped.push(
+            `${label}: drawnThisTurn beyond the single markLastDrawn card not captured (${drawn.length} drawn)`
         );
     }
 }

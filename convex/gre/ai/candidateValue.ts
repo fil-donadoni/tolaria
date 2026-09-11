@@ -37,6 +37,7 @@ import type { OpValue, ValueTag } from "./featureBasis";
 import type {
     EffectCardFilter,
     EffectCountSpec,
+    EffectDifferenceTallyOperand,
     EffectForEachSelector,
     EffectPlayerRef,
     EffectScaledOperand,
@@ -653,6 +654,17 @@ function resolveValueAgainstBoard(
             ? (state.lifeGainedThisTurn?.[perspectivePlayerId] ?? 0)
             : CF_ASSUMED_REF_FALLBACK;
     }
+    // cardsDrawnThisTurn (CR 121.1, issue #3240) — the per-turn draw tally,
+    // resolvable off the live board exactly like `lifeGainedThisTurn` above,
+    // and with the same selector caveat: only `"controller"` is resolvable
+    // pre-cast (the caster IS the perspective player); any other selector
+    // needs an announcement that doesn't exist yet at a choice node.
+    if ("cardsDrawnThisTurn" in v) {
+        return v.cardsDrawnThisTurn.of === "controller"
+            ? (state.players.find((p) => p.id === perspectivePlayerId)
+                  ?.drawnThisTurn?.length ?? 0)
+            : CF_ASSUMED_REF_FALLBACK;
+    }
     // difference (issue #2006) — both operands are terminals (a literal or a
     // `count`), and a `count` is exactly the member this function already
     // resolves genuinely against the live board, so the whole difference is
@@ -662,14 +674,24 @@ function resolveValueAgainstBoard(
     // clamp here would instead price Dark Suspicions as if it always did
     // something.
     if ("difference" in v) {
-        const operand = (o: number | { count: EffectCountSpec }): number =>
-            typeof o === "number"
-                ? o
-                : resolveCountSpecAgainstBoard(
-                      state,
-                      perspectivePlayerId,
-                      o.count
-                  );
+        const operand = (o: EffectDifferenceTallyOperand): number => {
+            if (typeof o === "number") return o;
+            // issue #3240 — the third terminal `difference` accepts. Same
+            // pre-cast resolvability rule as the standalone member above: the
+            // controller's own tally is a live board fact, any other selector
+            // is not announced yet.
+            if ("cardsDrawnThisTurn" in o) {
+                return o.cardsDrawnThisTurn.of === "controller"
+                    ? (state.players.find((p) => p.id === perspectivePlayerId)
+                          ?.drawnThisTurn?.length ?? 0)
+                    : CF_ASSUMED_REF_FALLBACK;
+            }
+            return resolveCountSpecAgainstBoard(
+                state,
+                perspectivePlayerId,
+                o.count
+            );
+        };
         return operand(v.difference.from) - operand(v.difference.minus);
     }
     // scaled (issue #2366) — a fixed multiplier times a terminal (X, a

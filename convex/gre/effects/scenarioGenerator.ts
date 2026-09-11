@@ -325,6 +325,15 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         req.skip ??= `amount reads a player's life gained this turn — the canned generator does not gain life before resolving`;
         return;
     }
+    // cardsDrawnThisTurn (CR 121.1, issue #3240): the amount reads how many
+    // cards a player has drawn this turn. The canned generator opens a fresh
+    // turn and never draws before the spell resolves, so it cannot size a
+    // declared outcome; skip-with-reason — the value member's own interpreter
+    // test is the behavioural guarantor (new-construct regime).
+    if ("cardsDrawnThisTurn" in value) {
+        req.skip ??= `amount reads a player's cards drawn this turn — the canned generator does not draw before resolving`;
+        return;
+    }
     // playerCounters (CR 122.1, issue #1969): the amount reads how many
     // counters of one kind a PLAYER has. The canned generator builds a fresh
     // board and never seeds poison / energy / experience on either player, so
@@ -1619,6 +1628,7 @@ function predictAmount(value: EffectValue): number | null {
     if ("domain" in value) return null; // skipped earlier — defensive
     if ("devotion" in value) return null; // skipped earlier — defensive
     if ("lifeGainedThisTurn" in value) return null; // skipped earlier
+    if ("cardsDrawnThisTurn" in value) return null; // skipped earlier
     if ("playerCounters" in value) return null; // skipped earlier — defensive
     if ("difference" in value) return null; // skipped earlier — defensive
     if ("scaled" in value) return null; // skipped earlier — defensive

@@ -2444,6 +2444,19 @@ describe("optional field round-trip smoke tests", () => {
         expect(got.players[1].lastDrawnCardId).toBeUndefined();
     });
 
+    // CR 400.7 (issue #3240) — the per-turn graveyard-departure tally gates
+    // Gau, Feral Youth's end-step intervening if, which the CR 603.4 rule
+    // re-checks at resolution; a save/load taken between the trigger and the
+    // re-check must not silently answer "no".
+    it("leftGraveyardThisTurn on PlayerState (CR 400.7)", () => {
+        const state = makeState();
+        state.players[0].leftGraveyardThisTurn = 2;
+        expect(roundTrip(state).players[0].leftGraveyardThisTurn).toBe(2);
+        expect(
+            roundTrip(state).players[1].leftGraveyardThisTurn
+        ).toBeUndefined();
+    });
+
     it("damageDealtToPlayerThisTurn", () => {
         const state = freshState();
         state.damageDealtToPlayerThisTurn = { p1: 5, p2: 3 };

@@ -4592,6 +4592,18 @@ export interface SpellContext {
      *  Used by the `{ lifeGainedThisTurn: { of } }` EffectValue grammar member
      *  and by imperative "if you gained life this turn" conditions. */
     getLifeGainedThisTurn: (playerId: string) => number;
+    /** CR 121.1 (issue #3240) — how many cards `playerId` has DRAWN so far
+     *  this turn, 0 when none. Reads back `PlayerState.drawnThisTurn.length`,
+     *  the ordered tally every draw path already appends to (`drawCard` and
+     *  the CR 614 draw-replacement layer), so this getter never scans or
+     *  recomputes. A card put into hand WITHOUT a draw never enters it —
+     *  CR 121.1 defines a draw as moving the top card of the library to hand,
+     *  and a "put into your hand" effect is not that. Entries may name cards
+     *  that have since left the hand; the COUNT is what this returns, so that
+     *  is correct — "cards you've drawn this turn" does not un-count a card
+     *  you later discarded. Used by the `{ cardsDrawnThisTurn: { of } }`
+     *  EffectValue grammar member (Proft's Eidetic Memory). */
+    getCardsDrawnThisTurn: (playerId: string) => number;
     /** CR 702.131b (Ascend, issue #1460) — true iff `playerId` holds the
      *  city's blessing designation. Reads the monotonic
      *  `GameState.cityBlessingIds` set (once granted, never revoked). Powers
@@ -10408,6 +10420,22 @@ export interface TriggerStateView {
         }>;
         hand: { readonly length: number };
         landsPlayedThisTurn?: number;
+        /** Instance ids of every card this player has drawn this turn, in draw
+         *  order (CR 121.1). Exposed so a CR 603.4 intervening-if can answer
+         *  "if you've drawn more than one card this turn" at BOTH trigger-check
+         *  time and resolution — Proft's Eidetic Memory's beginning-of-combat
+         *  trigger reads its `length`. Mirrors `PlayerState.drawnThisTurn`;
+         *  absent means no draw this turn. The LIST, not a count, so the view
+         *  stays structurally identical to the live `PlayerState` the engine
+         *  passes here unchanged. */
+        drawnThisTurn?: ReadonlyArray<string>;
+        /** Count of cards that have LEFT this player's graveyard this turn, to
+         *  any zone (CR 400.7). Exposed so a CR 603.4 intervening-if can answer
+         *  "if a card left your graveyard this turn" at BOTH trigger-check time
+         *  and resolution — Gau, Feral Youth's end-step trigger reads it.
+         *  Mirrors `PlayerState.leftGraveyardThisTurn`; undefined defaults
+         *  to 0. */
+        leftGraveyardThisTurn?: number;
         /** Graveyard contents in stack order (index 0 = bottom, last = top).
          *  Exposed so graveyard-zone triggers can inspect card position —
          *  Nether Shadow needs "three or more creature cards above it"
@@ -12113,6 +12141,29 @@ export type EffectDevotionValue = {
  *  adds it, kept separate so this scope stays exactly what #2006 shipped. */
 export type EffectDifferenceOperand = number | EffectCount;
 
+/** One operand of a `difference` value as of issue #3240 — `EffectDifference-
+ *  Operand` PLUS the per-turn `cardsDrawnThisTurn` tally. Deliberately a
+ *  SIBLING type rather than a widening of `EffectDifferenceOperand` in place,
+ *  for the reason `EffectScaledOperand` (issue #2366) spells out: `divide`
+ *  reads `EffectDifferenceOperand` too, and no shipped divide card halves a
+ *  per-turn tally, so widening the shared type would silently hand division an
+ *  operand nothing asked for.
+ *
+ *  Why `difference` needs it at all: Proft's Eidetic Memory is "X ... where X
+ *  is the number of cards you've drawn this turn MINUS ONE" — a tally and a
+ *  literal, the exact two-operand subtraction #2006 built, with an operand
+ *  that is neither a literal nor a `count`. `X` stays excluded here exactly as
+ *  it always was (`validate`'s own "rejects a NESTED difference" case still
+ *  rejects `{ difference: { from: { X: true }, minus: 1 } }`).
+ *
+ *  Still a TERMINAL, never a full `EffectValue`: `cardsDrawnThisTurn` is a
+ *  leaf read with no nested value slot, so an expression tree stays
+ *  unrepresentable in the type system — the depth-1 discipline
+ *  `EffectDifferenceOperand` documents is unchanged. */
+export type EffectDifferenceTallyOperand =
+    | EffectDifferenceOperand
+    | EffectCardsDrawnThisTurnValue;
+
 /** difference — `from` MINUS `minus` (issue #2006), the one place the value
  *  grammar performs arithmetic between two operands.
  *
@@ -12148,9 +12199,9 @@ export type EffectDifferenceOperand = number | EffectCount;
 export interface EffectDifferenceValue {
     difference: {
         /** Minuend — the value subtracted FROM. */
-        from: EffectDifferenceOperand;
+        from: EffectDifferenceTallyOperand;
         /** Subtrahend — the value subtracted. */
-        minus: EffectDifferenceOperand;
+        minus: EffectDifferenceTallyOperand;
     };
 }
 
@@ -12289,6 +12340,7 @@ export type EffectValue =
     | EffectEscapedValue
     | EffectAbilityResolutionCountValue
     | EffectLifeGainedThisTurnValue
+    | EffectCardsDrawnThisTurnValue
     | EffectPlayerCountersValue
     | EffectDifferenceValue
     | EffectScaledValue
@@ -12317,6 +12369,40 @@ export type EffectValue =
  *  ("draw cards equal to the life you gained this turn"). */
 export type EffectLifeGainedThisTurnValue = {
     lifeGainedThisTurn: { of: EffectPlayerRef };
+};
+
+/** cardsDrawnThisTurn — how many cards a PLAYER has drawn so far this turn
+ *  (CR 121.1, issue #3240), a thin JSON-pure skin over
+ *  `SpellContext.getCardsDrawnThisTurn`. An EIGHTEENTH `EffectValue` grammar
+ *  member (the ordered census lives in `convex/cards/mechanicsRegistry.ts`); like `domain` (issue #1066), `abilityResolutionCount` (issue #1189)
+ *  and `lifeGainedThisTurn` (issue #1457) it is NOT an Op and NOT a new
+ *  STRUCTURAL construct — it does not reopen ADR 0045.
+ *
+ *  The exact twin of `lifeGainedThisTurn` one zone over: `of` is a PLAYER
+ *  selector (`EffectPlayerRef`), resolved through the same `resolvePlayerRef`
+ *  path every player-scoped Op uses, so `"controller"`, an announced slot and
+ *  `$each` all work; an unresolvable player yields undefined (CR 608.2b). It
+ *  reads back `PlayerState.drawnThisTurn.length` — the tally every draw path
+ *  already appends to — so a card put into hand WITHOUT a draw (CR 121.1: a
+ *  draw is specifically moving the top card of the library to hand) never
+ *  raises it, which is the distinction the Oracle text depends on.
+ *
+ *  Its reason to exist is the amount half of Proft's Eidetic Memory — "X +1/+1
+ *  counters, where X is the number of cards you've drawn this turn minus one"
+ *  — written by composing with `difference`:
+ *  `{ difference: { from: { cardsDrawnThisTurn: { of: "controller" } }, minus: 1 } }`.
+ *  The card's own "if you've drawn more than one card this turn" gate is a
+ *  CR 603.4 intervening-if reading `TriggerStateView`'s per-player
+ *  `drawnThisTurn`, not this value: an intervening-if is not an effect and
+ *  never reaches the interpreter.
+ *
+ *  Known skew (issue #1714, out of scope here): the opening hand and any
+ *  scenario-loaded hand are dealt through the draw path, so `drawnThisTurn`
+ *  over-reports on turn 1 and in loaded scenarios. Every reader of the tally
+ *  inherits it — `lastDrawnCardId` and Sylvan Library already do — and fixing
+ *  it is a change to the DEALING path, not to this reader. */
+export type EffectCardsDrawnThisTurnValue = {
+    cardsDrawnThisTurn: { of: EffectPlayerRef };
 };
 
 /** playerCounters — how many counters of one {@link PlayerCounterKind} a

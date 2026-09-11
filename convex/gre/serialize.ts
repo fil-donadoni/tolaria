@@ -1299,6 +1299,7 @@ type CompactPlayer = {
     spellsCastThisGame?: number;
     lastDrawnCardId?: string;
     drawnThisTurn?: string[];
+    leftGraveyardThisTurn?: number;
     turnsTaken?: number;
     grantedAbilities?: PlayerState["grantedAbilities"];
     /** COUNT of pending skipped turns (CR 614.10a, issue #1957) — see
@@ -1361,6 +1362,12 @@ function compactPlayer(player: PlayerState, ctx: CompactCtx): CompactPlayer {
     }
     if (player.drawnThisTurn?.length) {
         out.drawnThisTurn = player.drawnThisTurn;
+    }
+    // CR 400.7 — "a card left your graveyard this turn" (Gau, Feral Youth).
+    // A per-turn tally that gates an end-step intervening if, so it has to
+    // survive a save/load taken between the two end steps of the same turn.
+    if (player.leftGraveyardThisTurn) {
+        out.leftGraveyardThisTurn = player.leftGraveyardThisTurn;
     }
     if (player.turnsTaken) out.turnsTaken = player.turnsTaken;
     if (player.grantedAbilities?.length) {
@@ -1451,6 +1458,9 @@ function expandPlayer(player: CompactPlayer, ctx?: ExpandCtx): PlayerState {
     }
     if (player.drawnThisTurn !== undefined) {
         result.drawnThisTurn = player.drawnThisTurn.map((id) => id);
+    }
+    if (player.leftGraveyardThisTurn !== undefined) {
+        result.leftGraveyardThisTurn = player.leftGraveyardThisTurn;
     }
     if (player.turnsTaken !== undefined) {
         result.turnsTaken = player.turnsTaken;
