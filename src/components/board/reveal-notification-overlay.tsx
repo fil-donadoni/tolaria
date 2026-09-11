@@ -25,17 +25,32 @@ const REVEAL_NOTIFICATION_MS = 5000;
  *  (it stays face-up in its zone) is the separate `knownTo` grant the caller
  *  also performs — this overlay is only the momentary "here is what you saw". */
 export default function RevealNotificationOverlay() {
-    const { pendingReveals } = useGameContext();
+    const { pendingReveals, pendingChoices, playerId } = useGameContext();
     const [dismissed, setDismissed] = useState<ReadonlySet<string>>(
         () => new Set()
     );
 
+    // A viewer who is being PROMPTED right now sees nothing of this overlay
+    // anyway — the choice dialog portals to `<body>` at the same z-layer and
+    // later in the DOM, so it paints over the scrim — while the overlay's
+    // window-CAPTURE key handler below would still swallow the first
+    // Space / Enter / Escape aimed at that picker for the whole auto-dismiss
+    // window. Suppressed rather than reordered: for the one shape where the
+    // two collide (a hand reveal followed by its own picker — Thoughtseize,
+    // CR 701.20a) the picker IS that player's view of the reveal, it shows the
+    // very cards the dialog would. Every OTHER player still gets the dialog,
+    // which is the half that was missing (issue #3425).
+    const prompted =
+        pendingChoices !== undefined &&
+        pendingChoices.length > 0 &&
+        pendingChoices[0].playerId === playerId;
+
     // The most recent still-undismissed reveal (entries are enqueued in order,
     // so the last one is the newest). Showing one at a time keeps the dialog
     // simple; the next tick surfaces the one below once this is dismissed.
-    const active = (pendingReveals ?? [])
-        .filter((r) => !dismissed.has(r.id))
-        .at(-1);
+    const active = prompted
+        ? undefined
+        : (pendingReveals ?? []).filter((r) => !dismissed.has(r.id)).at(-1);
 
     const activeId = active?.id;
     useEffect(() => {

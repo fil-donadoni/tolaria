@@ -163,6 +163,29 @@ describe("CR 701.20a — the `reveal` Op pops the reveal dialog (issue #3425)", 
         }
     });
 
+    it("gives every reveal a game-unique id, so a repeatable source can pop twice", () => {
+        // The client dismisses BY ID and never un-dismisses, so two reveals
+        // sharing an id are one reveal: the second silently never shows. An
+        // ACTIVATED ability's stack item borrows its source permanent's own
+        // id, which is exactly the repeatable shape — Captain Sisay, Survival
+        // of the Fittest, a loyalty tutor.
+        const state = groveState([GRIZZLY_BEARS, WILD_GROWTH, ISLAND]);
+        activateAndResolve(state, "p1", "grove", "sterling-grove-search");
+        answer(state, ["lib-1"]);
+        const first = revealsFor(state, "p2").map((r) => r.id);
+
+        activateAndResolve(state, "p1", "grove", "sterling-grove-search");
+        // The same card, found again — the harshest case: identical source,
+        // identical step, identical revealed card, and it must STILL be a
+        // distinct notification.
+        answer(state, ["lib-1"]);
+        const second = revealsFor(state, "p2").map((r) => r.id);
+
+        expect(first.length).toBeGreaterThan(0);
+        expect(second.length).toBeGreaterThan(0);
+        expect(first.filter((id) => second.includes(id))).toEqual([]);
+    });
+
     it("leaves a private look addressed to its single viewer (no regression)", () => {
         const state = makeState({
             players: [

@@ -30,7 +30,10 @@ const LOOK: RevealNotification = {
     cards: [{ instanceId: "p2-secret", cardId: "card-lightning-bolt" }],
 };
 
-function renderOverlay(pendingReveals?: RevealNotification[]) {
+function renderOverlay(
+    pendingReveals?: RevealNotification[],
+    pendingChoices?: { playerId: string }[]
+) {
     const ctx = {
         gameId: "game-id",
         playerId: "p1",
@@ -38,6 +41,7 @@ function renderOverlay(pendingReveals?: RevealNotification[]) {
         showAllCards: false,
         debugAllActions: false,
         pendingReveals,
+        pendingChoices,
     } as unknown as React.ContextType<typeof GameContext>;
     return render(
         <GameContext value={ctx}>
@@ -74,6 +78,21 @@ describe("RevealNotificationOverlay (private look / public reveal popup)", () =>
             getByText("A library search ended without finding a card.")
         ).toBeTruthy();
         expect(queryByTestId("reveal-card")).toBeNull();
+    });
+
+    // issue #3425 — a hand reveal is immediately followed by its own picker
+    // (Thoughtseize). That picker portals ABOVE this overlay, so the dialog is
+    // invisible to its chooser while its window-capture key handler still eats
+    // the first Space/Enter/Escape meant for the picker. Suppressed for the
+    // PROMPTED viewer only.
+    it("suppresses itself while this viewer holds the head pending choice", () => {
+        const { container } = renderOverlay([LOOK], [{ playerId: "p1" }]);
+        expect(container.firstChild).toBeNull();
+    });
+
+    it("still shows when the head pending choice belongs to the OTHER player", () => {
+        const { getByText } = renderOverlay([LOOK], [{ playerId: "p2" }]);
+        expect(getByText("You look at this card")).toBeTruthy();
     });
 
     it("renders nothing when there are no pending reveals", () => {

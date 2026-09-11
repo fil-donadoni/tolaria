@@ -1859,6 +1859,10 @@ export function grantKnowledgeToAll(
  *
  *  Used by `putLibraryCardsOnTop` so a reveal → shuffle → put-on-top sequence
  *  does not silently collapse an all-players reveal to owner-only knowledge.
+ *  The three run in ONE pass on every shipped card of that template; a future
+ *  script that SUSPENDED between the reveal and the placement would resume
+ *  with the channel already cleared and fall back to owner-only, which is why
+ *  the reveal Op and the placement belong in the same uninterrupted run.
  *  Not exported: the only legitimate reader is a placement running later in
  *  the SAME resolution, and a wider audience would invite reading it as a
  *  durable visibility model, which it is not. */
@@ -1888,25 +1892,26 @@ function publicRevealAudience(
  *  client already dedups it by `id` and auto-dismisses it. `cards` is empty —
  *  the whole content of the message is that there was nothing to show.
  *
- *  `id` is derived from the choice that produced it (stack item + step +
- *  choiceId), never wall-clock, so a replay is stable and a re-submit cannot
- *  double-pop. No-op with no players (defensive) — never gated on anything
- *  else: the whiff is exactly the case that must not stay silent. */
+ *  `id` carries the choice that produced it and the game-lifetime
+ *  `nextRevealSeq`, never wall-clock: deterministic for replay, and unique
+ *  across two whiffed searches from the SAME repeatable source, which the
+ *  choice key alone is not. No-op with no players (defensive) — never gated on
+ *  anything else: the whiff is exactly the case that must not stay silent. */
 export function enqueueFailToFindNotice(
     state: GameState,
     args: {
         stackItemId: string;
         step: number;
         choiceId: string;
-        /** Card def id of the searching source, for the dialog's art/title.
-         *  Empty when the source has already left the stack. */
+        /** Card def id of the searching source, for the dialog's art/title. */
         source: string;
     }
 ): void {
     const audience = state.players.map((p) => p.id);
     if (audience.length === 0) return;
+    state.nextRevealSeq = (state.nextRevealSeq ?? 0) + 1;
     const entry: RevealNotification = {
-        id: `${args.stackItemId}:${args.step}:${args.choiceId}:fail-to-find`,
+        id: `${args.stackItemId}:${args.step}:${args.choiceId}:fail-to-find:${state.nextRevealSeq}`,
         audience,
         source: args.source,
         kind: "fail-to-find",
@@ -4230,9 +4235,7 @@ export type RevealNotification = {
     /** Player ids that see the dialog: the looker for a private look, every
      *  player for a public reveal or a fail-to-find. */
     audience: string[];
-    /** Source card def id (art / title). Empty string when the notification is
-     *  not about a card the viewer may see — a `fail-to-find` raised by a
-     *  search whose stack item has already left the stack. */
+    /** Source card def id (art / title). */
     source: string;
     /** `fail-to-find` (CR 701.23b, issue #3425) — a library search that ended
      *  with the searcher finding nothing. The ACT of searching is public even
@@ -4531,6 +4534,17 @@ export type GameState = {
      *  generate deterministic `grant-N` ids for GrantedAbilityInstance so
      *  replays reproduce the same ids. */
     nextGrantSeq?: number;
+    /** Monotonic counter advanced by each `pendingReveals` entry, so a reveal
+     *  notification id is unique for the LIFE of the game rather than within
+     *  one resolution (issue #3425 review). The natural key — stack item +
+     *  resolution step — is NOT unique: an ACTIVATED ability's stack item
+     *  borrows its source permanent's own id (`buildActivatedAbilityStackItem`
+     *  clones the permanent), so activating Captain Sisay twice produced the
+     *  same id twice, and the client's `dismissed` set — which by design
+     *  suppresses an id it has already shown — swallowed every reveal after
+     *  the first. Deterministic (never wall-clock), so replays reproduce the
+     *  same ids. */
+    nextRevealSeq?: number;
     /** Pre-game mulligan tracking (CR 103.5). Set during init, cleared by
      *  `finalizeMulligan` when all opening hands are locked and any required
      *  bottoming choices have resolved. */
@@ -20152,7 +20166,9 @@ export function buildSpellContext(
         // A card PUBLICLY REVEALED earlier in this same resolution keeps the
         // wider audience it was revealed to (issue #3425). The tutor-to-top
         // template — "search your library for a card, reveal it, then shuffle
-        // and put that card on top" (Sterling Grove, Elfhame Sanctuary) — runs
+        // and put that card on top" (Sterling Grove; Elfhame Sanctuary and the
+        // other tutors of that family put the card in HAND and never reach
+        // here) — runs
         // reveal → shuffle → this primitive, and the shuffle wipes every
         // `knownTo` in the library (CR 701.24: nobody knows the new order, and
         // CR 701.20d ends the CR "revealed" status of a reordered card). An
@@ -20389,9 +20405,13 @@ export function buildSpellContext(
                 .map((id) => ({ instanceId: id, cardId: found.get(id)! }));
             if (cards.length === 0) return;
             const step = item.resolutionStep ?? 0;
-            const index = state.pendingReveals?.length ?? 0;
+            state.nextRevealSeq = (state.nextRevealSeq ?? 0) + 1;
             const entry: RevealNotification = {
-                id: `${item.id}:${step}:${index}`,
+                // Source and step first so the id stays readable in a
+                // snapshot; the game-lifetime sequence is what makes it
+                // UNIQUE (see `GameState.nextRevealSeq` — a repeatable
+                // activated ability reuses its source's stack item id).
+                id: `${item.id}:${step}:${state.nextRevealSeq}`,
                 audience: [...new Set(audience)],
                 source,
                 kind,

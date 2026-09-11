@@ -1299,9 +1299,17 @@ export function applyPendingChoiceSubmit(
     // back with NOTHING is announced to every player. The library is a Hidden
     // Zone, so no zone projection can carry the outcome, and CR 701.23b makes
     // finding nothing a legal CHOICE rather than a proof the card was absent:
-    // without an explicit signal a whiffed fetchland, a deliberate fail-to-find
-    // and a tutor that found exactly what it wanted are the same observation to
-    // the opponent — a choice appeared and went away.
+    // without an explicit signal, a search that found nothing and a tutor that
+    // found exactly what it wanted are the same observation to the opponent —
+    // a choice appeared and went away.
+    //
+    // WHICH searches can report a DELIBERATE whiff is a separate, older
+    // question: about half the shipped `search-library` Ops declare a fixed
+    // `count` (every fetchland, Demonic Tutor, Entomb), so their prompt can
+    // only come back empty when the library holds no match at all, and CR
+    // 701.23b's "isn't required to find" is not modelled for them. That is not
+    // this seam's to fix — the announcement is identical either way — and it
+    // is drafted in `docs/findings/`.
     //
     // Gated on the SAME `isSearch` discriminator `emitLibrarySearchedEvent`
     // uses, so the look-pick prompts that merely reuse the `search-library`
@@ -1324,11 +1332,13 @@ export function applyPendingChoiceSubmit(
                   stackItemId: head.stackItemId,
                   step: head.step,
                   choiceId: head.choiceId,
+                  // The head's stack item is guaranteed present — this
+                  // function already threw on a missing one long before here.
                   source:
                       (
-                          state.stack.find((i) => i.id === head.stackItemId)
-                              ?.card as { id?: string } | undefined
-                      )?.id ?? "",
+                          state.stack.find((i) => i.id === head.stackItemId)!
+                              .card as { id?: string }
+                      ).id ?? "",
               }
             : undefined;
 
