@@ -342,6 +342,14 @@ export const SCENARIO_SCHEMA_EXCLUSIONS = {
     // admin sets it in the form (`scenario-spec-ownership.ts` classifies it
     // `form-owned`) when a scenario actually needs a pinned outcome.
     rngSeed: "the model has no basis to invent a PRNG seed — admin-set only",
+    // CR 508.1 / 509.1 (issue #3458) — a declared combat has to COHERE with
+    // the board it sits on: its attackers tapped (CR 508.1f), its blockers
+    // untapped (CR 509.1a), the phase a combat step, the damage its triggers
+    // already put. A model given the fields would produce combinations the
+    // engine can hold but no game could reach, and the spec's own contract is
+    // that coherence is the author's. It is CAPTURED from a live position
+    // (`specFromState`) or hand-written in a blade entry.
+    combat: "a declared combat must cohere with the board that produced it — captured, never generated",
 } as const satisfies Partial<Record<keyof ScenarioSpec, string>>;
 
 /** Signature of the injected LLM call: given a system prompt and the user's

@@ -114,6 +114,18 @@ const STORED: Required<ScenarioSpec> = {
     activePlayer: "opp",
     priority: "me",
     passCount: 1,
+    // CR 508.1 / 509.1 (issue #3458) — a curated row captured mid-combat: the
+    // first field classified `preserved` since issue #3463, so it is also the
+    // first real exercise of the carry-through path below.
+    combat: {
+        attackers: ["Psychatog"],
+        confirmed: true,
+        blockers: [{ blocker: "Wall of Blossoms", blocking: [0] }],
+        blockersConfirmed: false,
+        attackedThisTurn: ["Werebear"],
+        blockedThisTurn: ["Wall of Roots"],
+        creatureAttacked: true,
+    },
     companion: { name: "Lurrus of the Dream-Den", owner: "me", used: true },
 };
 

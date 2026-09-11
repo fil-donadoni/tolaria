@@ -17802,6 +17802,31 @@ export const debugSetupScenario = mutation({
         activePlayer: v.optional(v.union(v.literal("me"), v.literal("opp"))),
         priority: v.optional(v.union(v.literal("me"), v.literal("opp"))),
         passCount: v.optional(v.number()),
+        /** CR 508.1 / 509.1 (issue #3458) — a combat already DECLARED: the
+         *  attackers (by presented card name, on the active player's
+         *  battlefield), the blockers and what each blocks (as indexes into
+         *  `attackers`), whether either declaration is locked in, and the
+         *  CR 506.4 per-turn record that outlives the combat object. Omitted
+         *  is the pre-#3458 behaviour: no combat beyond the empty,
+         *  unconfirmed object `phase: "DECLARE_ATTACKERS"` seeds on its own. */
+        combat: v.optional(
+            v.object({
+                attackers: v.optional(v.array(v.string())),
+                confirmed: v.optional(v.boolean()),
+                blockers: v.optional(
+                    v.array(
+                        v.object({
+                            blocker: v.string(),
+                            blocking: v.array(v.number()),
+                        })
+                    )
+                ),
+                blockersConfirmed: v.optional(v.boolean()),
+                attackedThisTurn: v.optional(v.array(v.string())),
+                blockedThisTurn: v.optional(v.array(v.string())),
+                creatureAttacked: v.optional(v.boolean()),
+            })
+        ),
         /** CR 702.139c / ADR 0064 (issue #1392) — directly declare a
          *  companion into `owner`'s slot, bypassing the normal sideboard/
          *  maindeck auto-declare (`selectCompanion`, game init) that a

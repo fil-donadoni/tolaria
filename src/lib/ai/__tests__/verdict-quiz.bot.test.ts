@@ -277,6 +277,62 @@ describe("buildVerdictQuiz — a judgement the fit can still read (issue #3405)"
         expect(pairs.pairs.length).toBe(quiz.candidates.length - 1);
     });
 
+    it("judges a BLOCKING decision, attackers already declared (CR 509.1, issue #3458)", () => {
+        // The other half of the class PRD #3397 exists for, and the one the
+        // quiz refused outright for longer: a `ScenarioSpec` could seed only an
+        // EMPTY DECLARE_ATTACKERS combat object, so lowering a position taken
+        // after attackers were declared rewound it to the attack step — the
+        // rebuild offered the `attack:` the Bot had already made and owed the
+        // defender no block at all. Measured at 19.8% of Bot decisions.
+        const state = buildBladeState({
+            label: "verdict-quiz block-window fixture",
+            spec: DECLARE_ATTACKERS,
+            setup: [{ kind: "declare-attackers" }],
+            bot: "opp",
+            budget: { iterations: 1 },
+            tier: "must",
+            expect: { moves: [] },
+        });
+        const defenderId = state.players[1].id;
+        // The position really is the one under test: the attack is declared
+        // and confirmed, and the defender owes the block.
+        expect(state.phase).toBe("DECLARE_BLOCKERS");
+        expect(state.combat?.confirmed).toBe(true);
+        expect(state.combat?.attackerIds.length).toBe(1);
+
+        const moves = candidateMoves(state, defenderId);
+        expect(moves.length).toBeGreaterThan(1);
+        const chosen =
+            moves.find((m) => m.kind === "declare-blockers") ?? moves[0];
+
+        const result = buildVerdictQuiz(traceFor(state, defenderId, chosen), {
+            state: projectPublicState(state, SEQ, defenderId),
+            botId: defenderId,
+        });
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        const { quiz } = result;
+
+        // Lowered in the judged seat's own frame: the defender is "me", the
+        // attacker holds the turn, and the declaration came with it.
+        expect(quiz.spec.combat?.attackers).toEqual(["Grizzly Bears"]);
+        expect(quiz.spec.combat?.confirmed).toBe(true);
+        expect(quiz.spec.activePlayer).toBe("opp");
+        // The loss it replaces is gone.
+        expect(quiz.dropped.some((note) => note.startsWith("combat:"))).toBe(
+            false
+        );
+
+        // THE claim: the rebuilt position offers the block that was actually
+        // made, and the fit resolves every candidate the quiz named.
+        expect(quiz.candidates[quiz.botPickIndex].description).toBe(
+            describeMove(chosen, state)
+        );
+        const pairs = evalPairsOf(verdictOf(quiz, quiz.botPickIndex));
+        expect(pairs.error).toBeUndefined();
+        expect(pairs.pairs.length).toBe(quiz.candidates.length - 1);
+    });
+
     it("submits through the REAL mutation, which validates what it stores", async () => {
         // The door the quiz's payload actually has to pass: index bounds,
         // duplicate move keys, and every card name in the position resolving
