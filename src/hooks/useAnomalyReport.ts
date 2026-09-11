@@ -20,9 +20,12 @@ import {
 export function useAnomalyReportRequests(onRequest: () => void): void {
     // The latest callback without re-subscribing on every render — the
     // subscription must survive the parent's state changes, and one of those
-    // is the very `setOpen` this callback performs.
+    // is the very `setOpen` this callback performs. Written in an effect, never
+    // during render: a ref mutated while rendering is `react-hooks/refs`.
     const handler = useRef(onRequest);
-    handler.current = onRequest;
+    useEffect(() => {
+        handler.current = onRequest;
+    }, [onRequest]);
 
     useEffect(() => {
         let last = getAnomalyReportState().requested;
