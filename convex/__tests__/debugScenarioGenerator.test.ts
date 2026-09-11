@@ -13,13 +13,25 @@ import {
     parseLlmScenarioText,
     runScenarioGeneration,
     SCENARIO_JSON_SCHEMA,
+    type ScenarioCardAuthority,
     type ScenarioGenerateFn,
 } from "../debugScenarioGenerator.core";
+import { collectUnresolvedCardNames } from "../debugScenarioSpec";
 
 // A tiny catalogue standing in for the real registry allow-list/resolver.
 const ALLOW_LIST = ["Forest", "Craw Wurm", "Wild Growth", "Shatter"] as const;
 const resolves = (name: string): boolean =>
     (ALLOW_LIST as readonly string[]).includes(name);
+
+/** The injected card seam (issue #3444), stubbed exactly as the action's real
+ *  one behaves: an async allow-list and an async unresolved-name scan with NO
+ *  token resolver. In production both are `ctx.runQuery` hops into
+ *  `convex/debugScenarios.ts` — that hop is what keeps the compiled card pool
+ *  out of the `"use node"` bundle's separate esbuild graph. */
+const cards: ScenarioCardAuthority = {
+    allowList: async () => ALLOW_LIST,
+    unresolved: async (spec) => collectUnresolvedCardNames(spec, resolves),
+};
 
 /** Build a `generate` stub that returns a fixed JSON string, and record the
  *  system prompt it was called with so the allow-list constraint is assertable. */
@@ -123,9 +135,8 @@ describe("runScenarioGeneration — validate accept case (issue #771)", () => {
 
         const result = await runScenarioGeneration({
             description: "Forest enchanted with Wild Growth, Craw Wurm in hand",
-            allowList: ALLOW_LIST,
             generate,
-            resolves,
+            cards,
         });
 
         expect(result.unresolved).toEqual([]);
@@ -150,9 +161,8 @@ describe("runScenarioGeneration — validate reject case (issue #771)", () => {
 
         const result = await runScenarioGeneration({
             description: "Forest plus a Black Lotus",
-            allowList: ALLOW_LIST,
             generate,
-            resolves,
+            cards,
         });
 
         // Nothing is written here; the unknown name is surfaced for the
@@ -180,9 +190,8 @@ describe("runScenarioGeneration — validate reject case (issue #771)", () => {
 
         const result = await runScenarioGeneration({
             description: "Wild Growth on a made-up land",
-            allowList: ALLOW_LIST,
             generate,
-            resolves,
+            cards,
         });
 
         expect(result.unresolved).toEqual(["Bogus Land"]);
@@ -193,9 +202,8 @@ describe("runScenarioGeneration — validate reject case (issue #771)", () => {
         await expect(
             runScenarioGeneration({
                 description: "anything",
-                allowList: ALLOW_LIST,
                 generate,
-                resolves,
+                cards,
             })
         ).rejects.toThrow(/valid JSON/);
     });
