@@ -235,6 +235,9 @@ describe("a permanent spell cast by a non-owner (CR 110.2 / 110.2b / 112.2)", ()
         expect(getEffectiveToughness(state, entered)).toBe(4);
     });
 
+    // A NON-REGRESSION guard, not a new pin: zone-return has always routed by
+    // `ownerId` (`sendStackItemToGraveyard` / `graveyardDestinationFor`), and
+    // the acceptance criterion is that the controller stamp did not disturb it.
     it("CR 400.3 — leaving the battlefield, the card still goes to its OWNER's graveyard", () => {
         const state = position();
         commitCast(state, "merch", "p1", "p2");

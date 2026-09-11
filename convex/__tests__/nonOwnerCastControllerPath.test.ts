@@ -153,6 +153,12 @@ describe("a non-owner's permanent spell, through game.ts to the client view (iss
         expect(entered.ownerId).toBe("p1");
 
         // …and the same through the projection each client actually renders.
+        // These two placement reads are NON-REGRESSION guards, not the new
+        // pin: the projection places battlefield cards by the player ARRAY,
+        // and the array was always right — the array/field disagreement WAS
+        // the bug. The load-bearing assertions here are `controllerId` above
+        // and the choice's `playerId` below, both of which travel through the
+        // projection as their own fields.
         const casterView = projectPublicState(persisted, 1, "p2");
         expect(
             casterView.players

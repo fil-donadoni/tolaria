@@ -6381,15 +6381,18 @@ function targetStillTargetableBySource(
     // can be derived differently on the two sides of the stack.
     const source = targetingSourceFromCard(item, isSpellStackItem(item));
     // CR 113.7a / 601.2 — a spell or ability on the stack is controlled by the
-    // player who PUT IT THERE, which is `castById`, not the card object's own
-    // `controllerId`: the cast commit spreads the card and stamps `castById`
-    // without re-stamping `controllerId`, so a card cast from an OPPONENT's
-    // zone under a cross-player permission (Robber of the Rich's
-    // `grantCastFromExile`) sits on the stack still carrying its owner's
-    // `controllerId`. Reading that field would make the caster's own hexproof
-    // creature an illegal target for the caster's own stolen spell — the
-    // offered-vs-accepted divergence ADR 0068 exists to prevent, moved to a
-    // third site. Every announcement site passes the ACTING player
+    // player who PUT IT THERE, which is `castById`. The two fields AGREE for a
+    // spell since issue #3000 (`removeFromZone` stamps `controllerId` from the
+    // caster at the cast commit); before that they diverged for a card cast
+    // from an OPPONENT's zone under a cross-player permission (Robber of the
+    // Rich's `grantCastFromExile`), which sat on the stack still carrying its
+    // owner's `controllerId` — reading that field made the caster's own
+    // hexproof creature an illegal target for the caster's own stolen spell,
+    // the offered-vs-accepted divergence ADR 0068 exists to prevent. Keeping
+    // `castById` FIRST is still not redundant: an ABILITY's item is a clone of
+    // its source permanent and is not restamped, so an ability activated by a
+    // non-controller (`activatableByAnyPlayer`) reaches here with the two
+    // fields disagreeing. Every announcement site passes the ACTING player
     // (`getLegalTargets`'s `casterId`, `selectTarget`'s `playerId`); this is
     // the same player. The `??` covers a synthetic item with no `castById` at
     // all: falling back to the object's controller is what the pre-existing
