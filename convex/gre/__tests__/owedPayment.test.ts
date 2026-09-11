@@ -75,6 +75,7 @@ const FULL_CAST: Required<PendingCast> = {
     },
     evoked: false,
     dashed: false,
+    warped: false,
     bestowed: false,
     castOffSorceryTiming: false,
     improviseTappedArtifactIds: [],

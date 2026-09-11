@@ -353,13 +353,17 @@ export function canPayAlternativeCost(
  *  chosen alt cost can be IDENTIFIED as "the evoke one" by reference equality
  *  at cast commit — see the doc on `CardDefinition.evoke`), matched by its own
  *  `id` exactly like any array entry. CR 702.109 — same treatment for
- *  `def.dash` (see `CardDefinition.dash`). */
+ *  `def.dash` (see `CardDefinition.dash`), and CR 702.185 for `def.warp`. */
 export function getAlternativeCost(
     def: CardDefinition | undefined,
     altCostId: string
 ): AlternativeCost | undefined {
     if (def?.evoke?.id === altCostId) return def.evoke;
     if (def?.dash?.id === altCostId) return def.dash;
+    // CR 702.185a — same treatment for `def.warp` ("casting a spell for its
+    // warp cost follows the rules for paying alternative costs in rules 601.2b
+    // and 601.2f-h"). See `CardDefinition.warp`.
+    if (def?.warp?.id === altCostId) return def.warp;
     // CR 702.103a — same treatment for `def.bestow` ("casting a spell using
     // its bestow ability follows the rules for paying alternative costs").
     if (def?.bestow?.id === altCostId) return def.bestow;
@@ -400,7 +404,9 @@ export function getAlternativeCost(
  *  the rules for paying alternative costs in rules 601.2b and 601.2f–h"),
  *  gated by the SAME `canPayAlternativeCost` affordability check as every
  *  other alt cost. CR 702.109 — also offers `def.dash` (Dash's cast permission
- *  is likewise CR 118.9 infra, 702.109a). NOTE: `canPayAlternativeCost` checks
+ *  is likewise CR 118.9 infra, 702.109a).
+ *  CR 702.185 — Warp's is the same, `def.warp`, on the same terms.
+ *  NOTE: `canPayAlternativeCost` checks
  *  only the condition/permanent/life/hand legs — Dash's `mana` leg is NOT
  *  checked here (a dash cost is always "offered"; its mana affordability is
  *  checked separately by `convex/gre/rules.ts`'s "cast" legality gate, the
@@ -428,6 +434,18 @@ export function affordableAlternativeCosts(
         ...(def.alternativeCosts ?? []),
         ...(def.evoke ? [def.evoke] : []),
         ...(def.dash ? [def.dash] : []),
+        // CR 702.185a — Warp IS an alternative cost, on Dash's terms in every
+        // respect but ONE: "you may cast this card FROM YOUR HAND by paying
+        // [cost] rather than its mana cost". Dash (702.109a) and Evoke
+        // (702.74a) name no zone and are deliberately zone-blind here; Warp
+        // names one, and the omission is not cosmetic — a warp-exiled card
+        // re-cast for its WARP cost would re-stamp `warped`, re-schedule the
+        // end-step exile and re-open the recast window, i.e. a permanent
+        // rented for {R} a turn, forever. The same gate is applied at the two
+        // commit sites (`isWarpCost`, `convex/game.ts`) and in the Bot's
+        // enumerator (`gre/moves.ts`), because each of them decides the cast
+        // independently of this list.
+        ...(def.warp && card.zone === "hand" ? [def.warp] : []),
         // CR 702.103a — Bestow IS an alternative cost, offered on the same
         // terms. CR 601.2c / 702.103b adds one gate the other variants don't
         // need: a bestowed cast is an AURA spell and so requires a legal

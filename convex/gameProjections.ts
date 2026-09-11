@@ -30,6 +30,7 @@ import {
 import { canSummonCompanion } from "./gre/companion";
 import { canTurnFaceUp } from "./gre/morph";
 import { isFaceDownExile } from "./gre/faceDown";
+import { exileCastPermission } from "./gre/castCost";
 import {
     computeLibraryTopLookedAtPlayers,
     computeLibraryTopRevealedPlayers,
@@ -708,6 +709,10 @@ function projectExileCard(
     opts?: {
         legalActionsFor?: () => CardAction[];
         exiledByPermanentId?: string;
+        /** CR 702.185a (issue #1268) — the current turn, which
+         *  `exileCastPermission` reads the grant's LOWER bound against. Passed
+         *  rather than derived: this projector takes a CARD, not the state. */
+        turn?: number;
     }
 ): SlimExileCard {
     // CR 601.3 — the viewer's own card it may cast from exile carries
@@ -721,7 +726,16 @@ function projectExileCard(
         if (opts?.exiledByPermanentId !== undefined) {
             out = { ...out, exiledByPermanentId: opts.exiledByPermanentId };
         }
-        if (opts?.legalActionsFor && card.castableFromExileBy === viewerId) {
+        // CR 702.185a (issue #1268) — through the shared authority, not a bare
+        // field read: a warp grant exists on the card from the moment it is
+        // exiled but does not OPEN until the following turn, and the client's
+        // Cast button is gated on exactly this `legalActions` array. Reading
+        // `castableFromExileBy` alone here would arm the button for a cast the
+        // mutation refuses.
+        if (
+            opts?.legalActionsFor &&
+            exileCastPermission(card, viewerId, opts.turn ?? 0)
+        ) {
             out = { ...out, legalActions: opts.legalActionsFor() };
         }
         return out;
@@ -1387,6 +1401,7 @@ export function projectPublicState(
             exile: player.exile.map((c) =>
                 withPrintedCastAvailability(
                     projectExileCard(c, viewerId, {
+                        turn: state.turn,
                         // CR 601.3 (issue #1156) — `casterId` disambiguates a
                         // CROSS-PLAYER grant (Robber of the Rich, Dauthi
                         // Voidwalker): the card lives in `player`'s exile, but
@@ -1701,18 +1716,26 @@ export function projectFullState(
             exile: player.exile.map((c) => {
                 // CR 601.3 (issue #1156) — same `casterId` disambiguation as
                 // the public projection above (cross-player grants).
-                const out: SlimExileCard = c.castableFromExileBy
-                    ? {
-                          ...slimCard(c),
-                          legalActions: getLegalActions(
-                              state,
-                              player,
-                              c,
-                              allActions,
-                              c.castableFromExileBy
-                          ),
-                      }
-                    : slimCard(c);
+                // CR 702.185a (issue #1268) — through the shared authority, like
+                // the public projection: a grant can be stamped and not yet
+                // OPEN, and `getLegalActions`' final cast branch is zone-blind,
+                // so a raw field read here showed a warped card as castable on
+                // the turn it was warped out while the public view (correctly)
+                // did not.
+                const out: SlimExileCard =
+                    c.castableFromExileBy !== undefined &&
+                    exileCastPermission(c, c.castableFromExileBy, state.turn)
+                        ? {
+                              ...slimCard(c),
+                              legalActions: getLegalActions(
+                                  state,
+                                  player,
+                                  c,
+                                  allActions,
+                                  c.castableFromExileBy
+                              ),
+                          }
+                        : slimCard(c);
                 const host = exileAssoc.get(c.id);
                 return withPrintedCastAvailability(
                     host !== undefined

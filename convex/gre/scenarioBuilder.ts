@@ -892,6 +892,13 @@ const CARD_STATE_ALLOWLIST = new Set<string>([
     "copiedFrom",
     "castableFromExileBy",
     "castableFromExileUntilTurn",
+    // CR 702.185a/b (issue #1268) — the Warp trio: the cast-instance marker on
+    // a permanent still awaiting its end step, the "warped card in exile"
+    // referent, and the grant's LOWER turn bound. Spec-keyed state like the
+    // three exile-grant keys around them, not continuous-effect residue.
+    "castableFromExileFromTurn",
+    "warped",
+    "warpExiled",
     "castableFromExileIncludesLand",
     // Rebuild behaviour, not spec-keyed data: `beginApplyingStaticEffects`
     // (CR 611.2) re-derives every CONTINUOUS grant/strip from a

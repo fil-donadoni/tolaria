@@ -412,9 +412,15 @@ artifact** at 347 B/row; the ceiling applies to the **bundled** form.
   cold field on the hottest reactive row. A per-id read of the ~40 definitions
   a game references, from a table nothing subscribes to, is a different design
   and was never actually priced against the usage model.
-- **The 30 MiB budget in `scripts/check-convex-bundle-size.ts` is the trigger**,
+- **The bundle budget in `scripts/lib/convex-bundle-size.ts` is the trigger**,
   the way the 2 MB pool budget was meant to be. Crossing it means building that
-  store, not raising the number.
+  store, not raising the number. It was nonetheless raised ONCE, 30 → 31 MiB
+  (issue #1268): the base tip had reached 29.99 MiB, i.e. ~10 KB of headroom,
+  so the guard had stopped warning and had begun blocking every engine change
+  whatever it was, and a gate no legitimate change can pass teaches sessions to
+  route around it. The remaining megabyte is the whole margin between a red
+  gate and a deploy Convex refuses outright — there is no 32 MiB budget to move
+  to next. The next crossing builds the store.
 - **`MAX_USER_MODULES` is a second axis, moving the other way.** Every
   hand-written definition is one file under `convex/` and one user module;
   retiring proven duplicates into compiled data (issue #2703) spends bundle

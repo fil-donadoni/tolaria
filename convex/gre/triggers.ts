@@ -218,6 +218,45 @@ export function buildReboundReflexiveTrigger(
     };
 }
 
+/** CR 702.185a — builds the synthetic StackItem for a fired WARP delayed
+ *  trigger ("exile the permanent this spell becomes at the beginning of the
+ *  next end step"). Engine-owned like `buildReboundReflexiveTrigger` above: the
+ *  ability belongs to the keyword, not to any card-def `triggeredAbilities`
+ *  entry, so the item carries only the `warpTrigger` marker (the watched
+ *  permanent's instance id) and `resolveTopOfStackInner` dispatches on it.
+ *
+ *  The subject is named by ID and re-found at RESOLUTION, never captured here:
+ *  the permanent can still leave (or leave and return — CR 400.7) between this
+ *  trigger going on the stack and resolving, and `applyWarpExile` is what asks
+ *  whether the object under that id is still the same one.
+ *
+ *  `controllerId` is the delayed ability's OWN controller (CR 603.7d — the
+ *  player who controlled the warp spell as it resolved), which is what decides
+ *  APNAP ordering against any other trigger at the same end step. The RECAST
+ *  permission it opens names the card's OWNER instead (CR 702.185a), and
+ *  `applyWarpExile` reads that off the exiled card — two clauses about two
+ *  different players, answered separately. */
+export function buildWarpExileTrigger(
+    state: GameState,
+    permanentCardId: string,
+    permanentInstanceId: string,
+    controllerId: string
+): StackItem {
+    return {
+        id: allocInstanceId(state),
+        card: { id: permanentCardId },
+        controllerId,
+        ownerId: controllerId,
+        zone: "stack",
+        types: [],
+        subtypes: [],
+        staticAbilities: [],
+        isTapped: false,
+        castById: controllerId,
+        warpTrigger: permanentInstanceId,
+    };
+}
+
 /** CR 114 (issue #1221) — a source-less synthetic `PermanentView` standing in
  *  for a command-zone emblem, passed as `self` to an emblem triggered ability's
  *  `matches` predicate. `controllerId`/`ownerId` are the emblem's owner

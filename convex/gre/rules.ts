@@ -64,6 +64,7 @@ import { matchesPermanentFilter } from "../cards/filters";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { isExileCostEligible } from "../cards/exileCostEligibility";
 import type { CastFromZone } from "./castCost";
+import { exileCastPermission } from "./castCost";
 import {
     castOptionAlternativeCosts,
     castPermissionRequired,
@@ -977,7 +978,7 @@ export function getLegalActions(
             (player.graveyard.some((c) => c.id === card.id) &&
                 canPlayLandsFromGraveyard(state, player)) ||
             isPlayableLibraryTopLand(state, player, card.id) ||
-            (card.castableFromExileBy === casterId &&
+            (exileCastPermission(card, casterId, state.turn) &&
                 card.castableFromExileIncludesLand === true &&
                 state.players.some((p) =>
                     p.exile.some((c) => c.id === card.id)

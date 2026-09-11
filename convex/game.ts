@@ -2470,8 +2470,13 @@ function findCastableExileCard(
     instanceId: string
 ): CardInstanceState | undefined {
     for (const p of state.players) {
+        // CR 702.185a (issue #1268) — through the shared authority: a grant can
+        // be stamped and not yet OPEN (a warped card is castable only "after
+        // the current turn has ended"), and this is the REAL payment path.
         const found = p.exile.find(
-            (c) => c.id === instanceId && c.castableFromExileBy === casterId
+            (c) =>
+                c.id === instanceId &&
+                exileCastPermission(c, casterId, state.turn)
         );
         if (found) return found;
     }
@@ -2614,6 +2619,7 @@ import {
     buildCastExileCostChoice,
     castAlternativeCostForZone,
     castRawManaCost,
+    exileCastPermission,
     graveyardCastStackFlags,
     libraryTopCastPayment,
     reboundCastStackFlags,
@@ -3892,6 +3898,11 @@ export function tryAutoCommitPendingCast(
         // through `PendingCast.dashed` (set at announcement) so it still
         // lands on the stack item once mana is covered / the picker completes.
         ...(state.pendingCast.dashed ? { dashed: true } : {}),
+        // CR 702.185a — a parked Warp cast (its cost is pure MANA, so it parks
+        // on `tapForPayment` like any ordinary cast) carries the marker through
+        // `PendingCast.warped`, set at announcement. Without it the deferred
+        // commit builds a permanent bought at the warp price that never leaves.
+        ...(state.pendingCast.warped ? { warped: true } : {}),
         // CR 702.96a (issue #3215) — a parked Overload cast (the ordinary case:
         // an overload cost is a MANA cost, so it parks on `tapForPayment`)
         // carries the marker through `PendingCast.overloaded`, set at
@@ -7154,6 +7165,19 @@ export function finalizeTargetSelection(
     // fires.
     const isDashCost =
         chosenAltCost !== undefined && chosenAltCost === cardDef.dash;
+    // CR 702.185a — the chosen alt cost IS the card's Warp cost (compared by
+    // reference — `getAlternativeCost` resolves `def.warp` for its own id):
+    // the resulting stack item is tagged `warped: true` below, which is the
+    // "if this spell's warp cost was paid" clause the next-end-step exile
+    // (`scheduleWarpExile`, `gre/warp.ts`) is scheduled from.
+    // CR 702.185a — "you may cast this card FROM YOUR HAND": the zone is part
+    // of the permission, not decoration. Without it a warp-exiled card re-cast
+    // for its WARP cost re-stamps the marker, re-schedules the exile and
+    // re-opens the window — a permanent rented for the warp cost every turn.
+    const isWarpCost =
+        chosenAltCost !== undefined &&
+        chosenAltCost === cardDef.warp &&
+        castZone === "hand";
     // CR 702.103a — the chosen alt cost IS the card's Bestow cost (compared by
     // reference — `getAlternativeCost` resolves `def.bestow` for its own id).
     // Unlike `evoked`/`dashed` this is not just a marker for a later trigger:
@@ -7504,6 +7528,7 @@ export function finalizeTargetSelection(
                 : {}),
             ...(isEvokeCost ? { evoked: true } : {}),
             ...(isDashCost ? { dashed: true } : {}),
+            ...(isWarpCost ? { warped: true } : {}),
             // CR 702.103a (producer census, issue #2388) — a bestowed cast
             // that PARKS carries the choice here so the deferred commit
             // (`tryAutoCommitPendingCast`) still applies the CR 702.103b
@@ -7652,6 +7677,7 @@ export function finalizeTargetSelection(
             }),
             ...(isEvokeCost ? { evoked: true } : {}),
             ...(isDashCost ? { dashed: true } : {}),
+            ...(isWarpCost ? { warped: true } : {}),
             // CR 601.2 (issue #2473) — targeted-spell immediate-commit branch
             // (mana already covered, no park). The announcement-time snapshot,
             // not a re-derivation; see `PendingCast.castOffSorceryTiming`.
@@ -7727,6 +7753,7 @@ export function finalizeTargetSelection(
             // like any ordinary cast; `tryAutoCommitPendingCast` reads this back
             // off `pendingCast.dashed` once `tapForPayment` covers it.
             ...(isDashCost ? { dashed: true } : {}),
+            ...(isWarpCost ? { warped: true } : {}),
             // CR 702.103a (producer census, issue #2388) — a bestowed cast
             // that PARKS carries the choice here so the deferred commit
             // (`tryAutoCommitPendingCast`) still applies the CR 702.103b
@@ -8320,6 +8347,15 @@ export const announceCast = mutation({
         // haste, returned to hand at the next end step" trigger fires.
         const isDashCost =
             chosenAltCost !== undefined && chosenAltCost === cardDef.dash;
+        // CR 702.185a — the chosen alt cost IS the card's Warp cost. Tags the
+        // resulting stack item `warped: true` at commit below, which is what
+        // schedules the next-end-step exile and the recast window.
+        // CR 702.185a — hand only; see the matching gate in
+        // `finalizeTargetSelection` above.
+        const isWarpCost =
+            chosenAltCost !== undefined &&
+            chosenAltCost === cardDef.warp &&
+            castFromZone === "hand";
         // CR 702.103a — the chosen alt cost IS the card's Bestow cost. Two
         // things follow from it in this mutation, and neither is a plain
         // marker: the spell takes the "enchant creature" TARGET REQUIREMENT
@@ -9144,6 +9180,7 @@ export const announceCast = mutation({
                         : {}),
                     ...(isEvokeCost ? { evoked: true } : {}),
                     ...(isDashCost ? { dashed: true } : {}),
+                    ...(isWarpCost ? { warped: true } : {}),
                     // CR 702.103a (issue #2388 producer census) — a bestow
                     // cast cannot structurally reach this NO-TARGET branch: a
                     // bestowed spell is an Aura spell and always requires a
@@ -9263,6 +9300,7 @@ export const announceCast = mutation({
                     : {}),
                 ...(isEvokeCost ? { evoked: true } : {}),
                 ...(isDashCost ? { dashed: true } : {}),
+                ...(isWarpCost ? { warped: true } : {}),
                 // CR 702.103a (issue #2388 producer census) — unreachable for
                 // bestow (an Aura spell always targets, CR 303.4a); stamped
                 // fail-closed. `applyBestowCharacteristics` below turns it

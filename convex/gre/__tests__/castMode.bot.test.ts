@@ -20,7 +20,7 @@
 // (`bot-suite-boundary.test.ts` enforces the split).
 
 import { describe, it, expect } from "vitest";
-import { getAllCards, getCardByName } from "../../cards";
+import { getAllCards, getCardByName, getDefinition } from "../../cards";
 import {
     makeInstance,
     makePlayer,
@@ -44,6 +44,7 @@ import { resolveTopOfStack } from "../state";
 import type { CardDefinition } from "../../cards/types";
 import type { CardInstanceState, GameState } from "../state";
 import { NO_BOARD_LAYER_VIEW } from "../layers";
+import { WARP_PROBE_ID } from "./fixtures/warpProbe";
 
 const FOREST = getCardByName("Forest").id;
 const PLAINS = getCardByName("Plains").id;
@@ -62,6 +63,7 @@ function modeMarkersOf(card: CardInstanceState) {
         bestowed: card.bestowed === true,
         faceDown: card.faceDown === true,
         dashed: card.dashed === true,
+        warped: card.warped === true,
         evoked: card.evoked === true,
         overloaded: card.overloaded === true,
         // CR 715.3b — the Adventure's mark IS the retained front id
@@ -86,6 +88,7 @@ const CLEARED_MARKERS = {
     bestowed: undefined,
     faceDown: undefined,
     dashed: undefined,
+    warped: undefined,
     evoked: undefined,
     overloaded: undefined,
     adventureOf: undefined,
@@ -94,11 +97,10 @@ const CLEARED_MARKERS = {
 /** A position in which `card` is castable, plus the opponent creature a
  *  targeted mode can point at. */
 function positionFor(
-    card: string,
+    def: CardDefinition,
     landId: string,
     landCount: number
 ): GameState {
-    const def = getCardByName(card);
     const lands = Array.from({ length: landCount }, (_, i) =>
         makeInstance(landId, { id: `land${i}`, controllerId: "p1" })
     );
@@ -132,8 +134,13 @@ function positionFor(
 }
 
 type ModeFixture = {
-    /** A card carrying this mode. */
-    card: string;
+    /** A card carrying this mode, by NAME. */
+    card?: string;
+    /** …or by registry ID, for a mode whose only carrier is a test-only probe
+     *  (`fixtures/`): `registerTokenDefinition` puts a definition in the id
+     *  registry but not in the NAME registry, so `getCardByName` cannot see it.
+     *  Exactly one of `card` / `cardId` is set. */
+    cardId?: string;
     land: string;
     landCount: number;
     /** Whether `enumerateMoves` offers this mode's cast today. `false` is a
@@ -196,6 +203,22 @@ const MODE_FIXTURES: Record<CastMode, ModeFixture> = {
         enumerated: true,
         assertStamped: (m) => {
             expect(m.dashed).toBe(true);
+        },
+    },
+    // CR 702.185a — the marker `scheduleWarpExile` reads at the permanent's
+    // entry (to create the delayed ability at all) and `applyWarpExile` reads
+    // again at the end step (CR 400.7 — is this still the same object?).
+    // Unstamped, the tree prices a warp cast as a permanent creature bought at
+    // a discount — strictly better than the hard cast, which is never true.
+    // The probe ships no card (`fixtures/warpProbe.ts`): issue #1268 shipped
+    // the keyword, and Edge of Eternities is not in this pool.
+    warp: {
+        cardId: WARP_PROBE_ID,
+        land: MOUNTAIN,
+        landCount: 1,
+        enumerated: true,
+        assertStamped: (m) => {
+            expect(m.warped).toBe(true);
         },
     },
     // CR 702.74a — the marker `evokeTrigger` reads to sacrifice the permanent
@@ -298,9 +321,16 @@ const MODE_FIXTURES: Record<CastMode, ModeFixture> = {
     },
 };
 
+/** The definition a fixture names, by whichever of the two handles it carries. */
+function fixtureDef(fixture: ModeFixture): CardDefinition {
+    return fixture.cardId
+        ? getDefinition(fixture.cardId)
+        : getCardByName(fixture.card!);
+}
+
 /** The enumerated cast of `subject` paying `mode`'s alternative cost. */
 function modeCastMove(state: GameState, mode: CastMode): Move {
-    const def = getCardByName(MODE_FIXTURES[mode].card);
+    const def = fixtureDef(MODE_FIXTURES[mode]);
     const casts = enumerateMoves(state, "p1").filter(
         (m): m is Extract<Move, { kind: "cast-spell" }> =>
             m.kind === "cast-spell" && m.cardInstanceId === "subject"
@@ -350,6 +380,8 @@ function altCostIdFor(def: CardDefinition, mode: CastMode): string {
             return def.bestow?.id ?? "";
         case "dash":
             return def.dash?.id ?? "";
+        case "warp":
+            return def.warp?.id ?? "";
         case "evoke":
             return def.evoke?.id ?? "";
         case "overload":
@@ -373,7 +405,7 @@ describe("cast modes reach BOTH search executors (CR 601.2b, issue #2796)", () =
 
         it(`${mode}: the census stamps the mode's characteristics`, () => {
             const state = positionFor(
-                fixture.card,
+                fixtureDef(fixture),
                 fixture.land,
                 fixture.landCount
             );
@@ -381,7 +413,7 @@ describe("cast modes reach BOTH search executors (CR 601.2b, issue #2796)", () =
                 (c) => c.id === "subject"
             )!;
             const item = structuredClone(subject);
-            const altCostId = altCostIdFor(getCardByName(fixture.card), mode);
+            const altCostId = altCostIdFor(fixtureDef(fixture), mode);
             applyCastModeCharacteristics(NO_BOARD_LAYER_VIEW, item, altCostId);
             fixture.assertStamped(modeMarkersOf(item));
         });
@@ -390,7 +422,7 @@ describe("cast modes reach BOTH search executors (CR 601.2b, issue #2796)", () =
 
         it(`${mode}: the ISMCTS tree and the greedy sandbox agree`, () => {
             const state = positionFor(
-                fixture.card,
+                fixtureDef(fixture),
                 fixture.land,
                 fixture.landCount
             );
@@ -460,7 +492,7 @@ describe("cast-mode ids answer ONE mode, catalogue-wide (CR 601.2b)", () => {
 /** p1 holds Springheart Nantuko with two untapped Forests; `mine` adds a
  *  creature p1 controls beside the opponent's Hill Giant. */
 function bestowPosition(mine: boolean): GameState {
-    const state = positionFor("Springheart Nantuko", FOREST, 2);
+    const state = positionFor(getCardByName("Springheart Nantuko"), FOREST, 2);
     if (mine) {
         state.players[0].battlefield.push(
             makeInstance(getCardByName("Grizzly Bears").id, {
@@ -551,7 +583,7 @@ describe("a cast mode is priced against its OWN characteristics (CR 601.2f)", ()
     // reads a CARD TYPE, which is exactly what an announced cast mode changes:
     // Petty Theft is an Instant, Brazen Borrower is a Creature.
     it("enumerates the Adventure off ONE Island under Mana Matrix", () => {
-        const state = positionFor("Brazen Borrower", ISLAND, 1);
+        const state = positionFor(getCardByName("Brazen Borrower"), ISLAND, 1);
         state.players[0].battlefield.push(
             makeInstance(getCardByName("Mana Matrix").id, {
                 id: "matrix",
@@ -586,7 +618,7 @@ describe("a cast mode is priced against its OWN characteristics (CR 601.2f)", ()
         // nameless 2/2. Six Plains cover the {3} morph cost taxed to {6}, and
         // exactly cover the untaxed {3} with three to spare — so the tap plan's
         // SIZE is what separates the two readings.
-        const state = positionFor("Exalted Angel", PLAINS, 6);
+        const state = positionFor(getCardByName("Exalted Angel"), PLAINS, 6);
         state.players[1].battlefield.push(
             makeInstance(getCardByName("Gloom").id, {
                 id: "gloom",
