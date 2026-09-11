@@ -5,9 +5,11 @@
 // label rendered a 523px-wide button and pushed its own ✎/× controls out of the
 // row (measured in Chrome at 390x844 — 336 of 472 controls past the sheet's
 // right edge, 0 after). The fix is `min-w-0 shrink truncate` on that one button,
-// which only works if the override survives the merge — a plain string
-// concatenation leaves `shrink-0` in the class list and the later `shrink` loses
-// to it on specificity, so this pins the `cn` merge, not the prop's existence.
+// which needs BOTH halves to hold: `DebugButton` must forward the prop at all,
+// and the forwarded `shrink` must beat the base `shrink-0` rather than sit
+// after it in the class list. The merge itself belongs to `Button`
+// (`cn(buttonVariants({ …, className }))`); what this pins is the end-to-end
+// outcome, so dropping the forward here fails it.
 import { describe, it, expect, beforeEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import DebugButton from "../debug-button";
