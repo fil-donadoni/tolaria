@@ -11,7 +11,6 @@ import {
 } from "../../../../gre/state";
 import type { GameState } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
-import { checkStateBasedActions } from "../../../../gre/sba";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -31,6 +30,7 @@ const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 const crawWurm = getDefinition("bfed1a95-bd67-4e16-a781-81866028af2f");
 const engineeredPlague = getDefinition("27e158d5-efb2-4f90-8898-60ede98f7d29");
 const llanowarElves = getDefinition("d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb");
+const conspiracy = getDefinition("411c9f22-2df0-4a63-b2be-fa02612a6ef8");
 
 describe("Unearth (CR 400.7 reanimation, CR 601.2c mvFilter, CR 702.29 Cycling)", () => {
     it("returns a target creature card with MV<=3 from your graveyard to the battlefield", () => {
@@ -252,13 +252,81 @@ describe("Engineered Plague (CR 614.12a as-enters creature type + CR 613.4c laye
         });
         pushSpell(state, engineeredPlague.id, "p1");
         resolveTopOfStack(state);
+        // No hand-run SBA pass: `finalizeAsEnters` sweeps for us, and supplying
+        // the pass here would make this test pass even if that sweep were
+        // removed — the exact regression its CR 704.5f claim is about.
         submitHeadChoice(state, ["Elf"]);
-        checkStateBasedActions(state);
 
         expect(state.players[1].battlefield.map((c) => c.id)).toEqual([
             "bears",
         ]);
         expect(state.players[1].graveyard.map((c) => c.id)).toContain("elves");
+    });
+
+    // The card's own comment claims the buff is LIVE (recomputed at every read,
+    // unlike the apply-time grant family). A creature of the chosen type that
+    // arrives after the Plague is the cheapest way to hold it to that.
+    it("debuffs a creature of the chosen type that enters LATER", () => {
+        const plague = makeInstance(engineeredPlague.id, {
+            id: "plague-1",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        plague.chosenSubtypes = ["Elf"];
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [plague] }),
+                makePlayer("p2"),
+            ],
+        });
+        beginApplyingStaticEffects(state, plague);
+
+        const latecomer = makeInstance(llanowarElves.id, {
+            id: "latecomer",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        state.players[1].battlefield.push(latecomer);
+        expect(getEffectiveToughness(state, latecomer)).toBe(0);
+    });
+
+    // CR 613.1 layer order, and the cross-card seam this card shares with
+    // Conspiracy (`sets/mmq/black.ts`): the layer-4 subtype SET is applied
+    // before this layer-7c read, so a Bear that Conspiracy has turned into an
+    // Elf is a legal victim of a Plague naming Elf — the predicate reads the
+    // live subtypes, never the printed ones.
+    it("reads the subtypes a layer-4 effect wrote, not the printed ones", () => {
+        const bears = makeInstance(grizzlyBears.id, {
+            id: "bears",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const omen = makeInstance(conspiracy.id, {
+            id: "consp-1",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        omen.chosenSubtypes = ["Elf"];
+        const plague = makeInstance(engineeredPlague.id, {
+            id: "plague-1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        plague.chosenSubtypes = ["Elf"];
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [omen, bears] }),
+                makePlayer("p2", { battlefield: [plague] }),
+            ],
+        });
+        beginApplyingStaticEffects(state, omen);
+        beginApplyingStaticEffects(state, plague);
+
+        expect(bears.subtypes).toEqual(["Elf"]);
+        expect(getEffectivePower(state, bears)).toBe(2 - 1);
+        expect(getEffectiveToughness(state, bears)).toBe(2 - 1);
     });
 
     it("survives the wire projection — both seats see the chosen type and the debuffed P/T", () => {

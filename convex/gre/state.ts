@@ -3460,11 +3460,14 @@ export type PendingChoice = {
          *  named single authority) resolves back to this same `color` — never
          *  a hand-set flag a card author could get wrong. */
         protectionColor?: Color;
-        /** Set ONLY when this option IS a creature type (CR 205.3m) offered by
-         *  an as-enters `{ kind: "subtypes" }` choice — Engineered Plague's
-         *  "choose a creature type", Conspiracy's, Illusionary Terrain's land
-         *  pair. It carries the subtype itself rather than a bare flag, so a
-         *  consumer never has to assume `id === label === subtype`.
+        /** Set ONLY when this option IS a SUBTYPE offered by an as-enters
+         *  `{ kind: "subtypes" }` choice — a creature type (CR 205.3m) for
+         *  Engineered Plague and Conspiracy, a basic land type (CR 205.3i) for
+         *  Illusionary Terrain's ordered pair. It carries the subtype itself
+         *  rather than a bare flag, so a consumer never has to assume
+         *  `id === label === subtype`. Its reader (`subtypeModePrior`) censuses
+         *  every permanent's subtypes, not only creatures', for exactly that
+         *  reason: the two families share this channel.
          *
          *  Its reason for existing is the BOT, and it is the structural twin of
          *  `protectionColor` directly above: CR 205.3m's table is ~280 entries,
@@ -3473,7 +3476,7 @@ export type PendingChoice = {
          *  option scores the flat `NEUTRAL_PRIOR`, the top-K truncation keeps
          *  the first eight ALPHABETICALLY, and the bot names Advisor on every
          *  board in the game — legal, enumerated, and inert. `subtypeModePrior`
-         *  (`gre/ai/choicePriors.ts`) reads this to rank the types actually
+         *  (`gre/ai/choicePriors.ts`) reads this to rank the subtypes actually
          *  represented on the battlefield; which of THOSE is best is left to
          *  the search, so no sign (a debuff wants the opponent's tribe, a lord
          *  wants its own) is baked in here. */

@@ -170,47 +170,52 @@ function colorModePrior(
 }
 
 // ---------------------------------------------------------------------------
-// Creature-type prior (issue #2710) — "as this enters, choose a creature type"
-// (Engineered Plague, Conspiracy). CR 205.3m's table is ~280 entries, so this
-// is the one `option-pick` whose option list dwarfs `CHOICE_TOP_K`: at the flat
-// NEUTRAL_PRIOR every type ties and the stable top-K keeps the first eight
-// ALPHABETICALLY, so the bot named Advisor on every board it ever saw.
+// Subtype prior (issue #2710) — the as-enters "choose a creature type" choice
+// (Engineered Plague, Conspiracy) and its land-type sibling. CR 205.3m's table
+// alone is ~280 entries, so this is the one `option-pick` whose option list
+// dwarfs `CHOICE_TOP_K`: at the flat NEUTRAL_PRIOR every type ties and the
+// stable top-K keeps the first eight ALPHABETICALLY, so the bot named Advisor
+// on every board it ever saw.
 // ---------------------------------------------------------------------------
 
-/** One-slot memo for the per-state creature-type census. `priorFor` is called
- *  once per CANDIDATE and this seam sees ~280 of them at a single node, so a
- *  board scan per candidate would be ~280 scans per node visit — the same waste
- *  `choiceCandidates`' own memo exists to avoid, and under the same invariant
- *  (a node visit brackets no mutation of `state`). Reference equality on the
- *  state is the cheap, correct proxy: a fresh determinization is a distinct
- *  object and misses. */
-let lastCensusState: GameState | null = null;
-let lastCensus: Map<string, number> | null = null;
-
-/** How many creatures on EITHER battlefield currently have each creature type,
- *  read off the live (post-layer-4) `subtypes` so a type-changing effect is
- *  reflected. Deliberately battlefield-only: it is the board the choice is
- *  made against, and it is public to both seats. */
-function creatureTypeCensus(state: GameState): Map<string, number> {
-    if (lastCensusState === state && lastCensus) return lastCensus;
+/** How many permanents on EITHER battlefield currently carry each subtype, read
+ *  off the live (post-layer-4) `subtypes` so a type-changing effect is
+ *  reflected — Conspiracy's "creatures you control are the chosen type" moves
+ *  this census, which is the point.
+ *
+ *  EVERY permanent, not only creatures: the as-enters `subtypes` choice serves
+ *  CR 205.3m creature types AND CR 205.3i land types (Illusionary Terrain), and
+ *  a census that knew only about creatures would score a count-1 LAND-type card
+ *  as "no evidence anywhere" — a prior that cannot go red and cannot help. The
+ *  wider domain costs the creature-type case nothing: the share denominator
+ *  grows uniformly, and this seam is read for ORDER, never for an absolute
+ *  value.
+ *
+ *  DELIBERATELY NOT MEMOIZED on the state (PR review, issue #2710). The obvious
+ *  one-slot cache keyed on `GameState` reference identity is WRONG here, unlike
+ *  `choiceCandidates`' own: `applyMoveInSearch` mutates ONE `GameState` object
+ *  in place for a whole descent and rollout (`gre/search.ts`), so the second
+ *  as-enters choice in an iteration — a second Plague, or a Plague then a
+ *  Conspiracy — would be scored against the board as it stood at the first, and
+ *  the alphabetical top-K this prior exists to remove would come back silently.
+ *  Deliberately battlefield-only: it is the board the choice is made against,
+ *  and it is public to both seats. */
+function permanentSubtypeCensus(state: GameState): Map<string, number> {
     const census = new Map<string, number>();
     for (const player of state.players) {
         for (const card of player.battlefield) {
-            if (!(card.types ?? []).includes("Creature")) continue;
             for (const subtype of card.subtypes ?? []) {
                 census.set(subtype, (census.get(subtype) ?? 0) + 1);
             }
         }
     }
-    lastCensusState = state;
-    lastCensus = census;
     return census;
 }
 
-/** A creature type's share of the board's creature-type mass, mapped onto the
- *  prior BAND exactly as `colorModePrior` maps a colour's share of the
- *  opponent's footprint: a type NO creature on the battlefield has sits at
- *  `PRIOR_MIN`, a type every creature has sits at `PRIOR_MAX`.
+/** A subtype's share of the board's subtype mass, mapped onto the prior BAND
+ *  exactly as `colorModePrior` maps a colour's share of the opponent's
+ *  footprint: a type NO permanent on the battlefield has sits at `PRIOR_MIN`,
+ *  a type every permanent has sits at `PRIOR_MAX`.
  *
  *  UNSIGNED BY DESIGN. This seam says which types are worth OPENING, never
  *  which is good: "-1/-1 to all creatures of the chosen type" wants the
@@ -220,12 +225,19 @@ function creatureTypeCensus(state: GameState): Map<string, number> {
  *  alternative (score the opponent's types up) would be a card-shaped
  *  assumption about the sign of an effect this seam cannot see (ADR 0102).
  *
- *  An empty board (no creatures at all) leaves every type at the neutral
- *  baseline: no evidence, any pick is as good as another, nothing stalls. */
+ *  TWO CONSEQUENCES worth stating, because neither is a bug and both are
+ *  visible in play. An empty board leaves every type at the neutral baseline:
+ *  no evidence, any pick is as good as another, nothing stalls. And once ANY
+ *  subtype is on the battlefield, every ABSENT type ties at `PRIOR_MIN`, so the
+ *  K slots the present types do not fill go to the alphabetical tail — naming a
+ *  tribe that sits entirely in the opponent's HAND or graveyard is a read this
+ *  seam does not have (`observedOpponentColors` is the shape that would give it
+ *  one). Nothing is ever PRUNED by a prior, so that pick stays legal and
+ *  reachable; it is simply not one the search is handed. */
 function subtypeModePrior(state: GameState, candidate: PriorCandidate): number {
     const subtype = candidate.hint?.subtypeMode;
     if (subtype === undefined) return NEUTRAL_PRIOR;
-    const census = creatureTypeCensus(state);
+    const census = permanentSubtypeCensus(state);
     let total = 0;
     for (const n of census.values()) total += n;
     if (total <= 0) return NEUTRAL_PRIOR;
@@ -266,9 +278,9 @@ export function heuristicChoicePrior(
         );
     }
     if (choice.kind === "option-pick" || choice.kind === "trigger-mode") {
-        // CR 205.3m (issue #2710) — a creature-type option is scored against
-        // the board's type census; every other option-pick keeps the colour
-        // branch (which is itself neutral without a `colorMode` hint).
+        // CR 205.3m / 205.3i (issue #2710) — a subtype option is scored
+        // against the board's subtype census; every other option-pick keeps
+        // the colour branch (itself neutral without a `colorMode` hint).
         if (candidate.hint?.subtypeMode !== undefined) {
             return subtypeModePrior(state, candidate);
         }
