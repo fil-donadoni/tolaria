@@ -211,6 +211,28 @@ describe("the violation / contradiction report", () => {
         expect(report.violated).toHaveLength(1);
     });
 
+    it("separates BLINDNESS from contradiction over the whole registry corpus", () => {
+        const { verdicts, gaps } = verdictsFromRegistry();
+        const report = collectVerdictReport(verdicts, { gaps });
+        expect(report.errors).toEqual([]);
+        expect(report.satisfied.length + report.violated.length).toBe(
+            report.pairs.length
+        );
+        // The registry does hold positions the evaluation cannot separate at
+        // all — every one of them a missing term (ADR 0124 §3) and, for a
+        // violated one, the identical-vector proof §5 asks for.
+        expect(report.blind.length).toBeGreaterThan(0);
+        // And none of them is reported as a disagreement between judges: the
+        // zero vector is its own negation, so folding them in would turn N
+        // blind pairs into N² false contradictions.
+        const blind = new Set(report.blind);
+        expect(
+            report.contradictions.filter(
+                (c) => blind.has(c.a) || blind.has(c.b)
+            )
+        ).toEqual([]);
+    });
+
     it("reports no contradiction when the two verdicts agree", () => {
         const [a] = contradictoryPair();
         const twin: Verdict = { ...a, id: "authored:passing-is-right-twin" };
