@@ -152,6 +152,34 @@ function basisKey(pair: EvalPair, sign: 1 | -1): string {
     return basisDirectionKey(pair.basis, sign);
 }
 
+/** Every couple of pairs no weight vector can satisfy together: their basis
+ *  directions are exact negatives, so `w · v ≥ δ` and `w · (−v) ≥ δ` are
+ *  irreconcilable for every `w`. Indexed by the positive key — a pair
+ *  contradicts another when its NEGATED key is already present — so each
+ *  unordered couple is reported once.
+ *
+ *  BLIND pairs are held out: the zero vector is its own negation, so N of
+ *  them read as N² false disagreements (measured: 492 before the split, 53
+ *  after). Exported because the Weight Fit (issue #3401) reports the same
+ *  relation over the pairs it was handed, and two copies of this scan would
+ *  drift the first time the holdout rule changed. */
+export function contradictoryCouples(
+    pairs: readonly EvalPair[]
+): Contradiction[] {
+    const byKey = new Map<string, EvalPair[]>();
+    const out: Contradiction[] = [];
+    for (const pair of pairs) {
+        if (isBlind(pair)) continue;
+        const opposite = byKey.get(basisKey(pair, -1));
+        if (opposite) for (const a of opposite) out.push({ a, b: pair });
+        const key = basisKey(pair, 1);
+        const bucket = byKey.get(key);
+        if (bucket) bucket.push(pair);
+        else byKey.set(key, [pair]);
+    }
+    return out;
+}
+
 /** Walk every verdict, build its pairs, and classify. `onRow` fires as each
  *  verdict completes so a long run can stream progress. */
 export function collectVerdictReport(
@@ -188,23 +216,8 @@ export function collectVerdictReport(
     const satisfied = pairs.filter((p) => p.delta > SATISFIED_EPS);
     const violated = pairs.filter((p) => p.delta <= SATISFIED_EPS);
 
-    // Index by the positive key; a pair contradicts another when its NEGATED
-    // key is already present. Each unordered couple is reported once. Blind
-    // pairs are held out: the zero vector is its own negation, so they would
-    // otherwise contradict each other en masse and say nothing.
     const blind = pairs.filter(isBlind);
-    const byKey = new Map<string, EvalPair[]>();
-    const contradictions: Contradiction[] = [];
-    for (const pair of pairs) {
-        if (isBlind(pair)) continue;
-        const opposite = byKey.get(basisKey(pair, -1));
-        if (opposite)
-            for (const a of opposite) contradictions.push({ a, b: pair });
-        const key = basisKey(pair, 1);
-        const bucket = byKey.get(key);
-        if (bucket) bucket.push(pair);
-        else byKey.set(key, [pair]);
-    }
+    const contradictions = contradictoryCouples(pairs);
 
     return {
         verdicts: verdicts.length,
