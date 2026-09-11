@@ -80,3 +80,117 @@ export const entomb: CardDefinition = {
         { op: "libraryLook", action: "shuffle", player: "controller" },
     ],
 };
+
+// Haunting Echoes — {3}{B}{B} Sorcery. "Exile all cards from target player's
+// graveyard other than basic land cards. For each card exiled this way, search
+// that player's library for all cards with the same name as that card and
+// exile them. Then that player shuffles."
+//
+// One `forEach { set: "graveyard" }` (CR 404) over the target's graveyard, its
+// member set frozen at construct entry (CR 608.2h — "the answer is determined
+// only once, when the effect is applied") — so the cards the library
+// sweep is driven by are exactly the ones the oracle calls "exiled this way",
+// and nothing that reaches the graveyard mid-resolution joins them. The
+// "other than basic land cards" restriction (CR 205.4a) is the OR-clause
+// `any: [{ excludeType: "Land" }, { excludeSupertype: "Basic" }]` — a card
+// matches unless it is BOTH a land AND basic, which is the negation an
+// AND-of-fields filter cannot spell on its own.
+//
+// Both halves of the body are name-keyed filter sweeps driven by
+// `{ ref: "$each.name" }` — the CR 608.2h last-known name off the iteration
+// snapshot, which is what makes the library half readable AFTER the graveyard
+// half moved that card out. Per-member interleaving is observationally
+// identical to the oracle's two sentences: the member set is already frozen
+// (CR 608.2h), the graveyard sweep can only ever reach frozen members, and the
+// library sweep only ever moves library cards.
+//
+// Both legs key on the member's NAME rather than its id, because `moveZone`'s
+// general-ref graveyard recovery is gated on `to: "battlefield"` — a
+// `{ target: { ref: "$each" }, to: "exile" }` silently no-ops. One consequence
+// worth naming: a graveyard card with no registry definition snapshots an
+// EMPTY name, so the first sentence would leave it behind. Fail-closed and
+// unreachable for a real deck (every card in one has a definition), and right
+// for the second sentence either way (CR 201.2a — an object with no name
+// shares a name with nothing).
+//
+// CR 701.23b — the searcher "isn't required to find some or all of those
+// cards", and the rule's own worked example is Splinter, this card's near
+// twin: the caster may find zero, one or two of the library copies. This card
+// always finds every copy, a real deviation and not a free one. Out of scope
+// here: exiling a dead card THINS the opponent's deck, so declining is
+// sometimes correct and the prompt is genuinely owed.
+//
+// What blocks it is CR 701.23h: several search instructions before one shuffle
+// are ONE search, and this card searches for the name of EVERY card it exiled.
+// The CR-correct shape is therefore a single search whose candidate filter is
+// a SET of names, and `EffectCardFilter.name` holds one literal or one ref.
+// Lobotomy (`tmp/multicolor.ts`) searches for ONE name, which is why it can
+// afford the explicit `search-library` prompt — and its own comment records
+// why that prompt matters — and why this card cannot copy it. Recorded in
+// docs/findings/2711-fromzones-sweep-unvalued-and-unsearched.md.
+//
+// compiler-gap: "Exile all cards from target player's graveyard other than basic land cards." (#2693)
+// compiler-gap: "For each card exiled this way, search that player's library for all cards with the same name as that card and exile them." (#2693)
+export const hauntingEchoes: CardDefinition = {
+    id: "aca4c571-48b8-4150-93f8-4cb5c8e797c4", // ODY 142 (first printing)
+    name: "Haunting Echoes",
+    rarity: "rare",
+    manaCost: { X: 3, B: 2 },
+    types: ["Sorcery"],
+    oracleText:
+        "Exile all cards from target player's graveyard other than basic land cards. For each card exiled this way, search that player's library for all cards with the same name as that card and exile them. Then that player shuffles.",
+    targetRequirement: { type: "player", count: 1 },
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "graveyard",
+                controller: { target: 0 },
+                // CR 205.4a — "other than basic land cards": NOT (Land AND
+                // Basic), so a nonbasic land and a basic-supertyped nonland
+                // both stay in the set.
+                filter: {
+                    any: [
+                        { excludeType: "Land" },
+                        { excludeSupertype: "Basic" },
+                    ],
+                },
+            },
+            effects: [
+                // CR 400.7 / 201.2 — the graveyard half, mandatory: a public
+                // zone, no search and no choice. Keyed by the member's own
+                // name rather than its id, so two graveyard copies of one card
+                // leave together on the first of their iterations and the
+                // second finds nothing (CR 608.2b); the same
+                // not-a-basic-land clause the member set was selected with
+                // keeps a same-named basic out of reach.
+                {
+                    op: "moveZone",
+                    player: { target: 0 },
+                    fromZones: ["graveyard"],
+                    filter: {
+                        name: { ref: "$each.name" },
+                        any: [
+                            { excludeType: "Land" },
+                            { excludeSupertype: "Basic" },
+                        ],
+                    },
+                    to: "exile",
+                },
+                // CR 701.23a / 201.2 — "search that player's library for all
+                // cards with the same name as that card and exile them".
+                {
+                    op: "moveZone",
+                    player: { target: 0 },
+                    fromZones: ["library"],
+                    filter: { name: { ref: "$each.name" } },
+                    to: "exile",
+                },
+            ],
+        },
+        // CR 701.24a — "Then that player shuffles." One shuffle at the end,
+        // not one per member (CR 701.23h — repeated searches before a single
+        // shuffle instruction are one search).
+        { op: "libraryLook", action: "shuffle", player: { target: 0 } },
+    ],
+};

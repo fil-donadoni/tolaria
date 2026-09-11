@@ -6313,3 +6313,108 @@ describe("Effect Script value: sum shape + ref family (CR 122 / 404)", () => {
         }
     });
 });
+
+// ---------------------------------------------------------------------------
+// `$<binding>.name` — the SNAPSHOT half of the `EffectCardFilter.name` ref
+// grammar (issue #2711). Sibling of the reserved `$target<N>.name` above: the
+// CR 608.2h last-known name of an object an earlier Op bound, which is what
+// lets "all cards with the same name as THAT card" name a card the script has
+// already moved out of the zone it was selected from (Haunting Echoes). The
+// family check is the load-bearing half — only a snapshot carries a name slot,
+// so a picks / player / boolean binding read through `.name` would resolve to
+// nothing at runtime and silently match no card at all.
+// ---------------------------------------------------------------------------
+
+/** A graveyard-set forEach whose body sweeps a zone by its member's own name —
+ *  Haunting Echoes' shape, parametrized on the `name` ref under test. */
+const sweepByBoundName = (ref: string): EffectOp[] => [
+    {
+        op: "forEach",
+        select: { set: "graveyard", controller: { target: 0 } },
+        effects: [
+            {
+                op: "moveZone",
+                player: { target: 0 },
+                fromZones: ["library"],
+                filter: { name: { ref } },
+                to: "exile",
+            },
+        ],
+    },
+];
+
+describe("validateEffectScript — $<binding>.name snapshot name ref (issue #2711)", () => {
+    it("accepts $each.name inside a graveyard-set forEach body", () => {
+        expect(
+            validateEffectScript(
+                host({ effects: sweepByBoundName("$each.name") })
+            )
+        ).toEqual([]);
+    });
+
+    it("accepts .name on an ordinary snapshot bind (a destroy/exile bind)", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "exile",
+                            target: { target: 0 },
+                            bind: "$gone",
+                        },
+                        {
+                            op: "moveZone",
+                            player: { target: 1 },
+                            fromZones: ["library"],
+                            filter: { name: { ref: "$gone.name" } },
+                            to: "exile",
+                        },
+                    ],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("rejects .name on an undeclared binding", () => {
+        const errors = validateEffectScript(
+            host({ effects: sweepByBoundName("$nobody.name") })
+        );
+        expect(errors).not.toEqual([]);
+        expect(errors.join("\n")).toMatch(/\$nobody/);
+    });
+
+    it("rejects .name on a PICKS binding — picks store ids, not a name slot", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "choice",
+                        kind: "search-library",
+                        player: "controller",
+                        zone: "library",
+                        count: 1,
+                        prompt: "pick",
+                        bind: "$picked",
+                    },
+                    {
+                        op: "moveZone",
+                        player: { target: 0 },
+                        fromZones: ["library"],
+                        filter: { name: { ref: "$picked.name" } },
+                        to: "exile",
+                    },
+                ],
+            })
+        );
+        expect(errors).not.toEqual([]);
+        expect(errors.join("\n")).toMatch(/picks binding in a name position/);
+    });
+
+    it("rejects any other property path in a name position", () => {
+        const errors = validateEffectScript(
+            host({ effects: sweepByBoundName("$each.power") })
+        );
+        expect(errors).not.toEqual([]);
+        expect(errors.join("\n")).toMatch(/unknown property path/);
+    });
+});

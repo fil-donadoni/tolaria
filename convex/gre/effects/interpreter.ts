@@ -105,7 +105,7 @@ import { getEventFieldRow } from "../../cards/mechanicsRegistry";
 import type { EventFieldFamily } from "../../cards/mechanicsRegistry";
 import { resolveTokenTriggeredAbilities } from "../../cards/tokenTriggeredAbilities";
 import { parseProtectionFromColor } from "../protection";
-import { parseTargetNameRef } from "./targetRef";
+import { parseSnapshotNameRef, parseTargetNameRef } from "./targetRef";
 import {
     categorizedEligibleIds,
     maxCategorizedPicks,
@@ -280,6 +280,22 @@ function resolveNameRef(ctx: SpellContext, ref: string): string | undefined {
         const target = ctx.targets[slot];
         if (!target || target.type === "player") return undefined;
         return ctx.getCardName(target.id);
+    }
+    // CR 608.2h (issue #2711) — `$<binding>.name`: the LAST-KNOWN name of an
+    // object SNAPSHOT binding, read straight out of the snapshot's own
+    // SNAP_NAME slot. Zone-free by construction, which is the whole point: by
+    // the time "search that player's library for all cards with the same name
+    // as that card" runs, THAT card has already been exiled out of the
+    // graveyard the `forEach` selected it from (Haunting Echoes), and a
+    // sacrificed token would not be findable in any zone at all (CR 704.5d).
+    // A snapshot that predates the slot, and an uncaptured binding (its member
+    // had already left, CR 608.2b), both read undefined — which the calling
+    // filter treats as "matches nothing", never as "no name constraint".
+    const snapBinding = parseSnapshotNameRef(ref);
+    if (snapBinding !== null) {
+        const snap = readBinding(ctx, snapBinding);
+        const name = snap?.[SNAP_NAME];
+        return name === undefined || name === "" ? undefined : name;
     }
     // Any OTHER property-path ref is not a name source. The static validator
     // rejects one before it can ship; this is its runtime twin, fail-closed so

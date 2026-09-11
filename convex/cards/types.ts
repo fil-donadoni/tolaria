@@ -6325,12 +6325,18 @@ export interface SpellContext {
      *  card registry (CR 108.1). Mirrors `getHandCards`; used by effects that
      *  count graveyard cards by type/colour (Nameless Race: "white cards in
      *  their graveyards"). `colors` are mana-cost-derived (CR 202.2); empty for
-     *  an empty graveyard. */
+     *  an empty graveyard. `supertypes` (CR 205.4a, issue #2711) mirrors
+     *  `getHandCards`/`getLibraryCards`: without it `matchesCardFilter` reads
+     *  `card.supertypes ?? []` here, which makes the POSITIVE `filter.supertype`
+     *  match nothing and the NEGATIVE `filter.excludeSupertype` match
+     *  everything — so "every card other than a basic land card" (Haunting
+     *  Echoes) silently swept basic lands too. */
     getGraveyardCards: (playerId: string) => Array<{
         id: string;
         name: string;
         types: CardType[];
         subtypes: string[];
+        supertypes: CardSupertype[];
         manaValue: number;
         colors: Color[];
         /** Full printed mana cost (issue #1881 — `manaCostEquals`, CR 202).
@@ -6351,12 +6357,15 @@ export interface SpellContext {
      *  `choice` source a card needs to filter by counter type today (Dauthi
      *  Voidwalker: "an exiled card ... with a void counter on it", tagged by
      *  the graveyard-bound replacement's `tagCounters`, `gre/replacements.ts`).
-     *  Empty for an empty exile. */
+     *  Empty for an empty exile. `supertypes` (CR 205.4a, issue #2711) is
+     *  carried for the same reason `getGraveyardCards` carries it — an absent
+     *  slot makes `filter.excludeSupertype` fail OPEN at this zone. */
     getExileCards: (playerId: string) => Array<{
         id: string;
         name: string;
         types: CardType[];
         subtypes: string[];
+        supertypes: CardSupertype[];
         manaValue: number;
         colors: Color[];
         counters: Record<string, number>;
@@ -6399,6 +6408,7 @@ export interface SpellContext {
         name: string;
         types: CardType[];
         subtypes: string[];
+        supertypes: CardSupertype[];
         manaValue: number;
         colors: Color[];
         counters: Record<string, number>;
