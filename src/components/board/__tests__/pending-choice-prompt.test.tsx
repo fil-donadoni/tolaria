@@ -346,3 +346,46 @@ describe("PendingChoicePrompt — rebound-cast (CR 702.88a)", () => {
         expect(getByText(/Waiting for/)).toBeTruthy();
     });
 });
+
+// Issue #3413 — the card a choice is ABOUT renders ABOVE the question. Reading
+// order is title → card → question, so the question lands with its subject
+// already on screen; below the question the image read as an afterthought and,
+// at a phone width, sat under the fold with the buttons.
+describe("PendingChoicePrompt — the subject card renders above the prompt text (issue #3413)", () => {
+    const castOffer = (subjectCardId?: string): PendingChoice =>
+        ({
+            stackItemId: "stk",
+            step: 0,
+            choiceId: "cdr:decide",
+            playerId: "me",
+            kind: "option-pick",
+            count: 1,
+            options: [
+                { id: "cast", label: "Cast" },
+                { id: "decline", label: "Decline" },
+            ],
+            prompt: "You may cast the card. Cast it or decline.",
+            ...(subjectCardId ? { subjectCardId } : {}),
+        }) as PendingChoice;
+
+    it("puts the card image BEFORE the question in document order", () => {
+        const { container, getByText } = renderPrompt(
+            castOffer("bloodbraid-challenger"),
+            "me"
+        );
+        const image = container.querySelector("img");
+        expect(image).toBeTruthy();
+        const question = getByText(/You may cast the card/);
+        // DOCUMENT_POSITION_FOLLOWING — the question comes after the image.
+        expect(
+            image!.compareDocumentPosition(question) &
+                Node.DOCUMENT_POSITION_FOLLOWING
+        ).toBeTruthy();
+    });
+
+    it("renders no image at all when the choice pins no subject (a face-down card stays hidden, CR 406.3)", () => {
+        const { container, getByText } = renderPrompt(castOffer(), "me");
+        expect(container.querySelector("img")).toBeNull();
+        expect(getByText(/You may cast the card/)).toBeTruthy();
+    });
+});

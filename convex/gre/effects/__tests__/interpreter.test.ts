@@ -42,7 +42,12 @@ import {
     applyTargetPrevention,
     processPendingActionTriggers,
 } from "../../state";
-import type { CardInstanceState, GameState, StackItem } from "../../state";
+import type {
+    CardInstanceState,
+    GameState,
+    PendingChoice,
+    StackItem,
+} from "../../state";
 import {
     applyMayPaySubmit,
     applyNameCardSubmit,
@@ -23391,6 +23396,10 @@ describe("Effect Script Op: cascade (CR 702.85a, issue #3216)", () => {
                 (c) => c.card.id === FACE_DOWN_CARD_ID
             )
         ).toBe(false);
+        // ...and because the pile is public, the offer PINS the hit so the
+        // dialog can show it above the question (issue #3413). A cascade
+        // player is being asked about a card they can already see.
+        expect(opponentView.pendingChoices![0].subjectCardId).toBe(CHEAP_ID);
 
         applyPendingChoiceSubmit(state, {
             playerId: "p1",
@@ -23537,6 +23546,125 @@ describe("Effect Script Op: cascade (CR 702.85a, issue #3216)", () => {
             "casUntouched"
         );
         expect(revived.players[0].library).toHaveLength(3);
+    });
+});
+
+describe("resolve-time Cast/Decline offer: the card's image above the question (CR 406.3, issue #3413)", () => {
+    // The dialog asks "You may cast the card" and, until this, pinned nothing —
+    // so the player was asked about a card the prompt refuses to name. The fix
+    // pins the card DEFINITION id on the choice (`subjectCardId`), which the
+    // client renders as an image above the question.
+    //
+    // The whole difficulty is CR 406.3: a `PendingChoice` crosses the wire
+    // UNREDACTED to BOTH viewers, so pinning the id discloses the card to the
+    // opponent exactly as naming it in `prompt` would. The pin is therefore
+    // DERIVED from the card's own visibility (`getPublicCardIdentity`), never
+    // passed in — a face-down (hideaway / impulse) card must stay hidden.
+    //
+    // Both assertions run through the OPPONENT's projection, because the
+    // opponent's view is where a leak would actually happen.
+
+    /** The script both cases share: pick a card out of `player`'s own exile,
+     *  then offer it as a free cast during this same resolution. */
+    function exileOfferScript(id: string): string {
+        return registerScript(id, [
+            {
+                op: "choice",
+                kind: "choose-exile-card",
+                player: "controller",
+                zone: "exile",
+                count: 1,
+                prompt: "Choose an exiled card.",
+                bind: "$picked",
+            },
+            {
+                op: "castDuringResolution",
+                card: { ref: "$picked" },
+                player: "controller",
+                source: "exile",
+                free: true,
+            },
+        ]);
+    }
+
+    /** Resolves `scriptId` and answers the exile pick, leaving the state on the
+     *  Cast/Decline offer. Returns that offer as the OPPONENT sees it. */
+    function offerAsOpponentSeesIt(
+        state: GameState,
+        scriptId: string,
+        pickId: string
+    ): PendingChoice {
+        pushSpell(state, scriptId, "p1");
+        resolveTopOfStack(state);
+        const pick = state.pendingChoices![0];
+        expect(pick.kind).toBe("choose-exile-card");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: pick.stackItemId,
+            step: pick.step,
+            choiceId: pick.choiceId,
+            cardInstanceIds: [pickId],
+        });
+        const opponentView = projectPublicState(state, 1, "p2");
+        const offer = opponentView.pendingChoices![0];
+        expect(offer.kind).toBe("option-pick");
+        expect(offer.options?.map((o) => o.id)).toEqual(["cast", "decline"]);
+        return offer;
+    }
+
+    it("a FACE-UP exiled card is pinned by definition id, so the dialog can show it (the cascade case)", () => {
+        const faceUp = makeInstance(BEAR_ID, {
+            id: "subjectFaceUp",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "exile",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { exile: [faceUp] }), makePlayer("p2")],
+        });
+        const offer = offerAsOpponentSeesIt(
+            state,
+            exileOfferScript("test-cdr-subject-faceup"),
+            "subjectFaceUp"
+        );
+        // The DEFINITION id, not the instance id — the client renders it with
+        // `<CardImage card={{ id }} />`.
+        expect(offer.subjectCardId).toBe(BEAR_ID);
+    });
+
+    it("a FACE-DOWN exiled card pins NOTHING, so the dialog cannot leak it to the opponent (hideaway, CR 406.3)", () => {
+        // `knownTo: ["p1"]` is exactly what `exileFaceDown` stamps (ADR 0026) —
+        // the controller may keep looking, every other viewer sees the
+        // face-down sentinel. Pinning this card's id would hand the opponent
+        // the identity the projection is busy hiding.
+        const faceDown = makeInstance(BEAR_ID, {
+            id: "subjectFaceDown",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "exile",
+        });
+        faceDown.knownTo = ["p1"];
+        const state = makeState({
+            players: [
+                makePlayer("p1", { exile: [faceDown] }),
+                makePlayer("p2"),
+            ],
+        });
+        const offer = offerAsOpponentSeesIt(
+            state,
+            exileOfferScript("test-cdr-subject-facedown"),
+            "subjectFaceDown"
+        );
+        expect(offer.subjectCardId).toBeUndefined();
+        // And the rest of the offer is byte-identical to the face-up case, so
+        // the mere SHAPE of the dialog discloses nothing either.
+        expect(offer.prompt).toBe("You may cast the card. Cast it or decline.");
+        // Belt and braces: the opponent's own exile projection still hides it.
+        expect(
+            projectPublicState(state, 1, "p2").players[0].exile.map(
+                (c) => c.card.id
+            )
+        ).toEqual([FACE_DOWN_CARD_ID]);
     });
 });
 

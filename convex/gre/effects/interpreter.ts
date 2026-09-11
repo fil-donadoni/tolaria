@@ -6509,6 +6509,32 @@ function runCastDuringResolution(
         : CAST_DECLINE_OPTIONS;
     const offerPrompt = op.includesLand ? OFFER_PROMPT.play : OFFER_PROMPT.cast;
 
+    // The card the offer is ABOUT, shown as an image above the question
+    // (issue #3413). A prompt that says "the card" and pins nothing is the
+    // dialog asking about something the player cannot see — acute for cascade
+    // (CR 702.85a), whose pile is face up in the exile zone both players are
+    // already looking at.
+    //
+    // CR 406.3 is the whole reason this is DERIVED and not a parameter: the
+    // PendingChoice crosses the wire UNREDACTED, so pinning the id tells the
+    // opponent which card it is exactly as naming it in `prompt` would, and a
+    // HIDEAWAY card is exiled face down and visible to its controller alone.
+    // `getPublicCardIdentity` answers off the card's own state and fails
+    // closed — it hands back an id ONLY for a card already public — so the
+    // face-down branch pins nothing without anyone having to remember to pass
+    // a flag, and the two branches keep the byte-identical prompt and option
+    // list the same rule already demands.
+    const subjectCardId = ctx.getPublicCardIdentity(
+        playerId,
+        cardInstanceId,
+        sourceZone
+    );
+    const offer = {
+        options: offerOptions,
+        prompt: offerPrompt,
+        ...(subjectCardId !== undefined ? { subjectCardId } : {}),
+    };
+
     // CR 116.2a / 305.9 — a LAND is PLAYED, never cast. `includesLand` is
     // set only by a grant whose Oracle text says "play" (Hideaway); without
     // it a land silently passes, which is the official Malcolm land ruling
@@ -6528,8 +6554,7 @@ function runCastDuringResolution(
         const landDecision = ctx.requestOptionChoice({
             playerId,
             choiceId: "cdr:decide",
-            options: offerOptions,
-            prompt: offerPrompt,
+            ...offer,
         });
         if (landDecision === undefined) return "suspend"; // enqueued — wait
         if (landDecision !== "cast") {
@@ -6568,8 +6593,7 @@ function runCastDuringResolution(
     const decision = ctx.requestOptionChoice({
         playerId,
         choiceId: "cdr:decide",
-        options: offerOptions,
-        prompt: offerPrompt,
+        ...offer,
     });
     if (decision === undefined) return "suspend"; // enqueued — wait
     if (decision !== "cast") {
