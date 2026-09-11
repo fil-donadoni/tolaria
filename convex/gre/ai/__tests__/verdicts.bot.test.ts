@@ -9,11 +9,13 @@ import { BLADE_SCENARIOS } from "../blade/registry";
 import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
 import {
     FITTABLE_WEIGHT_KEYS,
+    basisDirectionKey,
     collectVerdictReport,
     evalPairsOf,
     scoreBasis,
     verdictFromScenario,
     verdictsFromRegistry,
+    withWeight,
     type Verdict,
 } from "../verdicts";
 
@@ -131,20 +133,39 @@ describe("evalPairsOf through the real builder, enumerator and probe", () => {
         expect(pair.basis["latent.boardRemoval"]).toBeGreaterThan(-1);
     });
 
-    it("decomposes the policy value exactly: Σ wₖ·xₖ + residual", () => {
+    it("predicts the policy value at a DIFFERENT weight vector, to first order", () => {
+        // The identity at the vector the basis was READ at holds by
+        // construction (`residual` is defined as the leftover), so asserting
+        // it proves nothing about the basis. What the Weight Fit actually
+        // needs — and what this asserts — is that the decomposition still
+        // predicts the policy value once the weights MOVE.
         const verdict = stoneRainVerdict();
-        const { features } = evalPairsOf(verdict);
-        expect(features.length).toBeGreaterThan(1);
-        for (const f of features) {
-            expect(
-                scoreBasis(f.basis, DEFAULT_EVAL_WEIGHTS) + f.residual
-            ).toBeCloseTo(f.policyValue, 6);
+        const moved = withWeight(
+            DEFAULT_EVAL_WEIGHTS,
+            "permanentWeight",
+            DEFAULT_EVAL_WEIGHTS.permanentWeight * 1.5
+        );
+        const at0 = evalPairsOf(verdict).features;
+        const at1 = evalPairsOf(verdict, moved).features;
+        expect(at0.length).toBeGreaterThan(1);
+
+        let moves = 0;
+        for (let i = 0; i < at0.length; i++) {
+            const predicted = scoreBasis(at0[i].basis, moved) + at0[i].residual;
+            const actual = at1[i].policyValue;
+            if (Math.abs(actual - at0[i].policyValue) > 1) moves++;
+            // `permanentWeight` reaches the Stone Rain hand term twice over —
+            // once as the board-presence weight and once inside
+            // `latentBoardFor`'s victim ratio — so the decomposition is
+            // first-order, not exact, and the error is the size of that
+            // product. Measured at this 50% move: 0.03 margin points on ~54.
+            expect(Math.abs(predicted - actual)).toBeLessThan(
+                0.01 * Math.max(1, Math.abs(actual))
+            );
         }
-        // The decomposition is not vacuous — some fittable weight actually
-        // carries units on this position.
-        expect(
-            FITTABLE_WEIGHT_KEYS.some((k) => Math.abs(features[0].basis[k]) > 0)
-        ).toBe(true);
+        // The bound is not vacuous: the weight move really did move the value
+        // on at least one candidate.
+        expect(moves).toBeGreaterThan(0);
     });
 
     it("refuses a verdict whose candidates the rebuilt position no longer offers", () => {
@@ -219,9 +240,22 @@ describe("the violation / contradiction report", () => {
             report.pairs.length
         );
         // The registry does hold positions the evaluation cannot separate at
-        // all — every one of them a missing term (ADR 0124 §3) and, for a
-        // violated one, the identical-vector proof §5 asks for.
+        // all — every one a missing term (ADR 0124 §3) and the
+        // identical-feature-vector proof §5 asks for.
         expect(report.blind.length).toBeGreaterThan(0);
+        // Blind means the evaluation exposes NO difference: not a fittable
+        // weight, not an `EvalTerms` contribution, not the decider's own
+        // number. A basis-only test would call a pair blind that the
+        // `creatures` term separates by hundreds of points, and a root rule
+        // admitted on that "proof" would be admitted over an existing term.
+        const violated = new Set(report.violated);
+        for (const pair of report.blind) {
+            expect(violated.has(pair)).toBe(true);
+            expect(
+                Object.entries(pair.terms).filter(([, v]) => Math.abs(v) > 1e-6)
+            ).toEqual([]);
+            expect(Math.abs(pair.delta)).toBeLessThan(1e-6);
+        }
         // And none of them is reported as a disagreement between judges: the
         // zero vector is its own negation, so folding them in would turn N
         // blind pairs into N² false contradictions.
@@ -231,6 +265,26 @@ describe("the violation / contradiction report", () => {
                 (c) => blind.has(c.a) || blind.has(c.b)
             )
         ).toEqual([]);
+    });
+
+    it("treats an anti-parallel direction as contradictory whatever its scale", () => {
+        // `w · v ≥ δ` and `w · (−2v) ≥ δ` are exactly as irreconcilable as `v`
+        // against `−v`, so the canonical key is over the DIRECTION. Asserted
+        // on the pure canonicalisation rather than on a position, because no
+        // registry board happens to produce two pairs that are scaled
+        // multiples of one another.
+        const zero = Object.fromEntries(
+            FITTABLE_WEIGHT_KEYS.map((k) => [k, 0])
+        ) as Record<(typeof FITTABLE_WEIGHT_KEYS)[number], number>;
+        const v = { ...zero, lifeWeight: 3, manaWeight: -1 };
+        const scaledOpposite = { ...zero, lifeWeight: -6, manaWeight: 2 };
+        const elsewhere = { ...zero, lifeWeight: 3, manaWeight: 1 };
+        expect(basisDirectionKey(scaledOpposite, -1)).toBe(
+            basisDirectionKey(v, 1)
+        );
+        expect(basisDirectionKey(elsewhere, -1)).not.toBe(
+            basisDirectionKey(v, 1)
+        );
     });
 
     it("reports no contradiction when the two verdicts agree", () => {

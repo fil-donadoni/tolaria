@@ -13,30 +13,74 @@
 // hand would mean a second copy of the evaluator's arithmetic, drifting from
 // it the first time a term grew a clause.
 //
-// So the unit count is read the only way that cannot drift: as a DERIVATIVE.
-// The policy value is linear in each fittable weight (every term is `weight ×
-// something`, and the caps are on the COUNTS, not on the weights), so
+// So it is read the only way that cannot drift from the evaluator: as a
+// DERIVATIVE of the evaluator itself,
 //
-//     x_k  =  ∂ policyValue / ∂ w_k
+//     x_k  =  ∂ policyValue / ∂ w_k    (at the current vector w₀)
 //
-// is exactly the number of units of `k` the position holds, and it is obtained
-// by scoring the SAME settled state under a weight vector with `w_k` nudged —
-// no re-resolution, no second valuation authority, nothing to keep in sync.
-// `policyValueOfSettled` (search.ts) is what makes that affordable: the probe
-// runs once, the scoring runs once per fittable weight.
+// obtained by scoring the SAME settled state under a weight vector with `w_k`
+// nudged — no re-resolution, no second valuation authority, nothing to keep in
+// sync. `policyValueOfSettled` (search.ts) is what makes that affordable: the
+// probe runs once, the scoring runs once per fittable weight.
+//
+// WHAT `x_k` IS, EXACTLY — and what it is NOT. It is the TOTAL sensitivity of
+// the policy value to `w_k`, which for most terms IS the unit count (`life`
+// really is `lifeWeight × life`). It is NOT a unit count wherever a term
+// weight reaches the position through a second, weight-dependent factor, and
+// the flagship position of this module is one such place: `latentBoardFor`
+// prices a removal spell in hand as
+//
+//     latent.boardRemoval × realisedLoss(best victim) / representativeVictimLoss(w)
+//
+// and BOTH sides of that ratio are built from `permanentWeight` / `manaWeight`
+// (`evaluate.ts`'s `permanentRealisedValue`, `ai/latentBoard.ts`). The hand
+// term is therefore a PRODUCT of two fittable weights, `policyValue` is NOT
+// linear in each of them, and on the Stone Rain board the `pass` candidate
+// reads `permanentWeight` 0.834 and `manaWeight` 0.925 — fractional, because
+// they are sensitivities and not counts.
+//
+// The consequence for the Weight Fit (issue #3401), stated here so it is not
+// discovered there: `Σ w·x + residual` reproduces `policyValue` EXACTLY at w₀
+// and to FIRST ORDER away from it, with a residual that is itself weight-
+// dependent through that product. Measured on the Stone Rain position, moving
+// `permanentWeight` by 50% (5 → 7.5) the decomposition predicts 53.8074 against
+// an actual 53.7778 — 0.03 margin points, 0.055%. That is small enough for a
+// regularised, small-step fit and large enough that an unbounded one must not
+// trust it; the fit owes a trust region, not a pretence of linearity.
+//
+// TWO MORE PLACES THE DERIVATIVE READS ZERO where value is nonetheless moving,
+// both of them clamps rather than curves:
+//   * a hand card whose script value falls back to the `base + MV` floor, or is
+//     cut by `MAX_LATENT_SCRIPT_VALUE` (`cardValue.ts`), moves its `hand` term
+//     with EVERY `latent.*` component reading zero — measured at 33 of the 160
+//     must-tier pairs. The units are real; no fittable weight scales them.
+//   * a creature's hand worth is `creatureValueRaw` outright, weight-free.
+// The step is one-sided (forward), so a card sitting exactly on a clamp reads
+// the slope of the side it is nudged into. A pair that moves `terms` while
+// `basis` is silent is NOT evidence of a missing evaluation term — it is
+// evidence of a term no WEIGHT reaches, which is why the report's blindness
+// test (`report.ts`) demands both be zero.
+//
+// AND ONE THING THAT IS DELIBERATELY NOT DIFFERENTIATED. The settled state is
+// produced once, at w₀, and reused for every bump. `settleStackForBreakdown`
+// picks its branch BY the weights, so on a position with a suspended
+// resolution this is `∂/∂w` of `policyValueOfSettled(probe(w₀), w)`, not of
+// `policyValue(w)`. Freezing the branch is the point: a branch that flips
+// mid-difference is a kink, and a decomposition taken across one describes
+// neither side.
 //
 // WHAT IS LEFT OVER. Not every margin point is scaled by a fittable weight: a
-// creature's Forge body value, a hand card's base-plus-mana-value floor, the
-// Danger Clock, and a terminal win/loss magnitude are all weight-independent
-// at this vector. That part is the `residual`, and it is kept EXPLICIT rather
-// than folded away, so the identity
+// creature's Forge body value, a hand card's clamped floor, the Danger Clock,
+// and a terminal win/loss magnitude are all weight-independent at w₀. That
+// part is the `residual`, kept EXPLICIT rather than folded away, so
 //
 //     policyValue  ===  Σ w_k · basis_k  +  residual
 //
-// holds exactly and is asserted on a real position
-// (`verdictFeatures.bot.test.ts`). A decomposition whose parts do not add back
-// up to the thing decomposed is a fiction, and the identity is what makes this
-// one checkable.
+// holds at w₀ by construction — and, because it holds BY CONSTRUCTION, the
+// identity is worthless as a test of the basis. What is worth testing is the
+// property the fit actually needs: that the same decomposition PREDICTS the
+// policy value at a DIFFERENT weight vector. `verdicts.bot.test.ts` asserts
+// that, on a real position, with the bound measured above.
 //
 // The per-`EvalTerms` breakdown is carried ALONGSIDE, in margin points, purely
 // because it is what a human reads: "the right move loses the hand term and
@@ -161,10 +205,15 @@ export type FeatureVector = {
     /** The evaluation's per-term breakdown, SELF MINUS OPPONENT, in margin
      *  points. Human-readable; what the report prints. */
     terms: Record<keyof EvalTerms, number>;
-    /** Unweighted unit counts, one per fittable weight — the `x` of
-     *  `w · x`. */
+    /** One entry per fittable weight: `∂ policyValue / ∂ wₖ` at the current
+     *  vector — the `x` of ADR 0124 §3's `w · x`. A unit count wherever the
+     *  weight enters linearly, a sensitivity where it does not (see the
+     *  header's `latentBoardFor` product). */
     basis: Record<FittableWeightKey, number>;
-    /** The margin points no fittable weight scales. */
+    /** `policyValue − Σ wₖ·xₖ`: the margin points no fittable weight scales at
+     *  this vector. Itself weight-dependent through the header's product, so a
+     *  fit must treat it as a first-order constant inside a trust region, not
+     *  as a fixed offset. */
     residual: number;
     /** `sum(self terms) − sum(opp terms)`, the pre-terminal material margin. */
     margin: number;
@@ -236,7 +285,9 @@ export function subtractTerms(
 }
 
 /** `w · x` over the fittable basis — the part of a policy-value difference a
- *  weight fit can actually move. */
+ *  weight fit can actually move. With `weights` other than the vector the
+ *  basis was read at, this is the FIRST-ORDER prediction of that part, not an
+ *  identity; see the header. */
 export function scoreBasis(
     basis: Record<FittableWeightKey, number>,
     weights: EvalWeights = DEFAULT_EVAL_WEIGHTS

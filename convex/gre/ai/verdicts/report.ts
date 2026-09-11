@@ -24,20 +24,37 @@
 // terminal win, the Danger Clock) is not contradictory — it is simply out of
 // the fit's reach, which the violated list already says.
 //
-// A FOURTH answer falls out of the same arithmetic and is kept separate: a
-// pair whose `Δbasis` is the ZERO vector. No weight vector moves it in either
-// direction, so it is not a contradiction between two judgements but a
-// BLINDNESS of the evaluation — the two candidates are literally the same
-// position to every fittable term. That is what ADR 0124 §3 means by "the
-// pairs the fit could not satisfy are reported, never dropped — they name a
-// missing term", and it is also, verbatim, the identical-feature-vector proof
-// the root-rule moratorium (§5) demands before a decision may be settled at
-// the root instead. Folding these in with the contradictions would drown them:
-// every zero vector is its own negation, so N blind pairs read as N² false
-// contradictions.
+// A FOURTH answer falls out of the same arithmetic and is kept separate: the
+// BLIND pair, where the evaluation cannot tell the two candidates apart AT
+// ALL. That is what ADR 0124 §3 means by "the pairs the fit could not satisfy
+// are reported, never dropped — they name a missing term", and it is, verbatim,
+// the identical-feature-vector proof the root-rule moratorium (§5) demands
+// before a decision may be settled at the root instead. Which makes the TEST
+// for it load-bearing, and a zero `Δbasis` alone is NOT that test: several
+// evaluation terms carry no `EvalWeights` scalar at all (`creatureValueRaw`,
+// `nonCreatureBodyValue`, a hand card's clamped floor), so a pair the
+// `creatures` term separates by 302 points reads as a zero basis delta —
+// measured, 5 of the 30 must-tier pairs a basis-only test called blind. A root
+// rule admitted on that "proof" would be admitted over a pair an EXISTING term
+// already separates.
+//
+// So blind means all three at once: no fittable weight moves it (`Δbasis`
+// zero), no evaluation term moves it (`Δterms` zero), and the decider does not
+// separate them either (`Δpolicy` zero — the Danger Clock and the two combat
+// corrections live outside `EvalTerms` and would otherwise slip through).
+// Every blind pair is therefore also a violated one, which is the honest
+// reading: a decision the evaluation cannot make.
+//
+// Blind pairs are held OUT of the contradiction scan for an arithmetic reason
+// as well: the zero vector is its own negation, so N of them read as N² false
+// disagreements (measured: 492 before the split, 53 after).
 
 import { DEFAULT_EVAL_WEIGHTS, type EvalWeights } from "../evalWeights";
-import { EVAL_TERM_KEYS, FITTABLE_WEIGHT_KEYS } from "./features";
+import {
+    EVAL_TERM_KEYS,
+    FITTABLE_WEIGHT_KEYS,
+    type FittableWeightKey,
+} from "./features";
 import { evalPairsOf, type EvalPair } from "./evalPairs";
 import type { Verdict, VerdictGap } from "./types";
 
@@ -60,12 +77,22 @@ export type VerdictRow = {
 
 export type Contradiction = { a: EvalPair; b: EvalPair };
 
-/** Is every fittable component of this pair's basis delta zero? */
+/** Can the evaluation tell this pair's two candidates apart in ANY way it
+ *  exposes? No fittable weight, no evaluation term, and not the decider's own
+ *  number — see the header for why all three are needed. */
 function isBlind(pair: EvalPair): boolean {
-    return FITTABLE_WEIGHT_KEYS.every(
-        (k) => Math.abs(pair.basis[k]) < BASIS_EPS
+    return (
+        FITTABLE_WEIGHT_KEYS.every(
+            (k) => Math.abs(pair.basis[k]) < BASIS_EPS
+        ) &&
+        EVAL_TERM_KEYS.every((k) => Math.abs(pair.terms[k]) < TERM_EPS) &&
+        Math.abs(pair.delta) < TERM_EPS
     );
 }
+
+/** Below this, a margin-point difference is float noise rather than a
+ *  position the evaluation actually scores differently. */
+const TERM_EPS = 1e-6;
 
 /** Below this, a basis component is noise from the derivative step rather
  *  than a unit the position holds (`features.ts` sizes that step so the noise
@@ -79,9 +106,10 @@ export type VerdictReport = {
     satisfied: EvalPair[];
     violated: EvalPair[];
     contradictions: Contradiction[];
-    /** Pairs no weight vector can move at all: the two candidates carry the
-     *  SAME fittable feature vector. A missing evaluation term, and — for a
-     *  violated one — the identical-vector proof ADR 0124 §5 asks for. */
+    /** Pairs the evaluation cannot separate at all — same fittable basis, same
+     *  term breakdown, same policy value. A missing evaluation term (ADR 0124
+     *  §3) and the identical-feature-vector proof §5 asks for. Always a subset
+     *  of `violated`. */
     blind: EvalPair[];
     /** Entries that yielded no verdict at all, carried through from the
      *  source so one report answers "what was in, and what was left out". */
@@ -91,16 +119,37 @@ export type VerdictReport = {
     errors: { verdictId: string; error: string }[];
 };
 
-/** Canonical key of a basis delta, for exact-negation matching. Rounded to
- *  1e-6 so the derivative's float noise cannot split two identical vectors;
- *  the derivative is computed from a power-of-two step precisely so that noise
- *  stays orders of magnitude below this (`features.ts`). */
-function basisKey(pair: EvalPair, sign: 1 | -1): string {
+/** Canonical key of a basis delta's DIRECTION, for anti-parallel matching.
+ *
+ *  Normalised to unit length first, because the unsatisfiable-together
+ *  relation is about direction, not magnitude: `w · v ≥ δ` and
+ *  `w · (−2v) ≥ δ` are exactly as irreconcilable as `v` against `−v`, and
+ *  keying the raw vectors would report the first couple and miss the second.
+ *
+ *  Rounded to 1e-6 afterwards so the derivative's float noise cannot split two
+ *  identical directions; the derivative uses a power-of-two step precisely so
+ *  that noise stays orders of magnitude below this (`features.ts`; the
+ *  measured floor on today's corpus is 1e-9…1e-4 for a zero component against
+ *  7.5e-2 for the smallest real one). It is grid rounding rather than a
+ *  tolerance, so two directions 7e-7 apart CAN straddle a boundary and fail to
+ *  match — harmless at this corpus size, and the thing to replace with
+ *  tolerance-based clustering when the corpus grows past hand-reading. */
+export function basisDirectionKey(
+    basis: Record<FittableWeightKey, number>,
+    sign: 1 | -1
+): string {
+    let norm = 0;
+    for (const k of FITTABLE_WEIGHT_KEYS) norm += basis[k] ** 2;
+    norm = Math.sqrt(norm) || 1;
     return FITTABLE_WEIGHT_KEYS.map((k) =>
         // `+ 0` normalises the negative zero `-1 * 0` produces, which would
         // otherwise stringify as "-0" and never match its own positive twin.
-        (Math.round(sign * pair.basis[k] * 1e6) / 1e6 + 0).toString()
+        (Math.round((sign * basis[k] * 1e6) / norm) / 1e6 + 0).toString()
     ).join("|");
+}
+
+function basisKey(pair: EvalPair, sign: 1 | -1): string {
+    return basisDirectionKey(pair.basis, sign);
 }
 
 /** Walk every verdict, build its pairs, and classify. `onRow` fires as each
@@ -213,7 +262,7 @@ export function formatVerdictReport(
     out.push(`  pairs violated         : ${report.violated.length}`);
     out.push(`  contradictory pairs    : ${report.contradictions.length}`);
     out.push(
-        `  pairs no weight moves  : ${report.blind.length} (identical feature vectors — a missing term)`
+        `  blind pairs            : ${report.blind.length} (identical feature vectors — a missing term)`
     );
     out.push(`  verdicts in error      : ${report.errors.length}`);
 
@@ -266,11 +315,11 @@ export function formatVerdictReport(
 
     if (report.blind.length > 0) {
         out.push(
-            `\n== pairs NO WEIGHT can move (${report.blind.length}) — the two candidates share one feature vector`
+            `\n== BLIND pairs (${report.blind.length}) — the evaluation cannot separate the two candidates at all`
         );
         for (const pair of report.blind) {
             out.push(
-                `  ${pair.verdictId}\n      want  ${pair.right.description}\n      over  ${pair.other.description}\n      Δ policy ${pair.delta.toFixed(1)} — residual only`
+                `  ${pair.verdictId}\n      want  ${pair.right.description}\n      over  ${pair.other.description}`
             );
         }
     }

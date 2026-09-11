@@ -9,8 +9,13 @@
 // from the entry's own matchers.
 //
 // THREE EXPECTATION SHAPES, THREE OUTCOMES, NONE SILENT:
-//   * `moves`     → one Verdict naming the right candidate (the first
-//                   enumerated move the matcher list accepts).
+//   * `moves`     → one Verdict naming the ACCEPTED SET — every enumerated
+//                   move the matcher list accepts, not the first. The
+//                   expectation is "at least one of these" and its matchers
+//                   are partial, so the first acceptance is frequently not the
+//                   play the entry means (`VerdictAnswer` in `types.ts` has
+//                   the Stone Rain measurement). The pair builder takes the
+//                   best of the set.
 //   * `forbidden` → one Verdict carrying the WEAKER constraint: the best
 //                   non-forbidden candidate must outrank the forbidden one.
 //                   It names no right answer because the entry does not know
