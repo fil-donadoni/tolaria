@@ -54,6 +54,7 @@ const APPRENTICE_WIZARD = getCardByName("Apprentice Wizard").id; // {U},{T}: Add
 const ORCISH_LUMBERJACK = getCardByName("Orcish Lumberjack").id; // {T}, Sac a Forest: Add {R}{R}{R}
 const IMPLEMENTS = getCardByName("Implements of Sacrifice").id; // {1},{T}, Sac: Add two of one color
 const BASAL_THRULL = getCardByName("Basal Thrull").id; // {T}, Sac: Add {B}{B}
+const FOREST = getCardByName("Forest").id; // {T}: Add {G} — a Lumberjack victim
 const FIREBALL = getCardByName("Fireball").id; // {X}{R}
 
 function permanent(defId: string, id: string): CardInstanceState {
@@ -246,7 +247,6 @@ describe("burst mana sources pay more than one pip (issue #3027)", () => {
     // pre-issue-#3027 behaviour.
     it.each([
         ["Apprentice Wizard ({U} leg)", APPRENTICE_WIZARD],
-        ["Orcish Lumberjack (sacrifice-another leg)", ORCISH_LUMBERJACK],
         ["Implements of Sacrifice ({1} leg)", IMPLEMENTS],
     ])(
         "does not credit the yield of a tap ability whose cost has an unfunded leg — %s",
@@ -259,6 +259,31 @@ describe("burst mana sources pay more than one pip (issue #3027)", () => {
             expect(planManaPayment(state, live, { X: 3 })).toBeNull();
         }
     );
+
+    // Orcish Lumberjack's leg is a FILTERED SACRIFICE, and since issue #3455 an
+    // unpayable one withholds the option outright (`getManaTapOptionsDetailed`)
+    // rather than offering a tap whose cost nothing pays. So the answer with no
+    // Forest is not "one mana" — the fallback this test originally asserted,
+    // and the free-mana bug #3455 closed — but NO mana at all: with nothing to
+    // sacrifice the ability is illegal to activate (CR 602.1 / 118.5). The
+    // one-mana fallback is still what a FUNDED leg gets, asserted below.
+    it("credits NOTHING for a filtered-sacrifice leg with no legal victim", () => {
+        const state = position([permanent(ORCISH_LUMBERJACK, "src")]);
+        expect(planManaPayment(state, state.players[0], { X: 1 })).toBeNull();
+    });
+
+    it("falls back to ONE mana once the filtered-sacrifice leg is payable", () => {
+        const state = position([
+            permanent(ORCISH_LUMBERJACK, "src"),
+            permanent(FOREST, "forest"),
+        ]);
+        const live = state.players[0];
+        // The Forest itself taps for {G}, so {X:1} is reachable either way;
+        // what must NOT happen is the Lumberjack's gross {R}{R}{R} being
+        // credited to a plan that never sacrifices anything.
+        expect(planManaPayment(state, live, { X: 2 })).not.toBeNull();
+        expect(planManaPayment(state, live, { X: 3 })).toBeNull();
+    });
 
     // The discriminating twin: a SELF-sacrifice leg IS executed by the same
     // tap the plan already emits (`tapSourceIntoPayment`), so its yield stays
