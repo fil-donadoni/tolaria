@@ -1,4 +1,5 @@
 import { SCENARIO_PHASES } from "@convex/debugScenarioSpec";
+import { DEBUG_INPUT_CLASS } from "./debug-form-styles";
 import DebugCardNameField from "./debug-card-name-field";
 import type { SeatPairDraft, SpecDraft } from "./scenario-draft";
 import {
@@ -8,10 +9,6 @@ import {
     SCENARIO_SPEC_FIELD_INPUT,
     scenarioSpecFieldLabels,
 } from "./scenario-spec-ownership";
-
-/** Design-system input at the compact size the debug forms use (`.input-field`
- *  carries the token colours/focus ring; the utilities only shrink it). */
-const inputClass = "input-field px-2 py-1 text-xs";
 
 /** The `SpecDraft` fields each rendering branch reads. The casts below are the
  *  loop's one unchecked step — `SCENARIO_SPEC_FIELD_INPUT[key]` narrows on
@@ -55,6 +52,19 @@ export default function DebugScenarioSpecFields({
     draft: SpecDraft;
     onPatch: (patch: Partial<SpecDraft>) => void;
 }) {
+    // `SCENARIO_PHASES` is what the form OFFERS, not what a stored row may
+    // hold: `specFromState` (`convex/gre/scenarioBuilder.ts`) lowers the live
+    // `Phase` verbatim, so a board captured mid-first-strike-damage arrives
+    // carrying a step the offer list omits. A `<select>` with no matching
+    // `<option>` renders as the blank first entry, which reads as "no phase
+    // set" and invites an admin to overwrite a value that was there — so the
+    // loaded value is always among the options.
+    const phaseOptions: readonly string[] =
+        draft.phase === "" ||
+        (SCENARIO_PHASES as readonly string[]).includes(draft.phase)
+            ? SCENARIO_PHASES
+            : [draft.phase, ...SCENARIO_PHASES];
+
     return (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
             {FORM_OWNED_SCENARIO_SPEC_KEYS.map((key) => {
@@ -85,7 +95,7 @@ export default function DebugScenarioSpecFields({
                                     onChange={(e) =>
                                         onPatch({ [field]: e.target.value })
                                     }
-                                    className={`${inputClass} w-16`}
+                                    className={`${DEBUG_INPUT_CLASS} w-16`}
                                 />
                             </label>
                         );
@@ -103,10 +113,10 @@ export default function DebugScenarioSpecFields({
                                     onChange={(e) =>
                                         onPatch({ phase: e.target.value })
                                     }
-                                    className={inputClass}
+                                    className={DEBUG_INPUT_CLASS}
                                 >
                                     <option value="">—</option>
-                                    {SCENARIO_PHASES.map((p) => (
+                                    {phaseOptions.map((p) => (
                                         <option key={p} value={p}>
                                             {p}
                                         </option>
@@ -161,7 +171,7 @@ export default function DebugScenarioSpecFields({
                                                     },
                                                 })
                                             }
-                                            className={`${inputClass} w-14`}
+                                            className={`${DEBUG_INPUT_CLASS} w-14`}
                                         />
                                     </label>
                                 ))}
@@ -205,7 +215,7 @@ export default function DebugScenarioSpecFields({
                                             },
                                         })
                                     }
-                                    className={inputClass}
+                                    className={DEBUG_INPUT_CLASS}
                                 >
                                     {SCENARIO_SEATS.map((seat) => (
                                         <option key={seat} value={seat}>

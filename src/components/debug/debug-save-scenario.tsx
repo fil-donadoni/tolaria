@@ -6,6 +6,7 @@ import {
     normalizeScenarioSpec,
     type ScenarioSpec,
 } from "@convex/debugScenarioSpec";
+import { DEBUG_INPUT_CLASS } from "./debug-form-styles";
 import DebugButton from "./debug-button";
 import DebugScenarioCardFields from "./debug-scenario-card-fields";
 import DebugScenarioSpecFields from "./debug-scenario-spec-fields";
@@ -28,10 +29,6 @@ export type EditingScenario = {
     label: string;
     spec: unknown;
 };
-
-/** Design-system input at the compact size the debug forms use (`.input-field`
- *  carries the token colours/focus ring; the utilities only shrink it). */
-const inputClass = "input-field px-2 py-1 text-xs";
 
 /**
  * Structured "Save scenario" form (replaces the old raw-JSON textarea). A card
@@ -140,7 +137,7 @@ export default function DebugSaveScenario({
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
                 placeholder="Label…"
-                className={`${inputClass} w-full`}
+                className={`${DEBUG_INPUT_CLASS} w-full`}
             />
 
             <div className="flex flex-col gap-1">

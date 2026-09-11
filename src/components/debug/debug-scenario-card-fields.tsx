@@ -1,12 +1,9 @@
 import { useState } from "react";
 import type { CardDraft, CounterDraft } from "./scenario-draft";
+import { DEBUG_INPUT_CLASS } from "./debug-form-styles";
 import DebugCardNameField from "./debug-card-name-field";
 
 const ZONES = ["battlefield", "hand", "library", "graveyard", "exile"] as const;
-
-/** Design-system input at the compact size the debug forms use (`.input-field`
- *  carries the token colours/focus ring; the utilities only shrink it). */
-const inputClass = "input-field px-2 py-1 text-xs";
 
 /** One card row in the scenario save form's repeater. Fields are laid out in
  *  descending order of use-probability: name + owner always visible, then the
@@ -60,7 +57,7 @@ export default function DebugScenarioCardFields({
                         onPatch({ owner: e.target.value as CardDraft["owner"] })
                     }
                     aria-label={`Card ${index + 1} owner`}
-                    className={inputClass}
+                    className={DEBUG_INPUT_CLASS}
                 >
                     <option value="me">me</option>
                     <option value="opp">opp</option>
@@ -102,7 +99,7 @@ export default function DebugScenarioCardFields({
                         onPatch({ zone: e.target.value as CardDraft["zone"] })
                     }
                     aria-label={`Card ${index + 1} zone`}
-                    className={`${inputClass} disabled:opacity-50`}
+                    className={`${DEBUG_INPUT_CLASS} disabled:opacity-50`}
                 >
                     {ZONES.map((z) => (
                         <option key={z} value={z}>
@@ -117,7 +114,7 @@ export default function DebugScenarioCardFields({
                         min={1}
                         value={draft.count}
                         onChange={(e) => onPatch({ count: e.target.value })}
-                        className={`${inputClass} w-14`}
+                        className={`${DEBUG_INPUT_CLASS} w-14`}
                     />
                 </label>
                 <label className="flex items-center gap-1 text-text-muted">
@@ -164,7 +161,7 @@ export default function DebugScenarioCardFields({
                                             type: e.target.value,
                                         })
                                     }
-                                    className={`${inputClass} flex-1`}
+                                    className={`${DEBUG_INPUT_CLASS} flex-1`}
                                 />
                                 <input
                                     type="number"
@@ -174,7 +171,7 @@ export default function DebugScenarioCardFields({
                                             count: e.target.value,
                                         })
                                     }
-                                    className={`${inputClass} w-14`}
+                                    className={`${DEBUG_INPUT_CLASS} w-14`}
                                 />
                                 <button
                                     type="button"
@@ -203,7 +200,7 @@ export default function DebugScenarioCardFields({
                                 onChange={(e) =>
                                     onPatch({ damageMarked: e.target.value })
                                 }
-                                className={`${inputClass} w-14`}
+                                className={`${DEBUG_INPUT_CLASS} w-14`}
                             />
                         </label>
                         <label className="flex items-center gap-1 text-text-muted">
@@ -214,7 +211,7 @@ export default function DebugScenarioCardFields({
                                 onChange={(e) =>
                                     onPatch({ position: e.target.value })
                                 }
-                                className={`${inputClass} w-14`}
+                                className={`${DEBUG_INPUT_CLASS} w-14`}
                             />
                         </label>
                     </div>

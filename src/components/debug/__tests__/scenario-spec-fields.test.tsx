@@ -16,10 +16,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, cleanup, screen, fireEvent } from "@testing-library/react";
 import type { Id } from "@convex/_generated/dataModel";
-import { SCENARIO_PHASES, type ScenarioSpec } from "@convex/debugScenarioSpec";
+import {
+    SCENARIO_PHASES,
+    SCENARIO_SPEC_KEYS,
+    type ScenarioSpec,
+} from "@convex/debugScenarioSpec";
 
 import {
     FORM_OWNED_SCENARIO_SPEC_KEYS,
+    SCENARIO_SPEC_FIELD_OWNER,
     SCENARIO_SPEC_FIELD_INPUT,
     scenarioSpecFieldLabels,
 } from "../scenario-spec-ownership";
@@ -87,6 +92,16 @@ describe("the scenario form renders every form-owned spec field", () => {
         }
     });
 
+    it("classifies exactly the keys the VALIDATOR declares", () => {
+        // The ownership table is typed off `keyof ScenarioSpec`, and the
+        // generator's guard sweeps the VALIDATOR-derived list: a field added to
+        // `scenarioSpecValidator` alone would reach one guard and not the
+        // other, leaving the form green while genuinely missing the input.
+        expect([...Object.keys(SCENARIO_SPEC_FIELD_OWNER)].sort()).toEqual(
+            [...SCENARIO_SPEC_KEYS].sort()
+        );
+    });
+
     it("offers the shared phase vocabulary, and only that", () => {
         render(<DebugSaveScenario />);
         const select = screen.getByLabelText("phase") as HTMLSelectElement;
@@ -138,6 +153,56 @@ describe("the scenario form renders every form-owned spec field", () => {
         // An untouched per-seat knob writes nothing — a scenario must not gain
         // a `poison: {}` it never asked for.
         expect(saved.poison).toBeUndefined();
+    });
+
+    it("keeps a loaded phase the offer list does not contain", () => {
+        // `specFromState` lowers the live `Phase` verbatim, so a captured board
+        // can carry a step `SCENARIO_PHASES` does not offer. Without an option
+        // for it the select renders blank — reading as "unset" over a value
+        // that is set.
+        render(
+            <DebugSaveScenario
+                editing={{
+                    id: "row1" as Id<"debugScenarios">,
+                    label: "Captured mid-combat",
+                    spec: {
+                        cards: [{ name: "Psychatog", owner: "me" }],
+                        phase: "FIRST_STRIKE_DAMAGE",
+                    },
+                }}
+            />
+        );
+        const select = screen.getByLabelText("phase") as HTMLSelectElement;
+        expect(select.value).toBe("FIRST_STRIKE_DAMAGE");
+        fireEvent.click(screen.getByText("Update"));
+        const saved = (mutationCalls.at(-1)?.args as { spec: ScenarioSpec })
+            .spec;
+        expect(saved.phase).toBe("FIRST_STRIKE_DAMAGE");
+    });
+
+    it("round-trips a companion whose row omits the owner", () => {
+        // `owner` is optional on the spec and the builder defaults it to the
+        // "me" seat; the form always writes it explicitly, so this pins that
+        // the widening does not change which seat the companion lands in.
+        render(
+            <DebugSaveScenario
+                editing={{
+                    id: "row1" as Id<"debugScenarios">,
+                    label: "Implicit owner",
+                    spec: {
+                        cards: [{ name: "Psychatog", owner: "me" }],
+                        companion: { name: "Lurrus of the Dream-Den" },
+                    },
+                }}
+            />
+        );
+        fireEvent.click(screen.getByText("Update"));
+        const saved = (mutationCalls.at(-1)?.args as { spec: ScenarioSpec })
+            .spec;
+        expect(saved.companion).toEqual({
+            name: "Lurrus of the Dream-Den",
+            owner: "me",
+        });
     });
 
     it("clears a spec field the admin empties", () => {

@@ -8,7 +8,7 @@ import type { SeatPairDraft, SpecDraft } from "./scenario-draft";
  * `updateDebugScenario` patches the row's `spec` **wholesale**, so a field the
  * editor does not re-emit is deleted from the stored scenario. Before this
  * classification the form assembled a fresh spec from its own four inputs and
- * the other seven fields — `life`, `poison`, `experience`, `companion`,
+ * the other six fields — `life`, `poison`, `experience`, `companion`,
  * `rngSeed`, `markLastDrawn` — silently vanished on any edit of a curated row
  * (ADR 0044 golden rows are exactly the ones carrying them).
  *
