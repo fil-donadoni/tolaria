@@ -7723,16 +7723,19 @@ function finalizeSpellResolution(
         // CR 110.2 / 110.2b (issue #3000) — "a permanent's controller is, by
         // default, the player under whose control it entered the battlefield",
         // and for a permanent SPELL that is the player who put it on the stack
-        // (CR 112.2), whoever owns the card. `removeFromZone` already stamped
-        // this at the cast commit; re-stamped HERE because this object is what
-        // becomes the battlefield permanent, and this is the last instant
-        // before anything reads it: `shouldEnterTapped` (Kismet's "your
-        // opponents control"), the layer-2 base capture (`layer2Base` freezes
-        // `controllerId` lazily at the first derivation), and the ETB trigger
-        // scan all run downstream of this line. A permanent whose
-        // `controllerId` disagreed with the battlefield it was pushed onto is
-        // the bug class this closes — the field is the single authority every
-        // consumer reads, so it must match the zone.
+        // (CR 112.2), whoever owns the card.
+        //
+        // BELT AND BRACES, deliberately: `removeFromZone` stamps this at the
+        // cast commit, which is the load-bearing write (remove it and the
+        // controller tests red; remove only this line and they stay green).
+        // This one is here because THE ENTRY SITE is where CR 110.2 decides a
+        // permanent's controller, and it is where the non-cast entry path
+        // (`stageReanimatedOnBattlefield`) stamps too — so a future path that
+        // puts a permanent spell on the stack without going through
+        // `removeFromZone` cannot reintroduce the bug. Sited above the entry
+        // branches because everything that reads the field runs below:
+        // `shouldEnterTapped` (Kismet's "your opponents control"), the lazy
+        // layer-2 base capture (`layer2Base`), and the ETB trigger scan.
         item.controllerId = item.castById;
         // Worms of the Earth (CR 614) — "Lands can't enter the battlefield."
         // A resolving land permanent that is prevented from entering is put
