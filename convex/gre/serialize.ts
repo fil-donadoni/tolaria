@@ -383,6 +383,11 @@ function compactCard(
     if (card.manaCommitted) out.manaCommitted = true;
     if (card.tapTriggerCommitted) out.tapTriggerCommitted = true;
     if (card.damageMarked) out.damageMarked = card.damageMarked;
+    // CR 716.2b — the class level is a designation carried by the permanent and
+    // has to survive a save/load: it is not a counter (CR 716.4 / 711.7), so
+    // nothing else on the wire stands in for it, and losing it would silently
+    // return every Class to level 1 (CR 716.2d) with its bars re-armed.
+    if (card.classLevel) out.classLevel = card.classLevel;
     // CR 606.3 — the per-permanent "a loyalty ability was activated this turn"
     // lock must survive a save/load mid-turn, or a planeswalker could activate
     // a second loyalty ability after a reload.
@@ -836,6 +841,9 @@ function expandCard(
     if (compact.tapTriggerCommitted) result.tapTriggerCommitted = true;
     if (compact.damageMarked) {
         result.damageMarked = compact.damageMarked as number;
+    }
+    if (compact.classLevel) {
+        result.classLevel = compact.classLevel as number;
     }
     if (compact.loyaltyActivatedThisTurn) {
         result.loyaltyActivatedThisTurn = true;

@@ -1779,6 +1779,32 @@ describe("optional field round-trip smoke tests", () => {
         expect(empty.players[0].spellsCastThisGame).toBeUndefined();
     });
 
+    it("classLevel (CR 716.2b — a Class's level survives the DB)", () => {
+        // The level is a designation, not a counter (CR 716.4 / 711.7), so
+        // nothing else on the wire carries it: a lost field silently returns
+        // every Class to level 1 (CR 716.2d) with all of its bars re-armed.
+        const state = freshState();
+        state.players[0].battlefield.push(
+            makeInstance(savannahLions.id, {
+                id: "levelled",
+                classLevel: 3,
+            })
+        );
+        expect(
+            roundTrip(state).players[0].battlefield.find(
+                (c) => c.id === "levelled"
+            )!.classLevel
+        ).toBe(3);
+        // CR 716.2d — a permanent with no level stores none, rather than a
+        // written-out 1 that would grow every row in the table.
+        state.players[0].battlefield[0].classLevel = undefined;
+        expect(
+            roundTrip(state).players[0].battlefield.find(
+                (c) => c.id === "levelled"
+            )!.classLevel
+        ).toBeUndefined();
+    });
+
     it("drawLookReplacements (Aladdin's Lamp)", () => {
         const state = freshState();
         state.drawLookReplacements = [{ playerId: "p1", x: 3 }];
