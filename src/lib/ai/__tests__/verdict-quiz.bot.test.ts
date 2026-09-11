@@ -111,6 +111,11 @@ const RESPONDING_ON_OPPONENTS_TURN: ScenarioSpec = {
         { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
         { name: "Mountain", owner: "opp", zone: "battlefield" },
         { name: "Lightning Bolt", owner: "opp", zone: "hand" },
+        // The sorcery-speed half the rebuild must NOT be able to offer: a land
+        // to play (CR 305.1) and a creature to cast (CR 302.1). Without them
+        // the two candidate lists coincide and the comparison below proves
+        // nothing — a rebuild that lost the turn holder passes for free.
+        { name: "Mountain", owner: "opp", zone: "hand" },
         { name: "Grizzly Bears", owner: "opp", zone: "hand" },
     ],
     phase: "PRECOMBAT_MAIN",
