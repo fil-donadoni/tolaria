@@ -14,6 +14,7 @@ import {
     draftToCard,
     emptyCardDraft,
 } from "./scenario-draft";
+import { assembleScenarioSpec } from "./scenario-spec-ownership";
 
 /** An existing row opened for editing. `spec` is the raw stored value (typed
  *  `unknown`); it's tolerantly normalized before inflating the form. */
@@ -51,6 +52,10 @@ function num(raw: string): number | undefined {
  * `ScenarioSpec` and calls the `assertIsAdmin`-gated `saveDebugScenario`, which
  * re-runs the loadability guard (ADR 0044). A collapsed live JSON preview lets
  * the admin eyeball the assembled spec.
+ *
+ * When EDITING, the assembled spec carries over every spec field the form
+ * renders no input for (`scenario-spec-ownership.ts`) — the update mutation
+ * patches `spec` wholesale, so anything left out is deleted from the row.
  */
 export default function DebugSaveScenario({
     editing = null,
@@ -107,8 +112,12 @@ export default function DebugSaveScenario({
         const t = num(turn);
         if (t !== undefined) s.turn = t;
         if (phase !== "") s.phase = phase;
-        return s;
-    }, [cards, landCount, libraryCount, turn, phase]);
+        // `updateDebugScenario` patches `spec` wholesale, so a field this form
+        // renders no input for must be carried over from the loaded row or the
+        // save DELETES it (issue #3462). The classification is the single
+        // authority on which those are.
+        return assembleScenarioSpec(s, initial);
+    }, [cards, landCount, libraryCount, turn, phase, initial]);
 
     const handleSave = async () => {
         if (saving) return;
