@@ -420,7 +420,8 @@ artifact** at 347 B/row; the ceiling applies to the **bundled** form.
   whatever it was, and a gate no legitimate change can pass teaches sessions to
   route around it. The remaining megabyte is the whole margin between a red
   gate and a deploy Convex refuses outright — there is no 32 MiB budget to move
-  to next. The next crossing builds the store.
+  to next. The next crossing builds the store. **Restored to 30 MiB at issue
+  #3444** once the cause was removed — see Amendment II.
 - **`MAX_USER_MODULES` is a second axis, moving the other way.** Every
   hand-written definition is one file under `convex/` and one user module;
   retiring proven duplicates into compiled data (issue #2703) spends bundle
@@ -433,34 +434,57 @@ artifact** at 347 B/row; the ceiling applies to the **bundled** form.
 
 ## Amendment II (issue #3444, 2026-09-11) — the cheap question was the whole overage
 
-The budget fired. On `origin/staging` itself, with no PR needed to reproduce it:
-31,574,767 B against the 30 MiB budget — **117,487 B over**, 94.1% of Convex's
-ceiling. `bun run release` was red, and so was every `full`-lane PR, because
-`check:convex-bundle` runs in `check:pr` (which the `full` lane delegates to
-verbatim) and in `check:all`, while the `skin` and `engine` lanes never run it.
+The budget fired, twice, and the second time it was fixed rather than moved.
+
+Issue #3444 filed it: on `origin/staging` itself, with no PR needed to reproduce
+it, 31,574,767 B against the 30 MiB budget — **117,487 B over**, 94.1% of
+Convex's ceiling. `bun run release` was red, and so was every `full`-lane PR,
+because `check:convex-bundle` runs in `check:pr` (which the `full` lane delegates
+to verbatim) and in `check:all`, while the `skin` and `engine` lanes never run
+it. Before #3444 was picked up, issue #1268 raised the budget to 31 MiB to
+unblock itself — the bullet above records it.
 
 Amendment I said to ask the cheap question first. It was asked, and it was not a
-partial answer — it was the whole thing, with a decade of runway behind it.
+partial answer — it was the whole thing, with a decade of runway behind it. **The
+budget is back at 30 MiB.**
 
 `convex/debugScenarioGenerator.ts` imported `getAllCardNames` and
 `tryGetPlaceableCardByName` from `./cards`. Two name lookups, in a `"use node"`
 action whose esbuild graph is separate, so the import re-inlined the entire card
 registry and `data/oracle-compiled-pool.json` with it.
 
-| measured, same tree     | before       | after          |
-| ----------------------- | ------------ | -------------- |
-| total pushed            | 31,574,767   | 24,374,411     |
-| % of the 32 MiB ceiling | 94.1%        | 72.6%          |
-| headroom to the budget  | **-117,487** | **+7,082,869** |
-| the `"use node"` half   | ~7,870,000   | 669,905        |
+Measured on ONE tree — the landing tip — by removing and re-adding that single
+import, so the two columns differ by nothing else:
+
+| measured, same tree           | with the import | without it     |
+| ----------------------------- | --------------- | -------------- |
+| total pushed                  | 31,661,840      | 24,470,360     |
+| % of the 32 MiB ceiling       | 94.4%           | 72.9%          |
+| headroom to the 30 MiB budget | **-204,560**    | **+6,986,920** |
+| the `"use node"` half         | ~7,860,000      | 669,905        |
 
 The action reaches the registry by `ctx.runQuery` now — two internal queries in
 `convex/debugScenarios.ts`, which lives in the isolate bundle where the registry
 is already resident — and `runScenarioGeneration` takes a `ScenarioCardAuthority`
 port instead of a `resolves` predicate it could only satisfy by importing.
 
-**The budget constant is unchanged.** That was the one thing Amendment I
-forbade, and nothing here touches it.
+### The budget went 30 → 31 → 30, and both moves were right
+
+Amendment I's rule — "crossing it means building that store, not raising the
+number" — was broken once, by issue #1268, and is restored here. The round trip
+matters more than either endpoint:
+
+- **The raise was right on its facts.** The base tip sat at 29.99 MiB. The guard
+  had stopped being a warning and had become a block on every engine change
+  whatever it was; one keyword's worth of source crossed it. A gate no
+  legitimate change can pass teaches sessions to route around it, which costs
+  more than the margin it protects.
+- **The restore is right on different facts.** The cause was found and removed,
+  and it was never the corpus: it was one import in one debug tool. 6.66 MiB of
+  warning distance is back, so there is nothing left to unblock.
+- **The rule the pair teaches.** A budget at 96% of a hard ceiling is a symptom.
+  The first move is to ask what is IN the bundle, not what the number should be.
+  Raise it only to buy time to answer that — and put it back when you have.
 
 ### What this changes in Amendment I's arithmetic
 
@@ -469,7 +493,7 @@ and said so. With the second copy gone it is **1,013 B/row** — 597 source + 41
 source map, re-measured at +2,000 and +6,000 synthetic rows, linear to four
 digits. Everything downstream of that number roughly doubles:
 
-- **~6,990 rows** of headroom to the budget, against a pool of 2,329 today. The
+- **~6,897 rows** of headroom to the budget, against a pool of 2,329 today. The
   compiled pool can roughly quadruple, not double.
 - The full corpus, 34,890 rows, costs **~35.3 MB bundled** — still above the
   32 MiB ceiling for the pool alone, so § 2's conclusion is unchanged: **the
