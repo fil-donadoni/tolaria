@@ -3534,11 +3534,19 @@ function commitNonStackActivation(
             ability?.manaRestriction,
             manaRidersForAbility(ability)
         );
-        // CR 605.2 — the "tapped for mana" event. Emitted from the card object
-        // we still hold, so its types/subtypes snapshot is the source's own
-        // even when a `cost.sacrifice` leg has already moved it (the
-        // `activateFixedSacrificeManaAbility` convention).
-        emitPermanentTapped(state, card, true, produced);
+        // Emitted from the card object we still hold, so its types/subtypes
+        // snapshot is the source's own even when a `cost.sacrifice` leg has
+        // already moved it (the `activateFixedSacrificeManaAbility`
+        // convention).
+        // CR 605.2 — only when the activation actually TAPPED or sacrificed
+        // the source. Skirk Prospector / Krark-Clan Ironworks / Skirge Familiar
+        // do neither and stay on the battlefield, so a "tapped for mana" event
+        // there is a lie a becomes-tapped watcher would act on (review finding
+        // 5). `activateFixedSacrificeManaAbility`'s own emit is the sacrifice
+        // half of the same gate.
+        if (pa.tapSource || pa.sacrificeSource) {
+            emitPermanentTapped(state, card, true, produced);
+        }
     } else {
         // CR 605.3c — synthesize a transient stack item so the resolve gets a
         // full SpellContext, then let `resolveTopOfStack` pop it. It is pushed
@@ -3559,10 +3567,57 @@ function commitNonStackActivation(
         );
         resolveTopOfStack(state);
     }
-    // CR 603.2 / 603.3 — flush what the cost and the mana queued (the victim's
-    // own dies trigger, a Mana Flare-style watcher, PERMANENT_TAPPED). No SBA
-    // pass: a mana ability resolves without one (CR 605.3b).
-    processPendingActionTriggers(state);
+    // CR 603.2 / 603.3b / 605.3b — flush what the cost and the mana queued (the
+    // victim's own dies trigger, a Mana Flare-style watcher, PERMANENT_TAPPED).
+    // No SBA pass: a mana ability resolves without one (CR 605.3b).
+    //
+    // TWO guards, both of them things the stack path is allowed to do and this
+    // one is not (review findings 1A/1B):
+    //
+    //  - **Never inside a payment window.** CR 603.3b puts a waiting trigger on
+    //    the stack "the next time a player would receive priority", which
+    //    during a cast's payment is AFTER the spell is announced — so the
+    //    trigger belongs ABOVE the spell, not below it. `tapSourceIntoPayment`
+    //    already leaves its events queued for exactly this reason (see its
+    //    `lifeBeforeTap` note about City of Brass); the cast's own commit
+    //    flushes them.
+    //  - **Never move priority.** `processPendingActionTriggers` ends in
+    //    "LANDED → grant priority to the active player", which is right for an
+    //    ability that went on the stack and catastrophic for one that did not:
+    //    a non-active player activating a sac outlet at priority would hand
+    //    priority away (CR 605.3b says activating a mana ability changes
+    //    nothing about who holds it), and mid-cast it strands the payment
+    //    forever — `tryAutoCommitPendingCast` gates on
+    //    `priorityPlayerId === playerId`, so the creature is eaten, the mana
+    //    floats, and the cast can never commit.
+    //
+    // The restore is SKIPPED when the flush suspended (CR 603.3b/603.3d — an
+    // APNAP ordering choice or a trigger's own target selection): that path
+    // parks priority on the chooser deliberately, and putting it back would
+    // strand the choice instead.
+    const priorityBeforeFlush = state.priorityPlayerId;
+    const choicesBeforeFlush = state.pendingChoices?.length ?? 0;
+    const targetBeforeFlush = state.pendingTarget;
+    if (!state.pendingCast) {
+        processPendingActionTriggers(state);
+    }
+    const flushSuspended =
+        (state.pendingChoices?.length ?? 0) > choicesBeforeFlush ||
+        state.pendingTarget !== targetBeforeFlush;
+    if (!flushSuspended) state.priorityPlayerId = priorityBeforeFlush;
+    // NOT carried here, and deliberately (review finding 7): the painland
+    // coloured-tap ping (`applyColoredTapSelfDamage`), Ancient Tomb's
+    // unconditional one (`applyUnconditionalTapSelfDamage`), the depletion
+    // counter (`applyDepletionCounterOnTap`), Chromatic Sphere's draw
+    // (`applyDrawCardOnTap`) and Rainbow Vale's control-change arm
+    // (`armDelayedTriggerOnTap`). No card on this shape declares any of them —
+    // the other cost-side riders (exert, life, discard-at-random, counter
+    // removal) are already paid by the shared chain ABOVE the split, and the
+    // undo bookkeeping (`recordLifePaidOnTap`, `chosenMana`, the tap-bonus
+    // stamp) is unreachable because `manaCommitted` refuses the untap. A card
+    // that ever combines one of the five with a filtered give-up cost needs
+    // them wired here; this comment is so that is not discovered silently.
+    //
     // CR 605.3a (issue #2420) — this activation may itself have been FUNDING a
     // pending cast: the mana it just added can complete it, and every other
     // payment mutation re-checks after adding pool mana. Without the same check
@@ -3665,7 +3720,24 @@ function inlineManaAbilityOutput(
         if (!chosen) throw new Error("Invalid mana choice");
         return chosen;
     }
-    return ability.manaProduced;
+    if (!ability.manaProduced) return undefined;
+    // CR 106.1 — a board-conditional amount (the Urza trio's `manaAmount`)
+    // resolves against the CURRENT board, the same read
+    // `getManaTapOptionsDetailed` made when it offered the option; without it
+    // the option shown and the mana delivered can differ.
+    const dynamic = getDynamicManaProduced(
+        card,
+        player.battlefield,
+        state.continuousEffects
+    );
+    // CR 614 — Deep Water / Illusionary Terrain rewrite a LAND's produced mana
+    // (Phyrexian Tower is a Land, so this leg is live for the shipped shape).
+    return applyLandManaReplacement(
+        state,
+        player.id,
+        card,
+        dynamic ?? ability.manaProduced
+    );
 }
 
 /** CR 605.1a / 605.3a / 118.5 (issue #3455) — announce a MANA ability whose
@@ -10288,6 +10360,11 @@ export const tapForPayment = mutation({
                 payment.manaChoiceIndex,
                 state.pendingCast.tappedLandIds
             );
+            // CR 605.3b (issue #3455) — an entry that opened a filtered
+            // give-up cost window owns the rest of this batch: the next entry
+            // would be refused ("Another ability is already being activated")
+            // and take the whole batch — this park included — down with it.
+            if (state.pendingActivation) break;
             // Check if cost is now covered → auto-commit, exactly like the
             // per-call path did after every single tap.
             tryAutoCommitPendingCast(state, args.playerId);
@@ -10739,6 +10816,19 @@ export function findActiveManaSpendChoice(
     choice: GenericSpendAmbiguity;
     container: "cast" | "activation";
 } | null {
+    // CR 605.3a / 605.3b (issue #3455) — the inline MANA-ability park is the
+    // innermost announcement, so it answers first, exactly as
+    // `nextOwedPayment` and `findActiveSacrificeSelection` hoist it. All three
+    // seams must name the same park or a submission lands in the wrong
+    // container.
+    const inline = state.pendingActivation;
+    if (
+        inline?.resolveWithoutStack &&
+        inline.playerId === playerId &&
+        inline.manaSpendChoice
+    ) {
+        return { choice: inline.manaSpendChoice, container: "activation" };
+    }
     const pc = state.pendingCast;
     if (pc && pc.playerId === playerId && pc.manaSpendChoice) {
         return { choice: pc.manaSpendChoice, container: "cast" };

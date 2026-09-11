@@ -595,10 +595,10 @@ export function getManaChoices(
  *  {U}/{R} split), or null when the card has no non-tap, non-sacrifice
  *  choice-based mana ability. Issue #1179's client analog of
  *  {@link getManaChoices}: that helper reads the unified TAP options list
- *  (`getManaTapOptions`), which deliberately EXCLUDES a mana ability with no
- *  {T}/sacrifice component (CR 605.1a — it's reached through the
- *  activated-ability menu, not a direct tap), so a non-tap chooser needs its
- *  own resolver. Reads the SAME `getEffectiveManaChoices` helper the server
+ *  (`getManaTapOptions`), which excludes a mana ability with no {T}, no
+ *  self-sacrifice and no FILTERED give-up leg (CR 605.1a — it's reached through
+ *  the activated-ability menu, not a direct tap; the give-up shapes joined that
+ *  list in issue #3455), so a non-tap chooser needs its own resolver. Reads the SAME `getEffectiveManaChoices` helper the server
  *  (`activateManaAbility`) validates the submitted `manaChoiceIndex`
  *  against, so the picker's index always matches what the server expects.
  *  Board-conditional choosers need every player's battlefield (CR 106.1 /

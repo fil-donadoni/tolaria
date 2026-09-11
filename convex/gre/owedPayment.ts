@@ -398,9 +398,18 @@ export function nextOwedPayment(
     // Reported first, because the cast branch below returns null unconditionally
     // once it matches — which would otherwise hide this park from every reader
     // of the seam, the bot included (the stall class ADR 0091 exists to prevent).
+    //
+    // It reports FIRST but does not report EXCLUSIVELY (review finding 3): an
+    // inline park can stand owing nothing at all — Bog Witch announced with no
+    // way to make its {B}, its discard pick answered, commit still blocked on
+    // mana coverage — and returning that `null` would hide every pick the CAST
+    // still owes, letting `tryAutoCommitPendingCast` commit over an unanswered
+    // convoke / delve / sacrifice choice. So: ask it first, fall through when
+    // it has nothing.
     const inline = state.pendingActivation;
     if (inline?.resolveWithoutStack && inline.playerId === playerId) {
-        return activationOwedPayment(state, inline, playerId, opts);
+        const owed = activationOwedPayment(state, inline, playerId, opts);
+        if (owed) return owed;
     }
     const pc = state.pendingCast;
     if (pc && pc.playerId === playerId) {

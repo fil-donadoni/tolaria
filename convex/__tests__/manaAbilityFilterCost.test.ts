@@ -128,7 +128,11 @@ const BOLT = () => getCardByName("Lightning Bolt").id;
 /** DISTINGUISHABLE victims — `autoResolveFungible` collapses a board of
  *  identical candidates to a forced pick (the zero-branch convention), so a
  *  test that wants the PROMPT must offer a real choice. */
-const VICTIMS = ["Grizzly Bears", "Llanowar Elves", "Scathe Zombies"];
+// "Haywire Mite" leads: it carries a real DIES trigger ("When this creature
+// dies, you gain 2 life"), which is what makes the CR 605.3b priority claim
+// non-vacuous — the cost queues a trigger, the trigger lands on the stack, and
+// the mana ability must still not move priority (review finding 1/8).
+const VICTIMS = ["Haywire Mite", "Grizzly Bears", "Llanowar Elves"];
 
 /** p1 with `defId` plus `creatures` DISTINCT creatures on the battlefield and
  *  `hand` cards in hand, priority held. */
@@ -139,6 +143,9 @@ function board(
         hand?: number;
         pendingCast?: PendingCast;
         handSpellId?: string;
+        /** Who holds the TURN. p1 always holds priority; making p2 active is
+         *  what exposes a flush that grants priority to the active player. */
+        activePlayerId?: string;
     } = {}
 ): GameState {
     const source = makeInstance(defId, {
@@ -176,7 +183,7 @@ function board(
             makePlayer("p1", { battlefield: [source, ...creatures], hand }),
             makePlayer("p2"),
         ],
-        activePlayerId: "p1",
+        activePlayerId: opts.activePlayerId ?? "p1",
         priorityPlayerId: "p1",
         ...(opts.pendingCast ? { pendingCast: opts.pendingCast } : {}),
     });
@@ -292,16 +299,29 @@ describe("filtered SACRIFICE cost, non-stack path (CR 605.3b, issue #3455)", () 
     });
 
     it("never appears on the stack and never grants priority (CR 605.3b)", async () => {
-        const ctx = ctxFor(board(ALTAR.id, { creatures: 2 }));
+        // p2 is ACTIVE, p1 holds priority, and the victim has a DIES trigger:
+        // the flush therefore has something to land, and "grant priority to the
+        // active player" — correct for an ability that went ON the stack — would
+        // take p1's priority away for a mana ability that never did.
+        const ctx = ctxFor(
+            board(ALTAR.id, { creatures: 2, activePlayerId: "p2" })
+        );
         await runActivate(ctx, "source", "test-3455-altar-mana");
         await runPick(ctx, "bear-0");
 
         // Asserted through the PUBLIC projection — the view the client and the
         // bot actually read — not a hand-built one.
         const view = projectPublicState(ctx.state(), 1, "p1");
-        expect(view.stack).toHaveLength(0);
         expect(view.priorityPlayerId).toBe("p1");
-        expect(ctx.state().passCount).toBe(0);
+        expect(view.players[0].manaPool.C).toBe(2);
+        // The victim's dies trigger IS on the stack (CR 603.3b); the ABILITY
+        // never is (CR 605.3b).
+        expect(
+            view.stack.map(
+                (i) => (i as { abilityId?: string }).abilityId ?? i.id
+            )
+        ).not.toContain("test-3455-altar-mana");
+        expect(view.stack).toHaveLength(1);
     });
 
     it("auto-resolves with exactly one legal victim — no prompt", async () => {
@@ -358,6 +378,19 @@ describe("the unified mana-source option list (CR 605.1a, issue #3455)", () => {
         // click and the castability census alike.
         expect(optionsFor(board(ALTAR.id, { creatures: 1 }), "source")).toEqual(
             [{ C: 2 }]
+        );
+    });
+
+    it("withholds an option whose filtered sacrifice has no legal victim", () => {
+        // CR 602.1 / 118.5 — the tap-legged half of the class is reached
+        // through the mana-choice PICKER, not the ability menu, and both sides
+        // resolve `manaChoiceIndex` against this very list. With no creature,
+        // Phyrexian Tower offers only its plain {C}; with one, both.
+        expect(optionsFor(board(TOWER.id, { creatures: 0 }), "source")).toEqual(
+            [{ C: 1 }]
+        );
+        expect(optionsFor(board(TOWER.id, { creatures: 1 }), "source")).toEqual(
+            [{ C: 1 }, { B: 2 }]
         );
     });
 
@@ -473,6 +506,42 @@ describe("the TAP-legged members actually pay their filter leg (issue #3455)", (
     });
 });
 
+describe("the owed-payment seam reports the inner park FIRST, not EXCLUSIVELY", () => {
+    it("falls through to the cast's own park when the inline one owes nothing", () => {
+        // A park can stand owing nothing: announced, its picks answered, commit
+        // still blocked on mana coverage. Answering `null` for the player there
+        // would let `tryAutoCommitPendingCast` commit over an unanswered
+        // convoke / delve / sacrifice pick.
+        const state = board(ALTAR.id, { creatures: 1 });
+        state.pendingActivation = {
+            playerId: "p1",
+            cardInstanceId: "source",
+            abilityId: "test-3455-altar-mana",
+            manaCost: { B: 1 },
+            tappedLandIds: [],
+            tapSource: false,
+            sacrificeSource: false,
+            resolveWithoutStack: true,
+        };
+        state.pendingCast = {
+            playerId: "p1",
+            cardInstanceId: "spell",
+            manaCost: {},
+            tappedLandIds: [],
+            sacrificeSelection: {
+                playerId: "p1",
+                reason: "Test",
+                requirements: [{ filter: {}, count: 1 }],
+                picked: [],
+            },
+        };
+
+        expect(nextOwedPayment(state, "p1")?.kind).toBe(
+            "cast:sacrificeSelection"
+        );
+    });
+});
+
 describe("CR 605.3a — activatable mid-cast, and it funds the cast", () => {
     it("the payment tap parks, and the answered pick commits the pending cast", () => {
         const pendingCast: PendingCast = {
@@ -516,5 +585,41 @@ describe("CR 605.3a — activatable mid-cast, and it funds the cast", () => {
         expect(state.stack).toHaveLength(1);
         expect(state.stack[0].id).toBe("spell");
         expect(state.players[0].graveyard.map((c) => c.id)).toEqual(["bear-1"]);
+    });
+
+    it("commits the cast even when the victim's dies trigger fires", () => {
+        // The flush's "grant priority to the active player" would otherwise
+        // move priority to p2 mid-payment, and `tryAutoCommitPendingCast` gates
+        // on `priorityPlayerId === playerId` — the creature eaten, the mana
+        // floating, and the cast unable to ever commit.
+        const pendingCast: PendingCast = {
+            playerId: "p1",
+            cardInstanceId: "spell",
+            manaCost: { X: 2 },
+            tappedLandIds: [],
+        };
+        const state = board(ALTAR.id, {
+            creatures: 2,
+            pendingCast,
+            handSpellId: "spell",
+            activePlayerId: "p2",
+        });
+
+        tapSourceIntoPayment(
+            state,
+            state.players[0],
+            state.players[0].battlefield[0],
+            undefined,
+            pendingCast.tappedLandIds
+        );
+        selectSacrificeOnState(state, {
+            playerId: "p1",
+            // "bear-0" is Haywire Mite — it has a dies trigger.
+            cardInstanceId: "bear-0",
+        });
+
+        expect(state.pendingCast).toBeUndefined();
+        expect(state.priorityPlayerId).toBe("p2");
+        expect(state.stack.map((i) => i.id)).toContain("spell");
     });
 });

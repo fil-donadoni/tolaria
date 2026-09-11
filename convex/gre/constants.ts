@@ -1610,6 +1610,42 @@ export function getManaTapOptionsDetailed(
             ) {
                 continue;
             }
+            // CR 602.1 / 118.5 (issue #3455) — an unpayable FILTERED sacrifice
+            // leg is not a mana source: with no legal victim the activation is
+            // illegal, and both the client picker and the payment-source click
+            // resolve their `manaChoiceIndex` against THIS list, so leaving it
+            // in is the "clickable but rejected" shape. Dropped as a whole
+            // ABILITY (never one entry of a chooser's list), exactly like the
+            // `canActivate` drop above — so an index space is never partially
+            // renumbered, and Orcish Lumberjack's four RRR/RRG/RGG/GGG entries
+            // come and go together.
+            //
+            // Only when the controller's board is in hand: a caller that
+            // supplied none gets the pre-existing behaviour, and the server
+            // re-validates (`assertSacrificeFilterCostAffordable`). The
+            // DISCARD leg has no twin here — no caller passes a hand — so it
+            // stays a server-side rejection; `getManaCostMenuAbility`
+            // (`src/lib/card-utils.ts`) covers it on the menu surface.
+            if (ability.cost.sacrificeFilter && controllerBattlefield) {
+                const leg = ability.cost.sacrificeFilter;
+                const victims = controllerBattlefield.filter((c) =>
+                    matchesPermanentFilter(
+                        c as unknown as MatchablePermanent,
+                        leg,
+                        {
+                            selfControllerId: controllerId,
+                            // CR 109.2 — honoured only by an `excludeSource`
+                            // filter: Skirk Prospector IS a Goblin and may eat
+                            // itself.
+                            selfInstanceId: card.id,
+                            supertypesOf: liveSupertypesOf,
+                        }
+                    )
+                );
+                if (victims.length < (ability.cost.sacrificeFilterCount ?? 1)) {
+                    continue;
+                }
+            }
             const target = ability.cost.sacrifice ? sacrifice : nonSacrifice;
             // A choice ability (dual land, Talisman, Fellwar Stone, storage
             // land): each option is one entry, tagged with its ability-local
@@ -1989,10 +2025,16 @@ export function manaTapOptionSpendsUnplannedResource(
     context?: ManaTapPlanContext
 ): boolean {
     if (source.kind !== "activated") return false;
-    const cardId = (card.card as { id?: string }).id;
-    const ability = tryGetDefinition(cardId ?? "")?.activatedAbilities?.find(
-        (a) => a.id === source.abilityId
-    );
+    // POST-LAYER set (CR 113.1 / 611.2a, issue #3455 review finding 10) — the
+    // option was enumerated from `getEffectiveActivatedAbilities`, so resolving
+    // it against the PRINTED list alone made every GRANTED ability answer
+    // `undefined` here and fall through as auto-payable. Harmless for the exert
+    // / mana legs (the plan merely overpays); not harmless for a filtered
+    // give-up leg, which PARKS — the solver's next step then throws and takes
+    // the whole payment with it.
+    const ability = getEffectiveActivatedAbilities(card).find(
+        ({ ability: a }) => a.id === source.abilityId
+    )?.ability;
     if (!ability) return false;
     // CR 118.3 / 118.5 (issue #3455) — unconditional, and checked before the
     // context-aware branch below: a give-up leg is never what a plan is
