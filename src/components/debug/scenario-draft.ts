@@ -33,6 +33,15 @@ export type CardDraft = {
      *  under which a land in exile gets no play (or cast) affordance. */
     castableFromExileIncludesLand: boolean;
     attackedLastTurn: boolean;
+    /** CR 602.5 (issue #3448) — carried OPAQUELY, with no input of its own:
+     *  the per-turn activation tally is keyed by internal ability id and
+     *  exists for `specFromState` to lower a captured position, not for
+     *  someone to type. It still has to live on the draft, because the save
+     *  path re-emits the card array WHOLESALE from the drafts — a card field
+     *  the draft does not carry is a field an edit silently deletes (issue
+     *  #3462's class, at card level: `assembleScenarioSpec`'s `preserved`
+     *  mechanism is spec-level and has no card-level analogue). */
+    activations?: Record<string, number>;
 };
 
 /** A fresh, empty card row (defaults to a battlefield permanent the player
@@ -86,6 +95,7 @@ export function cardToDraft(card: ScenarioCard): CardDraft {
         castableFromExileIncludesLand:
             card.castableFromExileIncludesLand ?? false,
         attackedLastTurn: card.attackedLastTurn ?? false,
+        activations: card.activations,
     };
 }
 
@@ -133,6 +143,8 @@ export function draftToCard(draft: CardDraft): ScenarioCard {
     if (draft.castableFromExileIncludesLand)
         card.castableFromExileIncludesLand = true;
     if (draft.attackedLastTurn) card.attackedLastTurn = true;
+    // Re-emitted exactly as it was inflated — see `CardDraft.activations`.
+    if (draft.activations) card.activations = draft.activations;
 
     return card;
 }

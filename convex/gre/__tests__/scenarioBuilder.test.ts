@@ -18,6 +18,7 @@ import {
     pushSpell,
 } from "../../cards/__tests__/setup";
 import { grizzlyBears } from "../../cards/sets/lea/green";
+import { gaeasTouch } from "../../cards/sets/drk/green";
 import { shivanDragon } from "../../cards/sets/lea/red";
 import { forest } from "../../cards/sets/lea/colorless";
 import { animateDead, fear } from "../../cards/sets/lea/black";
@@ -1637,5 +1638,165 @@ describe("buildStateFromScenario — turn holder, priority and passCount (issue 
         expect(spec.activePlayer).toBe("me");
         expect(spec.priority).toBe("me");
         expect(spec.passCount).toBe(0);
+    });
+});
+
+// ---- CR 602.5 / 400.7 (issue #3448) ---------------------------------------
+//
+// `activationsThisTurn` is what makes "activate this ability only once each
+// turn" stick (CR 602.5). Before the spec could carry it, every rebuilt card
+// came back with its per-turn activations unspent, so a position whose
+// once-each-turn ability had already been used rebuilt with that ability legal
+// again — an extra candidate, which is precisely the mismatch the verdict quiz
+// refuses a decision on (PRD #3397).
+//
+// The field is NOT battlefield-only. The engine keeps the tally on a card that
+// has LEFT play and clears it on the way back in
+// (`resetBattlefieldTransientState`, CR 400.7 — what re-enters is a new object
+// with a fresh quota), which is why the quiz's capture saw a cracked fetchland
+// in the graveyard still carrying one. That is live state, not an engine bug,
+// so the spec lowers it in every zone.
+//
+// The BEHAVIOURAL half — that the rebuilt position offers no activation of the
+// spent ability — lives in `scenarioBuilderActivations.bot.test.ts`, because
+// it reads `enumerateMoves` (a bot-only module, `bot-suite-boundary.test.ts`).
+describe("buildStateFromScenario — per-turn activation tallies (issue #3448)", () => {
+    /** Gaea's Touch's `oncePerTurn` ability (CR 602.5 "only once each turn").
+     *  The tally is keyed by ability id, exactly as the engine keys it. */
+    const ABILITY = "gaeas-touch-forest";
+
+    function permanent(state: GameState, seat: 0 | 1) {
+        return state.players[seat].battlefield.find(
+            (c) => (c.card as { id?: string }).id === gaeasTouch.id
+        );
+    }
+
+    it("places the declared tally on a battlefield permanent (CR 602.5)", () => {
+        const state = buildStateFromScenario(makeState(), {
+            cards: [
+                {
+                    name: gaeasTouch.name,
+                    owner: "me",
+                    activations: { [ABILITY]: 1 },
+                },
+                { name: gaeasTouch.name, owner: "opp" },
+            ],
+        });
+
+        expect(permanent(state, 0)?.activationsThisTurn).toEqual({
+            [ABILITY]: 1,
+        });
+        // The seat that declared nothing keeps a fresh quota — the field is
+        // per-INSTANCE, never a board-wide stamp.
+        expect(permanent(state, 1)?.activationsThisTurn).toBeUndefined();
+    });
+
+    it("round-trips the tally in every lowerable zone and on a token, dropping nothing (CR 400.7)", () => {
+        const base = makeState();
+        const spec: ScenarioSpec = {
+            cards: [
+                {
+                    name: gaeasTouch.name,
+                    owner: "me",
+                    activations: { [ABILITY]: 1 },
+                },
+                // A token carries the same field: it is placed through the
+                // token primitive rather than `makeInstance`, a separate seam
+                // that would silently drop the tally now that the residue
+                // reporter allowlists it. The ability id is opaque to the
+                // builder (as a counter TYPE is), so any key round-trips.
+                {
+                    name: "Wasp",
+                    owner: "me",
+                    token: true,
+                    activations: { [ABILITY]: 3 },
+                },
+                {
+                    name: gaeasTouch.name,
+                    owner: "opp",
+                    zone: "graveyard",
+                    activations: { [ABILITY]: 2 },
+                },
+                // All four lowerable zones, because the allowlist entry this
+                // change adds is what STOPS `reportCardResidue` naming the key:
+                // with the safety net gone, a zone `lowerCard` forgot would be
+                // a silent drop rather than a `dropped[]` line.
+                {
+                    name: gaeasTouch.name,
+                    owner: "me",
+                    zone: "hand",
+                    activations: { [ABILITY]: 4 },
+                },
+                {
+                    name: gaeasTouch.name,
+                    owner: "me",
+                    zone: "exile",
+                    activations: { [ABILITY]: 5 },
+                },
+            ],
+        };
+        const state = buildStateFromScenario(base, spec);
+
+        const { spec: lowered, dropped } = specFromState(state, {
+            mySeatId: state.players[0].id,
+        });
+
+        // The whole point: nothing here is unlowerable any more. A graveyard
+        // card carrying a tally used to read as `live-only state not captured
+        // (activationsThisTurn)`.
+        expect(dropped).toEqual([]);
+        expect(
+            lowered.cards.find((c) => c.owner === "me" && !c.token)?.activations
+        ).toEqual({ [ABILITY]: 1 });
+        expect(lowered.cards.find((c) => c.token)?.activations).toEqual({
+            [ABILITY]: 3,
+        });
+        expect(
+            lowered.cards.find((c) => c.zone === "graveyard")?.activations
+        ).toEqual({ [ABILITY]: 2 });
+        expect(
+            lowered.cards.find((c) => c.zone === "hand")?.activations
+        ).toEqual({ [ABILITY]: 4 });
+        expect(
+            lowered.cards.find((c) => c.zone === "exile")?.activations
+        ).toEqual({ [ABILITY]: 5 });
+
+        const rebuilt = buildStateFromScenario(base, lowered);
+        expect(permanent(rebuilt, 0)?.activationsThisTurn).toEqual({
+            [ABILITY]: 1,
+        });
+        expect(
+            rebuilt.players[0].battlefield.find((c) => c.isToken)
+                ?.activationsThisTurn
+        ).toEqual({ [ABILITY]: 3 });
+        expect(rebuilt.players[1].graveyard[0]?.activationsThisTurn).toEqual({
+            [ABILITY]: 2,
+        });
+        expect(rebuilt.players[0].hand[0]?.activationsThisTurn).toEqual({
+            [ABILITY]: 4,
+        });
+        expect(rebuilt.players[0].exile[0]?.activationsThisTurn).toEqual({
+            [ABILITY]: 5,
+        });
+    });
+
+    it("drops a count of zero — an absent key already says 'not activated'", () => {
+        const state = buildStateFromScenario(makeState(), {
+            cards: [
+                {
+                    name: gaeasTouch.name,
+                    owner: "me",
+                    activations: { [ABILITY]: 0 },
+                },
+            ],
+        });
+
+        // Kept, a zero would rebuild into a spec `specFromState` never writes,
+        // so the round trip would stop being a fixed point.
+        expect(permanent(state, 0)?.activationsThisTurn).toBeUndefined();
+        const { spec } = specFromState(state, {
+            mySeatId: state.players[0].id,
+        });
+        expect(spec.cards[0]?.activations).toBeUndefined();
     });
 });
