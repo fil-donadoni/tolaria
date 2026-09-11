@@ -32466,7 +32466,7 @@ describe('moveZone — to: "library-top" from a graveyard target (CR 400.7, issu
     const plains = getCardByName("Plains");
     it("puts the targeted graveyard card on TOP of the library, above the old top card", () => {
         const id = registerScript(
-            "test-op-movezone-library-top",
+            "test-op-movezone-graveyard-to-library-top",
             [{ op: "moveZone", target: { target: 0 }, to: "library-top" }],
             {
                 targetRequirement: {
