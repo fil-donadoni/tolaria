@@ -221,8 +221,9 @@ export type ScenarioSpec = {
     experience?: { me?: number; opp?: number };
     /** CR 305.2 / 305.2a (issue #3446) — lands this seat has already played
      *  this turn. Omitted means none: the builder CLEARS the tally like the
-     *  other per-turn ones (CR 400.7), so a spec written before this field
-     *  keeps rebuilding a board with the land drop available. */
+     *  other per-turn ones (the `drawnThisTurn` precedent, issue #3240), so a
+     *  spec written before this field keeps rebuilding a board with the land
+     *  drop available. */
     landsPlayed?: { me?: number; opp?: number };
     /** CR 102.1 (issue #3454) — whose turn the position is. Omitted leaves the
      *  base state's turn holder untouched, which is what every spec written

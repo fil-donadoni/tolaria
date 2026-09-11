@@ -452,6 +452,35 @@ describe("buildStateFromScenario — per-turn player tallies (CR 121.1 / 400.7)"
                 })
             )
         ).not.toContain("play");
+
+        // And the OTHER seat, so the me→p1 / opp→p2 mapping has a behavioural
+        // witness of its own rather than a field read. `activePlayer: "opp"`
+        // is what makes the question meaningful at all: a land is unplayable
+        // on someone else's turn for a different reason entirely (CR 305.3).
+        const oppBoard: ScenarioSpec = {
+            cards: [{ name: forest.name, owner: "opp", zone: "hand" }],
+            phase: "PRECOMBAT_MAIN",
+            activePlayer: "opp",
+        };
+        const oppLandInHand = (state: GameState) => {
+            const opp = state.players[1];
+            const card = opp.hand.find(
+                (c) => (c.card as { id?: string }).id === forest.id
+            );
+            if (!card) throw new Error("fixture: no land in opp's hand");
+            return getLegalActions(state, opp, card);
+        };
+        expect(
+            oppLandInHand(buildStateFromScenario(makeState(), oppBoard))
+        ).toContain("play");
+        expect(
+            oppLandInHand(
+                buildStateFromScenario(makeState(), {
+                    ...oppBoard,
+                    landsPlayed: { opp: 1 },
+                })
+            )
+        ).not.toContain("play");
     });
 
     it("markLastDrawn re-seeds the draw tally with exactly that one card", () => {
