@@ -242,7 +242,8 @@ describe("Madness capability (CR 702.35)", () => {
                 state,
                 getPlayer(state, "p1"),
                 card.id,
-                "exile"
+                "exile",
+                "p1"
             );
             expect(moved.madnessExiled).toBeUndefined();
             expect(moved.castableFromExileBy).toBeUndefined();

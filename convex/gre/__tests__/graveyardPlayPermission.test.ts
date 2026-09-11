@@ -296,7 +296,8 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
                 state,
                 getPlayer(state, "p1"),
                 "gy-bolt",
-                src.zone
+                src.zone,
+                "p1"
             );
             const stackItem: StackItem = {
                 ...removed,

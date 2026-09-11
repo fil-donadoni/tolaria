@@ -724,7 +724,8 @@ export function applyProbeCast(
         probe,
         player,
         move.cardInstanceId,
-        "hand"
+        "hand",
+        pid
     );
     const stackItem: StackItem = {
         ...spellCard,

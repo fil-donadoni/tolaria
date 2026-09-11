@@ -7720,6 +7720,20 @@ function finalizeSpellResolution(
     const controller = getPlayer(state, item.castById);
 
     if (isPermanent) {
+        // CR 110.2 / 110.2b (issue #3000) — "a permanent's controller is, by
+        // default, the player under whose control it entered the battlefield",
+        // and for a permanent SPELL that is the player who put it on the stack
+        // (CR 112.2), whoever owns the card. `removeFromZone` already stamped
+        // this at the cast commit; re-stamped HERE because this object is what
+        // becomes the battlefield permanent, and this is the last instant
+        // before anything reads it: `shouldEnterTapped` (Kismet's "your
+        // opponents control"), the layer-2 base capture (`layer2Base` freezes
+        // `controllerId` lazily at the first derivation), and the ETB trigger
+        // scan all run downstream of this line. A permanent whose
+        // `controllerId` disagreed with the battlefield it was pushed onto is
+        // the bug class this closes — the field is the single authority every
+        // consumer reads, so it must match the zone.
+        item.controllerId = item.castById;
         // Worms of the Earth (CR 614) — "Lands can't enter the battlefield."
         // A resolving land permanent that is prevented from entering is put
         // into its owner's graveyard instead (CR 608.3: the permanent never
@@ -20795,7 +20809,13 @@ export function buildSpellContext(
             ) {
                 return; // forbidden — not cast (CR 601.3a / 117.3 "if able")
             }
-            const card = removeFromZone(state, player, cardInstanceId, "hand");
+            const card = removeFromZone(
+                state,
+                player,
+                cardInstanceId,
+                "hand",
+                item.castById
+            );
             turnFaceDown(state, card, "cast-face-down");
             const stackItem: StackItem = {
                 ...card,
@@ -21293,7 +21313,8 @@ export function buildSpellContext(
                 state,
                 owner,
                 cardInstanceId,
-                sourceZone
+                sourceZone,
+                controllerId
             );
             const stackItem: StackItem = {
                 ...card,
@@ -22540,7 +22561,16 @@ export function exileFaceDownCard(
     return card;
 }
 
-/** Removes a card from a player zone and returns it. */
+/** Removes a card from a player zone onto the STACK and returns it.
+ *
+ *  CR 112.2 (issue #3000) — "a spell's controller is, by default, the player
+ *  who put it on the stack." `player` is the ZONE owner, which for a
+ *  cross-player cast permission (a void-counter exile grant, "exile the top
+ *  card of an opponent's library, you may play it", Word of Command's
+ *  controlled cast) is NOT the caster; `casterId` is. This is the one seam
+ *  every cast commit passes through, so the controller stamp lives here and
+ *  is REQUIRED rather than optional: a future cast site cannot forget it and
+ *  silently ship a spell whose `controllerId` still names the owner. */
 export function removeFromZone(
     /** CR 400.7 — needed only to reach the Continuous Effects Registry for the
      *  battlefield-transient reset below (ADR 0082, PRD #2064 S6). Threaded
@@ -22548,7 +22578,9 @@ export function removeFromZone(
     state: GameState,
     player: PlayerState,
     cardInstanceId: string,
-    from: Exclude<Zone, "stack">
+    from: Exclude<Zone, "stack">,
+    /** CR 112.2 — the player putting the card on the stack. */
+    casterId: string
 ): CardInstanceState {
     const fromField = ZONE_TO_FIELD[from];
     const sourceZone = player[fromField] as CardInstanceState[];
@@ -22558,6 +22590,14 @@ export function removeFromZone(
     }
     const [card] = sourceZone.splice(cardIndex, 1);
     card.zone = "stack";
+    // CR 112.2 / 108.4 (issue #3000) — the card becomes a SPELL here, and a
+    // spell's controller is the player who put it on the stack, never its
+    // owner. The field is inherited from the zone object, so without this
+    // stamp a cross-player cast leaves the stack item claiming the owner as
+    // its controller while `castById` names the caster — two fields
+    // disagreeing about the same fact, and every consumer that reads
+    // `controllerId` (the client projection included) reading the wrong one.
+    card.controllerId = casterId;
     // CR 400.7 — the SECOND graveyard-exit chokepoint: graveyard → STACK, i.e.
     // every cast from the graveyard (flashback CR 702.34a, escape CR 702.138a,
     // Ashen Ghoul's activation seam). A cast is a departure like any other.

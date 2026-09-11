@@ -108,7 +108,8 @@ describe("Lava Dart (CR 702.34) — 1 damage + flashback sacrifice a Mountain", 
             state,
             getPlayer(state, "p1"),
             dart.id,
-            src.zone
+            src.zone,
+            "p1"
         );
         const stackItem: StackItem = {
             ...removed,

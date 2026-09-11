@@ -88,7 +88,7 @@ describe("announceCast immediate-commit: mana-spent capture (CR 106.4 / 702.44a,
             [],
             "prism"
         );
-        const card = removeFromZone(state, player, "prism", "hand");
+        const card = removeFromZone(state, player, "prism", "hand", player.id);
         const item: StackItem = {
             ...card,
             castById: "p1",
@@ -167,7 +167,13 @@ describe("announceCast immediate-commit: mana-spent capture (CR 106.4 / 702.44a,
             "prism"
         );
         expect(payment.notedManaSpent).toEqual({ U: 1, R: 1 });
-        const card = removeFromZone(state, state.players[0], "prism", "hand");
+        const card = removeFromZone(
+            state,
+            state.players[0],
+            "prism",
+            "hand",
+            state.players[0].id
+        );
         state.stack.push({
             ...card,
             castById: "p1",

@@ -490,7 +490,10 @@ describe("Dauthi Voidwalker (CR 601.3 / 702.28, issue #1156)", () => {
                 state,
                 getPlayer(state, "p2"),
                 "voidLeaveExile1",
-                "exile"
+                "exile",
+                // CR 112.2 — p1 is the CASTER (`castableFromExileBy: "p1"`);
+                // p2 only owns the exile the card leaves.
+                "p1"
             );
             expect(moved.zone).toBe("stack");
             expect(moved.counters?.void).toBeUndefined();
@@ -552,7 +555,9 @@ describe("Dauthi Voidwalker (CR 601.3 / 702.28, issue #1156)", () => {
                 state,
                 getPlayer(state, "p2"),
                 "recast1",
-                "exile"
+                "exile",
+                // CR 112.2 — p1 casts it; p2 owns the exile zone.
+                "p1"
             );
             state.stack.push({
                 ...moved,

@@ -3829,7 +3829,8 @@ export function tryAutoCommitPendingCast(
             castFromZone
         ),
         state.pendingCast.cardInstanceId,
-        castFromZone
+        castFromZone,
+        playerId
     );
     const pendingTargets = (state.pendingCast as Record<string, unknown>)
         .targets as StackItem["targets"] | undefined;
@@ -7606,7 +7607,8 @@ export function finalizeTargetSelection(
             state,
             castZoneOwner(state, player, cardInstanceId, castZone),
             cardInstanceId,
-            castZone
+            castZone,
+            playerId
         );
         // CR 601.2f / 118.5 / 118.9 / 701.21a — pay the filtered give-up cost as
         // the spell hits the stack: the fungible/forced additional sacrifice
@@ -9200,7 +9202,8 @@ export const announceCast = mutation({
                 state,
                 castZoneOwner(state, player, args.cardInstanceId, castFromZone),
                 args.cardInstanceId,
-                castFromZone
+                castFromZone,
+                args.playerId
             );
             const stackItem: StackItem = {
                 ...card,
@@ -9637,7 +9640,8 @@ export const announceCast = mutation({
                 state,
                 castZoneOwner(state, player, args.cardInstanceId, castFromZone),
                 args.cardInstanceId,
-                castFromZone
+                castFromZone,
+                args.playerId
             );
             // CR 601.2f / 118.5 / 701.21a — pay the auto-resolved filtered
             // sacrifice (Drought / fungible own cost) as the spell commits.

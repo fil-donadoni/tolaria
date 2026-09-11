@@ -321,7 +321,13 @@ describe("removeFromZone", () => {
             players: [player, makePlayer({ id: "p2" })],
         });
 
-        const removed = removeFromZone(state, player, card.id, "hand");
+        const removed = removeFromZone(
+            state,
+            player,
+            card.id,
+            "hand",
+            player.id
+        );
 
         expect(player.hand).toHaveLength(0);
         expect(removed.zone).toBe("stack");
@@ -333,9 +339,9 @@ describe("removeFromZone", () => {
         const state = makeGameState({
             players: [player, makePlayer({ id: "p2" })],
         });
-        expect(() => removeFromZone(state, player, "nope", "hand")).toThrow(
-            "Card nope not found in hand"
-        );
+        expect(() =>
+            removeFromZone(state, player, "nope", "hand", player.id)
+        ).toThrow("Card nope not found in hand");
     });
 
     // ADR 0026 slice 5 — the stack is a public zone: casting a known card to
@@ -348,7 +354,7 @@ describe("removeFromZone", () => {
             players: [player, makePlayer({ id: "p2" })],
         });
 
-        const removed = removeFromZone(state, player, "k0", "hand");
+        const removed = removeFromZone(state, player, "k0", "hand", player.id);
 
         expect(removed.knownTo).toBeUndefined();
     });

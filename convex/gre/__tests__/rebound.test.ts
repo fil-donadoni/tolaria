@@ -293,7 +293,8 @@ describe("Rebound capability (CR 702.88)", () => {
                 state,
                 getPlayer(state, "p1"),
                 item.id,
-                "exile"
+                "exile",
+                "p1"
             );
             expect(moved.reboundExiled).toBeUndefined();
             expect(moved.castableFromExileBy).toBeUndefined();
