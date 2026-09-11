@@ -130,6 +130,11 @@ export function describeClientDiagnostics(
 ): string[] {
     const parts = ["which build you are running"];
     if (diagnostics.ai) parts.push("the AI decision log");
+    if (diagnostics.ai?.reportedDecision)
+        // Named separately from the log above because it is a different
+        // promise: not "which exits the driver took" but "the move you are
+        // reporting, with every alternative the Bot weighed" (issue #3405).
+        parts.push("the Bot decision you are reporting");
     if (diagnostics.console) parts.push("your recent console output");
     if (diagnostics.failedRequests) parts.push("backend requests that failed");
     if (diagnostics.connection) parts.push("your connection state");

@@ -5,13 +5,17 @@
 // numbers. The box used to open on the numbers, which meant a tester could see
 // everything about a decision except what it was.
 
+import { useState } from "react";
 import type { AiTraceRecord } from "~/lib/ai/trace-store";
 import {
     MECHANISM_SENTENCES,
     isSearchMechanism,
 } from "~/lib/ai/decision-phrases";
+import { requestAnomalyReport } from "~/lib/ai/anomaly-report";
 import AiDecisionAlternative from "./ai-decision-alternative";
 import AiCandidateRow from "./ai-candidate-row";
+import AiDecisionVerdictQuiz from "./ai-decision-verdict-quiz";
+import DebugButton from "./debug-button";
 
 /** How many alternatives get a reading. The candidates arrive most-visited
  *  first, so these are the moves the search actually took seriously; the rest
@@ -23,6 +27,7 @@ export default function AiDecisionSummary({
 }: {
     record: AiTraceRecord;
 }) {
+    const [quizOpen, setQuizOpen] = useState(false);
     const { trace, via } = record;
     const chosen = trace.candidates.find((c) => c.label === trace.chosen);
     const alternatives = trace.candidates
@@ -103,6 +108,38 @@ export default function AiDecisionSummary({
                     ))}
                 </div>
             </details>
+
+            {/* Judging and reporting are the same gesture from the same place
+                (issue #3405): the tester is already looking at the decision,
+                and asking them to find a second surface to say something about
+                it is how a blunder stays unreported. */}
+            <div className="flex flex-wrap items-center gap-1">
+                {record.judged ? (
+                    <span className="text-[10px] text-signal-self">
+                        Judged
+                        {record.judged.author
+                            ? ` by ${record.judged.author}`
+                            : ""}
+                    </span>
+                ) : (
+                    <DebugButton
+                        onClick={() => setQuizOpen((open) => !open)}
+                        disabled={quizOpen}
+                    >
+                        Judge this move
+                    </DebugButton>
+                )}
+                <DebugButton onClick={() => requestAnomalyReport(record)}>
+                    Report anomaly
+                </DebugButton>
+            </div>
+
+            {quizOpen && !record.judged && (
+                <AiDecisionVerdictQuiz
+                    record={record}
+                    onClose={() => setQuizOpen(false)}
+                />
+            )}
         </div>
     );
 }

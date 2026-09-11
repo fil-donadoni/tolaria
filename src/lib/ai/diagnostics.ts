@@ -19,6 +19,7 @@ import {
     type AiDecisionRecord,
     type AiEscalationRecord,
 } from "./trace-store";
+import { getReportedDecision, type ReportedDecision } from "./anomaly-report";
 
 export type AiDiagnostics = {
     /** Every decision exit the driver took, oldest first. The diagnosis is the
@@ -27,6 +28,14 @@ export type AiDiagnostics = {
     decisions: AiDecisionRecord[];
     /** The liveness ladder's rungs (issue #2284), for the same window. */
     escalations: AiEscalationRecord[];
+    /** THE decision the report is about, when the reporter opened the dialog
+     *  from one (issue #3405): its candidates, the Bot's pick and the rule that
+     *  settled it. The decision log above says which exits the driver took and
+     *  nothing about what the Bot weighed — which is exactly the question an
+     *  anomaly report asks, and the reason "the bot did something stupid" has
+     *  historically arrived with no way to tell a bad evaluation from a search
+     *  that never ran. */
+    reportedDecision?: ReportedDecision;
 };
 
 /** The rings as they stand right now, or `undefined` when there is nothing to
@@ -35,6 +44,17 @@ export type AiDiagnostics = {
 export function collectAiDiagnostics(): AiDiagnostics | undefined {
     const decisions = getAiDecisions();
     const escalations = getAiEscalations();
-    if (decisions.length === 0 && escalations.length === 0) return undefined;
-    return { decisions, escalations };
+    const reportedDecision = getReportedDecision();
+    if (
+        decisions.length === 0 &&
+        escalations.length === 0 &&
+        !reportedDecision
+    ) {
+        return undefined;
+    }
+    return {
+        decisions,
+        escalations,
+        ...(reportedDecision ? { reportedDecision } : {}),
+    };
 }

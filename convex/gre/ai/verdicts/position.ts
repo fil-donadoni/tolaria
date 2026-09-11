@@ -10,25 +10,16 @@
 // production blade builder and the production enumerator — so "the candidates
 // a verdict names" and "the candidates the Bot has" cannot drift apart.
 
-import { enumerateMoves, type Move } from "../../moves";
 import type { GameState } from "../../state";
-import { beginDominanceDecision, endDominanceDecision } from "../dominance";
 import { buildBladeState } from "../blade/runner";
 import type { BladeScenario } from "../blade/types";
 import type { Verdict } from "./types";
 
-/** The candidate set a verdict is judged over: EXACTLY the one the deciders
- *  see (`greedyRootPick` / `search` — dominance-pruned `enumerateMoves`), so a
- *  verdict can never name a move the Bot was never offered, and a pair can
- *  never be built against one. */
-export function candidateMoves(state: GameState, playerId: string): Move[] {
-    beginDominanceDecision();
-    try {
-        return enumerateMoves(state, playerId, { pruneDominatedNoOps: true });
-    } finally {
-        endDominanceDecision();
-    }
-}
+// `candidateMoves` lives in the PURE sibling (issue #3405) so the browser can
+// call it without dragging this module's blade builder — and therefore
+// `convex/game` — into the client bundle (ADR 0074). Re-exported here, where
+// every existing caller already imports it, so there is one name for it.
+export { candidateMoves, buildSetupFreeVerdictState } from "./candidates";
 
 /** The verdict's position as a blade scenario, so it is built by the same
  *  `buildBladeState` a blade entry is. `budget` / `tier` / `expect` are
