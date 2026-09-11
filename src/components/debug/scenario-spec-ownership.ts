@@ -18,6 +18,13 @@ import type { ScenarioSpec } from "@convex/debugScenarioSpec";
  * The table is `satisfies Record<keyof ScenarioSpec, …>`: a spec field added
  * tomorrow reds `tsc` here until it is classified, which is what makes the
  * spec-widening sequence under PRD #3397 safe.
+ *
+ * `tsc` is only half of it: classifying a new field does NOT force
+ * `normalizeScenarioSpec` (`convex/debugScenarioSpec.ts`) to read it off a raw
+ * stored row, and a field normalize drops never reaches this assembler at all.
+ * What catches THAT is the render-through-the-form suite in
+ * `__tests__/scenario-spec-preservation.test.tsx`, which inflates the row the
+ * way the editor does — do not trim it believing the `satisfies` covers it.
  */
 export type ScenarioSpecFieldOwner = "form-owned" | "preserved";
 
@@ -50,6 +57,18 @@ export const PRESERVED_SCENARIO_SPEC_KEYS = (
         SCENARIO_SPEC_FIELD_OWNER[key] === "preserved"
 );
 
+/** Copy one key across two specs keeping the key/value correlation the type
+ *  checker needs — a computed-property `Object.assign` would erase it, and the
+ *  whole point here is that `tsc` polices the copy. */
+function carry<K extends PreservedScenarioSpecKey>(
+    target: ScenarioSpec,
+    source: ScenarioSpec,
+    key: K
+): void {
+    const value = source[key];
+    if (value !== undefined) target[key] = value;
+}
+
 /**
  * Assemble the spec to persist: the form's own value for every form-owned
  * field, plus every `preserved` field the loaded row carried. `loaded` is
@@ -61,9 +80,6 @@ export function assembleScenarioSpec(
 ): ScenarioSpec {
     const spec: ScenarioSpec = { ...formOwned };
     if (!loaded) return spec;
-    for (const key of PRESERVED_SCENARIO_SPEC_KEYS) {
-        const value = loaded[key];
-        if (value !== undefined) Object.assign(spec, { [key]: value });
-    }
+    for (const key of PRESERVED_SCENARIO_SPEC_KEYS) carry(spec, loaded, key);
     return spec;
 }
