@@ -41,6 +41,7 @@ import {
 import { clearZoneCharacteristics } from "./zoneCharacteristics";
 import { checkStateBasedActions } from "./sba";
 import { canPlayLandsFromGraveyard, isPlayableLibraryTopLand } from "./rules";
+import { exileCastPermission } from "./castCost";
 import { checkAscendCityBlessing } from "./cityBlessing";
 import { tryGetDefinition } from "../cards";
 import type { MayPayCost } from "../cards/types";
@@ -351,6 +352,10 @@ function isHiddenInExile(card: CardInstanceState): boolean {
 function consumeExilePlayGrant(card: CardInstanceState): void {
     delete card.castableFromExileBy;
     delete card.castableFromExileUntilTurn;
+    // CR 702.185a (issue #1268) — the LOWER bound and the "warped card in
+    // exile" referent ride the same consumed permission.
+    delete card.castableFromExileFromTurn;
+    delete card.warpExiled;
     // issue #1156 — the free-cast waiver (Dauthi Voidwalker) rides the same
     // permission window; a land has no mana cost to waive, but drop the stale
     // flag for hygiene, mirroring `removeFromZone`'s spell-side cleanup.
@@ -519,7 +524,7 @@ export function resolvePlayLandSourceZone(
         .find((c) => c.id === cardInstanceId);
     if (
         exileCard &&
-        exileCard.castableFromExileBy === player.id &&
+        exileCastPermission(exileCard, player.id, state.turn) &&
         exileCard.castableFromExileIncludesLand === true
     ) {
         return "exile";

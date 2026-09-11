@@ -212,6 +212,7 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "castableFromExileBy",
     "castableFromExileIncludesLand",
     "castableFromExileUntilTurn",
+    "castableFromExileFromTurn",
     "castableFromGraveyardBy",
     "castableFromGraveyardUntilTurn",
     "chosenMana",
@@ -305,6 +306,8 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "triggersThisTurn",
     "unkickedCostPayments",
     "untapLockedBy",
+    "warped",
+    "warpExiled",
     "wasKicked",
     "worldSeq",
 ] as const;
@@ -597,6 +600,22 @@ function compactCard(
     if (card.castableFromExileUntilTurn !== undefined) {
         out.castableFromExileUntilTurn = card.castableFromExileUntilTurn;
     }
+    // CR 702.185a (issue #1268) — the LOWER bound is the same kind of fact as
+    // the upper bound directly above: a turn number the permission is read
+    // against, and a warped card sits in exile across at least one save/load by
+    // construction (it becomes castable only on the FOLLOWING turn).
+    if (card.castableFromExileFromTurn !== undefined) {
+        out.castableFromExileFromTurn = card.castableFromExileFromTurn;
+    }
+    // CR 702.185b — the "warped card in exile" referent. Persisted because the
+    // fact is unrecoverable once the card is sitting in exile: nothing else
+    // records which ability put it there.
+    if (card.warpExiled) out.warpExiled = true;
+    // CR 702.185a — "if this spell's warp cost was paid". A warp permanent can
+    // sit on the battlefield across a save between its entry and the end step
+    // that exiles it, and the marker is what the delayed trigger re-reads to
+    // answer CR 400.7.
+    if (card.warped) out.warped = true;
     // CR 601.3 / 118.9 (issue #1156) — Dauthi Voidwalker's free-cast waiver
     // rides `castableFromExileBy`'s permission window and must survive a
     // save/load the same way.
@@ -1088,6 +1107,16 @@ function expandCard(
         result.castableFromExileUntilTurn =
             compact.castableFromExileUntilTurn as number;
     }
+    if (compact.castableFromExileFromTurn !== undefined) {
+        result.castableFromExileFromTurn =
+            compact.castableFromExileFromTurn as number;
+    }
+    if (compact.warpExiled) {
+        result.warpExiled = true;
+    }
+    if (compact.warped) {
+        result.warped = true;
+    }
     if (compact.castFromExileNotAsAdventure) {
         result.castFromExileNotAsAdventure = true;
     }
@@ -1319,6 +1348,7 @@ type CompactPlayer = {
     hasDrawnFromEmpty?: boolean;
     landsPlayedThisTurn?: number;
     spellsCastThisTurn?: number;
+    spellsWarpedThisTurn?: number;
     spellsCastThisGame?: number;
     lastDrawnCardId?: string;
     drawnThisTurn?: string[];
@@ -1376,6 +1406,12 @@ function compactPlayer(player: PlayerState, ctx: CompactCtx): CompactPlayer {
     }
     if (player.spellsCastThisTurn) {
         out.spellsCastThisTurn = player.spellsCastThisTurn;
+    }
+    // CR 702.185c (issue #1268) — "a spell was warped this turn". Persisted
+    // alongside the cast tally above: both are per-turn facts a save inside the
+    // turn must not erase.
+    if (player.spellsWarpedThisTurn) {
+        out.spellsWarpedThisTurn = player.spellsWarpedThisTurn;
     }
     if (player.spellsCastThisGame) {
         out.spellsCastThisGame = player.spellsCastThisGame;
@@ -1472,6 +1508,9 @@ function expandPlayer(player: CompactPlayer, ctx?: ExpandCtx): PlayerState {
     }
     if (player.spellsCastThisTurn !== undefined) {
         result.spellsCastThisTurn = player.spellsCastThisTurn;
+    }
+    if (player.spellsWarpedThisTurn !== undefined) {
+        result.spellsWarpedThisTurn = player.spellsWarpedThisTurn;
     }
     if (player.spellsCastThisGame !== undefined) {
         result.spellsCastThisGame = player.spellsCastThisGame;
@@ -1635,6 +1674,11 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
     // CR 702.88a — the reflexive Rebound cast-trigger marker (the exiled card's
     // id) must survive a save/load while the trigger sits on the stack.
     if (item.reboundTrigger) base.reboundTrigger = item.reboundTrigger;
+    // CR 702.185a — the Warp exile-trigger marker (the watched permanent's id)
+    // must survive a save/load while the trigger sits on the stack at the end
+    // step; without it the reloaded item resolves as a no-op card-def lookup and
+    // the permanent is never exiled.
+    if (item.warpTrigger) base.warpTrigger = item.warpTrigger;
     // Storm (CR 702.40, ADR 0052) — the cast-trigger's detached snapshot and
     // remaining-copies counter must survive a save/load while the trigger
     // sits on the stack awaiting priority (or a per-copy retarget answer).
@@ -1806,6 +1850,9 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
     // CR 702.88a — restore the reflexive Rebound cast-trigger marker.
     if (compact.reboundTrigger) {
         item.reboundTrigger = compact.reboundTrigger as string;
+    }
+    if (compact.warpTrigger) {
+        item.warpTrigger = compact.warpTrigger as string;
     }
     // Storm (CR 702.40, ADR 0052) — rehydrate the cast-trigger's detached
     // snapshot (recursing through this same expander) and remaining-copies

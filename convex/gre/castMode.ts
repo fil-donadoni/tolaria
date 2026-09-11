@@ -14,6 +14,9 @@
  *   * Dash (CR 702.109a) — the permanent gains haste and is returned to hand at
  *     the beginning of the next end step (the `dashed` marker its trigger
  *     reads);
+ *   * Warp (CR 702.185a) — the permanent is exiled at the beginning of the next
+ *     end step and the card becomes castable from exile from the following turn
+ *     (the `warped` marker `scheduleWarpExile` and `applyWarpExile` read);
  *   * Evoke (CR 702.74a) — the permanent is sacrificed when it enters (the
  *     `evoked` marker `evokeTrigger`'s `conditionOnSelf` reads).
  *
@@ -79,6 +82,7 @@ export type CastMode =
     | "bestow"
     | "morph"
     | "dash"
+    | "warp"
     | "evoke"
     | "overload"
     | "adventure"
@@ -149,6 +153,18 @@ const CAST_MODE_CENSUS: Record<CastMode, CastModeRow> = {
         subject: (def) => def,
         stamp: (_state, item) => {
             item.dashed = true;
+        },
+    },
+    // CR 702.185a — the `warped` marker the delayed end-step exile reads, both
+    // to decide it should exist at all (`finalizeSpellResolution` schedules it
+    // only for a warped permanent) and to answer CR 400.7 at fire time. Without
+    // it the tree prices a warp cast as a permanent creature bought at a
+    // discount — strictly better than the hard cast, which is never true.
+    warp: {
+        idOf: (def) => def?.warp?.id,
+        subject: (def) => def,
+        stamp: (_state, item) => {
+            item.warped = true;
         },
     },
     // CR 702.74a — "When this permanent enters, if its evoke cost was paid, its

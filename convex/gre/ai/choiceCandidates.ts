@@ -897,7 +897,7 @@ function castWindowCandidates(
     // The SAME two gates the enumerator's exile branch applies (`moves.ts`), in
     // the same order — this is not a second legality opinion, it is the one the
     // server would apply to the `announceCast` the executor is about to fire.
-    if (!exileCastPermission(card, caster.id)) return out;
+    if (!exileCastPermission(card, caster.id, state.turn)) return out;
     if (
         !getLegalActions(state, zoneOwner, card, false, caster.id).includes(
             "cast"

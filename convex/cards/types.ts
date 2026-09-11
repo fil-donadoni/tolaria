@@ -17546,6 +17546,34 @@ export interface CardDefinition {
      *  `CardInstanceState.dashed`. By convention this card's
      *  `AlternativeCost.id` is `"dash"`. */
     dash?: AlternativeCost;
+    /** CR 702.185 — Warp. "Warp [cost]" represents TWO static abilities that
+     *  function while the card with warp is on the stack (702.185a): "you may
+     *  cast this card from your hand by paying [cost] rather than its mana
+     *  cost", and "if this spell's warp cost was paid, exile the permanent
+     *  this spell becomes at the beginning of the next end step. Its owner may
+     *  cast this card after the current turn has ended for as long as it
+     *  remains exiled."
+     *
+     *  This field carries the FIRST half only — the {@link AlternativeCost}
+     *  shape verbatim, since 702.185a says casting for the warp cost "follows
+     *  the rules for paying alternative costs in rules 601.2b and 601.2f-h".
+     *  A pure MANA leg, like `dash` and unlike `evoke`. Kept as its own
+     *  dedicated field — the `evoke`/`dash`/`bestow` convention — so the
+     *  chosen alt cost is IDENTIFIABLE as "the warp one" at cast commit
+     *  (compared by reference), tagging the resulting stack item
+     *  `warped: true` (`convex/game.ts`), which rides onto the entering
+     *  permanent for free (a stack item IS its `CardInstanceState`).
+     *
+     *  The SECOND half is NOT a card-authored `TriggeredAbility` (the way
+     *  `dashTrigger` is): the delayed ability must decide, at the end step,
+     *  whether the permanent it watches is still the SAME object (CR 400.7 —
+     *  one that left and returned is a new object and must not be chased),
+     *  which no check-time predicate available to a delayed body can express.
+     *  It is engine infra alongside Madness and Rebound — `convex/gre/warp.ts`
+     *  — scheduled at the permanent's entry and fired through the delayed
+     *  trigger infra's `warpCardInstanceId` marker. By convention this card's
+     *  `AlternativeCost.id` is `"warp"`. */
+    warp?: AlternativeCost;
     /** CR 702.103 — Bestow. "Bestow [cost]" means "As you cast this spell, you
      *  may choose to cast it bestowed. If you do, you pay [cost] rather than
      *  its mana cost" (702.103a), and a spell cast bestowed "becomes an Aura

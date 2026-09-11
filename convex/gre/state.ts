@@ -245,6 +245,7 @@ import {
     openMadnessCastWindow,
 } from "./madness";
 import { markReboundExiled, openReboundCastWindow } from "./rebound";
+import { applyWarpExile, scheduleWarpExile } from "./warp";
 import {
     isProtectedFrom,
     isProtectedFromSource,
@@ -1428,6 +1429,36 @@ export type CardInstanceState = {
      *  can also express "until end of your next turn" (grant with a later turn
      *  number) without a schema change. */
     castableFromExileUntilTurn?: number;
+    /** LOWER turn bound for {@link castableFromExileBy} — the symmetric twin of
+     *  {@link castableFromExileUntilTurn}, and the one shape the upper bound
+     *  cannot express: the permission exists but has not OPENED yet. While set,
+     *  the grant is inert on every turn whose number is `<` this value and live
+     *  from that turn onward (for as long as the card remains exiled, or until
+     *  an upper bound also present revokes it — the two compose).
+     *
+     *  CR 702.185a (Warp, issue #1268) is its first consumer: "its owner may
+     *  cast this card AFTER THE CURRENT TURN HAS ENDED for as long as it
+     *  remains exiled", i.e. the card is exiled during some turn N's end step
+     *  and becomes castable on turn N+1. Falling open here would make the card
+     *  castable during the very turn it was warped out, which is the whole
+     *  point of the clause.
+     *
+     *  Deliberately a TURN NUMBER, not a `warped-this-turn` flag: the same
+     *  primitive then expresses any later opening ("not before your next
+     *  upkeep", a suspended card's window) without a schema change, exactly as
+     *  the upper bound stores a number rather than a bare "this turn" flag.
+     *  ABSENT means the grant is open from the moment it is made — every grant
+     *  shipped before Warp.
+     *
+     *  Honoured at the ONE shared authority every consumer reads,
+     *  `exileCastPermission` (`gre/castCost.ts`): the "cast" affordance
+     *  (`getLegalActions`), the real payment path (`findCastableExileCard`,
+     *  `convex/game.ts`), the exile projection the client's Cast button gates
+     *  on (`gameProjections.ts`), the land-play leg (`gre/playLand.ts`) and the
+     *  Bot's non-hand cast enumeration (`gre/moves.ts`). Cleared alongside
+     *  `castableFromExileBy` wherever that field is cleared. Persisted so the
+     *  window survives a DB round-trip. */
+    castableFromExileFromTurn?: number;
     /** CR 601.3 / 118.9 (issue #1156) — a cost waiver riding {@link
      *  castableFromExileBy}: when both are set, `castableFromExileBy`'s
      *  named player may cast/play this card WITHOUT PAYING ITS MANA COST
@@ -1602,6 +1633,39 @@ export type CardInstanceState = {
      *  step" half of Dash fires. See {@link PermanentView.dashed} for the
      *  full doc. */
     dashed?: boolean;
+    /** CR 702.185a — true iff this permanent's spell was cast for its Warp
+     *  cost. Set on the stack item at cast commit (`convex/game.ts`, when the
+     *  chosen alternative cost === `CardDefinition.warp`) and by the cast-mode
+     *  census inside both search executors (`gre/castMode.ts`), riding onto the
+     *  resulting battlefield permanent for free (a stack item IS its
+     *  CardInstanceState, the `evoked`/`dashed` precedent). It is the "if this
+     *  spell's warp cost was paid" clause of 702.185a's second static ability:
+     *  `finalizeSpellResolution` schedules the next-end-step exile only for a
+     *  permanent carrying it (`scheduleWarpExile`, `gre/warp.ts`), and the
+     *  delayed trigger re-reads it at fire time to answer CR 400.7 — a
+     *  permanent that LEFT and RETURNED is a new object, and
+     *  `resetBattlefieldTransientState` has cleared the marker off it, so the
+     *  original trigger does not chase it. Cleared alongside
+     *  `evoked`/`dashed`/`escaped` at BOTH transient-state gates for the same
+     *  reason they are (issue #2412): a countered or bounced warp spell must
+     *  not carry the marker into its next cast. */
+    warped?: boolean;
+    /** CR 702.185b — true iff this card in exile "is a warped card in exile":
+     *  one "exiled by the delayed triggered ability created by a warp ability"
+     *  (`applyWarpExile`, `gre/warp.ts`). The exile-zone sibling of
+     *  `madnessExiled` / `reboundExiled`, and, like them, what distinguishes
+     *  this exile from every other one that also carries a
+     *  `castableFromExileBy` grant.
+     *
+     *  Nothing QUERIES it yet — no shipped card reads "a warped card in exile"
+     *  (issue #1268 ships the keyword, not the cards that refer to it). It is
+     *  written because the referent is only derivable at the moment of the
+     *  exile: once the card is sitting in exile beside an ordinary impulse
+     *  grant there is no way to recover which ability put it there. Cleared
+     *  alongside `castableFromExileBy` wherever that field is cleared (the same
+     *  exile departure ends both facts). Persisted so it survives a DB
+     *  round-trip. */
+    warpExiled?: boolean;
     /** CR 702.49c — the planeswalker (or battle) the returned creature was
      *  attacking, captured when a Ninjutsu cost was paid so the card entering
      *  the battlefield attacking joins combat against the SAME defender.
@@ -2024,6 +2088,19 @@ export type PlayerState = {
      *  turn" (CR 701.50, Ledger Shredder) needs the per-caster tally, not the
      *  table-wide one. */
     spellsCastThisTurn?: number;
+    /** CR 702.185c — how many spells THIS PLAYER has WARPED during the current
+     *  turn ("a spell was warped this turn" means "a spell was cast for its
+     *  warp cost this turn"). Incremented at the one cast choke point
+     *  `emitSpellCastEvent` reads `StackItem.warped` from, exactly where the
+     *  Storm/connive tallies beside it are counted; reset to 0 at the start of
+     *  each turn (`advanceTurn`, alongside `spellsCastThisTurn`).
+     *
+     *  Nothing QUERIES it yet — issue #1268 ships the keyword, not the cards
+     *  that refer to it — and it is deliberately a COUNT rather than a boolean
+     *  so "how many" is answerable too. It is written now because the fact is
+     *  only observable at the cast: once the spell has resolved there is
+     *  nothing on the board that records which cost paid for it. */
+    spellsWarpedThisTurn?: number;
     /** Number of spells THIS PLAYER has cast during the WHOLE GAME (CR 601.2i),
      *  NEVER reset — the lifetime sibling of `spellsCastThisTurn` (issue #790).
      *  Incremented at the same choke point (`emitSpellCastEvent`), pre-
@@ -2382,6 +2459,15 @@ export type StackItem = CardInstanceState & {
      *  DELAYED TRIGGER infra (next-upkeep) rather than an immediate
      *  event-driven collection. */
     reboundTrigger?: string;
+    /** CR 702.185a — set on the synthetic triggered ability a fired Warp
+     *  delayed trigger puts on the stack (`buildWarpExileTrigger`,
+     *  triggers.ts). Holds the id of the permanent the warp spell became. On
+     *  resolution (`resolveTopOfStackInner`) `applyWarpExile` (`gre/warp.ts`)
+     *  exiles that permanent and opens the owner's not-before-next-turn recast
+     *  window. Mirrors `reboundTrigger` exactly — same delayed-trigger infra,
+     *  same engine-owned (no card-def ability) shape; distinct because what
+     *  resolves is an EXILE plus a grant, not a Cast/Decline prompt. */
+    warpTrigger?: string;
     /** CR 114 (issue #1221) — set on a triggered ability that fired from a
      *  command-zone emblem (`buildEmblemTriggerItem`, triggers.ts). Holds the
      *  emblem's `emblemId`; `resolveTopOfStack` reads it to resolve the
@@ -2592,6 +2678,22 @@ export type DelayedTriggerInstance = {
      *  every other delayed trigger. Undefined for every non-rebound
      *  instance. */
     reboundCardInstanceId?: string;
+    /** CR 702.185a (Warp) — marks this delayed trigger as the next-end-step
+     *  WARP EXILE rather than a generic scheduled effect. Holds the instance id
+     *  of the permanent the warp spell became. When set, `fireDelayedTriggers`
+     *  (phases.ts) builds a `buildWarpExileTrigger` StackItem (triggers.ts)
+     *  instead of the generic `buildDelayedTriggerStackItem` path.
+     *
+     *  It is engine-owned rather than an inline Effect Script body for one
+     *  reason: CR 400.7. The ability must exile "the permanent this spell
+     *  BECAME", so at fire time it has to ask whether the object still standing
+     *  under that id is the same one — a permanent that left and returned is a
+     *  new object and must not be chased — and no check-time predicate
+     *  available to a delayed body can ask that. The battlefield-side marker
+     *  (`CardInstanceState.warped`, cleared by
+     *  `resetBattlefieldTransientState` on the way out) is what answers it.
+     *  Undefined for every non-warp instance. */
+    warpCardInstanceId?: string;
 };
 
 /** Tracks an in-progress spell cast during the payment phase (CR 601.2). */
@@ -2729,6 +2831,16 @@ export type PendingCast = {
      *  (`tryAutoCommitPendingCast`) can still tag the resulting stack item
      *  `dashed: true` once mana is covered / the pick resolves. */
     dashed?: boolean;
+    /** CR 702.185a — true iff the alternative cost chosen for this cast is the
+     *  card's Warp cost (`chosenAltCost === cardDef.warp` at announcement).
+     *  Carried through a parked cast — a warp cost is pure MANA, so it parks on
+     *  `tapForPayment` like any ordinary one — so the deferred commit
+     *  (`tryAutoCommitPendingCast`) can still tag the resulting stack item
+     *  `warped: true`. Same shape and same reason as `evoked`/`dashed` above:
+     *  the choice is made at announcement (CR 601.2b) but the stack item is not
+     *  built until commit, and without the carry the permanent that enters is
+     *  one nobody warped — bought at the discount and never exiled. */
+    warped?: boolean;
     /** CR 702.103a — true iff the alternative cost chosen for this cast is the
      *  card's Bestow cost (`isBestowAlternativeCost` at announcement). Carried
      *  through a parked cast (the ordinary "tap for the mana" park, or a real
@@ -6693,6 +6805,19 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
         return top;
     }
 
+    // CR 702.185a — the WARP delayed trigger, fired by the delayed trigger infra
+    // at the beginning of the next end step: "exile the permanent this spell
+    // becomes … its owner may cast this card after the current turn has ended
+    // for as long as it remains exiled". Engine-owned (no card-def ability),
+    // mirroring the two branches above. `applyWarpExile` (`gre/warp.ts`) owns
+    // the CR 400.7 identity question — the permanent may be gone, or may have
+    // left and returned as a NEW object — and does nothing in either case.
+    if (top.warpTrigger) {
+        applyWarpExile(state, top.warpTrigger);
+        state.stack.pop();
+        return top;
+    }
+
     const cardId = (top.card as { id?: string }).id;
     // Unknown ids (e.g. synthetic test fixtures) collapse to the vanilla
     // ETB-or-graveyard path. Production stack items always carry registry
@@ -7530,6 +7655,13 @@ function resetStackTransientState(item: StackItem): void {
     delete item.evoked;
     delete item.dashed;
     delete item.escaped;
+    // CR 702.185a (issue #1268) — the same one-shot-fact-about-this-cast shape,
+    // and the same leak if omitted: a COUNTERED warp spell would ride
+    // `warped: true` into the graveyard, and the next printed-cost recast's
+    // `{ ...card, ...(isWarpCost ? {...} : {}) }` spread never CLEARS it — so
+    // `finalizeSpellResolution` would schedule an end-step exile for a
+    // permanent nobody warped.
+    delete item.warped;
     // CR 702.96a (issue #3215, PR #3288 review finding 1) — the Overload cast
     // marker is the SAME leak shape as the three above, and the worst-behaved
     // instance of it: `overloaded` decides whether the script's
@@ -7919,6 +8051,19 @@ function finalizeSpellResolution(
         // any built echo card enters today.)
         if (cardDef?.staticAbilities?.includes("echo")) {
             item.echoPending = true;
+        }
+        // CR 702.185a — Warp's second static ability functions while the card is
+        // on the stack and creates a delayed triggered ability: "if this
+        // spell's warp cost was paid, exile the permanent this spell becomes at
+        // the beginning of the next end step". Here is the first moment both
+        // halves of that sentence exist — the cost question is already answered
+        // (the `warped` marker rode this stack item, which IS the permanent),
+        // and there is a permanent to name. Scheduled unconditionally from
+        // there: the ability is created by the resolving spell, so it triggers
+        // at the next end step even if the permanent is destroyed in response,
+        // and simply finds nothing to exile (CR 603.10).
+        if (item.warped) {
+            scheduleWarpExile(state, item);
         }
         // CR 106.4 / 202.3 — spent-mana-color tracking (issue #900): snapshot
         // the ephemeral cast-commit `notedManaSpent` (present only when
@@ -11127,6 +11272,13 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
     // the per-turn counter above can't answer since it resets every turn.
     if (caster)
         caster.spellsCastThisGame = (caster.spellsCastThisGame ?? 0) + 1;
+    // CR 702.185c (issue #1268) — "a spell was warped this turn" means "a spell
+    // was cast for its warp cost this turn", so the record belongs at the same
+    // cast choke point as the three tallies above and nowhere else: a spell COPY
+    // never reaches this function, and CR 707.10 says a copy isn't cast, so a
+    // copied warp spell correctly counts as no warp at all.
+    if (caster && item.warped)
+        caster.spellsWarpedThisTurn = (caster.spellsWarpedThisTurn ?? 0) + 1;
     const event: SpellCastEvent = {
         type: "SPELL_CAST",
         casterId: item.castById,
@@ -11582,7 +11734,7 @@ export function emitLibrarySearchedEvent(
  *  the caller's requested `toZone`, since that is the only reliable signal
  *  once an implicit redirect is in play. No-op when `moved` is null (the
  *  permanent had already left) or landed anywhere other than exile. */
-function emitCardsExiledFromBattlefield(
+export function emitCardsExiledFromBattlefield(
     state: GameState,
     moved: CardInstanceState | null
 ): void {
@@ -12631,6 +12783,13 @@ export function resetBattlefieldTransientState(
     delete card.evoked;
     delete card.dashed;
     delete card.escaped;
+    // CR 702.185a / 400.7 (issue #1268) — the battlefield-exit half, and for
+    // Warp it is load-bearing rather than belt-and-braces: the scheduled
+    // next-end-step trigger identifies its subject as "the permanent under this
+    // id that is STILL `warped`", so clearing the marker here is exactly what
+    // makes a permanent that left and came back a NEW object the original
+    // trigger does not chase (CR 400.7).
+    delete card.warped;
     // CR 702.96a (issue #3215) — the battlefield-side half of the same gate the
     // stack side now carries. No overload card in the pool is a permanent
     // spell, so nothing reaches here with the marker today; it is listed
@@ -17106,7 +17265,8 @@ export function buildSpellContext(
             window:
                 | "this-turn"
                 | "while-exiled"
-                | "until-next-end-step" = "while-exiled",
+                | "until-next-end-step"
+                | "after-this-turn" = "while-exiled",
             opts?: {
                 /** CR 601.3 / 118.9 (issue #1156) — also waive the card's
                  *  mana cost entirely (Dauthi Voidwalker: "you may play it
@@ -17166,6 +17326,12 @@ export function buildSpellContext(
             const card = owner.exile.find((c) => c.id === cardInstanceId);
             if (!card) return;
             card.castableFromExileBy = playerId;
+            //   - "after-this-turn" (CR 702.185a, issue #1268): open-ended in
+            //     the SAME sense as "while-exiled" — no expiry — but not yet
+            //     OPEN. Warp's "its owner may cast this card after the current
+            //     turn has ended for as long as it remains exiled" is the LOWER
+            //     bound (`castableFromExileFromTurn`), the one shape the upper
+            //     bound cannot express.
             if (window === "this-turn") {
                 card.castableFromExileUntilTurn = state.turn;
             } else if (window === "until-next-end-step") {
@@ -17175,6 +17341,11 @@ export function buildSpellContext(
                 );
             } else {
                 delete card.castableFromExileUntilTurn;
+            }
+            if (window === "after-this-turn") {
+                card.castableFromExileFromTurn = state.turn + 1;
+            } else {
+                delete card.castableFromExileFromTurn;
             }
             if (opts?.withoutPayingManaCost) {
                 card.castFromExileWithoutPayingManaCost = true;
@@ -22359,6 +22530,11 @@ export function moveCard(
     if (from === "exile") {
         delete card.castableFromExileBy;
         delete card.castableFromExileUntilTurn;
+        // CR 702.185a/b (issue #1268) — the LOWER bound and the "warped card in
+        // exile" referent ride the same permission window as the seven riders
+        // beside them; a card pulled back out of exile keeps neither.
+        delete card.castableFromExileFromTurn;
+        delete card.warpExiled;
         delete card.castFromExileWithoutPayingManaCost;
         // CR 715.3d — the SEVENTH sibling, cleared in the SAME permission
         // window as the six above. Left standing it is durable and
@@ -22623,6 +22799,12 @@ export function removeFromZone(
     // card leaves exile for the stack; clear the stale flag and its expiry marker.
     delete card.castableFromExileBy;
     delete card.castableFromExileUntilTurn;
+    // CR 702.185a/b (issue #1268) — the LOWER bound and the "warped card in
+    // exile" referent are consumed with the permission they ride, exactly like
+    // the upper bound directly above: the card is on the stack now, and a warp
+    // recast must never leave a stale window behind for its next exile.
+    delete card.castableFromExileFromTurn;
+    delete card.warpExiled;
     // CR 601.3 (issue #1156) — the free-cast waiver (Dauthi Voidwalker) rides
     // the SAME permission window as `castableFromExileBy`; consumed together.
     delete card.castFromExileWithoutPayingManaCost;

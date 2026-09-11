@@ -80,6 +80,7 @@ import {
     buildDelayedTriggerStackItem,
     buildMonarchDrawStackItem,
     buildReboundReflexiveTrigger,
+    buildWarpExileTrigger,
     placeTriggersOnStack,
 } from "./triggers";
 import {
@@ -1973,6 +1974,25 @@ export function fireDelayedTriggers(
             }
             continue;
         }
+        // CR 702.185a — Warp's next-end-step exile is engine-owned for the same
+        // reason Rebound's window is (no card-def ability to look up), plus one
+        // of its own: the subject is decided by CR 400.7 at RESOLUTION, not
+        // here. The permanent may already be gone, or may have left and
+        // returned as a new object; `applyWarpExile` (`gre/warp.ts`) asks that
+        // question when the trigger resolves. The trigger itself fires
+        // unconditionally — it was created by the resolving spell and triggers
+        // at the next end step regardless of what happened to the permanent.
+        if (t.warpCardInstanceId) {
+            state.stack.push(
+                buildWarpExileTrigger(
+                    state,
+                    t.sourceCardId,
+                    t.warpCardInstanceId,
+                    t.controller
+                )
+            );
+            continue;
+        }
         state.stack.push(buildDelayedTriggerStackItem(state, t));
     }
     state.priorityPlayerId = state.activePlayerId;
@@ -2728,6 +2748,11 @@ export function finalizeCleanup(state: GameState): void {
             ) {
                 delete card.castableFromExileBy;
                 delete card.castableFromExileUntilTurn;
+                // CR 702.185a/b (issue #1268) — the LOWER bound and the
+                // "warped card in exile" referent ride the same permission the
+                // impulse sweep is revoking here.
+                delete card.castableFromExileFromTurn;
+                delete card.warpExiled;
                 // issue #1156 — the free-cast waiver (Dauthi Voidwalker) rides
                 // the same turn-scoped window; expires together.
                 delete card.castFromExileWithoutPayingManaCost;
@@ -3380,6 +3405,9 @@ function advanceTurn(state: GameState): void {
     // `state.spellsCastThisTurn` reset below (connive/Ledger Shredder's
     // "second spell each turn" needs this scoped to the caster).
     for (const p of state.players) p.spellsCastThisTurn = 0;
+    // CR 702.185c (issue #1268) — "a spell was warped THIS TURN": the tally
+    // resets with its cast sibling above and for the same reason.
+    for (const p of state.players) p.spellsWarpedThisTurn = 0;
     // "The last card you drew this turn" (Jandor's Ring) is turn-scoped —
     // clear the tracker so a draw on a prior turn can't pay this turn's cost.
     for (const p of state.players) p.lastDrawnCardId = undefined;

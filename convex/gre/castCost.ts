@@ -425,6 +425,16 @@ export function graveyardCastMechanismForMember(
  *  Elite Spellbinder's taxed grant) and a madness cast (CR 702.35a), which is
  *  the same field plus the `madnessExiled` marker.
  *
+ *  A grant can also be stamped but not yet OPEN (CR 702.185a — a warped card is
+ *  castable only "after the current turn has ended"): that is the LOWER bound
+ *  `castableFromExileFromTurn`, and this is the ONE authority that reads it.
+ *  Route every consumer through here — `getLegalActions`' land leg
+ *  (`gre/rules.ts`), the real payment path (`findCastableExileCard`,
+ *  `convex/game.ts`), the exile projection the client's Cast button gates on
+ *  (`gameProjections.ts`), the land play (`gre/playLand.ts`) and the Bot's
+ *  non-hand cast enumeration (`gre/moves.ts`) — so a window that is closed for
+ *  the affordance can never be open for the payment.
+ *
  *  The grant may be CROSS-PLAYER (CR 400.7): the card sits in its OWNER's exile
  *  while a different player holds the permission, which is why `zoneOwner` and
  *  `casterId` are separate parameters — the same split `getLegalActions`'
@@ -436,9 +446,22 @@ export function graveyardCastMechanismForMember(
  *  (`resolvePlayLandSourceZone`). */
 export function exileCastPermission(
     card: CardInstanceState,
-    casterId: string
+    casterId: string,
+    /** CR 702.185a (issue #1268) — the CURRENT turn number, against which the
+     *  grant's LOWER bound (`castableFromExileFromTurn`) is read. A grant made
+     *  with that rider exists but has not OPENED yet: Warp's "its owner may
+     *  cast this card AFTER THE CURRENT TURN HAS ENDED" leaves the card exiled
+     *  and permission-stamped during the turn it was warped out, and castable
+     *  only from the next one. Required rather than optional on purpose — every
+     *  consumer already has `state` in hand, and a defaulted parameter is how
+     *  one of them would silently keep the old, fail-OPEN answer. */
+    turn: number
 ): boolean {
-    return card.castableFromExileBy === casterId;
+    if (card.castableFromExileBy !== casterId) return false;
+    return (
+        card.castableFromExileFromTurn === undefined ||
+        turn >= card.castableFromExileFromTurn
+    );
 }
 
 /** CR 601.3 / 400.7 (issue #2971) — the zone a `cast-spell` Move actually
