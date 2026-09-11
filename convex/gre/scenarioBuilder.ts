@@ -1223,12 +1223,6 @@ function seedDeclaredCombat(state: GameState, spec: ScenarioSpec): void {
             card.hasBlockedThisTurn = true;
         }
     }
-    // CR 508.1 / 508.4 — the GAME-scope tally. Named explicitly rather than derived
-    // from the list above, because an attacker that DIED is on no battlefield
-    // to derive it from ("if no creatures attacked this turn", Keldon
-    // Twilight). `recordAttackerDeclared` may already have set it; an explicit
-    // `false` in the spec never UNSETS a declaration made above it.
-    if (combat.creatureAttacked) state.creatureAttackedThisTurn = true;
 }
 
 // ---- specFromState — lower a live position into a ScenarioSpec (#2148) ----
@@ -2039,10 +2033,6 @@ function lowerCombat(
     if (blockedThisTurn.me || blockedThisTurn.opp) {
         lowered.blockedThisTurn = blockedThisTurn;
     }
-    // CR 508.1 / 508.4 — the GAME-scope tally, always written when set: an attacker
-    // that DIED leaves it true with nothing on any battlefield to derive it
-    // from ("if no creatures attacked this turn", Keldon Twilight).
-    if (state.creatureAttackedThisTurn) lowered.creatureAttacked = true;
 
     if (Object.keys(lowered).length > 0) spec.combat = lowered;
 }

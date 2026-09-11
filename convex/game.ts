@@ -17834,7 +17834,6 @@ export const debugSetupScenario = mutation({
                         opp: v.optional(v.array(v.string())),
                     })
                 ),
-                creatureAttacked: v.optional(v.boolean()),
             })
         ),
         /** CR 702.139c / ADR 0064 (issue #1392) — directly declare a

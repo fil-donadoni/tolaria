@@ -375,12 +375,6 @@ export const scenarioSpecValidator = v.object({
                     opp: v.optional(v.array(v.string())),
                 })
             ),
-            // CR 508.1 / 508.4 — "a creature attacked this turn" at GAME scope
-            // (`state.creatureAttackedThisTurn`, Keldon Twilight). NOT derived
-            // from `attackedThisTurn` above: an attacker that DIED is on no
-            // battlefield to name, so the scan would report "no creatures
-            // attacked" on exactly the turns that saw the most combat.
-            creatureAttacked: v.optional(v.boolean()),
         })
     ),
     // CR 702.139c / ADR 0064 (issue #1392) — directly declare a companion
@@ -546,16 +540,6 @@ export type ScenarioSpec = {
          *  the declaration above in either direction. */
         attackedThisTurn?: { me?: string[]; opp?: string[] };
         blockedThisTurn?: { me?: string[]; opp?: string[] };
-        /** CR 508.1 / 508.4 — the GAME-scope "a creature attacked this turn"
-         *  (`state.creatureAttackedThisTurn`), which a dead attacker leaves
-         *  true with nothing on the battlefield to derive it from.
-         *
-         *  Sets the flag, never CLEARS it: `attackedThisTurn` above raises it
-         *  as a side effect of `recordAttackerDeclared`, so an explicit
-         *  `false` beside a non-empty list cannot express "these attacked, but
-         *  Keldon Twilight should see none". No captured spec produces that
-         *  pair; a hand-written one has to leave the list empty. */
-        creatureAttacked?: boolean;
     };
     companion?: { name: string; owner?: "me" | "opp"; used?: boolean };
 };
@@ -1005,11 +989,6 @@ export function normalizeScenarioSpec(raw: unknown): ScenarioSpec {
             combat,
             "blockedThisTurn",
             pickSeatNameLists(raw.combat.blockedThisTurn)
-        );
-        set(
-            combat,
-            "creatureAttacked",
-            pickBoolean(raw.combat.creatureAttacked)
         );
         if (Array.isArray(raw.combat.blockers)) {
             const blockers = raw.combat.blockers

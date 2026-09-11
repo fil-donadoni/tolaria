@@ -124,7 +124,6 @@ const STORED: Required<ScenarioSpec> = {
         blockersConfirmed: false,
         attackedThisTurn: { me: ["Savannah Lions"] },
         blockedThisTurn: { opp: ["Grizzly Bears"] },
-        creatureAttacked: true,
     },
     companion: { name: "Lurrus of the Dream-Den", owner: "me", used: true },
 };

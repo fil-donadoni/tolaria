@@ -203,7 +203,6 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
                 blockersConfirmed: false,
                 attackedThisTurn: { me: ["Savannah Lions"] },
                 blockedThisTurn: { opp: ["Grizzly Bears"] },
-                creatureAttacked: true,
             },
         };
         expect(normalizeScenarioSpec(raw)).toEqual({
@@ -239,6 +238,14 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
             lifeGainedThisTurn: { me: 3 },
             deathsThisTurn: 2,
             creatureAttackedThisTurn: true,
+            combat: {
+                attackers: ["Savannah Lions"],
+                confirmed: true,
+                blockers: [{ blocker: "Shivan Dragon", blocking: [0] }],
+                blockersConfirmed: false,
+                attackedThisTurn: { me: ["Savannah Lions"] },
+                blockedThisTurn: { opp: ["Grizzly Bears"] },
+            },
         });
     });
 
@@ -319,15 +326,6 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
                     abilityResolutions: { "scythecat-cub-landfall": 2 },
                 },
             ],
-            combat: {
-                attackers: ["Savannah Lions"],
-                confirmed: true,
-                blockers: [{ blocker: "Shivan Dragon", blocking: [0] }],
-                blockersConfirmed: false,
-                attackedThisTurn: { me: ["Savannah Lions"] },
-                blockedThisTurn: { opp: ["Grizzly Bears"] },
-                creatureAttacked: true,
-            },
         });
     });
 

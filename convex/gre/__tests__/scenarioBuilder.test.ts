@@ -1222,10 +1222,6 @@ describe("specFromState (issue #2148)", () => {
             // as the complete list rather than the declaration's complement.
             attackedThisTurn: { me: [grizzlyBears.name] },
             blockedThisTurn: { opp: [shivanDragon.name] },
-            // CR 508.1 / 508.4 — the game-scope tally, written whenever set: an
-            // attacker that DIED leaves it true with nothing to derive it
-            // from.
-            creatureAttacked: true,
         });
         // The loss it replaces is gone, and no other combat note took its
         // place.
@@ -1362,7 +1358,6 @@ describe("specFromState (issue #2148)", () => {
         expect(spec.combat).toEqual({
             attackedThisTurn: { me: [grizzlyBears.name] },
             blockedThisTurn: { opp: [shivanDragon.name] },
-            creatureAttacked: true,
         });
         expect(
             dropped.filter((d) => d.includes("hasAttackedThisTurn"))
