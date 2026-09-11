@@ -91,9 +91,7 @@ export default function AiDecisionVerdictQuiz({
                 seat: "me",
                 candidates: state.quiz.candidates,
                 answer: { kind: "right", rightIndexes: [rightIndex] },
-                ...(state.quiz.botPickIndex === undefined
-                    ? {}
-                    : { botPickIndex: state.quiz.botPickIndex }),
+                botPickIndex: state.quiz.botPickIndex,
                 ...(gameId ? { gameId } : {}),
                 ...(record.seq === undefined ? {} : { seq: record.seq }),
             });
@@ -140,19 +138,12 @@ export default function AiDecisionVerdictQuiz({
         <div className="flex flex-col gap-1.5 rounded-sm border border-border-accent/30 p-1.5">
             <span className="text-label">Which move was right here?</span>
 
-            {botPickIndex !== undefined && (
-                <DebugButton
-                    onClick={() => void submit(botPickIndex)}
-                    disabled={submitting}
-                >
-                    The Bot was right
-                </DebugButton>
-            )}
-            {quiz.pickUnmatched && (
-                <p className="break-words text-[10px] text-signal-pending">
-                    {quiz.pickUnmatched}
-                </p>
-            )}
+            <DebugButton
+                onClick={() => void submit(botPickIndex)}
+                disabled={submitting}
+            >
+                The Bot was right
+            </DebugButton>
 
             <ul className="flex flex-col gap-0.5">
                 {quiz.candidates.map((candidate, index) => (

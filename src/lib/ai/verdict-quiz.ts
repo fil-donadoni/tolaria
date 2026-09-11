@@ -52,17 +52,14 @@ export type VerdictQuiz = {
      *  order — the list the fit will re-derive, so an index here means the same
      *  move there. */
     candidates: VerdictCandidate[];
-    /** Which of them the Bot played, when its own sentence matched one. */
-    botPickIndex?: number;
+    /** Which of them the Bot played. Always known: a rebuild that does not
+     *  offer the Bot's own move is refused below, not shown. */
+    botPickIndex: number;
     /** Everything the lowering could not carry (`specFromState`'s own report):
      *  the stack, a mana pool, combat past the declare step, … A verdict given
      *  on a position missing one of those is a judgement about a DIFFERENT
      *  board, so the quiz shows this rather than burying it. */
     dropped: string[];
-    /** Set when the Bot's chosen move has no counterpart in the rebuilt list —
-     *  the judgement is still submittable (the candidates are real), but the
-     *  Bot's own pick cannot be recorded with it. */
-    pickUnmatched?: string;
 };
 
 export type VerdictQuizResult =
@@ -139,10 +136,15 @@ export function buildVerdictQuiz(
     }
 
     const moves = candidateMoves(rebuilt, seatId);
-    if (moves.length === 0) {
+    if (moves.length < 2) {
+        // A one-candidate list is what `collectVerdictReport` calls
+        // UNCONSTRAINING: every decider takes the only legal line, so the
+        // judgement states no preference and the fit can build no pair from it.
+        // The mutation would accept it and the corpus would carry a row that
+        // means nothing.
         return {
             ok: false,
-            error: "the rebuilt position offers the Bot no moves to choose between",
+            error: "the rebuilt position offers only one move — a verdict there would state no preference",
         };
     }
 
@@ -159,21 +161,25 @@ export function buildVerdictQuiz(
     const botPickIndex = candidates.findIndex(
         (candidate) => candidate.description === trace.chosen
     );
+    if (botPickIndex === -1) {
+        // The rebuild does not offer the move that was actually played, so it
+        // is not this decision: the lowering lost something the decision
+        // depended on (a declared combat, a spell on the stack, a mana pool).
+        // Judging the list anyway would file an answer about a DIFFERENT
+        // position under the Bot's name — the one failure of this whole flow
+        // that nothing downstream could ever detect, because the verdict it
+        // produces rebuilds and enumerates perfectly.
+        return {
+            ok: false,
+            error: `the Bot played "${trace.chosen}", which the rebuilt position does not offer — this decision cannot be captured as a scenario${
+                dropped.length > 0
+                    ? ` (not captured: ${dropped.join("; ")})`
+                    : ""
+            }`,
+        };
+    }
 
-    return {
-        ok: true,
-        quiz: {
-            spec,
-            candidates,
-            ...(botPickIndex === -1 ? {} : { botPickIndex }),
-            dropped,
-            ...(botPickIndex === -1
-                ? {
-                      pickUnmatched: `the Bot played "${trace.chosen}", which the rebuilt position does not offer — judge the list below on its own terms`,
-                  }
-                : {}),
-        },
-    };
+    return { ok: true, quiz: { spec, candidates, botPickIndex, dropped } };
 }
 
 function message(error: unknown): string {
