@@ -330,7 +330,7 @@ describe("Haunting Echoes (CR 404 / 205.4a / 201.2 / 701.23a / 701.24a, issue #2
     };
 
     it("has a valid Effect Script and targets a player", () => {
-        expect(validateEffectScript(hauntingEchoes.effects!)).toEqual([]);
+        expect(validateEffectScript(hauntingEchoes)).toEqual([]);
         expect(hauntingEchoes.targetRequirement).toEqual({
             type: "player",
             count: 1,

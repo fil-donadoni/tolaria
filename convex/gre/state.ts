@@ -20433,6 +20433,7 @@ export function buildSpellContext(
             name: string;
             types: CardType[];
             subtypes: string[];
+            supertypes: CardSupertype[];
             manaValue: number;
             colors: Color[];
             counters: Record<string, number>;
@@ -20443,6 +20444,7 @@ export function buildSpellContext(
                 name: string;
                 types: CardType[];
                 subtypes: string[];
+                supertypes: CardSupertype[];
                 manaValue: number;
                 colors: Color[];
                 counters: Record<string, number>;
