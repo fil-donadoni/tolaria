@@ -1215,6 +1215,13 @@ describe("specFromState (issue #2148)", () => {
             confirmed: true,
             blockers: [{ blocker: shivanDragon.name, blocking: [0] }],
             blockersConfirmed: true,
+            // CR 506.4 / 508.1a — the per-turn record names the current
+            // attacker and blocker too: being IN the declaration does not
+            // imply the flag (a creature put onto the battlefield attacking,
+            // CR 506.3c, never was declared), so it is lowered as the complete
+            // list rather than as the declaration's complement.
+            attackedThisTurn: [grizzlyBears.name],
+            blockedThisTurn: [shivanDragon.name],
             // CR 508.1a — the game-scope tally, written whenever set: an
             // attacker that DIED leaves it true with nothing to derive it
             // from.
@@ -1243,7 +1250,13 @@ describe("specFromState (issue #2148)", () => {
         // combat literal is exactly how you forget (issue #1195).
         expect(rebuiltAttacker.isAttacking).toBe(true);
         expect(rebuiltBlocker.isBlocking).toBe(true);
+        // CR 506.4 — and the per-turn record, which is NOT implied by being in
+        // the declaration: the builder marks it from `attackedThisTurn` /
+        // `blockedThisTurn`, so a lowering that took them to be the
+        // declaration's complement would lose the flag on every attacker.
+        expect(rebuiltAttacker.hasAttackedThisTurn).toBe(true);
         expect(rebuiltBlocker.hasBlockedThisTurn).toBe(true);
+        expect(rebuilt.creatureAttackedThisTurn).toBe(true);
     });
 
     it("keeps two identical attackers apart, and the blocker declared against the second (CR 509.1a)", () => {

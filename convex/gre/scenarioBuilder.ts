@@ -1172,12 +1172,15 @@ function seedDeclaredCombat(state: GameState, spec: ScenarioSpec): void {
         }
     }
 
-    // CR 506.4 — the per-turn record, which outlives the combat object: a
-    // creature removed from combat, or a whole combat phase that has ended,
-    // still leaves "has attacked this turn" behind (Erg Raiders, Whirling
-    // Dervish). Searched on BOTH battlefields, unlike the declaration above:
-    // the flag travels with the creature through a control change, and the
-    // spec names a FACT about the card rather than a role in this combat.
+    // CR 506.4 / 508.1a — the per-turn record, applied INDEPENDENTLY of the
+    // declaration above and therefore naming every creature that carries it,
+    // current attackers included. The two are not derivable from each other: a
+    // creature removed from combat keeps the flag with no declaration left
+    // (Erg Raiders, Whirling Dervish), and a creature put onto the battlefield
+    // attacking (CR 506.3c) is an attacker that was never DECLARED as one and
+    // must not gain it. Searched on BOTH battlefields, unlike the declaration:
+    // the flag travels with the creature through a control change, and it
+    // names a FACT about the card rather than a role in this combat.
     const battlefields = [active.battlefield, defending.battlefield];
     for (const card of resolveCombatants(
         battlefields,
@@ -1843,23 +1846,22 @@ function lowerCombat(
         reportCombatResidue(combat, dropped);
     }
 
-    // CR 506.4 — creatures carrying the per-turn record without being in the
-    // declaration above: removed from combat, or a combat phase that has ended
-    // (Erg Raiders, Whirling Dervish). Named separately because the flags
-    // outlive `state.combat` itself.
+    // CR 506.4 / 508.1a — the per-turn record, lowered as the COMPLETE list of
+    // creatures carrying it rather than as the declaration's complement. It is
+    // not derivable from `attackers` in either direction: a creature removed
+    // from combat (or a combat phase that has ended) keeps the flag with no
+    // declaration left to read it off, and a creature PUT onto the battlefield
+    // attacking (CR 506.3c) is in `attackerIds` having never been declared, so
+    // carries no flag at all. The builder marks these independently of the
+    // declaration for exactly that reason.
     const attackedThisTurn: string[] = [];
     const blockedThisTurn: string[] = [];
-    const blockerIds = new Set(
-        Object.keys(combat?.blockerAssignments ?? {}).filter((id) =>
-            onBattlefield(id)
-        )
-    );
     for (const player of state.players) {
         for (const card of player.battlefield) {
-            if (card.hasAttackedThisTurn && !attackerIds.includes(card.id)) {
+            if (card.hasAttackedThisTurn) {
                 attackedThisTurn.push(presentedName(card));
             }
-            if (card.hasBlockedThisTurn && !blockerIds.has(card.id)) {
+            if (card.hasBlockedThisTurn) {
                 blockedThisTurn.push(presentedName(card));
             }
         }
