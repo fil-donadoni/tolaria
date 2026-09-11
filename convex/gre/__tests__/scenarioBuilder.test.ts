@@ -17,8 +17,7 @@ import {
     makeState,
     pushSpell,
 } from "../../cards/__tests__/setup";
-import { giantGrowth, grizzlyBears } from "../../cards/sets/lea/green";
-import { enumerateMoves } from "../moves";
+import { grizzlyBears } from "../../cards/sets/lea/green";
 import { shivanDragon } from "../../cards/sets/lea/red";
 import { forest } from "../../cards/sets/lea/colorless";
 import { animateDead, fear } from "../../cards/sets/lea/black";
@@ -1551,33 +1550,17 @@ describe("scenario-placed off-battlefield characteristics (CR 113.6c)", () => {
 // whole class rather than file it (PRD #3397).
 describe("buildStateFromScenario — turn holder, priority and passCount (issue #3454)", () => {
     /** A board where "me" holds a land, a creature and an instant, with mana
-     *  to cast any of them — so the enumerated list is a direct read of what
-     *  TIMING the rebuilt position allows (CR 307.1 / 304.1 / 305.1). */
+     *  to cast any of them. The TIMING half of this fixture is exercised in
+     *  `scenarioBuilderTiming.bot.test.ts` — that assertion needs
+     *  `enumerateMoves`, which is a bot-only module (`bot-suite-boundary`). */
     const TIMING_BOARD: ScenarioSpec = {
         cards: [
             { name: forest.name, owner: "me", zone: "hand" },
             { name: grizzlyBears.name, owner: "me", zone: "hand" },
-            { name: giantGrowth.name, owner: "me", zone: "hand" },
             { name: grizzlyBears.name, owner: "opp", zone: "battlefield" },
         ],
         landCount: 4,
     };
-
-    function kindsFor(state: GameState, playerId: string): string[] {
-        return enumerateMoves(state, playerId).map((m) => m.kind);
-    }
-
-    /** The DEFINITION ids the seat may cast — the instance carries the
-     *  definition, never a display name, so the id is what identifies it. */
-    function castableDefIds(state: GameState, playerId: string): string[] {
-        const hands = [...state.players[0].hand, ...state.players[1].hand];
-        return enumerateMoves(state, playerId)
-            .filter((m) => m.kind === "cast-spell")
-            .map((m) => {
-                const card = hands.find((c) => c.id === m.cardInstanceId);
-                return (card?.card as { id?: string })?.id ?? "?";
-            });
-    }
 
     it("sets the turn holder the spec names, leaving priority with the judged seat", () => {
         const state = buildStateFromScenario(makeState(), {
@@ -1595,34 +1578,6 @@ describe("buildStateFromScenario — turn holder, priority and passCount (issue 
     // THE behavioural claim (CR 307.1): on the opponent's turn the judged seat
     // may only act at instant speed. A rebuild that got the turn holder wrong
     // fails HERE, loudly, rather than by quietly offering a bigger list.
-    it("offers the judged seat ONLY instant-speed moves on the opponent's turn (CR 307.1)", () => {
-        const onOppTurn = buildStateFromScenario(makeState(), {
-            ...TIMING_BOARD,
-            activePlayer: "opp",
-            priority: "me",
-        });
-        const meId = onOppTurn.players[0].id;
-
-        // No land drop (CR 305.1: active player, main phase, empty stack).
-        expect(kindsFor(onOppTurn, meId)).not.toContain("play-land");
-        // No creature — sorcery timing (CR 302.1 / 307.1).
-        expect(castableDefIds(onOppTurn, meId)).not.toContain(grizzlyBears.id);
-        // The instant IS offered: the seat still has priority, it is only the
-        // timing that narrowed.
-        expect(castableDefIds(onOppTurn, meId)).toContain(giantGrowth.id);
-
-        // The control: the SAME board on the judged seat's own turn offers all
-        // three, so the assertion above is measuring the turn holder and not
-        // some unrelated legality of this fixture.
-        const onOwnTurn = buildStateFromScenario(makeState(), TIMING_BOARD);
-        expect(kindsFor(onOwnTurn, onOwnTurn.players[0].id)).toContain(
-            "play-land"
-        );
-        expect(castableDefIds(onOwnTurn, onOwnTurn.players[0].id)).toContain(
-            grizzlyBears.id
-        );
-    });
-
     it("leaves the base state's turn holder alone, and starts a fresh priority round, when the spec omits all three", () => {
         // The pre-#3454 contract every stored spec and every blade entry was
         // written against: absent means unchanged, exactly as `phase` is.
