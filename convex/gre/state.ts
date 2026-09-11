@@ -98,7 +98,7 @@ setControlRelocation((state, card, previousControllerId, nextControllerId) => {
     // combat" reminder is this rule made explicit). No-op outside combat.
     removePermanentFromCombat(state, card.id);
 });
-import { turnFaceDown, turnFaceUp } from "./faceDown";
+import { isFaceDownExile, turnFaceDown, turnFaceUp } from "./faceDown";
 import { revertAdventureIdentity, wasCastAsAdventure } from "./adventure";
 import { revertSplitIdentity } from "./splitCast";
 import type { SplitHalfSide } from "../cards/splitCard";
@@ -3346,9 +3346,13 @@ export type PendingChoice = {
      *
      *  CR 406.3 — a `PendingChoice` crosses the wire UNREDACTED to both
      *  viewers, so this field tells the OPPONENT which card it is just as
-     *  surely as naming it in `prompt` would. Set it only for a card whose
-     *  identity is already public (`SpellContext.getPublicCardIdentity`), never
-     *  for a face-down one. */
+     *  surely as naming it in `prompt` would. THE RULE: set it only for a card
+     *  whose identity is ALREADY PUBLIC, never for a face-down one. Inside an
+     *  Effect Script, `SpellContext.getPublicCardIdentity` is what answers
+     *  that; the two producers that cannot reach a SpellContext at all
+     *  (`gre/madness.ts`, `gre/rebound.ts`) set it unconditionally and are
+     *  correct in substance — a madness card was publicly discarded, a rebound
+     *  card was public on the stack. */
     subjectCardId?: string;
     /** For `kind: "may-pay"` only — a spend restriction the mana leg may draw
      *  on in addition to the fungible pool (CR 106.6, ADR 0022 / 0042). Set to
@@ -20637,19 +20641,22 @@ export function buildSpellContext(
             // FAIL-CLOSED: it hands back an id only for a card it can confirm
             // is already public.
             //
-            // The hand is a hidden zone (CR 402.1) — never public, even to a
-            // controller who can see their own. The graveyard and exile are
-            // open zones (CR 404.1 / 406.1), so a card there is public UNLESS
-            // something made it otherwise: a per-viewer `knownTo` grant, which
-            // is exactly what `exileFaceDown` stamps for a hideaway / impulse
-            // card and what `projectExileCard` re-derives on the wire, or the
-            // `faceDown` marker itself.
-            if (zone === "hand") return undefined;
+            // The graveyard and exile are open zones (CR 404.1 / 406.1), so a
+            // card there is public UNLESS something made it otherwise: a
+            // per-viewer `knownTo` grant, which is exactly what
+            // `exileFaceDownCard` stamps for a hideaway / impulse card and what
+            // `projectExileCard` re-derives on the wire. A hidden zone is not
+            // in the parameter's type at all — a hand card has no public
+            // identity to disclose (CR 402.1), so the question is
+            // unrepresentable rather than a branch returning `undefined`.
             const owner = getPlayer(state, playerId);
             const found = owner[zone].find((c) => c.id === cardInstanceId);
             if (!found) return undefined;
-            if (found.faceDown === true) return undefined;
-            if ((found.knownTo?.length ?? 0) > 0) return undefined;
+            // The SHARED predicate (`gre/faceDown.ts`), not a fourth copy of
+            // it: `projectExileCard` gates the wire on exactly this, so
+            // "public enough to pin" and "public on the opponent's screen"
+            // cannot drift apart.
+            if (isFaceDownExile(found)) return undefined;
             // A card with no registered definition renders as a placeholder
             // rather than a face, so there is nothing to disclose.
             return (found.card as { id?: string }).id;
@@ -22161,9 +22168,9 @@ function moveCardWithGraveyardReplacement(
     if (to !== "graveyard") {
         const moved = moveCard(player, cardInstanceId, from, to);
         if (PUBLIC_ZONES.has(from) && !PUBLIC_ZONES.has(to)) {
-            const isFaceDownExile =
-                from === "exile" && (moved.knownTo?.length ?? 0) > 0;
-            if (!isFaceDownExile) {
+            const leavingFaceDownExile =
+                from === "exile" && isFaceDownExile(moved);
+            if (!leavingFaceDownExile) {
                 grantKnowledgeToAll(state, player.id, [moved.id]);
             }
         }

@@ -29,7 +29,7 @@ import {
 } from "./gre/rules";
 import { canSummonCompanion } from "./gre/companion";
 import { canTurnFaceUp } from "./gre/morph";
-import { isHiddenFromKnower } from "./gre/faceDown";
+import { isFaceDownExile, isHiddenFromKnower } from "./gre/faceDown";
 import {
     computeLibraryTopLookedAtPlayers,
     computeLibraryTopRevealedPlayers,
@@ -726,9 +726,12 @@ function projectExileCard(
         }
         return out;
     };
-    // No knowledge stamped → ordinary face-up exile, public to all.
-    if (!card.knownTo || card.knownTo.length === 0)
-        return decorate(slimCard(card));
+    // No knowledge stamped → ordinary face-up exile, public to all. The
+    // predicate is shared with the re-exile knowledge decision (`moveCardTo`)
+    // and the disclosure gate (`getPublicCardIdentity`) — three sites asking
+    // the same question, and drifting apart is the one way the face-down leak
+    // reopens (issue #3413).
+    if (!isFaceDownExile(card)) return decorate(slimCard(card));
     // A viewer allowed to look sees the real card. Since issue #2904 they are
     // also TOLD it is face down — but ONLY when it genuinely is face down TO
     // THEM. `knownTo` on an exiled card is overloaded (ADR 0026): it backs both

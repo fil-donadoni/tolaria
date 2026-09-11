@@ -6589,11 +6589,26 @@ export interface SpellContext {
      *  the value makes "ask, then pin something else" unrepresentable.
      *
      *  Returns an id only for a card in an OPEN zone (graveyard, exile,
-     *  CR 404.1 / 406.1) that carries no per-viewer `knownTo` restriction and
-     *  is not face down. `undefined` for a face-down exile (hideaway, impulse
-     *  draw — `knownTo` scoped to one knower), for a hand card (a hidden zone,
-     *  CR 402.1), for a card not in that zone, and for one with no registered
-     *  definition.
+     *  CR 404.1 / 406.1) that carries no per-viewer `knownTo` restriction.
+     *  `undefined` for a face-down exile (hideaway, impulse draw — `knownTo`
+     *  scoped to one knower), for a card not in that zone, and for one with no
+     *  registered definition. `knownTo` is the WHOLE gate, and deliberately so:
+     *  it is the same predicate `projectExileCard` gates the wire on
+     *  (`isFaceDownExile`, `gre/faceDown.ts`), so "public enough to pin" and
+     *  "public on the opponent's screen" cannot drift apart.
+     *
+     *  `zone` admits only the two OPEN zones. A hidden zone has no answer this
+     *  function could give — a hand card is private by definition (CR 402.1) —
+     *  so rather than a branch returning `undefined` that a later reader might
+     *  "improve", the question is unrepresentable.
+     *
+     *  VIEWER-BLIND, and it has to be: `subjectCardId` is ONE value reaching
+     *  BOTH viewers, so "public" here means public to everyone, not to the
+     *  chooser. A hideaway controller is entitled to keep looking at their own
+     *  face-down card (CR 406.3) and still gets no image, because showing it to
+     *  them would show it to their opponent too. Per-viewer redaction of the
+     *  field in `projectPublicState` is what would fix that; drafted in
+     *  `docs/findings/3413-subject-card-not-redacted-per-viewer.md`.
      *
      *  Exists so a dialog can decide whether it may show the card it is asking
      *  about. `pendingChoices` crosses the wire UNREDACTED, so anything a
@@ -6603,7 +6618,7 @@ export interface SpellContext {
     getPublicCardIdentity: (
         playerId: string,
         cardInstanceId: string,
-        zone: "hand" | "graveyard" | "exile"
+        zone: "graveyard" | "exile"
     ) => string | undefined;
     /** CR 116.2a / 305.2a / 305.3 / 305.2b (issue #1961) — the LAND twin of
      *  {@link getChosenCardCastable}, for a play-during-resolution permission

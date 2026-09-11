@@ -36,6 +36,7 @@ import {
     markEnteredThisTurn,
     applyControlChange,
     createTokenPermanents,
+    exileFaceDownCard,
     buildSpellContext,
     sourcePreventionShieldApplies,
     runDamageReplacement,
@@ -23633,23 +23634,39 @@ describe("resolve-time Cast/Decline offer: the card's image above the question (
     });
 
     it("a FACE-DOWN exiled card pins NOTHING, so the dialog cannot leak it to the opponent (hideaway, CR 406.3)", () => {
-        // `knownTo: ["p1"]` is exactly what `exileFaceDown` stamps (ADR 0026) —
-        // the controller may keep looking, every other viewer sees the
-        // face-down sentinel. Pinning this card's id would hand the opponent
-        // the identity the projection is busy hiding.
+        // Built by the REAL primitive, never by hand-stamping `knownTo`: a
+        // fixture that writes the field itself keeps passing if
+        // `exileFaceDownCard` ever changes WHAT it writes, which is exactly the
+        // drift this assertion exists to catch. The card starts in the library
+        // and is exiled face down with `"face-down-exile"` — hideaway's own
+        // producer (CR 702.75a).
+        //
+        // The END-TO-END guard for the real card is
+        // `convex/cards/sets/lrw/__tests__/colorless.test.ts` (Shelldock Isle,
+        // through `expandHideaway`), which asserts `subjectCardId` undefined in
+        // both projections. This is the Op-level twin of it.
         const faceDown = makeInstance(BEAR_ID, {
             id: "subjectFaceDown",
             controllerId: "p1",
             ownerId: "p1",
-            zone: "exile",
+            zone: "library",
         });
-        faceDown.knownTo = ["p1"];
         const state = makeState({
             players: [
-                makePlayer("p1", { exile: [faceDown] }),
+                makePlayer("p1", { library: [faceDown] }),
                 makePlayer("p2"),
             ],
         });
+        exileFaceDownCard(
+            state.players[0],
+            "subjectFaceDown",
+            "library",
+            "p1",
+            "face-down-exile"
+        );
+        expect(state.players[0].exile.map((c) => c.id)).toEqual([
+            "subjectFaceDown",
+        ]);
         const offer = offerAsOpponentSeesIt(
             state,
             exileOfferScript("test-cdr-subject-facedown"),
@@ -23744,6 +23761,13 @@ describe("Effect Script Op: castDuringResolution — LAND branch, play during re
         // The land never uses the stack: the parent script is still the only
         // stack item while the offer is open (CR 608.2g — not priority).
         expect(state.stack).toHaveLength(1);
+
+        // Issue #3413 — the LAND branch carries the subject pin too. The pin is
+        // computed once, before the branch, and spread into both call sites, so
+        // the two cannot differ; this closes the seam against a future split.
+        // This land is in a PUBLIC graveyard, so pinning it is right — the
+        // face-down case is asserted in the #3413 block above.
+        expect(offer.subjectCardId).toBe(CDR_LAND_ID);
 
         // MANDATORY wire format — the Play/Decline affordance survives
         // `projectPublicState` (the client renders the generic option-pick

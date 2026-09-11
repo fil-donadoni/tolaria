@@ -366,8 +366,12 @@ const PLAY_DECLINE_OPTIONS: { id: string; label: string }[] = [
  *  which branch was taken — i.e. whether the FACE-DOWN hideaway card is a land.
  *  A grant that can reach a land therefore uses ONE prompt and ONE option list
  *  for BOTH branches, so the branch actually taken is indistinguishable to any
- *  observer (the same reason the prompt names no card and pins no
- *  `subjectCardId`). */
+ *  observer — and the prompt never names the card, for the same reason.
+ *
+ *  What the offer MAY carry (issue #3413) is a `subjectCardId` pin, and only
+ *  because it is DERIVED rather than authored: `getPublicCardIdentity` hands
+ *  back an id only for a card whose identity is already public, so a face-down
+ *  hideaway card pins nothing and this rule is untouched. */
 const OFFER_PROMPT = {
     play: "You may play the card. Play it or decline.",
     cast: "You may cast the card. Cast it or decline.",
@@ -6547,10 +6551,16 @@ function runCastDuringResolution(
         // "you may PLAY the exiled card" — the same resolve-time
         // `option-pick` as the cast branch, byte-identical in prompt and
         // options (see `OFFER_PROMPT`). The text deliberately does NOT name
-        // the card either: a hideaway card is FACE DOWN (CR 406.3, visible
-        // only to its controller) and `pendingChoices` crosses the wire
-        // unredacted to BOTH viewers, so naming it in the prompt — or
-        // pinning it via `subjectCardId` — would leak the hidden identity.
+        // the card: a hideaway card is FACE DOWN (CR 406.3, visible only to
+        // its controller) and `pendingChoices` crosses the wire unredacted to
+        // BOTH viewers, so naming it in the prompt would leak the hidden
+        // identity. The `subjectCardId` the shared `offer` may carry is safe
+        // for the one reason it is DERIVED (issue #3413):
+        // `getPublicCardIdentity` returns nothing for a face-down card, so
+        // this branch pins nothing when the card is hidden and pins a public
+        // graveyard land's id when it is not. Computed once, before the
+        // branch, and spread into both call sites — so it cannot differ
+        // between them either.
         const landDecision = ctx.requestOptionChoice({
             playerId,
             choiceId: "cdr:decide",
