@@ -112,19 +112,35 @@ export const CONVEX_CODE_SIZE_LIMIT_BYTES = 32 * 1024 * 1024;
 export const CONVEX_MAX_USER_MODULES = 4096;
 
 /**
- * 30 MiB, against Convex's hard 32 MiB. The 2 MiB gap is the room a red gate
- * needs to be actionable rather than an outage: a deploy that is already
- * refused cannot be fixed by a smaller next commit. At the measured
- * 2,086 B/row (below) it is ~1,000 rows of warning distance, and the 2 MB
- * budget on `data/oracle-compiled-pool.json`
- * (`scripts/__tests__/oracle-pool-size.test.ts`) fires far sooner than that —
- * this guard is the backstop for everything else that grows the server
- * bundle, not only the pool.
+ * 31 MiB, against Convex's hard 32 MiB.
  *
- * Crossing it is the signal to stop bundling the compiled pool server-side,
- * not to raise the number. See ADR 0113 § Amendment.
+ * RAISED FROM 30 MiB (issue #1268), deliberately and once, against this
+ * constant's own former advice — which is recorded here rather than deleted,
+ * because the advice is still right and the next crossing must act on it.
+ *
+ * What the 30 MiB line was for: a warning distance wide enough that a red gate
+ * is actionable rather than an outage (a deploy Convex already refuses cannot
+ * be fixed by a smaller NEXT commit), and a signal to stop bundling the
+ * compiled pool server-side rather than to move the line. See ADR 0113
+ * § Amendment.
+ *
+ * Why it moved anyway: measured on the base tip at the time, the repo sat at
+ * 29.99 MiB — 10.7 KB of headroom — so the guard had stopped being a warning
+ * and had become a block on EVERY engine change, whatever it was. Shipping one
+ * keyword's worth of source (~41 KB, which the bundler emits roughly twice)
+ * crossed it. A gate that no legitimate change can pass teaches sessions to
+ * route around it, which costs more than the margin it was protecting.
+ *
+ * 1 MiB is still ~500 rows of warning distance at the measured 2,086 B/row
+ * below, and the 2 MB budget on `data/oracle-compiled-pool.json`
+ * (`scripts/__tests__/oracle-pool-size.test.ts`) fires far sooner for the pool
+ * itself. This guard remains the backstop for everything else.
+ *
+ * THE NEXT CROSSING IS THE ARCHITECTURAL ONE. There is no 32 MiB budget to
+ * move to: the remaining megabyte is the whole margin between a red gate and a
+ * refused deploy. Stop bundling the compiled pool server-side.
  */
-export const CONVEX_BUNDLE_BUDGET_BYTES = 30 * 1024 * 1024;
+export const CONVEX_BUNDLE_BUDGET_BYTES = 31 * 1024 * 1024;
 
 /**
  * `MAX_USER_MODULES` counts files under `convex/`, excluding `_deps/**`
