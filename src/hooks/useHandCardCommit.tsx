@@ -13,6 +13,7 @@ import {
     affordableAltCostsForCard,
     affordableKickersForCard,
     manaCostToString,
+    matchesHandCardFilter,
     payableAdditionalCostLegsForCard,
     phyrexianSplitChoices,
     type PhyrexianSplitChoice,
@@ -32,7 +33,6 @@ import type {
     AlternativeCost,
     CardDefinition,
 } from "@convex/cards/types";
-import { handCardMatchesFilter } from "@convex/gre/alternativeCost";
 
 type ModePickerState = {
     chosenX: number | undefined;
@@ -125,10 +125,11 @@ type CostDialogState = {
  *
  *  Computed here rather than projected: the viewer's OWN hand is already fully
  *  visible in the projection (only an opponent's is nulled), and the filter
- *  match reuses the engine's own `handCardMatchesFilter` (ADR 0074 — the
- *  frontend imports the pure module, never the authority). `announceCast`
- *  re-derives the same ceiling server-side and rejects anything above it, so
- *  this only ever shapes the affordance. */
+ *  match goes through `matchesHandCardFilter`, the ONE client-side wrapper over
+ *  the engine's `handCardMatchesFilter` every other hand-card picker already
+ *  shares (ADR 0074 — the frontend imports the pure module, never the
+ *  authority). `announceCast` re-derives the same ceiling server-side and
+ *  rejects anything above it, so this only ever shapes the affordance. */
 function discardXCeilingFor(
     def: CardDefinition,
     cardInstance: CardInstance,
@@ -143,7 +144,7 @@ function discardXCeilingFor(
         (c): c is CardInstance =>
             c !== null &&
             c.id !== cardInstance.id &&
-            handCardMatchesFilter(c, d.filter ?? {})
+            matchesHandCardFilter(c, d.filter ?? {})
     ).length;
 }
 

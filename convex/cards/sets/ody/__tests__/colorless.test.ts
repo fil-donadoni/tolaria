@@ -117,7 +117,7 @@ describe("Cephalid Coliseum — target player draws three, then discards three (
         expect(state.players[1].graveyard).toHaveLength(3);
     });
 
-    it("can target the ACTIVATOR — 'target player' includes its controller (CR 115.1)", () => {
+    it("can target the ACTIVATOR — 'target player' includes its controller (CR 115.2)", () => {
         const source = coliseum();
         const state = makeState({
             players: [

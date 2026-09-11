@@ -86,7 +86,8 @@ export const cephalidColiseum: CardDefinition = {
                 "Threshold — {U}, {T}, Sacrifice this land: Target player draws three cards, then discards three cards. Activate only if there are seven or more cards in your graveyard.",
             cost: { mana: { U: 1 }, tap: true, sacrifice: true },
             useStack: true,
-            // CR 115.1 — "target player" is any player, the controller included.
+            // CR 115.2 — a player is a legal target when the ability says so;
+            // "target player" names any player, the controller included.
             targetRequirement: { type: "player", count: 1 },
             // CR 602.1b — activation instructions may restrict WHEN a player
             // can activate; "your graveyard" is the ACTIVATING player's (CR 109.5).

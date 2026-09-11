@@ -248,7 +248,7 @@ describe("announceCast — 'discard X cards' is announced, paid and snapshotted 
     });
 });
 
-describe("Sickening Dreams — the announced X is what resolves (CR 119.3 / 608.2)", () => {
+describe("Sickening Dreams — the announced X is what resolves (CR 120.3a / 608.2)", () => {
     it("deals X to each creature and each player alike", async () => {
         const harness = await announce(board(2), 2);
         const state = harness.state();

@@ -15,13 +15,15 @@ import { getDefinition } from "../../../index";
 const circularLogic = getDefinition("cd9198d6-201d-4175-8f70-eef92d7d5bb5");
 const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 
-/** N cards in p1's graveyard — the tally Circular Logic prices its tax off. */
-const graveyardOf = (n: number) =>
+/** N cards in `owner`'s graveyard — the tally Circular Logic prices its tax
+ *  off. Ids and ownership are per-player so the two graveyards can be filled
+ *  in the same fixture without colliding instance ids. */
+const graveyardOf = (n: number, owner = "p1") =>
     Array.from({ length: n }, (_, i) =>
         makeInstance(lightningBolt.id, {
-            id: `gy${i}`,
-            controllerId: "p1",
-            ownerId: "p1",
+            id: `${owner}-gy${i}`,
+            controllerId: owner,
+            ownerId: owner,
             zone: "graveyard",
         })
     );
@@ -45,7 +47,7 @@ describe("Circular Logic (counter unless controller pays {1} per graveyard card,
         const state = makeState({
             players: [
                 makePlayer("p1", { graveyard: graveyardOf(3) }),
-                makePlayer("p2", { graveyard: graveyardOf(7) }),
+                makePlayer("p2", { graveyard: graveyardOf(7, "p2") }),
             ],
         });
         castAtBolt(state);
@@ -95,7 +97,14 @@ describe("Circular Logic (counter unless controller pays {1} per graveyard card,
 
     it("an EMPTY graveyard prices the tax at {0}, which anyone can pay", () => {
         const state = makeState({
-            players: [makePlayer("p1"), makePlayer("p2")],
+            players: [
+                makePlayer("p1"),
+                // A REAL pool, so "nothing was spent" below is an assertion
+                // rather than a tautology over a pool that was never seeded.
+                makePlayer("p2", {
+                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 2 },
+                }),
+            ],
         });
         const bolt = castAtBolt(state);
         resolveTopOfStack(state);
@@ -105,7 +114,7 @@ describe("Circular Logic (counter unless controller pays {1} per graveyard card,
         expect(head.cost).toEqual({ mana: {} });
         applyMayPaySubmit(state, { playerId: "p2", accept: true });
         expect(state.stack.find((s) => s.id === bolt.id)).toBeDefined();
-        expect(state.players[1].manaPool.C).toBe(0); // nothing was spent
+        expect(state.players[1].manaPool.C).toBe(2); // nothing was spent
     });
 
     it("the countered-and-graveyarded outcome survives the wire projection", () => {

@@ -35,7 +35,7 @@ export const cabalRitual: CardDefinition = {
 // Sickening Dreams — {1}{B} Sorcery. "As an additional cost to cast this spell,
 // discard X cards.\nSickening Dreams deals X damage to each creature and each
 // player." (CR 601.2b/118.4 — a variable additional cost; CR 701.9a discard;
-// CR 119.3 damage to players.)
+// CR 120.3a damage dealt to a player.)
 //
 // The FIRST card whose X is announced with no `{X}` pip anywhere in its mana
 // cost (issue #2714): `additionalCosts.discard.count: "X"` is the caster-chosen

@@ -20,8 +20,10 @@ import type { CardDefinition } from "../../types";
 // which is `"controller"` here, NOT the taxed player's.
 //
 // An empty graveyard prices the tax at {0}, which CR 118.3a makes payable by
-// anyone — so the spell resolves, the opponent pays nothing and the counter
-// never happens. That is the printed card, not a degenerate case to guard.
+// anyone. The offer is still an offer (CR 118.12a): the prompt is raised, the
+// opponent MAY pay nothing and keep their spell, and may equally decline and
+// let it be countered for free. That is the printed card, not a degenerate
+// case to guard.
 //
 // compiler-gap: "Counter target spell unless its controller pays {1} for each card in your graveyard." (#2693)
 export const circularLogic: CardDefinition = {
