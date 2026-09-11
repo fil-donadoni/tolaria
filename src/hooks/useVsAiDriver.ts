@@ -92,7 +92,7 @@ import { consultBrain, warmBrain, disposeBrain } from "~/lib/ai/brain-client";
 import {
     recordAiDecision,
     recordAiEscalation,
-    setLatestAiTrace,
+    pushAiTrace,
 } from "~/lib/ai/trace-store";
 import type { AiDecisionOutcome } from "~/lib/ai/trace-store";
 import {
@@ -921,8 +921,12 @@ export function useVsAiDriver(
                 () =>
                     consultBrain(botState, botId, budget, knowledge).then(
                         ({ move, trace, outcome, via, message }) => {
-                            // Surface the reasoning to the Debug panel (client-only).
-                            setLatestAiTrace(trace);
+                            // Surface the reasoning to the Debug panel
+                            // (client-only). `via` travels with it: a trace the
+                            // Worker did not produce came from the degraded
+                            // inline path, and the box says so rather than
+                            // presenting it as an ordinary decision.
+                            pushAiTrace(trace, via);
                             // issue #2470 — the consult's own verdict, recorded
                             // BEFORE the fallbacks below rewrite what happens
                             // next: `no-move` after a healthy search and
