@@ -130,6 +130,22 @@ export const EVAL_TERM_KEYS = Object.keys(
  *     nothing.
  *   - `sourceBreadthWeight`, `sourceDualPurposeWeight` — `evaluateAutoTapPosition`
  *     only; they never reach the bot's own move search (`evaluate.ts`).
+ *   - `blockCautionFraction` — REACHABLE by the 1-ply policy (it is folded in
+ *     by `declaredBlockDelta` on any position with a confirmed block) and
+ *     nonetheless not fittable, which is the distinction worth keeping: it is
+ *     not the price of anything the position shows, it is the probability the
+ *     attacker is holding a trick you cannot see (`evaluate.ts`'s
+ *     `cautiousBlockPenalty` — a fraction of the WORST-CASE swing a held pump
+ *     or removal would cause). ADR 0124's own consequences draw the line
+ *     there: "what the fit cannot do: invent a term, see past one ply, or
+ *     resolve hidden information. Timing and bluff stay where the search and
+ *     the (frozen) root rules are." An Eval Pair is built on a REBUILT,
+ *     fully-known position, so the evidence it carries about a hedge against
+ *     an unseen card is an artefact of the probe's determinization, not
+ *     something the verdict's author judged. Measured, when it was in: the
+ *     registry corpus pulled it down 20.7% and flipped `blockDeltaLens`'
+ *     discriminating pair — the bot stopped declining a block against a deck
+ *     that MUST be holding Giant Growth (issue #3401).
  *   - every search-side constant (`ucbC`, the rollout knobs, the reward
  *     banding, `visitTol`, `outcomeEps`, `extraTurnValue`,
  *     `misdirectionWeight`, `blockWorldSamples`) — out of scope by ADR.
@@ -146,10 +162,6 @@ const FITTABLE_TERM_WEIGHTS = [
     "deckingWeight",
     "graveyardEngineWeight",
     "graveyardReachFraction",
-    // In `declaredBlockDelta`, which `policyValueOfSettled` folds in — an
-    // evaluation term weight, reached by the 1-ply policy on any position
-    // with a confirmed block.
-    "blockCautionFraction",
 ] as const;
 
 export type FittableTermWeight = (typeof FITTABLE_TERM_WEIGHTS)[number];

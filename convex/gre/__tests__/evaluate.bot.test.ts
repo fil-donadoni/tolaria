@@ -1153,9 +1153,11 @@ describe("non-creature beneficial permanents are material (issue #365)", () => {
                 makePlayer("p2"),
             ],
         });
-        // A land's permanents term is the flat W_PERMANENT only (5); its value
-        // lives in the `mana` term, not a duplicated non-creature body.
-        expect(evaluateBreakdown(withLand, "p1").self.permanents).toBe(5);
+        // A land's permanents term is the flat `permanentWeight` only; its
+        // value lives in the `mana` term, not a duplicated non-creature body.
+        expect(evaluateBreakdown(withLand, "p1").self.permanents).toBe(
+            DEFAULT_EVAL_WEIGHTS.permanentWeight
+        );
     });
 });
 
@@ -1276,11 +1278,17 @@ describe("manaDevelopment term (issue #2686)", () => {
             materialMargin(eightLands, "p1") - materialMargin(sevenLands, "p1");
 
         // The term's whole contribution is the on-curve/flooded spread: an
-        // on-curve land carries `manaDevWeight` (12) on top of the flat 17; a
-        // flooded one does not. Zeroing `manaDevWeight` collapses on-curve to
-        // flooded (17 == 17), so this strict inequality is the load-bearing half.
+        // on-curve land carries `manaDevWeight` on top of `permanentWeight +
+        // manaWeight`; a flooded one does not. Zeroing `manaDevWeight`
+        // collapses on-curve to flooded, so this strict inequality is the
+        // load-bearing half. Read off the vector rather than spelled out: the
+        // weights are FITTED now (issue #3401), and a literal would red on
+        // every refit while asserting nothing about the term.
         expect(onCurveLand).toBeGreaterThan(floodedLand);
-        expect(onCurveLand - floodedLand).toBe(12);
+        expect(onCurveLand - floodedLand).toBeCloseTo(
+            DEFAULT_EVAL_WEIGHTS.manaDevWeight,
+            6
+        );
         // Early-game land > 2 life (2 × lifeWeight = 16).
         expect(onCurveLand).toBeGreaterThan(
             2 * DEFAULT_EVAL_WEIGHTS.lifeWeight
@@ -1340,9 +1348,13 @@ describe("manaDevelopment term (issue #2686)", () => {
         // ... and that surplus land is back at the flat 17: a point ABOVE a
         // 2-life gain (16), which is the rollout-noise tie the term's header
         // documents, and well below a card in hand.
-        expect(floodedLand).toBe(
+        // `toBeCloseTo`, not `toBe`: the margin accumulates the same weights
+        // in a different order than this sum, which was exact while they were
+        // integers and is one ulp out now that they are fitted (issue #3401).
+        expect(floodedLand).toBeCloseTo(
             DEFAULT_EVAL_WEIGHTS.permanentWeight +
-                DEFAULT_EVAL_WEIGHTS.manaWeight
+                DEFAULT_EVAL_WEIGHTS.manaWeight,
+            6
         );
         expect(floodedLand).toBeLessThan(cardValue(sevenLands, held("h1")));
     });
@@ -1359,10 +1371,11 @@ describe("manaDevelopment term (issue #2686)", () => {
         expect(onCurveLand).toBeGreaterThan(
             2 * DEFAULT_EVAL_WEIGHTS.lifeWeight
         );
-        expect(onCurveLand).toBe(
+        expect(onCurveLand).toBeCloseTo(
             DEFAULT_EVAL_WEIGHTS.permanentWeight +
                 DEFAULT_EVAL_WEIGHTS.manaWeight +
-                DEFAULT_EVAL_WEIGHTS.manaDevWeight
+                DEFAULT_EVAL_WEIGHTS.manaDevWeight,
+            6
         );
     });
 
@@ -1436,8 +1449,9 @@ describe("manaDevelopment term (issue #2686)", () => {
         expect(onCurveLand).toBeGreaterThan(
             2 * DEFAULT_EVAL_WEIGHTS.lifeWeight
         );
-        expect(onCurveLand - floodedLand).toBe(
-            DEFAULT_EVAL_WEIGHTS.manaDevWeight
+        expect(onCurveLand - floodedLand).toBeCloseTo(
+            DEFAULT_EVAL_WEIGHTS.manaDevWeight,
+            6
         );
     });
 

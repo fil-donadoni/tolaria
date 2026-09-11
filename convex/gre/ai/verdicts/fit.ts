@@ -74,7 +74,7 @@
 // positions that differ only in a life total `ScenarioSpec` cannot yet carry
 // (issue #2147) — a finding about the corpus, not about the weights.
 
-import { DEFAULT_EVAL_WEIGHTS, type EvalWeights } from "../evalWeights";
+import type { EvalWeights } from "../evalWeights";
 import type { Feature } from "../featureBasis";
 import {
     FITTABLE_WEIGHT_KEYS,
@@ -269,6 +269,39 @@ export type WeightFitResult = {
     options: ResolvedOptions;
 };
 
+/** Ceiling on the box↔band alternations one projection runs.
+ *
+ *  Both sets are convex, so alternating projection converges into their
+ *  intersection — but not in one round when a band's correction walks a weight
+ *  through the sign floor: the two then take turns, the residual shrinking
+ *  geometrically (measured ratio 0.36 on the worst hand-built case, so 8
+ *  rounds leave 2.8e-4 and 64 leave float noise). The loop exits as soon as a
+ *  round moves nothing, which is the FIRST round on every ordinary position,
+ *  so the ceiling costs nothing where it is not needed and it is FIXED so the
+ *  fit stays deterministic. */
+const PROJECTION_ROUNDS = 64;
+
+/** Project the coordinates back onto the constraint set: the trust region and
+ *  the sign constraint (a box), and the declared structural bands.
+ *
+ *  Ends on the BOX so the sign constraint holds exactly — a negative price for
+ *  mana is not a near-miss, it is nonsense. The bands are then verified on the
+ *  vector `fitWeights` returns, so a box and a band that genuinely cannot both
+ *  hold throw rather than quietly resolve in the box's favour. */
+function project(
+    u: number[],
+    w0: EvalWeights,
+    scale: number[],
+    frozen: boolean[],
+    trustRegion: number
+): void {
+    for (let round = 0; round < PROJECTION_ROUNDS; round++) {
+        projectBox(u, frozen, trustRegion);
+        if (!projectBands(u, w0, scale, frozen)) break;
+    }
+    projectBox(u, frozen, trustRegion);
+}
+
 /** Clip every free coordinate to the trust region and to `w_k ≥ 0`. */
 function projectBox(u: number[], frozen: boolean[], trustRegion: number): void {
     for (let k = 0; k < u.length; k++) {
@@ -287,13 +320,15 @@ function projectBox(u: number[], frozen: boolean[], trustRegion: number): void {
  *  difference `w_a − w_b` is linear in `u` with gradient `(s_a, −s_b)`, so a
  *  violation is corrected by the shortest step along that gradient. A
  *  coordinate the numeraire has frozen takes no share of the correction, which
- *  the other one then pays alone. */
+ *  the other one then pays alone. Returns whether anything moved, so the
+ *  alternation stops on the first round that finds every band already met. */
 function projectBands(
     u: number[],
     w0: EvalWeights,
     scale: number[],
     frozen: boolean[]
-): void {
+): boolean {
+    let moved = false;
     const index = new Map<FittableWeightKey, number>();
     FITTABLE_WEIGHT_KEYS.forEach((k, i) => index.set(k, i));
     for (const band of FIT_BANDS) {
@@ -315,7 +350,9 @@ function projectBands(
         const t = (d - target) / norm;
         u[ia] -= t * ga;
         u[ib] += t * gb;
+        moved = true;
     }
+    return moved;
 }
 
 /** Every band the returned vector violates, as prose. Empty is the contract. */
@@ -372,7 +409,14 @@ export function weightsFromCoordinates(
  */
 export function fitWeights(
     pairs: readonly EvalPair[],
-    w0: EvalWeights = DEFAULT_EVAL_WEIGHTS,
+    // REQUIRED, and deliberately not defaulted to `DEFAULT_EVAL_WEIGHTS`. The
+    // penalty pulls toward `w0` and the basis is a derivative read at `w0`, so
+    // a fit seeded with the last fitted vector regularises toward its own
+    // previous answer: repeat it and the weights ratchet one trust region
+    // further from anything a human picked, every time, with the
+    // reproducibility guard unable to notice. The prior is
+    // `FIT_BASE_EVAL_WEIGHTS` and naming it is the caller's job.
+    w0: EvalWeights,
     options: WeightFitOptions = {}
 ): WeightFitResult {
     const opts: ResolvedOptions = {
@@ -429,15 +473,7 @@ export function fitWeights(
             if (frozen[k]) continue;
             u[k] -= step * gradient[k];
         }
-        projectBox(u, frozen, trustRegion);
-        // Then the bands, then the box again: alternating projection onto two
-        // convex sets. Exact whenever only one of them is active, which is the
-        // ordinary case (the box is slack wherever a band bites), and bounded
-        // otherwise — and never trusted, since `fitWeights` VERIFIES the bands
-        // on the rounded vector it returns and throws rather than hand back a
-        // structurally wrong one.
-        projectBands(u, w0, scale, frozen);
-        projectBox(u, frozen, trustRegion);
+        project(u, w0, scale, frozen, trustRegion);
     }
 
     const coordinates = {} as Record<FittableWeightKey, number>;

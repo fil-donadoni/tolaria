@@ -23,7 +23,7 @@
 // `lib.dom`, which reds an unrelated script in the `scripts` project.
 import { describe, expect, it } from "vitest";
 import { BLADE_SCENARIOS } from "../registry";
-import { DEFAULT_EVAL_WEIGHTS } from "../../evalWeights";
+import { DEFAULT_EVAL_WEIGHTS, FIT_BASE_EVAL_WEIGHTS } from "../../evalWeights";
 import {
     FITTABLE_WEIGHT_KEYS,
     collectVerdictReport,
@@ -83,7 +83,7 @@ describe("weight fit report formatting (issue #3401)", () => {
             fittableDelta: 13,
             delta: 13,
         };
-        const result = fitWeights([pair]);
+        const result = fitWeights([pair], FIT_BASE_EVAL_WEIGHTS);
         const text = formatWeightFitReport(result, 1);
         expect(text).toContain("1 pairs");
         expect(text).toContain("permanentWeight");
@@ -105,9 +105,17 @@ describe.runIf(RUN)("weight fit (runner)", () => {
         );
         const t0 = performance.now();
         const { verdicts, gaps } = verdictsFromRegistry(scenarios);
-        const before = collectVerdictReport(verdicts, { gaps });
+        // BOTH the pairs and the fit start from the hand-picked prior, never
+        // from the committed vector: the basis is a derivative read at the
+        // linearisation point, and `λ‖w − w0‖²` regularises toward `w0`. Refit
+        // from the last answer and the weights ratchet away from anything a
+        // human chose, one trust region per run (`evalWeights.ts`).
+        const before = collectVerdictReport(verdicts, {
+            gaps,
+            weights: FIT_BASE_EVAL_WEIGHTS,
+        });
 
-        const result = fitWeights(before.pairs, DEFAULT_EVAL_WEIGHTS, {
+        const result = fitWeights(before.pairs, FIT_BASE_EVAL_WEIGHTS, {
             margin: num("BLADE_FIT_MARGIN"),
             lambda: num("BLADE_FIT_LAMBDA"),
             steps: num("BLADE_FIT_STEPS"),
@@ -134,6 +142,11 @@ describe.runIf(RUN)("weight fit (runner)", () => {
             "",
             "== the fitted vector, as the DEFAULT_EVAL_WEIGHTS literal",
             formatFittedWeights(result),
+            "",
+            JSON.stringify(result.weights) ===
+            JSON.stringify(DEFAULT_EVAL_WEIGHTS)
+                ? "== the committed DEFAULT_EVAL_WEIGHTS is up to date"
+                : "== the committed DEFAULT_EVAL_WEIGHTS is STALE — paste the block above",
         ].join("\n");
         console.log(`\n${text}`);
 

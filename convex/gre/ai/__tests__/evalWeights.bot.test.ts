@@ -12,7 +12,11 @@
 //      ticket exists to add, not just the type.
 
 import { describe, expect, it } from "vitest";
-import { DEFAULT_EVAL_WEIGHTS, rewardPerMarginPoint } from "../evalWeights";
+import {
+    DEFAULT_EVAL_WEIGHTS,
+    FIT_BASE_EVAL_WEIGHTS,
+    rewardPerMarginPoint,
+} from "../evalWeights";
 import { FEATURE_BASIS } from "../featureBasis";
 import { resolveEvalWeights } from "../searchVariant";
 import { evaluate, materialMargin } from "../../evaluate";
@@ -36,11 +40,19 @@ describe("DEFAULT_EVAL_WEIGHTS (issue #2683)", () => {
         expect(DEFAULT_EVAL_WEIGHTS.tappedManaWeight).toBeGreaterThan(0);
     });
 
-    it("is byte-for-byte the production values this refactor extracted", () => {
+    it("FIT_BASE_EVAL_WEIGHTS is byte-for-byte the production values this refactor extracted", () => {
         // One literal per field, deliberately spelled out rather than
         // constructed — a copy-paste from this object back into itself would
         // pass vacuously; this is typed by hand against the PR's own map.
-        expect(DEFAULT_EVAL_WEIGHTS).toEqual({
+        //
+        // It pins the HAND-PICKED prior, not the vector the engine runs
+        // (issue #3401): `DEFAULT_EVAL_WEIGHTS` is now GENERATED from this one
+        // plus the verdict corpus, and what pins IT is the reproducibility
+        // guard in `weightFit.bot.test.ts`, which re-runs the fit. Pinning a
+        // generated literal here as well would only restate it; pinning its
+        // INPUT is what still catches a silent strength edit — and obliges the
+        // refit that must accompany one.
+        expect(FIT_BASE_EVAL_WEIGHTS).toEqual({
             winScore: 1_000_000,
             lifeWeight: 8,
             // CR 104.3c / 704.5b — the decking pair, added with the `library`
@@ -108,6 +120,8 @@ describe("DEFAULT_EVAL_WEIGHTS (issue #2683)", () => {
 
     it("is frozen — a mutation attempt is a no-op / throws in strict mode", () => {
         expect(Object.isFrozen(DEFAULT_EVAL_WEIGHTS)).toBe(true);
+        expect(Object.isFrozen(FIT_BASE_EVAL_WEIGHTS)).toBe(true);
+        expect(Object.isFrozen(FIT_BASE_EVAL_WEIGHTS.latent)).toBe(true);
         // The nested latent block is frozen too (issue #3398) — a vector
         // handed to a ladder variant must not be able to reach in and mutate
         // the production unit prices for every other run in the process.
@@ -159,8 +173,10 @@ describe("resolveEvalWeights (issue #2683)", () => {
         });
         expect(resolved.manaWeight).toBe(16);
         expect(resolved.lifeWeight).toBe(DEFAULT_EVAL_WEIGHTS.lifeWeight);
-        // The default vector itself must never be mutated by the merge.
-        expect(DEFAULT_EVAL_WEIGHTS.manaWeight).toBe(12);
+        // The default vector itself must never be mutated by the merge. Stated
+        // as "not the override", not as a literal: the weights are FITTED now
+        // (issue #3401) and a literal reds on every refit.
+        expect(DEFAULT_EVAL_WEIGHTS.manaWeight).not.toBe(16);
     });
 });
 
@@ -189,7 +205,10 @@ describe("evaluate() reads an explicit weights vector (issue #2683)", () => {
         // `manaWeight` point (the term goes from `1 * manaWeight` to
         // `1 * 2*manaWeight`). Proves the vector reaches `evaluate()` and
         // actually changes its output, not merely compiles.
-        expect(atDouble - atDefault).toBe(DEFAULT_EVAL_WEIGHTS.manaWeight);
+        expect(atDouble - atDefault).toBeCloseTo(
+            DEFAULT_EVAL_WEIGHTS.manaWeight,
+            6
+        );
     });
 
     it("a non-default winScore changes the terminal magnitude a win reports", () => {

@@ -18,8 +18,20 @@ import {
     contextFreeGrounding,
     contextAwareGrounding,
 } from "../index";
+import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
 
 const cf = contextFreeGrounding();
+
+// The fitted per-dimension unit prices, read off the committed vector rather
+// than copied as literals (issue #3401): they are FITTED data now, so a test
+// that spells `22` out reds on every refit while asserting nothing the valuer
+// does. What is still asserted — and what actually matters here — is the
+// arithmetic: which dimension the valuer loads, and by how many units.
+const LATENT = DEFAULT_EVAL_WEIGHTS.latent;
+// An edict takes 3/4 of a victim (`REMOVAL_COMPLETENESS`), written the same
+// way the valuer writes it — multiply before dividing — so the product is
+// exact in binary on both sides.
+const EDICT = (LATENT.boardRemoval * 3) / 4;
 
 describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
     describe("dealDamage (CR 120)", () => {
@@ -30,7 +42,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
                 to: { player: "opponent" },
             };
             const v = valueOp(op, cf);
-            expect(v.points).toBe(66); // 3 × 22
+            expect(v.points).toBe(3 * LATENT.damage);
             expect(v.tags).toContain("damage");
             expect(v.tags).not.toContain("targeted");
         });
@@ -42,7 +54,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
                 to: { target: 0 },
             };
             const v = valueOp(op, cf);
-            expect(v.points).toBe(44);
+            expect(v.points).toBe(2 * LATENT.damage);
             expect(v.tags).toEqual(
                 expect.arrayContaining(["damage", "targeted"])
             );
@@ -71,7 +83,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
                 resolveForEachCount: () => 1,
             });
             const v = valueOp(op, ctx);
-            expect(v.points).toBe(154); // 7 × 22
+            expect(v.points).toBe(7 * LATENT.damage);
             expect(v.tags).not.toContain("board-scaling");
         });
 
@@ -84,7 +96,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
                 to: { player: "controller" },
             };
             const v = valueOp(op, cf);
-            expect(v.points).toBe(-88); // -(4 × 22)
+            expect(v.points).toBe(-4 * LATENT.damage);
             expect(v.tags).toContain("self-cost");
         });
 
@@ -95,7 +107,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
                 to: { player: "opponent" },
             };
             const v = valueOp(op, cf);
-            expect(v.points).toBe(88);
+            expect(v.points).toBe(4 * LATENT.damage);
             expect(v.tags).not.toContain("self-cost");
         });
 
@@ -180,13 +192,13 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
         it("scores a self-draw as card advantage (positive)", () => {
             const op: EffectOp = { op: "draw", player: "controller", count: 2 };
             const v = valueOp(op, cf);
-            expect(v.points).toBe(90); // 2 × 45
+            expect(v.points).toBe(2 * LATENT.cardAdvantage);
             expect(v.tags).toContain("cardAdvantage");
         });
 
         it("scores an opponent-draw (a downside) negatively", () => {
             const op: EffectOp = { op: "draw", player: "opponent", count: 1 };
-            expect(valueOp(op, cf).points).toBe(-45);
+            expect(valueOp(op, cf).points).toBe(-LATENT.cardAdvantage);
         });
     });
 
@@ -227,7 +239,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
         it("destroy scores board removal, targeted", () => {
             const op: EffectOp = { op: "destroy", target: { target: 0 } };
             const v = valueOp(op, cf);
-            expect(v.points).toBe(160);
+            expect(v.points).toBe(LATENT.boardRemoval);
             expect(v.tags).toEqual(
                 expect.arrayContaining(["boardRemoval", "targeted"])
             );
@@ -249,7 +261,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
     describe("counter (CR 701.6a)", () => {
         it("scores disruption, targeted", () => {
             const v = valueOp({ op: "counter", target: { target: 0 } }, cf);
-            expect(v.points).toBe(130);
+            expect(v.points).toBe(LATENT.disruption);
             expect(v.tags).toEqual(
                 expect.arrayContaining(["disruption", "targeted"])
             );
@@ -308,7 +320,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
                 [choose("opponent", "$sac"), sacPicks("$sac")],
                 cf
             );
-            expect(v.points).toBe(120);
+            expect(v.points).toBe(EDICT);
             expect(v.tags).toContain("boardRemoval");
             expect(v.tags).not.toContain("self-cost");
         });
@@ -331,7 +343,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
                     [choose(player, "$sac"), sacPicks("$sac")],
                     cf
                 );
-                expect(v.points).toBe(120);
+                expect(v.points).toBe(EDICT);
                 expect(v.tags).not.toContain("self-cost");
             }
         );
@@ -341,7 +353,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
             // that made this negative would price every un-walked edict as the
             // caster's own cost.
             const v = valueOp(sacPicks("$picked"), cf);
-            expect(v.points).toBe(120);
+            expect(v.points).toBe(EDICT);
             expect(v.tags).toContain("boardRemoval");
             expect(v.tags).not.toContain("self-cost");
         });
@@ -439,7 +451,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
                 ],
                 cf
             );
-            expect(v.points).toBe(120);
+            expect(v.points).toBe(EDICT);
             expect(v.tags).not.toContain("self-cost");
         });
 
@@ -456,7 +468,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
                 [{ ...pick, zoneOwnerId: "opponent" }, sacPicks("$sac")],
                 cf
             );
-            expect(v.points).toBe(120);
+            expect(v.points).toBe(EDICT);
             expect(v.tags).not.toContain("self-cost");
         });
 
@@ -469,7 +481,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
                 [{ ...pick, candidates: [{ target: 0 }] }, sacPicks("$sac")],
                 cf
             );
-            expect(v.points).toBe(120);
+            expect(v.points).toBe(EDICT);
             expect(v.tags).not.toContain("self-cost");
         });
 
@@ -490,7 +502,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
                 ],
                 cf
             );
-            expect(v.points).toBe(120);
+            expect(v.points).toBe(EDICT);
             expect(v.tags).not.toContain("self-cost");
         });
 
@@ -514,7 +526,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
                 target: { target: 0 },
             };
             const v = valueOp(op, cf);
-            expect(v.points).toBe(120);
+            expect(v.points).toBe(EDICT);
             expect(v.tags).toEqual(
                 expect.arrayContaining(["boardRemoval", "targeted"])
             );
@@ -1191,7 +1203,9 @@ describe("walker — structural constructs (PRD #1423)", () => {
             { op: "dealDamage", amount: 2, to: { player: "opponent" } },
             { op: "draw", player: "controller", count: 1 },
         ];
-        expect(valueEffectScript(script, cf).points).toBe(44 + 45);
+        expect(valueEffectScript(script, cf).points).toBe(
+            2 * LATENT.damage + LATENT.cardAdvantage
+        );
     });
 
     it("`if` takes the effect-happens (`then`) branch", () => {
@@ -1200,7 +1214,7 @@ describe("walker — structural constructs (PRD #1423)", () => {
             predicate: { left: { X: true }, op: "ge", right: 1 },
             then: [{ op: "destroy", target: { target: 0 } }],
         };
-        expect(valueOp(op, cf).points).toBe(160);
+        expect(valueOp(op, cf).points).toBe(LATENT.boardRemoval);
     });
 
     it("`forEach` values the body once and flags board-scaling (context-free)", () => {
@@ -1210,7 +1224,7 @@ describe("walker — structural constructs (PRD #1423)", () => {
             effects: [{ op: "dealDamage", amount: 1, to: { ref: "$each" } }],
         };
         const v = valueOp(op, cf);
-        expect(v.points).toBe(22); // 1 member × (1 × 22)
+        expect(v.points).toBe(LATENT.damage); // 1 member × 1 damage
         expect(v.tags).toContain("board-scaling");
     });
 
@@ -1225,7 +1239,7 @@ describe("walker — structural constructs (PRD #1423)", () => {
             resolveIsSelf: () => false,
             resolveForEachCount: () => 4,
         });
-        expect(valueOp(op, ctx).points).toBe(88); // 4 × 22
+        expect(valueOp(op, ctx).points).toBe(4 * LATENT.damage);
     });
 
     it("`optionChoice` is worth its best mode", () => {
@@ -1245,7 +1259,7 @@ describe("walker — structural constructs (PRD #1423)", () => {
                 },
             ],
         };
-        expect(valueOp(op, cf).points).toBe(160);
+        expect(valueOp(op, cf).points).toBe(LATENT.boardRemoval);
     });
 
     it("`coinFlip` is the expected value of its branches", () => {
@@ -1260,7 +1274,7 @@ describe("walker — structural constructs (PRD #1423)", () => {
             },
             loss: { consequence: "nothing", effects: [] },
         };
-        expect(valueOp(op, cf).points).toBe((88 + 0) / 2);
+        expect(valueOp(op, cf).points).toBe((4 * LATENT.damage + 0) / 2);
     });
 
     it("an Op with no valuer contributes nothing (defensive default)", () => {
