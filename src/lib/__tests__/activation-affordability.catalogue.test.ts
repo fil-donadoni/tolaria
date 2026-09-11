@@ -385,7 +385,17 @@ function shapesOf(a: ActivatedAbility): Shape[] {
  *  reached by a plain left-click `tapUntap` instead and has no menu gate to
  *  sweep. */
 function isManaMenuGated(a: ActivatedAbility): boolean {
-    if (!a.cost.tapOtherFilter) return false;
+    if (
+        !a.cost.tapOtherFilter &&
+        // CR 118.3 / 118.5 (issue #3455) — the FILTERED give-up legs joined the
+        // gate when the engine learned to pay them on the non-stack path
+        // (`canPayFilteredGiveUpCost`): before that they were unpayable, so
+        // withholding the entry would have hidden the only way to find out.
+        !a.cost.sacrificeFilter &&
+        !a.cost.discardFilter
+    ) {
+        return false;
+    }
     return !!a.cost.mana || (!a.cost.tap && !a.cost.sacrifice);
 }
 
@@ -489,8 +499,9 @@ for (const def of getAllCards()) {
     for (const a of def.activatedAbilities ?? []) {
         // A `useStack: false` MANA ability is not offered by
         // `getStackAbilities` at all — its menu entry comes from
-        // `getManaCostMenuAbility`, which carries exactly ONE affordability
-        // gate: `tapOtherFilter` (CR 602.1 / 118.8, issue #2371). Sweeping it
+        // `getManaCostMenuAbility`, which carries exactly THREE affordability
+        // gates: `tapOtherFilter` (CR 602.1 / 118.8, issue #2371) and the two
+        // FILTERED give-up legs (CR 118.3 / 118.5, issue #3455). Sweeping it
         // for any other shape would assert a gate that surface does not have
         // and cannot have (a mana ability's mana leg is auto-tapped, not
         // hidden). Blanket-skipping every `!useStack` ability — which is what
@@ -500,7 +511,12 @@ for (const def of getAllCards()) {
         const manaMenuOffered = !a.useStack;
         if (manaMenuOffered && !isManaMenuGated(a)) continue;
         const shapes = manaMenuOffered
-            ? shapesOf(a).filter((s) => s === "tapOtherFilter")
+            ? shapesOf(a).filter(
+                  (s) =>
+                      s === "tapOtherFilter" ||
+                      s === "sacrificeFilter" ||
+                      s === "discardFilter"
+              )
             : shapesOf(a);
         if (shapes.length === 0) continue;
         const reason = skipReason(a, def);
