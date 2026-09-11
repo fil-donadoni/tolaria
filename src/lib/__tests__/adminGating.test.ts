@@ -5,6 +5,7 @@ import { describe, it, expect } from "vitest";
 import {
     canEditPresets,
     canSubmitVerdicts,
+    canUseDebugSheet,
     canViewLimitedReviewDetail,
     canViewAdminSection,
 } from "../adminGating";
@@ -90,5 +91,31 @@ describe("canSubmitVerdicts (issue #3402)", () => {
     it("fails closed while the user query is in flight, and when signed out", () => {
         expect(canSubmitVerdicts(undefined)).toBe(false);
         expect(canSubmitVerdicts(null)).toBe(false);
+    });
+});
+
+// The debug sheet ships to PRODUCTION for testers (issue #3403, PRD #3397) —
+// the old rail was `import.meta.env.DEV`-only, i.e. absent from every build a
+// tester plays. The predicate must track `canSubmitVerdicts`'s population: the
+// sheet is where a tester watches the decision they are about to judge.
+describe("canUseDebugSheet (issue #3403)", () => {
+    it("lets a tester open the debug sheet", () => {
+        expect(canUseDebugSheet({ isTester: true })).toBe(true);
+    });
+
+    it("lets an admin open it — every admin reads as a tester", () => {
+        expect(canUseDebugSheet({ isAdmin: true })).toBe(true);
+    });
+
+    it("keeps a regular player's board free of it", () => {
+        expect(canUseDebugSheet({})).toBe(false);
+        expect(canUseDebugSheet({ isTester: false, isAdmin: false })).toBe(
+            false
+        );
+    });
+
+    it("fails closed while the current-user query is in flight, and when signed out", () => {
+        expect(canUseDebugSheet(undefined)).toBe(false);
+        expect(canUseDebugSheet(null)).toBe(false);
     });
 });
