@@ -981,13 +981,14 @@ describe("specFromState (issue #2148)", () => {
         );
         // CR 305.2 (issue #3446) — the land drop survives the round trip on
         // BOTH seats, and `dropped` above is empty, so it is no longer the
-        // live-only player state that refused a post-drop capture.
-        expect(rebuilt.players[0].landsPlayedThisTurn).toBe(
-            state.players[0].landsPlayedThisTurn
-        );
-        expect(rebuilt.players[1].landsPlayedThisTurn).toBe(
-            state.players[1].landsPlayedThisTurn
-        );
+        // live-only player state that refused a post-drop capture. Asserted
+        // against the fixture's own numbers, not against `state`: a comparison
+        // of the two builds stays green when NEITHER carries the tally, which
+        // is exactly the regression this guards.
+        expect(state.players[0].landsPlayedThisTurn).toBe(1);
+        expect(state.players[1].landsPlayedThisTurn).toBe(2);
+        expect(rebuilt.players[0].landsPlayedThisTurn).toBe(1);
+        expect(rebuilt.players[1].landsPlayedThisTurn).toBe(2);
         expect(
             (rebuilt.players[0].companion?.instance.card as { id?: string }).id
         ).toBe(
