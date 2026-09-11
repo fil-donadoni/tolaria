@@ -284,8 +284,12 @@ describe("evaluate values a graveyard a play-from-graveyard engine can cast", ()
         const at = (gy: number) => evaluate(withGraveyard(gy, true), me);
         const zero = at(0);
         expect(at(3)).toBe(zero);
-        expect(at(4)).toBe(zero + w.graveyardEngineWeight);
-        expect(at(8)).toBe(zero + 2 * w.graveyardEngineWeight);
+        // `toBeCloseTo` past the step count: the margin accumulates the fitted
+        // weights in a different order than these sums, one ulp apart (issue
+        // #3401). The steps themselves are `graveyardEngineWeight` apart, so
+        // the tolerance is orders of magnitude below what is asserted.
+        expect(at(4)).toBeCloseTo(zero + w.graveyardEngineWeight, 6);
+        expect(at(8)).toBeCloseTo(zero + 2 * w.graveyardEngineWeight, 6);
     });
 
     // THE COUNTERWEIGHT to "spending my own library is worth less". Self-milling
