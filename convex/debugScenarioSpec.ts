@@ -257,8 +257,9 @@ export type ScenarioSpec = {
     landsPlayed?: { me?: number; opp?: number };
     /** CR 601.2i (issue #3449) — spells THIS SEAT has cast during the current
      *  turn (`PlayerState.spellsCastThisTurn`, the per-player counterpart of
-     *  the storm tally): what "a player's second spell each turn" (connive,
-     *  CR 701.50) reads. */
+     *  the storm tally): what a "whenever you cast your second spell each
+     *  turn" trigger reads — Ledger Shredder, whose effect is the
+     *  CR 701.50 connive keyword. */
     spellsCastThisTurn?: { me?: number; opp?: number };
     /** CR 118.9 (issue #3449) — spells THIS SEAT has cast during the whole
      *  game (`PlayerState.spellsCastThisGame`, never reset). Gates a COST and

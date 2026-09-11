@@ -1320,7 +1320,7 @@ describe("specFromState (issue #2148)", () => {
         // …and `spellsCastThisTurn` is no longer among them: issue #3449 gave
         // the spec a field for it, so it is carried rather than reported.
         expect(playerResidue).not.toContain("spellsCastThisTurn");
-        expect(spec.spellsCastThisTurn).toEqual({ me: 3 });
+        expect(spec.spellsCastThisTurn).toEqual({ me: 3, opp: 0 });
     });
 
     it("reports a Continuous Effects Registry entry as unrepresentable (PRD #2064 S3)", () => {
@@ -1925,7 +1925,7 @@ describe("buildStateFromScenario — what has already been cast (issue #3449)", 
             cards: [],
             spellsCastThisTurn: { me: 2, opp: 1 },
             spellsCastThisGame: { me: 6, opp: 4 },
-            stormCount: 3,
+            stormCount: 5,
         });
 
         expect(state.players[0].spellsCastThisTurn).toBe(2);
@@ -1933,9 +1933,9 @@ describe("buildStateFromScenario — what has already been cast (issue #3449)", 
         expect(state.players[0].spellsCastThisGame).toBe(6);
         expect(state.players[1].spellsCastThisGame).toBe(4);
         // The game-level Storm tally is its OWN number, never the sum of the
-        // two seats (which would be 3 here by coincidence — so the assertion
-        // below pins a value the sum cannot produce).
-        expect(state.spellsCastThisTurn).toBe(3);
+        // two seats — 5 is a value that sum (3) cannot produce, so a
+        // sum-derived implementation reds here.
+        expect(state.spellsCastThisTurn).toBe(5);
     });
 
     it("keeps the storm count independent of the per-seat tallies", () => {
@@ -2045,16 +2045,27 @@ describe("buildStateFromScenario — what has already been cast (issue #3449)", 
         expect(rebuilt.spellsCastThisTurn).toBe(3);
     });
 
-    it("omits all three from a quiescent capture", () => {
-        const { spec } = specFromState(
-            buildStateFromScenario(makeState(), { cards: [] }),
-            { mySeatId: makeState().players[0].id }
-        );
-        // Zero is the start-of-game value every rebuild base already carries —
-        // writing it would add noise to every captured spec without changing a
-        // single rebuilt position (unlike `life`, whose 20 is a coincidence).
-        expect(spec.spellsCastThisTurn).toBeUndefined();
-        expect(spec.spellsCastThisGame).toBeUndefined();
-        expect(spec.stormCount).toBeUndefined();
+    it("lowers the quiet case explicitly rather than as an absence", () => {
+        const quiet = buildStateFromScenario(makeState(), { cards: [] });
+        const { spec } = specFromState(quiet, {
+            mySeatId: quiet.players[0].id,
+        });
+        // Mirrors `life` / `activePlayer`: an omitted field leaves the REBUILD
+        // BASE untouched, and `debugSetupScenario` rebuilds onto the live game.
+        // So a genuine "nothing has been cast" capture written as an absence
+        // and loaded mid-turn would inherit that game's storm count and make
+        // every storm spell in the scenario copy itself (CR 702.40a).
+        expect(spec.spellsCastThisTurn).toEqual({ me: 0, opp: 0 });
+        expect(spec.spellsCastThisGame).toEqual({ me: 0, opp: 0 });
+        expect(spec.stormCount).toBe(0);
+
+        // And the rebuild CLEARS a dirty base rather than inheriting it —
+        // the whole point of writing the zero.
+        const dirty = makeState();
+        dirty.players[0].spellsCastThisGame = 4;
+        dirty.spellsCastThisTurn = 2;
+        const rebuilt = buildStateFromScenario(dirty, spec);
+        expect(rebuilt.players[0].spellsCastThisGame).toBe(0);
+        expect(rebuilt.spellsCastThisTurn).toBe(0);
     });
 });

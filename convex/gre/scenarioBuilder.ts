@@ -755,8 +755,9 @@ export function buildStateFromScenario(
     // Seed what has already been CAST (issue #3449, PRD #3397). Three tallies
     // a rebuilt position otherwise opens at zero:
     //
-    //  - the per-seat per-turn count (CR 601.2i), what "a player's SECOND
-    //    spell each turn" reads (connive, Ledger Shredder);
+    //  - the per-seat per-turn count (CR 601.2i), what a "whenever you cast
+    //    your second spell each turn" trigger reads — Ledger Shredder, whose
+    //    effect is the CR 701.50 connive keyword;
     //  - the per-seat LIFETIME count, never reset, which gates a COST and
     //    therefore legality (CR 118.9): Once Upon a Time is free only while
     //    the caster's tally is 0, so a position captured after the seat's
@@ -1584,6 +1585,27 @@ export function specFromState(
         activePlayer: state.activePlayerId === opts.mySeatId ? "me" : "opp",
         priority: state.priorityPlayerId === opts.mySeatId ? "me" : "opp",
         passCount: state.passCount,
+        // Issue #3449 — what has already been cast, always explicit, for the
+        // same reason as `life` and the three above and NOT the truthy-guarded
+        // convention poison/experience follow. The builder leaves an omitted
+        // field UNCHANGED, and `debugSetupScenario` rebuilds onto the LIVE
+        // game rather than a fresh base: a position genuinely captured at
+        // storm count 0, lowered as an absence and loaded mid-turn, would
+        // inherit that game's count and make every storm spell in it copy
+        // itself (CR 702.40a). Zero is a claim here, so it is written.
+        spellsCastThisTurn: {
+            me: me.spellsCastThisTurn ?? 0,
+            opp: opp.spellsCastThisTurn ?? 0,
+        },
+        spellsCastThisGame: {
+            me: me.spellsCastThisGame ?? 0,
+            opp: opp.spellsCastThisGame ?? 0,
+        },
+        // CR 702.40a — the game-level Storm tally, NOT the sum of the two
+        // seats above: `emitSpellCastEvent` increments it for every cast,
+        // including one whose caster matches no seated player, so it is
+        // captured as itself.
+        stormCount: state.spellsCastThisTurn ?? 0,
     };
     if (markLastDrawn) spec.markLastDrawn = true;
 
@@ -1612,33 +1634,6 @@ export function specFromState(
             spec.landsPlayed.opp = opp.landsPlayedThisTurn;
         }
     }
-
-    // Issue #3449 — what has already been cast. Lowered only when non-zero,
-    // the convention poison/experience above already follow: zero is the
-    // start-of-game value every rebuild base carries, so writing it would add
-    // noise to every captured spec without changing any rebuilt position.
-    if (me.spellsCastThisTurn || opp.spellsCastThisTurn) {
-        spec.spellsCastThisTurn = {};
-        if (me.spellsCastThisTurn) {
-            spec.spellsCastThisTurn.me = me.spellsCastThisTurn;
-        }
-        if (opp.spellsCastThisTurn) {
-            spec.spellsCastThisTurn.opp = opp.spellsCastThisTurn;
-        }
-    }
-    if (me.spellsCastThisGame || opp.spellsCastThisGame) {
-        spec.spellsCastThisGame = {};
-        if (me.spellsCastThisGame) {
-            spec.spellsCastThisGame.me = me.spellsCastThisGame;
-        }
-        if (opp.spellsCastThisGame) {
-            spec.spellsCastThisGame.opp = opp.spellsCastThisGame;
-        }
-    }
-    // CR 702.40a — the game-level Storm tally, which is NOT the sum of the two
-    // seats above: `emitSpellCastEvent` increments it for every cast, including
-    // one whose caster matches no seated player, so it is captured as itself.
-    if (state.spellsCastThisTurn) spec.stormCount = state.spellsCastThisTurn;
 
     // CR 702.139c / ADR 0064 — the spec has exactly ONE companion slot; a
     // live game can have one PER SEAT.
