@@ -10466,6 +10466,14 @@
         "source": "compiled"
     },
     {
+        "name": "Engineered Plague",
+        "scryfallId": "27e158d5-efb2-4f90-8898-60ede98f7d29",
+        "oracleId": "dc8210b4-8e17-4156-994b-e95e215e3e34",
+        "firstSet": "ulg",
+        "firstPrintId": "27e158d5-efb2-4f90-8898-60ede98f7d29",
+        "firstPrintSet": "ulg"
+    },
+    {
         "name": "Engulfing Eruption",
         "scryfallId": "f198c7e3-8a85-48f3-a7c2-93320fd4fb81",
         "oracleId": "27b4fee0-ae46-4d15-96cd-aff8f3009de8",
