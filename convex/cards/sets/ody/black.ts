@@ -2,6 +2,7 @@
 // authoritative (ADR 0004).
 
 import type { CardDefinition } from "../../types";
+import { ZOMBIE_TOKEN } from "../../sharedTokens";
 
 // Innocent Blood — "Each player sacrifices a creature of their choice."
 // (CR 701.21 sacrifice.) The first DSL card composing a `choice` Op INSIDE a
@@ -192,5 +193,40 @@ export const hauntingEchoes: CardDefinition = {
         // not one per member (CR 701.23h — repeated searches before a single
         // shuffle instruction are one search).
         { op: "libraryLook", action: "shuffle", player: { target: 0 } },
+    ],
+};
+
+// Zombie Infestation — {1}{B} Enchantment. "Discard two cards: Create a 2/2
+// black Zombie creature token." (CR 701.9a discard as a cost, CR 111.1
+// token creation.) An ordinary stack-using activated ability on an
+// enchantment: it adds no mana, so CR 605.1a's mana-ability exemption does
+// not apply and it waits for priority. The empty filter constrains nothing
+// ("two cards"), and the pair is paid at activation, never at resolution —
+// so a responding removal spell does not refund the cards (CR 602.2b).
+//
+// compiler-gap: "Discard two cards: Create a 2/2 black Zombie creature token." (#2693)
+export const zombieInfestation: CardDefinition = {
+    id: "ccd5f98a-7ab5-44b3-850c-b50963dace66",
+    rarity: "uncommon",
+    name: "Zombie Infestation",
+    oracleText: "Discard two cards: Create a 2/2 black Zombie creature token.",
+    manaCost: { X: 1, B: 1 },
+    types: ["Enchantment"],
+    activatedAbilities: [
+        {
+            id: "zombie-infestation-tokens",
+            oracleText:
+                "Discard two cards: Create a 2/2 black Zombie creature token.",
+            cost: { discardFilter: { filter: {}, count: 2 } },
+            useStack: true,
+            effects: [
+                {
+                    op: "createToken",
+                    controller: "controller",
+                    count: 1,
+                    token: ZOMBIE_TOKEN,
+                },
+            ],
+        },
     ],
 };
