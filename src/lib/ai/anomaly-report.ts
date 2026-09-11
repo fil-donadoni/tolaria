@@ -13,9 +13,13 @@
 //  - the REQUEST (a report is open on a decision), which the dialog's owner
 //    watches for the moment it turns on, and which lasts until the dialog
 //    closes;
-//  - the DECISION ITSELF, which the diagnostics collector reads at SUBMIT time
-//    (`collectAiDiagnostics`), because that is when the payload is assembled
-//    and consented to.
+//  - the DECISION ITSELF, which the diagnostics collector reads when the
+//    payload is ASSEMBLED — at dialog OPEN, because `BugReportDialog`
+//    memoises `collectDiagnosticPayload` on its `open` flag so the reporter
+//    consents to exactly what the gate previewed (issue #3255). The request is
+//    written before the dialog opens, which is what puts the decision in that
+//    payload; a decision reported while the dialog is ALREADY open replaces
+//    what a later open would collect, not what the open dialog holds.
 //
 // What travels is a PROJECTION, never the trace record: an allowlist, the same
 // rule `client-diagnostics.ts` states for everything else that leaves a
@@ -114,5 +118,13 @@ export function getReportedDecision(): ReportedDecision | undefined {
 
 export function subscribeAnomalyReport(listener: () => void): () => void {
     listeners.add(listener);
-    return () => listeners.delete(listener);
+    return () => {
+        listeners.delete(listener);
+        // Nobody left who could open a dialog for it, so the request is void —
+        // and a decision left standing here would ride the NEXT bug report,
+        // filed from somewhere else entirely. The observed way to get here is
+        // the dialog's owner unmounting between the ask and the open (a route
+        // or auth gate re-rendering).
+        if (listeners.size === 0) clearAnomalyReport();
+    };
 }

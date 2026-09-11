@@ -30,6 +30,7 @@
 import { specFromState } from "@convex/gre/scenarioBuilder";
 import { describeMove } from "@convex/gre/describeMove";
 import { moveKey, decidingPlayer } from "@convex/gre/search";
+import { PLACEHOLDER_CARD_ID } from "@convex/gre/constants";
 import { seatPlayerId } from "@convex/gre/ai/blade/matcher";
 import {
     buildSetupFreeVerdictState,
@@ -87,12 +88,51 @@ export function buildVerdictQuiz(
         source.botId
     );
 
+    if (position.activePlayerId !== source.botId) {
+        // A decision taken with priority on the OPPONENT's turn cannot be
+        // captured: `ScenarioSpec` has no field for the turn holder, so the
+        // rebuild always makes the judged seat the active player. The position
+        // that comes back is a different one — it offers the sorcery-speed
+        // moves the Bot did not have — and "pass" exists in both lists, so the
+        // Bot's own pick still resolves and nothing downstream would notice
+        // that the answer is to another question. `specFromState` reports the
+        // mismatch in `dropped[]`; here it has to be a refusal.
+        return {
+            ok: false,
+            error: "this decision was taken on the opponent's turn — a scenario spec cannot express the turn holder, so the rebuilt position would be the Bot's own turn and a different decision entirely",
+        };
+    }
+
+    if (position.stack.length > 0) {
+        // A decision taken with something ON THE STACK — the Bot holding
+        // priority over its own spell, or answering the opponent's. A
+        // `ScenarioSpec` has no stack: the rebuild is the same board with the
+        // spell simply gone, which can leave the candidate list IDENTICAL
+        // (pass, and whatever the Bot could do anyway) while the position is
+        // materially different — the Bolt that was about to kill a creature
+        // never happened. The list check below cannot see that, and the
+        // evaluation would learn the pair as if the board were quiet.
+        return {
+            ok: false,
+            error: `this decision was taken with ${position.stack.length} object(s) on the stack — a scenario spec cannot express a stack, so the rebuilt position is a quiet board and a different question`,
+        };
+    }
+
+    // The hidden half of the board has no identity to lower. The projection
+    // gives a non-viewer's hand as `null` per card and the adapter rebuilds it
+    // as opaque placeholders (`PLACEHOLDER_CARD_ID`) — which `specFromState`
+    // cannot name, and throws on. They are stripped rather than invented, and
+    // the hand size they carried is REPORTED: the opponent's hand count feeds
+    // the evaluation's `hand` term, so a verdict given here is one given on a
+    // board where the opponent holds fewer cards than they did.
+    const { state: visible, hidden } = withoutHiddenIdentities(position);
+
     let spec: ScenarioSpec;
     let dropped: string[];
     try {
-        const lowered = specFromState(position, { mySeatId: source.botId });
+        const lowered = specFromState(visible, { mySeatId: source.botId });
         spec = lowered.spec;
-        dropped = lowered.dropped;
+        dropped = [...hidden, ...lowered.dropped];
     } catch (error) {
         return {
             ok: false,
@@ -139,6 +179,29 @@ export function buildVerdictQuiz(
         description: describeMove(move, rebuilt),
     }));
 
+    // THE decision, or a different one? Everything above checks the rebuild
+    // against itself; this checks it against the board the Bot actually
+    // searched. The two lists are compared through the describer because that
+    // is the only vocabulary they share — the ids underneath differ by
+    // construction — and a mismatch means the lowering lost something the
+    // decision depended on, whatever `dropped[]` did or did not manage to name.
+    const liveDescriptions = candidateMoves(position, source.botId)
+        .map((move) => describeMove(move, position))
+        .sort();
+    const rebuiltDescriptions = candidates
+        .map((candidate) => candidate.description)
+        .sort();
+    if (!sameList(liveDescriptions, rebuiltDescriptions)) {
+        return {
+            ok: false,
+            error: `the rebuilt position offers a different decision (${describeDifference(liveDescriptions, rebuiltDescriptions)}) — this one cannot be captured as a scenario${
+                dropped.length > 0
+                    ? ` (not captured: ${dropped.join("; ")})`
+                    : ""
+            }`,
+        };
+    }
+
     // The Bot's pick, by the describer's sentence — the only vocabulary the
     // live decision and the rebuilt position share (the ids underneath differ
     // by construction). `findIndex` takes the first match: two candidates can
@@ -170,4 +233,52 @@ export function buildVerdictQuiz(
 
 function message(error: unknown): string {
     return error instanceof Error ? error.message : `${error}`;
+}
+
+/** The same state with every hidden-identity instance removed from a hand, plus
+ *  one note per seat that lost cards. Libraries keep their placeholders: the
+ *  lowering never names library contents, it only counts them. */
+function withoutHiddenIdentities(state: GameState): {
+    state: GameState;
+    hidden: string[];
+} {
+    const hidden: string[] = [];
+    const players = state.players.map((player) => {
+        const visible = player.hand.filter(
+            (card) => (card.card as { id?: string }).id !== PLACEHOLDER_CARD_ID
+        );
+        if (visible.length === player.hand.length) return player;
+        hidden.push(
+            `${player.id}'s hand: ${player.hand.length - visible.length} card(s) whose identity the Bot could not see — dropped, so the rebuilt hand is ${visible.length} card(s) and the evaluation's hand term reads lower here than it did in play`
+        );
+        return { ...player, hand: visible };
+    });
+    return hidden.length === 0
+        ? { state, hidden }
+        : {
+              state: { ...state, players: players as GameState["players"] },
+              hidden,
+          };
+}
+
+function sameList(a: string[], b: string[]): boolean {
+    return a.length === b.length && a.every((value, i) => value === b[i]);
+}
+
+/** One sentence naming how the two candidate lists differ — the first move
+ *  each list has that the other does not, which is what tells a tester whether
+ *  they are looking at a lowering gap or a bug. */
+function describeDifference(live: string[], rebuilt: string[]): string {
+    const missing = live.find((move) => !rebuilt.includes(move));
+    const extra = rebuilt.find((move) => !live.includes(move));
+    const parts: string[] = [];
+    if (missing)
+        parts.push(`the Bot had "${missing}" and the rebuild does not`);
+    if (extra) parts.push(`the rebuild offers "${extra}" and the Bot did not`);
+    if (parts.length === 0) {
+        parts.push(
+            `${live.length} move(s) in play against ${rebuilt.length} on the rebuild`
+        );
+    }
+    return parts.join("; ");
 }

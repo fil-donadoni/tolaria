@@ -156,6 +156,31 @@ describe("Report anomaly, from the decision box (issue #3405)", () => {
         expect(screen.getByText("Report a bug")).toBeTruthy();
     });
 
+    it("drops the decision when nothing is left that could open a dialog", () => {
+        // The dialog's owner can unmount between the ask and the open (a route
+        // or auth gate re-rendering). The request is then unactionable, and a
+        // decision left standing would attach itself to the next bug report,
+        // filed from somewhere else entirely.
+        const view = render(
+            <>
+                <BugReportButton />
+                <AiDecisionTrace />
+            </>
+        );
+        pushAiTrace(TRACE, "worker");
+        view.rerender(
+            <>
+                <BugReportButton />
+                <AiDecisionTrace />
+            </>
+        );
+        fireEvent.click(screen.getByRole("button", { name: "Report anomaly" }));
+        expect(collectAiDiagnostics()?.reportedDecision).toBeDefined();
+
+        view.unmount();
+        expect(collectAiDiagnostics()?.reportedDecision).toBeUndefined();
+    });
+
     it("drops the decision when the dialog is closed, so it cannot ride the next report", () => {
         pushAiTrace(TRACE, "worker");
         render(

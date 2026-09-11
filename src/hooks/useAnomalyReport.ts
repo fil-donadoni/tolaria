@@ -31,9 +31,10 @@ export function useAnomalyReportRequests(onRequest: () => void): void {
         let last = getAnomalyReportState().requested;
         return subscribeAnomalyReport(() => {
             const now = getAnomalyReportState().requested;
-            // Only the RISING edge: a second decision reported while the dialog
-            // is already open replaces the attached decision and must not
-            // re-open anything.
+            // Only the RISING edge: a second decision reported while the
+            // dialog is already open must not re-open anything (what it
+            // attaches to is settled by `BugReportDialog`'s own open-keyed
+            // payload memo, not here).
             if (now && !last) handler.current();
             last = now;
         });

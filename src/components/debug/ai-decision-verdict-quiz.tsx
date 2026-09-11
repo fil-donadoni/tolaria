@@ -7,18 +7,18 @@
 // candidate keys, and the fit re-derives the features from those whenever the
 // evaluation's terms change.
 //
-// THE BUILDER IS LOADED ON DEMAND. `~/lib/ai/verdict-quiz` pulls the blade
-// builder (`buildVerdictState`) so the position is rebuilt by exactly the
-// function the fit will use — and that module graph reaches the blade registry,
-// which has no business in the board's own bundle. A dynamic import puts it in
-// its own chunk, fetched the first time a tester actually judges something.
+// THE BUILDER IS LOADED ON DEMAND. `~/lib/ai/verdict-quiz` rebuilds the
+// position through the blade base state and the engine's own enumerator — the
+// same pair the fit uses — and that module graph is not small. A dynamic import
+// puts it in its own chunk, fetched the first time a tester actually judges
+// something rather than on every board load.
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { AiTraceRecord } from "~/lib/ai/trace-store";
 import { getAiTraceSource, markAiTraceJudged } from "~/lib/ai/trace-store";
-import type { VerdictQuiz } from "~/lib/ai/verdict-quiz";
+import { QUIZ_SEAT, type VerdictQuiz } from "~/lib/ai/verdict-quiz";
 import { getStoredSession } from "~/lib/session";
 import DebugButton from "./debug-button";
 import AiDecisionQuizCandidate from "./ai-decision-quiz-candidate";
@@ -93,7 +93,9 @@ export default function AiDecisionVerdictQuiz({
             const { gameId } = getStoredSession();
             await submitVerdict({
                 spec: state.quiz.spec,
-                seat: "me",
+                // The seat the lowering named — one constant, so the spec
+                // and the row can never disagree about which side moved.
+                seat: QUIZ_SEAT,
                 candidates: state.quiz.candidates,
                 answer: { kind: "right", rightIndexes: [rightIndex] },
                 botPickIndex: state.quiz.botPickIndex,
