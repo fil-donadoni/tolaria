@@ -24,13 +24,18 @@
  * ACTIVATION path, and this module imports none — so `ready` means "the Oracle
  * text was read whole and the definition we emitted is well-formed and
  * implemented", never "a live mutation can run it today". The two can diverge,
- * and #2697 is where they first visibly do: the shared cost grammar emits the
+ * and #2697 is where they first visibly did: the shared cost grammar emits the
  * CR-605.1a-faithful `{ sacrificeFilter, useStack: false }` for eight cards
- * (Ashnod's Altar, Skirk Prospector, …) and no non-stack engine path pays a
- * filter cost — `docs/findings/2697-mana-ability-filter-cost-engine-gap.md`
- * has the sites and the two ways out. Read the lockfile accordingly: a `ready`
- * row is a statement about the COMPILER, and closing the gap means either
- * teaching the engine the shape or adding a sixth, engine-capability gate here.
+ * (Ashnod's Altar, Skirk Prospector, …) and no non-stack engine path paid a
+ * filter cost.
+ *
+ * That particular divergence is CLOSED (issue #3455): the non-stack path now
+ * parks such an activation on the shared cost-pick window and commits it
+ * inline, so all eight are playable end to end. What has NOT changed is the
+ * reading — nothing here consults the engine, so the next shape the compiler
+ * learns before the engine does will diverge the same way, silently. The
+ * standing ways out are unchanged: teach the engine the shape (what #3455 did)
+ * or add a sixth, engine-capability gate here.
  *
  * ── What this module deliberately does NOT do ──────────────────────────────
  *

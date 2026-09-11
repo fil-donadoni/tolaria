@@ -172,12 +172,14 @@ export const goblinArtisans: CardDefinition = {
 //
 // NOTE (out of scope) (CR 605.1a deviation): Ashnod's Altar and Priest of
 // Yawgmoth are technically mana abilities (no target, can add mana). They are
-// modeled here as `useStack: true` activated abilities because their cost requires a player
-// CHOICE of which permanent to sacrifice, and the engine's instant mana-ability
-// path (`tapUntap`) has no choice step. Routing them through the stack reuses
-// the sacrifice-choice machinery wholesale. The practical cost is that their
-// mana isn't available to pay for a spell mid-cast — acceptable within this
-// card pool, where they are used as standalone value/ramp engines.
+// modeled here as `useStack: true` activated abilities because their cost
+// requires a player CHOICE of which permanent to sacrifice. The reason
+// originally recorded here — "the engine's instant mana-ability path
+// (`tapUntap`) has no choice step" — is NO LONGER TRUE: issue #3455 taught all
+// three non-stack entry points to park on that choice and commit at CR 605.3b,
+// so the deviation is now a pending FLIP, not a capability gap. Its practical
+// cost stands until then: their mana isn't available to pay for a spell
+// mid-cast. tracked-by: #3047
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Atog — {1}{R} 1/2. "Sacrifice an artifact: This creature gets +2/+2 until
