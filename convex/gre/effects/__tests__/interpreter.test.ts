@@ -32334,3 +32334,181 @@ describe("Effect Script value: sum over a bound card set (CR 122 / 404)", () => 
         expect(state.players[1].life).toBe(before - 2);
     });
 });
+
+// ─────────────────────────────────────────────────────────────────────────
+// Issue #2713 — the three Op PARAMETERS the Premodern Goblin list needed.
+// Each is a new field on an existing Op, so each earns the Op's permanent
+// test (per-Op regime): the interpreter branch plus, where the outcome is
+// visible on the board, one assertion through `projectPublicState`.
+// ─────────────────────────────────────────────────────────────────────────
+describe("discard — the hand-filter shape (CR 701.9, issue #2713)", () => {
+    const grizzlyBears = getCardByName("Grizzly Bears");
+    const plains = getCardByName("Plains");
+    /** Cabal Therapy's script verbatim: name a NONLAND card, then discard
+     *  every card in the targeted player's hand with that name. */
+    const therapyScript = () =>
+        registerScript(
+            "test-op-discard-filter",
+            [
+                {
+                    op: "nameCard",
+                    player: "controller",
+                    prompt: "Choose a nonland card name.",
+                    bind: "$named",
+                    nameRestriction: "no-land",
+                },
+                {
+                    op: "discard",
+                    player: { target: 0 },
+                    filter: { name: { ref: "$named" } },
+                },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+
+    function handOf(): CardInstanceState[] {
+        return [
+            makeInstance(grizzlyBears.id, {
+                id: "bear-a",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "hand",
+            }),
+            makeInstance(grizzlyBears.id, {
+                id: "bear-b",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "hand",
+            }),
+            makeInstance(plains.id, {
+                id: "keeper",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "hand",
+            }),
+        ];
+    }
+
+    it("discards EVERY card matching the named filter and nothing else", () => {
+        const id = therapyScript();
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2", { hand: handOf() })],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        // Suspended on the open name choice.
+        expect(state.pendingChoices).toHaveLength(1);
+        applyNameCardSubmit(state, {
+            playerId: "p1",
+            cardName: "Grizzly Bears",
+        });
+        // Both copies gone, the non-matching card untouched — the filter
+        // alone decided, with no player pick anywhere (CR 608.2b).
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["keeper"]);
+        expect(state.players[1].graveyard.map((c) => c.id).sort()).toEqual([
+            "bear-a",
+            "bear-b",
+        ]);
+    });
+
+    it("zero matches is a clean no-op — the hand is untouched", () => {
+        const id = therapyScript();
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    hand: [
+                        makeInstance(plains.id, {
+                            id: "keeper",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        applyNameCardSubmit(state, {
+            playerId: "p1",
+            cardName: "Grizzly Bears",
+        });
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["keeper"]);
+        expect(state.players[1].graveyard).toHaveLength(0);
+    });
+
+    it('nameRestriction "no-land" rejects a NONBASIC land, which "no-basic-land" would have allowed', () => {
+        const id = therapyScript();
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2", { hand: handOf() })],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(() =>
+            applyNameCardSubmit(state, {
+                playerId: "p1",
+                cardName: "Volrath's Stronghold",
+            })
+        ).toThrow();
+        // The head survives an illegal submission — the chooser is asked
+        // again rather than the restriction being silently dropped.
+        expect(state.pendingChoices).toHaveLength(1);
+        applyNameCardSubmit(state, {
+            playerId: "p1",
+            cardName: "Grizzly Bears",
+        });
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["keeper"]);
+    });
+});
+
+describe('moveZone — to: "library-top" from a graveyard target (CR 400.7, issue #2713)', () => {
+    const plains = getCardByName("Plains");
+    it("puts the targeted graveyard card on TOP of the library, above the old top card", () => {
+        const id = registerScript(
+            "test-op-movezone-library-top",
+            [{ op: "moveZone", target: { target: 0 }, to: "library-top" }],
+            {
+                targetRequirement: {
+                    type: "Creature",
+                    count: 1,
+                    zone: "graveyard",
+                    controller: "you",
+                },
+            }
+        );
+        const dead = makeInstance(BEAR_ID, {
+            id: "recurred",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const oldTop = makeInstance(plains.id, {
+            id: "old-top",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [dead], library: [oldTop] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "graveyard-card", id: "recurred", playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        // `library[0]` IS the top (the generic `moveCardById` library leg
+        // pushes, i.e. bottoms — this Op's whole reason to exist).
+        expect(state.players[0].library.map((c) => c.id)).toEqual([
+            "recurred",
+            "old-top",
+        ]);
+        // The recurred card LEFT the graveyard (what remains there is the
+        // resolved sorcery itself).
+        expect(state.players[0].graveyard.map((c) => c.id)).not.toContain(
+            "recurred"
+        );
+    });
+});

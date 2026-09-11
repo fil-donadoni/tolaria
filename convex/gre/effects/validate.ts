@@ -1105,6 +1105,14 @@ function isCountValue(value: unknown): boolean {
             allowIsAttacking: s.zone === "battlefield",
             allowControlledSinceTurnStart: s.zone === "battlefield",
             rejectManaCostEquals: s.zone === "battlefield",
+            // issue #2713 — "for each OTHER attacking Goblin" (Goblin
+            // Piledriver). Same battlefield-only honesty rule as the three
+            // above, and honest for the SAME reason: the battlefield branch
+            // of `countZoneForPlayer` goes through `toPermanentFilter`, which
+            // maps `excludeSource` onto `excludeInstanceIds` with the
+            // resolving source's own id — the graveyard branch falls back to
+            // `matchesCardFilter`, which has no source identity to compare.
+            allowExcludeSource: s.zone === "battlefield",
         })
     ) {
         return false;

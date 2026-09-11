@@ -193,7 +193,12 @@ export const goblinPyromancer: CardDefinition = {
 //      each death untaps the Sharpshooter, and line 1 is the drawback that
 //      keeps it from simply untapping for free.
 //
-// compiler-gap: This creature doesn't untap during your untap step. (#2693)
+// No `compiler-gap` marker: the Oracle compiler reads this card back into its
+// own definition (Guard C's round-trip leg). It was `quarantine` rather than
+// `unparsed` in the lockfile for a REASON about the canned smoke generator —
+// `tapUntap` untapping a permanent the generator already seeds untapped — and
+// that reason is answered by this card's own untap-step test
+// (`gre/__tests__/untap-restriction.test.ts`).
 export const goblinSharpshooter: CardDefinition = {
     id: "7e689df7-b85d-4346-bee8-5e978b5cbbbc", // ONS 207
     rarity: "rare",
