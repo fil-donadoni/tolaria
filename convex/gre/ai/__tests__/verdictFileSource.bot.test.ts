@@ -228,9 +228,13 @@ describe("the shipped corpus reaches the pair builder (issue #3402)", () => {
     });
 
     it("the authored lethal-Bolt verdict rebuilds and yields one pair per rejected line", () => {
-        const verdict = verdictsFromFiles(corpusFiles()).find(
-            (v) => v.id === "authored:lethal-bolt-to-the-face"
-        );
+        // Through `verdictCorpus`, the entry point a fit calls — not through
+        // the parser it happens to use. A loader that read every file
+        // perfectly and was wired to nothing would pass the test above.
+        const verdict = verdictCorpus(
+            corpusFiles(),
+            BLADE_SCENARIOS.slice(0, 4)
+        ).verdicts.find((v) => v.id === "authored:lethal-bolt-to-the-face");
         expect(verdict).toBeDefined();
 
         const out = evalPairsOf(verdict!);
