@@ -11,9 +11,10 @@
 //  2. a second caller is how a second vocabulary gets invented. The refusal
 //     kinds below are a frozen union, not free prose, derived from ONE array so
 //     a new refusal cannot be declared without also being countable. Today the
-//     only consumer of the kind is the sweep — the debug panel still renders
-//     the prose `error` alone; issue #3457 is what gives the panel a title per
-//     kind, and it inherits this vocabulary rather than inventing a second.
+//     consumers of the kind are the sweep, which ranks it, and the debug
+//     panel, which TITLES a refusal with it (issue #3457) through the table in
+//     `src/lib/ai/verdict-quiz.ts` — a vocabulary inherited from here, never a
+//     second one invented beside it.
 //
 // Every failure is returned as DATA. A position that cannot be lowered, a
 // rebuild the seat no longer owes a decision on, a pick the rebuilt list does
@@ -108,7 +109,12 @@ export type LoweringOutcome =
     | {
           ok: false;
           kind: VerdictRefusalKind;
-          /** The sentence a human reads. The KIND is what a report counts. */
+          /** The sentence a human reads, and ONLY that sentence: what the
+           *  lowering dropped belongs to `dropped` below, never folded into
+           *  the middle of it. Two sites used to append a semicolon-joined
+           *  `(not captured: …)` run-on twenty entries long, which is what the
+           *  refusal panel then had to render as one flat red paragraph
+           *  (issue #3457). The KIND is what a report counts. */
           error: string;
           /** What the lowering had managed to drop before it refused — empty
            *  for the refusals that fire before `specFromState` ever runs. */
@@ -209,7 +215,7 @@ export function lowerDecision(
             ok: false,
             kind: "no-decision-owed",
             dropped,
-            error: "the rebuilt position owes the Bot no decision — what it was deciding did not survive the lowering (see the stack or combat notes above)",
+            error: 'the rebuilt position owes the Bot no decision — what it was deciding did not survive the lowering (see the "not captured" notes for what it lost)',
         };
     }
 
@@ -250,11 +256,7 @@ export function lowerDecision(
             ok: false,
             kind: "different-decision",
             dropped,
-            error: `the rebuilt position offers a different decision (${describeDifference(liveDescriptions, rebuiltDescriptions)}) — this one cannot be captured as a scenario${
-                dropped.length > 0
-                    ? ` (not captured: ${dropped.join("; ")})`
-                    : ""
-            }`,
+            error: `the rebuilt position offers a different decision (${describeDifference(liveDescriptions, rebuiltDescriptions)}) — this one cannot be captured as a scenario`,
         };
     }
 
@@ -278,11 +280,7 @@ export function lowerDecision(
             ok: false,
             kind: "pick-not-offered",
             dropped,
-            error: `the Bot played "${chosenDescription}", which the rebuilt position does not offer — this decision cannot be captured as a scenario${
-                dropped.length > 0
-                    ? ` (not captured: ${dropped.join("; ")})`
-                    : ""
-            }`,
+            error: `the Bot played "${chosenDescription}", which the rebuilt position does not offer — this decision cannot be captured as a scenario`,
         };
     }
 
