@@ -78,12 +78,14 @@ readable in a diff and immune to instance-id allocation.
 Two current limitations to state out loud when they bite, rather than papering
 over them:
 
-- **`ScenarioSpec` carries life totals** (issue #2147, shipped) and the turn
+- **`ScenarioSpec` carries life totals** (issue #2147, shipped), the turn
   holder, the priority holder and the banked pass count (issue #3454, shipped:
-  `life`, `activePlayer`, `priority`, `passCount`). A life-dependent symptom
-  (chump-block, race, burn the face vs. the creature) and an instant-speed one
-  taken on the opponent's turn are both pinnable — so an entry written at the
-  wrong life or on the wrong turn is now an authoring mistake, not a limit.
+  `life`, `activePlayer`, `priority`, `passCount`) and the land drops already
+  spent (issue #3446, shipped: `landsPlayed`). A life-dependent symptom
+  (chump-block, race, burn the face vs. the creature), an instant-speed one
+  taken on the opponent's turn and a main phase whose land drop is GONE are all
+  pinnable — so an entry written at the wrong life, on the wrong turn or with
+  the drop wrongly open is now an authoring mistake, not a limit.
 - **The lowering is `specFromState`** (issue #2148, shipped — plus the "Copy as
   scenario" button). Read its `dropped[]` rather than guessing: what still has
   no spec representation is stack contents, the mana pool, combat past an empty
