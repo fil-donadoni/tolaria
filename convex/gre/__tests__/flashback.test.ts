@@ -179,7 +179,8 @@ describe("Flashback capability (CR 702.34)", () => {
                 state,
                 getPlayer(state, "p1"),
                 fb.id,
-                src.zone
+                src.zone,
+                "p1"
             );
             const stackItem: StackItem = {
                 ...removed,

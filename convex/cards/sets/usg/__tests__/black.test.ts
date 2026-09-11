@@ -169,7 +169,8 @@ describe("Yawgmoth's Will (CR 305.1-analog / 601 permission + CR 614 redirect, i
             state,
             getPlayer(state, "p1"),
             "gy-bolt",
-            src.zone
+            src.zone,
+            "p1"
         );
         const stackItem: StackItem = {
             ...removed,

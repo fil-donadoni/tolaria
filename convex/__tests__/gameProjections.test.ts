@@ -908,7 +908,7 @@ describe("projectPublicState — knownTo (ADR 0026)", () => {
         const cardId = p1.hand[0].id;
 
         // Cast it: hand → stack (public). Knowledge is emptied.
-        const onStack = removeFromZone(state, p1, cardId, "hand");
+        const onStack = removeFromZone(state, p1, cardId, "hand", p1.id);
         expect(onStack.knownTo).toBeUndefined();
 
         // Simulate a return to a hidden zone (e.g. countered to hand): the card

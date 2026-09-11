@@ -519,7 +519,8 @@ describe("CR 715.3d — the restriction is the PERMISSION's, not the card's", ()
             state,
             state.players[0],
             exiled.id,
-            "exile"
+            "exile",
+            state.players[0].id
         );
         expect(taken.castableFromExileBy).toBeUndefined();
         expect(taken.castFromExileNotAsAdventure).toBeUndefined();

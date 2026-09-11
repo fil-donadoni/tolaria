@@ -74,14 +74,26 @@ describe("leftGraveyardThisTurn tally (CR 400.7)", () => {
 
     it("removeFromZone graveyard→stack tallies (a cast from the graveyard)", () => {
         const state = state2p(["gy-a"]);
-        removeFromZone(state, state.players[0], "gy-a", "graveyard");
+        removeFromZone(
+            state,
+            state.players[0],
+            "gy-a",
+            "graveyard",
+            state.players[0].id
+        );
         expect(state.players[0].leftGraveyardThisTurn).toBe(1);
     });
 
     it("removeFromZone from another zone never tallies", () => {
         const state = state2p();
         state.players[0].hand.push({ ...gyCard("h-a", "p1"), zone: "hand" });
-        removeFromZone(state, state.players[0], "h-a", "hand");
+        removeFromZone(
+            state,
+            state.players[0],
+            "h-a",
+            "hand",
+            state.players[0].id
+        );
         expect(state.players[0].leftGraveyardThisTurn).toBeUndefined();
     });
 

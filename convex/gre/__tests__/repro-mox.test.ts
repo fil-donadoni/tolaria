@@ -47,7 +47,13 @@ describe("repro: cast Mox Sapphire turn 1", () => {
         );
         expect(Object.keys(manaCost).length).toBe(0);
 
-        const card = removeFromZone(state, player, moxInst.id, "hand");
+        const card = removeFromZone(
+            state,
+            player,
+            moxInst.id,
+            "hand",
+            player.id
+        );
         const stackItem: StackItem = { ...card, castById: "p1" };
         state.stack.push(stackItem);
         state.passCount = 0;

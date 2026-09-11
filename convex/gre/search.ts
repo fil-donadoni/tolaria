@@ -1166,7 +1166,8 @@ export function applyMoveInSearch(
                 state,
                 castSource.owner,
                 move.cardInstanceId,
-                castFromZone
+                castFromZone,
+                playerId
             );
             if (castMechanism === "permanent-permission") {
                 markGraveyardPermanentCastUsed(state, playerId);

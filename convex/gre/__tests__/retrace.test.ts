@@ -379,7 +379,8 @@ describe("Retrace capability (CR 702.81)", () => {
                 state,
                 getPlayer(state, "p1"),
                 bolt.id,
-                src.zone
+                src.zone,
+                "p1"
             );
             const stackItem: StackItem = {
                 ...removed,

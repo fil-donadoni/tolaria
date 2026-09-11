@@ -131,7 +131,13 @@ function announceCast(
             payManaCost(player.manaPool, manaCost);
             commitLandsForCost(player, manaCost);
         }
-        const card = removeFromZone(state, player, cardInstanceId, "hand");
+        const card = removeFromZone(
+            state,
+            player,
+            cardInstanceId,
+            "hand",
+            player.id
+        );
         const stackItem: StackItem = { ...card, castById: playerId };
         state.stack.push(stackItem);
         state.passCount = 0;
@@ -174,7 +180,8 @@ function tapForPayment(
             state,
             player,
             state.pendingCast.cardInstanceId,
-            "hand"
+            "hand",
+            player.id
         );
         const stackItem: StackItem = { ...spellCard, castById: playerId };
         state.stack.push(stackItem);

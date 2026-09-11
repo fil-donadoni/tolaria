@@ -418,7 +418,8 @@ describe("Escape capability (CR 702.138)", () => {
                 state,
                 getPlayer(state, "p1"),
                 "uro",
-                "graveyard"
+                "graveyard",
+                "p1"
             );
             const stackItem: StackItem = {
                 ...removed,

@@ -219,6 +219,18 @@ function moveCardAcrossPlayers(
     }
     const [card] = sourceZone.splice(cardIndex, 1);
     card.zone = to;
+    // CR 110.2 / 110.2a (issue #3000) — "a permanent's controller is, by
+    // default, the player under whose control it entered the battlefield."
+    // This helper exists for exactly the cross-player case (Dauthi Voidwalker's
+    // void-countered opponent LAND, played under the grant), so `toPlayer` is
+    // the player it enters under and `card.controllerId` still names the owner:
+    // the identical inheritance the CAST path had (`removeFromZone` /
+    // `finalizeSpellResolution`, `gre/state.ts`). Without this stamp the land
+    // sits in the caster's battlefield array claiming the owner as its
+    // controller, and every downstream consumer — "lands you control" counts,
+    // the layer-2 base, `{T}` mana legality, the client projection — reads the
+    // wrong player. Ownership is untouched (CR 400.3).
+    card.controllerId = toPlayer.id;
     delete card.knownTo;
     // CR 122.1e / 400.7 — leaving exile makes a new object with no counters;
     // a cross-player play (Dauthi Voidwalker's void-countered opponent land)

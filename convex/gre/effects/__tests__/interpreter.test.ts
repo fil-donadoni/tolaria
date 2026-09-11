@@ -31871,7 +31871,13 @@ describe("Effect Script Op: grantCastFromExile — the object-scoped costIncreas
         const card = exiledCard(state);
         // The owner casts it: `removeFromZone` (the one exile→stack transition
         // every cast goes through) consumes the whole grant.
-        removeFromZone(state, state.players[1], "taxed1", "exile");
+        removeFromZone(
+            state,
+            state.players[1],
+            "taxed1",
+            "exile",
+            state.players[1].id
+        );
         expect(card.castableFromExileBy).toBeUndefined();
         expect(card.castFromExileCostIncrease).toBeUndefined();
     });

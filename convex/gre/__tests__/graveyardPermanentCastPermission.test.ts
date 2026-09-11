@@ -547,7 +547,13 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
 
             const src = locateCastSource(state, p1, "gy-lions");
             expect(src.viaGraveyardPermanentPermission).toBe(true);
-            const removed = removeFromZone(state, p1, "gy-lions", src.zone);
+            const removed = removeFromZone(
+                state,
+                p1,
+                "gy-lions",
+                src.zone,
+                p1.id
+            );
             const stackItem: StackItem = {
                 ...removed,
                 castById: "p1",
