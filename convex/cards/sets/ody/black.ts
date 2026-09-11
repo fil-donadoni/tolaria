@@ -87,7 +87,8 @@ export const entomb: CardDefinition = {
 // exile them. Then that player shuffles."
 //
 // One `forEach { set: "graveyard" }` (CR 404) over the target's graveyard, its
-// member set frozen at construct entry (CR 608.2i) — so the cards the library
+// member set frozen at construct entry (CR 608.2h — "the answer is determined
+// only once, when the effect is applied") — so the cards the library
 // sweep is driven by are exactly the ones the oracle calls "exiled this way",
 // and nothing that reaches the graveyard mid-resolution joins them. The
 // "other than basic land cards" restriction (CR 205.4a) is the OR-clause
@@ -100,15 +101,33 @@ export const entomb: CardDefinition = {
 // snapshot, which is what makes the library half readable AFTER the graveyard
 // half moved that card out. Per-member interleaving is observationally
 // identical to the oracle's two sentences: the member set is already frozen
-// (CR 608.2i), the graveyard sweep can only ever reach frozen members, and the
+// (CR 608.2h), the graveyard sweep can only ever reach frozen members, and the
 // library sweep only ever moves library cards.
 //
-// CR 701.23b lets the searcher decline to find cards of a stated quality, and
-// the `fromZones` sweep always finds every match instead of prompting. Exiling
-// strictly more of an opponent's library is the dominant line for the caster
-// here, so this is the engine's standard auto-resolve of a choice with no real
-// option — the same contract every `moveZone` filter sweep has carried since
-// issue #1104.
+// Both legs key on the member's NAME rather than its id, because `moveZone`'s
+// general-ref graveyard recovery is gated on `to: "battlefield"` — a
+// `{ target: { ref: "$each" }, to: "exile" }` silently no-ops. One consequence
+// worth naming: a graveyard card with no registry definition snapshots an
+// EMPTY name, so the first sentence would leave it behind. Fail-closed and
+// unreachable for a real deck (every card in one has a definition), and right
+// for the second sentence either way (CR 201.2a — an object with no name
+// shares a name with nothing).
+//
+// CR 701.23b — the searcher "isn't required to find some or all of those
+// cards", and the rule's own worked example is Splinter, this card's near
+// twin: the caster may find zero, one or two of the library copies. This card
+// always finds every copy, a real deviation and not a free one. Out of scope
+// here: exiling a dead card THINS the opponent's deck, so declining is
+// sometimes correct and the prompt is genuinely owed.
+//
+// What blocks it is CR 701.23h: several search instructions before one shuffle
+// are ONE search, and this card searches for the name of EVERY card it exiled.
+// The CR-correct shape is therefore a single search whose candidate filter is
+// a SET of names, and `EffectCardFilter.name` holds one literal or one ref.
+// Lobotomy (`tmp/multicolor.ts`) searches for ONE name, which is why it can
+// afford the explicit `search-library` prompt — and its own comment records
+// why that prompt matters — and why this card cannot copy it. Recorded in
+// docs/findings/2711-fromzones-sweep-unvalued-and-unsearched.md.
 //
 // compiler-gap: "Exile all cards from target player's graveyard other than basic land cards." (#2693)
 // compiler-gap: "For each card exiled this way, search that player's library for all cards with the same name as that card and exile them." (#2693)

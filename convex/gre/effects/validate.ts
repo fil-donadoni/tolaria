@@ -5647,7 +5647,7 @@ function checkRefUse(
         }
         if (family !== "snapshot") {
             errors.push(
-                `${at}: ref "${use.ref}" names a ${family} binding in a name position — ".name" reads a snapshot binding (a destroy/exile/moveZone/sacrifice bind, or a graveyard/permanents-set forEach "$each")`
+                `${at}: ref "${use.ref}" names a ${family} binding in a name position — ".name" reads a SNAPSHOT binding (any bind outside choice/mayPay/nameCard, e.g. destroy/exile/moveZone/sacrifice, or a graveyard/permanents-set forEach "$each"). A snapshot written by something other than bindSnapshot carries no name slot and resolves to nothing — fail-closed, never a silent match-everything.`
             );
         }
         return;

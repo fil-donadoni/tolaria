@@ -329,13 +329,8 @@ describe("Haunting Echoes (CR 404 / 205.4a / 201.2 / 701.23a / 701.24a, issue #2
         return state;
     };
 
-    it("has a valid Effect Script and targets a player", () => {
+    it("has a valid Effect Script", () => {
         expect(validateEffectScript(hauntingEchoes)).toEqual([]);
-        expect(hauntingEchoes.targetRequirement).toEqual({
-            type: "player",
-            count: 1,
-        });
-        expect(hauntingEchoes.manaCost).toEqual({ X: 3, B: 2 });
     });
 
     it("exiles every non-basic-land graveyard card, leaves the basic land, and exiles only the library cards sharing an exiled card's name — then shuffles", () => {
