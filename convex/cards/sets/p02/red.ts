@@ -15,11 +15,13 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // a `choice` over the hidden library zone (the interpreter precomputes an
 // explicit `candidateIds` allow-list from the filter, so the picker never
 // leaks the rest of the library), then `reveal`, then `moveZone` out of the
-// library into hand, then the mandatory shuffle. "You MAY search" is
-// `count: { min: 0, max: 1 }` on the choice itself — a player who declines
-// picks nothing, the binding stays uncaptured and every downstream Op skips
-// (CR 608.2b) except the shuffle, which happens either way: the printed line
-// shuffles as part of the search, not as part of finding something. The
+// library into hand, then the shuffle. "You MAY search" is the costless
+// `mayPay` + `if` wrapper rather than a `count: { min: 0, max: 1 }` choice
+// alone, because the whole sentence is ONE optional action: a player who
+// declines does not shuffle either, and an unasked-for shuffle would destroy
+// a known library top. Inside the wrapper the pick stays `min: 0` — CR
+// 701.23b, searching a hidden zone and finding nothing is legal, and THAT
+// case does shuffle. The
 // filter is the bare subtype — "a Goblin CARD", any type, not just a
 // creature (Goblin Grenade and the Goblin lands are legal finds).
 //
@@ -43,28 +45,44 @@ export const goblinMatron: CardDefinition = {
             scope: "self",
             effects: [
                 {
-                    op: "choice",
-                    kind: "search-library",
+                    op: "mayPay",
                     player: "controller",
-                    zone: "library",
-                    filter: { subtype: "Goblin" },
-                    count: { min: 0, max: 1 },
-                    prompt: "Search your library for a Goblin card.",
-                    bind: "$found",
+                    prompt: "Search your library for a Goblin card?",
+                    bind: "$searched",
                 },
                 {
-                    op: "reveal",
-                    player: "controller",
-                    cards: { ref: "$found" },
+                    op: "if",
+                    predicate: { binding: "$searched" },
+                    then: [
+                        {
+                            op: "choice",
+                            kind: "search-library",
+                            player: "controller",
+                            zone: "library",
+                            filter: { subtype: "Goblin" },
+                            count: { min: 0, max: 1 },
+                            prompt: "Search your library for a Goblin card.",
+                            bind: "$found",
+                        },
+                        {
+                            op: "reveal",
+                            player: "controller",
+                            cards: { ref: "$found" },
+                        },
+                        {
+                            op: "moveZone",
+                            cards: { ref: "$found" },
+                            player: "controller",
+                            from: "library",
+                            to: "hand",
+                        },
+                        {
+                            op: "libraryLook",
+                            action: "shuffle",
+                            player: "controller",
+                        },
+                    ],
                 },
-                {
-                    op: "moveZone",
-                    cards: { ref: "$found" },
-                    player: "controller",
-                    from: "library",
-                    to: "hand",
-                },
-                { op: "libraryLook", action: "shuffle", player: "controller" },
             ],
         }),
     ],

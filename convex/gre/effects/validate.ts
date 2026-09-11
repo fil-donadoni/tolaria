@@ -1949,17 +1949,20 @@ function isSourceShieldMatch(value: unknown): boolean {
     return m.colors !== undefined || m.cardType !== undefined;
 }
 
-/** The destination zones a `moveZone` Op may name (issue #839, EffectMoveZone).
- *  The five zones a one-shot effect addresses (CR 400.7), plus `"library-top"`
- *  (issue #1125) — the `cards`-shape-only tutor-to-top destination ("search
- *  … then shuffle and put that card on top", Vampiric Tutor). */
-/** CR 201.3 (issue #1085 / #2713) — the two printed strengths of a "choose a
+/** CR 201.4a (issue #1085 / #2713) — the two printed strengths of a "choose a
  *  card name" restriction: "other than a basic land card name" (Desperate
  *  Research) and "a nonland card name" (Cabal Therapy). */
 function isNameRestriction(value: unknown): boolean {
     return value === "no-basic-land" || value === "no-land";
 }
 
+/** The destination zones a `moveZone` Op may name (issue #839, EffectMoveZone).
+ *  The five zones a one-shot effect addresses (CR 400.7), plus `"library-top"`
+ *  — the ORDERED library destination the plain `"library"` zone cannot name:
+ *  the `cards`-shape tutor-to-top ("search … then shuffle and put that card on
+ *  top", Vampiric Tutor, issue #1125) and, since issue #2713, the
+ *  announced-target shape ("put target creature card from your graveyard on
+ *  top of your library", Volrath's Stronghold). */
 function isMoveZone(value: unknown): boolean {
     return (
         value === "hand" ||
@@ -5071,11 +5074,11 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         },
         optional: { prompt: isNonEmptyString },
     },
-    // CR 201.3 / 202.3 (issue #1085) — "chooses a card name" as part of
+    // CR 201.4 / 202.3 (issue #1085) — "chooses a card name" as part of
     // resolution. `bind` is REQUIRED (a name choice nothing reads back is
-    // meaningless — mirrors `choice`'s own required `bind`). `excludeBasicLand`
-    // (CR 201.3, Desperate Research's "other than a basic land card name") is
-    // optional.
+    // meaningless — mirrors `choice`'s own required `bind`). `nameRestriction`
+    // (CR 201.4a — Desperate Research's "other than a basic land card name",
+    // Cabal Therapy's "a nonland card name") is optional.
     nameCard: {
         required: {
             player: isPlayerRef,

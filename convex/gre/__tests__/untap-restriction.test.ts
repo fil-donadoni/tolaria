@@ -94,7 +94,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     };
 }
 
-describe("untapRestriction dispatcher (CR 502.1, ADR 0005)", () => {
+describe("untapRestriction dispatcher (CR 502.3, ADR 0005)", () => {
     describe("Winter Orb — land-only cap (ADR 0004 modern Oracle)", () => {
         it("zero eligibles (no tapped lands) → no prompt; flag cleanup still runs", () => {
             const orb = makeInstance(winterOrb.id, { id: "orb" });
@@ -649,28 +649,35 @@ describe("untapRestriction dispatcher (CR 502.1, ADR 0005)", () => {
             );
         });
 
-        it("a SECOND Sharpshooter does not lock the first: each lock names its own id", () => {
+        it("TWO Sharpshooters lock only themselves — a third tapped Goblin creature still untaps", () => {
+            // The discriminating board: with two sources in play, a
+            // board-wide filter (or one keyed on the Sharpshooter's own
+            // characteristics) would keep `bear` tapped too. Only a lock that
+            // names its own instance id lets it untap.
             const first = makeInstance(goblinSharpshooter.id, {
                 id: "sharp-1",
                 isTapped: true,
             });
             const second = makeInstance(goblinSharpshooter.id, {
                 id: "sharp-2",
-                isTapped: false,
+                isTapped: true,
+            });
+            const bear = makeInstance(grizzlyBears.id, {
+                id: "bear",
+                isTapped: true,
             });
             const state = makeState({
                 players: [
-                    makePlayer("p1", { battlefield: [first, second] }),
+                    makePlayer("p1", { battlefield: [first, second, bear] }),
                     makePlayer("p2"),
                 ],
             });
             untapStep(state);
 
             const bf = state.players[0].battlefield;
-            // Both stay as they were: each restriction covers only its own
-            // source, so nothing here is evidence of a filter reaching wider.
             expect(bf.find((c) => c.id === "sharp-1")?.isTapped).toBe(true);
-            expect(bf.find((c) => c.id === "sharp-2")?.isTapped).toBe(false);
+            expect(bf.find((c) => c.id === "sharp-2")?.isTapped).toBe(true);
+            expect(bf.find((c) => c.id === "bear")?.isTapped).toBe(false);
         });
     });
 });

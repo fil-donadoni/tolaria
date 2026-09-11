@@ -165,7 +165,10 @@ export const goblinPyromancer: CardDefinition = {
                     select: {
                         set: "permanents",
                         zone: "battlefield",
-                        filter: { type: "Creature", subtype: "Goblin" },
+                        // "all GOBLINS", not "all Goblin creatures" — every
+                        // permanent with the subtype, so a Goblin that has
+                        // stopped being a creature (layer 4) still dies.
+                        filter: { subtype: "Goblin" },
                     },
                     effects: [{ op: "destroy", target: { ref: "$each" } }],
                 },

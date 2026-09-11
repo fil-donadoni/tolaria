@@ -26,7 +26,7 @@ export type RevealRouteDestination =
     | "graveyard"
     | "exile";
 
-/** CR 201.3 — how far a "choose a card name" choice narrows the legal name
+/** CR 201.4a — how far a "choose a card name" choice narrows the legal name
  *  space. `"no-basic-land"` is Desperate Research's "other than a basic land
  *  card name"; `"no-land"` is Cabal Therapy's "a nonland card name", which
  *  excludes every land and not only the basics (issue #2713). One enum rather
@@ -5785,7 +5785,7 @@ export interface SpellContext {
      *  `choiceId` disambiguates multiple name choices within a step and must be
      *  stable across replays. Used by Petra Sphinx ("Target player chooses a
      *  card name, then reveals the top card of their library …") and the
-     *  `nameCard` Effect Op (issue #1085). `nameRestriction` (CR 201.3 —
+     *  `nameCard` Effect Op (issue #1085). `nameRestriction` (CR 201.4a —
      *  `"no-basic-land"` for Desperate Research's "choose a card name OTHER
      *  THAN a basic land card name", `"no-land"` for Cabal Therapy's "a
      *  nonland card name") stamps the raised `PendingChoice.nameRestriction`
@@ -15634,7 +15634,7 @@ export type EffectOp =
      *  `player` names the chooser (the resolving controller by default, an
      *  announced target-slot player, or a relative player). `bind` is
      *  REQUIRED — a name choice nothing reads back is meaningless.
-     *  `nameRestriction` (CR 201.3) narrows the legal name space and is
+     *  `nameRestriction` (CR 201.4a) narrows the legal name space and is
      *  checked at SUBMIT time (`applyNameCardSubmit`,
      *  `pendingChoiceSubmit.ts`) — the chooser is asked again, exactly like
      *  every other illegal-choice rejection in that pipeline; it is not a

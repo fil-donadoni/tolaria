@@ -6418,3 +6418,78 @@ describe("validateEffectScript — $<binding>.name snapshot name ref (issue #271
         expect(errors.join("\n")).toMatch(/unknown property path/);
     });
 });
+
+describe("issue #2713 — the three Op parameters' validator rules", () => {
+    it("rejects a `discard` carrying BOTH `cards` and `filter` (the chosen set and the rule-chosen set)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "discard",
+                        player: "opponent",
+                        cards: { ref: "$picked" },
+                        filter: { type: "Creature" },
+                    } as never,
+                ],
+            })
+        );
+        expect(errors.join("\n")).toMatch(/mutually exclusive/i);
+    });
+
+    it("accepts each `discard` shape on its own", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "discard",
+                            player: "opponent",
+                            filter: { type: "Creature" },
+                        },
+                    ],
+                })
+            )
+        ).toEqual([]);
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [{ op: "discard", player: "opponent" }],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it('rejects `to: "library-top"` on a carrier that is neither `cards` nor `target`', () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "moveZone",
+                        player: "controller",
+                        from: "graveyard",
+                        to: "library-top",
+                    } as never,
+                ],
+            })
+        );
+        expect(errors.join("\n")).toMatch(
+            /only valid with "cards" or "target"/
+        );
+    });
+
+    it('accepts `to: "library-top"` on an announced-target carrier (Volrath\'s Stronghold)', () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { target: 0 },
+                            to: "library-top",
+                        },
+                    ],
+                })
+            )
+        ).toEqual([]);
+    });
+});

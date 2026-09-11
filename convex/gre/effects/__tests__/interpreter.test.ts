@@ -32450,7 +32450,7 @@ describe("discard — the hand-filter shape (CR 701.9, issue #2713)", () => {
                 playerId: "p1",
                 cardName: "Volrath's Stronghold",
             })
-        ).toThrow();
+        ).toThrow(/nonland/i);
         // The head survives an illegal submission — the chooser is asked
         // again rather than the restriction being silently dropped.
         expect(state.pendingChoices).toHaveLength(1);

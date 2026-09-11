@@ -273,6 +273,17 @@ function announcedSlot(sel: object): number | undefined {
  *  lens cannot read (a modal card's per-mode targets). `0` only when a board
  *  IS attached and holds no legal victim — the empty-board case the fixed
  *  constant got most wrong. */
+/** Whether an object selector names something the latent model priced off the
+ *  BATTLEFIELD (issue #2713). `victimUnits` answers `undefined` for every slot
+ *  it could not find there — a graveyard card, an exile card, a player — which
+ *  is exactly the distinction `moveZonePoints` needs to tell a tuck from a
+ *  recursion when both spell their destination `"library-top"`. */
+function isBoardVictim(sel: object, ctx: GroundingContext): boolean {
+    const slot = announcedSlot(sel);
+    if (slot === undefined) return false;
+    return ctx.latent.victimUnits(slot) !== undefined;
+}
+
 function victimUnitsFor(sel: object, ctx: GroundingContext): number {
     const slot = announcedSlot(sel);
     if (slot === undefined) return 1;
@@ -721,10 +732,26 @@ const sacrifice: Valuer<"sacrifice"> = (op, ctx, scope) => {
 function moveZonePoints(
     to: EffectMoveZone | "library-top",
     ctx: GroundingContext,
-    victimUnits: number
+    victimUnits: number,
+    boardVictim: boolean
 ): { points: number; tag: Feature } {
     switch (to) {
         case "library-top":
+            // A BOARD victim tucked on top of a library is removal, priced
+            // exactly like the plain `"library"` tuck below — the destination
+            // spelling must not flip the sign of the identical physical move
+            // (issue #2713 review).
+            if (boardVictim) {
+                return {
+                    points: pricedFraction(
+                        ctx,
+                        "tempo",
+                        RETURN_COMPLETENESS.tuck,
+                        victimUnits
+                    ),
+                    tag: "tempo",
+                };
+            }
             // Issue #2713 — the ORDERED library destination the plain
             // `"library"` tuck cannot name. Its shipped consumer (Volrath's
             // Stronghold) points it at the ACTOR'S OWN graveyard card, so the
@@ -819,7 +846,11 @@ const moveZone: Valuer<"moveZone"> = (op, ctx) => {
     const { points, tag } = moveZonePoints(
         op.to,
         ctx,
-        victimUnitsFor(op.target, ctx)
+        victimUnitsFor(op.target, ctx),
+        // A victim the latent model can PRICE is one it found on the
+        // battlefield; a graveyard/exile card has no board units and falls
+        // back to the flat 1 (issue #2713).
+        isBoardVictim(op.target, ctx)
     );
     const tags: ValueTag[] = [tag];
     if (isAnnouncedTarget(op.target)) tags.push("targeted");

@@ -3537,7 +3537,7 @@ export type PendingChoice = {
     /** For `kind: "name-card"` only (issue #1085) — a restriction on the
      *  legal name, checked at SUBMIT time (`applyNameCardSubmit`,
      *  `pendingChoiceSubmit.ts`) rather than post-hoc filtered by the
-     *  resolving Op. `"no-basic-land"` is CR 201.3's "a card name other than
+     *  resolving Op. `"no-basic-land"` is CR 201.4a's "a card name other than
      *  a basic land card name" (Desperate Research) — a submission naming
      *  Plains/Island/Swamp/Mountain/Forest/Wastes is rejected and the
      *  chooser is asked again, exactly like every other illegal-choice
@@ -19352,9 +19352,10 @@ export function buildSpellContext(
                 kind: "name-card",
                 count: 1,
                 prompt: req.prompt,
-                // CR 201.3 (issue #1085) — "a card name other than a basic
-                // land card name" (Desperate Research). Checked at submit
-                // time by `applyNameCardSubmit`.
+                // CR 201.4a (issue #1085) — "a card name other than a basic
+                // land card name" (Desperate Research), or the stronger "a
+                // nonland card name" (Cabal Therapy). Checked at submit time
+                // by `applyNameCardSubmit`.
                 ...(req.nameRestriction
                     ? { nameRestriction: req.nameRestriction }
                     : {}),

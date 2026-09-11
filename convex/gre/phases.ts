@@ -182,7 +182,7 @@ function nextPhase(current: Phase): Phase | null {
     return PHASE_ORDER[idx + 1];
 }
 
-/** Collects every `StaticUntapRestriction` in play (CR 502.1) in a
+/** Collects every `StaticUntapRestriction` in play (CR 502.3) in a
  *  deterministic walk: active player's battlefield first, then opponent's,
  *  battlefield order within each player. The cursor on
  *  `state.pendingUntapStep` keys into this same order so suspend/resume
@@ -231,6 +231,11 @@ export function collectUntapRestrictions(state: GameState): {
                 // source IS the restricted permanent, so the synthesized
                 // filter names its own instance id and the dispatcher stays
                 // filter-shaped.
+                // A hand-built literal carrying BOTH `appliesToHost` and this
+                // flag never reaches here: the host branch above returns
+                // first. The factory refuses the `dynamicMatch` pairing
+                // outright (module load), so the only unenforceable overlap is
+                // one the type doc already forbids.
                 if (effect.appliesToSelf) {
                     const view = effectivePermanentView(state, card);
                     if (effect.condition && !effect.condition(view)) continue;
@@ -247,7 +252,7 @@ export function collectUntapRestrictions(state: GameState): {
                     const view = effectivePermanentView(state, card);
                     if (!effect.condition(view)) continue;
                 }
-                // CR 502.1 — a restriction whose target set depends on
+                // CR 502.3 — a restriction whose target set depends on
                 // characteristics `PermanentFilter` can't carry (Tsabo's Web:
                 // "each land with an activated ability that isn't a mana
                 // ability") resolves per-candidate here. Test every permanent

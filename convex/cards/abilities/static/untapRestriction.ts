@@ -77,6 +77,17 @@ export interface UntapRestrictionArgs {
 export function untapRestriction(
     args: UntapRestrictionArgs
 ): StaticUntapRestriction {
+    // The three scopings are mutually exclusive and `collectUntapRestrictions`
+    // resolves them in a fixed order, so a spec carrying two would silently
+    // drop one (issue #2713 review). Thrown at MODULE LOAD — every catalogue
+    // test imports the set modules, so a bad spec cannot reach a game.
+    if (args.appliesToSelf && args.dynamicMatch) {
+        throw new Error(
+            `untapRestriction ${args.id}: appliesToSelf and dynamicMatch are mutually ` +
+                `exclusive — the collector's self branch returns first and would drop ` +
+                `the per-candidate refinement silently`
+        );
+    }
     return {
         kind: "untap-restriction",
         id: args.id,

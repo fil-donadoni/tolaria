@@ -5,13 +5,13 @@ import type { CardDefinition } from "../../types";
 // Cabal Therapy — {B} Sorcery. "Choose a nonland card name. Target player
 // reveals their hand and discards all cards with that name." plus
 // "Flashback—Sacrifice a creature." (CR 601.2c the announced player;
-// CR 201.3 the name choice; CR 701.20a the reveal; CR 701.9 the discard;
+// CR 201.4a the name choice; CR 701.20a the reveal; CR 701.9 the discard;
 // CR 702.34a flashback.)
 //
 // Three Ops in printed order. `nameCard` SUSPENDS for the open choice and
 // records the name as a binding; its `nameRestriction: "no-land"` is the
 // printed "NONLAND card name" checked at submit time — the stronger of the
-// two CR 201.3 strengths, where Desperate Research (`inv/black.ts`) uses
+// two CR 201.4a strengths, where Desperate Research (`inv/black.ts`) uses
 // `"no-basic-land"`. `reveal` shows the whole targeted hand to every player.
 // The discard then reads the name back through the filter's bare
 // `{ ref }` form, exactly as `digMatchingToHand` does: it is the `discard`
