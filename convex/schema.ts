@@ -1237,9 +1237,7 @@ export default defineSchema({
         author: v.string(),
         createdAt: v.number(),
         note: v.optional(v.string()),
-    })
-        .index("by_author", ["authorId"])
-        .index("by_createdAt", ["createdAt"]),
+    }).index("by_createdAt", ["createdAt"]),
 
     // Per-user Settings (issue #2595, PRD #2405 slice 16/16, ADR 0101). The
     // v3 tokens (density/motion) and the phase-stop store were device-local

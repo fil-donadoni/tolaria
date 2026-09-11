@@ -135,6 +135,31 @@ describe("verdicts.submit — the tester gate (issue #3402)", () => {
         ).rejects.toThrow("outside the 2-candidate list");
     });
 
+    it("refuses a position naming a card the engine does not have", async () => {
+        // Same reason the index bounds are checked here: the exporter would
+        // write the row into git, where it fails at fit time as "position
+        // could not be rebuilt", far from whoever could still say what they
+        // meant.
+        const { ctx } = makeMutationCtx("u-tester", ALL_USERS);
+        await expect(
+            runMutation(submit, ctx, {
+                ...ARGS,
+                spec: { cards: [{ name: "Mountainn", owner: "me" as const }] },
+            })
+        ).rejects.toThrow("unknown card name(s) in the position: Mountainn");
+    });
+
+    it("refuses two candidates carrying the same move key", async () => {
+        const { ctx } = makeMutationCtx("u-tester", ALL_USERS);
+        await expect(
+            runMutation(submit, ctx, {
+                ...ARGS,
+                candidates: [CANDIDATES[0], CANDIDATES[0]],
+                answer: { kind: "right" as const, rightIndexes: [0] },
+            })
+        ).rejects.toThrow("two candidates carry the same move key");
+    });
+
     it("refuses an answer that names nothing", async () => {
         const { ctx } = makeMutationCtx("u-tester", ALL_USERS);
         await expect(

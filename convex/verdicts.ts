@@ -22,7 +22,12 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { assertIsAdmin, assertIsTester } from "./auth";
-import { scenarioSpecValidator } from "./debugScenarioSpec";
+import {
+    collectUnresolvedCardNames,
+    scenarioSpecValidator,
+} from "./debugScenarioSpec";
+import { tryGetPlaceableCardByName } from "./cards";
+import { findTokenSpec } from "./cards/tokenCatalogue";
 
 /** One enumerated candidate: the structural move key plus the describer's
  *  sentence. Mirrors `VerdictCandidate` (`gre/ai/verdicts/types.ts`). */
@@ -102,6 +107,31 @@ export const submit = mutation({
         if (named.length === 0) {
             throw new Error("a verdict must name at least one candidate");
         }
+        // A NAME THE ENGINE DOES NOT HAVE is refused here for exactly the
+        // reason the index bounds below are: the exporter would otherwise
+        // write the row into git, where it fails at fit time as "position
+        // could not be rebuilt" — far from whoever could still say what they
+        // meant. Same check `saveDebugScenario` runs on the same vocabulary.
+        const unresolved = collectUnresolvedCardNames(
+            args.spec,
+            (name) => tryGetPlaceableCardByName(name) !== null,
+            (name) => findTokenSpec(name) !== undefined
+        );
+        if (unresolved.length > 0) {
+            throw new Error(
+                `unknown card name(s) in the position: ${unresolved.join(", ")}`
+            );
+        }
+
+        // Two candidates with the same move key resolve to the same move on a
+        // rebuilt position, so the pair built from them is permanently
+        // unsatisfiable. The enumerator cannot produce one; a hand-built
+        // payload can.
+        const keys = new Set(args.candidates.map((c) => c.key));
+        if (keys.size !== args.candidates.length) {
+            throw new Error("two candidates carry the same move key");
+        }
+
         const bound = args.candidates.length;
         for (const index of [
             ...named,
@@ -137,6 +167,12 @@ export const submit = mutation({
 /**
  * Every verdict, oldest first (issue #3402) — what `bun run verdicts:pull`
  * reads and what the admin page shows.
+ *
+ * `authorId` is deliberately NOT projected. The exported file records the
+ * nickname the account carried when it judged, which is what a reader of a
+ * diff years later can use; a user id resolves to nothing outside the
+ * deployment it came from. The column stays on the row for a future
+ * "verdicts by this tester" query.
  *
  * Admin-gated rather than tester-gated: submitting your own judgement and
  * reading everybody's are different things, and the export is an admin

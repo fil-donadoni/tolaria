@@ -70,6 +70,7 @@ function parseCandidates(path: string, raw: unknown): VerdictCandidate[] {
     if (!Array.isArray(raw) || raw.length === 0) {
         bad(path, `"candidates" must be a non-empty array`);
     }
+    const seen = new Set<string>();
     return (raw as unknown[]).map((entry, i) => {
         const row = entry as Record<string, unknown>;
         if (
@@ -78,6 +79,16 @@ function parseCandidates(path: string, raw: unknown): VerdictCandidate[] {
         ) {
             bad(path, `candidate ${i} needs a string "key" and "description"`);
         }
+        // Two candidates with the same move key resolve to the SAME move on
+        // the rebuilt position, so the pair built from them has `delta === 0`
+        // and is permanently violated — a constraint nothing can satisfy,
+        // sitting in the corpus looking like a real one. The enumerator cannot
+        // produce a duplicate; a hand-authored file can, and this directory
+        // invites hand-authoring.
+        if (seen.has(row.key as string)) {
+            bad(path, `candidate ${i} repeats the move key of an earlier one`);
+        }
+        seen.add(row.key as string);
         return {
             key: row.key as string,
             description: row.description as string,
@@ -171,7 +182,14 @@ export function parseVerdictFile(file: VerdictFile): Verdict {
     if (!SOURCES.includes(source)) {
         bad(file.path, `"source" must be one of ${SOURCES.join(" / ")}`);
     }
-    if (typeof raw.spec !== "object" || raw.spec === null) {
+    if (
+        typeof raw.spec !== "object" ||
+        raw.spec === null ||
+        Array.isArray(raw.spec)
+    ) {
+        // An ARRAY passes `typeof x === "object"`, and a bare card list is the
+        // shape a hand-author reaches for first — without this it reaches the
+        // builder and fails there instead of here, by name.
         bad(file.path, `"spec" must be an object`);
     }
     if (raw.setup !== undefined && !Array.isArray(raw.setup)) {
@@ -249,13 +267,18 @@ export function verdictsFromFiles(files: readonly VerdictFile[]): Verdict[] {
  * files, with the registry's gaps carried through so one report still answers
  * "what was in, and what was left out".
  *
+ * `files` has NO DEFAULT, deliberately: a caller that forgot to read the
+ * directory would otherwise get a silent registry-only corpus, indistinguishable
+ * from one where nobody has judged anything — and a fit is the last place that
+ * difference should be invisible. Pass `[]` to mean it.
+ *
  * Registry first because those verdicts are DERIVED and their ids are
  * `registry:<label>` — keeping them as one contiguous, registry-ordered block
  * makes a report readable against the registry it came from, while the file
  * verdicts sort among themselves by id.
  */
 export function verdictCorpus(
-    files: readonly VerdictFile[] = [],
+    files: readonly VerdictFile[],
     scenarios?: readonly BladeScenario[]
 ): RegistryVerdicts {
     const registry = verdictsFromRegistry(scenarios);

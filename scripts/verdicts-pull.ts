@@ -19,8 +19,14 @@
 // HOW IT REACHES AN ADMIN-GATED QUERY: same mechanism as `bun run scenario:ls`
 // (`scenario-admin.ts`) — a plain `convex run` carries no caller identity, so
 // `assertIsAdmin` throws; `--identity` supplies one, resolved from the
-// deployment's own first `isAdmin` user. No `--push`: `verdicts:list` is a
-// plain read of a table, so a bundle upload would buy nothing and cost ~15s.
+// deployment's own first `isAdmin` user.
+//
+// IT PUSHES FIRST (`--push`), unlike `scenario:ls`, and the difference is not
+// taste: `scenario:ls` calls functions the deployment has had for many
+// releases, while `verdicts:list` is new here. Without a push, the first run
+// on any checkout that has not deployed this branch fails with "Could not find
+// function verdicts:list" — the same ordering trap `seed-scenario-run.ts`
+// documents having cost 10 of 14 scenario specs. ~15s, once, deterministic.
 //
 // The DEPLOYMENT call runs in the primary checkout (that is where `.env.local`
 // names a deployment); the FILES are written in the current working tree,
@@ -51,8 +57,8 @@ import {
     type VerdictRow,
 } from "./lib/verdicts-file";
 
-/** No push, so the budget is the call itself rather than a bundle upload. */
-const CALL_TIMEOUT_MS = 60_000;
+/** Room for the bundle upload the push performs, not just the call. */
+const CALL_TIMEOUT_MS = 120_000;
 
 function run(argv: string[]): string {
     const res = spawnSync("npx", argv, {
@@ -92,23 +98,29 @@ function adminIdentity(): string {
 function listVerdicts(): VerdictRow[] {
     const out = run(
         convexRunArgv("verdicts:list", "{}", {
-            push: false,
+            push: true,
             identity: adminIdentity(),
         })
     );
     return out === "" ? [] : (JSON.parse(out) as VerdictRow[]);
 }
 
-/** `source` of a file already on disk, or `null` when it is unreadable — an
- *  unreadable file is treated as "not ours", i.e. left alone. */
-function existingSource(path: string): string | null {
+/** `source` of a file already on disk: the string it declares, `null` when it
+ *  declares none, or `"unreadable"` when the file cannot be parsed at all.
+ *
+ *  The three are kept apart because only the middle one means "somebody else's
+ *  file, leave it": an UNREADABLE file is a truncated or corrupted export, and
+ *  treating it as foreign would mean a re-pull can never repair it while the
+ *  console says it is not an `in-play` export — a message that is false for
+ *  exactly that case. */
+function existingSource(path: string): string | null | "unreadable" {
     try {
         const raw = JSON.parse(readFileSync(path, "utf8")) as {
             source?: unknown;
         };
         return typeof raw.source === "string" ? raw.source : null;
     } catch {
-        return null;
+        return "unreadable";
     }
 }
 
@@ -120,6 +132,7 @@ function main(): void {
     let written = 0;
     let unchanged = 0;
     const skipped: string[] = [];
+    const repaired: string[] = [];
 
     // Sorted by file name so the console receipt reads the same way twice,
     // whatever order the query returned.
@@ -131,10 +144,13 @@ function main(): void {
         const path = join(dir, name);
         if (existsSync(path)) {
             const source = existingSource(path);
-            if (source !== "in-play") {
+            // An unreadable file is OURS and broken: overwrite it. Anything
+            // that declares another source belongs to a hand-author.
+            if (source !== "in-play" && source !== "unreadable") {
                 skipped.push(name);
                 continue;
             }
+            if (source === "unreadable") repaired.push(name);
         }
         const next = serializeVerdict(verdictFromRow(row));
         if (existsSync(path) && readFileSync(path, "utf8") === next) {
@@ -154,6 +170,9 @@ function main(): void {
         console.log(
             `  skipped ${name} — the file on disk is not an \`in-play\` export, so it was NOT overwritten`
         );
+    }
+    for (const name of repaired) {
+        console.log(`  rewrote ${name} — the file on disk did not parse`);
     }
     console.log(`${VERDICT_DIR}/ now holds ${onDisk} verdict file(s)`);
 }

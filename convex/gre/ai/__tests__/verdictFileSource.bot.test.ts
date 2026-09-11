@@ -118,6 +118,40 @@ describe("parseVerdictFile (issue #3402)", () => {
         ).toThrow(/bad\.json.*not valid JSON/);
     });
 
+    it("refuses a spec written as a bare array", () => {
+        // An array passes `typeof x === "object"` — and a bare card list is
+        // the shape a hand-author reaches for first, so without this it
+        // reaches the builder and fails there instead of here, by name.
+        expect(() =>
+            parseVerdictFile(
+                file(
+                    { ...MINIMAL, spec: [{ name: "Mountain" }] },
+                    "data/verdicts/bad.json"
+                )
+            )
+        ).toThrow(/bad\.json.*"spec"/);
+    });
+
+    it("refuses two candidates carrying the same move key", () => {
+        // They resolve to the SAME move on the rebuilt position, so the pair
+        // built from them has `delta === 0` and can never be satisfied — an
+        // unfittable constraint sitting in the corpus looking like a real one.
+        expect(() =>
+            parseVerdictFile(
+                file(
+                    {
+                        ...MINIMAL,
+                        candidates: [
+                            MINIMAL.candidates[0],
+                            MINIMAL.candidates[0],
+                        ],
+                    },
+                    "data/verdicts/bad.json"
+                )
+            )
+        ).toThrow(/repeats the move key/);
+    });
+
     it("refuses an index outside the candidate list, in the answer and in the bot pick", () => {
         // The one malformation a downstream consumer would otherwise hit only
         // at fit time, far from whoever could still say what they meant.
