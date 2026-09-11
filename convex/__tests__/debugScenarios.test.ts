@@ -355,6 +355,46 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
         ).toEqual({ cards: [], spellsCastThisTurn: {} });
     });
 
+    // CR 508.1c / 500.7 / 207.2c (issue #3450) — the turn-history trio. The
+    // two flag pairs and `revolt` are BOOLEAN pairs, the first of their shape:
+    // a non-boolean has to be dropped rather than passed through, because the
+    // builder writes the value straight onto `PlayerState` and a truthy
+    // string would read as "this seat took a qualifying action" — which, with
+    // an Arboria out, is the difference between a legal attack and none.
+    it("normalizes the turn-history flags and turnsTaken — both seats, one seat, absent, garbage", () => {
+        expect(
+            normalizeScenarioSpec({
+                cards: [],
+                qualifyingActionThisTurn: { me: true, opp: false },
+                qualifyingActionLastTurn: { opp: true },
+                turnsTaken: { me: 4, opp: 3 },
+                revolt: { me: true },
+            })
+        ).toEqual({
+            cards: [],
+            qualifyingActionThisTurn: { me: true, opp: false },
+            qualifyingActionLastTurn: { opp: true },
+            turnsTaken: { me: 4, opp: 3 },
+            revolt: { me: true },
+        });
+
+        expect(normalizeScenarioSpec({ cards: [] })).toEqual({ cards: [] });
+
+        expect(
+            normalizeScenarioSpec({
+                cards: [],
+                qualifyingActionThisTurn: { me: "yes" },
+                qualifyingActionLastTurn: "true",
+                turnsTaken: { me: "four" },
+                revolt: 1,
+            })
+        ).toEqual({
+            cards: [],
+            qualifyingActionThisTurn: {},
+            turnsTaken: {},
+        });
+    });
+
     // CR 102.1 / 117.1 / 117.4 (issue #3454) — the seat fields are a CLOSED
     // vocabulary, so the tolerant load has to drop anything outside it rather
     // than leak a raw value the builder would compare against "me".

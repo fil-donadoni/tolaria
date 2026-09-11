@@ -317,6 +317,25 @@ export function buildStateFromScenario(
     // `finalizeCleanup` when the turn actually ends.
     state.cleanupBookkeepingTurn = undefined;
 
+    // CR 508.1c (issue #3450) — Arboria's turn history joins the per-turn
+    // family above, and the frozen LAST-turn flag with it: a scenario places
+    // a position rather than replaying the two turns that reached it, so the
+    // board a spec describes must not inherit the loaded game's history.
+    // `spec.qualifyingActionThisTurn` / `…LastTurn` below re-seed them
+    // deliberately, which is what lets an Arboria position be captured at all
+    // — without the clear, "no qualifying action last turn" (the state that
+    // FORBIDS attacking that player) is the one value a spec could not place.
+    p1.qualifyingActionThisTurn = undefined;
+    p2.qualifyingActionThisTurn = undefined;
+    p1.qualifyingActionLastTurn = undefined;
+    p2.qualifyingActionLastTurn = undefined;
+    // Revolt, an ability word (CR 207.2c) — same family, same reason: it is
+    // set by any permanent leaving the battlefield this turn and reset by
+    // `advanceTurn`, so a rebuilt position inheriting it would hand Fatal Push
+    // a fourth mana value of reach the captured board never gave it.
+    p1.permanentYouControlledLeftThisTurn = undefined;
+    p2.permanentYouControlledLeftThisTurn = undefined;
+
     // CR 104 (issue #3314) — a scenario starts a LIVE position, so the
     // game-over flag goes with the zones above. `debugSetupScenario` persists
     // exactly what comes back from here, and `assertGameNotOver`
@@ -932,6 +951,52 @@ export function buildStateFromScenario(
         state.creatureAttackedThisTurn = spec.creatureAttackedThisTurn
             ? true
             : undefined;
+    }
+
+    // Seed the per-seat turn history (issue #3450, PRD #3397).
+    //
+    //  - Arboria's qualifying-action flags (CR 508.1c). The LAST-turn one
+    //    gates attack legality, so a rebuild that opens at "no action" —
+    //    or, without the clear above, at the loaded game's value — enumerates
+    //    a different set of attacks than the Bot was choosing between.
+    //  - `turnsTaken` (CR 500.7): the seat's OWN turn count, which extra
+    //    turns advance for their recipient alone.
+    //  - Revolt, an ability word (CR 207.2c): a permanent this seat
+    //    controlled left the battlefield this turn. Gates a cost and a mode.
+    //
+    // The two flag pairs and Revolt are truthy-checked like `landsPlayed`:
+    // false is exactly what the clear above already left, so an absent field
+    // round-trips to the same position. `turnsTaken` is NOT cleared (it is a
+    // lifetime count, like `spellsCastThisGame`), so it takes the `!==
+    // undefined` treatment `life` does — an explicit value must be able to
+    // overwrite the base state's own.
+    if (spec.qualifyingActionThisTurn) {
+        if (spec.qualifyingActionThisTurn.me) {
+            p1.qualifyingActionThisTurn = true;
+        }
+        if (spec.qualifyingActionThisTurn.opp) {
+            p2.qualifyingActionThisTurn = true;
+        }
+    }
+    if (spec.qualifyingActionLastTurn) {
+        if (spec.qualifyingActionLastTurn.me) {
+            p1.qualifyingActionLastTurn = true;
+        }
+        if (spec.qualifyingActionLastTurn.opp) {
+            p2.qualifyingActionLastTurn = true;
+        }
+    }
+    if (spec.revolt) {
+        if (spec.revolt.me) p1.permanentYouControlledLeftThisTurn = true;
+        if (spec.revolt.opp) p2.permanentYouControlledLeftThisTurn = true;
+    }
+    if (spec.turnsTaken) {
+        if (spec.turnsTaken.me !== undefined) {
+            p1.turnsTaken = spec.turnsTaken.me;
+        }
+        if (spec.turnsTaken.opp !== undefined) {
+            p2.turnsTaken = spec.turnsTaken.opp;
+        }
     }
 
     // CR 113.6c (issue #3278) — materialise off-battlefield characteristics on
@@ -1624,6 +1689,15 @@ export const PLAYER_STATE_ALLOWLIST = new Set<string>([
     // `drawnThisTurn` below whose expressible shape is a single card.
     "spellsCastThisTurn",
     "spellsCastThisGame",
+    // CR 508.1c / 500.7 (issue #3450) — Arboria's two qualifying-action flags
+    // and the seat's own turn count, lowered into the spec keys of the same
+    // name. Blanket entries: every value of each is expressible.
+    "qualifyingActionThisTurn",
+    "qualifyingActionLastTurn",
+    "turnsTaken",
+    // Revolt, an ability word (CR 207.2c) — lowered into the spec's `revolt`
+    // pair, named for the mechanic the way `stormCount` is.
+    "permanentYouControlledLeftThisTurn",
     "companion",
     "lastDrawnCardId",
     // CR 121.1 (issue #3240) — the spec CAN express this, but only in the one
@@ -1815,6 +1889,11 @@ export function specFromState(
         },
         deathsThisTurn: state.deathsThisTurn ?? 0,
         creatureAttackedThisTurn: state.creatureAttackedThisTurn ?? false,
+        // CR 500.7 (issue #3450) — always explicit, like `life` and the
+        // tallies above: the builder does not clear `turnsTaken` (it is a
+        // lifetime count), so lowering it as an absence would let a captured
+        // position inherit the turn count of whatever game it is loaded into.
+        turnsTaken: { me: me.turnsTaken ?? 0, opp: opp.turnsTaken ?? 0 },
     };
     if (markLastDrawn) spec.markLastDrawn = true;
 
@@ -1842,6 +1921,37 @@ export function specFromState(
         if (opp.landsPlayedThisTurn) {
             spec.landsPlayed.opp = opp.landsPlayedThisTurn;
         }
+    }
+
+    // CR 508.1c / 207.2c (issue #3450) — the three FLAGS, omitted when
+    // neither seat carries them for the same reason `landsPlayed` is: false
+    // is exactly what the builder's own clear leaves, so an absence
+    // round-trips to the same position and the spec stays minimal.
+    if (me.qualifyingActionThisTurn || opp.qualifyingActionThisTurn) {
+        spec.qualifyingActionThisTurn = {};
+        if (me.qualifyingActionThisTurn) {
+            spec.qualifyingActionThisTurn.me = true;
+        }
+        if (opp.qualifyingActionThisTurn) {
+            spec.qualifyingActionThisTurn.opp = true;
+        }
+    }
+    if (me.qualifyingActionLastTurn || opp.qualifyingActionLastTurn) {
+        spec.qualifyingActionLastTurn = {};
+        if (me.qualifyingActionLastTurn) {
+            spec.qualifyingActionLastTurn.me = true;
+        }
+        if (opp.qualifyingActionLastTurn) {
+            spec.qualifyingActionLastTurn.opp = true;
+        }
+    }
+    if (
+        me.permanentYouControlledLeftThisTurn ||
+        opp.permanentYouControlledLeftThisTurn
+    ) {
+        spec.revolt = {};
+        if (me.permanentYouControlledLeftThisTurn) spec.revolt.me = true;
+        if (opp.permanentYouControlledLeftThisTurn) spec.revolt.opp = true;
     }
 
     // CR 702.139c / ADR 0064 — the spec has exactly ONE companion slot; a

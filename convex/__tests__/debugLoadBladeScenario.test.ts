@@ -95,7 +95,7 @@ describe("debugLoadBladeScenario — label resolution (issue #1432)", () => {
  *  global `spellsCastThisTurn` (Storm, ADR 0052), `poisonCounters`
  *  (CR 122.1 — 10+ is an instant SBA loss, CR 704.5c), `energyCounters`
  *  (ADR 0032), `skipNextTurn` (CR 614.10), `hasDrawnFromEmpty` (CR 704.5b),
- *  `permanentYouControlledLeftThisTurn` (Revolt, CR 702.RV),
+ *  `permanentYouControlledLeftThisTurn` (Revolt, an ability word: CR 207.2c),
  *  `drawnThisTurn`/`lastDrawnCardId`, and `turnsTaken` (CR 500.1), PLUS the
  *  3 fields review round 3 found STILL leaking through round 2's
  *  per-field-authority DENYLIST (`resetPerTurnFields` + `emptyManaPool`):

@@ -225,6 +225,52 @@ export const scenarioSpecValidator = v.object({
     // per-creature flags, because a creature that attacked and then died is on
     // no battlefield to scan (see `GameState.creatureAttackedThisTurn`).
     creatureAttackedThisTurn: v.optional(v.boolean()),
+    // CR 508.1c (issue #3450, PRD #3397) — Arboria's per-seat turn history:
+    // whether a seat cast a spell or put a nontoken permanent onto the
+    // battlefield during its CURRENT turn, and the frozen value from its last
+    // completed turn. The last-turn flag gates ATTACK LEGALITY: with an
+    // Arboria on the battlefield a player who took no qualifying action last
+    // turn cannot be attacked, so a rebuild that forgets it enumerates attacks
+    // the Bot never had. Per-seat and both-optional, the `poison`/`life`
+    // shape; each key is the `PlayerState` field's own word, the naming the
+    // spells-cast pair already follows (issue #3449).
+    qualifyingActionThisTurn: v.optional(
+        v.object({
+            me: v.optional(v.boolean()),
+            opp: v.optional(v.boolean()),
+        })
+    ),
+    qualifyingActionLastTurn: v.optional(
+        v.object({
+            me: v.optional(v.boolean()),
+            opp: v.optional(v.boolean()),
+        })
+    ),
+    // CR 500.7 (issue #3450) — turns THIS SEAT has taken, which extra turns
+    // increment for their recipient alone. Distinct from `turn`, the global
+    // sequence number, which is lowered separately: the two diverge the moment
+    // any Time Walk effect resolves, and a card reading "the number of turns
+    // you've taken" reads this one.
+    turnsTaken: v.optional(
+        v.object({
+            me: v.optional(v.number()),
+            opp: v.optional(v.number()),
+        })
+    ),
+    // Revolt, an ability word (CR 207.2c — ability words have no rules meaning
+    // of their own and no Comprehensive Rules entry of their own): true when a
+    // permanent this seat controlled left the battlefield this turn
+    // (`PlayerState.permanentYouControlledLeftThisTurn`). Named for the
+    // MECHANIC rather than the engine field, the precedent `stormCount` set,
+    // because the engine name is a sentence. It gates a cost and a mode —
+    // Fatal Push kills a mana-value-4 creature only with it on — so a rebuild
+    // that zeroes it changes what the spell can legally target.
+    revolt: v.optional(
+        v.object({
+            me: v.optional(v.boolean()),
+            opp: v.optional(v.boolean()),
+        })
+    ),
     // CR 102.1 / 117.1 (issue #3454) — the TURN HOLDER and the PRIORITY
     // holder, the two facts that decide WHICH decision a rebuilt position
     // poses. Without them every position captured with priority on the
@@ -350,6 +396,29 @@ export type ScenarioSpec = {
      *  this turn (`GameState.creatureAttackedThisTurn`), read by "if no
      *  creatures attacked this turn" (Keldon Twilight). */
     creatureAttackedThisTurn?: boolean;
+    /** CR 508.1c (issue #3450) — Arboria's per-seat turn history: a qualifying
+     *  action is casting a spell or putting a nontoken permanent onto the
+     *  battlefield. Omitted means neither seat took one: the builder CLEARS
+     *  both flags like the other per-turn tallies (the `landsPlayed`
+     *  precedent, issue #3446), so a spec written before this field keeps
+     *  rebuilding the board it always did. */
+    qualifyingActionThisTurn?: { me?: boolean; opp?: boolean };
+    /** CR 508.1c (issue #3450) — the frozen value of the above from a seat's
+     *  most recently completed turn. This is the one Arboria READS: false or
+     *  absent on the defender and no attack against them is legal. */
+    qualifyingActionLastTurn?: { me?: boolean; opp?: boolean };
+    /** CR 500.7 (issue #3450) — turns this seat has taken
+     *  (`PlayerState.turnsTaken`), which extra turns increment for their
+     *  recipient alone. Always lowered explicitly, like `life`: the builder
+     *  does NOT clear it, so an absence would inherit the loaded game's
+     *  count. */
+    turnsTaken?: { me?: number; opp?: number };
+    /** Revolt, an ability word (CR 207.2c) — a permanent this seat controlled
+     *  left the battlefield this turn
+     *  (`PlayerState.permanentYouControlledLeftThisTurn`). Gates a cost and a
+     *  mode (Fatal Push). Cleared by the builder like the qualifying-action
+     *  flags, so omitted means "nothing has left". */
+    revolt?: { me?: boolean; opp?: boolean };
     /** CR 102.1 (issue #3454) — whose turn the position is. Omitted leaves the
      *  base state's turn holder untouched, which is what every spec written
      *  before this field meant. */
@@ -717,6 +786,29 @@ export function normalizeScenarioSpec(raw: unknown): ScenarioSpec {
         "creatureAttackedThisTurn",
         pickBoolean(raw.creatureAttackedThisTurn)
     );
+    // CR 508.1c / 500.7 / 207.2c (issue #3450) — the turn-history trio. The
+    // two flag pairs are tolerant the way the numeric pairs above are: a
+    // non-boolean is DROPPED rather than passed through, because the builder
+    // writes the value straight onto `PlayerState` and a truthy string would
+    // read as "this seat took a qualifying action".
+    for (const key of [
+        "qualifyingActionThisTurn",
+        "qualifyingActionLastTurn",
+        "revolt",
+    ] as const) {
+        const rawPair = raw[key];
+        if (!isRecord(rawPair)) continue;
+        const pair: { me?: boolean; opp?: boolean } = {};
+        set(pair, "me", pickBoolean(rawPair.me));
+        set(pair, "opp", pickBoolean(rawPair.opp));
+        spec[key] = pair;
+    }
+    if (isRecord(raw.turnsTaken)) {
+        const pair: { me?: number; opp?: number } = {};
+        set(pair, "me", pickNumber(raw.turnsTaken.me));
+        set(pair, "opp", pickNumber(raw.turnsTaken.opp));
+        spec.turnsTaken = pair;
+    }
     const activePlayer = pickString(raw.activePlayer);
     if (activePlayer === "me" || activePlayer === "opp") {
         spec.activePlayer = activePlayer;

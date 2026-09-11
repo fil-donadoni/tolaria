@@ -174,6 +174,12 @@ export function draftToCard(draft: CardDraft): ScenarioCard {
  *  spec's `{ me?, opp? }` shape). */
 export type SeatPairDraft = { me: string; opp: string };
 
+/** A per-seat BOOLEAN pair (issue #3450): the Arboria qualifying-action flags
+ *  and Revolt. Two checkboxes, so unlike `SeatPairDraft` there is no "blank"
+ *  state to hold — false is the spec's own absence, because the builder
+ *  CLEARS all three before seeding. */
+export type SeatFlagPairDraft = { me: boolean; opp: boolean };
+
 /** Editable form representation of the spec-level fields of `ScenarioSpec`
  *  (everything except `cards`, which the card repeater owns). */
 export type SpecDraft = {
@@ -204,6 +210,17 @@ export type SpecDraft = {
     lifeGainedThisTurn: SeatPairDraft;
     deathsThisTurn: string;
     creatureAttackedThisTurn: boolean;
+    /** CR 508.1c (issue #3450) — Arboria's qualifying-action flags: whether
+     *  each seat cast a spell or put a nontoken permanent onto the
+     *  battlefield this turn, and whether it did so LAST turn — the one that
+     *  decides whether that player can be attacked at all. */
+    qualifyingActionThisTurn: SeatFlagPairDraft;
+    qualifyingActionLastTurn: SeatFlagPairDraft;
+    /** CR 500.7 (issue #3450) — turns each seat has taken. */
+    turnsTaken: SeatPairDraft;
+    /** Revolt, an ability word (CR 207.2c) — a permanent each seat controlled
+     *  left the battlefield this turn. */
+    revolt: SeatFlagPairDraft;
     /** CR 102.1 / 117.1 (issue #3454) — the turn holder and the priority
      *  holder. `""` is the spec's own "absent", which the builder reads as
      *  "leave the base state's turn holder alone"; it is a real, selectable
@@ -216,6 +233,7 @@ export type SpecDraft = {
 };
 
 const EMPTY_SEAT_PAIR: SeatPairDraft = { me: "", opp: "" };
+const EMPTY_SEAT_FLAG_PAIR: SeatFlagPairDraft = { me: false, opp: false };
 
 /** A fresh, wholly empty spec draft — every knob unset, which collapses to a
  *  spec carrying nothing but `cards`. */
@@ -239,6 +257,10 @@ export function emptySpecDraft(): SpecDraft {
         lifeGainedThisTurn: { ...EMPTY_SEAT_PAIR },
         deathsThisTurn: "",
         creatureAttackedThisTurn: false,
+        qualifyingActionThisTurn: { ...EMPTY_SEAT_FLAG_PAIR },
+        qualifyingActionLastTurn: { ...EMPTY_SEAT_FLAG_PAIR },
+        turnsTaken: { ...EMPTY_SEAT_PAIR },
+        revolt: { ...EMPTY_SEAT_FLAG_PAIR },
         activePlayer: "",
         priority: "",
         passCount: "",
@@ -253,6 +275,15 @@ function seatPairToDraft(
         me: pair?.me !== undefined ? String(pair.me) : "",
         opp: pair?.opp !== undefined ? String(pair.opp) : "",
     };
+}
+
+/** The flag counterpart of `seatPairToDraft` (issue #3450): an absent pair,
+ *  or an absent side of one, is `false` — the value the builder's clear
+ *  leaves, so the round trip through the form changes no board. */
+function seatFlagPairToDraft(
+    pair: { me?: boolean; opp?: boolean } | undefined
+): SeatFlagPairDraft {
+    return { me: pair?.me === true, opp: pair?.opp === true };
 }
 
 /** Inflate the spec-level fields of a stored spec into an editable draft
@@ -286,6 +317,14 @@ export function specToDraft(spec: ScenarioSpec | null): SpecDraft {
     if (spec.deathsThisTurn !== undefined)
         draft.deathsThisTurn = String(spec.deathsThisTurn);
     draft.creatureAttackedThisTurn = spec.creatureAttackedThisTurn ?? false;
+    draft.qualifyingActionThisTurn = seatFlagPairToDraft(
+        spec.qualifyingActionThisTurn
+    );
+    draft.qualifyingActionLastTurn = seatFlagPairToDraft(
+        spec.qualifyingActionLastTurn
+    );
+    draft.turnsTaken = seatPairToDraft(spec.turnsTaken);
+    draft.revolt = seatFlagPairToDraft(spec.revolt);
     if (spec.activePlayer !== undefined) draft.activePlayer = spec.activePlayer;
     if (spec.priority !== undefined) draft.priority = spec.priority;
     if (spec.passCount !== undefined) draft.passCount = String(spec.passCount);
@@ -311,6 +350,19 @@ function seatPairFromDraft(
     if (me !== undefined) out.me = me;
     if (opp !== undefined) out.opp = opp;
     return me === undefined && opp === undefined ? undefined : out;
+}
+
+/** Collapse a per-seat FLAG draft (issue #3450): only a `true` side is
+ *  written, and a pair with neither side set is omitted entirely — false is
+ *  what the builder's clear already leaves, so writing it would add noise to
+ *  every row without changing a single board. */
+function seatFlagPairFromDraft(
+    pair: SeatFlagPairDraft
+): { me?: boolean; opp?: boolean } | undefined {
+    const out: { me?: boolean; opp?: boolean } = {};
+    if (pair.me) out.me = true;
+    if (pair.opp) out.opp = true;
+    return pair.me || pair.opp ? out : undefined;
 }
 
 /**
@@ -357,6 +409,14 @@ export function draftToSpec(draft: SpecDraft): Omit<ScenarioSpec, "cards"> {
     const deaths = num(draft.deathsThisTurn);
     if (deaths !== undefined) spec.deathsThisTurn = deaths;
     if (draft.creatureAttackedThisTurn) spec.creatureAttackedThisTurn = true;
+    const qaThisTurn = seatFlagPairFromDraft(draft.qualifyingActionThisTurn);
+    if (qaThisTurn) spec.qualifyingActionThisTurn = qaThisTurn;
+    const qaLastTurn = seatFlagPairFromDraft(draft.qualifyingActionLastTurn);
+    if (qaLastTurn) spec.qualifyingActionLastTurn = qaLastTurn;
+    const turnsTaken = seatPairFromDraft(draft.turnsTaken);
+    if (turnsTaken) spec.turnsTaken = turnsTaken;
+    const revolt = seatFlagPairFromDraft(draft.revolt);
+    if (revolt) spec.revolt = revolt;
 
     if (draft.activePlayer !== "") spec.activePlayer = draft.activePlayer;
     if (draft.priority !== "") spec.priority = draft.priority;

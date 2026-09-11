@@ -2215,7 +2215,10 @@ export type PlayerState = {
      *  dedicated scalar rather than an entry in the object `counters[type]`
      *  map, mirroring `poisonCounters`/`energyCounters` (ADR 0032). */
     experienceCounters?: number;
-    /** Revolt (CR 702.RV): true when a permanent this player controlled left
+    /** Revolt — an ability word (CR 207.2c: ability words tie together cards
+     *  with similar functionality but have no rules meaning of their own and
+     *  no Comprehensive Rules entry of their own, so there is no 702 section
+     *  to cite). True when a permanent this player controlled left
      *  the battlefield this turn. Set by `removePermanentTo` whenever a
      *  permanent leaves the battlefield (destroy / exile / sacrifice / bounce).
      *  Reset to false at the start of each turn (`advanceTurn`). Read by
@@ -10858,7 +10861,7 @@ export function removePermanentTo(
             ...(causerControllerId ? { causerControllerId } : {}),
         },
     ];
-    // Revolt (CR 702.RV): set the per-player flag when a permanent a player
+    // Revolt, an ability word (CR 207.2c): set the per-player flag when a permanent a player
     // controlled leaves the battlefield this turn.
     const controller = getPlayer(state, snapshotControllerId);
     controller.permanentYouControlledLeftThisTurn = true;
@@ -20961,7 +20964,7 @@ export function buildSpellContext(
             if (ids.length === 0) return undefined;
             return ids[randomInt(state, ids.length)];
         },
-        // Revolt (CR 702.RV): true when a permanent the given player controlled
+        // Revolt, an ability word (CR 207.2c): true when a permanent the given player controlled
         // left the battlefield this turn. Set by removePermanentTo, reset at
         // turn start (advanceTurn).
         hasRevolt(playerId: string): boolean {

@@ -1,7 +1,11 @@
 import { SCENARIO_PHASES } from "@convex/debugScenarioSpec";
 import { DEBUG_INPUT_CLASS } from "./debug-form-styles";
 import DebugCardNameField from "./debug-card-name-field";
-import type { SeatPairDraft, SpecDraft } from "./scenario-draft";
+import type {
+    SeatFlagPairDraft,
+    SeatPairDraft,
+    SpecDraft,
+} from "./scenario-draft";
 import {
     type ScenarioSpecFieldInput,
     FORM_OWNED_SCENARIO_SPEC_KEYS,
@@ -32,6 +36,11 @@ type BooleanDraftKey = {
 }[keyof SpecDraft];
 type SeatPairDraftKey = {
     [K in keyof SpecDraft]: SpecDraft[K] extends SeatPairDraft ? K : never;
+}[keyof SpecDraft];
+/** Issue #3450 — the BOOLEAN per-seat pairs (Arboria's qualifying-action
+ *  flags, Revolt), two checkboxes rather than two number inputs. */
+type SeatFlagPairDraftKey = {
+    [K in keyof SpecDraft]: SpecDraft[K] extends SeatFlagPairDraft ? K : never;
 }[keyof SpecDraft];
 
 /**
@@ -210,6 +219,45 @@ export default function DebugScenarioSpecFields({
                                                 })
                                             }
                                             className={`${DEBUG_INPUT_CLASS} w-14`}
+                                        />
+                                    </label>
+                                ))}
+                            </span>
+                        );
+                    }
+                    case "per-seat-flag": {
+                        // Issue #3450 — the flag pair. No blank state: the
+                        // builder CLEARS all three before seeding, so an
+                        // unchecked box and an absent field are the same
+                        // board, which is what lets two checkboxes stand in
+                        // for a tri-state.
+                        const field = key as SeatFlagPairDraftKey;
+                        const pair = draft[field];
+                        return (
+                            <span
+                                key={key}
+                                className="flex items-center gap-1 text-text-muted"
+                            >
+                                {input.label}
+                                {SCENARIO_SEATS.map((seat, i) => (
+                                    <label
+                                        key={seat}
+                                        className="flex items-center gap-0.5 text-[10px] text-text-disabled"
+                                    >
+                                        {seat}
+                                        <input
+                                            type="checkbox"
+                                            checked={pair[seat]}
+                                            aria-label={labels[i]}
+                                            onChange={(e) =>
+                                                onPatch({
+                                                    [field]: {
+                                                        ...pair,
+                                                        [seat]: e.target
+                                                            .checked,
+                                                    },
+                                                })
+                                            }
                                         />
                                     </label>
                                 ))}

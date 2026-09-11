@@ -1,5 +1,9 @@
 import type { ScenarioSpec } from "@convex/debugScenarioSpec";
-import type { SeatPairDraft, SpecDraft } from "./scenario-draft";
+import type {
+    SeatFlagPairDraft,
+    SeatPairDraft,
+    SpecDraft,
+} from "./scenario-draft";
 
 /**
  * Who owns a SPEC-LEVEL field when the scenario editor saves (issue #3462),
@@ -65,6 +69,14 @@ export const SCENARIO_SPEC_FIELD_OWNER = {
     lifeGainedThisTurn: "form-owned",
     deathsThisTurn: "form-owned",
     creatureAttackedThisTurn: "form-owned",
+    // CR 508.1c / 500.7 / 207.2c (issue #3450) — the per-seat turn history:
+    // Arboria's qualifying-action flags, the seat's own turn count and
+    // Revolt. `form-owned` like every field since issue #3463 — an Arboria
+    // position an admin cannot type is one only a capture can produce.
+    qualifyingActionThisTurn: "form-owned",
+    qualifyingActionLastTurn: "form-owned",
+    turnsTaken: "form-owned",
+    revolt: "form-owned",
     // CR 102.1 / 117.1 / 117.4 (issue #3454) — the turn holder, the priority
     // holder and the banked passes. `form-owned` like everything else since
     // issue #3463: these are the first of PRD #3397's queued widenings, and a
@@ -141,6 +153,11 @@ export type ScenarioSpecFieldInput =
     | { kind: "phase"; label: string }
     | { kind: "boolean"; label: string }
     | { kind: "per-seat"; label: string; min?: number }
+    /** Issue #3450 — the BOOLEAN per-seat pair: two checkboxes, no `min`, no
+     *  blank state. Its own kind rather than a flag on `per-seat` because the
+     *  renderer narrows on `kind` to decide what input to emit, and the draft
+     *  it reads is `{ me: boolean; opp: boolean }`. */
+    | { kind: "per-seat-flag"; label: string }
     /** CR 102.1 / 117.1 (issue #3454) — ONE seat, not a me/opp pair: the turn
      *  holder and the priority holder each name a single side, and `""` (the
      *  spec's own absent) is a real selectable value. */
@@ -190,6 +207,16 @@ export const SCENARIO_SPEC_FIELD_INPUT = {
         kind: "boolean",
         label: "a creature attacked this turn",
     },
+    qualifyingActionThisTurn: {
+        kind: "per-seat-flag",
+        label: "qualifying action this turn",
+    },
+    qualifyingActionLastTurn: {
+        kind: "per-seat-flag",
+        label: "qualifying action last turn",
+    },
+    turnsTaken: { kind: "per-seat", label: "turns taken", min: 0 },
+    revolt: { kind: "per-seat-flag", label: "revolt" },
     activePlayer: { kind: "seat", label: "active player" },
     priority: { kind: "seat", label: "priority" },
     passCount: { kind: "number", label: "passes", min: 0 },
@@ -212,17 +239,22 @@ type ScenarioSpecFieldInputFor<K extends FormOwnedScenarioSpecKey> =
 
 type ScenarioSpecFieldInputForValue<V> = V extends SeatPairDraft
     ? { kind: "per-seat"; label: string; min?: number }
-    : V extends boolean
-      ? { kind: "boolean"; label: string }
-      : // Before the generic string branch: a draft field narrowed to the seat
-        // union is a `<select>`, never a free-text number (issue #3454).
-        V extends "" | "me" | "opp"
-        ? { kind: "seat"; label: string }
-        : V extends string
-          ?
-                | { kind: "number"; label: string; min?: number }
-                | { kind: "phase"; label: string }
-          : { kind: "companion"; label: string };
+    : // Before the plain-boolean branch: a per-seat FLAG pair is two
+      // checkboxes, and `SeatFlagPairDraft` is an object, not a boolean
+      // (issue #3450).
+      V extends SeatFlagPairDraft
+      ? { kind: "per-seat-flag"; label: string }
+      : V extends boolean
+        ? { kind: "boolean"; label: string }
+        : // Before the generic string branch: a draft field narrowed to the seat
+          // union is a `<select>`, never a free-text number (issue #3454).
+          V extends "" | "me" | "opp"
+          ? { kind: "seat"; label: string }
+          : V extends string
+            ?
+                  | { kind: "number"; label: string; min?: number }
+                  | { kind: "phase"; label: string }
+            : { kind: "companion"; label: string };
 
 /** The two seats every per-seat spec field is shaped by. */
 export const SCENARIO_SEATS = ["me", "opp"] as const;
@@ -242,6 +274,7 @@ export function scenarioSpecFieldLabels(
         case "cards":
             return [];
         case "per-seat":
+        case "per-seat-flag":
             return SCENARIO_SEATS.map((seat) => `${input.label} ${seat}`);
         case "companion":
             return [
