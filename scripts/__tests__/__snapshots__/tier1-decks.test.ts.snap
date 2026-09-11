@@ -2,7 +2,7 @@
 
 exports[`M1 progress > records the per-deck summary so the diff shows progress 1`] = `
 "goblin                16/28 ready  (12 ours, 4 ready, 1 quarantine, 11 unparsed)
-psychatog             18/25 ready  (17 ours, 1 ready, 1 quarantine, 6 unparsed)
+psychatog             19/25 ready  (18 ours, 1 ready, 1 quarantine, 5 unparsed)
 parallax-replenish    21/21 ready  (20 ours, 1 ready, 0 quarantine, 0 unparsed)
 landstill             25/28 ready  (23 ours, 2 ready, 0 quarantine, 3 unparsed)
 oath-ponza            24/24 ready  (20 ours, 4 ready, 0 quarantine, 0 unparsed)
