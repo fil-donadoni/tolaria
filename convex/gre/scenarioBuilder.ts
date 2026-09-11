@@ -752,6 +752,44 @@ export function buildStateFromScenario(
         }
     }
 
+    // Seed what has already been CAST (issue #3449, PRD #3397). Three tallies
+    // a rebuilt position otherwise opens at zero:
+    //
+    //  - the per-seat per-turn count (CR 601.2i), what a "whenever you cast
+    //    your second spell each turn" trigger reads — Ledger Shredder, whose
+    //    effect is the CR 701.50 connive keyword;
+    //  - the per-seat LIFETIME count, never reset, which gates a COST and
+    //    therefore legality (CR 118.9): Once Upon a Time is free only while
+    //    the caster's tally is 0, so a position captured after the seat's
+    //    first spell rebuilt as a FREE cast it never had;
+    //  - Storm's game-level count (CR 702.40a), which decides how many copies
+    //    every storm spell makes — judged at 0, every storm decision in the
+    //    corpus was a different decision.
+    //
+    // `!== undefined` (like `life`, unlike poison/experience): an explicit 0 is
+    // a real, load-bearing claim here — "this seat has cast nothing yet" is
+    // exactly the state Once Upon a Time's free cast needs, and on the live
+    // game `debugSetupScenario` builds onto it differs from omitting the field.
+    if (spec.spellsCastThisTurn) {
+        if (spec.spellsCastThisTurn.me !== undefined) {
+            p1.spellsCastThisTurn = spec.spellsCastThisTurn.me;
+        }
+        if (spec.spellsCastThisTurn.opp !== undefined) {
+            p2.spellsCastThisTurn = spec.spellsCastThisTurn.opp;
+        }
+    }
+    if (spec.spellsCastThisGame) {
+        if (spec.spellsCastThisGame.me !== undefined) {
+            p1.spellsCastThisGame = spec.spellsCastThisGame.me;
+        }
+        if (spec.spellsCastThisGame.opp !== undefined) {
+            p2.spellsCastThisGame = spec.spellsCastThisGame.opp;
+        }
+    }
+    if (spec.stormCount !== undefined) {
+        state.spellsCastThisTurn = spec.stormCount;
+    }
+
     // CR 113.6c (issue #3278) — materialise off-battlefield characteristics on
     // everything the placement loop above put in a hidden zone, LAST, so it
     // sees the final contents of every zone (library seeding, face-down exile
@@ -778,8 +816,9 @@ export function buildStateFromScenario(
 // `ScenarioSpec` can express only what the table in `buildStateFromScenario`
 // consumes (battlefield/hand/graveyard/exile placement, tapped, counters,
 // attachments, damage, phase, turn, the turn holder / priority holder / pass
-// count, poison/life/experience, lands already played, one companion
-// slot). Everything else a live `GameState` can hold — the stack, mana pool,
+// count, poison/life/experience, lands already played, the spells-cast
+// tallies and the storm count, one companion slot). Everything else a live
+// `GameState` can hold — the stack, mana pool,
 // a mid-flight payment, combat beyond an empty DECLARE_ATTACKERS seed,
 // delayed triggers, a per-card continuous effect the spec has no field for —
 // is reported here rather than silently discarded, so a caller never mistakes
@@ -1322,6 +1361,9 @@ export const GAME_STATE_ALLOWLIST = new Set<string>([
     "activePlayerId",
     "priorityPlayerId",
     "passCount",
+    // CR 702.40a (issue #3449) — lowered into `stormCount`, the Storm tally of
+    // spells cast by any player this turn.
+    "spellsCastThisTurn",
     // Covered by a bespoke `dropped` message below.
     "stack",
     "combat",
@@ -1386,6 +1428,12 @@ export const PLAYER_STATE_ALLOWLIST = new Set<string>([
     // CR 305.2 (issue #3446) — lowered by `specFromState` into `landsPlayed`
     // and rebuilt from it, so it is no longer live-only residue.
     "landsPlayedThisTurn",
+    // CR 601.2i / 118.9 (issue #3449) — lowered into the spec's own
+    // `spellsCastThisTurn` / `spellsCastThisGame` per-seat pairs. Any value of
+    // either is expressible, so these are blanket entries, unlike
+    // `drawnThisTurn` below whose expressible shape is a single card.
+    "spellsCastThisTurn",
+    "spellsCastThisGame",
     "companion",
     "lastDrawnCardId",
     // CR 121.1 (issue #3240) — the spec CAN express this, but only in the one
@@ -1537,6 +1585,27 @@ export function specFromState(
         activePlayer: state.activePlayerId === opts.mySeatId ? "me" : "opp",
         priority: state.priorityPlayerId === opts.mySeatId ? "me" : "opp",
         passCount: state.passCount,
+        // Issue #3449 — what has already been cast, always explicit, for the
+        // same reason as `life` and the three above and NOT the truthy-guarded
+        // convention poison/experience follow. The builder leaves an omitted
+        // field UNCHANGED, and `debugSetupScenario` rebuilds onto the LIVE
+        // game rather than a fresh base: a position genuinely captured at
+        // storm count 0, lowered as an absence and loaded mid-turn, would
+        // inherit that game's count and make every storm spell in it copy
+        // itself (CR 702.40a). Zero is a claim here, so it is written.
+        spellsCastThisTurn: {
+            me: me.spellsCastThisTurn ?? 0,
+            opp: opp.spellsCastThisTurn ?? 0,
+        },
+        spellsCastThisGame: {
+            me: me.spellsCastThisGame ?? 0,
+            opp: opp.spellsCastThisGame ?? 0,
+        },
+        // CR 702.40a — the game-level Storm tally, NOT the sum of the two
+        // seats above: `emitSpellCastEvent` increments it for every cast,
+        // including one whose caster matches no seated player, so it is
+        // captured as itself.
+        stormCount: state.spellsCastThisTurn ?? 0,
     };
     if (markLastDrawn) spec.markLastDrawn = true;
 

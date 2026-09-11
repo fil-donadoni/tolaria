@@ -22,10 +22,16 @@ import { gaeasTouch } from "../../cards/sets/drk/green";
 import { shivanDragon } from "../../cards/sets/lea/red";
 import { forest } from "../../cards/sets/lea/colorless";
 import { animateDead, fear } from "../../cards/sets/lea/black";
+import { onceUponATime } from "../../cards/sets/eld/green";
+import { grapeshot } from "../../cards/sets/tsp";
 import { tokenDefinitionId, tryGetDefinition } from "../../cards";
 import { findTokenSpec } from "../../cards/tokenCatalogue";
 import { projectFullState, projectPublicState } from "../../gameProjections";
-import { buildSpellContext } from "../state";
+import {
+    buildSpellContext,
+    emitSpellCastEvent,
+    resolveTopOfStack,
+} from "../state";
 import {
     NO_TARGETING_SOURCE,
     getLegalActions,
@@ -1282,7 +1288,7 @@ describe("specFromState (issue #2148)", () => {
         state.skipDrawStepThisTurn = [me.id];
         state.preventAllCombatDamageThisTurn = true;
 
-        const { dropped } = specFromState(state, { mySeatId: me.id });
+        const { spec, dropped } = specFromState(state, { mySeatId: me.id });
 
         // `landsPlayedThisTurn` used to head this list — it was the issue's
         // own named failure mode. Issue #3446 gave the spec a `landsPlayed`
@@ -1308,10 +1314,13 @@ describe("specFromState (issue #2148)", () => {
             "energyCounters",
             "maxHandSizeOverride",
             "skipNextTurn",
-            "spellsCastThisTurn",
         ]) {
             expect(playerResidue).toContain(field);
         }
+        // …and `spellsCastThisTurn` is no longer among them: issue #3449 gave
+        // the spec a field for it, so it is carried rather than reported.
+        expect(playerResidue).not.toContain("spellsCastThisTurn");
+        expect(spec.spellsCastThisTurn).toEqual({ me: 3, opp: 0 });
     });
 
     it("reports a Continuous Effects Registry entry as unrepresentable (PRD #2064 S3)", () => {
@@ -1902,5 +1911,161 @@ describe("buildStateFromScenario — per-turn activation tallies (issue #3448)",
             mySeatId: state.players[0].id,
         });
         expect(spec.cards[0]?.activations).toBeUndefined();
+    });
+});
+
+describe("buildStateFromScenario — what has already been cast (issue #3449)", () => {
+    // The three tallies a rebuild used to open at zero. Each test asserts on
+    // the DECISION the rebuilt position poses (a legal action, a copy count),
+    // never on the field itself: a field that survives the round trip but
+    // changes no move is a field the verdict quiz cannot use.
+
+    it("seeds both per-seat tallies and the storm count (CR 601.2i / 702.40a)", () => {
+        const state = buildStateFromScenario(makeState(), {
+            cards: [],
+            spellsCastThisTurn: { me: 2, opp: 1 },
+            spellsCastThisGame: { me: 6, opp: 4 },
+            stormCount: 5,
+        });
+
+        expect(state.players[0].spellsCastThisTurn).toBe(2);
+        expect(state.players[1].spellsCastThisTurn).toBe(1);
+        expect(state.players[0].spellsCastThisGame).toBe(6);
+        expect(state.players[1].spellsCastThisGame).toBe(4);
+        // The game-level Storm tally is its OWN number, never the sum of the
+        // two seats — 5 is a value that sum (3) cannot produce, so a
+        // sum-derived implementation reds here.
+        expect(state.spellsCastThisTurn).toBe(5);
+    });
+
+    it("keeps the storm count independent of the per-seat tallies", () => {
+        const state = buildStateFromScenario(makeState(), {
+            cards: [],
+            spellsCastThisTurn: { me: 2, opp: 2 },
+            stormCount: 1,
+        });
+        expect(state.spellsCastThisTurn).toBe(1);
+    });
+
+    it("leaves all three alone when the spec omits them", () => {
+        const base = makeState();
+        base.players[0].spellsCastThisGame = 5;
+        base.spellsCastThisTurn = 2;
+
+        const state = buildStateFromScenario(base, { cards: [] });
+
+        // Absent means UNCHANGED, this builder's standing convention for every
+        // optional field (`phase`, `turn`), so a spec written before #3449
+        // keeps the meaning it has always had.
+        expect(state.players[0].spellsCastThisGame).toBe(5);
+        expect(state.spellsCastThisTurn).toBe(2);
+
+        // …and an explicit 0 is a real claim, not "absent": it is exactly the
+        // state Once Upon a Time's free cast needs on a live game that has
+        // already seen spells.
+        const zeroed = buildStateFromScenario(base, {
+            cards: [],
+            spellsCastThisGame: { me: 0 },
+            stormCount: 0,
+        });
+        expect(zeroed.players[0].spellsCastThisGame).toBe(0);
+        expect(zeroed.spellsCastThisTurn).toBe(0);
+    });
+
+    // ACCEPTANCE CRITERION — the lifetime tally gates a COST (CR 118.9), so it
+    // gates legality. Asserted on the enumerated action with no mana anywhere:
+    // only the free alternative cost can make "cast" legal at all.
+    it("denies Once Upon a Time's free cast to a seat that has already cast this game (CR 118.9)", () => {
+        const board: ScenarioSpec = {
+            cards: [{ name: onceUponATime.name, owner: "me", zone: "hand" }],
+        };
+
+        const fresh = buildStateFromScenario(makeState(), board);
+        const freshCard = fresh.players[0].hand[0];
+        expect(getLegalActions(fresh, fresh.players[0], freshCard)).toContain(
+            "cast"
+        );
+
+        const spent = buildStateFromScenario(makeState(), {
+            ...board,
+            spellsCastThisGame: { me: 1 },
+        });
+        const spentCard = spent.players[0].hand[0];
+        expect(
+            getLegalActions(spent, spent.players[0], spentCard)
+        ).not.toContain("cast");
+    });
+
+    // ACCEPTANCE CRITERION — a storm spell cast in a rebuilt position makes
+    // one copy per spell cast before it this turn (CR 702.40a), so the seeded
+    // count has to reach `emitSpellCastEvent`'s `priorSpellCount`.
+    it("makes a storm spell copy itself once per seeded storm count (CR 702.40a)", () => {
+        const state = buildStateFromScenario(makeState(), {
+            cards: [],
+            stormCount: 3,
+        });
+
+        const gs = pushSpell(state, grapeshot.id, state.players[0].id, [
+            { type: "player", id: state.players[1].id },
+        ]);
+        emitSpellCastEvent(state, gs);
+
+        const trigger = state.stack[state.stack.length - 1];
+        expect(trigger.triggeredAbilityId).toBe("storm");
+        expect(trigger.stormCopiesRemaining).toBe(3);
+
+        // Drain: the trigger creates three copies, then each copy and the
+        // original resolve one at a time (CR 608.3) — 4 damage in total.
+        while (state.stack.length > 0) resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(16);
+    });
+
+    it("round-trips all three through specFromState with nothing dropped", () => {
+        const live = buildStateFromScenario(makeState(), { cards: [] });
+        live.players[0].spellsCastThisTurn = 2;
+        live.players[1].spellsCastThisTurn = 1;
+        live.players[0].spellsCastThisGame = 6;
+        live.players[1].spellsCastThisGame = 4;
+        live.spellsCastThisTurn = 3;
+
+        const { spec, dropped } = specFromState(live, {
+            mySeatId: live.players[0].id,
+        });
+
+        expect(spec.spellsCastThisTurn).toEqual({ me: 2, opp: 1 });
+        expect(spec.spellsCastThisGame).toEqual({ me: 6, opp: 4 });
+        expect(spec.stormCount).toBe(3);
+        expect(dropped.filter((d) => d.includes("spellsCast"))).toEqual([]);
+
+        const rebuilt = buildStateFromScenario(makeState(), spec);
+        expect(rebuilt.players[0].spellsCastThisTurn).toBe(2);
+        expect(rebuilt.players[1].spellsCastThisTurn).toBe(1);
+        expect(rebuilt.players[0].spellsCastThisGame).toBe(6);
+        expect(rebuilt.players[1].spellsCastThisGame).toBe(4);
+        expect(rebuilt.spellsCastThisTurn).toBe(3);
+    });
+
+    it("lowers the quiet case explicitly rather than as an absence", () => {
+        const quiet = buildStateFromScenario(makeState(), { cards: [] });
+        const { spec } = specFromState(quiet, {
+            mySeatId: quiet.players[0].id,
+        });
+        // Mirrors `life` / `activePlayer`: an omitted field leaves the REBUILD
+        // BASE untouched, and `debugSetupScenario` rebuilds onto the live game.
+        // So a genuine "nothing has been cast" capture written as an absence
+        // and loaded mid-turn would inherit that game's storm count and make
+        // every storm spell in the scenario copy itself (CR 702.40a).
+        expect(spec.spellsCastThisTurn).toEqual({ me: 0, opp: 0 });
+        expect(spec.spellsCastThisGame).toEqual({ me: 0, opp: 0 });
+        expect(spec.stormCount).toBe(0);
+
+        // And the rebuild CLEARS a dirty base rather than inheriting it —
+        // the whole point of writing the zero.
+        const dirty = makeState();
+        dirty.players[0].spellsCastThisGame = 4;
+        dirty.spellsCastThisTurn = 2;
+        const rebuilt = buildStateFromScenario(dirty, spec);
+        expect(rebuilt.players[0].spellsCastThisGame).toBe(0);
+        expect(rebuilt.spellsCastThisTurn).toBe(0);
     });
 });

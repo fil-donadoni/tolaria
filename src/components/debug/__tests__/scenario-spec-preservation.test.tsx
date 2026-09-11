@@ -82,6 +82,11 @@ const STORED: Required<ScenarioSpec> = {
     // CR 305.2 (issue #3446) — a curated row whose "me" has already used its
     // land drop, the post-drop main phase PRD #3397 exists to judge.
     landsPlayed: { me: 1, opp: 0 },
+    // CR 601.2i / 118.9 / 702.40a (issue #3449) — a curated row whose seat has
+    // already cast: no free Once Upon a Time, and a storm count of three.
+    spellsCastThisTurn: { me: 2, opp: 1 },
+    spellsCastThisGame: { me: 6, opp: 4 },
+    stormCount: 3,
     // CR 102.1 / 117.1 / 117.4 (issue #3454) — a curated row pinning an
     // instant-speed decision on the opponent's turn.
     activePlayer: "opp",

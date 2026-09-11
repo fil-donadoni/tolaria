@@ -153,6 +153,34 @@ export const SCENARIO_JSON_SCHEMA = {
             description:
                 "Lands a player has already played this turn (default 0 each). Set me: 1 when the description says the land drop is spent.",
         },
+        // CR 601.2i / 118.9 / 702.40a (issue #3449) — a description that says
+        // "you have already cast a spell this turn" or "storm count is three"
+        // is a real board, and these are the only fields that can hold it.
+        spellsCastThisTurn: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+                me: { type: "integer" },
+                opp: { type: "integer" },
+            },
+            description:
+                "Spells each seat has cast THIS TURN, if the description names them (default none).",
+        },
+        spellsCastThisGame: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+                me: { type: "integer" },
+                opp: { type: "integer" },
+            },
+            description:
+                "Spells each seat has cast this GAME, never reset — 1 or more denies Once Upon a Time's free cast (default none).",
+        },
+        stormCount: {
+            type: "integer",
+            description:
+                "Storm count: spells cast by ANY player this turn, the number of copies a storm spell would make (default 0).",
+        },
         // CR 702.139c / ADR 0064 (issue #1392).
         companion: {
             type: "object",
@@ -288,8 +316,12 @@ export function buildScenarioSystemPrompt(
         "  set `life.me` / `life.opp` to that exact number; omit `life` entirely",
         "  when no life total is mentioned (default 20 each).",
         "- The same omit-unless-named discipline applies to `experience`,",
-        "  `landsPlayed`, `companion` and `markLastDrawn`: emit them ONLY when",
-        "  the description actually calls for them, never as decoration.",
+        "  `landsPlayed`, `companion`, `markLastDrawn`, `activePlayer`,",
+        "  `priority`, `passCount`, `spellsCastThisTurn`,",
+        "  `spellsCastThisGame` and `stormCount`: emit them ONLY when the",
+        "  description actually calls for them, never as decoration. An",
+        "  explicit 0 is a CLAIM, not a default — `stormCount: 0` says",
+        "  'no spell has been cast this turn'.",
         "",
         `ALLOWED CARDS (${allowList.length}):`,
         allowList.join(", "),
