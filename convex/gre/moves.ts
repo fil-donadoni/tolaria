@@ -52,6 +52,7 @@ import {
 } from "./castCost";
 import { BESTOW_TARGET_REQUIREMENT, hasLegalBestowHost } from "./bestow";
 import {
+    additionalCostDiscardXCeiling,
     payableAdditionalCostLegs,
     resolveAdditionalCosts,
 } from "./additionalCost";
@@ -2203,10 +2204,22 @@ function enumerateCastMovesFromZone(
         castFromZone === "graveyard" && !hasEscape(state, card)
             ? def?.additionalCosts?.flashbackExileFromGraveyard
             : undefined;
+    // CR 601.2b / 118.4 (issue #2714) — the third shape a cast can owe an X
+    // for: an additional cost whose COUNT is the announced X ("discard X
+    // cards", Sickening Dreams), paid in cards rather than mana and carried on
+    // a card whose printed cost has no `{X}` pip at all. Read off the RAW
+    // `additionalCosts` for the same reason `flashbackExileX` is — `xValues` is
+    // computed once per card, above the `announceCostLegId` cross-product.
+    const discardXCeiling = additionalCostDiscardXCeiling(
+        player,
+        def?.additionalCosts,
+        card.id
+    );
     const xLockedToZero =
         !hasX &&
         typeof getInstanceManaCost(card)?.X === "string" &&
-        flashbackExileX === undefined;
+        flashbackExileX === undefined &&
+        discardXCeiling === undefined;
     // CR 118.8 (issue #2980) — when the variable is paid in GRAVEYARD CARDS
     // rather than mana, the eligible fodder is the ceiling: `maxAffordableX`
     // prices X against untapped mana and would answer 0 for a flashback cast
@@ -2215,27 +2228,32 @@ function enumerateCastMovesFromZone(
     // `planCastCostPicks` below re-checks payability and drops any X this
     // ceiling over-counts, so the two can only ever under-offer.
     const xCeiling =
-        flashbackExileX !== undefined
-            ? flashbackExileEligibleCount(
-                  player,
-                  flashbackExileX.color,
-                  card.id
-              )
-            : def?.castXUpperBound === "snow-lands"
-              ? Math.min(
-                    maxAffordableX(player, card, state),
-                    countSnowLands(player.battlefield)
+        discardXCeiling !== undefined
+            ? discardXCeiling
+            : flashbackExileX !== undefined
+              ? flashbackExileEligibleCount(
+                    player,
+                    flashbackExileX.color,
+                    card.id
                 )
-              : maxAffordableX(player, card, state);
+              : def?.castXUpperBound === "snow-lands"
+                ? Math.min(
+                      maxAffordableX(player, card, state),
+                      countSnowLands(player.battlefield)
+                  )
+                : maxAffordableX(player, card, state);
     // CR 601.2b — a cast announces an X whenever a variable cost is paid as it
     // is cast: an `{X}` in the cost the ZONE charges (`hasX`), or — issue #2980
     // — a flashback cost whose non-mana leg carries the variable instead
-    // (Flash of Insight). The second shape adds NOTHING to `normCost`
-    // (`normalizeManaCost` folds an X the cost does not have as 0), so each
-    // variant differs only in the exile cost `planCastCostPicks` prices below.
+    // (Flash of Insight), or — issue #2714 — an additional cost whose count is
+    // the variable (Sickening Dreams). Neither non-mana shape adds anything to
+    // `normCost` (`normalizeManaCost` folds an X the cost does not have as 0),
+    // so those variants differ only in the CARDS they spend: the exile cost
+    // `planCastCostPicks` prices below, or the discard the sandbox charges
+    // through `applyAdditionalCostLegForSearch`.
     const xValues: (number | undefined)[] = xLockedToZero
         ? [0]
-        : hasX || flashbackExileX !== undefined
+        : hasX || flashbackExileX !== undefined || discardXCeiling !== undefined
           ? Array.from({ length: xCeiling + 1 }, (_, i) => i)
           : [undefined];
 

@@ -290,21 +290,31 @@ export function applyAdditionalCostLegForSearch(
     state: GameState,
     playerId: string,
     cardInstanceId: string,
-    legId: string | undefined
+    legId: string | undefined,
+    // CR 601.2b / 118.4 (issue #2714) — the announced X of a
+    // `discard: { count: "X" }` additional cost. Ignored by every other leg.
+    chosenX?: number
 ): void {
-    if (!legId) return;
     const player = getPlayer(state, playerId);
     const card = player.hand.find((c) => c.id === cardInstanceId);
     const defId = card ? (card.card as { id?: string }).id : undefined;
     const def = defId ? tryGetDefinition(defId) : undefined;
     const spec = resolveAdditionalCosts(def?.additionalCosts, legId);
     if (!spec) return;
+    // CR 601.2b (issue #2714) — an ANNOUNCED-X discard is charged even with no
+    // `oneOf` leg chosen, because X is the Bot's own decision: leave it unpaid
+    // and every X prices identically, so the search always announces the
+    // largest one (Sickening Dreams for the whole hand, every time). Every
+    // OTHER non-chosen additional cost stays this file's pre-existing and
+    // separately tracked omission — widening that is not this issue's scope.
+    const announcedXDiscard = spec.discard?.count === "X";
+    if (!legId && !announcedXDiscard) return;
     // CR 119.4 — the life leg. SBAs run at the end of the cast-spell case.
-    if (spec.payLife && spec.payLife > 0) player.life -= spec.payLife;
+    if (legId && spec.payLife && spec.payLife > 0) player.life -= spec.payLife;
     // CR 701.9 — the discard leg. The cast card itself is never eligible
     // (CR 601.2a): it is excluded by name here because it has not left hand yet
     // on this sandbox path.
-    const handLeg = additionalCostHandLeg(spec)?.hand;
+    const handLeg = additionalCostHandLeg(spec, chosenX)?.hand;
     if (!handLeg) return;
     const eligible = player.hand.filter((c) => c.id !== cardInstanceId);
     const picks = assignMayPayHandCards(
@@ -1362,7 +1372,8 @@ export function applyMoveForSearch(
                 next,
                 playerId,
                 move.cardInstanceId,
-                move.additionalCostLegId
+                move.additionalCostLegId,
+                move.chosenX
             );
             // CR 702.33a / 601.2f (issue #2081) — pay a paid Kicker's
             // PERMANENT leg (sacrifice/return) before the spell leaves its

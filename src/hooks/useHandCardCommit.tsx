@@ -13,11 +13,12 @@ import {
     affordableAltCostsForCard,
     affordableKickersForCard,
     manaCostToString,
+    matchesHandCardFilter,
     payableAdditionalCostLegsForCard,
     phyrexianSplitChoices,
     type PhyrexianSplitChoice,
 } from "~/lib/card-utils";
-import type { CardInstance } from "~/types/game";
+import type { CardInstance, Player } from "~/types/game";
 import ModePicker from "~/components/cards/mode-picker";
 import AltCostPicker from "~/components/cards/alt-cost-picker";
 import { isCastPermissionAltCostId } from "@convex/gre/castPermissions";
@@ -27,7 +28,11 @@ import type { CardInstanceState } from "@convex/gre/state";
 import PhyrexianPicker from "~/components/cards/phyrexian-picker";
 import AdditionalCostPicker from "~/components/cards/additional-cost-picker";
 import CastCostDialog from "~/components/cards/cast-cost-dialog";
-import type { AdditionalCostLeg, AlternativeCost } from "@convex/cards/types";
+import type {
+    AdditionalCostLeg,
+    AlternativeCost,
+    CardDefinition,
+} from "@convex/cards/types";
 
 type ModePickerState = {
     chosenX: number | undefined;
@@ -104,8 +109,44 @@ type CostDialogState = {
     /** CR 601.3c — the rendered surcharge ("{2}") when the server says casting
      *  this card right now owes it; `undefined` at sorcery speed. */
     flashSurcharge: string | undefined;
+    /** CR 601.2b / 118.4 (issue #2714) — the ceiling for a "discard X cards"
+     *  additional cost: the matching cards in hand MINUS the one being cast.
+     *  `undefined` for every other cast, which is how the dialog tells this
+     *  cap apart from the flashback-exile one it falls back to. */
+    discardXMaxX: number | undefined;
     position: { x: number; y: number };
 };
+
+/** CR 601.2b / 118.4 (issue #2714) — how many cards the caster could announce
+ *  for a `discard: { count: "X" }` additional cost, viewed from the client:
+ *  every matching card in their own hand except the one being cast (CR 601.2a
+ *  — it is on the stack by the time costs are paid). `undefined` when the card
+ *  has no announced-X discard leg.
+ *
+ *  Computed here rather than projected: the viewer's OWN hand is already fully
+ *  visible in the projection (only an opponent's is nulled), and the filter
+ *  match goes through `matchesHandCardFilter`, the ONE client-side wrapper over
+ *  the engine's `handCardMatchesFilter` every other hand-card picker already
+ *  shares (ADR 0074 — the frontend imports the pure module, never the
+ *  authority). `announceCast` re-derives the same ceiling server-side and
+ *  rejects anything above it, so this only ever shapes the affordance. */
+function discardXCeilingFor(
+    def: CardDefinition,
+    cardInstance: CardInstance,
+    allPlayers: Player[]
+): number | undefined {
+    const d = def.additionalCosts?.discard;
+    if (!d || d.count !== "X") return undefined;
+    const owner = allPlayers.find((p) =>
+        p.hand.some((c) => c?.id === cardInstance.id)
+    );
+    return (owner?.hand ?? []).filter(
+        (c): c is CardInstance =>
+            c !== null &&
+            c.id !== cardInstance.id &&
+            matchesHandCardFilter(c, d.filter ?? {})
+    ).length;
+}
 
 /** The shared hand-card commit pipeline (PRD #249, slice #254).
  *
@@ -577,11 +618,20 @@ export function useHandCardCommit(
         // ("The only legal choice for X is 0…") — Balduvian Hydra and Rock
         // Hydra are both {X}{R}{R} at mana value 2 in hand, inside the shipped
         // permission's "mana value 3 or less" filter.
+        //
+        // CR 601.2b / 118.4 (issue #2714) — the third source of an announced X:
+        // an additional cost whose COUNT is the variable ("discard X cards",
+        // Sickening Dreams), on a card whose printed cost carries no `{X}` pip
+        // at all. Without this the dialog never opens, `announceCast` is called
+        // with no `chosenX` and the mutation throws "Must choose X (>= 0) cards
+        // to discard" — the cast simply never happens.
+        const discardXMaxX = discardXCeilingFor(def, cardInstance, allPlayers);
         const hasX =
             (typeof def.manaCost?.X === "string" &&
                 !cardInstance.castManaCostReplaced &&
                 !cardInstance.printedCostCastUnavailable) ||
-            def.additionalCosts?.payXLife === true;
+            def.additionalCosts?.payXLife === true ||
+            discardXMaxX !== undefined;
         const anchor = e.currentTarget as HTMLElement | null;
         const rect = anchor?.getBoundingClientRect();
         const position =
@@ -635,6 +685,7 @@ export function useHandCardCommit(
                 })),
                 buyback: def.buyback !== undefined,
                 flashSurcharge,
+                discardXMaxX,
                 position,
             });
             return;
@@ -784,7 +835,12 @@ export function useHandCardCommit(
             // CR 702.34a / 118.5 — a flashback cast whose exile cost demands X
             // cards from the graveyard caps X at the payable count (projection's
             // `flashbackExileMaxX`); undefined for every other cast.
-            maxX={cardInstance.flashbackExileMaxX}
+            // CR 601.2b / 118.4 (issue #2714) — "discard X cards" caps X at the
+            // matching cards in hand MINUS the one being cast (CR 601.2a), the
+            // same ceiling `announceCast` and the Bot's enumerator read.
+            maxX={
+                costDialogState.discardXMaxX ?? cardInstance.flashbackExileMaxX
+            }
             kickers={costDialogState.kickers}
             buyback={costDialogState.buyback}
             flashSurcharge={costDialogState.flashSurcharge}

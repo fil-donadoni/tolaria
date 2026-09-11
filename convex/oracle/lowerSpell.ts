@@ -149,10 +149,12 @@ type AdditionalCosts = NonNullable<CardDefinition["additionalCosts"]>;
  *
  * `discard X cards` (Sickening Dreams, 10 cards) never reaches this function
  * at all: the cost GRAMMAR refuses it, because `splitCount` reads its count
- * word through `readNumberWord`, which has no `X`. That refusal is the right
- * one either way — `additionalCosts.discard.count` is a `number`, so a
- * variable discard has no encoding to lower into — but the type is not what
- * enforces it. See docs/findings/2699-spell-slot-gaps.md.
+ * word through `readNumberWord`, which has no `X`. That is now the ONLY thing
+ * refusing it — issue #2714 widened `additionalCosts.discard.count` to
+ * `number | "X"`, so the encoding the finding said was missing exists and
+ * Sickening Dreams ships hand-written against it. Teaching `readNumberWord`
+ * the `X` case (and lowering it to `count: "X"`) is what would let the
+ * compiler read the line. See docs/findings/2699-spell-slot-gaps.md.
  */
 export function lowerAdditionalCosts(
     atoms: readonly CostAtomIR[]

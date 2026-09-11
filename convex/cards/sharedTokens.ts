@@ -298,6 +298,27 @@ export const HERO_TOKEN: EffectTokenSpec = {
     toughness: 1,
 };
 
+/** Zombie token (CR 111 / 707.2, issue #2714). "2/2 black Zombie creature
+ *  token" — the Odyssey-block staple, created today by Zombie Infestation
+ *  (`sets/ody/black.ts`) once per activation of its discard-two ability.
+ *  Vanilla: no abilities, so `EffectTokenSpec` (JSON-pure, ADR 0046) rather
+ *  than `TokenSpec`.
+ *
+ *  No pinned `imagePrintId`, the `RABBIT_TOKEN`/`KNIGHT_TOKEN`/`GOBLIN_TOKEN`
+ *  treatment: Zombie is a printed token in many sets with different art, and
+ *  the art-match rule is "the token associated with the PRODUCING card's own
+ *  printing" — `SpellContext.createToken` resolves it per producer from
+ *  `generated/token-prints.json` (`tokenPrintIdFor`), reverse-linked from
+ *  Zombie Infestation's own ODY printing's `all_parts` Zombie token. */
+export const ZOMBIE_TOKEN: EffectTokenSpec = {
+    name: "Zombie",
+    types: ["Creature"],
+    subtypes: ["Zombie"],
+    power: 2,
+    toughness: 2,
+    colors: ["B"],
+};
+
 /** Skeleton token (CR 111 / 707.2, issue #2373). "4/1 black Skeleton creature
  *  token with menace" — created today by Gut, True Soul Zealot's attack
  *  trigger (`sets/clb/red.ts`). Vanilla apart from the keyword, the

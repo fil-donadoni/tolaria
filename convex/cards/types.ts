@@ -2363,6 +2363,44 @@ export interface DynamicMayPayEnergyCost {
     energyEqualTo: EffectValue;
 }
 
+/** A dynamically-derived `mayPay` GENERIC-MANA cost (issue #2714): "pay {1}
+ *  for each <runtime tally>" — Circular Logic's "Counter target spell unless
+ *  its controller pays {1} for each card in your graveyard", where the whole
+ *  cost is a count nobody can know at authoring time. A FOURTH shape accepted
+ *  by the `mayPay` Op's `cost` field, alongside the static `MayPayCost` union,
+ *  `DynamicMayPayManaCost` and `DynamicMayPayEnergyCost` (ADR 0045
+ *  "generalize, don't add" — the Op's cost model grows a leg, not a new Op or
+ *  primitive).
+ *
+ *  It is `energyEqualTo`'s exact twin one resource over, and for the same
+ *  reason: the amount reuses the EXISTING `EffectValue` grammar wholesale — in
+ *  practice `{ count: { zone: "graveyard", controller: "controller" } }`, but
+ *  any `EffectValue` composes with zero additional plumbing, since the
+ *  interpreter resolves it through the SAME `resolveValue` every other numeric
+ *  Op parameter uses.
+ *
+ *  Deliberately NOT expressed through `DynamicMayPayManaCost`: that shape is
+ *  "a base cost MINUS a reduction", and `reduceGenericMana` only ever
+ *  subtracts (clamped at {0}), so an amount that must be BUILT from a runtime
+ *  tally has no base to be subtracted from. Faking it as a negative
+ *  `reducedBy` is rejected by the validator and would read as nonsense besides.
+ *
+ *  Generic only, never coloured: every printed instance of this idiom
+ *  ("{1} for each …") taxes in generic mana, and a coloured per-unit tax has
+ *  no printed card, so the shape stays a scalar rather than a `ManaCost`
+ *  multiplied by a count (YAGNI — widen it the day one prints).
+ *
+ *  Resolved HERE, at `mayPay` Op execution time, never by
+ *  `SpellContext.requestMayPay` itself, which only ever sees a fully-resolved
+ *  `mana` leg. An unresolvable value (CR 608.2b) skips the whole `mayPay` Op,
+ *  mirroring the other two dynamic shapes' own skip. A tally of ZERO resolves
+ *  to an empty mana cost, which CR 118.3a makes payable by anyone — the
+ *  correct reading of "pay {1} for each card in your graveyard" with an empty
+ *  graveyard. */
+export interface DynamicMayPayGenericManaCost {
+    genericEqualTo: EffectValue;
+}
+
 // --- Transform / double-faced permanents (CR 712, issue #1210, ADR 0067) ---
 
 /** Which face's URL segment `src/lib/images.ts` requests from Scryfall's
@@ -16085,7 +16123,11 @@ export type EffectOp =
            *  `DynamicMayPayEnergyCost`, Satya's "pay {E} equal to its mana
            *  value"). Omitted for a bare cost-free "you may" decision (issue
            *  #680). */
-          cost?: MayPayCost | DynamicMayPayManaCost | DynamicMayPayEnergyCost;
+          cost?:
+              | MayPayCost
+              | DynamicMayPayManaCost
+              | DynamicMayPayEnergyCost
+              | DynamicMayPayGenericManaCost;
           prompt: string;
           /** REQUIRED — the boolean binding name (`"$paid"`). A may-pay whose
            *  outcome nothing reads is meaningless, so the grammar demands it. */
@@ -17406,8 +17448,28 @@ export interface CardDefinition {
          *  overlapping requirements the MOST RESTRICTIVE one must be declared
          *  first. A single requirement (every printed additional-cost discard
          *  today) is unaffected. Used by Bitter Triumph / Bone Shards, each
-         *  behind an `oneOf` leg. */
-        discard?: { filter?: EffectCardFilter; count: number };
+         *  behind an `oneOf` leg.
+         *
+         *  `count: "X"` (issue #2714) is a CASTER-CHOSEN count — "As an
+         *  additional cost to cast this spell, discard X cards" (Sickening
+         *  Dreams), whose X is then read back by the spell's own effect. The
+         *  literal `"X"` is the same authoring idiom `targetRequirement.count`
+         *  already uses, and the same announce-time flow `payXLife` already
+         *  runs one resource over: the caster names X in `announceCast`, the
+         *  cards leave hand at cast commit through this very leg, and X is
+         *  snapshotted onto the stack item so `getX()` returns it at resolve.
+         *  It is deliberately NOT a `discardX` sibling field — the `count`
+         *  slot is the almost-right primitive and takes a parameter rather
+         *  than growing a parallel one (ADR 0045 "generalize, don't add").
+         *
+         *  A card carrying `count: "X"` needs NO `{X}` pip in its mana cost
+         *  (Sickening Dreams is a plain {1}{B}); the pip and this leg are two
+         *  independent sources of the same announced X, and no printed card
+         *  carries both. X = 0 is always legal (CR 118.3 — a cost of zero
+         *  cards is payable by anyone), so an `"X"` leg never makes a cast
+         *  unpayable and is invisible to `canPayAdditionalCostSpec`, exactly
+         *  like `payXLife`. */
+        discard?: { filter?: EffectCardFilter; count: number | "X" };
         /** CR 601.2b — a CASTER-CHOSEN disjunction: "As an additional cost to
          *  cast this spell, discard a card OR pay 3 life" (Bitter Triumph).
          *  The caster names exactly ONE leg at announcement — before targets

@@ -31,3 +31,59 @@ export const cabalRitual: CardDefinition = {
         },
     ],
 };
+
+// Sickening Dreams — {1}{B} Sorcery. "As an additional cost to cast this spell,
+// discard X cards.\nSickening Dreams deals X damage to each creature and each
+// player." (CR 601.2b/118.4 — a variable additional cost; CR 701.9a discard;
+// CR 120.3a damage dealt to a player.)
+//
+// The FIRST card whose X is announced with no `{X}` pip anywhere in its mana
+// cost (issue #2714): `additionalCosts.discard.count: "X"` is the caster-chosen
+// count generalisation of the fixed discard leg, and the announced X is
+// snapshotted onto the stack item exactly as `payXLife` does one resource over,
+// so the effect below reads it back through the ordinary `{ X: true }` value.
+// X = 0 is a legal announcement (CR 118.3 — a cost of no cards is payable by
+// anyone) and makes the spell a 2-mana no-op, which is the printed card.
+//
+// Damage is split into two `forEach` sweeps, the Plague Spitter shape
+// (`inv/black.ts`): the permanents set carries the creature filter, the players
+// set carries the player refs, and neither can name the other's members.
+//
+// compiler-gap: "As an additional cost to cast this spell, discard X cards." (#2693)
+export const sickeningDreams: CardDefinition = {
+    id: "9396ac77-9f53-46bd-b126-02441a0f5594",
+    rarity: "uncommon",
+    name: "Sickening Dreams",
+    oracleText:
+        "As an additional cost to cast this spell, discard X cards.\nSickening Dreams deals X damage to each creature and each player.",
+    manaCost: { X: 1, B: 1 },
+    types: ["Sorcery"],
+    // CR 601.2b — the caster names X at announcement; the cards leave hand at
+    // cast commit through the ordinary hand-cost picker. An empty `filter`
+    // constrains nothing ("X cards").
+    additionalCosts: { discard: { count: "X" } },
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { type: "Creature" },
+            },
+            effects: [
+                { op: "dealDamage", amount: { X: true }, to: { ref: "$each" } },
+            ],
+        },
+        {
+            op: "forEach",
+            select: { set: "players" },
+            effects: [
+                {
+                    op: "dealDamage",
+                    amount: { X: true },
+                    to: { player: { ref: "$each" } },
+                },
+            ],
+        },
+    ],
+};

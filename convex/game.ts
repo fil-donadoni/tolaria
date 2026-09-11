@@ -277,6 +277,7 @@ import {
 import { projectFullState, projectPublicState } from "./gameProjections";
 import {
     canPayAlternativeCost,
+    canPayHandCost,
     getAlternativeCost,
     validateAlternativeHandCostPicks,
     handCardMatchesFilter,
@@ -2746,9 +2747,16 @@ export function locateCastSource(
  *  CR 118.9 hand leg. Returns `[]` for the overwhelming majority of casts. */
 export function castExtraHandCostLegs(
     effectiveAdditionalCosts: AdditionalCostSpec | undefined,
-    castSource: { viaRetrace?: true }
+    castSource: { viaRetrace?: true },
+    // CR 601.2b / 118.4 — the announced X, for a `discard: { count: "X" }`
+    // additional cost (Sickening Dreams, issue #2714). Every other leg ignores
+    // it; a card with a fixed count is unaffected by its absence.
+    chosenX?: number
 ): CostLegs[] {
-    const additionalHandLeg = additionalCostHandLeg(effectiveAdditionalCosts);
+    const additionalHandLeg = additionalCostHandLeg(
+        effectiveAdditionalCosts,
+        chosenX
+    );
     return [
         ...(additionalHandLeg ? [additionalHandLeg] : []),
         ...(castSource.viaRetrace ? [RETRACE_COST_LEGS] : []),
@@ -7397,7 +7405,7 @@ export function finalizeTargetSelection(
         cardDef,
         kickerPayments,
         cardInstanceId,
-        castExtraHandCostLegs(effectiveAdditionalCosts, castSource)
+        castExtraHandCostLegs(effectiveAdditionalCosts, castSource, chosenX)
     );
     // CR 702.34a / 702.138a escape / 118.8 — the graveyard cast's own "exile N cards"
     // additional cost: Flash of Insight's `flashbackExileFromGraveyard`, the
@@ -8546,6 +8554,29 @@ export const announceCast = mutation({
                 throw new Error("Cannot pay more life than you have");
             }
         }
+        // CR 601.2b / 118.4 — "discard X cards" additional cost (Sickening
+        // Dreams, issue #2714): the caster chooses X independently of the mana
+        // cost, exactly as `payXLife` does one resource over. X must be
+        // present, non-negative and coverable by the hand MINUS the cast card
+        // itself (CR 601.2a — it is on the stack by the time costs are paid).
+        // The cards themselves leave hand at cast commit through the ordinary
+        // `alternativeCostHandChoice` picker (CR 601.2h).
+        const discardXLeg = effectiveAdditionalCosts?.discard?.count === "X";
+        if (discardXLeg) {
+            if (args.chosenX === undefined || args.chosenX < 0) {
+                throw new Error("Must choose X (≥ 0) cards to discard");
+            }
+            const handLeg = additionalCostHandLeg(
+                effectiveAdditionalCosts,
+                args.chosenX
+            );
+            if (
+                handLeg &&
+                !canPayHandCost(player, handLeg, args.cardInstanceId)
+            ) {
+                throw new Error("Cannot discard more cards than you have");
+            }
+        }
         // CR 601.2b / 118.4 — a FIXED "pay N life" additional cost (Fumarole):
         // the cast is illegal if the caster's life is below N.
         const fixedPayLife = effectiveAdditionalCosts?.payLife ?? 0;
@@ -8571,7 +8602,7 @@ export const announceCast = mutation({
               0
             : hasX
               ? args.chosenX
-              : payXLife
+              : payXLife || discardXLeg
                 ? args.chosenX
                 : derivedGraveyardX;
 
@@ -9037,7 +9068,11 @@ export const announceCast = mutation({
                 cardDef,
                 kickerPayments,
                 args.cardInstanceId,
-                castExtraHandCostLegs(effectiveAdditionalCosts, castSource)
+                castExtraHandCostLegs(
+                    effectiveAdditionalCosts,
+                    castSource,
+                    chosenX
+                )
             );
             const altPayLife =
                 (chosenAltCost.life ?? 0) +
@@ -9429,7 +9464,7 @@ export const announceCast = mutation({
             cardDef,
             kickerPayments,
             args.cardInstanceId,
-            castExtraHandCostLegs(effectiveAdditionalCosts, castSource)
+            castExtraHandCostLegs(effectiveAdditionalCosts, castSource, chosenX)
         );
         // CR 702.34a / 702.138a escape / 118.8 — the graveyard cast's own "exile N
         // cards" additional cost, in the ONE builder both commit sites read
@@ -9560,7 +9595,19 @@ export const announceCast = mutation({
             // or something ELSE genuinely still needs the player's input
             // (real sacrifice/hand choice, exile picker) —
             // `tryAutoCommitPendingCast` re-checks every gate itself.
-            if (castExileChoice?.pickedCardIds) {
+            //
+            // CR 601.2f / 701.9 (issue #2714) — the same is true of a forced
+            // HAND cost, which `buildCostLegsHandChoice` pre-fills for exactly
+            // the same reason, and which this branch used to leave parked
+            // forever on a NON-TARGETING spell: the targeted commit
+            // (`finalizeTargetSelection`) finishes a pre-filled pick itself, so
+            // until an untargeted card carried one (Sickening Dreams' "discard
+            // X cards") the gap showed up nowhere. The park comment above has
+            // promised this resume all along.
+            if (
+                castExileChoice?.pickedCardIds ||
+                kickerHandChoice?.pickedCardIds
+            ) {
                 tryAutoCommitPendingCast(state, args.playerId);
             }
 

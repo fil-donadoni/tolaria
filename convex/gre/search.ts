@@ -1064,7 +1064,8 @@ export function applyMoveInSearch(
                 state,
                 playerId,
                 move.cardInstanceId,
-                move.additionalCostLegId
+                move.additionalCostLegId,
+                move.chosenX
             );
             // CR 702.33a / 601.2f (issue #2081) — pay a paid Kicker's
             // PERMANENT leg (sacrifice/return), mirroring the greedy sandbox

@@ -28,7 +28,7 @@ import type {
 import { matchesPermanentFilter } from "../cards/filters";
 import type { PlayerState } from "./state";
 import { STATIC_EFFECT_CTX } from "./layers";
-import { canPayHandCost } from "./alternativeCost";
+import { canPayHandCost, matchingHandCardsForAltCost } from "./alternativeCost";
 
 /** CR 601.2b — flatten the caster's chosen `oneOf` leg onto the declared spec,
  *  producing the EFFECTIVE additional cost for this cast.
@@ -124,16 +124,47 @@ export function additionalCostLegs(
  *  reason the discard leg needs no new PendingCast field, mutation or
  *  component. `undefined` when the spec pays no cards from hand. */
 export function additionalCostHandLeg(
-    spec: AdditionalCostSpec | undefined
+    spec: AdditionalCostSpec | undefined,
+    chosenX?: number
 ): CostLegs | undefined {
     const d = spec?.discard;
-    if (!d || d.count <= 0) return undefined;
+    if (!d) return undefined;
+    // CR 601.2b / 118.4 — `count: "X"` is the caster-announced X (Sickening
+    // Dreams, issue #2714), read off the SAME `chosenX` the mana-cost X and
+    // `payXLife` ride. A caller with no X in hand yet (the affordability gate,
+    // which asks "could this EVER be paid") sees X = 0, which is a cost of no
+    // cards and therefore always payable — the `payXLife` treatment exactly.
+    const count = d.count === "X" ? (chosenX ?? 0) : d.count;
+    if (count <= 0) return undefined;
     return {
         hand: {
             action: "discard",
-            requirements: [{ filter: d.filter ?? {}, count: d.count }],
+            requirements: [{ filter: d.filter ?? {}, count }],
         },
     };
+}
+
+/** CR 601.2b / 118.4 (issue #2714) — the largest X a caster could announce for
+ *  a `discard: { count: "X" }` additional cost: every matching card in hand
+ *  EXCEPT the one being cast (CR 601.2a — it is on the stack by the time costs
+ *  are paid). `undefined` for a spec with no announced-X discard leg, which is
+ *  how a caller tells "no X owed here" from "X owed, ceiling 0".
+ *
+ *  The single authority the Bot's enumerator (`gre/moves.ts`) and any future
+ *  client X-picker read, so an X one of them offers is exactly an X
+ *  `announceCast` accepts — the `payableAdditionalCostLegs` arrangement one
+ *  field over. It prices the CARDS, never the mana: `maxAffordableX` would
+ *  answer whatever untapped mana allows, which is the wrong resource entirely
+ *  (the `flashbackExileEligibleCount` argument, issue #2980). */
+export function additionalCostDiscardXCeiling(
+    player: PlayerState,
+    spec: AdditionalCostSpec | undefined,
+    castInstanceId: string
+): number | undefined {
+    const d = spec?.discard;
+    if (!d || d.count !== "X") return undefined;
+    return matchingHandCardsForAltCost(player, d.filter ?? {}, castInstanceId)
+        .length;
 }
 
 /** CR 601.2h — "unpayable costs can't be paid": whether this FLAT (already
@@ -145,7 +176,10 @@ export function additionalCostHandLeg(
  *     clause reads what the rest of the engine reads and never fails closed;
  *   - `payLife` — CR 119.4, you can't pay more life than you have;
  *   - `discard` — CR 701.9, enough DISTINCT matching cards in hand, excluding
- *     the cast card itself (CR 601.2a — it is on the stack by then).
+ *     the cast card itself (CR 601.2a — it is on the stack by then). A
+ *     `count: "X"` discard leg is passed no X here and so prices at zero: a
+ *     caster-chosen X is always payable at X = 0 (CR 118.3), the `payXLife`
+ *     treatment, and the real count is enforced at the picker instead.
  *
  *  `payXLife` and `xFromOpponentGraveyard` are deliberately absent: the first
  *  is a caster-chosen X that is always payable at X = 0, the second is computed
