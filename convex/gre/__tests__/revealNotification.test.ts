@@ -123,7 +123,7 @@ describe("CR 701.20a — the `reveal` Op pops the reveal dialog (issue #3425)", 
     it("shows a searched-and-revealed card to BOTH players on the wire", () => {
         const state = groveState([GRIZZLY_BEARS, WILD_GROWTH, ISLAND]);
         activateAndResolve(state, "p1", "grove", "sterling-grove-search");
-        // The script suspends on the search-library pick (CR 701.19a).
+        // The script suspends on the search-library pick (CR 701.23a).
         expect(head(state).kind).toBe("search-library");
         answer(state, ["lib-1"]); // Wild Growth, the only enchantment
 
@@ -199,7 +199,7 @@ describe("CR 701.20a — the `reveal` Op pops the reveal dialog (issue #3425)", 
 describe("CR 701.23b — a library search that finds nothing says so (issue #3425)", () => {
     it("announces a fail-to-find to BOTH players", () => {
         // No enchantment in the library at all: the search still raises its
-        // CR 701.19a look as a 0-pick prompt, and the player finishes it
+        // CR 701.23a look as a 0-pick prompt, and the player finishes it
         // having found nothing.
         const state = groveState([GRIZZLY_BEARS, ISLAND]);
         activateAndResolve(state, "p1", "grove", "sterling-grove-search");

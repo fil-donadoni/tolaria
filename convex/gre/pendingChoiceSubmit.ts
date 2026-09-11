@@ -1308,7 +1308,7 @@ export function applyPendingChoiceSubmit(
     // kind (Expressive Iteration, Diabolic Vision) never announce, and a choice
     // persisted before that field existed fails CLOSED. Both the DSL `choice`
     // Op's zero-hit search (which still raises a 0-pick prompt so the player
-    // gets their CR 701.19a look) and an imperative `resolve()` tutor funnel
+    // gets their CR 701.23a look) and an imperative `resolve()` tutor funnel
     // through here, so this covers every shipped search with no per-card wiring.
     //
     // DEFERRED past the resolution below, not enqueued here: this same function
