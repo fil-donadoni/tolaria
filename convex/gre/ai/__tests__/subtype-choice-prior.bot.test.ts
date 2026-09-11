@@ -101,8 +101,8 @@ describe("as-enters creature-type choice — the prior that survives CR 205.3m's
             { defId: grizzlyBears.id, controllerId: "p1", id: "bears" },
         ]);
         const head = state.pendingChoices![0];
-        const opened = choiceCandidates(state, head).map(
-            (c) => c.move.cardInstanceIds![0]
+        const opened = choiceCandidates(state, head).map((c) =>
+            c.move.kind === "resolution-choice" ? c.move.cardInstanceIds[0] : ""
         );
         expect(opened.length).toBe(CHOICE_TOP_K);
         // Llanowar Elves is an Elf Druid, Grizzly Bears a Bear: those three are
