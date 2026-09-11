@@ -52,6 +52,32 @@ export const scenarioCardValidator = v.object({
     copyOf: v.optional(v.string()),
 });
 
+/** The phases a debug scenario may OPEN in — the `Phase` union
+ *  (`convex/gre/types.ts`) minus the transient steps a saved board never wants
+ *  to start on (`MULLIGAN` / `UNTAP` / `CLEANUP`, plus `FIRST_STRIKE_DAMAGE`,
+ *  which only exists while first-strike damage is being dealt).
+ *
+ *  ONE vocabulary for every surface that offers a phase: the LLM generator's
+ *  JSON-schema enum (`convex/debugScenarioGenerator.core.ts`) and the admin
+ *  form's phase select (`src/components/debug/debug-scenario-spec-fields.tsx`).
+ *  They disagreed until issue #3463 — the form offered `BEGINNING` / `COMBAT` /
+ *  `ENDING`, which are not `Phase` members at all, so picking one wrote a phase
+ *  the builder casts straight onto `state.phase` and no step ever matches,
+ *  while a generated `DECLARE_ATTACKERS` had no option to render against and
+ *  was silently dropped on the next edit. */
+export const SCENARIO_PHASES = [
+    "UPKEEP",
+    "DRAW",
+    "PRECOMBAT_MAIN",
+    "BEGINNING_OF_COMBAT",
+    "DECLARE_ATTACKERS",
+    "DECLARE_BLOCKERS",
+    "COMBAT_DAMAGE",
+    "END_OF_COMBAT",
+    "POSTCOMBAT_MAIN",
+    "END_STEP",
+] as const;
+
 /** The full spec accepted by the save path — the `debugSetupScenario` args
  *  minus `gameId`. Only `cards` is required; everything else defaults in the
  *  builder. */
@@ -144,6 +170,34 @@ export type ScenarioSpec = {
     experience?: { me?: number; opp?: number };
     companion?: { name: string; owner?: "me" | "opp"; used?: boolean };
 };
+
+/** The validator's own field names — the WRITE-path shape, which is what a
+ *  saved row is checked against. */
+type ValidatorSpecKey = keyof typeof scenarioSpecValidator.fields;
+
+/**
+ * Compile-time mirror between `scenarioSpecValidator` and `ScenarioSpec`: the
+ * `satisfies` reds `tsc` when the TYPE gains a spec-level field the validator
+ * does not declare, which is exactly the drift that would make the two
+ * exhaustiveness guards below vacuous (they would sweep a key list that is
+ * missing the new field and report full coverage).
+ */
+const SCENARIO_SPEC_KEY_PRESENCE = Object.fromEntries(
+    Object.keys(scenarioSpecValidator.fields).map((key) => [key, true])
+) as Record<ValidatorSpecKey, true> satisfies Record<keyof ScenarioSpec, true>;
+
+/**
+ * Every SPEC-LEVEL key, derived from the write-path validator rather than
+ * hand-listed (issue #3463). Two surfaces must stay exhaustive over it — the
+ * admin form (`src/components/debug/scenario-spec-ownership.ts`) and the LLM
+ * generator's JSON schema (`convex/debugScenarioGenerator.core.ts`) — and both
+ * guards key on THIS list, so a field added to the validator without a home in
+ * either surface reds a test instead of silently becoming untypeable in the
+ * form and ungeneratable by the model.
+ */
+export const SCENARIO_SPEC_KEYS = Object.keys(
+    SCENARIO_SPEC_KEY_PRESENCE
+) as (keyof ScenarioSpec)[];
 
 // ---- Battlefield counter resolution ----------------------------------------
 
