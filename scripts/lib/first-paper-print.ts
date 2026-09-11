@@ -56,6 +56,11 @@ export interface FirstPaperPrintDeps {
     fetch?: typeof globalThis.fetch;
     /** Injected in tests so a retry loop costs no wall-clock. */
     sleep?: (ms: number) => Promise<void>;
+    /** Courtesy pause after each answered request. ONE pace for both callers
+     *  (the two copies this replaced used 150ms and 120ms — the difference was
+     *  never a decision), overridable rather than hardcoded so a caller that
+     *  learns it needs a slower one does not fork the resolver again. */
+    pacingMs?: number;
     userAgent?: string;
     attempts?: number;
 }
@@ -94,7 +99,7 @@ export async function resolveFirstPaperPrint(
             }
             return null;
         }
-        await sleep(150);
+        await sleep(deps.pacingMs ?? 150);
         if (res.status === 429 || res.status >= 500) {
             if (a < attempts) {
                 await sleep(1500 * a);
