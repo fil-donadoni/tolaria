@@ -94,6 +94,11 @@ export default function DebugSheet({
     useEffect(() => {
         const onKeyDown = (event: KeyboardEvent) => {
             if (event.key !== DEBUG_SHEET_SHORTCUT_KEY) return;
+            // OS key-repeat fires every ~30ms once the key is held, and a
+            // toggle bound to it would flicker the sheet and land on whatever
+            // the repeat count's parity happened to be. Only the first press
+            // is a decision.
+            if (event.repeat) return;
             if (event.metaKey || event.ctrlKey || event.altKey) return;
             if (isTypingTarget(event.target)) return;
             event.preventDefault();

@@ -95,6 +95,16 @@ describe("DebugSheet — keyboard shortcut (issue #3403)", () => {
         field.remove();
     });
 
+    it("ignores OS key-repeat — a held key is one decision, not a flicker", () => {
+        renderSheet();
+        fireEvent.keyDown(window, { key: "`" });
+        expect(sheet()).toBeTruthy();
+        for (let i = 0; i < 5; i++) {
+            fireEvent.keyDown(window, { key: "`", repeat: true });
+        }
+        expect(sheet()).toBeTruthy();
+    });
+
     it("leaves a modified chord alone so browser/OS shortcuts still work", () => {
         renderSheet();
         fireEvent.keyDown(window, { key: "`", metaKey: true });
