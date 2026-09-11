@@ -167,15 +167,19 @@ describe("resolveEvalWeights (issue #2683)", () => {
     });
 
     it("merges a partial override field-by-field, leaving the rest at default", () => {
+        const beforeMerge = DEFAULT_EVAL_WEIGHTS.manaWeight;
         const resolved = resolveEvalWeights({
             name: "mana-heavy",
             evalWeights: { manaWeight: 16 },
         });
         expect(resolved.manaWeight).toBe(16);
         expect(resolved.lifeWeight).toBe(DEFAULT_EVAL_WEIGHTS.lifeWeight);
-        // The default vector itself must never be mutated by the merge. Stated
-        // as "not the override", not as a literal: the weights are FITTED now
-        // (issue #3401) and a literal reds on every refit.
+        // The default vector itself must never be mutated by the merge.
+        // Snapshotted before the merge rather than spelled out as a literal:
+        // the weights are FITTED now (issue #3401), so a literal reds on every
+        // refit — and "not the override" would be a tautology against a frozen
+        // object, which is the property under test.
+        expect(DEFAULT_EVAL_WEIGHTS.manaWeight).toBe(beforeMerge);
         expect(DEFAULT_EVAL_WEIGHTS.manaWeight).not.toBe(16);
     });
 });

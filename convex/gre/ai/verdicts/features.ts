@@ -130,22 +130,30 @@ export const EVAL_TERM_KEYS = Object.keys(
  *     nothing.
  *   - `sourceBreadthWeight`, `sourceDualPurposeWeight` — `evaluateAutoTapPosition`
  *     only; they never reach the bot's own move search (`evaluate.ts`).
- *   - `blockCautionFraction` — REACHABLE by the 1-ply policy (it is folded in
- *     by `declaredBlockDelta` on any position with a confirmed block) and
- *     nonetheless not fittable, which is the distinction worth keeping: it is
- *     not the price of anything the position shows, it is the probability the
- *     attacker is holding a trick you cannot see (`evaluate.ts`'s
- *     `cautiousBlockPenalty` — a fraction of the WORST-CASE swing a held pump
- *     or removal would cause). ADR 0124's own consequences draw the line
- *     there: "what the fit cannot do: invent a term, see past one ply, or
- *     resolve hidden information. Timing and bluff stay where the search and
- *     the (frozen) root rules are." An Eval Pair is built on a REBUILT,
- *     fully-known position, so the evidence it carries about a hedge against
- *     an unseen card is an artefact of the probe's determinization, not
- *     something the verdict's author judged. Measured, when it was in: the
- *     registry corpus pulled it down 20.7% and flipped `blockDeltaLens`'
- *     discriminating pair — the bot stopped declining a block against a deck
- *     that MUST be holding Giant Growth (issue #3401).
+ *   - `blockCautionFraction` — REACHABLE by the 1-ply policy (`evaluate.ts`'s
+ *     `cautiousBlockPenalty`, folded in by `declaredBlockDelta` on any
+ *     position with a confirmed block) and arithmetically the same SHAPE as
+ *     every fittable weight: a scalar times a magnitude in margin points. It
+ *     is held out anyway, and the reason is about the CORPUS, not the shape.
+ *
+ *     It is not the price of a quantity; it is the EXPECTATION of one over the
+ *     attacker's unseen hand — "a fraction of the worst-case trick swing…the
+ *     discount is the EXPECTED cost of an over-committed block against a
+ *     loaded attacker, not a certainty" (`evaluate.ts`). Every Eval Pair is
+ *     one fully-specified world: the verdict's author saw a board, and the
+ *     rebuilt position hands `castableHeldInteraction` a single determinized
+ *     hand. Fitting the hedge's magnitude on that is fitting a mean to one
+ *     draw, and a corpus of single worlds is a biased sample of the
+ *     distribution the hedge integrates over. ADR 0124 draws the same line in
+ *     its consequences: "what the fit cannot do: invent a term, see past one
+ *     ply, or resolve hidden information. Timing and bluff stay where the
+ *     search and the (frozen) root rules are."
+ *
+ *     Measured, when it was in: the registry corpus pulled it down 20.7% and
+ *     flipped the discriminating pair in `blockDeltaLens.bot.test.ts` — the
+ *     bot stopped declining a block against a deck that MUST be holding Giant
+ *     Growth (issue #3401). That is the symptom that sent us looking; the
+ *     sampling argument is why it stays out.
  *   - every search-side constant (`ucbC`, the rollout knobs, the reward
  *     banding, `visitTol`, `outcomeEps`, `extraTurnValue`,
  *     `misdirectionWeight`, `blockWorldSamples`) — out of scope by ADR.

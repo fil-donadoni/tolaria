@@ -15,7 +15,7 @@
 //
 // It lives in the BOT suite rather than the blade suite because it is a gate:
 // the blade suite's must tier is the search's metric, this is the weights'.
-// The whole pipeline is arithmetic over rebuilt positions — 95 verdicts, 168
+// The whole pipeline is arithmetic over rebuilt positions — 96 verdicts, 175
 // pairs, well under a second — so it costs the suite nothing.
 import { describe, expect, it } from "vitest";
 import { BLADE_SCENARIOS } from "../blade/registry";
@@ -121,6 +121,63 @@ describe("fitWeights — the contract (issue #3401)", () => {
         }
     });
 
+    it("…except through a band, which couples two weights on purpose", () => {
+        // The other half of the invariant above, and the half a test on an
+        // UNBANDED key can never see. A pair that loads only `manaWeight`
+        // drags `tappedManaWeight` with it, because the band is a constraint
+        // on their DIFFERENCE — and the difference stays inside the band,
+        // which is the point of paying that price.
+        const result = fitWeights(
+            [pairLoading("hate-untapped-mana", { manaWeight: -20 }, -400)],
+            FIT_BASE_EVAL_WEIGHTS
+        );
+        expect(result.weights.manaWeight).toBeLessThan(
+            FIT_BASE_EVAL_WEIGHTS.manaWeight
+        );
+        expect(result.weights.tappedManaWeight).toBeLessThan(
+            FIT_BASE_EVAL_WEIGHTS.tappedManaWeight
+        );
+        const gap = result.weights.manaWeight - result.weights.tappedManaWeight;
+        expect(gap).toBeGreaterThanOrEqual(1);
+        // Everything OUTSIDE the band is still exactly untouched.
+        for (const key of FITTABLE_WEIGHT_KEYS) {
+            if (key === "manaWeight" || key === "tappedManaWeight") continue;
+            expect(weightValue(result.weights, key)).toBe(
+                weightValue(FIT_BASE_EVAL_WEIGHTS, key)
+            );
+        }
+    });
+
+    it("refuses a vector it cannot verify instead of returning NaN", () => {
+        // `margin` divides the loss, so zero poisons every coordinate at once
+        // — and `NaN` satisfies every comparison the band and box checks make,
+        // so without this the verification fails OPEN and the runner prints a
+        // `NaN` block for a human to paste.
+        expect(() =>
+            fitWeights(
+                [pairLoading("anything", { permanentWeight: 1 }, -50)],
+                FIT_BASE_EVAL_WEIGHTS,
+                { margin: 0 }
+            )
+        ).toThrow(/margin must be > 0/);
+    });
+
+    it("never prices a latent dimension whose prior is ZERO below zero", () => {
+        // The sign floor is `w ≥ 0`, not the constant `u ≥ −1`: at a zero
+        // prior the relative scale falls back to 1, so `−1` would price the
+        // dimension at −1. No shipped prior is zero today; one will be.
+        const w0 = {
+            ...FIT_BASE_EVAL_WEIGHTS,
+            latent: { ...FIT_BASE_EVAL_WEIGHTS.latent, tokens: 0 },
+        };
+        const result = fitWeights(
+            [pairLoading("hate-tokens", { "latent.tokens": -50 }, -5_000)],
+            w0,
+            { trustRegion: 4 }
+        );
+        expect(result.weights.latent.tokens).toBe(0);
+    });
+
     it("reports a contradictory couple instead of resolving it", () => {
         // Two verdicts that ask for opposite orders on the same vector. No
         // weight satisfies both; the fit must SAY so (ADR 0124: a wrong
@@ -184,6 +241,13 @@ describe("the committed weights ARE the fit of the committed verdicts (issue #34
             gaps,
             weights: FIT_BASE_EVAL_WEIGHTS,
         });
+        // A verdict the engine can no longer rebuild yields no pairs and would
+        // shrink the corpus SILENTLY — the fit would still reproduce whatever
+        // the smaller corpus says. The lockfile has to pin the input too.
+        expect(
+            report.errors,
+            "a committed verdict no longer rebuilds — the corpus shrank"
+        ).toEqual([]);
         const result = fitWeights(report.pairs, FIT_BASE_EVAL_WEIGHTS);
         expect(
             result.weights,

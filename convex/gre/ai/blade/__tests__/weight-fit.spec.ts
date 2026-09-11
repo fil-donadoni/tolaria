@@ -28,6 +28,7 @@ import {
     FITTABLE_WEIGHT_KEYS,
     collectVerdictReport,
     fitWeights,
+    fittableWeightsEqual,
     formatFittedWeights,
     formatVerdictReport,
     formatWeightFitReport,
@@ -143,8 +144,7 @@ describe.runIf(RUN)("weight fit (runner)", () => {
             "== the fitted vector, as the DEFAULT_EVAL_WEIGHTS literal",
             formatFittedWeights(result),
             "",
-            JSON.stringify(result.weights) ===
-            JSON.stringify(DEFAULT_EVAL_WEIGHTS)
+            fittableWeightsEqual(result.weights, DEFAULT_EVAL_WEIGHTS)
                 ? "== the committed DEFAULT_EVAL_WEIGHTS is up to date"
                 : "== the committed DEFAULT_EVAL_WEIGHTS is STALE — paste the block above",
         ].join("\n");

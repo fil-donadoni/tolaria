@@ -51,8 +51,24 @@
 // constraint `w ≥ 0` is just `u_k ≥ −1`.
 //
 // A coordinate no pair loads keeps gradient `2λu_k`, so starting at `u = 0`
-// it stays EXACTLY zero — the acceptance criterion "a single pair moves only
-// the weights it loads" holds by construction, not by tolerance.
+// the DESCENT leaves it exactly zero — "a single pair moves only the weights
+// it loads" holds by construction there, not by tolerance. The PROJECTION is
+// the one exception and it is deliberate: a band couples two coordinates, so a
+// pair that loads one side of a band can move the other. Measured, on a pair
+// whose basis is `manaWeight −20` and exactly zero everywhere else:
+// `manaWeight 12 → 6.06` (loaded) drags `tappedManaWeight 9 → 5.06` (basis 0),
+// because the band is a constraint on their DIFFERENCE. The contract test
+// covers both halves — an unbanded key that must not move at all, and a banded
+// one that may.
+//
+// The descent guarantee that goes with the fixed step is exact only while the
+// PROJECTION is exact, and `project` is an alternating box↔band projection —
+// which lands in the intersection but not necessarily at its nearest point.
+// Measured on the registry corpus the box clamp fires zero times in 4000 steps
+// (max |u| 0.301 against a trust region of 0.5), so the alternation degenerates
+// to the single half-space projection, which IS exact, and the loss is monotone
+// to 1.8e-15. A caller TIGHTENING `trustRegion` leaves that regime and gets
+// convergence into the feasible set without the monotonicity proof.
 //
 // ── 3. THE TRUST REGION IS A MEASUREMENT, NOT A TASTE ────────────────────
 // `basis` is a derivative at w₀, so `ĝ` is a first-order prediction and is
@@ -70,9 +86,11 @@
 // fit silently deciding which of two human verdicts is wrong, which is the
 // judgement ADR 0124 reserves for a person reading the report. They stay in,
 // the penalty bounds how far the tug can pull, and they are REPORTED. On
-// today's registry corpus that is 86 couples, most of them the combat
-// positions that differ only in a life total `ScenarioSpec` cannot yet carry
-// (issue #2147) — a finding about the corpus, not about the weights.
+// today's registry corpus that is 170 couples over 175 pairs — the corpus is
+// very nearly self-cancelling, so `λ‖u‖²` is doing most of the work of
+// choosing the answer. Most of them are the combat positions that differ only
+// in a life total `ScenarioSpec` cannot yet carry (issue #2147): a finding
+// about the corpus, not about the weights.
 
 import type { EvalWeights } from "../evalWeights";
 import type { Feature } from "../featureBasis";
@@ -176,20 +194,29 @@ const FIT_BANDS: readonly {
         // worthless. Both ends are `tappedManaWeight`'s own documented bounds
         // (`evalWeights.ts`), and both are load-bearing in the suite:
         //
-        //  - FLOOR 1. `evaluate.bot.test.ts` asserts that tapping three
-        //    sources costs strictly more than zero. A gap below one margin
+        //  - FLOOR 1, and it is BINDING — say so rather than imply it was
+        //    derived. The committed vector sits exactly on it (diff =
+        //    1.000000), so these two weights are set by this constant and not
+        //    by any verdict; with the band removed the corpus takes the pair
+        //    to −2.598, i.e. the inversion. What the suite actually demands is
+        //    only `cost > 0` (`evaluate.bot.test.ts`, three tapped sources).
+        //    The 1 is the judgement on top of that: a gap below one margin
         //    point is smaller than every distinction the evaluation otherwise
         //    draws — a permanent is 5, a life point 8 — so at that size "an
         //    untapped source outranks a tapped one" is true in float
-        //    arithmetic and false in play.
-        //  - CEILING 5.75. The measured issue-#3377 bound, same test: four
-        //    tapped sources must come in under the +23 that trace's
+        //    arithmetic and false in play. It is the number to revisit first
+        //    when the corpus stops being nearly self-cancelling.
+        //  - CEILING 5.7, STRICTLY under the measured issue-#3377 bound. Same
+        //    test: four tapped sources must come in under the +23 that trace's
         //    activation was worth, or no mana-costed activation can ever pay
-        //    for itself. 4 × 5.75 = 23.
+        //    for itself — and that assertion is `< 23`, strict. 4 × 5.75 is 23
+        //    exactly, so a fit landing on a 5.75 ceiling reds the suite on the
+        //    sign of a float error; `bandViolations`' rounding slack would put
+        //    it over outright. 4 × 5.7 = 22.8 leaves the strict bound real.
         a: "manaWeight",
         b: "tappedManaWeight",
         min: 1,
-        max: 5.75,
+        max: 5.7,
     },
 ];
 
@@ -293,27 +320,97 @@ function project(
     w0: EvalWeights,
     scale: number[],
     frozen: boolean[],
-    trustRegion: number
+    trustRegion: number,
+    floor: number[]
 ): void {
     for (let round = 0; round < PROJECTION_ROUNDS; round++) {
-        projectBox(u, frozen, trustRegion);
+        projectBox(u, frozen, trustRegion, floor);
         if (!projectBands(u, w0, scale, frozen)) break;
     }
-    projectBox(u, frozen, trustRegion);
+    projectBox(u, frozen, trustRegion, floor);
 }
 
 /** Clip every free coordinate to the trust region and to `w_k ≥ 0`. */
-function projectBox(u: number[], frozen: boolean[], trustRegion: number): void {
+function projectBox(
+    u: number[],
+    frozen: boolean[],
+    trustRegion: number,
+    floor: number[]
+): void {
     for (let k = 0; k < u.length; k++) {
         if (frozen[k]) continue;
-        // The trust region, then the sign constraint. `w_k ≥ 0` is
-        // `u_k ≥ −1`; at the default trust region it is already slack, and it
-        // is enforced anyway because a caller widening the region must not be
-        // able to buy a negative price for life or mana.
+        // The trust region, then the sign constraint. At the default trust
+        // region the sign floor is already slack, and it is enforced anyway
+        // because a caller widening the region must not be able to buy a
+        // negative price for life or mana.
         if (u[k] > trustRegion) u[k] = trustRegion;
         if (u[k] < -trustRegion) u[k] = -trustRegion;
-        if (u[k] < -1) u[k] = -1;
+        if (u[k] < floor[k]) u[k] = floor[k];
     }
+}
+
+/** The `u_k` at which `w_k` reaches zero — the sign constraint in the fit's own
+ *  coordinates.
+ *
+ *  NOT the constant `−1`. `w_k = w0_k + s_k·u_k` with `s_k = |w0_k|`, so `−1`
+ *  is the zero crossing only for a STRICTLY POSITIVE prior: at `w0_k = 0` the
+ *  scale falls back to 1 and `−1` prices the weight at −1, and at a negative
+ *  prior it clamps FURTHER negative. Neither is reachable from today's
+ *  `FIT_BASE_EVAL_WEIGHTS` (every fittable prior is positive) and a latent
+ *  dimension priced at 0 is entirely plausible — which is exactly when a
+ *  hardcoded `−1` would ship a negative unit price. */
+function signFloorOf(w0: EvalWeights, key: FittableWeightKey): number {
+    const v = weightValue(w0, key);
+    // A negative prior has no zero crossing below it, so the sign floor is not
+    // a lower bound on `u` at all; the trust region is what bounds it.
+    if (v < 0) return -Infinity;
+    return v === 0 ? 0 : -1;
+}
+
+/** Every fittable weight the vector prices below zero, or moves outside the
+ *  trust region. */
+function boxViolations(
+    weights: EvalWeights,
+    w0: EvalWeights,
+    trustRegion: number
+): string[] {
+    const slack = 2 * 10 ** -ROUND_DECIMALS;
+    const out: string[] = [];
+    for (const key of FITTABLE_WEIGHT_KEYS) {
+        const after = weightValue(weights, key);
+        const before = weightValue(w0, key);
+        if (before >= 0 && after < -slack) {
+            out.push(`${key} = ${after} is a negative price`);
+            continue;
+        }
+        const scale = before === 0 ? 1 : Math.abs(before);
+        const moved = Math.abs((after - before) / scale);
+        if (moved > trustRegion + slack) {
+            out.push(
+                `${key} moved ${(100 * moved).toFixed(1)}%, outside the ±${100 * trustRegion}% trust region`
+            );
+        }
+    }
+    return out;
+}
+
+/** Every fittable weight that is not a finite number. */
+function nonFiniteWeights(weights: EvalWeights): string[] {
+    const out: string[] = [];
+    for (const key of FITTABLE_WEIGHT_KEYS) {
+        const v = weightValue(weights, key);
+        if (!Number.isFinite(v)) out.push(`${key} = ${v} is not finite`);
+    }
+    return out;
+}
+
+/** Structural equality over every fittable weight — key-order free, unlike a
+ *  `JSON.stringify` comparison, so reordering a literal cannot make two equal
+ *  vectors read as different. */
+export function fittableWeightsEqual(a: EvalWeights, b: EvalWeights): boolean {
+    return FITTABLE_WEIGHT_KEYS.every(
+        (key) => weightValue(a, key) === weightValue(b, key)
+    );
 }
 
 /** Euclidean projection onto each band, in the relative coordinates. The
@@ -427,6 +524,26 @@ export function fitWeights(
         numeraire:
             options.numeraire === undefined ? FIT_NUMERAIRE : options.numeraire,
     };
+    // Rejected here rather than absorbed: the loss divides by `margin`, so a
+    // zero one turns the whole vector into `NaN` — and `NaN` satisfies every
+    // comparison the constraint verification below makes, so it would fail
+    // OPEN on the one failure mode that poisons every coordinate at once.
+    // `bun run fit:weights` takes these as environment knobs, so a typo
+    // reaches this function.
+    if (!(opts.margin > 0)) {
+        throw new Error(`fit margin must be > 0, got ${opts.margin}`);
+    }
+    if (!(opts.lambda >= 0)) {
+        throw new Error(`fit lambda must be >= 0, got ${opts.lambda}`);
+    }
+    if (!(opts.steps >= 1)) {
+        throw new Error(`fit steps must be >= 1, got ${opts.steps}`);
+    }
+    if (!(opts.trustRegion > 0)) {
+        throw new Error(
+            `fit trust region must be > 0, got ${opts.trustRegion}`
+        );
+    }
     const { margin, lambda, steps, trustRegion, numeraire } = opts;
 
     const keys = FITTABLE_WEIGHT_KEYS;
@@ -435,6 +552,7 @@ export function fitWeights(
     // entry in every array (so indices line up with `FITTABLE_WEIGHT_KEYS`)
     // and is simply never stepped and never projected off zero.
     const frozen = keys.map((k) => k === numeraire);
+    const floor = keys.map((k) => signFloorOf(w0, k));
 
     // `a[p][k] = s_k · basis_k` — the margin points a 100% move of weight k
     // buys on pair p. `base[p] = ĝ(w0) = pair.delta`, which already carries
@@ -473,19 +591,25 @@ export function fitWeights(
             if (frozen[k]) continue;
             u[k] -= step * gradient[k];
         }
-        project(u, w0, scale, frozen, trustRegion);
+        project(u, w0, scale, frozen, trustRegion, floor);
     }
 
     const coordinates = {} as Record<FittableWeightKey, number>;
     keys.forEach((k, i) => (coordinates[k] = u[i]));
     const weights = weightsFromCoordinates(w0, coordinates);
-    const broken = bandViolations(weights);
+    // Never a silent pass. A vector outside a constraint is structurally wrong
+    // in a way no pair count reports, so the fit refuses to hand one back —
+    // and the FINITENESS sweep comes first, because `NaN` satisfies every
+    // comparison the other two make. The box is verified rather than assumed
+    // for the same reason as the bands: `project` ends on the box, but the two
+    // sets are reconciled by alternation, not by an exact joint projection.
+    const broken = [
+        ...nonFiniteWeights(weights),
+        ...boxViolations(weights, w0, trustRegion),
+        ...bandViolations(weights),
+    ];
     if (broken.length > 0) {
-        // Never a silent pass: a vector outside a band is structurally wrong
-        // in a way no pair count reports, so the fit refuses to hand one back.
-        throw new Error(
-            `weight fit broke a declared band: ${broken.join("; ")}`
-        );
+        throw new Error(`weight fit broke a constraint: ${broken.join("; ")}`);
     }
 
     // Everything below is read off the ROUNDED vector, not off `u`: the
