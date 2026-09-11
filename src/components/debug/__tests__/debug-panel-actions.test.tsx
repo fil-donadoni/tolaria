@@ -50,7 +50,9 @@ vi.mock("@convex/_generated/api", () => {
     };
 });
 
-const copyMinified = vi.fn((_value: unknown) => Promise.resolve());
+const copyMinified = vi.fn<(value: unknown) => Promise<void>>(() =>
+    Promise.resolve()
+);
 vi.mock("~/lib/clipboard", () => ({
     copyMinified: (value: unknown) => copyMinified(value),
     copyText: () => Promise.resolve(),
