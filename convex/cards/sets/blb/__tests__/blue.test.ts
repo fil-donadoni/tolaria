@@ -371,9 +371,9 @@ describe("Stormchaser's Talent — level-gated text box sections (CR 716.2a)", (
         return collectTriggers(state, [
             {
                 type: "SPELL_CAST",
-                instanceId: "bolt-1",
                 casterId: "p1",
-                cardId: BOLT,
+                spellInstanceId: "bolt-1",
+                spellCardId: BOLT,
                 spellTypes: ["Instant"],
                 spellSubtypes: [],
                 spellColors: ["R"],

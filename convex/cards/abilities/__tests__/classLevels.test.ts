@@ -17,11 +17,10 @@
 // answers is worth pinning directly.
 
 import { describe, expect, it } from "vitest";
-import type { CardDefinition } from "../../types";
+import type { CardDefinition, PermanentView } from "../../types";
 import {
     CLASS_SUBTYPE,
     classLevelActivationViolation,
-    classLevelOf,
     expandClassLevelBars,
 } from "../classLevels";
 
@@ -166,19 +165,16 @@ describe("expandClassLevelBars — section gating (CR 716.2a)", () => {
     });
 
     /** A minimal `PermanentView`-shaped subject for the gated predicates. */
-    const self = (classLevel?: number) =>
-        ({
-            id: "self",
-            controllerId: "p1",
-            ownerId: "p1",
-            types: ["Enchantment"],
-            subtypes: [CLASS_SUBTYPE],
-            isTapped: false,
-            classLevel,
-        }) as Parameters<typeof classLevelOf>[0] & {
-            id: string;
-            controllerId: string;
-        };
+    const self = (classLevel?: number): PermanentView => ({
+        id: "self",
+        card: { id: base.id },
+        controllerId: "p1",
+        ownerId: "p1",
+        types: ["Enchantment"],
+        subtypes: [CLASS_SUBTYPE],
+        isTapped: false,
+        classLevel,
+    });
 
     it("CR 716.2a — the section's static is live only at level 2 or greater", () => {
         const effect = expanded.staticEffects![0] as {
