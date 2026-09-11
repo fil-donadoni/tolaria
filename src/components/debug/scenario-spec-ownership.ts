@@ -84,14 +84,26 @@ export const SCENARIO_SPEC_FIELD_OWNER = {
     activePlayer: "form-owned",
     priority: "form-owned",
     passCount: "form-owned",
+    // CR 508.1 / 509.1 (issue #3458) — the FIRST field classified `preserved`
+    // since issue #3463 emptied that category, and deliberately: a declared
+    // combat is not a scalar knob but a RECORD that cross-references the card
+    // list (an attacker must be a creature on the active player's battlefield;
+    // a blocker names its attackers by INDEX into the attacker list). None of
+    // the form's input kinds — number / boolean / seat / per-seat / phase /
+    // companion — has that shape, and a comma-joined text box for it would be
+    // the untypeable knob #3463 closed wearing an input. It is captured
+    // (`specFromState`) or hand-written in a blade entry, and carried through
+    // untouched by any edit of the row — which is the whole job of this table.
+    combat: "preserved",
     companion: "form-owned",
 } as const satisfies Record<keyof ScenarioSpec, ScenarioSpecFieldOwner>;
 
 /** The spec keys the form cannot edit — derived from the table above, never
- *  hand-listed, so it cannot drift from the classification. Empty since issue
- *  #3463; the machinery below stays because the NEXT widening may well be
- *  classified `preserved`, and finding that out after an edit ate a golden
- *  row is the failure this exists to prevent. */
+ *  hand-listed, so it cannot drift from the classification. Emptied by issue
+ *  #3463 and re-opened by issue #3458's `combat`, which is what the machinery
+ *  was kept for: a widening whose shape no input kind has still has to survive
+ *  an edit of the row, and finding that out after one ate a golden row is the
+ *  failure this exists to prevent. */
 export type PreservedScenarioSpecKey = {
     [K in keyof ScenarioSpec]-?: (typeof SCENARIO_SPEC_FIELD_OWNER)[K] extends "preserved"
         ? K
@@ -311,5 +323,44 @@ export function assembleScenarioSpec(
     const spec: ScenarioSpec = { ...formOwned };
     if (!loaded) return spec;
     for (const key of PRESERVED_SCENARIO_SPEC_KEYS) carry(spec, loaded, key);
+    dropStaleCombat(spec);
     return spec;
+}
+
+/** The identity a battlefield card entry PRESENTS as — what a `combat`
+ *  reference has to match (CR 707.2: a copy presents the copied name). */
+function presentedEntryName(card: ScenarioSpec["cards"][number]): string {
+    return card.copyOf ?? card.name;
+}
+
+/**
+ * CR 508.1a / 509.1a (issue #3458 review) — drop a carried `combat` whose names
+ * no longer name anything on the assembled battlefield.
+ *
+ * `cards` is form-owned and `combat` is preserved, so an admin renaming a card
+ * would otherwise save a row referencing a permanent that is not there any
+ * more — and `buildStateFromScenario` THROWS on an unresolvable combatant
+ * rather than rebuilding a combat one attacker short, so the golden row would
+ * simply stop loading. Dropping the record loses the captured combat, which is
+ * a real loss and the reason the field warns rather than silently reshaping
+ * itself; loading nothing at all is the worse one.
+ */
+function dropStaleCombat(spec: ScenarioSpec): void {
+    if (!spec.combat) return;
+    const onBattlefield = new Set(
+        spec.cards
+            .filter((card) => (card.zone ?? "battlefield") === "battlefield")
+            .map(presentedEntryName)
+    );
+    const referenced = [
+        ...(spec.combat.attackers ?? []),
+        ...(spec.combat.blockers ?? []).map((entry) => entry.blocker),
+        ...(spec.combat.attackedThisTurn?.me ?? []),
+        ...(spec.combat.attackedThisTurn?.opp ?? []),
+        ...(spec.combat.blockedThisTurn?.me ?? []),
+        ...(spec.combat.blockedThisTurn?.opp ?? []),
+    ];
+    if (referenced.some((name) => !onBattlefield.has(name))) {
+        delete spec.combat;
+    }
 }

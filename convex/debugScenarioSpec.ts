@@ -301,6 +301,82 @@ export const scenarioSpecValidator = v.object({
     // meant to mean — rejecting it would be guessing, so it is placed as
     // written and the position it makes is the author's.
     passCount: v.optional(v.number()),
+    // CR 508.1 / 509.1 (issue #3458, PRD #3397) — a combat that has already
+    // been DECLARED. Without it `buildStateFromScenario` could seed only an
+    // EMPTY, unconfirmed `DECLARE_ATTACKERS` object, so every position taken
+    // after attackers were declared rebuilt as an undeclared attack step: the
+    // rebuild offered fresh `attack:` moves the seat no longer had and dropped
+    // the block it owed. The verdict quiz refuses on exactly that mismatch, so
+    // no blocking decision, no combat trick and no post-declaration response
+    // could be judged (measured: declared combat is dropped in 19.8% of Bot
+    // decisions, the largest board-level gap after `activePlayer`).
+    //
+    // The declaration is SEEDED, not replayed. Re-running the engine's own
+    // `declare-attackers` move over a captured board would re-fire every
+    // attack trigger on a board that already carries their consequences (the
+    // counters they put, the taps they made) — the blade suite's
+    // `declare-attackers` setup step walks a PRE-attack board forward, which
+    // is a different job (ADR 0070 §4). What the builder does instead is route
+    // the seeding through the engine's own combat primitives (`markAttacking`,
+    // `recordAttackerDeclared`, `markDeclaredBlockers`,
+    // `recordBlockedAttackers`), so no half-attacking permanent can be built
+    // by hand here (issue #1195's class).
+    //
+    // Names are PRESENTED card names, exactly as `attachedTo` names a host,
+    // and a repeated name names a second instance: attackers come from the
+    // active player's battlefield (CR 508.1a), blockers from the defending
+    // player's (CR 509.1a), so neither needs an owner.
+    combat: v.optional(
+        v.object({
+            // CR 508.1a/508.1k — the creatures attacking right now.
+            attackers: v.optional(v.array(v.string())),
+            // CR 508.1 — whether the declaration is locked in. The block
+            // window only opens for a CONFIRMED attack (`decidingPlayer`).
+            confirmed: v.optional(v.boolean()),
+            // CR 509.1a/509.1g — one entry per BLOCKING creature (a repeated
+            // `blocker` name is a second instance of that card), each naming
+            // the attackers it blocks as INDEXES into `attackers`. Indexes,
+            // not names, because two identical creatures attacking is ordinary
+            // and a name could not say which one a blocker was declared
+            // against — the one edge in this spec with no name to be exact
+            // with.
+            blockers: v.optional(
+                v.array(
+                    v.object({
+                        blocker: v.string(),
+                        blocking: v.array(v.number()),
+                    })
+                )
+            ),
+            blockersConfirmed: v.optional(v.boolean()),
+            // CR 506.4 / 508.4 — creatures that have ATTACKED or BLOCKED this
+            // turn, the COMPLETE list including the ones currently in the
+            // declaration above. The per-card flags outlive the combat object
+            // (Erg Raiders, Whirling Dervish) and are not implied by it: a
+            // creature put onto the battlefield attacking is "attacking" but
+            // per CR 508.4 never "attacked".
+            //
+            // PER-SEAT, the shape `poison` / `life` / `landsPlayed` already
+            // have, and for a reason the declaration above does not need: a
+            // declared attacker is the active player's by CR 508.1a and a
+            // blocker the defender's by CR 509.1a, so those two lists have one
+            // battlefield each to search. These do not — both seats can have a
+            // Grizzly Bears that attacked this turn, and a flat list could not
+            // say whose.
+            attackedThisTurn: v.optional(
+                v.object({
+                    me: v.optional(v.array(v.string())),
+                    opp: v.optional(v.array(v.string())),
+                })
+            ),
+            blockedThisTurn: v.optional(
+                v.object({
+                    me: v.optional(v.array(v.string())),
+                    opp: v.optional(v.array(v.string())),
+                })
+            ),
+        })
+    ),
     // CR 702.139c / ADR 0064 (issue #1392) — directly declare a companion
     // into a slot, bypassing the sideboard/maindeck auto-declare a
     // scenario's synthetic board never runs through. Mirrors
@@ -441,6 +517,30 @@ export type ScenarioSpec = {
     /** CR 117.4 (issue #3454) — passes already banked in this priority round.
      *  Omitted means 0, the pre-#3454 behaviour. */
     passCount?: number;
+    /** CR 508.1 / 509.1 (issue #3458) — a combat already DECLARED: who is
+     *  attacking, who is blocking whom, whether each declaration is locked in,
+     *  and the per-turn attacked/blocked record that outlives the combat
+     *  object itself. Omitted means the pre-#3458 behaviour — no combat at all
+     *  beyond the empty, unconfirmed object `phase: "DECLARE_ATTACKERS"` seeds
+     *  on its own.
+     *
+     *  Names are PRESENTED card names (the `attachedTo` convention) and a
+     *  repeated name names a second instance; attackers are matched on the
+     *  active player's battlefield (CR 508.1a) and blockers on the defending
+     *  player's (CR 509.1a). `blocking` indexes into `attackers`, the one edge
+     *  a name cannot be exact about when two identical creatures attack. */
+    combat?: {
+        attackers?: string[];
+        confirmed?: boolean;
+        blockers?: { blocker: string; blocking: number[] }[];
+        blockersConfirmed?: boolean;
+        /** CR 506.4 / 508.4 — creatures that attacked/blocked this turn, the
+         *  complete list per SEAT (both seats can hold a Grizzly Bears that
+         *  attacked, which a flat list could not tell apart). Not implied by
+         *  the declaration above in either direction. */
+        attackedThisTurn?: { me?: string[]; opp?: string[] };
+        blockedThisTurn?: { me?: string[]; opp?: string[] };
+    };
     companion?: { name: string; owner?: "me" | "opp"; used?: boolean };
 };
 
@@ -648,6 +748,47 @@ function set<T extends object, K extends keyof T>(
     if (value !== undefined) target[key] = value;
 }
 
+/** A non-empty array of strings, or undefined — the tolerant read of every
+ *  name list in the spec (issue #3458). A non-array, or an array with no
+ *  usable entry, is an absence rather than an error (ADR 0044). */
+function pickStringArray(value: unknown): string[] | undefined {
+    if (!Array.isArray(value)) return undefined;
+    const names = value.filter((entry): entry is string => {
+        return typeof entry === "string";
+    });
+    return names.length > 0 ? names : undefined;
+}
+
+/** CR 506.4 (issue #3458) — the per-seat `{ me?, opp? }` pair of name lists the
+ *  per-turn combat record uses, tolerantly read: a seat whose list normalizes
+ *  to nothing is omitted, and a pair with neither seat left is an absence. */
+function pickSeatNameLists(
+    value: unknown
+): { me?: string[]; opp?: string[] } | undefined {
+    if (!isRecord(value)) return undefined;
+    const pair: { me?: string[]; opp?: string[] } = {};
+    set(pair, "me", pickStringArray(value.me));
+    set(pair, "opp", pickStringArray(value.opp));
+    return pair.me || pair.opp ? pair : undefined;
+}
+
+/** CR 509.1a (issue #3458) — one blocking creature and the attackers it was
+ *  declared against, as indexes into `combat.attackers`. A malformed entry is
+ *  dropped, not thrown on; an entry naming no attacker is dropped too, since a
+ *  blocker blocking nothing is not a blocker. */
+function normalizeBlocker(
+    raw: unknown
+): { blocker: string; blocking: number[] } | null {
+    if (!isRecord(raw)) return null;
+    const blocker = pickString(raw.blocker);
+    if (blocker === undefined) return null;
+    if (!Array.isArray(raw.blocking)) return null;
+    const blocking = raw.blocking
+        .map((entry) => pickNumber(entry))
+        .filter((entry): entry is number => entry !== undefined);
+    return blocking.length > 0 ? { blocker, blocking } : null;
+}
+
 const ZONES = ["hand", "battlefield", "library", "graveyard", "exile"] as const;
 
 function normalizeCard(raw: unknown): ScenarioCard | null {
@@ -826,6 +967,37 @@ export function normalizeScenarioSpec(raw: unknown): ScenarioSpec {
     const priority = pickString(raw.priority);
     if (priority === "me" || priority === "opp") spec.priority = priority;
     set(spec, "passCount", pickNumber(raw.passCount));
+    // CR 508.1 / 509.1 (issue #3458) — a declared combat. Tolerant like every
+    // branch here: a malformed blocker entry is skipped, never thrown on, and
+    // a `combat` that normalizes to nothing at all is left off the spec so it
+    // reads exactly as the absence the builder defaults from.
+    if (isRecord(raw.combat)) {
+        const combat: NonNullable<ScenarioSpec["combat"]> = {};
+        set(combat, "attackers", pickStringArray(raw.combat.attackers));
+        set(combat, "confirmed", pickBoolean(raw.combat.confirmed));
+        set(
+            combat,
+            "blockersConfirmed",
+            pickBoolean(raw.combat.blockersConfirmed)
+        );
+        set(
+            combat,
+            "attackedThisTurn",
+            pickSeatNameLists(raw.combat.attackedThisTurn)
+        );
+        set(
+            combat,
+            "blockedThisTurn",
+            pickSeatNameLists(raw.combat.blockedThisTurn)
+        );
+        if (Array.isArray(raw.combat.blockers)) {
+            const blockers = raw.combat.blockers
+                .map((entry) => normalizeBlocker(entry))
+                .filter((entry): entry is NonNullable<typeof entry> => !!entry);
+            if (blockers.length > 0) combat.blockers = blockers;
+        }
+        if (Object.keys(combat).length > 0) spec.combat = combat;
+    }
     if (isRecord(raw.companion)) {
         const name = pickString(raw.companion.name);
         if (name !== undefined) {
@@ -886,6 +1058,22 @@ export function collectUnresolvedCardNames(
     }
     if (spec.companion && !resolves(spec.companion.name)) {
         unresolved.add(spec.companion.name);
+    }
+    // CR 508.1a / 509.1a (issue #3458) — the four combat name lists, which the
+    // builder resolves by name exactly as it resolves an `attachedTo` host, and
+    // throws on. Without them a row whose combat names an unresolvable card is
+    // accepted at WRITE and throws at LOAD, which is the whole failure this
+    // guard exists to prevent (ADR 0044). Either resolution vouches: an
+    // attacking TOKEN is named by its catalogue key, like an Aura host.
+    for (const name of [
+        ...(spec.combat?.attackers ?? []),
+        ...(spec.combat?.blockers ?? []).map((entry) => entry.blocker),
+        ...(spec.combat?.attackedThisTurn?.me ?? []),
+        ...(spec.combat?.attackedThisTurn?.opp ?? []),
+        ...(spec.combat?.blockedThisTurn?.me ?? []),
+        ...(spec.combat?.blockedThisTurn?.opp ?? []),
+    ]) {
+        if (!resolves(name) && !resolvesToken(name)) unresolved.add(name);
     }
     return [...unresolved];
 }

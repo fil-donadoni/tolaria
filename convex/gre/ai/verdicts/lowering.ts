@@ -34,7 +34,7 @@
 // the rebuild cannot know — which candidate the Bot itself picked — matched
 // through the move describer's sentence, the vocabulary both sides share.
 
-import { specFromState } from "../../scenarioBuilder";
+import { COMBAT_DROPPED_PREFIX, specFromState } from "../../scenarioBuilder";
 import { describeMove } from "../../describeMove";
 import { moveKey, decidingPlayer } from "../../search";
 import { PLACEHOLDER_CARD_ID } from "../../constants";
@@ -72,11 +72,13 @@ export const QUIZ_SEAT = "me" as const;
  *  - `single-candidate` — one legal move, so a verdict would state no
  *    preference (`collectVerdictReport`'s UNCONSTRAINING).
  *  - `different-decision` — the rebuilt candidate list is not the live one.
+ *  - `combat-not-captured` — the lowering lost a combat fact (issue #3458).
  *  - `pick-not-offered` — the rebuild does not offer the move that was played.
  */
 export const VERDICT_REFUSAL_KINDS = [
     "stack-not-empty",
     "lowering-threw",
+    "combat-not-captured",
     "rebuild-threw",
     "no-decision-owed",
     "single-candidate",
@@ -191,6 +193,29 @@ export function lowerDecision(
             kind: "lowering-threw",
             dropped: hidden,
             error: `this position could not be lowered into a scenario: ${message(error)}`,
+        };
+    }
+
+    // CR 508.1 / 509.1 (issue #3458 review) — a combat fact the spec could not
+    // carry is a REFUSAL, not a note. The `different-decision` check below is
+    // what catches a lowering that lost something, and combat is the one area
+    // where it is systematically blind: an attack redirected at a planeswalker
+    // (CR 508.1b) admits exactly the same blocks as an attack on the face
+    // (CR 509.1a), and two same-named creatures render as the same
+    // `describeMove` sentence — so the two lists match move for move while the
+    // board differs. The same argument `stack-not-empty` above makes, applied
+    // where it is just as true. Before issue #3458 every one of these
+    // positions was refused anyway (the spec had no combat at all), so this
+    // keeps a wrong-board verdict from being the thing that widening bought.
+    const combatLost = dropped.filter((note) =>
+        note.startsWith(COMBAT_DROPPED_PREFIX)
+    );
+    if (combatLost.length > 0) {
+        return {
+            ok: false,
+            kind: "combat-not-captured",
+            dropped,
+            error: `this decision's combat did not survive the lowering (${combatLost.length} fact(s)) — the rebuilt board is a different combat, and a candidate list can match move for move while it is`,
         };
     }
 

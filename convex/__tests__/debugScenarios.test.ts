@@ -192,6 +192,18 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
             lifeGainedThisTurn: { me: 3 },
             deathsThisTurn: 2,
             creatureAttackedThisTurn: true,
+            // CR 508.1 / 509.1 (issue #3458) — a declared combat. Same
+            // argument again: a curated block-window row that normalize drops
+            // reopens as an undeclared attack step, which is a different
+            // question under the same label.
+            combat: {
+                attackers: ["Savannah Lions"],
+                confirmed: true,
+                blockers: [{ blocker: "Shivan Dragon", blocking: [0] }],
+                blockersConfirmed: false,
+                attackedThisTurn: { me: ["Savannah Lions"] },
+                blockedThisTurn: { opp: ["Grizzly Bears"] },
+            },
         };
         expect(normalizeScenarioSpec(raw)).toEqual({
             cards: [
@@ -226,6 +238,14 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
             lifeGainedThisTurn: { me: 3 },
             deathsThisTurn: 2,
             creatureAttackedThisTurn: true,
+            combat: {
+                attackers: ["Savannah Lions"],
+                confirmed: true,
+                blockers: [{ blocker: "Shivan Dragon", blocking: [0] }],
+                blockersConfirmed: false,
+                attackedThisTurn: { me: ["Savannah Lions"] },
+                blockedThisTurn: { opp: ["Grizzly Bears"] },
+            },
         });
     });
 
@@ -306,6 +326,63 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
                     abilityResolutions: { "scythecat-cub-landfall": 2 },
                 },
             ],
+        });
+    });
+
+    // CR 508.1 / 509.1 (issue #3458) — the tolerant read of the one nested
+    // ARRAY field in the spec. A malformed blocker entry is dropped rather
+    // than thrown on (ADR 0044), and a `combat` that normalizes to nothing is
+    // left off entirely, so it reads as exactly the absence the builder
+    // defaults from.
+    it("normalizes `combat` — full, partial, absent, garbage (CR 508.1 / 509.1)", () => {
+        expect(
+            normalizeScenarioSpec({
+                cards: [],
+                combat: { attackers: ["Savannah Lions"], confirmed: true },
+            })
+        ).toEqual({
+            cards: [],
+            combat: { attackers: ["Savannah Lions"], confirmed: true },
+        });
+
+        expect(normalizeScenarioSpec({ cards: [] })).toEqual({ cards: [] });
+
+        // Every shape a hand-edited row produces: a string where a list
+        // belongs, a blocker with no name, a blocker blocking nothing, an
+        // index that is not a number.
+        expect(
+            normalizeScenarioSpec({
+                cards: [],
+                combat: {
+                    attackers: "Savannah Lions",
+                    blockers: [
+                        { blocking: [0] },
+                        { blocker: "Shivan Dragon", blocking: [] },
+                        { blocker: "Shivan Dragon", blocking: ["0"] },
+                    ],
+                },
+            })
+        ).toEqual({ cards: [] });
+
+        // A list with one usable entry keeps that entry and drops the rest —
+        // never the whole field.
+        expect(
+            normalizeScenarioSpec({
+                cards: [],
+                combat: {
+                    attackers: ["Savannah Lions", 7],
+                    blockers: [
+                        { blocker: "Shivan Dragon", blocking: [0, "1"] },
+                        "not an entry",
+                    ],
+                },
+            })
+        ).toEqual({
+            cards: [],
+            combat: {
+                attackers: ["Savannah Lions"],
+                blockers: [{ blocker: "Shivan Dragon", blocking: [0] }],
+            },
         });
     });
 

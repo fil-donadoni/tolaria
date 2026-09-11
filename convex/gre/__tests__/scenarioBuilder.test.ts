@@ -49,6 +49,36 @@ import type { GameEvent } from "../../cards/types";
 import type { ScenarioSpec } from "../../debugScenarioSpec";
 import { removedKeywordRows } from "../../cards/__tests__/setup";
 
+/** A live position at DECLARE_BLOCKERS with the attack declared and confirmed
+ *  and one blocker locked in (CR 508.1 / 509.1) — the class of board
+ *  `specFromState` refused outright before issue #3458. Built by hand rather
+ *  than through the builder's own combat seed, so the lowering is read against
+ *  a state it did not produce. */
+function declaredCombatState(): GameState {
+    const state = buildStateFromScenario(makeState(), {
+        cards: [
+            { name: grizzlyBears.name, owner: "me", tapped: true },
+            { name: shivanDragon.name, owner: "opp" },
+        ],
+        phase: "DECLARE_BLOCKERS",
+    });
+    const attacker = state.players[0].battlefield[0];
+    const blocker = state.players[1].battlefield[0];
+    attacker.isAttacking = true;
+    attacker.hasAttackedThisTurn = true;
+    blocker.isBlocking = true;
+    blocker.hasBlockedThisTurn = true;
+    state.creatureAttackedThisTurn = true;
+    state.combat = {
+        attackerIds: [attacker.id],
+        confirmed: true,
+        blockerAssignments: { [blocker.id]: [attacker.id] },
+        blockersConfirmed: true,
+        blockedAttackerIds: [attacker.id],
+    };
+    return state;
+}
+
 describe("buildStateFromScenario (issue #1424)", () => {
     // CR 122.1 (issue #1969) — a debug scenario must be able to START at a
     // scaled experience total, otherwise the only way to see Otharri make more
@@ -1168,14 +1198,130 @@ describe("specFromState (issue #2148)", () => {
         );
     });
 
-    it("reports declared combat as dropped rather than silently losing it", () => {
+    // CR 508.1 / 509.1 / 506.4 (issue #3458, PRD #3397) — a DECLARED combat.
+    // Both of these used to be `dropped[]` notes ("a scenario spec can only
+    // seed an EMPTY DECLARE_ATTACKERS combat object" and its phase sibling),
+    // which took out every blocking decision and every post-declaration
+    // response — the class PRD #3397 most needs rows for.
+    it("round-trips a declared attack with its blocks through the spec (CR 508.1 / 509.1)", () => {
+        const declared = declaredCombatState();
+
+        const { spec, dropped } = specFromState(declared, {
+            mySeatId: declared.players[0].id,
+        });
+
+        expect(spec.combat).toEqual({
+            attackers: [grizzlyBears.name],
+            confirmed: true,
+            blockers: [{ blocker: shivanDragon.name, blocking: [0] }],
+            blockersConfirmed: true,
+            // CR 506.4 / 508.4 — the per-turn record names the current
+            // attacker and blocker too: being IN the declaration does not
+            // imply the flag (a creature put onto the battlefield attacking is
+            // "attacking" but per CR 508.4 never "attacked"), so it is lowered
+            // as the complete list rather than the declaration's complement.
+            attackedThisTurn: { me: [grizzlyBears.name] },
+            blockedThisTurn: { opp: [shivanDragon.name] },
+        });
+        // The loss it replaces is gone, and no other combat note took its
+        // place.
+        expect(dropped.filter((d) => d.startsWith("combat:"))).toEqual([]);
+
+        const rebuilt = buildStateFromScenario(makeState(), spec);
+        const rebuiltAttacker = rebuilt.players[0].battlefield[0];
+        const rebuiltBlocker = rebuilt.players[1].battlefield[0];
+        expect(rebuilt.phase).toBe("DECLARE_BLOCKERS");
+        expect(rebuilt.combat?.attackerIds).toEqual([rebuiltAttacker.id]);
+        expect(rebuilt.combat?.confirmed).toBe(true);
+        expect(rebuilt.combat?.blockerAssignments).toEqual({
+            [rebuiltBlocker.id]: [rebuiltAttacker.id],
+        });
+        expect(rebuilt.combat?.blockersConfirmed).toBe(true);
+        // CR 509.1h — the blocked record, re-derived at seed time through the
+        // engine's own `recordBlockedAttackers`.
+        expect(rebuilt.combat?.blockedAttackerIds).toEqual([
+            rebuiltAttacker.id,
+        ]);
+        // CR 508.1k / 509.1g — the per-permanent flags, which a hand-written
+        // combat literal is exactly how you forget (issue #1195).
+        expect(rebuiltAttacker.isAttacking).toBe(true);
+        expect(rebuiltBlocker.isBlocking).toBe(true);
+        // CR 506.4 — and the per-turn record, which is NOT implied by being in
+        // the declaration: the builder marks it from `attackedThisTurn` /
+        // `blockedThisTurn`, so a lowering that took them to be the
+        // declaration's complement would lose the flag on every attacker.
+        expect(rebuiltAttacker.hasAttackedThisTurn).toBe(true);
+        expect(rebuiltBlocker.hasBlockedThisTurn).toBe(true);
+        expect(rebuilt.creatureAttackedThisTurn).toBe(true);
+    });
+
+    it("keeps two identical attackers apart, and the blocker declared against the second (CR 509.1a)", () => {
         const base = makeState();
         const state = buildStateFromScenario(base, {
-            cards: [{ name: grizzlyBears.name, owner: "me" }],
-            phase: "DECLARE_ATTACKERS",
+            cards: [
+                { name: grizzlyBears.name, owner: "me", count: 2 },
+                { name: shivanDragon.name, owner: "opp" },
+            ],
+            phase: "DECLARE_BLOCKERS",
         });
+        const [first, second] = state.players[0].battlefield;
+        const blocker = state.players[1].battlefield[0];
         state.combat = {
-            attackerIds: [state.players[0].battlefield[0].id],
+            attackerIds: [first.id, second.id],
+            confirmed: true,
+            blockerAssignments: { [blocker.id]: [second.id] },
+            blockersConfirmed: false,
+        };
+
+        const { spec } = specFromState(state, {
+            mySeatId: state.players[0].id,
+        });
+
+        // A name could not say WHICH Bears is blocked, so the edge is an index
+        // into the attacker list — the one reference in the spec that isn't a
+        // name.
+        expect(spec.combat?.attackers).toEqual([
+            grizzlyBears.name,
+            grizzlyBears.name,
+        ]);
+        expect(spec.combat?.blockers).toEqual([
+            { blocker: shivanDragon.name, blocking: [1] },
+        ]);
+
+        const rebuilt = buildStateFromScenario(makeState(), spec);
+        const rebuiltBlocker = rebuilt.players[1].battlefield[0];
+        expect(rebuilt.combat?.blockerAssignments[rebuiltBlocker.id]).toEqual([
+            rebuilt.combat?.attackerIds[1],
+        ]);
+    });
+
+    it("names the ambiguity when two identically-named permanents differ in their combat role", () => {
+        const base = makeState();
+        const state = buildStateFromScenario(base, {
+            cards: [
+                // Two Bears, told apart only by a counter — and only the
+                // SECOND is attacking. A presented card name cannot say which,
+                // so the builder's own first-untaken-match rule would hand the
+                // attack to the bench Bears along with a rebuilt board where
+                // the counter sits on the wrong creature. `describeMove`
+                // renders both as the same sentence, so the verdict path's
+                // candidate-list comparison could never see it: the loss is
+                // REPORTED instead, and `lowerDecision` refuses on it.
+                { name: grizzlyBears.name, owner: "me" },
+                {
+                    name: grizzlyBears.name,
+                    owner: "me",
+                    counters: { "+1/+1": 1 },
+                    tapped: true,
+                },
+                { name: shivanDragon.name, owner: "opp" },
+            ],
+            phase: "DECLARE_BLOCKERS",
+        });
+        const attacker = state.players[0].battlefield[1];
+        attacker.isAttacking = true;
+        state.combat = {
+            attackerIds: [attacker.id],
             confirmed: true,
             blockerAssignments: {},
             blockersConfirmed: false,
@@ -1185,22 +1331,138 @@ describe("specFromState (issue #2148)", () => {
             mySeatId: state.players[0].id,
         });
 
-        expect(dropped.some((d) => d.startsWith("combat:"))).toBe(true);
+        expect(
+            dropped.some((d) => d.includes("differ in their attacking role"))
+        ).toBe(true);
     });
 
-    it("reports a combat sub-phase past DECLARE_ATTACKERS as dropped, since buildStateFromScenario never re-seeds combat for it", () => {
+    it("carries the per-turn attacked/blocked record past the combat that made it (CR 506.4)", () => {
         const base = makeState();
         const state = buildStateFromScenario(base, {
-            cards: [{ name: grizzlyBears.name, owner: "me" }],
-            phase: "DECLARE_BLOCKERS",
+            cards: [
+                { name: grizzlyBears.name, owner: "me" },
+                { name: shivanDragon.name, owner: "opp" },
+            ],
+            phase: "POSTCOMBAT_MAIN",
         });
+        // Combat is OVER: `state.combat` is gone and only the per-permanent
+        // record is left, which is what Erg Raiders and Whirling Dervish read.
+        state.players[0].battlefield[0].hasAttackedThisTurn = true;
+        state.players[1].battlefield[0].hasBlockedThisTurn = true;
+        state.creatureAttackedThisTurn = true;
 
-        const { dropped } = specFromState(state, {
+        const { spec, dropped } = specFromState(state, {
             mySeatId: state.players[0].id,
         });
 
+        expect(spec.combat).toEqual({
+            attackedThisTurn: { me: [grizzlyBears.name] },
+            blockedThisTurn: { opp: [shivanDragon.name] },
+        });
         expect(
-            dropped.some((d) => d.startsWith('phase "DECLARE_BLOCKERS"'))
+            dropped.filter((d) => d.includes("hasAttackedThisTurn"))
+        ).toEqual([]);
+
+        const rebuilt = buildStateFromScenario(makeState(), spec);
+        // No combat object: the record outlives the combat, and rebuilding one
+        // at POSTCOMBAT_MAIN would be a position no game reaches.
+        expect(rebuilt.combat).toBeUndefined();
+        expect(rebuilt.players[0].battlefield[0].hasAttackedThisTurn).toBe(
+            true
+        );
+        expect(rebuilt.players[1].battlefield[0].hasBlockedThisTurn).toBe(true);
+        expect(rebuilt.creatureAttackedThisTurn).toBe(true);
+    });
+
+    it("rebuilds an OPEN declare-attackers step as itself, not as no combat at all", () => {
+        const base = makeState();
+        const state = buildStateFromScenario(base, {
+            cards: [{ name: grizzlyBears.name, owner: "me" }],
+            phase: "DECLARE_ATTACKERS",
+        });
+
+        const { spec } = specFromState(state, {
+            mySeatId: state.players[0].id,
+        });
+
+        expect(spec.combat).toEqual({
+            attackers: [],
+            confirmed: false,
+            blockers: [],
+            blockersConfirmed: false,
+        });
+        expect(buildStateFromScenario(makeState(), spec).combat).toEqual({
+            attackerIds: [],
+            confirmed: false,
+            blockerAssignments: {},
+            blockersConfirmed: false,
+        });
+    });
+
+    it("throws rather than rebuilding a combat one attacker short", () => {
+        expect(() =>
+            buildStateFromScenario(makeState(), {
+                cards: [{ name: grizzlyBears.name, owner: "me" }],
+                phase: "DECLARE_ATTACKERS",
+                // Two Bears named, one on the battlefield: a silently shorter
+                // attack is a different position under the same label, and the
+                // verdict quiz would report it far from the cause.
+                combat: {
+                    attackers: [grizzlyBears.name, grizzlyBears.name],
+                    confirmed: true,
+                },
+            })
+        ).toThrow(/as an attacker/);
+    });
+
+    it("throws when a blocker names an attacker the combat does not have", () => {
+        expect(() =>
+            buildStateFromScenario(makeState(), {
+                cards: [
+                    { name: grizzlyBears.name, owner: "me" },
+                    { name: shivanDragon.name, owner: "opp" },
+                ],
+                phase: "DECLARE_BLOCKERS",
+                combat: {
+                    attackers: [grizzlyBears.name],
+                    confirmed: true,
+                    blockers: [{ blocker: shivanDragon.name, blocking: [1] }],
+                },
+            })
+        ).toThrow(/attacker #1/);
+    });
+
+    it("reports combat state the spec has no field for, rather than losing it", () => {
+        const declared = declaredCombatState();
+        // CR 508.1g — an exerted attacker. Not spec-expressible, so it is
+        // NAMED: the generic residue scan over the combat object, mirroring
+        // the one over a card instance.
+        declared.combat!.exertedIds = [declared.players[0].battlefield[0].id];
+
+        const { dropped } = specFromState(declared, {
+            mySeatId: declared.players[0].id,
+        });
+
+        expect(
+            dropped.some((d) =>
+                d.startsWith("combat: live-only state not captured (exertedIds")
+            )
+        ).toBe(true);
+    });
+
+    it("reports an attacker left blocked with no blocker assigned (CR 509.1h)", () => {
+        const declared = declaredCombatState();
+        // The blocker was removed from combat; CR 509.1h keeps its attacker
+        // BLOCKED, and re-deriving blocked status from the assignments cannot
+        // reach that.
+        declared.combat!.blockerAssignments = {};
+
+        const { dropped } = specFromState(declared, {
+            mySeatId: declared.players[0].id,
+        });
+
+        expect(
+            dropped.some((d) => d.includes("recorded as blocked (CR 509.1h)"))
         ).toBe(true);
     });
 

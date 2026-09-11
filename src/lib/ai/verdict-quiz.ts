@@ -102,6 +102,13 @@ export const QUIZ_REFUSALS: Record<QuizRefusalKind, RefusalPresentation> = {
         title: "This position could not be lowered into a scenario",
         trackedBy: null,
     },
+    "combat-not-captured": {
+        title: "The combat could not be captured",
+        // Not `null` like its neighbours: this one has a single, named cause —
+        // a combat fact `ScenarioSpec` still cannot express — rather than
+        // "whichever of a dozen gaps this board hit".
+        trackedBy: 3458,
+    },
     "rebuild-threw": {
         title: "The lowered scenario could not be rebuilt",
         trackedBy: null,
