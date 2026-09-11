@@ -961,6 +961,28 @@ const counters: Valuer<"counters"> = (op, ctx) => {
     };
 };
 
+/** CR 716.2a (issue #3234) — levelling a Class up. The Op itself writes one
+ *  number; everything it is WORTH is the abilities the new level turns on
+ *  (CR 716.2a's "as long as this Class is level N or greater, it has
+ *  [abilities]"), and this valuer cannot see them: it is handed the Op, not the
+ *  definition whose bars carry the section.
+ *
+ *  That is not the hole it looks like, because the two readers want different
+ *  things. The SEARCH does not need this number — it applies the activation
+ *  through the real GRE, so the granted statics are live at the leaf and the
+ *  granted triggers fire in-tree; what the level bought is measured, not
+ *  guessed. This valuer feeds the announcement-time card-script value, where
+ *  the honest statement is "a permanent, one-way upgrade to my own permanent,
+ *  bigger the higher the level" — a small positive `pump` that scales with the
+ *  level reached. Deliberately NOT zero: a zero here ties the level-up against
+ *  passing inside the outcome epsilon, and a tie falls to rollout noise (the
+ *  `combat eval washed at horizon` shape), which is how a mechanic becomes one
+ *  the bot only ever plays by accident. */
+const setLevel: Valuer<"setLevel"> = (op, ctx) => ({
+    points: priced(ctx, "pump", op.level),
+    tags: ["pump"],
+});
+
 // -------------------------------------------------------------------------
 // Backfill-Op valuers (issue #1430). Each maps its Op onto the SAME fixed
 // feature basis the charter Ops use — no per-card shapes, no new dimensions.
@@ -1835,6 +1857,7 @@ export const OP_VALUERS: {
     createToken,
     pump,
     counters,
+    setLevel,
     // Backfilled Ops (issue #1430).
     addMana,
     addSubtype,
@@ -2059,6 +2082,12 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // a silent absence would read as "sign genuinely context-dependent".
     extraCombat: "beneficial",
     regenerate: "beneficial",
+    // CR 716.2a (issue #3234) — a level is only ever GAINED, and gaining one
+    // only ever ADDS the abilities printed in that section; there is no clause
+    // on a Class that takes something away at a higher level. The recipient is
+    // the Class itself, i.e. its controller, so a redirect reader that lands on
+    // this Op is looking at a gift.
+    setLevel: "beneficial",
     preventDamage: "beneficial",
     grantAbility: "beneficial",
     becomeMonarch: "beneficial",

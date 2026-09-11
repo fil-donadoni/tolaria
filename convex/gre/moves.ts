@@ -39,6 +39,7 @@ import {
     getAbilityManaSubstitutions,
     resolveTargetRequirementCount,
 } from "./state";
+import { classLevelActivationViolation } from "../cards/abilities/classLevels";
 import { handCardMatchesFilter } from "./alternativeCost";
 import { mayExertAsAttacks } from "./exert";
 import {
@@ -2957,6 +2958,13 @@ function enumerateAbilityMoves(
         ) {
             continue;
         }
+        // CR 716.2a (issue #3234) — the class level gates, DECLARATIVE for
+        // exactly the reason the Boast one above is: the `canActivate` skip
+        // further up means a closure-gated class level bar would never be
+        // enumerated, so the bot could never level a Class up. Shared predicate
+        // with the server's `assertActivationTimingLegal`, so this enumerator
+        // can never offer a level-up the mutation would reject.
+        if (classLevelActivationViolation(perm, ability) !== null) continue;
         // CR 611.1 — a self-animate ability (manlands: Mishra's Factory, Jade
         // Statue) is a no-op while the source is already animated (one
         // animation at a time; `state.ts` `animateAsCreature` returns early

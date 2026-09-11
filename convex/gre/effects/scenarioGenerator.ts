@@ -939,6 +939,22 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             }
             recordSlot(req, op.target.target, "permanent");
             return;
+        case "setLevel":
+            // `setLevel` (issue #3234) sets a permanent's class level
+            // (CR 716.2a). The generator can assert it on an announced
+            // permanent slot (it seeds a filler permanent there — level 1 by
+            // CR 716.2d, since nothing seeds a level — and reads the level
+            // after resolution). A `$source` / `$each` target is not modelled;
+            // that is the shape EVERY class level bar uses (CR 716.2a's ability
+            // is printed on the Class it levels), so this Op's real coverage is
+            // its interpreter test plus Stormchaser's Talent's own per-card
+            // test, and the skip below is the surfaced signal saying so.
+            if (!("target" in op.target)) {
+                req.skip ??= `Op "setLevel" targets $source/$each — covered by the Op's interpreter test and the card's own per-card test`;
+                return;
+            }
+            recordSlot(req, op.target.target, "permanent");
+            return;
         case "tapUntap":
             // `tapUntap` (issue #842) taps/untaps a permanent (CR 701.26). The
             // generator can assert a TAP on an announced permanent slot (it
@@ -2126,6 +2142,39 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // immediately after resolution). `remove`, `$source`/`$each` targets and
     // `ref`/`count` amounts are skipped upstream in `analyseOp` (returns null
     // defensively here).
+    // `setLevel` (issue #3234, CR 716.2a) — an announced permanent slot's class
+    // level is observable directly on the instance after resolution (CR 716.2d:
+    // a permanent the generator seeded has no level, so it reads as 1).
+    // `$source`/`$each` targets are skipped upstream in `analyseOp` (returns
+    // null defensively here).
+    setLevel(rawOp, scenario, pre) {
+        const op = rawOp as Extract<EffectOp, { op: "setLevel" }>;
+        if (!("target" in op.target)) return null;
+        const permId = scenario.targetPermanentIds[op.target.target];
+        const permBefore = pre.players
+            .flatMap((p) => p.battlefield)
+            .find((c) => c.id === permId);
+        if (!permBefore) return null;
+        // CR 716.2d — a permanent with no level is treated as level 1, so a bar
+        // whose level is not above that would be a no-op and nothing to assert.
+        if ((permBefore.classLevel ?? 1) >= op.level) return null;
+        return {
+            label: `set permanent ${permId} to class level ${op.level}`,
+            check: (post) => {
+                const perm = post.players
+                    .flatMap((p) => p.battlefield)
+                    .find((c) => c.id === permId);
+                if (!perm) {
+                    return { ok: false, detail: "target permanent gone" };
+                }
+                const actual = perm.classLevel ?? 1;
+                return {
+                    ok: actual === op.level,
+                    detail: `class level ${actual}, expected ${op.level}`,
+                };
+            },
+        };
+    },
     counters(rawOp, scenario, pre) {
         const op = rawOp as Extract<EffectOp, { op: "counters" }>;
         if (op.action !== "add") return null;

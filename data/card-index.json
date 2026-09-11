@@ -33132,6 +33132,14 @@
         "source": "compiled"
     },
     {
+        "name": "Stormchaser's Talent",
+        "scryfallId": "a36e682d-b43d-4e08-bf5b-70d7e924dbe5",
+        "oracleId": "00c1788d-c52f-4839-9cd8-11fb86c418b6",
+        "firstSet": "blb",
+        "firstPrintId": "a36e682d-b43d-4e08-bf5b-70d7e924dbe5",
+        "firstPrintSet": "blb"
+    },
+    {
         "name": "Stormcloud Spirit",
         "scryfallId": "b371bba8-08b1-468b-924b-c1f3d64bb096",
         "oracleId": "0dc8bdbb-996b-47d7-a5e5-7bdb6d9280fe",

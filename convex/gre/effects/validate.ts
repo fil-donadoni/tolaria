@@ -3118,6 +3118,12 @@ function isInlineTargetRequirement(value: unknown): boolean {
  *  one executor (interpreter) and one schema row here; the coverage guard
  *  test fails CI when the three drift apart. `bind` (ADR 0045) is an optional
  *  field on the object-moving Ops that can snapshot their target. */
+/** CR 716.2a / 716.2d (issue #3234) — a class level a `setLevel` Op may name:
+ *  an integer of at least 2. Level 1 is the default every permanent already has
+ *  (CR 716.2d), so it is never SET. */
+const isClassLevel = (value: unknown): boolean =>
+    typeof value === "number" && Number.isInteger(value) && value >= 2;
+
 const OP_SCHEMAS: Record<string, OpSchema> = {
     // CR 615.12 (issue #1065) — `unpreventable` skips every CR 615 prevention
     // step, protection's damage leg included (CR 702.16e words itself "is
@@ -3880,6 +3886,21 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             counter: isNonEmptyString,
             target: isObjectSelector,
             count: isEffectValue,
+        },
+    },
+    // CR 716.2a (issue #3234) — "this Class's level becomes N". `target` is an
+    // object selector (announced slot, `$source` — the only shape a class level
+    // bar uses — or a forEach `$each`); `level` is a LITERAL integer >= 2, the
+    // number printed on the bar. Not an `EffectValue`: CR 716.2 prints the
+    // level on the bar itself, so there is nothing to compute, and a computed
+    // level would make "levels are gained one at a time" (CR 716.2a) a runtime
+    // question rather than a structural one. 1 is rejected because it is the
+    // level every permanent already has (CR 716.2d), so setting it is a no-op
+    // the author did not mean to write.
+    setLevel: {
+        required: {
+            target: isObjectSelector,
+            level: isClassLevel,
         },
     },
     // CR 701.26 (issue #842) — tap/untap a permanent. `action` selects the

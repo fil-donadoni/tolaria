@@ -219,6 +219,7 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "chosenPlayerId",
     "chosenSubtypes",
     "chosenXOnCast",
+    "classLevel",
     "colorOverride",
     "controlChanges",
     "copiedFrom",

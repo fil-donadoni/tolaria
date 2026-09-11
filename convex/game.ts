@@ -10,6 +10,7 @@ import {
 } from "./_generated/server";
 import { getAllCardNames, getDefinition, tryGetDefinition } from "./cards";
 import { isExileCostEligible } from "./cards/exileCostEligibility";
+import { classLevelActivationViolation } from "./cards/abilities/classLevels";
 import { buildStateFromScenario } from "./gre/scenarioBuilder";
 import { BLADE_SCENARIOS } from "./gre/ai/blade/registry";
 import { resolveBladeLoadState } from "./gre/ai/blade/runner";
@@ -6227,6 +6228,8 @@ export function assertActivationTimingLegal(
         oncePerTurn?: boolean;
         sorcerySpeedOnly?: boolean;
         requiresAttackedThisTurn?: boolean;
+        classLevelBar?: number;
+        functionsAtClassLevel?: number;
     }
 ): void {
     if (
@@ -6246,6 +6249,15 @@ export function assertActivationTimingLegal(
     // there is no unknown state here to fail open on.
     if (ability.requiresAttackedThisTurn && card.hasAttackedThisTurn !== true) {
         throw new Error("Activate only if this creature attacked this turn");
+    }
+    // CR 716.2a (issue #3234) — the class level gates: a level bar activates
+    // only at level N-1, and an ability printed in the level-N section only
+    // exists at level N or greater. Shared predicate with the Bot enumerator
+    // and the UI affordance (`classLevelActivationViolation`), so none of the
+    // three can disagree about whether a level-up is legal.
+    const classLevelViolation = classLevelActivationViolation(card, ability);
+    if (classLevelViolation !== null) {
+        throw new Error(classLevelViolation);
     }
     if (ability.oncePerTurn) {
         const used = card.activationsThisTurn?.[ability.id] ?? 0;

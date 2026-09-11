@@ -29,6 +29,7 @@ import { expandFadingVanishing } from "./abilities/fadingVanishing";
 import { expandHideaway } from "./abilities/hideaway";
 import { expandKeywordTriggers } from "./abilities/keywordTriggers";
 import { expandChapterAbilities } from "./abilities/sagas";
+import { expandClassLevelBars } from "./abilities/classLevels";
 import { expandCompiledStatics } from "./compiledStatics";
 import { expandCompiledTriggers } from "./compiledTriggers";
 import { insetSpellTwinDefinition } from "./insetSpell";
@@ -413,9 +414,16 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
                 expandHideaway(
                     expandKeywordTriggers(
                         expandFadingVanishing(
-                            expandChapterAbilities(
-                                expandCompiledTriggers(
-                                    expandCompiledStatics(base)
+                            // CR 716.2 (issue #3234) — the Class level bars sit
+                            // beside `expandChapterAbilities`: both desugar a
+                            // printed TEXT BOX SECTION declared as data, and
+                            // both must run before any expander that reads the
+                            // ability arrays they inject into.
+                            expandClassLevelBars(
+                                expandChapterAbilities(
+                                    expandCompiledTriggers(
+                                        expandCompiledStatics(base)
+                                    )
                                 )
                             )
                         )

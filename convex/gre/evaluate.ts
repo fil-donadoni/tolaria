@@ -32,6 +32,7 @@ import {
     anyCombatDamageUnpreventableStatic,
     isCombatDamageUnpreventable,
 } from "./combatDamagePrevention";
+import { classLevelActivationViolation } from "../cards/abilities/classLevels";
 import { lethalDamageThreshold } from "./lethalDamage";
 import {
     getEffectivePower,
@@ -572,6 +573,11 @@ function hasFlexibleActivation(
         ) {
             continue;
         }
+        // CR 716.2a (issue #3234) — the class level gates. Mirrors
+        // `enumerateAbilityMoves`: an ability this permanent's level does not
+        // admit is not an option the controller holds, so it must not credit
+        // the hold-priority term either.
+        if (classLevelActivationViolation(perm, ability) !== null) continue;
         // CR 702.142a (Boast, issue #2375) — "Activate only if this creature
         // attacked this turn". Mirrored from `moves.ts`' enumerator for the
         // same reason every other gate in this loop is: a flexible-activation

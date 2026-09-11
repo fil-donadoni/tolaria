@@ -2500,6 +2500,24 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
             "CardDefinition.chapterAbilities → expandChapterAbilities (cards/abilities/sagas.ts) + finalChapter / checkSagaSacrificeSBA (gre/sagas.ts, gre/sba.ts)",
         note: 'CR 714.2b — "{rN} — [Effect]" means "When one or more lore counters are put onto this Saga, if the number of lore counters on it was less than N and became at least N, [effect]". Desugared at the single `getDefinition` choke point (the ADR 0054 pattern) into a `counterAddedTrigger`-built TriggeredAbility tagged with `chapterNumbers`, plus the CR 714.3a `entersWith` lore counter. The chapter condition is a TRIGGER condition evaluated once off the event payload (`total - added < N && total >= N`), never re-checked at resolution. `chapters: [1, 2]` (CR 714.2c "I, II —") is ONE ability, one Oracle line on the stack. Both CR 714 gates — the 714.3c precombat-main turn-based counter and the 714.4 sacrifice SBA — test for one or more EFFECTIVE chapter abilities (2026 rules), so a Saga under Blood Moon / Humility persists inert instead of being sacrificed. First card: History of Benalia (dom/white.ts).',
     },
+    // 716.2 Class level bar (Class cards, CR 716). CR 107.16 and CR 716.2 both
+    // say literally "a class level bar ... is a keyword ability", which is why
+    // this is a `keyword-ability` row outside the CR 702 block rather than a
+    // new `MechanicKind` — the `chapter-ability` (CR 714.2) treatment exactly.
+    // It is never a `staticAbilities[]` string: a Class declares
+    // `classLevelBars[]` and the `getDefinition` seam desugars it, so the
+    // name-authority guard has nothing to check here; the row documents the
+    // binding.
+    {
+        id: "class-level-bar",
+        name: "Class Level Bar",
+        kind: "keyword-ability",
+        cr: "716.2",
+        status: "implemented",
+        binding:
+            "CardDefinition.classLevelBars → expandClassLevelBars (cards/abilities/classLevels.ts) + setClassLevelOnCard (gre/state.ts) + the setLevel Op",
+        note: 'CR 716.2a — "[Cost]: Level N — [Abilities]" means "[Cost]: This Class\'s level becomes N. Activate only if this Class is level N-1 and only as a sorcery" AND "As long as this Class is level N or greater, it has [abilities]". Desugared at the single `getDefinition` choke point (the ADR 0054 / ADR 0078 pattern) into: one ActivatedAbility per bar, carrying the already-shipped `sorcerySpeedOnly: true` (CR 307.5 timing template) plus the new DECLARATIVE `classLevelBar: N` gate and a `setLevel` Op on `$source`; and every ability printed in that bar\'s text box section, level-gated at N or greater — statics through their own `applies` predicate (a RECOMPUTED read, so the band tracks the level live with no materialization pass), triggers through `matches` (the engine\'s only authority, tagged `classLevelSection` for readback the `chapterNumbers` way), activated abilities through the declarative `functionsAtClassLevel`. CR 716.3 needs no code: a top-section ability is declared on the definition like any other card\'s and the expander never touches it. THE LEVEL IS NOT A COUNTER (CR 716.4 / 711.7 — "class levels do not interact with level counters"): it is `CardInstanceState.classLevel`, a field of its own, so no counter-removal, counter-doubling or "for each counter" effect can see it, and CR 716.2b\'s "levels are not a copiable characteristic" needs no code either — `applyCopy` rewrites only copiable values, so a copy keeps its own level and a fresh token copy has none (level 1, CR 716.2d). The gate is declarative rather than a `canActivate` closure because `enumerateAbilityMoves` (gre/moves.ts) and `hasFlexibleActivation` (gre/evaluate.ts) both SKIP any ability carrying one — the Boast trap (CR 702.142a, issue #2375) — so a closure-gated level bar would be a move the Bot could never make. It is enforced server-side by `assertActivationTimingLegal` (convex/game.ts) and mirrored on every other activation surface: `isActivationTimingAllowed` (src/lib/card-utils.ts, the UI affordance), `enumerateAbilityMoves` (Bot Move legality) and `hasFlexibleActivation` (the hold-priority valuation term). "Levels are gained one at a time, upward only" is structural, not a check: at level L only the bar for L+1 passes the gate, and `setClassLevelOnCard` additionally refuses a level that is not strictly greater than the current one so no future producer can re-arm a spent "becomes level N" trigger. First card: Stormchaser\'s Talent (blb/blue.ts).',
+    },
     // — (obsolete; see CR glossary "Unblockable (Obsolete)") Unblockable
     {
         id: "unblockable",
@@ -3076,6 +3094,14 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         cr: "122.1",
         binding: "SpellContext.addCounter / removeCounter",
         note: 'Add or remove counters on a permanent (CR 122, issue #841). A thin declarative skin over two SpellContext primitives, one execution path (ADR 0045): `action: "add"` → addCounter (Sengir Vampire\'s +1/+1 on kill, a charge-counter accrual), `action: "remove"` → removeCounter (a counter-shedding effect, clamped to the counters present). `counter` is the free-form counter type ("+1/+1", "+1/+0", "-1/-1", "charge", "corpse", …; P/T-modifying types read at stat-lookup time by layer 7d). `target` is an announced slot, the resolving source (`$source` — a permanent counter-ing itself), or a forEach `$each` (a mass counter placement); `count` is the number of counters (literal / ref / count). Subsumes the addCounter / removeCounter closures the migration classifier folds here (~80 blocked closures at ship time).',
+    },
+    {
+        op: "setLevel",
+        status: "implemented",
+        cr: "716.2",
+        mechanicId: "class-level-bar",
+        binding: "SpellContext.setLevel",
+        note: 'Set a permanent\'s LEVEL (CR 716.2a, issue #3234) — "this Class\'s level becomes N", the activated half of a class level bar. A thin declarative skin over the SpellContext primitive `setLevel`, one execution path (ADR 0045), which writes `CardInstanceState.classLevel` and emits the `LEVEL_GAINED` event "When this Class becomes level N, ..." triggers listen for. `target` is an announced slot, the resolving source (`$source` — the only shape a class level bar uses, since CR 716.2a\'s ability is printed on the Class it levels) or a forEach `$each`; `level` is a LITERAL integer >= 2 (CR 716.2 prints the number on the bar, so there is nothing to compute, and level 1 is the default CR 716.2d already gives every permanent). NOT the `counters` Op with a "level" counter type: CR 716.4 and CR 711.7 both state class levels and level counters do not interact, so the level must be invisible to every counter-removal, counter-doubling and "for each counter" effect in the pool — different storage with different CR-mandated visibility is not the same primitive wearing different parameters (§ Primitive reuse). Monotonic: the primitive refuses a level that is not strictly greater than the current one, so a "becomes level N" trigger can never be re-armed; today that is unreachable anyway, because the `classLevelBar` activation gate only admits the bar for level current+1. Skipped when the target has left the battlefield (CR 608.2b).',
     },
     {
         op: "tapUntap",
