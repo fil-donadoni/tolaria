@@ -5,6 +5,7 @@ import {
     ROOT_DECISION_MECHANISMS,
     ROOT_RULE_ALLOWLIST,
 } from "@convex/gre/ai/decisionTelemetry";
+import { SMALLEST_CREATURE_BODY } from "@convex/gre/creatureBody";
 import { EVAL_TERM_LABELS, EVAL_TERM_ORDER } from "../eval-term-labels";
 import {
     MECHANISM_SENTENCES,
@@ -115,6 +116,29 @@ describe("mechanism sentences (issue #3404)", () => {
 });
 
 describe("comparison phrases (issue #3404)", () => {
+    it("does not call a +1/+1 counter a creature", () => {
+        // The floors are DERIVED, so every other case in this file scales with
+        // them and none of them pins a floor's actual size. This one does, for
+        // the term where getting it wrong prints a sentence that is false: a
+        // +1/+1 counter moves `creatures` by 29 Forge points (the power and
+        // toughness weights), and a floor taken from `latent.boardRemoval / 4`
+        // — the price of a removal OP, a different currency — is 28.7.
+        const counter = 29;
+        expect(counter).toBeLessThan(EVAL_TERM_LABELS.creatures.floor);
+
+        const chosen = breakdown({ creatures: 500 });
+        const pumped = breakdown({ creatures: 500 + counter });
+        expect(comparePositions(chosen, pumped)).toEqual([
+            NO_DIFFERENCE_PHRASE,
+        ]);
+
+        // …and the smallest creature there actually is still reads as one.
+        const oneMore = breakdown({
+            creatures: 500 + SMALLEST_CREATURE_BODY,
+        });
+        expect(comparePositions(chosen, oneMore)).toEqual(["gains a creature"]);
+    });
+
     it("reads a negative creature delta as losing a creature", () => {
         const chosen = breakdown({ creatures: 6 * unit("creatures") });
         const alternative = breakdown({ creatures: 4 * unit("creatures") });
