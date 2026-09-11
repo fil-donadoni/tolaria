@@ -25,11 +25,7 @@
 // subset up front minimizes rejected names while staying within the card-index
 // allow-list.
 
-import {
-    collectUnresolvedCardNames,
-    normalizeScenarioSpec,
-    type ScenarioSpec,
-} from "./debugScenarioSpec";
+import { normalizeScenarioSpec, type ScenarioSpec } from "./debugScenarioSpec";
 
 /** The phases a scenario may start in — mirrors `Phase` (`convex/gre/types.ts`,
  *  minus the transient `MULLIGAN` / `UNTAP` / `CLEANUP` steps a debug board
@@ -256,29 +252,52 @@ export interface GeneratedScenario {
 }
 
 /**
+ * The card-catalogue seam the generator needs, as an injected PORT rather than
+ * an import — the whole reason this file (and the `"use node"` action that
+ * wraps it) can stay off the card registry's module graph.
+ *
+ * Both members are ASYNC on purpose. The only production implementation is the
+ * action's, and an action has no `ctx.db`: it answers both by `ctx.runQuery`
+ * into `convex/debugScenarios.ts`, which runs in the ISOLATE bundle where the
+ * registry — and with it `convex/cards/compiledPool.ts`, ~1.9 MB of compiled
+ * definitions before source maps — is already resident. A synchronous port
+ * would force the action to import the registry itself, and a `"use node"`
+ * module's esbuild graph is SEPARATE, so that import inlines the whole pool a
+ * SECOND time into the pushed bundle (issue #3444, ADR 0113 § Amendment).
+ * `scripts/__tests__/convex-node-bundle-seam.test.ts` pins that it does not.
+ */
+export type ScenarioCardAuthority = {
+    /** Every card name the model may pick from — `getAllCardNames()`, the
+     *  implemented (loadable) catalogue. Embedded verbatim in the prompt. */
+    allowList: () => Promise<readonly string[]>;
+    /** The names in `spec` that do NOT resolve to a placeable card, surfaced
+     *  for the human edit step and never written through. */
+    unresolved: (spec: ScenarioSpec) => Promise<string[]>;
+};
+
+/**
  * Run the full generate → normalize → validate pipeline (stages 1–2 above).
  * Dependency-injected so it is fully unit-testable with a stubbed `generate`
- * and `resolves` — no network, no Convex ctx. Does NOT write: it returns the
+ * and `cards` — no network, no Convex ctx. Does NOT write: it returns the
  * spec plus any unresolved names for the human-in-the-loop preview/edit step.
  */
 export async function runScenarioGeneration(deps: {
     description: string;
-    allowList: readonly string[];
     generate: ScenarioGenerateFn;
-    resolves: (name: string) => boolean;
+    cards: ScenarioCardAuthority;
 }): Promise<GeneratedScenario> {
-    const { description, allowList, generate, resolves } = deps;
-    const systemPrompt = buildScenarioSystemPrompt(allowList);
+    const { description, generate, cards } = deps;
+    const systemPrompt = buildScenarioSystemPrompt(await cards.allowList());
     const raw = await generate(systemPrompt, description);
     const parsed = parseLlmScenarioText(raw);
     // Tolerant normalize (ADR 0044): drop unknown fields, default missing ones.
     const spec = normalizeScenarioSpec(parsed);
     // Loadability validation, NOT legality (ADR 0044): reject names that don't
     // resolve to a real CardDefinition; also scans attachedTo / copyOf hosts.
-    // No token resolver is injected on purpose: the generator's prompt offers a
+    // No token resolver is used on purpose: the generator's prompt offers a
     // CARD allow-list only (CR 111 / 707.2 tokens are not in it), so a `token`
     // entry the model invented is surfaced as unresolved for the human review
     // step rather than written through.
-    const unresolved = collectUnresolvedCardNames(spec, resolves);
+    const unresolved = await cards.unresolved(spec);
     return { spec, unresolved };
 }

@@ -7,6 +7,15 @@
 // nothing but plumb the real Anthropic call + the registry allow-list/resolver
 // into the pure `runScenarioGeneration` core (`debugScenarioGenerator.core.ts`).
 //
+// It reaches the card registry by `ctx.runQuery` and NEVER imports it (issue
+// #3444). A `"use node"` module gets its own esbuild graph, so an import of
+// `./cards` here inlines `data/oracle-compiled-pool.json` a SECOND time into the
+// pushed bundle — ~2.4 MB of the 30 MiB budget for two lookups, which is what
+// pushed `bun run check:convex-bundle` red (ADR 0113 § Amendment). The seam is
+// `internal.debugScenarios.scenarioAllowList` /
+// `unresolvedGeneratedCardNames`, and
+// `scripts/__tests__/convex-node-bundle-seam.test.ts` pins that it stays cut.
+//
 // It returns the (previewable) spec plus any unresolved card names — it does NOT
 // write. The write goes through the existing `assertIsAdmin`-gated
 // `saveDebugScenario` mutation after the human confirms in the preview/edit UI.
@@ -15,13 +24,14 @@ import Anthropic from "@anthropic-ai/sdk";
 import { v } from "convex/values";
 import { action } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { getAllCardNames, tryGetPlaceableCardByName } from "./cards";
 import {
     SCENARIO_JSON_SCHEMA,
     buildRegenerateDescription,
     runScenarioGeneration,
+    type ScenarioCardAuthority,
     type ScenarioGenerateFn,
 } from "./debugScenarioGenerator.core";
+import type { ActionCtx } from "./_generated/server";
 
 // Anthropic model id — the latest recommended Claude model (claude-api skill).
 const SCENARIO_MODEL = "claude-opus-4-8";
@@ -60,6 +70,23 @@ function makeAnthropicGenerate(apiKey: string): ScenarioGenerateFn {
 }
 
 /**
+ * The card seam, bound to an action's `ctx` (issue #3444). Both members hop
+ * into the ISOLATE bundle by `ctx.runQuery` — that hop IS the fix, not an
+ * indirection to be optimized away later: it is what keeps the compiled pool
+ * out of this module's separate `"use node"` graph.
+ */
+function cardAuthority(ctx: ActionCtx): ScenarioCardAuthority {
+    return {
+        allowList: () =>
+            ctx.runQuery(internal.debugScenarios.scenarioAllowList, {}),
+        unresolved: (spec) =>
+            ctx.runQuery(internal.debugScenarios.unresolvedGeneratedCardNames, {
+                spec,
+            }),
+    };
+}
+
+/**
  * Generate a debug-scenario spec from a natural-language board description
  * (issue #771). Admin-gated (mirrors `saveDebugScenario`): an action has no
  * `ctx.db`, so the gate runs via `requireAdminQuery`. Constrains the model to
@@ -91,9 +118,8 @@ export const generateDebugScenario = action({
 
         return await runScenarioGeneration({
             description: trimmed,
-            allowList: getAllCardNames(),
             generate: makeAnthropicGenerate(apiKey),
-            resolves: (name) => tryGetPlaceableCardByName(name) !== null,
+            cards: cardAuthority(ctx),
         });
     },
 });
@@ -135,9 +161,8 @@ export const regenerateDebugScenario = action({
         const description = buildRegenerateDescription(prompt, tweak);
         const result = await runScenarioGeneration({
             description,
-            allowList: getAllCardNames(),
             generate: makeAnthropicGenerate(apiKey),
-            resolves: (name) => tryGetPlaceableCardByName(name) !== null,
+            cards: cardAuthority(ctx),
         });
         return { ...result, prompt: description };
     },

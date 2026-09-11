@@ -112,35 +112,41 @@ export const CONVEX_CODE_SIZE_LIMIT_BYTES = 32 * 1024 * 1024;
 export const CONVEX_MAX_USER_MODULES = 4096;
 
 /**
- * 31 MiB, against Convex's hard 32 MiB.
+ * 30 MiB, against Convex's hard 32 MiB. The 2 MiB gap is the room a red gate
+ * needs to be actionable rather than an outage: a deploy that is already
+ * refused cannot be fixed by a smaller next commit. At the measured
+ * 1,013 B/row (below) it is ~2,000 rows of warning distance, and the 2 MB
+ * budget on `data/oracle-compiled-pool.json`
+ * (`scripts/__tests__/oracle-pool-size.test.ts`) fires far sooner than that —
+ * this guard is the backstop for everything else that grows the server
+ * bundle, not only the pool.
  *
- * RAISED FROM 30 MiB (issue #1268), deliberately and once, against this
- * constant's own former advice — which is recorded here rather than deleted,
- * because the advice is still right and the next crossing must act on it.
+ * Crossing it is the signal to stop bundling the compiled pool server-side,
+ * not to raise the number. See ADR 0113 § Amendment.
  *
- * What the 30 MiB line was for: a warning distance wide enough that a red gate
- * is actionable rather than an outage (a deploy Convex already refuses cannot
- * be fixed by a smaller NEXT commit), and a signal to stop bundling the
- * compiled pool server-side rather than to move the line. See ADR 0113
- * § Amendment.
+ * IT WAS RAISED TO 31 MiB ONCE, and put back here (issue #1268 raised it,
+ * issue #3444 restored it). The round trip is recorded rather than tidied
+ * away, because both halves of it were right and the pair is the lesson.
  *
- * Why it moved anyway: measured on the base tip at the time, the repo sat at
- * 29.99 MiB — 10.7 KB of headroom — so the guard had stopped being a warning
- * and had become a block on EVERY engine change, whatever it was. Shipping one
- * keyword's worth of source (~41 KB, which the bundler emits roughly twice)
- * crossed it. A gate that no legitimate change can pass teaches sessions to
- * route around it, which costs more than the margin it was protecting.
+ * The raise was correct on its facts: the base tip sat at 29.99 MiB, so the
+ * guard had stopped being a warning and had become a block on EVERY engine
+ * change — one keyword's worth of source crossed it — and a gate no
+ * legitimate change can pass teaches sessions to route around it. The
+ * restore is correct on different facts: the CAUSE was found and removed.
+ * `convex/debugScenarioGenerator.ts` is a `"use node"` action, whose esbuild
+ * graph is separate, and it imported the card registry for two name lookups
+ * — so the compiled pool was bundled TWICE. Cutting that one import gave
+ * back 7,200,356 B and dropped the push to 23.25 MiB, which is 6.75 MiB of
+ * warning distance again. There is nothing left to unblock.
  *
- * 1 MiB is still ~500 rows of warning distance at the measured 2,086 B/row
- * below, and the 2 MB budget on `data/oracle-compiled-pool.json`
- * (`scripts/__tests__/oracle-pool-size.test.ts`) fires far sooner for the pool
- * itself. This guard remains the backstop for everything else.
- *
- * THE NEXT CROSSING IS THE ARCHITECTURAL ONE. There is no 32 MiB budget to
- * move to: the remaining megabyte is the whole margin between a red gate and a
- * refused deploy. Stop bundling the compiled pool server-side.
+ * What the pair says for the NEXT crossing: a budget at 96% of a hard ceiling
+ * is a symptom, and the first move is to ask what is IN the bundle, not what
+ * the number should be. Raise it only to buy time to answer that, and put it
+ * back when you have. There is no 32 MiB budget to move to — the remaining
+ * margin is the whole distance between a red gate and a refused deploy — and
+ * the answer the pool itself will eventually force is ADR 0113's store.
  */
-export const CONVEX_BUNDLE_BUDGET_BYTES = 31 * 1024 * 1024;
+export const CONVEX_BUNDLE_BUDGET_BYTES = 30 * 1024 * 1024;
 
 /**
  * `MAX_USER_MODULES` counts files under `convex/`, excluding `_deps/**`
@@ -154,17 +160,30 @@ export const CONVEX_BUNDLE_BUDGET_BYTES = 31 * 1024 * 1024;
 export const CONVEX_USER_MODULE_BUDGET = 3072;
 
 /**
- * Marginal bundled cost of one compiled-pool row — 1,258 B of source plus
- * 828 B of source map — measured at issue #3051 by re-bundling the real
- * `convex/` tree at +2,000 and +6,000 synthetic rows (uniquified `id` and
- * `name`), linear to three digits across both deltas. Six times the 347 B/row
- * of the raw definition: the pool is inlined TWICE (the shared isolate chunk,
- * and the `"use node"` module that imports it, whose graph is separate), the
- * bundled object literal is fatter than the JSON it came from (Convex sets
- * `minifyWhitespace: false` — it breaks their source maps), and source maps
- * count.
+ * Marginal bundled cost of one compiled-pool row — 597 B of source plus 416 B
+ * of source map — re-measured at issue #3444 by re-bundling the real `convex/`
+ * tree at +2,000 and +6,000 synthetic rows (uniquified `id` and `name`), linear
+ * to FOUR digits across both deltas (1,012.9 and 1,012.7 B/row). Still ~3x the
+ * 347 B/row of the raw definition: the bundled object literal is fatter than
+ * the JSON it came from (Convex sets `minifyWhitespace: false` — it breaks
+ * their source maps), and source maps count.
+ *
+ * It was 2,086 at issue #3051, because the pool was then inlined TWICE — once
+ * into the shared isolate chunk, and once into the `"use node"` graph, which
+ * esbuild bundles separately. Issue #3444 cut the second copy (the LLM scenario
+ * generator reached the card registry by import; it now reaches it by
+ * `ctx.runQuery`), and the doubling went with it. If a future `"use node"`
+ * module imports the registry again this number is wrong by 2x AGAIN, in the
+ * dangerous direction — which is why `scripts/__tests__/convex-node-bundle-seam.test.ts`
+ * guards the cut by cause and by effect rather than trusting the budget alone.
+ *
+ * Re-measuring it: write the synthetic pool with the SAME 4-space formatting
+ * the file ships in. A compact rewrite changes source-map size on its own (VLQ
+ * column deltas over one very long line) and the delta stops being linear —
+ * 236 B/row at +2,000 against 514 B/row at +6,000, measured, all of it
+ * artefact.
  */
-export const MEASURED_BYTES_PER_POOL_ROW = 2086;
+export const MEASURED_BYTES_PER_POOL_ROW = 1013;
 
 function* walk(dir: string): Generator<string> {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -349,6 +368,58 @@ export async function measureConvexBundle(
         totalBytes: sourceBytes + sourceMapBytes,
         userModules: entryPoints.length + extras.length,
         emittedModules: parts.reduce((n, p) => n + p.files, 0),
+    };
+}
+
+/**
+ * Budget on the `"use node"` half of the push alone (issue #3444).
+ *
+ * Measured at 669,905 B once the card registry was cut out of the graph — the
+ * Anthropic SDK and four small `convex/` modules. 1.5 MiB is 2.3x that, room
+ * for the SDK to grow, and less than one re-entry of the compiled pool needs:
+ * at the measured {@link MEASURED_BYTES_PER_POOL_ROW} the pool alone is
+ * ~2.36 MB today, so the regression this exists to catch cannot hide under it.
+ *
+ * Deliberately NOT part of `check:convex-bundle`'s total, which is a sum and
+ * so cannot say WHICH half grew. Enforced by
+ * `scripts/__tests__/convex-node-bundle-seam.test.ts`, in the light lane.
+ */
+export const CONVEX_NODE_BUNDLE_BUDGET_BYTES = 1.5 * 1024 * 1024;
+
+/**
+ * The `"use node"` half of the push, on its own — entry points, the esbuild
+ * INPUTS its graph pulled in, and its bytes (issue #3444).
+ *
+ * Convex bundles Node actions in a SEPARATE esbuild invocation from the
+ * isolate modules, so every module a `"use node"` file reaches is emitted a
+ * SECOND time. That is not a rounding error here: one import of `./cards` in
+ * `convex/debugScenarioGenerator.ts` inlined `data/oracle-compiled-pool.json`
+ * twice and cost 7,200,356 B of the 30 MiB budget — 23% of the whole push for
+ * two name lookups.
+ *
+ * `measureConvexBundle` sums the halves and cannot see that. This function
+ * exposes the node half so a guard can assert, by CAUSE (which modules are in
+ * the graph) and by EFFECT (how many bytes), that the cut stays cut —
+ * `scripts/__tests__/convex-node-bundle-seam.test.ts`.
+ */
+export async function measureConvexNodeBundle(convexDir: string): Promise<{
+    /** `"use node"` entry points, repo-relative. Empty means the guard reading
+     *  this is vacuous, and it must say so rather than pass. */
+    entryPoints: string[];
+    /** Every module esbuild pulled into the node graph, as metafile keys
+     *  (repo-relative paths, `node_modules/...` included). */
+    inputs: string[];
+    /** Source + source-map bytes of the node half alone. */
+    totalBytes: number;
+}> {
+    const node = discoverEntryPoints(convexDir).filter((fpath) =>
+        USE_NODE_DIRECTIVE.test(readFileSync(fpath, "utf8"))
+    );
+    const built = await build(convexDir, node, "node", join("_deps", "node"));
+    return {
+        entryPoints: node.map((f) => relative(join(convexDir, ".."), f)),
+        inputs: built.inputs,
+        totalBytes: built.source + built.map,
     };
 }
 

@@ -6,7 +6,7 @@ import {
     query,
 } from "./_generated/server";
 import { assertIsAdmin } from "./auth";
-import { tryGetPlaceableCardByName } from "./cards";
+import { getAllCardNames, tryGetPlaceableCardByName } from "./cards";
 import { findTokenSpec } from "./cards/tokenCatalogue";
 import {
     collectUnresolvedCardNames,
@@ -189,6 +189,58 @@ export const getScenarioPromptForRegen = internalQuery({
         const row = await ctx.db.get(args.id);
         if (!row) return null;
         return row.prompt ?? null;
+    },
+});
+
+// ---- The generator's card seam (issue #3444) -------------------------------
+//
+// The LLM generator runs in a `"use node"` action, whose esbuild graph is
+// SEPARATE from the isolate one — so anything it imports is bundled a SECOND
+// time into the pushed artifact. Importing the card registry there inlined
+// `data/oracle-compiled-pool.json` twice and pushed `bun run check:convex-bundle`
+// over its 30 MiB budget (ADR 0113 § Amendment). The two queries below are the
+// seam that fixes it: the registry answers from the ISOLATE bundle, where it is
+// already resident, and the action reaches them by `ctx.runQuery`.
+//
+// They live HERE, next to the save path they mirror, rather than in a module of
+// their own, because "which names may a scenario reference" is one question and
+// `saveDebugScenario` already answers it with the same two resolvers.
+
+/**
+ * Every card name the scenario generator may offer the model — the implemented
+ * (loadable) catalogue, embedded verbatim in its system prompt.
+ *
+ * `internalQuery` + `assertIsAdmin`: the generator surface is admin-only, and an
+ * internal query is not reachable from a client at all, so this widens nothing.
+ */
+export const scenarioAllowList = internalQuery({
+    args: {},
+    returns: v.array(v.string()),
+    handler: async (ctx) => {
+        await assertIsAdmin(ctx);
+        return getAllCardNames();
+    },
+});
+
+/**
+ * The card names in a GENERATED spec that do not resolve to a placeable card —
+ * surfaced to the human preview/edit step, never written through.
+ *
+ * No token resolver on purpose, exactly as the pre-#3444 inline call had none:
+ * the generator's prompt offers a CARD allow-list only (CR 111 / 707.2 tokens
+ * are not in it), so a `token` entry the model invented must come back as
+ * unresolved rather than be waved through. `saveDebugScenario` DOES pass
+ * `findTokenSpec`, because a hand-authored spec may legitimately place a token.
+ */
+export const unresolvedGeneratedCardNames = internalQuery({
+    args: { spec: scenarioSpecValidator },
+    returns: v.array(v.string()),
+    handler: async (ctx, args) => {
+        await assertIsAdmin(ctx);
+        return collectUnresolvedCardNames(
+            args.spec,
+            (name) => tryGetPlaceableCardByName(name) !== null
+        );
     },
 });
 

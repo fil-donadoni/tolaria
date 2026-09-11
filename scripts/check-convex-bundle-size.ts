@@ -24,12 +24,12 @@
  * not theatre: the next few hundred compiled cards spend it.
  *
  * The receipt prints the per-row headroom because that is the number ADR 0113
- * actually turns on. Marginal cost of one compiled-pool row, measured by
- * re-bundling at +2,000 and +6,000 synthetic rows: **2,086 B/row** (1,258
- * source + 828 source map), linear to three digits. Six times the 347 B/row
- * of the raw definition, because the pool is inlined TWICE — once into the
- * shared isolate chunk, once into the `"use node"` module that imports it,
- * whose graph is separate — and because source maps count.
+ * actually turns on. Marginal cost of one compiled-pool row, re-measured at
+ * issue #3444 by re-bundling at +2,000 and +6,000 synthetic rows:
+ * **1,013 B/row** (597 source + 416 source map), linear to four digits. It was
+ * 2,086 while the pool was inlined TWICE — once into the shared isolate chunk,
+ * once into the `"use node"` graph esbuild bundles separately; #3444 cut the
+ * second copy and the doubling with it.
  *
  * Crossing the budget is the signal to stop bundling the pool server-side, not
  * to raise the number. See ADR 0113 § Amendment.
