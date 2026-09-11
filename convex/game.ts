@@ -9595,7 +9595,19 @@ export const announceCast = mutation({
             // or something ELSE genuinely still needs the player's input
             // (real sacrifice/hand choice, exile picker) —
             // `tryAutoCommitPendingCast` re-checks every gate itself.
-            if (castExileChoice?.pickedCardIds) {
+            //
+            // CR 601.2f / 701.9 (issue #2714) — the same is true of a forced
+            // HAND cost, which `buildCostLegsHandChoice` pre-fills for exactly
+            // the same reason, and which this branch used to leave parked
+            // forever on a NON-TARGETING spell: the targeted commit
+            // (`finalizeTargetSelection`) finishes a pre-filled pick itself, so
+            // until an untargeted card carried one (Sickening Dreams' "discard
+            // X cards") the gap showed up nowhere. The park comment above has
+            // promised this resume all along.
+            if (
+                castExileChoice?.pickedCardIds ||
+                kickerHandChoice?.pickedCardIds
+            ) {
                 tryAutoCommitPendingCast(state, args.playerId);
             }
 
