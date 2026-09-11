@@ -1,11 +1,15 @@
-// Editing a debug scenario must not DELETE the spec fields the form does not
-// render (issue #3462).
+// Editing a debug scenario must not DELETE any spec field (issue #3462,
+// widened by issue #3463).
 //
 // `updateDebugScenario` patches the row's `spec` wholesale, so the editor's
-// assembled spec is the whole stored spec: a field it omits is gone. The form
-// renders four spec-level inputs; `ScenarioSpec` has eleven fields. The other
-// seven are classified `preserved` in `scenario-spec-ownership.ts` and must
-// survive an edit round trip.
+// assembled spec is the whole stored spec: a field it omits is gone. Issue
+// #3462 classified the seven fields the form rendered nothing for as
+// `preserved` so they were carried through untouched; issue #3463 then gave
+// every one of them an input, so they are `form-owned` and survive by being
+// INFLATED into the draft and re-emitted — a different mechanism with the same
+// obligation, and one the `preserved` path no longer covers. Hence the round
+// trip below sweeps every key of `ScenarioSpec`, not just the preserved ones
+// (which are, by construction, none today).
 //
 // The table below is typed `Required<ScenarioSpec>`, so a spec field added
 // tomorrow reds this file at `tsc` until it is given a value here — and the
@@ -158,7 +162,7 @@ describe("editing a scenario through the real form", () => {
         return call!.spec;
     };
 
-    it.each(PRESERVED_SCENARIO_SPEC_KEYS)(
+    it.each(SPEC_KEYS.filter((key) => key !== "cards"))(
         "keeps `%s` across an edit",
         (key) => {
             expect(editAndSave()[key]).toEqual(STORED[key]);
@@ -171,5 +175,18 @@ describe("editing a scenario through the real form", () => {
         // The form-owned knobs inflate from the row and come back unchanged.
         expect(saved.turn).toBe(STORED.turn);
         expect(saved.phase).toBe(STORED.phase);
+    });
+
+    it("carries a `preserved` field through, when there is one", () => {
+        // Empty today (issue #3463 gave every field an input). The assertion
+        // keeps the OTHER mechanism honest the day a widening is classified
+        // `preserved`: an `it.each` over an empty list registers no test at
+        // all, which is the silent kind of green this repo does not accept.
+        for (const key of PRESERVED_SCENARIO_SPEC_KEYS) {
+            expect(editAndSave()[key]).toEqual(STORED[key]);
+        }
+        expect(PRESERVED_SCENARIO_SPEC_KEYS.length).toBeLessThanOrEqual(
+            SPEC_KEYS.length
+        );
     });
 });

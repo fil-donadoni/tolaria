@@ -1,4 +1,4 @@
-import type { ScenarioCard } from "@convex/debugScenarioSpec";
+import type { ScenarioCard, ScenarioSpec } from "@convex/debugScenarioSpec";
 
 /** One counter row in the card editor — kept as strings while editing. */
 export type CounterDraft = { type: string; count: string };
@@ -135,4 +135,137 @@ export function draftToCard(draft: CardDraft): ScenarioCard {
     if (draft.attackedLastTurn) card.attackedLastTurn = true;
 
     return card;
+}
+
+// ---- Spec-level draft (issue #3463) ----------------------------------------
+//
+// The same string-while-editing treatment `CardDraft` gives a card row, applied
+// to the SPEC-LEVEL knobs. Every field here is `form-owned` in
+// `scenario-spec-ownership.ts`; the pair below is the round trip that
+// classification promises — `specToDraft` inflates a loaded row, `draftToSpec`
+// collapses the draft back to a minimal spec, and a field that survives one and
+// not the other is a field an edit silently rewrites.
+
+/** A per-seat numeric pair kept as strings while editing (`poison`, `life`,
+ *  `experience` all share the spec's `{ me?, opp? }` shape). */
+export type SeatPairDraft = { me: string; opp: string };
+
+/** Editable form representation of the spec-level fields of `ScenarioSpec`
+ *  (everything except `cards`, which the card repeater owns). */
+export type SpecDraft = {
+    phase: string;
+    landCount: string;
+    libraryCount: string;
+    turn: string;
+    markLastDrawn: boolean;
+    rngSeed: string;
+    poison: SeatPairDraft;
+    life: SeatPairDraft;
+    experience: SeatPairDraft;
+    companion: { name: string; owner: "me" | "opp"; used: boolean };
+};
+
+const EMPTY_SEAT_PAIR: SeatPairDraft = { me: "", opp: "" };
+
+/** A fresh, wholly empty spec draft — every knob unset, which collapses to a
+ *  spec carrying nothing but `cards`. */
+export function emptySpecDraft(): SpecDraft {
+    return {
+        phase: "",
+        landCount: "",
+        libraryCount: "",
+        turn: "",
+        markLastDrawn: false,
+        rngSeed: "",
+        poison: { ...EMPTY_SEAT_PAIR },
+        life: { ...EMPTY_SEAT_PAIR },
+        experience: { ...EMPTY_SEAT_PAIR },
+        companion: { name: "", owner: "me", used: false },
+    };
+}
+
+function seatPairToDraft(
+    pair: { me?: number; opp?: number } | undefined
+): SeatPairDraft {
+    return {
+        me: pair?.me !== undefined ? String(pair.me) : "",
+        opp: pair?.opp !== undefined ? String(pair.opp) : "",
+    };
+}
+
+/** Inflate the spec-level fields of a stored spec into an editable draft
+ *  (inverse of `draftToSpec`), so an existing scenario opens in the form with
+ *  every knob it carried already filled in. */
+export function specToDraft(spec: ScenarioSpec | null): SpecDraft {
+    const draft = emptySpecDraft();
+    if (!spec) return draft;
+    if (spec.phase !== undefined) draft.phase = spec.phase;
+    if (spec.landCount !== undefined) draft.landCount = String(spec.landCount);
+    if (spec.libraryCount !== undefined)
+        draft.libraryCount = String(spec.libraryCount);
+    if (spec.turn !== undefined) draft.turn = String(spec.turn);
+    draft.markLastDrawn = spec.markLastDrawn ?? false;
+    if (spec.rngSeed !== undefined) draft.rngSeed = String(spec.rngSeed);
+    draft.poison = seatPairToDraft(spec.poison);
+    draft.life = seatPairToDraft(spec.life);
+    draft.experience = seatPairToDraft(spec.experience);
+    if (spec.companion) {
+        draft.companion = {
+            name: spec.companion.name,
+            owner: spec.companion.owner ?? "me",
+            used: spec.companion.used ?? false,
+        };
+    }
+    return draft;
+}
+
+/** Collapse a per-seat draft, omitting a side left blank and the whole field
+ *  when neither side parses — the spec stays minimal, and an untouched knob
+ *  never writes `{}` onto the row. */
+function seatPairFromDraft(
+    pair: SeatPairDraft
+): { me?: number; opp?: number } | undefined {
+    const out: { me?: number; opp?: number } = {};
+    const me = num(pair.me);
+    const opp = num(pair.opp);
+    if (me !== undefined) out.me = me;
+    if (opp !== undefined) out.opp = opp;
+    return me === undefined && opp === undefined ? undefined : out;
+}
+
+/**
+ * Collapse the spec-level draft into the `ScenarioSpec` fields it owns,
+ * dropping every knob left blank. The result is spread beside `cards` by the
+ * form; `assembleScenarioSpec` (`scenario-spec-ownership.ts`) then folds in any
+ * `preserved` field of the loaded row.
+ */
+export function draftToSpec(draft: SpecDraft): Omit<ScenarioSpec, "cards"> {
+    const spec: Omit<ScenarioSpec, "cards"> = {};
+    if (draft.phase !== "") spec.phase = draft.phase;
+    const land = num(draft.landCount);
+    if (land !== undefined) spec.landCount = land;
+    const library = num(draft.libraryCount);
+    if (library !== undefined) spec.libraryCount = library;
+    const turn = num(draft.turn);
+    if (turn !== undefined) spec.turn = turn;
+    if (draft.markLastDrawn) spec.markLastDrawn = true;
+    const seed = num(draft.rngSeed);
+    if (seed !== undefined) spec.rngSeed = seed;
+
+    const poison = seatPairFromDraft(draft.poison);
+    if (poison) spec.poison = poison;
+    const life = seatPairFromDraft(draft.life);
+    if (life) spec.life = life;
+    const experience = seatPairFromDraft(draft.experience);
+    if (experience) spec.experience = experience;
+
+    const companionName = draft.companion.name.trim();
+    if (companionName !== "") {
+        spec.companion = {
+            name: companionName,
+            owner: draft.companion.owner,
+            ...(draft.companion.used ? { used: true } : {}),
+        };
+    }
+    return spec;
 }

@@ -8,11 +8,16 @@ import {
 } from "@convex/debugScenarioSpec";
 import DebugButton from "./debug-button";
 import DebugScenarioCardFields from "./debug-scenario-card-fields";
+import DebugScenarioSpecFields from "./debug-scenario-spec-fields";
 import {
     type CardDraft,
+    type SpecDraft,
     cardToDraft,
     draftToCard,
+    draftToSpec,
     emptyCardDraft,
+    emptySpecDraft,
+    specToDraft,
 } from "./scenario-draft";
 import { assembleScenarioSpec } from "./scenario-spec-ownership";
 
@@ -28,34 +33,22 @@ export type EditingScenario = {
  *  carries the token colours/focus ring; the utilities only shrink it). */
 const inputClass = "input-field px-2 py-1 text-xs";
 
-const PHASES = [
-    "",
-    "BEGINNING",
-    "PRECOMBAT_MAIN",
-    "COMBAT",
-    "POSTCOMBAT_MAIN",
-    "ENDING",
-] as const;
-
-function num(raw: string): number | undefined {
-    const trimmed = raw.trim();
-    if (trimmed === "") return undefined;
-    const n = Number(trimmed);
-    return Number.isFinite(n) ? n : undefined;
-}
-
 /**
  * Structured "Save scenario" form (replaces the old raw-JSON textarea). A card
  * repeater — each row a `DebugScenarioCardFields` with a card-name autocomplete
- * and an input for every `ScenarioCard` field — plus the spec-level knobs
- * (landCount, libraryCount, turn, phase). On save it assembles a clean
- * `ScenarioSpec` and calls the `assertIsAdmin`-gated `saveDebugScenario`, which
- * re-runs the loadability guard (ADR 0044). A collapsed live JSON preview lets
- * the admin eyeball the assembled spec.
+ * and an input for every `ScenarioCard` field — plus `DebugScenarioSpecFields`,
+ * one input per SPEC-LEVEL field (issue #3463: it was four of eleven, so
+ * `life`, `poison`, `experience`, `companion`, `rngSeed` and `markLastDrawn`
+ * could be saved by a blade scenario or `specFromState` and never typed by a
+ * human). On save it assembles a clean `ScenarioSpec` and calls the
+ * `assertIsAdmin`-gated `saveDebugScenario`, which re-runs the loadability
+ * guard (ADR 0044). A collapsed live JSON preview lets the admin eyeball the
+ * assembled spec.
  *
- * When EDITING, the assembled spec carries over every spec field the form
- * renders no input for (`scenario-spec-ownership.ts`) — the update mutation
- * patches `spec` wholesale, so anything left out is deleted from the row.
+ * When EDITING, the assembled spec still carries over every spec field the form
+ * renders no input for (`scenario-spec-ownership.ts` — none today, by
+ * construction the next widening may add one): the update mutation patches
+ * `spec` wholesale, so anything left out is deleted from the row.
  */
 export default function DebugSaveScenario({
     editing = null,
@@ -79,20 +72,15 @@ export default function DebugSaveScenario({
             ? initial.cards.map(cardToDraft)
             : [emptyCardDraft()]
     );
-    const [landCount, setLandCount] = useState(
-        initial?.landCount !== undefined ? String(initial.landCount) : ""
+    const [specDraft, setSpecDraft] = useState<SpecDraft>(() =>
+        specToDraft(initial)
     );
-    const [libraryCount, setLibraryCount] = useState(
-        initial?.libraryCount !== undefined ? String(initial.libraryCount) : ""
-    );
-    const [turn, setTurn] = useState(
-        initial?.turn !== undefined ? String(initial.turn) : ""
-    );
-    const [phase, setPhase] = useState(initial?.phase ?? "");
     const [showJson, setShowJson] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
 
+    const patchSpec = (patch: Partial<SpecDraft>) =>
+        setSpecDraft((prev) => ({ ...prev, ...patch }));
     const patchCard = (i: number, patch: Partial<CardDraft>) =>
         setCards((prev) =>
             prev.map((c, j) => (j === i ? { ...c, ...patch } : c))
@@ -104,20 +92,14 @@ export default function DebugSaveScenario({
     const spec: ScenarioSpec = useMemo(() => {
         const s: ScenarioSpec = {
             cards: cards.filter((c) => c.name.trim() !== "").map(draftToCard),
+            ...draftToSpec(specDraft),
         };
-        const land = num(landCount);
-        if (land !== undefined) s.landCount = land;
-        const lib = num(libraryCount);
-        if (lib !== undefined) s.libraryCount = lib;
-        const t = num(turn);
-        if (t !== undefined) s.turn = t;
-        if (phase !== "") s.phase = phase;
         // `updateDebugScenario` patches `spec` wholesale, so a field this form
         // renders no input for must be carried over from the loaded row or the
         // save DELETES it (issue #3462). The classification is the single
         // authority on which those are.
         return assembleScenarioSpec(s, initial);
-    }, [cards, landCount, libraryCount, turn, phase, initial]);
+    }, [cards, specDraft, initial]);
 
     const handleSave = async () => {
         if (saving) return;
@@ -139,10 +121,7 @@ export default function DebugSaveScenario({
                 await saveScenario({ label: label.trim() || "Untitled", spec });
                 setLabel("");
                 setCards([emptyCardDraft()]);
-                setLandCount("");
-                setLibraryCount("");
-                setTurn("");
-                setPhase("");
+                setSpecDraft(emptySpecDraft());
             }
         } catch (e) {
             setError(e instanceof Error ? e.message : "Save failed");
@@ -183,53 +162,8 @@ export default function DebugSaveScenario({
                 </button>
             </div>
 
-            {/* Spec-level knobs */}
-            <div className="flex flex-wrap items-center gap-2">
-                <label className="flex items-center gap-1 text-text-muted">
-                    lands
-                    <input
-                        type="number"
-                        min={0}
-                        value={landCount}
-                        onChange={(e) => setLandCount(e.target.value)}
-                        className={`${inputClass} w-14`}
-                    />
-                </label>
-                <label className="flex items-center gap-1 text-text-muted">
-                    library
-                    <input
-                        type="number"
-                        min={0}
-                        value={libraryCount}
-                        onChange={(e) => setLibraryCount(e.target.value)}
-                        className={`${inputClass} w-14`}
-                    />
-                </label>
-                <label className="flex items-center gap-1 text-text-muted">
-                    turn
-                    <input
-                        type="number"
-                        min={1}
-                        value={turn}
-                        onChange={(e) => setTurn(e.target.value)}
-                        className={`${inputClass} w-14`}
-                    />
-                </label>
-                <label className="flex items-center gap-1 text-text-muted">
-                    phase
-                    <select
-                        value={phase}
-                        onChange={(e) => setPhase(e.target.value)}
-                        className={inputClass}
-                    >
-                        {PHASES.map((p) => (
-                            <option key={p} value={p}>
-                                {p === "" ? "—" : p}
-                            </option>
-                        ))}
-                    </select>
-                </label>
-            </div>
+            {/* Spec-level knobs — one input per `form-owned` field (#3463) */}
+            <DebugScenarioSpecFields draft={specDraft} onPatch={patchSpec} />
 
             <button
                 type="button"

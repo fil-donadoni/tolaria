@@ -25,23 +25,13 @@
 // subset up front minimizes rejected names while staying within the card-index
 // allow-list.
 
-import { normalizeScenarioSpec, type ScenarioSpec } from "./debugScenarioSpec";
+import {
+    normalizeScenarioSpec,
+    SCENARIO_PHASES,
+    type ScenarioSpec,
+} from "./debugScenarioSpec";
 
-/** The phases a scenario may start in — mirrors `Phase` (`convex/gre/types.ts`,
- *  minus the transient `MULLIGAN` / `UNTAP` / `CLEANUP` steps a debug board
- *  never wants to open in). Surfaced to the model in the prompt. */
-export const SCENARIO_PHASES = [
-    "UPKEEP",
-    "DRAW",
-    "PRECOMBAT_MAIN",
-    "BEGINNING_OF_COMBAT",
-    "DECLARE_ATTACKERS",
-    "DECLARE_BLOCKERS",
-    "COMBAT_DAMAGE",
-    "END_OF_COMBAT",
-    "POSTCOMBAT_MAIN",
-    "END_STEP",
-] as const;
+export { SCENARIO_PHASES };
 
 /**
  * JSON Schema handed to Anthropic structured output (`output_config.format`).
@@ -139,9 +129,73 @@ export const SCENARIO_JSON_SCHEMA = {
             description:
                 "Starting life totals, if the description names one (default 20 each).",
         },
+        // CR 122.1 (issue #1969) — the scaling state a "for each experience
+        // counter you have" card reads (Otharri, Suns' Glory).
+        experience: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+                me: { type: "integer" },
+                opp: { type: "integer" },
+            },
+            description:
+                "Experience counters on a player, if the description names them (default none).",
+        },
+        // CR 702.139c / ADR 0064 (issue #1392).
+        companion: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+                name: {
+                    type: "string",
+                    description:
+                        "Exact card name of the companion, from the allow-list.",
+                },
+                owner: {
+                    type: "string",
+                    enum: ["me", "opp"],
+                    description: "Whose companion slot it goes in.",
+                },
+                used: {
+                    type: "boolean",
+                    description:
+                        "true stages the 'already put into hand' state (default false).",
+                },
+            },
+            required: ["name"],
+            description:
+                "Declare a companion into a slot. Omit unless the description names a companion.",
+        },
+        markLastDrawn: {
+            type: "boolean",
+            description:
+                "Mark 'me's last hand card as the card drawn this turn, so a 'discard the last card you drew' cost (Jandor's Ring) is payable.",
+        },
     },
     required: ["cards"],
 };
+
+/**
+ * The spec-level keys the schema deliberately does NOT offer the model, each
+ * with the reason (issue #3463). `scenarioGeneratorSchemaCoverage.test.ts`
+ * sweeps `SCENARIO_SPEC_KEYS` and demands every key be either a
+ * `SCENARIO_JSON_SCHEMA.properties` entry or a row here — so the next
+ * spec-widening under PRD #3397 has to make the call explicitly instead of
+ * leaving the generator quietly a field behind, which is how `experience`,
+ * `companion` and `markLastDrawn` sat unreachable since they shipped.
+ *
+ * `Partial<Record<keyof ScenarioSpec, string>>` and not a bare `string[]`: a
+ * row naming a key that no longer exists reds `tsc` rather than silently
+ * exempting nothing.
+ */
+export const SCENARIO_SCHEMA_EXCLUSIONS = {
+    // CR 705 / ADR 0023 — the seed decides every coin flip and shuffle the
+    // board will produce. A model asked for a board has no basis to pick one,
+    // and a hallucinated seed reads as deliberate determinism it is not: the
+    // admin sets it in the form (`scenario-spec-ownership.ts` classifies it
+    // `form-owned`) when a scenario actually needs a pinned outcome.
+    rngSeed: "the model has no basis to invent a PRNG seed — admin-set only",
+} as const satisfies Partial<Record<keyof ScenarioSpec, string>>;
 
 /** Signature of the injected LLM call: given a system prompt and the user's
  *  board description, return the raw model text (expected to be the JSON spec).
@@ -201,6 +255,9 @@ export function buildScenarioSystemPrompt(
         "- If the description names a life total ('me at 4 life', 'opp at 2'),",
         "  set `life.me` / `life.opp` to that exact number; omit `life` entirely",
         "  when no life total is mentioned (default 20 each).",
+        "- The same omit-unless-named discipline applies to `experience`,",
+        "  `companion` and `markLastDrawn`: emit them ONLY when the description",
+        "  actually calls for them, never as decoration.",
         "",
         `ALLOWED CARDS (${allowList.length}):`,
         allowList.join(", "),
