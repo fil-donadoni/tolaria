@@ -17604,6 +17604,19 @@ export const debugSetupScenario = mutation({
                  *  card leaves the battlefield and clears it on the way back in
                  *  (CR 400.7, `resetBattlefieldTransientState`). */
                 activations: v.optional(v.record(v.string(), v.number())),
+                /** CR 608.2 / 514.2 (issue #3453) — per-turn resolution
+                 *  tallies of the TRIGGERED abilities this card is the source
+                 *  of, keyed by triggered-ability id:
+                 *  `{ "omnath-locus-of-creation-landfall": 1 }` stages a
+                 *  position where that ability has already resolved once this
+                 *  turn, so its next resolution takes the SECOND branch. The
+                 *  per-card half of `GameState.abilityResolutionCounts`, whose
+                 *  own key carries the source's instance id — an id this
+                 *  rebuild reallocates, which is why the tally rides on the
+                 *  card. Any zone (nothing clears it before CLEANUP). */
+                abilityResolutions: v.optional(
+                    v.record(v.string(), v.number())
+                ),
                 /** Mark this battlefield creature as having attacked during its
                  *  controller's previous turn (CR 508.1) — sets
                  *  `attackedDuringLastTurn` so self attack-restrictions
@@ -17718,6 +17731,36 @@ export const debugSetupScenario = mutation({
          *  rather than a sum of the two seats above, which the engine tallies
          *  separately. */
         stormCount: v.optional(v.number()),
+        /** CR 120.3a / 119.3 / 700.4 / 508.1a (issue #3453, PRD #3397) — what
+         *  has already HAPPENED this turn, the retrospective tallies a card
+         *  reads after the fact: damage taken (Simulacrum) and the
+         *  artifact-sourced share of it (Reverse Polarity), life gained (the
+         *  CR 603.4 intervening-if of Crested Sunmare / Ocelot Pride),
+         *  creatures died (Scavenging Ghoul) and whether anyone attacked
+         *  (Keldon Twilight). Per-seat and both-optional where the engine
+         *  keys by player; the builder CLEARS all five before seeding, so an
+         *  omitted field loads as "nothing happened" rather than inheriting
+         *  the live game's turn. */
+        damageDealtToPlayerThisTurn: v.optional(
+            v.object({
+                me: v.optional(v.number()),
+                opp: v.optional(v.number()),
+            })
+        ),
+        artifactDamageToPlayerThisTurn: v.optional(
+            v.object({
+                me: v.optional(v.number()),
+                opp: v.optional(v.number()),
+            })
+        ),
+        lifeGainedThisTurn: v.optional(
+            v.object({
+                me: v.optional(v.number()),
+                opp: v.optional(v.number()),
+            })
+        ),
+        deathsThisTurn: v.optional(v.number()),
+        creatureAttackedThisTurn: v.optional(v.boolean()),
         /** CR 102.1 / 117.1 / 117.4 (issue #3454) — the turn holder, the
          *  priority holder and the passes already banked. `activePlayer:
          *  "opp"` with `priority: "me"` places an instant-speed decision on

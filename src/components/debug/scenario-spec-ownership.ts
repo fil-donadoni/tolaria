@@ -57,6 +57,14 @@ export const SCENARIO_SPEC_FIELD_OWNER = {
     spellsCastThisTurn: "form-owned",
     spellsCastThisGame: "form-owned",
     stormCount: "form-owned",
+    // CR 120.3a / 119.3 / 700.4 / 508.1a (issue #3453) — what has already
+    // happened this turn. `form-owned` like the rest: an admin staging
+    // "you've already gained life this turn" must be able to type it.
+    damageDealtToPlayerThisTurn: "form-owned",
+    artifactDamageToPlayerThisTurn: "form-owned",
+    lifeGainedThisTurn: "form-owned",
+    deathsThisTurn: "form-owned",
+    creatureAttackedThisTurn: "form-owned",
     // CR 102.1 / 117.1 / 117.4 (issue #3454) — the turn holder, the priority
     // holder and the banked passes. `form-owned` like everything else since
     // issue #3463: these are the first of PRD #3397's queued widenings, and a
@@ -162,6 +170,26 @@ export const SCENARIO_SPEC_FIELD_INPUT = {
         min: 0,
     },
     stormCount: { kind: "number", label: "storm count", min: 0 },
+    damageDealtToPlayerThisTurn: {
+        kind: "per-seat",
+        label: "damage taken this turn",
+        min: 0,
+    },
+    artifactDamageToPlayerThisTurn: {
+        kind: "per-seat",
+        label: "artifact damage taken this turn",
+        min: 0,
+    },
+    lifeGainedThisTurn: {
+        kind: "per-seat",
+        label: "life gained this turn",
+        min: 0,
+    },
+    deathsThisTurn: { kind: "number", label: "creatures died", min: 0 },
+    creatureAttackedThisTurn: {
+        kind: "boolean",
+        label: "a creature attacked this turn",
+    },
     activePlayer: { kind: "seat", label: "active player" },
     priority: { kind: "seat", label: "priority" },
     passCount: { kind: "number", label: "passes", min: 0 },

@@ -88,6 +88,50 @@ function resolveScenarioActivations(
     return Object.keys(out).length > 0 ? out : undefined;
 }
 
+/** CR 608.2 / 514.2 (issue #3453) — re-key one card entry's per-turn
+ *  triggered-ability resolution tallies onto the instance the rebuild just
+ *  allocated, writing `GameState.abilityResolutionCounts`'s own
+ *  `${sourceInstanceId}:${abilityId}` keys.
+ *
+ *  The game-level store is keyed by an instance id, which this rebuild
+ *  reassigns; that is the whole reason the spec carries the tally on the CARD
+ *  and re-keys here rather than lowering the map verbatim. Counts at or below
+ *  zero are skipped for the same reason `resolveScenarioActivations` drops
+ *  them: an absent key already means "hasn't resolved this turn", so keeping
+ *  one would rebuild into a spec `specFromState` never writes. */
+function seedAbilityResolutions(
+    state: GameState,
+    instanceId: string,
+    resolutions: Record<string, number> | undefined
+): void {
+    if (!resolutions) return;
+    for (const [abilityId, count] of Object.entries(resolutions)) {
+        if (count <= 0) continue;
+        const counts = (state.abilityResolutionCounts ??= {});
+        counts[`${instanceId}:${abilityId}`] = count;
+    }
+}
+
+/** The inverse of {@link seedAbilityResolutions}: this card's slice of
+ *  `GameState.abilityResolutionCounts`, keyed by ability id alone. The store's
+ *  key splits at the FIRST colon — an instance id never contains one
+ *  (`allocInstanceId`), an ability id may. */
+function lowerAbilityResolutions(
+    state: GameState,
+    instanceId: string
+): Record<string, number> | undefined {
+    const counts = state.abilityResolutionCounts;
+    if (!counts) return undefined;
+    const prefix = `${instanceId}:`;
+    const out: Record<string, number> = {};
+    for (const [key, count] of Object.entries(counts)) {
+        if (count > 0 && key.startsWith(prefix)) {
+            out[key.slice(prefix.length)] = count;
+        }
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+}
+
 /**
  * Create a scenario entry's TOKEN permanents (CR 111 / 707.2) and apply the
  * per-entry battlefield knobs to each copy.
@@ -146,6 +190,10 @@ function placeScenarioTokens(
         if (entry.attackedLastTurn) token.attackedDuringLastTurn = true;
         const tokenActivations = resolveScenarioActivations(entry.activations);
         if (tokenActivations) token.activationsThisTurn = tokenActivations;
+        // CR 608.2 (issue #3453) — a token can be a trigger source with an
+        // escalating per-turn tally of its own (a copy of Scythecat Cub), so
+        // the token branch re-keys it exactly as the card branch does.
+        seedAbilityResolutions(state, token.id, entry.abilityResolutions);
         // An explicit `counters` REPLACES whatever the spec's `entersWith`
         // seeded (the scenario is staging a specific board); no counters in the
         // spec leaves the token's own entry counters in place.
@@ -227,6 +275,39 @@ export function buildStateFromScenario(
     // post-land-drop main-phase decision be captured at all.
     p1.landsPlayedThisTurn = undefined;
     p2.landsPlayedThisTurn = undefined;
+    // CR 120.3a / 119.3 / 700.4 / 508.1a / 608.2 (issue #3453) — the GAME-level
+    // per-turn ledgers go with the per-player ones, for exactly the reason
+    // above and one more: `debugSetupScenario` rebuilds onto the LIVE game, so
+    // without this clear a position captured before any creature died loads
+    // into a game where three did, and Scavenging Ghoul's "if a creature died
+    // this turn" fires on a board the spec says is quiet. Each is re-seeded
+    // deliberately below from its own spec field, so a CAPTURED position
+    // round-trips and a hand-written one places what it names.
+    state.deathsThisTurn = undefined;
+    state.creatureAttackedThisTurn = undefined;
+    state.damageDealtToPlayerThisTurn = undefined;
+    state.artifactDamageToPlayerThisTurn = undefined;
+    state.lifeGainedThisTurn = undefined;
+    state.abilityResolutionCounts = undefined;
+    // CR 608.2h / 111.12 (ADR 0086) — the departure ledger of last-known
+    // COPIABLE values is keyed by the instance id a permanent had on the
+    // battlefield, and the placement loop below reassigns every id. A carried
+    // entry therefore names an object that no longer exists on the rebuilt
+    // board: dead weight at best, and a stale answer to `createTokenCopyOf`'s
+    // fallback at worst. The rebuilt board has no departures, so the correct
+    // value is empty and the engine re-stamps it at the next one
+    // (`removePermanentTo`) — which is why `specFromState` allowlists this key
+    // as rebuild bookkeeping rather than lowering it.
+    state.lastKnownCopiable = undefined;
+    // CR 514.3a (issue #2472) — the "this turn's cleanup bookkeeping has run"
+    // marker is compared against `state.turn`, so a marker inherited from the
+    // loaded game and equal to the rebuilt turn number would suppress this
+    // turn's once-per-turn cleanup steps (the `skip` countdown and the
+    // `attackedDuringLastTurn` roll-forward). A scenario places a position
+    // BEFORE its cleanup, never inside one, so the rebuilt turn's bookkeeping
+    // has by construction not run: cleared here, re-stamped by
+    // `finalizeCleanup` when the turn actually ends.
+    state.cleanupBookkeepingTurn = undefined;
 
     // CR 104 (issue #3314) — a scenario starts a LIVE position, so the
     // game-over flag goes with the zones above. `debugSetupScenario` persists
@@ -370,6 +451,17 @@ export function buildStateFromScenario(
                 (instance as CardInstanceState).activationsThisTurn =
                     activations;
             }
+            // CR 608.2 / 514.2 (issue #3453) — before the zone dispatch too,
+            // and for a sharper reason than `activations` above: the tally
+            // belongs to the ability's SOURCE, and a trigger whose source has
+            // since died is exactly the shape that needs it (the source sits
+            // in a graveyard while its tally still gates the next resolution
+            // this turn).
+            seedAbilityResolutions(
+                state,
+                instance.id,
+                entry.abilityResolutions
+            );
             if (zone === "hand") {
                 player.hand.push(instance);
             } else if (zone === "library") {
@@ -790,6 +882,47 @@ export function buildStateFromScenario(
         state.spellsCastThisTurn = spec.stormCount;
     }
 
+    // Seed what has already HAPPENED this turn (issue #3453, PRD #3397) — the
+    // retrospective tallies a card still reads after the fact: damage taken
+    // (CR 120.3a, Simulacrum), the artifact-sourced share of it (Reverse
+    // Polarity), life gained (CR 119.3 — the intervening-if of Crested
+    // Sunmare / Ocelot Pride, CR 603.4), creatures died (CR 700.4, Scavenging
+    // Ghoul) and whether anyone attacked (CR 508.1a, Keldon Twilight).
+    //
+    // Written in the engine's own shape: a per-seat pair becomes a
+    // `playerId → amount` record with the zero entries omitted, which is what
+    // the engine's own `?? 0` readers treat as "none", and an absent tally is
+    // left cleared rather than inherited (the clear at the top of this
+    // function).
+    const seedSeatTally = (
+        pair: { me?: number; opp?: number } | undefined,
+        assign: (tally: Record<string, number> | undefined) => void
+    ) => {
+        if (!pair) return;
+        const tally: Record<string, number> = {};
+        if (pair.me) tally[p1.id] = pair.me;
+        if (pair.opp) tally[p2.id] = pair.opp;
+        assign(Object.keys(tally).length > 0 ? tally : undefined);
+    };
+    seedSeatTally(spec.damageDealtToPlayerThisTurn, (t) => {
+        state.damageDealtToPlayerThisTurn = t;
+    });
+    seedSeatTally(spec.artifactDamageToPlayerThisTurn, (t) => {
+        state.artifactDamageToPlayerThisTurn = t;
+    });
+    seedSeatTally(spec.lifeGainedThisTurn, (t) => {
+        state.lifeGainedThisTurn = t;
+    });
+    if (spec.deathsThisTurn !== undefined) {
+        state.deathsThisTurn =
+            spec.deathsThisTurn > 0 ? spec.deathsThisTurn : undefined;
+    }
+    if (spec.creatureAttackedThisTurn !== undefined) {
+        state.creatureAttackedThisTurn = spec.creatureAttackedThisTurn
+            ? true
+            : undefined;
+    }
+
     // CR 113.6c (issue #3278) — materialise off-battlefield characteristics on
     // everything the placement loop above put in a hidden zone, LAST, so it
     // sees the final contents of every zone (library seeding, face-down exile
@@ -817,7 +950,9 @@ export function buildStateFromScenario(
 // consumes (battlefield/hand/graveyard/exile placement, tapped, counters,
 // attachments, damage, phase, turn, the turn holder / priority holder / pass
 // count, poison/life/experience, lands already played, the spells-cast
-// tallies and the storm count, one companion slot). Everything else a live
+// tallies and the storm count, the retrospective per-turn tallies — damage
+// taken, life gained, deaths, whether anyone attacked, each ability's
+// resolutions — one companion slot). Everything else a live
 // `GameState` can hold — the stack, mana pool,
 // a mid-flight payment, combat beyond an empty DECLARE_ATTACKERS seed,
 // delayed triggers, a per-card continuous effect the spec has no field for —
@@ -1243,6 +1378,16 @@ function lowerCard(
     const activations = resolveScenarioActivations(card.activationsThisTurn);
     if (activations) entry.activations = activations;
 
+    // CR 608.2 / 514.2 (issue #3453) — this card's slice of the game-level
+    // per-turn resolution tally, lowered in EVERY zone for the same reason:
+    // the tally survives its source leaving the battlefield (nothing clears it
+    // before CLEANUP), and a dies-trigger's own source sits in a graveyard
+    // while its next resolution this turn still reads it. Without it an
+    // escalating ability rebuilds as its FIRST resolution — a different
+    // effect, on a board that looks identical.
+    const abilityResolutions = lowerAbilityResolutions(state, card.id);
+    if (abilityResolutions) entry.abilityResolutions = abilityResolutions;
+
     if (zone === "battlefield") {
         if (card.isTapped) entry.tapped = true;
         if (card.damageMarked) entry.damageMarked = card.damageMarked;
@@ -1364,6 +1509,21 @@ export const GAME_STATE_ALLOWLIST = new Set<string>([
     // CR 702.40a (issue #3449) — lowered into `stormCount`, the Storm tally of
     // spells cast by any player this turn.
     "spellsCastThisTurn",
+    // CR 120.3a / 119.3 / 700.4 / 508.1a (issue #3453) — the retrospective
+    // per-turn tallies, each lowered into the spec field of the SAME NAME and
+    // rebuilt from it, so none of them is live-only residue any more.
+    "damageDealtToPlayerThisTurn",
+    "artifactDamageToPlayerThisTurn",
+    "lifeGainedThisTurn",
+    "deathsThisTurn",
+    "creatureAttackedThisTurn",
+    // CR 608.2 (issue #3453) — lowered PER CARD, into each source's own
+    // `abilityResolutions` entry, because the store's key carries an instance
+    // id the rebuild reallocates. Allowlisted for the shape that round-trips,
+    // like `drawnThisTurn` below; the tallies whose source is in no lowered
+    // zone at all keep their own bespoke report in `specFromState`, since a
+    // blanket entry here would swallow them silently.
+    "abilityResolutionCounts",
     // Covered by a bespoke `dropped` message below.
     "stack",
     "combat",
@@ -1399,6 +1559,25 @@ export const GAME_STATE_ALLOWLIST = new Set<string>([
     "nextInstanceId",
     "pendingEvents",
     "expectedInput",
+    // CR 608.2h / 111.12 (ADR 0086, issue #3453) — the last-known COPIABLE
+    // values of permanents that have LEFT the battlefield, keyed by the
+    // instance id each had there. Rebuild bookkeeping by the same test as the
+    // allocators above: `buildStateFromScenario` reassigns every id and the
+    // rebuilt board has no departures, so not one key could still name an
+    // object — the value carries no game-visible meaning to preserve, and the
+    // builder clears it for exactly that reason. Its single consumer is a
+    // `createTokenCopyOf` call from a resolving ability (`lastKnownCopiable:
+    // true`), i.e. an item ON THE STACK or a delayed trigger — both already
+    // reported as not lowered, so the loss is named where it is real.
+    "lastKnownCopiable",
+    // CR 514.3a (issue #2472, issue #3453) — the within-cleanup resume marker,
+    // meaningful only while it EQUALS `state.turn`, which only holds inside
+    // that turn's CLEANUP step. A scenario places a position before its
+    // cleanup, so the rebuild's correct value is "not run yet" — the builder
+    // clears it and `finalizeCleanup` re-stamps it when the turn ends. The one
+    // position where the live value is load-bearing, a capture taken in the
+    // CR 514.3a priority window itself, gets its own bespoke report below.
+    "cleanupBookkeepingTurn",
     // Wire-projection-only addition — see this Set's doc comment.
     "seq",
 ]);
@@ -1606,6 +1785,25 @@ export function specFromState(
         // including one whose caster matches no seated player, so it is
         // captured as itself.
         stormCount: state.spellsCastThisTurn ?? 0,
+        // Issue #3453 — what has already HAPPENED this turn, always explicit
+        // for the same reason as the tallies above: the builder clears these
+        // ledgers on every rebuild, so an omitted field is a claim of zero
+        // either way, and writing it keeps the captured position readable as
+        // the position it was rather than as an absence.
+        damageDealtToPlayerThisTurn: {
+            me: state.damageDealtToPlayerThisTurn?.[me.id] ?? 0,
+            opp: state.damageDealtToPlayerThisTurn?.[opp.id] ?? 0,
+        },
+        artifactDamageToPlayerThisTurn: {
+            me: state.artifactDamageToPlayerThisTurn?.[me.id] ?? 0,
+            opp: state.artifactDamageToPlayerThisTurn?.[opp.id] ?? 0,
+        },
+        lifeGainedThisTurn: {
+            me: state.lifeGainedThisTurn?.[me.id] ?? 0,
+            opp: state.lifeGainedThisTurn?.[opp.id] ?? 0,
+        },
+        deathsThisTurn: state.deathsThisTurn ?? 0,
+        creatureAttackedThisTurn: state.creatureAttackedThisTurn ?? false,
     };
     if (markLastDrawn) spec.markLastDrawn = true;
 
@@ -1771,6 +1969,46 @@ export function specFromState(
     ) {
         dropped.push(
             `turn-structure state (extra phases — CR 500.8) — not lowered`
+        );
+    }
+
+    // CR 608.2 (issue #3453) — the per-turn resolution tallies whose SOURCE is
+    // in no zone this function lowers (a library card, or an object that has
+    // left the game entirely). `lowerCard` carries every tally whose source it
+    // can see; these have nowhere to ride, and the allowlist entry for
+    // `abilityResolutionCounts` would otherwise swallow them without a word.
+    const loweredIds = new Set<string>();
+    for (const p of [me, opp]) {
+        for (const card of [
+            ...p.battlefield,
+            ...p.hand,
+            ...p.graveyard,
+            ...p.exile,
+        ]) {
+            loweredIds.add(card.id);
+        }
+    }
+    const orphanedResolutions = Object.keys(
+        state.abilityResolutionCounts ?? {}
+    ).filter((key) => !loweredIds.has(key.slice(0, key.indexOf(":"))));
+    if (orphanedResolutions.length > 0) {
+        dropped.push(
+            `abilityResolutionCounts: ${orphanedResolutions.length} tally(ies) whose trigger source is in no lowered zone — the per-turn resolution count rides on its source card, and this one has none to ride on; not lowered`
+        );
+    }
+
+    // CR 514.3a (issue #3453) — a capture taken INSIDE the extra cleanup
+    // step's priority window is the one position where this marker is
+    // load-bearing: it says the turn's once-per-turn cleanup bookkeeping has
+    // already run, and the rebuild (which clears it) would run it a second
+    // time. Reported rather than lowered, because a spec cannot open in
+    // CLEANUP in the first place (`SCENARIO_PHASES`).
+    if (
+        state.phase === "CLEANUP" &&
+        state.cleanupBookkeepingTurn === state.turn
+    ) {
+        dropped.push(
+            `cleanupBookkeepingTurn: captured inside the CR 514.3a extra cleanup step, whose once-per-turn bookkeeping has already run — a rebuild runs it again; not lowered`
         );
     }
 
