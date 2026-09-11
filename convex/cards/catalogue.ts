@@ -8,6 +8,7 @@ import * as leb from "./sets/leb";
 import * as arn from "./sets/arn";
 import * as atq from "./sets/atq";
 import * as leg from "./sets/leg";
+import * as lgn from "./sets/lgn";
 import * as drk from "./sets/drk";
 import * as fem from "./sets/fem";
 import * as ice from "./sets/ice";
@@ -206,6 +207,7 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "arn", exports: arn },
     { code: "atq", exports: atq },
     { code: "leg", exports: leg },
+    { code: "lgn", exports: lgn },
     { code: "drk", exports: drk },
     { code: "fem", exports: fem },
     { code: "ice", exports: ice },

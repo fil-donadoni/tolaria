@@ -1105,6 +1105,14 @@ function isCountValue(value: unknown): boolean {
             allowIsAttacking: s.zone === "battlefield",
             allowControlledSinceTurnStart: s.zone === "battlefield",
             rejectManaCostEquals: s.zone === "battlefield",
+            // issue #2713 — "for each OTHER attacking Goblin" (Goblin
+            // Piledriver). Same battlefield-only honesty rule as the three
+            // above, and honest for the SAME reason: the battlefield branch
+            // of `countZoneForPlayer` goes through `toPermanentFilter`, which
+            // maps `excludeSource` onto `excludeInstanceIds` with the
+            // resolving source's own id — the graveyard branch falls back to
+            // `matchesCardFilter`, which has no source identity to compare.
+            allowExcludeSource: s.zone === "battlefield",
         })
     ) {
         return false;
@@ -1941,10 +1949,20 @@ function isSourceShieldMatch(value: unknown): boolean {
     return m.colors !== undefined || m.cardType !== undefined;
 }
 
+/** CR 201.4a (issue #1085 / #2713) — the two printed strengths of a "choose a
+ *  card name" restriction: "other than a basic land card name" (Desperate
+ *  Research) and "a nonland card name" (Cabal Therapy). */
+function isNameRestriction(value: unknown): boolean {
+    return value === "no-basic-land" || value === "no-land";
+}
+
 /** The destination zones a `moveZone` Op may name (issue #839, EffectMoveZone).
  *  The five zones a one-shot effect addresses (CR 400.7), plus `"library-top"`
- *  (issue #1125) — the `cards`-shape-only tutor-to-top destination ("search
- *  … then shuffle and put that card on top", Vampiric Tutor). */
+ *  — the ORDERED library destination the plain `"library"` zone cannot name:
+ *  the `cards`-shape tutor-to-top ("search … then shuffle and put that card on
+ *  top", Vampiric Tutor, issue #1125) and, since issue #2713, the
+ *  announced-target shape ("put target creature card from your graveyard on
+ *  top of your library", Volrath's Stronghold). */
 function isMoveZone(value: unknown): boolean {
     return (
         value === "hand" ||
@@ -3800,10 +3818,20 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             // `target`-shape object has no "put it on top" primitive) and
             // meaningless from any source other than the library itself (the
             // picked card never left the library — a search only chooses).
+            // issue #2713 — the announced-slot / bare-ref `target` shape ALSO
+            // accepts it ("put target creature card from your graveyard on top
+            // of your library", Volrath's Stronghold): that carrier resolves a
+            // single object and the interpreter can reposition it with
+            // `putLibraryCardsOnTop`, which is exactly what the generic
+            // `moveCardById` library leg cannot do (it pushes — the bottom).
+            // The two OTHER `target` carriers (positional graveyard, linked
+            // exile) still reject it, above.
             if (entry.to === "library-top") {
-                if (!hasCards) {
-                    errors.push('to: "library-top" is only valid with "cards"');
-                } else if (entry.from !== "library") {
+                if (!hasCards && !hasTarget) {
+                    errors.push(
+                        'to: "library-top" is only valid with "cards" or "target"'
+                    );
+                } else if (hasCards && entry.from !== "library") {
                     errors.push('to: "library-top" requires from: "library"');
                 }
             }
@@ -4761,7 +4789,18 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // currently in `player`'s hand.
     discard: {
         required: { player: isPlayerRef },
-        optional: { cards: isBarePicksRef },
+        // issue #2713 — the THIRD shape: a `filter` over the player's hand
+        // ("discards all cards with that name", Cabal Therapy). Exclusive with
+        // `cards`, which is the player-CHOSEN set; the filter shape is the
+        // rule-chosen one, and a script carrying both would be saying two
+        // different things about the same discard.
+        optional: { cards: isBarePicksRef, filter: isCardFilter },
+        check: (entry) =>
+            "cards" in entry && "filter" in entry
+                ? [
+                      'fields "cards" and "filter" are mutually exclusive on discard (issue #2713)',
+                  ]
+                : [],
     },
     // CR 701.6a (issue #806) — counter the target spell. `destination`
     // (issue #683) redirects a COUNTERED SPELL to exile/library-top/hand
@@ -5035,18 +5074,18 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         },
         optional: { prompt: isNonEmptyString },
     },
-    // CR 201.3 / 202.3 (issue #1085) — "chooses a card name" as part of
+    // CR 201.4 / 202.3 (issue #1085) — "chooses a card name" as part of
     // resolution. `bind` is REQUIRED (a name choice nothing reads back is
-    // meaningless — mirrors `choice`'s own required `bind`). `excludeBasicLand`
-    // (CR 201.3, Desperate Research's "other than a basic land card name") is
-    // optional.
+    // meaningless — mirrors `choice`'s own required `bind`). `nameRestriction`
+    // (CR 201.4a — Desperate Research's "other than a basic land card name",
+    // Cabal Therapy's "a nonland card name") is optional.
     nameCard: {
         required: {
             player: isPlayerRef,
             prompt: isNonEmptyString,
             bind: isBindingName,
         },
-        optional: { excludeBasicLand: isBoolean },
+        optional: { nameRestriction: isNameRestriction },
     },
     // CR 701.20a reveal / CR 401.4 look (issue #1085) — deterministic sibling
     // of `lookDistribute`: PUBLICLY reveal the top `look` cards to every player

@@ -1,5 +1,6 @@
 // tsp — red cards (ADR 0043 colour split).
 import type { CardDefinition } from "../../types";
+import { GOBLIN_TOKEN } from "../../sharedTokens";
 
 // Grapeshot — {1}{R} Sorcery. "Grapeshot deals 1 damage to any target. Storm
 // (When you cast this spell, copy it for each spell cast before it this
@@ -47,14 +48,7 @@ export const emptyTheWarrens: CardDefinition = {
             op: "createToken",
             controller: "controller",
             count: 2,
-            token: {
-                name: "Goblin",
-                types: ["Creature"],
-                subtypes: ["Goblin"],
-                power: 1,
-                toughness: 1,
-                colors: ["R"],
-            },
+            token: GOBLIN_TOKEN,
         },
     ],
 };

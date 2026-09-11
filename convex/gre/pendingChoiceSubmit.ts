@@ -363,19 +363,26 @@ export type SubmitNameCardArgs = {
     cardName: string;
 };
 
-/** CR 201.3 — the `no-basic-land` name restriction (Desperate Research's
- *  "choose a card name other than a basic land card name", issue #1085). A
- *  basic land CARD, not merely a land with a basic land TYPE — checked against
- *  the printed characteristics, mirroring every other registry-backed name
- *  restriction in this pipeline. */
+/** CR 201.4a — the two printed name restrictions. `"no-basic-land"` is
+ *  Desperate Research's "choose a card name other than a basic land card name"
+ *  (issue #1085): a basic land CARD, not merely a land with a basic land TYPE
+ *  — checked against the printed characteristics, mirroring every other
+ *  registry-backed name restriction in this pipeline. `"no-land"` (issue
+ *  #2713) is Cabal Therapy's stronger "a nonland card name": EVERY land is
+ *  rejected, so it subsumes the basic-land case.
+ *
+ *  The single authority both doors read: the `submitNameCard` mutation and the
+ *  bot's `isLegalNamedCard`, so a bot answer is legal by construction rather
+ *  than by luck (issue #2497 — a rejected name is a frozen game, not a retry). */
 function violatesNameRestriction(
     head: PendingChoice,
     def: CardDefinition
 ): boolean {
+    if (!def.types.includes("Land")) return false;
+    if (head.nameRestriction === "no-land") return true;
     return (
         head.nameRestriction === "no-basic-land" &&
-        (def.supertypes?.includes("Basic") ?? false) &&
-        def.types.includes("Land")
+        (def.supertypes?.includes("Basic") ?? false)
     );
 }
 
@@ -480,11 +487,17 @@ export function applyNameCardSubmit(
             "Choose one of the card's two names, not both (CR 709.4a)"
         );
     }
-    // CR 201.3 (issue #1085) — "a card name other than a basic land card
-    // name" (Desperate Research). Routed through the shared predicate so the
-    // bot's default picker cannot disagree with this check (#2497).
+    // CR 201.4a (issue #1085 / #2713) — "a card name with certain
+    // characteristics". Routed through the shared predicate so the bot's
+    // default picker cannot disagree with this check (#2497); the message
+    // is derived from the head's own restriction, so Cabal Therapy does not
+    // tell the player the basic-land rule it is not enforcing.
     if (violatesNameRestriction(head, def)) {
-        throw new Error("Choose a card name other than a basic land card name");
+        throw new Error(
+            head.nameRestriction === "no-land"
+                ? "Choose a nonland card name"
+                : "Choose a card name other than a basic land card name"
+        );
     }
 
     // CR 614.1c (ADR 0100 D3/D5) — the as-enters `name` kind REUSES this same

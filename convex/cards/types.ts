@@ -26,6 +26,16 @@ export type RevealRouteDestination =
     | "graveyard"
     | "exile";
 
+/** CR 201.4a — how far a "choose a card name" choice narrows the legal name
+ *  space. `"no-basic-land"` is Desperate Research's "other than a basic land
+ *  card name"; `"no-land"` is Cabal Therapy's "a nonland card name", which
+ *  excludes every land and not only the basics (issue #2713). One enum rather
+ *  than one boolean per printed wording: the restriction rides the raised
+ *  `PendingChoice` and is checked at submit time by the single authority
+ *  `violatesNameRestriction`, which both the mutation and the bot's
+ *  `isLegalNamedCard` read. */
+export type NameRestriction = "no-basic-land" | "no-land";
+
 export type Color = "W" | "U" | "B" | "R" | "G" | "C";
 
 export const colors: Color[] = ["W", "U", "B", "R", "G", "C"];
@@ -5775,17 +5785,18 @@ export interface SpellContext {
      *  `choiceId` disambiguates multiple name choices within a step and must be
      *  stable across replays. Used by Petra Sphinx ("Target player chooses a
      *  card name, then reveals the top card of their library …") and the
-     *  `nameCard` Effect Op (issue #1085). `excludeBasicLand` (CR 201.3,
-     *  Desperate Research's "choose a card name OTHER THAN a basic land card
-     *  name") stamps the raised `PendingChoice.nameRestriction` so
-     *  `applyNameCardSubmit` (`pendingChoiceSubmit.ts`) rejects a basic-land
-     *  name at submit time — the chooser is asked again, exactly like every
-     *  other illegal-choice rejection in that pipeline. */
+     *  `nameCard` Effect Op (issue #1085). `nameRestriction` (CR 201.4a —
+     *  `"no-basic-land"` for Desperate Research's "choose a card name OTHER
+     *  THAN a basic land card name", `"no-land"` for Cabal Therapy's "a
+     *  nonland card name") stamps the raised `PendingChoice.nameRestriction`
+     *  so `applyNameCardSubmit` (`pendingChoiceSubmit.ts`) rejects an
+     *  ineligible name at submit time — the chooser is asked again, exactly
+     *  like every other illegal-choice rejection in that pipeline. */
     requestNameCard: (req: {
         playerId: string;
         choiceId: string;
         prompt: string;
-        excludeBasicLand?: boolean;
+        nameRestriction?: NameRestriction;
     }) => string | undefined;
 
     /** The card name of an instance in any zone, read from the card registry
@@ -7776,6 +7787,18 @@ export interface StaticUntapRestriction {
      *  at untap-collection time (FEM Merseine: "Enchanted creature doesn't
      *  untap ..."). `filter` is ignored when this is set. */
     appliesToHost?: boolean;
+    /** When true, the restriction is scoped to the SOURCE permanent itself
+     *  (issue #2713 — Goblin Sharpshooter's "This creature doesn't untap
+     *  during your untap step"), not to a board-wide filter. The exact twin of
+     *  `appliesToHost`, one relation over: the engine synthesizes an
+     *  instance-id filter for the source's own id at collection time, so the
+     *  dispatcher still sees a plain filter (CR 502.3 — the active player
+     *  determines which of their permanents untap). `filter` is ignored when
+     *  this is set, and it is mutually exclusive with `appliesToHost` (a
+     *  permanent cannot be both its own host). Without it a self-scoped lock
+     *  has to be spelled as a characteristic filter, which would reach every
+     *  OTHER permanent sharing those characteristics too. */
+    appliesToSelf?: boolean;
     /** Optional source-level gate (CR 611.2c). Evaluated once per source: when
      *  present and false, the restriction contributes nothing this untap step.
      *  Reads the source permanent's live view — Merseine gates on "if this Aura
@@ -13650,7 +13673,20 @@ export type EffectOp =
     | {
           op: "moveZone";
           target: EffectObjectSelector;
-          to: EffectMoveZone;
+          /** `"library-top"` (issue #2713 — Volrath's Stronghold, "put target
+           *  creature card from your graveyard on TOP of your library") is the
+           *  ordered destination the plain `"library"` zone cannot name: the
+           *  generic `moveCardById` library leg PUSHES, i.e. bottoms the card.
+           *  Valid on THIS shape only (the announced-slot / bare-ref carrier),
+           *  never on the positional-graveyard or linked-exile selectors,
+           *  which reject it explicitly. A battlefield-sourced target reaches
+           *  it through `putIntoLibraryFromBattlefield` at position 1 — the
+           *  same LTB-aware primitive an omitted `position` already used, so
+           *  `to: "library-top"` and `to: "library"` with no `position` are
+           *  the same move from the battlefield; a graveyard/exile-sourced one
+           *  moves by id and is then repositioned with `putLibraryCardsOnTop`,
+           *  the single primitive that can address the top of a library. */
+          to: EffectMoveZone | "library-top";
           /** The zone the named object is recovered FROM when it is not on the
            *  battlefield. `"graveyard"` / `"exile"` re-derive a departed object
            *  (issue #1469). `"hand"` (issue #2390) is the Ninjutsu source and
@@ -15597,18 +15633,22 @@ export type EffectOp =
      *  (Desperate Research: "put all of them with THAT name into your hand").
      *  `player` names the chooser (the resolving controller by default, an
      *  announced target-slot player, or a relative player). `bind` is
-     *  REQUIRED — a name choice nothing reads back is meaningless. `excludeBasicLand`
-     *  (CR 201.3, Desperate Research's "other than a basic land card name")
-     *  rejects a basic-land name at SUBMIT time (`applyNameCardSubmit`,
+     *  REQUIRED — a name choice nothing reads back is meaningless.
+     *  `nameRestriction` (CR 201.4a) narrows the legal name space and is
+     *  checked at SUBMIT time (`applyNameCardSubmit`,
      *  `pendingChoiceSubmit.ts`) — the chooser is asked again, exactly like
      *  every other illegal-choice rejection in that pipeline; it is not a
-     *  post-hoc filter here. */
+     *  post-hoc filter here. Two printed strengths, one enum rather than one
+     *  boolean per wording (issue #2713): `"no-basic-land"` is Desperate
+     *  Research's "other than a basic land card name", `"no-land"` is Cabal
+     *  Therapy's "a NONLAND card name", which excludes every land, not only
+     *  the basics. Omitted = unrestricted (Petra Sphinx). */
     | {
           op: "nameCard";
           player: EffectPlayerRef;
           prompt: string;
           bind: string;
-          excludeBasicLand?: boolean;
+          nameRestriction?: NameRestriction;
       }
     /** CR 701.20a reveal / CR 401.4 look (issue #1085) — deterministic
      *  sibling of `lookDistribute`: reveals the top `look` cards of a library to
@@ -15776,7 +15816,30 @@ export type EffectOp =
      *  is skipped when the binding was never captured (the choice found no
      *  candidates — CR 608.2b); the whole-hand shape skips only when `player`
      *  cannot be resolved (an empty hand is simply a no-op loop). */
-    | { op: "discard"; player: EffectPlayerRef; cards?: EffectRef }
+    | {
+          op: "discard";
+          player: EffectPlayerRef;
+          cards?: EffectRef;
+          /** THIRD shape (issue #2713 — Cabal Therapy's "discards all cards
+           *  with that name"): every card currently in `player`'s hand
+           *  matching this filter is discarded, with NO player choice — the
+           *  filter alone decides, exactly as it does for `moveZone`'s
+           *  filter-driven bulk sweep and `digMatchingToHand`'s hand leg, and
+           *  through the SAME `matchesCardFilter` matcher (so the filter's
+           *  `name` field resolves an earlier `nameCard` binding via
+           *  `resolveNameRef`). It is the WHOLE-HAND shape with a predicate —
+           *  a "generalize, don't add" parameter on the existing Op, not a
+           *  fourth zone verb — and it stays a DISCARD (CR 701.9) rather than
+           *  a `moveZone` hand → graveyard sweep precisely because only
+           *  `SpellContext.discardCard` emits `CARD_DISCARDED`: Library of
+           *  Leng's replacement, madness (CR 702.35c) and every "whenever you
+           *  discard" watcher hang off that event, and a bulk zone move would
+           *  silently skip all of them. Mutually exclusive with `cards`
+           *  (validator-enforced): the picks shape is the player-CHOSEN set,
+           *  this one the rule-chosen set. Zero matches is a clean no-op
+           *  (CR 608.2b). */
+          filter?: EffectCardFilter;
+      }
     /** CR 701.9a — `player` discards `count` cards chosen AT RANDOM from their
      *  hand (Hymn to Tourach's "discards two cards at random", Mind Twist's
      *  "discards X cards at random", Gwendlyn Di Corci's random-discard

@@ -22,6 +22,7 @@ import {
     type DrawStepPlan,
     type DurationSpec,
     type EffectCardFilter,
+    type NameRestriction,
     type EffectOp,
     type EnchantRestriction,
     type EntryTypeLine,
@@ -3536,13 +3537,15 @@ export type PendingChoice = {
     /** For `kind: "name-card"` only (issue #1085) — a restriction on the
      *  legal name, checked at SUBMIT time (`applyNameCardSubmit`,
      *  `pendingChoiceSubmit.ts`) rather than post-hoc filtered by the
-     *  resolving Op. `"no-basic-land"` is CR 201.3's "a card name other than
+     *  resolving Op. `"no-basic-land"` is CR 201.4a's "a card name other than
      *  a basic land card name" (Desperate Research) — a submission naming
      *  Plains/Island/Swamp/Mountain/Forest/Wastes is rejected and the
      *  chooser is asked again, exactly like every other illegal-choice
-     *  rejection in that pipeline. Undefined = no restriction (Petra
+     *  rejection in that pipeline. `"no-land"` (issue #2713) is the STRONGER
+     *  printed wording, Cabal Therapy's "a nonland card name": every land is
+     *  rejected, basic or not. Undefined = no restriction (Petra
      *  Sphinx — any registered card name is legal). */
-    nameRestriction?: "no-basic-land";
+    nameRestriction?: NameRestriction;
 
     // --- random-reveal family (CR 705, ADR 0023) ---
     /** For `kind: "random-reveal"` only — which random device produced the
@@ -14880,8 +14883,29 @@ export function buildSpellContext(
             // Delegates to the shared permanent-source pipeline (CR 614
             // replacement → CR 615 prevention → infect/lifelink/protection all
             // keyed off the permanent's identity via `describeDamageSource`).
-            // No-op when the source has left the battlefield (CR 608.2b).
-            const found = findOnBattlefield(state, sourceInstanceId);
+            // CR 113.7a / 608.2h (issue #2713) — "If an ability states that an
+            // object does something, it's the object as it exists—or as it most
+            // recently existed—that does it." A source that has LEFT the
+            // battlefield therefore still deals the damage its ability names,
+            // from its LAST KNOWN state: Goblin Tinkerer's "Destroy target
+            // artifact. THAT ARTIFACT deals damage equal to its mana value to
+            // this creature" resolves both clauses in one script, so the
+            // artifact is in a graveyard by the time the damage leg runs. The
+            // public-zone lookup is the same `findCardInGraveyardOrExile` every
+            // other LKI read in this file uses; a source in a hidden zone (or
+            // gone entirely — a token that ceased to exist, CR 704.5d) is still
+            // a no-op, since there is no object left to read characteristics
+            // off. `controllerId` on the found card is its last-known
+            // controller, which is exactly what LKI asks for.
+            const found =
+                findOnBattlefield(state, sourceInstanceId) ??
+                (() => {
+                    const lki = findCardInGraveyardOrExile(
+                        state,
+                        sourceInstanceId
+                    );
+                    return lki ? { card: lki } : null;
+                })();
             if (!found) return;
             if (target.type === "player") {
                 dealDamageFromPermanentToPlayer(
@@ -19328,11 +19352,12 @@ export function buildSpellContext(
                 kind: "name-card",
                 count: 1,
                 prompt: req.prompt,
-                // CR 201.3 (issue #1085) — "a card name other than a basic
-                // land card name" (Desperate Research). Checked at submit
-                // time by `applyNameCardSubmit`.
-                ...(req.excludeBasicLand
-                    ? { nameRestriction: "no-basic-land" as const }
+                // CR 201.4a (issue #1085) — "a card name other than a basic
+                // land card name" (Desperate Research), or the stronger "a
+                // nonland card name" (Cabal Therapy). Checked at submit time
+                // by `applyNameCardSubmit`.
+                ...(req.nameRestriction
+                    ? { nameRestriction: req.nameRestriction }
                     : {}),
             };
             if (routed.actingPlayerId)

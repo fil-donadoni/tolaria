@@ -4908,6 +4908,14 @@
         "firstPrintSet": "tor"
     },
     {
+        "name": "Cabal Therapy",
+        "scryfallId": "0a5df970-c6ba-4824-b8ba-67244aec2b82",
+        "oracleId": "018107d1-ebf7-4657-bc91-c8374af55cc5",
+        "firstSet": "jud",
+        "firstPrintId": "0a5df970-c6ba-4824-b8ba-67244aec2b82",
+        "firstPrintSet": "jud"
+    },
+    {
         "name": "Cabal Trainee",
         "scryfallId": "d345d702-b205-4391-985a-6201e707f0ba",
         "oracleId": "fce68545-c31d-4dc2-9f1b-aadf924a07d1",
@@ -13186,6 +13194,14 @@
         "source": "compiled"
     },
     {
+        "name": "Gempalm Incinerator",
+        "scryfallId": "2687c311-fd0c-4fe0-bce8-e3f412216796",
+        "oracleId": "467ea3e3-7767-405a-9d1a-8fa5de696376",
+        "firstSet": "lgn",
+        "firstPrintId": "2687c311-fd0c-4fe0-bce8-e3f412216796",
+        "firstPrintSet": "lgn"
+    },
+    {
         "name": "General Jarkeld",
         "scryfallId": "6a4f5a28-0bd2-4cc4-b67f-324e89193caa",
         "oracleId": "64df77f6-4f7e-442a-971c-8ad3f7d1c979",
@@ -13962,6 +13978,14 @@
         "firstPrintSet": "fem"
     },
     {
+        "name": "Goblin Lackey",
+        "scryfallId": "9b848caa-aad8-4060-8f86-304a8556de2d",
+        "oracleId": "213fbbdd-f1bc-4bba-9124-7b26e9a706c8",
+        "firstSet": "usg",
+        "firstPrintId": "9b848caa-aad8-4060-8f86-304a8556de2d",
+        "firstPrintSet": "usg"
+    },
+    {
         "name": "Goblin Lyre",
         "scryfallId": "951114fb-5ae5-4eb0-8e03-6e39b0b634b5",
         "oracleId": "0709e9c8-dbe7-4806-ae75-d2e2d745d6a4",
@@ -13978,6 +14002,14 @@
         "firstPrintSet": "uds",
         "rarity": "common",
         "source": "compiled"
+    },
+    {
+        "name": "Goblin Matron",
+        "scryfallId": "f99dc21c-8600-49bf-b0a3-c981f7ec7ac3",
+        "oracleId": "145737a7-c597-4dec-b752-207c2d0501e3",
+        "firstSet": "p02",
+        "firstPrintId": "f99dc21c-8600-49bf-b0a3-c981f7ec7ac3",
+        "firstPrintSet": "p02"
     },
     {
         "name": "Goblin Motivator",
@@ -14036,6 +14068,22 @@
         "source": "compiled"
     },
     {
+        "name": "Goblin Piledriver",
+        "scryfallId": "f6c4df1f-f148-42ec-8e22-e7114216927d",
+        "oracleId": "4d74d12b-1ffb-482f-8bac-635a8d4d32e9",
+        "firstSet": "ons",
+        "firstPrintId": "f6c4df1f-f148-42ec-8e22-e7114216927d",
+        "firstPrintSet": "ons"
+    },
+    {
+        "name": "Goblin Pyromancer",
+        "scryfallId": "bb4815b7-fc20-44a4-ad1c-66d92993557f",
+        "oracleId": "696ee797-0c32-4bff-8c3d-02d05835b138",
+        "firstSet": "ons",
+        "firstPrintId": "bb4815b7-fc20-44a4-ad1c-66d92993557f",
+        "firstPrintSet": "ons"
+    },
+    {
         "name": "Goblin Replica",
         "scryfallId": "63282976-e08d-4b8c-bbfc-f6739fdaeaf9",
         "oracleId": "0c5a7772-8358-4549-a583-f54246869e20",
@@ -14044,6 +14092,14 @@
         "firstPrintSet": "mrd",
         "rarity": "common",
         "source": "compiled"
+    },
+    {
+        "name": "Goblin Ringleader",
+        "scryfallId": "b6b2cd77-9552-48b1-80cb-26966323c1ea",
+        "oracleId": "4100e486-0d27-436c-8429-76bc2c1a26ab",
+        "firstSet": "apc",
+        "firstPrintId": "b6b2cd77-9552-48b1-80cb-26966323c1ea",
+        "firstPrintSet": "apc"
     },
     {
         "name": "Goblin Rock Sled",
@@ -14080,6 +14136,14 @@
         "firstPrintSet": "s99",
         "rarity": "uncommon",
         "source": "compiled"
+    },
+    {
+        "name": "Goblin Sharpshooter",
+        "scryfallId": "7e689df7-b85d-4346-bee8-5e978b5cbbbc",
+        "oracleId": "d81285b7-a718-411a-8be3-ecc0cfe0bcb0",
+        "firstSet": "ons",
+        "firstPrintId": "7e689df7-b85d-4346-bee8-5e978b5cbbbc",
+        "firstPrintSet": "ons"
     },
     {
         "name": "Goblin Shrine",
@@ -14142,6 +14206,14 @@
         "firstPrintSet": "mrd",
         "rarity": "common",
         "source": "compiled"
+    },
+    {
+        "name": "Goblin Tinkerer",
+        "scryfallId": "e6529852-8b3e-4a70-a4a1-029e012231c6",
+        "oracleId": "0afc2d2f-4fdb-440f-9c35-45bf103c0437",
+        "firstSet": "mir",
+        "firstPrintId": "e6529852-8b3e-4a70-a4a1-029e012231c6",
+        "firstPrintSet": "mir"
     },
     {
         "name": "Goblin Trailblazer",
@@ -24820,6 +24892,14 @@
         "source": "compiled"
     },
     {
+        "name": "Perish",
+        "scryfallId": "e47ace1d-73de-44aa-a3fe-2e2a21ebec79",
+        "oracleId": "dd84d291-cb7a-4f44-81cd-9f1181bb5ae5",
+        "firstSet": "tmp",
+        "firstPrintId": "e47ace1d-73de-44aa-a3fe-2e2a21ebec79",
+        "firstPrintSet": "tmp"
+    },
+    {
         "name": "Personal Incarnation",
         "scryfallId": "caf9cef4-0f2d-478a-b119-fe1967687f74",
         "oracleId": "6e49a5b8-6bc4-4c7b-82c1-957f1fb0ca5f",
@@ -30446,6 +30526,14 @@
         "firstPrintSet": "rav",
         "rarity": "common",
         "source": "compiled"
+    },
+    {
+        "name": "Siege-Gang Commander",
+        "scryfallId": "92e78cec-aaf9-4fe8-887b-b7e356d63315",
+        "oracleId": "ddc7f59a-bbb1-4ba1-82c8-6813fd191940",
+        "firstSet": "scg",
+        "firstPrintId": "92e78cec-aaf9-4fe8-887b-b7e356d63315",
+        "firstPrintSet": "scg"
     },
     {
         "name": "Sigardian Priest",
@@ -37966,6 +38054,14 @@
         "firstSet": "vow",
         "firstPrintId": "ae154e64-f626-45fb-bd52-840c1c27b2d3",
         "firstPrintSet": "vow"
+    },
+    {
+        "name": "Volrath's Stronghold",
+        "scryfallId": "43bf015b-152e-4d67-b773-e75fb2487a32",
+        "oracleId": "73b8cf90-3c71-4f8b-a29f-61894b7f27c9",
+        "firstSet": "sth",
+        "firstPrintId": "43bf015b-152e-4d67-b773-e75fb2487a32",
+        "firstPrintSet": "sth"
     },
     {
         "name": "Volunteer Militia",

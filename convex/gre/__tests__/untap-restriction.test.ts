@@ -33,6 +33,7 @@ import {
     smoke,
     sengirVampire,
 } from "../../cards/sets/lea";
+import { goblinSharpshooter } from "../../cards/sets/ons/red";
 import { matchesPermanentFilter } from "../state";
 import { projectPublicState } from "../../gameProjections";
 import { tryGetDefinition } from "../../cards";
@@ -93,7 +94,7 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     };
 }
 
-describe("untapRestriction dispatcher (CR 502.1, ADR 0005)", () => {
+describe("untapRestriction dispatcher (CR 502.3, ADR 0005)", () => {
     describe("Winter Orb — land-only cap (ADR 0004 modern Oracle)", () => {
         it("zero eligibles (no tapped lands) → no prompt; flag cleanup still runs", () => {
             const orb = makeInstance(winterOrb.id, { id: "orb" });
@@ -601,6 +602,82 @@ describe("untapRestriction dispatcher (CR 502.1, ADR 0005)", () => {
             expect(
                 vetoFilters.some((f) => matchesPermanentFilter(view, f))
             ).toBe(false);
+        });
+    });
+
+    // Issue #2713 — the SELF-scoped lock. Goblin Sharpshooter's "This creature
+    // doesn't untap during your untap step" is a restriction on the SOURCE
+    // permanent alone (CR 502.3), synthesized at collection time into its own
+    // instance-id filter — the twin of `appliesToHost`. The board carries a
+    // second Sharpshooter-shaped candidate (another tapped Goblin creature) so
+    // the test discriminates a self-scoped lock from a characteristic filter,
+    // which is exactly the bug a `subtypes: "Goblin"` spelling would ship.
+    describe("appliesToSelf — a self-scoped lock (CR 502.3, issue #2713)", () => {
+        it("locks ONLY the source: the Sharpshooter stays tapped, another tapped creature untaps", () => {
+            const sharpshooter = makeInstance(goblinSharpshooter.id, {
+                id: "sharp",
+                isTapped: true,
+            });
+            const bear = makeInstance(grizzlyBears.id, {
+                id: "bear",
+                isTapped: true,
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { battlefield: [sharpshooter, bear] }),
+                    makePlayer("p2"),
+                ],
+            });
+            untapStep(state);
+
+            expect(state.pendingChoices ?? []).toEqual([]);
+            const bf = state.players[0].battlefield;
+            expect(bf.find((c) => c.id === "sharp")?.isTapped).toBe(true);
+            expect(bf.find((c) => c.id === "bear")?.isTapped).toBe(false);
+
+            // Wire format (mandatory for a `staticEffects[]` outcome visible on
+            // the board): the tapped/untapped split must survive the
+            // projection, or the client renders a Sharpshooter that looks ready
+            // to ping when the server knows it is not.
+            const projected = projectPublicState(state, 1, "p1");
+            const projectedBf = projected.players[0].battlefield;
+            expect(projectedBf.find((c) => c.id === "sharp")?.isTapped).toBe(
+                true
+            );
+            expect(projectedBf.find((c) => c.id === "bear")?.isTapped).toBe(
+                false
+            );
+        });
+
+        it("TWO Sharpshooters lock only themselves — a third tapped Goblin creature still untaps", () => {
+            // The discriminating board: with two sources in play, a
+            // board-wide filter (or one keyed on the Sharpshooter's own
+            // characteristics) would keep `bear` tapped too. Only a lock that
+            // names its own instance id lets it untap.
+            const first = makeInstance(goblinSharpshooter.id, {
+                id: "sharp-1",
+                isTapped: true,
+            });
+            const second = makeInstance(goblinSharpshooter.id, {
+                id: "sharp-2",
+                isTapped: true,
+            });
+            const bear = makeInstance(grizzlyBears.id, {
+                id: "bear",
+                isTapped: true,
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { battlefield: [first, second, bear] }),
+                    makePlayer("p2"),
+                ],
+            });
+            untapStep(state);
+
+            const bf = state.players[0].battlefield;
+            expect(bf.find((c) => c.id === "sharp-1")?.isTapped).toBe(true);
+            expect(bf.find((c) => c.id === "sharp-2")?.isTapped).toBe(true);
+            expect(bf.find((c) => c.id === "bear")?.isTapped).toBe(false);
         });
     });
 });

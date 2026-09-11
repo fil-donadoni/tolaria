@@ -360,7 +360,7 @@ export const cursedFleshInv: CardPrint = {
 // land card name. Reveal the top seven cards of your library and put all of
 // them with that name into your hand. Exile the rest." Two Ops (issue #1085,
 // the `nameCard` / `digMatchingToHand` gaps this card surfaced, now shipped):
-// `nameCard` suspends for the open name choice (`excludeBasicLand` enforces
+// `nameCard` suspends for the open name choice (`nameRestriction` enforces
 // the CR 201.3 restriction at submit time); `digMatchingToHand` then reveals
 // the top 7 and splits them on the chosen name — every match to hand, the
 // rest exiled — reading the name back via a bare `{ ref }` into
@@ -380,7 +380,7 @@ export const desperateResearch: CardDefinition = {
             player: "controller",
             prompt: "Choose a card name other than a basic land card name.",
             bind: "$named",
-            excludeBasicLand: true,
+            nameRestriction: "no-basic-land",
         },
         {
             op: "digMatchingToHand",
