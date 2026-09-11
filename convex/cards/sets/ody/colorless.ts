@@ -90,9 +90,12 @@ export const cephalidColiseum: CardDefinition = {
             targetRequirement: { type: "player", count: 1 },
             // CR 602.1b — activation instructions may restrict WHEN a player
             // can activate; "your graveyard" is the ACTIVATING player's (CR 109.5).
-            canActivate: (source, state) =>
-                (state.players.find((p) => p.id === source.controllerId)
-                    ?.graveyard.length ?? 0) >= 7,
+            canActivate: (source, state) => {
+                const graveyard = state.players.find(
+                    (p) => p.id === source.controllerId
+                )?.graveyard;
+                return (graveyard?.length ?? 0) >= 7;
+            },
             effects: [
                 { op: "draw", player: { target: 0 }, count: 3 },
                 {

@@ -2504,10 +2504,27 @@ function isDynamicMayPayEnergyCost(value: unknown): boolean {
     return isEffectValue(obj.energyEqualTo);
 }
 
+/** A `mayPay` Op's dynamically-derived GENERIC-MANA cost (issue #2714): `{
+ *  genericEqualTo: EffectValue }` — "pay {1} for each <runtime tally>"
+ *  (Circular Logic — "pays {1} for each card in your graveyard"). The exact
+ *  twin of `isDynamicMayPayEnergyCost` one resource over: the amount reuses
+ *  the EXISTING `EffectValue` grammar wholesale (`isEffectValue`), no new
+ *  value kind. A FOURTH accepted shape for `mayPay`'s `cost` field. */
+function isDynamicMayPayGenericManaCost(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const obj = value as Record<string, unknown>;
+    const keys = Object.keys(obj);
+    if (keys.length !== 1 || !("genericEqualTo" in obj)) return false;
+    return isEffectValue(obj.genericEqualTo);
+}
+
 /** `mayPay`'s `cost` field: the static `MayPayCost` union, the
  *  dynamically-derived `{ manaCostOf, reducedBy }` mana shape (issue #1150),
- *  or the dynamically-derived `{ energyEqualTo }` energy shape (issue
- *  #1195). */
+ *  the dynamically-derived `{ energyEqualTo }` energy shape (issue #1195), or
+ *  the dynamically-derived `{ genericEqualTo }` generic-mana shape (issue
+ *  #2714). */
 function isMayPayCostOrDynamic(value: unknown): boolean {
     // Dynamic shapes FIRST: `{ mana, reducedBy }` (issue #1958) shares its
     // `mana` key with the static `CostLegs` mana leg, and only the presence of
@@ -2517,6 +2534,7 @@ function isMayPayCostOrDynamic(value: unknown): boolean {
     return (
         isDynamicMayPayManaCost(value) ||
         isDynamicMayPayEnergyCost(value) ||
+        isDynamicMayPayGenericManaCost(value) ||
         isMayPayCost(value)
     );
 }

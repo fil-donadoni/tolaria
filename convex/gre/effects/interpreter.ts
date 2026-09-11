@@ -71,6 +71,7 @@ import type {
     ControlChangeCondition,
     DynamicMayPayManaCost,
     DynamicMayPayEnergyCost,
+    DynamicMayPayGenericManaCost,
     EffectCaptureSource,
     EffectCardFilter,
     EffectComparisonOp,
@@ -1682,13 +1683,23 @@ const MAY_PAY_COST_UNRESOLVABLE = Symbol("mayPay-cost-unresolvable");
  *  live mana value) — no bespoke reader, unlike the mana leg's dedicated
  *  `manaCostOf` shape. An unresolvable value (the referenced object left the
  *  battlefield, CR 608.2b) skips the whole Op exactly like a gone
- *  `manaCostOf` target. */
+ *  `manaCostOf` target.
+ *
+ *  A `DynamicMayPayGenericManaCost` (`{ genericEqualTo }`, issue #2714 —
+ *  Circular Logic's "pays {1} for each card in your graveyard") is the energy
+ *  shape's twin one resource over: the `EffectValue` resolves through the same
+ *  `resolveValue`, and the tally becomes the `generic` portion of the `mana`
+ *  leg outright — there is no base to reduce, which is why it is its own shape
+ *  rather than a `reducedBy` with a negative amount. A tally of zero yields an
+ *  EMPTY mana cost, payable by anyone (CR 118.3a — players can always pay 0
+ *  mana), which is the right reading of the idiom with an empty graveyard. */
 function resolveMayPayCost(
     ctx: SpellContext,
     cost:
         | MayPayCost
         | DynamicMayPayManaCost
         | DynamicMayPayEnergyCost
+        | DynamicMayPayGenericManaCost
         | undefined
 ): MayPayCost | undefined | typeof MAY_PAY_COST_UNRESOLVABLE {
     if (!cost) return cost;
@@ -1715,6 +1726,13 @@ function resolveMayPayCost(
         const amount = resolveValue(ctx, cost.energyEqualTo);
         if (amount === undefined) return MAY_PAY_COST_UNRESOLVABLE;
         return { energy: amount };
+    }
+    if ("genericEqualTo" in cost) {
+        const amount = resolveValue(ctx, cost.genericEqualTo);
+        if (amount === undefined) return MAY_PAY_COST_UNRESOLVABLE;
+        // CR 118.3a — {0} is payable by anyone, so an empty tally stays an
+        // empty (never absent) mana leg rather than a cost-free "you may".
+        return { mana: amount > 0 ? { generic: amount } : {} };
     }
     return cost;
 }

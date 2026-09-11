@@ -5406,6 +5406,14 @@
         "source": "compiled"
     },
     {
+        "name": "Cephalid Coliseum",
+        "scryfallId": "d5d74112-7244-4c3f-a5eb-b6be671aefe8",
+        "oracleId": "c733873e-77db-471f-8061-139db24f7e7c",
+        "firstSet": "ody",
+        "firstPrintId": "d5d74112-7244-4c3f-a5eb-b6be671aefe8",
+        "firstPrintSet": "ody"
+    },
+    {
         "name": "Cephalid Retainer",
         "scryfallId": "78480527-cfd6-4065-b702-82de4694f9bb",
         "oracleId": "9a0a926c-59ab-4bd3-a238-13988bdd96a5",
@@ -5792,6 +5800,14 @@
         "firstSet": "lea",
         "firstPrintId": "92df19c9-e127-42d9-8dd2-7fa5a7095428",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Circular Logic",
+        "scryfallId": "cd9198d6-201d-4175-8f70-eef92d7d5bb5",
+        "oracleId": "b071bbaf-79fa-413b-807b-2cc86c8a8125",
+        "firstSet": "tor",
+        "firstPrintId": "cd9198d6-201d-4175-8f70-eef92d7d5bb5",
+        "firstPrintSet": "tor"
     },
     {
         "name": "Citanul Druid",
@@ -26162,6 +26178,14 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Psychatog",
+        "scryfallId": "6757bf0e-489f-4be2-9e41-463b59f00dd1",
+        "oracleId": "d7c4da85-d1a5-4a27-812d-65d8ee1494dd",
+        "firstSet": "ody",
+        "firstPrintId": "6757bf0e-489f-4be2-9e41-463b59f00dd1",
+        "firstPrintSet": "ody"
+    },
+    {
         "name": "Psychic Allergy",
         "scryfallId": "fec3275e-4491-43a8-9f23-d7b48177c103",
         "oracleId": "58e0cc31-7f7c-4cea-9453-d377a039da36",
@@ -30496,6 +30520,14 @@
         "firstPrintSet": "trc",
         "rarity": "common",
         "source": "compiled"
+    },
+    {
+        "name": "Sickening Dreams",
+        "scryfallId": "9396ac77-9f53-46bd-b126-02441a0f5594",
+        "oracleId": "728d2e30-2f36-4054-81db-29b01e376a82",
+        "firstSet": "tor",
+        "firstPrintId": "9396ac77-9f53-46bd-b126-02441a0f5594",
+        "firstPrintSet": "tor"
     },
     {
         "name": "Sickle Ripper",
@@ -40176,6 +40208,14 @@
         "firstPrintSet": "m10",
         "rarity": "common",
         "source": "compiled"
+    },
+    {
+        "name": "Zombie Infestation",
+        "scryfallId": "ccd5f98a-7ab5-44b3-850c-b50963dace66",
+        "oracleId": "bdce1af0-3643-4e77-88f9-320206a191d4",
+        "firstSet": "ody",
+        "firstPrintId": "ccd5f98a-7ab5-44b3-850c-b50963dace66",
+        "firstPrintSet": "ody"
     },
     {
         "name": "Zombie Master",
