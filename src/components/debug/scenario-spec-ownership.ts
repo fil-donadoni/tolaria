@@ -62,11 +62,25 @@ export type PreservedScenarioSpecKey = {
         : never;
 }[keyof ScenarioSpec];
 
+/**
+ * Widened read of the classification. The table is `as const` — that is what
+ * lets `PreservedScenarioSpecKey` / `FormOwnedScenarioSpecKey` be derived at
+ * the TYPE level — but it also means a direct `=== "preserved"` comparison reds
+ * `tsc` ("no overlap") while no field carries that classification. Reading
+ * through the union keeps the runtime checks honest without baking today's
+ * classification into the comparison itself.
+ */
+export function scenarioSpecFieldOwner(
+    key: keyof ScenarioSpec
+): ScenarioSpecFieldOwner {
+    return SCENARIO_SPEC_FIELD_OWNER[key];
+}
+
 export const PRESERVED_SCENARIO_SPEC_KEYS = (
     Object.keys(SCENARIO_SPEC_FIELD_OWNER) as (keyof ScenarioSpec)[]
 ).filter(
     (key): key is PreservedScenarioSpecKey =>
-        SCENARIO_SPEC_FIELD_OWNER[key] === "preserved"
+        scenarioSpecFieldOwner(key) === "preserved"
 );
 
 /** Mirror of the above: the keys the form MUST render an input for. */
@@ -80,7 +94,7 @@ export const FORM_OWNED_SCENARIO_SPEC_KEYS = (
     Object.keys(SCENARIO_SPEC_FIELD_OWNER) as (keyof ScenarioSpec)[]
 ).filter(
     (key): key is FormOwnedScenarioSpecKey =>
-        SCENARIO_SPEC_FIELD_OWNER[key] === "form-owned"
+        scenarioSpecFieldOwner(key) === "form-owned"
 );
 
 /**

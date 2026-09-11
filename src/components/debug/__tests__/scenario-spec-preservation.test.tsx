@@ -25,6 +25,7 @@ import {
     SCENARIO_SPEC_FIELD_OWNER,
     PRESERVED_SCENARIO_SPEC_KEYS,
     assembleScenarioSpec,
+    scenarioSpecFieldOwner,
 } from "../scenario-spec-ownership";
 
 const mutationCalls: { ref: unknown; args: unknown }[] = [];
@@ -96,9 +97,7 @@ describe("scenario spec field ownership", () => {
             );
         }
         expect(PRESERVED_SCENARIO_SPEC_KEYS).toEqual(
-            SPEC_KEYS.filter(
-                (k) => SCENARIO_SPEC_FIELD_OWNER[k] === "preserved"
-            )
+            SPEC_KEYS.filter((k) => scenarioSpecFieldOwner(k) === "preserved")
         );
     });
 
@@ -107,7 +106,7 @@ describe("scenario spec field ownership", () => {
         (key) => {
             const assembled = assembleScenarioSpec(FORM_ASSEMBLED, STORED);
             const expected =
-                SCENARIO_SPEC_FIELD_OWNER[key] === "preserved"
+                scenarioSpecFieldOwner(key) === "preserved"
                     ? STORED[key]
                     : FORM_ASSEMBLED[key];
             expect(assembled[key]).toEqual(expected);
@@ -119,7 +118,7 @@ describe("scenario spec field ownership", () => {
         // cleared it — the loaded value must not resurrect it.
         const cleared = assembleScenarioSpec({ cards: [] }, STORED);
         for (const key of SPEC_KEYS) {
-            if (SCENARIO_SPEC_FIELD_OWNER[key] === "form-owned") continue;
+            if (scenarioSpecFieldOwner(key) === "form-owned") continue;
             expect(cleared[key]).toEqual(STORED[key]);
         }
         expect(cleared.turn).toBeUndefined();

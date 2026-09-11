@@ -42,7 +42,10 @@ describe("generator JSON schema coverage over ScenarioSpec (issue #3463)", () =>
     it.each(SCENARIO_SPEC_KEYS)(
         "`%s` is a schema property or a justified exclusion",
         (key) => {
-            const inSchema = Object.hasOwn(properties, key);
+            const inSchema = Object.prototype.hasOwnProperty.call(
+                properties,
+                key
+            );
             const reason = excluded[key];
             expect(inSchema || reason !== undefined).toBe(true);
             // Never both: a key the model can emit needs no exemption, and a

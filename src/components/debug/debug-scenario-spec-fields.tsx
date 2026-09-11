@@ -2,6 +2,7 @@ import { SCENARIO_PHASES } from "@convex/debugScenarioSpec";
 import DebugCardNameField from "./debug-card-name-field";
 import type { SeatPairDraft, SpecDraft } from "./scenario-draft";
 import {
+    type ScenarioSpecFieldInput,
     FORM_OWNED_SCENARIO_SPEC_KEYS,
     SCENARIO_SEATS,
     SCENARIO_SPEC_FIELD_INPUT,
@@ -57,7 +58,11 @@ export default function DebugScenarioSpecFields({
     return (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
             {FORM_OWNED_SCENARIO_SPEC_KEYS.map((key) => {
-                const input = SCENARIO_SPEC_FIELD_INPUT[key];
+                // Widened on purpose: the table is `as const`, so a row
+                // without `min` would otherwise make `input.min` a type error
+                // on the union rather than an absent optional.
+                const input: ScenarioSpecFieldInput =
+                    SCENARIO_SPEC_FIELD_INPUT[key];
                 const labels = scenarioSpecFieldLabels(key);
                 switch (input.kind) {
                     // The card repeater owns `cards` and carries its own
