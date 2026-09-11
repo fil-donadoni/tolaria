@@ -72,6 +72,7 @@ import {
     markAttacking,
     markDeclaredBlockers,
     recordAttackerDeclared,
+    validateDeclaredBlockers,
 } from "./combat";
 import { recordBlockedAttackers } from "./banding";
 import type { Phase } from "./types";
@@ -1163,6 +1164,20 @@ function seedDeclaredCombat(state: GameState, spec: ScenarioSpec): void {
         // CR 509.1g — `isBlocking`/`hasBlockedThisTurn` for every assignment,
         // through the one function allowed to write them.
         markDeclaredBlockers(state);
+        // CR 509.1a/509.1c — the half of `combatSetup.ts`'s "every way this can
+        // fail to find purchase THROWS" that a seeded declaration CAN still
+        // check: the count-aware restrictions and the battlefield-wide blocker
+        // cap, read off an already-declared state. Per-blocker EVASION is
+        // deliberately not re-run (CR 509.1b): a legal live block whose
+        // flying/reach grant the spec could not carry would be rejected here
+        // on a board whose residue is already reported, and the rebuild would
+        // throw on a position that really happened.
+        const legalBlocks = validateDeclaredBlockers(state);
+        if (!legalBlocks.ok) {
+            throw new Error(
+                `buildStateFromScenario: the declared blocks are illegal — ${legalBlocks.reason}`
+            );
+        }
         state.combat.blockersConfirmed = combat.blockersConfirmed ?? false;
         if (state.combat.blockersConfirmed) {
             // CR 509.1h — an attacker stays BLOCKED even once every blocker
@@ -1172,31 +1187,43 @@ function seedDeclaredCombat(state: GameState, spec: ScenarioSpec): void {
         }
     }
 
-    // CR 506.4 / 508.1a — the per-turn record, applied INDEPENDENTLY of the
+    // CR 506.4 / 508.4 — the per-turn record, applied INDEPENDENTLY of the
     // declaration above and therefore naming every creature that carries it,
     // current attackers included. The two are not derivable from each other: a
     // creature removed from combat keeps the flag with no declaration left
-    // (Erg Raiders, Whirling Dervish), and a creature put onto the battlefield
-    // attacking (CR 506.3c) is an attacker that was never DECLARED as one and
-    // must not gain it. Searched on BOTH battlefields, unlike the declaration:
-    // the flag travels with the creature through a control change, and it
-    // names a FACT about the card rather than a role in this combat.
-    const battlefields = [active.battlefield, defending.battlefield];
-    for (const card of resolveCombatants(
-        battlefields,
-        combat.attackedThisTurn ?? [],
-        "having attacked this turn"
-    )) {
-        recordAttackerDeclared(state, card);
+    // (Erg Raiders, Whirling Dervish), and a creature PUT onto the battlefield
+    // attacking is "attacking" but, per CR 508.4, "for the purposes of trigger
+    // events and effects, they never `attacked`" — so it is in `attackerIds`
+    // and must NOT gain the flag. Searched on BOTH battlefields, unlike the
+    // declaration: the flag travels with the creature through a control
+    // change, and it names a FACT about the card rather than a role in this
+    // combat.
+    // PER SEAT (CR 506.4): both players can control a creature of the same name
+    // that attacked this turn, so each seat's list is resolved against that
+    // seat's own battlefield — `"me"` is `players[0]`, the spec's standing
+    // convention. A flat list across both would bind the first copy it found
+    // and hand the record to the wrong side.
+    const seats = [
+        { player: state.players[0], seat: "me" as const },
+        { player: state.players[1], seat: "opp" as const },
+    ];
+    for (const { player, seat } of seats) {
+        for (const card of resolveCombatants(
+            [player.battlefield],
+            combat.attackedThisTurn?.[seat] ?? [],
+            `${seat}'s, having attacked this turn`
+        )) {
+            recordAttackerDeclared(state, card);
+        }
+        for (const card of resolveCombatants(
+            [player.battlefield],
+            combat.blockedThisTurn?.[seat] ?? [],
+            `${seat}'s, having blocked this turn`
+        )) {
+            card.hasBlockedThisTurn = true;
+        }
     }
-    for (const card of resolveCombatants(
-        battlefields,
-        combat.blockedThisTurn ?? [],
-        "having blocked this turn"
-    )) {
-        card.hasBlockedThisTurn = true;
-    }
-    // CR 508.1a — the GAME-scope tally. Named explicitly rather than derived
+    // CR 508.1 / 508.4 — the GAME-scope tally. Named explicitly rather than derived
     // from the list above, because an attacker that DIED is on no battlefield
     // to derive it from ("if no creatures attacked this turn", Keldon
     // Twilight). `recordAttackerDeclared` may already have set it; an explicit
@@ -1316,6 +1343,12 @@ function entryIdentity(card: CardInstanceState): {
         };
     }
     return { name: presentedName(card) };
+}
+
+/** Order-sensitive twin of {@link sameStringSet} — for id lists whose ORDER is
+ *  the claim (issue #3458: the builder binds combat names positionally). */
+function sameStringList(a: string[], b: string[]): boolean {
+    return a.length === b.length && a.every((value, i) => value === b[i]);
 }
 
 function sameStringSet(a: string[], b: string[]): boolean {
@@ -1740,6 +1773,21 @@ const COMBAT_STATE_ALLOWLIST = new Set<string>([
     "blockedAttackerIds",
 ]);
 
+/**
+ * The prefix every combat loss `lowerCombat` reports carries (issue #3458
+ * review).
+ *
+ * It is a CONTRACT, not a formatting habit: `lowerDecision`
+ * (`gre/ai/verdicts/lowering.ts`) refuses a verdict whose lowering dropped any
+ * combat fact, because the candidate-list comparison it otherwise relies on
+ * cannot see one. An attack redirected at a planeswalker (CR 508.1b) admits
+ * exactly the same blocks as an attack on the face (CR 509.1a), so the two
+ * lists match move for move while the boards differ — the same argument the
+ * `stack-not-empty` site already makes. Exported so the refusal keys off this
+ * constant rather than off a string literal repeated in another file.
+ */
+export const COMBAT_DROPPED_PREFIX = "combat:";
+
 /** Generic "combat state the spec has no field for" detector — `attackTargets`
  *  (CR 508.1b), `exertedIds` (CR 508.1g), a parked attack tax, the damage-
  *  assignment step's four fields, attacking bands (CR 702.22c). */
@@ -1771,11 +1819,63 @@ function reportCombatResidue(
 function lowerCombat(
     state: GameState,
     spec: ScenarioSpec,
-    dropped: string[]
+    dropped: string[],
+    mySeatId: string
 ): void {
     const onBattlefield = (id: string): CardInstanceState | undefined =>
         state.players[0].battlefield.find((c) => c.id === id) ??
         state.players[1].battlefield.find((c) => c.id === id);
+    // The SPEC's frame, not the live one: "me" is `players[0]` on the rebuild
+    // whichever live seat it was, so every list below must be emitted in that
+    // order for the builder's own resolution to land on the same permanents.
+    const seatOrder = [
+        state.players.find((p) => p.id === mySeatId)!,
+        state.players.find((p) => p.id !== mySeatId)!,
+    ];
+    const activeSide = seatOrder.find((p) => p.id === state.activePlayerId);
+    const defendingSide = seatOrder.find((p) => p.id !== state.activePlayerId);
+
+    /** The instances the BUILDER's `resolveCombatants` would bind these names
+     *  to — first untaken match by presented name, in the given battlefield
+     *  order. `null` when a name has no match at all. */
+    const asTheBuilderWould = (
+        battlefields: CardInstanceState[][],
+        names: string[]
+    ): string[] | null => {
+        const taken = new Set<string>();
+        const ids: string[] = [];
+        for (const name of names) {
+            const found = battlefields
+                .flat()
+                .find((c) => !taken.has(c.id) && presentedName(c) === name);
+            if (!found) return null;
+            taken.add(found.id);
+            ids.push(found.id);
+        }
+        return ids;
+    };
+
+    /** A name list is only lowered if the builder would bind it back to the
+     *  SAME permanents. Two same-named creatures where only one is in combat
+     *  is ordinary (two Savannah Lions, one held back), and a name cannot say
+     *  which — the rebuild would hand the combat role to the other copy along
+     *  with every per-instance fact the entry carried (its counters, its
+     *  damage, its tapped state), and the candidate list would still match
+     *  because `describeMove` renders both as the same sentence. Reported, so
+     *  the verdict path refuses instead of judging another board. */
+    const bindsBack = (
+        battlefields: CardInstanceState[][],
+        names: string[],
+        liveIds: string[],
+        role: string
+    ): boolean => {
+        const rebound = asTheBuilderWould(battlefields, names);
+        if (rebound && sameStringList(rebound, liveIds)) return true;
+        dropped.push(
+            `${COMBAT_DROPPED_PREFIX} two identically-named permanents differ in their ${role} role — a presented card name cannot say WHICH one, so the rebuild would bind the other copy`
+        );
+        return false;
+    };
 
     const combat = state.combat;
     const lowered: NonNullable<ScenarioSpec["combat"]> = {};
@@ -1786,7 +1886,18 @@ function lowerCombat(
             const attacker = onBattlefield(id);
             if (!attacker) {
                 dropped.push(
-                    `combat: an attacker is on no battlefield — not lowered`
+                    `${COMBAT_DROPPED_PREFIX} an attacker is on no battlefield — not lowered`
+                );
+                continue;
+            }
+            if (attacker.faceDown) {
+                // A face-down permanent PRESENTS as the CR 708.2 sentinel,
+                // which is not a catalogue name the builder could resolve —
+                // and the card entry beside it is lowered under its real name
+                // plus `faceDown`, so neither spelling names the placed
+                // instance. Reported rather than named wrong.
+                dropped.push(
+                    `${COMBAT_DROPPED_PREFIX} a FACE-DOWN permanent is in combat — a face-down creature has no card name for the spec to reference`
                 );
                 continue;
             }
@@ -1797,13 +1908,20 @@ function lowerCombat(
         );
         lowered.confirmed = combat.confirmed;
         lowered.blockers = [];
+        const blockerIds: string[] = [];
         for (const [blockerId, blockedIds] of Object.entries(
             combat.blockerAssignments
         )) {
             const blocker = onBattlefield(blockerId);
             if (!blocker) {
                 dropped.push(
-                    `combat: a blocker is on no battlefield — its assignment is not lowered`
+                    `${COMBAT_DROPPED_PREFIX} a blocker is on no battlefield — its assignment is not lowered`
+                );
+                continue;
+            }
+            if (blocker.faceDown) {
+                dropped.push(
+                    `${COMBAT_DROPPED_PREFIX} a FACE-DOWN permanent is in combat — a face-down creature has no card name for the spec to reference`
                 );
                 continue;
             }
@@ -1815,23 +1933,32 @@ function lowerCombat(
                 .filter((index) => index !== -1);
             if (blocking.length !== blockedIds.length) {
                 dropped.push(
-                    `combat: "${presentedName(blocker)}" blocks a creature that is no longer among the declared attackers — that assignment is not lowered`
+                    `${COMBAT_DROPPED_PREFIX} "${presentedName(blocker)}" blocks a creature that is no longer among the declared attackers — that assignment is not lowered`
                 );
             }
-            if (blocking.length > 0) {
-                lowered.blockers.push({
-                    blocker: presentedName(blocker),
-                    blocking,
-                });
+            if (blocking.length === 0) {
+                // CR 509.1g — a blocking creature blocks at least one
+                // attacker. An entry whose array is empty is `isBlocking`
+                // with nothing to carry it, so the flag would come back unset.
+                dropped.push(
+                    `${COMBAT_DROPPED_PREFIX} "${presentedName(blocker)}" is recorded as blocking nothing — the spec has no entry for a blocker with no attacker, so it comes back NOT blocking`
+                );
+                continue;
             }
+            lowered.blockers.push({
+                blocker: presentedName(blocker),
+                blocking,
+            });
+            blockerIds.push(blockerId);
         }
         lowered.blockersConfirmed = combat.blockersConfirmed;
 
         // CR 509.1h — the rebuild re-derives this from the assignments through
         // the engine's own `recordBlockedAttackers`, so it is not a spec field.
-        // The ONE shape that derivation cannot reach is an attacker still
-        // recorded as blocked whose blockers have all left combat, which is
-        // exactly what CR 509.1h keeps true and a re-derivation would lose.
+        // Two shapes that derivation cannot reach: an attacker still recorded
+        // as blocked whose blockers have all left combat (exactly what
+        // CR 509.1h keeps true), and a record standing while the declaration
+        // is not confirmed, which the seed never re-derives at all.
         const stillAssigned = new Set(
             Object.values(combat.blockerAssignments).flat()
         );
@@ -1840,36 +1967,79 @@ function lowerCombat(
         );
         if (orphanBlocked.length > 0) {
             dropped.push(
-                `combat: ${orphanBlocked.length} attacker(s) recorded as blocked (CR 509.1h) with no blocker still assigned — the rebuild re-derives blocked status from the assignments, so they come back UNBLOCKED`
+                `${COMBAT_DROPPED_PREFIX} ${orphanBlocked.length} attacker(s) recorded as blocked (CR 509.1h) with no blocker still assigned — the rebuild re-derives blocked status from the assignments, so they come back UNBLOCKED`
+            );
+        } else if (
+            !combat.blockersConfirmed &&
+            (combat.blockedAttackerIds ?? []).length > 0
+        ) {
+            dropped.push(
+                `${COMBAT_DROPPED_PREFIX} blocked attackers are recorded (CR 509.1h) while the block declaration is not confirmed — the rebuild only re-derives the record at confirmation, so it comes back empty`
             );
         }
+
+        // The name lists are only a faithful reference if the builder's own
+        // resolution binds them back to THESE permanents.
+        bindsBack(
+            [activeSide?.battlefield ?? []],
+            lowered.attackers,
+            attackerIds,
+            "attacking"
+        );
+        bindsBack(
+            [defendingSide?.battlefield ?? []],
+            lowered.blockers.map((entry) => entry.blocker),
+            blockerIds,
+            "blocking"
+        );
         reportCombatResidue(combat, dropped);
     }
 
-    // CR 506.4 / 508.1a — the per-turn record, lowered as the COMPLETE list of
+    // CR 506.4 / 508.4 — the per-turn record, lowered as the COMPLETE list of
     // creatures carrying it rather than as the declaration's complement. It is
     // not derivable from `attackers` in either direction: a creature removed
     // from combat (or a combat phase that has ended) keeps the flag with no
     // declaration left to read it off, and a creature PUT onto the battlefield
-    // attacking (CR 506.3c) is in `attackerIds` having never been declared, so
-    // carries no flag at all. The builder marks these independently of the
-    // declaration for exactly that reason.
-    const attackedThisTurn: string[] = [];
-    const blockedThisTurn: string[] = [];
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
-            if (card.hasAttackedThisTurn) {
-                attackedThisTurn.push(presentedName(card));
-            }
-            if (card.hasBlockedThisTurn) {
-                blockedThisTurn.push(presentedName(card));
-            }
+    // attacking is in `attackerIds` while carrying no flag at all — CR 508.4
+    // says such a creature is "attacking" but "for the purposes of trigger
+    // events and effects, they never `attacked`". The builder marks these
+    // independently of the declaration for exactly that reason.
+    const attackedThisTurn: { me?: string[]; opp?: string[] } = {};
+    const blockedThisTurn: { me?: string[]; opp?: string[] } = {};
+    for (const [index, player] of seatOrder.entries()) {
+        const seat = index === 0 ? ("me" as const) : ("opp" as const);
+        const attacked = player.battlefield.filter(
+            (card) => card.hasAttackedThisTurn && !card.faceDown
+        );
+        const blocked = player.battlefield.filter(
+            (card) => card.hasBlockedThisTurn && !card.faceDown
+        );
+        if (attacked.length > 0) {
+            attackedThisTurn[seat] = attacked.map(presentedName);
+            bindsBack(
+                [player.battlefield],
+                attackedThisTurn[seat],
+                attacked.map((card) => card.id),
+                "attacked-this-turn"
+            );
+        }
+        if (blocked.length > 0) {
+            blockedThisTurn[seat] = blocked.map(presentedName);
+            bindsBack(
+                [player.battlefield],
+                blockedThisTurn[seat],
+                blocked.map((card) => card.id),
+                "blocked-this-turn"
+            );
         }
     }
-    if (attackedThisTurn.length > 0)
+    if (attackedThisTurn.me || attackedThisTurn.opp) {
         lowered.attackedThisTurn = attackedThisTurn;
-    if (blockedThisTurn.length > 0) lowered.blockedThisTurn = blockedThisTurn;
-    // CR 508.1a — the GAME-scope tally, always written when set: an attacker
+    }
+    if (blockedThisTurn.me || blockedThisTurn.opp) {
+        lowered.blockedThisTurn = blockedThisTurn;
+    }
+    // CR 508.1 / 508.4 — the GAME-scope tally, always written when set: an attacker
     // that DIED leaves it true with nothing on any battlefield to derive it
     // from ("if no creatures attacked this turn", Keldon Twilight).
     if (state.creatureAttackedThisTurn) lowered.creatureAttacked = true;
@@ -2339,7 +2509,7 @@ export function specFromState(
     // rows for. The spec carries the fact now, so the notes are gone rather
     // than relaxed; what remains reported is only what `spec.combat` genuinely
     // cannot express (`reportCombatResidue` below).
-    lowerCombat(state, spec, dropped);
+    lowerCombat(state, spec, dropped, opts.mySeatId);
     if (state.pendingCast) {
         dropped.push(
             `pendingCast: a spell payment is mid-flight — not lowered`

@@ -1215,14 +1215,14 @@ describe("specFromState (issue #2148)", () => {
             confirmed: true,
             blockers: [{ blocker: shivanDragon.name, blocking: [0] }],
             blockersConfirmed: true,
-            // CR 506.4 / 508.1a — the per-turn record names the current
+            // CR 506.4 / 508.4 — the per-turn record names the current
             // attacker and blocker too: being IN the declaration does not
-            // imply the flag (a creature put onto the battlefield attacking,
-            // CR 506.3c, never was declared), so it is lowered as the complete
-            // list rather than as the declaration's complement.
-            attackedThisTurn: [grizzlyBears.name],
-            blockedThisTurn: [shivanDragon.name],
-            // CR 508.1a — the game-scope tally, written whenever set: an
+            // imply the flag (a creature put onto the battlefield attacking is
+            // "attacking" but per CR 508.4 never "attacked"), so it is lowered
+            // as the complete list rather than the declaration's complement.
+            attackedThisTurn: { me: [grizzlyBears.name] },
+            blockedThisTurn: { opp: [shivanDragon.name] },
+            // CR 508.1 / 508.4 — the game-scope tally, written whenever set: an
             // attacker that DIED leaves it true with nothing to derive it
             // from.
             creatureAttacked: true,
@@ -1299,6 +1299,47 @@ describe("specFromState (issue #2148)", () => {
         ]);
     });
 
+    it("names the ambiguity when two identically-named permanents differ in their combat role", () => {
+        const base = makeState();
+        const state = buildStateFromScenario(base, {
+            cards: [
+                // Two Bears, told apart only by a counter — and only the
+                // SECOND is attacking. A presented card name cannot say which,
+                // so the builder's own first-untaken-match rule would hand the
+                // attack to the bench Bears along with a rebuilt board where
+                // the counter sits on the wrong creature. `describeMove`
+                // renders both as the same sentence, so the verdict path's
+                // candidate-list comparison could never see it: the loss is
+                // REPORTED instead, and `lowerDecision` refuses on it.
+                { name: grizzlyBears.name, owner: "me" },
+                {
+                    name: grizzlyBears.name,
+                    owner: "me",
+                    counters: { "+1/+1": 1 },
+                    tapped: true,
+                },
+                { name: shivanDragon.name, owner: "opp" },
+            ],
+            phase: "DECLARE_BLOCKERS",
+        });
+        const attacker = state.players[0].battlefield[1];
+        attacker.isAttacking = true;
+        state.combat = {
+            attackerIds: [attacker.id],
+            confirmed: true,
+            blockerAssignments: {},
+            blockersConfirmed: false,
+        };
+
+        const { dropped } = specFromState(state, {
+            mySeatId: state.players[0].id,
+        });
+
+        expect(
+            dropped.some((d) => d.includes("differ in their attacking role"))
+        ).toBe(true);
+    });
+
     it("carries the per-turn attacked/blocked record past the combat that made it (CR 506.4)", () => {
         const base = makeState();
         const state = buildStateFromScenario(base, {
@@ -1319,8 +1360,8 @@ describe("specFromState (issue #2148)", () => {
         });
 
         expect(spec.combat).toEqual({
-            attackedThisTurn: [grizzlyBears.name],
-            blockedThisTurn: [shivanDragon.name],
+            attackedThisTurn: { me: [grizzlyBears.name] },
+            blockedThisTurn: { opp: [shivanDragon.name] },
             creatureAttacked: true,
         });
         expect(

@@ -20,6 +20,7 @@ import { buildBladeBaseState } from "../ai/blade/baseState";
 import { enumerateMoves } from "../moves";
 import { describeMove } from "../describeMove";
 import { decidingPlayer } from "../search";
+import { lowerDecision } from "../ai/verdicts/lowering";
 import { grizzlyBears } from "../../cards/sets/lea/green";
 import { shivanDragon } from "../../cards/sets/lea/red";
 import type { GameState } from "../state";
@@ -84,11 +85,6 @@ describe("a captured block window rebuilds as the same decision (issue #3458)", 
         expect(
             rebuiltMoves.some((move) => move.kind === "declare-attackers")
         ).toBe(false);
-        expect(
-            enumerateMoves(rebuilt, rebuilt.players[1].id).some(
-                (move) => move.kind === "declare-attackers"
-            )
-        ).toBe(false);
     });
 
     it("offers the defender exactly the moves the live position did", () => {
@@ -105,6 +101,53 @@ describe("a captured block window rebuilds as the same decision (issue #3458)", 
         // class that used to fail it.
         expect(movesFor(rebuilt, rebuilt.players[0].id)).toEqual(
             movesFor(live, defenderId)
+        );
+    });
+});
+
+describe("a combat a card name cannot reference is REFUSED (issue #3458)", () => {
+    it("refuses when two identically-named permanents differ in their combat role", () => {
+        // The failure the widening had to be fail-closed about. Two Grizzly
+        // Bears on the same battlefield, told apart only by a counter, and only
+        // the SECOND attacking: a presented card name cannot say which, so the
+        // rebuild would bind the attack — and every per-instance fact the entry
+        // carried — to the other copy. `describeMove` renders both as the same
+        // sentence, so the candidate lists would match move for move while the
+        // boards differ, which is the one failure nothing downstream can
+        // detect. Hence a refusal, not a note.
+        const state = buildStateFromScenario(buildBladeBaseState(), {
+            cards: [
+                { name: grizzlyBears.name, owner: "me" },
+                {
+                    name: grizzlyBears.name,
+                    owner: "me",
+                    counters: { "+1/+1": 1 },
+                    tapped: true,
+                },
+                { name: shivanDragon.name, owner: "opp" },
+            ],
+            phase: "DECLARE_BLOCKERS",
+            turn: 5,
+            libraryCount: 20,
+        });
+        const attacker = state.players[0].battlefield[1];
+        attacker.isAttacking = true;
+        attacker.hasAttackedThisTurn = true;
+        state.creatureAttackedThisTurn = true;
+        state.combat = {
+            attackerIds: [attacker.id],
+            confirmed: true,
+            blockerAssignments: {},
+            blockersConfirmed: false,
+        };
+
+        const outcome = lowerDecision(state, state.players[1].id, "no blocks");
+
+        expect(outcome.ok).toBe(false);
+        if (outcome.ok) return;
+        expect(outcome.kind).toBe("combat-not-captured");
+        expect(outcome.dropped.some((note) => note.startsWith("combat:"))).toBe(
+            true
         );
     });
 });

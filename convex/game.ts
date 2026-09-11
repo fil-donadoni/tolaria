@@ -17822,8 +17822,18 @@ export const debugSetupScenario = mutation({
                     )
                 ),
                 blockersConfirmed: v.optional(v.boolean()),
-                attackedThisTurn: v.optional(v.array(v.string())),
-                blockedThisTurn: v.optional(v.array(v.string())),
+                attackedThisTurn: v.optional(
+                    v.object({
+                        me: v.optional(v.array(v.string())),
+                        opp: v.optional(v.array(v.string())),
+                    })
+                ),
+                blockedThisTurn: v.optional(
+                    v.object({
+                        me: v.optional(v.array(v.string())),
+                        opp: v.optional(v.array(v.string())),
+                    })
+                ),
                 creatureAttacked: v.optional(v.boolean()),
             })
         ),

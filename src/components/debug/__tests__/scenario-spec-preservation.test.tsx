@@ -120,10 +120,10 @@ const STORED: Required<ScenarioSpec> = {
     combat: {
         attackers: ["Psychatog"],
         confirmed: true,
-        blockers: [{ blocker: "Wall of Blossoms", blocking: [0] }],
+        blockers: [{ blocker: "Shivan Dragon", blocking: [0] }],
         blockersConfirmed: false,
-        attackedThisTurn: ["Werebear"],
-        blockedThisTurn: ["Wall of Roots"],
+        attackedThisTurn: { me: ["Savannah Lions"] },
+        blockedThisTurn: { opp: ["Grizzly Bears"] },
         creatureAttacked: true,
     },
     companion: { name: "Lurrus of the Dream-Den", owner: "me", used: true },
@@ -132,7 +132,18 @@ const STORED: Required<ScenarioSpec> = {
 /** What the form itself would assemble after the admin edits a card — only the
  *  form-owned fields, deliberately different from `STORED`. */
 const FORM_ASSEMBLED: ScenarioSpec = {
-    cards: [{ name: "Upheaval", owner: "me", zone: "hand" }],
+    cards: [
+        { name: "Upheaval", owner: "me", zone: "hand" },
+        // CR 508.1a / 509.1a (issue #3458) — the permanents `STORED.combat`
+        // names, still on the battlefield the form assembled. A carried combat
+        // is dropped when its names no longer resolve against `cards`
+        // (`dropStaleCombat`), so a fixture missing them would exercise the
+        // DROP and never the carry.
+        { name: "Psychatog", owner: "me", zone: "battlefield" },
+        { name: "Shivan Dragon", owner: "opp", zone: "battlefield" },
+        { name: "Savannah Lions", owner: "me", zone: "battlefield" },
+        { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+    ],
     phase: "PRECOMBAT_MAIN",
     landCount: 1,
     libraryCount: 2,
@@ -177,6 +188,14 @@ describe("scenario spec field ownership", () => {
         const cleared = assembleScenarioSpec({ cards: [] }, STORED);
         for (const key of SPEC_KEYS) {
             if (scenarioSpecFieldOwner(key) === "form-owned") continue;
+            // CR 508.1a (issue #3458) — `combat` is the exception, and not a
+            // hole in the rule: it REFERENCES the form-owned card list, so
+            // carrying it onto a board with no cards would save a row
+            // `buildStateFromScenario` throws on. Its own test is below.
+            if (key === "combat") {
+                expect(cleared[key]).toBeUndefined();
+                continue;
+            }
             expect(cleared[key]).toEqual(STORED[key]);
         }
         expect(cleared.turn).toBeUndefined();
@@ -219,7 +238,10 @@ describe("editing a scenario through the real form", () => {
         return call!.spec;
     };
 
-    it.each(SPEC_KEYS.filter((key) => key !== "cards"))(
+    // `combat` is excluded for the reason its own test below states: it is the
+    // one spec field that REFERENCES the card list, and this edit renames the
+    // card it names — so keeping it would save a row that cannot load.
+    it.each(SPEC_KEYS.filter((key) => key !== "cards" && key !== "combat"))(
         "keeps `%s` across an edit",
         (key) => {
             expect(editAndSave()[key]).toEqual(STORED[key]);
@@ -256,16 +278,27 @@ describe("editing a scenario through the real form", () => {
         });
     });
 
-    it("carries a `preserved` field through, when there is one", () => {
-        // Empty today (issue #3463 gave every field an input). The assertion
-        // keeps the OTHER mechanism honest the day a widening is classified
-        // `preserved`: an `it.each` over an empty list registers no test at
-        // all, which is the silent kind of green this repo does not accept.
+    it("drops a carried `combat` the admin renamed the cards out from under", () => {
+        // The hazard `preserved` creates, and the reason `dropStaleCombat`
+        // exists: `cards` is form-owned and `combat` references it by name, so
+        // renaming the attacker would otherwise save
+        // `{ cards: [Upheaval], combat: { attackers: ["Psychatog"] } }` — a row
+        // `buildStateFromScenario` THROWS on rather than rebuilding a combat
+        // one attacker short. The golden row would simply stop loading.
+        expect(PRESERVED_SCENARIO_SPEC_KEYS).toContain("combat");
+        expect(editAndSave().combat).toBeUndefined();
+    });
+
+    it("carries a `preserved` field through when its references still resolve", () => {
+        // The other half: the same carry path, on a board that still has the
+        // permanents the record names. An `it.each` over an empty list
+        // registers no test at all, which is the silent kind of green this
+        // repo does not accept — so this asserts the list is non-empty too.
+        expect(PRESERVED_SCENARIO_SPEC_KEYS.length).toBeGreaterThan(0);
         for (const key of PRESERVED_SCENARIO_SPEC_KEYS) {
-            expect(editAndSave()[key]).toEqual(STORED[key]);
+            expect(assembleScenarioSpec(FORM_ASSEMBLED, STORED)[key]).toEqual(
+                STORED[key]
+            );
         }
-        expect(PRESERVED_SCENARIO_SPEC_KEYS.length).toBeLessThanOrEqual(
-            SPEC_KEYS.length
-        );
     });
 });

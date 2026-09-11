@@ -199,10 +199,10 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
             combat: {
                 attackers: ["Savannah Lions"],
                 confirmed: true,
-                blockers: [{ blocker: "Wall of Omens", blocking: [0] }],
+                blockers: [{ blocker: "Shivan Dragon", blocking: [0] }],
                 blockersConfirmed: false,
-                attackedThisTurn: ["Werebear"],
-                blockedThisTurn: ["Wall of Roots"],
+                attackedThisTurn: { me: ["Savannah Lions"] },
+                blockedThisTurn: { opp: ["Grizzly Bears"] },
                 creatureAttacked: true,
             },
         };
@@ -322,10 +322,10 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
             combat: {
                 attackers: ["Savannah Lions"],
                 confirmed: true,
-                blockers: [{ blocker: "Wall of Omens", blocking: [0] }],
+                blockers: [{ blocker: "Shivan Dragon", blocking: [0] }],
                 blockersConfirmed: false,
-                attackedThisTurn: ["Werebear"],
-                blockedThisTurn: ["Wall of Roots"],
+                attackedThisTurn: { me: ["Savannah Lions"] },
+                blockedThisTurn: { opp: ["Grizzly Bears"] },
                 creatureAttacked: true,
             },
         });
@@ -359,8 +359,8 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
                     attackers: "Savannah Lions",
                     blockers: [
                         { blocking: [0] },
-                        { blocker: "Wall of Omens", blocking: [] },
-                        { blocker: "Wall of Omens", blocking: ["0"] },
+                        { blocker: "Shivan Dragon", blocking: [] },
+                        { blocker: "Shivan Dragon", blocking: ["0"] },
                     ],
                 },
             })
@@ -374,7 +374,7 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
                 combat: {
                     attackers: ["Savannah Lions", 7],
                     blockers: [
-                        { blocker: "Wall of Omens", blocking: [0, "1"] },
+                        { blocker: "Shivan Dragon", blocking: [0, "1"] },
                         "not an entry",
                     ],
                 },
@@ -383,7 +383,7 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
             cards: [],
             combat: {
                 attackers: ["Savannah Lions"],
-                blockers: [{ blocker: "Wall of Omens", blocking: [0] }],
+                blockers: [{ blocker: "Shivan Dragon", blocking: [0] }],
             },
         });
     });

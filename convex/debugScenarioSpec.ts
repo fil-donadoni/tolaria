@@ -349,14 +349,33 @@ export const scenarioSpecValidator = v.object({
                 )
             ),
             blockersConfirmed: v.optional(v.boolean()),
-            // CR 506.4 / 508.1a — creatures that have ATTACKED or BLOCKED this
-            // turn but are not in the lists above: removed from combat, or the
-            // combat phase is over and `state.combat` with it. The per-card
-            // flags outlive the combat object (Erg Raiders, Whirling Dervish),
-            // so they are named separately rather than derived from it.
-            attackedThisTurn: v.optional(v.array(v.string())),
-            blockedThisTurn: v.optional(v.array(v.string())),
-            // CR 508.1a — "a creature attacked this turn" at GAME scope
+            // CR 506.4 / 508.4 — creatures that have ATTACKED or BLOCKED this
+            // turn, the COMPLETE list including the ones currently in the
+            // declaration above. The per-card flags outlive the combat object
+            // (Erg Raiders, Whirling Dervish) and are not implied by it: a
+            // creature put onto the battlefield attacking is "attacking" but
+            // per CR 508.4 never "attacked".
+            //
+            // PER-SEAT, the shape `poison` / `life` / `landsPlayed` already
+            // have, and for a reason the declaration above does not need: a
+            // declared attacker is the active player's by CR 508.1a and a
+            // blocker the defender's by CR 509.1a, so those two lists have one
+            // battlefield each to search. These do not — both seats can have a
+            // Grizzly Bears that attacked this turn, and a flat list could not
+            // say whose.
+            attackedThisTurn: v.optional(
+                v.object({
+                    me: v.optional(v.array(v.string())),
+                    opp: v.optional(v.array(v.string())),
+                })
+            ),
+            blockedThisTurn: v.optional(
+                v.object({
+                    me: v.optional(v.array(v.string())),
+                    opp: v.optional(v.array(v.string())),
+                })
+            ),
+            // CR 508.1 / 508.4 — "a creature attacked this turn" at GAME scope
             // (`state.creatureAttackedThisTurn`, Keldon Twilight). NOT derived
             // from `attackedThisTurn` above: an attacker that DIED is on no
             // battlefield to name, so the scan would report "no creatures
@@ -521,13 +540,21 @@ export type ScenarioSpec = {
         confirmed?: boolean;
         blockers?: { blocker: string; blocking: number[] }[];
         blockersConfirmed?: boolean;
-        /** CR 506.4 — creatures that attacked/blocked this turn and are NOT in
-         *  the lists above: removed from combat, or the combat phase is over. */
-        attackedThisTurn?: string[];
-        blockedThisTurn?: string[];
-        /** CR 508.1a — the GAME-scope "a creature attacked this turn"
+        /** CR 506.4 / 508.4 — creatures that attacked/blocked this turn, the
+         *  complete list per SEAT (both seats can hold a Grizzly Bears that
+         *  attacked, which a flat list could not tell apart). Not implied by
+         *  the declaration above in either direction. */
+        attackedThisTurn?: { me?: string[]; opp?: string[] };
+        blockedThisTurn?: { me?: string[]; opp?: string[] };
+        /** CR 508.1 / 508.4 — the GAME-scope "a creature attacked this turn"
          *  (`state.creatureAttackedThisTurn`), which a dead attacker leaves
-         *  true with nothing on the battlefield to derive it from. */
+         *  true with nothing on the battlefield to derive it from.
+         *
+         *  Sets the flag, never CLEARS it: `attackedThisTurn` above raises it
+         *  as a side effect of `recordAttackerDeclared`, so an explicit
+         *  `false` beside a non-empty list cannot express "these attacked, but
+         *  Keldon Twilight should see none". No captured spec produces that
+         *  pair; a hand-written one has to leave the list empty. */
         creatureAttacked?: boolean;
     };
     companion?: { name: string; owner?: "me" | "opp"; used?: boolean };
@@ -748,6 +775,19 @@ function pickStringArray(value: unknown): string[] | undefined {
     return names.length > 0 ? names : undefined;
 }
 
+/** CR 506.4 (issue #3458) — the per-seat `{ me?, opp? }` pair of name lists the
+ *  per-turn combat record uses, tolerantly read: a seat whose list normalizes
+ *  to nothing is omitted, and a pair with neither seat left is an absence. */
+function pickSeatNameLists(
+    value: unknown
+): { me?: string[]; opp?: string[] } | undefined {
+    if (!isRecord(value)) return undefined;
+    const pair: { me?: string[]; opp?: string[] } = {};
+    set(pair, "me", pickStringArray(value.me));
+    set(pair, "opp", pickStringArray(value.opp));
+    return pair.me || pair.opp ? pair : undefined;
+}
+
 /** CR 509.1a (issue #3458) — one blocking creature and the attackers it was
  *  declared against, as indexes into `combat.attackers`. A malformed entry is
  *  dropped, not thrown on; an entry naming no attacker is dropped too, since a
@@ -959,12 +999,12 @@ export function normalizeScenarioSpec(raw: unknown): ScenarioSpec {
         set(
             combat,
             "attackedThisTurn",
-            pickStringArray(raw.combat.attackedThisTurn)
+            pickSeatNameLists(raw.combat.attackedThisTurn)
         );
         set(
             combat,
             "blockedThisTurn",
-            pickStringArray(raw.combat.blockedThisTurn)
+            pickSeatNameLists(raw.combat.blockedThisTurn)
         );
         set(
             combat,
@@ -1039,6 +1079,22 @@ export function collectUnresolvedCardNames(
     }
     if (spec.companion && !resolves(spec.companion.name)) {
         unresolved.add(spec.companion.name);
+    }
+    // CR 508.1a / 509.1a (issue #3458) — the four combat name lists, which the
+    // builder resolves by name exactly as it resolves an `attachedTo` host, and
+    // throws on. Without them a row whose combat names an unresolvable card is
+    // accepted at WRITE and throws at LOAD, which is the whole failure this
+    // guard exists to prevent (ADR 0044). Either resolution vouches: an
+    // attacking TOKEN is named by its catalogue key, like an Aura host.
+    for (const name of [
+        ...(spec.combat?.attackers ?? []),
+        ...(spec.combat?.blockers ?? []).map((entry) => entry.blocker),
+        ...(spec.combat?.attackedThisTurn?.me ?? []),
+        ...(spec.combat?.attackedThisTurn?.opp ?? []),
+        ...(spec.combat?.blockedThisTurn?.me ?? []),
+        ...(spec.combat?.blockedThisTurn?.opp ?? []),
+    ]) {
+        if (!resolves(name) && !resolvesToken(name)) unresolved.add(name);
     }
     return [...unresolved];
 }
