@@ -23,6 +23,21 @@
  * Idempotent: existing lockfile entries are preserved; only missing scryfallIds
  * are fetched and appended. Re-run after adding cards the tool didn't index.
  *
+ * `--refresh <name|oracleId|scryfallId>` RE-RESOLVES a row already in the
+ * lockfile (issue #3423) — the one thing a plain run can never do, since it
+ * skips everything present. That was the whole repair path for a row pinned to
+ * the wrong printing, and the alternative was a hand edit, which the lockfile
+ * forbids:
+ *
+ *   bun run scripts/backfill-card-index.ts --refresh "Shadowblood Ridge"
+ *
+ * A FAILED first-printing lookup writes NOTHING and exits non-zero. It used to
+ * fall back to the print in hand, which the caller then wrote into both
+ * `scryfallId` and `firstPrintId` — the exact pair `check-card-index.ts`
+ * compares against each other, so the guess landed pre-verified and the guard
+ * printed "every card on its first printing" over it. See
+ * `scripts/lib/first-paper-print.ts`.
+ *
  * `--prune` additionally REMOVES pollution rows — a row with no
  * `CardDefinition` behind it any more (a card that was deleted or renamed),
  * as `check-card-index.ts` defines it. Pruning is opt-in because it deletes
@@ -50,6 +65,13 @@ import { getAllCards } from "../convex/cards/index";
 // `--prune` can never remove a row the guard would have kept (or keep one it
 // would have flagged) — one authority, two callers.
 import { isPollutionEntry } from "./lib/card-index-pollution";
+// Fail-closed first-printing resolver, shared with `oracle-index-backfill.ts`
+// (issue #3423). `null` means "Scryfall could not answer" — never a guess.
+import {
+    SCRYFALL,
+    resolveFirstPaperPrint,
+    type PaperPrint,
+} from "./lib/first-paper-print";
 
 export type Entry = {
     name: string;
@@ -101,16 +123,9 @@ export function graduateCompiledEntries(
     return graduated;
 }
 
-/** Printings that are never a card's "first edition": Scryfall set types that
- *  are not real releases. Digital-only printings are excluded separately via
- *  the `digital` flag (ADR 0041 excludes digital-only, gold-border, oversized
- *  and non-tournament printings). */
-const NON_PRINT_SET_TYPES = new Set(["token", "memorabilia", "minigame"]);
-
-const SCRYFALL = "https://api.scryfall.com";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-type Resolved = Map<
+export type Resolved = Map<
     string,
     { oracleId: string; set: string; reprint: boolean }
 >;
@@ -178,50 +193,6 @@ async function postBatch(
     return out;
 }
 
-/** The card's earliest PAPER printing (ADR 0041). Only called for a print
- *  Scryfall marked as a reprint — otherwise the print in hand already is the
- *  first one. Falls back to the print in hand if the search fails or returns
- *  nothing usable, so a transient API problem never silently rewrites the
- *  lockfile to a wrong id. */
-async function firstPaperPrint(
-    oracleId: string,
-    fallbackId: string,
-    fallbackSet: string
-): Promise<{ id: string; set: string }> {
-    const url =
-        `${SCRYFALL}/cards/search?order=released&dir=asc&unique=prints` +
-        `&include_extras=true&q=${encodeURIComponent(`oracleid:${oracleId}`)}`;
-    for (let a = 1; a <= 4; a++) {
-        const res = await fetch(url, {
-            headers: {
-                Accept: "application/json",
-                "User-Agent": "tolaria-backfill/1.0",
-            },
-        });
-        await sleep(150);
-        if (res.status === 429 || res.status >= 500) {
-            await sleep(1500 * a);
-            continue;
-        }
-        if (!res.ok) break;
-        const json = (await res.json()) as {
-            data: Array<{
-                id: string;
-                set: string;
-                set_type: string;
-                digital: boolean;
-            }>;
-        };
-        const paper = json.data.filter(
-            (p) => !p.digital && !NON_PRINT_SET_TYPES.has(p.set_type)
-        );
-        if (paper.length > 0) return { id: paper[0].id, set: paper[0].set };
-        break;
-    }
-    console.warn(`  prints lookup failed for ${oracleId} — keeping own print`);
-    return { id: fallbackId, set: fallbackSet };
-}
-
 /** Resolve a batch, bisecting on HTTP 400 to skip the single bad identifier.
  *  Ids that resolve to nothing (not_found) simply never appear in the map. */
 async function resolveBatch(ids: string[]): Promise<Resolved> {
@@ -237,12 +208,180 @@ async function resolveBatch(ids: string[]): Promise<Resolved> {
     return new Map([...left, ...right]);
 }
 
+/** Build one chunk's worth of lockfile rows from the collection lookup plus a
+ *  first-printing RESOLVER, and report which cards the resolver could not
+ *  answer for.
+ *
+ *  A card whose prints lookup fails gets NO ROW (issue #3423). The old code
+ *  wrote the print in hand into both `scryfallId` and `firstPrintId`, which is
+ *  the exact pair `check-card-index.ts` compares — a guess that lands
+ *  pre-verified. A missing row is the loud failure mode: the guard reports it
+ *  as missing and the next run re-fetches it.
+ *
+ *  Exported so that contract is testable without the network. */
+export async function buildEntriesForChunk(
+    chunk: ReadonlyArray<{ id: string; name: string }>,
+    batch: Resolved,
+    resolvePrint: (oracleId: string) => Promise<PaperPrint | null>
+): Promise<{
+    entries: Entry[];
+    unresolvedPrints: Array<{ id: string; name: string }>;
+}> {
+    const entries: Entry[] = [];
+    const unresolvedPrints: Array<{ id: string; name: string }> = [];
+    for (const c of chunk) {
+        const r = batch.get(c.id);
+        if (!r) continue; // unresolved (bad id / not_found) — reported on re-run
+        const first = r.reprint
+            ? await resolvePrint(r.oracleId)
+            : { id: c.id, set: r.set, rarity: "" };
+        if (!first) {
+            unresolvedPrints.push({ id: c.id, name: c.name });
+            continue;
+        }
+        entries.push({
+            name: c.name,
+            scryfallId: c.id,
+            oracleId: r.oracleId,
+            firstSet: r.set,
+            firstPrintId: first.id,
+            firstPrintSet: first.set,
+        });
+    }
+    return { entries, unresolvedPrints };
+}
+
+/** `--refresh <name|oracleId|scryfallId>` — re-resolve rows ALREADY in the
+ *  lockfile (issue #3423). The backfill skips everything present, so a row
+ *  poisoned before the fail-closed resolver existed had no repair path but a
+ *  hand edit, which the lockfile forbids.
+ *
+ *  What gets rewritten depends on the row:
+ *
+ *   - a `source: "compiled"` row has no `CardDefinition` behind it — its
+ *     `scryfallId` IS the first printing (ADR 0108), so all of
+ *     `scryfallId`/`firstSet`/`firstPrintId`/`firstPrintSet`/`rarity` move;
+ *   - a hand-written row's `scryfallId` is the `CardDefinition.id` and stays
+ *     put: only `firstPrintId`/`firstPrintSet` are re-resolved, so a card
+ *     implemented against a reprint shows up as ADR 0041 drift in
+ *     `check:index` — which is that guard's whole job.
+ *
+ *  Returns the rows it changed. A resolver that answers `null` changes
+ *  nothing and is reported by the caller as a failure. */
+export async function refreshEntries(
+    rows: Entry[],
+    resolvePrint: (oracleId: string) => Promise<PaperPrint | null>
+): Promise<{
+    changed: Array<{ before: Entry; after: Entry }>;
+    unresolved: Entry[];
+}> {
+    const changed: Array<{ before: Entry; after: Entry }> = [];
+    const unresolved: Entry[] = [];
+    for (const row of rows) {
+        const first = await resolvePrint(row.oracleId);
+        if (!first) {
+            unresolved.push(row);
+            continue;
+        }
+        const before = { ...row };
+        if (row.source === "compiled") {
+            row.scryfallId = first.id;
+            row.firstSet = first.set;
+            if (first.rarity)
+                (row as { rarity?: string }).rarity = first.rarity;
+        }
+        row.firstPrintId = first.id;
+        row.firstPrintSet = first.set;
+        if (JSON.stringify(before) !== JSON.stringify(row))
+            changed.push({ before, after: row });
+    }
+    return { changed, unresolved };
+}
+
+/** Rows a `--refresh <query>` names: exact oracle id, exact print id, or
+ *  case-insensitive full name (a name can match a compiled row AND a
+ *  hand-written one — both are refreshed). */
+export function selectRefreshRows(rows: Entry[], query: string): Entry[] {
+    const q = query.trim().toLowerCase();
+    return rows.filter(
+        (e) =>
+            e.oracleId.toLowerCase() === q ||
+            e.scryfallId.toLowerCase() === q ||
+            e.name.toLowerCase() === q
+    );
+}
+
 async function main() {
     const lockPath = resolve("data/card-index.json");
     const existing: Entry[] = existsSync(lockPath)
         ? JSON.parse(readFileSync(lockPath, "utf-8"))
         : [];
     const byId = new Map(existing.map((e) => [e.scryfallId, e]));
+
+    const writeLock = () => {
+        const merged = [...byId.values()].sort((a, b) =>
+            a.name.localeCompare(b.name)
+        );
+        writeFileSync(
+            lockPath,
+            JSON.stringify(merged, null, 4) + "\n",
+            "utf-8"
+        );
+    };
+
+    // `--refresh <name|oracleId|scryfallId>` — re-resolve rows already in the
+    // lockfile (issue #3423). Runs alone: no graduation, no prune, no fetch of
+    // missing cards, so a repair touches exactly the rows it names.
+    const refreshIdx = process.argv.indexOf("--refresh");
+    if (refreshIdx !== -1) {
+        const query = process.argv[refreshIdx + 1];
+        if (!query || query.startsWith("--")) {
+            console.error(
+                "✗ --refresh needs a card name, oracle id or print id:\n" +
+                    '  bun run scripts/backfill-card-index.ts --refresh "Shadowblood Ridge"'
+            );
+            process.exit(1);
+        }
+        const rows = selectRefreshRows(existing, query);
+        if (rows.length === 0) {
+            console.error(`✗ no lockfile row matches "${query}".`);
+            process.exit(1);
+        }
+        const { changed, unresolved } = await refreshEntries(rows, (oracleId) =>
+            resolveFirstPaperPrint(oracleId, {
+                userAgent: "tolaria-backfill/1.0",
+            })
+        );
+        if (unresolved.length) {
+            console.error(
+                `✗ first-printing lookup failed for ${unresolved.length} row(s) — ` +
+                    `lockfile left untouched:`
+            );
+            for (const e of unresolved)
+                console.error(`  - ${e.name} (${e.oracleId})`);
+            process.exit(1);
+        }
+        if (changed.length === 0) {
+            console.log(
+                `✓ ${rows.length} row(s) matched "${query}" — already on their first printing.`
+            );
+            return;
+        }
+        // A compiled row's key IS its `scryfallId`, so a moved id needs the
+        // map re-keyed, not just the value mutated.
+        for (const { before, after } of changed) {
+            if (before.scryfallId !== after.scryfallId)
+                byId.delete(before.scryfallId);
+            byId.set(after.scryfallId, after);
+            console.log(
+                `  ${after.name}: ${before.firstPrintSet} ${before.firstPrintId} → ` +
+                    `${after.firstPrintSet} ${after.firstPrintId}`
+            );
+        }
+        writeLock();
+        console.log(`✓ refreshed ${changed.length} row(s) → ${lockPath}`);
+        return;
+    }
 
     const cards = getAllCards();
     const registryScryfallIds = new Set(cards.map((c) => c.id));
@@ -262,17 +401,6 @@ async function main() {
             }
         }
     }
-
-    const writeLock = () => {
-        const merged = [...byId.values()].sort((a, b) =>
-            a.name.localeCompare(b.name)
-        );
-        writeFileSync(
-            lockPath,
-            JSON.stringify(merged, null, 4) + "\n",
-            "utf-8"
-        );
-    };
 
     const missing = cards.filter((c) => !byId.has(c.id));
     console.log(
@@ -300,24 +428,19 @@ async function main() {
     // batch. A blocked/killed run loses at most one batch; re-running skips
     // everything already written (matched by scryfallId above).
     let fetched = 0;
+    // Cards whose FIRST-PRINTING lookup failed: no row was written for them
+    // (issue #3423), and the run must not exit 0 over it.
+    const unresolvedPrints: Array<{ id: string; name: string }> = [];
     for (let i = 0; i < missing.length; i += 75) {
         const chunk = missing.slice(i, i + 75);
         const batch = await resolveBatch(chunk.map((c) => c.id));
-        for (const c of chunk) {
-            const r = batch.get(c.id);
-            if (!r) continue; // unresolved (bad id / not_found) — reported on re-run
-            const first = r.reprint
-                ? await firstPaperPrint(r.oracleId, c.id, r.set)
-                : { id: c.id, set: r.set };
-            byId.set(c.id, {
-                name: c.name,
-                scryfallId: c.id,
-                oracleId: r.oracleId,
-                firstSet: r.set,
-                firstPrintId: first.id,
-                firstPrintSet: first.set,
-            });
-        }
+        const built = await buildEntriesForChunk(chunk, batch, (oracleId) =>
+            resolveFirstPaperPrint(oracleId, {
+                userAgent: "tolaria-backfill/1.0",
+            })
+        );
+        for (const e of built.entries) byId.set(e.scryfallId, e);
+        unresolvedPrints.push(...built.unresolvedPrints);
         writeLock();
         fetched += chunk.length;
         console.log(`  ${Math.min(fetched, missing.length)}/${missing.length}`);
@@ -330,6 +453,20 @@ async function main() {
             `\n${stillMissing.length} unresolved (no Scryfall match):`
         );
         for (const c of stillMissing) console.warn(`  - ${c.name} (${c.id})`);
+    }
+    if (unresolvedPrints.length) {
+        // Non-zero exit, not a warning: nothing in this repo re-reads a
+        // `console.warn`, which is how a fallback-written row went unnoticed
+        // for a year (issue #3423).
+        console.error(
+            `\n✗ ${unresolvedPrints.length} card(s) left UNINDEXED — first-printing ` +
+                `lookup failed (Scryfall unreachable / rate-limited). No row was ` +
+                `written for them, rather than a guess that reads as verified:`
+        );
+        for (const c of unresolvedPrints)
+            console.error(`  - ${c.name} (${c.id})`);
+        console.error("Re-run the backfill once Scryfall answers again.");
+        process.exitCode = 1;
     }
 }
 

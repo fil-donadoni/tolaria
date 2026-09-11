@@ -41,6 +41,13 @@
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
+// Fail-closed first-printing resolver, shared with `backfill-card-index.ts`
+// (issue #3423). `null` means "Scryfall could not answer" — never a guess.
+import {
+    SCRYFALL,
+    resolveFirstPaperPrint,
+    type PaperPrint,
+} from "./lib/first-paper-print";
 
 type Rarity = "common" | "uncommon" | "rare" | "mythic";
 const KNOWN_RARITIES: ReadonlySet<string> = new Set([
@@ -50,7 +57,7 @@ const KNOWN_RARITIES: ReadonlySet<string> = new Set([
     "mythic",
 ]);
 
-interface Entry {
+export interface Entry {
     name: string;
     scryfallId: string;
     oracleId: string;
@@ -70,9 +77,6 @@ interface Entry {
 
 /** Printings that are never a card's "first edition" (mirrors
  *  `backfill-card-index.ts`). */
-const NON_PRINT_SET_TYPES = new Set(["token", "memorabilia", "minigame"]);
-
-const SCRYFALL = "https://api.scryfall.com";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 type CollectionHit = {
@@ -81,7 +85,7 @@ type CollectionHit = {
     rarity: string;
     reprint: boolean;
 };
-type Resolved = Map<string, CollectionHit>;
+export type Resolved = Map<string, CollectionHit>;
 
 async function postBatch(
     oracleIds: string[],
@@ -157,58 +161,65 @@ async function resolveBatch(oracleIds: string[]): Promise<Resolved> {
     return new Map([...left, ...right]);
 }
 
-/** The card's earliest PAPER printing (ADR 0041) — same method as
- *  `backfill-card-index.ts`'s `firstPaperPrint`, plus `rarity` (that file
- *  never needed it: a hand-written `CardDefinition` already declares its
- *  own). */
-async function firstPaperPrint(
-    oracleId: string,
-    fallback: { id: string; set: string; rarity: string }
-): Promise<{ id: string; set: string; rarity: string }> {
-    const url =
-        `${SCRYFALL}/cards/search?order=released&dir=asc&unique=prints` +
-        `&include_extras=true&q=${encodeURIComponent(`oracleid:${oracleId}`)}`;
-    for (let a = 1; a <= 4; a++) {
-        const res = await fetch(url, {
-            headers: {
-                Accept: "application/json",
-                "User-Agent": "tolaria-oracle-index/1.0",
-            },
-        });
-        await sleep(120);
-        if (res.status === 429 || res.status >= 500) {
-            await sleep(1500 * a);
-            continue;
-        }
-        if (!res.ok) break;
-        const json = (await res.json()) as {
-            data: Array<{
-                id: string;
-                set: string;
-                set_type: string;
-                digital: boolean;
-                rarity: string;
-            }>;
-        };
-        const paper = json.data.filter(
-            (p) => !p.digital && !NON_PRINT_SET_TYPES.has(p.set_type)
-        );
-        if (paper.length > 0)
-            return {
-                id: paper[0].id,
-                set: paper[0].set,
-                rarity: paper[0].rarity,
-            };
-        break;
-    }
-    console.warn(`  prints lookup failed for ${oracleId} — keeping own print`);
-    return fallback;
-}
-
 interface ReadyRow {
     oracleId: string;
     name: string;
     state: string;
+}
+
+/** Build one chunk's worth of compiled lockfile rows from the collection
+ *  lookup plus a first-printing RESOLVER, reporting both kinds of drop-out:
+ *  a rarity this repo does not model, and a first-printing lookup the
+ *  resolver could not answer.
+ *
+ *  A card whose prints lookup fails gets NO ROW (issue #3423). The old code
+ *  fell back to the print in hand and wrote it into BOTH `scryfallId` and
+ *  `firstPrintId` — the exact pair `check-card-index.ts` compares against
+ *  each other, so the guess was verified-looking by construction. That is how
+ *  Shadowblood Ridge shipped pinned to `dsc` (2024) instead of `ody` (2001).
+ *
+ *  Exported so that contract is testable without the network. */
+export async function buildCompiledEntriesForChunk(
+    chunk: ReadonlyArray<{ oracleId: string; name: string }>,
+    batch: Resolved,
+    resolvePrint: (oracleId: string) => Promise<PaperPrint | null>
+): Promise<{
+    entries: Entry[];
+    skippedRarity: Array<{ name: string; rarity: string }>;
+    unresolvedPrints: Array<{ oracleId: string; name: string }>;
+}> {
+    const entries: Entry[] = [];
+    const skippedRarity: Array<{ name: string; rarity: string }> = [];
+    const unresolvedPrints: Array<{ oracleId: string; name: string }> = [];
+    for (const c of chunk) {
+        const r = batch.get(c.oracleId);
+        if (!r) continue; // unresolved — reported on re-run
+        const first = r.reprint
+            ? await resolvePrint(c.oracleId)
+            : { id: r.id, set: r.set, rarity: r.rarity };
+        if (!first) {
+            unresolvedPrints.push({ oracleId: c.oracleId, name: c.name });
+            continue;
+        }
+        if (!KNOWN_RARITIES.has(first.rarity)) {
+            // "special" / "bonus" — unmodelled (convex/cards/types.ts
+            // `Rarity`); bail loudly rather than coerce, same policy as
+            // the import tool for hand-written cards.
+            skippedRarity.push({ name: c.name, rarity: first.rarity });
+            continue;
+        }
+        entries.push({
+            name: c.name,
+            scryfallId: first.id,
+            oracleId: c.oracleId,
+            firstSet: first.set,
+            firstPrintId: first.id,
+            firstPrintSet: first.set,
+            rarity: first.rarity as Rarity,
+            source: "compiled",
+        });
+    }
+    return { entries, skippedRarity, unresolvedPrints };
 }
 
 async function main() {
@@ -246,36 +257,27 @@ async function main() {
 
     let done = 0;
     let skippedRarity = 0;
+    // Cards whose FIRST-PRINTING lookup failed: no row was written for them
+    // (issue #3423), and the run must not exit 0 over it.
+    const unresolvedPrints: Array<{ oracleId: string; name: string }> = [];
     for (let i = 0; i < missing.length; i += 75) {
         const chunk = missing.slice(i, i + 75);
         const batch = await resolveBatch(chunk.map((c) => c.oracleId));
-        for (const c of chunk) {
-            const r = batch.get(c.oracleId);
-            if (!r) continue; // unresolved — reported on re-run
-            const first = r.reprint
-                ? await firstPaperPrint(c.oracleId, r)
-                : { id: r.id, set: r.set, rarity: r.rarity };
-            if (!KNOWN_RARITIES.has(first.rarity)) {
-                // "special" / "bonus" — unmodelled (convex/cards/types.ts
-                // `Rarity`); bail loudly rather than coerce, same policy as
-                // the import tool for hand-written cards.
-                console.warn(
-                    `  skipping ${c.name}: unmodelled rarity "${first.rarity}"`
-                );
-                skippedRarity++;
-                continue;
-            }
-            byOracleId.set(c.oracleId, {
-                name: c.name,
-                scryfallId: first.id,
-                oracleId: c.oracleId,
-                firstSet: first.set,
-                firstPrintId: first.id,
-                firstPrintSet: first.set,
-                rarity: first.rarity as Rarity,
-                source: "compiled",
-            });
-        }
+        const built = await buildCompiledEntriesForChunk(
+            chunk,
+            batch,
+            (oracleId) =>
+                resolveFirstPaperPrint(oracleId, {
+                    userAgent: "tolaria-oracle-index/1.0",
+                })
+        );
+        for (const e of built.entries) byOracleId.set(e.oracleId, e);
+        for (const s of built.skippedRarity)
+            console.warn(
+                `  skipping ${s.name}: unmodelled rarity "${s.rarity}"`
+            );
+        skippedRarity += built.skippedRarity.length;
+        unresolvedPrints.push(...built.unresolvedPrints);
         writeLock();
         done += chunk.length;
         console.log(`  ${Math.min(done, missing.length)}/${missing.length}`);
@@ -290,9 +292,30 @@ async function main() {
         for (const c of stillMissing.slice(0, 30))
             console.warn(`  - ${c.name} (${c.oracleId})`);
     }
+    if (unresolvedPrints.length) {
+        // Non-zero exit, not a warning: nothing in this repo re-reads a
+        // `console.warn`, which is how a fallback-written row went unnoticed
+        // for a year (issue #3423).
+        console.error(
+            `\n✗ ${unresolvedPrints.length} card(s) left UNINDEXED — first-printing ` +
+                `lookup failed (Scryfall unreachable / rate-limited). No row was ` +
+                `written for them, rather than a guess that reads as verified:`
+        );
+        for (const c of unresolvedPrints)
+            console.error(`  - ${c.name} (${c.oracleId})`);
+        console.error(
+            "Re-run `bun run oracle:index` once Scryfall answers again."
+        );
+        process.exitCode = 1;
+    }
 }
 
-main().catch((e) => {
-    console.error(e);
-    process.exit(1);
-});
+// Run only as a script, never on import — `buildCompiledEntriesForChunk` has
+// a network-free unit test (issue #3423), and importing this module used to
+// fire the whole Scryfall pass.
+if (import.meta.main) {
+    main().catch((e) => {
+        console.error(e);
+        process.exit(1);
+    });
+}
