@@ -21,7 +21,7 @@ import { grizzlyBears } from "../../cards/sets/lea/green";
 import { gaeasTouch } from "../../cards/sets/drk/green";
 import { shivanDragon } from "../../cards/sets/lea/red";
 import { forest } from "../../cards/sets/lea/colorless";
-import { animateDead, fear } from "../../cards/sets/lea/black";
+import { animateDead, fear, simulacrum } from "../../cards/sets/lea/black";
 import { onceUponATime } from "../../cards/sets/eld/green";
 import { grapeshot } from "../../cards/sets/tsp";
 import { tokenDefinitionId, tryGetDefinition } from "../../cards";
@@ -36,8 +36,11 @@ import {
     NO_TARGETING_SOURCE,
     getLegalActions,
     getLegalTargets,
+    raiseTriggerTargetSelection,
 } from "../rules";
+import { collectTriggers } from "../triggers";
 import type { GameState, PendingChoice } from "../state";
+import type { GameEvent } from "../../cards/types";
 import type { ScenarioSpec } from "../../debugScenarioSpec";
 import { removedKeywordRows } from "../../cards/__tests__/setup";
 
@@ -2067,5 +2070,247 @@ describe("buildStateFromScenario — what has already been cast (issue #3449)", 
         const rebuilt = buildStateFromScenario(dirty, spec);
         expect(rebuilt.players[0].spellsCastThisGame).toBe(0);
         expect(rebuilt.spellsCastThisTurn).toBe(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Issue #3453 (PRD #3397) — the RETROSPECTIVE per-turn tallies: what has
+// already happened this turn that a card still reads. Before these fields the
+// rebuild opened at zero on all of them, so a decision taken after the damage
+// / the life gain / the death was judged on a board where none of it had
+// happened.
+// ---------------------------------------------------------------------------
+
+describe("buildStateFromScenario — retrospective per-turn tallies (issue #3453)", () => {
+    // CR 120.3a / 119.3 / 700.4 / 508.1a — all five seeded from the spec, in
+    // the engine's own shape (a `playerId → amount` record where the engine
+    // keys by player).
+    it("seeds damage taken, artifact damage, life gained, deaths and the attack flag", () => {
+        const built = buildStateFromScenario(makeState(), {
+            cards: [],
+            damageDealtToPlayerThisTurn: { me: 4, opp: 1 },
+            artifactDamageToPlayerThisTurn: { me: 2 },
+            lifeGainedThisTurn: { me: 3, opp: 0 },
+            deathsThisTurn: 2,
+            creatureAttackedThisTurn: true,
+        });
+        expect(built.damageDealtToPlayerThisTurn).toEqual({ p1: 4, p2: 1 });
+        expect(built.artifactDamageToPlayerThisTurn).toEqual({ p1: 2 });
+        expect(built.lifeGainedThisTurn).toEqual({ p1: 3 });
+        expect(built.deathsThisTurn).toBe(2);
+        expect(built.creatureAttackedThisTurn).toBe(true);
+    });
+
+    // `debugSetupScenario` rebuilds onto the LIVE game, so an omitted tally
+    // must mean "nothing happened", not "inherit the game I am loaded into".
+    it("clears a live game's tallies when the spec names none", () => {
+        const base = makeState();
+        base.damageDealtToPlayerThisTurn = { p1: 7 };
+        base.artifactDamageToPlayerThisTurn = { p1: 7 };
+        base.lifeGainedThisTurn = { p2: 9 };
+        base.deathsThisTurn = 3;
+        base.creatureAttackedThisTurn = true;
+        base.abilityResolutionCounts = { "stale:ability": 4 };
+        base.lastKnownCopiable = {
+            stale: { defId: grizzlyBears.id, turn: 1 },
+        };
+        base.cleanupBookkeepingTurn = 1;
+        const built = buildStateFromScenario(base, { cards: [] });
+        expect(built.damageDealtToPlayerThisTurn).toBeUndefined();
+        expect(built.artifactDamageToPlayerThisTurn).toBeUndefined();
+        expect(built.lifeGainedThisTurn).toBeUndefined();
+        expect(built.deathsThisTurn).toBeUndefined();
+        expect(built.creatureAttackedThisTurn).toBeUndefined();
+        expect(built.abilityResolutionCounts).toBeUndefined();
+        // CR 608.2h / 111.12 (ADR 0086) and CR 514.3a — the two allowlisted
+        // ledgers: both are keyed to a board the rebuild has replaced, so the
+        // correct rebuilt value is "none" and the engine re-stamps them.
+        expect(built.lastKnownCopiable).toBeUndefined();
+        expect(built.cleanupBookkeepingTurn).toBeUndefined();
+    });
+
+    it("round-trips every tally through specFromState with no game-state residue", () => {
+        const live = buildStateFromScenario(makeState(), {
+            cards: [{ name: "Grizzly Bears", owner: "me" }],
+        });
+        live.damageDealtToPlayerThisTurn = { p1: 5, p2: 2 };
+        live.artifactDamageToPlayerThisTurn = { p1: 3 };
+        live.lifeGainedThisTurn = { p1: 6 };
+        live.deathsThisTurn = 4;
+        live.creatureAttackedThisTurn = true;
+        // The two allowlisted ledgers are present on the live state too — the
+        // point of this case is that neither reads as residue any more.
+        live.lastKnownCopiable = {
+            gone: { defId: grizzlyBears.id, turn: live.turn },
+        };
+        live.cleanupBookkeepingTurn = live.turn - 1;
+
+        const { spec, dropped } = specFromState(live, { mySeatId: "p1" });
+        expect(dropped.filter((d) => d.startsWith("game state:"))).toEqual([]);
+        const rebuilt = buildStateFromScenario(makeState(), spec);
+        expect(rebuilt.damageDealtToPlayerThisTurn).toEqual({ p1: 5, p2: 2 });
+        expect(rebuilt.artifactDamageToPlayerThisTurn).toEqual({ p1: 3 });
+        expect(rebuilt.lifeGainedThisTurn).toEqual({ p1: 6 });
+        expect(rebuilt.deathsThisTurn).toBe(4);
+        expect(rebuilt.creatureAttackedThisTurn).toBe(true);
+    });
+
+    // The behavioural half: a card that READS the tally must do in the rebuild
+    // what it did live. Simulacrum — "You gain life equal to the damage dealt
+    // to you this turn" (CR 120.3a).
+    it("Simulacrum reads the rebuilt damage tally, not zero", () => {
+        const built = buildStateFromScenario(makeState(), {
+            cards: [{ name: "Grizzly Bears", owner: "me" }],
+            life: { me: 13, opp: 20 },
+            damageDealtToPlayerThisTurn: { me: 4 },
+        });
+        const bear = built.players[0].battlefield[0];
+        pushSpell(built, simulacrum.id, "p1", [
+            { type: "permanent", id: bear.id },
+        ]);
+        resolveTopOfStack(built);
+        // 13 + 4 life, and the 2-toughness bear took 4 and died to SBAs.
+        expect(built.players[0].life).toBe(17);
+        expect(
+            built.players[0].battlefield.find((c) => c.id === bear.id)
+        ).toBeUndefined();
+    });
+
+    // CR 603.4 — Crested Sunmare's "if you gained life this turn" is checked
+    // at trigger time, so a rebuild that lost the tally does not trigger at
+    // all: the decision would not even be offered.
+    it("Crested Sunmare's intervening-if arms only in a rebuild carrying the life-gain tally", () => {
+        const spec: ScenarioSpec = {
+            cards: [{ name: "Crested Sunmare", owner: "me" }],
+            phase: "END_STEP",
+        };
+        const withGain = buildStateFromScenario(makeState(), {
+            ...spec,
+            lifeGainedThisTurn: { me: 3 },
+        });
+        const without = buildStateFromScenario(makeState(), spec);
+        const endStep = {
+            type: "PHASE_BEGIN" as const,
+            phase: "END_STEP" as const,
+            activePlayerId: "p1",
+        } as GameEvent;
+        expect(collectTriggers(withGain, [endStep]).length).toBe(1);
+        expect(collectTriggers(without, [endStep]).length).toBe(0);
+    });
+
+    // CR 608.2 / 514.2 — the per-card half. Scythecat Cub's landfall trigger
+    // doubles the counters on its SECOND resolution this turn; a rebuild that
+    // lost the tally makes every resolution the first one. Driven through the
+    // real machinery (`collectTriggers` + the CR 603.3d target announcement),
+    // never a hand-built stack item.
+    it("Scythecat Cub takes its second-resolution branch in a rebuild seeded with a count of 1", () => {
+        const landEntered = {
+            type: "PERMANENT_ENTERED" as const,
+            instanceId: "land1",
+            controllerId: "p1",
+            cardId: forest.id,
+            types: ["Land"],
+        } as GameEvent;
+        // The Cub alone on the battlefield is the sole legal "creature you
+        // control", so the mandatory target auto-selects (CR 603.3d) and the
+        // doubling lands on the Cub's own three counters.
+        const cubEntry = {
+            name: "Scythecat Cub",
+            owner: "me" as const,
+            counters: { "+1/+1": 3 },
+        };
+        const seeded = buildStateFromScenario(makeState(), {
+            cards: [
+                {
+                    ...cubEntry,
+                    abilityResolutions: { "scythecat-cub-landfall": 1 },
+                },
+            ],
+        });
+        const cub = seeded.players[0].battlefield[0];
+        expect(seeded.abilityResolutionCounts).toEqual({
+            [`${cub.id}:scythecat-cub-landfall`]: 1,
+        });
+        seeded.stack.push(...collectTriggers(seeded, [landEntered]));
+        expect(raiseTriggerTargetSelection(seeded)).toBe(false);
+        expect(resolveTopOfStack(seeded)).not.toBeNull();
+        // Second resolution: "double the number of +1/+1 counters" — 3 → 6.
+        expect(
+            seeded.players[0].battlefield.find((c) => c.id === cub.id)
+                ?.counters?.["+1/+1"]
+        ).toBe(6);
+
+        // The same board WITHOUT the tally resolves as a FIRST resolution: +1.
+        const fresh = buildStateFromScenario(makeState(), {
+            cards: [cubEntry],
+        });
+        const freshCub = fresh.players[0].battlefield[0];
+        fresh.stack.push(...collectTriggers(fresh, [landEntered]));
+        expect(raiseTriggerTargetSelection(fresh)).toBe(false);
+        expect(resolveTopOfStack(fresh)).not.toBeNull();
+        expect(
+            fresh.players[0].battlefield.find((c) => c.id === freshCub.id)
+                ?.counters?.["+1/+1"]
+        ).toBe(4);
+    });
+
+    // The tally is keyed by an instance id the rebuild reassigns, so the round
+    // trip is only lossless because it rides on the CARD and is re-keyed.
+    it("round-trips an ability resolution tally onto the rebuilt instance id", () => {
+        const live = buildStateFromScenario(makeState(), {
+            cards: [{ name: "Scythecat Cub", owner: "me" }],
+        });
+        const liveCub = live.players[0].battlefield[0];
+        live.abilityResolutionCounts = {
+            [`${liveCub.id}:scythecat-cub-landfall`]: 2,
+        };
+        const { spec, dropped } = specFromState(live, { mySeatId: "p1" });
+        expect(dropped.filter((d) => d.startsWith("game state:"))).toEqual([]);
+        expect(spec.cards[0].abilityResolutions).toEqual({
+            "scythecat-cub-landfall": 2,
+        });
+        const rebuilt = buildStateFromScenario(makeState(), spec);
+        const rebuiltCub = rebuilt.players[0].battlefield[0];
+        expect(rebuilt.abilityResolutionCounts).toEqual({
+            [`${rebuiltCub.id}:scythecat-cub-landfall`]: 2,
+        });
+    });
+
+    // The allowlist entry covers the shape that round-trips; a tally whose
+    // source is in NO lowered zone has no card to ride on, and would otherwise
+    // vanish without a word.
+    it("reports an ability resolution tally whose source is in no lowered zone", () => {
+        const live = buildStateFromScenario(makeState(), { cards: [] });
+        live.abilityResolutionCounts = { "ghost-instance:some-ability": 1 };
+        const { dropped } = specFromState(live, { mySeatId: "p1" });
+        expect(
+            dropped.some((d) =>
+                /abilityResolutionCounts: 1 tally\(ies\) whose trigger source/.test(
+                    d
+                )
+            )
+        ).toBe(true);
+    });
+
+    // CR 514.3a — the one position where the cleanup marker is load-bearing.
+    it("reports a capture taken inside the CR 514.3a extra cleanup step", () => {
+        const live = buildStateFromScenario(makeState(), { cards: [] });
+        live.phase = "CLEANUP";
+        live.cleanupBookkeepingTurn = live.turn;
+        const { dropped } = specFromState(live, { mySeatId: "p1" });
+        expect(
+            dropped.some((d) =>
+                /^cleanupBookkeepingTurn: captured inside/.test(d)
+            )
+        ).toBe(true);
+        // …and NOT when the marker is a previous turn's, which is every
+        // ordinary mid-game capture.
+        live.phase = "PRECOMBAT_MAIN";
+        live.cleanupBookkeepingTurn = live.turn - 1;
+        expect(
+            specFromState(live, { mySeatId: "p1" }).dropped.some((d) =>
+                d.startsWith("cleanupBookkeepingTurn:")
+            )
+        ).toBe(false);
     });
 });
