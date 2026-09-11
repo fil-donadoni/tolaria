@@ -1691,7 +1691,7 @@ describe("buildStateFromScenario — per-turn activation tallies (issue #3448)",
         expect(permanent(state, 1)?.activationsThisTurn).toBeUndefined();
     });
 
-    it("round-trips the tally on the battlefield, on a token and in the graveyard, dropping nothing (CR 400.7)", () => {
+    it("round-trips the tally in every lowerable zone and on a token, dropping nothing (CR 400.7)", () => {
         const base = makeState();
         const spec: ScenarioSpec = {
             cards: [
@@ -1717,6 +1717,22 @@ describe("buildStateFromScenario — per-turn activation tallies (issue #3448)",
                     zone: "graveyard",
                     activations: { [ABILITY]: 2 },
                 },
+                // All four lowerable zones, because the allowlist entry this
+                // change adds is what STOPS `reportCardResidue` naming the key:
+                // with the safety net gone, a zone `lowerCard` forgot would be
+                // a silent drop rather than a `dropped[]` line.
+                {
+                    name: gaeasTouch.name,
+                    owner: "me",
+                    zone: "hand",
+                    activations: { [ABILITY]: 4 },
+                },
+                {
+                    name: gaeasTouch.name,
+                    owner: "me",
+                    zone: "exile",
+                    activations: { [ABILITY]: 5 },
+                },
             ],
         };
         const state = buildStateFromScenario(base, spec);
@@ -1738,6 +1754,12 @@ describe("buildStateFromScenario — per-turn activation tallies (issue #3448)",
         expect(
             lowered.cards.find((c) => c.zone === "graveyard")?.activations
         ).toEqual({ [ABILITY]: 2 });
+        expect(
+            lowered.cards.find((c) => c.zone === "hand")?.activations
+        ).toEqual({ [ABILITY]: 4 });
+        expect(
+            lowered.cards.find((c) => c.zone === "exile")?.activations
+        ).toEqual({ [ABILITY]: 5 });
 
         const rebuilt = buildStateFromScenario(base, lowered);
         expect(permanent(rebuilt, 0)?.activationsThisTurn).toEqual({
@@ -1749,6 +1771,12 @@ describe("buildStateFromScenario — per-turn activation tallies (issue #3448)",
         ).toEqual({ [ABILITY]: 3 });
         expect(rebuilt.players[1].graveyard[0]?.activationsThisTurn).toEqual({
             [ABILITY]: 2,
+        });
+        expect(rebuilt.players[0].hand[0]?.activationsThisTurn).toEqual({
+            [ABILITY]: 4,
+        });
+        expect(rebuilt.players[0].exile[0]?.activationsThisTurn).toEqual({
+            [ABILITY]: 5,
         });
     });
 

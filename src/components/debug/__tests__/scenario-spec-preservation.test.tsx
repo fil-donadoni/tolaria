@@ -58,7 +58,18 @@ const DebugSaveScenario = (await import("../debug-save-scenario")).default;
  *  editor is most likely to be pointed at (ADR 0044). `Required` is what makes
  *  a newly added spec field a compile error here. */
 const STORED: Required<ScenarioSpec> = {
-    cards: [{ name: "Psychatog", owner: "me", zone: "battlefield" }],
+    // CR 602.5 (issue #3448) — the card carries a per-turn activation tally,
+    // the one `ScenarioCard` field the form renders no input for. It is
+    // `preserved` at CARD level by the draft round trip rather than by
+    // `assembleScenarioSpec`, which classifies SPEC-level fields only.
+    cards: [
+        {
+            name: "Psychatog",
+            owner: "me",
+            zone: "battlefield",
+            activations: { "psychatog-pump": 2 },
+        },
+    ],
     phase: "POSTCOMBAT_MAIN",
     landCount: 4,
     libraryCount: 30,
@@ -175,10 +186,27 @@ describe("editing a scenario through the real form", () => {
 
     it("still writes the edit the admin made", () => {
         const saved = editAndSave();
-        expect(saved.cards).toEqual([{ name: "Upheaval", owner: "me" }]);
+        expect(saved.cards).toEqual([
+            {
+                name: "Upheaval",
+                owner: "me",
+                activations: { "psychatog-pump": 2 },
+            },
+        ]);
         // The form-owned knobs inflate from the row and come back unchanged.
         expect(saved.turn).toBe(STORED.turn);
         expect(saved.phase).toBe(STORED.phase);
+    });
+
+    // CR 602.5 (issue #3448) — the CARD-level half of this file's obligation.
+    // `assembleScenarioSpec` resolves spec-level keys only, so a card field
+    // with no input survives an edit for exactly one reason: `cardToDraft` /
+    // `draftToCard` carry it opaquely. Drop either half and the tally is gone
+    // from the row the admin just pressed Update on, silently.
+    it("keeps a card field the form renders no input for", () => {
+        expect(editAndSave().cards[0]?.activations).toEqual({
+            "psychatog-pump": 2,
+        });
     });
 
     it("carries a `preserved` field through, when there is one", () => {

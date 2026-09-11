@@ -140,6 +140,15 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
                     tapped: true,
                     count: 3,
                     counters: { "+1/+1": 2 },
+                    // CR 602.5 (issue #3448) — the per-turn activation tally,
+                    // same tolerant `Record<string, number>` shape as
+                    // `counters`: non-numeric values are DROPPED, not thrown
+                    // on, and the surviving keys reach the builder. On a
+                    // GRAVEYARD card deliberately — the engine keeps the tally
+                    // on a card that has left play (CR 400.7 clears it on
+                    // re-entry instead), so this is the shape the verdict
+                    // quiz's own capture produced.
+                    activations: { "fetchland-crack": 1, bogus: "x" },
                 },
             ],
             phase: "PRECOMBAT_MAIN",
@@ -173,6 +182,7 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
                     tapped: true,
                     count: 3,
                     counters: { "+1/+1": 2 },
+                    activations: { "fetchland-crack": 1 },
                 },
             ],
             phase: "PRECOMBAT_MAIN",
