@@ -26,7 +26,11 @@ import { tokenDefinitionId, tryGetDefinition } from "../../cards";
 import { findTokenSpec } from "../../cards/tokenCatalogue";
 import { projectFullState, projectPublicState } from "../../gameProjections";
 import { buildSpellContext } from "../state";
-import { NO_TARGETING_SOURCE, getLegalTargets } from "../rules";
+import {
+    NO_TARGETING_SOURCE,
+    getLegalActions,
+    getLegalTargets,
+} from "../rules";
 import type { GameState, PendingChoice } from "../state";
 import type { ScenarioSpec } from "../../debugScenarioSpec";
 import { removedKeywordRows } from "../../cards/__tests__/setup";
@@ -388,6 +392,66 @@ describe("buildStateFromScenario — per-turn player tallies (CR 121.1 / 400.7)"
         expect(
             dropped.some((d) => /drawnThisTurn beyond the single/.test(d))
         ).toBe(true);
+    });
+
+    // CR 305.2 / 305.2a (issue #3446) — the land drop is the fourth-ranked
+    // player-level residue in the lowering sweep (present on 98.5% of Bot
+    // decisions), and the one that made "a main-phase decision taken after the
+    // land was played" — the most common decision there is — unjudgeable.
+    it("seeds lands already played on both seats (CR 305.2)", () => {
+        const state = buildStateFromScenario(makeState(), {
+            cards: [],
+            landsPlayed: { me: 1, opp: 2 },
+        });
+        expect(state.players[0].landsPlayedThisTurn).toBe(1);
+        expect(state.players[1].landsPlayedThisTurn).toBe(2);
+    });
+
+    it("clears the loaded game's land drop when the spec omits it", () => {
+        const base = makeState();
+        base.players[0].landsPlayedThisTurn = 1;
+        base.players[1].landsPlayedThisTurn = 1;
+        // A scenario PLACES a position: the drop the game being loaded into
+        // happened to have spent is not part of what the spec described, so an
+        // absent field must mean "no land played", not "whatever was there".
+        const built = buildStateFromScenario(base, { cards: [] });
+        for (const p of built.players) {
+            expect(p.landsPlayedThisTurn ?? 0).toBe(0);
+        }
+    });
+
+    // THE behavioural claim, read through the legality surface the client and
+    // `assertLegalAction` both use — never by reading the field back. Playing a
+    // land is a special action gated on the tally (CR 116.2a / 305.2b), so a
+    // rebuilt seat that has spent its drop must not be offered one.
+    it("offers NO land play to a rebuilt seat whose drop is spent (CR 305.2b)", () => {
+        const landInHand = (state: GameState) => {
+            const me = state.players[0];
+            const card = me.hand.find(
+                (c) => (c.card as { id?: string }).id === forest.id
+            );
+            if (!card) throw new Error("fixture: no land in hand");
+            return getLegalActions(state, me, card);
+        };
+        const board: ScenarioSpec = {
+            cards: [{ name: forest.name, owner: "me", zone: "hand" }],
+            phase: "PRECOMBAT_MAIN",
+        };
+
+        // The control first: with the drop unused the same board offers it, so
+        // the assertion below measures the tally and not some other legality
+        // of this fixture.
+        expect(
+            landInHand(buildStateFromScenario(makeState(), board))
+        ).toContain("play");
+        expect(
+            landInHand(
+                buildStateFromScenario(makeState(), {
+                    ...board,
+                    landsPlayed: { me: 1 },
+                })
+            )
+        ).not.toContain("play");
     });
 
     it("markLastDrawn re-seeds the draw tally with exactly that one card", () => {
@@ -861,6 +925,7 @@ describe("specFromState (issue #2148)", () => {
             poison: { me: 3, opp: 2 },
             life: { me: 12, opp: 8 },
             experience: { me: 2, opp: 1 },
+            landsPlayed: { me: 1, opp: 2 },
             markLastDrawn: true,
             companion: { name: shivanDragon.name, owner: "me", used: false },
         };
@@ -868,7 +933,7 @@ describe("specFromState (issue #2148)", () => {
         return { base, state };
     }
 
-    it("round-trips battlefield/hand/graveyard/exile, tapped, counters, attachments, damage, phase, turn, poison, life, experience and companion", () => {
+    it("round-trips battlefield/hand/graveyard/exile, tapped, counters, attachments, damage, phase, turn, poison, life, experience, lands played and companion", () => {
         const { base, state } = buildComprehensiveState();
         const mySeatId = state.players[0].id;
 
@@ -913,6 +978,15 @@ describe("specFromState (issue #2148)", () => {
         );
         expect(rebuilt.players[1].experienceCounters).toBe(
             state.players[1].experienceCounters
+        );
+        // CR 305.2 (issue #3446) — the land drop survives the round trip on
+        // BOTH seats, and `dropped` above is empty, so it is no longer the
+        // live-only player state that refused a post-drop capture.
+        expect(rebuilt.players[0].landsPlayedThisTurn).toBe(
+            state.players[0].landsPlayedThisTurn
+        );
+        expect(rebuilt.players[1].landsPlayedThisTurn).toBe(
+            state.players[1].landsPlayedThisTurn
         );
         expect(
             (rebuilt.players[0].companion?.instance.card as { id?: string }).id
@@ -1180,9 +1254,10 @@ describe("specFromState (issue #2148)", () => {
 
         const { dropped } = specFromState(state, { mySeatId: me.id });
 
-        // landsPlayedThisTurn is the issue's own named failure mode (a
-        // PRECOMBAT_MAIN capture of a seat that already played its land):
-        // must be named, not silently dropped.
+        // `landsPlayedThisTurn` used to head this list — it was the issue's
+        // own named failure mode. Issue #3446 gave the spec a `landsPlayed`
+        // field, so it is now CAPTURED rather than reported; the assertion
+        // that it round-trips lives with the other lowered fields below.
         const gameStateResidue = dropped.find((d) =>
             d.startsWith("game state: live-only state not captured")
         );
@@ -1200,7 +1275,6 @@ describe("specFromState (issue #2148)", () => {
             expect(gameStateResidue).toContain(field);
         }
         for (const field of [
-            "landsPlayedThisTurn",
             "energyCounters",
             "maxHandSizeOverride",
             "skipNextTurn",

@@ -79,6 +79,9 @@ const STORED: Required<ScenarioSpec> = {
     poison: { me: 3, opp: 1 },
     life: { me: 5, opp: 2 },
     experience: { me: 2, opp: 0 },
+    // CR 305.2 (issue #3446) — a curated row whose "me" has already used its
+    // land drop, the post-drop main phase PRD #3397 exists to judge.
+    landsPlayed: { me: 1, opp: 0 },
     // CR 102.1 / 117.1 / 117.4 (issue #3454) — a curated row pinning an
     // instant-speed decision on the opponent's turn.
     activePlayer: "opp",

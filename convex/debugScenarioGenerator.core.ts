@@ -141,6 +141,18 @@ export const SCENARIO_JSON_SCHEMA = {
             description:
                 "Experience counters on a player, if the description names them (default none).",
         },
+        // CR 305.2 (issue #3446) — "you've already played your land this
+        // turn" is a board a description names, and the only way to get it.
+        landsPlayed: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+                me: { type: "integer" },
+                opp: { type: "integer" },
+            },
+            description:
+                "Lands a player has already played this turn (default 0 each). Set me: 1 when the description says the land drop is spent.",
+        },
         // CR 702.139c / ADR 0064 (issue #1392).
         companion: {
             type: "object",
@@ -276,8 +288,8 @@ export function buildScenarioSystemPrompt(
         "  set `life.me` / `life.opp` to that exact number; omit `life` entirely",
         "  when no life total is mentioned (default 20 each).",
         "- The same omit-unless-named discipline applies to `experience`,",
-        "  `companion` and `markLastDrawn`: emit them ONLY when the description",
-        "  actually calls for them, never as decoration.",
+        "  `landsPlayed`, `companion` and `markLastDrawn`: emit them ONLY when",
+        "  the description actually calls for them, never as decoration.",
         "",
         `ALLOWED CARDS (${allowList.length}):`,
         allowList.join(", "),

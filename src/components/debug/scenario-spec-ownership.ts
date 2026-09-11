@@ -48,6 +48,10 @@ export const SCENARIO_SPEC_FIELD_OWNER = {
     poison: "form-owned",
     life: "form-owned",
     experience: "form-owned",
+    // CR 305.2 (issue #3446) — lands already played this turn. `form-owned`
+    // like its per-seat siblings: an admin pinning a post-land-drop main phase
+    // must be able to type it, not only capture it.
+    landsPlayed: "form-owned",
     // CR 102.1 / 117.1 / 117.4 (issue #3454) — the turn holder, the priority
     // holder and the banked passes. `form-owned` like everything else since
     // issue #3463: these are the first of PRD #3397's queued widenings, and a
@@ -113,7 +117,8 @@ export const FORM_OWNED_SCENARIO_SPEC_KEYS = (
  * here; add the row and the test demands the input.
  *
  *  - `per-seat` renders the me/opp pair the spec's own shape already has
- *    (`poison` / `life` / `experience` are all `{ me?, opp? }`).
+ *    (`poison` / `life` / `experience` / `landsPlayed` are all
+ *    `{ me?, opp? }`).
  *  - `cards` is the card repeater (`DebugScenarioCardFields`), which carries
  *    its own per-row labels — no spec-level input of its own.
  */
@@ -140,6 +145,7 @@ export const SCENARIO_SPEC_FIELD_INPUT = {
     poison: { kind: "per-seat", label: "poison", min: 0 },
     life: { kind: "per-seat", label: "life" },
     experience: { kind: "per-seat", label: "experience", min: 0 },
+    landsPlayed: { kind: "per-seat", label: "lands played", min: 0 },
     activePlayer: { kind: "seat", label: "active player" },
     priority: { kind: "seat", label: "priority" },
     passCount: { kind: "number", label: "passes", min: 0 },
