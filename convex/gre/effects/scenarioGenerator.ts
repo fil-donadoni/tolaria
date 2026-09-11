@@ -39,6 +39,7 @@ import type {
 } from "../../cards/types";
 import type { CardInstanceState, GameState } from "../state";
 import { EFFECT_OP_REGISTRY } from "../../cards/mechanicsRegistry";
+import { classLevelOf } from "../../cards/abilities/classLevels";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
 import { readPlayerCounters } from "../playerCounters";
 import { registerTokenDefinition } from "../../cards";
@@ -2157,7 +2158,7 @@ const OP_ASSERTORS: Record<string, Assertor> = {
         if (!permBefore) return null;
         // CR 716.2d — a permanent with no level is treated as level 1, so a bar
         // whose level is not above that would be a no-op and nothing to assert.
-        if ((permBefore.classLevel ?? 1) >= op.level) return null;
+        if (classLevelOf(permBefore) >= op.level) return null;
         return {
             label: `set permanent ${permId} to class level ${op.level}`,
             check: (post) => {
@@ -2167,7 +2168,7 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                 if (!perm) {
                     return { ok: false, detail: "target permanent gone" };
                 }
-                const actual = perm.classLevel ?? 1;
+                const actual = classLevelOf(perm);
                 return {
                     ok: actual === op.level,
                     detail: `class level ${actual}, expected ${op.level}`,

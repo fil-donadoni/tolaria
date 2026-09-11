@@ -61,6 +61,7 @@ import { resolveTokenStaticEffects } from "../cards/tokenStaticEffects";
 import { getEmblemDefinition, tryGetEmblemDefinition } from "../cards/emblems";
 import { tokenPrintIdFor } from "../cards/tokenPrintLookup";
 import { getKeywordCounterGrant } from "../cards/mechanicsRegistry";
+import { classLevelOf } from "../cards/abilities/classLevels";
 import {
     deriveLayer6,
     ensureLayer6Base,
@@ -11675,7 +11676,7 @@ export function setClassLevelOnCard(
     card: CardInstanceState,
     level: number
 ): void {
-    const previousLevel = card.classLevel ?? 1;
+    const previousLevel = classLevelOf(card);
     if (level <= previousLevel) return;
     card.classLevel = level;
     state.pendingEvents = [
