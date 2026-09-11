@@ -57,8 +57,7 @@ export const MECHANISM_SENTENCES: Record<RootDecisionMechanism, string> = {
         "Nothing of any colour was in play yet, so it named the colour the rest of the game points at.",
     "wasted-mana-hold":
         "The mana would have emptied unused, so it kept the card instead.",
-    "last-window-fire":
-        "This was the last chance to use it, so it used it.",
+    "last-window-fire": "This was the last chance to use it, so it used it.",
     "standing-spend-hold":
         "Spending it now would leave the position no better, so it kept the permanent.",
     "resolved-payoff":
