@@ -14883,8 +14883,29 @@ export function buildSpellContext(
             // Delegates to the shared permanent-source pipeline (CR 614
             // replacement → CR 615 prevention → infect/lifelink/protection all
             // keyed off the permanent's identity via `describeDamageSource`).
-            // No-op when the source has left the battlefield (CR 608.2b).
-            const found = findOnBattlefield(state, sourceInstanceId);
+            // CR 113.7a / 608.2h (issue #2713) — "If an ability states that an
+            // object does something, it's the object as it exists—or as it most
+            // recently existed—that does it." A source that has LEFT the
+            // battlefield therefore still deals the damage its ability names,
+            // from its LAST KNOWN state: Goblin Tinkerer's "Destroy target
+            // artifact. THAT ARTIFACT deals damage equal to its mana value to
+            // this creature" resolves both clauses in one script, so the
+            // artifact is in a graveyard by the time the damage leg runs. The
+            // public-zone lookup is the same `findCardInGraveyardOrExile` every
+            // other LKI read in this file uses; a source in a hidden zone (or
+            // gone entirely — a token that ceased to exist, CR 704.5d) is still
+            // a no-op, since there is no object left to read characteristics
+            // off. `controllerId` on the found card is its last-known
+            // controller, which is exactly what LKI asks for.
+            const found =
+                findOnBattlefield(state, sourceInstanceId) ??
+                (() => {
+                    const lki = findCardInGraveyardOrExile(
+                        state,
+                        sourceInstanceId
+                    );
+                    return lki ? { card: lki } : null;
+                })();
             if (!found) return;
             if (target.type === "player") {
                 dealDamageFromPermanentToPlayer(

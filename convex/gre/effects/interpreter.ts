@@ -2126,6 +2126,30 @@ function dealDamageSourcedFrom(
     amount: number
 ): void {
     const src = resolveObjectRef(ctx, op.source);
+    if (src === undefined && !isSourceSelfRef(op.source)) {
+        // CR 113.7a / 608.2h (issue #2713) — the LKI leg. `resolveObjectRef`
+        // is battlefield-scoped (with hand/exile fallbacks), so a `bind`
+        // snapshot naming an object THIS SAME script has just destroyed
+        // resolves to nothing — which is exactly Goblin Tinkerer's shape:
+        // "Destroy target artifact. THAT ARTIFACT deals damage equal to its
+        // mana value to this creature." The rule is explicit that the object
+        // as it MOST RECENTLY EXISTED does it, so the snapshot's id is handed
+        // to the permanent-source pipeline, which performs its own
+        // public-zone last-known lookup and no-ops only when nothing is left
+        // to read. Distinct from the `$source` branch below: this names
+        // another object, and dropping the damage would drop the clause.
+        const snapped = snapshotIdOf(ctx, op.source);
+        if (snapped !== undefined) {
+            ctx.dealDamageFromPermanent(
+                snapped,
+                target,
+                amount,
+                op.unpreventable,
+                op.unredirectable
+            );
+        }
+        return;
+    }
     if (src && src.type === "permanent") {
         ctx.dealDamageFromPermanent(
             src.id,
@@ -2152,6 +2176,22 @@ function dealDamageSourcedFrom(
     if (isSourceSelfRef(op.source)) {
         ctx.dealDamage(target, amount, op.unpreventable, op.unredirectable);
     }
+}
+
+/** The instance id a `{ ref: "$binding" }` object selector snapshotted, or
+ *  undefined for any other selector shape (an announced slot, an `$event`
+ *  ref, a property path) or an uncaptured binding. The id alone — no zone
+ *  check — which is what a last-known-information read needs (CR 608.2h). */
+function snapshotIdOf(
+    ctx: SpellContext,
+    selector: EffectObjectSelector
+): string | undefined {
+    if (!("ref" in selector)) return undefined;
+    const ref = selector.ref;
+    if (!ref.startsWith("$") || ref.includes(".") || isEventRef(ref)) {
+        return undefined;
+    }
+    return readBinding(ctx, ref)?.[SNAP_ID];
 }
 
 /** True for the `{ ref: "$source" }` selector — the ONE selector that denotes
