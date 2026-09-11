@@ -3460,6 +3460,24 @@ export type PendingChoice = {
          *  named single authority) resolves back to this same `color` — never
          *  a hand-set flag a card author could get wrong. */
         protectionColor?: Color;
+        /** Set ONLY when this option IS a creature type (CR 205.3m) offered by
+         *  an as-enters `{ kind: "subtypes" }` choice — Engineered Plague's
+         *  "choose a creature type", Conspiracy's, Illusionary Terrain's land
+         *  pair. It carries the subtype itself rather than a bare flag, so a
+         *  consumer never has to assume `id === label === subtype`.
+         *
+         *  Its reason for existing is the BOT, and it is the structural twin of
+         *  `protectionColor` directly above: CR 205.3m's table is ~280 entries,
+         *  so this is the one `option-pick` whose option list is two orders of
+         *  magnitude wider than `CHOICE_TOP_K`. With no structural hint every
+         *  option scores the flat `NEUTRAL_PRIOR`, the top-K truncation keeps
+         *  the first eight ALPHABETICALLY, and the bot names Advisor on every
+         *  board in the game — legal, enumerated, and inert. `subtypeModePrior`
+         *  (`gre/ai/choicePriors.ts`) reads this to rank the types actually
+         *  represented on the battlefield; which of THOSE is best is left to
+         *  the search, so no sign (a debuff wants the opponent's tribe, a lord
+         *  wants its own) is baked in here. */
+        subtype?: string;
     }[];
     /** For `kind: "order-top"` only — the second zone the un-kept looked-at
      *  cards are sent to (`library-bottom` scry / `graveyard` surveil / `none`
@@ -13141,7 +13159,11 @@ function enqueueAsEntersChoice(state: GameState, entry: StagedEntry): void {
             pending = {
                 ...base,
                 kind: "option-pick",
-                options: choice.from.map((s) => ({ id: s, label: s })),
+                options: choice.from.map((s) => ({
+                    id: s,
+                    label: s,
+                    subtype: s,
+                })),
                 count: choice.count,
                 prompt: `Choose ${choice.count} as ${subject} enters.`,
             };
