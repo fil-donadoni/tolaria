@@ -32,7 +32,12 @@ export default function AiDecisionSummary({
     return (
         <div className="flex min-w-0 flex-col gap-1 rounded border border-border-subtle px-1.5 py-1 text-[11px] leading-snug">
             <div className="flex items-baseline justify-between gap-2">
-                <span className="truncate font-medium text-text">
+                {/* `break-words`, not `truncate`: this is the most important
+                    line in the box and a move label is a sentence ("Cast
+                    Lightning Bolt targeting Grizzly Bears") — clipping it in a
+                    400px phone sheet cuts exactly the half that says which
+                    move was taken. */}
+                <span className="min-w-0 break-words font-medium text-text">
                     <span className="text-signal-self">★ </span>
                     {trace.chosen}
                 </span>
@@ -42,8 +47,8 @@ export default function AiDecisionSummary({
                     // survived. A decision taken there is not evidence about
                     // the bot's preferences in the way a normal one is.
                     <span
-                        className="shrink-0 rounded-sm border border-warning px-1 text-[10px] text-warning"
-                        title="This decision did not come from the Brain worker — it ran inline on the main thread after the worker was unavailable."
+                        className="shrink-0 rounded-sm border border-signal-pending px-1 text-[10px] text-signal-pending"
+                        title="This decision did not come from the Brain worker — it ran inline on the main thread, because the worker was unavailable, had exhausted its respawn budget, or does not exist in this environment."
                     >
                         fallback
                     </span>

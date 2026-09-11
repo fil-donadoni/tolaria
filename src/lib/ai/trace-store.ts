@@ -16,18 +16,33 @@
 import type { DecisionTrace, Move, Phase } from "@convex/gre";
 import type { ExpectedInputKind } from "@convex/gre/expectedInput";
 import type { BrainOutcome } from "./brain-request";
+import type { BrainResult } from "./brain-client";
 import type { BotAction } from "./brain";
 
 /** One traced decision, as the Debug panel shows it. */
 export type AiTraceRecord = {
+    /** Stable identity for the render key, monotonic within the tab.
+     *
+     *  NOT `at`, and not `at` plus a list index: the panel renders the ring
+     *  NEWEST FIRST, so every existing row's index shifts on each push. Keyed
+     *  on the index, React would remount the whole list on every bot decision
+     *  and snap shut any `<details>` the tester had opened — which is the one
+     *  piece of uncontrolled DOM state this box now has, and the disclosure
+     *  the slice exists to add. `Date.now()` alone is not enough either: two
+     *  decisions can land in the same millisecond. */
+    id: number;
     trace: DecisionTrace;
     /** Whether a Worker produced it. `"inline"` means the consult ran on the
-     *  MAIN THREAD instead — the Worker was unavailable or had already failed
-     *  its respawn budget (issue #3040) — which is a degraded path, not the
-     *  normal one, and the box marks it. */
-    via: "worker" | "inline";
+     *  MAIN THREAD instead — the Worker was unavailable, had already failed its
+     *  respawn budget (issue #3040), or `Worker` does not exist in this
+     *  environment at all — which is a degraded path, not the normal one, and
+     *  the box marks it. The union comes from `BrainResult` rather than being
+     *  re-typed here, so the two cannot drift. */
+    via: BrainResult["via"];
     at: number;
 };
+
+let nextTraceId = 1;
 
 /** Deliberately short. The ring exists so a decision survives the two or three
  *  that follow it while the tester reaches for the panel; it is not a log, and
@@ -44,12 +59,13 @@ const listeners = new Set<() => void>();
  *  above (`recordAiDecision`) exists to record. */
 export function pushAiTrace(
     trace: DecisionTrace | null,
-    via: "worker" | "inline"
+    via: BrainResult["via"]
 ): void {
     if (!trace) return;
-    traces = [...traces, { trace, via, at: Date.now() }].slice(
-        -TRACE_RING_LIMIT
-    );
+    traces = [
+        ...traces,
+        { id: nextTraceId++, trace, via, at: Date.now() },
+    ].slice(-TRACE_RING_LIMIT);
     for (const l of listeners) l();
 }
 

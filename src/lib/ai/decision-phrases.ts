@@ -23,7 +23,11 @@
 // (ADR 0074). It reads a `PositionBreakdown` the search already built.
 
 import type { EvalTerms, PositionBreakdown } from "@convex/gre";
-import type { RootDecisionMechanism } from "@convex/gre/ai/decisionTelemetry";
+import { WIN_SCORE } from "@convex/gre";
+import {
+    isDisableableRootRule,
+    type RootDecisionMechanism,
+} from "@convex/gre/ai/decisionTelemetry";
 import { EVAL_TERM_LABELS, EVAL_TERM_ORDER } from "./eval-term-labels";
 
 /** One plain sentence per root mechanism, addressed to a tester watching their
@@ -65,17 +69,26 @@ export const MECHANISM_SENTENCES: Record<RootDecisionMechanism, string> = {
 };
 
 /** Whether the pick came from the SEARCH itself rather than from a named
- *  tie-break that overrode it. The two structural mechanisms, and only them —
- *  kept as a predicate over the allowlist's own `kind` would be, but without
- *  importing the allowlist into the client bundle for two names. */
+ *  tie-break that overrode it.
+ *
+ *  Derived from `ROOT_RULE_ALLOWLIST`'s own `kind` (`structural` vs `rule`) —
+ *  the allowlist is the authority on that distinction, and a hand-copied list
+ *  of the two structural names here would quietly start lying the day a third
+ *  structural mechanism shipped, telling the tester "a tie-break decided this"
+ *  about the search's own argmax. */
 export function isSearchMechanism(m: RootDecisionMechanism): boolean {
-    return m === "mean-reward" || m === "material-tiebreak";
+    return !isDisableableRootRule(m);
 }
 
 /** At most this many phrases per alternative. Three is what fits one line at
  *  phone width, and beyond three the reading stops being a sentence and starts
  *  being the numeric table the disclosure already holds. */
 export const MAX_COMPARISON_PHRASES = 3;
+
+/** Half a win. A terminal position scores `±winScore + margin` (`evaluate.ts`),
+ *  and nothing short of a decided game comes near half of it — so this
+ *  separates "this line wins/loses outright" from any amount of material. */
+const TERMINAL_TOTAL = WIN_SCORE / 2;
 
 /** What a comparison says when no term moved past its floor. Not an absence of
  *  information: two candidates the evaluator cannot tell apart is the exact
@@ -137,8 +150,34 @@ export function comparePositions(
     alternative: PositionBreakdown,
     limit: number = MAX_COMPARISON_PHRASES
 ): string[] {
-    const phrases = significantDeltas(chosen, alternative)
-        .slice(0, limit)
-        .map(phraseFor);
+    // A DECIDED game first, and alone. The per-term deltas of a line that wins
+    // or loses outright are frequently modest — the terminal offset lives in
+    // `total`, not in the terms — so ranking by term magnitude would report a
+    // lost game as "takes damage", and a line separated ONLY by the danger
+    // clock as "much the same position".
+    if (Math.abs(alternative.total) >= TERMINAL_TOTAL) {
+        return [alternative.total > 0 ? "wins the game" : "loses the game"];
+    }
+
+    const deltas = significantDeltas(chosen, alternative);
+    const picked = balanceSigns(deltas, limit);
+    const phrases = picked.map(phraseFor);
     return phrases.length > 0 ? phrases : [NO_DIFFERENCE_PHRASE];
+}
+
+/** The top `limit` deltas, except that a reading which has something to say on
+ *  BOTH sides always says one of each.
+ *
+ *  Ranking purely by magnitude can fill every slot with the alternative's
+ *  advantages — three reasons the bot should have taken a move it rejected,
+ *  and no "but". The trade is the point of the comparison, so the smallest
+ *  slot goes to the largest delta of the opposite sign when the slice would
+ *  otherwise be single-signed. */
+function balanceSigns(deltas: TermDelta[], limit: number): TermDelta[] {
+    const head = deltas.slice(0, limit);
+    if (limit < 2 || head.length < limit) return head;
+    const sign = Math.sign(head[0].delta);
+    if (head.some((d) => Math.sign(d.delta) !== sign)) return head;
+    const opposite = deltas.find((d) => Math.sign(d.delta) !== sign);
+    return opposite ? [...head.slice(0, limit - 1), opposite] : head;
 }

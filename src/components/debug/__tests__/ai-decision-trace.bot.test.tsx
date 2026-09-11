@@ -8,7 +8,7 @@ import type {
 } from "@convex/gre";
 import { EVAL_TERM_LABELS } from "~/lib/ai/eval-term-labels";
 import { MECHANISM_SENTENCES } from "~/lib/ai/decision-phrases";
-import { pushAiTrace, clearAiTraces } from "~/lib/ai/trace-store";
+import { pushAiTrace, clearAiTraces, getAiTraces } from "~/lib/ai/trace-store";
 import AiDecisionTrace from "../ai-decision-trace";
 
 /**
@@ -119,6 +119,49 @@ describe("AiDecisionTrace — the decision ring (issue #3404)", () => {
         );
     });
 
+    it("drops the oldest decision once the ring is full", () => {
+        for (let i = 0; i < 12; i++) {
+            pushAiTrace(trace({ chosen: `Move ${i}` }), "worker");
+        }
+        render(<AiDecisionTrace />);
+
+        // Eight kept, the four oldest gone — the bound is what stops a long
+        // game from growing the ring without limit.
+        expect(getAiTraces()).toHaveLength(8);
+        expect(screen.queryByText(/Move 3\b/)).toBeNull();
+        expect(screen.getAllByText(/Move 4\b/).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/Move 11\b/).length).toBeGreaterThan(0);
+    });
+
+    it("keeps a row's identity stable when a newer decision arrives", () => {
+        // The ring renders newest-first, so every row's INDEX shifts on each
+        // push. Keyed on the index, React remounts the list and snaps shut any
+        // disclosure the tester had opened — the one piece of uncontrolled DOM
+        // state this box has.
+        pushAiTrace(trace({ chosen: "Play Forest" }), "worker");
+        const { container, rerender } = render(<AiDecisionTrace />);
+        const details = container.querySelector(
+            "details"
+        ) as HTMLDetailsElement;
+        details.open = true;
+
+        pushAiTrace(trace({ chosen: "Cast Grizzly Bears" }), "worker");
+        rerender(<AiDecisionTrace />);
+
+        const all = [...container.querySelectorAll("details")];
+        expect(all).toHaveLength(2);
+        // The Forest row is now second, and it is still the SAME element.
+        expect(all[1]).toBe(details);
+        expect(all[1].open).toBe(true);
+    });
+
+    it("clears the ring on request", () => {
+        pushAiTrace(trace(), "worker");
+        clearAiTraces();
+        render(<AiDecisionTrace />);
+        expect(screen.getByText("No bot decision yet.")).toBeTruthy();
+    });
+
     it("drops a null trace rather than clearing what the ring already holds", () => {
         // A failed or empty consult has nothing to explain, and the decisions
         // the tester opened the panel for must survive it.
@@ -147,6 +190,32 @@ describe("AiDecisionTrace — the reading in words (issue #3404)", () => {
 
         // "Pass" leaves the bot two creature-floors worse off than the cast.
         expect(screen.getByText("loses a creature")).toBeTruthy();
+    });
+
+    it("attributes an opponent-side difference to the opponent", () => {
+        const chosen = trace();
+        // The alternative leaves the OPPONENT two creature-floors better off.
+        chosen.candidates[1].eval.opp.creatures =
+            2 * EVAL_TERM_LABELS.creatures.floor;
+        pushAiTrace(chosen, "worker");
+        render(<AiDecisionTrace />);
+
+        expect(screen.getByText(/opponent gains a creature/)).toBeTruthy();
+    });
+
+    it("refuses to compare a candidate the search could not replay", () => {
+        // `unavailable` (issue #1516) means the breakdown is the UNRESOLVED
+        // root position, so a confident sentence about it would describe a
+        // position that was never evaluated.
+        const t = trace();
+        t.candidates[1].unavailable = true;
+        pushAiTrace(t, "worker");
+        render(<AiDecisionTrace />);
+
+        expect(
+            screen.getByText(/the search could not replay this move/)
+        ).toBeTruthy();
+        expect(screen.queryByText("loses a creature")).toBeNull();
     });
 
     it("says when a tie-break, not the search, settled the pick", () => {

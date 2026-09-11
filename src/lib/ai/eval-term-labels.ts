@@ -22,6 +22,7 @@
 
 import type { EvalTerms } from "@convex/gre";
 import { DEFAULT_EVAL_WEIGHTS as W } from "@convex/gre/ai/evalWeights";
+import { SMALLEST_CREATURE_BODY } from "@convex/gre/creatureBody";
 
 export type EvalTermLabel = {
     /** Terse glyph for the per-candidate trace line (e.g. `L128`). Unique. */
@@ -61,25 +62,44 @@ export const EVAL_TERM_LABELS: Record<keyof EvalTerms, EvalTermLabel> = {
     hand: {
         short: "H",
         name: "Hand (cards in hand)",
-        // Half an average card, so a spare land still clears it.
-        floor: W.latent.cardAdvantage / 2,
+        // One average card. A basic land in hand is `NONCREATURE_BASE` = 8
+        // (`cardValue.ts`), well under this, so a land drop is deliberately
+        // silent here — `mana` and `manaDevelopment` are what have something to
+        // say about it.
+        //
+        // KNOWN IMPRECISION (issue #3398): this term prices each held card
+        // against THIS board, so a candidate that only changes the OPPONENT's
+        // board re-prices held removal and can clear the floor with no card
+        // having moved. It fires beside a true "opponent loses a creature"
+        // when it does, which bounds the damage — but the phrase is about the
+        // hand's WORTH, not provably about a card changing zones.
+        floor: W.latent.cardAdvantage,
         gain: "keeps a card",
         loss: "spends a card",
     },
     creatures: {
         short: "C",
         name: "Creatures",
-        // A quarter of the representative removal victim the latent weights
-        // are calibrated on (a 2/2) — i.e. roughly a 1/1 body, the smallest
-        // creature whose loss is worth a sentence.
-        floor: W.latent.boardRemoval / 4,
+        // Half the smallest creature body there is (a vanilla 1/1, ~129 on the
+        // Forge scale this term sums). Sized against the BODY and not against
+        // `latent.boardRemoval` — the price of a removal Op — because the two
+        // are different currencies: a quarter of the removal price is 29, which
+        // is exactly one +1/+1 counter, and "gains a creature" said of a
+        // counter is a sentence that is simply false.
+        floor: SMALLEST_CREATURE_BODY / 2,
         gain: "gains a creature",
         loss: "loses a creature",
     },
     permanents: {
         short: "Pm",
         name: "Permanents (non-creature)",
-        // One permanent's flat board presence.
+        // One permanent's flat board presence — the exact amount a permanent
+        // entering or leaving moves this term. A non-land permanent also
+        // carries `nonCreatureBodyValue`, so a planeswalker's loyalty tick
+        // (CR 306.5b — the body is scaled by the loyalty it holds) can clear
+        // this floor without a permanent moving. Left at one permanent anyway:
+        // raising it past a land's contribution would silence the ordinary
+        // case to protect against the rare one.
         floor: W.permanentWeight,
         gain: "gains a permanent",
         loss: "loses a permanent",
@@ -111,7 +131,12 @@ export const EVAL_TERM_LABELS: Record<keyof EvalTerms, EvalTermLabel> = {
     library: {
         short: "Lb",
         name: "Library (cards left before decking)",
-        // One card of the decking horizon.
+        // `libraryTerm` is quadratic in the deficit below `deckingHorizon`, so
+        // there is no single "one card" size: `deckingWeight` is the SMALLEST
+        // non-zero step it can take (the first card past the horizon), which
+        // makes this floor mean "say something whenever the term moves at all".
+        // That is the right reading for a term that is exactly zero on every
+        // position not near decking.
         floor: W.deckingWeight,
         gain: "has more cards left to draw",
         loss: "runs closer to decking",
@@ -127,9 +152,10 @@ export const EVAL_TERM_LABELS: Record<keyof EvalTerms, EvalTermLabel> = {
     graveyardReach: {
         short: "Gr",
         name: "Graveyard reach (cards there this player can recur or use)",
-        // Half a reachable card, priced at the same fraction of an average
-        // card the term itself returns.
-        floor: (W.latent.cardAdvantage * W.graveyardReachFraction) / 2,
+        // One average card, taken at the same fraction of it the term itself
+        // credits — `graveyardReachTerm` returns `graveyardReachFraction` of a
+        // reachable card's latent worth, so this is one such card.
+        floor: W.latent.cardAdvantage * W.graveyardReachFraction,
         gain: "gains a card it can bring back",
         loss: "loses a card it can bring back",
     },

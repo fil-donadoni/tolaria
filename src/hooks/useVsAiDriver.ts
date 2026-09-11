@@ -93,6 +93,7 @@ import {
     recordAiDecision,
     recordAiEscalation,
     pushAiTrace,
+    clearAiTraces,
 } from "~/lib/ai/trace-store";
 import type { AiDecisionOutcome } from "~/lib/ai/trace-store";
 import {
@@ -186,7 +187,16 @@ export function useVsAiDriver(
         // GAME, and without a dispose it was silently per TAB, so a game whose
         // Worker died would hand the next game an already-exhausted Brain that
         // never even tried to spawn one.
-        return () => disposeBrain();
+        return () => {
+            disposeBrain();
+            // The trace ring is per-GAME evidence (issue #3404). Left standing
+            // across a rematch it shows eight decisions from a match that is
+            // over, with nothing on screen to date them — a new failure mode,
+            // since the single slot it replaced could only ever carry one
+            // stale entry. This effect's deps are `[gameId, botId]`, so it
+            // fires on the swap and never mid-game.
+            clearAiTraces();
+        };
         // `gameId` is in the deps, not just `botId`: Restart Solo / rematch /
         // Switch Game swaps `gameId` on the SAME hook instance (the board is
         // rendered unkeyed — see the `lastGameId` reset below), and in a solo

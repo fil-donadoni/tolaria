@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import type { EvalTerms, PositionBreakdown } from "@convex/gre";
-import { ROOT_DECISION_MECHANISMS } from "@convex/gre/ai/decisionTelemetry";
+import { WIN_SCORE } from "@convex/gre";
+import {
+    ROOT_DECISION_MECHANISMS,
+    ROOT_RULE_ALLOWLIST,
+} from "@convex/gre/ai/decisionTelemetry";
 import { EVAL_TERM_LABELS, EVAL_TERM_ORDER } from "../eval-term-labels";
 import {
     MECHANISM_SENTENCES,
@@ -97,10 +101,16 @@ describe("mechanism sentences (issue #3404)", () => {
     });
 
     it("separates the search's own picks from the tie-breaks that override it", () => {
+        // Asserted against the ALLOWLIST, not against a copy of today's two
+        // structural names: a third structural mechanism must not start
+        // rendering "a tie-break decided this" about the search's own pick.
+        for (const m of ROOT_DECISION_MECHANISMS) {
+            expect(isSearchMechanism(m)).toBe(
+                ROOT_RULE_ALLOWLIST[m].kind === "structural"
+            );
+        }
         expect(isSearchMechanism("mean-reward")).toBe(true);
-        expect(isSearchMechanism("material-tiebreak")).toBe(true);
         expect(isSearchMechanism("hold-trick")).toBe(false);
-        expect(isSearchMechanism("free-development")).toBe(false);
     });
 });
 
@@ -178,6 +188,46 @@ describe("comparison phrases (issue #3404)", () => {
             "loses a creature",
             "spends a card",
             "takes damage",
+        ]);
+    });
+
+    it("reads a decided game as won or lost, whatever the terms say", () => {
+        // The terminal offset lives in `total`, not in the terms: ranked by
+        // term magnitude a lost line reads "takes damage", and a line separated
+        // only by the danger clock reads "much the same position".
+        const chosen = breakdown({ creatures: 10 * unit("creatures") });
+        const lost: PositionBreakdown = {
+            ...breakdown({ creatures: 9 * unit("creatures") }),
+            total: -WIN_SCORE + 12,
+        };
+        expect(comparePositions(chosen, lost)).toEqual(["loses the game"]);
+
+        const won: PositionBreakdown = {
+            ...breakdown({ creatures: 9 * unit("creatures") }),
+            total: WIN_SCORE - 12,
+        };
+        expect(comparePositions(chosen, won)).toEqual(["wins the game"]);
+    });
+
+    it("always names one cost beside the gains when there is one", () => {
+        // Three reasons the bot should have taken a move it rejected, with no
+        // "but", is a reading that argues against the decision it is explaining.
+        const chosen = breakdown({
+            creatures: 1000,
+            hand: 1000,
+            life: 1000,
+            mana: 1000,
+        });
+        const alternative = breakdown({
+            creatures: 1000 + 9 * unit("creatures"),
+            hand: 1000 + 8 * unit("hand"),
+            life: 1000 + 7 * unit("life"),
+            mana: 1000 - 2 * unit("mana"),
+        });
+        expect(comparePositions(chosen, alternative)).toEqual([
+            "gains a creature",
+            "keeps a card",
+            "loses a mana source",
         ]);
     });
 

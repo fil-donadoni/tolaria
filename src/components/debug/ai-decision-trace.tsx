@@ -75,11 +75,8 @@ export default function AiDecisionTrace() {
                 </span>
             ) : (
                 <div className="flex max-h-full flex-col gap-1 overflow-y-auto">
-                    {[...records].reverse().map((record, i) => (
-                        <AiDecisionSummary
-                            key={`${record.at}-${i}`}
-                            record={record}
-                        />
+                    {[...records].reverse().map((record) => (
+                        <AiDecisionSummary key={record.id} record={record} />
                     ))}
                 </div>
             )}
