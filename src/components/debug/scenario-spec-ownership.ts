@@ -38,7 +38,7 @@ export const SCENARIO_SPEC_FIELD_OWNER = {
 /** The spec keys the form cannot edit — derived from the table above, never
  *  hand-listed, so it cannot drift from the classification. */
 export type PreservedScenarioSpecKey = {
-    [K in keyof ScenarioSpec]: (typeof SCENARIO_SPEC_FIELD_OWNER)[K] extends "preserved"
+    [K in keyof ScenarioSpec]-?: (typeof SCENARIO_SPEC_FIELD_OWNER)[K] extends "preserved"
         ? K
         : never;
 }[keyof ScenarioSpec];
