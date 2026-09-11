@@ -222,8 +222,7 @@ export function specToDraft(spec: ScenarioSpec | null): SpecDraft {
     draft.experience = seatPairToDraft(spec.experience);
     if (spec.activePlayer !== undefined) draft.activePlayer = spec.activePlayer;
     if (spec.priority !== undefined) draft.priority = spec.priority;
-    if (spec.passCount !== undefined)
-        draft.passCount = String(spec.passCount);
+    if (spec.passCount !== undefined) draft.passCount = String(spec.passCount);
     if (spec.companion) {
         draft.companion = {
             name: spec.companion.name,
