@@ -54,6 +54,7 @@ import type {
 } from "@convex/gre";
 import type { GameState } from "@convex/gre/state";
 import { pushAiTrace, clearAiTraces } from "~/lib/ai/trace-store";
+import { QUIZ_REFUSALS } from "~/lib/ai/verdict-quiz";
 import AiDecisionTrace from "../ai-decision-trace";
 
 const SEQ = 4242;
@@ -169,11 +170,21 @@ function lastSubmission() {
     return call[0];
 }
 
+const writeText = vi.fn<(text: string) => Promise<void>>(async () => {});
+
 beforeEach(() => {
     cleanup();
     clearAiTraces();
     submitVerdict.mockClear();
+    writeText.mockClear();
     currentUser = { nickname: "Tessa", isTester: true };
+    // happy-dom has no clipboard; the Copy on a refusal is asserted through
+    // the one the component actually reads.
+    Object.defineProperty(navigator, "clipboard", {
+        value: { writeText },
+        configurable: true,
+        writable: true,
+    });
 });
 
 describe("the verdict quiz, from the decision box (issue #3405)", () => {
@@ -279,7 +290,7 @@ describe("the verdict quiz, from the decision box (issue #3405)", () => {
         );
     });
 
-    it("refuses, in words, a decision whose position it cannot hold", async () => {
+    it("refuses, TITLED and copyable, a decision whose position it cannot hold", async () => {
         // Pushed WITHOUT the consult's inputs — the shape of an entry from
         // before the position travelled, and of any pusher that has none.
         pushAiTrace(
@@ -300,7 +311,27 @@ describe("the verdict quiz, from the decision box (issue #3405)", () => {
             screen.getByRole("button", { name: "Judge this move" })
         );
 
-        await screen.findByText(/no longer held/);
+        // The kind reaches the panel as a TITLE, through the real surface — a
+        // refusal record built in a test would not prove the wiring (issue
+        // #3457).
+        const title = await screen.findByTestId("quiz-refusal-title");
+        expect(title.getAttribute("data-refusal-kind")).toBe(
+            "position-not-held"
+        );
+        expect(title.textContent).toBe(
+            QUIZ_REFUSALS["position-not-held"].title
+        );
+        await screen.findByText(
+            /^the position this decision was taken on is no longer held/
+        );
+
+        // And it is reportable without re-typing it off the screen.
+        fireEvent.click(screen.getByRole("button", { name: "Copy refusal" }));
+        expect(writeText).toHaveBeenCalledTimes(1);
+        expect(writeText.mock.calls[0][0]).toContain(
+            "verdict quiz refusal: position-not-held"
+        );
+
         expect(submitVerdict).not.toHaveBeenCalled();
     });
 });

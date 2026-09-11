@@ -18,14 +18,21 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { AiTraceRecord } from "~/lib/ai/trace-store";
 import { getAiTraceSource, markAiTraceJudged } from "~/lib/ai/trace-store";
-import { QUIZ_SEAT, type VerdictQuiz } from "~/lib/ai/verdict-quiz";
+import {
+    QUIZ_SEAT,
+    quizRefusal,
+    type VerdictQuiz,
+    type VerdictQuizRefusal,
+} from "~/lib/ai/verdict-quiz";
 import { getStoredSession } from "~/lib/session";
 import DebugButton from "./debug-button";
 import AiDecisionQuizCandidate from "./ai-decision-quiz-candidate";
+import AiDecisionQuizRefusal from "./ai-decision-quiz-refusal";
+import AiDecisionDroppedNotes from "./ai-decision-dropped-notes";
 
 type QuizState =
     | { status: "loading" }
-    | { status: "unbuildable"; error: string }
+    | { status: "unbuildable"; refusal: VerdictQuizRefusal }
     | { status: "ready"; quiz: VerdictQuiz };
 
 export default function AiDecisionVerdictQuiz({
@@ -47,7 +54,10 @@ export default function AiDecisionVerdictQuiz({
             ? { status: "loading" }
             : {
                   status: "unbuildable",
-                  error: "the position this decision was taken on is no longer held — it cannot be judged",
+                  refusal: quizRefusal(
+                      "position-not-held",
+                      "the position this decision was taken on is no longer held — it cannot be judged"
+                  ),
               }
     );
     const [selected, setSelected] = useState<number | null>(null);
@@ -68,16 +78,19 @@ export default function AiDecisionVerdictQuiz({
                 setState(
                     result.ok
                         ? { status: "ready", quiz: result.quiz }
-                        : { status: "unbuildable", error: result.error }
+                        : { status: "unbuildable", refusal: result.refusal }
                 );
             })
             .catch((cause: unknown) => {
                 if (cancelled) return;
                 setState({
                     status: "unbuildable",
-                    error: `the quiz could not be built: ${
-                        cause instanceof Error ? cause.message : `${cause}`
-                    }`,
+                    refusal: quizRefusal(
+                        "builder-threw",
+                        `the quiz could not be built: ${
+                            cause instanceof Error ? cause.message : `${cause}`
+                        }`
+                    ),
                 });
             });
         return () => {
@@ -130,12 +143,14 @@ export default function AiDecisionVerdictQuiz({
 
     if (state.status === "unbuildable") {
         return (
-            <div className="flex flex-col gap-1">
-                <p className="break-words text-[11px] text-danger-strong">
-                    {state.error}
-                </p>
-                <DebugButton onClick={onClose}>Close</DebugButton>
-            </div>
+            <AiDecisionQuizRefusal
+                refusal={state.refusal}
+                decision={{
+                    id: record.id,
+                    ...(record.seq === undefined ? {} : { seq: record.seq }),
+                }}
+                onClose={onClose}
+            />
         );
     }
 
@@ -178,21 +193,11 @@ export default function AiDecisionVerdictQuiz({
                 </DebugButton>
             )}
 
-            {quiz.dropped.length > 0 && (
-                // What the capture could not carry. A verdict given on a
-                // position missing the stack, or a mana pool, is a judgement
-                // about a different board — the tester decides, not the panel.
-                <details>
-                    <summary className="cursor-pointer text-[10px] text-text-disabled">
-                        Not captured in this position ({quiz.dropped.length})
-                    </summary>
-                    <ul className="ml-3 list-disc text-[10px] text-text-muted">
-                        {quiz.dropped.map((note, i) => (
-                            <li key={i}>{note}</li>
-                        ))}
-                    </ul>
-                </details>
-            )}
+            {/* What the capture could not carry. A verdict given on a position
+                missing the stack, or a mana pool, is a judgement about a
+                different board — the tester decides, not the panel. Same
+                disclosure the refusal renders, one component (issue #3457). */}
+            <AiDecisionDroppedNotes notes={quiz.dropped} />
 
             {error && (
                 <p className="break-words text-[10px] text-danger-strong">

@@ -29,7 +29,15 @@ import {
     runMutation,
 } from "@convex/__tests__/gameMutationHarness";
 import { submit } from "@convex/verdicts";
-import { buildVerdictQuiz } from "../verdict-quiz";
+import {
+    buildVerdictQuiz,
+    formatRefusalReport,
+    quizRefusal,
+    QUIZ_ONLY_REFUSAL_KINDS,
+    QUIZ_REFUSAL_KINDS,
+    QUIZ_REFUSALS,
+} from "../verdict-quiz";
+import { VERDICT_REFUSAL_KINDS } from "@convex/gre/ai/verdicts/lowering";
 import type { AiTraceSource } from "../trace-store";
 
 const SEQ = 42;
@@ -370,6 +378,85 @@ describe("buildVerdictQuiz — a judgement the fit can still read (issue #3405)"
         );
         expect(result.ok).toBe(false);
         if (result.ok) return;
-        expect(result.error).toContain("on the stack");
+        expect(result.refusal.kind).toBe("stack-not-empty");
+        expect(result.refusal.detail).toContain("on the stack");
+        // The KIND is all the record carries: the title comes from the one
+        // table, looked up by kind, so no refusal site can write its own
+        // (issue #3457).
+        expect(QUIZ_REFUSALS[result.refusal.kind].title.length).toBeGreaterThan(
+            0
+        );
+        expect(formatRefusalReport(result.refusal, { id: 1 })).toContain(
+            QUIZ_REFUSALS["stack-not-empty"].title
+        );
+    });
+});
+
+describe("the refusal a panel renders (issue #3457)", () => {
+    it("titles every kind the quiz can refuse with, the lowering's and its own", () => {
+        // The vocabulary is INHERITED, never restated: every kind
+        // `lowerDecision` refuses with is a kind the panel can title, plus the
+        // two sites only a browser has.
+        for (const kind of VERDICT_REFUSAL_KINDS) {
+            expect(QUIZ_REFUSAL_KINDS).toContain(kind);
+        }
+        expect(QUIZ_REFUSAL_KINDS.length).toBe(
+            VERDICT_REFUSAL_KINDS.length + QUIZ_ONLY_REFUSAL_KINDS.length
+        );
+        for (const kind of QUIZ_REFUSAL_KINDS) {
+            const { title } = QUIZ_REFUSALS[kind];
+            expect(title.length).toBeGreaterThan(0);
+            // ONE line — a title that wraps to a paragraph is the flat red
+            // paragraph this slice replaced.
+            expect(title).not.toContain("\n");
+        }
+        // And no two kinds share a title: the point is telling three refusals
+        // in a row apart at a glance.
+        const titles = QUIZ_REFUSAL_KINDS.map((k) => QUIZ_REFUSALS[k].title);
+        expect(new Set(titles).size).toBe(titles.length);
+    });
+
+    it("reports kind, title, detail, the decision's identity and every dropped note", () => {
+        const refusal = quizRefusal("different-decision", "the detail", [
+            "first note",
+            "second note",
+        ]);
+        const report = formatRefusalReport(refusal, { id: 7, seq: 4242 });
+
+        expect(report).toContain("verdict quiz refusal: different-decision");
+        expect(report).toContain(QUIZ_REFUSALS["different-decision"].title);
+        expect(report).toContain("the detail");
+        // The board it was given on — a pasted refusal with no seq names none.
+        expect(report).toContain("decision #7 at seq 4242");
+        // Each note on its OWN line, never a semicolon run-on.
+        expect(report).toContain("not captured (2):");
+        expect(report).toContain("\n- first note\n");
+        expect(report).toContain("\n- second note");
+    });
+
+    it("omits the seq a decision was pushed without, and the notes it has none of", () => {
+        const report = formatRefusalReport(
+            quizRefusal("position-not-held", "gone"),
+            { id: 3 }
+        );
+        expect(report).toContain("decision #3");
+        expect(report).not.toContain("seq");
+        expect(report).not.toContain("not captured");
+    });
+
+    it("names the tracking issue only for a kind whose cause IS one known gap", () => {
+        // `stack-not-empty` is issue #3456 and nothing else; a
+        // `different-decision` is caused by whichever fact the lowering lost
+        // on THIS board, so it names none and lets `dropped[]` say it.
+        expect(QUIZ_REFUSALS["stack-not-empty"].trackedBy).toBe(3456);
+        expect(QUIZ_REFUSALS["different-decision"].trackedBy).toBe(null);
+        expect(
+            formatRefusalReport(quizRefusal("stack-not-empty", "x"), { id: 1 })
+        ).toContain("tracked by issue #3456");
+        expect(
+            formatRefusalReport(quizRefusal("different-decision", "x"), {
+                id: 1,
+            })
+        ).not.toContain("tracked by");
     });
 });
