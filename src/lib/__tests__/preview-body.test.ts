@@ -140,6 +140,68 @@ describe("buildPreviewBody — Illusionary Terrain chosen types (CR 614.12, ADR 
             "Basic lands of the first chosen type are the second chosen type."
         );
     });
+
+    // The single-type annotation below must not reach this template: its own
+    // text CONTAINS "chosen type" inside "first chosen type".
+    it("is not double-annotated by the single-type branch", () => {
+        const body = buildPreviewBody(
+            TERRAIN.id,
+            terrainInstance(["Forest", "Island"]),
+            { allPlayers: [], playerId: "p1" }
+        );
+        const joined = (body.oracleParagraphs ?? []).join("\n");
+        expect(joined).toContain(
+            "Basic lands of the Forest type are the Island type."
+        );
+        expect(joined).not.toContain("chosen type (");
+    });
+});
+
+// CR 205.3m / 614.12a — the SINGLE-type half of the same `chosenSubtypes`
+// field: "as this enchantment enters, choose a creature type". Until this
+// shipped, the preview's only template was Illusionary Terrain's ORDERED PAIR,
+// so a permanent that had locked in one creature type rendered its printed
+// "the chosen type" placeholder and never said which type it had chosen —
+// invisible on both Engineered Plague and Conspiracy.
+describe("buildPreviewBody — single chosen creature type (CR 205.3m, CR 614.12a)", () => {
+    const PLAGUE = getCardByName("Engineered Plague");
+
+    function plagueInstance(chosenSubtypes?: string[]): CardInstance {
+        return {
+            id: "plague-1",
+            card: { id: PLAGUE.id },
+            types: PLAGUE.types,
+            subtypes: PLAGUE.subtypes ?? [],
+            staticAbilities: PLAGUE.staticAbilities ?? [],
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isTapped: false,
+            isSummoningSick: false,
+            ...(chosenSubtypes ? { chosenSubtypes } : {}),
+        } as unknown as CardInstance;
+    }
+
+    it("annotates the chosen type in place once picked", () => {
+        const body = buildPreviewBody(PLAGUE.id, plagueInstance(["Elf"]), {
+            allPlayers: [],
+            playerId: "p1",
+        });
+        const joined = (body.oracleParagraphs ?? []).join("\n");
+        expect(joined).toContain(
+            "All creatures of the chosen type (Elf) get -1/-1."
+        );
+    });
+
+    it("shows the printed placeholder before a type is chosen", () => {
+        const body = buildPreviewBody(PLAGUE.id, plagueInstance(), {
+            allPlayers: [],
+            playerId: "p1",
+        });
+        const joined = (body.oracleParagraphs ?? []).join("\n");
+        expect(joined).toContain("All creatures of the chosen type get -1/-1.");
+        expect(joined).not.toContain("(Elf)");
+    });
 });
 
 // Issue #2346 — the explicit Manual-vs-GRE discriminator forwarded from

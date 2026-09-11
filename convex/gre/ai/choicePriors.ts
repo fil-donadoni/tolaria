@@ -77,6 +77,12 @@ export type ChoiceCandidateHint = {
      *  than against the opponent's footprint. Absent for a non-colour modal
      *  option (Primal Clay's body modes) AND for a "become a colour" pick. */
     colorMode?: Color;
+    /** Set when this candidate names ONE creature type (CR 205.3m) at an
+     *  as-enters `{ kind: "subtypes" }` choice — threaded from
+     *  `PendingChoice.options[].subtype` by `optionPickCandidates`. Absent for
+     *  every other `option-pick` candidate and for a multi-type pick (the
+     *  ordered land pair), which names no single type. */
+    subtypeMode?: string;
 };
 
 /** The pluggable prior seam: score a candidate at a choice node. Higher = try
@@ -163,6 +169,82 @@ function colorModePrior(
     return clampPrior(PRIOR_MIN + share * (PRIOR_MAX - PRIOR_MIN));
 }
 
+// ---------------------------------------------------------------------------
+// Subtype prior (issue #2710) — the as-enters "choose a creature type" choice
+// (Engineered Plague, Conspiracy) and its land-type sibling. CR 205.3m's table
+// alone is ~280 entries, so this is the one `option-pick` whose option list
+// dwarfs `CHOICE_TOP_K`: at the flat NEUTRAL_PRIOR every type ties and the
+// stable top-K keeps the first eight ALPHABETICALLY, so the bot named Advisor
+// on every board it ever saw.
+// ---------------------------------------------------------------------------
+
+/** How many permanents on EITHER battlefield currently carry each subtype, read
+ *  off the live (post-layer-4) `subtypes` so a type-changing effect is
+ *  reflected — Conspiracy's "creatures you control are the chosen type" moves
+ *  this census, which is the point.
+ *
+ *  EVERY permanent, not only creatures: the as-enters `subtypes` choice serves
+ *  CR 205.3m creature types AND CR 205.3i land types (Illusionary Terrain), and
+ *  a census that knew only about creatures would score a count-1 LAND-type card
+ *  as "no evidence anywhere" — a prior that cannot go red and cannot help. The
+ *  wider domain costs the creature-type case nothing: the share denominator
+ *  grows uniformly, and this seam is read for ORDER, never for an absolute
+ *  value.
+ *
+ *  DELIBERATELY NOT MEMOIZED on the state (PR review, issue #2710). The obvious
+ *  one-slot cache keyed on `GameState` reference identity is WRONG here, unlike
+ *  `choiceCandidates`' own: `applyMoveInSearch` mutates ONE `GameState` object
+ *  in place for a whole descent and rollout (`gre/search.ts`), so the second
+ *  as-enters choice in an iteration — a second Plague, or a Plague then a
+ *  Conspiracy — would be scored against the board as it stood at the first, and
+ *  the alphabetical top-K this prior exists to remove would come back silently.
+ *  Deliberately battlefield-only: it is the board the choice is made against,
+ *  and it is public to both seats. */
+function permanentSubtypeCensus(state: GameState): Map<string, number> {
+    const census = new Map<string, number>();
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            for (const subtype of card.subtypes ?? []) {
+                census.set(subtype, (census.get(subtype) ?? 0) + 1);
+            }
+        }
+    }
+    return census;
+}
+
+/** A subtype's share of the board's subtype mass, mapped onto the prior BAND
+ *  exactly as `colorModePrior` maps a colour's share of the opponent's
+ *  footprint: a type NO permanent on the battlefield has sits at `PRIOR_MIN`,
+ *  a type every permanent has sits at `PRIOR_MAX`.
+ *
+ *  UNSIGNED BY DESIGN. This seam says which types are worth OPENING, never
+ *  which is good: "-1/-1 to all creatures of the chosen type" wants the
+ *  opponent's tribe and a lord wants its own, and the two are the same
+ *  candidate set. Ranking by presence hands the search a top-K of types that
+ *  actually exist on the board and lets `evaluate` decide between them — the
+ *  alternative (score the opponent's types up) would be a card-shaped
+ *  assumption about the sign of an effect this seam cannot see (ADR 0102).
+ *
+ *  TWO CONSEQUENCES worth stating, because neither is a bug and both are
+ *  visible in play. An empty board leaves every type at the neutral baseline:
+ *  no evidence, any pick is as good as another, nothing stalls. And once ANY
+ *  subtype is on the battlefield, every ABSENT type ties at `PRIOR_MIN`, so the
+ *  K slots the present types do not fill go to the alphabetical tail — naming a
+ *  tribe that sits entirely in the opponent's HAND or graveyard is a read this
+ *  seam does not have (`observedOpponentColors` is the shape that would give it
+ *  one). Nothing is ever PRUNED by a prior, so that pick stays legal and
+ *  reachable; it is simply not one the search is handed. */
+function subtypeModePrior(state: GameState, candidate: PriorCandidate): number {
+    const subtype = candidate.hint?.subtypeMode;
+    if (subtype === undefined) return NEUTRAL_PRIOR;
+    const census = permanentSubtypeCensus(state);
+    let total = 0;
+    for (const n of census.values()) total += n;
+    if (total <= 0) return NEUTRAL_PRIOR;
+    const share = (census.get(subtype) ?? 0) / total;
+    return clampPrior(PRIOR_MIN + share * (PRIOR_MAX - PRIOR_MIN));
+}
+
 /** v1 prior: the live bot's existing choice heuristics (`brain.ts`, ADR 0016),
  *  restated as an ORDERING score instead of a hard answer.
  *
@@ -196,6 +278,12 @@ export function heuristicChoicePrior(
         );
     }
     if (choice.kind === "option-pick" || choice.kind === "trigger-mode") {
+        // CR 205.3m / 205.3i (issue #2710) — a subtype option is scored
+        // against the board's subtype census; every other option-pick keeps
+        // the colour branch (itself neutral without a `colorMode` hint).
+        if (candidate.hint?.subtypeMode !== undefined) {
+            return subtypeModePrior(state, candidate);
+        }
         return colorModePrior(state, choice, candidate);
     }
     // CR 702.35a / 702.88a (issue #2983) — a reflexive cast window is not a

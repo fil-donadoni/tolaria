@@ -601,23 +601,55 @@ export function buildDesignationPreviewBody(designation: {
     };
 }
 
-/** Splices an on-entry ordered pair of basic land types (CR 614.12, ADR 0050 —
- *  Illusionary Terrain's `chosenSubtypes`) into the printed oracle text so the
- *  preview reflects the actual choice: "the first chosen type" → "the Forest
- *  type", "the second chosen type" → "the Island type". Until the pair is
- *  chosen (or on a card without this template) the paragraphs pass through
- *  unchanged. */
+/** Names the type(s) a PERMANENT locked in as it entered, in its own printed
+ *  oracle text (CR 614.12a — the choice is made before it enters, so a
+ *  permanent on the battlefield always has one).
+ *
+ *  TWO templates, because the engine ships both cardinalities of the same
+ *  `chosenSubtypes` field and a preview that reads only the pair leaves every
+ *  single-type card saying nothing about its own answer:
+ *
+ *  - an ORDERED PAIR of basic land types (ADR 0050, Illusionary Terrain) is
+ *    SPLICED: "the first chosen type" → "the Forest type", "the second chosen
+ *    type" → "the Island type";
+ *  - a SINGLE creature type (CR 205.3m — Engineered Plague, Conspiracy) is
+ *    ANNOTATED in place, exactly as `resolveChosenMode` / `resolveChosenName`
+ *    annotate theirs: "All creatures of the chosen type (Elf) get -1/-1". The
+ *    printed wording is preserved and the live answer added, with the same
+ *    trailing "Chosen: Elf" fallback for a text whose phrasing the match
+ *    didn't catch.
+ *
+ *  The pair branch returns first: its own text CONTAINS "chosen type" inside
+ *  "first chosen type", so a single-type annotation run over it would tag the
+ *  placeholder it just spliced away. Until the choice is answered (or on a card
+ *  without either template) the paragraphs pass through unchanged. */
 function resolveChosenSubtypes(
     paragraphs: string[],
-    pair: string[] | undefined
+    chosen: string[] | undefined
 ): string[] {
-    if (!pair || pair.length < 2) return paragraphs;
-    const [first, second] = pair;
-    return paragraphs.map((p) =>
-        p
-            .replace(/first chosen type/g, `${first} type`)
-            .replace(/second chosen type/g, `${second} type`)
-    );
+    if (!chosen || chosen.length === 0) return paragraphs;
+    if (chosen.length >= 2) {
+        const [first, second] = chosen;
+        return paragraphs.map((p) =>
+            p
+                .replace(/first chosen type/g, `${first} type`)
+                .replace(/second chosen type/g, `${second} type`)
+        );
+    }
+    const [only] = chosen;
+    const phrase = /chosen type/i;
+    if (paragraphs.some((p) => phrase.test(p))) {
+        return paragraphs.map((p) =>
+            p.replace(
+                new RegExp(phrase.source, "gi"),
+                (match) => `${match} (${only})`
+            )
+        );
+    }
+    if (paragraphs.some((p) => /\bchosen\b/i.test(p))) {
+        return [...paragraphs, `Chosen: ${only}`];
+    }
+    return paragraphs;
 }
 
 /** CR 700.2c — names the mode a PERMANENT locked in as it entered, in its own

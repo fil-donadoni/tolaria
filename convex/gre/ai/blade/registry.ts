@@ -6482,6 +6482,71 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: { forbidden: [{ kind: "cast-spell", card: "Stone Rain" }] },
         note: "Issue #3398. Half 2 of the discriminating pair — proves the fix is board-awareness, not a blanket preference for removal.",
     },
+    {
+        // AS-ENTERS CREATURE TYPE (CR 614.12a / 205.3m, issue #2710). The
+        // Plague is CAST and RESOLVED in setup, so the root decision here IS
+        // the as-enters `option-pick` (CR 614.12a — the choice is made before
+        // the permanent enters), exactly as the fetchland charter entry's root
+        // decision is the live `search-library` choice.
+        //
+        // What it guards is not a preference but the WIDTH of the option list:
+        // CR 205.3m's table is ~280 entries, two orders of magnitude past
+        // `CHOICE_TOP_K`. With no structural hint every type scored the flat
+        // NEUTRAL_PRIOR, the stable top-K kept the first eight ALPHABETICALLY,
+        // and the bot named Advisor on every board in the game — a choice that
+        // is enumerated, legal, and completely inert. Nothing else goes red
+        // when that seam breaks.
+        //
+        // DISCRIMINATING BY CONSTRUCTION, so it cannot be passed by a prior
+        // that merely prefers "a type on the board": my own two Eager Cadets
+        // are Human Soldiers, so Human and Soldier are on the board too and
+        // naming either kills MY creatures and none of theirs. Only Goblin —
+        // three 1/1s, all of which the -1/-1 sweeps via CR 704.5f — is the
+        // answer, and the search has to be the thing that decides that: the
+        // prior itself is unsigned (it ranks presence, never side).
+        label: "as-enters creature type: names the opponent's tribe, not its own and not the alphabet",
+        spec: {
+            cards: [
+                { name: "Engineered Plague", owner: "me", zone: "hand" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Eager Cadet", owner: "me", zone: "battlefield" },
+                { name: "Eager Cadet", owner: "me", zone: "battlefield" },
+                {
+                    name: "Mons's Goblin Raiders",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Mons's Goblin Raiders",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Mons's Goblin Raiders",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 4,
+            libraryCount: 20,
+        },
+        setup: [
+            { kind: "cast", card: "Engineered Plague" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        // ADR 0070 §3 — K>=3 seeds: the pick must not be rollout noise.
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "resolution-choice", option: "Goblin" }],
+        },
+        note: "Issue #2710. CR 614.12a as-enters choice reachability AND quality: the option list is CR 205.3m's whole creature-type table, so without `PendingChoice.options[].subtype` + `subtypeModePrior` (gre/ai/choicePriors.ts) the top-K truncation is alphabetical and the answer is always Advisor. Human/Soldier are deliberately present on the bot's OWN board so a presence-only prior with a wrong sign fails here too.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the

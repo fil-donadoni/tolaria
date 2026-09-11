@@ -450,8 +450,19 @@ const optionPickCandidates: ChoiceCandidateGenerator = (_state, choice) => {
         ids.length === 1
             ? options.find((o) => o.id === ids[0])?.protectionColor
             : undefined;
+    // CR 205.3m (issue #2710) — the creature type an as-enters `subtypes`
+    // option names (`PendingChoice.options[].subtype`), threaded exactly as
+    // `colorMode` is. Meaningful only for a SINGLE-option candidate: a
+    // multi-pick combo (Illusionary Terrain's ordered pair) names two types
+    // and has no one type to report, so it falls back to the flat prior the
+    // pair pick already had.
+    const subtypeModeOf = (ids: string[]): string | undefined =>
+        ids.length === 1
+            ? options.find((o) => o.id === ids[0])?.subtype
+            : undefined;
     const toCandidate = (ids: string[]) => {
         const colorMode = colorModeOf(ids);
+        const subtypeMode = subtypeModeOf(ids);
         return {
             // Keyed by KIND as well as option id (issue #2461) — the same
             // generator now serves the announce-time `trigger-mode` choice
@@ -465,7 +476,14 @@ const optionPickCandidates: ChoiceCandidateGenerator = (_state, choice) => {
                 choiceId: choice.choiceId,
                 cardInstanceIds: ids,
             },
-            ...(colorMode !== undefined ? { hint: { colorMode } } : {}),
+            ...(colorMode !== undefined || subtypeMode !== undefined
+                ? {
+                      hint: {
+                          ...(colorMode !== undefined ? { colorMode } : {}),
+                          ...(subtypeMode !== undefined ? { subtypeMode } : {}),
+                      },
+                  }
+                : {}),
         };
     };
     if (pick === 1) return options.map((option) => toCandidate([option.id]));
