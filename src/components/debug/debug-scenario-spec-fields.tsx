@@ -15,11 +15,17 @@ import {
  *  `kind`, which does not narrow `key` — and what makes them safe is the
  *  `ScenarioSpecFieldInputFor` pin in `scenario-spec-ownership.ts`: a row whose
  *  `kind` disagrees with its draft field's TYPE reds `tsc` there. */
+/** CR 102.1 / 117.1 (issue #3454) — a draft field narrowed to ONE seat plus
+ *  the spec's own absent. It is a `<select>`, so it comes out of the free-text
+ *  key set below rather than joining it. */
+type SeatDraftKey = {
+    [K in keyof SpecDraft]: SpecDraft[K] extends "" | "me" | "opp" ? K : never;
+}[keyof SpecDraft];
 type TextDraftKey = Exclude<
     {
         [K in keyof SpecDraft]: SpecDraft[K] extends string ? K : never;
     }[keyof SpecDraft],
-    "phase"
+    "phase" | SeatDraftKey
 >;
 type BooleanDraftKey = {
     [K in keyof SpecDraft]: SpecDraft[K] extends boolean ? K : never;
@@ -124,6 +130,38 @@ export default function DebugScenarioSpecFields({
                                 </select>
                             </label>
                         );
+                    case "seat": {
+                        const field = key as SeatDraftKey;
+                        return (
+                            <label
+                                key={key}
+                                className="flex items-center gap-1 text-text-muted"
+                            >
+                                {input.label}
+                                <select
+                                    value={draft[field]}
+                                    aria-label={labels[0]}
+                                    onChange={(e) =>
+                                        onPatch({
+                                            [field]: e.target
+                                                .value as SpecDraft[SeatDraftKey],
+                                        })
+                                    }
+                                    className={DEBUG_INPUT_CLASS}
+                                >
+                                    {/* "—" is the spec's own absent, which the
+                                        builder reads as "leave the base
+                                        state's turn holder alone". */}
+                                    <option value="">—</option>
+                                    {SCENARIO_SEATS.map((seat) => (
+                                        <option key={seat} value={seat}>
+                                            {seat}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+                        );
+                    }
                     case "boolean": {
                         const field = key as BooleanDraftKey;
                         return (

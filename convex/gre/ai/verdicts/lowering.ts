@@ -63,8 +63,6 @@ export const QUIZ_SEAT = "me" as const;
  * `LoweringSweepTally` seeds no counter for it and the whole refusals cell
  * becomes `NaN` on the first decision that hits it (PR review, issue #3461).
  *
- *  - `opponent-turn` — priority on the opponent's turn; `ScenarioSpec` has no
- *    field for the turn holder.
  *  - `stack-not-empty` — something was on the stack; a spec has no stack.
  *  - `lowering-threw` — `specFromState` refused the position outright.
  *  - `rebuild-threw` — the spec came back but `buildStateFromScenario` could
@@ -76,7 +74,6 @@ export const QUIZ_SEAT = "me" as const;
  *  - `pick-not-offered` — the rebuild does not offer the move that was played.
  */
 export const VERDICT_REFUSAL_KINDS = [
-    "opponent-turn",
     "stack-not-empty",
     "lowering-threw",
     "rebuild-threw",
@@ -131,22 +128,22 @@ export function lowerDecision(
     botId: string,
     chosenDescription: string
 ): LoweringOutcome {
-    if (position.activePlayerId !== botId) {
-        // A decision taken with priority on the OPPONENT's turn cannot be
-        // captured: `ScenarioSpec` has no field for the turn holder, so the
-        // rebuild always makes the judged seat the active player. The position
-        // that comes back is a different one — it offers the sorcery-speed
-        // moves the Bot did not have — and "pass" exists in both lists, so the
-        // Bot's own pick still resolves and nothing downstream would notice
-        // that the answer is to another question. `specFromState` reports the
-        // mismatch in `dropped[]`; here it has to be a refusal.
-        return {
-            ok: false,
-            kind: "opponent-turn",
-            dropped: [],
-            error: "this decision was taken on the opponent's turn — a scenario spec cannot express the turn holder, so the rebuilt position would be the Bot's own turn and a different decision entirely",
-        };
-    }
+    // A decision taken with priority on the OPPONENT's turn used to refuse here
+    // (`opponent-turn`): `ScenarioSpec` had no field for the turn holder, so
+    // the rebuild always made the judged seat active and came back offering the
+    // sorcery-speed moves the Bot did not have (CR 307.1) — while `pass`
+    // existed in both lists, so the pick still resolved and nothing downstream
+    // would have noticed the answer was to another question. That refusal took
+    // out the entire class PRD #3397 exists for: holding up removal, a combat
+    // trick, declining to act under an attack.
+    //
+    // Issue #3454 gave the spec `activePlayer` / `priority` / `passCount`, and
+    // `specFromState` lowers all three — so the lowering CARRIES the fact
+    // instead of dropping it, and the site is gone rather than relaxed.
+    // Nothing replaces it on purpose: the `different-decision` check below is
+    // what proves the lowering worked, comparing the rebuilt candidate list
+    // against the live one move for move. A turn holder that failed to survive
+    // shows up there as sorcery-speed moves the live list never had.
 
     if (position.stack.length > 0) {
         // A decision taken with something ON THE STACK — the Bot holding

@@ -102,6 +102,31 @@ const OPPONENT_HOLDS_CARDS: ScenarioSpec = {
     libraryCount: 20,
 };
 
+/** CR 307.1 (issue #3454) — the judged seat holding priority on the OPPONENT's
+ *  turn, with one instant it can actually pay for and one creature it cannot
+ *  cast. The class the quiz used to refuse outright, and the one PRD #3397
+ *  exists for: holding up removal instead of acting. */
+const RESPONDING_ON_OPPONENTS_TURN: ScenarioSpec = {
+    cards: [
+        { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+        { name: "Mountain", owner: "opp", zone: "battlefield" },
+        { name: "Forest", owner: "opp", zone: "battlefield" },
+        { name: "Lightning Bolt", owner: "opp", zone: "hand" },
+        // The sorcery-speed half the rebuild must NOT be able to offer: a land
+        // to play (CR 305.1) and a creature the seat can actually PAY for
+        // (CR 302.1 — hence the Forest above; with one Mountain the Bears are
+        // uncastable on either turn and discriminate nothing). Without both,
+        // the two candidate lists coincide and the comparison below proves
+        // nothing — a rebuild that lost the turn holder passes for free.
+        { name: "Mountain", owner: "opp", zone: "hand" },
+        { name: "Grizzly Bears", owner: "opp", zone: "hand" },
+    ],
+    phase: "PRECOMBAT_MAIN",
+    turn: 3,
+    landCount: 0,
+    libraryCount: 20,
+};
+
 const DECLARE_ATTACKERS: ScenarioSpec = {
     cards: [
         { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
@@ -184,14 +209,18 @@ describe("buildVerdictQuiz — a judgement the fit can still read (issue #3405)"
         expect(evalPairsOf(verdictOf(result.quiz, 0)).error).toBeUndefined();
     });
 
-    it("refuses a decision taken with priority on the opponent's turn", () => {
-        // The rebuild has no field for the turn holder, so it would come back
-        // as the BOT's turn — a strictly larger, sorcery-speed candidate list.
-        // "pass" is in both, so the Bot's own pick would still resolve and the
-        // verdict would answer a question nobody asked.
+    it("judges a decision taken with priority on the opponent's turn (CR 307.1, issue #3454)", () => {
+        // This used to be a REFUSAL: the spec had no field for the turn holder,
+        // so the rebuild came back as the Bot's own turn — a strictly larger,
+        // sorcery-speed candidate list — and "pass" being in both lists meant
+        // the pick still resolved and the verdict answered a question nobody
+        // asked. `activePlayer` / `priority` / `passCount` (issue #3454) carry
+        // the fact, and the candidate-list comparison inside the quiz is what
+        // proves it: a turn holder that failed to survive the lowering shows up
+        // there as sorcery-speed moves the live list never had.
         const state = buildBladeState({
             label: "verdict-quiz opponent-turn fixture",
-            spec: OPPONENT_HOLDS_CARDS,
+            spec: RESPONDING_ON_OPPONENTS_TURN,
             setup: [{ kind: "pass" }],
             bot: "opp",
             budget: { iterations: 1 },
@@ -199,20 +228,45 @@ describe("buildVerdictQuiz — a judgement the fit can still read (issue #3405)"
             expect: { moves: [] },
         });
         const respondingSeat = state.players[1].id;
+        // The position really is the one under test: the opponent holds the
+        // turn, the judged seat holds priority with a pass already banked.
+        expect(state.activePlayerId).toBe(state.players[0].id);
+        expect(state.priorityPlayerId).toBe(respondingSeat);
+        expect(state.passCount).toBe(1);
+
+        const moves = candidateMoves(state, respondingSeat);
+        expect(moves.length).toBeGreaterThan(1);
+        const chosen = moves.find((m) => m.kind === "pass") ?? moves[0];
+
         const result = buildVerdictQuiz(
-            traceFor(
-                state,
-                respondingSeat,
-                candidateMoves(state, respondingSeat)[0]
-            ),
+            traceFor(state, respondingSeat, chosen),
             {
                 state: projectPublicState(state, SEQ, respondingSeat),
                 botId: respondingSeat,
             }
         );
-        expect(result.ok).toBe(false);
-        if (result.ok) return;
-        expect(result.error).toContain("opponent's turn");
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        const { quiz } = result;
+
+        // Lowered in the judged seat's own frame: it is "me", the turn holder
+        // is "opp", and the banked pass came with it.
+        expect(quiz.spec.activePlayer).toBe("opp");
+        expect(quiz.spec.priority).toBe("me");
+        expect(quiz.spec.passCount).toBe(1);
+        // Neither fact is reported as a loss any more.
+        expect(
+            quiz.dropped.some((note) => /^(active player|priority:)/.test(note))
+        ).toBe(false);
+
+        // THE claim: the fit rebuilds this position and resolves every
+        // candidate the quiz named.
+        expect(quiz.candidates[quiz.botPickIndex].description).toBe(
+            describeMove(chosen, state)
+        );
+        const pairs = evalPairsOf(verdictOf(quiz, quiz.botPickIndex));
+        expect(pairs.error).toBeUndefined();
+        expect(pairs.pairs.length).toBe(quiz.candidates.length - 1);
     });
 
     it("submits through the REAL mutation, which validates what it stores", async () => {

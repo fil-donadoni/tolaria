@@ -198,9 +198,9 @@ export function observeDecision(
     const outcome = lowerDecision(state, botId, chosenDescription);
 
     // The dropped tally is taken from `specFromState` DIRECTLY, not from the
-    // refusal's own `dropped`: `opponent-turn` and `stack-not-empty` refuse
-    // before the lowering ever runs, and reading their (empty) list would make
-    // the two most common refusals look lossless.
+    // refusal's own `dropped`: `stack-not-empty` refuses before the lowering
+    // ever runs, and reading its (empty) list would make that refusal look
+    // lossless.
     const droppedClasses = new Set<string>();
     try {
         for (const message of specFromState(state, { mySeatId: botId })

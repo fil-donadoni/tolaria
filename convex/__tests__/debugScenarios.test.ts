@@ -155,6 +155,14 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
             // CR 122.1 (issue #1969) — the scaling seed for a "for each
             // experience counter you have" card.
             experience: { me: 2 },
+            // CR 102.1 / 117.1 / 117.4 (issue #3454) — the turn holder, the
+            // priority holder and the banked passes. Normalize is the ONLY
+            // path a stored row and a markdown seed reach the builder by, so a
+            // field it silently drops loads a curated opponent-turn position
+            // on the wrong turn.
+            activePlayer: "opp",
+            priority: "me",
+            passCount: 1,
         };
         expect(normalizeScenarioSpec(raw)).toEqual({
             cards: [
@@ -176,7 +184,44 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
             poison: { me: 4, opp: 9 },
             life: { me: 4, opp: 17 },
             experience: { me: 2 },
+            activePlayer: "opp",
+            priority: "me",
+            passCount: 1,
         });
+    });
+
+    // CR 102.1 / 117.1 / 117.4 (issue #3454) — the seat fields are a CLOSED
+    // vocabulary, so the tolerant load has to drop anything outside it rather
+    // than leak a raw value the builder would compare against "me".
+    it("normalizes the turn holder, priority and passCount — absent and garbage", () => {
+        expect(
+            normalizeScenarioSpec({
+                cards: [],
+                activePlayer: "opp",
+                priority: "opp",
+                passCount: 0,
+            })
+        ).toEqual({
+            cards: [],
+            activePlayer: "opp",
+            priority: "opp",
+            passCount: 0,
+        });
+
+        // Absent stays absent — which is what the builder reads as "leave the
+        // base state's turn holder alone".
+        expect(normalizeScenarioSpec({ cards: [] })).toEqual({ cards: [] });
+
+        // A seat name outside the vocabulary is a DROP, never a pass-through:
+        // `"ME"` and `"p2"` are exactly the shapes a hand-edited row produces.
+        expect(
+            normalizeScenarioSpec({
+                cards: [],
+                activePlayer: "ME",
+                priority: "p2",
+                passCount: "one",
+            })
+        ).toEqual({ cards: [] });
     });
 
     // CR 119.1 (issue #2147) — round-trip `life` through every shape the

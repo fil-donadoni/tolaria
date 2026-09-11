@@ -48,6 +48,13 @@ export const SCENARIO_SPEC_FIELD_OWNER = {
     poison: "form-owned",
     life: "form-owned",
     experience: "form-owned",
+    // CR 102.1 / 117.1 / 117.4 (issue #3454) — the turn holder, the priority
+    // holder and the banked passes. `form-owned` like everything else since
+    // issue #3463: these are the first of PRD #3397's queued widenings, and a
+    // knob only `specFromState` can produce is the gap #3463 closed.
+    activePlayer: "form-owned",
+    priority: "form-owned",
+    passCount: "form-owned",
     companion: "form-owned",
 } as const satisfies Record<keyof ScenarioSpec, ScenarioSpecFieldOwner>;
 
@@ -116,6 +123,10 @@ export type ScenarioSpecFieldInput =
     | { kind: "phase"; label: string }
     | { kind: "boolean"; label: string }
     | { kind: "per-seat"; label: string; min?: number }
+    /** CR 102.1 / 117.1 (issue #3454) — ONE seat, not a me/opp pair: the turn
+     *  holder and the priority holder each name a single side, and `""` (the
+     *  spec's own absent) is a real selectable value. */
+    | { kind: "seat"; label: string }
     | { kind: "companion"; label: string };
 
 export const SCENARIO_SPEC_FIELD_INPUT = {
@@ -129,6 +140,9 @@ export const SCENARIO_SPEC_FIELD_INPUT = {
     poison: { kind: "per-seat", label: "poison", min: 0 },
     life: { kind: "per-seat", label: "life" },
     experience: { kind: "per-seat", label: "experience", min: 0 },
+    activePlayer: { kind: "seat", label: "active player" },
+    priority: { kind: "seat", label: "priority" },
+    passCount: { kind: "number", label: "passes", min: 0 },
     companion: { kind: "companion", label: "companion" },
 } as const satisfies {
     [K in FormOwnedScenarioSpecKey]: ScenarioSpecFieldInputFor<K>;
@@ -150,11 +164,15 @@ type ScenarioSpecFieldInputForValue<V> = V extends SeatPairDraft
     ? { kind: "per-seat"; label: string; min?: number }
     : V extends boolean
       ? { kind: "boolean"; label: string }
-      : V extends string
-        ?
-              | { kind: "number"; label: string; min?: number }
-              | { kind: "phase"; label: string }
-        : { kind: "companion"; label: string };
+      : // Before the generic string branch: a draft field narrowed to the seat
+        // union is a `<select>`, never a free-text number (issue #3454).
+        V extends "" | "me" | "opp"
+        ? { kind: "seat"; label: string }
+        : V extends string
+          ?
+                | { kind: "number"; label: string; min?: number }
+                | { kind: "phase"; label: string }
+          : { kind: "companion"; label: string };
 
 /** The two seats every per-seat spec field is shaped by. */
 export const SCENARIO_SEATS = ["me", "opp"] as const;

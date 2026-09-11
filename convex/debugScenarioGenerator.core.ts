@@ -166,6 +166,26 @@ export const SCENARIO_JSON_SCHEMA = {
             description:
                 "Declare a companion into a slot. Omit unless the description names a companion.",
         },
+        // CR 102.1 / 117.1 / 117.4 (issue #3454) — a description that says
+        // "it's your opponent's turn and you're holding up removal" is a real
+        // board the model can be asked for, and the only way to get it.
+        activePlayer: {
+            type: "string",
+            enum: ["me", "opp"],
+            description:
+                "Whose turn it is (default 'me'). Set 'opp' when the description places the board on the opponent's turn.",
+        },
+        priority: {
+            type: "string",
+            enum: ["me", "opp"],
+            description:
+                "Who holds priority (default: the active player). 'me' with activePlayer 'opp' is an instant-speed decision on the opponent's turn.",
+        },
+        passCount: {
+            type: "integer",
+            description:
+                "Passes already banked in this priority round (default 0).",
+        },
         markLastDrawn: {
             type: "boolean",
             description:
