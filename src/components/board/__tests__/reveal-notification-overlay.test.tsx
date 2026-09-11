@@ -55,6 +55,27 @@ describe("RevealNotificationOverlay (private look / public reveal popup)", () =>
         );
     });
 
+    // CR 701.23b (issue #3425) — the fail-to-find notice is the one entry with
+    // an EMPTY `cards`: a library search that found nothing has nothing to
+    // show, and the whole message is the outcome. Rendering it through the
+    // reveal path would print "Revealed card" over an empty row.
+    it("renders a fail-to-find notice with no cards and its own heading", () => {
+        const { getByText, queryByTestId } = renderOverlay([
+            {
+                id: "grove:0:$picked:fail-to-find",
+                audience: ["p1", "p2"],
+                source: "sterling-grove",
+                kind: "fail-to-find",
+                cards: [],
+            },
+        ]);
+        expect(getByText("No card found")).toBeTruthy();
+        expect(
+            getByText("A library search ended without finding a card.")
+        ).toBeTruthy();
+        expect(queryByTestId("reveal-card")).toBeNull();
+    });
+
     it("renders nothing when there are no pending reveals", () => {
         const { container } = renderOverlay(undefined);
         expect(container.firstChild).toBeNull();
