@@ -345,7 +345,14 @@ describe("CR 701.20a — census: every shipped `reveal` Op notifies (issue #3425
         const missing: string[] = [];
         for (const { card, op } of ops) {
             const before = state.pendingReveals?.length ?? 0;
-            OP_EXECUTORS.reveal(ctx, op as Extract<EffectOp, { op: "reveal" }>);
+            // The third argument is the resume cursor `runOpList` threads
+            // through every executor; `reveal` is not a structural Op and
+            // never reads it, so a fresh one is passed.
+            OP_EXECUTORS.reveal(
+                ctx,
+                op as Extract<EffectOp, { op: "reveal" }>,
+                { pos: 0, resume: 0 }
+            );
             const added = (state.pendingReveals ?? []).slice(before);
             const ok =
                 added.length === 1 &&
