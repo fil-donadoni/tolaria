@@ -953,6 +953,7 @@ const IGNORED_STATE_KEYS = [
     "nextTokenSeq",
     "nextWorldSeq",
     "nextGrantSeq",
+    "nextRevealSeq",
     "nextDelayedSeq",
     "nextEmblemSeq",
 ] as const;

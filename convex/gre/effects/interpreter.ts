@@ -1759,6 +1759,32 @@ function resolvePicks(
     return readBinding(ctx, ref.ref);
 }
 
+/** CR 701.20a — the two halves of ONE public reveal, fired together (ADR 0026,
+ *  issue #3425). `markKnownToAll` is the PERSISTENT grant (the revealed card
+ *  keeps a face-up "eye" in every player's projection until an uncertainty
+ *  event clears it); `notifyReveal` is the TRANSIENT "show that card to all
+ *  players for a brief time" dialog. Splitting them was a per-Op author
+ *  discipline the `reveal` Op silently failed for its whole shipped life, so
+ *  the pair lives in ONE function every all-players reveal site calls.
+ *
+ *  The notification doubles as the record of WHAT was just made public: a
+ *  placement that runs later in the same resolution reads `pendingReveals`
+ *  back to decide whose knowledge survives (`putLibraryCardsOnTop`,
+ *  `gre/state.ts`). */
+function revealToAllPlayers(
+    ctx: SpellContext,
+    zoneOwnerId: string,
+    cardInstanceIds: string[]
+): void {
+    ctx.markKnownToAll(zoneOwnerId, cardInstanceIds);
+    ctx.notifyReveal(
+        [...ctx.allPlayerIds],
+        cardInstanceIds,
+        ctx.sourceCardId,
+        "reveal"
+    );
+}
+
 /** Captures a snapshot of `target`'s current characteristics under `name`,
  *  persisted in the stack item's `collectedChoices` (via `noteChoice`) so it
  *  survives a later suspension and a DB round-trip. Called by object-moving
@@ -4972,11 +4998,31 @@ export const OP_EXECUTORS: {
         if (!target) return;
         ctx.skipNextUntap(target);
     },
-    // CR 701.20a (issue #920, #682) — reveal `player`'s hand to every player.
-    // A thin adapter over `SpellContext.markKnownToAll` (ADR 0026): stamps
-    // every current hand card with every player in `knownTo` so the wire
-    // projection shows the real cards instead of nulling the slot. No target
-    // resolution beyond `player`; not a choice, no binding.
+    // CR 701.20a (issue #920, #682) — reveal `player`'s hand, or a searched-up
+    // card, to every player. TWO halves, ONE reveal (ADR 0026), fired together
+    // here so no card can get one without the other (issue #3425):
+    //   - `markKnownToAll` is the PERSISTENT grant — every player is stamped
+    //     into the cards' `knownTo`, so the wire projection shows the real
+    //     card instead of nulling the slot, and keeps showing it until an
+    //     uncertainty event clears it;
+    //   - `notifyReveal` (kind "reveal", audience = every player) is the
+    //     TRANSIENT dialog — CR 701.20a's "show that card to all players for a
+    //     brief time", which is the only part of a reveal an opponent can
+    //     actually NOTICE happening.
+    // Pairing them HERE, at the one executor all 31 shipped `reveal` cards
+    // funnel through, is what makes this class-level: not a single card
+    // definition opts in, and a future one cannot forget. It is deliberately
+    // NOT folded into `markKnownToAll` itself — `lookDistribute`,
+    // `revealAndCategorize` and the `library-top` set selector all call that
+    // primitive while owning their own (or no) dialog, so folding would
+    // double-pop there.
+    // Was opt-in until issue #3425: the argument was that a reveal tied to a
+    // following picker (Thoughtseize) shows its picker and needs no timed
+    // dialog. That reasoning covered the PICKER's owner only — the player
+    // whose hand is revealed, and every other player, saw nothing at all, and
+    // the sibling reveal-shaped Ops (`revealTopAndRoute`, `revealUntilMatch`,
+    // `digMatchingToHand`, `explore`) had notified all along. The
+    // inconsistency, not the picker, was the defect.
     reveal(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return;
@@ -4992,12 +5038,12 @@ export const OP_EXECUTORS: {
         if ("cards" in op) {
             const ids = resolvePicks(ctx, op.cards);
             if (!ids || ids.length === 0) return;
-            ctx.markKnownToAll(playerId, ids);
+            revealToAllPlayers(ctx, playerId, ids);
             return;
         }
         const ids = ctx.getHandIds(playerId);
         if (ids.length === 0) return; // CR 608.2b — nothing to reveal
-        ctx.markKnownToAll(playerId, ids);
+        revealToAllPlayers(ctx, playerId, ids);
     },
     // CR 400.2 look (Urza's Bauble) — "Look at a card at random in
     // `player`'s hand": a PRIVATE look. A thin adapter over the two

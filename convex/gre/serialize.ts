@@ -1933,6 +1933,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "queuedEndTurn",
     "combat",
     "nextGrantSeq",
+    "nextRevealSeq",
     "mulligan",
     "gameOver",
     "extraTurns",

@@ -11,7 +11,8 @@ const REVEAL_NOTIFICATION_MS = 5000;
 
 /** Transient center-screen popup for a private look or public reveal
  *  (`SpellContext.notifyReveal`, ADR 0026 / CR 400.2 look / CR 701.20
- *  reveal). The projection has already filtered `pendingReveals` to the entries
+ *  reveal), or a public fail-to-find notice (CR 701.23b — a library search
+ *  that found nothing; it carries no cards, only its heading). The projection has already filtered `pendingReveals` to the entries
  *  this viewer may see — a private look (Urza's Bauble) reaches only the looker,
  *  a public reveal reaches everyone — so every entry here is for us to show.
  *
@@ -24,17 +25,32 @@ const REVEAL_NOTIFICATION_MS = 5000;
  *  (it stays face-up in its zone) is the separate `knownTo` grant the caller
  *  also performs — this overlay is only the momentary "here is what you saw". */
 export default function RevealNotificationOverlay() {
-    const { pendingReveals } = useGameContext();
+    const { pendingReveals, pendingChoices, playerId } = useGameContext();
     const [dismissed, setDismissed] = useState<ReadonlySet<string>>(
         () => new Set()
     );
 
+    // A viewer who is being PROMPTED right now sees nothing of this overlay
+    // anyway — the choice dialog portals to `<body>` at the same z-layer and
+    // later in the DOM, so it paints over the scrim — while the overlay's
+    // window-CAPTURE key handler below would still swallow the first
+    // Space / Enter / Escape aimed at that picker for the whole auto-dismiss
+    // window. Suppressed rather than reordered: for the one shape where the
+    // two collide (a hand reveal followed by its own picker — Thoughtseize,
+    // CR 701.20a) the picker IS that player's view of the reveal, it shows the
+    // very cards the dialog would. Every OTHER player still gets the dialog,
+    // which is the half that was missing (issue #3425).
+    const prompted =
+        pendingChoices !== undefined &&
+        pendingChoices.length > 0 &&
+        pendingChoices[0].playerId === playerId;
+
     // The most recent still-undismissed reveal (entries are enqueued in order,
     // so the last one is the newest). Showing one at a time keeps the dialog
     // simple; the next tick surfaces the one below once this is dismissed.
-    const active = (pendingReveals ?? [])
-        .filter((r) => !dismissed.has(r.id))
-        .at(-1);
+    const active = prompted
+        ? undefined
+        : (pendingReveals ?? []).filter((r) => !dismissed.has(r.id)).at(-1);
 
     const activeId = active?.id;
     useEffect(() => {
@@ -70,14 +86,19 @@ export default function RevealNotificationOverlay() {
     const dismiss = () => setDismissed((prev) => new Set(prev).add(active.id));
 
     const multiple = active.cards.length > 1;
+    // CR 701.23b — the fail-to-find notice carries NO cards: the whole message
+    // is that a library search ended with nothing found, which is why it needs
+    // a heading of its own rather than "Revealed cards" over an empty row.
     const heading =
-        active.kind === "look"
-            ? multiple
-                ? "You look at these cards"
-                : "You look at this card"
-            : multiple
-              ? "Revealed cards"
-              : "Revealed card";
+        active.kind === "fail-to-find"
+            ? "No card found"
+            : active.kind === "look"
+              ? multiple
+                  ? "You look at these cards"
+                  : "You look at this card"
+              : multiple
+                ? "Revealed cards"
+                : "Revealed card";
 
     return (
         <div
@@ -96,17 +117,23 @@ export default function RevealNotificationOverlay() {
                 className="flex flex-col items-center gap-4 px-8 py-6"
             >
                 <p className="text-display text-sm text-text">{heading}</p>
-                <div className="flex flex-wrap items-center justify-center gap-3">
-                    {active.cards.map((c) => (
-                        <div key={c.instanceId} className="w-40 aspect-5/7">
-                            <CardImage
-                                card={{ id: c.cardId }}
-                                sizes="160px"
-                                includeThumb={false}
-                            />
-                        </div>
-                    ))}
-                </div>
+                {active.kind === "fail-to-find" ? (
+                    <p className="max-w-64 text-center text-sm text-text-muted">
+                        A library search ended without finding a card.
+                    </p>
+                ) : (
+                    <div className="flex flex-wrap items-center justify-center gap-3">
+                        {active.cards.map((c) => (
+                            <div key={c.instanceId} className="w-40 aspect-5/7">
+                                <CardImage
+                                    card={{ id: c.cardId }}
+                                    sizes="160px"
+                                    includeThumb={false}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                )}
                 <p className="text-xs text-text-muted">
                     Click or press Space to dismiss
                 </p>
