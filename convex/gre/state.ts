@@ -98,7 +98,7 @@ setControlRelocation((state, card, previousControllerId, nextControllerId) => {
     // combat" reminder is this rule made explicit). No-op outside combat.
     removePermanentFromCombat(state, card.id);
 });
-import { turnFaceDown, turnFaceUp } from "./faceDown";
+import { isFaceDownExile, turnFaceDown, turnFaceUp } from "./faceDown";
 import { revertAdventureIdentity, wasCastAsAdventure } from "./adventure";
 import { revertSplitIdentity } from "./splitCast";
 import type { SplitHalfSide } from "../cards/splitCard";
@@ -3332,11 +3332,27 @@ export type PendingChoice = {
      *  declared kind rather than re-deriving it from the (reused)
      *  `PendingChoiceKind` shape. Set together with `asEntersCardId`. */
     asEntersKind?: AsEntersChoice["kind"];
-    /** The card definition id of the subject this choice is ABOUT, when that
-     *  subject is not reachable in any projected zone (e.g. a `choose-aura-host`
-     *  Aura held in `stagedEntries`, off every zone). The client renders it
-     *  as a card image inside the choice dialog so the chooser sees WHICH card
-     *  the prompt refers to. Carried verbatim through the wire projection. */
+    /** The card definition id of the subject this choice is ABOUT. The client
+     *  renders it as a card image ABOVE the prompt, so the chooser sees WHICH
+     *  card the question refers to. Carried verbatim through the wire
+     *  projection.
+     *
+     *  Two producers, and the second is why this is not only an off-zone
+     *  escape hatch: a subject that is reachable in no projected zone at all
+     *  (a `choose-aura-host` Aura held in `stagedEntries`), and a subject that
+     *  IS in a projected zone but would otherwise go unnamed by a prompt that
+     *  deliberately says "the card" (the resolve-time Cast/Decline offer,
+     *  issue #3413).
+     *
+     *  CR 406.3 — a `PendingChoice` crosses the wire UNREDACTED to both
+     *  viewers, so this field tells the OPPONENT which card it is just as
+     *  surely as naming it in `prompt` would. THE RULE: set it only for a card
+     *  whose identity is ALREADY PUBLIC, never for a face-down one. Inside an
+     *  Effect Script, `SpellContext.getPublicCardIdentity` is what answers
+     *  that; the two producers that cannot reach a SpellContext at all
+     *  (`gre/madness.ts`, `gre/rebound.ts`) set it unconditionally and are
+     *  correct in substance — a madness card was publicly discarded, a rebound
+     *  card was public on the stack. */
     subjectCardId?: string;
     /** For `kind: "may-pay"` only — a spend restriction the mana leg may draw
      *  on in addition to the fungible pool (CR 106.6, ADR 0022 / 0042). Set to
@@ -19248,6 +19264,13 @@ export function buildSpellContext(
             if (actingPlayerId && actingPlayerId !== entry.playerId) {
                 entry.actingPlayerId = actingPlayerId;
             }
+            // The card this option is ABOUT, rendered as an image above the
+            // question (issue #3413). CR 406.3 — this entry reaches BOTH
+            // viewers unredacted, so the caller must already have established
+            // that the card's identity is public (`getPublicCardIdentity`).
+            if (req.subjectCardId !== undefined) {
+                entry.subjectCardId = req.subjectCardId;
+            }
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];
             return undefined;
         },
@@ -20609,6 +20632,34 @@ export function buildSpellContext(
                 : undefined;
             const def = cardId ? tryGetDefinition(cardId) : undefined;
             return def?.targetRequirement;
+        },
+        getPublicCardIdentity(playerId, cardInstanceId, zone) {
+            // CR 406.3 / ADR 0026 (issue #3413) — the definition id it is safe
+            // to disclose, or nothing. The one caller that matters is a dialog
+            // deciding whether it may show the card it asks about, and a
+            // `PendingChoice` crosses the wire UNREDACTED, so this answers
+            // FAIL-CLOSED: it hands back an id only for a card it can confirm
+            // is already public.
+            //
+            // The graveyard and exile are open zones (CR 404.1 / 406.1), so a
+            // card there is public UNLESS something made it otherwise: a
+            // per-viewer `knownTo` grant, which is exactly what
+            // `exileFaceDownCard` stamps for a hideaway / impulse card and what
+            // `projectExileCard` re-derives on the wire. A hidden zone is not
+            // in the parameter's type at all — a hand card has no public
+            // identity to disclose (CR 402.1), so the question is
+            // unrepresentable rather than a branch returning `undefined`.
+            const owner = getPlayer(state, playerId);
+            const found = owner[zone].find((c) => c.id === cardInstanceId);
+            if (!found) return undefined;
+            // The SHARED predicate (`gre/faceDown.ts`), not a fourth copy of
+            // it: `projectExileCard` gates the wire on exactly this, so
+            // "public enough to pin" and "public on the opponent's screen"
+            // cannot drift apart.
+            if (isFaceDownExile(found)) return undefined;
+            // A card with no registered definition renders as a placeholder
+            // rather than a face, so there is nothing to disclose.
+            return (found.card as { id?: string }).id;
         },
         getChosenCardCastable(playerId, cardInstanceId, sourceZone) {
             // CR 608.2f / 305.1 (issue #1477) — the card must still be in the
@@ -22117,9 +22168,9 @@ function moveCardWithGraveyardReplacement(
     if (to !== "graveyard") {
         const moved = moveCard(player, cardInstanceId, from, to);
         if (PUBLIC_ZONES.has(from) && !PUBLIC_ZONES.has(to)) {
-            const isFaceDownExile =
-                from === "exile" && (moved.knownTo?.length ?? 0) > 0;
-            if (!isFaceDownExile) {
+            const leavingFaceDownExile =
+                from === "exile" && isFaceDownExile(moved);
+            if (!leavingFaceDownExile) {
                 grantKnowledgeToAll(state, player.id, [moved.id]);
             }
         }

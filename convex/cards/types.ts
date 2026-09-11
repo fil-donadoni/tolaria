@@ -5732,6 +5732,19 @@ export interface SpellContext {
          *  / the mode for the controlled opponent's spell). Recorded on the
          *  PendingChoice only when it differs from `playerId`. */
         actingPlayerId?: string;
+        /** The card DEFINITION id (never an instance id) of the card this
+         *  option is ABOUT, so the dialog can render its image above the
+         *  question instead of asking "cast the card" about nothing visible
+         *  (issue #3413). Carried verbatim onto the `option-pick`
+         *  `PendingChoice` and across the wire.
+         *
+         *  CR 406.3 — `pendingChoices` reaches BOTH viewers UNREDACTED, so this
+         *  field discloses the card to the opponent as surely as naming it in
+         *  `prompt` would. Set it only for a card whose identity is ALREADY
+         *  public; {@link getPublicCardIdentity} is what answers that AND
+         *  hands back the id, so a caller cannot pin one it was not allowed
+         *  to. */
+        subjectCardId?: string;
     }) => string | undefined;
 
     /** Step 2 of the pile-division divide-then-choose family (ADR 0053): the
@@ -6567,6 +6580,46 @@ export interface SpellContext {
         cardInstanceId: string,
         sourceZone: "hand" | "graveyard" | "exile"
     ) => boolean;
+    /** CR 406.3 / ADR 0026 (issue #3413) — the card DEFINITION id it is safe to
+     *  DISCLOSE for `cardInstanceId` in `playerId`'s `zone`, or `undefined`
+     *  when that card's identity is not already public knowledge.
+     *
+     *  A definition id rather than a boolean on purpose: the caller wants the
+     *  id precisely when disclosure is allowed, so fusing the permission and
+     *  the value makes "ask, then pin something else" unrepresentable.
+     *
+     *  Returns an id only for a card in an OPEN zone (graveyard, exile,
+     *  CR 404.1 / 406.1) that carries no per-viewer `knownTo` restriction.
+     *  `undefined` for a face-down exile (hideaway, impulse draw — `knownTo`
+     *  scoped to one knower), for a card not in that zone, and for one with no
+     *  registered definition. `knownTo` is the WHOLE gate, and deliberately so:
+     *  it is the same predicate `projectExileCard` gates the wire on
+     *  (`isFaceDownExile`, `gre/faceDown.ts`), so "public enough to pin" and
+     *  "public on the opponent's screen" cannot drift apart.
+     *
+     *  `zone` admits only the two OPEN zones. A hidden zone has no answer this
+     *  function could give — a hand card is private by definition (CR 402.1) —
+     *  so rather than a branch returning `undefined` that a later reader might
+     *  "improve", the question is unrepresentable.
+     *
+     *  VIEWER-BLIND, and it has to be: `subjectCardId` is ONE value reaching
+     *  BOTH viewers, so "public" here means public to everyone, not to the
+     *  chooser. A hideaway controller is entitled to keep looking at their own
+     *  face-down card (CR 406.3) and still gets no image, because showing it to
+     *  them would show it to their opponent too. Per-viewer redaction of the
+     *  field in `projectPublicState` is what would fix that; drafted in
+     *  `docs/findings/3413-subject-card-not-redacted-per-viewer.md`.
+     *
+     *  Exists so a dialog can decide whether it may show the card it is asking
+     *  about. `pendingChoices` crosses the wire UNREDACTED, so anything a
+     *  prompt names or pins is told to the opponent too — which is why the
+     *  answer is derived from the card's own state rather than from a flag the
+     *  caller sets, and why it fails CLOSED on every case it cannot confirm. */
+    getPublicCardIdentity: (
+        playerId: string,
+        cardInstanceId: string,
+        zone: "graveyard" | "exile"
+    ) => string | undefined;
     /** CR 116.2a / 305.2a / 305.3 / 305.2b (issue #1961) — the LAND twin of
      *  {@link getChosenCardCastable}, for a play-during-resolution permission
      *  whose Oracle text says "play" rather than "cast" (Hideaway's "you may

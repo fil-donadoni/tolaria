@@ -305,21 +305,36 @@ export default function PendingChoicePrompt({
                                     {sourceLabel}
                                 </p>
                                 <div className="panel-rule h-px w-full" />
+                                {choice.subjectCardId && (
+                                    // The card the choice is ABOUT, ABOVE the
+                                    // question (issue #3413) — a prompt that
+                                    // says "the card" and shows nothing is
+                                    // asking about something the player cannot
+                                    // see. Reading order is title → card →
+                                    // question, so the question lands with its
+                                    // subject already on screen; below the
+                                    // question the image read as an
+                                    // afterthought and, on a phone viewport,
+                                    // sat under the fold with the buttons.
+                                    //
+                                    // CR 303.4f / 406.3 — the server decides
+                                    // WHETHER there is anything to show here
+                                    // (`getPublicCardIdentity`): a subject held
+                                    // off every zone (a `choose-aura-host`
+                                    // Aura) pins its id, a face-down one never
+                                    // does. This renders whatever it is given.
+                                    <div className="w-28 shrink-0">
+                                        <CardImage
+                                            card={{ id: choice.subjectCardId }}
+                                            sizes="112px"
+                                            includeThumb={false}
+                                        />
+                                    </div>
+                                )}
                                 <p className="text-text-muted text-xs">
                                     {formatOracleText(choice.prompt)}
                                 </p>
                             </div>
-                            {choice.subjectCardId && (
-                                // CR 303.4f — show WHICH card the choice is about
-                                // (e.g. the reanimated Aura, held off every zone).
-                                <div className="w-28 shrink-0">
-                                    <CardImage
-                                        card={{ id: choice.subjectCardId }}
-                                        sizes="112px"
-                                        includeThumb={false}
-                                    />
-                                </div>
-                            )}
                             {isReflexiveCastChoice ? (
                                 <div className="flex gap-2 mt-1">
                                     <Button

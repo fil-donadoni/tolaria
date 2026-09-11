@@ -366,8 +366,12 @@ const PLAY_DECLINE_OPTIONS: { id: string; label: string }[] = [
  *  which branch was taken — i.e. whether the FACE-DOWN hideaway card is a land.
  *  A grant that can reach a land therefore uses ONE prompt and ONE option list
  *  for BOTH branches, so the branch actually taken is indistinguishable to any
- *  observer (the same reason the prompt names no card and pins no
- *  `subjectCardId`). */
+ *  observer — and the prompt never names the card, for the same reason.
+ *
+ *  What the offer MAY carry (issue #3413) is a `subjectCardId` pin, and only
+ *  because it is DERIVED rather than authored: `getPublicCardIdentity` hands
+ *  back an id only for a card whose identity is already public, so a face-down
+ *  hideaway card pins nothing and this rule is untouched. */
 const OFFER_PROMPT = {
     play: "You may play the card. Play it or decline.",
     cast: "You may cast the card. Cast it or decline.",
@@ -6509,6 +6513,32 @@ function runCastDuringResolution(
         : CAST_DECLINE_OPTIONS;
     const offerPrompt = op.includesLand ? OFFER_PROMPT.play : OFFER_PROMPT.cast;
 
+    // The card the offer is ABOUT, shown as an image above the question
+    // (issue #3413). A prompt that says "the card" and pins nothing is the
+    // dialog asking about something the player cannot see — acute for cascade
+    // (CR 702.85a), whose pile is face up in the exile zone both players are
+    // already looking at.
+    //
+    // CR 406.3 is the whole reason this is DERIVED and not a parameter: the
+    // PendingChoice crosses the wire UNREDACTED, so pinning the id tells the
+    // opponent which card it is exactly as naming it in `prompt` would, and a
+    // HIDEAWAY card is exiled face down and visible to its controller alone.
+    // `getPublicCardIdentity` answers off the card's own state and fails
+    // closed — it hands back an id ONLY for a card already public — so the
+    // face-down branch pins nothing without anyone having to remember to pass
+    // a flag, and the two branches keep the byte-identical prompt and option
+    // list the same rule already demands.
+    const subjectCardId = ctx.getPublicCardIdentity(
+        playerId,
+        cardInstanceId,
+        sourceZone
+    );
+    const offer = {
+        options: offerOptions,
+        prompt: offerPrompt,
+        ...(subjectCardId !== undefined ? { subjectCardId } : {}),
+    };
+
     // CR 116.2a / 305.9 — a LAND is PLAYED, never cast. `includesLand` is
     // set only by a grant whose Oracle text says "play" (Hideaway); without
     // it a land silently passes, which is the official Malcolm land ruling
@@ -6521,15 +6551,20 @@ function runCastDuringResolution(
         // "you may PLAY the exiled card" — the same resolve-time
         // `option-pick` as the cast branch, byte-identical in prompt and
         // options (see `OFFER_PROMPT`). The text deliberately does NOT name
-        // the card either: a hideaway card is FACE DOWN (CR 406.3, visible
-        // only to its controller) and `pendingChoices` crosses the wire
-        // unredacted to BOTH viewers, so naming it in the prompt — or
-        // pinning it via `subjectCardId` — would leak the hidden identity.
+        // the card: a hideaway card is FACE DOWN (CR 406.3, visible only to
+        // its controller) and `pendingChoices` crosses the wire unredacted to
+        // BOTH viewers, so naming it in the prompt would leak the hidden
+        // identity. The `subjectCardId` the shared `offer` may carry is safe
+        // for the one reason it is DERIVED (issue #3413):
+        // `getPublicCardIdentity` returns nothing for a face-down card, so
+        // this branch pins nothing when the card is hidden and pins a public
+        // graveyard land's id when it is not. Computed once, before the
+        // branch, and spread into both call sites — so it cannot differ
+        // between them either.
         const landDecision = ctx.requestOptionChoice({
             playerId,
             choiceId: "cdr:decide",
-            options: offerOptions,
-            prompt: offerPrompt,
+            ...offer,
         });
         if (landDecision === undefined) return "suspend"; // enqueued — wait
         if (landDecision !== "cast") {
@@ -6568,8 +6603,7 @@ function runCastDuringResolution(
     const decision = ctx.requestOptionChoice({
         playerId,
         choiceId: "cdr:decide",
-        options: offerOptions,
-        prompt: offerPrompt,
+        ...offer,
     });
     if (decision === undefined) return "suspend"; // enqueued — wait
     if (decision !== "cast") {

@@ -88,6 +88,32 @@ export function isHiddenFromKnower(
     return producer === undefined ? false : HIDDEN_FROM_KNOWER[producer];
 }
 
+/** CR 406.3 / ADR 0026 — is this EXILED card face down: does anyone NOT know
+ *  what it is?
+ *
+ *  The gate is the per-viewer `knownTo` grant and nothing else. Exile is an
+ *  open zone (CR 406.1), so a card there is public to everyone UNLESS an
+ *  exiling effect scoped its identity to specific viewers — which is exactly
+ *  what `exileFaceDownCard` stamps for hideaway (CR 702.75a) and for an
+ *  impulse draw, and exactly what `projectExileCard` re-derives on the wire.
+ *
+ *  Deliberately NOT `faceDownBy` (issue #3413): `moveCard` keeps that marker
+ *  alive across a move INTO exile while it deletes `knownTo`, so a card that
+ *  was a face-down PERMANENT and is now a perfectly public exiled card still
+ *  carries it. Reading it here would refuse disclosure for cards everyone can
+ *  see. `faceDown` is likewise not it — an exile instance never carries that
+ *  flag in raw state; `projectExileCard` adds it ON THE WIRE.
+ *
+ *  Extracted at the third copy (issue #3413): the wire gate
+ *  (`projectExileCard`), the re-exile knowledge decision (`moveCardTo`) and
+ *  the disclosure gate (`getPublicCardIdentity`) all ask this question, and
+ *  the ONE way the face-down leak reopens is those three drifting apart. */
+export function isFaceDownExile(card: {
+    knownTo?: readonly string[];
+}): boolean {
+    return (card.knownTo?.length ?? 0) > 0;
+}
+
 /** Turns a permanent face down in place (CR 708.2). No-op if already face
  *  down. The real definition id is preserved in `faceDownOf`, and `producer`
  *  — the mechanic responsible, {@link FaceDownProducer} — in `faceDownBy`.
