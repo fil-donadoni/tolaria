@@ -1,10 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Bug } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
     ABOVE_CONTROLLER_BAR,
     BESIDE_CONTROLLER_STRIP,
 } from "~/lib/controller-bar-metrics";
+import { useAnomalyReport } from "~/hooks/useAnomalyReport";
+import {
+    acknowledgeAnomalyReport,
+    clearAnomalyReport,
+} from "~/lib/ai/anomaly-report";
 import BugReportDialog from "./bug-report-dialog";
 
 /**
@@ -14,6 +19,26 @@ import BugReportDialog from "./bug-report-dialog";
  */
 export default function BugReportButton() {
     const [open, setOpen] = useState(false);
+
+    // "Report anomaly", from a decision in the AI box (issue #3405). The debug
+    // sheet is in another subtree and this component owns the only open flag,
+    // so the ask arrives through the anomaly store. Acknowledged immediately:
+    // the request is a one-shot, and leaving it standing would re-open the
+    // dialog every time the reporter closed it.
+    const anomaly = useAnomalyReport();
+    useEffect(() => {
+        if (!anomaly.requested) return;
+        setOpen(true);
+        acknowledgeAnomalyReport();
+    }, [anomaly.requested]);
+
+    // Closing the dialog drops the decision with it — the payload is assembled
+    // at submit time, and a decision left behind would attach itself to the
+    // NEXT report, filed from somewhere else entirely.
+    const handleOpenChange = (next: boolean) => {
+        setOpen(next);
+        if (!next) clearAnomalyReport();
+    };
 
     return (
         <>
@@ -57,7 +82,7 @@ export default function BugReportButton() {
             >
                 <Bug />
             </Button>
-            <BugReportDialog open={open} onOpenChange={setOpen} />
+            <BugReportDialog open={open} onOpenChange={handleOpenChange} />
         </>
     );
 }

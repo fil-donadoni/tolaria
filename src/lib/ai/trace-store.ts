@@ -14,10 +14,12 @@
 // readable after the fact instead of only during.
 
 import type { DecisionTrace, Move, Phase } from "@convex/gre";
+import type { PublicGameState } from "@convex/gameProjections";
 import type { ExpectedInputKind } from "@convex/gre/expectedInput";
 import type { BrainOutcome } from "./brain-request";
 import type { BrainResult } from "./brain-client";
 import type { BotAction } from "./brain";
+import type { DeckKnowledgeBySeat } from "./state-adapter";
 
 /** One traced decision, as the Debug panel shows it. */
 export type AiTraceRecord = {
@@ -40,6 +42,26 @@ export type AiTraceRecord = {
      *  re-typed here, so the two cannot drift. */
     via: BrainResult["via"];
     at: number;
+    /** The state version the search ran on, when the pusher supplied a
+     *  position. Provenance for a Verdict given here (issue #3405): nothing
+     *  rebuilds from it — the board is in the spec — but it is what lets a file
+     *  in `data/verdicts/` be traced back to the moment in the match that
+     *  produced it. */
+    seq?: number;
+    /** Set once a tester has judged this decision through the verdict quiz
+     *  (issue #3405). Kept ON the record rather than in a second map because
+     *  `useAiTraces` is a `useSyncExternalStore` over this array: a judgement
+     *  filed anywhere else would not change the snapshot, so the box would go
+     *  on offering "Judge this move" for a decision already judged until some
+     *  unrelated push happened to re-render it. Session-scoped like the ring
+     *  itself — the durable record is the row the mutation wrote. */
+    judged?: {
+        /** Who gave it, as the account's nickname. The box shows it to an
+         *  admin; a tester only ever sees their own judgements, so the name
+         *  says nothing they did not already know. */
+        author?: string;
+        at: number;
+    };
 };
 
 let nextTraceId = 1;
@@ -52,20 +74,66 @@ const TRACE_RING_LIMIT = 8;
 let traces: AiTraceRecord[] = [];
 const listeners = new Set<() => void>();
 
+/** Everything the search's own position can be rebuilt FROM — the projection
+ *  the consult was handed and the knowledge it was given (issue #3405).
+ *
+ *  Not the `GameState` itself, because the main thread never holds one: the
+ *  consult reconstructs it inside the Worker (`projectedToGameState`, a pure
+ *  function of exactly these three values). Keeping the inputs means the quiz
+ *  can reproduce that state bit for bit when a tester asks for it, and costs
+ *  nothing for the decisions nobody judges — which is almost all of them. */
+export type AiTraceSource = {
+    /** The wire projection the consult was called with. */
+    state: PublicGameState;
+    /** The seat the projection was made for, and whose decision it was. */
+    botId: string;
+    /** The per-seat deck knowledge the difficulty preset allowed (issue
+     *  #2790/#2788). Part of the reconstruction, so a verdict is given on the
+     *  board the Bot BELIEVED it was on, not on a better-informed one. */
+    knowledge?: DeckKnowledgeBySeat;
+};
+
+/** The source of each traced decision, BESIDE the ring rather than inside its
+ *  records: `AiTraceRecord` is COPIED WHOLE — the box's "Copy" button
+ *  stringifies the ring into a bug report — and a projected board per entry
+ *  would turn a readable paste into a megabyte of instance ids. Nothing
+ *  serialises this map. */
+const sources = new Map<number, AiTraceSource>();
+
 /** Record one traced decision. A null trace is DROPPED rather than pushed: a
  *  consult that failed or legitimately found no move has nothing to explain,
  *  and clearing the ring on it would throw away the decisions the tester opened
  *  the panel for. The failure itself is not lost — it is what the decision log
- *  above (`recordAiDecision`) exists to record. */
+ *  above (`recordAiDecision`) exists to record.
+ *
+ *  `source` is what the decision was taken ON — the projection handed to the
+ *  consult, the seat, and the deck knowledge it was allowed. Optional, so a
+ *  caller with nothing to offer still records the reasoning: a decision without
+ *  one simply cannot be judged, which the quiz says out loud rather than
+ *  guessing a board. */
 export function pushAiTrace(
     trace: DecisionTrace | null,
-    via: BrainResult["via"]
+    via: BrainResult["via"],
+    source?: AiTraceSource
 ): void {
     if (!trace) return;
+    const id = nextTraceId++;
     traces = [
         ...traces,
-        { id: nextTraceId++, trace, via, at: Date.now() },
+        {
+            id,
+            trace,
+            via,
+            at: Date.now(),
+            ...(source === undefined ? {} : { seq: source.state.seq }),
+        },
     ].slice(-TRACE_RING_LIMIT);
+    if (source) sources.set(id, source);
+    // Evicted with the ring, or the map is a leak that grows with the game.
+    const live = new Set(traces.map((t) => t.id));
+    for (const key of sources.keys()) {
+        if (!live.has(key)) sources.delete(key);
+    }
     for (const l of listeners) l();
 }
 
@@ -74,9 +142,32 @@ export function getAiTraces(): AiTraceRecord[] {
     return traces;
 }
 
+/** What a traced decision was taken on, or `undefined` when the pusher had
+ *  nothing to offer (or the entry has since fallen out of the ring). */
+export function getAiTraceSource(id: number): AiTraceSource | undefined {
+    return sources.get(id);
+}
+
+/** Mark a decision judged (issue #3405) — the quiz's own receipt, so the box
+ *  stops offering to judge what a tester has already answered. A record that
+ *  has fallen out of the ring is a no-op rather than an error: the mutation
+ *  already succeeded, and the durable record is the row it wrote. */
+export function markAiTraceJudged(id: number, author?: string): void {
+    const index = traces.findIndex((t) => t.id === id);
+    if (index === -1) return;
+    const next = [...traces];
+    next[index] = {
+        ...next[index],
+        judged: { ...(author === undefined ? {} : { author }), at: Date.now() },
+    };
+    traces = next;
+    for (const l of listeners) l();
+}
+
 export function clearAiTraces(): void {
     if (traces.length === 0) return;
     traces = [];
+    sources.clear();
     for (const l of listeners) l();
 }
 

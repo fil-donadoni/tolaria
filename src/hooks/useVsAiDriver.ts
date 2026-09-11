@@ -936,7 +936,22 @@ export function useVsAiDriver(
                             // Worker did not produce came from the degraded
                             // inline path, and the box says so rather than
                             // presenting it as an ordinary decision.
-                            pushAiTrace(trace, via);
+                            //
+                            // The consult's own INPUTS travel with it since
+                            // issue #3405 — the projection, the seat and the
+                            // knowledge. `projectedToGameState` is a pure
+                            // function of exactly those three, so the verdict
+                            // quiz can reproduce the board the search ran on
+                            // and lower it into the `ScenarioSpec` a judgement
+                            // is stored as. Captured here, before the driver's
+                            // fallbacks move the game on: by the time a tester
+                            // opens the box, nothing else still holds the
+                            // position this decision was made on.
+                            pushAiTrace(trace, via, {
+                                state: botState,
+                                botId,
+                                ...(knowledge ? { knowledge } : {}),
+                            });
                             // issue #2470 — the consult's own verdict, recorded
                             // BEFORE the fallbacks below rewrite what happens
                             // next: `no-move` after a healthy search and
