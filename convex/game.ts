@@ -410,6 +410,7 @@ import {
     getDynamicManaProduced,
     getEffectiveManaChoices,
     getManaTapOptionsDetailed,
+    hasFilteredGiveUpCost,
     getFixedManaAmount,
     getFixedSacrificeManaAbility,
     getFixedMultiColorTapManaAbility,
@@ -1909,6 +1910,31 @@ export function tapSourceIntoPayment(
         throw new Error("Creature has summoning sickness");
     }
 
+    // CR 605.3b / 118.3 / 118.5 (issue #3455) — the payment-tap twin of the
+    // `tapUntap` branch: a FILTERED give-up cost parks on the shared cost-pick
+    // window rather than resolving inline, so Phyrexian Tower's {B}{B} is
+    // reachable WHILE a spell's cost is being paid (CR 605.3a) instead of only
+    // with priority. Ahead of every branch below, none of which can pay it.
+    {
+        const filterCostAbility = filterCostManaAbilityForTap(
+            state,
+            player,
+            card,
+            manaChoiceIndex
+        );
+        if (filterCostAbility) {
+            beginNonStackFilterCostActivation(
+                state,
+                player,
+                card,
+                filterCostAbility.ability,
+                filterCostAbility.ability.id,
+                filterCostAbility.choiceIndex
+            );
+            return;
+        }
+    }
+
     // CR 605.1a / 302.6 (issue #2021) — the tap-less sacrifice activation.
     // Checked before the choice branch below because it is one-way: it neither
     // taps the source nor records it in `tappedLandIds`, so there is no untap
@@ -2819,6 +2845,57 @@ export function resolveAbilityManaCost(
     return Object.keys(merged).length > 0 ? merged : undefined;
 }
 
+/** CR 602.1 / 118.3 — "discard a card matching <filter>" is unpayable unless
+ *  the activator holds at least `count` matching cards. Lifted out of
+ *  `activateAbilityOnState` (issue #3455) so the NON-STACK mana path gates on
+ *  the identical predicate rather than a second copy: a mutation that admits
+ *  what the other refuses is exactly how "the ability fired and nothing
+ *  happened" ships. Throws; no-op when the ability has no such leg. */
+export function assertDiscardFilterCostAffordable(
+    player: PlayerState,
+    ability: ActivatedAbility
+): void {
+    const leg = ability.cost.discardFilter;
+    if (!leg) return;
+    const candidates = player.hand.filter((c) =>
+        handCardMatchesFilter(c, leg.filter)
+    );
+    if (candidates.length < leg.count) {
+        throw new Error(
+            "Not enough matching cards in hand to pay the discard cost"
+        );
+    }
+}
+
+/** CR 602.1 / 118.5 — "sacrifice a permanent matching <filter>" is unpayable
+ *  unless the activator controls enough matching permanents. The twin of
+ *  {@link assertDiscardFilterCostAffordable}, extracted for the same reason
+ *  (issue #3455). Throws; no-op when the ability has no such leg. */
+export function assertSacrificeFilterCostAffordable(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    ability: ActivatedAbility
+): void {
+    const leg = ability.cost.sacrificeFilter;
+    if (!leg) return;
+    const candidates = player.battlefield.filter((c) =>
+        // Layered view, matching `sacrificeCandidates` (issue #1209).
+        matchesPermanentFilter(effectivePermanentView(state, c), leg, {
+            selfControllerId: player.id,
+            // CR 109.2 (issue #2367) — "Sacrifice ANOTHER artifact": the
+            // source is not a legal payment for its own cost.
+            selfInstanceId: card.id,
+            supertypesOf: liveSupertypesOf,
+        })
+    );
+    // CR 602.1 / 118.5 (issue #2398) — "Sacrifice TEN nonland permanents"
+    // (Bolas's Citadel): the gate is a COUNT, not mere existence.
+    if (candidates.length < (ability.cost.sacrificeFilterCount ?? 1)) {
+        throw new Error("No legal permanent to pay the sacrifice cost");
+    }
+}
+
 /** Builds the `pendingActivation` payment descriptor for a non-targeted
  *  activated ability whose costs are deferred (mana not yet covered, or a
  *  choice cost still pending). Single source of truth for the `activateAbility`
@@ -3046,7 +3123,18 @@ export function tryAutoCommitPendingActivation(
     // controller has priority. Same defense as tryAutoCommitPendingCast: a
     // payment left dangling after priority moves away must not auto-commit on
     // the opponent's turn.
-    if (state.priorityPlayerId !== playerId) return null;
+    //
+    // CR 605.3a (issue #3455) — a MANA ability is the documented exception: it
+    // is legal with priority, while paying a spell's or ability's mana cost,
+    // AND inside a may-pay window, where `priorityPlayerId` is not the payer at
+    // all. Its announcement never reaches the stack, so CR 602.2 has nothing to
+    // say about it; the window was already validated by the entry point that
+    // built this park (`activateManaAbility` / `tapUntap` /
+    // `tapSourceIntoPayment`), and gating it here would strand the park with no
+    // way to clear — a freeze, not a rejection.
+    if (!pa.resolveWithoutStack && state.priorityPlayerId !== playerId) {
+        return null;
+    }
 
     const player = getPlayer(state, playerId);
     // CR 602.1 / 609.4b (issue #2944) — the ability seam needs the source
@@ -3315,6 +3403,14 @@ export function tryAutoCommitPendingActivation(
         }
     }
 
+    // CR 605.3b (issue #3455) — a MANA ability does not use the stack. Every
+    // cost leg above has now been paid exactly as it is for a stack ability;
+    // what differs is only the terminal action, so the two share this whole
+    // function and part here rather than in two copies of the payment chain.
+    if (pa.resolveWithoutStack) {
+        return commitNonStackActivation(state, player, card, pa);
+    }
+
     // CR 601.2f / 701.21a — the filtered sacrifice(s) were executed above via
     // the unified layer (pa.sacrificeSelection); nothing more to pay here.
     const stackItem: StackItem = buildActivatedAbilityStackItem(card, {
@@ -3381,6 +3477,295 @@ export function tryAutoCommitPendingActivation(
         abilityId: pa.abilityId,
         cardName: (card.card as { name?: string }).name,
     };
+}
+
+/** CR 605.3b (issue #3455) — commit a MANA ability whose cost carried a
+ *  FILTERED give-up leg, once the payer has answered it.
+ *
+ *  Every cost leg is already paid by {@link tryAutoCommitPendingActivation},
+ *  which this is the tail of: the mana portion, the {T}, the source sacrifice,
+ *  and — the whole reason the announcement parked at all — the chosen victim /
+ *  discarded card, executed through the SAME `sacrificeSelection` /
+ *  `discardFilterChoice` layer the stack path uses. What is left is the part CR
+ *  605.3b makes different: the ability resolves IMMEDIATELY, is never observable
+ *  on the stack, and grants nobody priority — so there is no `passCount` reset,
+ *  no `priorityPlayerId` swap and no `drainAutoPasses`.
+ *
+ *  Two output shapes, matching the two the engine already has for a mana
+ *  ability:
+ *   - a fixed `manaProduced` (Ashnod's Altar's {C}{C}, Phyrexian Tower's
+ *     {B}{B}) is deposited directly, restriction- and rider-aware, exactly as
+ *     `activateFixedSacrificeManaAbility` does for the tap-less self-sacrifice
+ *     shape (CR 106.6);
+ *   - anything else (an Effect Script / `resolve()` body) runs through a
+ *     TRANSIENT stack item resolved and popped inside this call, the same
+ *     bypass `activateManaAbility`'s fixed-effect path uses so the ability gets
+ *     a full `SpellContext` without ever persisting on the stack.
+ *
+ *  CR 106.4 / 603.3 — a {T} leg paid this way is a COMMITMENT: the victim is in
+ *  the graveyard and cannot be un-sacrificed, so the source is marked
+ *  `manaCommitted` and the untap-to-refund toggle (`tapUntap`) refuses it. The
+ *  same reasoning `tapTriggerCommitted` carries for a tap that put a trigger on
+ *  the stack. */
+function commitNonStackActivation(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    pa: PendingActivation
+): { cardInstanceId: string; abilityId: string; cardName?: string } {
+    const resolved = resolveActivatedAbility(card, pa.abilityId);
+    const ability = resolved?.ability;
+    // The park is cleared BEFORE the ability resolves: the resolution can queue
+    // triggers and re-enter the commit seams below, and a phantom park would
+    // read to every one of them as a payment still owed.
+    state.pendingActivation = undefined;
+    if (pa.tapSource) card.manaCommitted = true;
+    // CR 602.5 — increment BEFORE the resolve so `getActivationCount` inside a
+    // `resolve()` body counts this activation (the `activateManaAbility`
+    // convention).
+    recordActivation(state, card, pa.abilityId, !!pa.tapSource);
+    const produced = pa.inlineManaOutput;
+    if (produced) {
+        // CR 106.6 — a restricted / rider-carrying output floats in the
+        // parallel pool, never the fungible one.
+        depositTappedMana(
+            player,
+            produced,
+            ability?.manaRestriction,
+            manaRidersForAbility(ability)
+        );
+        // CR 605.2 — the "tapped for mana" event. Emitted from the card object
+        // we still hold, so its types/subtypes snapshot is the source's own
+        // even when a `cost.sacrifice` leg has already moved it (the
+        // `activateFixedSacrificeManaAbility` convention).
+        emitPermanentTapped(state, card, true, produced);
+    } else {
+        // CR 605.3c — synthesize a transient stack item so the resolve gets a
+        // full SpellContext, then let `resolveTopOfStack` pop it. It is pushed
+        // and resolved inside this call, so it is never observable on the stack.
+        state.stack.push(
+            buildActivatedAbilityStackItem(card, {
+                castById: player.id,
+                abilityId: pa.abilityId,
+                ...(pa.chosenModeId ? { chosenModeId: pa.chosenModeId } : {}),
+                ...(pa.chosenX !== undefined ? { chosenX: pa.chosenX } : {}),
+                ...(pa.grantedSourceCardId
+                    ? { grantedSourceCardId: pa.grantedSourceCardId }
+                    : {}),
+                ...(pa.grantedAbilityOrigin
+                    ? { grantedAbilityOrigin: pa.grantedAbilityOrigin }
+                    : {}),
+            })
+        );
+        resolveTopOfStack(state);
+    }
+    // CR 603.2 / 603.3 — flush what the cost and the mana queued (the victim's
+    // own dies trigger, a Mana Flare-style watcher, PERMANENT_TAPPED). No SBA
+    // pass: a mana ability resolves without one (CR 605.3b).
+    processPendingActionTriggers(state);
+    // CR 605.3a (issue #2420) — this activation may itself have been FUNDING a
+    // pending cast: the mana it just added can complete it, and every other
+    // payment mutation re-checks after adding pool mana. Without the same check
+    // here a fully-covered cast whose last leg was this ability would never
+    // commit — a silent freeze. No-op when no such cast is parked.
+    tryAutoCommitPendingCast(state, player.id);
+    return {
+        cardInstanceId: pa.cardInstanceId,
+        abilityId: pa.abilityId,
+        cardName: (card.card as { name?: string }).name,
+    };
+}
+
+/** CR 605.1a / 118.5 (issue #3455) — the mana ability a tap-for-mana click
+ *  would ACTUALLY activate, returned only when its cost carries a FILTERED
+ *  give-up leg and the activation therefore has to park on a pick.
+ *
+ *  Resolution mirrors, in order, the three branches the tap paths themselves
+ *  take, so the ability this names is always the one those branches would have
+ *  run: the submitted `manaChoiceIndex` against the unified option list when the
+ *  source offers a choice (Phyrexian Tower's plain "{T}: Add {C}" beside its
+ *  "{T}, Sacrifice a creature: Add {B}{B}"), the tap-less self-sacrifice shape
+ *  (Overeager Apprentice), then the source's single mana ability.
+ *
+ *  `null` — the overwhelmingly common answer — leaves the caller's existing
+ *  branch structure untouched, including its own "Must choose a mana color"
+ *  rejection when the index is missing. */
+function filterCostManaAbilityForTap(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    manaChoiceIndex: number | undefined
+): { ability: ActivatedAbility; choiceIndex?: number } | null {
+    const withFilterCost = (
+        a: ActivatedAbility | null | undefined,
+        choiceIndex?: number
+    ) =>
+        a && !a.useStack && hasFilteredGiveUpCost(a.cost)
+            ? {
+                  ability: a,
+                  ...(choiceIndex !== undefined ? { choiceIndex } : {}),
+              }
+            : null;
+    const first = getActivatedManaAbility(card, state);
+    if (
+        manaTapNeedsChoice(
+            card,
+            player.id,
+            manaTapBattlefields(state),
+            first,
+            state.continuousEffects
+        )
+    ) {
+        if (manaChoiceIndex === undefined) return null;
+        // The submitted index is into the UNIFIED option list; what the commit
+        // needs is the ABILITY-LOCAL choice index (Orcish Lumberjack's
+        // RRR/RRG/RGG/GGG), which is what the resolution carries.
+        const resolved = resolveManaTapChoice(
+            card,
+            player.id,
+            manaTapBattlefields(state),
+            manaChoiceIndex,
+            state.continuousEffects
+        );
+        return withFilterCost(resolved?.ability, resolved?.choiceIndex);
+    }
+    return withFilterCost(getFixedSacrificeManaAbility(card) ?? first);
+}
+
+/** CR 605.1a / 601.2b (issue #3455) — the mana a non-stack activation will add
+ *  at commit, resolved at ANNOUNCEMENT. A chooser (Orcish Lumberjack) resolves
+ *  the activator's pick against the same `getEffectiveManaChoices` list every
+ *  other entry point validates an index against; a fixed ability answers with
+ *  its `manaProduced`. `undefined` for an ability whose output is an Effect
+ *  Script / `resolve()` body — that shape resolves through a transient stack
+ *  item instead ({@link commitNonStackActivation}). */
+function inlineManaAbilityOutput(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    ability: ActivatedAbility,
+    choiceIndex: number | undefined
+): ManaCost | undefined {
+    if (
+        ability.manaChoices ||
+        ability.getManaChoices ||
+        ability.manaColorSource
+    ) {
+        const choices = getEffectiveManaChoices(
+            card,
+            player.id,
+            manaTapBattlefields(state),
+            state.continuousEffects
+        );
+        if (!choices) return undefined;
+        if (choiceIndex === undefined) {
+            throw new Error("Must choose a mana color");
+        }
+        const chosen = choices[choiceIndex];
+        if (!chosen) throw new Error("Invalid mana choice");
+        return chosen;
+    }
+    return ability.manaProduced;
+}
+
+/** CR 605.1a / 605.3a / 118.5 (issue #3455) — announce a MANA ability whose
+ *  cost carries a FILTERED give-up leg ("Sacrifice a creature", "Sacrifice a
+ *  Goblin", "Discard a card"), opening the SAME cost-pick window the stack
+ *  activation path opens and committing inline once it is answered.
+ *
+ *  This is the whole of the engine gap the issue closes. A mana ability
+ *  resolves immediately (CR 605.3b), so before this every non-stack entry point
+ *  had to pay its cost inline — and none of them could, because a FILTER names
+ *  no card: only the player can. The three entry points
+ *  (`activateManaAbility`, `tapUntap`, `tapSourceIntoPayment`) therefore route
+ *  this one shape through the deferred `pendingActivation` record, reusing
+ *  `buildActivationSacrificeSelection` (the selection builder), `selectSacrifice`
+ *  / `selectActivationDiscardCost` (the submission mutations), `cancelActivation`
+ *  (the rollback) and `tryAutoCommitPendingActivation` (the payment chain)
+ *  unchanged — the record is marked `resolveWithoutStack` so its COMMIT resolves
+ *  inline instead of pushing on the stack.
+ *
+ *  A board that offers no real choice auto-resolves and commits inside this
+ *  call (`autoResolveFungible`, the zero-branch convention every other picker
+ *  follows), so the common case — one legal victim — never prompts.
+ *
+ *  Throws on an unpayable cost, on an already-parked announcement, and on a
+ *  `canActivate` / timing violation: nothing is mutated before the gates pass,
+ *  so a rejected activation leaves the source, the candidates and the pool
+ *  untouched. `state` is mutated in place; the caller persists. */
+export function beginNonStackFilterCostActivation(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    ability: ActivatedAbility,
+    abilityId: string,
+    /** CR 601.2b — the ABILITY-LOCAL mana choice the activator picked, for a
+     *  chooser (Orcish Lumberjack). Omitted for a fixed-output ability. */
+    manaChoiceIndex?: number
+): void {
+    // ONE payment park at a time: the record is a single slot, and clobbering an
+    // in-flight activation payment with this one would strand its tapped lands
+    // (issue #3455 — a filtered give-up mana ability activated while ANOTHER
+    // ability's cost is being paid is refused, not half-applied).
+    if (state.pendingActivation) {
+        throw new ConvexError("Another ability is already being activated");
+    }
+    // CR 602.5 / 602.5b — the same timing and precondition gates every other
+    // activation entry point runs before cost lock.
+    assertActivationTimingLegal(state, card, ability);
+    if (ability.canActivate && !ability.canActivate(card, state)) {
+        throw new Error("Ability cannot be activated right now");
+    }
+    // CR 302.1 — a {T} leg needs an untapped, non-summoning-sick source.
+    if (ability.cost.tap) {
+        if (card.isTapped) throw new Error("Card is already tapped");
+        if (isTapLockedBySummoningSickness(card)) {
+            throw new Error("Creature has summoning sickness");
+        }
+    }
+    // CR 602.1 / 118.3 / 118.5 — the two filter legs, gated on the SAME
+    // predicates the stack path uses so neither mutation admits what the other
+    // refuses.
+    assertDiscardFilterCostAffordable(player, ability);
+    assertSacrificeFilterCostAffordable(state, player, card, ability);
+    const manaCost = normalizeManaCost(ability.cost.mana ?? {});
+    // CR 601.2g / 605.3a — float the mana this ability's own cost needs from the
+    // player's other sources (Bog Witch's {B}), the same convenience
+    // `tapUntap` gives every other costed mana ability.
+    autoTapForManaAbilityCost(state, player, card, ability);
+    // CR 602.1 / 118.5 / 701.21a — the unified filtered sacrifice (own cost +
+    // any static Drought tax), auto-resolved where the board offers no choice.
+    const activationSac = buildActivationSacrificeSelection(
+        state,
+        ability,
+        card,
+        player,
+        tryGetDefinition((card.card as { id?: string }).id ?? "")?.name ??
+            "Sacrifice"
+    );
+    const inlineManaOutput = inlineManaAbilityOutput(
+        state,
+        player,
+        card,
+        ability,
+        manaChoiceIndex
+    );
+    state.pendingActivation = {
+        ...buildPendingActivation({
+            playerId: player.id,
+            cardInstanceId: card.id,
+            abilityId,
+            ability,
+            manaCost,
+            ...(activationSac ? { sacrificeSelection: activationSac } : {}),
+        }),
+        resolveWithoutStack: true,
+        ...(inlineManaOutput ? { inlineManaOutput } : {}),
+    };
+    // Commits inline when nothing is owed (the fungible-board case); otherwise
+    // the park stands and `selectSacrifice` / `selectActivationDiscardCost`
+    // resumes it.
+    tryAutoCommitPendingActivation(state, player.id);
 }
 
 /** If the caster's mana pool now covers pendingCast, pay the cost, move the
@@ -10202,6 +10587,16 @@ export const untapArtifactForImprovise = mutation({
     },
 });
 
+/** CR 605.3a / 605.3b (issue #3455) — is the park this player owes a pick on a
+ *  MANA ability's (`resolveWithoutStack`)? The pick mutations gate on it to
+ *  admit the submission inside a may-pay window, where the Expected Input is
+ *  the `choice` and not `priority`: a mana ability is legal there (CR 608.2g),
+ *  so the window it opens must be closable there too. */
+function isInlineManaAbilityPark(state: GameState, playerId: string): boolean {
+    const pa = state.pendingActivation;
+    return !!pa?.resolveWithoutStack && pa.playerId === playerId;
+}
+
 /** The single sacrifice selection currently awaiting `playerId`'s choice, and
  *  which in-flight container holds it (CR 701.21a). At most one is active. */
 export function findActiveSacrificeSelection(
@@ -10211,6 +10606,20 @@ export function findActiveSacrificeSelection(
     sel: SacrificeSelection;
     container: "cast" | "activation" | "attack";
 } | null {
+    // CR 605.3a / 605.3b (issue #3455) — a MANA ability announced while a
+    // spell's cost is being paid is the INNERMOST announcement, so its victim
+    // pick is the one this player is being asked for. Checked before the cast,
+    // mirroring `nextOwedPayment`'s own hoist: the two must name the same
+    // selection or the pick lands in the wrong container.
+    const inline = state.pendingActivation;
+    if (
+        inline?.resolveWithoutStack &&
+        inline.playerId === playerId &&
+        inline.sacrificeSelection &&
+        !isSacrificeSelectionComplete(inline.sacrificeSelection)
+    ) {
+        return { sel: inline.sacrificeSelection, container: "activation" };
+    }
     const pc = state.pendingCast;
     if (
         pc &&
@@ -10260,6 +10669,12 @@ export function selectSacrificeOnState(
     assertExpectedInput(state, {
         playerId: args.playerId,
         expect: container === "attack" ? "sacrifice" : "priority",
+        // CR 608.2g / 605.3a (issue #3455) — a MANA ability is activatable
+        // inside a may-pay window, where the Expected Input is the `choice`
+        // itself. Answering the pick that activation parked on is part of the
+        // same window: without this the park could be opened there and never
+        // closed, which is a freeze rather than a rejection.
+        allowManaForMayPay: isInlineManaAbilityPark(state, args.playerId),
     });
     if (!isSacrificeCandidateLegal(state, sel, args.cardInstanceId)) {
         throw new Error("Selected permanent is not a legal sacrifice");
@@ -10914,6 +11329,9 @@ export const cancelActivation = mutation({
         assertExpectedInput(state, {
             playerId: args.playerId,
             expect: "priority",
+            // CR 608.2g / 605.3a (issue #3455) — a mana ability's park is
+            // cancellable wherever it is openable, the may-pay window included.
+            allowManaForMayPay: isInlineManaAbilityPark(state, args.playerId),
         });
 
         const pa = state.pendingActivation;
@@ -11160,6 +11578,10 @@ export function selectActivationDiscardCostOnState(
     assertExpectedInput(state, {
         playerId: args.playerId,
         expect: "priority",
+        // CR 608.2g / 605.3a (issue #3455) — see the twin in
+        // `selectSacrificeOnState`: a mana ability's park must be closable in
+        // the may-pay window where it can be opened.
+        allowManaForMayPay: isInlineManaAbilityPark(state, args.playerId),
     });
 
     const pa = state.pendingActivation;
@@ -15154,16 +15576,7 @@ export function activateAbilityOnState(
     // (Survival of the Fittest): illegal unless at least `count` matching
     // cards are in the activating player's hand. Validated up-front so we
     // never enter a pendingActivation that can't be paid.
-    if (ability.cost.discardFilter) {
-        const candidates = player.hand.filter((c) =>
-            handCardMatchesFilter(c, ability.cost.discardFilter!.filter)
-        );
-        if (candidates.length < ability.cost.discardFilter.count) {
-            throw new Error(
-                "Not enough matching cards in hand to pay the discard cost"
-            );
-        }
-    }
+    assertDiscardFilterCostAffordable(player, ability);
     // CR 119.4 — a life-payment cost is illegal unless the player has at
     // least that much life. Validated up-front so we never enter a
     // pendingActivation that can't be paid (fetch lands: {T}, Pay 1 life,
@@ -15175,27 +15588,7 @@ export function activateAbilityOnState(
     // activation is illegal if no matching permanent is on the activating
     // player's battlefield. Validated up-front so we never enter a
     // pendingActivation that can't be paid.
-    if (ability.cost.sacrificeFilter) {
-        const candidates = player.battlefield.filter((c) =>
-            // Layered view, matching `sacrificeCandidates` (issue #1209).
-            matchesPermanentFilter(
-                effectivePermanentView(state, c),
-                ability.cost.sacrificeFilter!,
-                {
-                    selfControllerId: player.id,
-                    // CR 109.2 (issue #2367) — "Sacrifice ANOTHER artifact":
-                    // the source is not a legal payment for its own cost.
-                    selfInstanceId: card.id,
-                    supertypesOf: liveSupertypesOf,
-                }
-            )
-        );
-        // CR 602.1 / 118.5 (issue #2398) — "Sacrifice TEN nonland permanents"
-        // (Bolas's Citadel): the gate is a COUNT, not mere existence.
-        if (candidates.length < (ability.cost.sacrificeFilterCount ?? 1)) {
-            throw new Error("No legal permanent to pay the sacrifice cost");
-        }
-    }
+    assertSacrificeFilterCostAffordable(state, player, card, ability);
     // CR 702.49a — Ninjutsu's "Return an unblocked attacking creature you
     // control to its owner's hand" leg: illegal unless such a creature exists.
     // This gate is ALSO the keyword's timing rule — a creature is neither
@@ -15630,6 +16023,41 @@ export const tapUntap = mutation({
             !!getBasicLandMana(card) || ability?.cost.tap === true;
         if (!wasTapped && requiresTap && isTapLockedBySummoningSickness(card)) {
             throw new Error("Creature has summoning sickness");
+        }
+
+        // CR 605.3b / 118.3 / 118.5 (issue #3455) — a FILTERED give-up cost
+        // (Phyrexian Tower's "Sacrifice a creature", Bog Witch's "Discard a
+        // card", Overeager Apprentice's discard+self-sacrifice) needs the payer
+        // to name the card, so the activation parks on the shared cost-pick
+        // window instead of resolving inline. Ahead of every branch below,
+        // because all of them mutate the source. Only on a fresh activation:
+        // `wasTapped` is the untap-toggle direction, which reverses an earlier
+        // tap and announces nothing.
+        if (!wasTapped) {
+            const filterCostAbility = filterCostManaAbilityForTap(
+                state,
+                player,
+                card,
+                args.manaChoiceIndex
+            );
+            if (filterCostAbility) {
+                beginNonStackFilterCostActivation(
+                    state,
+                    player,
+                    card,
+                    filterCostAbility.ability,
+                    filterCostAbility.ability.id,
+                    filterCostAbility.choiceIndex
+                );
+                await saveGameState(
+                    ctx,
+                    args.gameId,
+                    gameState.seq + 1,
+                    state,
+                    gameState
+                );
+                return;
+            }
         }
 
         // CR 605.1a (issue #2021) — the tap-less "Sacrifice this: Add …"
@@ -16415,6 +16843,33 @@ export const activateManaAbility = mutation({
         // turn."). Mirrors the check every other activation entry point runs
         // before cost lock.
         assertActivationTimingLegal(state, card, ability);
+
+        // CR 605.3b / 118.3 / 118.5 (issue #3455) — a FILTERED give-up cost
+        // ("Sacrifice a creature", "Sacrifice a Goblin", "Discard a card":
+        // Ashnod's Altar, Krark-Clan Ironworks, Skirk Prospector, Skirge
+        // Familiar) names no card — only the player can. It therefore cannot be
+        // paid inline like every other leg below: the activation parks on the
+        // same cost-pick window the STACK path opens, and commits inline once
+        // the payer answers. Routed before the mana payment so a rejected or
+        // parked activation leaves the pool untouched.
+        if (hasFilteredGiveUpCost(ability.cost)) {
+            beginNonStackFilterCostActivation(
+                state,
+                player,
+                card,
+                ability,
+                args.abilityId,
+                args.manaChoiceIndex
+            );
+            await saveGameState(
+                ctx,
+                args.gameId,
+                gameState.seq + 1,
+                state,
+                gameState
+            );
+            return;
+        }
 
         // CR 602.1 / 118.8 (issue #2371) — "tap an untapped artifact you
         // control" as this ability's own cost component (Urza, Lord High

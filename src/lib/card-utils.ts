@@ -714,9 +714,58 @@ export function getManaCostMenuAbility(
                             card.controllerId,
                             stateView
                         )
-                    ))
+                    )) &&
+                canPayFilteredGiveUpCost(a, card, stateView)
         ) ?? null
     );
+}
+
+/** CR 118.3 / 118.5 (issue #3455) — can the controller pay this ability's
+ *  FILTERED give-up leg ("Sacrifice a creature", "Discard a card")? The menu
+ *  affordability gate for the shape {@link getManaCostMenuAbility} offers, and
+ *  the belt to the server's own `assertSacrificeFilterCostAffordable` /
+ *  `assertDiscardFilterCostAffordable` braces: an unpayable cost must withhold
+ *  the entry, never dispatch a doomed activation that parks and throws.
+ *
+ *  The sacrifice leg is exact — the viewer-visible battlefield is the same one
+ *  the server scans, read through the SAME `matchesEnginePermanentFilter`
+ *  matcher, with CR 109.2's "another" exclusion applied by instance id.
+ *
+ *  The discard leg is deliberately COARSE: `TriggerStateView` carries the
+ *  hand's `length` and never its contents (ADR 0026 — hand knowledge is
+ *  per-viewer), so this answers the "no card in hand at all" half exactly and
+ *  leaves a narrower filter offered for the server to adjudicate. Every shipped
+ *  card on this shape (Bog Witch, Skirge Familiar, Overeager Apprentice)
+ *  declares an EMPTY filter, for which the count IS the whole gate.
+ *
+ *  Without a `stateView` there is no board to read, so the ability stays
+ *  offered — the existing UI-hint convention (#436), server authoritative. */
+export function canPayFilteredGiveUpCost(
+    ability: ActivatedAbility,
+    card: CardInstance,
+    stateView?: TriggerStateView
+): boolean {
+    if (!stateView) return true;
+    const mine = stateView.players.find((p) => p.id === card.controllerId);
+    const sac = ability.cost.sacrificeFilter;
+    if (sac) {
+        const candidates = (mine?.battlefield ?? []).filter((c) =>
+            matchesEnginePermanentFilter(c, sac, {
+                selfControllerId: card.controllerId,
+                // CR 109.2 (issue #2367) — honoured ONLY by an `excludeSource`
+                // filter, exactly as the server's own gate passes it: Skirk
+                // Prospector IS a Goblin and may eat itself, so a blanket
+                // self-exclusion here would hide a legal payment.
+                selfInstanceId: card.id,
+            })
+        );
+        if (candidates.length < (ability.cost.sacrificeFilterCount ?? 1)) {
+            return false;
+        }
+    }
+    const discard = ability.cost.discardFilter;
+    if (discard && (mine?.hand.length ?? 0) < discard.count) return false;
+    return true;
 }
 
 /** Returns the mana color produced by an activated tap ability, or null.

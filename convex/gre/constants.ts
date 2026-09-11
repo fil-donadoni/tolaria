@@ -1396,6 +1396,26 @@ export function isAutoPayableManaAbilityCost(
     return !!cost.mana && pureGenericManaSubCost(cost.mana) !== null;
 }
 
+/** CR 602.1 / 118.3 / 118.5 (issue #3455) — does this activation cost carry a
+ *  FILTERED GIVE-UP leg: "Sacrifice a creature" / "Sacrifice a Goblin" /
+ *  "Discard a card"? Both legs name a FILTER rather than the source itself, so
+ *  neither can be paid without the player naming which card goes — which is why
+ *  a `useStack: false` ability carrying one parks on a choice window instead of
+ *  resolving inline (`beginNonStackFilterCostActivation`, `convex/game.ts`).
+ *
+ *  Deliberately NOT `cost.sacrifice` (the source sacrifices ITSELF — no victim
+ *  to name, no choice, and `getFixedSacrificeManaAbility` already resolves that
+ *  shape inline) and not `cost.tapOtherFilter` (a filter too, but the client
+ *  collects those picks up front and submits them with the activation).
+ *
+ *  The single authority for the gate, shared by the engine's option list below,
+ *  the three mutation entry points, and the client's mana-ability menu
+ *  (`getManaCostMenuAbility`, `src/lib/card-utils.ts`) — a private copy in any
+ *  one of them is how a "clickable but rejected" mana source ships. */
+export function hasFilteredGiveUpCost(cost: ActivatedAbility["cost"]): boolean {
+    return !!cost.sacrificeFilter || !!cost.discardFilter;
+}
+
 /** Compile-time witness that every leg of `ActivatedAbility["cost"]` has been
  *  deliberately classified by `isAutoPayableManaAbilityCost` above — either
  *  admitted inline (`tap`, `tapOtherFilter`, a pure-generic `mana`) or
@@ -1561,7 +1581,20 @@ export function getManaTapOptionsDetailed(
             // counters, discard, exile, …).
             if (requireTap) {
                 if (!isAutoPayableManaAbilityCost(ability.cost)) continue;
-            } else if (!ability.cost.tap && !ability.cost.sacrifice) {
+            } else if (
+                !ability.cost.tap &&
+                !ability.cost.sacrifice &&
+                // CR 605.1a / 118.5 (issue #3455) — a FILTERED give-up cost is
+                // a mana-source cost like any other: Ashnod's Altar and Skirk
+                // Prospector have neither a {T} leg nor a self-sacrifice leg,
+                // and skipping them here is what kept them out of the option
+                // list the client menu, the payment-source click and the
+                // castability census all read. They are NOT admitted to the
+                // `requireTap` (automatic planner) branch above — giving up a
+                // creature is a decision, never an auto-payment, which is the
+                // same rule `NEVER_AUTO_PAYABLE_COST_LEGS` already applies.
+                !hasFilteredGiveUpCost(ability.cost)
+            ) {
                 continue;
             }
             // CR 602.5b (issue #947) — an ability whose own `canActivate`
@@ -1909,7 +1942,7 @@ function manaTapOptionRiderIsSought(
 /** True when the SPECIFIC option a `manaChoiceIndex` resolves to carries an
  *  activation-cost leg the AUTOMATIC planner must never pay on the player's
  *  behalf, beyond what `getManaTapOptionRestriction` / `getManaChoiceCounterCost`
- *  already cover. Two legs qualify today, for two different reasons:
+ *  already cover. Three legs qualify today, for three different reasons:
  *
  *   - **`cost.exertThis` (CR 701.43a)** — Arena of Glory's "{R}, {T}, Exert
  *     this land: Add {R}{R}". Exerting spends a real, permanent resource (the
@@ -1927,6 +1960,16 @@ function manaTapOptionRiderIsSought(
  *     the PURE-GENERIC shape is fundable, and only through
  *     `planManaPayment`'s own recursion, which this solver does not run — so
  *     any `cost.mana` at all disqualifies the option here.
+ *   - **a FILTERED give-up leg (CR 118.3 / 118.5, issue #3455)** — Ashnod's
+ *     Altar's "Sacrifice a creature", Bog Witch's "Discard a card". Same
+ *     category as `cost.sacrifice`, which `buildAutoTapSources` has always
+ *     skipped outright: giving up a creature or a card in hand is a decision,
+ *     never an auto-payment. It reaches here rather than that per-SOURCE skip
+ *     because it must be per-OPTION — Phyrexian Tower's plain "{T}: Add {C}"
+ *     stays auto-tappable while its "{T}, Sacrifice a creature: Add {B}{B}"
+ *     does not — and because the option now PARKS on a pick
+ *     (`beginNonStackFilterCostActivation`, `convex/game.ts`) that no solver
+ *     can answer: planning it would stall the payment, not merely overpay.
  *
  *  Per-OPTION, not per-source, and indices are never renumbered: a card mixing
  *  a free ability with a costed one (Arena of Glory's plain "{T}: Add {R}")
@@ -1951,6 +1994,10 @@ export function manaTapOptionSpendsUnplannedResource(
         (a) => a.id === source.abilityId
     );
     if (!ability) return false;
+    // CR 118.3 / 118.5 (issue #3455) — unconditional, and checked before the
+    // context-aware branch below: a give-up leg is never what a plan is
+    // "reaching for", so no context can admit it.
+    if (hasFilteredGiveUpCost(ability.cost)) return true;
     if (!ability.cost.exertThis && ability.cost.mana === undefined) {
         return false;
     }

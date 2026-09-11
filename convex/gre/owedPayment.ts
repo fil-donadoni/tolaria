@@ -189,6 +189,15 @@ export const ACTIVATION_KEY_CENSUS: Record<keyof PendingActivation, ParkClass> =
         tapSource: "non-park",
         /** CR 602.1 — the source sacrifices ITSELF; no victim to name. */
         sacrificeSource: "non-park",
+        /** CR 605.3b (issue #3455) — "resolve inline, never on the stack".
+         *  A flag read at commit (the `cyclingCost` shape), not a pick: what
+         *  the payer owes on such an announcement is its `sacrificeSelection`
+         *  / `discardFilterChoice` below, classified there. */
+        resolveWithoutStack: "non-park",
+        /** CR 605.1a / 601.2b (issue #3455) — the mana output chosen at
+         *  announcement for that inline commit. A locked-in choice, not a
+         *  pending one. */
+        inlineManaOutput: "non-park",
         /** CR 122.6 — counters removed at commit. */
         removeCounterCost: "non-park",
         /** CR 119.4 — life deducted at commit. */
@@ -382,6 +391,17 @@ export function nextOwedPayment(
     playerId: string,
     opts?: NextOwedPaymentOptions
 ): OwedPayment | null {
+    // CR 605.3a / 605.3b (issue #3455) — a MANA ability announced WHILE a
+    // spell's cost is being paid is the INNERMOST announcement: the filter pick
+    // it parks on (Ashnod's Altar's victim) is owed before anything the cast
+    // still owes, and the cast's own commit gate stays blocked until it clears.
+    // Reported first, because the cast branch below returns null unconditionally
+    // once it matches — which would otherwise hide this park from every reader
+    // of the seam, the bot included (the stall class ADR 0091 exists to prevent).
+    const inline = state.pendingActivation;
+    if (inline?.resolveWithoutStack && inline.playerId === playerId) {
+        return activationOwedPayment(state, inline, playerId, opts);
+    }
     const pc = state.pendingCast;
     if (pc && pc.playerId === playerId) {
         const at = (kind: ParkKind, key: keyof PendingCast): OwedPayment => ({
@@ -438,6 +458,24 @@ export function nextOwedPayment(
 
     const pa = state.pendingActivation;
     if (pa && pa.playerId === playerId) {
+        return activationOwedPayment(state, pa, playerId, opts);
+    }
+
+    return null;
+}
+
+/** The activation half of {@link nextOwedPayment}, in its exact original order
+ *  (CR 602.1 / 118 — sacrifice → graveyard exile → tap-other/crew → filtered
+ *  discard → CR 601.2g mana spend). Extracted (issue #3455) so a MANA ability's
+ *  park can be reported BEFORE the cast branch without a second copy of the
+ *  chain: one authority, two entry orders. */
+function activationOwedPayment(
+    state: GameState,
+    pa: PendingActivation,
+    playerId: string,
+    opts?: NextOwedPaymentOptions
+): OwedPayment | null {
+    {
         const at = (
             kind: ParkKind,
             key: keyof PendingActivation
@@ -483,6 +521,4 @@ export function nextOwedPayment(
         }
         return null;
     }
-
-    return null;
 }

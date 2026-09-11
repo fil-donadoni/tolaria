@@ -95,6 +95,8 @@ const FULL_ACTIVATION: Required<PendingActivation> = {
     tappedLandIds: [],
     tapSource: false,
     sacrificeSource: false,
+    resolveWithoutStack: false,
+    inlineManaOutput: { C: 2 },
     returnUnblockedAttacker: false,
     sacrificeSelection: {
         playerId: P1,
