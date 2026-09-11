@@ -747,7 +747,7 @@ function projectExileCard(
     // make a 2/2 permanent), so it is added here, on the wire. It is what lets
     // the client branch on a projected field instead of inferring face-down-ness
     // from the ABSENCE of a sentinel id.
-    if (card.knownTo.includes(viewerId)) {
+    if (card.knownTo?.includes(viewerId)) {
         const slimmedKnown = slimCard(card);
         return decorate(
             isHiddenFromKnower(card.faceDownBy)
