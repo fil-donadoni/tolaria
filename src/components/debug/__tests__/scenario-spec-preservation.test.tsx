@@ -68,6 +68,10 @@ const STORED: Required<ScenarioSpec> = {
             owner: "me",
             zone: "battlefield",
             activations: { "psychatog-pump": 2 },
+            // CR 608.2 (issue #3453) — the same treatment for the per-turn
+            // triggered-ability resolution tally: no input renders it either,
+            // and the card-level draft round trip is what carries it.
+            abilityResolutions: { "psychatog-dies": 1 },
         },
     ],
     phase: "POSTCOMBAT_MAIN",
@@ -87,6 +91,14 @@ const STORED: Required<ScenarioSpec> = {
     spellsCastThisTurn: { me: 2, opp: 1 },
     spellsCastThisGame: { me: 6, opp: 4 },
     stormCount: 3,
+    // CR 120.3a / 119.3 / 700.4 / 508.1a (issue #3453) — a curated row where
+    // the turn has already HAPPENED to both seats: damage taken, life gained,
+    // a creature dead and an attack declared.
+    damageDealtToPlayerThisTurn: { me: 4, opp: 2 },
+    artifactDamageToPlayerThisTurn: { me: 2, opp: 0 },
+    lifeGainedThisTurn: { me: 3, opp: 0 },
+    deathsThisTurn: 2,
+    creatureAttackedThisTurn: true,
     // CR 102.1 / 117.1 / 117.4 (issue #3454) — a curated row pinning an
     // instant-speed decision on the opponent's turn.
     activePlayer: "opp",
@@ -199,6 +211,7 @@ describe("editing a scenario through the real form", () => {
                 name: "Upheaval",
                 owner: "me",
                 activations: { "psychatog-pump": 2 },
+                abilityResolutions: { "psychatog-dies": 1 },
             },
         ]);
         // The form-owned knobs inflate from the row and come back unchanged.
@@ -214,6 +227,10 @@ describe("editing a scenario through the real form", () => {
     it("keeps a card field the form renders no input for", () => {
         expect(editAndSave().cards[0]?.activations).toEqual({
             "psychatog-pump": 2,
+        });
+        // CR 608.2 (issue #3453) — the second such field, carried the same way.
+        expect(editAndSave().cards[0]?.abilityResolutions).toEqual({
+            "psychatog-dies": 1,
         });
     });
 

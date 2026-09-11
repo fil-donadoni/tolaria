@@ -58,6 +58,17 @@ export const scenarioCardValidator = v.object({
     // exile card can legitimately carry one and a zone-limited field would
     // lower it lossily.
     activations: v.optional(v.record(v.string(), v.number())),
+    // CR 608.2 / 514.2 (issue #3453) — per-turn TRIGGERED-ability resolution
+    // tallies, keyed by triggered-ability id, for the ability whose SOURCE is
+    // this card. The per-card half of `GameState.abilityResolutionCounts`,
+    // whose own key is `${sourceInstanceId}:${abilityId}` — an instance id the
+    // rebuild reallocates, so the tally can only be lowered onto the card that
+    // owns it and re-keyed on the way back in. `{ "<abilityId>": 1 }` makes
+    // "the first time this ability has resolved this turn" read as ALREADY
+    // spent, so an escalating ability (Omnath, Locus of Creation; Scythecat
+    // Cub) takes its second-resolution branch. Any zone, like `activations`
+    // above: the trigger's source may have left the battlefield since.
+    abilityResolutions: v.optional(v.record(v.string(), v.number())),
     attackedLastTurn: v.optional(v.boolean()),
     summoningSick: v.optional(v.boolean()),
     copyOf: v.optional(v.string()),
@@ -168,6 +179,52 @@ export const scenarioSpecValidator = v.object({
     // matches no seat), so summing the seats would substitute a plausible
     // number for the captured one.
     stormCount: v.optional(v.number()),
+    // CR 120.3a / 119.3 / 700.4 / 508.1a (issue #3453, PRD #3397) — the
+    // RETROSPECTIVE per-turn tallies: what has already happened this turn that
+    // a card still reads. Each is the game-level counterpart of the
+    // spells-cast pair above, in the same per-seat both-optional shape where
+    // the engine keys by player, and named for the `GameState` field it seeds
+    // so the spec key and the engine's key are the same word.
+    //
+    // These gate BEHAVIOUR, not just flavour: "if you gained life this turn"
+    // (CR 603.4 intervening-if — Crested Sunmare, Ocelot Pride) and
+    // "equal to the damage dealt to you this turn" (Simulacrum) read a tally a
+    // rebuild that opens at zero answers NO to, so the rebuilt position poses
+    // a different question than the one that was judged.
+    damageDealtToPlayerThisTurn: v.optional(
+        v.object({
+            me: v.optional(v.number()),
+            opp: v.optional(v.number()),
+        })
+    ),
+    // CR 120.3a narrowed to ARTIFACT sources — the same tally Reverse
+    // Polarity's "twice the damage dealt to you so far this turn by artifacts"
+    // reads. Its own field rather than a share of the one above, because the
+    // engine tallies the two separately and no ratio between them is derivable.
+    artifactDamageToPlayerThisTurn: v.optional(
+        v.object({
+            me: v.optional(v.number()),
+            opp: v.optional(v.number()),
+        })
+    ),
+    // CR 119.3 — life GAINED this turn (the tally, not the life total), after
+    // the CR 614 replacement layer, so a gain replaced away never counts.
+    lifeGainedThisTurn: v.optional(
+        v.object({
+            me: v.optional(v.number()),
+            opp: v.optional(v.number()),
+        })
+    ),
+    // CR 700.4 — creatures that have DIED this turn, any controller
+    // (Scavenging Ghoul). Game-level and a single number, exactly as the
+    // engine holds it.
+    deathsThisTurn: v.optional(v.number()),
+    // CR 508.1a / 506.3 — whether ANY player has declared an attacker this
+    // turn, read by "if no creatures attacked this turn" intervening-ifs
+    // (CR 603.4, Keldon Twilight). A boolean rather than a scan of the
+    // per-creature flags, because a creature that attacked and then died is on
+    // no battlefield to scan (see `GameState.creatureAttackedThisTurn`).
+    creatureAttackedThisTurn: v.optional(v.boolean()),
     // CR 102.1 / 117.1 (issue #3454) — the TURN HOLDER and the PRIORITY
     // holder, the two facts that decide WHICH decision a rebuilt position
     // poses. Without them every position captured with priority on the
@@ -227,6 +284,10 @@ export type ScenarioCard = {
     /** CR 602.5 (issue #3448) — per-turn activation tallies already spent,
      *  keyed by ability id. Any zone; see the validator's own note. */
     activations?: Record<string, number>;
+    /** CR 608.2 / 514.2 (issue #3453) — per-turn resolution tallies of the
+     *  TRIGGERED abilities sourced by this card, keyed by triggered-ability
+     *  id. See the validator's note for why it is per-card. */
+    abilityResolutions?: Record<string, number>;
     attackedLastTurn?: boolean;
     summoningSick?: boolean;
     copyOf?: string;
@@ -270,6 +331,25 @@ export type ScenarioSpec = {
      *  rather than derived from the per-seat pair above: the engine tallies
      *  the two separately. */
     stormCount?: number;
+    /** CR 120.3a (issue #3453) — damage already dealt to each seat this turn
+     *  (`GameState.damageDealtToPlayerThisTurn`), what Simulacrum's "equal to
+     *  the damage dealt to you this turn" reads. */
+    damageDealtToPlayerThisTurn?: { me?: number; opp?: number };
+    /** CR 120.3a (issue #3453) — the same tally narrowed to ARTIFACT sources
+     *  (`GameState.artifactDamageToPlayerThisTurn`), read by Reverse
+     *  Polarity. Tallied separately by the engine, so lowered separately. */
+    artifactDamageToPlayerThisTurn?: { me?: number; opp?: number };
+    /** CR 119.3 (issue #3453) — life each seat has GAINED this turn
+     *  (`GameState.lifeGainedThisTurn`), the retrospective half of the
+     *  lifegain-payoff family: "if you gained life this turn" (CR 603.4). */
+    lifeGainedThisTurn?: { me?: number; opp?: number };
+    /** CR 700.4 (issue #3453) — creatures that have died this turn, any
+     *  controller (`GameState.deathsThisTurn`, Scavenging Ghoul). */
+    deathsThisTurn?: number;
+    /** CR 508.1a (issue #3453) — whether any player has declared an attacker
+     *  this turn (`GameState.creatureAttackedThisTurn`), read by "if no
+     *  creatures attacked this turn" (Keldon Twilight). */
+    creatureAttackedThisTurn?: boolean;
     /** CR 102.1 (issue #3454) — whose turn the position is. Omitted leaves the
      *  base state's turn holder untouched, which is what every spec written
      *  before this field meant. */
@@ -541,6 +621,16 @@ function normalizeCard(raw: unknown): ScenarioCard | null {
         }
         card.activations = activations;
     }
+    // CR 608.2 (issue #3453) — same tolerant shape again, keyed by
+    // triggered-ability id.
+    if (isRecord(raw.abilityResolutions)) {
+        const resolutions: Record<string, number> = {};
+        for (const [key, value] of Object.entries(raw.abilityResolutions)) {
+            const n = pickNumber(value);
+            if (n !== undefined) resolutions[key] = n;
+        }
+        card.abilityResolutions = resolutions;
+    }
     return card;
 }
 
@@ -604,6 +694,29 @@ export function normalizeScenarioSpec(raw: unknown): ScenarioSpec {
         spec.spellsCastThisGame = pair;
     }
     set(spec, "stormCount", pickNumber(raw.stormCount));
+    // CR 120.3a / 119.3 / 700.4 / 508.1a (issue #3453) — the retrospective
+    // per-turn tallies, read off a raw stored row exactly like the pairs
+    // above; a field normalize does not read is a field the editor deletes on
+    // the next save (`scenario-spec-ownership.ts`).
+    for (const key of [
+        "damageDealtToPlayerThisTurn",
+        "artifactDamageToPlayerThisTurn",
+        "lifeGainedThisTurn",
+    ] as const) {
+        const rawPair = raw[key];
+        if (isRecord(rawPair)) {
+            const pair: { me?: number; opp?: number } = {};
+            set(pair, "me", pickNumber(rawPair.me));
+            set(pair, "opp", pickNumber(rawPair.opp));
+            spec[key] = pair;
+        }
+    }
+    set(spec, "deathsThisTurn", pickNumber(raw.deathsThisTurn));
+    set(
+        spec,
+        "creatureAttackedThisTurn",
+        pickBoolean(raw.creatureAttackedThisTurn)
+    );
     const activePlayer = pickString(raw.activePlayer);
     if (activePlayer === "me" || activePlayer === "opp") {
         spec.activePlayer = activePlayer;

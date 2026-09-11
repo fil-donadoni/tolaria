@@ -183,6 +183,15 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
             spellsCastThisTurn: { me: 2, opp: 1 },
             spellsCastThisGame: { me: 6 },
             stormCount: 3,
+            // CR 120.3a / 119.3 / 700.4 / 508.1a (issue #3453) — what has
+            // already HAPPENED this turn. Same argument again: a tally
+            // normalize drops rebuilds a position where the damage was never
+            // taken and the life was never gained.
+            damageDealtToPlayerThisTurn: { me: 4, opp: 1 },
+            artifactDamageToPlayerThisTurn: { me: 2 },
+            lifeGainedThisTurn: { me: 3 },
+            deathsThisTurn: 2,
+            creatureAttackedThisTurn: true,
         };
         expect(normalizeScenarioSpec(raw)).toEqual({
             cards: [
@@ -212,6 +221,91 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
             spellsCastThisTurn: { me: 2, opp: 1 },
             spellsCastThisGame: { me: 6 },
             stormCount: 3,
+            damageDealtToPlayerThisTurn: { me: 4, opp: 1 },
+            artifactDamageToPlayerThisTurn: { me: 2 },
+            lifeGainedThisTurn: { me: 3 },
+            deathsThisTurn: 2,
+            creatureAttackedThisTurn: true,
+        });
+    });
+
+    // CR 120.3a / 119.3 / 700.4 / 508.1a (issue #3453) — the retrospective
+    // tallies are tolerant the same way the cast tallies above are: a garbage
+    // value is DROPPED rather than passed through to the builder, which would
+    // otherwise write a string onto a numeric ledger and make
+    // "damage dealt to you this turn" read `NaN`.
+    it("normalizes the retrospective per-turn tallies — both seats, one seat, absent, garbage", () => {
+        expect(
+            normalizeScenarioSpec({
+                cards: [],
+                damageDealtToPlayerThisTurn: { me: 4, opp: 1 },
+                artifactDamageToPlayerThisTurn: { me: 2, opp: 0 },
+                lifeGainedThisTurn: { me: 3, opp: 5 },
+                deathsThisTurn: 2,
+                creatureAttackedThisTurn: true,
+            })
+        ).toEqual({
+            cards: [],
+            damageDealtToPlayerThisTurn: { me: 4, opp: 1 },
+            artifactDamageToPlayerThisTurn: { me: 2, opp: 0 },
+            lifeGainedThisTurn: { me: 3, opp: 5 },
+            deathsThisTurn: 2,
+            creatureAttackedThisTurn: true,
+        });
+
+        // One seat only, and an explicit 0 / false — real claims, never
+        // trimmed as if they were absent.
+        expect(
+            normalizeScenarioSpec({
+                cards: [],
+                lifeGainedThisTurn: { me: 0 },
+                deathsThisTurn: 0,
+                creatureAttackedThisTurn: false,
+            })
+        ).toEqual({
+            cards: [],
+            lifeGainedThisTurn: { me: 0 },
+            deathsThisTurn: 0,
+            creatureAttackedThisTurn: false,
+        });
+
+        expect(normalizeScenarioSpec({ cards: [] })).toEqual({ cards: [] });
+
+        expect(
+            normalizeScenarioSpec({
+                cards: [],
+                damageDealtToPlayerThisTurn: { me: "four" },
+                lifeGainedThisTurn: "three",
+                deathsThisTurn: "two",
+                creatureAttackedThisTurn: "yes",
+            })
+        ).toEqual({ cards: [], damageDealtToPlayerThisTurn: {} });
+    });
+
+    // CR 608.2 (issue #3453) — the card-level tally, read off a raw row the
+    // same tolerant way `activations` is.
+    it("normalizes a card's ability-resolution tally, dropping non-numeric entries", () => {
+        expect(
+            normalizeScenarioSpec({
+                cards: [
+                    {
+                        name: "Scythecat Cub",
+                        owner: "me",
+                        abilityResolutions: {
+                            "scythecat-cub-landfall": 2,
+                            bogus: "x",
+                        },
+                    },
+                ],
+            })
+        ).toEqual({
+            cards: [
+                {
+                    name: "Scythecat Cub",
+                    owner: "me",
+                    abilityResolutions: { "scythecat-cub-landfall": 2 },
+                },
+            ],
         });
     });
 

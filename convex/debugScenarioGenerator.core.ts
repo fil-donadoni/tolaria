@@ -181,6 +181,49 @@ export const SCENARIO_JSON_SCHEMA = {
             description:
                 "Storm count: spells cast by ANY player this turn, the number of copies a storm spell would make (default 0).",
         },
+        // CR 120.3a / 119.3 / 700.4 / 508.1a (issue #3453) — a description
+        // that says "you have already gained life this turn" or "two creatures
+        // have died" is a real board, and these are the fields that hold it.
+        damageDealtToPlayerThisTurn: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+                me: { type: "integer" },
+                opp: { type: "integer" },
+            },
+            description:
+                "Damage already dealt to each seat THIS TURN, if the description names it (default none).",
+        },
+        artifactDamageToPlayerThisTurn: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+                me: { type: "integer" },
+                opp: { type: "integer" },
+            },
+            description:
+                "The share of this turn's damage to each seat that came from ARTIFACT sources (default none).",
+        },
+        lifeGainedThisTurn: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+                me: { type: "integer" },
+                opp: { type: "integer" },
+            },
+            description:
+                "Life each seat has GAINED this turn — what 'if you gained life this turn' reads (default none).",
+        },
+        deathsThisTurn: {
+            type: "integer",
+            description:
+                "Creatures that have died this turn, any controller (default 0).",
+        },
+        creatureAttackedThisTurn: {
+            type: "boolean",
+            description:
+                "True when any player has already declared an attacker this turn (default false).",
+        },
         // CR 702.139c / ADR 0064 (issue #1392).
         companion: {
             type: "object",
@@ -318,7 +361,11 @@ export function buildScenarioSystemPrompt(
         "- The same omit-unless-named discipline applies to `experience`,",
         "  `landsPlayed`, `companion`, `markLastDrawn`, `activePlayer`,",
         "  `priority`, `passCount`, `spellsCastThisTurn`,",
-        "  `spellsCastThisGame` and `stormCount`: emit them ONLY when the",
+        "  `spellsCastThisGame`, `stormCount`,",
+        "  `damageDealtToPlayerThisTurn`,",
+        "  `artifactDamageToPlayerThisTurn`, `lifeGainedThisTurn`,",
+        "  `deathsThisTurn` and `creatureAttackedThisTurn`:",
+        "  emit them ONLY when the",
         "  description actually calls for them, never as decoration. An",
         "  explicit 0 is a CLAIM, not a default — `stormCount: 0` says",
         "  'no spell has been cast this turn'.",

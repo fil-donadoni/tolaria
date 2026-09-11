@@ -32,3 +32,27 @@ as it lands — so the leak is being retired incrementally anyway. It earns a
 ticket only if a scenario is ever seen to rebuild differently in two
 deployments, or if the PRD's remaining widenings make the list long enough that
 the inversion is cheaper than the next three additions.
+
+**Update (issue #3453).** The denylist is now nine names — issue #3453 added
+its own five game-level tallies plus `abilityResolutionCounts`,
+`lastKnownCopiable` and `cleanupBookkeepingTurn` — and one exception has
+appeared that the paragraph above did not anticipate: issue #3449's three cast
+tallies (`GameState.spellsCastThisTurn`, the per-seat
+`spellsCastThisTurn`/`spellsCastThisGame`) are the only widened fields that do
+NOT clear. That issue chose "absent means unchanged" and pinned it in a test
+("leaves all three alone when the spec omits them",
+`convex/gre/__tests__/scenarioBuilder.test.ts`), which is lossless for a
+CAPTURED spec — `specFromState` lowers all three unconditionally — and leaky
+for a HAND-WRITTEN or LLM-generated one, whose own generator prompt says to
+emit them "ONLY when the description actually calls for them"
+(`convex/debugScenarioGenerator.core.ts`). Loaded mid-turn through
+`debugSetupScenario`, such a spec inherits the live game's storm count
+(CR 702.40a — every storm spell on the staged board copies itself) and the
+live seats' lifetime cast tallies, which gate Once Upon a Time's free cast
+(CR 118.9) and therefore LEGALITY.
+
+That is the first case where the two conventions disagree about the same
+family of field, so the inversion this note proposes — drive the clear off an
+allowlist of what the spec expresses, or build `debugSetupScenario` from a
+fresh base the way `buildBladeLoadState` does — is now cheaper than keeping
+them reconciled by hand.

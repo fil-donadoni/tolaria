@@ -42,6 +42,12 @@ export type CardDraft = {
      *  #3462's class, at card level: `assembleScenarioSpec`'s `preserved`
      *  mechanism is spec-level and has no card-level analogue). */
     activations?: Record<string, number>;
+    /** CR 608.2 (issue #3453) — carried OPAQUELY for the same reason as
+     *  `activations` above: the per-turn triggered-ability resolution tally is
+     *  keyed by internal ability id and exists for `specFromState` to lower a
+     *  captured position, not for someone to type. It still rides on the
+     *  draft, because the save path re-emits the card array wholesale. */
+    abilityResolutions?: Record<string, number>;
 };
 
 /** A fresh, empty card row (defaults to a battlefield permanent the player
@@ -96,6 +102,7 @@ export function cardToDraft(card: ScenarioCard): CardDraft {
             card.castableFromExileIncludesLand ?? false,
         attackedLastTurn: card.attackedLastTurn ?? false,
         activations: card.activations,
+        abilityResolutions: card.abilityResolutions,
     };
 }
 
@@ -145,6 +152,10 @@ export function draftToCard(draft: CardDraft): ScenarioCard {
     if (draft.attackedLastTurn) card.attackedLastTurn = true;
     // Re-emitted exactly as it was inflated — see `CardDraft.activations`.
     if (draft.activations) card.activations = draft.activations;
+    // Re-emitted exactly as it was inflated — see `CardDraft.abilityResolutions`.
+    if (draft.abilityResolutions) {
+        card.abilityResolutions = draft.abilityResolutions;
+    }
 
     return card;
 }
@@ -185,6 +196,14 @@ export type SpecDraft = {
     /** CR 702.40a (issue #3449) — the Storm count, spells cast by ANY player
      *  this turn. */
     stormCount: string;
+    /** CR 120.3a / 119.3 / 700.4 / 508.1a (issue #3453) — what has already
+     *  happened this turn: damage taken (and the artifact-sourced share of
+     *  it), life gained, creatures died, and whether anyone attacked. */
+    damageDealtToPlayerThisTurn: SeatPairDraft;
+    artifactDamageToPlayerThisTurn: SeatPairDraft;
+    lifeGainedThisTurn: SeatPairDraft;
+    deathsThisTurn: string;
+    creatureAttackedThisTurn: boolean;
     /** CR 102.1 / 117.1 (issue #3454) — the turn holder and the priority
      *  holder. `""` is the spec's own "absent", which the builder reads as
      *  "leave the base state's turn holder alone"; it is a real, selectable
@@ -215,6 +234,11 @@ export function emptySpecDraft(): SpecDraft {
         spellsCastThisTurn: { ...EMPTY_SEAT_PAIR },
         spellsCastThisGame: { ...EMPTY_SEAT_PAIR },
         stormCount: "",
+        damageDealtToPlayerThisTurn: { ...EMPTY_SEAT_PAIR },
+        artifactDamageToPlayerThisTurn: { ...EMPTY_SEAT_PAIR },
+        lifeGainedThisTurn: { ...EMPTY_SEAT_PAIR },
+        deathsThisTurn: "",
+        creatureAttackedThisTurn: false,
         activePlayer: "",
         priority: "",
         passCount: "",
@@ -252,6 +276,16 @@ export function specToDraft(spec: ScenarioSpec | null): SpecDraft {
     draft.spellsCastThisGame = seatPairToDraft(spec.spellsCastThisGame);
     if (spec.stormCount !== undefined)
         draft.stormCount = String(spec.stormCount);
+    draft.damageDealtToPlayerThisTurn = seatPairToDraft(
+        spec.damageDealtToPlayerThisTurn
+    );
+    draft.artifactDamageToPlayerThisTurn = seatPairToDraft(
+        spec.artifactDamageToPlayerThisTurn
+    );
+    draft.lifeGainedThisTurn = seatPairToDraft(spec.lifeGainedThisTurn);
+    if (spec.deathsThisTurn !== undefined)
+        draft.deathsThisTurn = String(spec.deathsThisTurn);
+    draft.creatureAttackedThisTurn = spec.creatureAttackedThisTurn ?? false;
     if (spec.activePlayer !== undefined) draft.activePlayer = spec.activePlayer;
     if (spec.priority !== undefined) draft.priority = spec.priority;
     if (spec.passCount !== undefined) draft.passCount = String(spec.passCount);
@@ -312,6 +346,17 @@ export function draftToSpec(draft: SpecDraft): Omit<ScenarioSpec, "cards"> {
     if (castThisGame) spec.spellsCastThisGame = castThisGame;
     const stormCount = num(draft.stormCount);
     if (stormCount !== undefined) spec.stormCount = stormCount;
+    const damageTaken = seatPairFromDraft(draft.damageDealtToPlayerThisTurn);
+    if (damageTaken) spec.damageDealtToPlayerThisTurn = damageTaken;
+    const artifactDamage = seatPairFromDraft(
+        draft.artifactDamageToPlayerThisTurn
+    );
+    if (artifactDamage) spec.artifactDamageToPlayerThisTurn = artifactDamage;
+    const lifeGained = seatPairFromDraft(draft.lifeGainedThisTurn);
+    if (lifeGained) spec.lifeGainedThisTurn = lifeGained;
+    const deaths = num(draft.deathsThisTurn);
+    if (deaths !== undefined) spec.deathsThisTurn = deaths;
+    if (draft.creatureAttackedThisTurn) spec.creatureAttackedThisTurn = true;
 
     if (draft.activePlayer !== "") spec.activePlayer = draft.activePlayer;
     if (draft.priority !== "") spec.priority = draft.priority;
