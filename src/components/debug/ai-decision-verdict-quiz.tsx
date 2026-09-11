@@ -38,24 +38,29 @@ export default function AiDecisionVerdictQuiz({
     const currentUser = useQuery(api.users.currentUser);
     const submitVerdict = useMutation(api.verdicts.submit);
 
-    const [state, setState] = useState<QuizState>({ status: "loading" });
+    // A decision whose position the store no longer holds cannot be judged at
+    // all, and that is knowable on the first render — so it is the INITIAL
+    // state rather than something an effect corrects afterwards. The only
+    // asynchronous part is loading the builder chunk below.
+    const [state, setState] = useState<QuizState>(() =>
+        getAiTraceSource(record.id)
+            ? { status: "loading" }
+            : {
+                  status: "unbuildable",
+                  error: "the position this decision was taken on is no longer held — it cannot be judged",
+              }
+    );
     const [selected, setSelected] = useState<number | null>(null);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         let cancelled = false;
+        // A decision pushed without its board — an older ring entry, or a
+        // consult that had none. Already said out loud by the initial state
+        // above; there is nothing to load.
         const source = getAiTraceSource(record.id);
-        if (!source) {
-            // A decision pushed without its board — an older entry, or a
-            // consult that had none. Said out loud rather than guessed: the
-            // only board a verdict may carry is the one the search ran on.
-            setState({
-                status: "unbuildable",
-                error: "the position this decision was taken on is no longer held — it cannot be judged",
-            });
-            return;
-        }
+        if (!source) return;
         void import("~/lib/ai/verdict-quiz")
             .then(({ buildVerdictQuiz }) => {
                 if (cancelled) return;

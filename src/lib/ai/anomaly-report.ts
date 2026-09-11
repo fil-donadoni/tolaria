@@ -10,9 +10,9 @@
 //
 // Two things travel, and they are deliberately separate:
 //
-//  - the REQUEST (open the dialog now), which the button consumes and clears —
-//    a one-shot, re-armable, because a tester reports a second anomaly by
-//    pressing the same button on a different decision;
+//  - the REQUEST (a report is open on a decision), which the dialog's owner
+//    watches for the moment it turns on, and which lasts until the dialog
+//    closes;
 //  - the DECISION ITSELF, which the diagnostics collector reads at SUBMIT time
 //    (`collectAiDiagnostics`), because that is when the payload is assembled
 //    and consented to.
@@ -93,19 +93,10 @@ export function requestAnomalyReport(record: AiTraceRecord): void {
     emit({ requested: true, decision: reportedDecisionOf(record) });
 }
 
-/** Consume the request. The DECISION stays: the dialog is now open, and the
- *  payload it assembles at submit time still has to carry what it was opened
- *  about. */
-export function acknowledgeAnomalyReport(): void {
-    if (!state.requested) return;
-    emit({
-        requested: false,
-        ...(state.decision ? { decision: state.decision } : {}),
-    });
-}
-
-/** Forget the decision entirely — the dialog closed, and the next report is
- *  not about it. */
+/** Forget the request and the decision — the dialog closed, and the next report
+ *  is not about it. This is the ONLY way the flag goes down: a request the
+ *  opener acknowledged separately would leave the two halves free to disagree
+ *  about whether a report is in progress. */
 export function clearAnomalyReport(): void {
     if (state === IDLE) return;
     emit(IDLE);
