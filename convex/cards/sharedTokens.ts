@@ -194,6 +194,31 @@ export const KNIGHT_TOKEN: EffectTokenSpec = {
     staticAbilities: ["vigilance"],
 };
 
+/** Otter token (CR 111 / 707.2, issue #3234). "1/1 blue and red Otter creature
+ *  token with prowess" — created today by Stormchaser's Talent's entry trigger
+ *  and by its level-3 cast trigger (`sets/blb/blue.ts`). Vanilla apart from the
+ *  keyword, so `EffectTokenSpec` (JSON-pure, ADR 0046) rather than `TokenSpec`.
+ *
+ *  Two colours, not a gold card: CR 202.2 — an object is every colour its
+ *  characteristics say it is, and a token's colours are declared outright
+ *  rather than derived from a mana cost it does not have.
+ *
+ *  No pinned `imagePrintId`, the `RABBIT_TOKEN`/`KNIGHT_TOKEN`/`HUMAN_TOKEN`
+ *  treatment: the art-match rule is "the token associated with the PRODUCING
+ *  card's own printing", and Stormchaser's Talent's own BLB printing
+ *  reverse-links its Otter in `generated/token-prints.json`, resolved per
+ *  producer by `tokenPrintIdFor` — so a later Otter producer picks up ITS
+ *  printing's art instead of inheriting BLB's. */
+export const OTTER_TOKEN: EffectTokenSpec = {
+    name: "Otter",
+    types: ["Creature"],
+    subtypes: ["Otter"],
+    power: 1,
+    toughness: 1,
+    colors: ["U", "R"],
+    staticAbilities: ["prowess"],
+};
+
 /** Human token (CR 111 / 707.2, issue #2370). "1/1 white Human creature
  *  token" — created today by Adeline, Resplendent Cathar's attack trigger
  *  (`sets/mid/white.ts`). Vanilla: no abilities, so `EffectTokenSpec`

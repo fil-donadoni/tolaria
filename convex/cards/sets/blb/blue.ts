@@ -1,6 +1,13 @@
 // blb (Bloomburrow) — blue cards (ADR 0043 colour split).
 
 import type { CardDefinition, SpellContext } from "../../types";
+import {
+    CLASS_SUBTYPE,
+    classLevelGainedTrigger,
+} from "../../abilities/classLevels";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
+import { OTTER_TOKEN } from "../../sharedTokens";
 
 // Azure Beastbinder — {1}{U} Creature — Rat Rogue, 1/3, vigilance (Vintage
 // Cube FREE: ETB/dies/attack triggers, issue #679). "Vigilance. This creature
@@ -108,6 +115,111 @@ export const azureBeastbinder: CardDefinition = {
                     ctx.setBasePT(permanent, 2, 2, duration);
                 }
             },
+        },
+    ],
+};
+
+// Stormchaser's Talent — {U} Enchantment — Class (Vintage Cube, issue #3234).
+// The engine's first Class card (CR 716), so the whole CR 716 machinery ships
+// with it: `classLevelBars[]` on the definition, desugared at the
+// `getDefinition` seam by `expandClassLevelBars`
+// (`cards/abilities/classLevels.ts`) into the activated ability each bar
+// represents (CR 716.2a, behind the declarative `classLevelBar` gate) plus the
+// abilities printed in that bar's text box section, level-gated at N or
+// greater. Mechanics Registry row: `class-level-bar` (CR 716.2).
+//
+// CR 716.3 — the top text box section's entry trigger is declared here like any
+// other card's: the Class has it at all times, at every level, and the expander
+// never touches it.
+//
+// CR 716.2b — the level is `CardInstanceState.classLevel`, NOT a counter.
+// CR 716.4 and CR 711.7 both say class levels and level counters do not
+// interact, so nothing that removes, doubles or counts counters can see it, and
+// a copy of a levelled Class starts at level 1 (levels are not copiable).
+//
+// The Otter is the shared `OTTER_TOKEN` spec (CR 111 / 707.2) — 1/1 blue and
+// red with prowess, art resolved per producer from the token print lockfile
+// against this card's own BLB printing.
+//
+// compiler-gap: "(Gain the next level as a sorcery to add its ability.)" (#2693)
+// compiler-gap: "{3}{U}: Level 2" (#2693)
+// compiler-gap: "When this Class becomes level 2, return target instant or sorcery card from your graveyard to your hand." (#2693)
+// compiler-gap: "{5}{U}: Level 3" (#2693)
+export const stormchasersTalent: CardDefinition = {
+    id: "a36e682d-b43d-4e08-bf5b-70d7e924dbe5", // BLB 75
+    rarity: "rare",
+    name: "Stormchaser's Talent",
+    oracleText:
+        "(Gain the next level as a sorcery to add its ability.)\nWhen this Class enters, create a 1/1 blue and red Otter creature token with prowess.\n{3}{U}: Level 2\nWhen this Class becomes level 2, return target instant or sorcery card from your graveyard to your hand.\n{5}{U}: Level 3\nWhenever you cast an instant or sorcery spell, create a 1/1 blue and red Otter creature token with prowess.",
+    manaCost: { U: 1 },
+    types: ["Enchantment"],
+    subtypes: [CLASS_SUBTYPE],
+    // CR 716.3 — the top section, functioning at every level.
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "stormchasers-talent-etb-otter",
+            oracleText:
+                "When this Class enters, create a 1/1 blue and red Otter creature token with prowess.",
+            scope: "self",
+            effects: [
+                {
+                    op: "createToken",
+                    token: OTTER_TOKEN,
+                    controller: "controller",
+                    count: 1,
+                },
+            ],
+        }),
+    ],
+    classLevelBars: [
+        {
+            level: 2,
+            cost: { X: 3, U: 1 },
+            costLabel: "{3}{U}",
+            triggeredAbilities: [
+                classLevelGainedTrigger({
+                    level: 2,
+                    oracleText:
+                        "When this Class becomes level 2, return target instant or sorcery card from your graveyard to your hand.",
+                    // CR 603.3d — a REAL target, chosen as the trigger is put
+                    // on the stack (the Snapcaster Mage shape, isd/blue.ts):
+                    // `zone: "graveyard"` + `controller: "you"` narrows to
+                    // instant/sorcery cards in the controller's own graveyard,
+                    // and `count: 1` auto-selects when exactly one is legal and
+                    // removes the trigger when none is (CR 603.3c).
+                    targetRequirement: {
+                        type: ["Instant", "Sorcery"],
+                        count: 1,
+                        zone: "graveyard",
+                        controller: "you",
+                    },
+                    effects: [
+                        { op: "moveZone", target: { target: 0 }, to: "hand" },
+                    ],
+                }),
+            ],
+        },
+        {
+            level: 3,
+            cost: { X: 5, U: 1 },
+            costLabel: "{5}{U}",
+            triggeredAbilities: [
+                spellCastTrigger({
+                    id: "stormchasers-talent-level-3-otter",
+                    oracleText:
+                        "Whenever you cast an instant or sorcery spell, create a 1/1 blue and red Otter creature token with prowess.",
+                    scope: "you",
+                    filter: { types: ["Instant", "Sorcery"] },
+                    effects: [
+                        {
+                            op: "createToken",
+                            token: OTTER_TOKEN,
+                            controller: "controller",
+                            count: 1,
+                        },
+                    ],
+                }),
+            ],
         },
     ],
 };

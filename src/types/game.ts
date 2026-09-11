@@ -253,6 +253,11 @@ export interface CardInstance {
      *  (corpse, mire, vitality, ...) are inert to layers and read by
      *  card-specific abilities. */
     counters?: Record<string, number>;
+    /** CR 716.2b (issue #3234) — this permanent's class level, absent meaning
+     *  level 1 (CR 716.2d). Rides `slimCard` intact; drives the level badge and
+     *  the CR 716.2a activation gate in `isActivationTimingAllowed`. Never a
+     *  counter (CR 716.4 / 711.7), so it is NOT in `counters` above. */
+    classLevel?: number;
     /** One-shot P/T modifications scoped to a phase boundary (CR 611.1).
      *  Each entry adds to effective P/T at read time. */
     temporaryPTMods?: ReadonlyArray<{ power: number; toughness: number }>;

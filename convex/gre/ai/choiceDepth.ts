@@ -101,6 +101,9 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     coinFlipSync: false,
     counter: false,
     counters: false,
+    // CR 716.2a (issue #3234) — writes a field and emits an event; it asks the
+    // controller nothing.
+    setLevel: false,
     createToken: false,
     createTokenCopy: false,
     dealDamage: false,

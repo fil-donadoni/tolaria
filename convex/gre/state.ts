@@ -61,6 +61,7 @@ import { resolveTokenStaticEffects } from "../cards/tokenStaticEffects";
 import { getEmblemDefinition, tryGetEmblemDefinition } from "../cards/emblems";
 import { tokenPrintIdFor } from "../cards/tokenPrintLookup";
 import { getKeywordCounterGrant } from "../cards/mechanicsRegistry";
+import { classLevelOf } from "../cards/abilities/classLevels";
 import {
     deriveLayer6,
     ensureLayer6Base,
@@ -961,6 +962,23 @@ export type CardInstanceState = {
      *  battlefield — graveyard and exile included — by `leaveBattlefield`,
      *  which snapshots the map into `countersAtLeave` first. */
     counters?: Record<string, number>;
+    /** CR 716.2b (issue #3234) — this permanent's LEVEL, the designation a
+     *  class level bar sets ("this Class's level becomes N"). Absent means
+     *  level 1 (CR 716.2d); read through `classLevelOf`
+     *  (`cards/abilities/classLevels.ts`), never by hand.
+     *
+     *  A field of its own rather than an entry in `counters` because CR 716.4
+     *  and CR 711.7 both say class levels and level counters do not interact: a
+     *  `"level"` counter would be visible to every counter-removal,
+     *  counter-doubling and "for each counter" effect in the pool, which is the
+     *  precise trap CR 711.7 warns about. It is also why it is NOT cleared
+     *  alongside the counter map: CR 716.2b — "a Class retains its level even
+     *  if it stops being a Class". It IS cleared on a zone change, because that
+     *  is a new object (CR 400.7), and it is never copied (CR 716.2b — levels
+     *  are not a copiable characteristic), which needs no code: `applyCopy`
+     *  rewrites only copiable values, so a copy keeps its own level and a fresh
+     *  token copy has none at all. */
+    classLevel?: number;
     /** CR 608.2h last-known information: the `counters` map this permanent had
      *  at the instant it left the battlefield. The counters themselves cease
      *  to exist on a zone change (CR 122.2) — this is the read-only memory of
@@ -10454,6 +10472,17 @@ export function removePermanentTo(
         delete creature.countersAtLeave;
     }
     delete creature.counters;
+    // CR 400.7 / 716.2b — the class level goes with the object on EVERY
+    // departure, for the same reason the counter map above does: the card that
+    // lands in the graveyard or in exile is a NEW object, and CR 716.2d makes
+    // it level 1 again. CR 716.2b's "a Class retains its level even if it stops
+    // being a Class" is about a permanent whose TYPE changes while it stays on
+    // the battlefield, not about a zone change. The hand/library branch above
+    // already did it via `resetBattlefieldTransientState`; this is the funnel
+    // that covers death, sacrifice and exile, where a surviving level would
+    // reach `getGraveyardStackAbilities` and gate a graveyard ability off a
+    // level the object no longer has.
+    delete creature.classLevel;
     const owner = getPlayer(state, creature.ownerId);
     // CR 404.3 (issue #1967) — APPEND, never prepend. This is the funnel for
     // every battlefield departure (death, sacrifice, bounce, tuck), so it is
@@ -11636,6 +11665,50 @@ export function addCounterToCard(
     ];
 }
 
+/** CR 716.2a (issue #3234) — set a permanent's LEVEL and emit the
+ *  `LEVEL_GAINED` event "When this Class becomes level N" triggers listen for.
+ *  The single writer of `CardInstanceState.classLevel`; the twin of
+ *  `addCounterToCard` for the designation CR 716.4 keeps OUT of the counter
+ *  system (a `"level"` counter would be visible to every counter-removal and
+ *  counter-doubling effect, the trap CR 711.7 warns about).
+ *
+ *  Refuses a level that is not strictly greater than the current one
+ *  (CR 716.2d — absent reads as 1). Levels are gained, never lost: a re-set to
+ *  the same or a lower level would otherwise re-arm a "becomes level N" trigger
+ *  that has already been spent. Today the `classLevelBar` activation gate makes
+ *  that unreachable (CR 716.2a activates only at level N-1), so this is the
+ *  invariant for the NEXT producer, not a live branch.
+ *
+ *  Re-runs `recomputeContinuousEffects` exactly as `addCounterToCard` does
+ *  (CR 613.5). A CR 716.2a section grant is an `applies`-gated static, and
+ *  `GateableStaticEffect` admits the layer 2-6 kinds whose answer is
+ *  MATERIALIZED onto the card by `syncLayer6` / `syncLayers2to5` rather than
+ *  re-derived at every read: without this tick a bar that grants a keyword
+ *  would stay inert until the next SBA sweep, i.e. for every later Op in the
+ *  same script. */
+export function setClassLevelOnCard(
+    state: GameState,
+    card: CardInstanceState,
+    level: number
+): void {
+    const previousLevel = classLevelOf(card);
+    if (level <= previousLevel) return;
+    card.classLevel = level;
+    recomputeContinuousEffects(state);
+    state.pendingEvents = [
+        ...(state.pendingEvents ?? []),
+        {
+            type: "LEVEL_GAINED",
+            instanceId: card.id,
+            controllerId: card.controllerId,
+            level,
+            previousLevel,
+            types: [...card.types],
+            subtypes: [...card.subtypes],
+        },
+    ];
+}
+
 /** CR 702.90a/b — Infect (creature half) and Wither: a source with either
  *  keyword deals damage to a CREATURE in the form of `-1/-1` counters
  *  instead of marking it. Modeled on the `markDeathtouchDamage` precedent
@@ -12209,6 +12282,12 @@ export function resetBattlefieldTransientState(
     delete card.dealtDeathtouchDamage;
     delete card.regenerationShields;
     delete card.isSummoningSick;
+    // CR 400.7 / 716.2b (issue #3234) — the class level belongs to the object
+    // that was on the battlefield. CR 716.2b's "a Class retains its level even
+    // if it stops being a Class" is about a permanent whose TYPE changes while
+    // it stays on the battlefield, not about a zone change: a zone change makes
+    // a new object, which is level 1 again (CR 716.2d).
+    delete card.classLevel;
     // CR 400.7 (issue #1458) — the entry stamp belongs to the object that was
     // on the battlefield; the zone change creates a new object, which gets a
     // fresh stamp from `markEnteredThisTurn` if it re-enters.
@@ -15370,6 +15449,17 @@ export function buildSpellContext(
             // choke point, CR 702.90) — one execution path for "put a
             // counter on a permanent" regardless of caller.
             addCounterToCard(state, found.card, type, count);
+        },
+        // CR 716.2a (issue #3234) — "this Class's level becomes N". Routed
+        // through the shared `setClassLevelOnCard` mutator so the
+        // `LEVEL_GAINED` emission and the "levels are gained, never lost"
+        // refusal have ONE execution path, exactly as `addCounter` routes
+        // through `addCounterToCard`.
+        setLevel(target: TargetSelection, level: number): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            setClassLevelOnCard(state, found.card, level);
         },
         // CR 700.2c — re-write a permanent's stored modal colour post-ETB. The
         // "choose a color" half of a re-choosable modal permanent (Chromatic

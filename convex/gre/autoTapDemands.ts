@@ -1,4 +1,5 @@
 import { getInstanceManaCost } from "../cards";
+import { classLevelActivationViolation } from "../cards/abilities/classLevels";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import type { Demand } from "./autoTap";
 import { abilitiesSuppressed, hasInstantSpeed } from "./constants";
@@ -190,6 +191,10 @@ export function buildBoardAbilityDemands(
                 perm.hasAttackedThisTurn !== true
             )
                 continue;
+            // CR 716.2a (issue #3234) — the class level gates, same class as
+            // the Boast filter above: a level bar the Class's current level
+            // does not admit must not reserve mana for itself.
+            if (classLevelActivationViolation(perm, ability) !== null) continue;
             if (
                 ability.activationPhaseRestriction &&
                 ability.activationPhaseRestriction.length > 0 &&

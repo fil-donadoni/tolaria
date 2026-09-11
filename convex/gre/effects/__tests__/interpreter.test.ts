@@ -7237,6 +7237,138 @@ describe("Effect Script value grammar: negate (signed value negation, issue #926
     });
 });
 
+describe("Effect Script Op: setLevel (CR 716.2a, issue #3234)", () => {
+    // The Op's permanent test (PRD #795 — a new Op pays the entry fee once).
+    // Sets an announced permanent's LEVEL, which is a designation, not a
+    // counter (CR 716.4 / 711.7) — the whole point of the Op existing beside
+    // `counters` rather than as a parameter of it.
+    it("sets an announced target's class level and survives the projection (wire format)", () => {
+        const id = registerScript("test-op-set-level", [
+            { op: "setLevel", target: { target: 0 }, level: 3 },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bearLvl",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearLvl" }]);
+        resolveTopOfStack(state);
+        const levelled = state.players[1].battlefield.find(
+            (c) => c.id === "bearLvl"
+        )!;
+        expect(levelled.classLevel).toBe(3);
+        // CR 716.4 / 711.7 — nothing reached the counter map, so no
+        // counter-removal or counter-doubling effect can see the level.
+        expect(levelled.counters).toBeUndefined();
+        // Same assertion after the projection (the wire-format bug class — the
+        // client reads the slimmed instance, and a level it cannot see is a
+        // level the board cannot render and the activation gate cannot check).
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "bearLvl"
+        )!;
+        expect(slim.classLevel).toBe(3);
+    });
+
+    // CR 716.2a — levels are gained, never lost. A second, lower `setLevel` is
+    // a no-op rather than a walk backwards that would re-arm a spent "becomes
+    // level N" trigger.
+    it("refuses a level that is not strictly greater than the current one", () => {
+        const up = registerScript("test-op-set-level-up", [
+            { op: "setLevel", target: { target: 0 }, level: 3 },
+        ]);
+        const down = registerScript("test-op-set-level-down", [
+            { op: "setLevel", target: { target: 0 }, level: 2 },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bearLvlDown",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, up, "p1", [{ type: "permanent", id: "bearLvlDown" }]);
+        resolveTopOfStack(state);
+        pushSpell(state, down, "p1", [
+            { type: "permanent", id: "bearLvlDown" },
+        ]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bearLvlDown")!
+                .classLevel
+        ).toBe(3);
+    });
+
+    // CR 608.2b — the permanent left the battlefield before resolution, so
+    // `resolveObjectRef` yields nothing and the Op does as much as it can:
+    // nothing, without throwing.
+    it("CR 608.2b — skips a target that has left the battlefield", () => {
+        const id = registerScript("test-op-set-level-gone", [
+            { op: "setLevel", target: { target: 0 }, level: 2 },
+        ]);
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "never-existed" },
+        ]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+    });
+
+    // The `forEach` construct (ADR 0046) over `$each` — the only other
+    // selector shape a class level bar's sibling Op could reach for.
+    it("levels every member of a forEach set through $each", () => {
+        const id = registerScript("test-op-set-level-foreach", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    controller: "opponent",
+                    filter: { type: "Creature" },
+                },
+                effects: [
+                    { op: "setLevel", target: { ref: "$each" }, level: 2 },
+                ],
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(BEAR_ID, {
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            id: "bearEachA",
+                        }),
+                        makeInstance(BEAR_ID, {
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            id: "bearEachB",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1", []);
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield.map((c) => c.classLevel)).toEqual([
+            2, 2,
+        ]);
+    });
+});
+
 describe("Effect Script Op: counters (CR 122, issue #841)", () => {
     // Adding +1/+1 counters to an announced creature target: the counters
     // persist and feed layer 7d, so the effective P/T rises. Wire-format

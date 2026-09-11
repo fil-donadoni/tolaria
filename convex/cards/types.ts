@@ -1869,6 +1869,31 @@ export interface ActivatedAbility {
      *  (`src/lib/card-utils.ts`) and as a bot-move gate by
      *  `enumerateAbilityMoves` / `hasFlexibleActivation`. */
     requiresAttackedThisTurn?: boolean;
+    /** CR 716.2a (issue #3234) — this ability IS a class level bar, and the
+     *  value is the level N it grants: "[Cost]: This Class's level becomes N.
+     *  Activate only if this Class is level N-1 and only as a sorcery." The
+     *  activation gate this field stands for is the `level N-1` half (the
+     *  sorcery-speed half is the already-shipped `sorcerySpeedOnly`), and it is
+     *  what makes CR 716.2a's "levels are gained one at a time, upward only"
+     *  a rule rather than a convention: at level 1 only the level-2 bar is
+     *  legal, so there is no way to skip a level.
+     *
+     *  DECLARATIVE for the same reason `requiresAttackedThisTurn` is: both
+     *  `enumerateAbilityMoves` (`gre/moves.ts`) and `hasFlexibleActivation`
+     *  (`gre/evaluate.ts`) skip ANY ability carrying a `canActivate` closure,
+     *  so a closure-gated level bar would be a move the Bot never enumerates —
+     *  it could never level a Class up at all. Enforced server-side by
+     *  `assertActivationTimingLegal` (`convex/game.ts`), mirrored as a UI hint
+     *  by `isActivationTimingAllowed` (`src/lib/card-utils.ts`). Built by
+     *  `expandClassLevelBars` (`cards/abilities/classLevels.ts`); a card never
+     *  writes it by hand. */
+    classLevelBar?: number;
+    /** CR 716.2a (issue #3234) — this ability is printed in the level-N text
+     *  box SECTION of a Class card, so the Class "has" it only "as long as this
+     *  Class is level N or greater". The twin of `classLevelBar` for the
+     *  abilities a bar grants rather than the bar itself, and declarative for
+     *  exactly the same reason. Built by `expandClassLevelBars`. */
+    functionsAtClassLevel?: number;
     /** CR 702.142 — marks this ability as a BOAST ability. Boast is a keyword
      *  that adds rules to the activated ability that follows it: "Boast —
      *  [Cost]: [Effect]" means "[Cost]: [Effect]. Activate only if this
@@ -3641,6 +3666,15 @@ export interface SpellContext {
     /** Reads the count of a given counter type on `target` (CR 122.6). Returns
      *  0 if the target has no counters of that type or has left play. */
     getCounterCount: (target: TargetSelection, type: string) => number;
+    /** CR 716.2a — sets `target`'s LEVEL to `level` ("this Class's level becomes
+     *  N") and emits the `LEVEL_GAINED` event "When this Class becomes level N"
+     *  triggers listen for. No-op if the target has left the battlefield
+     *  (CR 608.2b) or if `level` is not strictly greater than its current level
+     *  (CR 716.2d — absent is 1): a level is gained, never lost, so a re-set
+     *  must not re-arm a "becomes level N" trigger. NOT a counter (CR 716.4 /
+     *  711.7) — it writes `CardInstanceState.classLevel`, which no
+     *  counter-reading effect can see. */
+    setLevel: (target: TargetSelection, level: number) => void;
     /** Re-writes a permanent's stored modal choice (`chosenModeId`, CR 700.2c)
      *  post-ETB — the "choose a color" half of a re-choosable modal permanent
      *  (Chromatic Armor: "{X}: Put a sleight counter on this Aura and choose a
@@ -7013,6 +7047,14 @@ export interface PermanentView {
      *  -1/-0) contributes at stat-read time. Other types are inert to layers
      *  and read by card-specific abilities only. */
     counters?: Readonly<Record<string, number>>;
+    /** CR 716.2b (issue #3234) — this permanent's LEVEL, the designation a
+     *  class level bar sets. Absent means level 1 (CR 716.2d); read it through
+     *  `classLevelOf` (`cards/abilities/classLevels.ts`), never by hand.
+     *  Explicitly NOT a counter (CR 716.4 / 711.7): it must stay invisible to
+     *  every counter-removal and counter-doubling effect, so it rides its own
+     *  field rather than `counters`. Mirrors
+     *  `CardInstanceState.classLevel`. */
+    classLevel?: number;
     /** Per-turn activation tally keyed by ability id (CR 602.5). Mirrors
      *  `CardInstanceState.activationsThisTurn`; the activation validator passes
      *  the raw `CardInstanceState` as `source` to `canActivate`, so this is
@@ -9420,7 +9462,8 @@ export type GameEventType =
     | "BECAME_TARGET"
     | "TOKENS_CREATED"
     | "CARDS_EXILED"
-    | "LIBRARY_SEARCHED";
+    | "LIBRARY_SEARCHED"
+    | "LEVEL_GAINED";
 
 /** Damage event emitted whenever a source inflicts damage on a target
  *  (CR 120.3). Used by "whenever ~ deals damage" triggers. The
@@ -10193,6 +10236,42 @@ export interface CounterAddedEvent {
     subtypes: ReadonlyArray<string>;
 }
 
+/** Class-level event (CR 716.2a, issue #3234) — emitted whenever a permanent's
+ *  LEVEL changes, which today means a class level bar's activated ability
+ *  resolving ("this Class's level becomes N"). Drives "When this Class becomes
+ *  level N, …" triggers.
+ *
+ *  Deliberately NOT a `COUNTER_ADDED` event with a `"level"` counter type:
+ *  CR 716.4 and CR 711.7 both say class levels and level counters do not
+ *  interact, so a Class must be invisible to every counter-reading trigger,
+ *  counter-removal effect and counter-doubler in the pool. `previousLevel` is
+ *  carried alongside `level` so a trigger can discriminate the TRANSITION
+ *  (CR 716.2a's levels are gained one at a time and only upward, so the pair is
+ *  always `N-1 → N` today; a future effect that sets a level outright would
+ *  still read correctly here rather than silently re-firing every bar it
+ *  skipped). `types`/`subtypes` snapshot the permanent's characteristics at
+ *  emit time, mirroring `CounterAddedEvent`'s last-known-info style, so a
+ *  scope+filter trigger factory can gate on them with no battlefield re-scan —
+ *  CR 716.2b's "a Class retains its level even if it stops being a Class" means
+ *  the emitting permanent is not guaranteed to still BE a Class. */
+export interface LevelGainedEvent {
+    type: "LEVEL_GAINED";
+    /** Instance id of the permanent whose level changed. */
+    instanceId: string;
+    /** Controller of that permanent at the moment the level changed. */
+    controllerId: string;
+    /** The permanent's level after the change (CR 716.2a — always >= 2 today:
+     *  level 1 is the default every permanent already has, CR 716.2d). */
+    level: number;
+    /** The permanent's level before the change (CR 716.2d — 1 when it had
+     *  none). Always strictly less than `level`; a no-op re-set never emits. */
+    previousLevel: number;
+    /** Card types of the permanent, snapshotted at emit time. */
+    types: ReadonlyArray<CardType>;
+    /** Card subtypes of the permanent, snapshotted at emit time. */
+    subtypes: ReadonlyArray<string>;
+}
+
 /** Target-declaration event (CR 603.2b / 115.5) emitted once PER TARGET when a
  *  spell or ability's targets are locked onto its stack object — at cast
  *  (`emitSpellCastEvent`), at activated-ability commit, and at targeted-trigger
@@ -10393,6 +10472,7 @@ export type GameEvent =
     | LifeGainedEvent
     | CounterRemovedEvent
     | CounterAddedEvent
+    | LevelGainedEvent
     | BecameTargetEvent
     | TokensCreatedEvent
     | CardsExiledEvent
@@ -10616,6 +10696,41 @@ export interface ChapterAbilityDefinition {
     oracleText: string;
     /** The chapter's effect as an Effect Script (ADR 0045). */
     effects: EffectOp[];
+}
+
+/** A `StaticEffect` a class level bar can level-gate (CR 716.2a): every layer
+ *  kind whose activeness is decided by an `applies` predicate, which is where
+ *  "as long as this Class is level N or greater" belongs. A kind with no such
+ *  predicate has no seam to gate and is therefore not admissible in a bar's
+ *  section — nothing in the pool prints one there. */
+export type GateableStaticEffect = Extract<
+    StaticEffect,
+    { applies: (...args: never[]) => boolean }
+>;
+
+/** One class level bar of a Class card (CR 716.2), declared as data: the
+ *  activation cost, the level it grants, and the abilities printed in its own
+ *  text box section. Desugared by `expandClassLevelBars`
+ *  (`convex/cards/abilities/classLevels.ts`). */
+export interface ClassLevelBarDefinition {
+    /** N — the level this bar's activated ability sets (CR 716.2a). Bars are
+     *  consecutive from 2: a Class on the battlefield is already level 1
+     *  (CR 716.2d), so no bar exists for it. */
+    level: number;
+    /** The bar's activation cost (CR 716.2 — "a class level bar includes the
+     *  activation cost of its activated ability"). */
+    cost: ManaCost;
+    /** The cost as printed on the bar, e.g. `"{3}{U}"`. */
+    costLabel: string;
+    /** Static effects printed in this section — live at level N or greater
+     *  (CR 716.2a). */
+    staticEffects?: GateableStaticEffect[];
+    /** Triggered abilities printed in this section — they function, and so can
+     *  trigger, only at level N or greater (CR 716.2a). */
+    triggeredAbilities?: TriggeredAbility[];
+    /** Activated abilities printed in this section — activatable only at level
+     *  N or greater (CR 716.2a). */
+    activatedAbilities?: ActivatedAbility[];
 }
 
 /** A triggered ability's CR 603.4 check-time gate, RESTATED in a form a reader
@@ -10856,6 +10971,14 @@ export interface TriggeredAbility {
      *  defer the sacrifice). Because the tag travels on the ability object, it
      *  survives copy, grant and ability-loss suppression for free. */
     chapterNumbers?: number[];
+    /** CR 716.2a (issue #3234) — this trigger is printed in the level-N text
+     *  box section of a Class card, so the Class has it only at level N or
+     *  greater. The gate itself is folded into `matches` by
+     *  `expandClassLevelBars` (`cards/abilities/classLevels.ts`) — `matches` is
+     *  the engine's only authority — and this field is the readback tag, the
+     *  `chapterNumbers` treatment: it lets a UI or a census say WHICH section a
+     *  trigger came from without re-deriving it from a closure. */
+    classLevelSection?: number;
     /** Retained when this permanent becomes a copy of another (CR 707.9d —
      *  "except it has this ability"). Vesuvan Doppelganger's upkeep re-copy
      *  trigger sets this so it keeps functioning after the copy overwrites the
@@ -14054,6 +14177,36 @@ export type EffectOp =
           target: EffectObjectSelector;
           count: EffectValue;
       }
+    /** CR 716.2a (issue #3234) — set a permanent's LEVEL: "this Class's level
+     *  becomes N". A thin declarative skin over the SpellContext primitive
+     *  `setLevel`, one execution path (ADR 0045). `target` names the permanent:
+     *  an announced target slot, the resolving source (`$source` — the only
+     *  shape a class level bar uses, since CR 716.2a's ability is printed on
+     *  the Class it levels), or the current member of a `forEach` set
+     *  (`{ ref: "$each" }`). `level` is a literal: CR 716.2 prints the number
+     *  on the bar itself, so there is nothing to compute.
+     *
+     *  Deliberately NOT the `counters` Op with a `"level"` counter type —
+     *  CR 716.4 and CR 711.7 both state that class levels and level counters do
+     *  not interact, so the level rides its own `CardInstanceState.classLevel`
+     *  field and is invisible to every counter-removal / counter-doubling
+     *  effect in the pool. That separation is the whole reason this Op exists
+     *  rather than reusing `counters` (§ Primitive reuse: the two are not the
+     *  same primitive wearing different parameters — they are different
+     *  storage with different CR-mandated visibility).
+     *
+     *  Monotonic by rule, not by clamp: the ONLY producer today is a class
+     *  level bar, whose `classLevelBar` gate already restricts activation to
+     *  "this Class is level N-1" (CR 716.2a). The primitive still refuses a
+     *  level that is not strictly greater than the current one, so a
+     *  hypothetical second producer cannot silently walk a Class backwards and
+     *  re-arm its "becomes level N" triggers. Skipped when the referenced
+     *  permanent is gone (CR 608.2b). */
+    | {
+          op: "setLevel";
+          target: EffectObjectSelector;
+          level: number;
+      }
     /** CR 701.26 (issue #842) — tap or untap a permanent. A thin declarative
      *  skin over the SpellContext primitives `tap` / `untap`, one execution
      *  path (ADR 0045). `action` selects the direction (`"tap"` — Icy
@@ -17036,6 +17189,17 @@ export interface CardDefinition {
      *  condition, and never declares a `finalChapter` — that is derived from
      *  the EFFECTIVE abilities (CR 714.2d, `convex/gre/sagas.ts`). */
     chapterAbilities?: ChapterAbilityDefinition[];
+    /** CR 716.2 (issue #3234) — a Class card's class level bars, declared as
+     *  data. The `getDefinition` seam (`expandClassLevelBars`,
+     *  `convex/cards/abilities/classLevels.ts`) desugars each bar into the
+     *  activated ability it represents (CR 716.2a's "[Cost]: This Class's level
+     *  becomes N", behind the declarative `classLevelBar` gate) and level-gates
+     *  every ability printed in that bar's text box section (CR 716.2a's "as
+     *  long as this Class is level N or greater, it has [abilities]"). The
+     *  card never hand-writes either half. CR 716.3's top-section abilities are
+     *  declared on the definition normally and this field never touches
+     *  them. */
+    classLevelBars?: ClassLevelBarDefinition[];
     staticAbilities?: string[];
     /** Continuous static effects (CR 611). Applied at stat-read time by the layer system. */
     staticEffects?: StaticEffect[];

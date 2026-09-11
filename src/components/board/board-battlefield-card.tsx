@@ -21,6 +21,7 @@ import {
     landscapeAttackerLiftPx,
     landscapeCombatLiftDirection,
 } from "~/lib/landscape-board-bands";
+import ClassLevelBadge from "./class-level-badge";
 import CounterBadges from "./counter-badges";
 import LoyaltyBadge from "./loyalty-badge";
 import NotedManaBadge from "./noted-mana-badge";
@@ -444,6 +445,7 @@ export default function BoardBattlefieldCard({
                     {highlightRing}
                     {phasedBadge}
                     <CounterBadges card={card} />
+                    <ClassLevelBadge card={card} />
                     {!phased && <SummoningSicknessBadge card={card} />}
                     <NotedManaBadge card={card} />
                     <TokenBadge card={card} />

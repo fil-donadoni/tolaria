@@ -9,6 +9,7 @@ import type {
 } from "~/types/game";
 import type { CardType, Color, ManaCost } from "~/types/cards";
 import type { Phase } from "@convex/gre/types";
+import { classLevelActivationViolation } from "@convex/cards/abilities/classLevels";
 import type { ContinuousEffect } from "@convex/gre/continuousEffects";
 import {
     matchesPermanentFilter as matchesEnginePermanentFilter,
@@ -1899,6 +1900,8 @@ export function isActivationTimingAllowed(
         controllerTurnOnly?: boolean;
         oncePerTurn?: boolean;
         requiresAttackedThisTurn?: boolean;
+        classLevelBar?: number;
+        functionsAtClassLevel?: number;
     },
     turnOwnerId: string,
     phase: Phase | undefined,
@@ -1918,7 +1921,16 @@ export function isActivationTimingAllowed(
      *  MEANS "has not attacked". Failing open here would make the hint
      *  useless: the ability would be offered on every untapped creature all
      *  game and only the server's throw would say no. */
-    hasAttackedThisTurn?: boolean
+    hasAttackedThisTurn?: boolean,
+    /** The SOURCE permanent's class level (CR 716.2b), driving the two CR
+     *  716.2a gates: a class level bar activates only at level N-1, and an
+     *  ability printed in the level-N section exists only at level N or
+     *  greater. Fail-CLOSED like `hasAttackedThisTurn` and for the same reason
+     *  — absence is not ambiguity: CR 716.2d says a permanent with no level IS
+     *  level 1, and `slimCard` spreads the instance so the field reaches the
+     *  client intact. Failing open would offer every bar of a Class at once,
+     *  which is precisely the affordance CR 716.2a forbids. */
+    classLevel?: number
 ): boolean {
     if (
         ability.activationPhaseRestriction &&
@@ -1953,6 +1965,14 @@ export function isActivationTimingAllowed(
     // see the parameter's own doc comment for why this gate is fail-CLOSED
     // while its siblings above are fail-open.
     if (ability.requiresAttackedThisTurn && hasAttackedThisTurn !== true) {
+        return false;
+    }
+    // CR 716.2a — the class level gates. The SAME predicate the server
+    // (`assertActivationTimingLegal`) and the Bot enumerator
+    // (`enumerateAbilityMoves`) run, imported from the pure engine module
+    // rather than restated here (ADR 0074 — shared module, no client
+    // authority), so the affordance can never disagree with the throw.
+    if (classLevelActivationViolation({ classLevel }, ability) !== null) {
         return false;
     }
     return true;
@@ -2147,7 +2167,9 @@ export function getStackAbilities(
                 card.activationsThisTurn,
                 // CR 702.142a — Boast's attacked-this-turn precondition, read
                 // off the source instance (it survives `slimCard`).
-                card.hasAttackedThisTurn
+                card.hasAttackedThisTurn,
+                // CR 716.2b — the Class's own level, same treatment.
+                card.classLevel
             )
         ) {
             return false;
@@ -2392,7 +2414,8 @@ export function getGraveyardStackAbilities(
                     phase,
                     stateView.activePlayerId,
                     card.activationsThisTurn,
-                    card.hasAttackedThisTurn
+                    card.hasAttackedThisTurn,
+                    card.classLevel
                 )
             ) {
                 return false;
@@ -2501,7 +2524,8 @@ export function getHandStackAbilities(
                     phase,
                     stateView.activePlayerId,
                     card.activationsThisTurn,
-                    card.hasAttackedThisTurn
+                    card.hasAttackedThisTurn,
+                    card.classLevel
                 )
             ) {
                 return false;
@@ -2602,7 +2626,8 @@ export function getAnyPlayerStackAbilities(
                     phase,
                     stateView?.activePlayerId,
                     card.activationsThisTurn,
-                    card.hasAttackedThisTurn
+                    card.hasAttackedThisTurn,
+                    card.classLevel
                 )
         )
         .map((a) => ({ id: a.id, oracleText: a.oracleText }));

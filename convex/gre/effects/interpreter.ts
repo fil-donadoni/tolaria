@@ -3260,6 +3260,17 @@ export const OP_EXECUTORS: {
             ctx.removeCounter(target, op.counter, count);
         }
     },
+    // CR 716.2a (issue #3234) — "this Class's level becomes N". A thin
+    // declarative skin over `SpellContext.setLevel`, ONE execution path
+    // (ADR 0045). Skipped when the target is gone (CR 608.2b —
+    // `resolveObjectRef` returns undefined); the primitive itself refuses a
+    // level that is not strictly greater than the current one, so a "becomes
+    // level N" trigger can never be re-armed.
+    setLevel(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target) return;
+        ctx.setLevel(target, op.level);
+    },
     // CR 701.26 (issue #842) — tap or untap a permanent. A thin declarative
     // skin over `tap` / `untap`, ONE execution path (ADR 0045). Skipped when
     // the target is gone (CR 608.2b — the permanent left the battlefield;
