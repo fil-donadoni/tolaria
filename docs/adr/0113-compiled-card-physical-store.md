@@ -431,6 +431,71 @@ artifact** at 347 B/row; the ceiling applies to the **bundled** form.
   a `"use node"` module needs the whole compiled pool in its own graph is a
   cheaper question than the store, and worth asking first.
 
+## Amendment II (issue #3444, 2026-09-11) — the cheap question was the whole overage
+
+The budget fired. On `origin/staging` itself, with no PR needed to reproduce it:
+31,574,767 B against the 30 MiB budget — **117,487 B over**, 94.1% of Convex's
+ceiling. `bun run release` was red, and so was every `full`-lane PR, because
+`check:convex-bundle` runs in `check:pr` (which the `full` lane delegates to
+verbatim) and in `check:all`, while the `skin` and `engine` lanes never run it.
+
+Amendment I said to ask the cheap question first. It was asked, and it was not a
+partial answer — it was the whole thing, with a decade of runway behind it.
+
+`convex/debugScenarioGenerator.ts` imported `getAllCardNames` and
+`tryGetPlaceableCardByName` from `./cards`. Two name lookups, in a `"use node"`
+action whose esbuild graph is separate, so the import re-inlined the entire card
+registry and `data/oracle-compiled-pool.json` with it.
+
+| measured, same tree     | before       | after          |
+| ----------------------- | ------------ | -------------- |
+| total pushed            | 31,574,767   | 24,374,411     |
+| % of the 32 MiB ceiling | 94.1%        | 72.6%          |
+| headroom to the budget  | **-117,487** | **+7,082,869** |
+| the `"use node"` half   | ~7,870,000   | 669,905        |
+
+The action reaches the registry by `ctx.runQuery` now — two internal queries in
+`convex/debugScenarios.ts`, which lives in the isolate bundle where the registry
+is already resident — and `runScenarioGeneration` takes a `ScenarioCardAuthority`
+port instead of a `resolves` predicate it could only satisfy by importing.
+
+**The budget constant is unchanged.** That was the one thing Amendment I
+forbade, and nothing here touches it.
+
+### What this changes in Amendment I's arithmetic
+
+Amendment I's **2,086 B/row** was measured while the pool was inlined **twice**,
+and said so. With the second copy gone it is **1,013 B/row** — 597 source + 416
+source map, re-measured at +2,000 and +6,000 synthetic rows, linear to four
+digits. Everything downstream of that number roughly doubles:
+
+- **~6,990 rows** of headroom to the budget, against a pool of 2,329 today. The
+  compiled pool can roughly quadruple, not double.
+- The full corpus, 34,890 rows, costs **~35.3 MB bundled** — still above the
+  32 MiB ceiling for the pool alone, so § 2's conclusion is unchanged: **the
+  full corpus still does not fit in the module graph.** The store is deferred,
+  not cancelled.
+
+Re-measuring it needs one piece of care worth recording: write the synthetic
+pool with the same 4-space formatting the file ships in. A compact rewrite
+changes source-map size on its own (VLQ column deltas over one very long line)
+and the delta stops being linear — 236 B/row at +2,000 against 514 B/row at
++6,000, measured, all of it artefact.
+
+### The guard
+
+A budget is a SUM and cannot say which half grew, so the cut is pinned
+separately by `scripts/__tests__/convex-node-bundle-seam.test.ts`, in the light
+lane: by CAUSE (the `"use node"` graph reaches no card-registry module, and the
+failure names the module that did it) and by EFFECT (the node half stays under
+1.5 MiB, which one re-entry of the ~2.36 MB pool cannot fit beneath). It also
+reds when there is no `"use node"` entry point at all, rather than passing
+vacuously.
+
+The rule it encodes, for any future Node action: **a `"use node"` module pays
+for its whole import graph a second time.** Reach shared server state through
+`ctx.runQuery`, not through an import.
+
 ## Open, deliberately not decided here
 
 - Whether retiring a hand-written card in favour of its proven-equal compiled
