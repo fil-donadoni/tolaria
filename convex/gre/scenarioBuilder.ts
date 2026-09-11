@@ -70,6 +70,24 @@ import { finalizeMulligan } from "./mulligan";
 import { isPlaneswalker } from "./constants";
 import type { Phase } from "./types";
 
+/** CR 602.5 (issue #3448) — the per-turn activation tallies a scenario entry
+ *  declares, cleaned of the counts that say nothing: a key at zero or below
+ *  means "not activated this turn", which is exactly what an ABSENT key
+ *  already means, so keeping one would rebuild into a spec `specFromState`
+ *  never writes and make the round trip non-minimal. Returns `undefined` when
+ *  nothing survives, so the caller leaves the instance's `activationsThisTurn`
+ *  unset (the builder's minimal shape, as `counters` does). */
+function resolveScenarioActivations(
+    activations: Record<string, number> | undefined
+): Record<string, number> | undefined {
+    if (!activations) return undefined;
+    const out: Record<string, number> = {};
+    for (const [abilityId, count] of Object.entries(activations)) {
+        if (count > 0) out[abilityId] = count;
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+}
+
 /**
  * Create a scenario entry's TOKEN permanents (CR 111 / 707.2) and apply the
  * per-entry battlefield knobs to each copy.
@@ -126,6 +144,8 @@ function placeScenarioTokens(
             token.damageMarked = entry.damageMarked;
         }
         if (entry.attackedLastTurn) token.attackedDuringLastTurn = true;
+        const tokenActivations = resolveScenarioActivations(entry.activations);
+        if (tokenActivations) token.activationsThisTurn = tokenActivations;
         // An explicit `counters` REPLACES whatever the spec's `entersWith`
         // seeded (the scenario is staging a specific board); no counters in the
         // spec leaves the token's own entry counters in place.
@@ -331,6 +351,17 @@ export function buildStateFromScenario(
             const instance = makeInstance(entry.name, player.id, zone, {
                 tapped: entry.tapped,
             });
+            // CR 602.5 (issue #3448) — applied BEFORE the zone dispatch on
+            // purpose: the tally is not battlefield-only. The engine preserves
+            // it on a card that LEAVES the battlefield and clears it on the way
+            // back in (`resetBattlefieldTransientState`, CR 400.7 — what
+            // re-enters is a new object), so a graveyard / exile entry can
+            // carry one and lowering it must be lossless in every zone.
+            const activations = resolveScenarioActivations(entry.activations);
+            if (activations) {
+                (instance as CardInstanceState).activationsThisTurn =
+                    activations;
+            }
             if (zone === "hand") {
                 player.hand.push(instance);
             } else if (zone === "library") {
@@ -908,6 +939,11 @@ export const CARD_STATE_ALLOWLIST = new Set<string>([
     "isToken",
     "isSummoningSick",
     "counters",
+    // CR 602.5 (issue #3448) — lowered by `lowerCard` in EVERY zone, not just
+    // on the battlefield: the engine keeps the tally on a card that has left
+    // play (it is cleared on re-entry, CR 400.7), so a fetchland in the
+    // graveyard legitimately carries the count it spent.
+    "activationsThisTurn",
     "damageMarked",
     "attachedTo",
     "attackedDuringLastTurn",
@@ -1137,6 +1173,15 @@ function lowerCard(
     const entry: ScenarioCard = { name, owner };
     if (card.isToken) entry.token = true;
     if (zone !== "battlefield") entry.zone = zone;
+
+    // CR 602.5 (issue #3448) — outside the battlefield branch below because
+    // the engine keeps this tally on a card that has left play (cleared on
+    // re-entry, CR 400.7), so a graveyard / exile card can carry one. Without
+    // it a position whose once-each-turn ability is already spent rebuilds
+    // with that ability legal again: an extra candidate, which is exactly the
+    // mismatch the verdict quiz refuses on (PRD #3397).
+    const activations = resolveScenarioActivations(card.activationsThisTurn);
+    if (activations) entry.activations = activations;
 
     if (zone === "battlefield") {
         if (card.isTapped) entry.tapped = true;

@@ -17595,6 +17595,15 @@ export const debugSetupScenario = mutation({
                  *  e.g. `{ "+1/+1": 3 }` for Triskelion or `{ doom: 2 }` for
                  *  Armageddon Clock. Keyed by counter type. Battlefield only. */
                 counters: v.optional(v.record(v.string(), v.number())),
+                /** CR 602.5 (issue #3448) — per-turn activation tallies
+                 *  ALREADY SPENT on this card, keyed by ability id exactly as
+                 *  the engine's `CardInstanceState.activationsThisTurn` is:
+                 *  `{ "rishadan-port-tax": 1 }` stages a position where that
+                 *  `oncePerTurn` ability has been used, so it offers no
+                 *  activation. Any zone — the engine preserves the tally when a
+                 *  card leaves the battlefield and clears it on the way back in
+                 *  (CR 400.7, `resetBattlefieldTransientState`). */
+                activations: v.optional(v.record(v.string(), v.number())),
                 /** Mark this battlefield creature as having attacked during its
                  *  controller's previous turn (CR 508.1) — sets
                  *  `attackedDuringLastTurn` so self attack-restrictions

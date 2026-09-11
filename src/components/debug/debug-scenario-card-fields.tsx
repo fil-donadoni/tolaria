@@ -9,8 +9,11 @@ const ZONES = ["battlefield", "hand", "library", "graveyard", "exile"] as const;
  *  descending order of use-probability: name + owner always visible, then the
  *  common placement knobs (zone, count, tapped, summoning-sick), then the rarer
  *  fields (counters, damage, attach/copy hosts, face-down flags, position)
- *  behind a per-card "More" disclosure. Every field of `ScenarioCard` is
- *  reachable. Pure/controlled — the parent owns the draft array. */
+ *  behind a per-card "More" disclosure. Every HAND-AUTHORED field of
+ *  `ScenarioCard` is reachable; `activations` (issue #3448) is deliberately
+ *  not, since it is keyed by internal ability id and exists for `specFromState`
+ *  to lower a captured position, not for someone to type.
+ *  Pure/controlled — the parent owns the draft array. */
 export default function DebugScenarioCardFields({
     draft,
     index,

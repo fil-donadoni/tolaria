@@ -47,6 +47,17 @@ export const scenarioCardValidator = v.object({
     // `scenarioBuilder.ts` for the full rationale.
     castableFromExileIncludesLand: v.optional(v.boolean()),
     counters: v.optional(v.record(v.string(), v.number())),
+    // CR 602.5 (issue #3448) — per-turn activation tallies ALREADY SPENT,
+    // keyed by ability id exactly as the engine's
+    // `CardInstanceState.activationsThisTurn` is, so `{ "<abilityId>": 1 }`
+    // makes an `oncePerTurn` ability read as already used and the rebuilt
+    // position offers no activation of it. NOT battlefield-only: the engine
+    // deliberately preserves the tally when a card LEAVES the battlefield and
+    // clears it on the way back IN (`resetBattlefieldTransientState`,
+    // CR 400.7 — the object that re-enters is a new one), so a graveyard /
+    // exile card can legitimately carry one and a zone-limited field would
+    // lower it lossily.
+    activations: v.optional(v.record(v.string(), v.number())),
     attackedLastTurn: v.optional(v.boolean()),
     summoningSick: v.optional(v.boolean()),
     copyOf: v.optional(v.string()),
@@ -171,6 +182,9 @@ export type ScenarioCard = {
     castableFromExile?: boolean;
     castableFromExileIncludesLand?: boolean;
     counters?: Record<string, number>;
+    /** CR 602.5 (issue #3448) — per-turn activation tallies already spent,
+     *  keyed by ability id. Any zone; see the validator's own note. */
+    activations?: Record<string, number>;
     attackedLastTurn?: boolean;
     summoningSick?: boolean;
     copyOf?: string;
@@ -452,6 +466,17 @@ function normalizeCard(raw: unknown): ScenarioCard | null {
             if (n !== undefined) counters[key] = n;
         }
         card.counters = counters;
+    }
+    // CR 602.5 (issue #3448) — same tolerant shape as `counters` right above:
+    // a `Record<string, number>` keyed by ability id, non-numeric values
+    // dropped rather than thrown on (ADR 0044).
+    if (isRecord(raw.activations)) {
+        const activations: Record<string, number> = {};
+        for (const [key, value] of Object.entries(raw.activations)) {
+            const n = pickNumber(value);
+            if (n !== undefined) activations[key] = n;
+        }
+        card.activations = activations;
     }
     return card;
 }
