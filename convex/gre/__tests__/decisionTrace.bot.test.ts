@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
 import { search, searchWithTrace } from "../search";
 import { evaluate, evaluateBreakdown } from "../evaluate";
+import { DEFAULT_EVAL_WEIGHTS } from "../ai/evalWeights";
 import { describeMove } from "../describeMove";
 import { enumerateMoves, type Move } from "../moves";
 import {
@@ -85,14 +86,19 @@ describe("evaluateBreakdown (DecisionTrace)", () => {
             ],
         });
         const b = evaluateBreakdown(state, "p1");
-        // Forge-scale weights (ADR 0018): W_LIFE = 8; the hand term sums each
-        // card's latent `cardValue` (issue #195). With the DSL semantic layer
-        // (PRD #1423, issue #1426) a non-creature's worth is now its Effect
-        // Script value, not `base + MV`: Lightning Bolt's `dealDamage 3` scores
-        // 3 × 22 = 66 (far above its old MV-1 worth of 18) — the whole point of
-        // the layer (a burn spell out-values a do-nothing spell of equal MV).
-        expect(b.self.life).toBe(10 * 8); // W_LIFE
-        expect(b.self.hand).toBe(2 * 66); // 2 × cardValue(Lightning Bolt), DSL-derived
+        // Forge-scale weights (ADR 0018); the hand term sums each card's
+        // latent `cardValue` (issue #195). With the DSL semantic layer (PRD
+        // #1423, issue #1426) a non-creature's worth is its Effect Script
+        // value, not `base + MV`: Lightning Bolt's `dealDamage 3` scores three
+        // `latent.damage` units (far above its old MV-1 worth of 18) — the
+        // whole point of the layer (a burn spell out-values a do-nothing spell
+        // of equal MV). Both are read off the committed vector: the weights
+        // are FITTED (issue #3401), so a literal would red on every refit.
+        expect(b.self.life).toBe(10 * DEFAULT_EVAL_WEIGHTS.lifeWeight);
+        expect(b.self.hand).toBeCloseTo(
+            2 * (3 * DEFAULT_EVAL_WEIGHTS.latent.damage),
+            6
+        ); // 2 × cardValue(Lightning Bolt), DSL-derived
     });
 
     it("is symmetric: opponent's terms equal their own self-view", () => {

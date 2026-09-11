@@ -121,8 +121,9 @@ describe("evalPairsOf through the real builder, enumerator and probe", () => {
         // Gains the opponent's land loss: one fewer permanent and one fewer
         // mana source across the table, both read from the self − opponent
         // breakdown.
-        expect(pair.terms.permanents).toBe(
-            DEFAULT_EVAL_WEIGHTS.permanentWeight
+        expect(pair.terms.permanents).toBeCloseTo(
+            DEFAULT_EVAL_WEIGHTS.permanentWeight,
+            6
         );
         expect(pair.terms.mana).toBeGreaterThan(0);
 

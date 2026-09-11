@@ -197,10 +197,14 @@ describe("no baseline shift at starting loyalty (issue #2491)", () => {
                 def.name,
                 1,
             ]);
-            expect([def.name, permanentsTerm(state) - empty]).toEqual([
-                def.name,
+            // `toBeCloseTo`, with the walker's name as the failure message:
+            // the two sides accumulate the same fitted weights in a different
+            // order, which was exact while they were integers and is one ulp
+            // apart now (issue #3401).
+            expect(permanentsTerm(state) - empty, def.name).toBeCloseTo(
                 boardPresenceBonus + cardValue(state, walker),
-            ]);
+                6
+            );
         }
     });
 });

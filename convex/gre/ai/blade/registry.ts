@@ -104,10 +104,16 @@ function floodedLandEarnsNoDevelopmentBonus(
         return materialMargin(from, pid) - materialMargin(minusOne, pid);
     };
 
+    // A margin-point tolerance rather than `===` (issue #3401): the weights
+    // are FITTED now, so the margin accumulates the same two of them in a
+    // different order than this sum and the two land one ulp apart. The
+    // tolerance is orders of magnitude below every distinction the predicate
+    // draws — the two readings it separates differ by `manaDevWeight`.
+    const EPS = 1e-6;
     const flat =
         DEFAULT_EVAL_WEIGHTS.permanentWeight + DEFAULT_EVAL_WEIGHTS.manaWeight;
     const flooded = marginalLand(state);
-    if (flooded !== flat) return false;
+    if (Math.abs(flooded - flat) > EPS) return false;
 
     // Raise the hand's curve with the Craw Wurm the scenario left in the
     // library (a real instance, so no fabricated card ever enters the state).
@@ -127,7 +133,7 @@ function floodedLandEarnsNoDevelopmentBonus(
     const onCurve = marginalLand(onCurveState);
     return (
         onCurve > flooded &&
-        onCurve - flooded === DEFAULT_EVAL_WEIGHTS.manaDevWeight
+        Math.abs(onCurve - flooded - DEFAULT_EVAL_WEIGHTS.manaDevWeight) < EPS
     );
 }
 
@@ -6059,6 +6065,18 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // This is the half that stops the fix from becoming "never activate a
         // {T} ability on a permanent that also taps for mana": a bar that
         // over-reached would pass half 1 and fail here.
+        //
+        // BUDGET (issue #3401). 400, not the 200 this entry shipped with. The
+        // Weight Fit's first refit reddened it on one of its three seeds, and
+        // the measurement says the refit is not what is wrong with it: at the
+        // leaf the fitted vector prefers the activation MORE (the 1-ply policy
+        // gap over `pass` widens from 52 margin points to 62), and swept over
+        // eight seeds at 200 iterations the HAND-PICKED vector fails one of
+        // them too — seed 7, which this entry simply never declared. Both
+        // vectors are 8/8 from 300 iterations upward, at every budget measured
+        // to 1200. So 200 was under this position's convergence threshold all
+        // along and the entry was passing on its seed selection; the refit
+        // moved the noise, not the preference.
         label: "self-tap source: pays a {T} ability entirely from the OTHER lands",
         spec: {
             cards: [
@@ -6081,7 +6099,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             libraryCount: 20,
         },
         bot: "me",
-        budget: { iterations: 200 },
+        budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2],
         tier: "must",
         expect: {

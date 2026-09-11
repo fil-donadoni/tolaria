@@ -58,12 +58,21 @@ function latentInHand(handCardId: string, oppBoard: readonly string[]): number {
     return evaluateBreakdown(state, "p1").self.hand;
 }
 
+/** What ONE untapped basic land is worth on the board: the flat board-presence
+ *  bonus plus one untapped mana source. Read off the committed vector, never
+ *  spelled out — the weights are FITTED (issue #3401). */
+const LAND_ON_BOARD =
+    DEFAULT_EVAL_WEIGHTS.permanentWeight + DEFAULT_EVAL_WEIGHTS.manaWeight;
+
 describe("the representative victim (issue #3398)", () => {
     it("is a vanilla 2/2 for two plus the flat board-presence weight", () => {
-        // 168 (`creatureValueRaw(2, 2, 2)`) + 5 (`permanentWeight`). ONE unit
-        // of `boardRemoval` costs `latent.boardRemoval` = 160, which IS the
-        // deleted `DESTROY_VALUE`: a re-parameterisation, not a re-tuning.
-        expect(representativeVictimLoss(DEFAULT_EVAL_WEIGHTS)).toBe(173);
+        // 168 (`creatureValueRaw(2, 2, 2)`, weight-free) plus the flat
+        // `permanentWeight`. ONE unit of `boardRemoval` costs
+        // `latent.boardRemoval`, the fitted successor of the deleted
+        // `DESTROY_VALUE` (issue #3398, refitted by issue #3401).
+        expect(representativeVictimLoss(DEFAULT_EVAL_WEIGHTS)).toBe(
+            168 + DEFAULT_EVAL_WEIGHTS.permanentWeight
+        );
     });
 
     it("flattens a card's target requirements into the slot list its script indexes", () => {
@@ -109,9 +118,10 @@ describe("permanentRealisedValue — what removing one permanent costs (issue #3
     it("prices an untapped basic land at the board-presence + mana weights", () => {
         const { state } = boardWith(stoneRain.id, [forest.id]);
         const land = state.players[1].battlefield[0];
-        // 5 (`permanentWeight`) + 12 (`manaWeight`) = 17 — the exact figure
-        // issue #3322 quotes for what a Forest is worth on the board.
-        expect(permanentRealisedValue(state, land)).toBe(17);
+        // `permanentWeight` + `manaWeight` — the quantity issue #3322 quotes
+        // (at the pre-fit weights, 17) for what a Forest is worth on the
+        // board.
+        expect(permanentRealisedValue(state, land)).toBe(LAND_ON_BOARD);
     });
 
     it("prices a big creature far above a small one", () => {
@@ -136,11 +146,12 @@ describe("latent removal value follows the board (issue #3398)", () => {
 
     it("is the fitted weight times a LAND's realised loss against three Forests", () => {
         const forests = [forest.id, forest.id, forest.id];
-        // 160 × (17 / 173) — the weight times the best legal victim's realised
-        // board loss in representative-victim units.
+        // `latent.boardRemoval` × (a Forest's board worth / the representative
+        // victim's) — the weight times the best legal victim's realised board
+        // loss in representative-victim units.
         const expected =
             DEFAULT_EVAL_WEIGHTS.latent.boardRemoval *
-            (17 / representativeVictimLoss(DEFAULT_EVAL_WEIGHTS));
+            (LAND_ON_BOARD / representativeVictimLoss(DEFAULT_EVAL_WEIGHTS));
         expect(latentInHand(stoneRain.id, forests)).toBeCloseTo(expected, 6);
     });
 

@@ -32,6 +32,7 @@
         "dev": "bun run catalogue:ensure && vite",
         "docs:ship": "bun scripts/docs-lane.ts ship",
         "findings": "bun scripts/findings.ts",
+        "fit:weights": "BLADE_FIT=1 vitest run --config vitest.blade.config.ts convex/gre/ai/blade/__tests__/weight-fit.spec.ts",
         "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
         "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
         "gate:who": "bun scripts/gate.ts who",

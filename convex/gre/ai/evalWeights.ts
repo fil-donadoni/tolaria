@@ -223,11 +223,33 @@ export type EvalWeights = {
     blockWorldSamples: number;
 };
 
-/** Today's production values — byte-for-byte the constants this refactor
- *  extracted (issue #2683). The drift guard in `evalWeights.bot.test.ts`
- *  pins this literal: a change here is a deliberate strength edit, never a
- *  silent one. */
-export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
+/**
+ * The HAND-PICKED vector — byte-for-byte the constants issue #2683 extracted
+ * out of `evaluate.ts` and `search.ts`, and what the engine ran until the
+ * Weight Fit (issue #3401, ADR 0124 §3) landed.
+ *
+ * It is not what the engine runs any more. It has two jobs now, and both are
+ * the reason it stays a literal:
+ *
+ *  1. It is the fit's PRIOR and its LINEARISATION POINT. The fit minimises a
+ *     hinge over the Eval Pairs plus `λ‖w − w0‖²` toward `w0`, and the pairs'
+ *     feature basis is a derivative read AT `w0` (`verdicts/features.ts`). If
+ *     `w0` were the previously fitted vector instead, every refit would
+ *     regularise toward its own last answer and the weights would ratchet one
+ *     trust region further from anything a human chose, forever, with the
+ *     reproducibility guard unable to tell. `w0` is fixed, so
+ *     `DEFAULT_EVAL_WEIGHTS` is a pure function of (this vector, the verdict
+ *     corpus) and the guard re-runs it.
+ *  2. It carries every NON-fittable constant — `winScore`, the caps and
+ *     horizons, and every search-side knob. The fitted vector spreads this
+ *     one and overrides only the fittable keys, so those constants have
+ *     exactly one home and a change to `ucbC` is made here and nowhere else.
+ *
+ * The drift guard in `evalWeights.bot.test.ts` pins this literal: a change
+ * here is a deliberate strength edit, never a silent one — and it obliges a
+ * refit (`bun run fit:weights`).
+ */
+export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     winScore: 1_000_000,
     lifeWeight: 8,
     deckingHorizon: 12,
@@ -279,6 +301,56 @@ export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
         evasion: 40,
         tempo: 55,
         disruption: 130,
+        recursion: 140,
+        tokens: 0.85,
+        pump: 9,
+        protection: 60,
+    }),
+});
+
+/**
+ * The FITTED vector the engine runs — GENERATED, not authored.
+ *
+ * Produced by `bun run fit:weights` from `FIT_BASE_EVAL_WEIGHTS` above and the
+ * Verdict corpus (today: the blade registry's `moves` expectations, lowered by
+ * `convex/gre/ai/verdicts/registrySource.ts`). The reproducibility guard in
+ * `convex/gre/ai/__tests__/weightFit.bot.test.ts` re-runs that fit and demands
+ * this exact object — the card-index lockfile discipline, so the weights in
+ * code can never drift from the verdicts in git (PRD #3397 story 7).
+ *
+ * EDIT IT BY REFITTING, NEVER BY HAND. A weight you want moved is a Verdict
+ * you have not written yet: add the position and the right move, run
+ * `bun run fit:weights`, paste the block it prints. Changing a number here
+ * reds the guard, which is the whole point.
+ *
+ * ADDING A BLADE ENTRY ALSO OBLIGES A REFIT — the registry IS the corpus, so a
+ * new `moves` entry is a new verdict and the fitted vector moves with it. The
+ * guard names the command when it reds.
+ *
+ * Only the FITTABLE keys are listed (`verdicts/features.ts`'
+ * `FITTABLE_WEIGHT_KEYS`); everything else is spread from the base, so the
+ * search constants have one home.
+ */
+export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
+    ...FIT_BASE_EVAL_WEIGHTS,
+    lifeWeight: 8,
+    permanentWeight: 4.965453,
+    manaWeight: 11.112832,
+    tappedManaWeight: 10.112832,
+    manaDevWeight: 9.124476,
+    flexWeight: 5.877768,
+    deckingWeight: 1.5,
+    graveyardEngineWeight: 68.352816,
+    graveyardReachFraction: 0.195178,
+    latent: Object.freeze({
+        damage: 20.899382,
+        cardAdvantage: 38.029368,
+        lifeSwing: 8,
+        boardRemoval: 114.962966,
+        ramp: 11.545041,
+        evasion: 40,
+        tempo: 55,
+        disruption: 91.654844,
         recursion: 140,
         tokens: 0.85,
         pump: 9,
