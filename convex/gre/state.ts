@@ -20313,6 +20313,7 @@ export function buildSpellContext(
             name: string;
             types: CardType[];
             subtypes: string[];
+            supertypes: CardSupertype[];
             manaValue: number;
             colors: Color[];
             cost: CardManaCost | undefined;
@@ -20332,6 +20333,14 @@ export function buildSpellContext(
                     name: def?.name ?? "",
                     types: zc?.types ?? def?.types ?? c.types,
                     subtypes: zc?.subtypes ?? def?.subtypes ?? c.subtypes,
+                    // CR 205.4a (issue #2711) — supertypes (Basic) from the
+                    // registry; graveyard cards carry none on the instance.
+                    // Absent until #2711, which is what made
+                    // `filter.excludeSupertype` fail OPEN on this zone (no
+                    // supertypes to exclude) and `filter.supertype` fail
+                    // closed, so "other than basic land cards" swept the
+                    // basics too.
+                    supertypes: def?.supertypes ?? [],
                     manaValue: manaValue(def?.manaCost),
                     colors: getColorsFromCost(def?.manaCost),
                     // CR 202 (issue #1881) — full printed cost for
@@ -20363,6 +20372,7 @@ export function buildSpellContext(
             name: string;
             types: CardType[];
             subtypes: string[];
+            supertypes: CardSupertype[];
             manaValue: number;
             colors: Color[];
             counters: Record<string, number>;
@@ -20378,6 +20388,8 @@ export function buildSpellContext(
                     name: def?.name ?? "",
                     types: zc?.types ?? def?.types ?? c.types,
                     subtypes: zc?.subtypes ?? def?.subtypes ?? c.subtypes,
+                    // CR 205.4a (issue #2711) — see `getGraveyardCards`.
+                    supertypes: def?.supertypes ?? [],
                     manaValue: manaValue(def?.manaCost),
                     colors: getColorsFromCost(def?.manaCost),
                     counters: c.counters ?? {},
@@ -20454,6 +20466,9 @@ export function buildSpellContext(
                     name: def?.name ?? "",
                     types: zc?.types ?? def?.types ?? c.types,
                     subtypes: zc?.subtypes ?? def?.subtypes ?? c.subtypes,
+                    // CR 205.4a (issue #2711) — see `getGraveyardCards`; the
+                    // linked-pile snapshot feeds the SAME `matchesCardFilter`.
+                    supertypes: def?.supertypes ?? [],
                     manaValue: manaValue(def?.manaCost),
                     colors: getColorsFromCost(def?.manaCost),
                     counters: c.counters ?? {},

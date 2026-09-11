@@ -55,6 +55,31 @@ export function isReservedTargetBinding(binding: string): boolean {
     return parseTargetBinding(binding) !== null;
 }
 
+/** `$<binding>.name` → the binding name, or null when `ref` is not that exact
+ *  shape (issue #2711). The CR 608.2h LAST-KNOWN name of an object SNAPSHOT
+ *  binding — a `bind` on destroy/exile/moveZone/sacrifice, or a graveyard-set
+ *  `forEach`'s `$each` — read from the snapshot's own `SNAP_NAME` slot rather
+ *  than from any zone, which is what makes "all cards with the same name as
+ *  THAT card" expressible for a card the script has already moved (Haunting
+ *  Echoes exiles a graveyard card, then sweeps the library by its name).
+ *
+ *  Deliberately the SAME property spelling as `$target<N>.name` above: both
+ *  read CR 201.2's one characteristic, differing only in where the object
+ *  comes from (an announced slot vs. a binding). The reserved target shape is
+ *  rejected here so the two parsers stay disjoint and each caller dispatches
+ *  on exactly one of them.
+ *
+ *  Fail-closed like its sibling: a bare `$c` (no property) and `$c.power` both
+ *  return null, so the caller falls through to its ordinary handling. */
+export function parseSnapshotNameRef(ref: string): string | null {
+    if (parseTargetNameRef(ref) !== null) return null;
+    const dot = ref.indexOf(".");
+    if (dot < 0) return null;
+    const binding = ref.slice(0, dot);
+    if (!/^\$[A-Za-z][A-Za-z0-9]*$/.test(binding)) return null;
+    return ref.slice(dot + 1) === TARGET_NAME_PROPERTY ? binding : null;
+}
+
 /** `$target<N>.name` → N, or null when `ref` is not that exact reserved ref.
  *  Note the two rejections that matter, both fail-closed by construction:
  *  a bare `$target0` (no property — nothing to read) and `$target0.<other>`

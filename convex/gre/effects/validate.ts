@@ -33,7 +33,11 @@ import {
     getEventFieldRow,
     isRegisteredEffectOp,
 } from "../../cards/mechanicsRegistry";
-import { isReservedTargetBinding, parseTargetNameRef } from "./targetRef";
+import {
+    isReservedTargetBinding,
+    parseSnapshotNameRef,
+    parseTargetNameRef,
+} from "./targetRef";
 
 /** The slice of CardDefinition the validator reads — kept narrow so tests
  *  can validate synthetic shapes without building a full definition.
@@ -178,6 +182,22 @@ function isTargetNameRef(value: unknown): boolean {
         keys[0] === "ref" &&
         typeof (value as { ref: unknown }).ref === "string" &&
         parseTargetNameRef((value as { ref: string }).ref) !== null
+    );
+}
+
+/** `{ ref: "$binding.name" }` — SHAPE only (issue #2711). The CR 608.2h
+ *  last-known name of an object SNAPSHOT binding, the second property-path ref
+ *  a `name` filter position accepts alongside the reserved `$target<N>.name`.
+ *  Whether the binding exists and names a SNAPSHOT is decided by the ordered
+ *  ref pass. */
+function isSnapshotNameRef(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    return (
+        keys.length === 1 &&
+        keys[0] === "ref" &&
+        typeof (value as { ref: unknown }).ref === "string" &&
+        parseSnapshotNameRef((value as { ref: string }).ref) !== null
     );
 }
 
@@ -332,11 +352,18 @@ function isCardFilter(
         // is the ONLY property-path ref a `name` position accepts, and the
         // ordered ref pass re-checks that (a `$target0.power` in this position
         // is a static error, not a runtime `undefined`).
+        // issue #2711 — OR a `{ ref: "$binding.name" }` snapshot property path:
+        // the CR 608.2h last-known name of an object an earlier Op bound
+        // (Haunting Echoes' graveyard-set `forEach` member). Shape-only here
+        // too; the ordered ref pass enforces the SNAPSHOT family, so a picks
+        // binding written as `$picked.name` is a static error rather than a
+        // runtime `undefined`.
         if (k === "name") {
             return (
                 (typeof v === "string" && v.length > 0) ||
                 isBareRef(v) ||
-                isTargetNameRef(v)
+                isTargetNameRef(v) ||
+                isSnapshotNameRef(v)
             );
         }
         // CR 122.6 (issue #1156) — "with a <type> counter on it". `type` is a
@@ -5593,6 +5620,36 @@ function checkRefUse(
     // are rejected there — fail-closed by construction rather than by an
     // extra check here.
     if (use.kind === "name" && parseTargetNameRef(use.ref) !== null) {
+        return;
+    }
+    // `EffectCardFilter.name` (issue #2711) — the OTHER property-path ref a
+    // `name` position accepts: `$<binding>.name`, the CR 608.2h last-known name
+    // of an object SNAPSHOT binding. Unlike `$target<N>.name` this one DOES
+    // name a declared binding, so it is family-checked here: only a snapshot
+    // carries a name slot, and a picks/player/boolean/list binding read through
+    // it would resolve to nothing at runtime and silently match no card.
+    // Checked BEFORE the bare-binding branch below, which rejects every dotted
+    // ref in a `name` position.
+    if (use.kind === "name" && use.ref.includes(".")) {
+        const binding = parseSnapshotNameRef(use.ref);
+        if (binding === null) {
+            errors.push(
+                `${at}: name ref "${use.ref}" has unknown property path — a name position reads a bare binding, "$target<N>.name", or "$<binding>.name"`
+            );
+            return;
+        }
+        const family = declared.get(binding);
+        if (family === undefined) {
+            errors.push(
+                `${at}: ref "${use.ref}" references undefined binding "${binding}" — no earlier Op binds it`
+            );
+            return;
+        }
+        if (family !== "snapshot") {
+            errors.push(
+                `${at}: ref "${use.ref}" names a ${family} binding in a name position — ".name" reads a snapshot binding (a destroy/exile/moveZone/sacrifice bind, or a graveyard/permanents-set forEach "$each")`
+            );
+        }
         return;
     }
     // Bare-binding positions (no property path): picks (#805), boolean

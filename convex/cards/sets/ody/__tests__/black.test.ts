@@ -249,3 +249,165 @@ describe("Entomb (CR 701.23 / 400.7 / 701.24, issue #677)", () => {
         );
     });
 });
+
+const hauntingEchoes = getDefinition("aca4c571-48b8-4150-93f8-4cb5c8e797c4");
+
+// CR 205.4a — a BASIC land: the supertype is what "other than basic land
+// cards" turns on, and the graveyard/exile zone readers carried no supertypes
+// at all until issue #2711, so this fixture is also the regression fixture for
+// that fail-open.
+const SWAMP_ID = "test-odyb-swamp";
+registerTokenDefinition({
+    id: SWAMP_ID,
+    name: SWAMP_ID,
+    rarity: "common",
+    manaCost: {},
+    types: ["Land"],
+    supertypes: ["Basic"],
+    subtypes: ["Swamp"],
+});
+
+// A NONBASIC land — same card type, no `Basic` supertype, so it must be
+// exiled while the Swamp above stays.
+const WASTE_ID = "test-odyb-waste";
+registerTokenDefinition({
+    id: WASTE_ID,
+    name: WASTE_ID,
+    rarity: "common",
+    manaCost: {},
+    types: ["Land"],
+});
+
+// A nonland card that exists ONLY in the library, so nothing exiled from the
+// graveyard ever shares its name.
+const RELIC_ID = "test-odyb-relic";
+registerTokenDefinition({
+    id: RELIC_ID,
+    name: RELIC_ID,
+    rarity: "common",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+});
+
+const inZone = (
+    cardId: string,
+    id: string,
+    zone: "graveyard" | "library"
+): ReturnType<typeof makeInstance> =>
+    makeInstance(cardId, {
+        id,
+        controllerId: "p2",
+        ownerId: "p2",
+        zone,
+    });
+
+// Haunting Echoes — "Exile all cards from target player's graveyard other than
+// basic land cards. For each card exiled this way, search that player's
+// library for all cards with the same name as that card and exile them. Then
+// that player shuffles." (CR 404 / 205.4a / 701.23a / 201.2 / 701.24a.)
+describe("Haunting Echoes (CR 404 / 205.4a / 201.2 / 701.23a / 701.24a, issue #2711)", () => {
+    /** p2's graveyard holds one basic land, one nonbasic land, two bears and
+     *  nothing else; p2's library holds a bear (name-matched by the graveyard
+     *  bears), a basic Swamp (name-matched by the graveyard Swamp, which is
+     *  NOT exiled — so it must survive) and a relic nothing names. */
+    const scenario = () => {
+        const gySwamp = inZone(SWAMP_ID, "gy-swamp", "graveyard");
+        const gyWaste = inZone(WASTE_ID, "gy-waste", "graveyard");
+        const gyBear = inZone(BEAR_ID, "gy-bear", "graveyard");
+        const libBear = inZone(BEAR_ID, "lib-bear", "library");
+        const libSwamp = inZone(SWAMP_ID, "lib-swamp", "library");
+        const libRelic = inZone(RELIC_ID, "lib-relic", "library");
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    graveyard: [gySwamp, gyWaste, gyBear],
+                    library: [libBear, libSwamp, libRelic],
+                }),
+            ],
+        });
+        return state;
+    };
+
+    it("has a valid Effect Script and targets a player", () => {
+        expect(validateEffectScript(hauntingEchoes.effects!)).toEqual([]);
+        expect(hauntingEchoes.targetRequirement).toEqual({
+            type: "player",
+            count: 1,
+        });
+        expect(hauntingEchoes.manaCost).toEqual({ X: 3, B: 2 });
+    });
+
+    it("exiles every non-basic-land graveyard card, leaves the basic land, and exiles only the library cards sharing an exiled card's name — then shuffles", () => {
+        const state = scenario();
+        const before = state.rngCounter;
+        pushSpell(state, hauntingEchoes.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        expect(resolveTopOfStack(state)).not.toBeUndefined();
+
+        const p2 = state.players[1];
+        // CR 205.4a — the basic land is the ONLY graveyard survivor.
+        expect(p2.graveyard.map((c) => c.id)).toEqual(["gy-swamp"]);
+        // CR 201.2 — the library bear shares a name with an EXILED card, so it
+        // goes; the library Swamp shares a name with a card that was NOT
+        // exiled, so it stays; the relic shares a name with nothing.
+        expect(p2.library.map((c) => c.id).sort()).toEqual([
+            "lib-relic",
+            "lib-swamp",
+        ]);
+        expect(p2.exile.map((c) => c.id).sort()).toEqual([
+            "gy-bear",
+            "gy-waste",
+            "lib-bear",
+        ]);
+        // CR 701.24a — "Then that player shuffles": the seeded PRNG advanced.
+        expect(state.rngCounter).toBeGreaterThan(before);
+    });
+
+    it("is a clean no-op on an empty graveyard but still shuffles (CR 608.2b / 701.24a)", () => {
+        // Three cards, not one: `seededShuffle` draws one random index per
+        // swap, so a single-card library advances the PRNG zero times and the
+        // shuffle assertion below would be vacuous.
+        const library = [
+            inZone(BEAR_ID, "lib-bear", "library"),
+            inZone(SWAMP_ID, "lib-swamp", "library"),
+            inZone(RELIC_ID, "lib-relic", "library"),
+        ];
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { graveyard: [], library }),
+            ],
+        });
+        const before = state.rngCounter;
+        pushSpell(state, hauntingEchoes.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[1].library.map((c) => c.id).sort()).toEqual([
+            "lib-bear",
+            "lib-relic",
+            "lib-swamp",
+        ]);
+        expect(state.players[1].exile).toHaveLength(0);
+        expect(state.rngCounter).toBeGreaterThan(before);
+    });
+
+    it("shows the exiled pile and the surviving zones through the wire projection", () => {
+        const state = scenario();
+        pushSpell(state, hauntingEchoes.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        resolveTopOfStack(state);
+        const view = projectPublicState(state, 1, "p1");
+        const opp = view.players[1];
+        expect(opp.exile.map((c) => c.id).sort()).toEqual([
+            "gy-bear",
+            "gy-waste",
+            "lib-bear",
+        ]);
+        expect(opp.graveyard.map((c) => c.id)).toEqual(["gy-swamp"]);
+        expect(opp.library.count).toBe(2);
+    });
+});

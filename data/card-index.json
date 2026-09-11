@@ -15414,6 +15414,14 @@
         "source": "compiled"
     },
     {
+        "name": "Haunting Echoes",
+        "scryfallId": "aca4c571-48b8-4150-93f8-4cb5c8e797c4",
+        "oracleId": "3abd345a-69a5-486e-ada9-dd1ca0decc28",
+        "firstSet": "ody",
+        "firstPrintId": "aca4c571-48b8-4150-93f8-4cb5c8e797c4",
+        "firstPrintSet": "ody"
+    },
+    {
         "name": "Haunting Wind",
         "scryfallId": "a2f6ef2f-a3a2-4e1f-b7eb-59abc8414114",
         "oracleId": "cbd2d38b-6402-44b7-ba27-d854268e31d0",
