@@ -2257,7 +2257,13 @@ describe("buildStateFromScenario — retrospective per-turn tallies (issue #3453
     // The tally is keyed by an instance id the rebuild reassigns, so the round
     // trip is only lossless because it rides on the CARD and is re-keyed.
     it("round-trips an ability resolution tally onto the rebuilt instance id", () => {
-        const live = buildStateFromScenario(makeState(), {
+        // The live board's allocator starts high on purpose: `allocInstanceId`
+        // counts from `nextInstanceId`, so a live and a rebuilt board built
+        // from the same base would hand the Cub the SAME id and the re-keying
+        // this whole design exists for would never be exercised.
+        const liveBase = makeState();
+        liveBase.nextInstanceId = 40;
+        const live = buildStateFromScenario(liveBase, {
             cards: [{ name: "Scythecat Cub", owner: "me" }],
         });
         const liveCub = live.players[0].battlefield[0];
@@ -2271,9 +2277,99 @@ describe("buildStateFromScenario — retrospective per-turn tallies (issue #3453
         });
         const rebuilt = buildStateFromScenario(makeState(), spec);
         const rebuiltCub = rebuilt.players[0].battlefield[0];
+        expect(rebuiltCub.id).not.toBe(liveCub.id);
         expect(rebuilt.abilityResolutionCounts).toEqual({
             [`${rebuiltCub.id}:scythecat-cub-landfall`]: 2,
         });
+    });
+
+    // Finding #3 of this issue's review: the three seams the comments claim
+    // and nothing exercised — the TOKEN placement path (a separate seam from
+    // `makeInstance`), the non-battlefield zones (the dies-trigger shape the
+    // design exists for), and the zero-count skip.
+    it("round-trips a resolution tally in every lowerable zone and on a token, and drops a zero", () => {
+        const ability = "some-trigger";
+        const built = buildStateFromScenario(makeState(), {
+            cards: [
+                {
+                    name: gaeasTouch.name,
+                    owner: "me",
+                    abilityResolutions: { [ability]: 1 },
+                },
+                {
+                    name: "Wasp",
+                    owner: "me",
+                    token: true,
+                    abilityResolutions: { [ability]: 3 },
+                },
+                {
+                    name: gaeasTouch.name,
+                    owner: "opp",
+                    zone: "graveyard",
+                    abilityResolutions: { [ability]: 2 },
+                },
+                {
+                    name: gaeasTouch.name,
+                    owner: "me",
+                    zone: "hand",
+                    abilityResolutions: { [ability]: 4 },
+                },
+                {
+                    name: gaeasTouch.name,
+                    owner: "me",
+                    zone: "exile",
+                    abilityResolutions: { [ability]: 5 },
+                },
+                // A zero says exactly what an absent key says, so it is not
+                // written — otherwise the round trip stops being a fixed point.
+                {
+                    name: shivanDragon.name,
+                    owner: "me",
+                    abilityResolutions: { [ability]: 0 },
+                },
+            ],
+        });
+        expect(
+            Object.values(built.abilityResolutionCounts ?? {}).sort()
+        ).toEqual([1, 2, 3, 4, 5]);
+
+        const { spec, dropped } = specFromState(built, { mySeatId: "p1" });
+        expect(dropped.filter((d) => d.startsWith("game state:"))).toEqual([]);
+        expect(
+            dropped.filter((d) => d.startsWith("abilityResolutionCounts:"))
+        ).toEqual([]);
+        // Every entry came back on ITS OWN card, including the token's and the
+        // graveyard / hand / exile ones; the zero came back on none.
+        const byName = new Map(
+            spec.cards.map((c) => [
+                `${c.owner}:${c.zone ?? "battlefield"}:${c.name}`,
+                c,
+            ])
+        );
+        expect(
+            byName.get("me:battlefield:Gaea's Touch")?.abilityResolutions
+        ).toEqual({
+            [ability]: 1,
+        });
+        expect(byName.get("me:battlefield:Wasp")?.abilityResolutions).toEqual({
+            [ability]: 3,
+        });
+        expect(
+            byName.get("opp:graveyard:Gaea's Touch")?.abilityResolutions
+        ).toEqual({
+            [ability]: 2,
+        });
+        expect(byName.get("me:hand:Gaea's Touch")?.abilityResolutions).toEqual({
+            [ability]: 4,
+        });
+        expect(byName.get("me:exile:Gaea's Touch")?.abilityResolutions).toEqual(
+            {
+                [ability]: 5,
+            }
+        );
+        expect(
+            byName.get("me:battlefield:Shivan Dragon")?.abilityResolutions
+        ).toBeUndefined();
     });
 
     // The allowlist entry covers the shape that round-trips; a tally whose

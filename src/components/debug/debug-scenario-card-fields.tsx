@@ -10,10 +10,11 @@ const ZONES = ["battlefield", "hand", "library", "graveyard", "exile"] as const;
  *  common placement knobs (zone, count, tapped, summoning-sick), then the rarer
  *  fields (counters, damage, attach/copy hosts, face-down flags, position)
  *  behind a per-card "More" disclosure. Every HAND-AUTHORED field of
- *  `ScenarioCard` is reachable; `activations` (issue #3448) is deliberately
- *  not, since it is keyed by internal ability id and exists for `specFromState`
- *  to lower a captured position, not for someone to type. Not rendering it is
- *  NOT the same as losing it: `cardToDraft`/`draftToCard` carry it untouched
+ *  `ScenarioCard` is reachable; `activations` (issue #3448) and
+ *  `abilityResolutions` (issue #3453) are deliberately not, since both are
+ *  keyed by an internal ability id and exist for `specFromState` to lower a
+ *  captured position, not for someone to type. Not rendering them is NOT the
+ *  same as losing them: `cardToDraft`/`draftToCard` carry both untouched
  *  across an edit, because the save path re-emits the card array wholesale.
  *  Pure/controlled — the parent owns the draft array. */
 export default function DebugScenarioCardFields({

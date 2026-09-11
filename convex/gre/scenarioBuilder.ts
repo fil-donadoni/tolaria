@@ -289,6 +289,14 @@ export function buildStateFromScenario(
     state.artifactDamageToPlayerThisTurn = undefined;
     state.lifeGainedThisTurn = undefined;
     state.abilityResolutionCounts = undefined;
+    // NOT exhaustive, and deliberately so: the cast tallies issue #3449
+    // widened (`state.spellsCastThisTurn`, the two per-seat pairs) are NOT
+    // cleared here, because that issue chose "absent means unchanged" for them
+    // and pinned the choice in a test. Each widening under PRD #3397 clears
+    // its own fields; the leak that convention leaves for a HAND-WRITTEN spec
+    // is recorded in
+    // `docs/findings/3446-scenario-builder-per-turn-clear-is-a-denylist.md`,
+    // not silently fixed here.
     // CR 608.2h / 111.12 (ADR 0086) — the departure ledger of last-known
     // COPIABLE values is keyed by the instance id a permanent had on the
     // battlefield, and the placement loop below reassigns every id. A carried
@@ -900,8 +908,11 @@ export function buildStateFromScenario(
     ) => {
         if (!pair) return;
         const tally: Record<string, number> = {};
-        if (pair.me) tally[p1.id] = pair.me;
-        if (pair.opp) tally[p2.id] = pair.opp;
+        // `> 0` rather than truthy: a negative from a hand-written spec is not
+        // a tally any engine reader could have produced, and the validator
+        // carries no `min` (only the admin form does).
+        if (pair.me && pair.me > 0) tally[p1.id] = pair.me;
+        if (pair.opp && pair.opp > 0) tally[p2.id] = pair.opp;
         assign(Object.keys(tally).length > 0 ? tally : undefined);
     };
     seedSeatTally(spec.damageDealtToPlayerThisTurn, (t) => {
@@ -1988,9 +1999,15 @@ export function specFromState(
             loweredIds.add(card.id);
         }
     }
-    const orphanedResolutions = Object.keys(
+    const orphanedResolutions = Object.entries(
         state.abilityResolutionCounts ?? {}
-    ).filter((key) => !loweredIds.has(key.slice(0, key.indexOf(":"))));
+    ).filter(
+        // `count > 0` for the same reason the two functions above use it: a
+        // zero entry says "hasn't resolved this turn", which is what an absent
+        // key says, so losing one loses nothing.
+        ([key, count]) =>
+            count > 0 && !loweredIds.has(key.slice(0, key.indexOf(":")))
+    );
     if (orphanedResolutions.length > 0) {
         dropped.push(
             `abilityResolutionCounts: ${orphanedResolutions.length} tally(ies) whose trigger source is in no lowered zone — the per-turn resolution count rides on its source card, and this one has none to ride on; not lowered`
@@ -2001,8 +2018,11 @@ export function specFromState(
     // step's priority window is the one position where this marker is
     // load-bearing: it says the turn's once-per-turn cleanup bookkeeping has
     // already run, and the rebuild (which clears it) would run it a second
-    // time. Reported rather than lowered, because a spec cannot open in
-    // CLEANUP in the first place (`SCENARIO_PHASES`).
+    // time. Reported rather than lowered because the spec has no field for the
+    // marker — NOT because such a position is unreachable: `phase` is a free
+    // string the builder assigns straight onto `state.phase`, and this very
+    // capture lowers `phase: "CLEANUP"` (`SCENARIO_PHASES` constrains only the
+    // admin select and the generator's enum).
     if (
         state.phase === "CLEANUP" &&
         state.cleanupBookkeepingTurn === state.turn
