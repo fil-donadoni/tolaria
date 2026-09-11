@@ -376,10 +376,17 @@ export function formatLoweringReport(report: LoweringSweepReport): string {
 
     lines.push(
         ...section(
-            "REFUSALS — why a decision could not become a Verdict",
+            "REFUSALS — why a decision could not become a Verdict (FIRST cause only)",
             refusalRows,
             report.decisions
         )
+    );
+    lines.push(
+        "  A refusal is the first check that fired, in `lowerDecision`'s own",
+        "  order — so a zero here means 'never the first cause', never 'never",
+        "  present'. What is PRESENT is the DROPPED table below, which is taken",
+        "  from `specFromState` directly on every decision, refused or not.",
+        ""
     );
     lines.push(
         ...section(

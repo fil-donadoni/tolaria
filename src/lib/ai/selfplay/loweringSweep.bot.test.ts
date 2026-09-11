@@ -137,7 +137,7 @@ const ENV: Record<string, string | undefined> =
 const RUN = ENV.LOWERING_SWEEP === "1";
 
 describe.runIf(RUN)("lowering sweep (runner)", () => {
-    it("sweeps N deterministic games and prints the ranked table", () => {
+    it("sweeps N deterministic games and prints the ranked table", async () => {
         const config: LoweringSweepConfig = {
             deckA: ENV.LOWERING_SWEEP_DECK_A ?? "mono-red-burn",
             deckB: ENV.LOWERING_SWEEP_DECK_B ?? "channel-fireball",
@@ -146,7 +146,24 @@ describe.runIf(RUN)("lowering sweep (runner)", () => {
             iterations: Number(ENV.LOWERING_SWEEP_ITER ?? "60"),
         };
         const report = runLoweringSweep(config);
-        console.log("\n" + formatLoweringReport(report) + "\n");
+        const table = formatLoweringReport(report);
+        // The table is the deliverable, and vitest's reporter does not reliably
+        // surface a multi-line console log from a `bot-dom` test (the same
+        // reason `decisionCorpus.bot.test.ts` writes a file): default to one,
+        // next to the repo, and say where it went. The src tsconfig is
+        // browser-typed, hence the non-literal dynamic import — it defeats TS
+        // module resolution the way the globalThis ENV read above does, and
+        // resolves fine at runtime.
+        const outPath =
+            ENV.LOWERING_SWEEP_OUT ?? "ladder-runs/lowering-sweep.txt";
+        const fs = (await import(/* @vite-ignore */ "node" + ":fs")) as {
+            writeFileSync: (p: string, d: string) => void;
+            mkdirSync: (p: string, o: { recursive: boolean }) => void;
+        };
+        const dir = outPath.slice(0, outPath.lastIndexOf("/"));
+        if (dir) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(outPath, table + "\n");
+        console.log(`lowering sweep → ${outPath}`);
         expect(report.decisions).toBeGreaterThan(0);
     }, 3_600_000);
 });
