@@ -17680,6 +17680,19 @@ export const debugSetupScenario = mutation({
                 opp: v.optional(v.number()),
             })
         ),
+        /** CR 305.2 / 305.2a (issue #3446) — land drops already spent this
+         *  turn, so a scenario can place a main-phase decision taken AFTER the
+         *  land was played (the most common decision there is) instead of
+         *  always reopening the drop. Absent means none: the builder clears the
+         *  tally with the other per-turn ones. Same lock-step rule as `life`
+         *  above — a field in `scenarioSpecValidator` and not here throws
+         *  `ArgumentValidationError` before the handler runs. */
+        landsPlayed: v.optional(
+            v.object({
+                me: v.optional(v.number()),
+                opp: v.optional(v.number()),
+            })
+        ),
         /** CR 102.1 / 117.1 / 117.4 (issue #3454) — the turn holder, the
          *  priority holder and the passes already banked. `activePlayer:
          *  "opp"` with `priority: "me"` places an instant-speed decision on

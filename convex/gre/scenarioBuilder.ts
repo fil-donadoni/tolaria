@@ -219,6 +219,14 @@ export function buildStateFromScenario(
     p2.drawnThisTurn = undefined;
     p1.leftGraveyardThisTurn = undefined;
     p2.leftGraveyardThisTurn = undefined;
+    // CR 305.2 (issue #3446) — the land drop is a per-turn tally of the same
+    // family, and it is cleared here for the same reason: a scenario places a
+    // position rather than replaying the turn that reached it, so the board a
+    // spec describes must not inherit the LOADED game's spent drop. `spec.
+    // landsPlayed` below re-seeds it deliberately, which is what lets a
+    // post-land-drop main-phase decision be captured at all.
+    p1.landsPlayedThisTurn = undefined;
+    p2.landsPlayedThisTurn = undefined;
 
     // CR 104 (issue #3314) — a scenario starts a LIVE position, so the
     // game-over flag goes with the zones above. `debugSetupScenario` persists
@@ -731,6 +739,19 @@ export function buildStateFromScenario(
         if (spec.experience.opp) p2.experienceCounters = spec.experience.opp;
     }
 
+    // Seed land drops already spent (CR 305.2 / 305.2a, issue #3446). Playing
+    // a land is a special action (CR 116.2a) gated on this tally, so this is
+    // the whole difference between a rebuilt main phase that still offers the
+    // drop and the post-drop position the Bot actually decided in — the single
+    // most common decision it makes (PRD #3397). Truthy-checked like poison /
+    // experience above: 0 is what the clear already left.
+    if (spec.landsPlayed) {
+        if (spec.landsPlayed.me) p1.landsPlayedThisTurn = spec.landsPlayed.me;
+        if (spec.landsPlayed.opp) {
+            p2.landsPlayedThisTurn = spec.landsPlayed.opp;
+        }
+    }
+
     // CR 113.6c (issue #3278) — materialise off-battlefield characteristics on
     // everything the placement loop above put in a hidden zone, LAST, so it
     // sees the final contents of every zone (library seeding, face-down exile
@@ -757,7 +778,7 @@ export function buildStateFromScenario(
 // `ScenarioSpec` can express only what the table in `buildStateFromScenario`
 // consumes (battlefield/hand/graveyard/exile placement, tapped, counters,
 // attachments, damage, phase, turn, the turn holder / priority holder / pass
-// count, poison/life/experience, one companion
+// count, poison/life/experience, lands already played, one companion
 // slot). Everything else a live `GameState` can hold — the stack, mana pool,
 // a mid-flight payment, combat beyond an empty DECLARE_ATTACKERS seed,
 // delayed triggers, a per-card continuous effect the spec has no field for —
@@ -1362,6 +1383,9 @@ export const PLAYER_STATE_ALLOWLIST = new Set<string>([
     "restrictedMana",
     "poisonCounters",
     "experienceCounters",
+    // CR 305.2 (issue #3446) — lowered by `specFromState` into `landsPlayed`
+    // and rebuilt from it, so it is no longer live-only residue.
+    "landsPlayedThisTurn",
     "companion",
     "lastDrawnCardId",
     // CR 121.1 (issue #3240) — the spec CAN express this, but only in the one
@@ -1526,6 +1550,19 @@ export function specFromState(
         if (me.experienceCounters) spec.experience.me = me.experienceCounters;
         if (opp.experienceCounters) {
             spec.experience.opp = opp.experienceCounters;
+        }
+    }
+    // CR 305.2 (issue #3446) — omitted when neither seat has played a land,
+    // unlike `life` above: 0 is not a coincidence here but exactly what the
+    // builder's own clear leaves, so an absent field round-trips to the same
+    // position and the spec stays minimal.
+    if (me.landsPlayedThisTurn || opp.landsPlayedThisTurn) {
+        spec.landsPlayed = {};
+        if (me.landsPlayedThisTurn) {
+            spec.landsPlayed.me = me.landsPlayedThisTurn;
+        }
+        if (opp.landsPlayedThisTurn) {
+            spec.landsPlayed.opp = opp.landsPlayedThisTurn;
         }
     }
 

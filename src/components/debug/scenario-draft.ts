@@ -159,7 +159,7 @@ export function draftToCard(draft: CardDraft): ScenarioCard {
 // not the other is a field an edit silently rewrites.
 
 /** A per-seat numeric pair kept as strings while editing (`poison`, `life`,
- *  `experience` all share the spec's `{ me?, opp? }` shape). */
+ *  `experience`, `landsPlayed` all share the spec's `{ me?, opp? }` shape). */
 export type SeatPairDraft = { me: string; opp: string };
 
 /** Editable form representation of the spec-level fields of `ScenarioSpec`
@@ -174,6 +174,8 @@ export type SpecDraft = {
     poison: SeatPairDraft;
     life: SeatPairDraft;
     experience: SeatPairDraft;
+    /** CR 305.2 (issue #3446) — lands already played this turn, per seat. */
+    landsPlayed: SeatPairDraft;
     /** CR 102.1 / 117.1 (issue #3454) — the turn holder and the priority
      *  holder. `""` is the spec's own "absent", which the builder reads as
      *  "leave the base state's turn holder alone"; it is a real, selectable
@@ -200,6 +202,7 @@ export function emptySpecDraft(): SpecDraft {
         poison: { ...EMPTY_SEAT_PAIR },
         life: { ...EMPTY_SEAT_PAIR },
         experience: { ...EMPTY_SEAT_PAIR },
+        landsPlayed: { ...EMPTY_SEAT_PAIR },
         activePlayer: "",
         priority: "",
         passCount: "",
@@ -232,6 +235,7 @@ export function specToDraft(spec: ScenarioSpec | null): SpecDraft {
     draft.poison = seatPairToDraft(spec.poison);
     draft.life = seatPairToDraft(spec.life);
     draft.experience = seatPairToDraft(spec.experience);
+    draft.landsPlayed = seatPairToDraft(spec.landsPlayed);
     if (spec.activePlayer !== undefined) draft.activePlayer = spec.activePlayer;
     if (spec.priority !== undefined) draft.priority = spec.priority;
     if (spec.passCount !== undefined) draft.passCount = String(spec.passCount);
@@ -284,6 +288,8 @@ export function draftToSpec(draft: SpecDraft): Omit<ScenarioSpec, "cards"> {
     if (life) spec.life = life;
     const experience = seatPairFromDraft(draft.experience);
     if (experience) spec.experience = experience;
+    const landsPlayed = seatPairFromDraft(draft.landsPlayed);
+    if (landsPlayed) spec.landsPlayed = landsPlayed;
 
     if (draft.activePlayer !== "") spec.activePlayer = draft.activePlayer;
     if (draft.priority !== "") spec.priority = draft.priority;

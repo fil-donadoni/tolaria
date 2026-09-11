@@ -126,6 +126,18 @@ export const scenarioSpecValidator = v.object({
             opp: v.optional(v.number()),
         })
     ),
+    // CR 305.2 (issue #3446) — land drops already spent this turn. Without it
+    // every rebuild opens with the drop unused, so a MAIN-PHASE decision taken
+    // after the land was played rebuilds as a position that still offers
+    // "play <land>" — a different decision under the same name, which is the
+    // failure the verdict quiz refuses on (PRD #3397). Mirrors `poison` /
+    // `life` / `experience`'s per-seat, both-optional shape exactly.
+    landsPlayed: v.optional(
+        v.object({
+            me: v.optional(v.number()),
+            opp: v.optional(v.number()),
+        })
+    ),
     // CR 102.1 / 117.1 (issue #3454) — the TURN HOLDER and the PRIORITY
     // holder, the two facts that decide WHICH decision a rebuilt position
     // poses. Without them every position captured with priority on the
@@ -207,6 +219,12 @@ export type ScenarioSpec = {
      *  scenario can start at the SCALING state a card's "for each experience
      *  counter you have" reads (Otharri, Suns' Glory). */
     experience?: { me?: number; opp?: number };
+    /** CR 305.2 / 305.2a (issue #3446) — lands this seat has already played
+     *  this turn. Omitted means none: the builder CLEARS the tally like the
+     *  other per-turn ones (the `drawnThisTurn` precedent, issue #3240), so a
+     *  spec written before this field keeps rebuilding a board with the land
+     *  drop available. */
+    landsPlayed?: { me?: number; opp?: number };
     /** CR 102.1 (issue #3454) — whose turn the position is. Omitted leaves the
      *  base state's turn holder untouched, which is what every spec written
      *  before this field meant. */
@@ -521,6 +539,12 @@ export function normalizeScenarioSpec(raw: unknown): ScenarioSpec {
         set(experience, "me", pickNumber(raw.experience.me));
         set(experience, "opp", pickNumber(raw.experience.opp));
         spec.experience = experience;
+    }
+    if (isRecord(raw.landsPlayed)) {
+        const landsPlayed: { me?: number; opp?: number } = {};
+        set(landsPlayed, "me", pickNumber(raw.landsPlayed.me));
+        set(landsPlayed, "opp", pickNumber(raw.landsPlayed.opp));
+        spec.landsPlayed = landsPlayed;
     }
     const activePlayer = pickString(raw.activePlayer);
     if (activePlayer === "me" || activePlayer === "opp") {

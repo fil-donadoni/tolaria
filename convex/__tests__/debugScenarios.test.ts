@@ -164,6 +164,9 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
             // CR 122.1 (issue #1969) — the scaling seed for a "for each
             // experience counter you have" card.
             experience: { me: 2 },
+            // CR 305.2 (issue #3446) — the land drops already spent, the fact
+            // that decides whether the rebuilt main phase still offers one.
+            landsPlayed: { me: 1 },
             // CR 102.1 / 117.1 / 117.4 (issue #3454) — the turn holder, the
             // priority holder and the banked passes. Normalize is the ONLY
             // path a stored row and a markdown seed reach the builder by, so a
@@ -194,6 +197,7 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
             poison: { me: 4, opp: 9 },
             life: { me: 4, opp: 17 },
             experience: { me: 2 },
+            landsPlayed: { me: 1 },
             activePlayer: "opp",
             priority: "me",
             passCount: 1,
@@ -232,6 +236,29 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
                 passCount: "one",
             })
         ).toEqual({ cards: [] });
+    });
+
+    // CR 305.2 (issue #3446) — `landsPlayed` through the same shapes as
+    // `life` below. Normalize is the ONLY path a stored row or a markdown seed
+    // reaches the builder by, so a field it drops silently reopens the land
+    // drop on a curated post-drop position.
+    it("normalizes `landsPlayed` — both seats, one seat, absent, garbage (CR 305.2)", () => {
+        expect(
+            normalizeScenarioSpec({ cards: [], landsPlayed: { me: 1, opp: 2 } })
+        ).toEqual({ cards: [], landsPlayed: { me: 1, opp: 2 } });
+
+        expect(
+            normalizeScenarioSpec({ cards: [], landsPlayed: { me: 1 } })
+        ).toEqual({ cards: [], landsPlayed: { me: 1 } });
+
+        expect(normalizeScenarioSpec({ cards: [] })).toEqual({ cards: [] });
+
+        expect(
+            normalizeScenarioSpec({ cards: [], landsPlayed: "one" })
+        ).toEqual({ cards: [] });
+        expect(
+            normalizeScenarioSpec({ cards: [], landsPlayed: { me: "one" } })
+        ).toEqual({ cards: [], landsPlayed: {} });
     });
 
     // CR 119.1 (issue #2147) — round-trip `life` through every shape the
