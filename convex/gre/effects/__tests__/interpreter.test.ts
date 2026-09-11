@@ -14429,6 +14429,106 @@ describe("Effect Script Op: mayPay dynamic ENERGY cost (energyEqualTo, issue #11
     });
 });
 
+// Op: mayPay with a dynamically-derived GENERIC MANA cost (the FOURTH cost
+// shape, `DynamicMayPayGenericManaCost`: `{ genericEqualTo: EffectValue }`) —
+// "pay {1} for each <runtime tally>". Circular Logic's exact shape
+// (`tor/blue.ts`): the tally reuses the EXISTING `count` EffectValue member,
+// resolved through the SAME `resolveValue` every other numeric Op parameter
+// uses. Its reason to be its own shape rather than a `reducedBy` is that the
+// amount is BUILT, not reduced — `reduceGenericMana` only ever subtracts.
+describe("Effect Script Op: mayPay dynamic GENERIC cost (genericEqualTo, issue #2714)", () => {
+    /** "Opponent pays {1} per card in YOUR graveyard, or you draw a card." */
+    const registerTallyScript = (id: string): string =>
+        registerScript(id, [
+            {
+                op: "mayPay",
+                player: "opponent",
+                cost: {
+                    genericEqualTo: {
+                        count: { zone: "graveyard", controller: "controller" },
+                    },
+                },
+                prompt: "Pay the tally?",
+                bind: "$paid",
+            },
+            {
+                op: "if",
+                predicate: { not: { binding: "$paid" } },
+                then: [{ op: "draw", player: "controller", count: 1 }],
+            },
+        ]);
+
+    const boardWithGraveyard = (size: number, pool: number) =>
+        makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: Array.from({ length: size }, (_, i) =>
+                        makeInstance(BEAR_ID, {
+                            id: `gy${i}`,
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "graveyard",
+                        })
+                    ),
+                    library: [
+                        makeInstance(BEAR_ID, {
+                            id: "topdeck",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: pool },
+                }),
+            ],
+        });
+
+    it("prices the generic leg at the runtime tally, and survives the projection", () => {
+        const id = registerTallyScript("test-op-maypay-generic-price");
+        const state = boardWithGraveyard(4, 4);
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on may-pay
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("may-pay");
+        expect(head.cost).toEqual({ mana: { generic: 4 } });
+        // Wire format — the client renders the prompt from `PublicGameState`,
+        // so a cost that only exists on the fat server state is a broken
+        // prompt, not a passing test.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.pendingChoices?.[0].cost).toEqual({
+            mana: { generic: 4 },
+        });
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+        expect(state.players[1].manaPool.C).toBe(0);
+        expect(state.players[0].hand).toHaveLength(0); // paid → no draw
+    });
+
+    it("a ZERO tally is an EMPTY mana leg, never an absent cost (CR 118.3a)", () => {
+        const id = registerTallyScript("test-op-maypay-generic-zero");
+        const state = boardWithGraveyard(0, 0);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        // An ABSENT cost is the cost-free "you may" shape (issue #680) and
+        // would read as a different decision entirely.
+        expect(head.cost).toEqual({ mana: {} });
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+        expect(state.players[0].hand).toHaveLength(0); // paid {0} → no draw
+    });
+
+    it("declining runs the consequence branch", () => {
+        const id = registerTallyScript("test-op-maypay-generic-decline");
+        const state = boardWithGraveyard(3, 3);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        expect(state.players[1].manaPool.C).toBe(3); // nothing spent
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["topdeck"]);
+    });
+});
+
 describe("Effect Script construct: if (ADR 0045, CR 608.2c, issue #806)", () => {
     it("runs the then branch and skips else on a true binding predicate", () => {
         const id = registerScript("test-if-then", [
