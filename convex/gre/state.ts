@@ -2994,6 +2994,25 @@ export type PendingActivation = {
     tapSource: boolean;
     /** True iff the ability has a sacrifice cost — applied at commit. */
     sacrificeSource: boolean;
+    /** CR 605.3b (issue #3455) — this announcement belongs to a MANA ability:
+     *  at commit it resolves IMMEDIATELY, without ever being put on the stack
+     *  and without granting priority. The park exists only because the ability's
+     *  cost carries a FILTERED give-up leg (`sacrificeFilter` /
+     *  `discardFilter` — Ashnod's Altar, Skirk Prospector, Phyrexian Tower,
+     *  Bog Witch) that the payer must answer; every other mana ability still
+     *  resolves inline at its own mutation with no record here at all.
+     *  Non-park: a flag read at commit, never a pick anyone is waiting on. */
+    resolveWithoutStack?: boolean;
+    /** CR 605.1a / 601.2b (issue #3455) — the mana a `resolveWithoutStack`
+     *  activation will ADD at commit, resolved at ANNOUNCEMENT: the option the
+     *  activator picked from a chooser (Orcish Lumberjack's RRR/RRG/RGG/GGG),
+     *  or the ability's fixed `manaProduced` (Ashnod's Altar's {C}{C}).
+     *  Locked here rather than re-derived at commit because the choice is made
+     *  when the ability is activated (CR 601.2b) and the board it was derived
+     *  from can change while the cost pick is open. Absent for a mana ability
+     *  whose output is an Effect Script / `resolve()` body, which runs through
+     *  a transient stack item instead. Non-park: a choice already made. */
+    inlineManaOutput?: ManaCost;
     /** Unified filtered-sacrifice choice for this activation (CR 602.1 / 118.5 /
      *  701.21a): the ability's own "sacrifice a permanent matching <filter>"
      *  cost AND any board-wide static additional sacrifice (Drought), folded

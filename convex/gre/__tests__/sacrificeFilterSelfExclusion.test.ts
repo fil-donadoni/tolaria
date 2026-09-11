@@ -135,14 +135,28 @@ describe("cost.sacrificeFilter payability threads selfInstanceId (CR 109.2, issu
         }
     });
 
-    it("both convex/game.ts activation branches are covered, not just one", () => {
-        // The up-front legality gate is duplicated: `activateAbilityOnState`
-        // and the `pendingActivation` path carry the SAME eight-line scan.
-        // Fixing one and not the other is the specific regression shape here.
+    it("convex/game.ts keeps ONE payability gate, and every entry point calls it", () => {
+        // Until issue #3455 the up-front legality scan was DUPLICATED — the
+        // same eight lines in `activateAbilityOnState` and in the
+        // `pendingActivation` path — and this guard counted `>= 2` because
+        // fixing one and not the other was the regression shape. The
+        // duplication is GONE: `assertSacrificeFilterCostAffordable` is the
+        // single authority both call, which is strictly stronger than two
+        // copies agreeing. So the guard asserts the shape that replaced it —
+        // exactly one matcher call, owned by that helper, with every
+        // announcement path routed through it.
         const src = fs.readFileSync(
             path.join(REPO_ROOT, "convex/game.ts"),
             "utf8"
         );
-        expect(sacrificeCostCalls(src).length).toBeGreaterThanOrEqual(2);
+        expect(sacrificeCostCalls(src).length).toBe(1);
+        expect(src).toContain(
+            "export function assertSacrificeFilterCostAffordable("
+        );
+        // The declaration plus at least the two announcement paths (the STACK
+        // activation and the non-stack mana one).
+        expect(
+            (src.match(/assertSacrificeFilterCostAffordable\(/g) ?? []).length
+        ).toBeGreaterThanOrEqual(3);
     });
 });

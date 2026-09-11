@@ -1,8 +1,21 @@
 ---
 title: No non-stack engine path pays a sacrificeFilter/discardFilter mana cost, and 8 compiled cards read `ready` on that shape
 discoveredBy: 2697
-status: draft
+status: triaged
+issue: 3455
 confidence: high
+---
+
+**CLOSED by issue #3455.** The engine learned the shape: a `useStack: false`
+ability whose cost carries a `sacrificeFilter` or a `discardFilter` now parks on
+the SAME cost-pick window the stack path opens (`pendingActivation` marked
+`resolveWithoutStack`) and commits inline at CR 605.3b — no stack item, no
+priority. All three non-stack entry points route it (`activateManaAbility`,
+`tapUntap`, `tapSourceIntoPayment`), the option list offers it
+(`getManaTapOptionsDetailed`) and the automatic planner still refuses it
+per-option (`manaTapOptionSpendsUnplannedResource`). The record below is kept as
+written, as the diagnosis that led there.
+
 ---
 
 **What is wrong.** The activated-ability slot's shared cost grammar (#2697)
