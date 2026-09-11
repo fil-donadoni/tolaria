@@ -69,6 +69,7 @@
         "seed:scenario": "bun scripts/seed-scenario.ts",
         "seed:preset": "bun scripts/seed-preset-deck.ts",
         "selfplay": "SELFPLAY=1 vitest run src/lib/ai/selfplay/harness.bot.test.ts",
+        "lowering-sweep": "LOWERING_SWEEP=1 vitest run src/lib/ai/selfplay/loweringSweep.bot.test.ts",
         "telemetry:context": "bun scripts/telemetry-context.ts",
         "telemetry:dash": "bun scripts/telemetry-serve.ts",
         "telemetry:dash:build": "vite build --config vite.dashboard.config.ts",

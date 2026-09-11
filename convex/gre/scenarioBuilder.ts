@@ -863,7 +863,7 @@ function reportCharacteristicDrift(
  *  function instead of a raw engine `GameState` — never real engine state,
  *  so never "dropped". Anything else present on a card instance is live
  *  continuous-effect residue the spec has no field for. */
-const CARD_STATE_ALLOWLIST = new Set<string>([
+export const CARD_STATE_ALLOWLIST = new Set<string>([
     // Structural fields `buildStateFromScenario` itself always sets.
     "id",
     "card",
@@ -1216,7 +1216,7 @@ function zoneCards(
  *  set is live state the spec has no field for, named automatically
  *  instead of requiring someone to remember to add a check (issue #2148
  *  review finding). */
-const GAME_STATE_ALLOWLIST = new Set<string>([
+export const GAME_STATE_ALLOWLIST = new Set<string>([
     // Structural — always present, not itself residue.
     "players",
     // Lowered into the spec directly.
@@ -1273,7 +1273,7 @@ const GAME_STATE_ALLOWLIST = new Set<string>([
  *  `dropped` the moment one of those choices is on the stack when the
  *  projected state is bridged in). `name`/`bgColor` describe the RELOAD
  *  TARGET game's own player record, not the captured position. */
-const PLAYER_STATE_ALLOWLIST = new Set<string>([
+export const PLAYER_STATE_ALLOWLIST = new Set<string>([
     "id",
     "name",
     "bgColor",
