@@ -41,7 +41,7 @@ import {
     raiseTriggerTargetSelection,
 } from "../rules";
 import { collectTriggers } from "../triggers";
-import { enumerateAttackerMoves } from "../moves";
+import { validateAttackerEligibility } from "../combat";
 import type { GameState, PendingChoice } from "../state";
 import type { GameEvent } from "../../cards/types";
 import type { ScenarioSpec } from "../../debugScenarioSpec";
@@ -2470,41 +2470,46 @@ describe("buildStateFromScenario — per-seat turn history (issue #3450)", () =>
 
     // ACCEPTANCE CRITERION — Arboria (CR 508.1c): "Creatures can't attack a
     // player unless that player cast a spell or put a nontoken permanent onto
-    // the battlefield during their last turn." Asserted at the Bot's own
-    // seam, `enumerateAttackerMoves`: the whole failure this field closes is
-    // a rebuild enumerating attacks the Bot never had.
-    it("enumerates no attack against a defender who took no qualifying action last turn (CR 508.1c)", () => {
+    // the battlefield during their last turn." Asserted through
+    // `validateAttackerEligibility`, the authority the Bot's own
+    // `enumerateAttackerMoves` filters its candidates on — reached directly
+    // rather than through that wrapper because `gre/moves` is a bot-only
+    // module and this file is an APPLICATION test
+    // (`bot-suite-boundary.test.ts`). The whole failure this field closes is
+    // a rebuild offering attacks the Bot never had.
+    it("makes no attacker eligible against a defender who took no qualifying action last turn (CR 508.1c)", () => {
         const board: ScenarioSpec = {
             cards: [
                 { name: arboria.name, owner: "me", zone: "battlefield" },
                 { name: grizzlyBears.name, owner: "me", zone: "battlefield" },
             ],
         };
+        const bearEligible = (spec: ScenarioSpec): boolean => {
+            const state = buildStateFromScenario(makeState(), spec);
+            const bear = state.players[0].battlefield.find(
+                (c) => (c.card as { id: string }).id === grizzlyBears.id
+            );
+            expect(bear).toBeDefined();
+            return validateAttackerEligibility(
+                bear as NonNullable<typeof bear>,
+                state.players[1].battlefield,
+                state
+            ).eligible;
+        };
 
-        const forbidden = buildStateFromScenario(makeState(), board);
-        const bearId = forbidden.players[0].battlefield.find(
-            (c) => (c.card as { id: string }).id === grizzlyBears.id
-        )?.id;
-        expect(bearId).toBeDefined();
+        expect(bearEligible(board)).toBe(false);
+        // …and the same board with the DEFENDER's flag set admits the attack.
         expect(
-            enumerateAttackerMoves(forbidden, forbidden.players[0]).some((m) =>
-                JSON.stringify(m).includes(bearId as string)
-            )
-        ).toBe(false);
-
-        // …and the same board with the defender's flag set enumerates it.
-        const allowed = buildStateFromScenario(makeState(), {
-            ...board,
-            qualifyingActionLastTurn: { opp: true },
-        });
-        const allowedBearId = allowed.players[0].battlefield.find(
-            (c) => (c.card as { id: string }).id === grizzlyBears.id
-        )?.id;
-        expect(
-            enumerateAttackerMoves(allowed, allowed.players[0]).some((m) =>
-                JSON.stringify(m).includes(allowedBearId as string)
-            )
+            bearEligible({
+                ...board,
+                qualifyingActionLastTurn: { opp: true },
+            })
         ).toBe(true);
+        // The flag is read off the DEFENDER, never the attacker: "me" having
+        // acted last turn does not open the attack on "opp".
+        expect(
+            bearEligible({ ...board, qualifyingActionLastTurn: { me: true } })
+        ).toBe(false);
     });
 
     // ACCEPTANCE CRITERION — Revolt, an ability word (CR 207.2c). Fatal Push
