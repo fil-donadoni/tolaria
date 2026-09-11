@@ -52,6 +52,11 @@ export const SCENARIO_SPEC_FIELD_OWNER = {
     // like its per-seat siblings: an admin pinning a post-land-drop main phase
     // must be able to type it, not only capture it.
     landsPlayed: "form-owned",
+    // CR 601.2i / 118.9 / 702.40a (issue #3449) — what has already been cast.
+    // `form-owned` like every field since issue #3463.
+    spellsCastThisTurn: "form-owned",
+    spellsCastThisGame: "form-owned",
+    stormCount: "form-owned",
     // CR 102.1 / 117.1 / 117.4 (issue #3454) — the turn holder, the priority
     // holder and the banked passes. `form-owned` like everything else since
     // issue #3463: these are the first of PRD #3397's queued widenings, and a
@@ -146,6 +151,17 @@ export const SCENARIO_SPEC_FIELD_INPUT = {
     life: { kind: "per-seat", label: "life" },
     experience: { kind: "per-seat", label: "experience", min: 0 },
     landsPlayed: { kind: "per-seat", label: "lands played", min: 0 },
+    spellsCastThisTurn: {
+        kind: "per-seat",
+        label: "spells cast this turn",
+        min: 0,
+    },
+    spellsCastThisGame: {
+        kind: "per-seat",
+        label: "spells cast this game",
+        min: 0,
+    },
+    stormCount: { kind: "number", label: "storm count", min: 0 },
     activePlayer: { kind: "seat", label: "active player" },
     priority: { kind: "seat", label: "priority" },
     passCount: { kind: "number", label: "passes", min: 0 },

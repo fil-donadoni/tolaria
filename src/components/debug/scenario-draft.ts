@@ -159,7 +159,8 @@ export function draftToCard(draft: CardDraft): ScenarioCard {
 // not the other is a field an edit silently rewrites.
 
 /** A per-seat numeric pair kept as strings while editing (`poison`, `life`,
- *  `experience`, `landsPlayed` all share the spec's `{ me?, opp? }` shape). */
+ *  `experience`, `landsPlayed` and the two spells-cast tallies all share the
+ *  spec's `{ me?, opp? }` shape). */
 export type SeatPairDraft = { me: string; opp: string };
 
 /** Editable form representation of the spec-level fields of `ScenarioSpec`
@@ -176,6 +177,14 @@ export type SpecDraft = {
     experience: SeatPairDraft;
     /** CR 305.2 (issue #3446) — lands already played this turn, per seat. */
     landsPlayed: SeatPairDraft;
+    /** CR 601.2i / 118.9 (issue #3449) — what each seat has already cast:
+     *  this turn, and this game (the latter gates Once Upon a Time's free
+     *  cast, so it is legality, not flavour). */
+    spellsCastThisTurn: SeatPairDraft;
+    spellsCastThisGame: SeatPairDraft;
+    /** CR 702.40a (issue #3449) — the Storm count, spells cast by ANY player
+     *  this turn. */
+    stormCount: string;
     /** CR 102.1 / 117.1 (issue #3454) — the turn holder and the priority
      *  holder. `""` is the spec's own "absent", which the builder reads as
      *  "leave the base state's turn holder alone"; it is a real, selectable
@@ -203,6 +212,9 @@ export function emptySpecDraft(): SpecDraft {
         life: { ...EMPTY_SEAT_PAIR },
         experience: { ...EMPTY_SEAT_PAIR },
         landsPlayed: { ...EMPTY_SEAT_PAIR },
+        spellsCastThisTurn: { ...EMPTY_SEAT_PAIR },
+        spellsCastThisGame: { ...EMPTY_SEAT_PAIR },
+        stormCount: "",
         activePlayer: "",
         priority: "",
         passCount: "",
@@ -236,6 +248,10 @@ export function specToDraft(spec: ScenarioSpec | null): SpecDraft {
     draft.life = seatPairToDraft(spec.life);
     draft.experience = seatPairToDraft(spec.experience);
     draft.landsPlayed = seatPairToDraft(spec.landsPlayed);
+    draft.spellsCastThisTurn = seatPairToDraft(spec.spellsCastThisTurn);
+    draft.spellsCastThisGame = seatPairToDraft(spec.spellsCastThisGame);
+    if (spec.stormCount !== undefined)
+        draft.stormCount = String(spec.stormCount);
     if (spec.activePlayer !== undefined) draft.activePlayer = spec.activePlayer;
     if (spec.priority !== undefined) draft.priority = spec.priority;
     if (spec.passCount !== undefined) draft.passCount = String(spec.passCount);
@@ -290,6 +306,12 @@ export function draftToSpec(draft: SpecDraft): Omit<ScenarioSpec, "cards"> {
     if (experience) spec.experience = experience;
     const landsPlayed = seatPairFromDraft(draft.landsPlayed);
     if (landsPlayed) spec.landsPlayed = landsPlayed;
+    const castThisTurn = seatPairFromDraft(draft.spellsCastThisTurn);
+    if (castThisTurn) spec.spellsCastThisTurn = castThisTurn;
+    const castThisGame = seatPairFromDraft(draft.spellsCastThisGame);
+    if (castThisGame) spec.spellsCastThisGame = castThisGame;
+    const stormCount = num(draft.stormCount);
+    if (stormCount !== undefined) spec.stormCount = stormCount;
 
     if (draft.activePlayer !== "") spec.activePlayer = draft.activePlayer;
     if (draft.priority !== "") spec.priority = draft.priority;

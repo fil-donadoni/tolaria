@@ -138,6 +138,36 @@ export const scenarioSpecValidator = v.object({
             opp: v.optional(v.number()),
         })
     ),
+    // CR 601.2i / 702.40a / 118.9 (issue #3449, PRD #3397) — what has already
+    // been CAST, the three tallies a rebuilt position otherwise opens at zero.
+    // Per-seat and both-optional, the same shape as `poison`/`life`/
+    // `experience`; each inner value mirrors the engine field it seeds, so the
+    // spec key and `PlayerState`'s own key are the same word.
+    //
+    // `spellsCastThisGame` gates a COST, hence legality: Once Upon a Time's
+    // free cast (CR 118.9) is offered only while the caster's lifetime tally is
+    // 0, so a rebuild that opened at 0 handed the seat a free spell it had
+    // already spent — a different candidate list under the same name, the one
+    // failure downstream can never detect.
+    spellsCastThisTurn: v.optional(
+        v.object({
+            me: v.optional(v.number()),
+            opp: v.optional(v.number()),
+        })
+    ),
+    spellsCastThisGame: v.optional(
+        v.object({
+            me: v.optional(v.number()),
+            opp: v.optional(v.number()),
+        })
+    ),
+    // CR 702.40a — Storm's own tally: spells cast by ANY player this turn,
+    // `GameState.spellsCastThisTurn`. Named for the mechanic and NOT derived
+    // from the per-seat pair above: the engine keeps the game-level count
+    // separately (`emitSpellCastEvent` increments it even when the caster
+    // matches no seat), so summing the seats would substitute a plausible
+    // number for the captured one.
+    stormCount: v.optional(v.number()),
     // CR 102.1 / 117.1 (issue #3454) — the TURN HOLDER and the PRIORITY
     // holder, the two facts that decide WHICH decision a rebuilt position
     // poses. Without them every position captured with priority on the
@@ -225,6 +255,20 @@ export type ScenarioSpec = {
      *  spec written before this field keeps rebuilding a board with the land
      *  drop available. */
     landsPlayed?: { me?: number; opp?: number };
+    /** CR 601.2i (issue #3449) — spells THIS SEAT has cast during the current
+     *  turn (`PlayerState.spellsCastThisTurn`, the per-player counterpart of
+     *  the storm tally): what "a player's second spell each turn" (connive,
+     *  CR 701.50) reads. */
+    spellsCastThisTurn?: { me?: number; opp?: number };
+    /** CR 118.9 (issue #3449) — spells THIS SEAT has cast during the whole
+     *  game (`PlayerState.spellsCastThisGame`, never reset). Gates a COST and
+     *  therefore legality: Once Upon a Time is free only while it is 0. */
+    spellsCastThisGame?: { me?: number; opp?: number };
+    /** CR 702.40a (issue #3449) — Storm's count of spells cast by ANY player
+     *  this turn (`GameState.spellsCastThisTurn`). Kept as its own field
+     *  rather than derived from the per-seat pair above: the engine tallies
+     *  the two separately. */
+    stormCount?: number;
     /** CR 102.1 (issue #3454) — whose turn the position is. Omitted leaves the
      *  base state's turn holder untouched, which is what every spec written
      *  before this field meant. */
@@ -546,6 +590,19 @@ export function normalizeScenarioSpec(raw: unknown): ScenarioSpec {
         set(landsPlayed, "opp", pickNumber(raw.landsPlayed.opp));
         spec.landsPlayed = landsPlayed;
     }
+    if (isRecord(raw.spellsCastThisTurn)) {
+        const pair: { me?: number; opp?: number } = {};
+        set(pair, "me", pickNumber(raw.spellsCastThisTurn.me));
+        set(pair, "opp", pickNumber(raw.spellsCastThisTurn.opp));
+        spec.spellsCastThisTurn = pair;
+    }
+    if (isRecord(raw.spellsCastThisGame)) {
+        const pair: { me?: number; opp?: number } = {};
+        set(pair, "me", pickNumber(raw.spellsCastThisGame.me));
+        set(pair, "opp", pickNumber(raw.spellsCastThisGame.opp));
+        spec.spellsCastThisGame = pair;
+    }
+    set(spec, "stormCount", pickNumber(raw.stormCount));
     const activePlayer = pickString(raw.activePlayer);
     if (activePlayer === "me" || activePlayer === "opp") {
         spec.activePlayer = activePlayer;

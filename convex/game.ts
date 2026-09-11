@@ -17693,6 +17693,31 @@ export const debugSetupScenario = mutation({
                 opp: v.optional(v.number()),
             })
         ),
+        /** CR 601.2i / 118.9 (issue #3449, PRD #3397) — what each seat has
+         *  already CAST: spells this turn (the per-player counterpart of the
+         *  storm tally, read by "a player's second spell each turn") and
+         *  spells this game (never reset, read by Once Upon a Time's free
+         *  cast — so it gates a COST and therefore legality). Per-seat and
+         *  both-optional, mirroring `poison`/`life`/`experience`; an explicit
+         *  0 pins "this seat has cast nothing", which on a live game is a
+         *  different claim from omitting the field. */
+        spellsCastThisTurn: v.optional(
+            v.object({
+                me: v.optional(v.number()),
+                opp: v.optional(v.number()),
+            })
+        ),
+        spellsCastThisGame: v.optional(
+            v.object({
+                me: v.optional(v.number()),
+                opp: v.optional(v.number()),
+            })
+        ),
+        /** CR 702.40a (issue #3449) — the Storm count: spells cast by ANY
+         *  player this turn (`GameState.spellsCastThisTurn`). Its own arg
+         *  rather than a sum of the two seats above, which the engine tallies
+         *  separately. */
+        stormCount: v.optional(v.number()),
         /** CR 102.1 / 117.1 / 117.4 (issue #3454) — the turn holder, the
          *  priority holder and the passes already banked. `activePlayer:
          *  "opp"` with `priority: "me"` places an instant-speed decision on

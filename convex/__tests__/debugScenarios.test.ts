@@ -175,6 +175,14 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
             activePlayer: "opp",
             priority: "me",
             passCount: 1,
+            // CR 601.2i / 118.9 / 702.40a (issue #3449) — what has already
+            // been cast. Same argument as the three above: normalize is the
+            // only path a stored row reaches the builder by, and a dropped
+            // tally reopens a judged position at a free Once Upon a Time and
+            // a storm count of zero.
+            spellsCastThisTurn: { me: 2, opp: 1 },
+            spellsCastThisGame: { me: 6 },
+            stormCount: 3,
         };
         expect(normalizeScenarioSpec(raw)).toEqual({
             cards: [
@@ -201,7 +209,56 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
             activePlayer: "opp",
             priority: "me",
             passCount: 1,
+            spellsCastThisTurn: { me: 2, opp: 1 },
+            spellsCastThisGame: { me: 6 },
+            stormCount: 3,
         });
+    });
+
+    // CR 601.2i / 118.9 / 702.40a (issue #3449) — the per-seat pairs are
+    // tolerant the same way `life` is, and `stormCount` is a bare number:
+    // a garbage value is DROPPED, never passed through to the builder, which
+    // would otherwise write a string onto `GameState.spellsCastThisTurn` and
+    // make every storm trigger count `NaN` copies.
+    it("normalizes the spells-cast tallies and the storm count — both seats, one seat, absent, garbage", () => {
+        expect(
+            normalizeScenarioSpec({
+                cards: [],
+                spellsCastThisTurn: { me: 2, opp: 1 },
+                spellsCastThisGame: { me: 6, opp: 4 },
+                stormCount: 3,
+            })
+        ).toEqual({
+            cards: [],
+            spellsCastThisTurn: { me: 2, opp: 1 },
+            spellsCastThisGame: { me: 6, opp: 4 },
+            stormCount: 3,
+        });
+
+        // One seat only, and an explicit 0 — a real claim ("this seat has cast
+        // nothing"), never trimmed as if it were absent.
+        expect(
+            normalizeScenarioSpec({
+                cards: [],
+                spellsCastThisGame: { me: 0 },
+                stormCount: 0,
+            })
+        ).toEqual({
+            cards: [],
+            spellsCastThisGame: { me: 0 },
+            stormCount: 0,
+        });
+
+        expect(normalizeScenarioSpec({ cards: [] })).toEqual({ cards: [] });
+
+        expect(
+            normalizeScenarioSpec({
+                cards: [],
+                spellsCastThisTurn: { me: "two" },
+                spellsCastThisGame: "six",
+                stormCount: "three",
+            })
+        ).toEqual({ cards: [], spellsCastThisTurn: {} });
     });
 
     // CR 102.1 / 117.1 / 117.4 (issue #3454) — the seat fields are a CLOSED
