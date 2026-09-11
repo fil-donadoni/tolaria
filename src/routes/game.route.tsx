@@ -8,15 +8,15 @@ import Board from "~/components/board/board";
 import ManualBoardContainer from "~/components/board/manual-board-container";
 import ManualGameOverDialog from "~/components/board/manual-game-over-dialog";
 import PregameDialog from "~/components/board/pregame-dialog";
-import DebugPanel from "~/components/debug/debug-panel";
-import AiDecisionTraceBox from "~/components/debug/ai-decision-trace-box";
-import DevPanelRail from "~/components/debug/dev-panel-rail";
+import DebugSheet from "~/components/debug/debug-sheet";
 import LoadingScreen from "~/components/ui/loading-screen";
 import WaitingForOpponent from "~/components/board/waiting-for-opponent";
 import OrientationHint from "~/components/ui/orientation-hint";
+import { useCurrentUser } from "~/hooks/useCurrentUser";
 import { useDocumentTitle } from "~/hooks/useDocumentTitle";
 import { usePageVisible } from "~/hooks/usePageVisible";
 import { useViewportMode } from "~/hooks/useViewportMode";
+import { canUseDebugSheet } from "~/lib/adminGating";
 import { clearSession, getStoredSession } from "~/lib/session";
 
 type GameStatus = NonNullable<
@@ -41,8 +41,13 @@ export default function GameRoute() {
     // (#2639), never a broken-state warning.
     const viewportMode = useViewportMode();
     const [session, setSession] = useState(() => getStoredSession());
-    const [showAllCards, setShowAllCards] = useState(false);
-    const [debugAllActions, setDebugAllActions] = useState(false);
+
+    // Who may open the debug sheet (issue #3403): a tester in any build, and
+    // whoever is signed in to a dev build. The predicate is cosmetic — every
+    // action inside the sheet is gated on its own server-side mutation — but
+    // it is what keeps a regular player's board free of the toggle.
+    const currentUser = useCurrentUser();
+    const showDebugSheet = import.meta.env.DEV || canUseDebugSheet(currentUser);
 
     const pageVisible = usePageVisible();
     const game = useQuery(
@@ -170,30 +175,23 @@ export default function GameRoute() {
                         playerId={playerId}
                         solo={game.solo === true}
                         vsAi={game.vsAi === true}
-                        showAllCards={showAllCards}
-                        debugAllActions={debugAllActions}
+                        // Both debug view modes lost their only toggles with
+                        // the seven buttons issue #3403 removed; the board's
+                        // props stay (they are read through `GameContext` all
+                        // over the board subtree) and are simply always off.
+                        showAllCards={false}
+                        debugAllActions={false}
                         onSwitchGame={handleSwitchGame}
                     />
                 </div>
-                {/* One left rail for every DEV overlay — it owns the anchoring
-                    so the panels stack instead of overlapping. */}
-                {import.meta.env.DEV && (
-                    <DevPanelRail>
-                        {game.vsAi === true && <AiDecisionTraceBox />}
-                        <DebugPanel
-                            gameId={gameId}
-                            playerId={playerId}
-                            showAllCards={showAllCards}
-                            onToggleShowAllCards={() =>
-                                setShowAllCards((v) => !v)
-                            }
-                            debugAllActions={debugAllActions}
-                            onToggleDebugAllActions={() =>
-                                setDebugAllActions((v) => !v)
-                            }
-                            onSwitchGame={handleSwitchGame}
-                        />
-                    </DevPanelRail>
+                {/* The tester debug surface: one left sheet behind a slim
+                    edge toggle (issue #3403). */}
+                {showDebugSheet && (
+                    <DebugSheet
+                        gameId={gameId}
+                        playerId={playerId}
+                        vsAi={game.vsAi === true}
+                    />
                 )}
             </div>
         );

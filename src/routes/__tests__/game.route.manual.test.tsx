@@ -18,7 +18,7 @@ vi.mock("convex/react", () => ({
     useMutation: () => vi.fn(),
 }));
 vi.mock("@convex/_generated/api", () => ({
-    api: { game: { getGame: {}, leaveGame: {} } },
+    api: { game: { getGame: {}, leaveGame: {} }, users: { currentUser: {} } },
 }));
 vi.mock("@tanstack/react-router", () => ({
     useNavigate: () => vi.fn(),
@@ -43,13 +43,7 @@ vi.mock("~/components/board/pregame-dialog", () => ({ default: () => null }));
 vi.mock("~/components/board/waiting-for-opponent", () => ({
     default: () => null,
 }));
-vi.mock("~/components/debug/debug-panel", () => ({ default: () => null }));
-vi.mock("~/components/debug/ai-decision-trace-box", () => ({
-    default: () => null,
-}));
-vi.mock("~/components/debug/dev-panel-rail", () => ({
-    default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
+vi.mock("~/components/debug/debug-sheet", () => ({ default: () => null }));
 vi.mock("~/components/ui/loading-screen", () => ({ default: () => null }));
 
 import GameRoute from "../game.route";

@@ -74,6 +74,11 @@ const POPUP_SELECTORS = [
     '[data-slot="dialog-content"]',
     '[data-slot="popover-content"]',
     '[data-slot="context-menu-content"]',
+    // The tester debug sheet (issue #3403). It is NON-modal, so nothing else
+    // stops this handler from running while it is open: without this entry
+    // Escape would close the sheet AND pop the pause menu behind it in the
+    // same keystroke.
+    '[data-slot="sheet-content"]',
 ].join(",");
 
 type BoardProps = {

@@ -45,7 +45,7 @@ export default function DebugScenarioRow({
 }) {
     const hasPrompt = typeof row.prompt === "string" && row.prompt.length > 0;
     return (
-        <div className="flex items-center gap-1">
+        <div className="flex min-w-0 items-center gap-1">
             <DebugButton onClick={onToggleGolden} disabled={disabled}>
                 <span
                     className={
@@ -56,7 +56,14 @@ export default function DebugScenarioRow({
                 </span>
             </DebugButton>
             {onLoad ? (
-                <DebugButton onClick={onLoad} disabled={disabled}>
+                <DebugButton
+                    onClick={onLoad}
+                    disabled={disabled}
+                    // The label is the only elastic cell in the row (#3403):
+                    // everything else is a one-glyph verb that must stay
+                    // reachable at the debug sheet's 293px phone width.
+                    className="min-w-0 shrink justify-start truncate text-left"
+                >
                     {row.label}
                 </DebugButton>
             ) : (

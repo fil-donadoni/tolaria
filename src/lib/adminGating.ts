@@ -71,3 +71,28 @@ export function canSubmitVerdicts(
 ): boolean {
     return user?.isTester === true || user?.isAdmin === true;
 }
+
+/**
+ * Whether the game board mounts the Debug sheet — the left sheet holding the
+ * AI decision box and the three tester actions (issue #3403, PRD #3397).
+ *
+ * Same population as {@link canSubmitVerdicts} and for the same reason: the
+ * sheet is where a tester WATCHES the decision they are about to judge, so an
+ * account that may give a Verdict must be able to open it. Kept as its own
+ * predicate rather than an alias because the two answer different questions —
+ * "may this account judge a decision" vs "does this account get the debug
+ * surface" — and the next role added to either must not silently join the
+ * other.
+ *
+ * The route ORs this with `import.meta.env.DEV`: a dev build mounts the sheet
+ * for whoever is signed in, so local work needs no role grant.
+ *
+ * Cosmetic, as always. Every action inside the sheet is gated server-side on
+ * its own mutation (`debugResetGame`, the scenario mutations); hiding the
+ * sheet is not what stops a non-tester from calling them.
+ */
+export function canUseDebugSheet(
+    user: AdminGateUser | null | undefined
+): boolean {
+    return user?.isTester === true || user?.isAdmin === true;
+}

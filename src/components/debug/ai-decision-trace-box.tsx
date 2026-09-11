@@ -1,12 +1,14 @@
-// Box for the Bot's last DecisionTrace, mounted in the left `DevPanelRail`.
+// Box for the Bot's last DecisionTrace, mounted at the top of the left
+// `DebugSheet` (issue #3403).
 //
-// Kept a SEPARATE box from the Debug panel on purpose: the Debug panel closes on
-// any click-outside, which would dismiss the trace the moment you interact with
-// the board. This box has its OWN collapse toggle and no outside-click listener,
-// so it stays put while you play and watch the bot decide. It does NOT position
-// itself — the rail owns the anchoring, which is what keeps the two overlays
-// from overlapping. Mounted only in DEV vs-AI games (see game.route). Reads the
-// client-only trace store via the inner `AiDecisionTrace`.
+// It does NOT position or size itself — the sheet owns both, which is what lets
+// the same box sit in a 400px-wide phone sheet and a capped desktop one. It
+// keeps its own collapse toggle so a tester can fold the trace away and still
+// reach the actions below it, and it has no outside-click listener of its own:
+// the sheet is non-modal and pointer-undismissable, so watching the bot decide
+// while clicking through the board is the normal way to use it. Mounted only
+// for a vs-AI game (see `debug-sheet.tsx`). Reads the client-only trace store
+// via the inner `AiDecisionTrace`.
 
 import { useState } from "react";
 import { Panel } from "~/components/ui/panel";
@@ -18,7 +20,7 @@ export default function AiDecisionTraceBox() {
     const [open, setOpen] = useState(true);
 
     return (
-        <Panel density="compact" className="w-72 shrink-0 px-3 py-2">
+        <Panel density="compact" className="w-full min-w-0 shrink-0 px-3 py-2">
             {/* Toggle kept as the original compact dev affordance — the big
                     Beleren `PanelHeader` band is deliberately NOT used here. */}
             <button

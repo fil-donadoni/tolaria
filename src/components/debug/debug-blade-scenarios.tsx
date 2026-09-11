@@ -67,7 +67,10 @@ export default function DebugBladeScenarios({
                     </span>
                 ) : (
                     scenarios.map((s) => (
-                        <div key={s.label} className="flex items-center gap-1">
+                        <div
+                            key={s.label}
+                            className="flex min-w-0 items-center gap-1"
+                        >
                             <span
                                 className={
                                     s.tier === "must"
@@ -85,6 +88,10 @@ export default function DebugBladeScenarios({
                             <DebugButton
                                 onClick={() => void handleLoad(s.label)}
                                 disabled={pendingLabel !== null}
+                                // See `debug-scenario-row.tsx` (#3403): the
+                                // label shrinks so the tier chip beside it
+                                // stays inside the sheet at phone width.
+                                className="min-w-0 shrink justify-start truncate text-left"
                             >
                                 {pendingLabel === s.label
                                     ? "Loading…"
