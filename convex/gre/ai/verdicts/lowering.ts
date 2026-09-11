@@ -9,9 +9,11 @@
 //     MEASURE which refusals actually fire instead of sampling whichever one a
 //     tester happened to screenshot;
 //  2. a second caller is how a second vocabulary gets invented. The refusal
-//     kinds below are a frozen union, not free prose: the quiz renders them,
-//     the sweep counts them, and a new refusal cannot be added on one side
-//     without the other side's exhaustive switch going red.
+//     kinds below are a frozen union, not free prose, derived from ONE array so
+//     a new refusal cannot be declared without also being countable. Today the
+//     only consumer of the kind is the sweep — the debug panel still renders
+//     the prose `error` alone; issue #3457 is what gives the panel a title per
+//     kind, and it inherits this vocabulary rather than inventing a second.
 //
 // Every failure is returned as DATA. A position that cannot be lowered, a
 // rebuild the seat no longer owes a decision on, a pick the rebuilt list does
@@ -50,9 +52,16 @@ export const QUIZ_SEAT = "me" as const;
  * Why a Bot decision could NOT become a Verdict — the frozen union.
  *
  * One member per refusal SITE in {@link lowerDecision}, in the order the sites
- * run. It is a closed vocabulary on purpose: it is what the quiz titles a
- * refusal with and what the lowering sweep ranks, so "how often does the stack
- * cost us a verdict?" is a lookup rather than a regex over prose.
+ * run. It is a closed vocabulary on purpose: it is what a refusal is TITLED
+ * with and what the lowering sweep ranks, so "how often does the stack cost us
+ * a verdict?" is a lookup rather than a regex over prose.
+ *
+ * The ARRAY is the source and the union derives from it, never the reverse. A
+ * hand-written `readonly VerdictRefusalKind[]` parallel to a hand-written union
+ * constrains each element to be a kind but never requires every kind to be
+ * PRESENT — so a ninth member added to the union alone keeps `tsc` green while
+ * `LoweringSweepTally` seeds no counter for it and the whole refusals cell
+ * becomes `NaN` on the first decision that hits it (PR review, issue #3461).
  *
  *  - `opponent-turn` — priority on the opponent's turn; `ScenarioSpec` has no
  *    field for the turn holder.
@@ -66,20 +75,7 @@ export const QUIZ_SEAT = "me" as const;
  *  - `different-decision` — the rebuilt candidate list is not the live one.
  *  - `pick-not-offered` — the rebuild does not offer the move that was played.
  */
-export type VerdictRefusalKind =
-    | "opponent-turn"
-    | "stack-not-empty"
-    | "lowering-threw"
-    | "rebuild-threw"
-    | "no-decision-owed"
-    | "single-candidate"
-    | "different-decision"
-    | "pick-not-offered";
-
-/** Every {@link VerdictRefusalKind}, in refusal-site order. Exported so a
- *  consumer that must enumerate them (a report's rows, a UI's title table)
- *  does not hand-copy the union and drift from it. */
-export const VERDICT_REFUSAL_KINDS: readonly VerdictRefusalKind[] = [
+export const VERDICT_REFUSAL_KINDS = [
     "opponent-turn",
     "stack-not-empty",
     "lowering-threw",
@@ -89,6 +85,8 @@ export const VERDICT_REFUSAL_KINDS: readonly VerdictRefusalKind[] = [
     "different-decision",
     "pick-not-offered",
 ] as const;
+
+export type VerdictRefusalKind = (typeof VERDICT_REFUSAL_KINDS)[number];
 
 /** One decision, lowered. */
 export type LoweredDecision = {

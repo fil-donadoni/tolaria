@@ -91,7 +91,17 @@ export type LoweringSweepReport = {
     /** How each game ended — a sweep whose games all hit a harness guard is
      *  measuring the guard, not the lowering, so the reason mix is reported. */
     endReasons: Record<string, number>;
-    /** Every Bot decision the search was asked for, across all games. */
+    /** Every SEARCHED decision, across all games: one per node where the
+     *  harness asked `search` for a move and got one back. Two kinds of node
+     *  are therefore NOT in this denominator — a resolution node (discard,
+     *  scry, may-pay: driven by `chooseResolution`, never by the search) and a
+     *  node where `search` returned null and the harness fell back to the only
+     *  enumerated move. The second would have lowered as `single-candidate`,
+     *  so excluding it makes the judgeable share read slightly HIGH; it is
+     *  excluded anyway because a forced move is not a decision a Verdict could
+     *  state a preference about. Mulligan keep/mull nodes ARE included — they
+     *  are searched, ~4 per game, and they are why `no-decision-owed` has a
+     *  small non-zero floor. */
     decisions: number;
     /** …of which a Verdict could be filed on. THE number. */
     judgeable: number;
@@ -128,7 +138,12 @@ export type DecisionObservation = {
  *
  *  Order matters: quotes first (a quoted phase name must not survive into the
  *  paren mask), the card-label prefix while its own parentheses are still
- *  there, then parentheses, then the numeric shapes. */
+ *  there, then parentheses, then the numeric shapes.
+ *
+ *  ONE site deliberately splits: the `priority:` message interpolates a whole
+ *  CLAUSE ("held by the active player, with a pass already banked" vs "held by
+ *  the non-active player"), and those are two different facts about the
+ *  position, not two renderings of one. They stay two rows. */
 export function droppedMessageClass(message: string): string {
     let out = message.replace(/"[^"]*"/g, '"…"');
     // `Grizzly Bears (opp, graveyard): …` — the per-card prefix `lowerCard`
@@ -147,6 +162,11 @@ export function droppedMessageClass(message: string): string {
         previous = out;
         out = out.replace(/\([^()]*\)/g, "(…)");
     } while (out !== previous);
+    // A slash-joined field list (`reportCharacteristicDrift`'s
+    // `drifted.join("/")`) — one site that would otherwise rank as up to
+    // fifteen separate causes, one per subset of the characteristics that
+    // drifted.
+    out = out.replace(/\b\w+(?:\/\w+)+\b/g, "<fields>");
     // Engine constants (phase names, …) — `A_B` shaped, so no English word can
     // be caught by accident.
     out = out.replace(/\b[A-Z]+(?:_[A-Z]+)+\b/g, "<CONST>");
@@ -363,6 +383,11 @@ export function formatLoweringReport(report: LoweringSweepReport): string {
         "",
         `  JUDGEABLE ${report.judgeable} / ${report.decisions} decisions (${share(report.judgeable, report.decisions)})`,
         "",
+        "  Headless self-play is a PERFECT-INFORMATION corpus: no hand carries",
+        "  PLACEHOLDER_CARD_ID, so the hidden-hand note and the `lowering-threw`",
+        "  refusal it drives are structurally absent here. This share is the",
+        "  engine's ceiling, not the debug panel's success rate in a browser.",
+        "",
     ];
 
     const refusalRows = VERDICT_REFUSAL_KINDS.map((kind) => ({
@@ -394,6 +419,12 @@ export function formatLoweringReport(report: LoweringSweepReport): string {
             report.dropped,
             report.decisions
         )
+    );
+    lines.push(
+        "  The three `live-only state not captured` rows are the RESIDUE tables",
+        "  below, rolled up with their keys masked away — read them there, not",
+        "  as three separate causes at the top of this one.",
+        ""
     );
     for (const scope of ["game", "player", "card"] as const) {
         lines.push(
