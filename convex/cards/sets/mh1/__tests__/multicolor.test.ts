@@ -269,9 +269,11 @@ describe("Fallen Shinobi (combat-damage impulse, CR 601.3 / 305.9 / 118.9)", () 
             // exiled this way is a legal land drop, where Ragavan's "cast"
             // wording leaves one dead.
             expect(exiled.castableFromExileIncludesLand).toBe(true);
-            // CR 406.3 — hidden from the cards' own owner's side, known to the
-            // player who may play them.
-            expect(exiled.knownTo).toEqual(["p1"]);
+            // CR 406.3 (issue #3001) — exiled FACE UP: the oracle says
+            // nothing about a face-down exile, so the cards' own owner (p2)
+            // may examine them too. Only the play permission is one-sided.
+            expect(exiled.knownTo).toBeUndefined();
+            expect(exiled.faceDownBy).toBeUndefined();
         }
     });
 
@@ -302,9 +304,11 @@ describe("Fallen Shinobi (combat-damage impulse, CR 601.3 / 305.9 / 118.9)", () 
     });
 
     // The wire format (mandatory for an outcome visible on the board): the
-    // exiled cards are projected into the OWNER's exile zone, and the identity
-    // is revealed only to the player who may play them (ADR 0026).
-    it("projects the exiled pile to p2's zone, identity visible only to p1", () => {
+    // exiled cards are projected into the OWNER's exile zone, and — since
+    // issue #3001 — their identity is public to BOTH players (CR 406.3: the
+    // oracle names no face-down exile, so the default face-up rule holds).
+    // Only the PLAY permission stays scoped to Fallen Shinobi's controller.
+    it("projects the exiled pile to p2's zone, identity visible to BOTH players", () => {
         const state = boardWithLibrary([
             makeInstance(lightningBolt.id, {
                 id: "opp-1",
@@ -327,14 +331,25 @@ describe("Fallen Shinobi (combat-damage impulse, CR 601.3 / 305.9 / 118.9)", () 
             grizzlyBears.id,
         ]);
 
+        // p1 holds the play permission, and only p1.
+        expect(
+            p2ExileForP1.every((c) => (c.legalActions ?? []).length > 0)
+        ).toBe(true);
+
         const forP2 = projectPublicState(state, 1, "p2");
         const p2ExileForP2 = forP2.players.find((p) => p.id === "p2")!.exile;
         expect(p2ExileForP2).toHaveLength(2);
-        // Face-down to its own owner (CR 406.3) — the projection must not leak
-        // the identity of a card only p1 is allowed to see.
-        expect(p2ExileForP2.map((c) => c.card.id)).not.toEqual([
+        // CR 406.3 (issue #3001) — the cards' OWNER sees what left their own
+        // library: real ids, no sentinel, no face-down marker.
+        expect(p2ExileForP2.map((c) => c.card.id)).toEqual([
             lightningBolt.id,
             grizzlyBears.id,
         ]);
+        for (const slim of p2ExileForP2) {
+            expect(slim.faceDown).toBeUndefined();
+            expect(slim.faceDownBy).toBeUndefined();
+            // Visibility is not permission: no affordance for the owner.
+            expect(slim.legalActions ?? []).toEqual([]);
+        }
     });
 });

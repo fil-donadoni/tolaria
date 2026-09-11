@@ -190,8 +190,9 @@ export const blazingRootwalla: CardDefinition = {
 // Elkin Bottle / Ice Cauldron, ice/colorless.ts; the cross-player exile-and-
 // grant shape specifically mirrors Robber of the Rich, eld/red.ts, almost
 // line for line): composes `createToken` + `peekLibraryTop` +
-// `exileFaceDown` + `grantCastFromExile(..., "this-turn")`, sourced from the
-// DAMAGED player's library rather than the caster's own. Dash is the SAME
+// `moveCardById(..., "exile")` (FACE UP, CR 406.3 / issue #3001) +
+// `grantCastFromExile(..., "this-turn")`, sourced from the DAMAGED player's
+// library rather than the caster's own. Dash is the SAME
 // factory-composed shape as Death-Greeter's Champion (moc/red.ts):
 // `CardDefinition.dash` + `dashTrigger(name)`.
 export const ragavanNimblePilferer: CardDefinition = {
@@ -225,14 +226,17 @@ export const ragavanNimblePilferer: CardDefinition = {
                     const top = ctx.peekLibraryTop(damagedPlayerId, 1);
                     if (top.length === 0) return; // empty library
                     const cardId = top[0];
-                    // CR 406.3 — exiled hidden to the opponent, known to
-                    // controller (Robber of the Rich / Headliner Scarlett
-                    // precedent).
-                    ctx.exileFaceDown(
+                    // CR 406.3 — exiled FACE UP, in the DAMAGED player's own
+                    // exile (CR 400.7): the oracle text says nothing about a
+                    // face-down exile, so both players — the card's own owner
+                    // included — may examine it (issue #3001). Headliner
+                    // Scarlett is the contrasting card: its oracle DOES say
+                    // "face down", so it keeps `exileFaceDown`.
+                    ctx.moveCardById(
                         damagedPlayerId,
                         cardId,
                         "library",
-                        ctx.controller
+                        "exile"
                     );
                     // Cross-player grant (Robber of the Rich shape): the card
                     // stays owned by (and exiled in) the DAMAGED player's zone

@@ -537,12 +537,14 @@ describe("Urza, Lord High Artificer — {5} shuffle/exile/free-cast ability (CR 
         expect(exiled.castableFromExileBy).toBe("p1");
         expect(exiled.castFromExileWithoutPayingManaCost).toBe(true);
         expect(exiled.castableFromExileIncludesLand).toBe(true);
-        // CR 406.3 — face down: hidden to the opponent, known to the
-        // controller.
-        expect(exiled.knownTo).toEqual(["p1"]);
+        // CR 406.3 (issue #3001) — exiled FACE UP: no oracle text here says
+        // "face down", so the default holds and no per-viewer knowledge is
+        // stamped. Both players may examine the card.
+        expect(exiled.knownTo).toBeUndefined();
+        expect(exiled.faceDownBy).toBeUndefined();
     });
 
-    it("wire format — the exile permission survives projectPublicState for the controller, stays hidden to the opponent", () => {
+    it("wire format — the exiled card is FACE UP to both players, castable by the controller alone (CR 406.3, issue #3001)", () => {
         const urza = makeInstance(urzaLordHighArtificer.id, {
             id: "urza",
             controllerId: "p1",
@@ -570,13 +572,22 @@ describe("Urza, Lord High Artificer — {5} shuffle/exile/free-cast ability (CR 
         // The controller sees the real card identity.
         expect(ownExile.card.id).toBe(grizzlyBears.id);
 
+        // The permission is the controller's alone.
+        expect(ownExile.legalActions ?? []).toContain("cast");
+
         const opponentView = projectPublicState(state, 1, "p2");
         const opponentExile = opponentView.players[0].exile.find(
             (c) => c.id === exiledId
         )!;
-        // Face down to the opponent (CR 406.3) — identity hidden, presence
-        // still visible.
-        expect(opponentExile.card.id).toBe(FACE_DOWN_CARD_ID);
+        // CR 406.3 (issue #3001) — FACE UP: Urza's oracle says nothing about
+        // a face-down exile, so the opponent reads the real identity, with no
+        // sentinel and no face-down marker anywhere on the wire.
+        expect(opponentExile.card.id).toBe(grizzlyBears.id);
+        expect(opponentExile.card.id).not.toBe(FACE_DOWN_CARD_ID);
+        expect(opponentExile.faceDown).toBeUndefined();
+        expect(opponentExile.faceDownBy).toBeUndefined();
+        // Visibility is not permission: the opponent gets no affordance.
+        expect(opponentExile.legalActions ?? []).toEqual([]);
     });
 
     it("no-ops cleanly on an empty library (CR 608.2b)", () => {

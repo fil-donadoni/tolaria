@@ -21,7 +21,7 @@ import {
 import { mustAttack } from "../../../../gre/combat";
 import { getLegalActions, assertLegalAction } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
-import { getDefinition } from "../../../index";
+import { getDefinition, FACE_DOWN_CARD_ID } from "../../../index";
 
 const mineCollapse = getDefinition("56e2e8b5-660d-4469-a4fe-2367dfadb709");
 const blazingRootwalla = getDefinition("4404fc9c-ef02-479c-9638-0cc163f0b48f");
@@ -263,9 +263,62 @@ describe("Ragavan, Nimble Pilferer (combat-damage impulse + Dash, CR 702.109a)",
         expect(exiled.castableFromExileBy).toBe("p1");
         expect(exiled.castableFromExileUntilTurn).toBe(3);
 
-        // CR 406.3 — hidden to the opponent (p2, the exile's own owner),
-        // known only to Ragavan's controller (p1).
-        expect(exiled.knownTo).toEqual(["p1"]);
+        // CR 406.3 (issue #3001) — exiled FACE UP: Ragavan's oracle says
+        // nothing about a face-down exile, so the card's own OWNER (p2, who
+        // just lost it off the top of their library) may examine it, exactly
+        // like p1. Only the cast permission above is one-sided.
+        expect(exiled.knownTo).toBeUndefined();
+        expect(exiled.faceDownBy).toBeUndefined();
+    });
+
+    // MANDATORY wire format (`.claude/rules/gre-development.md`): the exile
+    // pile is a board outcome, and the projection is the ONLY thing the
+    // client sees. CR 406.3's first sentence — "exiled cards are, by default,
+    // kept face up and may be examined by any player at any time" — is what
+    // this asserts, for the viewer the old behaviour hid it from hardest:
+    // the card's own OWNER (issue #3001).
+    it("wire format — the exiled card is FACE UP to its OWNER and to the thief, castable by the thief alone (CR 406.3, issue #3001)", () => {
+        const ragavan = makeInstance(ragavanNimblePilferer.id, {
+            id: "ragavan",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const oppTop = makeInstance(mineCollapse.id, {
+            id: "opp-top",
+            ownerId: "p2",
+            zone: "library",
+        });
+        const state = makeState({
+            turn: 3,
+            players: [
+                makePlayer("p1", { battlefield: [ragavan] }),
+                makePlayer("p2", { library: [oppTop] }),
+            ],
+        });
+        ragavanDealsDamage(state);
+
+        // The OWNER of the card (p2, the damaged player) reads the real
+        // identity off their own exile pile — the case the face-down stamp
+        // got exactly backwards, hiding a card from the player who lost it.
+        const forP2 = projectPublicState(state, 1, "p2");
+        const slimForP2 = forP2.players[1].exile.find(
+            (c) => c.id === "opp-top"
+        )!;
+        expect(slimForP2.card.id).toBe(mineCollapse.id);
+        expect(slimForP2.card.id).not.toBe(FACE_DOWN_CARD_ID);
+        expect(slimForP2.faceDown).toBeUndefined();
+        expect(slimForP2.faceDownBy).toBeUndefined();
+        // Visibility is not permission (CR 601.3): the owner may look, never cast.
+        expect(slimForP2.legalActions ?? []).toEqual([]);
+
+        // Ragavan's controller sees the same real card, and holds the grant.
+        const forP1 = projectPublicState(state, 1, "p1");
+        const slimForP1 = forP1.players[1].exile.find(
+            (c) => c.id === "opp-top"
+        )!;
+        expect(slimForP1.card.id).toBe(mineCollapse.id);
+        expect(slimForP1.faceDown).toBeUndefined();
+        expect(slimForP1.castableFromExileBy).toBe("p1");
     });
 
     // CR 305.9 / 116.2a (issue #1689) — Ragavan's oracle says "you may CAST

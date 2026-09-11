@@ -121,13 +121,14 @@ export const intiSeneschalOfTheSun: CardDefinition = {
                     const top = ctx.peekLibraryTop(discardingPlayerId, 1);
                     if (top.length === 0) return; // empty library
                     const cardId = top[0];
-                    // CR 406.3 — exiled hidden to the opponent, known to
-                    // controller (Ragavan / Robber of the Rich precedent).
-                    ctx.exileFaceDown(
+                    // CR 406.3 — exiled FACE UP: the oracle text says
+                    // nothing about a face-down exile, so both players may
+                    // examine it (issue #3001).
+                    ctx.moveCardById(
                         discardingPlayerId,
                         cardId,
                         "library",
-                        discardingPlayerId
+                        "exile"
                     );
                     // CR 305.9 (issue #1689) — oracle says "you may PLAY
                     // that card until your next end step", land-inclusive.

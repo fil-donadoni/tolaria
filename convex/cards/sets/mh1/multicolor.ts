@@ -112,15 +112,16 @@ export const fallenShinobi: CardDefinition = {
                     // there; a one-card library exiles one, an empty one none.
                     const top = ctx.peekLibraryTop(damagedPlayerId, 2);
                     for (const cardId of top) {
-                        // CR 406.3 — exiled hidden from the card's own owner's
-                        // opponents' view but known to this card's controller,
-                        // who is about to play it (the Robber of the Rich /
-                        // Ragavan precedent).
-                        ctx.exileFaceDown(
+                        // CR 406.3 — exiled FACE UP, in the DAMAGED player's
+                        // own exile (CR 400.7): the oracle text says nothing
+                        // about a face-down exile, so both players — the
+                        // card's owner included — may examine it (issue
+                        // #3001). Only the permission below is one-sided.
+                        ctx.moveCardById(
                             damagedPlayerId,
                             cardId,
                             "library",
-                            ctx.controller
+                            "exile"
                         );
                         // CR 601.3 / 305.9 / 118.9 — the cross-player grant:
                         // the card stays owned by (and exiled in) the DAMAGED

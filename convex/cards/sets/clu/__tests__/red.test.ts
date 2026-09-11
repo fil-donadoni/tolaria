@@ -14,7 +14,7 @@ import { applyRaisedTargetFinalization } from "../../../../gre/pendingTargetOrig
 import { finalizeCleanup } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
 import type { GameState, StackItem } from "../../../../gre/state";
-import { getDefinition } from "../../../index";
+import { getDefinition, FACE_DOWN_CARD_ID } from "../../../index";
 
 const headlinerScarlett = getDefinition("be77b98a-dd79-477c-8ab2-7ebf5637a89e");
 const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
@@ -131,10 +131,32 @@ describe("Headliner Scarlett (CR 603.6a ETB block-lock + CR 603.6a upkeep impuls
         expect(state.players[0].library).toHaveLength(0);
         const exiled = state.players[0].exile.find((c) => c.id === "top")!;
         expect(exiled.castableFromExileBy).toBe("p1");
+        // CR 406.3 — Headliner Scarlett's oracle says "exile the top card of
+        // your library FACE DOWN" IN SO MANY WORDS, which is what earns it the
+        // face-down primitive. The counter-case to issue #3001: the impulse
+        // cards lost their knowledge stamp; a card that genuinely names a
+        // face-down exile keeps it.
         expect(exiled.knownTo).toEqual(["p1"]);
+        expect(exiled.faceDownBy).toBe("face-down-exile");
         // CR 514.2 / 608.2g — "play that card THIS TURN": the grant is stamped
         // with the current turn number so CLEANUP revokes it at end of turn.
         expect(exiled.castableFromExileUntilTurn).toBe(state.turn);
+
+        // MANDATORY wire format, and the no-over-correction guard for issue
+        // #3001: the NON-knower still gets the sentinel, never the real id.
+        const forP2 = projectPublicState(state, 1, "p2");
+        const slimForP2 = forP2.players[0].exile.find((c) => c.id === "top")!;
+        expect(slimForP2.card.id).toBe(FACE_DOWN_CARD_ID);
+        expect(slimForP2.card.id).not.toBe(balduvianBears.id);
+        expect(slimForP2.faceDown).toBe(true);
+        expect(slimForP2.faceDownBy).toBe("face-down-exile");
+        expect(JSON.stringify(slimForP2)).not.toContain(balduvianBears.id);
+        // The knower reads the real card, and is TOLD it is face down (CR
+        // 406.3 gives them a LOOK, not a face-up card).
+        const forP1 = projectPublicState(state, 1, "p1");
+        const slimForP1 = forP1.players[0].exile.find((c) => c.id === "top")!;
+        expect(slimForP1.card.id).toBe(balduvianBears.id);
+        expect(slimForP1.faceDown).toBe(true);
     });
 
     it("upkeep trigger is a no-op with an empty library", () => {

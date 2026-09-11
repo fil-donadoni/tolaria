@@ -20252,8 +20252,8 @@ export function buildSpellContext(
         // you" notification (separate from the persistent `markKnown` /
         // `markKnownToAll` knowledge grant, which the caller still does). Opt-in
         // for pure look/reveal cards (Mishra's Bauble, Gitaxian Probe): NOT
-        // wired into the knowledge primitives, so scry / surveil / impulse-exile
-        // never pop a dialog. Snapshots the cards by scanning every zone so the
+        // wired into the knowledge primitives, so scry / surveil / a
+        // face-down exile never pop a dialog. Snapshots the cards by scanning every zone so the
         // entry is self-contained (renders even after the cards move). The id is
         // resolution-derived (replay-stable, never wall-clock). No-op when the
         // audience or the resolved card set is empty (CR 608.2b).
@@ -20297,19 +20297,19 @@ export function buildSpellContext(
             };
             state.pendingReveals = [...(state.pendingReveals ?? []), entry];
         },
-        // ADR 0026 / PRD #338 (slice 6) — impulse-draw: exile a card face down
-        // for `knowerId` alone to look at (CR 406.3). Reuses `knownTo` (NOT a
-        // new face-down-exile field; `faceDownOf` stays scoped to battlefield
-        // morphs). No-op if the card isn't in `from`.
+        // CR 406.3 / ADR 0026 (PRD #338 slice 6) — exile a card FACE DOWN,
+        // for `knowerId` alone to look at. Reuses `knownTo` (NOT a new
+        // face-down-exile field; `faceDownOf` stays scoped to battlefield
+        // morphs). ONLY for cards whose ORACLE TEXT says "face down": the
+        // impulse idiom left this primitive with issue #3001 and reaches
+        // exile through `moveCardById`, which stamps nothing. No-op if the
+        // card isn't in `from`.
         exileFaceDown(
             ownerId: string,
             cardInstanceId: string,
             from: "library" | "hand" | "graveyard",
             knowerId: string,
-            producer: Extract<
-                FaceDownProducer,
-                "face-down-exile" | "impulse-exile"
-            > = "impulse-exile"
+            producer: Extract<FaceDownProducer, "face-down-exile">
         ): void {
             const player = getPlayer(state, ownerId);
             const moved = exileFaceDownCard(
@@ -20321,8 +20321,9 @@ export function buildSpellContext(
             );
             // issue #1558 — feeds "whenever one or more cards are put into
             // exile from your library and/or your graveyard" triggers
-            // (Laelia, the Blade Reforged's OWN second ability fires off her
-            // first ability's impulse-exile — the card's core growth loop).
+            // (Laelia, the Blade Reforged's second ability). A face-down
+            // exile is an exile like any other: the event says WHICH zone the
+            // card left, never what the card was.
             if (moved) {
                 emitCardsExiled(state, [
                     {
@@ -20776,8 +20777,9 @@ export function buildSpellContext(
             // The graveyard and exile are open zones (CR 404.1 / 406.1), so a
             // card there is public UNLESS something made it otherwise: a
             // per-viewer `knownTo` grant, which is exactly what
-            // `exileFaceDownCard` stamps for a hideaway / impulse card and what
-            // `projectExileCard` re-derives on the wire. A hidden zone is not
+            // `exileFaceDownCard` stamps for an oracle-face-down card
+            // (hideaway, Memory Jar) and what `projectExileCard` re-derives on
+            // the wire. A hidden zone is not
             // in the parameter's type at all — a hand card has no public
             // identity to disclose (CR 402.1), so the question is
             // unrepresentable rather than a branch returning `undefined`.
@@ -21229,8 +21231,9 @@ export function buildSpellContext(
 
 /** ADR 0026 — zones in which a card's identity is universally known. Entering
  *  any of these clears the instance's persistent per-viewer `knownTo`. (Exile
- *  is treated as public here; face-down exile / impulse-draw — which keeps the
- *  card known to its controller — is a later slice and will gate this.) */
+ *  is treated as public here, CR 406.3's default; the oracle-face-down exile —
+ *  which keeps the card known to one player only — deliberately bypasses this
+ *  mover via `exileFaceDownCard` rather than gating it.) */
 const PUBLIC_ZONES = new Set<Zone>(["battlefield", "graveyard", "exile"]);
 
 const ZONE_TO_FIELD: Record<Exclude<Zone, "stack">, keyof PlayerState> = {
@@ -22183,9 +22186,9 @@ export function moveCard(
     if (from === "exile") delete card.exiledBySourceId;
     // CR 122.1e / 400.7 — a counter exists only on the object it's on in its
     // current zone; a zone change makes a new object with no counters. A card
-    // leaving exile (Dauthi Voidwalker's void-countered card being played, an
-    // impulse-exiled card returned to hand) must not carry its exile counters
-    // into the new zone. Scoped to exile departures on purpose: the
+    // leaving exile (Dauthi Voidwalker's void-countered card being played, a
+    // card returned to hand from an impulse window) must not carry its exile
+    // counters into the new zone. Scoped to exile departures on purpose: the
     // battlefield→graveyard path preserves counters as last-known-information
     // for death triggers and does not route through this primitive.
     if (from === "exile") delete card.counters;
@@ -22282,7 +22285,7 @@ export function moveCard(
  *  here, which is the graveyard/exile → hand/library path this closes.
  *
  *  Face-down exemption (CR 406.3): a card that left exile FACE DOWN
- *  (`exileFaceDownCard`, `knownTo` scoped to its one knower — impulse-draw)
+ *  (`exileFaceDownCard`, `knownTo` scoped to its one knower — Memory Jar)
  *  and is later moved from exile to hand/library through this chokepoint
  *  must NOT be stamped known to every player — that would over-reveal it.
  *  `projectExileCard` already treats a non-empty `knownTo` on an exiled card
@@ -22353,11 +22356,19 @@ function moveCardWithGraveyardReplacement(
     return moved;
 }
 
-/** ADR 0026 / PRD #338 (slice 6) — exiles a card FACE DOWN for `knowerId` to
- *  look at (impulse-draw, e.g. "exile the top card; you may look at it"). The
+/** CR 406.3 / ADR 0026 (PRD #338 slice 6) — exiles a card FACE DOWN for
+ *  `knowerId` to look at, for the cards whose ORACLE TEXT says "face down"
+ *  (Memory Jar, Necropotence, Headliner Scarlett, CR 702.75a hideaway). The
  *  card moves to its owner's exile pile but, unlike a normal (face-up) exile,
- *  its identity stays secret to everyone except `knowerId`: it is the controller
+ *  its identity stays secret to everyone except `knowerId`: it is the knower
  *  alone who is stamped into `knownTo`.
+ *
+ *  NOT the impulse idiom (issue #3001): "exile the top card of your library;
+ *  you may play it this turn" says nothing about face down, so CR 406.3's
+ *  first sentence leaves the card face up and examinable by ANY player. Those
+ *  cards call `moveCardById(owner, id, from, "exile")` — the ordinary
+ *  zone-mover, which clears `knownTo` on entry to a public zone — and grant
+ *  the play permission separately: visibility and permission are orthogonal.
  *
  *  This deliberately does NOT route through `moveCard` (which treats exile as a
  *  public zone and strips `knownTo`, CR 406 — exile is normally an open zone).
@@ -22376,10 +22387,11 @@ export function exileFaceDownCard(
     cardInstanceId: string,
     from: Exclude<Zone, "stack" | "battlefield">,
     knowerId: string,
-    producer: Extract<
-        FaceDownProducer,
-        "face-down-exile" | "impulse-exile"
-    > = "impulse-exile"
+    /** WHICH mechanic hid it (issue #2904) — REQUIRED since issue #3001, so a
+     *  new call site cannot silently inherit opponent-hiding by omission. The
+     *  only face-down producer that names a CARD IN EXILE rather than a
+     *  permanent; morph / cast-face-down go through `turnFaceDown`. */
+    producer: Extract<FaceDownProducer, "face-down-exile">
 ): CardInstanceState | null {
     const fromField = ZONE_TO_FIELD[from];
     const sourceZone = player[fromField] as CardInstanceState[];

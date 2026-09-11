@@ -1028,6 +1028,54 @@ describe("gameStates serialize round-trip", () => {
         ).toBe("face-down-exile");
     });
 
+    // issue #3001 — RETIRING a `FaceDownProducer` member does not retire the
+    // rows already holding it: `gameStates` is one row per game, patched in
+    // place, so a game in flight when the impulse idiom went face up still
+    // carries `faceDownBy: "impulse-exile"` with the `knownTo` grant beside
+    // it. The expand seam is a bare type assertion that would believe the
+    // string, hand the client a producer its face table no longer has, and
+    // keep hiding the card from an opponent CR 406.3 entitles to see it.
+    it("heals a RETIRED faceDownBy producer, and the per-viewer grant it accompanied, on expand (issue #3001)", () => {
+        const state = freshState();
+        const exiled = makeInstance(lightningBolt.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "exile",
+            knownTo: ["p1"],
+            // Not in the union any more; only a persisted row can carry it.
+            faceDownBy: "impulse-exile" as unknown as "face-down-exile",
+        });
+        state.players[0].exile.push(exiled);
+
+        const expanded = expandState(compactState(state));
+        const healed = expanded.players[0].exile.find(
+            (c) => c.id === exiled.id
+        )!;
+        expect(healed.faceDownBy).toBeUndefined();
+        // Both halves, or none: a row left with `knownTo` and no producer is
+        // still hidden from the opponent AND now marked face down to its own
+        // knower, which is worse than either end state.
+        expect(healed.knownTo).toBeUndefined();
+    });
+
+    // The counter-case: a card with NO producer at all is pre-#2904 state, a
+    // legitimate face-down exile whose grant must survive untouched.
+    it("leaves a producer-less face-down exiled card's knownTo alone (pre-#2904 state)", () => {
+        const state = freshState();
+        const exiled = makeInstance(lightningBolt.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "exile",
+            knownTo: ["p1"],
+        });
+        state.players[0].exile.push(exiled);
+
+        const expanded = expandState(compactState(state));
+        const kept = expanded.players[0].exile.find((c) => c.id === exiled.id)!;
+        expect(kept.knownTo).toEqual(["p1"]);
+        expect(kept.faceDownBy).toBeUndefined();
+    });
+
     // Issue #791 / #1319 (CR 111 / 610.3) — the per-source exile provenance
     // link (Currency Converter's "exiled with this artifact", generalized as
     // the linked-exile tracking foundation) must survive a save/load so a

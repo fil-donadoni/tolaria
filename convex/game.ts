@@ -16931,10 +16931,13 @@ export const debugSetupScenario = mutation({
                  *  colourless vanilla creature whose real identity is hidden
                  *  from the opponent. Battlefield only. */
                 faceDown: v.optional(v.boolean()),
-                /** Exile this card FACE DOWN (impulse-draw, CR 406.3,
-                 *  ADR 0026 slice 6): a card in the exile pile whose identity
-                 *  is known only to its controller (`knownTo`). Exile zone
-                 *  only. */
+                /** Exile this card FACE DOWN (CR 406.3, ADR 0026 slice 6):
+                 *  a card in the exile pile whose identity is known only to
+                 *  its controller (`knownTo`) — the shape of the cards whose
+                 *  ORACLE TEXT says "face down" (Memory Jar, Necropotence,
+                 *  Headliner Scarlett, hideaway). NOT the impulse idiom,
+                 *  which exiles FACE UP and stamps nothing (issue #3001).
+                 *  Exile zone only. */
                 faceDownExile: v.optional(v.boolean()),
                 /** Grant "me" a play-from-exile permission on this exiled card
                  *  (CR 601.3 / 305.1-analog / 608.2g, #946): an impulse "you
@@ -16942,8 +16945,10 @@ export const debugSetupScenario = mutation({
                  *  / Expressive Iteration). Sets `castableFromExileBy` + a
                  *  this-turn expiry so a Play (land) / Cast (spell) affordance
                  *  appears, revoked at
-                 *  the next cleanup. Exile zone only; combine with
-                 *  `faceDownExile` for the true impulse look. */
+                 *  the next cleanup. Exile zone only, and on its OWN: an
+                 *  impulse-exiled card is face up (CR 406.3, issue #3001), so
+                 *  `faceDownExile` beside it stages a board the engine can no
+                 *  longer produce. */
                 castableFromExile: v.optional(v.boolean()),
                 /** CR 305.9 (issue #1689) — only when this is ALSO set does
                  *  `castableFromExile` grant the LAND-INCLUSIVE shape

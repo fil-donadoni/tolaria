@@ -32,6 +32,7 @@ import {
     getCardByName,
     getAllCards,
     getAllSetCodes,
+    FACE_DOWN_CARD_ID,
 } from "../../../index";
 import {
     resolveTopOfStack,
@@ -2932,7 +2933,7 @@ describe("Jeweled Amulet (noted-mana battery, CR 106.10)", () => {
 });
 
 describe("Ice Cauldron (noted-mana battery + cast-from-exile, CR 106.10/601.3)", () => {
-    it("exiles the chosen card face down, grants cast-from-exile, and notes the mana keyed to it", () => {
+    it("exiles the chosen card FACE UP, grants cast-from-exile, and notes the mana keyed to it", () => {
         const cauldron = makeInstance(iceCauldron.id, {
             id: "cauldron",
             controllerId: "p1",
@@ -2962,11 +2963,35 @@ describe("Ice Cauldron (noted-mana battery + cast-from-exile, CR 106.10/601.3)",
         submitChoice(state, ["noted-spell"]);
 
         const p1 = state.players[0];
-        // The card left the hand for face-down exile, castable by its controller.
+        // The card left the hand for exile, castable by its controller.
         expect(p1.hand.find((c) => c.id === "noted-spell")).toBeUndefined();
         const exiled = p1.exile.find((c) => c.id === "noted-spell")!;
         expect(exiled.castableFromExileBy).toBe("p1");
-        expect(exiled.knownTo).toEqual(["p1"]); // face down: hidden to opponent
+        // CR 406.3 (issue #3001) — FACE UP even though it came from the
+        // HAND: Ice Cauldron's oracle names no face-down exile, so exile's
+        // default openness applies and the opponent may examine it.
+        expect(exiled.knownTo).toBeUndefined();
+        expect(exiled.faceDownBy).toBeUndefined();
+
+        // MANDATORY wire format: a hidden-zone card becoming a public exiled
+        // card is exactly where a stale per-viewer grant would leak, so the
+        // opponent's projection is asserted through the real reducer.
+        for (const viewer of ["p1", "p2"] as const) {
+            const projected = projectPublicState(state, 1, viewer);
+            const slim = projected.players[0].exile.find(
+                (c) => c.id === "noted-spell"
+            )!;
+            expect(slim.card.id).toBe(brainstorm.id);
+            expect(slim.card.id).not.toBe(FACE_DOWN_CARD_ID);
+            expect(slim.faceDown).toBeUndefined();
+            expect(slim.faceDownBy).toBeUndefined();
+        }
+        // Visibility is not permission (CR 601.3).
+        expect(
+            projectPublicState(state, 1, "p2").players[0].exile.find(
+                (c) => c.id === "noted-spell"
+            )!.legalActions ?? []
+        ).toEqual([]);
         // The artifact carries a charge counter and the noted mana keyed to the
         // exiled card.
         const live = p1.battlefield.find((c) => c.id === "cauldron")!;
@@ -3045,7 +3070,6 @@ describe("Ice Cauldron (noted-mana battery + cast-from-exile, CR 106.10/601.3)",
             ownerId: "p1",
             zone: "exile",
             castableFromExileBy: "p1",
-            knownTo: ["p1"],
         });
         const p1 = makePlayer("p1", { exile: [exiled] });
         addRestrictedManaToPool(p1, "U", 2, undefined, "noted-spell");
@@ -3117,7 +3141,6 @@ describe("Ice Cauldron (noted-mana battery + cast-from-exile, CR 106.10/601.3)",
             ownerId: "p1",
             zone: "exile",
             castableFromExileBy: "p1",
-            knownTo: ["p1"],
         });
         const state = makeState({
             players: [
@@ -3156,7 +3179,6 @@ describe("Ice Cauldron (noted-mana battery + cast-from-exile, CR 106.10/601.3)",
             ownerId: "p1",
             zone: "exile",
             castableFromExileBy: "p1",
-            knownTo: ["p1"],
         });
         // The ONLY mana is the instance-keyed noted mana — no lands, empty
         // fungible pool — so affordability hinges entirely on counting it.
@@ -3216,7 +3238,6 @@ describe("Ice Cauldron (noted-mana battery + cast-from-exile, CR 106.10/601.3)",
             ownerId: "p1",
             zone: "exile",
             castableFromExileBy: "p1",
-            knownTo: ["p1"],
         });
         const state = makeState({
             players: [
@@ -3476,10 +3497,55 @@ describe("Elkin Bottle ({3},{T}: exile top card, play it — CR 601.3 impulse)",
         // land exiled this way must be a legal land play, not merely
         // castable (a land is never cast).
         expect(exiled.castableFromExileIncludesLand).toBe(true);
-        // Face down: hidden to the opponent, known to the controller.
-        expect(exiled.knownTo).toEqual(["p1"]);
+        // CR 406.3 (issue #3001) — exiled FACE UP: Elkin Bottle's oracle
+        // says nothing about a face-down exile, so the opponent may examine
+        // the card too; only the play permission is the controller's.
+        expect(exiled.knownTo).toBeUndefined();
+        expect(exiled.faceDownBy).toBeUndefined();
         // The next card is now on top and untouched.
         expect(p1.library[0]?.id).toBe("under");
+    });
+
+    // MANDATORY wire format: the exile pile is a board outcome and the client
+    // sees only the projection. CR 406.3's first sentence — exiled cards are
+    // kept face up and may be examined by any player (issue #3001).
+    it("wire format — the exiled card is FACE UP to BOTH players, playable by the controller alone (CR 406.3, issue #3001)", () => {
+        const bottle = makeInstance(elkinBottle.id, {
+            id: "bottle",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const top = makeInstance(brainstorm.id, {
+            id: "top",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bottle], library: [top] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, bottle, "elkin-bottle-exile");
+
+        for (const viewer of ["p1", "p2"] as const) {
+            const projected = projectPublicState(state, 1, viewer);
+            const slim = projected.players[0].exile.find(
+                (c) => c.id === "top"
+            )!;
+            expect(slim.card.id).toBe(brainstorm.id);
+            expect(slim.card.id).not.toBe(FACE_DOWN_CARD_ID);
+            expect(slim.faceDown).toBeUndefined();
+            expect(slim.faceDownBy).toBeUndefined();
+        }
+
+        // Visibility is not permission (CR 601.3).
+        const forP2 = projectPublicState(state, 1, "p2");
+        expect(
+            forP2.players[0].exile.find((c) => c.id === "top")!.legalActions ??
+                []
+        ).toEqual([]);
     });
 
     it("is a no-op with an empty library", () => {

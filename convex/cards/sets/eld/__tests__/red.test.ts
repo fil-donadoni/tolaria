@@ -18,7 +18,7 @@ import { NO_BOARD_LAYER_VIEW } from "../../../../gre/layers";
 import { getLegalActions } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
 import type { GameState, StackItem } from "../../../../gre/state";
-import { getDefinition } from "../../../index";
+import { getDefinition, FACE_DOWN_CARD_ID } from "../../../index";
 
 const robberOfTheRich = getDefinition("0ecbe097-ba51-42e5-957c-382eb66c08f0");
 
@@ -49,7 +49,7 @@ function pushAttackTrigger(
 }
 
 describe("Robber of the Rich (CR 508.1 attack trigger + CR 601.3 cast-from-exile)", () => {
-    it("exiles the defending player's top library card face down, castable by the attacker, when they have more cards in hand (CR 603.4)", () => {
+    it("exiles the defending player's top library card FACE UP, castable by the attacker, when they have more cards in hand (CR 603.4)", () => {
         const robber = makeInstance(robberOfTheRich.id, {
             id: "robber",
             controllerId: "p1",
@@ -89,8 +89,79 @@ describe("Robber of the Rich (CR 508.1 attack trigger + CR 601.3 cast-from-exile
         const exiled = state.players[1].exile.find((c) => c.id === "top")!;
         expect(exiled).toBeDefined();
         expect(exiled.castableFromExileBy).toBe("p1");
-        // Face down: hidden to the defender, known to the attacking controller.
-        expect(exiled.knownTo).toEqual(["p1"]);
+        // CR 406.3 (issue #3001) — exiled FACE UP: Robber's oracle says
+        // nothing about a face-down exile, so the DEFENDING player, whose
+        // library it came off, may examine it too. Only the cast permission
+        // above is one-sided.
+        expect(exiled.knownTo).toBeUndefined();
+        expect(exiled.faceDownBy).toBeUndefined();
+    });
+
+    // MANDATORY wire format: the exile pile is a board outcome, and the
+    // projection is all the client ever sees. CR 406.3's first sentence —
+    // exiled cards are kept face up and may be examined by ANY player — for
+    // the viewer the old behaviour hid it from hardest: the card's own OWNER.
+    it("wire format — the exiled card is FACE UP to the DEFENDER and to the attacker, castable by the attacker alone (CR 406.3, issue #3001)", () => {
+        const robber = makeInstance(robberOfTheRich.id, {
+            id: "robber",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const top = makeInstance(CHEAP_CARD_ID, {
+            id: "top",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [robber], hand: [] }),
+                makePlayer("p2", {
+                    library: [top],
+                    hand: [
+                        makeInstance(CHEAP_CARD_ID, {
+                            id: "p2hand1",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+            ],
+            combat: {
+                attackerIds: ["robber"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        pushAttackTrigger(state, robber);
+
+        for (const viewer of ["p1", "p2"] as const) {
+            const projected = projectPublicState(state, 1, viewer);
+            const slim = projected.players[1].exile.find(
+                (c) => c.id === "top"
+            )!;
+            // Real identity for BOTH — the defender included.
+            expect(slim.card.id).toBe(CHEAP_CARD_ID);
+            expect(slim.card.id).not.toBe(FACE_DOWN_CARD_ID);
+            expect(slim.faceDown).toBeUndefined();
+            expect(slim.faceDownBy).toBeUndefined();
+        }
+
+        // Visibility is not permission (CR 601.3): the affordance rides the
+        // attacker's projection alone.
+        const forP1 = projectPublicState(state, 1, "p1");
+        expect(
+            forP1.players[1].exile.find((c) => c.id === "top")!.legalActions ??
+                []
+        ).toContain("cast");
+        const forP2 = projectPublicState(state, 1, "p2");
+        expect(
+            forP2.players[1].exile.find((c) => c.id === "top")!.legalActions ??
+                []
+        ).toEqual([]);
     });
 
     it("does nothing when the defending player does not have more cards in hand (CR 603.4 intervening condition)", () => {

@@ -9,7 +9,7 @@ import { describe, it, expect } from "vitest";
 import { makeState, makeInstance } from "@convex/cards/__tests__/setup";
 import { getCardByName, FACE_DOWN_CARD_ID } from "@convex/cards";
 import { turnFaceDown } from "@convex/gre/faceDown";
-import { exileFaceDownCard } from "@convex/gre/state";
+import { exileFaceDownCard, moveCard } from "@convex/gre/state";
 import { projectPublicState } from "@convex/gameProjections";
 import type { CardInstance } from "~/types/game";
 import { getCardImageDefId } from "~/lib/card-image-signature";
@@ -145,53 +145,45 @@ describe("face-down exile on the wire (CR 406.3)", () => {
     });
 });
 
-// Review finding 1 — `knownTo` on an exiled card is overloaded (ADR 0026): it
-// backs BOTH the CR 406.3 cards whose oracle says "face down" AND the impulse
-// idiom, whose paper card lies FACE UP in front of its controller. Painting a
-// Ragavan/Laelia exile as a card back to its own controller would turn a
-// one-sided divergence (hidden from the opponent) into a two-sided one.
-describe("impulse exile is NOT face down to its own controller (ADR 0026)", () => {
-    function project(
-        producer: "face-down-exile" | "impulse-exile",
-        viewerId: "p1" | "p2"
-    ) {
+// issue #3001 — the impulse idiom ("exile the top card of your library; you
+// may play that card this turn") names no face-down exile, so CR 406.3's first
+// sentence leaves the card FACE UP and examinable by ANY player. It no longer
+// touches the face-down primitive at all: it reaches exile through the
+// ordinary zone-mover, which clears per-viewer knowledge on entry to a public
+// zone, so nothing stamps a producer and both viewers get the real card.
+describe("an impulse exile is face up to BOTH players (CR 406.3, issue #3001)", () => {
+    function project(viewerId: "p1" | "p2") {
         const card = makeInstance(SERRA.id, {
             id: "imp-exiled",
             controllerId: "p1",
             ownerId: "p1",
             zone: "library",
+            // A live look-grant from an earlier scry / surveil: the controller
+            // alone knew this top card. Entering the public zone must clear
+            // it, or the stale grant would re-create the bug.
+            knownTo: ["p1"],
         });
         const state = stateWith({ library: [card] });
-        exileFaceDownCard(
-            state.players[0],
-            "imp-exiled",
-            "library",
-            "p1",
-            producer
-        );
+        moveCard(state.players[0], "imp-exiled", "library", "exile");
         const projected = projectPublicState(state, 1, viewerId);
         return projected.players[0].exile[0] as CardInstance;
     }
 
-    it("shows the knower the real card, unmarked — while the oracle-face-down sibling is marked", () => {
-        const impulse = project("impulse-exile", "p1");
-        expect(impulse.faceDownBy).toBe("impulse-exile");
-        expect(impulse.faceDown).toBeUndefined();
-        expect(isFaceDownCard(impulse)).toBe(false);
-        expect(getCardImageDefId(impulse)).toBe(SERRA.id);
-
-        // Same primitive, same knower — only the producer differs.
-        const oracleFaceDown = project("face-down-exile", "p1");
-        expect(oracleFaceDown.faceDown).toBe(true);
-        expect(getCardImageDefId(oracleFaceDown)).toBe(FACE_DOWN_CARD_ID);
+    it("shows the controller the real card, unmarked", () => {
+        const slim = project("p1");
+        expect(slim.faceDown).toBeUndefined();
+        expect(faceDownProducer(slim)).toBeUndefined();
+        expect(isFaceDownCard(slim)).toBe(false);
+        expect(getCardImageDefId(slim)).toBe(SERRA.id);
     });
 
-    it("still hides it from the OPPONENT — the ADR 0026 divergence stays one-sided", () => {
-        const slim = project("impulse-exile", "p2");
-        expect(slim.card.id).toBe(FACE_DOWN_CARD_ID);
-        expect(slim.faceDown).toBe(true);
-        expect(isFaceDownCard(slim)).toBe(true);
-        expect(JSON.stringify(slim)).not.toContain(SERRA.id);
+    it("shows the OPPONENT the real card too — no sentinel, no marker", () => {
+        const slim = project("p2");
+        expect(slim.card.id).toBe(SERRA.id);
+        expect(slim.faceDown).toBeUndefined();
+        expect(faceDownProducer(slim)).toBeUndefined();
+        expect(isFaceDownCard(slim)).toBe(false);
+        expect(getCardImageDefId(slim)).toBe(SERRA.id);
     });
 });
 
@@ -227,7 +219,6 @@ describe("producer → face resolver (issue #2904)", () => {
             "morph",
             "cast-face-down",
             "face-down-exile",
-            "impulse-exile",
         ] as const) {
             expect(resolveFaceDownFace(producer)).toEqual({
                 kind: "back",

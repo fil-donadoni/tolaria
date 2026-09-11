@@ -45,16 +45,15 @@ const GENERIC_BACK: FaceDownFace = { kind: "back", src: GENERIC_CARD_BACK_SRC };
  *  - `cast-face-down` — an effect-granted face-down cast (CR 708.4, ADR 0013)
  *    is not a keyword and has never had helper art.
  *  - `face-down-exile` — a CR 406.3 face-down exiled card is a card lying face
- *    down in the exile pile; the back IS its printed appearance.
+ *    down in the exile pile; the back IS its printed appearance. Only a card
+ *    whose ORACLE TEXT says "face down" is ever stamped with it: the impulse
+ *    idiom exiles FACE UP (issue #3001) and reaches the exile pile carrying no
+ *    producer at all.
  */
 const FACE_BY_PRODUCER: Record<FaceDownProducer, FaceDownFace> = {
     morph: GENERIC_BACK,
     "cast-face-down": GENERIC_BACK,
     "face-down-exile": GENERIC_BACK,
-    // Only ever painted for a viewer NOT entitled to look: the impulse idiom's
-    // own controller sees the real card (`isHiddenFromKnower`), because in
-    // paper it lies face up in front of them.
-    "impulse-exile": GENERIC_BACK,
 };
 
 /** The face to paint for an object hidden by `producer`. An ABSENT producer —
@@ -64,7 +63,14 @@ const FACE_BY_PRODUCER: Record<FaceDownProducer, FaceDownFace> = {
 export function resolveFaceDownFace(
     producer: FaceDownProducer | undefined
 ): FaceDownFace {
-    return producer ? FACE_BY_PRODUCER[producer] : GENERIC_BACK;
+    // `?? GENERIC_BACK` is not dead code behind a total `Record`: a producer
+    // can be RETIRED (issue #3001 retired `"impulse-exile"`), and a persisted
+    // `gameStates` row written before that lands still carries the old string,
+    // which the wire types describe as a `FaceDownProducer` it no longer is.
+    // The engine heals such a row at deserialize (`gre/serialize.ts`); this is
+    // the second half of the same promise — the one the client can keep on its
+    // own, for a projection that reached it before the heal.
+    return (producer ? FACE_BY_PRODUCER[producer] : undefined) ?? GENERIC_BACK;
 }
 
 /**

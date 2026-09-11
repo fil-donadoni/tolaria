@@ -46,6 +46,7 @@ import type {
 } from "./state";
 import type { Zone } from "./types";
 import type { FaceDownProducer } from "./faceDown";
+import { isFaceDownProducer } from "./faceDown";
 import type {
     CardSupertype,
     CardType,
@@ -1049,7 +1050,18 @@ function expandCard(
     }
     if (compact.pileLabel) result.pileLabel = compact.pileLabel as string;
     if (compact.faceDown) result.faceDown = true;
-    if (compact.faceDownBy) {
+    // issue #3001 — a RETIRED producer ("impulse-exile") survives in any
+    // `gameStates` row written before the impulse idiom went face up, and this
+    // seam is a bare assertion that would believe it. Drop it, and drop the
+    // per-viewer grant it accompanied (below): together they ARE the retired
+    // behaviour, and a half-healed row is worse than either — the knower would
+    // be handed a `faceDown: true` for a card whose face the client can no
+    // longer resolve. A card with NO producer at all is pre-#2904 state and is
+    // left exactly as it is.
+    const retiredFaceDownProducer =
+        compact.faceDownBy !== undefined &&
+        !isFaceDownProducer(compact.faceDownBy);
+    if (compact.faceDownBy && !retiredFaceDownProducer) {
         result.faceDownBy = compact.faceDownBy as FaceDownProducer;
     }
     if (compact.faceDownOf) result.faceDownOf = compact.faceDownOf as string;
@@ -1063,7 +1075,9 @@ function expandCard(
     if (compact.linkedTokenId) {
         result.linkedTokenId = compact.linkedTokenId as string;
     }
-    if (compact.knownTo) result.knownTo = compact.knownTo as string[];
+    if (compact.knownTo && !retiredFaceDownProducer) {
+        result.knownTo = compact.knownTo as string[];
+    }
     if (compact.notedMana) {
         result.notedMana = compact.notedMana as CardInstanceState["notedMana"];
     }

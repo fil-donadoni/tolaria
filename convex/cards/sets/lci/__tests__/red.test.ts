@@ -23,7 +23,8 @@ import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
 import { finalizeCleanup } from "../../../../gre/phases";
 import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
-import { getDefinition } from "../../../index";
+import { getDefinition, FACE_DOWN_CARD_ID } from "../../../index";
+import { projectPublicState } from "../../../../gameProjections";
 
 const intiSeneschalOfTheSun = getDefinition(
     "fa7a55aa-ae61-4933-b7a4-dcc55dac6fcd"
@@ -236,7 +237,53 @@ describe("Inti, Seneschal of the Sun — discard-triggered impulse draw", () => 
         // play, not merely castable (a land is never cast).
         expect(exiled.castableFromExileIncludesLand).toBe(true);
         expect(exiled.castableFromExileUntilTurn).toBe(2);
-        expect(exiled.knownTo).toEqual(["p1"]);
+        // CR 406.3 (issue #3001) — exiled FACE UP: no oracle text here says
+        // "face down", so the default holds and no per-viewer knowledge is
+        // stamped. Both players may examine the card.
+        expect(exiled.knownTo).toBeUndefined();
+        expect(exiled.faceDownBy).toBeUndefined();
+    });
+
+    // MANDATORY wire format: the exile pile is a board outcome and the client
+    // sees only the projection. CR 406.3's first sentence — exiled cards are
+    // kept face up and may be examined by any player (issue #3001).
+    it("wire format — the exiled card is FACE UP to BOTH players, playable by the controller alone (CR 406.3, issue #3001)", () => {
+        const inti = makeInstance(intiSeneschalOfTheSun.id, {
+            id: "inti",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const top = makeInstance(grizzlyBears.id, {
+            id: "top-card",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            turn: 2,
+            players: [
+                makePlayer("p1", { battlefield: [inti], library: [top] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveIntiDiscardImpulse(state, inti, "p1");
+
+        for (const viewer of ["p1", "p2"] as const) {
+            const projected = projectPublicState(state, 1, viewer);
+            const slim = projected.players[0].exile.find(
+                (c) => c.id === "top-card"
+            )!;
+            expect(slim.card.id).toBe(grizzlyBears.id);
+            expect(slim.card.id).not.toBe(FACE_DOWN_CARD_ID);
+            expect(slim.faceDown).toBeUndefined();
+            expect(slim.faceDownBy).toBeUndefined();
+        }
+
+        // Visibility is not permission (CR 601.3): only p1 gets an affordance.
+        const forP2 = projectPublicState(state, 1, "p2");
+        expect(
+            forP2.players[0].exile.find((c) => c.id === "top-card")!
+                .legalActions ?? []
+        ).toEqual([]);
     });
 });
 

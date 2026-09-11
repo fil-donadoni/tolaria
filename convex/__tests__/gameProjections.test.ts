@@ -1,7 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { projectFullState, projectPublicState } from "../gameProjections";
 import { computeSoloViewerId } from "../soloViewer";
-import { drawCard, exileFaceDownCard, removeFromZone } from "../gre/state";
+import {
+    drawCard,
+    exileFaceDownCard,
+    grantKnowledge,
+    moveCard,
+    removeFromZone,
+} from "../gre/state";
 import { FACE_DOWN_CARD_ID, getCardByName } from "../cards";
 import type { CardInstanceState, GameState, PlayerState } from "../gre/state";
 
@@ -1013,7 +1019,13 @@ describe("projectPublicState — face-down exile (ADR 0026 slice 6, CR 406.3)", 
     function stateWithFaceDownExile() {
         const state = makeState();
         const p1 = state.players.find((p) => p.id === "p1")!;
-        exileFaceDownCard(p1, p1.library[0].id, "library", "p1");
+        exileFaceDownCard(
+            p1,
+            p1.library[0].id,
+            "library",
+            "p1",
+            "face-down-exile"
+        );
         return state;
     }
 
@@ -1079,7 +1091,13 @@ describe("projectPublicState — face-down exile (ADR 0026 slice 6, CR 406.3)", 
                 staticAbilities: ["flying"],
             }),
         ];
-        exileFaceDownCard(p1, p1.library[0].id, "library", "p1");
+        exileFaceDownCard(
+            p1,
+            p1.library[0].id,
+            "library",
+            "p1",
+            "face-down-exile"
+        );
 
         const forP2 = projectPublicState(state, 1, "p2");
         const p2Card = forP2.players.find((p) => p.id === "p1")!.exile[0] as {
@@ -1109,7 +1127,13 @@ describe("projectPublicState — face-down exile (ADR 0026 slice 6, CR 406.3)", 
                 staticAbilities: ["flying"],
             }),
         ];
-        exileFaceDownCard(p1, p1.library[0].id, "library", "p1");
+        exileFaceDownCard(
+            p1,
+            p1.library[0].id,
+            "library",
+            "p1",
+            "face-down-exile"
+        );
 
         const forP1 = projectPublicState(state, 1, "p1");
         const p1Card = forP1.players.find((p) => p.id === "p1")!.exile[0] as {
@@ -1139,6 +1163,38 @@ describe("projectPublicState — face-down exile (ADR 0026 slice 6, CR 406.3)", 
             .find((p) => p.id === "p1")!
             .exile.find((c) => c.id === "p1-x1")!;
         expect(card.card.id).toBe("def-p1-x1"); // real identity to everyone
+    });
+
+    // issue #3001 — the regression the impulse fix rides on: a card its
+    // controller had LOOKED at (scry, surveil, a Future Sight-style top-card
+    // grant) carries a live `knownTo` while it sits in the library, and that
+    // stamp
+    // must die the moment it reaches the public exile zone. If it survived,
+    // every impulse card would go back to being hidden from the opponent by
+    // accident, with no producer and no call site to blame.
+    it("clears a stale look-grant when the looked-at card is then exiled FACE UP (CR 406.3)", () => {
+        const state = makeState();
+        const p1 = state.players.find((p) => p.id === "p1")!;
+        const top = p1.library[0];
+        // The look: only the controller knows the top card (ADR 0026).
+        grantKnowledge(state, "p1", [top.id], "p1");
+        expect(top.knownTo).toEqual(["p1"]);
+
+        // The exile: the ordinary zone-mover, the path every impulse card now
+        // takes. Entering a public zone empties the per-viewer knowledge.
+        moveCard(p1, top.id, "library", "exile");
+        expect(p1.exile[0].knownTo).toBeUndefined();
+
+        for (const viewer of ["p1", "p2"] as const) {
+            const projected = projectPublicState(state, 1, viewer);
+            const slim = projected.players
+                .find((p) => p.id === "p1")!
+                .exile.find((c) => c.id === top.id)!;
+            expect(slim.card.id).toBe("def-p1-l1"); // real identity to BOTH
+            expect(slim.card.id).not.toBe(FACE_DOWN_CARD_ID);
+            expect(slim.faceDown).toBeUndefined();
+            expect(slim.faceDownBy).toBeUndefined();
+        }
     });
 });
 
