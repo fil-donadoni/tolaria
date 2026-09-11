@@ -620,6 +620,12 @@ describe("CR 605.3a — activatable mid-cast, and it funds the cast", () => {
 
         expect(state.pendingCast).toBeUndefined();
         expect(state.priorityPlayerId).toBe("p2");
-        expect(state.stack.map((i) => i.id)).toContain("spell");
+        // CR 603.3b — a trigger waiting during a cast's payment goes on the
+        // stack "the next time a player would receive priority", which is AFTER
+        // the spell is announced: the spell goes on FIRST and the dies trigger
+        // lands on top of it, resolving first. Flushing inside the payment
+        // window inverts that (trigger below the spell, resolving last).
+        expect(state.stack.map((i) => i.id)[0]).toBe("spell");
+        expect(state.stack).toHaveLength(2);
     });
 });
