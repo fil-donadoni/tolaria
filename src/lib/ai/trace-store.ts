@@ -1,27 +1,83 @@
-// Latest AI DecisionTrace store (client-only, off the authoritative path).
+// AI DecisionTrace store (client-only, off the authoritative path).
 //
 // The vs-AI driver (`useVsAiDriver`) and the Debug panel live in different
 // component subtrees, so the trace is handed between them through this tiny
 // external store instead of prop-drilling GameState-adjacent data. The driver
-// pushes the most recent trace; the Debug panel reads it via `useLatestAiTrace`
-// (a `useSyncExternalStore` hook). Only the latest decision is kept — by design
-// (see the grill: "ultima decisione, sempre visibile"). Never persisted.
+// pushes each trace; the Debug panel reads them via `useAiTraces` (a
+// `useSyncExternalStore` hook). Never persisted.
+//
+// It used to keep ONLY the latest decision, by design ("ultima decisione,
+// sempre visibile"). Issue #3404 made it a short ring, because the question a
+// tester actually arrives with is about a play that has already happened: by
+// the time they notice the blunder and open the box, the bot has taken two or
+// three more decisions and overwritten it. A ring is what makes the box
+// readable after the fact instead of only during.
 
 import type { DecisionTrace, Move, Phase } from "@convex/gre";
 import type { ExpectedInputKind } from "@convex/gre/expectedInput";
 import type { BrainOutcome } from "./brain-request";
+import type { BrainResult } from "./brain-client";
 import type { BotAction } from "./brain";
 
-let latest: DecisionTrace | null = null;
+/** One traced decision, as the Debug panel shows it. */
+export type AiTraceRecord = {
+    /** Stable identity for the render key, monotonic within the tab.
+     *
+     *  NOT `at`, and not `at` plus a list index: the panel renders the ring
+     *  NEWEST FIRST, so every existing row's index shifts on each push. Keyed
+     *  on the index, React would remount the whole list on every bot decision
+     *  and snap shut any `<details>` the tester had opened — which is the one
+     *  piece of uncontrolled DOM state this box now has, and the disclosure
+     *  the slice exists to add. `Date.now()` alone is not enough either: two
+     *  decisions can land in the same millisecond. */
+    id: number;
+    trace: DecisionTrace;
+    /** Whether a Worker produced it. `"inline"` means the consult ran on the
+     *  MAIN THREAD instead — the Worker was unavailable, had already failed its
+     *  respawn budget (issue #3040), or `Worker` does not exist in this
+     *  environment at all — which is a degraded path, not the normal one, and
+     *  the box marks it. The union comes from `BrainResult` rather than being
+     *  re-typed here, so the two cannot drift. */
+    via: BrainResult["via"];
+    at: number;
+};
+
+let nextTraceId = 1;
+
+/** Deliberately short. The ring exists so a decision survives the two or three
+ *  that follow it while the tester reaches for the panel; it is not a log, and
+ *  every entry holds a full candidate list with a per-term breakdown each. */
+const TRACE_RING_LIMIT = 8;
+
+let traces: AiTraceRecord[] = [];
 const listeners = new Set<() => void>();
 
-export function setLatestAiTrace(trace: DecisionTrace | null): void {
-    latest = trace;
+/** Record one traced decision. A null trace is DROPPED rather than pushed: a
+ *  consult that failed or legitimately found no move has nothing to explain,
+ *  and clearing the ring on it would throw away the decisions the tester opened
+ *  the panel for. The failure itself is not lost — it is what the decision log
+ *  above (`recordAiDecision`) exists to record. */
+export function pushAiTrace(
+    trace: DecisionTrace | null,
+    via: BrainResult["via"]
+): void {
+    if (!trace) return;
+    traces = [
+        ...traces,
+        { id: nextTraceId++, trace, via, at: Date.now() },
+    ].slice(-TRACE_RING_LIMIT);
     for (const l of listeners) l();
 }
 
-export function getLatestAiTrace(): DecisionTrace | null {
-    return latest;
+/** Oldest first — the panel reverses for display. */
+export function getAiTraces(): AiTraceRecord[] {
+    return traces;
+}
+
+export function clearAiTraces(): void {
+    if (traces.length === 0) return;
+    traces = [];
+    for (const l of listeners) l();
 }
 
 export function subscribeAiTrace(listener: () => void): () => void {

@@ -1,117 +1,32 @@
-// Debug panel section: the Bot's last DecisionTrace (AI reasoning logging).
+// Debug panel section: the Bot's recent decisions (AI reasoning logging).
 //
-// Renders what the Brain weighed for its most recent thought — every candidate
-// move with its visit count, mean reward and the per-term `evaluate` breakdown
-// of the position it leads to. The diagnostic: when two target choices show the
-// SAME hand/creature terms, the spell's effect was never simulated (e.g. casting
-// Braingeyser on the human, or Giant Growth on the player's creature). Reads the
-// client-only trace store; shows nothing until the bot has thought once.
+// A ring of the last decisions (issue #3404), newest first, each read in plain
+// language by `AiDecisionSummary` with the search's own numbers behind that
+// decision's own disclosure. It used to be the single latest decision, rendered
+// straight as the dense candidate lines — which is the right artifact for
+// someone who already knows the engine and unusable for the tester the box is
+// mounted for, whose blunder is two decisions old by the time they open it.
+//
+// Reads the client-only trace store; shows nothing until the bot has thought
+// once.
 
 import { useState } from "react";
-import type { CandidateTrace, EvalTerms } from "@convex/gre";
-import { useLatestAiTrace } from "~/hooks/useLatestAiTrace";
+import { useAiTraces } from "~/hooks/useAiTraces";
+import { clearAiTraces } from "~/lib/ai/trace-store";
 import AiTraceLegend from "./ai-trace-legend";
-import { EVAL_TERM_LABELS, EVAL_TERM_ORDER } from "~/lib/ai/eval-term-labels";
-
-/** Round to at most 3 decimals, dropping float noise (252.39999999999998 → 252.4). */
-function r3(n: number): number {
-    return Math.round(n * 1000) / 1000;
-}
-
-function termLine(terms: EvalTerms): string {
-    return EVAL_TERM_ORDER.filter((k) => terms[k] !== 0)
-        .map((k) => `${EVAL_TERM_LABELS[k].short}${r3(terms[k])}`)
-        .join(" ");
-}
-
-/** A spelled-out tooltip for one side's eval terms, e.g.
- *  "Life 128 · Creatures 473 · Mana 12" — the hover companion to the terse
- *  `termLine`, so each letter is recognisable without opening the legend. */
-function termTitle(side: string, terms: EvalTerms): string {
-    const parts = EVAL_TERM_ORDER.filter((k) => terms[k] !== 0).map(
-        (k) => `${EVAL_TERM_LABELS[k].name} ${r3(terms[k])}`
-    );
-    return parts.length ? `${side}: ${parts.join(" · ")}` : `${side}: —`;
-}
-
-function CandidateRow({
-    cand,
-    chosen,
-}: {
-    cand: CandidateTrace;
-    chosen: boolean;
-}) {
-    const { self, opp, margin, danger } = cand.eval;
-    return (
-        <div
-            className={`rounded px-1.5 py-1 ${
-                chosen ? "bg-signal-self/15" : "bg-surface-elevated/30"
-            }`}
-        >
-            <div className="flex items-baseline justify-between gap-2">
-                <span className="truncate text-text">
-                    {chosen && <span className="text-signal-self">★ </span>}
-                    {cand.label}
-                </span>
-                <span className="shrink-0 text-text-muted tabular-nums">
-                    <span title="Visits — times this move was simulated">
-                        v{cand.visits}
-                    </span>{" "}
-                    <span title="Mean reward — win-rate estimate, 0–1">
-                        r{cand.meanReward.toFixed(2)}
-                    </span>{" "}
-                    <span title="Availability — times this move was a legal option">
-                        a{cand.avail}
-                    </span>
-                </span>
-            </div>
-            <div className="mt-0.5 text-[10px] leading-tight text-text-muted">
-                <span
-                    title="Material margin (self − opp)"
-                    className={
-                        margin < 0 ? "text-signal-opponent" : "text-signal-self"
-                    }
-                >
-                    Δ{r3(margin)}
-                </span>{" "}
-                {danger !== 0 && (
-                    <span
-                        className={
-                            danger < 0
-                                ? "text-signal-opponent"
-                                : "text-signal-self"
-                        }
-                        title="Danger Clock — race term; negative = losing the race"
-                    >
-                        clk{danger > 0 ? "+" : ""}
-                        {Math.round(danger)}{" "}
-                    </span>
-                )}
-                <span className="text-text" title={termTitle("self", self)}>
-                    self
-                </span>{" "}
-                <span title={termTitle("self", self)}>
-                    {termLine(self) || "—"}
-                </span>{" "}
-                <span className="text-text" title={termTitle("opp", opp)}>
-                    opp
-                </span>{" "}
-                <span title={termTitle("opp", opp)}>
-                    {termLine(opp) || "—"}
-                </span>
-            </div>
-        </div>
-    );
-}
+import AiDecisionSummary from "./ai-decision-summary";
 
 export default function AiDecisionTrace() {
-    const trace = useLatestAiTrace();
+    const records = useAiTraces();
     const [copied, setCopied] = useState(false);
     const [showLegend, setShowLegend] = useState(false);
 
-    const copyTrace = () => {
-        if (!trace) return;
-        void navigator.clipboard.writeText(JSON.stringify(trace, null, 2));
+    // The WHOLE ring, not just the newest: the copy is what travels into a bug
+    // report or a blade entry, and a ring copied one decision at a time is the
+    // sequence the reporter was asked for minus its sequence.
+    const copyTraces = () => {
+        if (records.length === 0) return;
+        void navigator.clipboard.writeText(JSON.stringify(records, null, 2));
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
     };
@@ -119,24 +34,12 @@ export default function AiDecisionTrace() {
     return (
         <div className="flex flex-col gap-1">
             <div className="flex items-baseline justify-between gap-2">
-                <span className="text-label">AI · last decision</span>
-                {trace && (
+                <span className="text-label">
+                    AI · last decisions
+                    {records.length > 0 ? ` (${records.length})` : ""}
+                </span>
+                {records.length > 0 && (
                     <span className="flex items-baseline gap-2">
-                        <span
-                            className="text-[10px] text-text-disabled tabular-nums"
-                            title={
-                                trace.stoppedBy === "time"
-                                    ? "Stopped by the wall-clock bound before the iteration budget completed"
-                                    : trace.stoppedBy === "settled"
-                                      ? "Stopped early — the root pick was settled, so further iterations could not change it"
-                                      : "Ran the full iteration budget"
-                            }
-                        >
-                            {trace.iterationsCompleted}/
-                            {trace.iterationsRequested} iters ({trace.stoppedBy}
-                            ) · {Math.round(trace.elapsedMs)}
-                            ms · {trace.candidates.length} moves
-                        </span>
                         <button
                             onClick={() => setShowLegend((v) => !v)}
                             title="Show what each symbol means"
@@ -149,29 +52,31 @@ export default function AiDecisionTrace() {
                             ?
                         </button>
                         <button
-                            onClick={copyTrace}
+                            onClick={copyTraces}
                             className="rounded-sm border border-border-strong px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:border-accent hover:text-parchment"
                         >
                             {copied ? "Copied!" : "Copy"}
+                        </button>
+                        <button
+                            onClick={clearAiTraces}
+                            className="rounded-sm border border-border-strong px-1.5 py-0.5 text-[10px] text-text-muted transition-colors hover:border-accent hover:text-parchment"
+                        >
+                            Clear
                         </button>
                     </span>
                 )}
             </div>
 
-            {trace && showLegend && <AiTraceLegend />}
+            {records.length > 0 && showLegend && <AiTraceLegend />}
 
-            {!trace ? (
+            {records.length === 0 ? (
                 <span className="text-[11px] text-text-disabled">
                     No bot decision yet.
                 </span>
             ) : (
-                <div className="max-h-full overflow-y-auto flex flex-col gap-1">
-                    {trace.candidates.map((cand, i) => (
-                        <CandidateRow
-                            key={`${cand.label}-${i}`}
-                            cand={cand}
-                            chosen={cand.label === trace.chosen}
-                        />
+                <div className="flex max-h-full flex-col gap-1 overflow-y-auto">
+                    {[...records].reverse().map((record) => (
+                        <AiDecisionSummary key={record.id} record={record} />
                     ))}
                 </div>
             )}

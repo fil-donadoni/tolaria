@@ -92,7 +92,8 @@ import { consultBrain, warmBrain, disposeBrain } from "~/lib/ai/brain-client";
 import {
     recordAiDecision,
     recordAiEscalation,
-    setLatestAiTrace,
+    pushAiTrace,
+    clearAiTraces,
 } from "~/lib/ai/trace-store";
 import type { AiDecisionOutcome } from "~/lib/ai/trace-store";
 import {
@@ -186,7 +187,16 @@ export function useVsAiDriver(
         // GAME, and without a dispose it was silently per TAB, so a game whose
         // Worker died would hand the next game an already-exhausted Brain that
         // never even tried to spawn one.
-        return () => disposeBrain();
+        return () => {
+            disposeBrain();
+            // The trace ring is per-GAME evidence (issue #3404). Left standing
+            // across a rematch it shows eight decisions from a match that is
+            // over, with nothing on screen to date them — a new failure mode,
+            // since the single slot it replaced could only ever carry one
+            // stale entry. This effect's deps are `[gameId, botId]`, so it
+            // fires on the swap and never mid-game.
+            clearAiTraces();
+        };
         // `gameId` is in the deps, not just `botId`: Restart Solo / rematch /
         // Switch Game swaps `gameId` on the SAME hook instance (the board is
         // rendered unkeyed — see the `lastGameId` reset below), and in a solo
@@ -921,8 +931,12 @@ export function useVsAiDriver(
                 () =>
                     consultBrain(botState, botId, budget, knowledge).then(
                         ({ move, trace, outcome, via, message }) => {
-                            // Surface the reasoning to the Debug panel (client-only).
-                            setLatestAiTrace(trace);
+                            // Surface the reasoning to the Debug panel
+                            // (client-only). `via` travels with it: a trace the
+                            // Worker did not produce came from the degraded
+                            // inline path, and the box says so rather than
+                            // presenting it as an ordinary decision.
+                            pushAiTrace(trace, via);
                             // issue #2470 — the consult's own verdict, recorded
                             // BEFORE the fallbacks below rewrite what happens
                             // next: `no-move` after a healthy search and

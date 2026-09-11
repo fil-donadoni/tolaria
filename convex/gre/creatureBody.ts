@@ -15,6 +15,19 @@ const W_CR_POWER = 15;
 const W_CR_TOUGHNESS = 14;
 const W_CR_MV = 5;
 
+/** The realized worth of the SMALLEST creature this scale can produce: a 1/1
+ *  with mana value 0 and no keywords. Nothing on a battlefield moves the
+ *  `creatures` eval term by less than this and is still a creature — a +1/+1
+ *  counter is `W_CR_POWER + W_CR_TOUGHNESS`, a fifth of it.
+ *
+ *  Exported for the debug UI (issue #3404), which needs a floor below which a
+ *  change in the term must NOT be read as "a creature appeared or died".
+ *  Derived here rather than typed as a literal over there: these four
+ *  constants are the scale's definition, and a copy of 129 in another file
+ *  goes stale the first time one of them moves. */
+export const SMALLEST_CREATURE_BODY =
+    CREATURE_BASE + W_CR_POWER + W_CR_TOUGHNESS;
+
 /** Keyword → realized-value bonus, as a function of the creature's (floored)
  *  effective power. Structured as a table so an unimplemented keyword is
  *  zero-cost to add: drop in one entry. Restricted to the implemented keyword
