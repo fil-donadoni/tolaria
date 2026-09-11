@@ -41,9 +41,11 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup";
+import { applyPlayLandFromExile } from "../playLand";
 import { vodalianMerchant } from "../../cards/sets/inv/blue";
 import { castle } from "../../cards/sets/lea/white";
 import { grizzlyBears } from "../../cards/sets/lea/green";
+import { mountain } from "../../cards/sets/lea/colorless";
 
 /** The card p2 is allowed to cast out of p1's exile: p1 owns it, p1 controls it
  *  while it sits in the exile zone, and the grant names p2 (the shape every
@@ -329,5 +331,69 @@ describe("a permanent spell cast by a non-owner (CR 110.2 / 110.2b / 112.2)", ()
             "p1-lib",
         ]);
         expect(state.pendingChoices![0].playerId).toBe("p1");
+    });
+});
+
+// The in-class sibling found while walking this seam: a LAND is not cast (CR
+// 305.1 — playing a land uses no stack and is not a spell), so it never passes
+// through `removeFromZone` or `finalizeSpellResolution`. Its own cross-player
+// entry helper (`moveCardAcrossPlayers`, `gre/playLand.ts` — which exists ONLY
+// for this case) inherited `controllerId` exactly the same way, and Dauthi
+// Voidwalker's land grant reaches it today.
+describe("a LAND played from another player's exile (CR 110.2 / 110.2a / 305.1)", () => {
+    function position() {
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    exile: [
+                        makeInstance(mountain.id, {
+                            id: "granted-land",
+                            ownerId: "p1",
+                            controllerId: "p1",
+                            zone: "exile",
+                            castableFromExileBy: "p2",
+                            castFromExileWithoutPayingManaCost: true,
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    it("enters under the PLAYER's control, in their zone, still owned by the owner", () => {
+        const state = position();
+        const played = applyPlayLandFromExile(
+            state,
+            getPlayer(state, "p2"),
+            "granted-land"
+        );
+
+        expect(played).not.toBeNull();
+        expect(
+            getPlayer(state, "p1").exile.some((c) => c.id === "granted-land")
+        ).toBe(false);
+        const entered = getPlayer(state, "p2").battlefield.find(
+            (c) => c.id === "granted-land"
+        );
+        expect(entered).toBeDefined();
+        expect(entered!.controllerId).toBe("p2");
+        expect(entered!.ownerId).toBe("p1");
+        // CR 305.2 — the land drop is the PLAYER's.
+        expect(getPlayer(state, "p2").landsPlayedThisTurn).toBe(1);
+        expect(getPlayer(state, "p1").landsPlayedThisTurn ?? 0).toBe(0);
+    });
+
+    it("CR 400.3 — still goes to its OWNER's graveyard when it leaves", () => {
+        const state = position();
+        applyPlayLandFromExile(state, getPlayer(state, "p2"), "granted-land");
+        removePermanentTo(state, "granted-land", "graveyard", "destroy");
+
+        expect(getPlayer(state, "p1").graveyard.map((c) => c.id)).toContain(
+            "granted-land"
+        );
+        expect(getPlayer(state, "p2").graveyard.map((c) => c.id)).not.toContain(
+            "granted-land"
+        );
     });
 });
