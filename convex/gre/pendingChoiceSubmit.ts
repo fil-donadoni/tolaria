@@ -21,6 +21,7 @@ import {
     normalizeMayPayCost,
     grantKnowledge,
     emitLibrarySearchedEvent,
+    enqueueFailToFindNotice,
     findStagedEntry,
     type CardInstanceState,
     type GameState,
@@ -1294,6 +1295,43 @@ export function applyPendingChoiceSubmit(
         );
     }
 
+    // CR 701.23b / 400.2 (issue #3425) — a genuine library search that came
+    // back with NOTHING is announced to every player. The library is a Hidden
+    // Zone, so no zone projection can carry the outcome, and CR 701.23b makes
+    // finding nothing a legal CHOICE rather than a proof the card was absent:
+    // without an explicit signal a whiffed fetchland, a deliberate fail-to-find
+    // and a tutor that found exactly what it wanted are the same observation to
+    // the opponent — a choice appeared and went away.
+    //
+    // Gated on the SAME `isSearch` discriminator `emitLibrarySearchedEvent`
+    // uses, so the look-pick prompts that merely reuse the `search-library`
+    // kind (Expressive Iteration, Diabolic Vision) never announce, and a choice
+    // persisted before that field existed fails CLOSED. Both the DSL `choice`
+    // Op's zero-hit search (which still raises a 0-pick prompt so the player
+    // gets their CR 701.19a look) and an imperative `resolve()` tutor funnel
+    // through here, so this covers every shipped search with no per-card wiring.
+    //
+    // DEFERRED past the resolution below, not enqueued here: this same function
+    // is about to call `resolveTopOfStack`, whose first act is to clear
+    // `pendingReveals` for the incoming resolution — an entry written now would
+    // be wiped before any client saw it. The source card id is read HERE, while
+    // the searching item is still identifiable on the stack.
+    const failToFind =
+        head.kind === "search-library" &&
+        head.isSearch === true &&
+        args.cardInstanceIds.length === 0
+            ? {
+                  stackItemId: head.stackItemId,
+                  step: head.step,
+                  choiceId: head.choiceId,
+                  source:
+                      (
+                          state.stack.find((i) => i.id === head.stackItemId)
+                              ?.card as { id?: string } | undefined
+                      )?.id ?? "",
+              }
+            : undefined;
+
     queue.shift();
     state.pendingChoices = queue.length > 0 ? queue : undefined;
 
@@ -1311,4 +1349,11 @@ export function applyPendingChoiceSubmit(
     } else {
         state.priorityPlayerId = state.pendingChoices![0].playerId;
     }
+
+    // Enqueued LAST so the `resolveTopOfStack` above (which clears
+    // `pendingReveals` on entry) cannot wipe it. It therefore rides the same
+    // stable snapshot as any reveal the resumed resolution produced, and the
+    // client's one-at-a-time overlay shows the newest first — which for a
+    // fail-to-find is the whole outcome of that search.
+    if (failToFind !== undefined) enqueueFailToFindNotice(state, failToFind);
 }

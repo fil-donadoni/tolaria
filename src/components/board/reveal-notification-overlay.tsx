@@ -11,7 +11,8 @@ const REVEAL_NOTIFICATION_MS = 5000;
 
 /** Transient center-screen popup for a private look or public reveal
  *  (`SpellContext.notifyReveal`, ADR 0026 / CR 400.2 look / CR 701.20
- *  reveal). The projection has already filtered `pendingReveals` to the entries
+ *  reveal), or a public fail-to-find notice (CR 701.23b — a library search
+ *  that found nothing; it carries no cards, only its heading). The projection has already filtered `pendingReveals` to the entries
  *  this viewer may see — a private look (Urza's Bauble) reaches only the looker,
  *  a public reveal reaches everyone — so every entry here is for us to show.
  *
@@ -70,14 +71,19 @@ export default function RevealNotificationOverlay() {
     const dismiss = () => setDismissed((prev) => new Set(prev).add(active.id));
 
     const multiple = active.cards.length > 1;
+    // CR 701.23b — the fail-to-find notice carries NO cards: the whole message
+    // is that a library search ended with nothing found, which is why it needs
+    // a heading of its own rather than "Revealed cards" over an empty row.
     const heading =
-        active.kind === "look"
-            ? multiple
-                ? "You look at these cards"
-                : "You look at this card"
-            : multiple
-              ? "Revealed cards"
-              : "Revealed card";
+        active.kind === "fail-to-find"
+            ? "No card found"
+            : active.kind === "look"
+              ? multiple
+                  ? "You look at these cards"
+                  : "You look at this card"
+              : multiple
+                ? "Revealed cards"
+                : "Revealed card";
 
     return (
         <div
@@ -96,17 +102,23 @@ export default function RevealNotificationOverlay() {
                 className="flex flex-col items-center gap-4 px-8 py-6"
             >
                 <p className="text-display text-sm text-text">{heading}</p>
-                <div className="flex flex-wrap items-center justify-center gap-3">
-                    {active.cards.map((c) => (
-                        <div key={c.instanceId} className="w-40 aspect-5/7">
-                            <CardImage
-                                card={{ id: c.cardId }}
-                                sizes="160px"
-                                includeThumb={false}
-                            />
-                        </div>
-                    ))}
-                </div>
+                {active.kind === "fail-to-find" ? (
+                    <p className="max-w-64 text-center text-sm text-text-muted">
+                        A library search ended without finding a card.
+                    </p>
+                ) : (
+                    <div className="flex flex-wrap items-center justify-center gap-3">
+                        {active.cards.map((c) => (
+                            <div key={c.instanceId} className="w-40 aspect-5/7">
+                                <CardImage
+                                    card={{ id: c.cardId }}
+                                    sizes="160px"
+                                    includeThumb={false}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                )}
                 <p className="text-xs text-text-muted">
                     Click or press Space to dismiss
                 </p>
