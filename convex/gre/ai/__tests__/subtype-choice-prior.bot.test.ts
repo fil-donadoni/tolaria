@@ -105,13 +105,18 @@ describe("as-enters creature-type choice — the prior that survives CR 205.3m's
             (c) => c.move.cardInstanceIds![0]
         );
         expect(opened.length).toBe(CHOICE_TOP_K);
-        // Llanowar Elves is an Elf Druid, Grizzly Bears a Bear: all three are
-        // on the board and all three must be reachable.
-        expect(opened).toContain("Elf");
-        expect(opened).toContain("Druid");
+        // Llanowar Elves is an Elf Druid, Grizzly Bears a Bear: those three are
+        // the board's whole type census, so they take the TOP of the ordering —
+        // the remaining K slots are filled by the alphabetical tail, which is
+        // the right shape (a type nobody has is never pruned, CR 614.12a puts
+        // no restriction on the choice) as long as it never displaces a type
+        // the board actually shows. Llanowar Elves carries two types and there
+        // are two of them, so Elf and Druid outrank the single Bear.
+        expect(opened.slice(0, 3)).toEqual(["Druid", "Elf", "Bear"]);
         // UNSIGNED: the bot's OWN Bear is ranked by presence like any other.
-        expect(opened).toContain("Bear");
-        expect(opened).not.toContain("Advisor");
+        expect(opened.indexOf("Advisor")).toBeGreaterThan(
+            opened.indexOf("Bear")
+        );
     });
 
     it("stays neutral — and never empty — on a creatureless board", () => {
