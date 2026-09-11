@@ -355,7 +355,7 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
         ).toEqual({ cards: [], spellsCastThisTurn: {} });
     });
 
-    // CR 508.1c / 500.7 / 207.2c (issue #3450) — the turn-history trio. The
+    // CR 508.1c / 500.1 / 207.2c (issue #3450) — the turn-history trio. The
     // two flag pairs and `revolt` are BOOLEAN pairs, the first of their shape:
     // a non-boolean has to be dropped rather than passed through, because the
     // builder writes the value straight onto `PlayerState` and a truthy

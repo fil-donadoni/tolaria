@@ -3460,7 +3460,8 @@ function advanceTurn(state: GameState): void {
             }
         }
     }
-    // Revolt, an ability word (CR 207.2c): reset the per-player "a permanent you controlled
+    // Revolt, an ability word (CR 207.2c): reset the per-player
+    // "a permanent you controlled
     // left the battlefield this turn" flag at the start of each turn.
     for (const p of state.players)
         p.permanentYouControlledLeftThisTurn = undefined;

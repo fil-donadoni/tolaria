@@ -69,7 +69,7 @@ export const SCENARIO_SPEC_FIELD_OWNER = {
     lifeGainedThisTurn: "form-owned",
     deathsThisTurn: "form-owned",
     creatureAttackedThisTurn: "form-owned",
-    // CR 508.1c / 500.7 / 207.2c (issue #3450) — the per-seat turn history:
+    // CR 508.1c / 500.1 / 207.2c (issue #3450) — the per-seat turn history:
     // Arboria's qualifying-action flags, the seat's own turn count and
     // Revolt. `form-owned` like every field since issue #3463 — an Arboria
     // position an admin cannot type is one only a capture can produce.

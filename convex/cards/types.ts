@@ -6533,7 +6533,8 @@ export interface SpellContext {
      *  (CR 608.2b). */
     pickAtRandom: (ids: readonly string[]) => string | undefined;
 
-    /** Revolt, an ability word (CR 207.2c): true when a permanent the given player controlled
+    /** Revolt, an ability word (CR 207.2c): true when a permanent the
+     *  given player controlled
      *  left the battlefield this turn. Read by cards with the Revolt ability
      *  word (Fatal Push). */
     hasRevolt: (playerId: string) => boolean;

@@ -246,11 +246,13 @@ export const scenarioSpecValidator = v.object({
             opp: v.optional(v.boolean()),
         })
     ),
-    // CR 500.7 (issue #3450) — turns THIS SEAT has taken, which extra turns
-    // increment for their recipient alone. Distinct from `turn`, the global
-    // sequence number, which is lowered separately: the two diverge the moment
-    // any Time Walk effect resolves, and a card reading "the number of turns
-    // you've taken" reads this one.
+    // CR 500.1 / 500.7 (issue #3450) — turns THIS SEAT has taken. NOT a
+    // rescaling of `turn`, the global sequence number lowered separately:
+    // `turn` advances on every turn while this advances only for the new
+    // active player, so in normal two-player play it runs at roughly HALF of
+    // `turn`, and extra turns (CR 500.7) and skipped turns (CR 614.10) pull
+    // the two apart further. A card reading "the number of turns you've
+    // taken" reads this one.
     turnsTaken: v.optional(
         v.object({
             me: v.optional(v.number()),
@@ -264,7 +266,10 @@ export const scenarioSpecValidator = v.object({
     // MECHANIC rather than the engine field, the precedent `stormCount` set,
     // because the engine name is a sentence. It gates a cost and a mode —
     // Fatal Push kills a mana-value-4 creature only with it on — so a rebuild
-    // that zeroes it changes what the spell can legally target.
+    // that zeroes it changes which creature the spell KILLS on resolution.
+    // Not what it may be pointed AT: the card's `targetRequirement` is a
+    // plain `Creature`, and the flag moves the destroy threshold (2 -> 4)
+    // inside `resolve()`.
     revolt: v.optional(
         v.object({
             me: v.optional(v.boolean()),
@@ -400,18 +405,23 @@ export type ScenarioSpec = {
      *  action is casting a spell or putting a nontoken permanent onto the
      *  battlefield. Omitted means neither seat took one: the builder CLEARS
      *  both flags like the other per-turn tallies (the `landsPlayed`
-     *  precedent, issue #3446), so a spec written before this field keeps
-     *  rebuilding the board it always did. */
+     *  precedent, issue #3446). On the verdict/blade path, which rebuilds
+     *  onto a fresh base state, that leaves an older spec rebuilding exactly
+     *  the board it always did; on `debugSetupScenario`, which rebuilds onto
+     *  the LIVE game, it is a deliberate change — such a spec used to
+     *  INHERIT that game's Arboria history, which is the bug this closes. */
     qualifyingActionThisTurn?: { me?: boolean; opp?: boolean };
     /** CR 508.1c (issue #3450) — the frozen value of the above from a seat's
      *  most recently completed turn. This is the one Arboria READS: false or
      *  absent on the defender and no attack against them is legal. */
     qualifyingActionLastTurn?: { me?: boolean; opp?: boolean };
-    /** CR 500.7 (issue #3450) — turns this seat has taken
-     *  (`PlayerState.turnsTaken`), which extra turns increment for their
-     *  recipient alone. Always lowered explicitly, like `life`: the builder
-     *  does NOT clear it, so an absence would inherit the loaded game's
-     *  count. */
+    /** CR 500.1 / 500.7 (issue #3450) — turns this seat has taken
+     *  (`PlayerState.turnsTaken`). Roughly HALF of `turn` in normal
+     *  two-player play — the global counter advances every turn, this one
+     *  only on the seat's own — with extra turns (CR 500.7) and skipped
+     *  turns (CR 614.10) pulling them further apart. Always lowered
+     *  explicitly, like `life`: the builder does NOT clear it, so an absence
+     *  would inherit the loaded game's count. */
     turnsTaken?: { me?: number; opp?: number };
     /** Revolt, an ability word (CR 207.2c) — a permanent this seat controlled
      *  left the battlefield this turn
@@ -786,7 +796,7 @@ export function normalizeScenarioSpec(raw: unknown): ScenarioSpec {
         "creatureAttackedThisTurn",
         pickBoolean(raw.creatureAttackedThisTurn)
     );
-    // CR 508.1c / 500.7 / 207.2c (issue #3450) — the turn-history trio. The
+    // CR 508.1c / 500.1 / 207.2c (issue #3450) — the turn-history trio. The
     // two flag pairs are tolerant the way the numeric pairs above are: a
     // non-boolean is DROPPED rather than passed through, because the builder
     // writes the value straight onto `PlayerState` and a truthy string would

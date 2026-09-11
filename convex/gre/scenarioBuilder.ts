@@ -959,8 +959,9 @@ export function buildStateFromScenario(
     //    gates attack legality, so a rebuild that opens at "no action" —
     //    or, without the clear above, at the loaded game's value — enumerates
     //    a different set of attacks than the Bot was choosing between.
-    //  - `turnsTaken` (CR 500.7): the seat's OWN turn count, which extra
-    //    turns advance for their recipient alone.
+    //  - `turnsTaken` (CR 500.1, extra turns CR 500.7): the seat's OWN turn
+    //    count, roughly half of `turn` in normal play — `advanceTurn` bumps
+    //    it only for the new active player.
     //  - Revolt, an ability word (CR 207.2c): a permanent this seat
     //    controlled left the battlefield this turn. Gates a cost and a mode.
     //
@@ -1689,7 +1690,7 @@ export const PLAYER_STATE_ALLOWLIST = new Set<string>([
     // `drawnThisTurn` below whose expressible shape is a single card.
     "spellsCastThisTurn",
     "spellsCastThisGame",
-    // CR 508.1c / 500.7 (issue #3450) — Arboria's two qualifying-action flags
+    // CR 508.1c / 500.1 (issue #3450) — Arboria's two qualifying-action flags
     // and the seat's own turn count, lowered into the spec keys of the same
     // name. Blanket entries: every value of each is expressible.
     "qualifyingActionThisTurn",
@@ -1889,7 +1890,7 @@ export function specFromState(
         },
         deathsThisTurn: state.deathsThisTurn ?? 0,
         creatureAttackedThisTurn: state.creatureAttackedThisTurn ?? false,
-        // CR 500.7 (issue #3450) — always explicit, like `life` and the
+        // CR 500.1 (issue #3450) — always explicit, like `life` and the
         // tallies above: the builder does not clear `turnsTaken` (it is a
         // lifetime count), so lowering it as an absence would let a captured
         // position inherit the turn count of whatever game it is loaded into.

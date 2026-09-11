@@ -17761,7 +17761,7 @@ export const debugSetupScenario = mutation({
         ),
         deathsThisTurn: v.optional(v.number()),
         creatureAttackedThisTurn: v.optional(v.boolean()),
-        /** CR 508.1c / 500.7 (issue #3450, PRD #3397) — the per-seat turn
+        /** CR 508.1c / 500.1 (issue #3450, PRD #3397) — the per-seat turn
          *  history: Arboria's qualifying-action flags (this turn, and the
          *  frozen value from the seat's last completed turn — the one that
          *  gates whether that player can be ATTACKED at all), the seat's own

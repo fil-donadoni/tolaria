@@ -22,6 +22,7 @@ import { gaeasTouch } from "../../cards/sets/drk/green";
 import { hillGiant, shivanDragon } from "../../cards/sets/lea/red";
 import { arboria } from "../../cards/sets/leg/green";
 import { fatalPush } from "../../cards/sets/aer/black";
+import { startingTown } from "../../cards/sets/fin/colorless";
 import { forest } from "../../cards/sets/lea/colorless";
 import { animateDead, fear, simulacrum } from "../../cards/sets/lea/black";
 import { onceUponATime } from "../../cards/sets/eld/green";
@@ -33,6 +34,7 @@ import {
     buildSpellContext,
     emitSpellCastEvent,
     resolveTopOfStack,
+    shouldEnterTapped,
 } from "../state";
 import {
     NO_TARGETING_SOURCE,
@@ -2541,6 +2543,30 @@ describe("buildStateFromScenario — per-seat turn history (issue #3450)", () =>
         // The flag is the CONTROLLER's own: the opponent's revolt does not
         // raise Fatal Push's threshold.
         expect(kill({ ...board, revolt: { opp: true } })).toBe(false);
+    });
+
+    // The fourth field earns its own DECISION too, so the block's claim holds
+    // for all four: Starting Town "enters tapped unless it's your first,
+    // second, or third turn of the game" (CR 614.1c), a predicate reading
+    // `turnsTaken` and nothing else (`cards/sets/fin/colorless.ts`). Asserted
+    // through `shouldEnterTapped`, the shared ETB oracle every placement site
+    // calls.
+    it("decides Starting Town's entry tapped or untapped off the seeded turnsTaken (CR 614.1c)", () => {
+        const entersTapped = (turnsTaken: number): boolean => {
+            const state = buildStateFromScenario(makeState(), {
+                cards: [],
+                turnsTaken: { me: turnsTaken },
+            });
+            const town = makeInstance(startingTown.id, {
+                controllerId: state.players[0].id,
+                ownerId: state.players[0].id,
+                zone: "battlefield",
+            });
+            return shouldEnterTapped(state, town);
+        };
+
+        expect(entersTapped(3)).toBe(false);
+        expect(entersTapped(4)).toBe(true);
     });
 
     it("round-trips all four through specFromState with nothing dropped", () => {

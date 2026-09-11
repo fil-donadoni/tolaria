@@ -216,7 +216,7 @@ export type SpecDraft = {
      *  decides whether that player can be attacked at all. */
     qualifyingActionThisTurn: SeatFlagPairDraft;
     qualifyingActionLastTurn: SeatFlagPairDraft;
-    /** CR 500.7 (issue #3450) — turns each seat has taken. */
+    /** CR 500.1 (issue #3450) — turns each seat has taken. */
     turnsTaken: SeatPairDraft;
     /** Revolt, an ability word (CR 207.2c) — a permanent each seat controlled
      *  left the battlefield this turn. */

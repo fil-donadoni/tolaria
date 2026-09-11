@@ -1461,7 +1461,8 @@ function compactPlayer(player: PlayerState, ctx: CompactCtx): CompactPlayer {
     if (player.experienceCounters) {
         out.experienceCounters = player.experienceCounters;
     }
-    // Revolt, an ability word (CR 207.2c) — persisted so the flag survives a save/load round-trip.
+    // Revolt, an ability word (CR 207.2c) — persisted so the flag survives
+    // a save/load round-trip.
     if (player.permanentYouControlledLeftThisTurn) {
         out.permanentYouControlledLeftThisTurn = true;
     }

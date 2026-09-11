@@ -99,7 +99,7 @@ const STORED: Required<ScenarioSpec> = {
     lifeGainedThisTurn: { me: 3, opp: 0 },
     deathsThisTurn: 2,
     creatureAttackedThisTurn: true,
-    // CR 508.1c / 500.7 / 207.2c (issue #3450) — a curated row whose
+    // CR 508.1c / 500.1 / 207.2c (issue #3450) — a curated row whose
     // opponent did nothing last turn (no attack against them with an Arboria
     // out), on an extra turn, with a permanent already gone this turn.
     // Only the TRUE side of each flag pair: `false` is exactly what the

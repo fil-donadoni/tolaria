@@ -10861,7 +10861,8 @@ export function removePermanentTo(
             ...(causerControllerId ? { causerControllerId } : {}),
         },
     ];
-    // Revolt, an ability word (CR 207.2c): set the per-player flag when a permanent a player
+    // Revolt, an ability word (CR 207.2c): set the per-player flag when a
+    // permanent a player
     // controlled leaves the battlefield this turn.
     const controller = getPlayer(state, snapshotControllerId);
     controller.permanentYouControlledLeftThisTurn = true;
@@ -20964,7 +20965,8 @@ export function buildSpellContext(
             if (ids.length === 0) return undefined;
             return ids[randomInt(state, ids.length)];
         },
-        // Revolt, an ability word (CR 207.2c): true when a permanent the given player controlled
+        // Revolt, an ability word (CR 207.2c): true when a permanent the
+        // given player controlled
         // left the battlefield this turn. Set by removePermanentTo, reset at
         // turn start (advanceTurn).
         hasRevolt(playerId: string): boolean {

@@ -80,8 +80,12 @@ describe("the scenario form renders every form-owned spec field", () => {
 
     it("renders per-seat fields as a me/opp PAIR", () => {
         render(<DebugSaveScenario />);
-        const perSeat = FORM_OWNED_SCENARIO_SPEC_KEYS.filter(
-            (key) => SCENARIO_SPEC_FIELD_INPUT[key].kind === "per-seat"
+        // `startsWith` covers `per-seat-flag` too (issue #3450): the flag
+        // pairs are two controls per field exactly as the numeric ones are,
+        // and an `=== "per-seat"` filter silently stopped asserting the
+        // moment the second per-seat shape shipped.
+        const perSeat = FORM_OWNED_SCENARIO_SPEC_KEYS.filter((key) =>
+            SCENARIO_SPEC_FIELD_INPUT[key].kind.startsWith("per-seat")
         );
         expect(perSeat.length).toBeGreaterThan(0);
         for (const key of perSeat) {
