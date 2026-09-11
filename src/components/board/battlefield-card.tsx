@@ -10,6 +10,7 @@ import { effectivePower, effectiveToughness } from "~/lib/effective-stats";
 import { isCreature } from "~/lib/card-utils";
 import { getEffectiveColorDisplay } from "~/lib/color-override";
 import ActivatableAbilityMenu from "./activatable-ability-menu";
+import ClassLevelBadge from "./class-level-badge";
 import CounterBadges from "./counter-badges";
 import LoyaltyBadge from "./loyalty-badge";
 import NotedManaBadge from "./noted-mana-badge";
@@ -167,6 +168,7 @@ export default function BattlefieldCard({
             {darkenOverlay}
             {badgeEl}
             <CounterBadges card={card} />
+            <ClassLevelBadge card={card} />
             <SummoningSicknessBadge card={card} />
             <NotedManaBadge card={card} />
             <TokenBadge card={card} />
