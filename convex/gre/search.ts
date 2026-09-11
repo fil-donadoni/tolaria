@@ -420,8 +420,11 @@ function newNode(): Node {
     return { children: new Map() };
 }
 
-/** Stable structural key for a move (moves are plain data). */
-function moveKey(move: Move): string {
+/** Stable structural key for a move (moves are plain data). Exported since
+ *  issue #3400: a Verdict names its candidates by this key, so the record in
+ *  git stays a key plus a description and the moves themselves are
+ *  re-enumerated from the position at fit time. */
+export function moveKey(move: Move): string {
     return JSON.stringify(move);
 }
 
@@ -1969,6 +1972,33 @@ export function policyValue(
     weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
     moverId?: string
 ): number {
+    return policyValueOfSettled(
+        policyProbeState(probe, move, weights, moverId),
+        botId,
+        weights
+    );
+}
+
+/** The SETTLED STATE half of `policyValue` (issue #3400) — the 1-ply probe
+ *  itself: the one-resolution lookahead for a cast/activation, plus the
+ *  mover-owned settle of a suspended resolution. Everything above the
+ *  `evaluate` call, and nothing else.
+ *
+ *  Split out, rather than copied, because the Verdict → Eval Pair bridge
+ *  (`ai/verdicts/`, PRD #3397) needs the STATE the policy scores, not the
+ *  scalar it returns: a feature vector is a per-term breakdown of that state.
+ *  A bridge that rebuilt the probe — clone, apply, resolve — would be reading
+ *  its own copy of the policy and would stay green if this one stopped
+ *  resolving, which is the exact reason `policyValue` was exposed as a seam in
+ *  the first place. Mutates `probe` in place (`resolveTopOfStack`) and may
+ *  return a DIFFERENT state than the argument (the settled branch), exactly as
+ *  the inlined code did. */
+export function policyProbeState(
+    probe: GameState,
+    move: Move,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS,
+    moverId?: string
+): GameState {
     if (
         (move.kind === "cast-spell" || move.kind === "activate-ability") &&
         probe.stack.length > 0
@@ -2023,6 +2053,22 @@ export function policyValue(
             suspendedDepth
         );
     }
+    return settled;
+}
+
+/** The SCORING half of `policyValue` (issue #3400): the leaf evaluation of an
+ *  already-settled probe state, plus the two combat corrections the 1-ply
+ *  policy applies on top of it. Takes the state `policyProbeState` produced.
+ *
+ *  Separate from the probe so the same settled state can be scored under
+ *  SEVERAL weight vectors without re-running the resolution — what the Eval
+ *  Pair feature vector does to read one unweighted unit count per fittable
+ *  weight (`ai/verdicts/features.ts`). */
+export function policyValueOfSettled(
+    settled: GameState,
+    botId: string,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+): number {
     let v = evaluate(settled, botId, weights);
     const combat = settled.combat;
     if (
