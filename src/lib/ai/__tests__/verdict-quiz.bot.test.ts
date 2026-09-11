@@ -16,7 +16,7 @@
 
 import { describe, it, expect } from "vitest";
 import { buildBladeState } from "@convex/gre/ai/blade/runner";
-import { candidateMoves } from "@convex/gre/ai/verdicts/position";
+import { candidateMoves } from "@convex/gre/ai/verdicts/candidates";
 import { evalPairsOf } from "@convex/gre/ai/verdicts/evalPairs";
 import type { Verdict } from "@convex/gre/ai/verdicts/types";
 import { describeMove } from "@convex/gre/describeMove";

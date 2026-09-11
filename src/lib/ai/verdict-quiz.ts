@@ -13,7 +13,10 @@
 // meant.
 //
 // So the lowering does here, once, exactly what the fit will do later: build
-// the position through the SAME `buildVerdictState`, enumerate through the SAME
+// the position through the SAME builder (`buildSetupFreeVerdictState`, pinned
+// to `buildVerdictState` by its own test — an in-play verdict has no setup
+// steps, and the browser cannot reach the blade runner at all, ADR 0074),
+// enumerate through the SAME
 // `candidateMoves`, and key the candidates off THAT. What the trace is used for
 // is the one thing the rebuild cannot know — which of those candidates the Bot
 // itself picked — matched through the move describer's sentence, the same
@@ -29,10 +32,10 @@ import { describeMove } from "@convex/gre/describeMove";
 import { moveKey, decidingPlayer } from "@convex/gre/search";
 import { seatPlayerId } from "@convex/gre/ai/blade/matcher";
 import {
-    buildVerdictState,
+    buildSetupFreeVerdictState,
     candidateMoves,
-} from "@convex/gre/ai/verdicts/position";
-import type { Verdict, VerdictCandidate } from "@convex/gre/ai/verdicts/types";
+} from "@convex/gre/ai/verdicts/candidates";
+import type { VerdictCandidate } from "@convex/gre/ai/verdicts/types";
 import type { ScenarioSpec } from "@convex/debugScenarioSpec";
 import type { GameState } from "@convex/gre/state";
 import type { DecisionTrace } from "@convex/gre";
@@ -65,23 +68,6 @@ export type VerdictQuiz = {
 export type VerdictQuizResult =
     | { ok: true; quiz: VerdictQuiz }
     | { ok: false; error: string };
-
-/** A Verdict shaped just enough to build its position. The candidates are what
- *  this function is about to derive, and the answer is what the tester has not
- *  given yet — neither is read by `buildVerdictState`, which wants the spec,
- *  the seat and (here, never) the setup steps. */
-function provisionalVerdict(spec: ScenarioSpec): Verdict {
-    return {
-        id: "in-play",
-        spec,
-        seat: QUIZ_SEAT,
-        candidates: [],
-        answer: { kind: "right", rightIndexes: [] },
-        author: "in-play",
-        createdAt: new Date(0).toISOString(),
-        source: "in-play",
-    };
-}
 
 /**
  * Lower one traced decision into a quiz, or say why it cannot be one.
@@ -116,7 +102,7 @@ export function buildVerdictQuiz(
 
     let rebuilt: GameState;
     try {
-        rebuilt = buildVerdictState(provisionalVerdict(spec));
+        rebuilt = buildSetupFreeVerdictState(spec);
     } catch (error) {
         return {
             ok: false,

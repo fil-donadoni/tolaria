@@ -20,8 +20,14 @@
  */
 
 import { getCardByName } from "../../../cards";
-import { createInitialGameState, type PlayerInput } from "../../setup";
 import { buildStateFromScenario } from "../../scenarioBuilder";
+// The base position lives in its own PURE module (issue #3405): this file
+// reaches `convex/game` through `applyBladeSetup`, and the verdict quiz has to
+// build the same base state in the browser. Re-exported here so every existing
+// caller keeps its import.
+import { buildBladeBaseState } from "./baseState";
+export { buildBladeBaseState } from "./baseState";
+export type { SeatIdentity } from "./baseState";
 import { decidingPlayer, greedyRootPick, searchWithTrace } from "../../search";
 import type { DeckKnowledgeBySeat } from "../../deckKnowledge";
 import type { GameState } from "../../state";
@@ -78,73 +84,6 @@ export class BladeDeciderError extends Error {
 /** The one seed every blade entry uses unless it declares its own. Fixed
  *  forever — changing it re-rolls the whole suite. */
 export const DEFAULT_BLADE_SEED = 0xb1ade;
-
-/** Shuffle seed for the base (pre-scenario) game state. Fixed for the same
- *  reason. */
-const BASE_STATE_SEED = 0x51ade;
-
-/** Size of the synthetic base deck. A scenario clears both libraries anyway
- *  when it sets `libraryCount`; this only has to be a legal-sized pile the
- *  engine can draw from. */
-const BASE_DECK_SIZE = 60;
-
-/** Filler card for the synthetic base deck: a basic land, so any card left in
- *  a library the scenario did not override is inert (no cast decisions, no
- *  triggers) and cannot perturb a rollout. */
-const BASE_DECK_CARD = "Plains";
-
-/** A seat's identity — the only thing `buildBladeLoadState` (below) needs to
- *  vary per call: which player id/name/bgColor a seat is built AS. */
-type SeatIdentity = { id: string; name: string; bgColor: string };
-
-/** The harness's own default identities — unchanged from before this was
- *  parametrized (`p1`/`p2`, "Blade P1"/"Blade P2"). */
-const DEFAULT_SEAT_IDENTITIES: [SeatIdentity, SeatIdentity] = [
-    { id: "p1", name: "Blade P1", bgColor: "#000000" },
-    { id: "p2", name: "Blade P2", bgColor: "#000000" },
-];
-
-function syntheticPlayer(identity: SeatIdentity): PlayerInput {
-    const def = getCardByName(BASE_DECK_CARD);
-    return {
-        ...identity,
-        deck: {
-            id: `blade-${identity.id}`,
-            name: "Blade base deck",
-            format: "freeform",
-            cards: Array.from({ length: BASE_DECK_SIZE }, () => ({
-                cardId: def.id,
-                cardName: def.name,
-            })),
-        },
-    };
-}
-
-/**
- * The base `GameState` every blade scenario is applied on top of: two seats
- * with identical synthetic decks, shuffled at a fixed seed.
- * `buildStateFromScenario` finalizes the mulligan and clears every zone, so
- * nothing but the leftover library survives.
- *
- * `identities` defaults to the harness's own `p1`/`p2` seats — every caller
- * before issue #1432 review round 3 relied on that default and still gets
- * it unchanged. `buildBladeLoadState` (below) is the one caller that passes
- * an override: building the SAME position but AS the live game's actual
- * player ids, so identity (owner/controller ids throughout every card, plus
- * `activePlayerId`/`priorityPlayerId`, both derived from `players[0].id` in
- * `createInitialGameState`) is correct by construction from the very first
- * card dealt — not patched onto a `p1`/`p2`-built state after the fact,
- * which would leave every internal `ownerId`/`controllerId` still pointing
- * at the old `p1`/`p2` strings.
- */
-export function buildBladeBaseState(
-    identities: [SeatIdentity, SeatIdentity] = DEFAULT_SEAT_IDENTITIES
-): GameState {
-    return createInitialGameState(
-        [syntheticPlayer(identities[0]), syntheticPlayer(identities[1])],
-        BASE_STATE_SEED
-    );
-}
 
 /** Build the `GameState` a blade entry describes: the `spec` board, then its
  *  engine-real `setup` steps (issue #1487, ADR 0070 §4). Exported so a failing

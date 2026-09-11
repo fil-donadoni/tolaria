@@ -42,7 +42,7 @@ vi.mock("~/lib/session", () => ({
 }));
 
 import { buildBladeState } from "@convex/gre/ai/blade/runner";
-import { candidateMoves } from "@convex/gre/ai/verdicts/position";
+import { candidateMoves } from "@convex/gre/ai/verdicts/candidates";
 import { describeMove } from "@convex/gre/describeMove";
 import { projectPublicState } from "@convex/gameProjections";
 import type { ScenarioSpec } from "@convex/debugScenarioSpec";
