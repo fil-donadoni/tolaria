@@ -223,13 +223,18 @@ function buildPermanentView(card: CardInstanceState): PermanentView {
  *  each in battlefield-declaration order. A draw replacement lives on a card
  *  definition's `drawReplacement` field (NOT the sync `replacementEffects[]`,
  *  because a draw replacement is applied at the resumable draw seam), so this
- *  is a separate scan from `collectReplacements`. The seam applies the FIRST
- *  entry: bin / prevent / draw are terminal outcomes that end the draw; only a
- *  `modify-count` outcome would chain, which the seam handles inline. A full
- *  interactive pick-order prompt for two co-applicable replacements is deferred
- *  (no two draw replacements affect the same draw in the current set); the
- *  deterministic affected-player ordering is CR-faithful for the one-source
- *  case and gives a stable order for the two-source case. */
+ *  is a separate scan from `collectReplacements`. The seam (`planDrawStep`)
+ *  walks this list: every `modify-count` outcome applies and their deltas SUM
+ *  (CR 616.1f repeats the process until nothing is left to apply; CR 614.5
+ *  gives each effect one opportunity, and its own example compounds two
+ *  doubling replacements to 8), while a TERMINAL outcome — bin / prevent /
+ *  may-pay-bin / redirect — replaces the draw outright, so the first one in
+ *  this order wins alone. Summing counts needs no pick-order prompt (addition
+ *  commutes), but a pair of co-applicable TERMINAL outcomes genuinely would:
+ *  that prompt is deferred, and the deterministic affected-player ordering is
+ *  the stand-in. No shipped pair reaches it — `prevent`, `bin`, `may-pay-bin`
+ *  and `redirect-to-token` each live on a single card whose own `applies`
+ *  scopes it to one side of the table. */
 export function getApplicableDrawReplacements(
     state: GameState,
     event: DrawReplacementEvent
@@ -258,8 +263,10 @@ export function getApplicableDrawReplacements(
     return [...own, ...others];
 }
 
-/** The single draw replacement the seam applies to `event` (CR 616.1 — the
- *  affected player's first-ordered applicable replacement), or undefined. */
+/** The FIRST draw replacement applicable to `event` (CR 616.1 — the affected
+ *  player's ordering), or undefined. Kept for callers that only ask WHETHER the
+ *  draw is replaced at all; the seam itself walks the full list, because
+ *  several count modifications compound (CR 616.1f / CR 614.5). */
 export function getFirstApplicableDrawReplacement(
     state: GameState,
     event: DrawReplacementEvent

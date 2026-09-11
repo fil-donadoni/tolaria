@@ -26420,6 +26420,14 @@
         "firstPrintSet": "sos"
     },
     {
+        "name": "Quantum Riddler",
+        "scryfallId": "120be808-ff3b-4fca-96a1-4db6b9825856",
+        "oracleId": "58582fac-4c42-4a1c-9ab1-4a892b500da4",
+        "firstSet": "eoe",
+        "firstPrintId": "120be808-ff3b-4fca-96a1-4db6b9825856",
+        "firstPrintSet": "eoe"
+    },
+    {
         "name": "Queen's Bay Soldier",
         "scryfallId": "ce2ca2e6-f920-4529-88d2-d984bdb7490a",
         "oracleId": "b288c863-5377-473d-a628-bb199993a29c",

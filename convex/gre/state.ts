@@ -270,7 +270,7 @@ import {
     applyTransientDamageRedirections,
     describeDamageSource,
     enterBattlefieldDestinationFor,
-    getFirstApplicableDrawReplacement,
+    getApplicableDrawReplacements,
     graveyardDestinationFor,
 } from "./replacements";
 import {
@@ -22197,7 +22197,10 @@ export function drawPlanForOutcome(
         case "modify-count":
             // CR — draw 1 → draw (1 + delta), clamped ≥ 0. The extra cards are
             // drawn raw by `commitDrawPlan` and do NOT re-trigger the
-            // replacement (CR 616.1d — applies once per event).
+            // replacement: CR 614.5 gives a replacement effect "only one
+            // opportunity to affect an event or any modified events that may
+            // replace that event". `delta` is the SUM across every applicable
+            // count modification, accumulated by `planDrawStep` (CR 616.1f).
             return { kind: "normal", count: Math.max(0, 1 + outcome.delta) };
         case "reveal-type-to-graveyard":
             if (ctx.libraryEmpty) return { kind: "normal", count: 1 };
@@ -22244,12 +22247,41 @@ export function planDrawStep(
         requestedCount,
         isTurnBasedDrawStepDraw
     );
-    const match = getFirstApplicableDrawReplacement(state, event);
-    if (!match) return { kind: "normal", count: 1 };
+    const matches = getApplicableDrawReplacements(state, event);
+    if (matches.length === 0) return { kind: "normal", count: 1 };
+    // CR 616.1f — "Once the chosen effect has been applied, this process is
+    // repeated (taking into account only replacement or prevention effects that
+    // would now be applicable) until there are no more left to apply" — and
+    // CR 614.5 gives each effect exactly one opportunity, its own worked
+    // example being two doubling replacements that compound (2 → 4 → 8) rather
+    // than one winning. So every applicable COUNT modification applies, not
+    // just the first: two Quantum Riddlers turn "draw a card" into three, not
+    // two. Summing them needs no CR 616.1 pick-order prompt because addition
+    // commutes — the order the affected player would choose cannot change the
+    // total. A TERMINAL outcome (prevent / bin / may-pay-bin / redirect) does
+    // replace the draw rather than resize it, so the first one in the affected
+    // player's order still wins alone and any count modification ordered after
+    // it has nothing left to resize; a co-applicable terminal PAIR is the case
+    // that genuinely needs the prompt, and it stays deferred exactly as
+    // `getApplicableDrawReplacements` documents.
+    let countDelta = 0;
+    let terminal: (typeof matches)[number] | undefined;
+    for (const candidate of matches) {
+        if (candidate.effect.outcome.kind === "modify-count") {
+            countDelta += candidate.effect.outcome.delta;
+            continue;
+        }
+        terminal = candidate;
+        break;
+    }
+    const match = terminal ?? matches[0];
+    const outcome: DrawReplacementOutcome = terminal
+        ? terminal.effect.outcome
+        : { kind: "modify-count", delta: countDelta };
     const player = getPlayer(state, playerId);
     const revealedCardId = player.library[0]?.id;
     const chooserId = getOpponentId(state, playerId);
-    const plan = drawPlanForOutcome(match.effect.outcome, {
+    const plan = drawPlanForOutcome(outcome, {
         libraryEmpty: player.library.length === 0,
         topCardHasType: (t) => topCardHasType(player, t),
         revealedCardId,

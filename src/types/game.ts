@@ -443,6 +443,15 @@ export interface CardInstance {
      *  wire via `slimCard`; not read by the client (the projection drops
      *  `castableFromExileBy` once the grant expires), kept for type parity. */
     castableFromExileUntilTurn?: number;
+    /** CR 702.185a (issue #1268) — the LOWER bound of a cast-from-exile grant:
+     *  the first turn the grant may actually be used. Warp stamps it as the
+     *  card is exiled ("its owner may cast this card after the current turn
+     *  has ended"), so the grant is visible a whole turn before it opens.
+     *  Crosses the wire via `slimCard`; unlike the upper bound this one IS read
+     *  by the client — `ExileCastButton` asks the shared authority
+     *  (`exileCastPermission`, `convex/gre/castCost.ts`) with it so a button
+     *  disabled by a closed window says so instead of blaming the mana. */
+    castableFromExileFromTurn?: number;
     /** CR 601.2f (issue #2383) — an OBJECT-SCOPED cost increase riding
      *  `castableFromExileBy`: "A spell cast this way costs {2} more to cast"
      *  (Elite Spellbinder). Crosses the wire via `slimCard` (which strips only
