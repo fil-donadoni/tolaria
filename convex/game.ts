@@ -17671,7 +17671,7 @@ export const debugSetupScenario = mutation({
                 opp: v.optional(v.number()),
             })
         ),
-        /** CR 500.1 / 117.1 / 117.4 (issue #3454) — the turn holder, the
+        /** CR 102.1 / 117.1 / 117.4 (issue #3454) — the turn holder, the
          *  priority holder and the passes already banked. `activePlayer:
          *  "opp"` with `priority: "me"` places an instant-speed decision on
          *  the opponent's turn, the shape a combat-trick or held-up-removal

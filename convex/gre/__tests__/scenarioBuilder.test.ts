@@ -954,7 +954,7 @@ describe("specFromState (issue #2148)", () => {
         expect(
             spec.cards.filter((c) => c.owner === "opp").map((c) => c.name)
         ).toEqual([grizzlyBears.name]);
-        // CR 500.1 (issue #3454) — the active player (players[0], "p1") is no
+        // CR 102.1 (issue #3454) — the active player (players[0], "p1") is no
         // longer "me", and the spec now CARRIES that instead of reporting it
         // as a loss: it is lowered in the same mirrored frame as the cards.
         expect(spec.activePlayer).toBe("opp");
@@ -1540,7 +1540,7 @@ describe("scenario-placed off-battlefield characteristics (CR 113.6c)", () => {
     });
 });
 
-// ---- CR 500.1 / 117.1 / 117.4 (issue #3454) -------------------------------
+// ---- CR 102.1 / 117.1 / 117.4 (issue #3454) -------------------------------
 //
 // The turn holder and the priority holder decide WHICH decision a rebuilt
 // position poses. Before the spec could carry them, every position captured
@@ -1636,6 +1636,15 @@ describe("buildStateFromScenario — turn holder, priority and passCount (issue 
         expect(state.activePlayerId).toBe(state.players[1].id);
         expect(state.priorityPlayerId).toBe(state.players[1].id);
         expect(state.passCount).toBe(0);
+
+        // …and the SAME base with the field present moves the turn holder, so
+        // this block proves the field rather than only the absence (a test
+        // that stays green with the feature reverted is not evidence).
+        const claimed = buildStateFromScenario(base, {
+            cards: [],
+            activePlayer: "me",
+        });
+        expect(claimed.activePlayerId).toBe(claimed.players[0].id);
     });
 
     it("round-trips a position taken on the opponent's turn through specFromState", () => {

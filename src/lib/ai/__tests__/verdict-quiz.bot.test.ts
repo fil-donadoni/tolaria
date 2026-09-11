@@ -110,9 +110,12 @@ const RESPONDING_ON_OPPONENTS_TURN: ScenarioSpec = {
     cards: [
         { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
         { name: "Mountain", owner: "opp", zone: "battlefield" },
+        { name: "Forest", owner: "opp", zone: "battlefield" },
         { name: "Lightning Bolt", owner: "opp", zone: "hand" },
         // The sorcery-speed half the rebuild must NOT be able to offer: a land
-        // to play (CR 305.1) and a creature to cast (CR 302.1). Without them
+        // to play (CR 305.1) and a creature the seat can actually PAY for
+        // (CR 302.1 — hence the Forest above; with one Mountain the Bears are
+        // uncastable on either turn and discriminate nothing). Without both,
         // the two candidate lists coincide and the comparison below proves
         // nothing — a rebuild that lost the turn holder passes for free.
         { name: "Mountain", owner: "opp", zone: "hand" },

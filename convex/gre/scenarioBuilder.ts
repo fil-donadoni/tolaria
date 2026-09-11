@@ -635,7 +635,7 @@ export function buildStateFromScenario(
         }
     }
 
-    // CR 500.1 / 117.1 / 117.4 (issue #3454) — the turn holder, the priority
+    // CR 102.1 / 117.1 / 117.4 (issue #3454) — the turn holder, the priority
     // holder and the passes already banked. These decide WHICH decision the
     // rebuilt position poses, and before this field existed the rebuild could
     // only ever pose the active player's own turn: an instant-speed decision
@@ -725,7 +725,8 @@ export function buildStateFromScenario(
 // two can't drift apart. `dropped[]` is the feature, not decoration: a
 // `ScenarioSpec` can express only what the table in `buildStateFromScenario`
 // consumes (battlefield/hand/graveyard/exile placement, tapped, counters,
-// attachments, damage, phase, turn, poison/life/experience, one companion
+// attachments, damage, phase, turn, the turn holder / priority holder / pass
+// count, poison/life/experience, one companion
 // slot). Everything else a live `GameState` can hold — the stack, mana pool,
 // a mid-flight payment, combat beyond an empty DECLARE_ATTACKERS seed,
 // delayed triggers, a per-card continuous effect the spec has no field for —
@@ -1250,11 +1251,13 @@ export const GAME_STATE_ALLOWLIST = new Set<string>([
     "turn",
     "phase",
     "rngSeed",
-    // Covered by a bespoke `dropped` message below.
-    "stack",
+    // CR 102.1 / 117.1 / 117.4 (issue #3454) — lowered directly too, into
+    // `activePlayer` / `priority` / `passCount`.
     "activePlayerId",
     "priorityPlayerId",
     "passCount",
+    // Covered by a bespoke `dropped` message below.
+    "stack",
     "combat",
     "pendingCast",
     "pendingActivation",
@@ -1457,7 +1460,7 @@ export function specFromState(
         // position, not "absent" (mirrors the builder's own `!== undefined`
         // check), and the default (20) is only a coincidence, never a signal.
         life: { me: me.life, opp: opp.life },
-        // CR 500.1 / 117.1 / 117.4 (issue #3454) — always explicit, for the
+        // CR 102.1 / 117.1 / 117.4 (issue #3454) — always explicit, for the
         // same reason as `life` above: "me is active with a fresh priority
         // round" is a real position, never "absent", and a captured spec must
         // rebuild the decision it was captured from rather than inherit

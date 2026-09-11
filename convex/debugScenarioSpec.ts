@@ -115,7 +115,7 @@ export const scenarioSpecValidator = v.object({
             opp: v.optional(v.number()),
         })
     ),
-    // CR 500.1 / 117.1 (issue #3454) — the TURN HOLDER and the PRIORITY
+    // CR 102.1 / 117.1 (issue #3454) — the TURN HOLDER and the PRIORITY
     // holder, the two facts that decide WHICH decision a rebuilt position
     // poses. Without them every position captured with priority on the
     // opponent's turn rebuilds as the judged seat's own turn, offering the
@@ -132,6 +132,13 @@ export const scenarioSpecValidator = v.object({
     // step). A position captured with one pass already banked rebuilds as a
     // fresh priority round without this, which is a different decision
     // whenever passing is the move under judgement. Default 0.
+    //
+    // Deliberately unvalidated beyond "a number": COHERENCE is the caller's
+    // job, as it already is for `phase` (a spec may name DECLARE_BLOCKERS with
+    // no attackers). `specFromState` only ever lowers a count a live game
+    // reached, and the builder has no way to know what a hand-written 2 was
+    // meant to mean — rejecting it would be guessing, so it is placed as
+    // written and the position it makes is the author's.
     passCount: v.optional(v.number()),
     // CR 702.139c / ADR 0064 (issue #1392) — directly declare a companion
     // into a slot, bypassing the sideboard/maindeck auto-declare a
@@ -186,7 +193,7 @@ export type ScenarioSpec = {
      *  scenario can start at the SCALING state a card's "for each experience
      *  counter you have" reads (Otharri, Suns' Glory). */
     experience?: { me?: number; opp?: number };
-    /** CR 500.1 (issue #3454) — whose turn the position is. Omitted leaves the
+    /** CR 102.1 (issue #3454) — whose turn the position is. Omitted leaves the
      *  base state's turn holder untouched, which is what every spec written
      *  before this field meant. */
     activePlayer?: "me" | "opp";

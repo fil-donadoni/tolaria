@@ -78,14 +78,16 @@ readable in a diff and immune to instance-id allocation.
 Two current limitations to state out loud when they bite, rather than papering
 over them:
 
-- **`ScenarioSpec` has no life totals** (issue #2147) — the built position opens
-  at default life. Any life-dependent symptom (chump-block, race, burn the face
-  vs. the creature) cannot be pinned faithfully until that lands, and an entry
-  written at the wrong life passes for the wrong reason.
-- **The lowering is manual** (issue #2148 adds `specFromState` + a "Copy as
-  scenario" button). Until then, do it by hand and say which parts of the state
-  you dropped — stack contents, mana pool and priority detail have no spec
-  representation.
+- **`ScenarioSpec` carries life totals** (issue #2147, shipped) and the turn
+  holder, the priority holder and the banked pass count (issue #3454, shipped:
+  `life`, `activePlayer`, `priority`, `passCount`). A life-dependent symptom
+  (chump-block, race, burn the face vs. the creature) and an instant-speed one
+  taken on the opponent's turn are both pinnable — so an entry written at the
+  wrong life or on the wrong turn is now an authoring mistake, not a limit.
+- **The lowering is `specFromState`** (issue #2148, shipped — plus the "Copy as
+  scenario" button). Read its `dropped[]` rather than guessing: what still has
+  no spec representation is stack contents, the mana pool, combat past an empty
+  DECLARE_ATTACKERS seed, and delayed triggers.
 
 **2. Confirm it reproduces through the REAL search** — `runBladeScenario`
 (`convex/gre/ai/blade/runner.ts`) with a fixed `iterations` budget and several
