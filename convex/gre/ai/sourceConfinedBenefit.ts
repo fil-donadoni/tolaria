@@ -106,6 +106,10 @@ import { SOURCE_BINDING } from "../effects/interpreter";
 const SOURCE_CONFINED_OPS: ReadonlySet<string> = new Set([
     "pump",
     "counters",
+    // CR 716.2a (issue #3234) — a class level bar's whole observable outcome
+    // lands on the permanent its `target` names, the `counters` shape exactly:
+    // the abilities the new level turns on are the Class's own.
+    "setLevel",
     "tapUntap",
     "skipNextUntap",
     "grantAbility",

@@ -45,6 +45,7 @@ import type {
     EffectOp,
     GameEvent,
     GateableStaticEffect,
+    ManaCost,
     PermanentView,
     TargetRequirement,
     TriggeredAbility,
@@ -112,9 +113,11 @@ export const classLevelBarId = (level: number): string =>
  *  already level 1, so nothing activates to reach it), duplicated levels, or
  *  levels out of order / with a gap (CR 716.2a's "activate only if this Class
  *  is level N-1" makes every level after the first reachable ONLY from its
- *  immediate predecessor — a gap would strand every bar above it). Throws at
- *  module load, so a malformed Class is a red catalogue and never a permanent
- *  with an unreachable level. */
+ *  immediate predecessor — a gap would strand every bar above it). Throws on the
+ *  card's FIRST definition read (`expandDefinition` memoizes, so it is once per
+ *  card, not once per call), which every catalogue sweep in the gate performs —
+ *  so a malformed Class is a red catalogue and never a permanent with an
+ *  unreachable level. */
 function assertWellFormedBars(bars: readonly ClassLevelBarDefinition[]): void {
     if (bars.length === 0) {
         throw new Error(
@@ -128,7 +131,40 @@ function assertWellFormedBars(bars: readonly ClassLevelBarDefinition[]): void {
                 `expandClassLevelBars: class level bars are consecutive from level 2 (CR 716.2a) — expected level ${expected}, got ${bars[i].level}`
             );
         }
+        // CR 716.2 — the bar's PRINTED price and the price the engine charges
+        // are the same number. `costLabel` exists only because the Oracle line
+        // is text, and two spellings of one fact drift silently: the ability's
+        // `oracleText` is rendered from the label while the badge renders the
+        // mana symbols from `cost`, so a typo would ship a bar whose printed
+        // and paid costs differ with nothing red.
+        const printed = manaCostLabel(bars[i].cost);
+        if (printed !== bars[i].costLabel) {
+            throw new Error(
+                `expandClassLevelBars: class level bar ${bars[i].level}'s costLabel "${bars[i].costLabel}" does not spell its cost (${printed})`
+            );
+        }
     }
+}
+
+/** CR 107.4 / 202.1 — a `ManaCost` as it is PRINTED: the generic pip first,
+ *  then the five colours in WUBRG order, then colorless. The one place the
+ *  engine spells a cost back out, so a bar's `costLabel` can be checked against
+ *  the cost it claims to print. */
+function manaCostLabel(cost: ManaCost): string {
+    const pips: string[] = [];
+    if (cost.X === "X") {
+        for (let i = 0; i < (cost.xFactor ?? 1); i++) pips.push("X");
+    } else if (typeof cost.X === "number" && cost.X > 0) {
+        pips.push(String(cost.X));
+    }
+    if (cost.generic !== undefined && cost.generic > 0) {
+        pips.push(String(cost.generic));
+    }
+    for (const colour of ["W", "U", "B", "R", "G"] as const) {
+        for (let i = 0; i < (cost[colour] ?? 0); i++) pips.push(colour);
+    }
+    for (let i = 0; i < (cost.C ?? 0); i++) pips.push("C");
+    return pips.map((pip) => `{${pip}}`).join("");
 }
 
 /** CR 716.2a — the activated half of a class level bar: "[Cost]: This Class's

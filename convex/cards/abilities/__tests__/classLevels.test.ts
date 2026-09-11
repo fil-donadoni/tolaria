@@ -65,6 +65,19 @@ describe("expandClassLevelBars — bar-set validation (CR 716.2a)", () => {
         ).toThrow(/expected level 3, got 4/);
     });
 
+    it("CR 716.2 — refuses a costLabel that does not spell its own cost", () => {
+        expect(() =>
+            expandClassLevelBars({
+                ...base,
+                classLevelBars: [
+                    { level: 2, cost: { X: 3, U: 1 }, costLabel: "{2}{U}" },
+                ],
+            })
+        ).toThrow(
+            /costLabel "\{2\}\{U\}" does not spell its cost \(\{3\}\{U\}\)/
+        );
+    });
+
     it("CR 716.2a — refuses duplicated or out-of-order bars", () => {
         expect(() =>
             expandClassLevelBars({ ...base, classLevelBars: [bar(2), bar(2)] })

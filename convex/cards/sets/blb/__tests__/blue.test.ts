@@ -5,6 +5,7 @@ import { describe, it, expect } from "vitest";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     beginApplyingStaticEffects,
+    removePermanentTo,
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
@@ -469,6 +470,22 @@ describe("Stormchaser's Talent — wire format (projectPublicState)", () => {
             expect(slim.counters).toBeUndefined();
         });
     }
+});
+
+describe("Stormchaser's Talent — leaving the battlefield (CR 400.7 / 716.2d)", () => {
+    it("the class level goes with the object on a DEATH, not just a bounce", () => {
+        // The departure funnel strips the counter map for every zone; the level
+        // has to ride the same path, or a card in the graveyard keeps a level
+        // the new object does not have — and `getGraveyardStackAbilities` feeds
+        // that stale value straight into the CR 716.2a activation gate.
+        const { state, talent } = talentBoard(3);
+        removePermanentTo(state, talent.id, "graveyard", "destroy");
+        const inGraveyard = state.players[0].graveyard.find(
+            (c) => c.id === "talent"
+        )!;
+        expect(inGraveyard.classLevel).toBeUndefined();
+        expect(classLevelOf(inGraveyard)).toBe(1);
+    });
 });
 
 describe("Stormchaser's Talent — copies (CR 716.2b)", () => {

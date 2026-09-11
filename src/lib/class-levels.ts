@@ -59,7 +59,13 @@ function costSymbols(cost: ManaCost): string[] {
 export function getClassLevelDisplay(
     card: CardInstance
 ): ClassLevelDisplay | null {
-    if (!card.subtypes?.includes(CLASS_SUBTYPE)) return null;
+    // CR 716.2b — "a Class retains its level even if it stops being a Class", so
+    // a permanent that HAS a level keeps its badge through a type-changing
+    // effect. The subtype is the other admission: CR 716.2d makes an unlevelled
+    // Class level 1, and that is exactly the state whose affordance most needs
+    // showing.
+    const isClass = card.subtypes?.includes(CLASS_SUBTYPE) === true;
+    if (!isClass && card.classLevel === undefined) return null;
     const bars = getDefinition(card.card.id).classLevelBars;
     if (!bars || bars.length === 0) return null;
     const level = classLevelOf(card);

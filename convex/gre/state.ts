@@ -10472,6 +10472,17 @@ export function removePermanentTo(
         delete creature.countersAtLeave;
     }
     delete creature.counters;
+    // CR 400.7 / 716.2b — the class level goes with the object on EVERY
+    // departure, for the same reason the counter map above does: the card that
+    // lands in the graveyard or in exile is a NEW object, and CR 716.2d makes
+    // it level 1 again. CR 716.2b's "a Class retains its level even if it stops
+    // being a Class" is about a permanent whose TYPE changes while it stays on
+    // the battlefield, not about a zone change. The hand/library branch above
+    // already did it via `resetBattlefieldTransientState`; this is the funnel
+    // that covers death, sacrifice and exile, where a surviving level would
+    // reach `getGraveyardStackAbilities` and gate a graveyard ability off a
+    // level the object no longer has.
+    delete creature.classLevel;
     const owner = getPlayer(state, creature.ownerId);
     // CR 404.3 (issue #1967) — APPEND, never prepend. This is the funnel for
     // every battlefield departure (death, sacrifice, bounce, tuck), so it is
@@ -11668,9 +11679,13 @@ export function addCounterToCard(
  *  that unreachable (CR 716.2a activates only at level N-1), so this is the
  *  invariant for the NEXT producer, not a live branch.
  *
- *  No `recomputeContinuousEffects` call, unlike `addCounterToCard`: the CR
- *  716.2a level bands are `applies`-gated RECOMPUTED statics read at stat-read
- *  time, so they track the new level with no materialization pass. */
+ *  Re-runs `recomputeContinuousEffects` exactly as `addCounterToCard` does
+ *  (CR 613.5). A CR 716.2a section grant is an `applies`-gated static, and
+ *  `GateableStaticEffect` admits the layer 2-6 kinds whose answer is
+ *  MATERIALIZED onto the card by `syncLayer6` / `syncLayers2to5` rather than
+ *  re-derived at every read: without this tick a bar that grants a keyword
+ *  would stay inert until the next SBA sweep, i.e. for every later Op in the
+ *  same script. */
 export function setClassLevelOnCard(
     state: GameState,
     card: CardInstanceState,
@@ -11679,6 +11694,7 @@ export function setClassLevelOnCard(
     const previousLevel = classLevelOf(card);
     if (level <= previousLevel) return;
     card.classLevel = level;
+    recomputeContinuousEffects(state);
     state.pendingEvents = [
         ...(state.pendingEvents ?? []),
         {
