@@ -2,6 +2,8 @@
 // `import * as scg from "./sets/scg"` resolves here via scg/index.ts.
 import type { CardDefinition } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { GOBLIN_TOKEN } from "../../sharedTokens";
 
 // Sulfuric Vortex — "At the beginning of each player's upkeep, this enchantment
 // deals 2 damage to that player. If a player would gain life, that player gains
@@ -63,6 +65,63 @@ export const sulfuricVortex: CardDefinition = {
             // affects every player, not just its controller).
             appliesTo: (event) => event.kind === "lifegain",
             replace: () => ({ kind: "consumed" }),
+        },
+    ],
+};
+
+// Siege-Gang Commander — {3}{R}{R} 2/2 Goblin. "When this creature enters,
+// create three 1/1 red Goblin creature tokens." (CR 603.6a ETB trigger,
+// CR 111 / 701.7 token creation — the shared `GOBLIN_TOKEN` spec, its art
+// resolved from THIS card's own printing through `tokenPrintIdFor`.)
+// "{1}{R}, Sacrifice a Goblin: This creature deals 2 damage to any target."
+// (CR 602.1 activation, CR 701.21 sacrifice as a cost, CR 115.4 "any
+// target".) The sacrifice leg is `cost.sacrificeFilter` — a filtered
+// permanent the controller picks through the unified sacrifice-choice layer,
+// NOT `sacrifice: true` (which would sacrifice the Commander itself); the
+// same shape Deadapult (`pls/red.ts`) uses for "Sacrifice a Zombie". The
+// Commander is itself a Goblin, so it is a legal sacrifice for its own
+// ability (CR 701.21a — the cost names a characteristic, not "another").
+//
+// compiler-gap: When this creature enters, create three 1/1 red Goblin creature tokens. (#2693)
+export const siegeGangCommander: CardDefinition = {
+    id: "92e78cec-aaf9-4fe8-887b-b7e356d63315", // SCG 103
+    rarity: "rare",
+    name: "Siege-Gang Commander",
+    oracleText:
+        "When this creature enters, create three 1/1 red Goblin creature tokens.\n{1}{R}, Sacrifice a Goblin: This creature deals 2 damage to any target.",
+    manaCost: { X: 3, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Goblin"],
+    power: 2,
+    toughness: 2,
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "siege-gang-commander-tokens",
+            oracleText:
+                "When this creature enters, create three 1/1 red Goblin creature tokens.",
+            scope: "self",
+            effects: [
+                {
+                    op: "createToken",
+                    token: GOBLIN_TOKEN,
+                    controller: "controller",
+                    count: 3,
+                },
+            ],
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "siege-gang-commander-fling",
+            oracleText:
+                "{1}{R}, Sacrifice a Goblin: This creature deals 2 damage to any target.",
+            cost: {
+                mana: { X: 1, R: 1 },
+                sacrificeFilter: { subtypes: "Goblin" },
+            },
+            useStack: true,
+            targetRequirement: { type: "any", count: 1 },
+            effects: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
         },
     ],
 };

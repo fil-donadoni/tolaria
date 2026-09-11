@@ -128,6 +128,24 @@ export const ELDRAZI_SPAWN_TOKEN: EffectTokenSpec = {
     imagePrintId: "e32795e1-5548-43ef-8cd6-c605a19ef708",
 };
 
+/** Goblin token (CR 111 / 707.2). "1/1 red Goblin creature token" — created
+ *  today by Empty the Warrens (`sets/tsp/red.ts`) and Siege-Gang Commander
+ *  (`sets/scg/red.ts`). Vanilla, so `EffectTokenSpec` (JSON-pure, ADR 0046)
+ *  rather than `TokenSpec`.
+ *
+ *  No pinned `imagePrintId`, the `RABBIT_TOKEN`/`KNIGHT_TOKEN` treatment:
+ *  Goblin is a printed token in many sets and the art-match rule is "the
+ *  token associated with the PRODUCING card's own printing", resolved per
+ *  producer by `tokenPrintIdFor` from `generated/token-prints.json`. */
+export const GOBLIN_TOKEN: EffectTokenSpec = {
+    name: "Goblin",
+    types: ["Creature"],
+    subtypes: ["Goblin"],
+    power: 1,
+    toughness: 1,
+    colors: ["R"],
+};
+
 /** Rabbit token (CR 111 / 707.2, issue #674). "1/1 white Rabbit creature
  *  token" — the Bloomburrow-block staple, created today by Jacked Rabbit
  *  (`sets/blc/white.ts`) once per point of its power when it attacks. A

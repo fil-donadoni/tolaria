@@ -3052,11 +3052,15 @@ export const OP_EXECUTORS: {
             if (op.to === "hand") {
                 if (op.bind) bindSnapshot(ctx, op.bind, target);
                 ctx.returnToHand(target);
-            } else if (op.to === "library") {
+            } else if (op.to === "library" || op.to === "library-top") {
                 // issue #1726 — "put target … into its owner's library third
                 // from the top" (Teferi, Hero of Dominaria's −3). An omitted
                 // `position` puts the permanent on TOP (the "put on top of
-                // its owner's library" default).
+                // its owner's library" default), which is also what
+                // `to: "library-top"` (issue #2713) names from the
+                // battlefield: the same primitive, position 1, so a
+                // battlefield source never needs the repositioning pass the
+                // graveyard/exile branch below performs.
                 if (op.bind) bindSnapshot(ctx, op.bind, target);
                 ctx.putIntoLibraryFromBattlefield(
                     target,
@@ -3156,6 +3160,18 @@ export const OP_EXECUTORS: {
             // id (Raise Dead, Grave Robbers). `battlefield` was handled
             // above, so the destination here is a MovableZone; `recoveredZone`
             // (re-derived above) is the source, not a hardcoded "graveyard".
+            // issue #2713 — `to: "library-top"` ("put target creature card
+            // from your graveyard on top of your library", Volrath's
+            // Stronghold). The generic library leg of `moveCardById` PUSHES,
+            // i.e. bottoms the card (`library[0]` is the top), so the move is
+            // followed by `putLibraryCardsOnTop` — the one primitive that can
+            // address the top of a library, the same two-step Doomsday
+            // (`wth/black.ts`) performs imperatively.
+            if (op.to === "library-top") {
+                ctx.moveCardById(owner, target.id, recoveredZone, "library");
+                ctx.putLibraryCardsOnTop(owner, [target.id]);
+                return;
+            }
             ctx.moveCardById(owner, target.id, recoveredZone, op.to);
             // CR 400.7 / 607 (issue #1947, generalized #1323) — link the
             // just-exiled card back to this ability's OWN source so a LATER
@@ -4986,7 +5002,7 @@ export const OP_EXECUTORS: {
             playerId,
             choiceId: op.bind,
             prompt: op.prompt,
-            excludeBasicLand: op.excludeBasicLand,
+            nameRestriction: op.nameRestriction,
         });
         if (named === undefined) return "suspend"; // enqueued — wait
     },
@@ -5194,6 +5210,22 @@ export const OP_EXECUTORS: {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return;
         if (op.cards === undefined) {
+            // issue #2713 — the filter shape ("discards all cards with that
+            // name", Cabal Therapy): the same whole-hand walk, narrowed by the
+            // shared `matchesCardFilter` matcher the `moveZone` bulk sweep
+            // uses, and still discarding through `discardCard` so CR 701.9's
+            // event (madness, Library of Leng, "whenever you discard") fires
+            // for each one. The id list is snapshotted BEFORE the loop because
+            // discarding mutates the hand.
+            if (op.filter !== undefined) {
+                const filter = op.filter;
+                const matching = ctx
+                    .getHandCards(playerId)
+                    .filter((card) => matchesCardFilter(ctx, card, filter))
+                    .map((card) => card.id);
+                for (const id of matching) ctx.discardCard(playerId, id);
+                return;
+            }
             for (const id of ctx.getHandIds(playerId)) {
                 ctx.discardCard(playerId, id);
             }

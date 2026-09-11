@@ -94,6 +94,11 @@ const RETURN_COMPLETENESS = {
     /** To library / exile / graveyard — a tuck, slightly less than a bounce
      *  in this basis (the card is gone, but so is the chance to recast it). */
     tuck: { num: 9, den: 11 },
+    /** Graveyard → TOP of the library (issue #2713, Volrath's Stronghold):
+     *  the card genuinely comes back, so it prices on `recursion` like a
+     *  reanimation rather than on `tempo` like a tuck — tempered because it
+     *  arrives a draw later and consumes that draw, not the battlefield. */
+    topOfLibrary: { num: 5, den: 6 },
 } as const;
 
 /** The `disruption` twin: how much of a countered spell each stack-departure
@@ -714,11 +719,26 @@ const sacrifice: Valuer<"sacrifice"> = (op, ctx, scope) => {
  *  is 1 for every non-board move, which is every zone but a battlefield
  *  departure). */
 function moveZonePoints(
-    to: EffectMoveZone,
+    to: EffectMoveZone | "library-top",
     ctx: GroundingContext,
     victimUnits: number
 ): { points: number; tag: Feature } {
     switch (to) {
+        case "library-top":
+            // Issue #2713 — the ORDERED library destination the plain
+            // `"library"` tuck cannot name. Its shipped consumer (Volrath's
+            // Stronghold) points it at the ACTOR'S OWN graveyard card, so the
+            // move is recursion, not removal: scoring it as a tuck would price
+            // a card coming back as if a card had been answered.
+            return {
+                points: pricedFraction(
+                    ctx,
+                    "recursion",
+                    RETURN_COMPLETENESS.topOfLibrary,
+                    victimUnits
+                ),
+                tag: "recursion",
+            };
         case "battlefield":
             // Reanimation (graveyard → battlefield) — a body AND card
             // advantage. The victim is a GRAVEYARD card, not a board
@@ -1104,6 +1124,17 @@ const discard: Valuer<"discard"> = (op, ctx) => {
     const sign = self ? -1 : 1;
     if (op.cards) {
         const tags: ValueTag[] = ["cardAdvantage"];
+        if (self) tags.push("self-cost");
+        return { points: DISCARD_VALUE * sign, tags };
+    }
+    if (op.filter) {
+        // Issue #2713 — the filter shape ("discards all cards with that name",
+        // Cabal Therapy). It is NOT a whole-hand discard: a predicate over a
+        // hand typically matches one or two cards, and pricing it at the
+        // whole-hand magnitude would make a one-card strip read as a Wheel of
+        // Fortune. One card's disruption weight, marked scaling because the
+        // real count is a live hand read this static model cannot make.
+        const tags = tagScaling(true, "cardAdvantage");
         if (self) tags.push("self-cost");
         return { points: DISCARD_VALUE * sign, tags };
     }

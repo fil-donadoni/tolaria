@@ -133,3 +133,40 @@ export const recklessSpite: CardDefinition = {
         { op: "loseLife", player: "controller", amount: 5 },
     ],
 };
+
+// Perish — {2}{B} Sorcery. "Destroy all green creatures. They can't be
+// regenerated." A one-sided-in-practice sweeper whose scope is a COLOUR
+// (CR 105.2), read live off the battlefield so a creature made green by a
+// continuous effect (layer 5, CR 613.1e) is destroyed and a green creature
+// turned another colour is not — `matchesCardFilter`'s `color` leg reads the
+// effective colours, not the printed ones. "They can't be regenerated"
+// (CR 701.19c) is the `destroy` Op's own `cantBeRegenerated` flag, the same
+// shape Shatterstorm (`atq/red.ts`) uses; the shield is denied at destruction
+// time rather than pre-emptively stripped.
+//
+// compiler-gap: Destroy all green creatures. They can't be regenerated. (#2693)
+export const perish: CardDefinition = {
+    id: "e47ace1d-73de-44aa-a3fe-2e2a21ebec79", // TMP 147
+    rarity: "uncommon",
+    name: "Perish",
+    oracleText: "Destroy all green creatures. They can't be regenerated.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Sorcery"],
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { type: "Creature", color: "G" },
+            },
+            effects: [
+                {
+                    op: "destroy",
+                    target: { ref: "$each" },
+                    cantBeRegenerated: true,
+                },
+            ],
+        },
+    ],
+};

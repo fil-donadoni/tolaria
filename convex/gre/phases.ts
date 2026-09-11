@@ -225,6 +225,24 @@ export function collectUntapRestrictions(state: GameState): {
                     });
                     continue;
                 }
+                // CR 502.3 (issue #2713) — a SELF-scoped lock ("This creature
+                // doesn't untap during your untap step", Goblin Sharpshooter).
+                // The twin of the host branch above, one relation over: the
+                // source IS the restricted permanent, so the synthesized
+                // filter names its own instance id and the dispatcher stays
+                // filter-shaped.
+                if (effect.appliesToSelf) {
+                    const view = effectivePermanentView(state, card);
+                    if (effect.condition && !effect.condition(view)) continue;
+                    out.push({
+                        source: card,
+                        restriction: {
+                            ...effect,
+                            filter: { instanceIds: [card.id] },
+                        },
+                    });
+                    continue;
+                }
                 if (effect.condition) {
                     const view = effectivePermanentView(state, card);
                     if (!effect.condition(view)) continue;

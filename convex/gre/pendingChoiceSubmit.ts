@@ -363,19 +363,26 @@ export type SubmitNameCardArgs = {
     cardName: string;
 };
 
-/** CR 201.3 — the `no-basic-land` name restriction (Desperate Research's
- *  "choose a card name other than a basic land card name", issue #1085). A
- *  basic land CARD, not merely a land with a basic land TYPE — checked against
- *  the printed characteristics, mirroring every other registry-backed name
- *  restriction in this pipeline. */
+/** CR 201.3 — the two printed name restrictions. `"no-basic-land"` is
+ *  Desperate Research's "choose a card name other than a basic land card name"
+ *  (issue #1085): a basic land CARD, not merely a land with a basic land TYPE
+ *  — checked against the printed characteristics, mirroring every other
+ *  registry-backed name restriction in this pipeline. `"no-land"` (issue
+ *  #2713) is Cabal Therapy's stronger "a nonland card name": EVERY land is
+ *  rejected, so it subsumes the basic-land case.
+ *
+ *  The single authority both doors read: the `submitNameCard` mutation and the
+ *  bot's `isLegalNamedCard`, so a bot answer is legal by construction rather
+ *  than by luck (issue #2497 — a rejected name is a frozen game, not a retry). */
 function violatesNameRestriction(
     head: PendingChoice,
     def: CardDefinition
 ): boolean {
+    if (!def.types.includes("Land")) return false;
+    if (head.nameRestriction === "no-land") return true;
     return (
         head.nameRestriction === "no-basic-land" &&
-        (def.supertypes?.includes("Basic") ?? false) &&
-        def.types.includes("Land")
+        (def.supertypes?.includes("Basic") ?? false)
     );
 }
 

@@ -706,7 +706,10 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // populated-graveyard delta against, so both shapes are skipped;
             // execution coverage is the card's own per-card test (Wheel of
             // Fortune, Anje's Ravager).
-            req.skip ??= `Op "discard" consumes a choice binding or discards the whole hand — covered by the card's own suspension/resume or per-card test`;
+            // Issue #2713 added a THIRD shape (a `filter` over the hand,
+            // Cabal Therapy) — skipped for the same reason as the whole-hand
+            // one: no seeded hand to assert a delta against.
+            req.skip ??= `Op "discard" consumes a choice binding, a hand filter, or discards the whole hand — covered by the card's own suspension/resume or per-card test`;
             return;
         case "grantCastFromExile":
             // `grantCastFromExile` (issue #1156, Dauthi Voidwalker) consumes

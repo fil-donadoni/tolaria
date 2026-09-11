@@ -24255,7 +24255,7 @@ describe("Effect Script Op: nameCard (CR 201.3 / 202.3, issue #1085)", () => {
                 player: "controller",
                 prompt: "Choose a card name other than a basic land card name.",
                 bind: "$named",
-                excludeBasicLand: true,
+                nameRestriction: "no-basic-land",
             },
         ]);
         const state = makeState();
@@ -24638,7 +24638,7 @@ describe("Effect Script Op: digMatchingToHand (CR 701.20a / 401.4, issue #1085)"
                 player: "controller",
                 prompt: "Choose a card name other than a basic land card name.",
                 bind: "$named",
-                excludeBasicLand: true,
+                nameRestriction: "no-basic-land",
             },
             {
                 op: "digMatchingToHand",

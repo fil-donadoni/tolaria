@@ -22,6 +22,7 @@ import {
     type DrawStepPlan,
     type DurationSpec,
     type EffectCardFilter,
+    type NameRestriction,
     type EffectOp,
     type EnchantRestriction,
     type EntryTypeLine,
@@ -3540,9 +3541,11 @@ export type PendingChoice = {
      *  a basic land card name" (Desperate Research) — a submission naming
      *  Plains/Island/Swamp/Mountain/Forest/Wastes is rejected and the
      *  chooser is asked again, exactly like every other illegal-choice
-     *  rejection in that pipeline. Undefined = no restriction (Petra
+     *  rejection in that pipeline. `"no-land"` (issue #2713) is the STRONGER
+     *  printed wording, Cabal Therapy's "a nonland card name": every land is
+     *  rejected, basic or not. Undefined = no restriction (Petra
      *  Sphinx — any registered card name is legal). */
-    nameRestriction?: "no-basic-land";
+    nameRestriction?: NameRestriction;
 
     // --- random-reveal family (CR 705, ADR 0023) ---
     /** For `kind: "random-reveal"` only — which random device produced the
@@ -19331,8 +19334,8 @@ export function buildSpellContext(
                 // CR 201.3 (issue #1085) — "a card name other than a basic
                 // land card name" (Desperate Research). Checked at submit
                 // time by `applyNameCardSubmit`.
-                ...(req.excludeBasicLand
-                    ? { nameRestriction: "no-basic-land" as const }
+                ...(req.nameRestriction
+                    ? { nameRestriction: req.nameRestriction }
                     : {}),
             };
             if (routed.actingPlayerId)

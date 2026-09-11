@@ -59,7 +59,12 @@ export interface UntapRestrictionArgs {
      *  source (Winter Orb / Smoke / Stasis). Reserved for future
      *  controller-scoped restrictions. */
     scope?: UntapRestrictionScope;
-    /** Per-candidate refinement resolved at untap-collection time (CR 502.1).
+    /** Scopes the cap to the SOURCE permanent itself (issue #2713 — Goblin
+     *  Sharpshooter's "This creature doesn't untap during your untap step").
+     *  `filter` is then ignored: the engine synthesizes the source's own
+     *  instance-id filter at collection time, the twin of `appliesToHost`. */
+    appliesToSelf?: boolean;
+    /** Per-candidate refinement resolved at untap-collection time (CR 502.3).
      *  See `StaticUntapRestriction.dynamicMatch` — used by Tsabo's Web to match
      *  lands whose card definition carries a non-mana activated ability, a
      *  property `PermanentFilter` can't express. */
@@ -79,6 +84,7 @@ export function untapRestriction(
         filter: args.filter,
         maxUntap: args.maxUntap ?? 0,
         scope: args.scope ?? "each-player",
+        ...(args.appliesToSelf ? { appliesToSelf: true } : {}),
         ...(args.dynamicMatch ? { dynamicMatch: args.dynamicMatch } : {}),
     };
 }

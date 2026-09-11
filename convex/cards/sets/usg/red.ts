@@ -5,6 +5,7 @@
 // "Echo", errata'd to the explicit mana-cost payment).
 
 import type { CardDefinition } from "../../types";
+import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 import { echoTrigger } from "../../abilities/echo";
 
 // Goblin Patrol — {R} 2/1 Goblin with Echo {R} (CR 702.30). Home set is Urza's
@@ -199,4 +200,65 @@ export const arcLightning: CardDefinition = {
         divideAsChosen: { total: 3 },
     },
     effects: [{ op: "dealDamageDividedAsChosen", total: 3 }],
+};
+
+// Goblin Lackey — {R} 1/1 Goblin. "Whenever this creature deals damage to a
+// player, you may put a Goblin permanent card from your hand onto the
+// battlefield." (CR 603.2 triggered ability, CR 400.7 zone change.)
+//
+// Note what the modern Oracle line does NOT say: nothing scopes the trigger
+// to COMBAT damage, so a Lackey whose damage reaches a player by any route
+// (a pump-and-ping effect, a redirect) fires it — `damageDealtTrigger` with
+// `source: "self"` and `target: { kind: "player" }` and NO `isCombat` flag,
+// unlike Enduring Curiosity (`dsk/blue.ts`), which prints "combat damage".
+//
+// The body is Goblin Wizard's shipped hand→battlefield shape verbatim
+// (`drk/red.ts`): `choice(zone: "hand")` over the controller's own hand with
+// `count: { min: 0, max: 1 }` for the "you may", then `moveZone` routing
+// through `putFromHandOntoBattlefield`. CR 205.3 — a "Goblin permanent card"
+// is `subtype: "Goblin"` AND NOT Instant/Sorcery (`excludeType`).
+//
+// compiler-gap: Whenever this creature deals damage to a player, you may put a Goblin permanent card from your hand onto the battlefield. (#2693)
+export const goblinLackey: CardDefinition = {
+    id: "9b848caa-aad8-4060-8f86-304a8556de2d", // USG 190
+    rarity: "uncommon",
+    name: "Goblin Lackey",
+    oracleText:
+        "Whenever this creature deals damage to a player, you may put a Goblin permanent card from your hand onto the battlefield.",
+    manaCost: { R: 1 },
+    types: ["Creature"],
+    subtypes: ["Goblin"],
+    power: 1,
+    toughness: 1,
+    triggeredAbilities: [
+        damageDealtTrigger({
+            id: "goblin-lackey-drop",
+            oracleText:
+                "Whenever this creature deals damage to a player, you may put a Goblin permanent card from your hand onto the battlefield.",
+            source: "self",
+            target: { kind: "player", player: { relation: "any" } },
+            effects: [
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zone: "hand",
+                    filter: {
+                        subtype: "Goblin",
+                        excludeType: ["Instant", "Sorcery"],
+                    },
+                    count: { min: 0, max: 1 },
+                    prompt: "You may put a Goblin permanent card from your hand onto the battlefield.",
+                    bind: "$picked",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$picked" },
+                    player: "controller",
+                    from: "hand",
+                    to: "battlefield",
+                },
+            ],
+        }),
+    ],
 };
