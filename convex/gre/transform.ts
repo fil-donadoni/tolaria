@@ -45,6 +45,11 @@ import {
 } from "../cards";
 import { resolveTokenStaticEffects } from "../cards/tokenStaticEffects";
 import type { CardBackFace, ManaCost, TokenSpec } from "../cards/types";
+import {
+    isModalDoubleFaced,
+    isPermanentTypeLine,
+    modalBackFaceDefinitionId,
+} from "../cards/modalDfc";
 import { rebuildCopiableValuesAndReplayOverlays } from "./identitySwap";
 import type { CardInstanceState } from "./state";
 import type { LayerStateView } from "./layers";
@@ -204,6 +209,59 @@ export function stampBackFaceForEntry(
     return true;
 }
 
+/** CR 712.12 / 712.8f — stamps the MODAL back-face identity onto a card that
+ *  is about to enter the battlefield as that face, because its controller
+ *  chose it as the land they are playing (ADR 0122 §2).
+ *
+ *  The sibling of {@link stampBackFaceForEntry} above and deliberately a
+ *  separate function, because the two reach DIFFERENT definitions by different
+ *  routes. That one synthesizes a nonmodal face through
+ *  `registerBackFaceDefinition`'s content-derived id codec, which carries a
+ *  `TokenSpec`'s fields and nothing else. A modal face is a whole card face —
+ *  Soporific Springs has an entry replacement AND a mana ability — so it is a
+ *  module-registered twin under `${parentId}#back` (`cards/modalDfc.ts`),
+ *  already in the registry before this runs, and there is no spec to encode.
+ *
+ *  What it SHARES is the markers, and that is the point: `transformed` +
+ *  `transformedFrom` are what the battlefield-departure funnel
+ *  (`removePermanentTo` → {@link revertTransform}) reads, so a Soporific
+ *  Springs that dies, is bounced or is exiled leaves as Sink into Stupor with
+ *  no new code at all — which is exactly CR 712.8a ("while a double-faced card
+ *  is … in a zone other than the battlefield or stack, it has only the
+ *  characteristics of its front face").
+ *
+ *  `card` must NOT yet be on the battlefield: every caller
+ *  (`gre/playLand.ts`) stamps between the CR 712.12 face choice and the zone
+ *  move, inside one synchronous transition, so nothing ever observes a card in
+ *  hand wearing its back face. Returns false, leaving `card` untouched, when
+ *  the twin does not resolve — the caller then plays the front face, which is
+ *  the only other thing it could legally be. */
+export function stampModalBackFaceForPlay(
+    state: LayerStateView,
+    card: CardInstanceState
+): boolean {
+    const frontId = (card.card as { id?: string }).id;
+    if (!frontId) return false;
+    const frontDef = tryGetDefinition(frontId);
+    if (!isModalDoubleFaced(frontDef ?? undefined)) return false;
+    const backId = modalBackFaceDefinitionId(frontId);
+    const backDef = tryGetDefinition(backId);
+    if (!backDef) return false;
+    card.transformedFrom = frontId;
+    card.card = { id: backId };
+    rebuildCopiableValuesAndReplayOverlays(state, card, {
+        types: [...backDef.types],
+        subtypes: backDef.subtypes ? [...backDef.subtypes] : [],
+        power: backDef.power,
+        toughness: backDef.toughness,
+        staticAbilities: backDef.staticAbilities
+            ? [...backDef.staticAbilities]
+            : [],
+    });
+    card.transformed = true;
+    return true;
+}
+
 /** Reverts a permanent showing its BACK face to its FRONT face (CR 712.8a —
  *  while a double-faced card is outside the game or in a zone other than the
  *  battlefield or the stack, it has only the characteristics of its FRONT
@@ -273,7 +331,22 @@ export function transformPermanent(
         const frontDef = tryGetDefinition(frontId);
         const backFace = frontDef?.backFace;
         if (!backFace) return; // CR 712 — nothing to transform into.
-        const backId = registerBackFaceDefinition(backFace);
+        // CR 712.10 — "if a spell or ability instructs a player to transform a
+        // permanent, and the face that permanent would transform into is an
+        // instant or sorcery card face … nothing happens." No printed NONMODAL
+        // back face is one, so this leg is latent for the 401 transform cards;
+        // it is stated because the modal kind makes the mirror leg below live.
+        if (!isPermanentTypeLine(backFace.types)) return;
+        // CR 712.3 / 712.8f (ADR 0122 §1) — a MODAL back face is already a
+        // registered twin, so transform points at THAT definition rather than
+        // minting a second one through the token codec. One face, one
+        // definition: a codec-synthesized copy would carry neither the face's
+        // entry replacement nor its twin id, so a permanent flipped here and a
+        // permanent PLAYED as that face would be two different objects wearing
+        // one name.
+        const backId = isModalDoubleFaced(frontDef ?? undefined)
+            ? modalBackFaceDefinitionId(frontId)
+            : registerBackFaceDefinition(backFace);
         card.transformedFrom = frontId;
         card.card = { id: backId };
         // CR 701.27b / 712 — transforming is the SAME permanent (CR 400.7
@@ -290,6 +363,18 @@ export function transformPermanent(
         });
         card.transformed = true;
     } else {
+        // CR 712.10 — the live leg of the same clause, and the reason it is
+        // stated at all: a MODAL permanent showing its land back face reverts
+        // to its FRONT face, which for Sink into Stupor is an INSTANT card
+        // face. "Nothing happens" — without this, an effect that transforms
+        // target permanent would leave an Instant sitting on the battlefield
+        // (ADR 0122). CR 712.8a's departure revert is a different question and
+        // is not gated by this: a card LEAVING the battlefield has no face up
+        // at all, and `revertTransform`'s own caller there is
+        // `removePermanentTo`.
+        const frontId = card.transformedFrom;
+        const frontDef = frontId ? tryGetDefinition(frontId) : undefined;
+        if (frontDef && !isPermanentTypeLine(frontDef.types)) return;
         // Back → front is exactly the CR 712.8a restore, so it IS that
         // function — one front-face rebuild, not two that can drift apart.
         revertTransform(state, card);

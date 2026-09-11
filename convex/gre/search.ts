@@ -126,6 +126,7 @@ import {
     recordActivation,
 } from "./activationCommit";
 import { resolvePlayLandSourceZone } from "./playLand";
+import { stampModalBackFaceForPlay } from "./transform";
 import {
     evaluate,
     evaluateBreakdown,
@@ -894,6 +895,21 @@ export function applyMoveInSearch(
                 !player.exile.some((c) => c.id === move.cardInstanceId)
             ) {
                 return;
+            }
+            // CR 712.12 — the face is chosen BEFORE the card is put onto the
+            // battlefield, so the stamp precedes the zone move here exactly as
+            // it does on the real path (`stampChosenFace`, `gre/playLand.ts`)
+            // — the stamper's own contract says the card must not be on the
+            // battlefield yet. Without it the coarse leaf would put an Instant
+            // onto the battlefield, count no land drop, and evaluate a
+            // position the real engine never produces.
+            const sourceCard = (
+                sourceZone === "library-top"
+                    ? player.library
+                    : player[sourceZone]
+            ).find((c) => c.id === move.cardInstanceId);
+            if (move.face === "back" && sourceCard) {
+                stampModalBackFaceForPlay(state, sourceCard);
             }
             const card = moveCard(
                 player,

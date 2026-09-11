@@ -31,32 +31,40 @@ export type HandCardPrimaryAction = {
  *  left-click to open the menu. Mobile: the card owns the tap detection and
  *  toggles `sheetOpen`, driving the {@link ActionSheet} with the same items.
  *
- *  Rendered ONLY when the card has ≥1 hand ability — a card with no cycling
- *  ability keeps its direct click-to-cast / drag-to-cast behaviour, so this
- *  never adds a one-item menu to ordinary hand cards (matching the
- *  `abilities.length === 0 → children untouched` contract of the battlefield
- *  menu). The server (`activateAbility` / `announceCast` / `playCard`) is
- *  authoritative for every entry. */
+ *  Rendered ONLY when the card offers MORE THAN ONE option — a hand ability
+ *  plus its play/cast, or (CR 712.12, ADR 0122) two options of its own: a
+ *  modal double-faced card offers a cast of its front face AND a play of its
+ *  land back face, with independent legality windows. A card with a single
+ *  option keeps its direct click-to-cast / drag-to-cast behaviour, so this
+ *  never adds a one-item menu to ordinary hand cards. The server
+ *  (`activateAbility` / `announceCast` / `playCard`) is authoritative for
+ *  every entry. */
 export default function HandCardActionMenu({
     abilities,
     onActivate,
-    primaryAction,
+    primaryActions,
     sheetOpen,
     onSheetClose,
     children,
 }: {
     abilities: HandCardMenuAbility[];
     onActivate: (abilityId: string, keepPriority: boolean) => void;
-    /** Play/cast entry, or undefined when neither is currently legal (e.g. a
-     *  Cycling-only card with no mana to cast it — cycling still shows). */
-    primaryAction?: HandCardPrimaryAction;
+    /** Play/cast entries, empty when neither is currently legal (e.g. a
+     *  Cycling-only card with no mana to cast it — cycling still shows).
+     *
+     *  A LIST rather than one entry because CR 712.12 makes it one: a modal
+     *  double-faced card in hand offers a cast of its front face and a play of
+     *  its land back face, and CR 712.11c / 712.12 evaluate each against the
+     *  face it names, so the two windows open and close independently. Every
+     *  other card contributes at most one. */
+    primaryActions: HandCardPrimaryAction[];
     /** Whether the mobile action-sheet is open (owned by the card, which detects
      *  the touch tap). */
     sheetOpen: boolean;
     onSheetClose: () => void;
     children: React.ReactNode;
 }) {
-    if (abilities.length === 0) return <>{children}</>;
+    if (abilities.length + primaryActions.length <= 1) return <>{children}</>;
 
     const sheetItems: ActionSheetItem[] = [
         ...abilities.map((a) => ({
@@ -68,15 +76,11 @@ export default function HandCardActionMenu({
                 onActivate(a.id, keepPriority);
             },
         })),
-        ...(primaryAction
-            ? [
-                  {
-                      key: "primary",
-                      label: primaryAction.label,
-                      onSelect: primaryAction.onSelect,
-                  },
-              ]
-            : []),
+        ...primaryActions.map((a, index) => ({
+            key: `primary-${index}`,
+            label: a.label,
+            onSelect: a.onSelect,
+        })),
     ];
 
     return (
@@ -99,14 +103,15 @@ export default function HandCardActionMenu({
                             {formatOracleText(a.oracleText)}
                         </ContextMenuItem>
                     ))}
-                    {primaryAction && (
+                    {primaryActions.map((a, index) => (
                         <ContextMenuItem
+                            key={`primary-${index}`}
                             className="block leading-snug whitespace-normal"
-                            onClick={(e) => primaryAction.onSelect(e)}
+                            onClick={(e) => a.onSelect(e)}
                         >
-                            {primaryAction.label}
+                            {a.label}
                         </ContextMenuItem>
-                    )}
+                    ))}
                 </ContextMenuContent>
             </ContextMenu>
             <ActionSheet

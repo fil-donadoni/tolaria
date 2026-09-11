@@ -74,6 +74,7 @@ import {
     castSubjectView,
     independentCastOptionsFor,
 } from "./castMode";
+import { landPlayFaces } from "./modalLandPlay";
 import { offersPrintedCast, splitCastOptionsFor } from "./splitCast";
 import { canPayAnyAdditionalCost } from "./additionalCost";
 import {
@@ -251,10 +252,14 @@ export function isPlayableLibraryTopLand(
 ): boolean {
     if (!canPlayLandsFromTopOfLibrary(state, player)) return false;
     const top = player.library[0];
+    // CR 712.12 — a FACE test, not a card test, for the same reason the
+    // graveyard permission and `getLegalActions`' own land branch use it: a
+    // modal double-faced card on top of the library is its front face
+    // (CR 712.8a) and may still be played as its land face.
     return (
         top !== undefined &&
         top.id === cardInstanceId &&
-        top.types.includes("Land")
+        landPlayFaces(top).length > 0
     );
 }
 
@@ -914,7 +919,23 @@ export function getLegalActions(
 
     // "Play" is for lands only — requires sorcery timing (main phase, empty stack, active player)
     // and the player must not have already used their per-turn land drops (CR 305.2).
-    if (types.includes("Land")) {
+    //
+    // CR 712.12 (ADR 0122 §2) — "a land" is a question about a FACE, not about
+    // the card: a modal double-faced card whose back face is a land may be
+    // played as that land, and Sink into Stupor's own type line says Instant.
+    // So the type test is `landPlayFaces(card).length > 0` — the same
+    // predicate the Move enumerator and both commit paths read, which is what
+    // keeps a client affordance from appearing over an action the mutation
+    // would refuse. Identical to `types.includes("Land")` for every card that
+    // is not modal, because the front face is asked of the instance's own
+    // `types` (see `gre/modalLandPlay.ts`).
+    //
+    // What stays CARD-level is everything below: one card answers the land
+    // drop, the sorcery window and the zone permission once, however many
+    // faces it has. WHICH face is the Move's parameter, not this list's — a
+    // `CardAction` is a vocabulary of four strings, and the client reads the
+    // faces off the same shared predicate (ADR 0074).
+    if (landPlayFaces(card).length > 0) {
         // CR 305.9 (issue #1689) — a land can be played ONLY from hand,
         // unless an effect explicitly says otherwise. This branch must scope
         // itself to a zone plus a permission exactly like every

@@ -168,6 +168,7 @@ import {
 import { excludeHandWritten } from "./compiledCatalogue";
 import { insetSpellDefinitionId } from "./insetSpell";
 import { chooseableNamesOf } from "./cardNames";
+import { isModalDoubleFaced, modalBackFaceDefinitionId } from "./modalDfc";
 import { SPLIT_HALF_SIDES, splitHalfDefinitionId } from "./splitCard";
 import { isTwinDefinitionId } from "./twinId";
 // The pool as a BUNDLED module. On the SERVER this is
@@ -451,6 +452,17 @@ function twinNameEntries(
             const twin = tryGetDefinition(splitHalfDefinitionId(card.id, side));
             if (twin) entries.push([twin.name.toLowerCase(), twin]);
         }
+    }
+    // CR 712.19 (ADR 0122) — "if an effect instructs a player to choose a card
+    // name, the player may choose the name of either face of a double-faced
+    // card but not both." The card's own name is its FRONT face's (CR 712.8a)
+    // and is already in the registry; the modal BACK face's has to resolve
+    // here or the name-choice button offers a name `tryGetCardByName` — the
+    // server's own submit gate — then refuses. Naming "Soporific Springs"
+    // names the LAND face, not the instant that carries it.
+    if (isModalDoubleFaced(card)) {
+        const twin = tryGetDefinition(modalBackFaceDefinitionId(card.id));
+        if (twin) entries.push([twin.name.toLowerCase(), twin]);
     }
     return entries;
 }

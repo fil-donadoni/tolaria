@@ -2359,6 +2359,22 @@ export type CardImageFace = "front" | "back";
  *  CASTING model (choosing a face to cast, a distinct mana cost per face,
  *  CR 711) is out of scope. */
 export interface CardBackFace {
+    /** CR 712.1 — WHICH KIND of double-faced card this face belongs to, and
+     *  therefore which DOOR turns it up. Absent means `"nonmodal"`, which is
+     *  what every card carrying this field meant before the modal kind
+     *  existed — so the 401 corpus transform cards are untouched (ADR 0122
+     *  §1).
+     *
+     *  The kind is not a fact about the DATA on the face; both kinds print a
+     *  whole characteristic set. It is a fact about how the face is reached:
+     *  a nonmodal face is turned up by transform / convert (CR 712.2) or by
+     *  an effect that casts the card transformed (CR 712.11a), a modal face
+     *  by the player's own choice at CR 712.11b (cast) or CR 712.12 (the land
+     *  play). That difference decides the REGISTRATION — see
+     *  `CARD_BACK_FACE_KINDS` (`cards/modalDfc.ts`), a
+     *  `Record<CardBackFaceKind, …>` so a third kind cannot be added to the
+     *  union without answering how it is registered. */
+    kind?: CardBackFaceKind;
     /** Display name of the back face. */
     name: string;
     /** Card types the back face presents (CR 712.2). */
@@ -2399,9 +2415,30 @@ export interface CardBackFace {
     activatedAbilities?: ActivatedAbility[];
     /** Printed Oracle text of the back face (display/reference only). */
     oracleText?: string;
+    /** CR 614.12 / 712.12 — the back face's own land-entry pay-choice ("As
+     *  this land enters, you may pay 3 life. If you don't, it enters tapped"
+     *  — the shock clause every land-backed modal card in the corpus carries).
+     *
+     *  MODAL faces only, and asserted so (`cardDataConformance.test.ts`): a
+     *  nonmodal face is registered through `registerBackFaceDefinition`'s
+     *  content-derived id codec (`gre/transform.ts`), which cannot encode a
+     *  `MayPayCost`, so declaring it there would be silently lost the first
+     *  time a client rebuilt the face from its id. A modal face is a
+     *  module-registered twin instead (ADR 0122 §1), so it carries the field
+     *  onto a real `CardDefinition` and the shipped `entersTappedUnlessPay`
+     *  machinery (`gre/playLand.ts`) reads it exactly as it does for a
+     *  printed shock land. */
+    entersTappedUnlessPay?: MayPayCost;
     /** Optional Scryfall id for the back face's own art. */
     imagePrintId?: string;
 }
+
+/** CR 712.1 — "there are three kinds of double-faced cards: nonmodal
+ *  double-faced cards …, modal double-faced cards, and meld cards." The two
+ *  this engine models, as {@link CardBackFace.kind}. Meld (CR 712.4) has no
+ *  back FACE in this sense — its back is half of a combined face — and stays
+ *  out of scope (ADR 0041, ADR 0122). */
+export type CardBackFaceKind = "nonmodal" | "modal";
 
 /** CR 715 / 722 — the KIND of an {@link InsetSpell}, and the whole of what
  *  distinguishes the two rules that share the inset frame.

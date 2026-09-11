@@ -478,6 +478,40 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "CR 715.3 Adventure reachability. `MoveMatcher` has no field for `alternativeCostId`, so the predicate shape (as for overload / dash). Also the end-to-end cover for the `suppressDamagePrevention` Op inside Stomp's script.",
     },
     {
+        // MDFC LAND-PLAY reachability (CR 712.12, ADR 0122, issue #3311). The
+        // bot's main phase, an empty board, and ONE card in hand: Sink into
+        // Stupor — whose printed type line says Instant. Its land face is the
+        // only thing it can do that is not `pass`, and the land drop is
+        // strictly non-negative (CR 305.2), so the position is deliberately as
+        // unambiguous as the Forest control below.
+        //
+        // What it guards is not the preference but the REACHABILITY: before
+        // this slice `enumerateMoves` filtered land plays on
+        // `types.includes("Land")`, which is false for this card in every
+        // zone (CR 712.8a), so the bot would hold it forever and pass. The
+        // matcher resolves the card by its FRONT face's name, which is the
+        // card's own name (CR 712.8a) — there is no second name to match on.
+        label: "mdfc: plays the land face of a card whose front face is an instant",
+        spec: {
+            cards: [{ name: "Sink into Stupor", owner: "me", zone: "hand" }],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        tier: "must",
+        expect: {
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "play-land" &&
+                move.face === "back",
+            describe:
+                "plays Sink into Stupor as Soporific Springs (its back face)",
+        },
+        note: 'CR 712.12 land-play reachability. `MoveMatcher` has no field for the chosen FACE, so the predicate shape (as for adventure / overload): a `{ kind: "play-land", card: "Sink into Stupor" }` matcher would pass on a front-face play that cannot legally exist, which is the one outcome this entry has to be able to fail on.',
+    },
+    {
         // POSITIVE CONTROL (#1427). Deliberately the least ambiguous decision
         // in Magic: it is the bot's main phase, it has one land in hand, an
         // empty board, and nothing else it can do. Playing the land is

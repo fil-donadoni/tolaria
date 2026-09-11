@@ -114,7 +114,13 @@ export default function SelectableCard({
         actionEntries.push({
             action: "play",
             label: "Play",
-            handler: onPlayClick,
+            // CR 712.12 — this surface offers the card's FRONT face only. It
+            // is the non-board selectable card (a reveal/choice list), where
+            // no modal double-faced card is ever offered a land play: the
+            // action list here comes from a choice's own allowed actions, not
+            // from a priority window. The board hand card
+            // (`gre-hand-card.tsx`) is the surface that names faces.
+            handler: () => onPlayClick(),
         });
     if (allowedActions.includes("cast"))
         actionEntries.push({

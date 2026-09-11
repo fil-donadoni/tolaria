@@ -1827,6 +1827,49 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Branchloft Pathway",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {G}.",
+        "activatedAbilities": [
+            {
+                "id": "branchloft-pathway-mana",
+                "oracleText": "{T}: Add {G}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "G": 1
+                }
+            }
+        ],
+        "backFace": {
+            "kind": "modal",
+            "name": "Boulderloft Pathway",
+            "types": [
+                "Land"
+            ],
+            "activatedAbilities": [
+                {
+                    "id": "boulderloft-pathway-mana",
+                    "oracleText": "{T}: Add {W}.",
+                    "cost": {
+                        "tap": true
+                    },
+                    "useStack": false,
+                    "manaProduced": {
+                        "W": 1
+                    }
+                }
+            ],
+            "oracleText": "{T}: Add {W}."
+        },
+        "id": "0511e232-2a72-40f5-a400-4f7ebc442d17",
+        "rarity": "rare"
+    },
+    {
         "name": "Bogstomper",
         "types": [
             "Creature"
@@ -4083,6 +4126,49 @@
         },
         "id": "0cd4007c-eb51-4da0-b8df-38aae1482a5a",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Blightstep Pathway",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {B}.",
+        "activatedAbilities": [
+            {
+                "id": "blightstep-pathway-mana",
+                "oracleText": "{T}: Add {B}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "B": 1
+                }
+            }
+        ],
+        "backFace": {
+            "kind": "modal",
+            "name": "Searstep Pathway",
+            "types": [
+                "Land"
+            ],
+            "activatedAbilities": [
+                {
+                    "id": "searstep-pathway-mana",
+                    "oracleText": "{T}: Add {R}.",
+                    "cost": {
+                        "tap": true
+                    },
+                    "useStack": false,
+                    "manaProduced": {
+                        "R": 1
+                    }
+                }
+            ],
+            "oracleText": "{T}: Add {R}."
+        },
+        "id": "0ce39a19-f51d-4a35-ae80-5b82eb15fcff",
+        "rarity": "rare"
     },
     {
         "name": "Arcane Encyclopedia",
@@ -11721,6 +11807,49 @@
         ],
         "id": "264f78d8-d554-45f3-867e-19dba38e4644",
         "rarity": "common"
+    },
+    {
+        "name": "Riverglide Pathway",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {U}.",
+        "activatedAbilities": [
+            {
+                "id": "riverglide-pathway-mana",
+                "oracleText": "{T}: Add {U}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "U": 1
+                }
+            }
+        ],
+        "backFace": {
+            "kind": "modal",
+            "name": "Lavaglide Pathway",
+            "types": [
+                "Land"
+            ],
+            "activatedAbilities": [
+                {
+                    "id": "lavaglide-pathway-mana",
+                    "oracleText": "{T}: Add {R}.",
+                    "cost": {
+                        "tap": true
+                    },
+                    "useStack": false,
+                    "manaProduced": {
+                        "R": 1
+                    }
+                }
+            ],
+            "oracleText": "{T}: Add {R}."
+        },
+        "id": "2668ac91-6cda-4f81-a08d-4fc5f9cb35b2",
+        "rarity": "rare"
     },
     {
         "name": "Talon Trooper",
@@ -29040,6 +29169,49 @@
         "rarity": "rare"
     },
     {
+        "name": "Needleverge Pathway",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {R}.",
+        "activatedAbilities": [
+            {
+                "id": "needleverge-pathway-mana",
+                "oracleText": "{T}: Add {R}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "R": 1
+                }
+            }
+        ],
+        "backFace": {
+            "kind": "modal",
+            "name": "Pillarverge Pathway",
+            "types": [
+                "Land"
+            ],
+            "activatedAbilities": [
+                {
+                    "id": "pillarverge-pathway-mana",
+                    "oracleText": "{T}: Add {W}.",
+                    "cost": {
+                        "tap": true
+                    },
+                    "useStack": false,
+                    "manaProduced": {
+                        "W": 1
+                    }
+                }
+            ],
+            "oracleText": "{T}: Add {W}."
+        },
+        "id": "6559047e-6ede-4815-a3a0-389062094f9d",
+        "rarity": "rare"
+    },
+    {
         "name": "Makeshift Munitions",
         "types": [
             "Enchantment"
@@ -36158,6 +36330,49 @@
         "rarity": "common"
     },
     {
+        "name": "Hengegate Pathway",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {W}.",
+        "activatedAbilities": [
+            {
+                "id": "hengegate-pathway-mana",
+                "oracleText": "{T}: Add {W}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "W": 1
+                }
+            }
+        ],
+        "backFace": {
+            "kind": "modal",
+            "name": "Mistgate Pathway",
+            "types": [
+                "Land"
+            ],
+            "activatedAbilities": [
+                {
+                    "id": "mistgate-pathway-mana",
+                    "oracleText": "{T}: Add {U}.",
+                    "cost": {
+                        "tap": true
+                    },
+                    "useStack": false,
+                    "manaProduced": {
+                        "U": 1
+                    }
+                }
+            ],
+            "oracleText": "{T}: Add {U}."
+        },
+        "id": "7ef37cb3-d803-47d7-8a01-9c803aa2eadc",
+        "rarity": "rare"
+    },
+    {
         "name": "Bloodbraid Elf",
         "types": [
             "Creature"
@@ -38824,6 +39039,49 @@
         ],
         "id": "87870792-e429-4eba-8193-cdce5c7b6c55",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Darkbore Pathway",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {B}.",
+        "activatedAbilities": [
+            {
+                "id": "darkbore-pathway-mana",
+                "oracleText": "{T}: Add {B}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "B": 1
+                }
+            }
+        ],
+        "backFace": {
+            "kind": "modal",
+            "name": "Slitherbore Pathway",
+            "types": [
+                "Land"
+            ],
+            "activatedAbilities": [
+                {
+                    "id": "slitherbore-pathway-mana",
+                    "oracleText": "{T}: Add {G}.",
+                    "cost": {
+                        "tap": true
+                    },
+                    "useStack": false,
+                    "manaProduced": {
+                        "G": 1
+                    }
+                }
+            ],
+            "oracleText": "{T}: Add {G}."
+        },
+        "id": "87a4e5fe-161f-42da-9ca2-67c8e8970e94",
+        "rarity": "rare"
     },
     {
         "name": "Dark Hatchling",
@@ -52127,6 +52385,49 @@
         "rarity": "common"
     },
     {
+        "name": "Clearwater Pathway",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {U}.",
+        "activatedAbilities": [
+            {
+                "id": "clearwater-pathway-mana",
+                "oracleText": "{T}: Add {U}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "U": 1
+                }
+            }
+        ],
+        "backFace": {
+            "kind": "modal",
+            "name": "Murkwater Pathway",
+            "types": [
+                "Land"
+            ],
+            "activatedAbilities": [
+                {
+                    "id": "murkwater-pathway-mana",
+                    "oracleText": "{T}: Add {B}.",
+                    "cost": {
+                        "tap": true
+                    },
+                    "useStack": false,
+                    "manaProduced": {
+                        "B": 1
+                    }
+                }
+            ],
+            "oracleText": "{T}: Add {B}."
+        },
+        "id": "b4b99ebb-0d54-4fe5-a495-979aaa564aa8",
+        "rarity": "rare"
+    },
+    {
         "name": "Lazotep Behemoth",
         "types": [
             "Creature"
@@ -52932,6 +53233,49 @@
         ],
         "id": "b6cb3d78-1a60-4e9b-b387-afeb58677536",
         "rarity": "common"
+    },
+    {
+        "name": "Barkchannel Pathway",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {G}.",
+        "activatedAbilities": [
+            {
+                "id": "barkchannel-pathway-mana",
+                "oracleText": "{T}: Add {G}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "G": 1
+                }
+            }
+        ],
+        "backFace": {
+            "kind": "modal",
+            "name": "Tidechannel Pathway",
+            "types": [
+                "Land"
+            ],
+            "activatedAbilities": [
+                {
+                    "id": "tidechannel-pathway-mana",
+                    "oracleText": "{T}: Add {U}.",
+                    "cost": {
+                        "tap": true
+                    },
+                    "useStack": false,
+                    "manaProduced": {
+                        "U": 1
+                    }
+                }
+            ],
+            "oracleText": "{T}: Add {U}."
+        },
+        "id": "b6de14ae-0132-4261-af00-630bf15918cd",
+        "rarity": "rare"
     },
     {
         "name": "Orazca Raptor",
@@ -61231,6 +61575,49 @@
         "rarity": "common"
     },
     {
+        "name": "Brightclimb Pathway",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {W}.",
+        "activatedAbilities": [
+            {
+                "id": "brightclimb-pathway-mana",
+                "oracleText": "{T}: Add {W}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "W": 1
+                }
+            }
+        ],
+        "backFace": {
+            "kind": "modal",
+            "name": "Grimclimb Pathway",
+            "types": [
+                "Land"
+            ],
+            "activatedAbilities": [
+                {
+                    "id": "grimclimb-pathway-mana",
+                    "oracleText": "{T}: Add {B}.",
+                    "cost": {
+                        "tap": true
+                    },
+                    "useStack": false,
+                    "manaProduced": {
+                        "B": 1
+                    }
+                }
+            ],
+            "oracleText": "{T}: Add {B}."
+        },
+        "id": "d24c3d51-795d-4c01-a34a-3280fccd2d78",
+        "rarity": "rare"
+    },
+    {
         "name": "Voiceless Spirit",
         "types": [
             "Creature"
@@ -63303,6 +63690,49 @@
         ],
         "id": "da2a65d6-0887-4fe8-a6e6-909208fddd90",
         "rarity": "common"
+    },
+    {
+        "name": "Cragcrown Pathway",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {R}.",
+        "activatedAbilities": [
+            {
+                "id": "cragcrown-pathway-mana",
+                "oracleText": "{T}: Add {R}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "R": 1
+                }
+            }
+        ],
+        "backFace": {
+            "kind": "modal",
+            "name": "Timbercrown Pathway",
+            "types": [
+                "Land"
+            ],
+            "activatedAbilities": [
+                {
+                    "id": "timbercrown-pathway-mana",
+                    "oracleText": "{T}: Add {G}.",
+                    "cost": {
+                        "tap": true
+                    },
+                    "useStack": false,
+                    "manaProduced": {
+                        "G": 1
+                    }
+                }
+            ],
+            "oracleText": "{T}: Add {G}."
+        },
+        "id": "da57eb54-5199-4a56-95f7-f6ac432876b1",
+        "rarity": "rare"
     },
     {
         "name": "Spinneret Sliver",

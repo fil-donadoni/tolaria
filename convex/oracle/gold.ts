@@ -35,13 +35,18 @@
 
 import { expandDefinition } from "../cards/registry";
 import type {
+    CardBackFace,
     CardDefinition,
     GameEventType,
     InsetSpell,
     SplitHalf,
 } from "../cards/types";
 import type { CompiledTriggerHead } from "../cards/compiledTriggers";
-import { compileCard, oracleLayoutForInsetKind } from "./compile";
+import {
+    compileCard,
+    MODAL_DFC_LAYOUT,
+    oracleLayoutForInsetKind,
+} from "./compile";
 import { canonicaliseShorthands, sortKeys } from "./gates";
 import type { ManaCost } from "../cards/types";
 import type {
@@ -382,7 +387,67 @@ export function goldOracleCard(definition: CardDefinition): OracleCard {
                         insetFaceOf(definition.insetSpell),
                     ],
                 }
-              : { layout: "normal" }),
+              : definition.backFace?.kind === "modal"
+                ? {
+                      // CR 712.8a / 712.3 (ADR 0122 §5) — a MODAL
+                      // double-faced card's Oracle text lives in
+                      // `card_faces` too, but unlike split nothing above is a
+                      // derivation: 712.8a makes the card's own name, cost and
+                      // type line its FRONT face's, so the front face is
+                      // rebuilt from exactly the fields already computed for
+                      // the top level and the back face from `backFace`.
+                      // Checked AFTER `insetSpell` and before the `"normal"`
+                      // fallback for the same reason those two are ordered: a
+                      // modal card compiled as `"normal"` would compile its
+                      // front face alone while looking complete, silently
+                      // dropping the land the whole layout exists for.
+                      layout: MODAL_DFC_LAYOUT,
+                      faces: [
+                          {
+                              name: definition.name,
+                              manaCost: printManaCost(definition.manaCost),
+                              typeLine:
+                                  subtypes.length > 0
+                                      ? `${head} — ${subtypes.join(" ")}`
+                                      : head,
+                              oracleText: definition.oracleText ?? "",
+                              ...(definition.power === undefined
+                                  ? {}
+                                  : { power: String(definition.power) }),
+                              ...(definition.toughness === undefined
+                                  ? {}
+                                  : {
+                                        toughness: String(definition.toughness),
+                                    }),
+                          },
+                          modalBackFaceOf(definition.backFace),
+                      ],
+                  }
+                : { layout: "normal" }),
+    };
+}
+
+/** CR 712.3 — the {@link OracleFace} a modal {@link CardBackFace} was lowered
+ *  from, the inverse of `compileModalDfcLayout`'s copy. No mana cost: no
+ *  printed modal back face carries one, and `CardBackFace` has no field for
+ *  it. No power/toughness leg is skipped — a `creature // land` MDFC has its
+ *  creature on the FRONT, and a land back face has neither. */
+function modalBackFaceOf(back: CardBackFace): OracleFace {
+    const head = [...(back.supertypes ?? []), ...back.types].join(" ");
+    const subtypes = back.subtypes ?? [];
+    return {
+        name: back.name,
+        manaCost: "",
+        typeLine:
+            subtypes.length > 0 ? `${head} — ${subtypes.join(" ")}` : head,
+        oracleText: back.oracleText ?? "",
+        ...(back.power === undefined ? {} : { power: String(back.power) }),
+        ...(back.toughness === undefined
+            ? {}
+            : { toughness: String(back.toughness) }),
+        ...(back.loyalty === undefined
+            ? {}
+            : { loyalty: String(back.loyalty) }),
     };
 }
 

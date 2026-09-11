@@ -436,6 +436,10 @@ export async function executeMove(
             await mutations.playCard({
                 ...base,
                 cardInstanceId: move.cardInstanceId,
+                // CR 712.12 — the face the Move chose. Omitted for the front
+                // face so an ordinary land play sends exactly the argument set
+                // it always did.
+                ...(move.face ? { face: move.face } : {}),
             });
             return;
 
