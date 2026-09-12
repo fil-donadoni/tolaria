@@ -1634,6 +1634,34 @@ export interface ActivatedAbility {
      *  by both tap-for-mana paths (`tapUntap` priority tap +
      *  `tapSourceIntoPayment` payment tap). */
     drawsCardOnTap?: number;
+    /** Rider on a TAP mana ability (CR 605.1a, CR 122.6, CR 701.21,
+     *  `useStack: false`): once this activation's `cost.removeCounter` leg has
+     *  been paid, the source is SACRIFICED if no counters of the named type
+     *  remain on it — the Mercadian Masques depletion-land cycle (Hickory
+     *  Woodlot, Peat Bog, Remote Farm, Sandstone Needle, Saprazzan Skerry —
+     *  "{T}, Remove a depletion counter from this land: Add {G}{G}. If there
+     *  are no depletion counters on this land, sacrifice it.").
+     *
+     *  The value is the COUNTER TYPE the condition reads, so the clause is
+     *  card-agnostic: it does not assume the type matches `cost.removeCounter`
+     *  (a card could spend one kind and check another) and it does not assume
+     *  the cost removed exactly one.
+     *
+     *  It is the EFFECT half of the ability, not a cost — CR 605.1a lets a
+     *  mana ability carry a non-mana additional effect and still resolve
+     *  without the stack (the Chromatic Sphere / `drawsCardOnTap` shape), so
+     *  the mana is added FIRST and the sacrifice happens after, with the source
+     *  leaving through `removePermanentTo` so its leave-the-battlefield / dies
+     *  triggers fire (CR 603.6 / 700.4).
+     *
+     *  Distinct from `cost.sacrifice`, which sacrifices UNCONDITIONALLY as part
+     *  of paying, and from `putDepletionCounterOnTap`, which ADDS a counter per
+     *  tap (the Ice Age depletion duals — same counter name, opposite
+     *  direction, CR 122.1 makes counters of the same name interchangeable).
+     *  No-op when counters of the named type remain, and on an untap/refund.
+     *  Shared by both tap-for-mana paths (`tapUntap` priority tap +
+     *  `tapSourceIntoPayment` payment tap). */
+    sacrificesSourceWhenNoCountersRemain?: string;
     /** Mana abilities don't use the stack — they resolve immediately (CR 605.3a). */
     useStack: boolean;
     /** Noted-mana battery (CR 106.10). When true, the engine captures the TYPE

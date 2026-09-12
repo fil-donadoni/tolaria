@@ -1495,6 +1495,14 @@ export function mayBeSacrificedForMana(card: CardInstanceState): boolean {
     if (!printed) return false;
     for (const ability of printed) {
         if (!ability.useStack && ability.cost.sacrifice) return true;
+        // CR 701.21 (the depletion lands) — a CONDITIONAL self-sacrifice is
+        // still a way for a permanent to leave the battlefield by being tapped
+        // for mana, so the prefilter must let it through to the real
+        // resolution; whether THIS activation is the one that empties the last
+        // counter is `manaTapSacrificesSource`'s question, not the
+        // prefilter's.
+        if (!ability.useStack && ability.sacrificesSourceWhenNoCountersRemain)
+            return true;
     }
     return false;
 }
@@ -1531,9 +1539,21 @@ export function manaTapSacrificesSource(
     const opt = detailed[manaChoiceIndex ?? 0];
     if (!opt || opt.source.kind !== "activated") return false;
     const abilityId = opt.source.abilityId;
-    return getEffectiveActivatedAbilities(card).some(
-        ({ ability }) => ability.id === abilityId && !!ability.cost.sacrifice
-    );
+    return getEffectiveActivatedAbilities(card).some(({ ability }) => {
+        if (ability.id !== abilityId) return false;
+        if (ability.cost.sacrifice) return true;
+        // CR 122.6 / 701.21 — a depletion land sacrifices itself only on the
+        // activation that spends its LAST counter, so the answer depends on
+        // the counters currently on the source minus the ones this activation
+        // pays. The type the rider READS need not be the type the cost SPENDS
+        // (the field is declared independently), so both are resolved here.
+        const rider = ability.sacrificesSourceWhenNoCountersRemain;
+        if (!rider) return false;
+        const leg = ability.cost.removeCounter;
+        const have = card.counters?.[rider] ?? 0;
+        const spent = leg && leg.type === rider ? leg.count : 0;
+        return have - spent <= 0;
+    });
 }
 
 export function getManaTapOptionsDetailed(
@@ -1626,6 +1646,23 @@ export function getManaTapOptionsDetailed(
             // DISCARD leg has no twin here — no caller passes a hand — so it
             // stays a server-side rejection; `getManaCostMenuAbility`
             // (`src/lib/card-utils.ts`) covers it on the menu surface.
+            // CR 602.1 / 122.6 — an unpayable FIXED counter-removal leg is
+            // not a mana source either (a depletion land whose last counter is
+            // gone, or one whose counters an opponent's effect removed). Same
+            // whole-ABILITY drop as the two above, for the same reason: the
+            // client menu, the payment-source click and the auto-tap planner
+            // all resolve their `manaChoiceIndex` against THIS list, so leaving
+            // an unaffordable ability in is the "clickable but rejected" shape.
+            // Read off the source's own counters, so no board snapshot is
+            // needed and every caller — including the slim client ones — gets
+            // the same answer.
+            const counterLeg = ability.cost.removeCounter;
+            if (
+                counterLeg &&
+                (card.counters?.[counterLeg.type] ?? 0) < counterLeg.count
+            ) {
+                continue;
+            }
             if (ability.cost.sacrificeFilter && controllerBattlefield) {
                 const leg = ability.cost.sacrificeFilter;
                 const victims = controllerBattlefield.filter((c) =>
