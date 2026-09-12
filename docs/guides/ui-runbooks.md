@@ -44,13 +44,21 @@ own.
     - "You have an active game in progress" → see [Blocked by an active
       game](#blocked-by-an-active-game-2026-08-26) below, then come back.
     - otherwise continue.
-3. Click a deck tile on a **Deck Shelf** ("Your decks" or "Preset decks"). The
-   tile's own click IS the select gesture — its accessible name is
-   `Select <deck name>`, and Open / Edit / Delete live behind the tile's `⋯`
-   overflow. The **Loadout** then names the deck instead of "No deck
-   selected", and the ambient art behind the menu swaps to the deck's Featured
-   Card. An already-selected tile and an illegal deck's tile are both
-   `disabled`.
+3. Click a deck tile on the **Preset decks** shelf. The tile's own click IS
+   the select gesture — its accessible name is `Select <deck name>`, and
+   Open / Edit / Delete live behind the tile's `⋯` overflow. The **Loadout**
+   then names the deck instead of "No deck selected", and the ambient art
+   behind the menu swaps to the deck's Featured Card. An already-selected tile
+   and an illegal deck's tile are both `disabled`.
+
+    **The PRESET shelf, not the first tile you see** (issue #3493). "Your
+    decks" renders above it and holds whatever the account happens to hold —
+    including the three-card rows the `deck-builder` walk leaves behind when it
+    dies before its cleanup. A solo game on one of those is a DRAW by decking
+    before the first priority, and the Game Over dialog's modal scrim then
+    swallows every later click on the board: the symptom is a click timing out
+    against `<div data-slot="dialog-overlay">`, not anything that names a deck.
+
 4. Click the **Solo game** Mode Tile. It takes `aria-pressed="true"` and the
    Loadout's single ivory plate RENAMES itself to `Solo game`. Nothing has
    started. Skipping this step leaves the cold-lobby default, `Play vs Bot`,
@@ -63,6 +71,13 @@ own.
 7. Mulligan prompt, **once per seat**. Click `Keep` for the first seat; the
    viewer auto-switches to the other seat and the prompt reappears — click
    `Keep` again.
+
+    Automating this? Match `Keep` EXACTLY (`button:text-is('Keep')`, issue
+    #3493). Playwright's `:has-text()` matches any descendant text, and the
+    board's phase list contains the word "Up**keep**" — so `has-text('Keep')`
+    resolved to the phase-list toggle, left the mulligan dialog open, and every
+    later click on the board timed out against its scrim.
+
 8. `snapshot`. `YOUR GO` plus `Pass` / `Pass Turn` buttons means the board is
    live and priority is with the seat you are viewing.
 
@@ -95,32 +110,53 @@ lobby offers `Resume` and `Concede Match`.
 After the dialog closes the lobby drops the banner and the Loadout's primary
 action re-enables (still needing a deck selected).
 
-**Already inside a game?** Do not route back through the lobby. Debug panel →
-`Restart Solo` reuses the current deck and deals a fresh solo game in one
-click. `New vs-AI Game` is the same shape for a bot opponent.
+**Already inside a game?** The debug sheet's `Reset Game` restarts the current
+position without routing back through the lobby. The old `Restart Solo` /
+`New vs-AI Game` shortcuts went with the seven buttons issue #3403 retired —
+they were lobby actions living on the board.
 
 ## Load a debug scenario (2026-08-17)
 
 Scenarios are DB rows, not code (ADR 0044) — the panel lists whatever the
 deployment has.
 
-1. From a live board: click `Debug ▼` (bottom-left of the dev rail).
+1. From a live board: click the slim `»` tab on the LEFT EDGE, just above the
+   portrait controller bar (`[data-debug-sheet-toggle]`), or press the
+   backquote key. The debug **sheet** opens (issue #3403 — it replaced the
+   bottom-left dev rail; there is no `Debug ▼` button any more). It is
+   non-modal and pointer-undismissable on purpose: the point is to watch the
+   board while it is open.
 2. Click `Scenarios`. The list expands **inline** — no dialog — with a
-   `Search scenarios…` field, 65 rows on this deployment, each row a button
-   labelled with the scenario, plus `★` favourite, `✎` edit, `×` delete.
+   `Search scenarios…` field, each row a button labelled with the scenario,
+   plus `★` favourite, `✎` edit, `×` delete, and `↻` / `~` on a row carrying a
+   stored prompt.
 3. Click the row. The board reloads into that position.
 
-The same panel carries `Reset Game`, `Copy State`, `Show all cards`,
-`All actions`, `Bo3 Sideboarding` and `Verbose`. Avoid `Clear Storage`: it
-forces a full reload and drops you at the lobby mid-sequence.
+To CLOSE it, press `Escape` (or backquote) — not a second click on the tab.
+The open sheet sits at `z-sheet` and the tab at `z-dev-overlay`, so the sheet
+paints over its own toggle; a click there hits the sheet body.
+
+At `lg` (1024px) and wider the open sheet takes 480px BESIDE the board rather
+than over it (issue #3493): `[data-board-area]` gives up exactly that width
+and the board reflows. Below `lg` it stays an overlay — a 390px viewport has
+no width to give.
+
+The sheet carries `Scenarios`, `Reset Game` and `Copy State`, and nothing else:
+the four view/debug toggles and the two lobby shortcuts went with issue #3403.
+
+The scenario save form's title, label input and `Save to DB` / `Update` stay
+PINNED at the top of the form while the card rows and spec knobs scroll under
+them, and the rare spec fields sit behind an `Other options` disclosure
+(issue #3494) — the classification table `src/components/debug/
+scenario-spec-ownership.ts` is what decides which group a field is in.
 
 To add a scenario, use the panel's own save form (label + spec) — a DB insert,
 never a code edit. Headless agents do not insert: they emit `{ label, spec }`
 in the PR body and `land` seeds it post-merge.
 
 **The one scenario the `check:ui` lane itself needs** is
-`UI stress — full board, full hand, deep piles`, which the `game-stress`
-surface searches for by that exact label. Its payload ships in the repo — not
+`UI stress — full board, full hand, deep piles`, which the `game-stress` and
+`game-debug-sheet` surfaces search for by that exact label. Its payload ships in the repo — not
 as a second source of truth for scenarios, but because a lane that cannot
 reach a surface reports a coverage hole, and re-deriving the position by hand
 on every deployment is how that hole stays open:
