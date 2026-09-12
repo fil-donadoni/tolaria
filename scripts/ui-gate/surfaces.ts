@@ -2029,9 +2029,26 @@ export const SURFACES: readonly Surface[] = [
             }
             await settle(page);
         },
-        // Leave the board as the next viewport's walk expects to find it.
-        async cleanup(page) {
+        // END the solo game this row dealt (issue #3505 fixup). Not hygiene:
+        // `game-debug-sheet-ai` below needs the vs-AI setup dialog, and
+        // `lobbyActionGate` holds that shut while the account has ANY game in
+        // flight — so a solo game left standing here makes the LAST surface in
+        // the list unreachable, at every viewport, for a reason its own diff
+        // never caused. Measured on the first full run after this row landed.
+        //
+        // `ctx.createdGame` goes back to false with it, so the next viewport
+        // deals its own rather than resuming one that is over.
+        async cleanup(page, ctx) {
             await closeDebugSheet(page);
+            if (!ctx.createdGame) return;
+            const trace: string[] = [];
+            if (await concedeLaneGame(page, ctx, trace)) {
+                ctx.createdGame = false;
+                return;
+            }
+            throw new Error(
+                `could not end the solo game this lane created — \`game-debug-sheet-ai\` will read as unreachable for the rest of this run [${trace.join("; ")}]`
+            );
         },
     },
     {
