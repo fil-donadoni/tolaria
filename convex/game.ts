@@ -64,6 +64,7 @@ import {
     NO_SPELL_MANA_RIDERS,
     reverseRestrictedManaFromPool,
     payRemoveCounterCost,
+    applyKeywordCounterGrant,
     payDiscardAtRandomCost,
     commitLandsForCost,
     resolveTopOfStack,
@@ -242,6 +243,7 @@ import {
     phyrexianPipCount,
 } from "./gre/phyrexian";
 import { STATIC_EFFECT_CTX, getEffectivePower } from "./gre/layers";
+import { recomposeLayer6ForInstance } from "./gre/layer6";
 import {
     attackTargetExcessSink,
     combatDamageAssignmentCompleteness,
@@ -1198,6 +1200,125 @@ export function applyManaAbilityDiscardCost(
     payDiscardAtRandomCost(state, activatorId, count);
 }
 
+/** CR 106.4 / 118.3 — reverses the counters a for-mana tap removed from its own
+ *  source, when that tap is undone to refund unspent mana in the same priority
+ *  window. Covers BOTH counter-cost shapes, which share the
+ *  `manaCounterRemoval` snapshot: the SCALING cost of a Mana Battery
+ *  (`manaChoiceRemovesCounters`) and the FIXED `cost.removeCounter` leg of a
+ *  depletion land.
+ *
+ *  The single authority for the restore, over all FIVE reversal sites — three
+ *  on the activation side (`untapSourceFromPayment`, `tapUntap`'s choice
+ *  branch, `tapUntap`'s fixed branch) and two on the cast side
+ *  (`untapForPayment`, `rollbackPendingCast`). Before this helper existed
+ *  there were two hand-rolled copies and three holes, and each hole burns the
+ *  counter permanently: the land yields its mana once instead of twice, for a
+ *  cast that never happened. The cast-side pair is the same
+ *  reversal-symmetry class #3214 and #3354 already fixed for the exert and
+ *  life/mana legs.
+ *
+ *  CR 122.1b (issue #1194) — a KEYWORD counter coming back re-grants its
+ *  keyword, and the layer-6 recompose makes it visible before the next SBA
+ *  pass, mirroring exactly what `payRemoveCounterCost` splices out when the
+ *  cost is paid. That is why this takes `state`: a restore that put the
+ *  counter back without the grant would leave a permanent holding an
+ *  indestructible counter and not indestructible. No-op when the tap removed
+ *  no counters. */
+export function restoreManaCounterRemovalOnUntap(
+    state: GameState,
+    card: CardInstanceState
+): void {
+    if (!card.manaCounterRemoval) return;
+    const { type, count } = card.manaCounterRemoval;
+    const next = { ...(card.counters ?? {}) };
+    next[type] = (next[type] ?? 0) + count;
+    card.counters = next;
+    card.manaCounterRemoval = undefined;
+    applyKeywordCounterGrant(state, card, type);
+    recomposeLayer6ForInstance(state, card);
+}
+
+/** CR 605.1a / 118.3 — tap mana ability FIXED counter-removal cost (the
+ *  Mercadian Masques depletion lands: "{T}, Remove a depletion counter from
+ *  this land: Add {G}{G}."). Pays `ability.cost.removeCounter` through the
+ *  shared `payRemoveCounterCost` authority — the same one the STACK activation
+ *  path uses — so a keyword counter spent here still un-grants its keyword
+ *  (CR 122.1b).
+ *
+ *  Snapshots the payment onto `card.manaCounterRemoval` so untapping the source
+ *  to refund unspent mana in the same priority window restores the counter
+ *  (CR 106.4), reusing the field the SCALING counter cost
+ *  (`manaChoiceRemovesCounters`, the Mana Batteries) already stamps. The two
+ *  are mutually exclusive on one ability — asserted catalogue-wide by
+ *  `manaAbility.catalogue.test.ts`, because nothing else stops a future card
+ *  declaring both and having the second stamp clobber the first — and sharing
+ *  the field means all five reversal sites reverse it through the one
+ *  `restoreManaCounterRemovalOnUntap` authority.
+ *
+ *  Not snapshotted on the sacrifice path: a source that left the battlefield
+ *  paying its own cost has no untap branch to claim the refund.
+ *
+ *  Deliberately NOT the affordability gate — `getManaTapOptionsDetailed` drops
+ *  an ability whose counter cost the source cannot pay, so the client menu, the
+ *  auto-tap planner and the castability census all agree before a mutation
+ *  runs. The throw inside `payRemoveCounterCost` is the backstop for a
+ *  hand-rolled call that skipped that list. No-op when the ability declares no
+ *  counter cost. Shared by both tap-for-mana paths (`tapUntap` priority tap +
+ *  `tapSourceIntoPayment` payment tap). */
+export function applyManaAbilityRemoveCounterCost(
+    state: GameState,
+    ability: ActivatedAbility | undefined | null,
+    card: CardInstanceState
+): void {
+    const leg = ability?.cost.removeCounter;
+    if (!leg || leg.count <= 0) return;
+    payRemoveCounterCost(state, card, leg);
+    if (ability?.cost.sacrifice !== true) {
+        card.manaCounterRemoval = { type: leg.type, count: leg.count };
+    }
+}
+
+/** CR 605.1a / 701.21 — tap mana ability CONDITIONAL self-sacrifice rider (the
+ *  Mercadian Masques depletion lands: "… Add {G}{G}. If there are no depletion
+ *  counters on this land, sacrifice it."). When the ability declares
+ *  `sacrificesSourceWhenNoCountersRemain` and the source now carries zero
+ *  counters of that type, the source is sacrificed as part of the SAME mana
+ *  ability resolving (CR 605.3a — no stack, no priority).
+ *
+ *  Runs AFTER the mana has been deposited and `PERMANENT_TAPPED` emitted, so
+ *  the mana survives the source leaving and a leaves-the-battlefield trigger
+ *  sees the mana already added — the ordering `cost.sacrifice` and
+ *  `drawsCardOnTap` already establish. CR 603.6 / 700.4 — routed through
+ *  `removePermanentTo` so the departure queues `PERMANENT_LEFT` and the
+ *  source's dies / leave-the-battlefield triggers reach the stack, which a raw
+ *  `moveCard` would skip.
+ *
+ *  No-op when the ability has no rider, when counters of the named type remain,
+ *  or when the source is already off the battlefield (an ability whose
+ *  `cost.sacrifice` leg has just eaten it). Shared by both tap-for-mana paths
+ *  (`tapUntap` priority tap + `tapSourceIntoPayment` payment tap).
+ *
+ *  Returns whether it sacrificed the source, so the PAYMENT path can drop the
+ *  id it had already recorded in `tappedLandIds`: reversing an aborted payment
+ *  untaps every id in that list and refunds its mana, and a permanent that is
+ *  in the graveyard must not be untapped back onto the board with its mana
+ *  refunded (CR 106.4 reverses a tap, never a sacrifice). */
+export function applySacrificeWhenNoCountersRemain(
+    state: GameState,
+    ability: ActivatedAbility | undefined | null,
+    card: CardInstanceState
+): boolean {
+    const counterType = ability?.sacrificesSourceWhenNoCountersRemain;
+    if (!counterType) return false;
+    if ((card.counters?.[counterType] ?? 0) > 0) return false;
+    const stillOnBattlefield = state.players.some((p) =>
+        p.battlefield.some((c) => c.id === card.id)
+    );
+    if (!stillOnBattlefield) return false;
+    removePermanentTo(state, card.id, "graveyard", "sacrifice");
+    return true;
+}
+
 /** CR 605.1a / 601.2f — the MANA portion of a mana ability's activation cost
  *  (Chromatic Star's "{1}, {T}, Sacrifice this artifact: Add one mana of any
  *  color"). Unlike a spell, a mana ability resolves immediately (CR 605.3b),
@@ -2094,6 +2215,20 @@ export function tapSourceIntoPayment(
         // pool now (so the affordability check sees it) and record it for undo.
         if (!isSacrifice) realizeAndStampTapBonus(state, player, card);
         tappedLandIds.push(card.id);
+        // CR 605.1a / 118.3 — the FIXED counter-removal leg of this mana
+        // ability's cost (the depletion lands' "Remove a depletion counter
+        // from this land"). Paid here, in the same place the life / exert /
+        // discard legs are, so every tap-for-mana path pays it identically.
+        applyManaAbilityRemoveCounterCost(state, effAbility, card);
+        // CR 605.1a / 701.21 — and the conditional self-sacrifice that reads
+        // the counters it just spent ("If there are no depletion counters on
+        // this land, sacrifice it."). A sacrificed source leaves
+        // `tappedLandIds`: an aborted payment untaps and refunds every id in
+        // that list, and this one is in the graveyard.
+        if (applySacrificeWhenNoCountersRemain(state, effAbility, card)) {
+            const depleted = tappedLandIds.indexOf(card.id);
+            if (depleted >= 0) tappedLandIds.splice(depleted, 1);
+        }
         return;
     }
 
@@ -2224,6 +2359,20 @@ export function tapSourceIntoPayment(
     // CR 605.4 — resolve this tap's Wild-Growth-style mana bonus into the pool
     // now (so the affordability check sees it) and record it for undo.
     if (!isSacrifice) realizeAndStampTapBonus(state, player, card);
+    // CR 605.1a / 118.3 — the FIXED counter-removal leg of this mana
+    // ability's cost (the depletion lands' "Remove a depletion counter
+    // from this land"). Paid here, in the same place the life / exert /
+    // discard legs are, so every tap-for-mana path pays it identically.
+    applyManaAbilityRemoveCounterCost(state, acting, card);
+    // CR 605.1a / 701.21 — and the conditional self-sacrifice that reads
+    // the counters it just spent ("If there are no depletion counters on
+    // this land, sacrifice it."). A sacrificed source leaves
+    // `tappedLandIds`: an aborted payment untaps and refunds every id in
+    // that list, and this one is in the graveyard.
+    if (applySacrificeWhenNoCountersRemain(state, acting, card)) {
+        const depleted = tappedLandIds.indexOf(card.id);
+        if (depleted >= 0) tappedLandIds.splice(depleted, 1);
+    }
 }
 
 /** CR 605.4 / 106.4 — reversing a for-mana tap undoes the whole mana ability,
@@ -2267,15 +2416,10 @@ function untapSourceFromPayment(
         if (!manaColor) throw new Error("Card does not produce mana");
         refundFixedManaOutput(player, card, manaColor);
     }
-    // CR 122.6 — restore the charge counters removed to pay a Mana Battery's
-    // scaling cost when the payment tap is reversed.
-    if (card.manaCounterRemoval) {
-        const { type, count } = card.manaCounterRemoval;
-        const next = { ...(card.counters ?? {}) };
-        next[type] = (next[type] ?? 0) + count;
-        card.counters = next;
-        card.manaCounterRemoval = undefined;
-    }
+    // CR 106.4 / 118.3 — restore the counters removed to pay a Mana Battery's scaling
+    // cost or a depletion land's fixed `cost.removeCounter` leg, when the
+    // payment tap is reversed.
+    restoreManaCounterRemovalOnUntap(state, card);
     // CR 106.4 / 605.1a — reversing this payment tap undoes the whole mana
     // ability, so restore the life its inline riders took (painland ping,
     // Ancient Tomb, Mana Confluence). Symmetric with the mana / counter refund
@@ -2705,6 +2849,14 @@ function rollbackPendingCast(state: GameState): void {
         // own inline copy of the untap and must restate it, or a cancelled cast
         // leaves the land not untapping for a spell that was never cast.
         restoreExertOnUntap(state, card);
+        // CR 106.4 / 118.3 / 122.1 — and the counters the tap's own
+        // `removeCounter` leg took (a depletion land, a Mana Battery's scaling
+        // cost). Same reversal-symmetry class as the exert leg above: this
+        // cast-side loop carries its own inline copy of the untap, so every
+        // reversal `untapSourceFromPayment` runs has to be restated here or a
+        // cancelled cast burns the counter permanently — the land then yields
+        // its mana once instead of twice, for a spell that was never cast.
+        restoreManaCounterRemovalOnUntap(state, card);
         // CR 605.4 — refund the Wild-Growth-style bonus mana this tap added.
         refundTapBonusMana(player, card);
         // CR 106.6 (issue #1559 review) — restriction-aware refund: reverses
@@ -8528,6 +8680,12 @@ export const untapForPayment = mutation({
         // remaining two are the same reversal-symmetry defect, one class.
         restoreLifePaidOnUntap(player, card);
         restoreManaPaidOnUntap(player, card);
+        // CR 106.4 / 118.3 / 122.1 — and the counter leg, the third member of
+        // that same class: undoing ONE payment tap must not spend a depletion
+        // land's counter (or a Mana Battery's charge counters) on a cast the
+        // player then abandons. One misclick — tap the land, click it again —
+        // was enough to burn it.
+        restoreManaCounterRemovalOnUntap(state, card);
         discardPermanentTappedEvent(state, card.id);
         state.pendingCast.tappedLandIds.splice(idx, 1);
 
@@ -13944,16 +14102,10 @@ export const tapUntap = mutation({
                 // ability's declared output. No-op when `card.chosenMana` is
                 // unset (legacy pre-chosenMana instances).
                 refundChosenManaOutput(player, card);
-                // CR 122.6 — untapping before the mana is spent reverses the
-                // whole activation, so the charge counters removed to pay the
-                // scaling cost are restored to the source.
-                if (card.manaCounterRemoval) {
-                    const { type, count } = card.manaCounterRemoval;
-                    const next = { ...(card.counters ?? {}) };
-                    next[type] = (next[type] ?? 0) + count;
-                    card.counters = next;
-                    card.manaCounterRemoval = undefined;
-                }
+                // CR 106.4 — untapping before the mana is spent reverses the
+                // whole activation, so the counters removed to pay the scaling
+                // cost are restored to the source.
+                restoreManaCounterRemovalOnUntap(state, card);
                 // CR 106.4 / 122.1 — untapping a depletion-dual to refund
                 // unspent mana reverses the whole activation, including the
                 // depletion counter it put on itself when tapped for mana.
@@ -14214,6 +14366,11 @@ export const tapUntap = mutation({
         // rejected before reaching here.
         if (wasTapped && !producedThisActivation) {
             restoreLifePaidOnUntap(player, card);
+            // CR 106.4 / 118.3 — and the counters its `cost.removeCounter` leg
+            // took (a depletion land). The choice branch restores its own
+            // above; the FIXED branch had no restore at all, so a tap→untap
+            // toggle burned the counter.
+            restoreManaCounterRemovalOnUntap(state, card);
             // CR 106.4 / 701.43b — and the exert its cost leg paid (Arena of Glory).
             restoreExertOnUntap(state, card);
             // CR 106.4 / 601.2f — the cost-side sibling: refund the mana the
@@ -14282,6 +14439,27 @@ export const tapUntap = mutation({
         // (Sheoldred, Underworld Dreams) sees the draw land first.
         if (producedThisActivation) {
             applyDrawCardOnTap(state, tapAbility, args.playerId);
+        }
+
+        // CR 605.1a / 118.3 — the FIXED counter-removal leg of this mana
+        // ability's cost (the depletion lands' "Remove a depletion counter
+        // from this land"). Same `producedThisActivation` gate as the riders
+        // above: paid on the tap, and reversed on an untap toggle by the
+        // `manaCounterRemoval` restore below.
+        if (producedThisActivation) {
+            applyManaAbilityRemoveCounterCost(state, tapAbility, card);
+        }
+
+        // CR 605.1a / 701.21 — the conditional self-sacrifice that reads the
+        // counters the leg above just spent ("If there are no depletion
+        // counters on this land, sacrifice it."). Runs after the mana is in
+        // the pool and `PERMANENT_TAPPED` is emitted, so the mana survives the
+        // source leaving and its leave-the-battlefield triggers see it —
+        // exactly the ordering `cost.sacrifice` and `drawsCardOnTap` use.
+        // Its `PERMANENT_LEFT` event is drained by the shared trigger flush
+        // below, in the same pass as theirs.
+        if (producedThisActivation) {
+            applySacrificeWhenNoCountersRemain(state, tapAbility, card);
         }
 
         // CR 106.4 / 605.1a — record the life the controller actually lost to

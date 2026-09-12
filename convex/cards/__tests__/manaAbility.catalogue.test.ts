@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { getAllCards } from "../index";
 import { getManaTapOptionsDetailed } from "../../gre/constants";
+import { resolveEntersWithCounters } from "../entersWith";
 import { makeInstance, makePlayer, makeState } from "./setup";
 import type { ActivatedAbility, ManaCost } from "../types";
 
@@ -55,6 +56,10 @@ import type { ActivatedAbility, ManaCost } from "../types";
  *   - abilities the engine drops from the option list by rule: a zero-output
  *     `manaAmount` hook (CR 605.1a / #1889 — Everflowing Chalice with no
  *     counters), and a `canActivate` gate a bare-battlefield fixture fails.
+ *     NOT skipped, and deliberately: a `cost.removeCounter` leg (CR 118.3 —
+ *     the MMQ depletion lands), because the fixture seeds the entry counters
+ *     the card's own CR 614.1c replacement gives it, so the ability is
+ *     affordable and stays asserted.
  *   - abilities whose cost is not `{T}`-based, since the fixture taps nothing.
  *   - a SACRIFICE-cost mana ability on a card that also has a non-destructive
  *     one. `getManaTapOptionsDetailed` offers sacrifice options only as a last
@@ -124,9 +129,23 @@ function sweep(): Sweep {
         const abilities = fixedTapManaAbilities(def.activatedAbilities);
         if (abilities.length === 0) continue;
 
+        // CR 614.1c / 122.6 (issue #2712) — seed the counters the card's OWN
+        // entry replacement puts on it, exactly as `gre/scenarioBuilder.ts`
+        // does for a staged board. A depletion land's mana is gated behind a
+        // `cost.removeCounter` leg, so a fixture that places it bare is a land
+        // with no counters — correctly NOT a mana source — and the sweep would
+        // have to skip the whole cycle instead of asserting it. The oracle is
+        // the card's own declaration, so this is card-agnostic and adds nothing
+        // for a card that declares no entry counters.
+        const entryCounters = resolveEntersWithCounters(def, {
+            manaSpentToCast: {},
+        });
         const instance = makeInstance(def.id, {
             id: `sweep-${def.id}`,
             controllerId: "p1",
+            ...(Object.keys(entryCounters).length > 0
+                ? { counters: entryCounters }
+                : {}),
         });
         const state = makeState({
             players: [
@@ -240,7 +259,43 @@ function sweep(): Sweep {
 
 const RESULT = sweep();
 
+/** CR 118.3 / 122.1 (issue #2712) — every ability declaring BOTH counter-cost
+ *  shapes. They share ONE instance field, `manaCounterRemoval`, which is what
+ *  all five untap/abort sites reverse: the FIXED `cost.removeCounter` leg
+ *  stamps it in `applyManaAbilityRemoveCounterCost`, and the SCALING
+ *  `manaChoiceRemovesCounters` cost stamps it inline in both tap paths. An
+ *  ability declaring both would have the second stamp clobber the first and
+ *  reverse only half the payment. Nothing in the type forbids it, so this is
+ *  the guard that does. */
+function bothCounterCostShapes(): string[] {
+    const offenders: string[] = [];
+    for (const def of getAllCards()) {
+        for (const ability of def.activatedAbilities ?? []) {
+            if (ability.useStack) continue;
+            if (
+                ability.cost.removeCounter &&
+                ability.manaChoiceRemovesCounters
+            ) {
+                offenders.push(`${def.name} / ${ability.id}`);
+            }
+        }
+    }
+    return offenders;
+}
+
 describe("mana abilities, catalogue-wide (CR 605.1a)", () => {
+    it("no mana ability declares BOTH counter-cost shapes (they share one undo field)", () => {
+        const offenders = bothCounterCostShapes();
+        expect(
+            offenders,
+            "these abilities declare `cost.removeCounter` AND " +
+                "`manaChoiceRemovesCounters`; both stamp `manaCounterRemoval`, " +
+                "so the second overwrites the first and an untap reverses only " +
+                "half the counters paid. Accumulate the field, or split the " +
+                "ability."
+        ).toEqual([]);
+    });
+
     it("every fixed-output {T} mana ability is offered by the engine, producing what it declares", () => {
         expect(RESULT.failures, RESULT.failures.join("\n\n")).toEqual([]);
     }, 120_000);

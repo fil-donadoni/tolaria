@@ -39,8 +39,9 @@
 //     `copyOf` token: a token COPY inherits the copied card's clause, a
 //     copiable value (CR 706.2 / 707.2), and IS gated;
 //   * `settleEnteredLand` (`gre/playLand.ts`) — every play-a-land path
-//     (hand / exile / graveyard / post-pay-choice). Latent: no shipped Land
-//     declares the clause yet.
+//     (hand / exile / graveyard / post-pay-choice). LIVE since issue #2712:
+//     the Mercadian Masques depletion lands (`sets/mmq/colorless.ts`) enter
+//     tapped with two depletion counters, so this site is load-bearing.
 // Two sites deliberately do NOT run the applier: `finalizeLandEntry`'s
 // effect-entry branch (the permanent already got its counters when
 // `stageReanimatedOnBattlefield` staged it) and `returnExiledForSource`'s

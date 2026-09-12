@@ -64,6 +64,7 @@ import {
     LANDWALK_KEYWORDS,
     LANDWALK_SUPERTYPE_KEYWORDS,
     assignHybridPips,
+    canPayRemoveCounterCost,
     getEffectiveManaChoices,
     getFixedSacrificeManaAbility,
     getFixedMultiColorTapManaAbility,
@@ -370,22 +371,44 @@ function clientManaAbilities(
     card: CardInstance,
     stateView?: TriggerStateView
 ): ActivatedAbility[] {
-    return getEffectiveActivatedAbilities(card as unknown as CardInstanceState)
-        .filter(
-            ({ ability: a }) =>
-                !a.useStack &&
-                (a.manaProduced ||
-                    a.manaChoices ||
-                    a.getManaChoices ||
-                    a.manaColorSource)
-        )
-        .map(({ ability }) => ability)
-        .filter(
-            (a) =>
-                stateView === undefined ||
-                !a.canActivate ||
-                a.canActivate(card as unknown as PermanentView, stateView)
-        );
+    return (
+        getEffectiveActivatedAbilities(card as unknown as CardInstanceState)
+            .filter(
+                ({ ability: a }) =>
+                    !a.useStack &&
+                    (a.manaProduced ||
+                        a.manaChoices ||
+                        a.getManaChoices ||
+                        a.manaColorSource)
+            )
+            .map(({ ability }) => ability)
+            .filter(
+                (a) =>
+                    stateView === undefined ||
+                    !a.canActivate ||
+                    a.canActivate(card as unknown as PermanentView, stateView)
+            )
+            // CR 118.3 / 602.1a (issue #2712) — an UNPAYABLE fixed counter-removal
+            // leg means no usable mana ability, the same answer the server's
+            // `getActivatedManaAbility` gives. Unlike the `canActivate` gate above
+            // this needs NO view — the counters are on the instance — so it
+            // applies unconditionally, and all three consumers of this list get it
+            // at once (the tap affordance, the ability-menu entry, the cost
+            // affordance) instead of only the one that threads a board through to
+            // `getManaTapOptions`. A depletion land whose counters an effect
+            // stripped (Vampire Hexmage, Thief of Blood) is otherwise the
+            // "clickable but rejected" shape.
+            .filter((a) => {
+                const leg = a.cost.removeCounter;
+                return (
+                    !leg ||
+                    canPayRemoveCounterCost(
+                        card as unknown as CardInstanceState,
+                        leg
+                    )
+                );
+            })
+    );
 }
 
 /** Returns true if a card has a tap mana ability (basic land subtype or
@@ -2226,8 +2249,13 @@ export function getStackAbilities(
         // CR 122.6 — counter-removal cost is only legal if the source has
         // enough counters of the declared type.
         if (a.cost.removeCounter) {
-            const have = card.counters?.[a.cost.removeCounter.type] ?? 0;
-            if (have < a.cost.removeCounter.count) return false;
+            if (
+                !canPayRemoveCounterCost(
+                    card as unknown as CardInstanceState,
+                    a.cost.removeCounter
+                )
+            )
+                return false;
         }
         // CR 602.1 / 118.8 — "tap untapped permanents matching <filter> you
         // control" (Hand of Justice) and CR 702.122a Crew N ("total power N or

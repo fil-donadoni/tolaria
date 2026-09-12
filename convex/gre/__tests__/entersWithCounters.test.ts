@@ -792,10 +792,10 @@ describe("entry site: token CREATION (CR 111.9 / 122.1c, issue #1693)", () => {
 describe("entry site: PLAY A LAND (CR 305, issue #1693)", () => {
     // `settleEnteredLand` — the shared post-move settlement behind all four
     // play-a-land routes (hand / exile / graveyard / post-pay-choice) — was a
-    // full entry site with no applier at all. Latent for the shipped
-    // catalogue (no printed Land declares `entersWith`), so the site is proven
-    // with a synthetic Land definition: the point is that the SITE applies the
-    // replacement, not that a particular card reaches it today.
+    // full entry site with no applier at all. The synthetic Land definition
+    // below keeps the SITE's own coverage independent of the catalogue; the
+    // shipped card that reaches it is a Mercadian Masques depletion land
+    // (issue #2712), asserted in `convex/__tests__/depletionLands.test.ts`.
     const LAND_DEF: CardDefinition = {
         id: "test-entry-counter-land",
         name: "Entry Counter Land",

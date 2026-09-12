@@ -441,6 +441,60 @@ function activationIsDiscouraged(
 
 export const BLADE_SCENARIOS: BladeScenario[] = [
     {
+        // DEPLETION-LAND reachability (CR 605.1a / 118.3 / 701.21, issue
+        // #2712). The bot's main phase, an empty board, one Grizzly Bears
+        // ({1}{G}) in hand and ONE land: Hickory Woodlot, untapped, entering
+        // the scenario with the two depletion counters its own CR 614.1c
+        // replacement gives it. A single tap of that land makes {G}{G} — the
+        // whole cost — so casting is the only line that is not `pass`, and a
+        // 2/2 on an empty board is strictly better than holding it.
+        //
+        // The claim is REACHABILITY, not preference, and nothing else goes red
+        // when it breaks. The land's mana is gated behind a FIXED
+        // `cost.removeCounter` leg, and `planManaPayment` credits a {T}
+        // ability's GROSS yield only for legs in
+        // `TAP_YIELD_CREDITABLE_COST_LEGS` (deny-by-default, issue #3027): an
+        // uncredited `removeCounter` made the land worth ONE mana, so the plan
+        // for a two-mana cast came back null and the bot simply held the Bears
+        // forever — with every suite green, the same silent failure the
+        // adventure and MDFC entries below exist for.
+        label: "depletion land: casts a two-drop off one tap of Hickory Woodlot",
+        spec: {
+            cards: [
+                { name: "Hickory Woodlot", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 2,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        tier: "must",
+        // A `predicate`, deliberately, not a `moves` matcher — the adventure and
+        // MDFC entries' shape. This is a REACHABILITY claim ("the bot can spend
+        // this land at all"), not a verdict about which of two moves is better,
+        // and `expect.moves` is what `verdictsFromRegistry` turns into a fitted
+        // VERDICT (ADR 0124 §5). Feeding a reachability position to the weight
+        // fit moved the vector far enough to flip an unrelated `must` entry
+        // ("choice-behind payoff: the re-type mode stays live against the
+        // opponent's lands", red at seed 19) — a preference regression bought
+        // with a claim that has no preference in it. The entry still blocks at
+        // `must`; what it no longer does is vote on the weights.
+        expect: {
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                // ONE tap funds the whole {1}{G}: the discriminating half. A
+                // depletion land credited one mana yields no plan at all, so
+                // there is no cast to match; two entries here would mean the
+                // land was not the source.
+                move.tapPlan?.length === 1,
+            describe: "casts Grizzly Bears off a single tap of Hickory Woodlot",
+        },
+        note: "CR 605.1a depletion-land reachability. Also the end-to-end cover for `removeCounter` in `TAP_YIELD_CREDITABLE_COST_LEGS` (moves.ts) and for the scenario builder defaulting a battlefield land's entry counters from `resolveEntersWithCounters` — a land placed with zero counters is not a mana source at all, so this entry fails on either half.",
+    },
+    {
         // ADVENTURE reachability (CR 715.3, issue #3303). The bot holds one
         // card with two castable halves and only two lands: the creature half
         // ({2}{R}) is unaffordable, the Adventure ({1}{R}) kills the

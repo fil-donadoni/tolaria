@@ -391,6 +391,13 @@ export function tickDuration(
 
 // Re-export for consumers that imported from here previously
 export { getBasicLandMana } from "./constants";
+// CR 118.3 / 122.1b — the counter-cost affordability predicate MOVED to
+// `constants.ts` (issue #2712). It had to: `getActivatedManaAbility` and
+// `getManaTapOptionsDetailed` are mana-source authorities living in
+// `constants.ts`, which `state.ts` imports — so they could not have reached it
+// here, and each grew its own hand-rolled copy of the same comparison instead.
+// Re-exported so every existing `./state` importer is unchanged.
+export { canPayRemoveCounterCost } from "./constants";
 
 export type CardInstanceState = {
     id: string;
@@ -23108,28 +23115,6 @@ export function canPayDiscardLastDrawn(player: PlayerState): boolean {
     const id = player.lastDrawnCardId;
     if (!id) return false;
     return player.hand.some((c) => c.id === id);
-}
-
-/** CR 118 / 122.1c — whether `card` carries enough counters to pay a
- *  `cost.removeCounter` leg (Thallid's three spore counters).
- *
- *  The affordability sibling of `canPayDiscardLastDrawn`, and the SINGLE
- *  authority three callers share: the server's up-front validation
- *  (`convex/game.ts`, which throws "Not enough counters to pay activation
- *  cost"), the bot's move enumerator (`enumerateAbilityMoves`, `moves.ts`), and
- *  the search's cost payment (`applyActivationCostsForSearch`, `applyMove.ts`).
- *
- *  It exists because those three disagreed (issue #1920 review round 2). The
- *  enumerator had no gate at all, so a Thallid holding ONE spore counter still
- *  offered its three-counter activation; the search then applied it, could not
- *  pay, and — once the ability's payoff became visible — ranked a move the
- *  server rejects ABOVE `pass`. Spore counters accrue one per upkeep, so that
- *  was the commonest Thallid board state, not an edge case. */
-export function canPayRemoveCounterCost(
-    card: CardInstanceState,
-    cost: { type: string; count: number }
-): boolean {
-    return (card.counters?.[cost.type] ?? 0) >= cost.count;
 }
 
 /** CR 119.4 — whether `player` may pay a life cost: a payment greater than 0 is

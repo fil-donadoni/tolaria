@@ -1449,6 +1449,38 @@ const _manaAbilityCostLegsExhaustive: _UnclassifiedManaAbilityCostLeg extends ne
       ] = true;
 void _manaAbilityCostLegsExhaustive;
 
+/** CR 118.3 / 122.1b — whether `card` carries enough counters to pay a
+ *  `cost.removeCounter` leg (Thallid's three spore counters, a depletion
+ *  land's one).
+ *
+ *  The SINGLE authority every consumer shares: the server's up-front
+ *  validation (`convex/game.ts`, which throws "Not enough counters to pay
+ *  activation cost"), the bot's move enumerator (`enumerateAbilityMoves`,
+ *  `moves.ts`), the search's cost payment (`applyActivationCostsForSearch`,
+ *  `applyMove.ts`), the two mana-source authorities below
+ *  (`getManaTapOptionsDetailed`, `getActivatedManaAbility`) and the client's
+ *  own mirrors (`src/lib/card-utils.ts` — permitted to import this module,
+ *  ADR 0074).
+ *
+ *  It exists because the first three disagreed (issue #1920 review round 2).
+ *  The enumerator had no gate at all, so a Thallid holding ONE spore counter
+ *  still offered its three-counter activation; the search then applied it,
+ *  could not pay, and — once the ability's payoff became visible — ranked a
+ *  move the server rejects ABOVE `pass`. Spore counters accrue one per upkeep,
+ *  so that was the commonest Thallid board state, not an edge case.
+ *
+ *  It lives HERE rather than in `gre/state.ts` (issue #2712) because
+ *  `constants.ts` is the leaf `state.ts` imports, not the other way round: the
+ *  mana authorities below could not have reached it there, and the fix for
+ *  that must not be a fourth copy of one comparison. `state.ts` re-exports it,
+ *  so no existing importer moved. */
+export function canPayRemoveCounterCost(
+    card: CardInstanceState,
+    cost: { type: string; count: number }
+): boolean {
+    return (card.counters?.[cost.type] ?? 0) >= cost.count;
+}
+
 /** Cheap "could this permanent carry a mana ability that does NOT tap itself?"
  *  prefilter (issue #2420), reading the PRINTED definition without
  *  materialising the post-layer set. Deliberately a SUPERSET: a permanent with
@@ -1495,8 +1527,89 @@ export function mayBeSacrificedForMana(card: CardInstanceState): boolean {
     if (!printed) return false;
     for (const ability of printed) {
         if (!ability.useStack && ability.cost.sacrifice) return true;
+        // CR 701.21 (the depletion lands) — a CONDITIONAL self-sacrifice is
+        // still a way for a permanent to leave the battlefield by being tapped
+        // for mana, so the prefilter must let it through to the real
+        // resolution; whether THIS activation is the one that empties the last
+        // counter is `manaTapSacrificesSource`'s question, not the
+        // prefilter's.
+        if (!ability.useStack && ability.sacrificesSourceWhenNoCountersRemain)
+            return true;
     }
     return false;
+}
+
+/** Cheap prefilter, the `mayBeSacrificedForMana` idiom: could paying this
+ *  permanent for mana REMOVE COUNTERS from it (a depletion land's
+ *  `cost.removeCounter`, a Mana Battery's scaling `manaChoiceRemovesCounters`)?
+ *  Reads the PRINTED definition plus any granted abilities, so an ordinary
+ *  board — every basic land, every Mox, every `{T}` rock — answers false with
+ *  one cached lookup and a short array scan, and the caller skips the real
+ *  resolution entirely.
+ *
+ *  Used by the search's coarse mana model (`applyTapPlan`, `search.ts` and
+ *  `applyMove.ts`), which otherwise leaves a depletion land's counters at two
+ *  in every simulated future: it untaps next simulated turn, taps again, and
+ *  never dies, so the bot plans around a permanent mana source it does not
+ *  have. */
+export function mayRemoveCountersForMana(card: CardInstanceState): boolean {
+    // Same conservative shape as `mayBeSacrificedForMana`: a card carrying any
+    // granted ability falls through to the real resolution.
+    if (card.grantedActivatedAbilities?.length) return true;
+    const cardId = (card.card as { id?: string }).id;
+    if (!cardId) return false;
+    const printed = tryGetDefinition(cardId)?.activatedAbilities;
+    if (!printed) return false;
+    for (const ability of printed) {
+        if (ability.useStack) continue;
+        if (ability.cost.removeCounter) return true;
+        if (ability.manaChoiceRemovesCounters) return true;
+    }
+    return false;
+}
+
+/** CR 118.3 / 122.1 — the counters this tap plan entry's mana activation
+ *  actually spends, or null. Resolves the SAME unified option list the tap
+ *  mutations read, exactly as `manaTapSacrificesSource` does, so the search's
+ *  model and `tapSourceIntoPayment` agree about which ability a
+ *  `manaChoiceIndex` names AND about what it costs.
+ *
+ *  Covers both shapes: the FIXED `cost.removeCounter` leg, and the SCALING
+ *  `manaChoiceRemovesCounters` cost whose count IS the chosen option's index
+ *  (the Mana Batteries) — the count the existing `getManaChoiceCounterCost`
+ *  derives, reused here rather than re-derived.
+ *
+ *  Guarded by `mayRemoveCountersForMana` at every call site — this function
+ *  itself does the full scan and must not run on an ordinary board. */
+export function manaTapCounterCost(
+    card: CardInstanceState,
+    controllerId: string | undefined,
+    battlefields:
+        | ReadonlyArray<{
+              playerId: string;
+              battlefield: readonly CardInstanceState[];
+          }>
+        | undefined,
+    manaChoiceIndex: number | undefined
+): { type: string; count: number } | null {
+    const detailed = getManaTapOptionsDetailed(
+        card,
+        controllerId,
+        battlefields,
+        { requireTap: true }
+    );
+    // A plan with no index taps a single-option source (`manaTapNeedsChoice`),
+    // so index 0 is the option it names.
+    const opt = detailed[manaChoiceIndex ?? 0];
+    if (!opt || opt.source.kind !== "activated") return null;
+    const scaling = getManaChoiceCounterCost(card, opt.source);
+    if (scaling) return { type: scaling.counterType, count: scaling.count };
+    const abilityId = opt.source.abilityId;
+    for (const { ability } of getEffectiveActivatedAbilities(card)) {
+        if (ability.id !== abilityId) continue;
+        return ability.cost.removeCounter ?? null;
+    }
+    return null;
 }
 
 /** Does the mana ability this tap plan entry activates sacrifice its source?
@@ -1531,9 +1644,21 @@ export function manaTapSacrificesSource(
     const opt = detailed[manaChoiceIndex ?? 0];
     if (!opt || opt.source.kind !== "activated") return false;
     const abilityId = opt.source.abilityId;
-    return getEffectiveActivatedAbilities(card).some(
-        ({ ability }) => ability.id === abilityId && !!ability.cost.sacrifice
-    );
+    return getEffectiveActivatedAbilities(card).some(({ ability }) => {
+        if (ability.id !== abilityId) return false;
+        if (ability.cost.sacrifice) return true;
+        // CR 118.3 / 701.21 — a depletion land sacrifices itself only on the
+        // activation that spends its LAST counter, so the answer depends on
+        // the counters currently on the source minus the ones this activation
+        // pays. The type the rider READS need not be the type the cost SPENDS
+        // (the field is declared independently), so both are resolved here.
+        const rider = ability.sacrificesSourceWhenNoCountersRemain;
+        if (!rider) return false;
+        const leg = ability.cost.removeCounter;
+        const have = card.counters?.[rider] ?? 0;
+        const spent = leg && leg.type === rider ? leg.count : 0;
+        return have - spent <= 0;
+    });
 }
 
 export function getManaTapOptionsDetailed(
@@ -1626,6 +1751,20 @@ export function getManaTapOptionsDetailed(
             // DISCARD leg has no twin here — no caller passes a hand — so it
             // stays a server-side rejection; `getManaCostMenuAbility`
             // (`src/lib/card-utils.ts`) covers it on the menu surface.
+            // CR 118.3 / 602.1a — an unpayable FIXED counter-removal leg is
+            // not a mana source either (a depletion land whose last counter is
+            // gone, or one whose counters an opponent's effect removed). Same
+            // whole-ABILITY drop as the two above, for the same reason: the
+            // client menu, the payment-source click and the auto-tap planner
+            // all resolve their `manaChoiceIndex` against THIS list, so leaving
+            // an unaffordable ability in is the "clickable but rejected" shape.
+            // Read off the source's own counters, so no board snapshot is
+            // needed and every caller — including the slim client ones — gets
+            // the same answer.
+            const counterLeg = ability.cost.removeCounter;
+            if (counterLeg && !canPayRemoveCounterCost(card, counterLeg)) {
+                continue;
+            }
             if (ability.cost.sacrificeFilter && controllerBattlefield) {
                 const leg = ability.cost.sacrificeFilter;
                 const victims = controllerBattlefield.filter((c) =>
@@ -2155,6 +2294,20 @@ export function getActivatedManaAbility(
     if (ability.canActivate && state && !ability.canActivate(card, state)) {
         return null;
     }
+    // CR 118.3 / 602.1a — an UNPAYABLE fixed counter-removal leg means there is
+    // no usable mana ability here at all, the same conclusion the `canActivate`
+    // gate above reaches for an un-imprinted Chrome Mox and `hasManaAbility`
+    // reaches for an Everflowing Chalice with no charge counters (issue #1889).
+    // A depletion land normally sacrifices itself the moment its last counter
+    // is spent, so this state is only reachable when something ELSE stripped
+    // the counters (Vampire Hexmage, Thief of Blood) — and then the land sits
+    // inert, which every consumer of this predicate must see: `hasManaAbility`
+    // (so the bot's coarse mana proxy stops counting it), `getFixedManaAmount`,
+    // and the tap mutations' fixed branch, which rejects rather than tapping a
+    // source it cannot charge. Needs no `state`: the counters are on the
+    // instance.
+    const counterLeg = ability.cost.removeCounter;
+    if (counterLeg && !canPayRemoveCounterCost(card, counterLeg)) return null;
     return ability;
 }
 
