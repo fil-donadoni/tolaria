@@ -46,20 +46,56 @@ const SEQ = 42;
 
 /** The board a decision is taken on, and the wire projection of it the consult
  *  is handed — the two halves the trace store keeps. */
+/**
+ * The board as a REAL game hands it over (issue #3483): the seats' own
+ * nicknames, and an opaque per-game handle for every seat and every card
+ * instance — none of which a rebuild from a `ScenarioSpec` reproduces.
+ *
+ * It matters because the blade harness allocates the SAME ids on both sides:
+ * the fixture's live board and the lowering's rebuild both start from
+ * `buildBladeBaseState` and both number their instances from the same counter,
+ * so a comparison keyed off raw ids passes for free here and fails in play.
+ * Every id is PREFIXED rather than replaced, so uniqueness is preserved, and
+ * the substitution is on the quoted JSON token — which only a string-valued
+ * field can match (a card definition id is a UUID and an ability id is a
+ * slug, so neither collides with an instance id).
+ */
+function asLiveGame(state: GameState, names: [string, string]): GameState {
+    const handles = new Set<string>(state.players.map((player) => player.id));
+    for (const player of state.players) {
+        for (const zone of [
+            player.battlefield,
+            player.hand,
+            player.graveyard,
+            player.exile,
+            player.library,
+        ]) {
+            for (const card of zone) handles.add(card.id);
+        }
+    }
+    let json = JSON.stringify(state);
+    for (const handle of handles) {
+        json = json.replaceAll(`"${handle}"`, `"live-${handle}"`);
+    }
+    const live = JSON.parse(json) as GameState;
+    live.players[0].name = names[0];
+    live.players[1].name = names[1];
+    return live;
+}
+
 function position(
     spec: ScenarioSpec,
-    /** The seats' real nicknames, for a decision whose lowering has to survive
-     *  them (issue #3483). Applied BEFORE the projection, so the live board the
-     *  quiz reconstructs carries the names a real game's would — the blade
-     *  harness's own "Blade P1" / "Blade P2" are what the REBUILD gets, and the
-     *  gap between the two is the whole bug. */
-    seatNames?: [string, string]
+    /** Supply the seats' real nicknames to get the position a real table would
+     *  produce — see {@link asLiveGame}. Omit it and the fixture keeps the
+     *  blade harness's own names and ids, which is what every test written
+     *  before issue #3483 relies on. */
+    liveSeatNames?: [string, string]
 ): {
     state: GameState;
     botId: string;
     source: AiTraceSource;
 } {
-    const state = buildBladeState({
+    const built = buildBladeState({
         label: "verdict-quiz fixture",
         spec,
         bot: "me",
@@ -67,10 +103,7 @@ function position(
         tier: "must",
         expect: { moves: [] },
     });
-    if (seatNames) {
-        state.players[0].name = seatNames[0];
-        state.players[1].name = seatNames[1];
-    }
+    const state = liveSeatNames ? asLiveGame(built, liveSeatNames) : built;
     const botId = state.players[0].id;
     return {
         state,
@@ -236,6 +269,11 @@ describe("buildVerdictQuiz — a judgement the fit can still read (issue #3405)"
             "Tessa",
         ]);
         const opponentId = state.players[1].id;
+        // The premise: this board shares no identity with the one the lowering
+        // will rebuild. Asserted, because a fixture that happened to agree
+        // would make the whole test vacuous.
+        expect(botId).not.toBe("p1");
+        expect(state.players[0].battlefield[0].id).not.toMatch(/^\d+$/);
         const chosen = candidateMoves(state, botId).find(
             (move) =>
                 move.kind === "activate-ability" &&
