@@ -124,6 +124,19 @@ describe("Debug sheet body — the three actions (issue #3403)", () => {
         expect(document.querySelectorAll("button").length).toBeGreaterThan(3);
     });
 
+    it("pins the save form's head inside the sheet's scroll port", () => {
+        // The sheet body is the port (`[data-debug-sheet-body]`), and the pin
+        // is OPT-IN on the form (issue #3494) — `/admin/scenarios` mounts the
+        // same form with no port of its own. So the wiring is a claim about
+        // THIS caller, and without an assertion here dropping the prop would
+        // red nothing offline.
+        render(<DebugPanel gameId={GAME} playerId="me" />);
+        fireEvent.click(screen.getByText("Scenarios"));
+        expect(
+            screen.getByText("Save to DB").closest("div.sticky")
+        ).toBeTruthy();
+    });
+
     it("no longer renders the raw state tree", () => {
         // Behavioural assertions cannot see a COLLAPSED `react-json-tree`, so
         // the guard is on the import itself: the tree can only come back

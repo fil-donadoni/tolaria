@@ -54,9 +54,18 @@ export type EditingScenario = {
 export default function DebugSaveScenario({
     editing = null,
     onDone,
+    pinnedHead = false,
 }: {
     editing?: EditingScenario | null;
     onDone?: () => void;
+    /** Pin the head group to the top of the surrounding SCROLL PORT (issue
+     *  #3494). Opt-in because it is a property of the CALLER, not of the form:
+     *  the debug sheet gives this form a real scroll port
+     *  (`[data-debug-sheet-body]`), while `/admin/scenarios` renders it in a
+     *  `PanelBody` in normal page flow — a `sticky` there would pin against the
+     *  app shell's own scroller, which is exactly what
+     *  `shell-height-claims.guard.test.tsx` (issue #2274) exists to stop. */
+    pinnedHead?: boolean;
 } = {}) {
     const saveScenario = useMutation(api.debugScenarios.saveDebugScenario);
     const updateScenario = useMutation(api.debugScenarios.updateDebugScenario);
@@ -154,7 +163,9 @@ export default function DebugSaveScenario({
                 surface token is the one that also reads as a head band on
                 `/admin/scenarios`, which mounts this same form on a
                 `--color-surface` panel. */}
-            <div className="sticky top-0 z-10 flex flex-col gap-1.5 border-b border-border-accent/20 bg-surface-elevated pt-1 pb-2">
+            <div
+                className={`${pinnedHead ? "sticky top-0 z-10" : ""} flex flex-col gap-1.5 border-b border-border-accent/20 bg-surface-elevated pt-1 pb-2`}
+            >
                 <span className="text-sm font-medium text-text">
                     {editing ? `Edit: ${editing.label}` : "Save scenario"}
                 </span>

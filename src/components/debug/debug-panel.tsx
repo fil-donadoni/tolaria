@@ -103,6 +103,10 @@ export default function DebugPanel({ gameId, playerId }: DebugPanelProps) {
                         <DebugSaveScenario
                             key={editingScenario?.id ?? "new"}
                             editing={editingScenario}
+                            // The sheet body IS a scroll port
+                            // (`[data-debug-sheet-body]`), so the form's head
+                            // can pin inside it (issue #3494).
+                            pinnedHead
                             onDone={() => setEditingScenario(null)}
                         />
                     </div>

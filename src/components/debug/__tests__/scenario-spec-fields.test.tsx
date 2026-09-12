@@ -306,7 +306,7 @@ describe("the scenario form renders every form-owned spec field", () => {
     it("pins the save CTA at the top of the form, not under every knob", () => {
         // Issue #3494: the Save button used to be the LAST element, under the
         // card rows and all ~28 spec inputs.
-        render(<DebugSaveScenario />);
+        render(<DebugSaveScenario pinnedHead />);
         const cta = screen.getByText("Save to DB");
         const head = cta.closest("div.sticky");
         expect(head).toBeTruthy();
@@ -315,5 +315,14 @@ describe("the scenario form renders every form-owned spec field", () => {
         expect(head?.contains(screen.getByLabelText("scenario label"))).toBe(
             true
         );
+    });
+
+    it("does NOT pin without a scroll port to pin inside", () => {
+        // `/admin/scenarios` mounts this same form in a `PanelBody`, in normal
+        // page flow. A `sticky` there pins against the APP SHELL's scroller —
+        // the defect `shell-height-claims.guard.test.tsx` (issue #2274) exists
+        // to stop — so the pin is the caller's call, not the form's.
+        render(<DebugSaveScenario />);
+        expect(screen.getByText("Save to DB").closest("div.sticky")).toBeNull();
     });
 });
