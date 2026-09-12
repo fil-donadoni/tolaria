@@ -21,6 +21,11 @@ const ALLOW = new Set<string>([
     // Fixed-victim sites: the effect names the permanent (self / target),
     // there is no "which one?" choice for the player to make.
     "game.ts", // fixed-self ability sacrifice, edict target
+    // The activation half of the same fixed-self site: the CR 602 path moved
+    // out of `game.ts` in issue #3479 so the browser can replay it, and took
+    // the "Sacrifice this permanent" activation-cost leg with it. Still a
+    // fixed victim — the ability's own source — never a filtered choice.
+    "gre/activation.ts",
     "gre/state.ts", // ctx.sacrifice(id) primitive + rule-driven sacrifices
     "gre/effects/interpreter.ts", // resolve-time `sacrifice` Op (choice-driven)
     "gre/sba.ts", // state-based sacrifice (CR 704) — no choice

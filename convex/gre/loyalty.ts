@@ -18,7 +18,7 @@
  *   - {@link loyaltyActivationViolation} — the boolean/reason form, consumed by
  *     the move enumerator (`gre/moves.ts`) and the search's cost payer
  *     (`gre/applyMove.ts`);
- *   - the throwing wrapper `assertLoyaltyActivationLegal` (`convex/game.ts`),
+ *   - the throwing wrapper `assertLoyaltyActivationLegal` (`convex/gre/activation.ts`),
  *     which is now nothing but this predicate plus a `throw`.
  *
  * The client's UI hint (`src/lib/card-utils.ts` `getStackAbilities`) reads the

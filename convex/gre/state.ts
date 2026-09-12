@@ -1498,7 +1498,7 @@ export type CardInstanceState = {
      *  — this is a PER-CARD grant. Always scoped to the grantee's OWN
      *  graveyard: no cross-player shape exists for a graveyard cast (CR
      *  305.1-analog / 601 — every graveyard-cast mechanism in this engine is
-     *  same-player, `castZoneOwner`'s doc in `convex/game.ts`). When set on a
+     *  same-player, `castZoneOwner`'s doc in `convex/gre/activation.ts`). When set on a
      *  card in the graveyard, the named player may CAST it from there as if
      *  it were in their hand (never PLAY — a land discarded this way carries
      *  no affordance, CR ruling: "You may not play land cards discarded with
@@ -5230,7 +5230,7 @@ export type GameState = {
      *  Read by `getManaSubstitutions` only for a payment that names a cast in
      *  progress — the Oracle says "to pay that SPELL's mana cost", so an
      *  activated ability's cost never sees it. Consumed by `payCastManaCost`
-     *  (`convex/game.ts`) when the grant actually did work: the spell that
+     *  (`convex/gre/activation.ts`) when the grant actually did work: the spell that
      *  spends it is the first one whose cost the pool could not cover WITHOUT
      *  the substitution, which is exactly the designation a player would make
      *  and leaves the grant intact after an on-colour cast. Cleared at CLEANUP
@@ -7644,7 +7644,8 @@ function resetStackTransientState(item: StackItem): void {
     // CR 702.74a evoke / 702.109a dash / 702.138b escape (issue #2412) — `evoked`,
     // `dashed`, `escaped` are declared on `CardInstanceState` so they survive
     // resolution onto the permanent (the ETB triggers that read them run
-    // there), but every cast-commit site in `convex/game.ts` stamps them onto
+    // there), but every cast-commit site (`convex/game.ts` +
+    // `convex/gre/activation.ts`) stamps them onto
     // the `StackItem` literal at the SAME seam as `buybackPaid`
     // (`finalizeTargetSelection`/`tryAutoCommitPendingCast`:
     // `...(isEvokeCost ? { evoked: true } : {})` /
@@ -17441,7 +17442,7 @@ export function buildSpellContext(
             // `playerId`. Always SAME-PLAYER — no `zoneOwnerId` parameter,
             // unlike `grantCastFromExile`: no cross-player graveyard-cast
             // primitive exists in this engine (`castZoneOwner`'s doc,
-            // `convex/game.ts`). No-op for an id not in that player's
+            // `convex/gre/activation.ts`). No-op for an id not in that player's
             // graveyard.
             //
             // CR 116.2a — a LAND is PLAYED, never CAST; a "cast" permission is
@@ -24815,7 +24816,7 @@ export function getCastManaSubstitutions(
 /** CR 609.4b / 118.14 — decide whether this cast SPENDS one of the caster's
  *  one-shot "for one spell this turn, you may spend mana as though it were mana
  *  of any type/color" grants (North Star), and pop one if so. Called from the
- *  single cast-payment seam (`payCastManaCost`, `convex/game.ts`) BEFORE the
+ *  single cast-payment seam (`payCastManaCost`, `convex/gre/activation.ts`) BEFORE the
  *  pool is drained.
  *
  *  The Oracle lets the player designate which spell the grant applies to. With

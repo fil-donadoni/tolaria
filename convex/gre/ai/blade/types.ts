@@ -152,8 +152,8 @@ export type BladeSetupStep =
      *  that name. */
     | { kind: "discard"; card: string; controller?: BladeSeat }
     /** Activate the named battlefield permanent's activated ability through
-     *  the REAL activation path (`activateAbilityOnState`, `convex/game.ts` —
-     *  the exact function the `activateAbility` mutation calls), so every
+     *  the REAL activation path (`activateAbilityOnState`, `gre/activation.ts`
+     *  — the exact function the `activateAbility` mutation calls), so every
      *  legality check and every cost is the one a live game applies (CR 602).
      *  The ability ends up on the stack UNRESOLVED; pair it with a
      *  `resolve-top` step to reach the decision its resolution opens (a

@@ -395,7 +395,8 @@ export function buildStateFromScenario(
     // CR 104 (issue #3314) — a scenario starts a LIVE position, so the
     // game-over flag goes with the zones above. `debugSetupScenario` persists
     // exactly what comes back from here, and `assertGameNotOver`
-    // (`convex/game.ts`) rejects every mutation while the flag stands: a
+    // (`convex/gre/activation.ts`) rejects every mutation while the flag
+    // stands: a
     // scenario loaded into a finished game would otherwise place the board the
     // spec names on top of a dead game — the panel shows a normal board and a
     // normal phase banner, and the first click dies with "Game is over".

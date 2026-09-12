@@ -3,9 +3,10 @@
 //
 // Why one module rather than an object literal per site: the ability's stack
 // item is built at FOUR commit sites — three on the authoritative mutation path
-// (`convex/game.ts`: the immediate no-target commit, the targeted
-// `finalizeTargetSelection` commit, and the deferred
-// `tryAutoCommitPendingActivation` commit) and, since issue #1920, one in the
+// (the immediate no-target commit and the deferred
+// `tryAutoCommitPendingActivation` commit, both `convex/gre/activation.ts`;
+// the targeted `finalizeTargetSelection` commit, `convex/game.ts`) and, since
+// issue #1920, one in the
 // ISMCTS search's move sandbox (`applyMoveInSearch`, `gre/search.ts`).
 // `resolveTopOfStack` reads these fields to build the ability's `SpellContext`,
 // so a search-side item of a DIFFERENT shape makes the tree optimise a fiction

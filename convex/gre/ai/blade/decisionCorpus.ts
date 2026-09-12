@@ -1,11 +1,13 @@
 // Blade-side decision-telemetry collection (issue #1893, map #1892).
 //
 // Lives NEXT TO the blade runner rather than in the src-side corpus module
-// (`src/lib/ai/selfplay/decisionCorpus.ts`) because the runner's setup chain
-// (`applyBladeSetup` → `convex/game` → `convex/auth`) is server-only: a
-// non-test src module importing it puts `convex/auth` in the client bundle,
-// which the client-bundle-purity guard (ADR 0074) rightly rejects. Only the
-// bot TEST file (excluded from that scan — tests run in node) imports this.
+// (`src/lib/ai/selfplay/decisionCorpus.ts`) because it runs the whole harness
+// over the whole registry: 6.6k lines of scenario data plus `runBladeScenario`,
+// which no browser caller wants in its bundle. Only the bot TEST file imports
+// this. (Until issue #3479 the reason was harder — the setup chain reached
+// `convex/game` and so `convex/auth`, which the client-bundle-purity guard,
+// ADR 0074, rightly rejects. That is no longer true of the BUILDER; it is still
+// true that nothing in `src/` should pull the harness.)
 
 import {
     setRootDecisionSink,

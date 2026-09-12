@@ -438,7 +438,7 @@ export function graveyardCastMechanismForMember(
  *  The grant may be CROSS-PLAYER (CR 400.7): the card sits in its OWNER's exile
  *  while a different player holds the permission, which is why `zoneOwner` and
  *  `casterId` are separate parameters — the same split `getLegalActions`'
- *  `casterId` and `castZoneOwner` (`convex/game.ts`) already carry.
+ *  `casterId` and `castZoneOwner` (`convex/gre/activation.ts`) already carry.
  *
  *  A LAND in exile under such a grant is deliberately included in neither
  *  answer here nor excluded: a land is PLAYED, never cast (CR 305.9), and the
@@ -479,7 +479,7 @@ export function exileCastPermission(
  *  rather than throwing, exactly as `resolvePlayLandSourceZone` does for the
  *  land half.
  *
- *  The sandboxes have no `locateCastSource` (that lives in `convex/game.ts`,
+ *  The sandboxes have no `locateCastSource` (that lives in `convex/gre/activation.ts`,
  *  which imports the enumerator), so before this they GUESSED: hand, unless the
  *  id happened to be the library top. The guess is wrong for every zone this
  *  issue enumerates, and wrong in the worst way — `removeFromZone` throws
@@ -519,7 +519,7 @@ export function castSourceForSearch(
     }
     // CR 400.7 — exile is the ONE origin whose owner may not be the caster (a
     // cross-player grant). Every other zone a cast can come from is the
-    // caster's own, mirroring `castZoneOwner` (`convex/game.ts`).
+    // caster's own, mirroring `castZoneOwner` (`convex/gre/activation.ts`).
     const owner =
         zone === "exile"
             ? state.players.find((p) =>

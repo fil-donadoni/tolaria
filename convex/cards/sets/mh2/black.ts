@@ -285,7 +285,7 @@ export const damn: CardDefinition = {
 //    lands directly on the exiled `CardInstanceState`).
 //  - `ActivatedAbility.sorcerySpeedOnly` — "activate only as a sorcery" (CR
 //    602.3b), checked via the engine's `isSorceryTiming` at the shared
-//    `assertActivationTimingLegal` chokepoint (`convex/game.ts`).
+//    `assertActivationTimingLegal` chokepoint (`convex/gre/activation.ts`).
 //  - `SpellContext.grantCastFromExile`'s `withoutPayingManaCost` option (+
 //    the new `grantCastFromExile` Op skin wrapping it, issue #1145's
 //    addendum comment flagged this as the natural follow-up) — the free-cast

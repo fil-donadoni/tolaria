@@ -50,7 +50,21 @@ import { pentadPrism } from "../../cards/sets/5dn/colorless";
  */
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..", "..");
-const GAME_TS = path.join(REPO_ROOT, "convex/game.ts");
+/** The cast-commit surface, as FILES. It became two in issue #3479: the CR 602
+ *  activation path — and with it `payCastManaCost` and
+ *  `tryAutoCommitPendingCast` — moved to `convex/gre/activation.ts` so the
+ *  browser can replay a position (`convex/game.ts` imports `./auth`, which the
+ *  client bundle may never reach, ADR 0074), while `announceCast` and
+ *  `finalizeTargetSelection` stayed behind. The guard reads BOTH: a commit site
+ *  that escapes the seam by moving to the sibling file is the same bug. */
+const COMMIT_SOURCES = ["convex/game.ts", "convex/gre/activation.ts"] as const;
+
+function readCommitSources(): { rel: string; lines: string[] }[] {
+    return COMMIT_SOURCES.map((rel) => ({
+        rel,
+        lines: fs.readFileSync(path.join(REPO_ROOT, rel), "utf8").split("\n"),
+    }));
+}
 
 /** Pentad Prism in hand, `pool` floating, priority with its controller — the
  *  state `announceCast` sees when the caster tapped lands first. */
@@ -212,7 +226,7 @@ describe("announceCast immediate-commit: mana-spent capture (CR 106.4 / 702.44a,
 // and that each one puts the captured record ON the stack item it pushes.
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** Line indices (0-based) of every `payCastManaCost(` CALL in game.ts. */
+/** Line indices (0-based) of every `payCastManaCost(` CALL in one source. */
 function paymentCallLines(src: string): number[] {
     return src
         .split("\n")
@@ -223,71 +237,93 @@ function paymentCallLines(src: string): number[] {
         );
 }
 
-describe("game.ts cast-commit sites all route through payCastManaCost (issue #2378)", () => {
+describe("cast-commit sites all route through payCastManaCost (issue #2378)", () => {
     it("no cast-commit site pays a spell's mana cost directly", () => {
-        const lines = fs.readFileSync(GAME_TS, "utf8").split("\n");
-        const callLines = lines.flatMap((line, i) =>
-            /payManaCostForSpell\(/.test(line) &&
-            !/^\s*payManaCostForSpell,/.test(line)
-                ? [i]
-                : []
-        );
-        // Two CATEGORIES survive: the call inside `payCastManaCost` itself,
-        // and the CR 116 SPECIAL ACTIONS — which pay a mana cost but push no
-        // stack item, so they have nothing to note the spend onto (the
-        // companion summon puts a card in hand; the morph turn-face-up flips a
-        // permanent already on the battlefield, issue #2705). The exemption
-        // keys on the phrase "special action" in the call's own comment
-        // paragraph rather than on a hand-maintained list of cost constants:
-        // a third special action must then DECLARE itself as one to be
-        // exempt, instead of being added to a list nobody re-reads.
-        // The shared seam's own body, as a line range: from its signature to
-        // the first line that closes a top-level declaration.
-        const seamStart = lines.findIndex((line) =>
-            line.startsWith("export function payCastManaCost(")
-        );
-        expect(seamStart).toBeGreaterThan(-1);
-        const seamEnd =
-            seamStart +
-            lines
-                .slice(seamStart)
-                .findIndex((line, i) => i > 0 && line === "}");
-        const offenders = callLines.filter((i) => {
-            // Look BEHIND as well as ahead: the declaration lives in the
-            // comment above the call, not after it.
-            const context = lines.slice(Math.max(0, i - 4), i + 4).join("\n");
-            return (
-                !/special action/i.test(context) &&
-                !(i > seamStart && i < seamEnd)
+        const offenders: string[] = [];
+        for (const { rel, lines } of readCommitSources()) {
+            const callLines = lines.flatMap((line, i) =>
+                /payManaCostForSpell\(/.test(line) &&
+                !/^\s*payManaCostForSpell,/.test(line)
+                    ? [i]
+                    : []
             );
-        });
+            // Two CATEGORIES survive: the call inside `payCastManaCost` itself,
+            // and the CR 116 SPECIAL ACTIONS — which pay a mana cost but push no
+            // stack item, so they have nothing to note the spend onto (the
+            // companion summon puts a card in hand; the morph turn-face-up flips a
+            // permanent already on the battlefield, issue #2705). The exemption
+            // keys on the phrase "special action" in the call's own comment
+            // paragraph rather than on a hand-maintained list of cost constants:
+            // a third special action must then DECLARE itself as one to be
+            // exempt, instead of being added to a list nobody re-reads.
+            // The shared seam's own body, as a line range: from its signature to
+            // the first line that closes a top-level declaration.
+            const seamStart = lines.findIndex((line) =>
+                line.startsWith("export function payCastManaCost(")
+            );
+            const seamEnd =
+                seamStart === -1
+                    ? -1
+                    : seamStart +
+                      lines
+                          .slice(seamStart)
+                          .findIndex((line, i) => i > 0 && line === "}");
+            offenders.push(
+                ...callLines
+                    .filter((i) => {
+                        // Look BEHIND as well as ahead: the declaration lives in
+                        // the comment above the call, not after it.
+                        const context = lines
+                            .slice(Math.max(0, i - 4), i + 4)
+                            .join("\n");
+                        return (
+                            !/special action/i.test(context) &&
+                            !(i > seamStart && i < seamEnd)
+                        );
+                    })
+                    .map((i) => `${rel}:${i + 1} → ${lines[i].trim()}`)
+            );
+        }
+        // The seam itself must exist SOMEWHERE in the surface — otherwise
+        // every call above would be exempted by an always-(-1) range and the
+        // guard would pass vacuously.
         expect(
-            offenders.map((i) => `convex/game.ts:${i + 1} → ${lines[i].trim()}`)
-        ).toEqual([]);
+            readCommitSources().filter(({ lines }) =>
+                lines.some((line) =>
+                    line.startsWith("export function payCastManaCost(")
+                )
+            )
+        ).toHaveLength(1);
+        expect(offenders).toEqual([]);
     });
 
     it("every payCastManaCost call puts its record on the stack item it pushes", () => {
-        const lines = fs.readFileSync(GAME_TS, "utf8").split("\n");
-        const callLines = paymentCallLines(lines.join("\n"));
-        // Four cast-commit paths (the table at the top of this file). A fifth
-        // is not forbidden — it just has to make the same decision explicitly.
-        expect(callLines.length).toBe(4);
         const missing: string[] = [];
-        for (const start of callLines) {
-            const push = lines.findIndex(
-                (line, i) => i > start && line.includes("state.stack.push(")
-            );
-            expect(push).toBeGreaterThan(start);
-            // The SPREAD form (`notedManaSpent: <var>`), not merely a mention
-            // of the captured local — reading the field off the payment and
-            // then never spreading it is exactly the shipped bug.
-            const between = lines.slice(start, push).join("\n");
-            if (!/notedManaSpent:/.test(between)) {
-                missing.push(
-                    `convex/game.ts:${start + 1} → commit at :${push + 1} drops notedManaSpent`
+        let total = 0;
+        for (const { rel, lines } of readCommitSources()) {
+            const callLines = paymentCallLines(lines.join("\n"));
+            total += callLines.length;
+            for (const start of callLines) {
+                const push = lines.findIndex(
+                    (line, i) => i > start && line.includes("state.stack.push(")
                 );
+                expect(push).toBeGreaterThan(start);
+                // The SPREAD form (`notedManaSpent: <var>`), not merely a
+                // mention of the captured local — reading the field off the
+                // payment and then never spreading it is exactly the shipped
+                // bug.
+                const between = lines.slice(start, push).join("\n");
+                if (!/notedManaSpent:/.test(between)) {
+                    missing.push(
+                        `${rel}:${start + 1} → commit at :${push + 1} drops notedManaSpent`
+                    );
+                }
             }
         }
+        // Four cast-commit paths (the table at the top of this file), now
+        // spread over two files. A fifth is not forbidden — it just has to make
+        // the same decision explicitly.
+        expect(total).toBe(4);
         expect(missing).toEqual([]);
     });
 });

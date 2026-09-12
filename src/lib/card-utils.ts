@@ -1187,7 +1187,7 @@ export function hasBattlefieldTargetCandidate(
     // legal candidates, not merely one: the old "return true on the first
     // hit" check let the tap menu offer the ability with a single legal
     // blocking creature, and `activateAbilityOnState`'s own matching
-    // `minTargetCount` rejection (`convex/game.ts`) then threw "Not enough
+    // `minTargetCount` rejection (`convex/gre/activation.ts`) then threw "Not enough
     // legal targets" the moment the player tried it — a dead menu entry, the
     // exact symptom this gate exists to prevent for every other cost shape.
     const required = minTargetCountHint(requirement.count);
@@ -1911,7 +1911,7 @@ export function matchesHandCardFilter(
  *  siblings and never checked `controllerTurnOnly` at all, so a permanent like
  *  Disrupting Scepter offered its ability during the opponent's turn and the
  *  server rejected the click). Mirrors the server's authoritative chokepoint
- *  `assertActivationTimingLegal` (`convex/game.ts`) for all FOUR restrictions
+ *  `assertActivationTimingLegal` (`convex/gre/activation.ts`) for all FOUR restrictions
  *  it enforces:
  *   - `activationPhaseRestriction` (CR 602.5, phase/step-scoped — "only during
  *     your upkeep", "only during combat") — the current `phase` must be a
@@ -2264,7 +2264,7 @@ export function getStackAbilities(
             // CR 602.1 / 118.5 — the sacrifice is paid by the ACTIVATOR, not
             // necessarily the source's controller ("any player may
             // activate"/enchanted-controller abilities, `activatorId` above):
-            // `activateAbilityOnState` (`convex/game.ts`) scans
+            // `activateAbilityOnState` (`convex/gre/activation.ts`) scans
             // `getPlayer(state, args.playerId).battlefield` — the activator's
             // own board — for the sacrifice candidate. Latent today (no
             // shipped card combines `sacrificeFilter` with either shape), but
@@ -2473,7 +2473,7 @@ export function getGraveyardStackAbilities(
             // matching <filter>" (Whiteout's "Sacrifice a snow land") is
             // unpayable when the card's OWNER (the activator — CR 602.1
             // "from YOUR graveyard", enforced identically server-side by
-            // `activateAbilityOnState` in `game.ts`) has no matching
+            // `activateAbilityOnState` in `gre/activation.ts`) has no matching
             // permanent to give up. Mirrors `getStackAbilities`'s own
             // `sacrificeFilter` gate for the battlefield zone; this one was
             // previously missing entirely for the graveyard zone (no shipped

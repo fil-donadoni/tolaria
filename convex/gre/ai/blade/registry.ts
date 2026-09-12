@@ -886,7 +886,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // across all five seeds below.
         //
         // SETUP (ADR 0070 §4): `activate` runs `activateAbilityOnState`
-        // (`convex/game.ts`) — the exact function the `activateAbility`
+        // (`convex/gre/activation.ts`) — the exact function the `activateAbility`
         // mutation calls, extracted for this entry so no second copy of the
         // activation path exists. The {T} / Pay 1 life / Sacrifice cost is
         // really paid (the bot is at 19 and the Delta is in the graveyard),

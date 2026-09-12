@@ -2,24 +2,28 @@
 // when no setup steps are involved — the PURE half of `position.ts`
 // (issue #3400, split by issue #3405).
 //
-// It is split because the browser needs it. `position.ts` builds through
-// `buildBladeState`, which reaches `blade/setup` → `convex/game` → the Convex
-// function shell, and the client-bundle purity guard (ADR 0074) refuses that
-// import from `src/`. The in-play verdict quiz nevertheless has to rebuild the
-// position and re-enumerate IN THE BROWSER, with the same functions the fit
-// uses months later — otherwise the candidate keys it submits resolve against
-// nothing when `evalPairsOf` re-enumerates.
+// It is split because the browser needs it. `position.ts` reaches the blade
+// RUNNER — the harness and its 6.6k-line registry — and the in-play verdict
+// quiz has to rebuild the position and re-enumerate IN THE BROWSER, with the
+// same functions the fit uses months later: otherwise the candidate keys it
+// submits resolve against nothing when `evalPairsOf` re-enumerates.
 //
-// So the two functions a setup-less verdict needs live here, `position.ts`
-// re-exports `candidateMoves`, and `verdictStatesAgree` (its test) pins
-// `buildSetupFreeVerdictState` to `buildVerdictState` so the split cannot
-// become a fork.
+// What it is NOT is a second builder. Until issue #3479 it was: `blade/setup`
+// imported `convex/game`, whose line-4 `./auth` import the client-bundle purity
+// guard (ADR 0074) refuses from `src/`, so the browser could not replay a
+// single setup step and this module hand-rolled the setup-free half of
+// `buildBladeState`. The activation path now lives in `gre/activation.ts` and
+// the builder in `blade/build.ts`, both pure, so `buildSetupFreeVerdictState`
+// is a CALL into the production builder with no steps — and a position whose
+// pending decision comes from a real activation is replayable here too, which
+// is what the journal slice needs. `verdictStatesAgree` (its test) still pins
+// it to `buildVerdictState`, so a future re-fork reds.
 
-import { buildStateFromScenario } from "../../scenarioBuilder";
 import { enumerateMoves, type Move } from "../../moves";
 import type { GameState } from "../../state";
 import { beginDominanceDecision, endDominanceDecision } from "../dominance";
-import { buildBladeBaseState } from "../blade/baseState";
+import { buildPositionFromSpec } from "../blade/build";
+import type { BladeSetupStep } from "../blade/types";
 import type { ScenarioSpec } from "../../../debugScenarioSpec";
 
 /** The candidate set a verdict is judged over: EXACTLY the one the deciders
@@ -35,11 +39,26 @@ export function candidateMoves(state: GameState, playerId: string): Move[] {
     }
 }
 
-/** The position a verdict WITHOUT setup steps names — the first half of
- *  `buildBladeState`, which for such a scenario is the whole of it
- *  (`applyBladeSetup` on an empty step list is the identity, pinned by the
- *  agreement test). Instance ids are allocated by this build, which is why the
- *  quiz keys its candidates off THIS state and not off the live game's. */
+/** The position a verdict names, replayed through the PRODUCTION builder —
+ *  the same one `buildVerdictState` and the blade harness call, so there is no
+ *  second way to build it. Instance ids are allocated by this build, which is
+ *  why the quiz keys its candidates off THIS state and not off the live game's.
+ *
+ *  `setup` is the engine-real step sequence a `Verdict` may carry
+ *  (`verdicts/types.ts`); replaying it in the browser is what issue #3479 made
+ *  possible. A step that finds no purchase throws `BladeSetupError` (ADR 0070
+ *  §4) rather than approximating the position. */
+export function buildVerdictPosition(
+    spec: ScenarioSpec,
+    setup?: BladeSetupStep[]
+): GameState {
+    return buildPositionFromSpec(spec, setup, "verdict");
+}
+
+/** The setup-LESS case, which is every verdict the in-play quiz can produce
+ *  today: the lowering has a live position and no way to say how it was
+ *  reached (that is the journal slice). Kept as its own name because that is
+ *  what its callers mean, and because `verdictStatesAgree` pins it. */
 export function buildSetupFreeVerdictState(spec: ScenarioSpec): GameState {
-    return buildStateFromScenario(buildBladeBaseState(), spec);
+    return buildVerdictPosition(spec);
 }
