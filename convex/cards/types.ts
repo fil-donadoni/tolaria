@@ -1634,9 +1634,9 @@ export interface ActivatedAbility {
      *  by both tap-for-mana paths (`tapUntap` priority tap +
      *  `tapSourceIntoPayment` payment tap). */
     drawsCardOnTap?: number;
-    /** Rider on a TAP mana ability (CR 605.1a, CR 122.6, CR 701.21,
-     *  `useStack: false`): once this activation's `cost.removeCounter` leg has
-     *  been paid, the source is SACRIFICED if no counters of the named type
+    /** Rider on a TAP mana ability (CR 605.1a, CR 118.3, `useStack: false`):
+     *  once this activation's `cost.removeCounter` leg has been paid, the
+     *  source is sacrificed (CR 701.21) if no counters of the named type
      *  remain on it — the Mercadian Masques depletion-land cycle (Hickory
      *  Woodlot, Peat Bog, Remote Farm, Sandstone Needle, Saprazzan Skerry —
      *  "{T}, Remove a depletion counter from this land: Add {G}{G}. If there

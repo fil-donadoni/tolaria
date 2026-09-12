@@ -441,7 +441,7 @@ function activationIsDiscouraged(
 
 export const BLADE_SCENARIOS: BladeScenario[] = [
     {
-        // DEPLETION-LAND reachability (CR 605.1a / 122.6 / 701.21, issue
+        // DEPLETION-LAND reachability (CR 605.1a / 118.3 / 701.21, issue
         // #2712). The bot's main phase, an empty board, one Grizzly Bears
         // ({1}{G}) in hand and ONE land: Hickory Woodlot, untapped, entering
         // the scenario with the two depletion counters its own CR 614.1c

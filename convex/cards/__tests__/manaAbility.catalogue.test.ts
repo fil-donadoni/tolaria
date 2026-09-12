@@ -56,7 +56,7 @@ import type { ActivatedAbility, ManaCost } from "../types";
  *   - abilities the engine drops from the option list by rule: a zero-output
  *     `manaAmount` hook (CR 605.1a / #1889 — Everflowing Chalice with no
  *     counters), and a `canActivate` gate a bare-battlefield fixture fails.
- *     NOT skipped, and deliberately: a `cost.removeCounter` leg (CR 122.6 —
+ *     NOT skipped, and deliberately: a `cost.removeCounter` leg (CR 118.3 —
  *     the MMQ depletion lands), because the fixture seeds the entry counters
  *     the card's own CR 614.1c replacement gives it, so the ability is
  *     affordable and stays asserted.

@@ -1542,7 +1542,7 @@ export function manaTapSacrificesSource(
     return getEffectiveActivatedAbilities(card).some(({ ability }) => {
         if (ability.id !== abilityId) return false;
         if (ability.cost.sacrifice) return true;
-        // CR 122.6 / 701.21 — a depletion land sacrifices itself only on the
+        // CR 118.3 / 701.21 — a depletion land sacrifices itself only on the
         // activation that spends its LAST counter, so the answer depends on
         // the counters currently on the source minus the ones this activation
         // pays. The type the rider READS need not be the type the cost SPENDS
@@ -1646,7 +1646,7 @@ export function getManaTapOptionsDetailed(
             // DISCARD leg has no twin here — no caller passes a hand — so it
             // stays a server-side rejection; `getManaCostMenuAbility`
             // (`src/lib/card-utils.ts`) covers it on the menu surface.
-            // CR 602.1 / 122.6 — an unpayable FIXED counter-removal leg is
+            // CR 118.3 / 602.1a — an unpayable FIXED counter-removal leg is
             // not a mana source either (a depletion land whose last counter is
             // gone, or one whose counters an opponent's effect removed). Same
             // whole-ABILITY drop as the two above, for the same reason: the
@@ -2192,7 +2192,7 @@ export function getActivatedManaAbility(
     if (ability.canActivate && state && !ability.canActivate(card, state)) {
         return null;
     }
-    // CR 602.1 / 122.6 — an UNPAYABLE fixed counter-removal leg means there is
+    // CR 118.3 / 602.1a — an UNPAYABLE fixed counter-removal leg means there is
     // no usable mana ability here at all, the same conclusion the `canActivate`
     // gate above reaches for an un-imprinted Chrome Mox and `hasManaAbility`
     // reaches for an Everflowing Chalice with no charge counters (issue #1889).

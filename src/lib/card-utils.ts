@@ -387,7 +387,7 @@ function clientManaAbilities(
                     !a.canActivate ||
                     a.canActivate(card as unknown as PermanentView, stateView)
             )
-            // CR 602.1 / 122.6 (issue #2712) — an UNPAYABLE fixed counter-removal
+            // CR 118.3 / 602.1a (issue #2712) — an UNPAYABLE fixed counter-removal
             // leg means no usable mana ability, the same answer the server's
             // `getActivatedManaAbility` gives. Unlike the `canActivate` gate above
             // this needs NO view — the counters are on the instance — so it

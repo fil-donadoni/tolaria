@@ -1,5 +1,5 @@
 // The Mercadian Masques DEPLETION LANDS, end to end — CR 614.1c / 122.6 /
-// 605.1a / 701.21, issue #2712.
+// 118.3 / 605.1a / 701.21, issue #2712.
 //
 //   This land enters tapped with two depletion counters on it.
 //   {T}, Remove a depletion counter from this land: Add {G}{G}. If there are
@@ -134,7 +134,7 @@ describe("depletion lands — entry (CR 614.1c / 122.1, issue #2712)", () => {
     });
 });
 
-describe("depletion lands — priority tap (CR 605.1a / 122.6 / 701.21)", () => {
+describe("depletion lands — priority tap (CR 605.1a / 118.3 / 701.21)", () => {
     it("the FIRST tap adds {G}{G} and spends one counter, leaving the land on the battlefield", async () => {
         const { state } = boardWith(hickoryWoodlot, 2);
         const stub = makeMutationCtx("p1", [gameStateSeed(state)]);
@@ -172,7 +172,7 @@ describe("depletion lands — priority tap (CR 605.1a / 122.6 / 701.21)", () => 
         ).toBeUndefined();
         const dead = player.graveyard.find((c) => c.id === "woodlot");
         expect(dead).toBeDefined();
-        // CR 122.6 — the counter it spent is gone, not merely decremented to a
+        // CR 122.1 — the counter it spent is gone, not merely decremented to a
         // zero-valued entry.
         expect(dead!.counters?.[DEPLETION]).toBeUndefined();
     });
@@ -197,7 +197,7 @@ describe("depletion lands — priority tap (CR 605.1a / 122.6 / 701.21)", () => 
     });
 });
 
-describe("depletion lands — payment tap (CR 605.1a / 122.6 / 701.21)", () => {
+describe("depletion lands — payment tap (CR 605.1a / 118.3 / 701.21)", () => {
     it("pays the counter mid-payment and keeps the land while a counter remains", () => {
         const { state, player, land } = boardWith(hickoryWoodlot, 2);
         const tappedLandIds: string[] = [];

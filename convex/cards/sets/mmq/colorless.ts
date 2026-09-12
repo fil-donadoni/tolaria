@@ -12,7 +12,7 @@ import type { CardDefinition, Color, ManaCost } from "../../types";
  *  behaviour difference lives entirely in the abilities that read it. */
 const DEPLETION = "depletion";
 
-/** The Mercadian Masques depletion-land cycle (CR 605.1a / 614.1c / 122.6 /
+/** The Mercadian Masques depletion-land cycle (CR 605.1a / 614.1c / 118.3 /
  *  701.21) — five commons that differ only by the colour they make:
  *
  *    This land enters tapped with two depletion counters on it.
@@ -25,7 +25,7 @@ const DEPLETION = "depletion";
  *   - the entry rider is the CR 614.1c self-replacement pair `entersTapped` +
  *     `entersWith.counters` — these are the first shipped LAND to use the
  *     counters half, the path `cards/entersWith.ts` calls out as latent;
- *   - the counter payment is the FIXED `cost.removeCounter` leg (CR 122.6),
+ *   - the counter payment is the FIXED `cost.removeCounter` leg (CR 118.3),
  *     which the tap-for-mana paths pay through
  *     `applyManaAbilityRemoveCounterCost`;
  *   - the sacrifice is the `sacrificesSourceWhenNoCountersRemain` rider

@@ -1198,7 +1198,7 @@ export function applyManaAbilityDiscardCost(
     payDiscardAtRandomCost(state, activatorId, count);
 }
 
-/** CR 605.1a / 122.6 — tap mana ability FIXED counter-removal cost (the
+/** CR 605.1a / 118.3 — tap mana ability FIXED counter-removal cost (the
  *  Mercadian Masques depletion lands: "{T}, Remove a depletion counter from
  *  this land: Add {G}{G}."). Pays `ability.cost.removeCounter` through the
  *  shared `payRemoveCounterCost` authority — the same one the STACK activation
@@ -1222,7 +1222,7 @@ export function applyManaAbilityDiscardCost(
  *  hand-rolled call that skipped that list. No-op when the ability declares no
  *  counter cost. Shared by both tap-for-mana paths (`tapUntap` priority tap +
  *  `tapSourceIntoPayment` payment tap). */
-/** CR 106.4 / 122.6 — reverses the counters a for-mana tap removed from its own
+/** CR 106.4 / 118.3 — reverses the counters a for-mana tap removed from its own
  *  source, when that tap is undone to refund unspent mana in the same priority
  *  window. Covers BOTH counter-cost shapes, which share the
  *  `manaCounterRemoval` snapshot: the SCALING cost of a Mana Battery
@@ -2193,7 +2193,7 @@ export function tapSourceIntoPayment(
         // pool now (so the affordability check sees it) and record it for undo.
         if (!isSacrifice) realizeAndStampTapBonus(state, player, card);
         tappedLandIds.push(card.id);
-        // CR 605.1a / 122.6 — the FIXED counter-removal leg of this mana
+        // CR 605.1a / 118.3 — the FIXED counter-removal leg of this mana
         // ability's cost (the depletion lands' "Remove a depletion counter
         // from this land"). Paid here, in the same place the life / exert /
         // discard legs are, so every tap-for-mana path pays it identically.
@@ -2337,7 +2337,7 @@ export function tapSourceIntoPayment(
     // CR 605.4 — resolve this tap's Wild-Growth-style mana bonus into the pool
     // now (so the affordability check sees it) and record it for undo.
     if (!isSacrifice) realizeAndStampTapBonus(state, player, card);
-    // CR 605.1a / 122.6 — the FIXED counter-removal leg of this mana
+    // CR 605.1a / 118.3 — the FIXED counter-removal leg of this mana
     // ability's cost (the depletion lands' "Remove a depletion counter
     // from this land"). Paid here, in the same place the life / exert /
     // discard legs are, so every tap-for-mana path pays it identically.
@@ -2394,7 +2394,7 @@ function untapSourceFromPayment(
         if (!manaColor) throw new Error("Card does not produce mana");
         refundFixedManaOutput(player, card, manaColor);
     }
-    // CR 122.6 — restore the counters removed to pay a Mana Battery's scaling
+    // CR 106.4 / 118.3 — restore the counters removed to pay a Mana Battery's scaling
     // cost or a depletion land's fixed `cost.removeCounter` leg, when the
     // payment tap is reversed.
     restoreManaCounterRemovalOnUntap(card);
@@ -14066,7 +14066,7 @@ export const tapUntap = mutation({
                 // ability's declared output. No-op when `card.chosenMana` is
                 // unset (legacy pre-chosenMana instances).
                 refundChosenManaOutput(player, card);
-                // CR 122.6 — untapping before the mana is spent reverses the
+                // CR 106.4 — untapping before the mana is spent reverses the
                 // whole activation, so the counters removed to pay the scaling
                 // cost are restored to the source.
                 restoreManaCounterRemovalOnUntap(card);
@@ -14330,7 +14330,7 @@ export const tapUntap = mutation({
         // rejected before reaching here.
         if (wasTapped && !producedThisActivation) {
             restoreLifePaidOnUntap(player, card);
-            // CR 106.4 / 122.6 — and the counters its `cost.removeCounter` leg
+            // CR 106.4 / 118.3 — and the counters its `cost.removeCounter` leg
             // took (a depletion land). The choice branch restores its own
             // above; the FIXED branch had no restore at all, so a tap→untap
             // toggle burned the counter.
@@ -14405,7 +14405,7 @@ export const tapUntap = mutation({
             applyDrawCardOnTap(state, tapAbility, args.playerId);
         }
 
-        // CR 605.1a / 122.6 — the FIXED counter-removal leg of this mana
+        // CR 605.1a / 118.3 — the FIXED counter-removal leg of this mana
         // ability's cost (the depletion lands' "Remove a depletion counter
         // from this land"). Same `producedThisActivation` gate as the riders
         // above: paid on the tap, and reversed on an untap toggle by the

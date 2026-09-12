@@ -1,4 +1,4 @@
-// The client's tap affordance for a depletion land — CR 605.1a / 122.6,
+// The client's tap affordance for a depletion land — CR 605.1a / 118.3,
 // issue #2712.
 //
 // A depletion land's mana is gated behind a FIXED `cost.removeCounter` leg, and
@@ -62,7 +62,7 @@ function projectedWoodlot(counters: number): {
     };
 }
 
-describe("depletion land client affordance (CR 605.1a / 122.6, issue #2712)", () => {
+describe("depletion land client affordance (CR 605.1a / 118.3, issue #2712)", () => {
     it("is tappable, menu-offered and affordable while a counter remains", () => {
         const { card, players } = projectedWoodlot(1);
 
