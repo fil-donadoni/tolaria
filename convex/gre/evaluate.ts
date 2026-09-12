@@ -80,7 +80,11 @@ import { keywordBonusFor } from "./creatureBody";
 // and on whether anything the opponent is doing can currently reach the
 // permanent that carries them.
 import { isQuietFor, temporaryDefensiveKeywords } from "./ai/defensiveGrants";
-import { DEFAULT_EVAL_WEIGHTS, type EvalWeights } from "./ai/evalWeights";
+import {
+    DEFAULT_EVAL_WEIGHTS,
+    type EvalWeights,
+    type LatentWeights,
+} from "./ai/evalWeights";
 import type { LatentLens } from "./ai/grounding";
 import { contextFreeLatentLens } from "./ai/grounding";
 import { makeLatentBoardLens } from "./ai/latentBoard";
@@ -189,7 +193,13 @@ export { cardValueById } from "./cardValue";
  *  so the ability value is never double-counted. */
 export function evaluateCreature(
     state: GameState,
-    card: CardInstanceState
+    card: CardInstanceState,
+    /** Issue #3406 — the latent unit prices this valuation runs at. Defaulted
+     *  to the production vector, so every caller that has no vector of its own
+     *  is unchanged; `evaluate` and the combat deltas pass `weights.latent`,
+     *  which is what makes the whole leaf a function of the vector it was
+     *  called with (`cardValue.ts`, `dslLatentPieces`). */
+    latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent
 ): number {
     return (
         creatureValueRaw(
@@ -213,7 +223,7 @@ export function evaluateCreature(
         // `PermanentView` a CR 603.4 condition reads, so a gated trigger's
         // script value is DECIDED for this permanent (was it evoked? dashed?)
         // rather than charged/credited unconditionally.
-        dslRealizedAbilityValueById(String(card.card.id ?? ""), card)
+        dslRealizedAbilityValueById(String(card.card.id ?? ""), card, latent)
     );
 }
 
@@ -227,7 +237,9 @@ export function cardValue(
      *  is one. Omitted (every caller outside the hand term) keeps the pure
      *  context-free valuation: a targeted board-affecting Op then prices at
      *  exactly one representative victim, which is the pre-#3398 number. */
-    board?: LatentLens
+    board?: LatentLens,
+    /** Issue #3406 — see `evaluateCreature`. */
+    latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent
 ): number {
     return latentValue({
         isCreature: isCreature(card),
@@ -240,7 +252,7 @@ export function cardValue(
         // Effect Script off the REGISTRY definition, keyed by the id that
         // survives the wire projection (`card.card` is stripped to `{ id }`) —
         // so the value is identical client- and server-side.
-        ...dslLatentPiecesById(String(card.card.id ?? ""), board),
+        ...dslLatentPiecesById(String(card.card.id ?? ""), board, latent),
     });
 }
 
@@ -975,7 +987,7 @@ function graveyardReachTerm(
         if (!recursion && !isSelfReachableInGraveyard(state, player, card)) {
             continue;
         }
-        const value = latentGraveyardValue(card);
+        const value = latentGraveyardValue(card, weights.latent);
         if (best.length === cap && value <= best[cap - 1]) continue;
         let i = best.length < cap ? best.length : cap - 1;
         while (i > 0 && best[i - 1] < value) {
@@ -997,9 +1009,13 @@ function graveyardReachTerm(
  *  scores, rather than a second, drifting valuation. */
 function nonCreatureBodyValue(
     state: GameState,
-    perm: CardInstanceState
+    perm: CardInstanceState,
+    weights: EvalWeights
 ): number {
-    return cardValue(state, perm) * loyaltyRealizationRatio(perm);
+    return (
+        cardValue(state, perm, undefined, weights.latent) *
+        loyaltyRealizationRatio(perm)
+    );
 }
 
 /** What one permanent's REMOVAL costs its controller, on `evaluate`'s own
@@ -1032,9 +1048,9 @@ export function permanentRealisedValue(
 ): number {
     let total = weights.permanentWeight;
     if (isCreature(perm)) {
-        total += evaluateCreature(state, perm);
+        total += evaluateCreature(state, perm, weights.latent);
     } else if (!isLand(perm)) {
-        total += nonCreatureBodyValue(state, perm);
+        total += nonCreatureBodyValue(state, perm, weights);
     }
     const controller = state.players.find((p) => p.id === perm.controllerId);
     if (controller && hasManaAbility(perm, undefined, controller.battlefield)) {
@@ -1065,7 +1081,12 @@ function playerTerms(
         hand: player.hand.reduce(
             (sum, c) =>
                 sum +
-                cardValue(state, c, latentBoardFor(state, player, c, weights)),
+                cardValue(
+                    state,
+                    c,
+                    latentBoardFor(state, player, c, weights),
+                    weights.latent
+                ),
             0
         ),
         creatures: 0,
@@ -1081,7 +1102,7 @@ function playerTerms(
     for (const perm of player.battlefield) {
         terms.permanents += weights.permanentWeight;
         if (isCreature(perm)) {
-            terms.creatures += evaluateCreature(state, perm);
+            terms.creatures += evaluateCreature(state, perm, weights.latent);
         } else {
             // Non-creature, non-land beneficial permanents (a static buff
             // Enchantment like Castle, a card-advantage Artifact like Jayemdae
@@ -1108,7 +1129,7 @@ function playerTerms(
             // existed before the term. The flat `W_PERMANENT` above stays
             // unscaled — "a permanent is here" is equally true at 1 loyalty.
             if (!isLand(perm)) {
-                terms.permanents += nonCreatureBodyValue(state, perm);
+                terms.permanents += nonCreatureBodyValue(state, perm, weights);
             }
         }
     }
@@ -1606,7 +1627,7 @@ export function declaredCombatDelta(
     const value = (ids: string[], owner: PlayerState) =>
         ids.reduce((sum, id) => {
             const c = owner.battlefield.find((x) => x.id === id);
-            return c ? sum + evaluateCreature(state, c) : sum;
+            return c ? sum + evaluateCreature(state, c, weights.latent) : sum;
         }, 0);
 
     const attacker = state.players.find((p) => p.id === attackerId)!;
@@ -1732,7 +1753,10 @@ export function declaredBlockDelta(
     }
 
     const value = (cards: CardInstanceState[]) =>
-        cards.reduce((sum, c) => sum + evaluateCreature(state, c), 0);
+        cards.reduce(
+            (sum, c) => sum + evaluateCreature(state, c, weights.latent),
+            0
+        );
     // Defender's view: gains the dead attackers' worth, loses its dead blockers,
     // and takes the unblocked face damage.
     //
@@ -1801,7 +1825,8 @@ function cautiousBlockPenalty(
     const held = castableHeldInteraction(attacker);
     if (!held.pump && !held.removal) return 0;
 
-    const cval = (c: CardInstanceState) => evaluateCreature(state, c);
+    const cval = (c: CardInstanceState) =>
+        evaluateCreature(state, c, weights.latent);
     let worstSwing = 0;
 
     for (const [atkId, blockers] of blockersByAttacker) {

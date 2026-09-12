@@ -26,6 +26,8 @@ import {
     dslSpellScriptValue,
 } from "./ai";
 import type { LatentLens } from "./ai/grounding";
+import { contextFreeGrounding } from "./ai/grounding";
+import { DEFAULT_EVAL_WEIGHTS, type LatentWeights } from "./ai/evalWeights";
 
 // The pure creature body math (`creatureValueRaw`) now lives in the leaf module
 // `./creatureBody` (issue #1426) so the per-Op value model (`gre/ai/**`) can
@@ -189,16 +191,26 @@ export function dslLatentPieces(
      *  affecting Op prices at its best legal victim's realised loss); a
      *  creature's ABILITY scripts are valued context-free either way, since
      *  their targets are chosen on a future board, not this one. */
-    board?: LatentLens
+    board?: LatentLens,
+    /** Issue #3406 — the latent unit prices the caller's evaluation runs at.
+     *  Defaulted to the production vector for every caller that has no vector
+     *  of its own; `evaluate` passes `weights.latent`, so a probe under a
+     *  different vector prices the DSL half at THAT vector rather than at the
+     *  committed one. Without it, `evaluate(s, id, W)` is not a function of
+     *  `W` and no weight fit over it can reproduce itself. */
+    latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent
 ): {
     dslSpellValue?: number;
     dslAbilityValue?: number;
     dslSpellValueMeasured?: boolean;
 } {
-    const dslSpellValue = dslSpellScriptValue(def, board);
+    const dslSpellValue = dslSpellScriptValue(def, board, latent);
     return {
         dslSpellValue,
-        dslAbilityValue: dslAbilityScriptValue(def),
+        dslAbilityValue: dslAbilityScriptValue(
+            def,
+            contextFreeGrounding(latent)
+        ),
         // Only a value the lens actually ANSWERED counts as measured — a
         // board that could not resolve the card's target slots leaves the
         // pre-#3398 representative valuation, floor included.
@@ -215,14 +227,16 @@ export function dslLatentPieces(
  *  id (a token / off-registry card — it keeps the `base + MV` fallback). */
 export function dslLatentPiecesById(
     cardId: string,
-    board?: LatentLens
+    board?: LatentLens,
+    /** Issue #3406 — see `dslLatentPieces`. */
+    latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent
 ): {
     dslSpellValue?: number;
     dslAbilityValue?: number;
     dslSpellValueMeasured?: boolean;
 } {
     const def = tryGetDefinition(cardId);
-    return def ? dslLatentPieces(def, board) : {};
+    return def ? dslLatentPieces(def, board, latent) : {};
 }
 
 /** Realized (in-play) DSL ability worth of a permanent from its REGISTRY id —
@@ -241,10 +255,17 @@ export function dslLatentPiecesById(
  *  never fire on it. Omit it and a gated ability is merely weighted. */
 export function dslRealizedAbilityValueById(
     cardId: string,
-    self?: PermanentView
+    self?: PermanentView,
+    /** Issue #3406 — see `dslLatentPieces`. The realized (in-play) half leaked
+     *  the committed vector the same way the latent half did: a creature whose
+     *  worth is mostly its ability script priced identically under every
+     *  vector, so the fit's probe could not move it. */
+    latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent
 ): number {
     const def = tryGetDefinition(cardId);
-    return def ? dslRealizedAbilityScriptValue(def, undefined, self) : 0;
+    return def
+        ? dslRealizedAbilityScriptValue(def, contextFreeGrounding(latent), self)
+        : 0;
 }
 
 /** Latent worth of a card from its registry id alone — the resolution-choice
@@ -254,7 +275,11 @@ export function dslRealizedAbilityValueById(
  *  DSL-derived Effect Script value, PRD #1423) via the `latentValue` core
  *  above. Returns 0 for an unknown id (a token or a card the registry lacks —
  *  it simply ranks lowest). */
-export function cardValueById(cardId: string): number {
+export function cardValueById(
+    cardId: string,
+    /** Issue #3406 — see `dslLatentPieces`. */
+    latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent
+): number {
     const def = tryGetDefinition(cardId);
     if (!def) return 0;
     return latentValue({
@@ -264,6 +289,6 @@ export function cardValueById(cardId: string): number {
         manaValue: manaValue(def.manaCost),
         staticAbilities: def.staticAbilities ?? [],
         aiValue: def.aiValue,
-        ...dslLatentPieces(def),
+        ...dslLatentPieces(def, undefined, latent),
     });
 }

@@ -210,7 +210,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
                 amount: 3,
             };
             const v = valueOp(op, cf);
-            expect(v.points).toBe(24); // 3 × 8
+            expect(v.points).toBe(3 * DEFAULT_EVAL_WEIGHTS.latent.lifeSwing);
             expect(v.tags).toContain("lifeSwing");
         });
 
@@ -220,7 +220,9 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
                 player: "opponent",
                 amount: 4,
             };
-            expect(valueOp(op, cf).points).toBe(32); // 4 × 8
+            expect(valueOp(op, cf).points).toBe(
+                4 * DEFAULT_EVAL_WEIGHTS.latent.lifeSwing
+            );
         });
 
         it("loseLife the caster pays is a self-cost (negative)", () => {
@@ -230,7 +232,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
                 amount: 2,
             };
             const v = valueOp(op, cf);
-            expect(v.points).toBe(-16);
+            expect(v.points).toBe(-2 * DEFAULT_EVAL_WEIGHTS.latent.lifeSwing);
             expect(v.tags).toContain("self-cost");
         });
     });
@@ -560,7 +562,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
                 otherEffect,
             };
             const v = valueOp(op, cf);
-            expect(v.points).toBe(80); // max(10, 2) × 8 (LIFE_PER_POINT)
+            expect(v.points).toBe(10 * DEFAULT_EVAL_WEIGHTS.latent.lifeSwing); // max(10, 2) units
         });
 
         it("values the WORST pile (≈ min) when the chooser is the opponent", () => {
@@ -585,7 +587,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
             const chosen = valueEffectScript(chosenEffect, cf).points;
             const other = valueEffectScript(otherEffect, cf).points;
             expect(v.points).toBe(Math.min(chosen, other));
-            expect(v.points).toBe(16); // min(80, 16)
+            expect(v.points).toBe(2 * DEFAULT_EVAL_WEIGHTS.latent.lifeSwing); // min(10, 2) units
             expect(v.points).toBeLessThanOrEqual((chosen + other) / 2);
         });
     });
@@ -705,7 +707,10 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
             };
             const v = valueOp(op, cf);
             // 0.85 × creatureValueRaw(2,2,0,[]) = 0.85 × (100+30+28) = 134.3
-            expect(v.points).toBeCloseTo(134.3, 1);
+            expect(v.points).toBeCloseTo(
+                158 * DEFAULT_EVAL_WEIGHTS.latent.tokens,
+                1
+            );
             expect(v.tags).toContain("tokens");
         });
 
@@ -737,7 +742,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
                 duration: { phase: "end-of-turn" },
             };
             const v = valueOp(op, cf);
-            expect(v.points).toBe(54); // (3+3) × 9
+            expect(v.points).toBe(6 * DEFAULT_EVAL_WEIGHTS.latent.pump); // (3+3) units
             expect(v.tags).toContain("pump");
         });
 
@@ -750,7 +755,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
                 duration: { phase: "end-of-turn" },
             };
             const v = valueOp(op, cf);
-            expect(v.points).toBe(36); // |−4| × 9
+            expect(v.points).toBe(4 * DEFAULT_EVAL_WEIGHTS.latent.pump); // |−4| units
             expect(v.tags).toContain("boardRemoval");
         });
     });
@@ -765,7 +770,7 @@ describe("OP_VALUERS — charter valuers (PRD #1423, issue #1426)", () => {
                 count: 2,
             };
             const v = valueOp(op, cf);
-            expect(v.points).toBe(36); // (1+1) × 2 × 9
+            expect(v.points).toBe(4 * DEFAULT_EVAL_WEIGHTS.latent.pump); // (1+1) × 2 units
             expect(v.tags).toContain("pump");
         });
 
@@ -881,7 +886,7 @@ describe("OP_VALUERS — representative backfilled valuers (issue #1430)", () =>
                 target: { target: 0 },
             };
             const v = valueOp(op, cf);
-            expect(v.points).toBe(60);
+            expect(v.points).toBe(DEFAULT_EVAL_WEIGHTS.latent.protection);
             expect(v.tags).toEqual(
                 expect.arrayContaining(["protection", "targeted"])
             );
@@ -898,14 +903,17 @@ describe("OP_VALUERS — representative backfilled valuers (issue #1430)", () =>
                 duration: { phase: "end-of-turn" },
             };
             const v = valueOp(op, cf);
-            expect(v.points).toBe(24); // 3 × 8 (LIFE_PER_POINT)
+            expect(v.points).toBe(3 * DEFAULT_EVAL_WEIGHTS.latent.lifeSwing);
             expect(v.tags).toContain("protection");
         });
 
         it("`all-combat` (Fog) is a flat defensive shield with no amount", () => {
             const op: EffectOp = { op: "preventDamage", mode: "all-combat" };
             const v = valueOp(op, cf);
-            expect(v.points).toBe(70);
+            // `PROTECTION_COMPLETENESS.flatPrevent` — 7/6 of one unit.
+            expect(v.points).toBe(
+                (DEFAULT_EVAL_WEIGHTS.latent.protection * 7) / 6
+            );
             expect(v.tags).toContain("protection");
         });
     });
@@ -953,7 +961,10 @@ describe("OP_VALUERS — representative backfilled valuers (issue #1430)", () =>
             // 0.85 × creatureValueRaw(2,2,0,[]) = 0.85 × (100+30+28) = 134.3 —
             // the SAME representative magnitude as createToken's 2/2 example,
             // since the copied body is unknown until runtime.
-            expect(v.points).toBeCloseTo(134.3, 1);
+            expect(v.points).toBeCloseTo(
+                158 * DEFAULT_EVAL_WEIGHTS.latent.tokens,
+                1
+            );
             expect(v.tags).toEqual(
                 expect.arrayContaining(["tokens", "board-scaling", "targeted"])
             );
@@ -967,7 +978,10 @@ describe("OP_VALUERS — representative backfilled valuers (issue #1430)", () =>
                 count: 2,
             };
             const v = valueOp(op, cf);
-            expect(v.points).toBeCloseTo(134.3 * 2, 1);
+            expect(v.points).toBeCloseTo(
+                2 * 158 * DEFAULT_EVAL_WEIGHTS.latent.tokens,
+                1
+            );
             expect(v.tags).toContain("board-scaling");
             expect(v.tags).not.toContain("targeted"); // a `ref` source, not an announced target
         });
@@ -986,7 +1000,10 @@ describe("OP_VALUERS — representative backfilled valuers (issue #1430)", () =>
                 except: { basePower: 4, baseToughness: 4 },
             };
             // 0.85 × creatureValueRaw(4,4,0,[]) = 0.85 × (100+60+56) = 183.6.
-            expect(valueOp(big, cf).points).toBeCloseTo(183.6, 1);
+            expect(valueOp(big, cf).points).toBeCloseTo(
+                216 * DEFAULT_EVAL_WEIGHTS.latent.tokens,
+                1
+            );
 
             const small: EffectOp = {
                 op: "createTokenCopy",
@@ -994,11 +1011,16 @@ describe("OP_VALUERS — representative backfilled valuers (issue #1430)", () =>
                 controller: "controller",
                 except: { basePower: 1, baseToughness: 1 },
             };
-            // 0.85 × (100+15+14) = 109.65 — BELOW the 134.3 the representative
-            // 2/2 would have scored, so the bot stops overvaluing a small
-            // copy token by roughly a quarter.
-            expect(valueOp(small, cf).points).toBeCloseTo(109.65, 1);
-            expect(valueOp(small, cf).points).toBeLessThan(134.3);
+            // `tokens` × (100+15+14) — BELOW what the representative 2/2
+            // (its body is 158) would have scored, so the bot stops
+            // overvaluing a small copy token by roughly a quarter.
+            expect(valueOp(small, cf).points).toBeCloseTo(
+                129 * DEFAULT_EVAL_WEIGHTS.latent.tokens,
+                1
+            );
+            expect(valueOp(small, cf).points).toBeLessThan(
+                158 * DEFAULT_EVAL_WEIGHTS.latent.tokens
+            );
         });
 
         it("falls back to the representative stat when the clause names no body", () => {
@@ -1009,7 +1031,10 @@ describe("OP_VALUERS — representative backfilled valuers (issue #1430)", () =>
                 // A colour-only exception (Embalm keeps the printed body).
                 except: { colors: ["W"] },
             };
-            expect(valueOp(op, cf).points).toBeCloseTo(134.3, 1);
+            expect(valueOp(op, cf).points).toBeCloseTo(
+                158 * DEFAULT_EVAL_WEIGHTS.latent.tokens,
+                1
+            );
         });
     });
 
