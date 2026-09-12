@@ -203,6 +203,18 @@ export function droppedMessageClass(message: string): string {
     // the sweep's PRE-#3460 numbers (PR #3465's report on PRD #3397) comparable
     // with today's, and no run can tell the two corpora apart without it.
     out = out.replace(/(?:\b\d+[WUBRGC]\b\s*)+/g, "<mana> ");
+    // `continuousEffects: layer 7c pt-modify, duration expiry, on Grizzly
+    // Bears (me) — …` (issue #3488) — the AFFECTED PERMANENTS clause. Masked
+    // for the same reason the per-card prefix above is: the names are the most
+    // interpolated token in the line and say nothing about the class, while
+    // the layer, the payload kind, the expiry kind and the reason after the
+    // dash are the whole classification. Anchored on both ends — the field
+    // prefix and the ` — ` the reason opens with — so no other message's " on "
+    // can be caught by it.
+    out = out.replace(
+        /^(continuousEffects: .*?, on ).*?( — )/,
+        "$1<permanents>$2"
+    );
     return out.replace(/\d+/g, "N").replace(/\s+/g, " ").trim();
 }
 

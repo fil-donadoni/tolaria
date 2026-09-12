@@ -49,6 +49,28 @@ describe("lowering sweep: dropped-message classes (issue #3461)", () => {
                 `Llanowar Elves (opp, graveyard): live-only state not captured (grantedUntilEot)`
             )
         );
+        // CR 611.2a (issue #3488) — two boards whose registry entry differs
+        // only by which permanents it names, and by how many.
+        expect(
+            droppedMessageClass(
+                `continuousEffects: layer 4 type-change, duration expiry, on Grizzly Bears (me) — its type-change payload names an object the rebuild has no id for; not lowered`
+            )
+        ).toBe(
+            droppedMessageClass(
+                `continuousEffects: layer 4 type-change, duration expiry, on Shivan Dragon (opp), Llanowar Elves (opp) — its type-change payload names an object the rebuild has no id for; not lowered`
+            )
+        );
+        // …and stays DISTINCT from the same entry refused for another reason:
+        // the clause after the dash is the classification.
+        expect(
+            droppedMessageClass(
+                `continuousEffects: layer 4 type-change, duration expiry, on Grizzly Bears (me) — its type-change payload names an object the rebuild has no id for; not lowered`
+            )
+        ).not.toBe(
+            droppedMessageClass(
+                `continuousEffects: layer 4 type-change, duration expiry, on Grizzly Bears (me) — it affects a permanent in no zone this lowering captures, which no name could reach; not lowered`
+            )
+        );
         expect(
             droppedMessageClass(
                 `me's mana pool: 2R 1G — not lowered (mana pool isn't spec-expressible)`
