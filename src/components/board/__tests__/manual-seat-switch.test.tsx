@@ -75,24 +75,34 @@ const rawState: ManualGameState = {
     ],
 };
 
-vi.mock("convex/react", () => ({
-    useMutation: () => vi.fn(),
+vi.mock("convex/react", async () => {
+    // `useResilientQuery` (issue #3266) subscribes through `useQueries`, so the
+    // mock answers both entry points from the one resolver.
+    const { mockUseQueries } =
+        await import("~/lib/testing/convex-react-query-mock");
     // The container's ONLY query. Runs the real per-viewer projection so
     // switching the steered seat proves itself through the actual redaction
     // rule, not a stand-in.
-    useQuery: (_fn: unknown, args: unknown) => {
+    const resolve = (_fn: unknown, args: unknown) => {
         if (args === "skip") return undefined;
         const { viewerId } = args as { viewerId: string };
         return projectManualState(rawState, viewerId);
-    },
-    usePaginatedQuery: () => ({
-        results: [],
-        status: "Exhausted",
-        loadMore: vi.fn(),
-    }),
-}));
+    };
+    return {
+        useMutation: () => vi.fn(),
+        useQuery: resolve,
+        useQueries: mockUseQueries(resolve),
+        usePaginatedQuery: () => ({
+            results: [],
+            status: "Exhausted",
+            loadMore: vi.fn(),
+        }),
+    };
+});
 vi.mock("@convex/_generated/api", () => ({
-    api: { game: {}, manualLog: {} },
+    // Plain names: `getFunctionName` (which `useResilientQuery` calls to key
+    // its retry state) accepts a string reference, and `{}` is not one.
+    api: { game: { getManualState: "game:getManualState" }, manualLog: {} },
 }));
 import {
     mockInstanceManaCost,

@@ -54,14 +54,26 @@ const MANUAL_MUTATION_NAMES = [
 for (const n of MANUAL_MUTATION_NAMES) MUTATIONS[n] = vi.fn();
 
 const NOOP_MUTATION = vi.fn();
-vi.mock("convex/react", () => ({
-    useMutation: (ref?: { _name?: string }) =>
-        (ref?._name ? MUTATIONS[ref._name] : undefined) ?? NOOP_MUTATION,
-    useQuery: () => undefined,
-}));
+vi.mock("convex/react", async () => {
+    // `useResilientQuery` (issue #3266) subscribes through `useQueries`, so the
+    // mock answers both entry points from the one resolver.
+    const { mockUseQueries } =
+        await import("~/lib/testing/convex-react-query-mock");
+    const resolve = () => undefined;
+    return {
+        useMutation: (ref?: { _name?: string }) =>
+            (ref?._name ? MUTATIONS[ref._name] : undefined) ?? NOOP_MUTATION,
+        useQuery: resolve,
+        useQueries: mockUseQueries(resolve),
+    };
+});
 vi.mock("@convex/_generated/api", () => {
-    const game: Record<string, { _name: string }> = {};
+    const game: Record<string, { _name: string } | string> = {};
     for (const n of MANUAL_MUTATION_NAMES) game[n] = { _name: n };
+    // A plain name, not a `{ _name }` stub: `getFunctionName` (which
+    // `useResilientQuery` calls to key its retry state) accepts a string
+    // reference and rejects an object that carries no function name.
+    game.getManualState = "game:getManualState";
     return { api: { game, manualLog: {} } };
 });
 import {
