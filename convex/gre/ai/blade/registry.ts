@@ -471,7 +471,27 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         bot: "me",
         budget: { iterations: 200 },
         tier: "must",
-        expect: { moves: [{ kind: "cast-spell", card: "Grizzly Bears" }] },
+        // A `predicate`, deliberately, not a `moves` matcher — the adventure and
+        // MDFC entries' shape. This is a REACHABILITY claim ("the bot can spend
+        // this land at all"), not a verdict about which of two moves is better,
+        // and `expect.moves` is what `verdictsFromRegistry` turns into a fitted
+        // VERDICT (ADR 0124 §5). Feeding a reachability position to the weight
+        // fit moved the vector far enough to flip an unrelated `must` entry
+        // ("choice-behind payoff: the re-type mode stays live against the
+        // opponent's lands", red at seed 19) — a preference regression bought
+        // with a claim that has no preference in it. The entry still blocks at
+        // `must`; what it no longer does is vote on the weights.
+        expect: {
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                // ONE tap funds the whole {1}{G}: the discriminating half. A
+                // depletion land credited one mana yields no plan at all, so
+                // there is no cast to match; two entries here would mean the
+                // land was not the source.
+                move.tapPlan?.length === 1,
+            describe: "casts Grizzly Bears off a single tap of Hickory Woodlot",
+        },
         note: "CR 605.1a depletion-land reachability. Also the end-to-end cover for `removeCounter` in `TAP_YIELD_CREDITABLE_COST_LEGS` (moves.ts) and for the scenario builder defaulting a battlefield land's entry counters from `resolveEntersWithCounters` — a land placed with zero counters is not a mana source at all, so this entry fails on either half.",
     },
     {
