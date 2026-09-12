@@ -54,13 +54,17 @@ async function main() {
     const force = process.argv.includes("--force");
     const present = committedArtifacts(outDir);
 
-    if (present.length > 1) {
+    // `--force` regenerates, and the generator writes one artifact and deletes
+    // every other — so it is the remedy for the ambiguous directory, not
+    // something the ambiguity may block.
+    if (!force && present.length > 1) {
         throw new Error(
             `Full Catalogue: data/full-catalogue/ holds ${present.length} artifacts — ` +
                 `${present.join(", ")}.\n` +
                 "  A merge brought in a second generation; picking one would ship a " +
                 "catalogue nobody chose.\n" +
-                "  fix: bun run catalogue:build (it writes one and deletes the rest)"
+                "  fix: bun run catalogue:build, or bun run catalogue:ensure --force " +
+                "(either writes one and deletes the rest)"
         );
     }
 
