@@ -352,11 +352,15 @@ describe("evaluate values a graveyard a play-from-graveyard engine can cast", ()
         const capped =
             evaluate(withGraveyard(0, true), me) +
             w.graveyardEngineCap * w.graveyardEngineWeight;
+        // `toBeCloseTo`, not `toBe`: the engine and this line reach the same
+        // sum by a different association, and a fitted weight (issue #3406)
+        // is no longer a round number, so the last bit can differ. The claim
+        // is the CAP, not the float's bit pattern.
         expect(
             evaluate(withGraveyard(4 * w.graveyardEngineCap, true), me)
-        ).toBe(capped);
+        ).toBeCloseTo(capped, 6);
         expect(
             evaluate(withGraveyard(4 * w.graveyardEngineCap + 40, true), me)
-        ).toBe(capped);
+        ).toBeCloseTo(capped, 6);
     });
 });

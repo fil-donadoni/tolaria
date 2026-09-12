@@ -41,6 +41,7 @@
 import type { CardDefinition, EffectOp } from "../../cards/types";
 import { tryGetDefinition } from "../../cards";
 import { cardValueById } from "../cardValue";
+import { DEFAULT_EVAL_WEIGHTS, type LatentWeights } from "./evalWeights";
 import type { CardInstanceState, GameState, PlayerState } from "../state";
 import { graveyardCastMechanismForMember } from "../castCost";
 import { getPrintedEscape } from "../escape";
@@ -283,7 +284,8 @@ function instanceRecoversFromGraveyard(card: CardInstanceState): boolean {
     return id ? idRecoversFromGraveyard(id) : false;
 }
 
-/** Latent worth of a graveyard card, memoized by REGISTRY id.
+/** Latent worth of a graveyard card, memoized by LATENT VECTOR first and
+ *  REGISTRY id second.
  *
  *  `cardValue` walks the card's whole Effect Script and queries the layer
  *  system for P/T on every call, and the term needs a value for every
@@ -291,16 +293,40 @@ function instanceRecoversFromGraveyard(card: CardInstanceState): boolean {
  *  id-keyed `cardValueById` is the same derivation off the same
  *  `CardDefinition` — no continuous effect applies to it (CR 611.2c), so
  *  there is nothing live to read — which makes the answer a pure function of
- *  the id and safe to cache for the life of the process. */
-const LATENT_BY_ID = new Map<string, number>();
+ *  the id AND the vector it is priced at, and safe to cache for as long as
+ *  that vector lives.
+ *
+ *  Issue #3406 — the vector is half the key because the value depends on it.
+ *  A memo keyed by the id alone hands whichever vector ran first to every
+ *  vector after it: under the Weight Fit's probe (one bumped vector per
+ *  fittable weight) that reads as "this weight moves nothing", which is a
+ *  basis of zeros and a term the fit can never price. A `WeakMap` because a
+ *  probe vector is transient — its per-id map dies with it, while the
+ *  production vector's lives as long as the module, exactly as before.
+ *
+ *  The key is object IDENTITY, so a latent vector MUTATED in place after its
+ *  first use here would be served its old prices. Every producer today either
+ *  spreads into a fresh object or freezes (`evalWeights.ts`,
+ *  `searchVariant.ts`, `verdicts/features.ts`), and this is the invariant
+ *  that keeps it true. */
+const LATENT_BY_VECTOR = new WeakMap<LatentWeights, Map<string, number>>();
 
-export function latentGraveyardValue(card: CardInstanceState): number {
+export function latentGraveyardValue(
+    card: CardInstanceState,
+    /** Issue #3406 — the latent unit prices the reading evaluation runs at. */
+    latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent
+): number {
     const id = (card.card as { id?: string }).id;
     if (!id) return 0;
-    const hit = LATENT_BY_ID.get(id);
+    let byId = LATENT_BY_VECTOR.get(latent);
+    if (!byId) {
+        byId = new Map<string, number>();
+        LATENT_BY_VECTOR.set(latent, byId);
+    }
+    const hit = byId.get(id);
     if (hit !== undefined) return hit;
-    const value = cardValueById(id);
-    LATENT_BY_ID.set(id, value);
+    const value = cardValueById(id, latent);
+    byId.set(id, value);
     return value;
 }
 

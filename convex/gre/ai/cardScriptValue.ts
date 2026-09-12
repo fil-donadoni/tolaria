@@ -32,6 +32,7 @@ import {
     type GroundingContext,
     type LatentLens,
 } from "./grounding";
+import type { LatentWeights } from "./evalWeights";
 import { valueEffectScript } from "./opValuers";
 import type { OpValue, ValueTag } from "./featureBasis";
 
@@ -184,9 +185,22 @@ export function dslSpellScriptValue(
      *  caller has one (`evaluate`'s hand term). Omitted, the valuation stays
      *  purely context-free and every targeted, board-affecting Op prices at
      *  exactly one representative victim — the pre-#3398 number. */
-    board?: LatentLens
+    board?: LatentLens,
+    /** Issue #3406 — the latent unit prices this valuation runs at. Omitted,
+     *  the production vector. An evaluation running on ANY other vector (the
+     *  Weight Fit's probe, a `SearchVariant.evalWeights` ladder arm) must pass
+     *  its own, or the script half of the card's worth is silently priced at
+     *  the committed weights and `evaluate(s, id, W)` stops being a function
+     *  of `W` — which is exactly what made the fit irreproducible.
+     *
+     *  `board` WINS over this when both are given: a board lens carries its
+     *  own weights and replaces the whole lens. Production is consistent
+     *  because `latentBoardFor` (`evaluate.ts`) builds that lens from the very
+     *  same `weights.latent`; pass two different vectors and the board's is
+     *  the one that prices the script. */
+    latent?: LatentWeights
 ): number | undefined {
-    const ctx = contextFreeGrounding();
+    const ctx = contextFreeGrounding(latent);
     return dslSpellScriptOpValue(def, board ? withLatentLens(ctx, board) : ctx)
         ?.points;
 }
