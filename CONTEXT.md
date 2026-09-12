@@ -791,6 +791,10 @@ _Avoid_: Instruction, command, opcode
 The named values a **Delayed Triggered Ability**'s body carries across time. Each capture is declared explicitly on the scheduling **Op** and resolved to a plain identity or amount at scheduling; when the trigger fires, the body reads it back as a ref. Nothing crosses the schedule→fire boundary implicitly — the card's script states exactly what the future ability remembers.
 _Avoid_: Closure, snapshot (that term is reserved for last-known-information binds)
 
+**Picks Binding**:
+The named set of **Card Instances** an **Op** chose or acted on, remembered as identities only — _which_ objects, never _what they were_. The sibling and opposite of a characteristics bind (see **Last Known Information**), which remembers one object's values and not the set; neither reader can answer the other's question. A rule phrased "for each nonland card discarded this way" needs both halves at once, so the **Op** that performed the action is the one that records the matching subset, at the moment it acted — never by looking up where the cards ended up, because a discarded card can be exiled or put on top of its library instead of reaching a **Graveyard**, and is discarded all the same.
+_Avoid_: Pick list, chosen cards, id set, selection (reserved for **Target** selection)
+
 **Mechanics Registry**:
 The machine-readable census of every CR keyword ability (702) and keyword action (701), each with an implementation status and its engine binding (**Op** name or static ability). The single authority on mechanic names: cards and **Effect Scripts** may only reference mechanics it lists. Census is total; implementation is demand-driven.
 _Avoid_: Mechanics doc, keyword list, capability matrix
