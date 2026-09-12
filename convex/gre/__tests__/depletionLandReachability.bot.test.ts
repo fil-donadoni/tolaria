@@ -26,6 +26,7 @@ import {
     makeState,
 } from "../../cards/__tests__/setup";
 import { enumerateMoves, planManaPayment } from "../moves";
+import { applyMoveForSearch } from "../applyMove";
 import { hickoryWoodlot } from "../../cards/sets/mmq/colorless";
 import type { CardInstanceState, GameState, PlayerState } from "../state";
 
@@ -94,5 +95,46 @@ describe("depletion lands — bot reachability (issue #2712)", () => {
 
         expect(casts).toEqual([]);
         expect(planManaPayment(state, player, { X: 1, G: 1 })).toBeNull();
+    });
+});
+
+describe("depletion lands — the search's coarse mana model (issue #2712)", () => {
+    // `applyTapPlan` (duplicated in `search.ts` and `applyMove.ts`) is the whole
+    // model of "what tapping for mana does" INSIDE the tree. It marks sources
+    // tapped and, since #3027, moves a self-sacrificing one to the graveyard.
+    // It did not touch counters, so a depletion land came out of every
+    // simulated tap with both of them: it untaps next simulated turn, taps
+    // again, and never dies — the search values a two-use land as a permanent
+    // mana source. Nothing else reds on that; it just makes the bot plan around
+    // mana it does not have.
+    it("spends a counter when the plan taps the land", () => {
+        const { state } = board(2);
+        const cast = enumerateMoves(state, "p1").find(
+            (m) => m.kind === "cast-spell" && m.cardInstanceId === "bears"
+        )!;
+
+        const next = applyMoveForSearch(state, "p1", cast);
+
+        const land = next.players[0]!.battlefield.find(
+            (c) => c.id === "woodlot"
+        )!;
+        expect(land.isTapped).toBe(true);
+        expect(land.counters?.depletion).toBe(1);
+    });
+
+    it("moves the land to the graveyard when the plan spends its LAST counter", () => {
+        const { state } = board(1);
+        const cast = enumerateMoves(state, "p1").find(
+            (m) => m.kind === "cast-spell" && m.cardInstanceId === "bears"
+        )!;
+
+        const next = applyMoveForSearch(state, "p1", cast);
+
+        expect(
+            next.players[0]!.battlefield.find((c) => c.id === "woodlot")
+        ).toBeUndefined();
+        expect(
+            next.players[0]!.graveyard.find((c) => c.id === "woodlot")
+        ).toBeDefined();
     });
 });
