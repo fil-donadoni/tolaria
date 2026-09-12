@@ -1472,22 +1472,45 @@ export const CARD_STATE_ALLOWLIST = new Set<string>([
     // and the `manaCounterRemoval` counter restore).
     //
     // They are rebuild bookkeeping, not spec-keyed data, and the argument is
-    // the untap path's own: what that reversal gives back is the produced mana,
-    // and the mana pool is the ONE thing `specFromState` cannot lower —
-    // a floating pool is reported as dropped, so EVERY rebuild opens with an
-    // empty pool and there is nothing there to take back. Lowering them would
-    // make the rebuilt undo strictly worse than dropping them: the pool
-    // subtractions clamp at zero (`Math.max(0, …)`), while the life restore,
-    // the charge-counter restore and the cost-mana refund do not — a rebuilt
-    // untap-toggle would MINT life, counters and mana this position never paid.
-    // Absent, the same toggle is a plain untap.
+    // the untap path's own: each is written once by a tap and read once by that
+    // tap's reversal, and a REBUILT position has no tap to reverse. What the
+    // reversal gives back is a resource this position never took — the produced
+    // mana above all, and the mana pool is the ONE thing `specFromState` cannot
+    // lower at all (a floating pool is reported as dropped, so every rebuild
+    // opens with an empty one).
+    //
+    // Lowering them would therefore make the rebuilt undo strictly WORSE than
+    // dropping them, and asymmetrically so: the two pool subtractions clamp at
+    // zero (`Math.max(0, …)`), while the life restore, the charge-counter
+    // restore and the cost-mana refund are unclamped additions — a rebuilt
+    // untap-toggle would MINT life, counters and mana. Absent, the same toggle
+    // is a plain untap.
     //
     // What genuinely must survive is not the amount but the IRREVERSIBILITY,
     // and that is `manaCommitted` / `tapTriggerCommitted` three lines up, which
     // ARE lowered. (`chosenMana` has one non-undo reader — `getManaColor`'s
-    // preference inside `commitManaSources` — and it only ever inspects tapped
-    // sources that are NOT yet committed, i.e. ones whose mana is floating in
-    // the pool a rebuild does not have.)
+    // colour preference inside `commitLandsForCost`, whose four call sites each
+    // filter on `isTapped && !manaCommitted`, i.e. they only ever inspect
+    // sources whose mana is still floating in the pool a rebuild does not
+    // have.)
+    //
+    // `exertedThisTap` closes the UNDO half of the exert only: its behavioural
+    // half, `skipNextUntap` (CR 701.43a — the permanent that does not untap
+    // next untap step), is neither lowered nor allowlisted and keeps its own
+    // `dropped[]` line. That is a separate hole, not one this row hides.
+    //
+    // All nine rows here — the trio above included — describe BATTLEFIELD
+    // facts, and all nine are cleared on the way back IN
+    // (`resetBattlefieldTransientState`, CR 400.7) rather than on the way out,
+    // so a card that has since left play can still carry one. The rows are
+    // deliberately global anyway: off the battlefield every one of them is dead
+    // state — the untap-toggle reads a battlefield source, `commitLandsForCost`
+    // walks the battlefield, and an "if ~ started the turn untapped" upkeep
+    // trigger needs its source on the battlefield to fire at all — so lowering
+    // them in a graveyard or a hand would stage noise, not fidelity. This is
+    // the one place the trio differs from `activationsThisTurn` three rows up,
+    // which IS lowered in every zone precisely because a departed card's tally
+    // is still read (CR 602.5).
     "chosenMana",
     "tapBonusMana",
     "manaPaidThisTap",
@@ -1763,8 +1786,8 @@ function lowerCard(
         // A tapped land whose mana is already spent, or whose tap put a trigger
         // on the stack, is one `tapUntap` refuses to untap; a rebuild that drops
         // the marker offers that untap, and (for `manaCommitted`) also lets
-        // `commitManaSources` attribute the NEXT payment to this already-spent
-        // source instead of the one it just tapped.
+        // `commitLandsForCost` attribute the NEXT payment to this
+        // already-spent source instead of the one it just tapped.
         if (card.manaCommitted) entry.manaCommitted = true;
         if (card.tapTriggerCommitted) entry.tapTriggerCommitted = true;
         // CR 502.1 (issue #3451) — the untap-step snapshot. Not derivable from
