@@ -188,6 +188,28 @@ export const scenarioSpecValidator = v.object({
     phase: v.optional(v.string()),
     landCount: v.optional(v.number()),
     libraryCount: v.optional(v.number()),
+    // CR 400.2 (issue #3452, PRD #3397) — how many cards a seat holds whose
+    // IDENTITY is not known. The hand is a hidden zone, so a position captured
+    // from a Bot's own view (`lowerDecision`, `gre/ai/verdicts/lowering.ts`)
+    // has an opposing hand the capture can count but cannot name — and a spec
+    // names cards BY NAME. Before this field those cards were dropped, so
+    // every lowered verdict was judged on a board where that seat held an
+    // EMPTY hand and the evaluation's `hand` term read low by exactly the
+    // cards it lost.
+    //
+    // The rebuild seeds opaque placeholders (`PLACEHOLDER_CARD_ID`), the same
+    // instances the Bot's own search ran on — a ZERO-APPROXIMATION rebuild,
+    // not filler: unlike `libraryCount`'s basics a placeholder resolves to no
+    // `CardDefinition`, so it is never castable, never targetable, and its
+    // `cardValue` is exactly the number the search summed for it in play.
+    // ADDED to whatever `cards` places in the same hand, following
+    // `libraryCount`'s seed-before-placement ordering.
+    hiddenHand: v.optional(
+        v.object({
+            me: v.optional(v.number()),
+            opp: v.optional(v.number()),
+        })
+    ),
     turn: v.optional(v.number()),
     markLastDrawn: v.optional(v.boolean()),
     rngSeed: v.optional(v.number()),
@@ -560,6 +582,15 @@ export type ScenarioSpec = {
     phase?: string;
     landCount?: number;
     libraryCount?: number;
+    /** CR 400.2 (issue #3452) — cards a seat holds whose IDENTITY is unknown,
+     *  rebuilt as the opaque placeholders (`PLACEHOLDER_CARD_ID`) the Bot's
+     *  own search ran on. The hand is a hidden zone, so a capture taken from
+     *  one seat's view can COUNT the other's hand but never name it, and a
+     *  spec names cards by name. ADDED to whatever `cards` places in the same
+     *  hand. Unlike `libraryCount`'s filler basics these are not a stand-in:
+     *  a placeholder has no `CardDefinition`, so it can never be cast,
+     *  targeted or revealed, and it values exactly as it did in the search. */
+    hiddenHand?: { me?: number; opp?: number };
     turn?: number;
     markLastDrawn?: boolean;
     rngSeed?: number;
@@ -1182,6 +1213,12 @@ export function normalizeScenarioSpec(raw: unknown): ScenarioSpec {
         set(pair, "me", pickBoolean(rawPair.me));
         set(pair, "opp", pickBoolean(rawPair.opp));
         spec[key] = pair;
+    }
+    if (isRecord(raw.hiddenHand)) {
+        const pair: { me?: number; opp?: number } = {};
+        set(pair, "me", pickNumber(raw.hiddenHand.me));
+        set(pair, "opp", pickNumber(raw.hiddenHand.opp));
+        spec.hiddenHand = pair;
     }
     if (isRecord(raw.turnsTaken)) {
         const pair: { me?: number; opp?: number } = {};

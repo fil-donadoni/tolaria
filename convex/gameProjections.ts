@@ -27,6 +27,7 @@ import {
     flashSurchargeRequired,
     castPermissionRequiredFor,
 } from "./gre/rules";
+import { PLACEHOLDER_CARD_ID } from "./gre/constants";
 import { canSummonCompanion } from "./gre/companion";
 import { canTurnFaceUp } from "./gre/morph";
 import { isFaceDownExile } from "./gre/faceDown";
@@ -1467,7 +1468,22 @@ export function projectPublicState(
         if (player.id === viewerId) {
             return {
                 ...common,
-                hand: player.hand.map((card): SlimHandCard => {
+                hand: player.hand.map((card): SlimHandCard | null => {
+                    // CR 400.2 (issue #3452) — a card with NO identity, the
+                    // shape a `hiddenHand` scenario seeds and the search's own
+                    // hidden-hand placeholder. It is nulled for its OWN
+                    // controller too, because there is no identity to show
+                    // anyone: the client renders the same back it renders for
+                    // an opponent's hand, and no client `getDefinition` is
+                    // reached for an id the registry cannot resolve (the crash
+                    // class issue #2347 fixed for Manual hands). The slot, and
+                    // so the hand SIZE, is preserved.
+                    if (
+                        (card.card as { id?: string }).id ===
+                        PLACEHOLDER_CARD_ID
+                    ) {
+                        return null;
+                    }
                     const legalActions = getLegalActions(
                         state,
                         player,

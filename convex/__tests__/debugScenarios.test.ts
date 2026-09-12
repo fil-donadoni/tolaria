@@ -484,6 +484,32 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
         });
     });
 
+    // CR 400.2 (issue #3452) — the hidden-hand counts come off an untrusted
+    // stored row like every other pair, and a garbage value here would be
+    // handed to the builder's seeding loop as a bound.
+    it("normalizes hiddenHand — both seats, one seat, absent, garbage", () => {
+        expect(
+            normalizeScenarioSpec({ cards: [], hiddenHand: { me: 2, opp: 6 } })
+        ).toEqual({ cards: [], hiddenHand: { me: 2, opp: 6 } });
+
+        expect(
+            normalizeScenarioSpec({ cards: [], hiddenHand: { opp: 6 } })
+        ).toEqual({ cards: [], hiddenHand: { opp: 6 } });
+
+        expect(normalizeScenarioSpec({ cards: [] }).hiddenHand).toBeUndefined();
+
+        expect(
+            normalizeScenarioSpec({
+                cards: [],
+                hiddenHand: { me: "six", opp: null },
+            })
+        ).toEqual({ cards: [], hiddenHand: {} });
+
+        expect(normalizeScenarioSpec({ cards: [], hiddenHand: 6 })).toEqual({
+            cards: [],
+        });
+    });
+
     // CR 102.1 / 117.1 / 117.4 (issue #3454) — the seat fields are a CLOSED
     // vocabulary, so the tolerant load has to drop anything outside it rather
     // than leak a raw value the builder would compare against "me".

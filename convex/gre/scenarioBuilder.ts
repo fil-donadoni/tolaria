@@ -69,7 +69,7 @@ import { refreshOffBattlefieldCharacteristics } from "./zoneCharacteristics";
 import { resolveEntersWithCounters } from "../cards/entersWith";
 import { turnFaceDown } from "./faceDown";
 import { finalizeMulligan } from "./mulligan";
-import { isPlaneswalker } from "./constants";
+import { isPlaneswalker, PLACEHOLDER_CARD_ID } from "./constants";
 import { MANA_COLORS } from "./manaColors";
 import {
     markAttacking,
@@ -473,6 +473,46 @@ export function buildStateFromScenario(
             const name = basicLandAt(i);
             p1.library.push(makeInstance(name, p1.id, "library"));
             p2.library.push(makeInstance(name, p2.id, "library"));
+        }
+    }
+
+    // CR 400.2 (issue #3452, PRD #3397) — cards a seat HOLDS whose identity is
+    // unknown. The hand is a hidden zone, so a position captured from one
+    // seat's view (`lowerDecision`) counts the other's hand and cannot name
+    // it; seeding the count back is what keeps the rebuilt hand the SIZE it
+    // was in play, which the evaluation's `hand` term reads.
+    //
+    // These are NOT `libraryCount`'s filler basics. A basic is castable and
+    // carries its own `cardValue`, so it would substitute a plausible number
+    // for the captured one; an opaque placeholder resolves to no
+    // `CardDefinition` (`getLegalActions` returns nothing for one — `rules.ts`
+    // checks the sentinel id explicitly), so it can never be cast, targeted or
+    // revealed, and it values exactly as the same shape did in the search that
+    // produced the decision.
+    //
+    // BEFORE the placement loop, the `libraryCount` ordering: seeding after it
+    // would either delete what the spec placed by name or push a placeholder
+    // to the end of "me"'s hand, where `markLastDrawn` (CR 121.1) reads the
+    // last entry. So a seat may hold both named and hidden cards, and the
+    // named ones are the later entries.
+    if (spec.hiddenHand) {
+        seedHiddenHand(p1, spec.hiddenHand.me);
+        seedHiddenHand(p2, spec.hiddenHand.opp);
+    }
+
+    function seedHiddenHand(player: PlayerState, count: number | undefined) {
+        for (let i = 0; i < (count ?? 0); i++) {
+            player.hand.push({
+                id: allocInstanceId(state),
+                card: { id: PLACEHOLDER_CARD_ID },
+                types: [],
+                subtypes: [],
+                staticAbilities: [],
+                controllerId: player.id,
+                ownerId: player.id,
+                zone: "hand",
+                isTapped: false,
+            });
         }
     }
 
@@ -2234,6 +2274,18 @@ function lowerCombat(
     if (Object.keys(lowered).length > 0) spec.combat = lowered;
 }
 
+/** CR 400.2 (issue #3452) — the hand cards that HAVE an identity to lower.
+ *  A view that could not see a card holds an opaque placeholder in its place
+ *  (`PLACEHOLDER_CARD_ID`, seeded by the vs-AI adapter and by `determinize`);
+ *  those carry no name, so they are counted into the spec's `hiddenHand`
+ *  rather than named in `cards`. The difference between this list and the
+ *  hand is the count. */
+function visibleHand(player: PlayerState): CardInstanceState[] {
+    return player.hand.filter(
+        (card) => (card.card as { id?: string }).id !== PLACEHOLDER_CARD_ID
+    );
+}
+
 function zoneCards(
     player: PlayerState,
     zone: "battlefield" | "graveyard" | "exile"
@@ -2538,11 +2590,23 @@ export function specFromState(
     // drawn this turn" — the builder only supports the "me" seat, and only
     // as "whichever entry ends up LAST in the placement order", so the
     // matching entry is moved to the end of "me"'s hand placements below.
-    const meHand = me.hand.map((card) =>
+    //
+    // CR 400.2 (issue #3452) — a hand card the CAPTURING view could not see is
+    // an opaque placeholder (`PLACEHOLDER_CARD_ID`), which has no name to
+    // lower and which `lowerCard` would throw on. It is COUNTED into
+    // `hiddenHand` instead of dropped, and the builder seeds the count back as
+    // placeholders of the same shape. This function is the single place that
+    // count is taken: the caller no longer strips them first (`lowerDecision`
+    // used to, and reported the loss in `dropped[]`), so a headless caller
+    // passing a raw engine state — which has no placeholders — is unaffected
+    // and every caller gets the same fidelity.
+    const meNamedHand = visibleHand(me);
+    const oppNamedHand = visibleHand(opp);
+    const meHand = meNamedHand.map((card) =>
         lowerCard(state, me, card, "hand", "me", dropped)
     );
     const meLastDrawnIdx = me.lastDrawnCardId
-        ? me.hand.findIndex((c) => c.id === me.lastDrawnCardId)
+        ? meNamedHand.findIndex((c) => c.id === me.lastDrawnCardId)
         : -1;
     const markLastDrawn = meLastDrawnIdx !== -1;
     if (markLastDrawn && meLastDrawnIdx !== meHand.length - 1) {
@@ -2550,7 +2614,7 @@ export function specFromState(
         meHand.push(entry);
     }
     cards.push(...meHand);
-    for (const card of opp.hand) {
+    for (const card of oppNamedHand) {
         cards.push(lowerCard(state, opp, card, "hand", "opp", dropped));
     }
     if (
@@ -2626,6 +2690,19 @@ export function specFromState(
         turnsTaken: { me: me.turnsTaken ?? 0, opp: opp.turnsTaken ?? 0 },
     };
     if (markLastDrawn) spec.markLastDrawn = true;
+
+    // CR 400.2 (issue #3452) — omitted when neither seat holds a card the
+    // capturing view could not see, the `landsPlayed` convention rather than
+    // `life`'s: the builder CLEARS both hands before seeding, so an absent
+    // field round-trips to exactly the same position and every spec captured
+    // from a perfect-information state stays byte-identical to what it was.
+    const meHidden = me.hand.length - meNamedHand.length;
+    const oppHidden = opp.hand.length - oppNamedHand.length;
+    if (meHidden || oppHidden) {
+        spec.hiddenHand = {};
+        if (meHidden) spec.hiddenHand.me = meHidden;
+        if (oppHidden) spec.hiddenHand.opp = oppHidden;
+    }
 
     if (me.poisonCounters || opp.poisonCounters) {
         spec.poison = {};

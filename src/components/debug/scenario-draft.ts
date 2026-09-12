@@ -203,6 +203,10 @@ export type SpecDraft = {
     phase: string;
     landCount: string;
     libraryCount: string;
+    /** CR 400.2 (issue #3452) — cards of UNKNOWN identity each seat holds,
+     *  added to whatever the card list places in that hand. They rebuild as
+     *  opaque placeholders, so they give the hand its SIZE and nothing else. */
+    hiddenHand: SeatPairDraft;
     turn: string;
     markLastDrawn: boolean;
     rngSeed: string;
@@ -259,6 +263,7 @@ export function emptySpecDraft(): SpecDraft {
         phase: "",
         landCount: "",
         libraryCount: "",
+        hiddenHand: { ...EMPTY_SEAT_PAIR },
         turn: "",
         markLastDrawn: false,
         rngSeed: "",
@@ -313,6 +318,7 @@ export function specToDraft(spec: ScenarioSpec | null): SpecDraft {
     if (spec.landCount !== undefined) draft.landCount = String(spec.landCount);
     if (spec.libraryCount !== undefined)
         draft.libraryCount = String(spec.libraryCount);
+    draft.hiddenHand = seatPairToDraft(spec.hiddenHand);
     if (spec.turn !== undefined) draft.turn = String(spec.turn);
     draft.markLastDrawn = spec.markLastDrawn ?? false;
     if (spec.rngSeed !== undefined) draft.rngSeed = String(spec.rngSeed);
@@ -401,6 +407,8 @@ export function draftToSpec(draft: SpecDraft): Omit<ScenarioSpec, "cards"> {
     const seed = num(draft.rngSeed);
     if (seed !== undefined) spec.rngSeed = seed;
 
+    const hiddenHand = seatPairFromDraft(draft.hiddenHand);
+    if (hiddenHand) spec.hiddenHand = hiddenHand;
     const poison = seatPairFromDraft(draft.poison);
     if (poison) spec.poison = poison;
     const life = seatPairFromDraft(draft.life);

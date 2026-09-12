@@ -15224,6 +15224,20 @@ export const debugSetupScenario = mutation({
         /** Fill each player's library with this many basic lands, colour-matched
          *  to the placed cards like `landCount`. Default: unchanged. */
         libraryCount: v.optional(v.number()),
+        /** CR 400.2 (issue #3452, PRD #3397) — seat this many cards of UNKNOWN
+         *  identity into a hand, rebuilt as the opaque placeholders
+         *  (`PLACEHOLDER_CARD_ID`) the Bot's own search runs on: never
+         *  castable, never targetable, valued exactly as they were in play.
+         *  ADDED to whatever `cards` places in the same hand. This is what
+         *  lets a verdict captured from one seat's view carry the other
+         *  seat's hand SIZE, which the evaluation's `hand` term reads.
+         *  Default: none seeded. */
+        hiddenHand: v.optional(
+            v.object({
+                me: v.optional(v.number()),
+                opp: v.optional(v.number()),
+            })
+        ),
         /** Override the turn number. Default: unchanged (turn 1 of a fresh solo
          *  game skips the draw step — set ≥2 to exercise draw-step effects). */
         turn: v.optional(v.number()),

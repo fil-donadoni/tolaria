@@ -24,6 +24,8 @@ import { projectPublicState } from "@convex/gameProjections";
 import type { ScenarioSpec } from "@convex/debugScenarioSpec";
 import type { GameState } from "@convex/gre/state";
 import type { Move } from "@convex/gre";
+import { PLACEHOLDER_CARD_ID } from "@convex/gre";
+import { getLegalActions } from "@convex/gre/rules";
 import {
     makeMutationCtx,
     runMutation,
@@ -200,20 +202,55 @@ describe("buildVerdictQuiz — a judgement the fit can still read (issue #3405)"
         });
     }
 
-    it("judges a position where the opponent is holding cards", () => {
-        // The hidden hand has no identity to lower, so it is dropped and SAID —
-        // never invented, and never a thrown error that would make the quiz
-        // refuse every decision in every real game.
+    it("judges a position where the opponent is holding cards (CR 400.2, issue #3452)", () => {
+        // The hidden hand has no IDENTITY to lower — the hand is a hidden zone,
+        // and a spec names cards by name. Until issue #3452 it was dropped and
+        // said, so every verdict taken in a real game was judged on a board
+        // where the opponent held an EMPTY hand and the evaluation's `hand`
+        // term read low by exactly the cards it lost. The count now rides in
+        // the spec and rebuilds as the same opaque placeholders the Bot's own
+        // search ran on.
         const { state, botId, source } = position(OPPONENT_HOLDS_CARDS);
+        const liveOppHand = state.players[1].hand.length;
+        expect(liveOppHand).toBe(2);
         const result = buildVerdictQuiz(
             traceFor(state, botId, candidateMoves(state, botId)[0]),
             source
         );
         expect(result.ok).toBe(true);
         if (!result.ok) return;
-        expect(
-            result.quiz.dropped.some((note) => /hand: 2 card\(s\)/.test(note))
-        ).toBe(true);
+        const { quiz } = result;
+
+        // Carried, not dropped: the count is in the spec and the note is gone.
+        expect(quiz.spec.hiddenHand).toEqual({ opp: liveOppHand });
+        expect(quiz.dropped.some((note) => /hand: \d+ card/.test(note))).toBe(
+            false
+        );
+
+        // THE acceptance criterion: the rebuilt hand is the size the live one
+        // was. Rebuilt through the real builder, not through the spec's own
+        // arithmetic.
+        const rebuilt = buildBladeState({
+            label: "verdict-quiz rebuilt hidden hand",
+            spec: quiz.spec,
+            bot: "me",
+            budget: { iterations: 1 },
+            tier: "must",
+            expect: { moves: [] },
+        });
+        expect(rebuilt.players[1].hand).toHaveLength(liveOppHand);
+        // And opaque: no rebuilt placeholder is castable, by either seat
+        // (`getLegalActions` checks the sentinel id — `gre/rules.ts`).
+        for (const card of rebuilt.players[1].hand) {
+            expect((card.card as { id: string }).id).toBe(PLACEHOLDER_CARD_ID);
+            expect(getLegalActions(rebuilt, rebuilt.players[1], card)).toEqual(
+                []
+            );
+            expect(getLegalActions(rebuilt, rebuilt.players[0], card)).toEqual(
+                []
+            );
+        }
+
         expect(evalPairsOf(verdictOf(result.quiz, 0)).error).toBeUndefined();
     });
 
