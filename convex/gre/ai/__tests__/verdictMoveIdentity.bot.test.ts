@@ -22,6 +22,13 @@ import {
     candidateMoves,
 } from "../verdicts/candidates";
 import { sealOfFire } from "../../../cards/sets/nem/red";
+import { grizzlyBears } from "../../../cards/sets/lea/green";
+import { wrennAndSix } from "../../../cards/sets/mh1/multicolor";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../cards/__tests__/setup";
 import type { Move } from "../../moves";
 import type { GameState } from "../../state";
 import type { ScenarioSpec } from "../../../debugScenarioSpec";
@@ -124,6 +131,140 @@ describe("canonicalMoveKey — the vocabulary two builds share (issue #3483)", (
         // No frame at all rather than an absolute one wearing the same name:
         // an absolute index would silently compare two coordinate systems.
         expect(relativeSeatIndexes(state, "not-a-seat").size).toBe(0);
+    });
+});
+
+/** CR 508.1a — one `declare-attackers` move, two Bears, aimed by
+ *  `attackTargets` (attacker id -> planeswalker id): the ONE Move field whose
+ *  object KEYS are per-world instance ids. `ids` supplies the handles, so the
+ *  same attack can be built on two boards that numbered their instances
+ *  differently. */
+function attackOnPlaneswalker(ids: {
+    bearA: string;
+    bearB: string;
+    walker: string;
+    /** Which of the two Bears is pointed at the planeswalker; the other goes
+     *  to the face (CR 508.1a — an absent attacker attacks the player). */
+    aimed: ("bearA" | "bearB")[];
+}): { state: GameState; move: Move } {
+    const state = makeState({
+        players: [
+            makePlayer("p1", {
+                battlefield: [
+                    makeInstance(grizzlyBears.id, { id: ids.bearA }),
+                    makeInstance(grizzlyBears.id, { id: ids.bearB }),
+                ],
+            }),
+            makePlayer("p2", {
+                battlefield: [
+                    makeInstance(wrennAndSix.id, {
+                        id: ids.walker,
+                        controllerId: "p2",
+                    }),
+                ],
+            }),
+        ],
+        phase: "DECLARE_ATTACKERS",
+    });
+    const attackTargets: Record<string, string> = {};
+    for (const which of ids.aimed) attackTargets[ids[which]] = ids.walker;
+    return {
+        state,
+        move: {
+            kind: "declare-attackers",
+            attackerIds: [ids.bearA, ids.bearB],
+            attackTargets,
+        },
+    };
+}
+
+describe("canonicalMoveKey — the object-KEY cases (PR review, issue #3483)", () => {
+    it("is unchanged when two builds number their instances differently", () => {
+        // Instance ids are bare integer STRINGS (`allocInstanceId`), and both
+        // JS and `JSON.stringify` emit integer-like object keys in ascending
+        // NUMERIC order whatever the insertion order was. So an
+        // `attackTargets` record serialised as an OBJECT followed each build's
+        // own id numbering, and the same attack keyed two different ways.
+        const live = attackOnPlaneswalker({
+            bearA: "47",
+            bearB: "23",
+            walker: "9",
+            aimed: ["bearA"],
+        });
+        const rebuilt = attackOnPlaneswalker({
+            bearA: "3",
+            bearB: "5",
+            walker: "7",
+            aimed: ["bearA"],
+        });
+
+        expect(canonicalMoveKey(live.move, live.state, "p1")).toBe(
+            canonicalMoveKey(rebuilt.move, rebuilt.state, "p1")
+        );
+    });
+
+    it("keeps two attacks that differ only in HOW MANY Bears are aimed apart", () => {
+        // The other half: writing the substituted key back into an object
+        // OVERWROTE when two keys canonicalised alike, so "both Bears attack
+        // the planeswalker" and "one attacks it, one goes to the face"
+        // collapsed to one key — two semantically different moves the pick
+        // lookup could then confuse for each other.
+        const both = attackOnPlaneswalker({
+            bearA: "47",
+            bearB: "23",
+            walker: "9",
+            aimed: ["bearA", "bearB"],
+        });
+        const one = attackOnPlaneswalker({
+            bearA: "47",
+            bearB: "23",
+            walker: "9",
+            aimed: ["bearA"],
+        });
+
+        expect(canonicalMoveKey(both.move, both.state, "p1")).not.toBe(
+            canonicalMoveKey(one.move, one.state, "p1")
+        );
+    });
+});
+
+describe("canonicalMoveKey — a granted ability is its TEMPLATE (PR review, issue #3483)", () => {
+    it("keys `activate-granted-ability` the same whatever the grant counter reached", () => {
+        // CR 113.1b — `grant-N` comes off `GameState.nextGrantSeq`, a per-GAME
+        // counter: a live game that has made three grants says `grant-4` where
+        // the rebuild says `grant-1`. Left unplaced, every player-granted
+        // ability activation (Channel's mana ability) would refuse for ever.
+        const grant = (id: string): GameState =>
+            makeState({
+                players: [
+                    makePlayer("p1", {
+                        grantedAbilities: [
+                            {
+                                id,
+                                sourceCardId: sealOfFire.id,
+                                abilityId: "seal-of-fire-sac",
+                                duration: "endOfTurn",
+                                grantedAtTurn: 1,
+                            },
+                        ],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+        const move = (id: string): Move => ({
+            kind: "activate-granted-ability",
+            grantedAbilityInstanceId: id,
+            abilityId: "seal-of-fire-sac",
+            sourceCardId: sealOfFire.id,
+        });
+
+        expect(canonicalMoveKey(move("grant-4"), grant("grant-4"), "p1")).toBe(
+            canonicalMoveKey(move("grant-1"), grant("grant-1"), "p1")
+        );
+        // …and the raw counter value is nowhere in it.
+        expect(
+            canonicalMoveKey(move("grant-4"), grant("grant-4"), "p1")
+        ).not.toContain("grant-4");
     });
 });
 

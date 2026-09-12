@@ -16,7 +16,10 @@
 
 import { describe, it, expect } from "vitest";
 import { buildBladeState } from "@convex/gre/ai/blade/runner";
-import { candidateMoves } from "@convex/gre/ai/verdicts/candidates";
+import {
+    buildSetupFreeVerdictState,
+    candidateMoves,
+} from "@convex/gre/ai/verdicts/candidates";
 import { evalPairsOf } from "@convex/gre/ai/verdicts/evalPairs";
 import type { Verdict } from "@convex/gre/ai/verdicts/types";
 import { describeMove } from "@convex/gre/describeMove";
@@ -60,7 +63,7 @@ const SEQ = 42;
  * field can match (a card definition id is a UUID and an ability id is a
  * slug, so neither collides with an instance id).
  */
-function asLiveGame(state: GameState, names: [string, string]): GameState {
+function handlesOf(state: GameState): string[] {
     const handles = new Set<string>(state.players.map((player) => player.id));
     for (const player of state.players) {
         for (const zone of [
@@ -73,6 +76,12 @@ function asLiveGame(state: GameState, names: [string, string]): GameState {
             for (const card of zone) handles.add(card.id);
         }
     }
+    for (const item of state.stack) handles.add(item.id);
+    return [...handles];
+}
+
+function asLiveGame(state: GameState, names: [string, string]): GameState {
+    const handles = handlesOf(state);
     let json = JSON.stringify(state);
     for (const handle of handles) {
         json = json.replaceAll(`"${handle}"`, `"live-${handle}"`);
@@ -270,10 +279,17 @@ describe("buildVerdictQuiz — a judgement the fit can still read (issue #3405)"
         ]);
         const opponentId = state.players[1].id;
         // The premise: this board shares no identity with the one the lowering
-        // will rebuild. Asserted, because a fixture that happened to agree
-        // would make the whole test vacuous.
-        expect(botId).not.toBe("p1");
-        expect(state.players[0].battlefield[0].id).not.toMatch(/^\d+$/);
+        // will rebuild. Asserted against the REBUILD's OWN handles — not
+        // against the shape of `asLiveGame`'s prefix, which it guarantees by
+        // construction and so could never fail (PR review).
+        const rebuiltHandles = new Set(
+            handlesOf(buildSetupFreeVerdictState(SEAL_AT_A_PLAYER))
+        );
+        const liveHandles = handlesOf(state);
+        expect(liveHandles.length).toBeGreaterThan(0);
+        expect(
+            liveHandles.filter((handle) => rebuiltHandles.has(handle))
+        ).toEqual([]);
         const chosen = candidateMoves(state, botId).find(
             (move) =>
                 move.kind === "activate-ability" &&

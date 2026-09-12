@@ -93,8 +93,9 @@ export const QUIZ_SEAT = "me" as const;
  *    preference (`collectVerdictReport`'s UNCONSTRAINING).
  *  - `different-decision` — the rebuilt candidate list is not the live one.
  *  - `combat-not-captured` — the lowering lost a combat fact (issue #3458).
- *  - `pick-not-offered` — the move that was played is in neither list: the
- *    rebuild does not offer it, or the live position never did.
+ *  - `pick-not-offered` — the move that was played is not among the candidates:
+ *    the LIVE position never offered it (the live site), or the rebuild does
+ *    not (the invariant assertion behind the list comparison).
  */
 export const VERDICT_REFUSAL_KINDS = [
     "stack-mid-resolution",
@@ -441,29 +442,35 @@ export function lowerDecision(
     const played = liveCandidates.find(
         (candidate) => candidate.description === chosenDescription
     );
-    const botPickIndex =
-        played === undefined
-            ? -1
-            : rebuiltCandidates.findIndex(
-                  (candidate) => candidate.key === played.key
-              );
-    if (botPickIndex === -1) {
-        // The move that was actually played is not in one of the two lists, so
-        // this is not that decision: either the caller named a move the live
-        // position never offered, or the lowering lost something the decision
-        // depended on (a spell on the stack, a mid-flight payment). Judging the
-        // list anyway would file an answer about a DIFFERENT position under the
-        // Bot's name — the one failure of this whole flow that nothing
-        // downstream could ever detect, because the verdict it produces
-        // rebuilds and enumerates perfectly.
+    if (played === undefined) {
+        // The caller named a move the LIVE position never offered, so this is
+        // not that decision. Judging the list anyway would file an answer about
+        // a DIFFERENT position under the Bot's name — the one failure of this
+        // whole flow that nothing downstream could ever detect, because the
+        // verdict it produces rebuilds and enumerates perfectly.
         return {
             ok: false,
             kind: "pick-not-offered",
             dropped,
-            error:
-                played === undefined
-                    ? `the Bot played "${chosenDescription}", which is not one of the moves the live position offered — this decision cannot be captured as a scenario`
-                    : `the Bot played "${chosenDescription}", which the rebuilt position does not offer — this decision cannot be captured as a scenario`,
+            error: `the Bot played "${chosenDescription}", which is not one of the moves the live position offered — this decision cannot be captured as a scenario`,
+        };
+    }
+    const botPickIndex = rebuiltCandidates.findIndex(
+        (candidate) => candidate.key === played.key
+    );
+    if (botPickIndex === -1) {
+        // UNREACHABLE while `candidateSetsDiffer` above returns null: it has
+        // already established that the two key multisets are equal, so a key
+        // found in the live list is in the rebuilt one. Kept as the assertion
+        // that says so, not as a second live failure mode — because the
+        // alternative is returning `botPickIndex: -1`, a verdict whose Bot pick
+        // points at no candidate, which is precisely the silently-undetectable
+        // record this whole function exists to refuse (PR review).
+        return {
+            ok: false,
+            kind: "pick-not-offered",
+            dropped,
+            error: `the Bot played "${chosenDescription}", which the rebuilt position does not offer — this decision cannot be captured as a scenario`,
         };
     }
 
