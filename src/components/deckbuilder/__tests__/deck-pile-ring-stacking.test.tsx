@@ -40,6 +40,15 @@ function renderStack(count: number) {
     );
 }
 
+/** The tile box must carry the shared stacking-context token (issue #3426).
+ *  Asserted as a TOKEN of the class list, with the token itself proven
+ *  non-empty first — `toContain("")` passes against any string, so emptying
+ *  the constant would otherwise make every one of these assertions vacuous. */
+function expectRingContained(el: HTMLElement | null | undefined): void {
+    expect(CARD_RING_TILE_CLASS).not.toHaveLength(0);
+    expect(el?.className.split(/\s+/)).toContain(CARD_RING_TILE_CLASS);
+}
+
 afterEach(cleanup);
 
 describe("DeckCardTile ring containment in an overlapping pile (issue #3426)", () => {
@@ -50,7 +59,7 @@ describe("DeckCardTile ring containment in an overlapping pile (issue #3426)", (
         ) as HTMLElement[];
         expect(tiles).toHaveLength(4);
         for (const tile of tiles) {
-            expect(tile.className).toContain(CARD_RING_TILE_CLASS);
+            expectRingContained(tile);
             // The rings the isolation contains are the tile's OWN descendants.
             expect(tile.querySelector(".card-ring")).not.toBeNull();
         }

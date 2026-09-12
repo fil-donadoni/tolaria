@@ -802,6 +802,15 @@ describe("CardsPile — segmented type filter footer (issue #2729, plain browse 
     });
 });
 
+/** The tile box must carry the shared stacking-context token (issue #3426).
+ *  Asserted as a TOKEN of the class list, with the token itself proven
+ *  non-empty first — `toContain("")` passes against any string, so emptying
+ *  the constant would otherwise make every one of these assertions vacuous. */
+function expectRingContained(el: HTMLElement | null | undefined): void {
+    expect(CARD_RING_TILE_CLASS).not.toHaveLength(0);
+    expect(el?.className.split(/\s+/)).toContain(CARD_RING_TILE_CLASS);
+}
+
 /** Every `.card-ring*` class on the chain from `from` (exclusive) up to
  *  `stopAt` (exclusive) — the ancestors of the tilt, i.e. the boxes the hover
  *  transform does NOT move. */
@@ -956,8 +965,7 @@ describe("CardsPile — the picker ring travels with the hover tilt (issue #3426
         );
         for (const id of ["a", "b", "c"]) {
             const wrapper = findCardWrapper(baseElement, id);
-            const tileBox = wrapper?.parentElement;
-            expect(tileBox?.className).toContain(CARD_RING_TILE_CLASS);
+            expectRingContained(wrapper?.parentElement);
         }
     });
 });
