@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import type { Id } from "@convex/_generated/dataModel";
 import {
     Sheet,
@@ -8,38 +7,11 @@ import {
     SheetTitle,
 } from "~/components/ui/sheet";
 import { ABOVE_CONTROLLER_BAR } from "~/lib/controller-bar-metrics";
+import { useDebugSheet } from "~/hooks/debugSheetContext";
 import AiDecisionTraceBox from "./ai-decision-trace-box";
 import DebugPanel from "./debug-panel";
-
-/** Persisted open flag, per device (issue #3403). "1" = open. */
-const OPEN_KEY = "tolaria:debugSheetOpen";
-
-/** The keyboard shortcut that toggles the sheet. Backquote is the classic
- *  dev-console key and is the one printable character no gameplay surface
- *  binds — Escape belongs to the pause menu (`board.tsx`), and every
- *  `Ctrl/Cmd+Shift+<letter>` a debug panel would want is already claimed by
- *  the browser itself (`Ctrl+Shift+D` bookmarks every open tab in Chrome, and
- *  a page cannot preventDefault a browser-level chord). */
-export const DEBUG_SHEET_SHORTCUT_KEY = "`";
-
-function readOpen(): boolean {
-    try {
-        return localStorage.getItem(OPEN_KEY) === "1";
-    } catch {
-        return false;
-    }
-}
-
-/** Whether a keystroke landed in something the user is TYPING into — the
- *  scenario editor inside the sheet is full of text fields, and a bare
- *  printable shortcut that fires while you type a card name is a shortcut that
- *  eats your input. */
-function isTypingTarget(target: EventTarget | null): boolean {
-    if (!(target instanceof HTMLElement)) return false;
-    if (target.isContentEditable) return true;
-    const tag = target.tagName;
-    return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
-}
+import { DEBUG_SHEET_DESKTOP_WIDTH_CLASS } from "./debug-sheet-metrics";
+import { DEBUG_SHEET_SHORTCUT_KEY } from "./debug-sheet-provider";
 
 /**
  * The debug area as a LEFT SHEET (issue #3403, PRD #3397).
@@ -59,6 +31,14 @@ function isTypingTarget(target: EventTarget | null): boolean {
  * backdrop is suppressed for the same reason: base-ui's `Backdrop` is a
  * `fixed inset-0` element with no `pointer-events: none`, so rendering one
  * would swallow every click on the board behind it (see `sheet.tsx`).
+ *
+ * At `lg` and wider it also stops COVERING the board (issue #3493): the popup
+ * is still `position: fixed`, but {@link DebugBoardArea} gives up exactly
+ * {@link DEBUG_SHEET_DESKTOP_WIDTH_PX} while the sheet is open, so the board
+ * reflows into the remaining width instead of hiding half a battlefield under
+ * an overlay. That is why the open flag lives in
+ * {@link DebugSheetProvider} rather than here — the board area is a SIBLING of
+ * this component, not a descendant.
  *
  * Escape still closes it — `board.tsx`'s `POPUP_SELECTORS` lists
  * `[data-slot="sheet-content"]`, so that keystroke closes the sheet INSTEAD of
@@ -81,32 +61,12 @@ export default function DebugSheet({
     /** vs-AI game: the AI decision box has a trace to show. */
     vsAi: boolean;
 }) {
-    const [open, setOpen] = useState(readOpen);
-
-    useEffect(() => {
-        try {
-            localStorage.setItem(OPEN_KEY, open ? "1" : "0");
-        } catch {
-            // storage unavailable — session-only state is fine
-        }
-    }, [open]);
-
-    useEffect(() => {
-        const onKeyDown = (event: KeyboardEvent) => {
-            if (event.key !== DEBUG_SHEET_SHORTCUT_KEY) return;
-            // OS key-repeat fires every ~30ms once the key is held, and a
-            // toggle bound to it would flicker the sheet and land on whatever
-            // the repeat count's parity happened to be. Only the first press
-            // is a decision.
-            if (event.repeat) return;
-            if (event.metaKey || event.ctrlKey || event.altKey) return;
-            if (isTypingTarget(event.target)) return;
-            event.preventDefault();
-            setOpen((v) => !v);
-        };
-        window.addEventListener("keydown", onKeyDown);
-        return () => window.removeEventListener("keydown", onKeyDown);
-    }, []);
+    // Mounted by the route INSIDE `DebugSheetProvider` — the null branch is
+    // the "no provider" case, which for this component means no sheet at all
+    // rather than a second, private copy of the open flag.
+    const sheetState = useDebugSheet();
+    if (!sheetState) return null;
+    const { open, setOpen } = sheetState;
 
     return (
         <>
@@ -132,9 +92,11 @@ export default function DebugSheet({
                     showOverlay={false}
                     data-debug-sheet=""
                     // `w-[88%]` rather than the primitive's `w-3/4` so the
-                    // scenario forms keep usable field widths at 400px, still
-                    // capped at `sm:max-w-sm` on anything wider.
-                    className="w-[88%] gap-0"
+                    // scenario forms keep usable field widths at 400px, capped
+                    // at `sm:max-w-sm` from there — until `lg`, where the sheet
+                    // takes space beside the board and can afford the 480px the
+                    // scenario form's per-seat pairs want (issue #3493).
+                    className={`w-[88%] gap-0 ${DEBUG_SHEET_DESKTOP_WIDTH_CLASS}`}
                 >
                     <SheetHeader className="border-b border-border-accent/20 pb-3">
                         <SheetTitle>Debug</SheetTitle>
@@ -148,7 +110,10 @@ export default function DebugSheet({
                     </SheetHeader>
                     {/* `min-h-0` so this scrolls instead of pushing the header
                         off a short (landscape-phone) viewport. */}
-                    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4 text-xs">
+                    <div
+                        data-debug-sheet-body=""
+                        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4 text-xs"
+                    >
                         {vsAi && <AiDecisionTraceBox />}
                         <DebugPanel gameId={gameId} playerId={playerId} />
                     </div>

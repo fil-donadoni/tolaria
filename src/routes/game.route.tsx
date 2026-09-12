@@ -9,7 +9,9 @@ import Board from "~/components/board/board";
 import ManualBoardContainer from "~/components/board/manual-board-container";
 import ManualGameOverDialog from "~/components/board/manual-game-over-dialog";
 import PregameDialog from "~/components/board/pregame-dialog";
+import DebugBoardArea from "~/components/debug/debug-board-area";
 import DebugSheet from "~/components/debug/debug-sheet";
+import DebugSheetProvider from "~/components/debug/debug-sheet-provider";
 import LoadingScreen from "~/components/ui/loading-screen";
 import WaitingForOpponent from "~/components/board/waiting-for-opponent";
 import OrientationHint from "~/components/ui/orientation-hint";
@@ -151,54 +153,58 @@ export default function GameRoute() {
         }
 
         return (
-            <div className="flex h-dvh flex-col">
-                {viewportMode === "portrait" && (
-                    <OrientationHint
-                        surfaceId="game-board"
-                        message="Rotate for the wide landscape board layout."
-                    />
-                )}
-                {/* `flex-1 min-h-0`, not a bare wrapper (issue #2594): Board's
-                    OWN root is `h-full` — with the hint band above sharing
-                    this flex column, `h-full` must resolve against a sibling
-                    with a DEFINITE remaining-space height, the same
-                    `flex-1 min-h-0` contract `<main>` uses in
-                    `app-shell.tsx`, not against the column's full `h-dvh`
-                    (which would make the two siblings compete for space via
-                    flex-shrink instead of the hint band simply taking its own
-                    content height off the top). */}
-                <div className="flex-1 min-h-0">
-                    <Board
-                        // Key by gameId: switching games (Restart Solo / rematch /
-                        // Switch Game) reuses this route, so without a key the board
-                        // subtree keeps every per-game client ref from the prior game
-                        // (driver dedupe guards, auto-pass seq, zone anchors). Remount
-                        // on game change for a clean slate (fixes the bot freezing on
-                        // the new game's mulligan after a restart).
-                        key={gameId}
-                        gameId={gameId}
-                        playerId={playerId}
-                        solo={game.solo === true}
-                        vsAi={game.vsAi === true}
-                        // Both debug view modes lost their only toggles with
-                        // the seven buttons issue #3403 removed; the board's
-                        // props stay (they are read through `GameContext` all
-                        // over the board subtree) and are simply always off.
-                        showAllCards={false}
-                        debugAllActions={false}
-                        onSwitchGame={handleSwitchGame}
-                    />
+            // The provider owns the sheet's open flag (issue #3493) and sits
+            // ABOVE the column because the board area and the sheet are
+            // siblings: the sheet is `position: fixed`, so the only way it can
+            // stop covering the board at desktop widths is for the board area
+            // to give up the width. `enabled` keeps a non-tester's board free
+            // of a push for a sheet they cannot open — the flag is persisted
+            // per device, so a tester session on this browser would otherwise
+            // reach across to them.
+            <DebugSheetProvider enabled={showDebugSheet}>
+                <div className="flex h-dvh flex-col">
+                    {viewportMode === "portrait" && (
+                        <OrientationHint
+                            surfaceId="game-board"
+                            message="Rotate for the wide landscape board layout."
+                        />
+                    )}
+                    <DebugBoardArea>
+                        <Board
+                            // Key by gameId: switching games (Restart Solo /
+                            // rematch / Switch Game) reuses this route, so
+                            // without a key the board subtree keeps every
+                            // per-game client ref from the prior game (driver
+                            // dedupe guards, auto-pass seq, zone anchors).
+                            // Remount on game change for a clean slate (fixes
+                            // the bot freezing on the new game's mulligan after
+                            // a restart).
+                            key={gameId}
+                            gameId={gameId}
+                            playerId={playerId}
+                            solo={game.solo === true}
+                            vsAi={game.vsAi === true}
+                            // Both debug view modes lost their only toggles
+                            // with the seven buttons issue #3403 removed; the
+                            // board's props stay (they are read through
+                            // `GameContext` all over the board subtree) and are
+                            // simply always off.
+                            showAllCards={false}
+                            debugAllActions={false}
+                            onSwitchGame={handleSwitchGame}
+                        />
+                    </DebugBoardArea>
+                    {/* The tester debug surface: one left sheet behind a slim
+                        edge toggle (issue #3403). */}
+                    {showDebugSheet && (
+                        <DebugSheet
+                            gameId={gameId}
+                            playerId={playerId}
+                            vsAi={game.vsAi === true}
+                        />
+                    )}
                 </div>
-                {/* The tester debug surface: one left sheet behind a slim
-                    edge toggle (issue #3403). */}
-                {showDebugSheet && (
-                    <DebugSheet
-                        gameId={gameId}
-                        playerId={playerId}
-                        vsAi={game.vsAi === true}
-                    />
-                )}
-            </div>
+            </DebugSheetProvider>
         );
     }
 

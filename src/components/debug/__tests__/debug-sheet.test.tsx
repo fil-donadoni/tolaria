@@ -17,11 +17,19 @@ vi.mock("../ai-decision-trace-box", () => ({
 }));
 
 const DebugSheet = (await import("../debug-sheet")).default;
+const DebugSheetProvider = (await import("../debug-sheet-provider")).default;
 
 const GAME = "game1" as Id<"games">;
 
+// The open flag lives in the provider since issue #3493 (the board area is a
+// SIBLING of the sheet and has to react to it), so every render here mounts
+// the pair the route mounts.
 function renderSheet(vsAi = false) {
-    return render(<DebugSheet gameId={GAME} playerId="me" vsAi={vsAi} />);
+    return render(
+        <DebugSheetProvider enabled>
+            <DebugSheet gameId={GAME} playerId="me" vsAi={vsAi} />
+        </DebugSheetProvider>
+    );
 }
 
 function toggle() {
@@ -130,6 +138,33 @@ describe("DebugSheet — per-device persistence (issue #3403)", () => {
         first.unmount();
 
         renderSheet();
+        expect(sheet()).toBeFalsy();
+    });
+});
+
+describe("DebugSheet — desktop width (issue #3493)", () => {
+    it("widens to the shared desktop width at `lg`, keeping the phone width below it", async () => {
+        const { DEBUG_SHEET_DESKTOP_WIDTH_PX } =
+            await import("../debug-sheet-metrics");
+        renderSheet();
+        fireEvent.click(toggle());
+        const cls = (sheet() as HTMLElement).className;
+        // Below `lg` nothing changed: the overlay sheet still takes 88% of a
+        // phone viewport.
+        expect(cls).toContain("w-[88%]");
+        // At `lg` it is the width the board area gives up — one number, one
+        // module, so the two cannot drift (`debug-sheet-metrics.ts`).
+        expect(cls).toContain(`lg:w-[${DEBUG_SHEET_DESKTOP_WIDTH_PX}px]`);
+        // …and the primitive's own `sm:max-w-sm` (384px) is overridden at that
+        // breakpoint, or the wider `w-` would simply not apply.
+        expect(cls).toContain(`lg:max-w-[${DEBUG_SHEET_DESKTOP_WIDTH_PX}px]`);
+    });
+});
+
+describe("DebugSheet — no provider (issue #3493)", () => {
+    it("renders nothing at all — there is no second, private copy of the flag", () => {
+        render(<DebugSheet gameId={GAME} playerId="me" vsAi={false} />);
+        expect(toggle()).toBeFalsy();
         expect(sheet()).toBeFalsy();
     });
 });
