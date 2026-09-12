@@ -1549,6 +1549,12 @@ function normalizeContinuousEffect(
     } else {
         return null;
     }
+    // CR 613.1f / 613.4 — the payload must belong to the slot. A validator
+    // union cannot tie the two (each arm validates independently), and the
+    // field is hand-authorable in a blade entry, where the wrong pairing is
+    // not inert: a 7c `pt-modify` seeded into 7b applies BEFORE a `pt-set`
+    // instead of after, silently changing the P/T it was written to state.
+    if (!payloadBelongsInSlot(slot, payload)) return null;
     const entry: ScenarioContinuousEffect = {
         ...slot,
         affected,
@@ -1563,6 +1569,29 @@ function normalizeContinuousEffect(
         pickBoolean(raw.characteristicDefining)
     );
     return entry;
+}
+
+/** CR 613 — whether a payload is one its layer can hold, and (in layer 7) one
+ *  its SUBLAYER can: CR 613.4b is the P/T SET sublayer (7b), CR 613.4c the
+ *  MODIFY one (7c) and CR 613.4d the SWITCH one (7d), and CR 613.1f is layer
+ *  6's keyword in / keyword out / everything out. The lowering only ever
+ *  writes the right pairing; this is the guard on the hand-authored half. */
+function payloadBelongsInSlot(
+    slot: ContinuousEffectSlot,
+    payload: ScenarioContinuousEffectPayload
+): boolean {
+    switch (payload.kind) {
+        case "keyword-grant":
+        case "keyword-remove":
+        case "ability-loss":
+            return slot.layer === 6;
+        case "pt-set":
+            return slot.layer === 7 && slot.sublayer === "7b";
+        case "pt-modify":
+            return slot.layer === 7 && slot.sublayer === "7c";
+        case "pt-switch":
+            return slot.layer === 7 && slot.sublayer === "7d";
+    }
 }
 
 /** CR 611.2a — the stored `duration` of one entry. A record naming no

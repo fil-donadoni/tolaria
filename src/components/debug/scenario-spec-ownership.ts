@@ -502,16 +502,34 @@ function dropStaleCombat(spec: ScenarioSpec): void {
  */
 function dropStaleContinuousEffects(spec: ScenarioSpec): void {
     if (!spec.continuousEffects) return;
-    const onBattlefield = new Set(
-        spec.cards
-            .filter((card) => (card.zone ?? "battlefield") === "battlefield")
-            .map(presentedEntryName)
-    );
-    const kept = spec.continuousEffects.filter((entry) =>
-        [...(entry.affected.me ?? []), ...(entry.affected.opp ?? [])].every(
-            (name) => onBattlefield.has(name)
-        )
-    );
+    // PER SEAT and BY COUNT, unlike `dropStaleCombat`'s flat name set: the
+    // builder resolves an entry's names against ONE battlefield
+    // (`entry.affected.me` on "me"'s) and consumes one instance per name, so a
+    // card the admin moved to the other seat, or a `count` they lowered, is a
+    // throw at load that a presence-only check waves through.
+    const available = new Map<string, number>();
+    for (const card of spec.cards) {
+        if ((card.zone ?? "battlefield") !== "battlefield") continue;
+        const key = `${card.owner}:${presentedEntryName(card)}`;
+        available.set(key, (available.get(key) ?? 0) + (card.count ?? 1));
+    }
+    const resolves = (
+        entry: ScenarioSpec["continuousEffects"] extends (infer E)[] | undefined
+            ? E
+            : never
+    ) => {
+        const needed = new Map<string, number>();
+        for (const seat of ["me", "opp"] as const) {
+            for (const name of entry.affected[seat] ?? []) {
+                const key = `${seat}:${name}`;
+                needed.set(key, (needed.get(key) ?? 0) + 1);
+            }
+        }
+        return [...needed].every(
+            ([key, count]) => (available.get(key) ?? 0) >= count
+        );
+    };
+    const kept = spec.continuousEffects.filter(resolves);
     if (kept.length === spec.continuousEffects.length) return;
     if (kept.length === 0) delete spec.continuousEffects;
     else spec.continuousEffects = kept;

@@ -975,8 +975,11 @@ export function buildStateFromScenario(
     // already carries the counters, and the grant derives from them here.
     // Idempotent (`findKeywordCounterEntry`) and a no-op for a counter type
     // that grants no keyword, so the pass costs nothing on an ordinary board.
+    // Every lowered zone, not just the battlefield: CR 122.1b is "a keyword
+    // counter on a permanent OR ON A CARD IN A ZONE OTHER THAN THE
+    // BATTLEFIELD", and `addCounterToCard` writes the entry in all of them.
     for (const player of state.players) {
-        for (const card of player.battlefield) {
+        for (const card of lowerableZoneCards(player)) {
             for (const [type, count] of Object.entries(card.counters ?? {})) {
                 if (count > 0) applyKeywordCounterGrant(state, card, type);
             }
@@ -1329,13 +1332,15 @@ export function buildStateFromScenario(
     // CR 508.1 / 509.1 (issue #3458) — a combat that has already been
     // declared, seeded LAST so the turn holder (`spec.activePlayer`) and every
     // permanent it names are final.
-    seedDeclaredCombat(state, spec);
-
     // CR 611.2a / 613 (issue #3488) — the registry entries a RESOLVED spell
-    // left behind, seeded LAST for the same reason the combat above is: every
-    // permanent an entry names must already be on the battlefield it names it
-    // on, and the turn holder must be final.
+    // left behind. BEFORE the combat below, though both need only that every
+    // permanent is placed: a declared combat is the one seeding step that
+    // reads a permanent's CHARACTERISTICS (`validateDeclaredBlockers`), and it
+    // must read the ones the captured position had rather than the printed
+    // ones. Nothing here needs the combat.
     seedContinuousEffects(state, spec);
+
+    seedDeclaredCombat(state, spec);
 
     refreshOffBattlefieldCharacteristics(state);
 
@@ -3167,22 +3172,46 @@ function lowerablePayload(
         : undefined;
 }
 
-/** CR 613.7 — the highest LAYER TIMESTAMP a still-present source holds on the
- *  live board. A lowered entry stamped BELOW it sat under that source live and
- *  will sit above it after the rebuild, because `seedContinuousEffects` runs
- *  after every source has been re-stamped; that is the CR 613.7 ordering loss
- *  `specFromState` declares rather than pins (issue #3459's triage decision
- *  4). Zero when no source on either battlefield is applying anything. */
-function highestSourceStamp(state: GameState): number {
-    let highest = 0;
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
-            if (card.staticSeq !== undefined && card.staticSeq > highest) {
-                highest = card.staticSeq;
-            }
-        }
-    }
-    return highest;
+/** CR 613.7 — true when the rebuild will INVERT this entry against another
+ *  registry entry it can actually be ordered against.
+ *
+ *  "Actually" is three conditions, all of them CR 613.7's own: the two must be
+ *  in the same LAYER (and, in layer 7, the same SUBLAYER — CR 613.4 orders
+ *  within sublayers, so a 7b set and a 7c modify have no contested order at
+ *  all), they must share an affected OBJECT (two effects on different
+ *  permanents never compete), and the rebuild must actually reorder them. A
+ *  board-wide "is any stamp higher than this one" test satisfies none of the
+ *  three: it fires for a layer-6 grant on one creature and a layer-7c pump on
+ *  another, where nothing is lost — which is the blunt line issue #3488
+ *  retired, reintroduced one field over.
+ *
+ *  The rebuild's order is fixed and known: sources are stamped first
+ *  (`beginApplyingStaticEffects` over both battlefields), the keyword-counter
+ *  replay second, and the lowered entries last, in lowering order. So lowered
+ *  entries keep their relative order for free, and the ONE pair the rebuild
+ *  can inverts is a lowered entry the live board stamped BELOW a
+ *  counter-borne entry — live the counter applies later and wins; rebuilt it
+ *  applies first and loses.
+ *
+ *  What this deliberately does NOT detect is an inversion against a
+ *  SOURCE-derived effect, which needs the layer derivations to say which
+ *  sources reach which permanents — the "much larger piece of work" issue
+ *  #3488 declares out of scope, and the same scoping #3459's triage decision 4
+ *  took (its report is over REGISTRY entries too). */
+function rebuildInvertsOrder(
+    entry: ContinuousEffect,
+    rebuiltFirst: readonly ContinuousEffect[]
+): ContinuousEffect | undefined {
+    if (entry.affected.kind !== "instances") return undefined;
+    const affected = new Set(entry.affected.instanceIds);
+    return rebuiltFirst.find(
+        (rival) =>
+            rival.layer === entry.layer &&
+            rival.sublayer === entry.sublayer &&
+            rival.timestamp > entry.timestamp &&
+            rival.affected.kind === "instances" &&
+            rival.affected.instanceIds.some((id) => affected.has(id))
+    );
 }
 
 /** CR 122.1b — true when `buildStateFromScenario`'s keyword-counter replay
@@ -3205,8 +3234,12 @@ function rebuiltByCounterReplay(
         return false;
     }
     const permanentId = entry.expiry.permanentId;
+    // CR 122.1b — "A keyword counter on a permanent OR ON A CARD IN A ZONE
+    // OTHER THAN THE BATTLEFIELD causes that object to gain that keyword", and
+    // `addCounterToCard` is zone-agnostic, so the bearer is searched in every
+    // zone this lowering places — the same four the replay walks.
     const bearer = state.players
-        .flatMap((p) => p.battlefield)
+        .flatMap((p) => lowerableZoneCards(p))
         .find((card) => card.id === permanentId);
     if (!bearer) return false;
     if ((bearer.counters?.[entry.expiry.counterType] ?? 0) <= 0) return false;
@@ -3240,9 +3273,23 @@ function describeContinuousEffect(
     return `${slot} ${entry.payload.kind}, ${entry.expiry.kind} expiry, on ${where}`;
 }
 
-/** One affected instance as a presented name plus its seat, or a note that the
- *  lowering cannot name it at all (it is in no zone `specFromState` lowers, so
- *  no `cards` entry will exist for the rebuild to match). */
+/** Every card of `player` in a zone this lowering places, in the order
+ *  `buildStateFromScenario` would place them. CR 122.1b's counters live in all
+ *  four, so the counter replay and its lowering twin walk all four. */
+function lowerableZoneCards(player: PlayerState): CardInstanceState[] {
+    return [
+        ...player.battlefield,
+        ...player.hand,
+        ...player.graveyard,
+        ...player.exile,
+    ];
+}
+
+/** One affected instance as a presented name plus its seat, for a `dropped[]`
+ *  line — searched in every lowered zone, and falling back to a note when the
+ *  object is in none of them (so no `cards` entry will exist for a rebuild to
+ *  match). A FACE-DOWN permanent says so rather than printing the CR 708.2
+ *  sentinel's name as though it were a card. */
 function affectedLabel(
     instanceId: string,
     me: PlayerState,
@@ -3252,10 +3299,93 @@ function affectedLabel(
         ["me", me],
         ["opp", opp],
     ] as const) {
-        const found = player.battlefield.find((card) => card.id === instanceId);
-        if (found) return `${presentedName(found)} (${seat})`;
+        const found = lowerableZoneCards(player).find(
+            (card) => card.id === instanceId
+        );
+        if (!found) continue;
+        if (found.faceDown) return `a face-down permanent (${seat})`;
+        return `${presentedName(found)} (${seat})`;
     }
-    return "a permanent on neither battlefield";
+    return "an object in no zone this lowering captures";
+}
+
+/** The instance `instanceId` names on either battlefield, when it carries an
+ *  ANIMATION record (CR 611.2b) — the one card-level fact a lowered layer-6
+ *  keyword grant can silently contradict. */
+function animatedInstance(
+    instanceId: string,
+    me: PlayerState,
+    opp: PlayerState
+): boolean {
+    return [me, opp].some((player) =>
+        player.battlefield.some(
+            (card) => card.id === instanceId && card.animation !== undefined
+        )
+    );
+}
+
+/**
+ * The affected instances as PRESENTED NAMES per seat, or the reason no set of
+ * names can state this entry.
+ *
+ * Three refusals, all of them about a name being unable to name the instance
+ * the entry actually holds:
+ *
+ *  - the object is in no zone this lowering places, so no `cards` entry will
+ *    exist for the rebuild to match;
+ *  - it is FACE DOWN, and a face-down permanent presents as the CR 708.2
+ *    sentinel, which is not a catalogue name the builder can resolve — while
+ *    the `cards` entry beside it is lowered under its REAL name plus
+ *    `faceDown`, so neither spelling names the placed instance. The same
+ *    refusal `lowerCombat` makes one function up, and without it a capture is
+ *    not merely degraded: `collectUnresolvedCardNames` refuses the whole row
+ *    at write and `buildStateFromScenario` throws at load;
+ *  - the battlefield holds MORE instances of that name than this entry names.
+ *    A repeated name names a second instance, which makes a name exact within
+ *    ONE list — but the builder resolves each entry against a fresh allocation,
+ *    so two entries naming "Grizzly Bears" both bind the FIRST bear. An entry
+ *    pumping only the second one would rebuild with the pump on the wrong
+ *    body, and nothing downstream could see it. Refused rather than guessed:
+ *    an entry that names EVERY instance of the name is exact and is lowered,
+ *    which is the common case (a pump on the one copy you control).
+ */
+function affectedNames(
+    instanceIds: readonly string[],
+    me: PlayerState,
+    opp: PlayerState
+): { me?: string[]; opp?: string[] } | string {
+    const affected: { me?: string[]; opp?: string[] } = {};
+    for (const instanceId of instanceIds) {
+        const seat = (["me", "opp"] as const).find((candidate) =>
+            (candidate === "me" ? me : opp).battlefield.some(
+                (card) => card.id === instanceId
+            )
+        );
+        if (!seat) {
+            return "it affects an object in no zone this lowering captures, which no name could reach";
+        }
+        const player = seat === "me" ? me : opp;
+        const card = player.battlefield.find((c) => c.id === instanceId)!;
+        if (card.faceDown) {
+            return "it affects a FACE-DOWN permanent, which presents as the CR 708.2 sentinel and has no card name for the spec to reference";
+        }
+        affected[seat] = [...(affected[seat] ?? []), presentedName(card)];
+    }
+    for (const [seat, player] of [
+        ["me", me],
+        ["opp", opp],
+    ] as const) {
+        for (const name of new Set(affected[seat] ?? [])) {
+            const named = (affected[seat] ?? []).filter((n) => n === name);
+            const onBoard = player.battlefield.filter(
+                (card) => !card.faceDown && presentedName(card) === name
+            );
+            if (onBoard.length > named.length) {
+                return `it affects ${named.length} of the ${onBoard.length} "${name}" on that battlefield, and a name cannot say WHICH — every rebuild binds the first`;
+            }
+        }
+    }
+    return affected;
 }
 
 /**
@@ -3284,7 +3414,12 @@ function lowerContinuousEffects(
 ): void {
     const entries = state.continuousEffects ?? [];
     if (entries.length === 0) return;
-    const sourceFloor = highestSourceStamp(state);
+    // CR 613.7 — the entries the REBUILD stamps before every lowered one: the
+    // keyword-counter replay, which runs over the placed counters long before
+    // `seedContinuousEffects` does anything.
+    const rebuiltFirst = entries.filter((candidate) =>
+        rebuiltByCounterReplay(state, candidate)
+    );
     const lowered: ScenarioContinuousEffect[] = [];
     for (const entry of entries) {
         const label = describeContinuousEffect(entry, me, opp);
@@ -3318,25 +3453,28 @@ function lowerContinuousEffects(
             );
             continue;
         }
-        const affected: { me?: string[]; opp?: string[] } = {};
-        let unnameable = false;
-        for (const instanceId of entry.affected.instanceIds) {
-            const seat = me.battlefield.some((card) => card.id === instanceId)
-                ? ("me" as const)
-                : opp.battlefield.some((card) => card.id === instanceId)
-                  ? ("opp" as const)
-                  : undefined;
-            if (!seat) {
-                unnameable = true;
-                break;
-            }
-            const player = seat === "me" ? me : opp;
-            const card = player.battlefield.find((c) => c.id === instanceId)!;
-            affected[seat] = [...(affected[seat] ?? []), presentedName(card)];
+        const affected = affectedNames(entry.affected.instanceIds, me, opp);
+        if (typeof affected === "string") {
+            report(affected);
+            continue;
         }
-        if (unnameable) {
+        // CR 611.2b (issue #3459) — an ANIMATION's granted keywords are
+        // ordinary layer-6 registry entries with the animation's own duration,
+        // and the animation itself is card-level residue this lowering
+        // reports. Lowering its keyword half alone would rebuild a Forest that
+        // is not a creature and HAS TRAMPLE — a shape no live board can hold,
+        // which is worse than the fact being lost. Refused until #3459 lands
+        // the animate CALL, which is what will regenerate these entries; a
+        // genuine until-end-of-turn grant that happens to sit on an animated
+        // permanent is refused with it, and says so.
+        if (
+            payload.kind === "keyword-grant" &&
+            entry.affected.instanceIds.some((id) =>
+                animatedInstance(id, me, opp)
+            )
+        ) {
             report(
-                "it affects a permanent in no zone this lowering captures, which no name could reach"
+                "it grants a keyword to an ANIMATED permanent, whose animation is itself residue — rebuilding the grant alone would make a permanent no live board can hold (issue #3459)"
             );
             continue;
         }
@@ -3371,9 +3509,10 @@ function lowerContinuousEffects(
         }
         lowered.push(loweredEntry);
         // CR 613.7 (issue #3459 triage decision 4) — declared, never pinned.
-        if (entry.timestamp < sourceFloor) {
+        const inverted = rebuildInvertsOrder(entry, rebuiltFirst);
+        if (inverted) {
             dropped.push(
-                `continuousEffects: ${label} — the rebuild re-mints every layer timestamp, so this entry lands ABOVE a source effect it currently sits below (CR 613.7); the relative order is not preserved`
+                `continuousEffects: ${label} — the rebuild re-mints every layer timestamp and seeds this entry AFTER the counter-borne ${inverted.payload.kind} on the same object, inverting the order they apply in (CR 613.7); the relative order is not preserved`
             );
         }
     }

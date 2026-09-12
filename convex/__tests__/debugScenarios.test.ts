@@ -652,6 +652,27 @@ describe("collectUnresolvedCardNames — pre-write loadability guard (ADR 0044)"
         );
     });
 
+    it("surfaces an unresolved name in a continuous effect's affected list (issue #3488)", () => {
+        // The builder resolves these by name exactly as it resolves a combat
+        // name, and THROWS on one it cannot find — so an unvouched name is a
+        // row accepted at write that dies at load, which is the whole failure
+        // this guard exists to prevent (ADR 0044).
+        const spec: ScenarioSpec = {
+            cards: [{ name: "Plains", owner: "me" }],
+            continuousEffects: [
+                {
+                    layer: 6,
+                    affected: { me: ["Plains"], opp: ["Phantom Creature"] },
+                    controller: "me",
+                    payload: { kind: "keyword-grant", keyword: "flying" },
+                },
+            ],
+        };
+        expect(collectUnresolvedCardNames(spec, resolves)).toEqual([
+            "Phantom Creature",
+        ]);
+    });
+
     // CR 111 / 707.2 — a `token: true` entry names a shape in the TOKEN
     // catalogue, not a card in the registry, so it must be validated against
     // the token resolver. Checking it against the card resolver would reject
@@ -1084,6 +1105,28 @@ describe("normalizeScenarioSpec — continuous effects are read fail-closed (iss
                 payload: { kind: "keyword-grant", keyword: "flying" },
             },
         ]);
+    });
+
+    it("drops an entry whose payload does not belong in its slot (CR 613.1f / 613.4)", () => {
+        // A validator union cannot tie the two — each arm validates on its own
+        // — and the field is hand-authorable in a blade entry, where the wrong
+        // pairing is not inert: a 7c modify seeded into 7b applies BEFORE a
+        // `pt-set` instead of after, silently changing the P/T it was written
+        // to state.
+        for (const entry of [
+            { ...PUMP, sublayer: "7b" },
+            {
+                ...PUMP,
+                layer: 4,
+                sublayer: undefined,
+                payload: { kind: "keyword-grant", keyword: "flying" },
+            },
+        ]) {
+            expect(
+                normalizeScenarioSpec({ cards: [], continuousEffects: [entry] })
+                    .continuousEffects
+            ).toBeUndefined();
+        }
     });
 
     it("reads a malformed duration as an ABSENCE, never as an invented boundary (CR 611.2a)", () => {

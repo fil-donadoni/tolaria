@@ -273,6 +273,56 @@ describe("scenario spec field ownership", () => {
         expect(carried.continuousEffects).toEqual(STORED.continuousEffects);
     });
 
+    it("drops an entry the edit made unresolvable by SEAT or by COUNT (issue #3488)", () => {
+        // `seedContinuousEffects` resolves an entry's names against ONE
+        // battlefield and consumes one instance per name, so a presence-only
+        // check waves through two edits the builder then throws on.
+        const movedSeat = assembleScenarioSpec(
+            {
+                ...FORM_ASSEMBLED,
+                cards: FORM_ASSEMBLED.cards.map((card) =>
+                    card.name === "Psychatog"
+                        ? { ...card, owner: "opp" as const }
+                        : card
+                ),
+            },
+            STORED
+        );
+        expect(movedSeat.continuousEffects).toBeUndefined();
+
+        const tooFew = assembleScenarioSpec(FORM_ASSEMBLED, {
+            ...STORED,
+            continuousEffects: [
+                {
+                    ...STORED.continuousEffects[0],
+                    affected: { me: ["Psychatog", "Psychatog"] },
+                },
+            ],
+        });
+        expect(tooFew.continuousEffects).toBeUndefined();
+
+        // …and a `count: 2` entry makes the same pair resolvable again, so the
+        // rule is about the COUNT and not about a repeated name.
+        const enough = assembleScenarioSpec(
+            {
+                ...FORM_ASSEMBLED,
+                cards: FORM_ASSEMBLED.cards.map((card) =>
+                    card.name === "Psychatog" ? { ...card, count: 2 } : card
+                ),
+            },
+            {
+                ...STORED,
+                continuousEffects: [
+                    {
+                        ...STORED.continuousEffects[0],
+                        affected: { me: ["Psychatog", "Psychatog"] },
+                    },
+                ],
+            }
+        );
+        expect(enough.continuousEffects).toHaveLength(1);
+    });
+
     it("preserves nothing when creating a new scenario", () => {
         expect(assembleScenarioSpec(FORM_ASSEMBLED, null)).toEqual(
             FORM_ASSEMBLED
