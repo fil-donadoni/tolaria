@@ -38,10 +38,14 @@ ladder-runs/
 # list-to-cards staging output (regenerated; lockfile data/card-index.json IS committed)
 data/worklists/*.out/
 data/worklists/*.resolved.jsonl
-# Full Catalogue (ADR 0080). `data/` holds the generator's primary output and
-# stays ignored; `public/data/` is the asset the CLIENT fetches and IS COMMITTED
-# — the production build must not depend on a Scryfall bulk download. Refresh it
-# with `bun run catalogue:build` when a set ships.
+# Full Catalogue (ADR 0080, issue #3500). The asset the CLIENT fetches is
+# COMMITTED — one content-addressed file under `data/full-catalogue/`, NOT
+# ignored — because the production build must not depend on a Scryfall bulk
+# download. Refresh it with `bun run catalogue:build` when a set ships; it
+# writes the new hash and deletes the stale sibling.
+# The line below is the RETIRED path: the generator's old primary output, which
+# `public/data/full-catalogue.json.gz` was copied from. Kept ignored so a
+# checkout that predates the move does not report a 1 MB untracked leftover.
 data/full-catalogue.json.gz
 # Oracle corpus cache (ADR 0105). The reduced Scryfall `oracle_cards` bulk —
 # ~24 MB of third-party data that changes weekly. The repo's source of truth is

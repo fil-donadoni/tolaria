@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { gzipSync } from "node:zlib";
 import {
     decodeCatalogue,
+    fullCatalogueUrl,
     rehydrate,
     patchAvailability,
     type FullCatalogueRow,
@@ -212,5 +213,44 @@ describe("rehydrate — canonical print ids (image path)", () => {
         expect(toDashedUuid("token:Wasp|1/1|artifact")).toBe(
             "token:Wasp|1/1|artifact"
         );
+    });
+});
+
+/**
+ * The client's half of the cache-busting mechanism (issue #3500).
+ *
+ * `fullCatalogueUrl` reads a build-time glob of `data/full-catalogue/`, and the
+ * one thing it must never do is CHOOSE: two artifacts means a merge brought in
+ * a second generation, and silently taking either would ship a card pool from
+ * the wrong one — a bug with no symptom until someone notices a missing set.
+ */
+describe("fullCatalogueUrl — the directory holds exactly one artifact", () => {
+    it("returns the sole artifact's emitted URL", () => {
+        expect(
+            fullCatalogueUrl({
+                "../../data/full-catalogue/full-catalogue-abc.json.gz":
+                    "/assets/full-catalogue-abc.json-Hq1.gz",
+            })
+        ).toBe("/assets/full-catalogue-abc.json-Hq1.gz");
+    });
+
+    it("refuses two artifacts, naming both", () => {
+        expect(() =>
+            fullCatalogueUrl({
+                "../../data/full-catalogue/full-catalogue-abc.json.gz": "/a.gz",
+                "../../data/full-catalogue/full-catalogue-def.json.gz": "/b.gz",
+            })
+        ).toThrow(/found 2:.*full-catalogue-abc.*full-catalogue-def/s);
+    });
+
+    it("names the bootstrap when the directory is empty", () => {
+        expect(() => fullCatalogueUrl({})).toThrow(/catalogue:ensure/);
+    });
+
+    it("resolves the REAL directory to exactly one URL", () => {
+        // Not a tautology of the three above: this one runs the actual glob, so
+        // it reds if the artifact is deleted, renamed out of the pattern, or
+        // duplicated by a merge in this very tree.
+        expect(typeof fullCatalogueUrl()).toBe("string");
     });
 });

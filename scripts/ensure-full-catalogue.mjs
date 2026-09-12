@@ -1,59 +1,75 @@
 #!/usr/bin/env node
 /**
- * Makes sure the Full Catalogue asset the client fetches actually exists
- * (`public/data/full-catalogue.json.gz`, ADR 0080 § 3).
+ * Makes sure the Full Catalogue asset the client fetches actually exists —
+ * exactly one content-addressed artifact under `data/full-catalogue/`
+ * (ADR 0080 § 3, issue #3500).
  *
- * The asset is GENERATED (`scripts/fetch-full-catalogue.mjs`) but COMMITTED at
- * `public/data/`, deliberately: the alternative is re-downloading the Scryfall
- * bulk on every production build, which makes each deploy depend on a third
- * party being up and fast. Committed, the build is offline and deterministic
- * and this script is a no-op there.
+ * The asset is GENERATED (`scripts/fetch-full-catalogue.mjs`) but COMMITTED,
+ * deliberately: the alternative is re-downloading the Scryfall bulk on every
+ * production build, which makes each deploy depend on a third party being up
+ * and fast. Committed, the build is offline and deterministic and this script
+ * is a no-op there.
  *
  * It still earns its place in `dev`/`build` for the cases where the asset is
- * genuinely absent — a worktree created before it was tracked, a checkout of an
- * older ref, a `--force` refresh. Absence is INVISIBLE at runtime: the fetch
- * 404s, `useFullCatalogue` errors, and manual mode silently degrades to an
- * empty card pool while the real builder loses its Unavailable Cards.
+ * genuinely absent — a checkout of an older ref, a deleted file, a `--force`
+ * refresh. Absence is INVISIBLE at runtime until the fetch runs: the client's
+ * build-time glob resolves to nothing, `useFullCatalogue` errors, and manual
+ * mode silently degrades to an empty card pool while the real builder loses
+ * its Unavailable Cards.
  *
- * Order of preference, cheapest first:
- *   1. already in `public/data/` and plausibly sized → nothing to do
- *   2. present in `data/` (the generator's primary output) → copy it over
- *   3. otherwise → run the generator (downloads the Scryfall bulk)
+ *   0 artifacts → run the generator (downloads the Scryfall bulk)
+ *   1 artifact, plausibly sized → nothing to do
+ *   2+ artifacts → HARD FAILURE naming them. Two artifacts is a merge that
+ *     brought in a second generation; the client refuses to pick one
+ *     (`fullCatalogueUrl`) and so does this. Deleting the wrong one ships a
+ *     catalogue nobody chose, so the remedy is to regenerate, which also
+ *     deletes the stale sibling.
  *
  * `--force` skips straight to the generator.
  */
 
 import { existsSync, statSync } from "node:fs";
-import { mkdir, copyFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { resolve, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
+import { committedArtifacts } from "./fetch-full-catalogue.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..");
-const dataPath = resolve(repoRoot, "data/full-catalogue.json.gz");
-const publicPath = resolve(repoRoot, "public/data/full-catalogue.json.gz");
+const outDir = resolve(repoRoot, "data/full-catalogue");
 
 /** A truncated/aborted download leaves a small file behind. The real asset is
  *  ~1.1 MB; anything under 100 KB is treated as absent rather than trusted. */
 const MIN_PLAUSIBLE_BYTES = 100_000;
 
-function isUsable(path) {
-    return existsSync(path) && statSync(path).size >= MIN_PLAUSIBLE_BYTES;
+function usableArtifacts() {
+    return committedArtifacts(outDir).filter(
+        (f) =>
+            existsSync(join(outDir, f)) &&
+            statSync(join(outDir, f)).size >= MIN_PLAUSIBLE_BYTES
+    );
 }
 
 async function main() {
     const force = process.argv.includes("--force");
+    const present = committedArtifacts(outDir);
 
-    if (!force && isUsable(publicPath)) {
-        console.log("Full Catalogue: present, skipping generation.");
-        return;
+    // `--force` regenerates, and the generator writes one artifact and deletes
+    // every other — so it is the remedy for the ambiguous directory, not
+    // something the ambiguity may block.
+    if (!force && present.length > 1) {
+        throw new Error(
+            `Full Catalogue: data/full-catalogue/ holds ${present.length} artifacts — ` +
+                `${present.join(", ")}.\n` +
+                "  A merge brought in a second generation; picking one would ship a " +
+                "catalogue nobody chose.\n" +
+                "  fix: bun run catalogue:build, or bun run catalogue:ensure --force " +
+                "(either writes one and deletes the rest)"
+        );
     }
 
-    if (!force && isUsable(dataPath)) {
-        await mkdir(dirname(publicPath), { recursive: true });
-        await copyFile(dataPath, publicPath);
-        console.log("Full Catalogue: copied data/ → public/data/.");
+    if (!force && usableArtifacts().length === 1) {
+        console.log("Full Catalogue: present, skipping generation.");
         return;
     }
 

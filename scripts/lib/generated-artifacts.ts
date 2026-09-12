@@ -55,6 +55,15 @@
  *     by name before it ever compares bytes. The remedy is the same
  *     (`bun run catalogue:pack`); what differs is that the merge driver has
  *     nothing to drive.
+ *   - `data/full-catalogue/full-catalogue-<hash>.json.gz` — CONTENT-ADDRESSED
+ *     BY NAME too (issue #3500), and outside this class for the same reason
+ *     plus a stronger one: it is a gzip BLOB, so git cannot produce a textual
+ *     conflict in it at all. Two branches that regenerate produce two
+ *     differently named files and the merged tree holds both, which
+ *     `scripts/__tests__/full-catalogue-size.test.ts` reds on by name and
+ *     `catalogue:ensure` refuses before a build. Its remedy is NOT re-derivable
+ *     offline — the generator downloads a Scryfall bulk — so `catalogue:build`
+ *     is named at the point of failure rather than run for the reader.
  *   - `data/oracle-corpus.pin.json` — whole-file state, but NOT in this class:
  *     it is not re-derivable from the tree at all (its generator needs the
  *     network, and the gate is offline by contract), and it moves only in a

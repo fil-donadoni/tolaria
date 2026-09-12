@@ -219,10 +219,12 @@ per cold load for half-delivered reactivity is worse than not having it.
 > distinction, so availability now means "the engine has this card" by
 > construction rather than by upkeep.
 
-Unlike `data/full-catalogue.json.gz` (gitignored, because it derives from an
-external Scryfall bulk), this asset derives from the repo, so it is
-**committed** — reproducible, diffable, reviewable, and unable to go missing
-the way the `catalogue:ensure` class of failure allows.
+Unlike the Full Catalogue (`data/full-catalogue/`, which derives from an
+external Scryfall bulk and can only be regenerated with the network), this
+asset derives from the repo, so it is **committed** — reproducible, diffable,
+reviewable, and unable to go missing the way the `catalogue:ensure` class of
+failure allows. Both are committed and both are content-addressed by file name
+since issue #3500; what still separates them is where their bytes come from.
 
 ### 5. Caching is two regimes and one island — never a TTL on Convex data
 
