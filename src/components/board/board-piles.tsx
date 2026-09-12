@@ -88,6 +88,16 @@ export default function BoardPiles({
                           }
                         : {})}
                     data-testid="piles-opponent"
+                    // The compact landscape rail is `overflow-y-auto`, and the
+                    // opponent's tiles are a browse affordance that can be
+                    // entirely non-interactive (empty zones render a
+                    // placeholder, not a button) — a scroll region with no
+                    // focusable descendant needs its own tab stop (axe
+                    // `scrollable-region-focusable`, WCAG 2.1.1). The
+                    // full-size rail does not scroll and must not gain one.
+                    tabIndex={compact ? 0 : undefined}
+                    role={compact ? "group" : undefined}
+                    aria-label={compact ? "Opponent zones" : undefined}
                 >
                     <PlayerGraveyard player={opponent} />
                     <PlayerLibrary player={opponent} />
@@ -114,6 +124,10 @@ export default function BoardPiles({
                           }
                         : {})}
                     data-testid="piles-player"
+                    // Same scroll region, viewer side — see the opponent rail.
+                    tabIndex={compact ? 0 : undefined}
+                    role={compact ? "group" : undefined}
+                    aria-label={compact ? "Your zones" : undefined}
                 >
                     <PlayerGraveyard player={me} />
                     <PlayerLibrary player={me} />

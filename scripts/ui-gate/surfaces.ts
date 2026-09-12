@@ -717,11 +717,29 @@ const PREVIEW_ANCHORED = "[data-card-preview-anchored]";
  *  issue #2704 fills with the tree. */
 const ENGINE_VIEW_TREE = "[data-engine-view-tree]";
 const DECK_TILE_SELECT = "[data-deck-tile] [data-deck-select]:not([disabled])";
+/**
+ * Select a deck the lane can actually play a game with: the PRESET shelf
+ * first, any shelf second (issue #3493).
+ *
+ * Not merely "the first selectable tile": "Your decks" carries whatever the
+ * account happens to hold, including the three-card rows THIS lane's own
+ * `deck-builder` walk leaves behind when it dies before its cleanup. A solo
+ * game on one of those is a DRAW by decking before the first priority, and the
+ * Game Over dialog's modal scrim then swallows every later click on the board.
+ * `createVsAiGame` reaches the same conclusion from the vs-AI side (#3492) and
+ * this shares its selector.
+ */
+async function selectPlayableDeck(page: Page): Promise<boolean> {
+    if (await clickIfVisible(page, PRESET_DECK_SELECT, 6000)) return true;
+    return clickIfVisible(page, DECK_TILE_SELECT, 6000);
+}
+
 const MODE_TILE_SOLO = '[data-mode-tile="solo"]';
 /** The lobby's DEFAULT mode tile — the one whose primary action opens the
  *  vs-AI setup dialog rather than creating a game (`lobby-vs-ai` below). */
 const MODE_TILE_BOT = '[data-mode-tile="bot"]';
 const LOBBY_PRIMARY = "[data-lobby-primary]:not([disabled])";
+
 
 /**
  * Reach a live board. Runbook: "Start a solo game from cold" plus its
@@ -753,7 +771,7 @@ async function ensureBoard(page: Page, ctx: WalkContext): Promise<void> {
         //    storage and viewports 2-5 reach a board through the `Resume`
         //    branch above, on the game viewport 1 created.
         if (!(await visible(page, DECK_TILE_SELECTED, 2000))) {
-            if (!(await clickIfVisible(page, DECK_TILE_SELECT, 6000))) {
+            if (!(await selectPlayableDeck(page))) {
                 throw new Unreachable(
                     "the lobby offered neither Resume nor a selectable Deck Shelf tile — is the deployment seeded with preset decks?"
                 );
@@ -786,7 +804,14 @@ async function ensureBoard(page: Page, ctx: WalkContext): Promise<void> {
 
     // Coin toss, then one mulligan prompt per seat. Both are conditional: a
     // resumed game is usually past them.
-    await clickIfVisible(page, "button:has-text('Play')", 6000);
+    //
+    // `:text-is()`, never `:has-text()` (issue #3493): `has-text` matches any
+    // DESCENDANT text, and the board's phase list contains the word "Upkeep" —
+    // so `button:has-text('Keep')` resolved to the phase-list toggle, left the
+    // mulligan dialog open, and every later click on the board timed out
+    // against its modal scrim. That is what had `game-board` and `game-stress`
+    // sitting on stale `unwalked` rows.
+    await clickIfVisible(page, "button:text-is('Play')", 6000);
     for (let seat = 0; seat < 2; seat++) {
         if (!(await clickIfVisible(page, MULLIGAN_KEEP, 6000))) break;
         await page.waitForTimeout(800);
@@ -820,11 +845,10 @@ async function ensureStressBoard(page: Page, ctx: WalkContext): Promise<void> {
             "an active game the lane did not create is in progress; loading a scenario would clobber it. Finish or concede it, then re-run"
         );
     }
-    if (!(await clickIfVisible(page, "button:has-text('Debug')", 6000))) {
-        throw new Unreachable(
-            "no Debug panel toggle on the board — the signed-in account is probably not an admin"
-        );
-    }
+    // The debug surface is a SHEET behind a slim « / » edge tab since issue
+    // #3403 — `button:has-text('Debug')` addressed the retired seven-button
+    // rail and had silently stopped matching anything.
+    await openDebugSheet(page);
     if (!(await clickIfVisible(page, "button:has-text('Scenarios')", 6000))) {
         throw new Unreachable("the Debug panel offered no Scenarios button");
     }
@@ -850,6 +874,11 @@ async function ensureStressBoard(page: Page, ctx: WalkContext): Promise<void> {
     }
     await row.first().click({ timeout: STEP_TIMEOUT });
     await page.waitForTimeout(2500);
+    // The sheet is SETUP here, not the subject: `game-stress` and
+    // `game-card-preview` measure the board, and at `lg` an open sheet takes
+    // 480px off it (issue #3493) while at phone width it paints over the very
+    // hand card the preview walk right-presses. `game-debug-sheet` re-opens it.
+    await closeDebugSheet(page);
     await settle(page);
 }
 
@@ -897,6 +926,76 @@ const DEBUG_SHEET = "[data-debug-sheet]";
  *  mounted only for a vs-AI game — which makes its absence the one reliable
  *  tell that the walk reached the sheet on the wrong KIND of game. */
 const AI_TRACE_BODY = "[data-ai-trace-body]";
+
+/** The sheet's own scroll port (`debug-sheet.tsx`) — where the scenario form's
+ *  pinned head is measured against. */
+const DEBUG_SHEET_BODY = "[data-debug-sheet-body]";
+/** The game route's board wrapper (`debug-board-area.tsx`, issue #3493). Its
+ *  box IS the acceptance criterion: at `lg` and wider an open sheet takes
+ *  exactly its own width off this element, and below `lg` it takes nothing. */
+const BOARD_AREA = "[data-board-area]";
+/** Kept in step with `src/components/debug/debug-sheet-metrics.ts` — imported
+ *  rather than retyped is not an option here (`scripts/**` must not pull the
+ *  frontend's alias graph into `bun run land`), so the lane asserts the number
+ *  instead of trusting it. */
+const DEBUG_SHEET_DESKTOP_WIDTH = 480;
+/** The Tailwind `lg` breakpoint the push is behind. */
+const DEBUG_SHEET_PUSH_MIN_WIDTH = 1024;
+/** Sub-pixel slack: a bounding box is a float, and a 1px hairline border on
+ *  the sheet is not part of the margin the board gives up. */
+const PUSH_TOLERANCE = 2;
+
+/** Open the debug sheet if it is not already open. IDEMPOTENT on purpose: the
+ *  open flag is persisted per device (`tolaria:debugSheetOpen`), so a blind
+ *  click on the tab is as likely to CLOSE the sheet as to open it. */
+async function openDebugSheet(page: Page): Promise<void> {
+    if (!(await visible(page, DEBUG_SHEET_TOGGLE, STEP_TIMEOUT))) {
+        throw new Unreachable(
+            "no debug sheet tab on the board — the signed-in account is neither a tester nor an admin (`canUseDebugSheet`)"
+        );
+    }
+    // Only if it is CLOSED — the flag persists per device, so a blind click is
+    // as likely to shut the sheet as to open it (issue #3492's idiom).
+    await clickIfVisible(page, DEBUG_SHEET_TOGGLE_CLOSED, 2000);
+    await page.waitForTimeout(450);
+    if (!(await visible(page, DEBUG_SHEET, STEP_TIMEOUT))) {
+        throw new Unreachable(
+            "the debug sheet tab reports expanded but no `[data-debug-sheet]` mounted"
+        );
+    }
+}
+
+/** Close it again, for the surfaces whose subject is the BOARD.
+ *
+ *  ESCAPE, not a second click on the tab: the open sheet sits at `z-sheet`
+ *  (50) and the tab at `z-dev-overlay` (45), so the sheet PAINTS OVER its own
+ *  toggle by design (`debug-sheet.tsx`) — Playwright reads that correctly as
+ *  the sheet body intercepting the click, and waits out its timeout. Escape is
+ *  the documented close, and `board.tsx`'s `POPUP_SELECTORS` lists the sheet,
+ *  so it closes the sheet INSTEAD of popping the pause menu behind it. */
+async function closeDebugSheet(page: Page): Promise<void> {
+    const toggle = page.locator(DEBUG_SHEET_TOGGLE).first();
+    if ((await toggle.count()) === 0) return;
+    if ((await toggle.getAttribute("aria-expanded")) !== "true") return;
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(450);
+    if (await visible(page, DEBUG_SHEET, 1500)) {
+        throw new Unreachable(
+            'Escape did not close the debug sheet — the board\'s `POPUP_SELECTORS` no longer lists `[data-slot="sheet-content"]`?'
+        );
+    }
+}
+
+/** The board wrapper's measured width, in CSS pixels. */
+async function boardAreaWidth(page: Page): Promise<number> {
+    const box = await page.locator(BOARD_AREA).first().boundingBox();
+    if (!box) {
+        throw new Unreachable(
+            `the game route mounted no \`${BOARD_AREA}\` box to measure — is this still the GRE board route?`
+        );
+    }
+    return box.width;
+}
 
 /* The PRESET shelf's tiles, not "the first selectable tile anywhere in the
  * lobby" (issue #3492). The lobby renders two shelves — `Your decks` and
@@ -1790,6 +1889,110 @@ export const SURFACES: readonly Surface[] = [
         label: "Game board — UI stress scenario",
         async walk(page, ctx) {
             await ensureStressBoard(page, ctx);
+        },
+    },
+    {
+        // The tester debug sheet, open, on the scenario surface (issues #3493
+        // and #3494). Its own row rather than a step inside `game-stress`
+        // because it is a different SCREEN — a 480px column of dense form
+        // controls with its own scroll port — AND because it is the only place
+        // the lane can measure the thing #3493 actually promises: that the
+        // board GIVES UP that width instead of hiding under it.
+        //
+        // The two assertions below are measurements, not reachability checks,
+        // so they throw a plain Error: the receipt then says "walk threw" and
+        // names the numbers, which reads as the regression it is rather than
+        // as a fixture nobody built.
+        id: "game-debug-sheet",
+        label: "Debug sheet — scenario list + save form",
+        async walk(page, ctx) {
+            await ensureStressBoard(page, ctx);
+
+            // 1. The push (issue #3493). Closed first — `ensureStressBoard`
+            //    leaves it that way — then open, on the SAME board.
+            const closed = await boardAreaWidth(page);
+            await openDebugSheet(page);
+            await page.waitForTimeout(400);
+            const opened = await boardAreaWidth(page);
+            const given = closed - opened;
+            const vw = page.viewportSize()?.width ?? 0;
+            if (vw >= DEBUG_SHEET_PUSH_MIN_WIDTH) {
+                if (
+                    Math.abs(given - DEBUG_SHEET_DESKTOP_WIDTH) > PUSH_TOLERANCE
+                ) {
+                    throw new Error(
+                        `at ${vw}px the open debug sheet must take ${DEBUG_SHEET_DESKTOP_WIDTH}px off the board area; measured ${given.toFixed(1)}px (closed ${closed.toFixed(1)}, open ${opened.toFixed(1)})`
+                    );
+                }
+            } else if (Math.abs(given) > PUSH_TOLERANCE) {
+                throw new Error(
+                    `below lg (${vw}px) the board width must not depend on the sheet's open flag; measured ${closed.toFixed(1)} closed vs ${opened.toFixed(1)} open`
+                );
+            }
+
+            // 2. The scenario surface (issue #3494): the two lists, then the
+            //    save form with its rare knobs expanded, so the probe measures
+            //    the form at its TALLEST rather than at its friendliest.
+            if (!(await clickIfVisible(page, "button:has-text('Scenarios')"))) {
+                throw new Unreachable(
+                    "the open debug sheet offered no Scenarios button — the scenario surface is the subject of this row"
+                );
+            }
+            if (
+                !(await visible(page, "input[placeholder*='Search scenarios']"))
+            ) {
+                throw new Unreachable(
+                    "the Scenarios list did not open (listDebugScenarios is admin-gated — is this account an admin?)"
+                );
+            }
+            const label = page.locator("input[aria-label='scenario label']");
+            if ((await label.count()) === 0) {
+                throw new Unreachable(
+                    "the scenario save form never mounted — its pinned head (title + label + Save) is half of what this row measures (issue #3494)"
+                );
+            }
+            if (
+                !(await clickIfVisible(
+                    page,
+                    "button:has-text('Other options')"
+                ))
+            ) {
+                throw new Unreachable(
+                    "the save form rendered no `Other options` disclosure — the rare spec knobs would then be unreachable, not merely collapsed (issue #3494)"
+                );
+            }
+            // The pinned head is the other half: scroll the form's port to the
+            // bottom and the title/label/CTA must still be inside it.
+            await page
+                .locator(DEBUG_SHEET_BODY)
+                .first()
+                .evaluate((el) => {
+                    el.scrollTop = el.scrollHeight;
+                });
+            await page.waitForTimeout(300);
+            const port = await page
+                .locator(DEBUG_SHEET_BODY)
+                .first()
+                .boundingBox();
+            const head = await label.first().boundingBox();
+            if (!port || !head) {
+                throw new Unreachable(
+                    "the debug sheet's scroll port or the form's label input has no layout box"
+                );
+            }
+            if (
+                head.y < port.y - PUSH_TOLERANCE ||
+                head.y > port.y + port.height
+            ) {
+                throw new Error(
+                    `the scenario form's head scrolled out of the sheet's port: label at y=${head.y.toFixed(1)}, port ${port.y.toFixed(1)}..${(port.y + port.height).toFixed(1)} (issue #3494 pins it)`
+                );
+            }
+            await settle(page);
+        },
+        // Leave the board as the next viewport's walk expects to find it.
+        async cleanup(page) {
+            await closeDebugSheet(page);
         },
     },
     {

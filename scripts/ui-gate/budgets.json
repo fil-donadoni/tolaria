@@ -1162,6 +1162,82 @@
                     "knownDebt": "NOT DEBT, and not this surface's subject. Every `cardsOcc`/`ctrlsOcc` here is the BOARD BEHIND AN OPEN SHEET: the debug sheet is `w-[88%]` (capped `sm:max-w-sm`), non-modal and pointer-undismissable by design (`debug-sheet.tsx`), so the hand fan and the pile rail it paints over are occluded BY CONSTRUCTION — that is the screen, not a defect on it. What this row is a ceiling for is the sheet's own shape: `ctrlsStranded 0`, `starved 0`, `cardsSquare 0` and `axe s0/c0` are the floors that must hold. The AI trace ring is CLEARED by the walk before the probe (`surfaces.ts`), because a live log of a live bot is not a fixed subject: two runs of the same tree measured `ctrls n13 small12` and `ctrls n21 small19` at 1440x900x2 before the walk cleared it. `small` is the pointer-blind 44px count the file's header describes. `cardsOcc` carries a +1 band the walk cannot remove: the coin toss decides whether the viewer is on the play or on the draw, which is one card of hand fan (and one bot land) behind the sheet. Recorded from the run below, then RAISED BY HAND to the maximum of two consecutive runs — 12 then 13 — so the ceiling covers both positions instead of reding on the toss. `ctrlsOcc` took the same treatment for the same reason (1 then 2). PRECONDITION, and the one way this row reds for something the diff did not cause: the vs-AI setup dialog opens only from the Loadout's primary plate, which `lobbyGate` disables while the account holds ANY game — the same blocker `lobby-vs-ai`'s own entry records. This walk resolves it for the game it CREATES (it concedes its own on the way out, verified by the banner being gone, and reports a step trace when it cannot), but not for a game someone else left: every session on this machine signs in as the same dev account against the same local deployment. Observed 2026-09-12 — three viewports green, then `UNWALKED — an active game the lane did not create` at the fourth, with a concurrent session's board walk in between. Before treating a red here as a regression, check the lobby is empty and re-run; what removes the condition for good is a lane-owned account, which is also what unblocks `lobby-vs-ai`."
                 }
             }
+        },
+        "game-debug-sheet": {
+            "label": "Debug sheet — scenario list + save form",
+            "status": "budgeted",
+            "viewports": {
+                "1440x900x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 59,
+                    "cardsStranded": 0,
+                    "cardsSquare": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 7,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "small": 52,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "Recorded 2026-09-12 with issues #3493/#3494. The SUBJECT of this row is the debug sheet, OPEN, over the fixed `UI stress — full board, full hand, deep piles` position — the same board `game-stress` names, chosen because a dealt solo game lands on a position nobody chose. `cardsOcc 59` is that position plus, below `lg`, the sheet itself: the stress hand is an OVERLAPPED FAN and its piles are STACKS, so card-over-card is what the scenario is for, and issue #3493 makes the sheet take space beside the board only at `lg` and wider — below that it stays an overlay ON PURPOSE (a 390px viewport has no width to give). The numbers that carry this row's own acceptance criteria are `cardsStranded 0` and the probe's `hOverflow 0`: no card is clipped by the board's bounds and the board never scrolls sideways, at every viewport, with the sheet open. Do NOT lower `cardsOcc` by changing the stress scenario — that would silently change what every board row measures. `ctrlsOcc 7` is the same overlay over the board's own controls. `starved 1` is the sheet's scroll port (`[data-debug-sheet-body]`), whose content is taller than it — that is what a scroll port IS, and the walk deliberately expands the form's `Other options` disclosure so the port is measured at its tallest. `small 52` on this row is the POINTER-FINE case the file note above describes: `--control-h` resolves to 32px under `pointer: fine`, and the debug surface's one-glyph ★/✎/↻/~/× toggles are `size=\"xs\"` by design. Not debt — do not 'fix' it by shrinking a touch target."
+                },
+                "390x844x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 84,
+                    "cardsStranded": 0,
+                    "cardsSquare": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 11,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "small": 41,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "Recorded 2026-09-12 with issues #3493/#3494. The SUBJECT of this row is the debug sheet, OPEN, over the fixed `UI stress — full board, full hand, deep piles` position — the same board `game-stress` names, chosen because a dealt solo game lands on a position nobody chose. `cardsOcc 84` is that position plus, below `lg`, the sheet itself: the stress hand is an OVERLAPPED FAN and its piles are STACKS, so card-over-card is what the scenario is for, and issue #3493 makes the sheet take space beside the board only at `lg` and wider — below that it stays an overlay ON PURPOSE (a 390px viewport has no width to give). The numbers that carry this row's own acceptance criteria are `cardsStranded 0` and the probe's `hOverflow 0`: no card is clipped by the board's bounds and the board never scrolls sideways, at every viewport, with the sheet open. Do NOT lower `cardsOcc` by changing the stress scenario — that would silently change what every board row measures. `ctrlsOcc 11` is the same overlay over the board's own controls. `starved 1` is the sheet's scroll port (`[data-debug-sheet-body]`), whose content is taller than it — that is what a scroll port IS, and the walk deliberately expands the form's `Other options` disclosure so the port is measured at its tallest. `small 41` on this touch row is REAL sub-44px debt and this surface owns it: issue #3494 raised the shared debug input to `py-1.5` and promoted Load / Save / Update to `size=\"sm\"`, but the one-glyph ★/✎/↻/~/× row toggles stay `xs` — a 293px-wide phone sheet cannot hold six 44px squares beside an elastic scenario label. Lowering it means redesigning the row, not shrinking the sheet."
+                },
+                "844x390x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 67,
+                    "cardsStranded": 0,
+                    "cardsSquare": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 5,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "small": 22,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "Recorded 2026-09-12 with issues #3493/#3494. The SUBJECT of this row is the debug sheet, OPEN, over the fixed `UI stress — full board, full hand, deep piles` position — the same board `game-stress` names, chosen because a dealt solo game lands on a position nobody chose. `cardsOcc 67` is that position plus, below `lg`, the sheet itself: the stress hand is an OVERLAPPED FAN and its piles are STACKS, so card-over-card is what the scenario is for, and issue #3493 makes the sheet take space beside the board only at `lg` and wider — below that it stays an overlay ON PURPOSE (a 390px viewport has no width to give). The numbers that carry this row's own acceptance criteria are `cardsStranded 0` and the probe's `hOverflow 0`: no card is clipped by the board's bounds and the board never scrolls sideways, at every viewport, with the sheet open. Do NOT lower `cardsOcc` by changing the stress scenario — that would silently change what every board row measures. `ctrlsOcc 5` is the same overlay over the board's own controls. `starved 1` is the sheet's scroll port (`[data-debug-sheet-body]`), whose content is taller than it — that is what a scroll port IS, and the walk deliberately expands the form's `Other options` disclosure so the port is measured at its tallest. `small 22` on this touch row is REAL sub-44px debt and this surface owns it: issue #3494 raised the shared debug input to `py-1.5` and promoted Load / Save / Update to `size=\"sm\"`, but the one-glyph ★/✎/↻/~/× row toggles stay `xs` — a 293px-wide phone sheet cannot hold six 44px squares beside an elastic scenario label. Lowering it means redesigning the row, not shrinking the sheet."
+                },
+                "820x1180x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 88,
+                    "cardsStranded": 0,
+                    "cardsSquare": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 4,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "small": 62,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "Recorded 2026-09-12 with issues #3493/#3494. The SUBJECT of this row is the debug sheet, OPEN, over the fixed `UI stress — full board, full hand, deep piles` position — the same board `game-stress` names, chosen because a dealt solo game lands on a position nobody chose. `cardsOcc 88` is that position plus, below `lg`, the sheet itself: the stress hand is an OVERLAPPED FAN and its piles are STACKS, so card-over-card is what the scenario is for, and issue #3493 makes the sheet take space beside the board only at `lg` and wider — below that it stays an overlay ON PURPOSE (a 390px viewport has no width to give). The numbers that carry this row's own acceptance criteria are `cardsStranded 0` and the probe's `hOverflow 0`: no card is clipped by the board's bounds and the board never scrolls sideways, at every viewport, with the sheet open. Do NOT lower `cardsOcc` by changing the stress scenario — that would silently change what every board row measures. `ctrlsOcc 4` is the same overlay over the board's own controls. `starved 1` is the sheet's scroll port (`[data-debug-sheet-body]`), whose content is taller than it — that is what a scroll port IS, and the walk deliberately expands the form's `Other options` disclosure so the port is measured at its tallest. `small 62` on this touch row is REAL sub-44px debt and this surface owns it: issue #3494 raised the shared debug input to `py-1.5` and promoted Load / Save / Update to `size=\"sm\"`, but the one-glyph ★/✎/↻/~/× row toggles stay `xs` — a 293px-wide phone sheet cannot hold six 44px squares beside an elastic scenario label. Lowering it means redesigning the row, not shrinking the sheet."
+                },
+                "1180x820x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 61,
+                    "cardsStranded": 0,
+                    "cardsSquare": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 3,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "small": 43,
+                    "axeSerious": 0,
+                    "axeCritical": 0,
+                    "knownDebt": "Recorded 2026-09-12 with issues #3493/#3494. The SUBJECT of this row is the debug sheet, OPEN, over the fixed `UI stress — full board, full hand, deep piles` position — the same board `game-stress` names, chosen because a dealt solo game lands on a position nobody chose. `cardsOcc 61` is that position plus, below `lg`, the sheet itself: the stress hand is an OVERLAPPED FAN and its piles are STACKS, so card-over-card is what the scenario is for, and issue #3493 makes the sheet take space beside the board only at `lg` and wider — below that it stays an overlay ON PURPOSE (a 390px viewport has no width to give). The numbers that carry this row's own acceptance criteria are `cardsStranded 0` and the probe's `hOverflow 0`: no card is clipped by the board's bounds and the board never scrolls sideways, at every viewport, with the sheet open. Do NOT lower `cardsOcc` by changing the stress scenario — that would silently change what every board row measures. `ctrlsOcc 3` is the same overlay over the board's own controls. `starved 1` is the sheet's scroll port (`[data-debug-sheet-body]`), whose content is taller than it — that is what a scroll port IS, and the walk deliberately expands the form's `Other options` disclosure so the port is measured at its tallest. `small 43` on this touch row is REAL sub-44px debt and this surface owns it: issue #3494 raised the shared debug input to `py-1.5` and promoted Load / Save / Update to `size=\"sm\"`, but the one-glyph ★/✎/↻/~/× row toggles stay `xs` — a 293px-wide phone sheet cannot hold six 44px squares beside an elastic scenario label. Lowering it means redesigning the row, not shrinking the sheet."
+                }
+            }
         }
     }
 }
