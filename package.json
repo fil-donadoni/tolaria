@@ -68,6 +68,7 @@
         "seed:backlog": "bun scripts/seed-scenario-backlog.ts",
         "seed:scenario": "bun scripts/seed-scenario.ts",
         "seed:preset": "bun scripts/seed-preset-deck.ts",
+        "seed:preset:deploy": "bun scripts/seed-preset-deck.ts --all --deploy",
         "selfplay": "SELFPLAY=1 vitest run src/lib/ai/selfplay/harness.bot.test.ts",
         "lowering-sweep": "LOWERING_SWEEP=1 vitest run src/lib/ai/selfplay/loweringSweep.bot.test.ts",
         "telemetry:context": "bun scripts/telemetry-context.ts",

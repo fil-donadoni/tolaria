@@ -450,6 +450,15 @@ export const wipePresets = internalMutation({
  * `slug` is never patched (ADR 0033 — it is the preset's immutable identity
  * and every external reference keys off it), which is exactly why it is the
  * lookup key rather than part of the patch.
+ *
+ * Since issue #3499 this overwrite is also the PRODUCTION contract, on every
+ * deploy: `bun run seed:preset:deploy` is chained after `convex deploy` in the
+ * hosting build command, so the canonical file wins on the canonical Tier 1
+ * slugs each time the site ships. Deliberate, and it has a price stated rather
+ * than discovered — an Admin edit to one of THOSE slugs does not survive the
+ * next deploy, and curating such a list means editing
+ * `data/premodern-tier1-decks.json`. A slug the canonical file does not name is
+ * never touched, so Admin-authored presets are unaffected.
  */
 export function presetSeedDecision(
     existing: { _id: Id<"presetDecks"> } | null,
