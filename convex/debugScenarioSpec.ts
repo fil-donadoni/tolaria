@@ -2,6 +2,12 @@ import { v } from "convex/values";
 import type { ManaRestriction } from "./gre/types";
 import type { AnimateSpec, CardType, Color } from "./cards/types";
 import { colors as ALL_COLORS, PERMANENT_TYPES } from "./cards/types";
+import type { Duration } from "./gre/state";
+import type {
+    ContinuousEffectInlinePayload,
+    ContinuousEffectKeywordParameter,
+    ContinuousEffectSlot,
+} from "./gre/continuousEffects";
 import { MANA_COLORS } from "./gre/manaColors";
 
 // Debug scenario spec (issue #769, ADR 0044). The *argument* to the existing,
@@ -262,6 +268,130 @@ export const scenarioRestrictedManaValidator = v.object({
     cantBeCounteredRider: v.optional(v.boolean()),
     hasteRider: v.optional(v.boolean()),
 });
+
+/** CR 702 — the STRUCTURED parameter of a parameterised keyword grant, the
+ *  spec mirror of the engine's own `ContinuousEffectKeywordParameter`
+ *  (`gre/continuousEffects.ts`). Lowered rather than pre-rendered for the
+ *  reason the engine stores it structurally: an entry that carries its
+ *  parameter is re-rendered at every read (`renderKeyword`), so a grant
+ *  rebuilt from a spec moves with the board exactly as the live one did. */
+const scenarioKeywordParameterValidator = v.union(
+    v.object({ kind: v.literal("protection"), qualities: v.array(v.string()) }),
+    v.object({ kind: v.literal("landwalk"), subtype: v.string() }),
+    v.object({ kind: v.literal("count"), count: v.number() })
+);
+
+/** CR 613 — what a lowered registry entry DOES. The subset of the engine's
+ *  `ContinuousEffectInlinePayload` a presented card NAME can carry whole:
+ *  layer 6's keyword grant / removal / total ability loss, and layer 7's three
+ *  P/T shapes. Everything else in that union points back at an object the
+ *  rebuild has no id for — a `template` payload indexes its source card's own
+ *  `staticEffects[]`, an `activated-grant` names an ability on a definition —
+ *  so `specFromState` REPORTS those entries per-entry instead of lowering
+ *  them (`CONTINUOUS_EFFECT_PAYLOAD_DISPOSITION`, `gre/scenarioBuilder.ts`,
+ *  is the single table that says which is which, and reds `tsc` when the
+ *  engine union gains a member). */
+const scenarioContinuousEffectPayloadValidator = v.union(
+    v.object({
+        kind: v.literal("pt-modify"),
+        power: v.number(),
+        toughness: v.number(),
+    }),
+    v.object({
+        kind: v.literal("pt-set"),
+        power: v.optional(v.number()),
+        toughness: v.optional(v.number()),
+    }),
+    v.object({ kind: v.literal("pt-switch") }),
+    v.object({
+        kind: v.literal("keyword-grant"),
+        keyword: v.string(),
+        parameter: v.optional(scenarioKeywordParameterValidator),
+    }),
+    v.object({ kind: v.literal("keyword-remove"), keyword: v.string() }),
+    v.object({ kind: v.literal("ability-loss") })
+);
+
+/** CR 611.2a — the phase boundary a lowered entry ends at. The spec mirror of
+ *  the engine's stored `Duration`, with the one substitution the round trip
+ *  needs: `playerId` becomes a SEAT, because every rebuild reassigns player
+ *  ids the way it reassigns instance ids. An ABSENT `duration` on an entry is
+ *  CR 611.2a's "if no duration is stated, it lasts until the end of the game"
+ *  — the `indefinite` expiry, exactly as an omitted `spec.duration` already
+ *  means an indefinite ANIMATION in the engine's own animate primitive. */
+const scenarioContinuousEffectDurationValidator = v.object({
+    phase: v.union(
+        v.literal("end-of-turn"),
+        v.literal("end-of-combat"),
+        v.literal("upkeep"),
+        v.literal("untap")
+    ),
+    /** Matching boundaries still to skip ("until end of your NEXT turn"). */
+    skip: v.optional(v.number()),
+    /** Whose boundary counts. Absent = any active player's. */
+    player: v.optional(v.union(v.literal("me"), v.literal("opp"))),
+});
+
+/** CR 611.2a / 613 (issue #3488, PRD #3397) — ONE Continuous Effects Registry
+ *  entry left behind by a spell or ability that has already RESOLVED.
+ *
+ *  Split in two by `layer`, mirroring the engine's own `ContinuousEffectSlot`:
+ *  CR 613.4 orders within SUBLAYERS, so a layer-7 entry must name one and no
+ *  other layer may. */
+const scenarioContinuousEffectFields = {
+    /** The permanents the entry applies to, by PRESENTED card name — the
+     *  `attachedTo` / `combat` convention, where a repeated name names a
+     *  second instance. PER SEAT for the reason `combat.attackedThisTurn` is:
+     *  a registry entry can name permanents on either battlefield (a pump on
+     *  your creature, a "loses flying" on theirs), and a flat list could not
+     *  say whose. */
+    affected: v.object({
+        me: v.optional(v.array(v.string())),
+        opp: v.optional(v.array(v.string())),
+    }),
+    /** CR 611.2c — the controller of the effect, fixed when it was created.
+     *  Carried by both lowerable expiries, and NOT derivable from `affected`:
+     *  a keyword granted to an opponent's creature is controlled by the seat
+     *  whose spell granted it. */
+    controller: v.union(v.literal("me"), v.literal("opp")),
+    /** CR 611.2a — absent means INDEFINITE ("until the end of the game"). */
+    duration: v.optional(scenarioContinuousEffectDurationValidator),
+    payload: scenarioContinuousEffectPayloadValidator,
+    /** CR 604.3 — the effect comes from a characteristic-defining ability,
+     *  which CR 613.8a clause (c) reads when deciding whether a dependency
+     *  exists. Absent = false. */
+    characteristicDefining: v.optional(v.boolean()),
+};
+
+/** EXPORTED because `debugSetupScenario`'s own `args` validator
+ *  (`convex/game.ts`) must declare the identical field: both live load paths
+ *  spread a `normalizeScenarioSpec(...)` result straight into that mutation,
+ *  so a field on this validator and absent from the mutation's args throws
+ *  `ArgumentValidationError` at the Convex boundary before the handler runs —
+ *  the sixth-site failure `debugSetupScenarioArgsLockStep.test.ts` exists to
+ *  catch (issue #2147). */
+export const scenarioContinuousEffectValidator = v.union(
+    v.object({
+        layer: v.union(
+            v.literal(2),
+            v.literal(3),
+            v.literal(4),
+            v.literal(5),
+            v.literal(6)
+        ),
+        ...scenarioContinuousEffectFields,
+    }),
+    v.object({
+        layer: v.literal(7),
+        sublayer: v.union(
+            v.literal("7a"),
+            v.literal("7b"),
+            v.literal("7c"),
+            v.literal("7d")
+        ),
+        ...scenarioContinuousEffectFields,
+    })
+);
 
 export const scenarioSpecValidator = v.object({
     cards: v.array(scenarioCardValidator),
@@ -594,6 +724,21 @@ export const scenarioSpecValidator = v.object({
             opp: v.optional(v.array(scenarioRestrictedManaValidator)),
         })
     ),
+    // CR 611.2a / 613 (issue #3488, PRD #3397) — the Continuous Effects
+    // Registry entries left behind by a spell or ability that has already
+    // RESOLVED: a "+3/+3 until end of turn", a "gains flying until end of
+    // turn", a "loses all abilities" with no source still on the board.
+    //
+    // These are precisely the entries no rebuild can re-derive. A `source`
+    // entry is re-derived by `beginApplyingStaticEffects` walking the
+    // battlefield, and a `counter` entry by `applyKeywordCounterGrant` over
+    // the counters the spec already carries — but a `duration` or
+    // `indefinite` entry's spell has LEFT, so there is nothing to walk. The
+    // combat maths a captured verdict is ABOUT is computed on P/T the rebuild
+    // did not have, which is why this is lowered rather than reported.
+    //
+    // Names, never instance ids: every rebuild reassigns them.
+    continuousEffects: v.optional(v.array(scenarioContinuousEffectValidator)),
     // CR 702.139c / ADR 0064 (issue #1392) — directly declare a companion
     // into a slot, bypassing the sideboard/maindeck auto-declare a
     // scenario's synthetic board never runs through. Mirrors
@@ -668,6 +813,56 @@ export type ScenarioRestrictedMana = {
     restriction?: ManaRestriction;
     cantBeCounteredRider?: boolean;
     hasteRider?: boolean;
+};
+
+/** CR 702 — the read-path twin of {@link scenarioKeywordParameterValidator}.
+ *  Taken from the ENGINE's own union rather than restated, so a parameter kind
+ *  added there reds `tsc` here instead of silently round-tripping as an
+ *  unparameterised keyword. */
+export type ScenarioKeywordParameter = ContinuousEffectKeywordParameter;
+
+/** CR 613 — the read-path twin of
+ *  {@link scenarioContinuousEffectPayloadValidator}: the members of the
+ *  engine's payload union a presented card NAME can carry whole. `Extract`ed
+ *  from that union rather than restated, so a shape change in the engine (a
+ *  third optional on `pt-set`, say) reds `tsc` in the lowering instead of
+ *  quietly dropping a field on the way through. */
+export type ScenarioContinuousEffectPayload = Extract<
+    ContinuousEffectInlinePayload,
+    {
+        kind:
+            | "pt-modify"
+            | "pt-set"
+            | "pt-switch"
+            | "keyword-grant"
+            | "keyword-remove"
+            | "ability-loss";
+    }
+>;
+
+/** CR 611.2a — the spec mirror of the engine's stored `Duration`, with
+ *  `playerId` replaced by a SEAT. */
+export type ScenarioContinuousEffectDuration = {
+    phase: Duration["phase"];
+    skip?: number;
+    player?: "me" | "opp";
+};
+
+/** CR 611.2a / 613 (issue #3488) — one lowered registry entry. The
+ *  layer/sublayer pairing is the ENGINE's own `ContinuousEffectSlot`, so `tsc`
+ *  rejects a layer-7 entry with no sublayer (CR 613.4 orders within sublayers)
+ *  and any other layer carrying one. */
+export type ScenarioContinuousEffect = ContinuousEffectSlot & {
+    /** Affected permanents by PRESENTED card name, per seat — the
+     *  `attachedTo` convention, where a repeated name names a second
+     *  instance. */
+    affected: { me?: string[]; opp?: string[] };
+    /** CR 611.2c — the controller the effect was created with. */
+    controller: "me" | "opp";
+    /** CR 611.2a — absent means INDEFINITE. */
+    duration?: ScenarioContinuousEffectDuration;
+    payload: ScenarioContinuousEffectPayload;
+    characteristicDefining?: boolean;
 };
 
 export type ScenarioSpec = {
@@ -819,6 +1014,15 @@ export type ScenarioSpec = {
         me?: ScenarioRestrictedMana[];
         opp?: ScenarioRestrictedMana[];
     };
+    /** CR 611.2a / 613 (issue #3488) — the Continuous Effects Registry entries
+     *  a RESOLVED spell or ability left behind, the only provenance no rebuild
+     *  can re-derive: a `source` entry comes back from
+     *  `beginApplyingStaticEffects` walking the battlefield and a `counter`
+     *  entry from `applyKeywordCounterGrant` over the counters `cards` already
+     *  carries, but a `duration` / `indefinite` entry's spell has left the
+     *  board. Omitted means none, and the builder seeds nothing — which is
+     *  what every spec written before this field meant. */
+    continuousEffects?: ScenarioContinuousEffect[];
     companion?: { name: string; owner?: "me" | "opp"; used?: boolean };
 };
 
@@ -1306,6 +1510,196 @@ function normalizeCard(raw: unknown): ScenarioCard | null {
  * the builder's `getCardByName`) so an unresolved name surfaces an error rather
  * than corrupting state.
  */
+/** CR 611.2a (issue #3488) — one raw stored continuous-effect entry, read as
+ *  tolerantly as every other branch of {@link normalizeScenarioSpec}: an entry
+ *  missing any of the three facts that make it MEANINGFUL — what it applies
+ *  to, who controls it, what it does — is DROPPED rather than thrown on or
+ *  half-built. A half-built entry would rebuild a board nobody captured, which
+ *  is the one failure a lowering exists to prevent. */
+function normalizeContinuousEffect(
+    raw: unknown
+): ScenarioContinuousEffect | null {
+    if (!isRecord(raw)) return null;
+    const affected = pickSeatNameLists(raw.affected);
+    if (!affected) return null;
+    const controller = pickString(raw.controller);
+    if (controller !== "me" && controller !== "opp") return null;
+    const payload = normalizeContinuousEffectPayload(raw.payload);
+    if (!payload) return null;
+    // CR 613.4 — layer 7 orders within SUBLAYERS, so a layer-7 entry naming
+    // none has no defined position and is dropped; any other layer carrying
+    // one is a shape the engine's `ContinuousEffectSlot` makes unrepresentable.
+    const layer = pickNumber(raw.layer);
+    const sublayer = pickString(raw.sublayer);
+    let slot: ContinuousEffectSlot;
+    if (layer === 7) {
+        if (
+            sublayer !== "7a" &&
+            sublayer !== "7b" &&
+            sublayer !== "7c" &&
+            sublayer !== "7d"
+        ) {
+            return null;
+        }
+        slot = { layer: 7, sublayer };
+    } else if (layer === 2 || layer === 3 || layer === 4 || layer === 5) {
+        slot = { layer };
+    } else if (layer === 6) {
+        slot = { layer: 6 };
+    } else {
+        return null;
+    }
+    // CR 613.1f / 613.4 — the payload must belong to the slot. A validator
+    // union cannot tie the two (each arm validates independently), and the
+    // field is hand-authorable in a blade entry, where the wrong pairing is
+    // not inert: a 7c `pt-modify` seeded into 7b applies BEFORE a `pt-set`
+    // instead of after, silently changing the P/T it was written to state.
+    if (!payloadBelongsInSlot(slot, payload)) return null;
+    const entry: ScenarioContinuousEffect = {
+        ...slot,
+        affected,
+        controller,
+        payload,
+    };
+    const duration = normalizeContinuousEffectDuration(raw.duration);
+    if (duration) entry.duration = duration;
+    set(
+        entry,
+        "characteristicDefining",
+        pickBoolean(raw.characteristicDefining)
+    );
+    return entry;
+}
+
+/** CR 613 — whether a payload is one its layer can hold, and (in layer 7) one
+ *  its SUBLAYER can: CR 613.4b is the P/T SET sublayer (7b), CR 613.4c the
+ *  MODIFY one (7c) and CR 613.4d the SWITCH one (7d), and CR 613.1f is layer
+ *  6's keyword in / keyword out / everything out. The lowering only ever
+ *  writes the right pairing; this is the guard on the hand-authored half. */
+function payloadBelongsInSlot(
+    slot: ContinuousEffectSlot,
+    payload: ScenarioContinuousEffectPayload
+): boolean {
+    switch (payload.kind) {
+        case "keyword-grant":
+        case "keyword-remove":
+        case "ability-loss":
+            return slot.layer === 6;
+        case "pt-set":
+            return slot.layer === 7 && slot.sublayer === "7b";
+        case "pt-modify":
+            return slot.layer === 7 && slot.sublayer === "7c";
+        case "pt-switch":
+            return slot.layer === 7 && slot.sublayer === "7d";
+    }
+}
+
+/** CR 611.2a — the stored `duration` of one entry. A record naming no
+ *  recognised phase is an ABSENCE, which the builder reads as CR 611.2a's
+ *  "no duration stated" (indefinite) — the same reading an omitted field
+ *  gets, so a malformed value can never invent a boundary. */
+function normalizeContinuousEffectDuration(
+    raw: unknown
+): ScenarioContinuousEffectDuration | undefined {
+    if (!isRecord(raw)) return undefined;
+    const phase = pickString(raw.phase);
+    if (
+        phase !== "end-of-turn" &&
+        phase !== "end-of-combat" &&
+        phase !== "upkeep" &&
+        phase !== "untap"
+    ) {
+        return undefined;
+    }
+    const duration: ScenarioContinuousEffectDuration = { phase };
+    set(duration, "skip", pickNumber(raw.skip));
+    const player = pickString(raw.player);
+    if (player === "me" || player === "opp") duration.player = player;
+    return duration;
+}
+
+/** CR 613 — the stored `payload` of one entry, one branch per lowerable kind.
+ *  An unrecognised kind (or one whose required fields are missing) drops the
+ *  WHOLE entry: a registry entry with no payload does nothing, and seeding it
+ *  would be a row in the rebuilt registry that the live board never had. */
+function normalizeContinuousEffectPayload(
+    raw: unknown
+): ScenarioContinuousEffectPayload | undefined {
+    if (!isRecord(raw)) return undefined;
+    switch (pickString(raw.kind)) {
+        case "pt-modify": {
+            const power = pickNumber(raw.power);
+            const toughness = pickNumber(raw.toughness);
+            if (power === undefined || toughness === undefined)
+                return undefined;
+            return { kind: "pt-modify", power, toughness };
+        }
+        case "pt-set": {
+            // CR 613.4b sets power AND/OR toughness — Island of Wak-Wak sets
+            // power alone — so both halves stay independently optional, and an
+            // entry setting NEITHER is no entry at all.
+            const payload: ScenarioContinuousEffectPayload = { kind: "pt-set" };
+            set(payload, "power", pickNumber(raw.power));
+            set(payload, "toughness", pickNumber(raw.toughness));
+            if (
+                payload.power === undefined &&
+                payload.toughness === undefined
+            ) {
+                return undefined;
+            }
+            return payload;
+        }
+        case "pt-switch":
+            return { kind: "pt-switch" };
+        case "keyword-grant": {
+            const keyword = pickString(raw.keyword);
+            if (keyword === undefined) return undefined;
+            const payload: ScenarioContinuousEffectPayload = {
+                kind: "keyword-grant",
+                keyword,
+            };
+            const parameter = normalizeKeywordParameter(raw.parameter);
+            if (parameter) payload.parameter = parameter;
+            return payload;
+        }
+        case "keyword-remove": {
+            const keyword = pickString(raw.keyword);
+            if (keyword === undefined) return undefined;
+            return { kind: "keyword-remove", keyword };
+        }
+        case "ability-loss":
+            return { kind: "ability-loss" };
+        default:
+            return undefined;
+    }
+}
+
+/** CR 702 — a keyword grant's structured parameter. A malformed one is an
+ *  ABSENCE (an unparameterised keyword), never a dropped entry: `keyword`
+ *  stays the rendered form the ~ninety consult sites read, so the grant still
+ *  means something without it. */
+function normalizeKeywordParameter(
+    raw: unknown
+): ScenarioKeywordParameter | undefined {
+    if (!isRecord(raw)) return undefined;
+    switch (pickString(raw.kind)) {
+        case "protection": {
+            const qualities = pickStringArray(raw.qualities);
+            return qualities ? { kind: "protection", qualities } : undefined;
+        }
+        case "landwalk": {
+            const subtype = pickString(raw.subtype);
+            return subtype ? { kind: "landwalk", subtype } : undefined;
+        }
+        case "count": {
+            const count = pickNumber(raw.count);
+            return count === undefined ? undefined : { kind: "count", count };
+        }
+        default:
+            return undefined;
+    }
+}
+
 export function normalizeScenarioSpec(raw: unknown): ScenarioSpec {
     if (!isRecord(raw)) return { cards: [] };
     const cards = Array.isArray(raw.cards)
@@ -1464,6 +1858,17 @@ export function normalizeScenarioSpec(raw: unknown): ScenarioSpec {
         set(pair, "opp", pickRestrictedMana(raw.restrictedMana.opp));
         if (pair.me || pair.opp) spec.restrictedMana = pair;
     }
+    // CR 611.2a / 613 (issue #3488) — the registry entries a resolved spell
+    // left behind. Tolerant like every branch above: a malformed entry is
+    // skipped rather than thrown on, and a list that normalizes to nothing at
+    // all is left off the spec so it reads as the absence the builder defaults
+    // from (no entries seeded).
+    if (Array.isArray(raw.continuousEffects)) {
+        const entries = raw.continuousEffects
+            .map((entry) => normalizeContinuousEffect(entry))
+            .filter((entry): entry is ScenarioContinuousEffect => !!entry);
+        if (entries.length > 0) spec.continuousEffects = entries;
+    }
     if (isRecord(raw.companion)) {
         const name = pickString(raw.companion.name);
         if (name !== undefined) {
@@ -1540,6 +1945,20 @@ export function collectUnresolvedCardNames(
         ...(spec.combat?.blockedThisTurn?.opp ?? []),
     ]) {
         if (!resolves(name) && !resolvesToken(name)) unresolved.add(name);
+    }
+    // CR 611.2a (issue #3488) — the affected names of every lowered registry
+    // entry, resolved by the builder exactly as a combat name is and thrown on
+    // for the same reason: an entry whose permanent cannot be found would
+    // rebuild a board missing the pump the capture was ABOUT. Vouched here so
+    // an unloadable row is refused at WRITE rather than throwing at LOAD
+    // (ADR 0044).
+    for (const entry of spec.continuousEffects ?? []) {
+        for (const name of [
+            ...(entry.affected.me ?? []),
+            ...(entry.affected.opp ?? []),
+        ]) {
+            if (!resolves(name) && !resolvesToken(name)) unresolved.add(name);
+        }
     }
     return [...unresolved];
 }

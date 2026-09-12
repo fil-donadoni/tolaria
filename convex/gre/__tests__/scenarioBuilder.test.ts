@@ -31,13 +31,20 @@ import { cityOfBrass } from "../../cards/sets/arn/colorless";
 import { fatalPush } from "../../cards/sets/aer/black";
 import { startingTown } from "../../cards/sets/fin/colorless";
 import { forest } from "../../cards/sets/lea/colorless";
-import { animateDead, fear, simulacrum } from "../../cards/sets/lea/black";
+import {
+    animateDead,
+    fear,
+    scatheZombies,
+    simulacrum,
+    zombieMaster,
+} from "../../cards/sets/lea/black";
 import { onceUponATime } from "../../cards/sets/eld/green";
 import { grapeshot } from "../../cards/sets/tsp";
 import { tokenDefinitionId, tryGetDefinition } from "../../cards";
 import { findTokenSpec } from "../../cards/tokenCatalogue";
 import { projectFullState, projectPublicState } from "../../gameProjections";
 import {
+    addCounterToCard,
     animatePermanentAsCreature,
     applyColorOverrideToPermanent,
     buildSpellContext,
@@ -47,6 +54,7 @@ import {
 } from "../state";
 import { advancePhase } from "../phases";
 import { deriveLayer6 } from "../layer6";
+import { getEffectivePower, getEffectiveToughness } from "../layers";
 import { getEffectiveColors } from "../../cards/effectiveColors";
 import { mishrasFactory } from "../../cards/sets/atq/colorless";
 import { creepingTarPit } from "../../cards/sets/wwk/colorless";
@@ -1514,17 +1522,18 @@ describe("specFromState (issue #2148)", () => {
         expect(dropped.some((d) => d.startsWith("me's library:"))).toBe(true);
     });
 
-    it("reports a continuous effect (e.g. a temporary P/T buff) the spec has no field for", () => {
+    it("LOWERS a continuous effect (e.g. a temporary P/T buff) rather than reporting the whole registry (issue #3488)", () => {
         const base = makeState();
         const state = buildStateFromScenario(base, {
             cards: [{ name: grizzlyBears.name, owner: "me" }],
         });
         // CR 613.4c (ADR 0082, PRD #2064 S6) — an until-end-of-turn pump is a
-        // Continuous Effects Registry entry, so the residue it leaves is on the
-        // GAME state rather than on the permanent. `continuousEffects` is
-        // deliberately absent from `GAME_STATE_ALLOWLIST`: a scenario spec has
-        // no field that can express one, and silently rebuilding a board
-        // without the pump is exactly what this report exists to prevent.
+        // Continuous Effects Registry entry, so what it leaves is on the GAME
+        // state rather than on the permanent. Until issue #3488 the spec had no
+        // field for one and `continuousEffects` was deliberately absent from
+        // `GAME_STATE_ALLOWLIST`, so the whole registry surfaced as one blunt
+        // line. It is carried now — this case is kept, inverted, as the pin on
+        // that line never coming back.
         state.continuousEffects = [
             {
                 id: "ce-1",
@@ -1545,7 +1554,7 @@ describe("specFromState (issue #2148)", () => {
             },
         ];
 
-        const { dropped } = specFromState(state, {
+        const { spec, dropped } = specFromState(state, {
             mySeatId: state.players[0].id,
         });
 
@@ -1556,7 +1565,17 @@ describe("specFromState (issue #2148)", () => {
                     d.includes("live-only state not captured") &&
                     d.includes("continuousEffects")
             )
-        ).toBe(true);
+        ).toBe(false);
+        expect(spec.continuousEffects).toEqual([
+            {
+                layer: 7,
+                sublayer: "7c",
+                affected: { me: [grizzlyBears.name] },
+                controller: "me",
+                duration: { phase: "end-of-turn" },
+                payload: { kind: "pt-modify", power: 3, toughness: 3 },
+            },
+        ]);
     });
 
     // Review finding on issue #2148/PR #2866: `dropped[]` was exhaustive only
@@ -3878,5 +3897,563 @@ describe("scenario spec — an animated permanent (issue #3459)", () => {
         const animatedForest = findByDefId(rebuilt, 0, forest.id);
         expect(animatedForest?.types).toEqual(["Land", "Creature"]);
         expect(animatedForest?.colorOverride).toBeUndefined();
+    });
+});
+
+describe("scenario spec — the Continuous Effects Registry (issue #3488)", () => {
+    /** A live board with ONE Grizzly Bears on "me"'s battlefield, plus a
+     *  SpellContext for a Giant Growth that has already been put on the stack —
+     *  the shape every case below starts from, because every registry entry
+     *  this slice lowers is written by a resolving spell (CR 611.2a). The stack
+     *  is emptied afterwards: the spell has RESOLVED, which is the whole reason
+     *  its effect cannot be walked back to. */
+    function boardWithResolvingSpell() {
+        const state = buildStateFromScenario(makeState(), {
+            cards: [{ name: grizzlyBears.name, owner: "me" }],
+            phase: "PRECOMBAT_MAIN",
+        });
+        const bear = state.players[0].battlefield[0];
+        const ctx = buildSpellContext(
+            state,
+            pushSpell(state, giantGrowth.id, state.players[0].id)
+        );
+        const target = { type: "permanent", id: bear.id } as const;
+        return { state, bear, ctx, target };
+    }
+
+    /** CR 514.2 — walk the game through the engine's OWN phase progression
+     *  until the turn rolls over, so an `end-of-turn` duration is ended by the
+     *  boundary tick that ends one in a real game. Never `tickAllDurations` by
+     *  hand and never the spec read back: the acceptance criterion is that the
+     *  REBUILT game ends the effect, not that the field survived. */
+    function advanceThroughCleanup(state: GameState): void {
+        const startingTurn = state.turn;
+        for (let i = 0; i < 40 && state.turn === startingTurn; i++) {
+            advancePhase(state);
+        }
+        expect(state.turn).toBeGreaterThan(startingTurn);
+    }
+
+    it("round-trips a resolved pump and ends it at its stated boundary (CR 611.2a / 613.4c)", () => {
+        const { state, bear, ctx, target } = boardWithResolvingSpell();
+        ctx.addTemporaryPTBuff(target, 3, 3, { phase: "end-of-turn" });
+        state.stack = [];
+        expect(getEffectivePower(state, bear)).toBe(5);
+
+        const { spec, dropped } = specFromState(state, {
+            mySeatId: state.players[0].id,
+        });
+        // The blunt whole-field line this replaced.
+        expect(dropped.some((d) => d.includes("continuousEffects"))).toBe(
+            false
+        );
+        // Referenced by PRESENTED NAME, per seat — never by an instance id the
+        // rebuild reassigns.
+        expect(spec.continuousEffects).toEqual([
+            {
+                layer: 7,
+                sublayer: "7c",
+                affected: { me: [grizzlyBears.name] },
+                controller: "me",
+                duration: { phase: "end-of-turn" },
+                payload: { kind: "pt-modify", power: 3, toughness: 3 },
+            },
+        ]);
+
+        const rebuilt = buildStateFromScenario(makeState(), spec);
+        const rebuiltBear = rebuilt.players[0].battlefield[0];
+        // Read through the engine's effective-characteristic path, never by
+        // inspecting a field: the pump is a registry entry, not a stored P/T.
+        expect(getEffectivePower(rebuilt, rebuiltBear)).toBe(5);
+        expect(getEffectiveToughness(rebuilt, rebuiltBear)).toBe(5);
+
+        advanceThroughCleanup(rebuilt);
+        expect(getEffectivePower(rebuilt, rebuiltBear)).toBe(2);
+        expect(getEffectiveToughness(rebuilt, rebuiltBear)).toBe(2);
+    });
+
+    it("round-trips an until-end-of-turn keyword grant and ends it the same way (CR 613.1f)", () => {
+        const { state, bear, ctx, target } = boardWithResolvingSpell();
+        ctx.grantStaticAbility(target, "flying", { phase: "end-of-turn" });
+        state.stack = [];
+        expect(bear.staticAbilities).toContain("flying");
+
+        const { spec, dropped } = specFromState(state, {
+            mySeatId: state.players[0].id,
+        });
+        expect(dropped.some((d) => d.includes("continuousEffects"))).toBe(
+            false
+        );
+        expect(spec.continuousEffects).toEqual([
+            {
+                layer: 6,
+                affected: { me: [grizzlyBears.name] },
+                controller: "me",
+                duration: { phase: "end-of-turn" },
+                payload: { kind: "keyword-grant", keyword: "flying" },
+            },
+        ]);
+
+        const rebuilt = buildStateFromScenario(makeState(), spec);
+        const rebuiltBear = rebuilt.players[0].battlefield[0];
+        // `staticAbilities` is the COMPOSED multiset the ~90 consult sites
+        // read; a seeded entry the derivation never ran over would be invisible
+        // to combat however correct the registry row was.
+        expect(rebuiltBear.staticAbilities).toContain("flying");
+
+        advanceThroughCleanup(rebuilt);
+        expect(rebuilt.players[0].battlefield[0].staticAbilities).not.toContain(
+            "flying"
+        );
+    });
+
+    it("round-trips an INDEFINITE entry, which no boundary ends (CR 611.2a)", () => {
+        const { state, ctx, target } = boardWithResolvingSpell();
+        // CR 613.4b — a layer-7b base-P/T set with no duration stated: it
+        // "lasts until the end of the game", so it is an `indefinite` expiry
+        // and the spec carries it as an ABSENT `duration`.
+        ctx.setBasePT(target, 5, 5, "indefinite");
+        state.stack = [];
+
+        const { spec } = specFromState(state, {
+            mySeatId: state.players[0].id,
+        });
+        expect(spec.continuousEffects).toEqual([
+            {
+                layer: 7,
+                sublayer: "7b",
+                affected: { me: [grizzlyBears.name] },
+                controller: "me",
+                payload: { kind: "pt-set", power: 5, toughness: 5 },
+            },
+        ]);
+
+        const rebuilt = buildStateFromScenario(makeState(), spec);
+        const rebuiltBear = rebuilt.players[0].battlefield[0];
+        expect(getEffectivePower(rebuilt, rebuiltBear)).toBe(5);
+        advanceThroughCleanup(rebuilt);
+        expect(getEffectivePower(rebuilt, rebuiltBear)).toBe(5);
+    });
+
+    it("does NOT lower a counter-borne grant — the rebuild re-derives it from the counters the spec already carries (CR 122.1b)", () => {
+        const state = buildStateFromScenario(makeState(), {
+            cards: [{ name: grizzlyBears.name, owner: "me" }],
+        });
+        addCounterToCard(state, state.players[0].battlefield[0], "flying", 1);
+
+        const { spec, dropped } = specFromState(state, {
+            mySeatId: state.players[0].id,
+        });
+        // Minimality: restating the grant would rebuild a shape
+        // `specFromState` never writes, and the counter is already lowered.
+        expect(spec.continuousEffects).toBeUndefined();
+        expect(spec.cards[0].counters).toEqual({ flying: 1 });
+        expect(dropped.some((d) => d.includes("continuousEffects"))).toBe(
+            false
+        );
+
+        const rebuilt = buildStateFromScenario(makeState(), spec);
+        const rebuiltBear = rebuilt.players[0].battlefield[0];
+        expect(rebuiltBear.staticAbilities).toContain("flying");
+        // Re-DERIVED, not restated: the rebuilt entry carries the same
+        // `counter` expiry a live one does, so removing the last counter ends
+        // it exactly as it would have live.
+        expect(rebuilt.continuousEffects).toEqual([
+            expect.objectContaining({
+                expiry: {
+                    kind: "counter",
+                    permanentId: rebuiltBear.id,
+                    counterType: "flying",
+                },
+            }),
+        ]);
+    });
+
+    it("REPORTS a keyword counter on a card outside the battlefield, which the rebuild does not reproduce (CR 122.1b)", () => {
+        // CR 122.1b is "a keyword counter on a permanent OR ON A CARD IN A ZONE
+        // OTHER THAN THE BATTLEFIELD", and `addCounterToCard` is zone-agnostic
+        // — but `buildStateFromScenario` seeds `counters` onto battlefield
+        // placements only, so the counter itself does not survive and the
+        // replay has nothing to read. Reported by the counter it names rather
+        // than swallowed by the expiry KIND, which is the difference between a
+        // known gap and a silent one.
+        const state = buildStateFromScenario(makeState(), {
+            cards: [
+                { name: grizzlyBears.name, owner: "me", zone: "graveyard" },
+            ],
+        });
+        addCounterToCard(state, state.players[0].graveyard[0], "flying", 1);
+        expect(state.continuousEffects).toHaveLength(1);
+
+        const { spec, dropped } = specFromState(state, {
+            mySeatId: state.players[0].id,
+        });
+        expect(spec.continuousEffects).toBeUndefined();
+        expect(dropped).toContainEqual(
+            expect.stringContaining('borne by a "flying" counter')
+        );
+        // The battlefield twin of the same board says nothing, so the report
+        // is about the ZONE and not about counters in general.
+        const onBoard = buildStateFromScenario(makeState(), {
+            cards: [{ name: grizzlyBears.name, owner: "me" }],
+        });
+        addCounterToCard(
+            onBoard,
+            onBoard.players[0].battlefield[0],
+            "flying",
+            1
+        );
+        expect(
+            specFromState(onBoard, { mySeatId: onBoard.players[0].id }).dropped
+        ).toEqual([]);
+    });
+
+    it("does NOT lower a source-expiry grant — beginApplyingStaticEffects re-derives it (CR 604.1)", () => {
+        const state = buildStateFromScenario(makeState(), {
+            cards: [
+                { name: zombieMaster.name, owner: "me" },
+                { name: scatheZombies.name, owner: "me" },
+            ],
+        });
+        const zombie = state.players[0].battlefield.find(
+            (c) => (c.card as { id: string }).id === scatheZombies.id
+        )!;
+        expect(zombie.staticAbilities).toContain("swampwalk");
+
+        const { spec, dropped } = specFromState(state, {
+            mySeatId: state.players[0].id,
+        });
+        expect(spec.continuousEffects).toBeUndefined();
+        expect(dropped.some((d) => d.includes("continuousEffects"))).toBe(
+            false
+        );
+
+        const rebuilt = buildStateFromScenario(makeState(), spec);
+        const rebuiltZombie = rebuilt.players[0].battlefield.find(
+            (c) => (c.card as { id: string }).id === scatheZombies.id
+        )!;
+        expect(rebuiltZombie.staticAbilities).toContain("swampwalk");
+    });
+
+    it("round-trips an entry on the OPPONENT's board, controller and boundary and all (CR 611.2c)", () => {
+        // Every other case here is `me`-on-`me`. The seat mapping has four
+        // independent arms — which battlefield a name is resolved on, whose id
+        // the controller becomes, whose boundary the duration counts, and the
+        // inverse of each — and a swapped ternary in any of them would stay
+        // green on a one-sided board.
+        const state = buildStateFromScenario(makeState(), {
+            cards: [{ name: grizzlyBears.name, owner: "opp" }],
+            phase: "PRECOMBAT_MAIN",
+        });
+        const [me, opp] = state.players;
+        const bear = opp.battlefield[0];
+        // CR 611.2c — the controller of the effect is the seat whose spell
+        // made it, NOT the affected permanent's controller.
+        const ctx = buildSpellContext(
+            state,
+            pushSpell(state, giantGrowth.id, me.id)
+        );
+        ctx.addTemporaryPTBuff(
+            { type: "permanent", id: bear.id } as const,
+            3,
+            3,
+            {
+                phase: "end-of-turn",
+                player: "opponent",
+            }
+        );
+        state.stack = [];
+
+        const { spec } = specFromState(state, { mySeatId: me.id });
+        expect(spec.continuousEffects).toEqual([
+            {
+                layer: 7,
+                sublayer: "7c",
+                affected: { opp: [grizzlyBears.name] },
+                controller: "me",
+                duration: { phase: "end-of-turn", player: "opp" },
+                payload: { kind: "pt-modify", power: 3, toughness: 3 },
+            },
+        ]);
+
+        const rebuilt = buildStateFromScenario(makeState(), spec);
+        const rebuiltBear = rebuilt.players[1].battlefield[0];
+        expect(rebuilt.players[0].battlefield).toEqual([]);
+        expect(getEffectivePower(rebuilt, rebuiltBear)).toBe(5);
+        expect(rebuilt.continuousEffects).toEqual([
+            expect.objectContaining({
+                expiry: {
+                    kind: "duration",
+                    duration: {
+                        phase: "end-of-turn",
+                        playerId: rebuilt.players[1].id,
+                    },
+                    controllerId: rebuilt.players[0].id,
+                },
+            }),
+        ]);
+    });
+
+    it("refuses an entry a NAME cannot be exact about — two same-named permanents, one of them affected", () => {
+        // A repeated name names a second instance, which makes a name exact
+        // within ONE list. It is not exact ACROSS entries: the builder resolves
+        // each entry against a fresh allocation, so both would bind the FIRST
+        // bear and the pump would rebuild on the wrong body — with nothing
+        // downstream able to see it.
+        const state = buildStateFromScenario(makeState(), {
+            cards: [{ name: grizzlyBears.name, owner: "me", count: 2 }],
+            phase: "PRECOMBAT_MAIN",
+        });
+        const [me] = state.players;
+        const second = me.battlefield[1];
+        const ctx = buildSpellContext(
+            state,
+            pushSpell(state, giantGrowth.id, me.id)
+        );
+        ctx.addTemporaryPTBuff(
+            { type: "permanent", id: second.id } as const,
+            3,
+            3,
+            {
+                phase: "end-of-turn",
+            }
+        );
+        state.stack = [];
+
+        const { spec, dropped } = specFromState(state, { mySeatId: me.id });
+        expect(spec.continuousEffects).toBeUndefined();
+        expect(dropped).toContainEqual(
+            expect.stringContaining(`1 of the 2 "${grizzlyBears.name}"`)
+        );
+
+        // The discriminating half: an entry naming EVERY instance of the name
+        // is exact, and IS lowered — the refusal is about ambiguity, not about
+        // the board holding two of something.
+        const both = buildStateFromScenario(makeState(), {
+            cards: [{ name: grizzlyBears.name, owner: "me", count: 2 }],
+            phase: "PRECOMBAT_MAIN",
+        });
+        const bothCtx = buildSpellContext(
+            both,
+            pushSpell(both, giantGrowth.id, both.players[0].id)
+        );
+        for (const card of both.players[0].battlefield) {
+            bothCtx.addTemporaryPTBuff(
+                { type: "permanent", id: card.id } as const,
+                1,
+                1,
+                {
+                    phase: "end-of-turn",
+                }
+            );
+        }
+        // One effect, both bears — the shape a "creatures you control get
+        // +1/+1 until end of turn" leaves (CR 611.2c).
+        both.continuousEffects = [
+            {
+                ...both.continuousEffects![0],
+                affected: {
+                    kind: "instances",
+                    instanceIds: both.players[0].battlefield.map((c) => c.id),
+                },
+            },
+        ];
+        both.stack = [];
+        const lowered = specFromState(both, { mySeatId: both.players[0].id });
+        expect(lowered.spec.continuousEffects?.[0].affected).toEqual({
+            me: [grizzlyBears.name, grizzlyBears.name],
+        });
+        const rebuiltBoth = buildStateFromScenario(makeState(), lowered.spec);
+        for (const card of rebuiltBoth.players[0].battlefield) {
+            expect(getEffectivePower(rebuiltBoth, card)).toBe(3);
+        }
+    });
+
+    it("refuses an entry on a FACE-DOWN permanent, which has no card name to reference (CR 708.2)", () => {
+        // Not merely degraded if it were lowered: the face-down permanent
+        // presents as the CR 708.2 sentinel, `collectUnresolvedCardNames`
+        // refuses the whole row at write, and `buildStateFromScenario` throws
+        // at load — the capture becomes uncapturable.
+        const state = buildStateFromScenario(makeState(), {
+            cards: [{ name: grizzlyBears.name, owner: "me", faceDown: true }],
+            phase: "PRECOMBAT_MAIN",
+        });
+        const [me] = state.players;
+        const ctx = buildSpellContext(
+            state,
+            pushSpell(state, giantGrowth.id, me.id)
+        );
+        ctx.addTemporaryPTBuff(
+            { type: "permanent", id: me.battlefield[0].id } as const,
+            3,
+            3,
+            { phase: "end-of-turn" }
+        );
+        state.stack = [];
+
+        const { spec, dropped } = specFromState(state, { mySeatId: me.id });
+        expect(spec.continuousEffects).toBeUndefined();
+        expect(dropped).toContainEqual(
+            expect.stringContaining("FACE-DOWN permanent")
+        );
+        // And the spec it DID produce still loads.
+        expect(() => buildStateFromScenario(makeState(), spec)).not.toThrow();
+    });
+
+    it("survives the wire projection — a seeded grant reaches the client's own engine run", () => {
+        // `projectPublicState` strips fat fields and derives the client's
+        // keyword multiset from the registry (PRD #2064 S5). A seeded entry the
+        // projection did not carry would be a grant the server applies and the
+        // client cannot see, which is the silent half of every wiring bug.
+        const state = buildStateFromScenario(makeState(), {
+            cards: [{ name: grizzlyBears.name, owner: "me" }],
+            continuousEffects: [
+                {
+                    layer: 6,
+                    affected: { me: [grizzlyBears.name] },
+                    controller: "me",
+                    duration: { phase: "end-of-turn" },
+                    payload: { kind: "keyword-grant", keyword: "flying" },
+                },
+            ],
+        });
+        const projected = projectPublicState(state, 1, state.players[0].id);
+        expect(projected.players[0].battlefield[0].staticAbilities).toContain(
+            "flying"
+        );
+    });
+
+    it("reports an inexpressible entry BY ITSELF — its layer, its expiry kind and the permanent it affects", () => {
+        const { state, bear, ctx } = boardWithResolvingSpell();
+        // CR 613.1d layer 4 — a `type-change` payload with a stated duration.
+        // Not lowered: `CONTINUOUS_EFFECT_PAYLOAD_DISPOSITION` classifies it
+        // `reported`, and the point of this case is that the refusal names the
+        // ENTRY rather than the whole field.
+        ctx.addContinuousEffect({
+            layer: 4,
+            affected: { kind: "instances", instanceIds: [bear.id] },
+            expiry: {
+                kind: "duration",
+                duration: { phase: "end-of-turn" },
+                controllerId: state.players[0].id,
+            },
+            payload: { kind: "type-change", add: ["Artifact"] },
+            characteristicDefining: false,
+        });
+        state.stack = [];
+
+        const { spec, dropped } = specFromState(state, {
+            mySeatId: state.players[0].id,
+        });
+        expect(spec.continuousEffects).toBeUndefined();
+        expect(dropped).toContainEqual(
+            expect.stringContaining(
+                `layer 4 type-change, duration expiry, on ${grizzlyBears.name} (me)`
+            )
+        );
+        // And NOT the blunt whole-field line, which said the same thing about
+        // every board that had any registry entry at all.
+        expect(
+            dropped.some((d) =>
+                d.includes("live-only state not captured (continuousEffects")
+            )
+        ).toBe(false);
+    });
+
+    it("leaves an ANIMATION's keyword half to the animation itself, so the rebuild grants it ONCE (issue #3459)", () => {
+        // `animateAsCreature` writes its granted keywords as ordinary layer-6
+        // registry entries, and issue #3459 lowers the animate CALL, whose
+        // re-execution writes them again. Lowering the entries here too would
+        // push each grant TWICE — and the second copy would outlive the
+        // animation's own revert, leaving a Land with trample, a shape no live
+        // board can hold. One producer per effect: the animation's.
+        const state = buildStateFromScenario(makeState(), {
+            cards: [{ name: forest.name, owner: "me" }],
+            phase: "PRECOMBAT_MAIN",
+        });
+        const [me] = state.players;
+        const land = me.battlefield[0];
+        const ctx = buildSpellContext(
+            state,
+            pushSpell(state, giantGrowth.id, me.id)
+        );
+        ctx.animateAsCreature({ type: "permanent", id: land.id } as const, {
+            power: 3,
+            toughness: 3,
+            subtype: "Elemental",
+            grantedAbilities: ["trample"],
+            duration: { phase: "end-of-turn" },
+        });
+        state.stack = [];
+        expect(land.types).toContain("Creature");
+        expect(land.staticAbilities).toContain("trample");
+
+        const { spec } = specFromState(state, { mySeatId: me.id });
+        // The animation's own field carries the CALL (issue #3459), and
+        // re-executing it regenerates the grant — so lowering the entry too
+        // would push it TWICE.
+        expect(spec.cards[0].animated).toBeDefined();
+        expect(spec.continuousEffects).toBeUndefined();
+
+        const rebuilt = buildStateFromScenario(makeState(), spec);
+        const rebuiltLand = rebuilt.players[0].battlefield[0];
+        expect(rebuiltLand.types).toContain("Creature");
+        // CR 113.1 — ONE occurrence, from the re-executed animation. A second
+        // entry would be a grant the live board never had, and would outlive
+        // the animation's own revert.
+        expect(
+            rebuilt.continuousEffects?.filter(
+                (e) =>
+                    e.payload.kind === "keyword-grant" &&
+                    e.payload.keyword === "trample"
+            )
+        ).toHaveLength(1);
+        expect(rebuiltLand.staticAbilities).toContain("trample");
+    });
+
+    it("declares the CR 613.7 ordering loss the rebuild actually creates, and stays silent when nothing is contested", () => {
+        const { state, bear, ctx } = boardWithResolvingSpell();
+        // CR 613.1f — "loses all abilities", indefinite, stamped FIRST...
+        ctx.addContinuousEffect({
+            layer: 6,
+            affected: { kind: "instances", instanceIds: [bear.id] },
+            expiry: { kind: "indefinite", controllerId: state.players[0].id },
+            payload: { kind: "ability-loss" },
+            characteristicDefining: false,
+        });
+        // ...then a flying counter (CR 122.1b), stamped SECOND, so live it
+        // outranks the strip and the creature HAS flying.
+        addCounterToCard(state, bear, "flying", 1);
+        state.stack = [];
+        expect(bear.staticAbilities).toContain("flying");
+
+        const { spec, dropped } = specFromState(state, {
+            mySeatId: state.players[0].id,
+        });
+        // The strip is lowered; the counter grant is rebuild behaviour and is
+        // re-derived — which the builder does BEFORE it seeds the registry, so
+        // the two come back in the opposite order.
+        expect(spec.continuousEffects).toHaveLength(1);
+        expect(dropped).toContainEqual(expect.stringContaining("CR 613.7"));
+
+        // The same board WITHOUT the counter contests nothing, and says
+        // nothing: a report that fired for every board carrying any two
+        // effects would be the blunt line this slice retired, one field over.
+        const {
+            state: solo,
+            bear: soloBear,
+            ctx: soloCtx,
+        } = boardWithResolvingSpell();
+        soloCtx.addContinuousEffect({
+            layer: 6,
+            affected: { kind: "instances", instanceIds: [soloBear.id] },
+            expiry: { kind: "indefinite", controllerId: solo.players[0].id },
+            payload: { kind: "ability-loss" },
+            characteristicDefining: false,
+        });
+        solo.stack = [];
+        expect(
+            specFromState(solo, { mySeatId: solo.players[0].id }).dropped
+        ).not.toContainEqual(expect.stringContaining("CR 613.7"));
     });
 });

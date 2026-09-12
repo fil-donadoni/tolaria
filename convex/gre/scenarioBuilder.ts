@@ -43,13 +43,15 @@ function getCardByName(name: string) {
     }
     return def;
 }
-import { INDEFINITE_SOURCE_ID } from "./layer6";
+import { ensureLayer6Base, INDEFINITE_SOURCE_ID, syncLayer6 } from "./layer6";
 import { basicLandsForColors, getCardColors } from "../cards/colors";
 import { findTokenSpec, listTokenCatalogue } from "../cards/tokenCatalogue";
 import type { AnimateSpec, CardType, Color } from "../cards/types";
 import {
     resolveScenarioBattlefieldCounters,
     type ScenarioCard,
+    type ScenarioContinuousEffect,
+    type ScenarioContinuousEffectPayload,
     type ScenarioRestrictedMana,
     type ScenarioSpec,
 } from "../debugScenarioSpec";
@@ -61,11 +63,20 @@ import {
     type RestrictedMana,
     allocInstanceId,
     animatePermanentAsCreature,
+    applyKeywordCounterGrant,
     beginApplyingStaticEffects,
     createTokenPermanents,
     exileFaceDownCard,
     getOpponentId,
+    pushContinuousEffect,
 } from "./state";
+import type {
+    ContinuousEffect,
+    ContinuousEffectExpiry,
+    ContinuousEffectPayload,
+    ContinuousEffectSlot,
+} from "./continuousEffects";
+import { getKeywordCounterGrant } from "../cards/mechanicsRegistry";
 import { applyCopy } from "./copy";
 import { refreshOffBattlefieldCharacteristics } from "./zoneCharacteristics";
 import { resolveEntersWithCounters } from "../cards/entersWith";
@@ -949,6 +960,39 @@ export function buildStateFromScenario(
         animatePermanentAsCreature(state, card, animateSpec, card.controllerId);
     }
 
+    // CR 122.1b / 613.7c (issue #3488) — replay the KEYWORD-COUNTER grants the
+    // placement loop bypassed. A counter's grant is a registry entry with a
+    // `counter` expiry, written by `applyKeywordCounterGrant` on the 0 →
+    // present transition of `addCounterToCard`; the placement loop assigns
+    // `card.counters` directly instead (deliberately — a scenario PLACES a
+    // position, so it must not fire the CR 121.1 `COUNTER_ADDED` events a
+    // played counter would), which left a rebuilt permanent carrying a flying
+    // counter that granted nothing at all.
+    //
+    // This is what makes `counter` expiry genuinely REBUILD BEHAVIOUR rather
+    // than an assumption, and therefore what lets `specFromState` leave those
+    // entries out of `spec.continuousEffects` without losing them: the spec
+    // already carries the counters, and the grant derives from them here.
+    // Idempotent (`findKeywordCounterEntry`) and a no-op for a counter type
+    // that grants no keyword, so the pass costs nothing on an ordinary board.
+    // BATTLEFIELD only, though CR 122.1b is "a keyword counter on a permanent
+    // OR ON A CARD IN A ZONE OTHER THAN THE BATTLEFIELD" and
+    // `addCounterToCard` writes the entry in all of them: the placement loop
+    // above seeds `counters` onto the battlefield branch alone, so a graveyard
+    // card's counters do not survive the round trip in the first place and a
+    // replay there would have nothing to read. The lowering REPORTS such an
+    // entry rather than pretending it is rebuild behaviour
+    // (`rebuiltByCounterReplay`), which is the honest shape until the counter
+    // itself is lowered for every zone.
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            for (const [type, count] of Object.entries(card.counters ?? {})) {
+                if (count > 0) applyKeywordCounterGrant(state, card, type);
+            }
+        }
+    }
+    syncLayer6(state);
+
     // The placement loop bypasses ETB triggers, so "as ~ enters, choose an
     // opponent" (Cursed Rack, The Rack — #292) never resolved. Auto-pick
     // the controller's opponent so the scenario exercises the stored choice
@@ -1294,6 +1338,14 @@ export function buildStateFromScenario(
     // CR 508.1 / 509.1 (issue #3458) — a combat that has already been
     // declared, seeded LAST so the turn holder (`spec.activePlayer`) and every
     // permanent it names are final.
+    // CR 611.2a / 613 (issue #3488) — the registry entries a RESOLVED spell
+    // left behind. BEFORE the combat below, though both need only that every
+    // permanent is placed: a declared combat is the one seeding step that
+    // reads a permanent's CHARACTERISTICS (`validateDeclaredBlockers`), and it
+    // must read the ones the captured position had rather than the printed
+    // ones. Nothing here needs the combat.
+    seedContinuousEffects(state, spec);
+
     seedDeclaredCombat(state, spec);
 
     refreshOffBattlefieldCharacteristics(state);
@@ -1493,6 +1545,119 @@ function seedDeclaredCombat(state: GameState, spec: ScenarioSpec): void {
             card.hasBlockedThisTurn = true;
         }
     }
+}
+
+/**
+ * CR 611.2a / 613 (issue #3488, PRD #3397) — seed the Continuous Effects
+ * Registry entries a spell or ability left behind when it RESOLVED.
+ *
+ * These are the entries no rebuild can re-derive. A `source` entry comes back
+ * from `beginApplyingStaticEffects` walking the battlefield, a `counter` entry
+ * from `applyKeywordCounterGrant` over the counters `cards` already carries,
+ * and a `while-source-tapped` entry from the affected permanent's own
+ * `sourceTappedPTMods`. A `duration` or `indefinite` entry's spell has LEFT:
+ * there is no source to walk, so without this the combat maths a captured
+ * verdict is ABOUT — a resolved "+3/+3 until end of turn" — rebuilt at printed
+ * values and the position posed a different question under the same name.
+ *
+ * PUSHED through the engine's own write path (`pushContinuousEffect`), never
+ * assembled as a `ContinuousEffect` literal here: that is what gives a seeded
+ * entry the same minted `ce-N` id and the same CR 613.7 layer stamp a live one
+ * has. It is the standing convention of this builder (`markAttacking`,
+ * `turnFaceDown`, `beginApplyingStaticEffects`), for the reason issue #1195
+ * recorded: a state hand-built beside a primitive is a state the primitive's
+ * invariants do not hold for.
+ *
+ * CR 613.7 — the stamps are RE-MINTED, so an entry lands above every source
+ * stamp on the rebuilt board where live it may have sat below. That loss is
+ * declared by `specFromState` rather than pinned; the reasoning is issue
+ * #3459's triage decision 4 — preserving one absolute number inside a
+ * renumbered space conserves nothing, and preserving the relative ORDER means
+ * lowering the registry's whole ordering, which is a different and much larger
+ * piece of work.
+ *
+ * COHERENCE is the caller's job here as everywhere else in this builder: an
+ * entry naming a permanent that is not on the battlefield it names it on is a
+ * THROW (`resolveCombatants`), never a silently shorter registry — a rebuild
+ * missing the pump it was captured for is a different position under the same
+ * label, and the verdict quiz would report it as an unexplained
+ * `different-decision` far from the cause.
+ */
+function seedContinuousEffects(state: GameState, spec: ScenarioSpec): void {
+    const entries = spec.continuousEffects;
+    if (!entries?.length) return;
+    const [p1, p2] = state.players;
+    let seededLayer6 = false;
+    for (const entry of entries) {
+        const affected: CardInstanceState[] = [
+            ...resolveCombatants(
+                [p1.battlefield],
+                entry.affected.me ?? [],
+                "a continuous effect's affected permanent (me)"
+            ),
+            ...resolveCombatants(
+                [p2.battlefield],
+                entry.affected.opp ?? [],
+                "a continuous effect's affected permanent (opp)"
+            ),
+        ];
+        if (affected.length === 0) continue;
+        const controllerId = entry.controller === "me" ? p1.id : p2.id;
+        if (entry.layer === 6) {
+            // CR 613.1f — capture the pre-layer-6 keyword base BEFORE the
+            // entry exists, exactly as every live producer does: after the
+            // push, `staticAbilities` is a COMPOSED multiset and a base
+            // captured from it would freeze this grant into the base.
+            for (const card of affected) ensureLayer6Base(card);
+            seededLayer6 = true;
+        }
+        const slot =
+            entry.layer === 7
+                ? ({ layer: 7, sublayer: entry.sublayer } as const)
+                : ({ layer: entry.layer } as const);
+        pushContinuousEffect(state, {
+            ...slot,
+            affected: {
+                kind: "instances",
+                instanceIds: affected.map((card) => card.id),
+            },
+            expiry: scenarioExpiry(state, entry, controllerId),
+            payload: entry.payload,
+            characteristicDefining: entry.characteristicDefining ?? false,
+        });
+    }
+    // CR 613.1f — `staticAbilities` is the composed multiset ~90 consult sites
+    // read, and it is written by the derivation, not by the push. Without this
+    // a seeded until-end-of-turn flying grant would sit in the registry and be
+    // invisible to combat until the next stable transition recomputed it.
+    if (seededLayer6) syncLayer6(state);
+}
+
+/** CR 611.2a — the expiry one lowered entry rebuilds with. An absent
+ *  `duration` is "if no duration is stated, it lasts until the end of the
+ *  game" (the `indefinite` expiry), the same reading an omitted `duration`
+ *  already gets in the engine's own animate primitive (CR 611.2b).
+ *
+ *  `controllerId` rides on BOTH variants, and on no other: the controller of a
+ *  continuous effect from a resolving spell is fixed when the effect is
+ *  created (CR 611.2c) and the spell is gone, so it is stored rather than read
+ *  off a live source. */
+function scenarioExpiry(
+    state: GameState,
+    entry: ScenarioContinuousEffect,
+    controllerId: string
+): ContinuousEffectExpiry {
+    if (!entry.duration) return { kind: "indefinite", controllerId };
+    const duration: Duration = { phase: entry.duration.phase };
+    if (entry.duration.skip !== undefined) duration.skip = entry.duration.skip;
+    if (entry.duration.player !== undefined) {
+        // Seats, never stored player ids: every rebuild reassigns them.
+        duration.playerId =
+            entry.duration.player === "me"
+                ? state.players[0].id
+                : state.players[1].id;
+    }
+    return { kind: "duration", duration, controllerId };
 }
 
 // ---- specFromState — lower a live position into a ScenarioSpec (#2148) ----
@@ -2781,6 +2946,14 @@ export const GAME_STATE_ALLOWLIST = new Set<string>([
     // position where the live value is load-bearing, a capture taken in the
     // CR 514.3a priority window itself, gets its own bespoke report below.
     "cleanupBookkeepingTurn",
+    // CR 611.2a / 613 (issue #3488) — the Continuous Effects Registry, lowered
+    // into `spec.continuousEffects` for the two provenances a resolved spell
+    // leaves behind and reported PER ENTRY for everything else
+    // (`lowerContinuousEffects`). Allowlisted for the shape that round-trips,
+    // like `abilityResolutionCounts` and `drawnThisTurn`: the blanket line this
+    // replaced named the whole field and fired identically for a board
+    // carrying nothing that matters and for one whose decisive pump was gone.
+    "continuousEffects",
     // Wire-projection-only addition — see this Set's doc comment.
     "seq",
 ]);
@@ -2869,6 +3042,499 @@ export const RESTRICTED_MANA_KEY_DISPOSITION = {
      *  reported in `dropped` rather than lowered. */
     castableCardId: "reported",
 } as const satisfies Record<keyof RestrictedMana, "lowered" | "reported">;
+
+/** CR 613 (issue #3488) — which registry PAYLOADS a presented card name can
+ *  carry whole, and which ones `specFromState` reports per entry instead.
+ *
+ *  `satisfies Record<ContinuousEffectPayload["kind"], …>` so a payload kind
+ *  added to the engine union reds `tsc` here until this lowering makes the
+ *  call — the `RESTRICTED_MANA_KEY_DISPOSITION` precedent (issue #3460), and
+ *  the reason a widening cannot quietly start round-tripping as an absence.
+ *
+ *  The split is not about complexity but about REFERENCE: every `reported`
+ *  member points back at an object the rebuild has no id for. A `template`
+ *  payload indexes its source card's own `staticEffects[]`, which is
+ *  meaningless once the source has left; `activated-grant` / `triggered-grant`
+ *  name an ability on a definition whose grant template the rebuild never
+ *  installed; and the layer 2-5 payloads (`control-change`, `text-change`, the
+ *  type / subtype / supertype / colour changes) are shapes no push site in the
+ *  engine writes with a `duration` or `indefinite` expiry today — lowering
+ *  them would be a vocabulary with no producer and no test. */
+export const CONTINUOUS_EFFECT_PAYLOAD_DISPOSITION = {
+    // CR 613.4b-d — layer 7's three P/T shapes. Scalars, and the decisive
+    // ones: a resolved "+3/+3 until end of turn" is the combat maths a
+    // captured verdict is ABOUT.
+    "pt-modify": "lowered",
+    "pt-set": "lowered",
+    "pt-switch": "lowered",
+    // CR 613.1f — layer 6, keyword in / keyword out / everything out. The
+    // grant carries its STRUCTURED parameter (CR 702) rather than a
+    // pre-rendered string, so a rebuilt "protection from red" renders through
+    // `renderKeyword` exactly as the live one did.
+    "keyword-grant": "lowered",
+    "keyword-remove": "lowered",
+    "ability-loss": "lowered",
+    template: "reported",
+    "activated-grant": "reported",
+    "triggered-grant": "reported",
+    "control-change": "reported",
+    "text-change": "reported",
+    "type-change": "reported",
+    "subtype-change": "reported",
+    "supertype-change": "reported",
+    "color-change": "reported",
+} as const satisfies Record<
+    ContinuousEffectPayload["kind"],
+    "lowered" | "reported"
+>;
+
+/** CR 611.2 (issue #3488) — what the ROUND TRIP does with each expiry kind.
+ *
+ *  - `duration` / `indefinite` — LOWERED. The spell has left; nothing on the
+ *    rebuilt board could re-derive them, which is this slice's whole subject.
+ *  - `counter` — REBUILT, and by construction rather than by assumption:
+ *    `buildStateFromScenario` calls `applyKeywordCounterGrant` over the
+ *    counters `cards` already carries (CR 122.1b). An entry that pass does NOT
+ *    reproduce — a card-authored counter-gated effect (ICE Dread Wight's
+ *    paralyzation lock) — is reported per entry, never swallowed by the kind.
+ *  - `source` — REBUILT when it is what it claims to be: a static ability's
+ *    effect, re-derived by `beginApplyingStaticEffects` walking the rebuilt
+ *    battlefield. A PERSISTED one is reported all the same, because the
+ *    derivation rebuilds from the source's DEFINITION and nothing vouches that
+ *    a stored entry matches what the definition declares.
+ *  - `while-source-tapped` — REBUILT from the affected permanent's own
+ *    `sourceTappedPTMods` (CR 611.2b), which is per-card residue this lowering
+ *    reports separately; a persisted entry is reported.
+ *
+ *  `satisfies Record<ContinuousEffectExpiry["kind"], …>` for the same reason
+ *  the payload table above is. */
+export const CONTINUOUS_EFFECT_EXPIRY_DISPOSITION = {
+    duration: "lowered",
+    indefinite: "lowered",
+    counter: "rebuilt",
+    source: "rebuilt",
+    "while-source-tapped": "rebuilt",
+} as const satisfies Record<
+    ContinuousEffectExpiry["kind"],
+    "lowered" | "rebuilt"
+>;
+
+/** The expiry kinds {@link CONTINUOUS_EFFECT_EXPIRY_DISPOSITION} classifies
+ *  `lowered`, derived from the table rather than restated — so the narrowing
+ *  in {@link loweredExpiry} is a consequence of the table rather than a second
+ *  opinion about it. */
+type LoweredExpiryKind = {
+    [K in keyof typeof CONTINUOUS_EFFECT_EXPIRY_DISPOSITION]: (typeof CONTINUOUS_EFFECT_EXPIRY_DISPOSITION)[K] extends "lowered"
+        ? K
+        : never;
+}[keyof typeof CONTINUOUS_EFFECT_EXPIRY_DISPOSITION];
+
+/** The expiry of an entry this lowering carries — the two a RESOLVED spell
+ *  leaves behind, both of which store their controller (CR 611.2c) — or
+ *  `undefined` when the table says the rebuild re-derives it instead. */
+function loweredExpiry(
+    expiry: ContinuousEffectExpiry
+): Extract<ContinuousEffectExpiry, { kind: LoweredExpiryKind }> | undefined {
+    return CONTINUOUS_EFFECT_EXPIRY_DISPOSITION[expiry.kind] === "lowered"
+        ? (expiry as Extract<
+              ContinuousEffectExpiry,
+              { kind: LoweredExpiryKind }
+          >)
+        : undefined;
+}
+
+/** The payload kinds {@link CONTINUOUS_EFFECT_PAYLOAD_DISPOSITION} classifies
+ *  `lowered`, derived from the table rather than restated. */
+type LoweredPayloadKind = {
+    [K in keyof typeof CONTINUOUS_EFFECT_PAYLOAD_DISPOSITION]: (typeof CONTINUOUS_EFFECT_PAYLOAD_DISPOSITION)[K] extends "lowered"
+        ? K
+        : never;
+}[keyof typeof CONTINUOUS_EFFECT_PAYLOAD_DISPOSITION];
+
+/** Compile-time mirror between the table above and the SPEC's payload union
+ *  (`ScenarioContinuousEffectPayload`, `convex/debugScenarioSpec.ts`): the two
+ *  must name the same kinds, or `lowerablePayload`'s narrowing below would be
+ *  a lie in one direction (a kind the table lowers that the spec cannot hold)
+ *  or dead weight in the other. Reds `tsc` either way. */
+type PayloadKindsAgree = [LoweredPayloadKind] extends [
+    ScenarioContinuousEffectPayload["kind"],
+]
+    ? [ScenarioContinuousEffectPayload["kind"]] extends [LoweredPayloadKind]
+        ? true
+        : never
+    : never;
+const PAYLOAD_KINDS_AGREE: PayloadKindsAgree = true;
+
+/** The spec-expressible view of a registry payload, or `undefined` when the
+ *  table says to report it instead. The cast is sound by
+ *  {@link PAYLOAD_KINDS_AGREE}: the table is the single authority on which
+ *  kinds the spec union holds. */
+function lowerablePayload(
+    payload: ContinuousEffectPayload
+): ScenarioContinuousEffectPayload | undefined {
+    void PAYLOAD_KINDS_AGREE;
+    return CONTINUOUS_EFFECT_PAYLOAD_DISPOSITION[payload.kind] === "lowered"
+        ? (payload as ScenarioContinuousEffectPayload)
+        : undefined;
+}
+
+/** CR 613.7 — true when the rebuild will INVERT this entry against another
+ *  registry entry it can actually be ordered against.
+ *
+ *  "Actually" is three conditions, all of them CR 613.7's own: the two must be
+ *  in the same LAYER (and, in layer 7, the same SUBLAYER — CR 613.4 orders
+ *  within sublayers, so a 7b set and a 7c modify have no contested order at
+ *  all), they must share an affected OBJECT (two effects on different
+ *  permanents never compete), and the rebuild must actually reorder them. A
+ *  board-wide "is any stamp higher than this one" test satisfies none of the
+ *  three: it fires for a layer-6 grant on one creature and a layer-7c pump on
+ *  another, where nothing is lost — which is the blunt line issue #3488
+ *  retired, reintroduced one field over.
+ *
+ *  The rebuild's order is fixed and known: sources are stamped first
+ *  (`beginApplyingStaticEffects` over both battlefields), the keyword-counter
+ *  replay second, and the lowered entries last, in lowering order. So lowered
+ *  entries keep their relative order for free, and the ONE pair the rebuild
+ *  can inverts is a lowered entry the live board stamped BELOW a
+ *  counter-borne entry — live the counter applies later and wins; rebuilt it
+ *  applies first and loses.
+ *
+ *  What this deliberately does NOT detect is an inversion against a
+ *  SOURCE-derived effect, which needs the layer derivations to say which
+ *  sources reach which permanents — the "much larger piece of work" issue
+ *  #3488 declares out of scope, and the same scoping #3459's triage decision 4
+ *  took (its report is over REGISTRY entries too). */
+function rebuildInvertsOrder(
+    entry: ContinuousEffect,
+    rebuiltFirst: readonly ContinuousEffect[]
+): ContinuousEffect | undefined {
+    if (entry.affected.kind !== "instances") return undefined;
+    const affected = new Set(entry.affected.instanceIds);
+    return rebuiltFirst.find(
+        (rival) =>
+            rival.layer === entry.layer &&
+            rival.sublayer === entry.sublayer &&
+            rival.timestamp > entry.timestamp &&
+            rival.affected.kind === "instances" &&
+            rival.affected.instanceIds.some((id) => affected.has(id))
+    );
+}
+
+/** CR 122.1b — true when `buildStateFromScenario`'s keyword-counter replay
+ *  would reproduce this entry exactly: the counter it is gated on is on a
+ *  permanent the spec lowers, and the keyword it grants is the one the
+ *  Mechanics Registry derives from that counter type. Anything else wearing a
+ *  `counter` expiry (a card-authored counter-gated grant, an
+ *  `activated-grant`) is NOT rebuild behaviour and says so. */
+function rebuiltByCounterReplay(
+    state: GameState,
+    entry: ContinuousEffect
+): boolean {
+    if (entry.expiry.kind !== "counter") return false;
+    if (entry.payload.kind !== "keyword-grant") return false;
+    if (entry.payload.parameter !== undefined) return false;
+    if (
+        getKeywordCounterGrant(entry.expiry.counterType) !==
+        entry.payload.keyword
+    ) {
+        return false;
+    }
+    const permanentId = entry.expiry.permanentId;
+    // The BATTLEFIELD, matching the replay exactly: CR 122.1b also covers a
+    // card in another zone, and `addCounterToCard` writes the entry there, but
+    // the builder seeds `counters` only onto battlefield placements — so such
+    // an entry is not reproduced and must not claim to be.
+    const bearer = state.players
+        .flatMap((p) => p.battlefield)
+        .find((card) => card.id === permanentId);
+    if (!bearer) return false;
+    if ((bearer.counters?.[entry.expiry.counterType] ?? 0) <= 0) return false;
+    // CR 613.1f — the replay grants the bearer and nothing else, so an entry
+    // reaching further is not the entry the replay would write.
+    return (
+        entry.affected.kind === "instances" &&
+        entry.affected.instanceIds.length === 1 &&
+        entry.affected.instanceIds[0] === permanentId
+    );
+}
+
+/** The `layer 7c pt-modify, duration expiry, on Grizzly Bears (me)` prefix
+ *  every per-entry `dropped[]` line opens with — the three facts issue #3488
+ *  asks a residue line to carry, in place of the single blunt
+ *  `live-only state not captured (continuousEffects)` this replaced. */
+function describeContinuousEffect(
+    entry: ContinuousEffect,
+    me: PlayerState,
+    opp: PlayerState
+): string {
+    const slot = entry.sublayer
+        ? `layer ${entry.sublayer}`
+        : `layer ${entry.layer}`;
+    const where =
+        entry.affected.kind === "predicate"
+            ? "a live predicate"
+            : entry.affected.instanceIds
+                  .map((id) => affectedLabel(id, me, opp))
+                  .join(", ");
+    return `${slot} ${entry.payload.kind}, ${entry.expiry.kind} expiry, on ${where}`;
+}
+
+/** Every card of `player` in a zone this lowering places, in the order
+ *  `buildStateFromScenario` would place them. CR 122.1b's counters live in all
+ *  four, so the counter replay and its lowering twin walk all four. */
+function lowerableZoneCards(player: PlayerState): CardInstanceState[] {
+    return [
+        ...player.battlefield,
+        ...player.hand,
+        ...player.graveyard,
+        ...player.exile,
+    ];
+}
+
+/** One affected instance as a presented name plus its seat, for a `dropped[]`
+ *  line — searched in every lowered zone, and falling back to a note when the
+ *  object is in none of them (so no `cards` entry will exist for a rebuild to
+ *  match). A FACE-DOWN permanent says so rather than printing the CR 708.2
+ *  sentinel's name as though it were a card. */
+function affectedLabel(
+    instanceId: string,
+    me: PlayerState,
+    opp: PlayerState
+): string {
+    for (const [seat, player] of [
+        ["me", me],
+        ["opp", opp],
+    ] as const) {
+        const found = lowerableZoneCards(player).find(
+            (card) => card.id === instanceId
+        );
+        if (!found) continue;
+        if (found.faceDown) return `a face-down permanent (${seat})`;
+        return `${presentedName(found)} (${seat})`;
+    }
+    return "an object in no zone this lowering captures";
+}
+
+/** The instance `instanceId` names on either battlefield, when it carries an
+ *  ANIMATION record (CR 611.2b) — the one card-level fact a lowered layer-6
+ *  keyword grant can silently contradict. */
+function animatedInstance(
+    instanceId: string,
+    me: PlayerState,
+    opp: PlayerState
+): boolean {
+    return [me, opp].some((player) =>
+        player.battlefield.some(
+            (card) => card.id === instanceId && card.animation !== undefined
+        )
+    );
+}
+
+/**
+ * The affected instances as PRESENTED NAMES per seat, or the reason no set of
+ * names can state this entry.
+ *
+ * Three refusals, all of them about a name being unable to name the instance
+ * the entry actually holds:
+ *
+ *  - the object is in no zone this lowering places, so no `cards` entry will
+ *    exist for the rebuild to match;
+ *  - it is FACE DOWN, and a face-down permanent presents as the CR 708.2
+ *    sentinel, which is not a catalogue name the builder can resolve — while
+ *    the `cards` entry beside it is lowered under its REAL name plus
+ *    `faceDown`, so neither spelling names the placed instance. The same
+ *    refusal `lowerCombat` makes one function up, and without it a capture is
+ *    not merely degraded: `collectUnresolvedCardNames` refuses the whole row
+ *    at write and `buildStateFromScenario` throws at load;
+ *  - the battlefield holds MORE instances of that name than this entry names.
+ *    A repeated name names a second instance, which makes a name exact within
+ *    ONE list — but the builder resolves each entry against a fresh allocation,
+ *    so two entries naming "Grizzly Bears" both bind the FIRST bear. An entry
+ *    pumping only the second one would rebuild with the pump on the wrong
+ *    body, and nothing downstream could see it. Refused rather than guessed:
+ *    an entry that names EVERY instance of the name is exact and is lowered,
+ *    which is the common case (a pump on the one copy you control).
+ */
+function affectedNames(
+    instanceIds: readonly string[],
+    me: PlayerState,
+    opp: PlayerState
+): { me?: string[]; opp?: string[] } | string {
+    const affected: { me?: string[]; opp?: string[] } = {};
+    for (const instanceId of instanceIds) {
+        const seat = (["me", "opp"] as const).find((candidate) =>
+            (candidate === "me" ? me : opp).battlefield.some(
+                (card) => card.id === instanceId
+            )
+        );
+        if (!seat) {
+            return "it affects an object in no zone this lowering captures, which no name could reach";
+        }
+        const player = seat === "me" ? me : opp;
+        const card = player.battlefield.find((c) => c.id === instanceId)!;
+        if (card.faceDown) {
+            return "it affects a FACE-DOWN permanent, which presents as the CR 708.2 sentinel and has no card name for the spec to reference";
+        }
+        affected[seat] = [...(affected[seat] ?? []), presentedName(card)];
+    }
+    for (const [seat, player] of [
+        ["me", me],
+        ["opp", opp],
+    ] as const) {
+        for (const name of new Set(affected[seat] ?? [])) {
+            const named = (affected[seat] ?? []).filter((n) => n === name);
+            const onBoard = player.battlefield.filter(
+                (card) => !card.faceDown && presentedName(card) === name
+            );
+            if (onBoard.length > named.length) {
+                return `it affects ${named.length} of the ${onBoard.length} "${name}" on that battlefield, and a name cannot say WHICH — every rebuild binds the first`;
+            }
+        }
+    }
+    return affected;
+}
+
+/**
+ * CR 611.2a / 613 (issue #3488, PRD #3397) — lower the Continuous Effects
+ * Registry, and report PER ENTRY whatever it cannot carry.
+ *
+ * Until this slice `continuousEffects` was neither lowered nor allowlisted, so
+ * the whole registry surfaced as one blunt line — `game state: live-only state
+ * not captured (continuousEffects)` — which fired identically for a board
+ * carrying nothing that matters and for a board whose decisive pump was gone.
+ * What replaces it is a line naming the entry: its layer, its expiry kind and
+ * the permanent it affects.
+ *
+ * Entries are referenced by PRESENTED CARD NAME — the `attachedTo` / `combat`
+ * convention, where a repeated name names a second instance — never by
+ * instance id, because the rebuild reassigns every id from scratch. Per seat,
+ * the `combat.attackedThisTurn` shape: an entry can name permanents on either
+ * battlefield and a flat list could not say whose.
+ */
+function lowerContinuousEffects(
+    state: GameState,
+    spec: ScenarioSpec,
+    dropped: string[],
+    me: PlayerState,
+    opp: PlayerState
+): void {
+    const entries = state.continuousEffects ?? [];
+    if (entries.length === 0) return;
+    // CR 613.7 — the entries the REBUILD stamps before every lowered one: the
+    // keyword-counter replay, which runs over the placed counters long before
+    // `seedContinuousEffects` does anything.
+    const rebuiltFirst = entries.filter((candidate) =>
+        rebuiltByCounterReplay(state, candidate)
+    );
+    const lowered: ScenarioContinuousEffect[] = [];
+    for (const entry of entries) {
+        const label = describeContinuousEffect(entry, me, opp);
+        const report = (why: string) =>
+            dropped.push(`continuousEffects: ${label} — ${why}; not lowered`);
+        const expiry = loweredExpiry(entry.expiry);
+        if (!expiry) {
+            // CR 122.1b — the one expiry the rebuild genuinely reproduces, and
+            // only for the entries its replay would write.
+            if (rebuiltByCounterReplay(state, entry)) continue;
+            report(
+                entry.expiry.kind === "counter"
+                    ? // CR 122.1b — a counter-borne effect the keyword-counter
+                      // replay does not write: a card-authored counter gate
+                      // (ICE Dread Wight's paralyzation lock), or a counter on
+                      // a card the builder seeds no counters onto (any zone but
+                      // the battlefield).
+                      `it is borne by a "${entry.expiry.counterType}" counter the rebuild's keyword-counter replay does not reproduce`
+                    : "its expiry is not one a resolved spell leaves behind, and the rebuild does not reproduce this entry"
+            );
+            continue;
+        }
+        if (entry.affected.kind === "predicate") {
+            // CR 611.2c — a predicate is re-evaluated against the LIVE board at
+            // every read, so there is no fixed set of names to lower. The type
+            // pins a predicate to `source` expiry, so this is unreachable
+            // today; it is here because the union, not this function, is what
+            // would change.
+            report(
+                "it affects a live predicate rather than a fixed instance set"
+            );
+            continue;
+        }
+        const payload = lowerablePayload(entry.payload);
+        if (!payload) {
+            report(
+                `its ${entry.payload.kind} payload names an object the rebuild has no id for`
+            );
+            continue;
+        }
+        const affected = affectedNames(entry.affected.instanceIds, me, opp);
+        if (typeof affected === "string") {
+            report(affected);
+            continue;
+        }
+        // CR 611.2b (issue #3459) — an ANIMATION's granted keywords are
+        // ordinary layer-6 registry entries carrying the animation's own
+        // duration, and `spec.cards[].animated` already lowers the animate
+        // CALL, whose re-execution writes them again. Lowering them here too
+        // would push each grant TWICE, and the second copy would outlive the
+        // animation's own revert — a Land with trample, which no live board
+        // can hold. ONE producer per effect, and it is the animation's.
+        //
+        // A genuine until-end-of-turn grant that merely happens to sit on an
+        // animated permanent is refused with them, and says so: the entries
+        // are indistinguishable here (the animation record does not declare
+        // which grants are its own), and a duplicated grant is worse than a
+        // reported one.
+        if (
+            payload.kind === "keyword-grant" &&
+            entry.affected.instanceIds.some((id) =>
+                animatedInstance(id, me, opp)
+            )
+        ) {
+            report(
+                "it grants a keyword to an ANIMATED permanent, whose animation is itself residue — rebuilding the grant alone would make a permanent no live board can hold (issue #3459)"
+            );
+            continue;
+        }
+        const base = {
+            affected,
+            controller:
+                expiry.controllerId === me.id
+                    ? ("me" as const)
+                    : ("opp" as const),
+            payload,
+            ...(entry.characteristicDefining
+                ? { characteristicDefining: true }
+                : {}),
+        };
+        const slot: ContinuousEffectSlot =
+            entry.layer === 7
+                ? { layer: 7, sublayer: entry.sublayer }
+                : { layer: entry.layer };
+        const loweredEntry: ScenarioContinuousEffect = { ...slot, ...base };
+        if (expiry.kind === "duration") {
+            const duration: ScenarioContinuousEffect["duration"] = {
+                phase: expiry.duration.phase,
+            };
+            if (expiry.duration.skip !== undefined) {
+                duration.skip = expiry.duration.skip;
+            }
+            if (expiry.duration.playerId !== undefined) {
+                duration.player =
+                    expiry.duration.playerId === me.id ? "me" : "opp";
+            }
+            loweredEntry.duration = duration;
+        }
+        lowered.push(loweredEntry);
+        // CR 613.7 (issue #3459 triage decision 4) — declared, never pinned.
+        const inverted = rebuildInvertsOrder(entry, rebuiltFirst);
+        if (inverted) {
+            dropped.push(
+                `continuousEffects: ${label} — the rebuild re-mints every layer timestamp and seeds this entry AFTER the counter-borne ${inverted.payload.kind} on the same object, inverting the order they apply in (CR 613.7); the relative order is not preserved`
+            );
+        }
+    }
+    if (lowered.length > 0) spec.continuousEffects = lowered;
+}
 
 /** Generic "top-level state residue" detector for `GameState`, the same
  *  shape as `reportCardResidue` one level up: any key present on `state`
@@ -3179,6 +3845,11 @@ export function specFromState(
     // than relaxed; what remains reported is only what `spec.combat` genuinely
     // cannot express (`reportCombatResidue` below).
     lowerCombat(state, spec, dropped, opts.mySeatId);
+    // CR 611.2a / 613 (issue #3488) — the registry entries a RESOLVED spell
+    // left behind. Runs after `lowerCombat` for readability only; it reads the
+    // registry and the two battlefields, neither of which the combat lowering
+    // touches.
+    lowerContinuousEffects(state, spec, dropped, me, opp);
     if (state.pendingCast) {
         dropped.push(
             `pendingCast: a spell payment is mid-flight — not lowered`

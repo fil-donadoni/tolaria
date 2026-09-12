@@ -375,6 +375,17 @@ export const SCENARIO_SCHEMA_EXCLUSIONS = {
     // restricted mana no permanent on the board could have produced.
     restrictedMana:
         "a spend restriction comes from the source that made the mana — captured, never generated",
+    // CR 611.2a / 613 (issue #3488) — a registry entry left behind by a
+    // RESOLVED spell has to cohere with the board the way `combat` does: its
+    // affected permanents must be on the battlefield it names them on, its
+    // layer must match its payload, and the spell that made it must be one the
+    // position could plausibly have cast. A model handed the fields would
+    // produce pumps no card on the board could have made — and a board
+    // describable in words ("a 2/2 that is currently 5/5") is one it can
+    // already express by asking for the creature itself. Captured
+    // (`specFromState`) or hand-written in a blade entry.
+    continuousEffects:
+        "a resolved spell's continuous effect must cohere with the board that produced it — captured, never generated",
 } as const satisfies Partial<Record<keyof ScenarioSpec, string>>;
 
 /** Signature of the injected LLM call: given a system prompt and the user's

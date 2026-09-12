@@ -8585,8 +8585,19 @@ export function getEffectiveStaticEffects(
  *  nothing — it existed only to carry the CR 613.7c layer timestamp, which the
  *  counter itself does not record, and `layer6EffectsFor` synthesised a
  *  throwaway entry around it at every read. The entry now carries its own
- *  minted stamp and is the record, so that synthesis is gone. */
-function applyKeywordCounterGrant(
+ *  minted stamp and is the record, so that synthesis is gone.
+ *
+ *  EXPORTED for the scenario builder (issue #3488). A `counter`-expiry entry
+ *  is NOT lowered into a `ScenarioSpec` — the spec already carries the
+ *  COUNTERS, and restating the grant would rebuild a shape `specFromState`
+ *  never writes. What makes that true rather than merely asserted is the
+ *  builder calling this over every seeded counter: the placement loop assigns
+ *  `card.counters` directly (no `addCounterToCard`, so no CR 121.1 event
+ *  storm on a board that is PLACED rather than played), which used to leave a
+ *  flying counter on the rebuilt board granting nothing at all. Idempotent by
+ *  `findKeywordCounterEntry`, and a no-op for a counter type the registry
+ *  grants no keyword for. */
+export function applyKeywordCounterGrant(
     state: GameState,
     card: CardInstanceState,
     counterType: string
@@ -8723,8 +8734,16 @@ function nextContinuousEffectOrdinal(
  *  completed precondition would be wrong.
  *
  *  The stamp is minted BEFORE the list is extended, so `allocStaticTimestamp`'s
- *  scan of the live registry cannot see the entry it is stamping. */
-function pushContinuousEffect(
+ *  scan of the live registry cannot see the entry it is stamping.
+ *
+ *  EXPORTED for the scenario builder (issue #3488): a `ScenarioSpec` that
+ *  lowers a resolved spell's `duration` / `indefinite` entries rebuilds them
+ *  HERE rather than assembling a `ContinuousEffect` literal of its own, so a
+ *  seeded entry gets the same minted id and the same CR 613.7 stamp a live one
+ *  does — the builder's standing convention of borrowing the engine's own
+ *  primitives (`markAttacking`, `turnFaceDown`, `beginApplyingStaticEffects`).
+ */
+export function pushContinuousEffect(
     state: GameState,
     entry: Omit<ContinuousEffect, "id" | "timestamp">,
     /** CR 611.2a / 613.7 — a stamp minted by the CALLER, for the one shape a
