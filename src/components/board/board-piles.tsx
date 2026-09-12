@@ -69,6 +69,13 @@ export default function BoardPiles({
                 <div
                     className={opponentRail}
                     style={railStyle}
+                    // Only the COMPACT rail scrolls (`overflow-y-auto` on the
+                    // landscape anchors above), and a scroll port whose content
+                    // holds no focusable child is unreachable by keyboard —
+                    // axe reds it `serious` (`scrollable-region-focusable`,
+                    // measured at 844x390x3, issue #3492). The desktop row does
+                    // not scroll, so it takes no tab stop it would not use.
+                    tabIndex={compact ? 0 : undefined}
                     data-testid="piles-opponent"
                 >
                     <PlayerGraveyard player={opponent} />
@@ -85,6 +92,8 @@ export default function BoardPiles({
                 <div
                     className={viewerRail}
                     style={railStyle}
+                    // See the opponent rail above — same scroll port, same rule.
+                    tabIndex={compact ? 0 : undefined}
                     data-testid="piles-player"
                 >
                     <PlayerGraveyard player={me} />
