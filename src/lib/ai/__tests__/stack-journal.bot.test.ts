@@ -60,7 +60,7 @@ const RESPONSE_SPEC: ScenarioSpec = {
 
 const BOLT_THE_GIANT = "cast Lightning Bolt → Hill Giant";
 const QUIET_SEQ = 10;
-const DECISION_SEQ = 11;
+const DECISION_SEQ = 20;
 
 function moveNamed(state: GameState, playerId: string, sentence: string): Move {
     const move = candidateMoves(state, playerId).find(
@@ -149,14 +149,20 @@ describe("the browser stack journal (issue #3480)", () => {
         // (PR review, issue #3480).
         const state = buildVerdictPosition(RESPONSE_SPEC);
         const bot = state.players[0].id;
+        const cast = moveNamed(state, bot, BOLT_THE_GIANT);
         recordJournalPly({
             state: projectPublicState(state, QUIET_SEQ, bot),
             playerId: bot,
-            move: moveNamed(state, bot, BOLT_THE_GIANT),
+            move: cast,
         });
         expect(journalEntryFor(DECISION_SEQ, bot)).not.toBe(null);
 
-        markJournalOpaque(projectPublicState(state, QUIET_SEQ, bot), bot);
+        // INSIDE the window, not before it: the marker rides on a projection
+        // whose stack is already non-empty, so it cannot be mistaken for a new
+        // quiet board and the window it belongs to is the one that must die.
+        applyMoveInSearch(state, bot, cast);
+        expect(state.stack).toHaveLength(1);
+        markJournalOpaque(projectPublicState(state, QUIET_SEQ + 1, bot), bot);
         expect(journalEntryFor(DECISION_SEQ, bot)).toBe(null);
     });
 
