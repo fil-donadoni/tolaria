@@ -349,22 +349,37 @@ export function lookBackSelf(
     };
     if (entry.copyExcept) view.copyExcept = { ...entry.copyExcept };
     else delete view.copyExcept;
+    // Every identity marker is cleared BEFORE the branch below stamps its own.
+    // The spread carries whatever the destination-zone card still has, and the
+    // three reverts do not clear each other's fields — a view that claimed two
+    // identities at once would be read differently by each consumer.
+    delete view.copiedFrom;
+    delete view.transformed;
+    delete view.transformedFrom;
+    delete view.faceDown;
+    delete view.faceDownOf;
+    delete view.faceDownBy;
 
-    // Which of the three reverts ran is answerable from the departure id alone,
-    // and it has to be answered: the three leave DIFFERENT instance markers
-    // behind, and `effectiveTriggeredAbilities` reads one of them (`copiedFrom`
-    // — the CR 707.9d "except it has this ability" union). Order matters only
-    // in that the face-down sentinel is never a back face and never a
-    // catalogue card, so it is tested first.
+    // Which of the three reverts ran is answered from the departure id, and it
+    // has to be answered for ONE reason: `effectiveTriggeredAbilities` reads
+    // `copiedFrom` (the CR 707.9d "except it has this ability" union), so
+    // claiming it wrongly unions triggers the object never had.
     if (entry.defId === FACE_DOWN_CARD_ID) {
-        // CR 708.2 — a face-down permanent's copiable values are the 2/2
-        // vanilla body, so it contributes NO printed trigger at all. Grants
-        // made to it (layer 6, CR 613.1f) are instance state and survive the
-        // spread, exactly as they do for a live face-down permanent.
-        view.faceDown = true;
-        view.faceDownOf = printedId;
+        // CR 708.2 — the sentinel's copiable values are the 2/2 vanilla body,
+        // so the object contributes NO printed trigger whichever way it got
+        // there, and NO marker is stamped. The id alone cannot tell a
+        // face-down permanent from a face-UP copy OF one (CR 707.2's own
+        // Clone-of-Grinning-Demon example presents the sentinel too), and the
+        // one thing that must not happen either way is a `copiedFrom` claim
+        // unioning `retainedThroughCopy` triggers onto an object with no
+        // abilities. Grants made to it (layer 6, CR 613.1f) are instance state
+        // and survive the spread, exactly as for a live face-down permanent.
     } else if (backFaceDefinitionIdOf(printedId) === entry.defId) {
-        // CR 712.8a — it died showing its back face.
+        // CR 712.8a — it died showing its back face. Unreachable ambiguity,
+        // noted rather than coded around: a double-faced permanent that was a
+        // COPY of some other permanent already presenting that same back face
+        // lands here too, and would lose the `retainedThroughCopy` union. No
+        // shipped card pair can produce it.
         view.transformed = true;
         view.transformedFrom = printedId;
     } else {

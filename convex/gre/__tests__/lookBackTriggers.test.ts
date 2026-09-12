@@ -22,6 +22,7 @@
 
 import { describe, it, expect } from "vitest";
 import {
+    emitPermanentEntered,
     removePermanentTo,
     type CardInstanceState,
     type GameState,
@@ -33,12 +34,17 @@ import { transformPermanent } from "../transform";
 import { NO_BOARD_LAYER_VIEW } from "../layers";
 import { withTemporaryDefinition } from "../../cards/registry";
 import {
+    modalBackFaceDefinitionId,
+    modalBackTwinDefinition,
+} from "../../cards/modalDfc";
+import {
     makeInstance,
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup";
 import { grizzlyBears } from "../../cards/sets/lea";
 import { rukhEgg } from "../../cards/sets/arn/red";
+import { superShredder } from "../../cards/sets/tmt/black";
 import { masterOfDeath } from "../../cards/sets/mh2/multicolor";
 import type { CardDefinition, GameEvent } from "../../cards/types";
 
@@ -171,11 +177,22 @@ describe("CR 603.10 look-back — a departed permanent's leave triggers", () => 
         // the same funnel, BEFORE the scan, which is how the printed trigger
         // used to fire for an object that never had it.
         const egg = makeInstance(rukhEgg.id, { id: "egg", controllerId: "p1" });
-        const state = boardWith([egg]);
+        // Super Shredder watches ANOTHER permanent leaving, so it fires off the
+        // same batch from the battlefield — the positive control below.
+        const witness = makeInstance(superShredder.id, {
+            id: "witness",
+            controllerId: "p1",
+        });
+        const state = boardWith([egg, witness]);
         turnFaceDown(state, egg, "morph");
 
         removePermanentTo(state, "egg", "graveyard");
-        expect(firedIds(state)).not.toContain("rukh-egg-death");
+        const ids = firedIds(state);
+        expect(ids).not.toContain("rukh-egg-death");
+        // Positive control: the assertion above passes just as well if the
+        // departed source stopped being scanned at all, so the same batch has
+        // to produce a trigger that MUST appear.
+        expect(ids).toContain("super-shredder-counter");
     });
 
     it("fires NO front-face leave trigger for a permanent that died TRANSFORMED (CR 712.8a)", () => {
@@ -212,12 +229,18 @@ describe("CR 603.10 look-back — a departed permanent's leave triggers", () => 
                 id: "flip",
                 controllerId: "p1",
             });
-            const state = boardWith([card]);
+            const witness = makeInstance(superShredder.id, {
+                id: "witness",
+                controllerId: "p1",
+            });
+            const state = boardWith([card, witness]);
             transformPermanent(state, card);
             expect(presentedDefId(card)).not.toBe(flipper.id);
 
             removePermanentTo(state, "flip", "graveyard");
-            expect(firedIds(state)).not.toContain("flipper-front-death");
+            const ids = firedIds(state);
+            expect(ids).not.toContain("flipper-front-death");
+            expect(ids).toContain("super-shredder-counter");
         });
     });
 
@@ -263,6 +286,141 @@ describe("CR 603.10 look-back — a departed permanent's leave triggers", () => 
 
             removePermanentTo(state, "aura", "exile");
             expect(firedIds(state)).toContain("aura-ltb");
+        });
+    });
+
+    it("does NOT look back for a permanent BLINKED and returned in the same batch (CR 400.7)", () => {
+        // Instance ids are never reallocated, and `lastKnownCopiable` is pruned
+        // only at cleanup (CR 514), so a permanent flickered and returned
+        // within ONE event batch (Ephemerate, Displacer Kitten) is back on the
+        // battlefield carrying an entry that describes the object it was
+        // BEFORE the blink. Keying the look-back on the instance id would
+        // evaluate that LIVE permanent as its pre-blink self — here, a morph
+        // whose entry trigger is suppressed because the view rebuilds it as
+        // the 2/2 sentinel. The scan keys on the source OBJECTS it pulled out
+        // of a destination zone instead, and a returned permanent is not one.
+        const entered: string[] = [];
+        const blinker: CardDefinition = {
+            ...grizzlyBears,
+            id: "look-back-blinker",
+            name: "Look-Back Blinker",
+            triggeredAbilities: [
+                {
+                    id: "blinker-etb",
+                    oracleText: "When this creature enters, draw a card.",
+                    event: "PERMANENT_ENTERED",
+                    matches: (event, self) => {
+                        if (
+                            event.type !== "PERMANENT_ENTERED" ||
+                            event.instanceId !== self.id
+                        ) {
+                            return false;
+                        }
+                        entered.push(presentedDefId(self));
+                        return true;
+                    },
+                    effects: [{ op: "draw", player: "controller", count: 1 }],
+                },
+            ],
+        };
+
+        withTemporaryDefinition(blinker, () => {
+            const card = makeInstance(blinker.id, {
+                id: "blink",
+                controllerId: "p1",
+            });
+            const state = boardWith([card]);
+            // Face down on the way out, so a look-back applied to the RETURNED
+            // permanent would present the vanilla sentinel and find no trigger.
+            turnFaceDown(state, card, "morph");
+            removePermanentTo(state, "blink", "exile");
+            const exiled = state.players[0].exile.find(
+                (c) => c.id === "blink"
+            )!;
+            state.players[0].exile = state.players[0].exile.filter(
+                (c) => c.id !== "blink"
+            );
+            exiled.zone = "battlefield";
+            state.players[0].battlefield.push(exiled);
+            emitPermanentEntered(state, exiled);
+
+            const ids = firedIds(state);
+            expect(ids).toContain("blinker-etb");
+            expect(entered).toEqual([blinker.id]);
+        });
+    });
+
+    it("never mutates the destination-zone card the view was spread from", () => {
+        // The whole design rests on the view being a throwaway: it is a shallow
+        // spread of a live `CardInstanceState` handed to the same layer rebuild
+        // the three identity-swap sites use. A nested in-place write there
+        // would corrupt the real card in the graveyard.
+        const egg = makeInstance(rukhEgg.id, { id: "egg", controllerId: "p1" });
+        const clone = makeInstance(grizzlyBears.id, {
+            id: "clone",
+            controllerId: "p1",
+        });
+        applyCopy(NO_BOARD_LAYER_VIEW, clone, egg);
+        const state = boardWith([egg, clone]);
+
+        removePermanentTo(state, "clone", "graveyard");
+        const inGraveyard = state.players[0].graveyard.find(
+            (c) => c.id === "clone"
+        )!;
+        const before = JSON.stringify(inGraveyard);
+        expect(firedIds(state)).toContain("rukh-egg-death");
+        expect(JSON.stringify(inGraveyard)).toBe(before);
+    });
+
+    it("resolves a MODAL back face's own leave trigger from the twin (CR 712.8f)", () => {
+        // The modal leg of `backFaceDefinitionIdOf` — the only one that can
+        // ever carry a back-face trigger. A NONMODAL back face is registered
+        // through the token codec and `CardBackFace` declares no
+        // `triggeredAbilities` at all, so nothing printed can reach this leg
+        // today; the modal twin is a real `CardDefinition`, and the trigger is
+        // stamped onto it here to exercise the resolution path end to end.
+        const front: CardDefinition = {
+            ...grizzlyBears,
+            id: "look-back-modal",
+            name: "Look-Back Modal",
+            backFace: {
+                kind: "modal",
+                name: "Look-Back Modal Back",
+                types: ["Creature"],
+                subtypes: ["Elemental"],
+                power: 3,
+                toughness: 3,
+            },
+        };
+        const twin: CardDefinition = {
+            ...modalBackTwinDefinition(front)!,
+            triggeredAbilities: [
+                {
+                    id: "modal-back-death",
+                    oracleText: "When this creature dies, draw a card.",
+                    event: "CREATURE_DIED",
+                    matches: (event, self) =>
+                        event.type === "CREATURE_DIED" &&
+                        event.creatureInstanceId === self.id,
+                    effects: [{ op: "draw", player: "controller", count: 1 }],
+                },
+            ],
+        };
+        expect(twin.id).toBe(modalBackFaceDefinitionId(front.id));
+
+        withTemporaryDefinition(front, () => {
+            withTemporaryDefinition(twin, () => {
+                const card = makeInstance(front.id, {
+                    id: "modal",
+                    controllerId: "p1",
+                });
+                const state = boardWith([card]);
+                transformPermanent(state, card);
+                expect(presentedDefId(card)).toBe(twin.id);
+
+                removePermanentTo(state, "modal", "graveyard");
+                expect(firedIds(state)).toContain("modal-back-death");
+            });
         });
     });
 

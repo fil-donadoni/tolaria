@@ -96,8 +96,9 @@ function backFaceAsTokenSpec(backFace: CardBackFace): TokenSpec {
 /** The content-derived definition id a NONMODAL back face presents (CR 712.2)
  *  — the id half of {@link registerBackFaceDefinition}, split out so a reader
  *  can ask "is this def id that card's back face?" without minting a
- *  definition as a side effect ({@link backFaceDefinitionIdOf}). One authority
- *  on the codec: both callers go through here. */
+ *  definition as a side effect ({@link backFaceDefinitionIdOf}), which is its
+ *  only caller — `registerBackFaceDefinition` keeps building the spec it also
+ *  registers. */
 function nonmodalBackFaceDefinitionId(backFace: CardBackFace): string {
     return tokenDefinitionId(backFaceAsTokenSpec(backFace));
 }
@@ -126,7 +127,7 @@ export function backFaceDefinitionIdOf(frontId: string): string | undefined {
  *  share one entry (`tokenDefinitionId`'s content-hash convention). */
 function registerBackFaceDefinition(backFace: CardBackFace): string {
     const spec = backFaceAsTokenSpec(backFace);
-    const id = nonmodalBackFaceDefinitionId(backFace);
+    const id = tokenDefinitionId(spec);
     // Server-side color (`getCardColors`) is derived from `manaCost`, not
     // from `spec.colors` directly — mirrors `createTokenPermanents`
     // (`gre/state.ts`), which builds a one-pip-per-color `manaCost` from

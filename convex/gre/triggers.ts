@@ -404,21 +404,26 @@ export function collectTriggers(
         }
     }
 
-    // CR 603.10a — every id in this batch that LEFT the battlefield, and so
-    // owes the look-back (`lookBackSelf`) rather than a read of the reverted
-    // object now sitting in its destination zone. Scoped to THIS batch on
-    // purpose: `GameState.lastKnownCopiable` is keyed by instance id and
-    // pruned only at cleanup (CR 514), so a blinked permanent back on the
-    // battlefield under the same id still has an entry, and it describes the
-    // object it was BEFORE the blink — never the one triggering now.
-    const departed = new Set<string>([...recentlyDead, ...recentlyLeft.keys()]);
+    // CR 603.10a — the source OBJECTS this scan found in a destination zone,
+    // and so the exact set that owes the look-back (`lookBackSelf`) rather than
+    // a read of the object sitting there. Keyed by reference, never by instance
+    // id: a permanent blinked and returned WITHIN this same batch (Ephemerate,
+    // Displacer Kitten) is back on the battlefield wearing the SAME id — ids
+    // are never reallocated (`removePermanentTo`, `gre/state.ts`) — and
+    // `GameState.lastKnownCopiable` is pruned only at cleanup (CR 514), so an
+    // id-keyed test would route a LIVE permanent through the look-back and
+    // evaluate it as the object it was before the blink: a morph's ETB trigger
+    // suppressed, a returned-transformed permanent's front face firing.
+    const lookBackSources = new Set<CardInstanceState>();
 
     const out: StackItem[] = [];
     for (const player of ordered) {
         const sources: CardInstanceState[] = [...player.battlefield];
         if (recentlyDead.size > 0) {
             for (const c of player.graveyard) {
-                if (recentlyDead.has(c.id)) sources.push(c);
+                if (!recentlyDead.has(c.id)) continue;
+                sources.push(c);
+                lookBackSources.add(c);
             }
         }
         if (recentlyLeft.size > 0) {
@@ -440,6 +445,7 @@ export function collectTriggers(
                 for (const c of pile) {
                     if (c.id === id && !sources.includes(c)) {
                         sources.push(c);
+                        lookBackSources.add(c);
                         visitedIds.add(id);
                         break;
                     }
@@ -451,8 +457,9 @@ export function collectTriggers(
             // battlefield contributes the triggers of what it WAS there, not
             // of the printed card the departure funnel's copy / transform /
             // face-down reverts restored on the way out (issue #2967). The
-            // view is the same reference for every other source, so nothing
-            // about a battlefield-resident permanent changes here.
+            // view is the same reference for every other source, and a
+            // battlefield-resident permanent is never in `lookBackSources` at
+            // all, so nothing about one changes here.
             //
             // `permanent` is the object the RULES see — the ability list, the
             // `self` every predicate receives, and the identity
@@ -461,7 +468,7 @@ export function collectTriggers(
             // the item's own `card.id`). `source` stays the LIVE instance, and
             // is what the CR 603.2 per-turn cap is read from and written to: a
             // count noted on the throwaway view would be dropped on the floor.
-            const permanent = departed.has(source.id)
+            const permanent = lookBackSources.has(source)
                 ? lookBackSelf(state, source)
                 : source;
             const cardId = (permanent.card as { id?: string }).id;
