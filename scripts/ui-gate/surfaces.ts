@@ -1963,12 +1963,17 @@ export const SURFACES: readonly Surface[] = [
             }
             // The pinned head is the other half: scroll the form's port to the
             // bottom and the title/label/CTA must still be inside it.
-            await page
-                .locator(DEBUG_SHEET_BODY)
-                .first()
-                .evaluate((el) => {
-                    el.scrollTop = el.scrollHeight;
-                });
+            // A STRING body, the idiom the rest of this file uses for
+            // browser-side code: `scripts/**` is compiled without `lib.dom`
+            // (deliberately — importing a DOM-typed module here drags it into
+            // `bun run land`), so a typed callback would red `check:ts` on
+            // `document` itself.
+            await page.evaluate(
+                `(() => {
+                    const el = document.querySelector(${JSON.stringify(DEBUG_SHEET_BODY)});
+                    if (el) el.scrollTop = el.scrollHeight;
+                })()`
+            );
             await page.waitForTimeout(300);
             const port = await page
                 .locator(DEBUG_SHEET_BODY)
