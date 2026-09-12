@@ -1205,7 +1205,7 @@ prendere confidenza col catalogo: scope stretto, criteri di correttezza chiari.
 ```
 convex/
 ├── schema.ts               15 tabelle, pesantemente commentate — leggerlo tutto
-├── game.ts                 ~13k righe: TUTTE le mutation/query di gioco
+├── game.ts                 ~16k righe: TUTTE le mutation/query di gioco
 ├── gameProjections.ts      GameState → PublicGameState / FullGameState
 ├── gameLifecycle.ts        creazione/join/fine partita
 ├── matches.ts              orchestrazione Bo1/Bo3
@@ -1221,6 +1221,7 @@ convex/
 │   └── sets/<code>/<colour>.ts
 ├── gre/
 │   ├── state.ts            GameState + la maggior parte delle primitive (~17k righe)
+│   ├── activation.ts       CR 602 puro: attivazione + pagamento costi (#3479)
 │   ├── expectedInput.ts    ADR 0047 — il gate unico
 │   ├── rules.ts            getLegalActions / getLegalTargets
 │   ├── stack ⊂ state.ts    resolveTopOfStack

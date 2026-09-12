@@ -38,10 +38,14 @@ import {
     tryGetCardByName,
 } from "../../../cards";
 import { findTokenSpec } from "../../../cards/tokenCatalogue";
-import {
-    activateAbilityOnState,
-    getEffectiveActivatedAbilities,
-} from "../../../game";
+// Both PURE (issue #3479). `activateAbilityOnState` used to live in
+// `convex/game.ts`, whose line-4 `./auth` import made this whole file
+// server-only and so made every setup step — not just `activate` — unreplayable
+// in the browser (ADR 0074). It now lives in `gre/activation.ts`, which
+// `convex/game.ts` re-exports rather than copies, so the mutation and this
+// harness still drive the SAME activation path.
+import { activateAbilityOnState } from "../../activation";
+import { getEffectiveActivatedAbilities } from "../../activatedAbilities";
 import { enumerateMoves } from "../../moves";
 import type { Move } from "../../moves";
 import { applyMoveInSearch } from "../../search";

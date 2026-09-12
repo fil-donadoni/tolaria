@@ -1,13 +1,16 @@
 // The base position every blade scenario — and every Verdict — is built on
 // top of.
 //
-// Split out of `runner.ts` for ONE reason (issue #3405): the runner reaches
-// `blade/setup`, which reaches `convex/game`, which reaches `convex/auth` and
-// the Convex function shell. Anything importing the runner is therefore
-// server-only, and the client-bundle purity guard (ADR 0074,
-// `scripts/__tests__/client-bundle-purity.test.ts`) refuses it — while the
-// verdict quiz has to rebuild a position IN THE BROWSER, with the same builder
-// the fit will use, or the candidate keys it submits resolve against nothing.
+// Split out of `runner.ts` for ONE reason (issue #3405): the verdict quiz has
+// to rebuild a position IN THE BROWSER, with the same builder the fit will use,
+// or the candidate keys it submits resolve against nothing — and the runner was
+// server-only, because `blade/setup` reached `convex/game` and so `convex/auth`
+// (ADR 0074, `scripts/__tests__/client-bundle-purity.test.ts`).
+//
+// Issue #3479 removed that half of the reason: the activation path moved to
+// `gre/activation.ts` and the builder to `blade/build.ts`, both pure. What
+// remains is weight — the runner still reaches the 6.6k-line registry and the
+// whole harness, which no browser caller wants.
 //
 // So this half is pure engine: a base state, no setup steps, no Convex.
 // `runner.ts` re-exports it, so there is still exactly one definition.

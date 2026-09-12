@@ -21,10 +21,10 @@
 
 import { getCardByName } from "../../../cards";
 import { buildStateFromScenario } from "../../scenarioBuilder";
-// The base position lives in its own PURE module (issue #3405): this file
-// reaches `convex/game` through `applyBladeSetup`, and the verdict quiz has to
-// build the same base state in the browser. Re-exported here so every existing
-// caller keeps its import.
+// The base position lives in its own PURE module (issue #3405), and the
+// builder in `./build` (issue #3479): the verdict quiz builds the same position
+// in the browser and must not drag the registry and the harness in with it.
+// Both re-exported here so every existing caller keeps its import.
 import { buildBladeBaseState } from "./baseState";
 export { buildBladeBaseState } from "./baseState";
 export type { SeatIdentity } from "./baseState";
@@ -85,16 +85,12 @@ export class BladeDeciderError extends Error {
  *  forever — changing it re-rolls the whole suite. */
 export const DEFAULT_BLADE_SEED = 0xb1ade;
 
-/** Build the `GameState` a blade entry describes: the `spec` board, then its
- *  engine-real `setup` steps (issue #1487, ADR 0070 §4). Exported so a failing
- *  entry can be inspected (or replayed at a bigger budget) from a scratch
- *  test. Throws `BladeSetupError` when a setup step finds no purchase. */
-export function buildBladeState(scenario: BladeScenario): GameState {
-    return applyBladeSetup(
-        buildStateFromScenario(buildBladeBaseState(), scenario.spec),
-        scenario
-    );
-}
+// The builder itself moved to `./build` (issue #3479) so the browser can call
+// it without dragging this module — and with it the 6.6k-line registry and the
+// whole harness — into the client bundle. Re-exported here, where every
+// existing caller already imports it.
+export { buildBladeState } from "./build";
+import { buildBladeState } from "./build";
 
 /**
  * Normalize an arbitrary CURRENT game's `GameState` onto the same starting

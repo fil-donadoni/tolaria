@@ -15,10 +15,11 @@ import { buildBladeState } from "../blade/runner";
 import type { BladeScenario } from "../blade/types";
 import type { Verdict } from "./types";
 
-// `candidateMoves` lives in the PURE sibling (issue #3405) so the browser can
-// call it without dragging this module's blade builder — and therefore
-// `convex/game` — into the client bundle (ADR 0074). Re-exported here, where
-// every existing caller already imports it, so there is one name for it.
+// `candidateMoves` and the position builder live in the PURE sibling (issue
+// #3405) so the browser can call them without dragging this module — and
+// therefore the blade harness and its registry — into the client bundle.
+// Re-exported here, where every existing caller already imports them, so there
+// is one name for each.
 export { candidateMoves, buildSetupFreeVerdictState } from "./candidates";
 
 /** The verdict's position as a blade scenario, so it is built by the same
