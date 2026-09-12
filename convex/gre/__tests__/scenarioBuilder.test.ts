@@ -51,7 +51,7 @@ import { getEffectiveColors } from "../../cards/effectiveColors";
 import { mishrasFactory } from "../../cards/sets/atq/colorless";
 import { creepingTarPit } from "../../cards/sets/wwk/colorless";
 import type { ContinuousEffect } from "../continuousEffects";
-import type { AnimateSpec, CardInstanceState } from "../../cards/types";
+import type { AnimateSpec } from "../../cards/types";
 import {
     NO_TARGETING_SOURCE,
     getLegalActions,
@@ -61,7 +61,12 @@ import {
 import { PLACEHOLDER_CARD_ID } from "../constants";
 import { collectTriggers } from "../triggers";
 import { validateAttackerEligibility } from "../combat";
-import type { GameState, PendingChoice, PlayerState } from "../state";
+import type {
+    CardInstanceState,
+    GameState,
+    PendingChoice,
+    PlayerState,
+} from "../state";
 import type { GameEvent } from "../../cards/types";
 import {
     normalizeScenarioSpec,

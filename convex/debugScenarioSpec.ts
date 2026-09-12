@@ -38,9 +38,43 @@ export const scenarioAnimationValidator = v.object({
     power: v.number(),
     toughness: v.number(),
     subtype: v.optional(v.string()),
-    additionalTypes: v.optional(v.array(v.string())),
+    // The `CardType` union, member for member, rather than `v.string()`. That is
+    // load-bearing in BOTH directions: the inferred type has to assign to
+    // `AnimateSpec.additionalTypes` (so a `ScenarioCard` reaches the animate
+    // primitive uncast) and `AnimateSpec` has to assign back to it (the
+    // `debugSetupScenario` args are a lock-step copy of this validator), so a
+    // member added to the engine's union reds `tsc` at every call site instead
+    // of silently widening. The LOAD path narrows further, to CR 300.1's
+    // permanent types — see `normalizeAnimation`.
+    additionalTypes: v.optional(
+        v.array(
+            v.union(
+                v.literal("Creature"),
+                v.literal("Planeswalker"),
+                v.literal("Instant"),
+                v.literal("Sorcery"),
+                v.literal("Artifact"),
+                v.literal("Enchantment"),
+                v.literal("Land"),
+                v.literal("Battle"),
+                v.literal("Kindred")
+            )
+        )
+    ),
     grantedAbilities: v.optional(v.array(v.string())),
-    colors: v.optional(v.array(v.string())),
+    // CR 105.1 / 105.2 — the `Color` union, named for the same reason.
+    colors: v.optional(
+        v.array(
+            v.union(
+                v.literal("W"),
+                v.literal("U"),
+                v.literal("B"),
+                v.literal("R"),
+                v.literal("G"),
+                v.literal("C")
+            )
+        )
+    ),
     duration: v.optional(
         v.object({
             phase: v.union(
