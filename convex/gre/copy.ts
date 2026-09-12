@@ -11,14 +11,15 @@
 // printed definition id is preserved in `copiedFrom` so the copy can be
 // reverted when it leaves the battlefield.
 
-import { getDefinition, tryGetDefinition } from "../cards";
+import { FACE_DOWN_CARD_ID, getDefinition, tryGetDefinition } from "../cards";
 import type { CopyEffectOptions, TriggeredAbility } from "../cards/types";
 import {
     abilityLossTimestamp,
     grantOutrankedByAbilityLoss,
 } from "./activatedAbilities";
 import { rebuildCopiableValuesAndReplayOverlays } from "./identitySwap";
-import type { CardInstanceState } from "./state";
+import { backFaceDefinitionIdOf } from "./transform";
+import type { CardInstanceState, LastKnownCopiable } from "./state";
 import type { LayerStateView } from "./layers";
 
 /** Everything a copy SOURCE contributes to a copy effect (CR 707.2). Narrower
@@ -279,6 +280,127 @@ function grantedTriggeredAbilities(
         if (template) out.push(template);
     }
     return out;
+}
+
+/** The `GameState` slice {@link lookBackSelf} reads — the layer view every
+ *  identity rebuild needs, plus the ADR 0086 departure store. Stated as a
+ *  structural type so a test board (or the client Brain's local clone) can
+ *  satisfy it without a whole `GameState`. */
+export type LookBackStateView = LayerStateView & {
+    lastKnownCopiable?: Record<string, LastKnownCopiable>;
+};
+
+/** CR 603.10 — "the game 'looks back in time' to determine if those abilities
+ *  trigger, using the existence of those abilities and the appearance of
+ *  objects immediately prior to the event", and CR 603.10a puts
+ *  leaves-the-battlefield abilities first on the list of exceptions.
+ *
+ *  Returns the object `card` WAS on the battlefield, for a permanent that has
+ *  just departed. The single battlefield-departure funnel (`removePermanentTo`,
+ *  `gre/state.ts`) correctly reverts three identity swaps on the way out — the
+ *  copy effect (CR 707.2 — it "lasts only while the object is on the
+ *  battlefield"), the transform (CR 712.8a — "while a double-faced card is …
+ *  in a zone other than the battlefield or stack, it has only the
+ *  characteristics of its front face") and the face-down status (CR 708.9 —
+ *  the owner "must reveal it to all players as they move it") — so by the time
+ *  the trigger scan re-finds the object in its destination zone it presents the
+ *  PRINTED front face. Scanning that object reads the wrong ability list in
+ *  both directions: a Clone of a dies-trigger creature loses its trigger, and a
+ *  face-down creature gains a printed one it did not have.
+ *
+ *  ONE authority, not a second store: everything here is derived from the
+ *  `LastKnownCopiable` entry the same funnel wrote a few lines BEFORE those
+ *  three reverts (ADR 0086, issue #2075), which is by construction the
+ *  definition id the permanent presented as it left plus the CR 707.3 "except"
+ *  clause stamped on it. The copiable values are then rebuilt from that
+ *  definition through the very call the three swap sites use
+ *  (`rebuildCopiableValuesAndReplayOverlays`), so the view's types, subtypes,
+ *  base P/T and static abilities are what they were — and the permanent's own
+ *  layers 2-7 (counters, anthems, grants) replay on top, since CR 400.7 makes
+ *  the departure a new object only for the card in the destination zone, never
+ *  for the look-back appearance this reconstructs.
+ *
+ *  Returns `card` ITSELF — same reference, no clone — whenever nothing was
+ *  reverted (no entry, or the entry names the id the card already presents),
+ *  which is every ordinary permanent. That identity is what keeps every
+ *  existing dies/LTB path byte-identical.
+ *
+ *  KNOWN GAP, deliberate: a triggered ability installed by a copy effect's own
+ *  "except it has …" clause (`CopyEffectOptions.additionalTriggeredAbilityIds`
+ *  — Phantasmal Image) is a per-instance GRANT that `revertCopy` strips, and
+ *  `LastKnownCopiable` records only the presented definition and the P/T
+ *  exception, so the look-back cannot restore it. Widening that store to carry
+ *  the remaining "except" clauses is issue #2963. Unreachable today: the one
+ *  shipped user grants a becomes-targeted trigger, not a leave-trigger. */
+export function lookBackSelf(
+    state: LookBackStateView,
+    card: CardInstanceState
+): CardInstanceState {
+    const entry = state.lastKnownCopiable?.[card.id];
+    if (!entry) return card;
+    const printedId = presentedDefId(card);
+    if (entry.defId === printedId) return card;
+    const def = tryGetDefinition(entry.defId);
+    if (!def) return card;
+
+    const view: CardInstanceState = {
+        ...card,
+        card: { ...(card.card as object), id: entry.defId },
+    };
+    if (entry.copyExcept) view.copyExcept = { ...entry.copyExcept };
+    else delete view.copyExcept;
+    // Every identity marker is cleared BEFORE the branch below stamps its own.
+    // The spread carries whatever the destination-zone card still has, and the
+    // three reverts do not clear each other's fields — a view that claimed two
+    // identities at once would be read differently by each consumer.
+    delete view.copiedFrom;
+    delete view.transformed;
+    delete view.transformedFrom;
+    delete view.faceDown;
+    delete view.faceDownOf;
+    delete view.faceDownBy;
+
+    // Which of the three reverts ran is answered from the departure id, and it
+    // has to be answered for ONE reason: `effectiveTriggeredAbilities` reads
+    // `copiedFrom` (the CR 707.9d "except it has this ability" union), so
+    // claiming it wrongly unions triggers the object never had.
+    if (entry.defId === FACE_DOWN_CARD_ID) {
+        // CR 708.2 — the sentinel's copiable values are the 2/2 vanilla body,
+        // so the object contributes NO printed trigger whichever way it got
+        // there, and NO marker is stamped. The id alone cannot tell a
+        // face-down permanent from a face-UP copy OF one (CR 707.2's own
+        // Clone-of-Grinning-Demon example presents the sentinel too), and the
+        // one thing that must not happen either way is a `copiedFrom` claim
+        // unioning `retainedThroughCopy` triggers onto an object with no
+        // abilities. Grants made to it (layer 6, CR 613.1f) are instance state
+        // and survive the spread, exactly as for a live face-down permanent.
+    } else if (backFaceDefinitionIdOf(printedId) === entry.defId) {
+        // CR 712.8a — it died showing its back face. Unreachable ambiguity,
+        // noted rather than coded around: a double-faced permanent that was a
+        // COPY of some other permanent already presenting that same back face
+        // lands here too, and would lose the `retainedThroughCopy` union. No
+        // shipped card pair can produce it.
+        view.transformed = true;
+        view.transformedFrom = printedId;
+    } else {
+        // CR 707.2 — it died as a copy of something else. `copiedFrom` is the
+        // id the card presents NOW, because `revertCopy` restores `card.id`
+        // from exactly that field.
+        view.copiedFrom = printedId;
+    }
+
+    // CR 613.1a — layer 1 of the departed appearance. `copyExcept` is the
+    // CR 707.2 "except its base power and toughness are N/N" clause, and it
+    // replaces a COPIABLE value, so it is the base the replay starts from —
+    // the same precedence `applyCopy` gives it.
+    rebuildCopiableValuesAndReplayOverlays(state, view, {
+        types: [...def.types],
+        subtypes: [...(def.subtypes ?? [])],
+        power: entry.copyExcept?.basePower ?? def.power,
+        toughness: entry.copyExcept?.baseToughness ?? def.toughness,
+        staticAbilities: [...(def.staticAbilities ?? [])],
+    });
+    return view;
 }
 
 /** Resolves a single triggered ability by id for `card`, honoring abilities

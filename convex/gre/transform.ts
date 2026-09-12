@@ -93,6 +93,34 @@ function backFaceAsTokenSpec(backFace: CardBackFace): TokenSpec {
     };
 }
 
+/** The content-derived definition id a NONMODAL back face presents (CR 712.2)
+ *  — the id half of {@link registerBackFaceDefinition}, split out so a reader
+ *  can ask "is this def id that card's back face?" without minting a
+ *  definition as a side effect ({@link backFaceDefinitionIdOf}), which is its
+ *  only caller — `registerBackFaceDefinition` keeps building the spec it also
+ *  registers. */
+function nonmodalBackFaceDefinitionId(backFace: CardBackFace): string {
+    return tokenDefinitionId(backFaceAsTokenSpec(backFace));
+}
+
+/** CR 712.2 / 712.8f — the definition id `frontId` presents while TRANSFORMED,
+ *  or `undefined` when that card has no back face. PURE: unlike
+ *  `registerBackFaceDefinition` it registers nothing, so asking the question is
+ *  free of side effects.
+ *
+ *  Exists for the CR 603.10 look-back (`lookBackSelf`, `gre/copy.ts`), which
+ *  has to tell a departed permanent's THREE possible identity reversions apart
+ *  — copy, transform, face-down — from the definition id it presented as it
+ *  left, and has only that id plus the destination-zone card to go on. */
+export function backFaceDefinitionIdOf(frontId: string): string | undefined {
+    const frontDef = tryGetDefinition(frontId);
+    const backFace = frontDef?.backFace;
+    if (!backFace) return undefined;
+    return isModalDoubleFaced(frontDef ?? undefined)
+        ? modalBackFaceDefinitionId(frontId)
+        : nonmodalBackFaceDefinitionId(backFace);
+}
+
 /** Registers (idempotently, `registerTokenDefinition`) a synthesized
  *  `CardDefinition` for `backFace` and returns its id. Two permanents
  *  transforming from the SAME front definition with the SAME back-face spec
