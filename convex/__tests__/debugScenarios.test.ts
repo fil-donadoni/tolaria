@@ -994,3 +994,109 @@ describe("seedScenarioDirect — loadability guard reused (issue #1453, ADR 0044
         expect(collectUnresolvedCardNames(spec, resolves)).toEqual([]);
     });
 });
+
+describe("normalizeScenarioSpec — continuous effects are read fail-closed (issue #3488)", () => {
+    const PUMP = {
+        layer: 7,
+        sublayer: "7c",
+        affected: { me: ["Grizzly Bears"] },
+        controller: "me",
+        duration: { phase: "end-of-turn" },
+        payload: { kind: "pt-modify", power: 3, toughness: 3 },
+    };
+
+    it("keeps a well-formed entry, parameter and all", () => {
+        const grant = {
+            layer: 6,
+            affected: { opp: ["Shivan Dragon"] },
+            controller: "me",
+            payload: {
+                kind: "keyword-grant",
+                keyword: "protection from red",
+                parameter: { kind: "protection", qualities: ["red"] },
+            },
+            characteristicDefining: true,
+        };
+        expect(
+            normalizeScenarioSpec({
+                cards: [],
+                continuousEffects: [PUMP, grant],
+            }).continuousEffects
+        ).toEqual([PUMP, grant]);
+    });
+
+    it("drops an entry missing any of the three facts that make it mean something", () => {
+        // What it applies to, who controls it, what it does. A half-built entry
+        // would rebuild a board nobody captured, which is the one failure a
+        // lowering exists to prevent.
+        const dropped = [
+            { ...PUMP, affected: {} },
+            { ...PUMP, controller: "nobody" },
+            { ...PUMP, payload: { kind: "pt-modify", power: 3 } },
+            {
+                ...PUMP,
+                payload: { kind: "control-change", controllerId: "p2" },
+            },
+        ];
+        for (const entry of dropped) {
+            expect(
+                normalizeScenarioSpec({ cards: [], continuousEffects: [entry] })
+                    .continuousEffects
+            ).toBeUndefined();
+        }
+        // And the well-formed neighbours of a malformed entry survive it.
+        expect(
+            normalizeScenarioSpec({
+                cards: [],
+                continuousEffects: [dropped[0], PUMP],
+            }).continuousEffects
+        ).toEqual([PUMP]);
+    });
+
+    it("drops a layer-7 entry that names no sublayer, and a sublayer on any other layer (CR 613.4)", () => {
+        const { sublayer: _sublayer, ...noSublayer } = PUMP;
+        expect(
+            normalizeScenarioSpec({
+                cards: [],
+                continuousEffects: [noSublayer],
+            }).continuousEffects
+        ).toBeUndefined();
+        // A layer-6 entry carrying one is not rejected but STRIPPED: the slot
+        // it would name has no meaning outside layer 7, and the entry's own
+        // three facts are intact.
+        expect(
+            normalizeScenarioSpec({
+                cards: [],
+                continuousEffects: [
+                    {
+                        ...PUMP,
+                        layer: 6,
+                        payload: { kind: "keyword-grant", keyword: "flying" },
+                    },
+                ],
+            }).continuousEffects
+        ).toEqual([
+            {
+                layer: 6,
+                affected: { me: ["Grizzly Bears"] },
+                controller: "me",
+                duration: { phase: "end-of-turn" },
+                payload: { kind: "keyword-grant", keyword: "flying" },
+            },
+        ]);
+    });
+
+    it("reads a malformed duration as an ABSENCE, never as an invented boundary (CR 611.2a)", () => {
+        // Absent means INDEFINITE, and that is the reading a malformed value
+        // must collapse to as well: a `phase` the tick does not count would
+        // otherwise be a boundary nothing ever reaches.
+        expect(
+            normalizeScenarioSpec({
+                cards: [],
+                continuousEffects: [
+                    { ...PUMP, duration: { phase: "end-of-everything" } },
+                ],
+            }).continuousEffects?.[0].duration
+        ).toBeUndefined();
+    });
+});

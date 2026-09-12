@@ -3918,7 +3918,8 @@ describe("scenario spec — the Continuous Effects Registry (issue #3488)", () =
             state,
             pushSpell(state, giantGrowth.id, state.players[0].id)
         );
-        return { state, bear, ctx, target: { type: "permanent", id: bear.id } };
+        const target = { type: "permanent", id: bear.id } as const;
+        return { state, bear, ctx, target };
     }
 
     /** CR 514.2 — walk the game through the engine's OWN phase progression
