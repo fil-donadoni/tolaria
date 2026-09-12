@@ -16,7 +16,7 @@
 // baked in `expectedInputPlayerId: s.priorityPlayerId`, which is exactly the
 // assumption finding 1 proved false).
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import type { Id } from "@convex/_generated/dataModel";
 import { getCardByName } from "@convex/cards";
 import { PLACEHOLDER_CARD_ID } from "@convex/gre";
@@ -58,6 +58,9 @@ function clearPublicStateOverride() {
 // of `currentState` (issue #1778 finding 4: a vs-AI game already in progress
 // when this feature deploys has never had a tick row written for it).
 let forceNullTick = false;
+// issue #3266 review — the tick query gives up. A driver that swallows this
+// stops moving with nothing on screen saying why, which reads as a hung game.
+let tickError: Error | null = null;
 // What `getSeatDeck` answers (issue #2506), keyed by the requested seat
 // (issue #2790 — the driver now queries TWO seats, bot and human, so a single
 // shared value can no longer stand in for both). `undefined` = still loading;
@@ -181,6 +184,7 @@ vi.mock("convex/react", async () => {
         }
         if (ref === "getGame") return undefined;
         if (ref === "getGameTick") {
+            if (tickError) return tickError;
             if (forceNullTick) return null;
             if (currentState === undefined) return undefined;
             const s = currentState as {
@@ -362,6 +366,7 @@ describe("useVsAiDriver (issue #110)", () => {
         currentState = undefined;
         clearPublicStateOverride();
         forceNullTick = false;
+        tickError = null;
         seatDecks = {};
         // issue #2790 — a test that opts into `expert` via `storeDifficulty`
         // must not leak it to the next one, which assumes the default.
@@ -1009,6 +1014,33 @@ describe("useVsAiDriver (issue #110)", () => {
 
         expect(calls).toHaveLength(1);
         expect(calls[0].ref).toBe("passPriority");
+    });
+
+    // Issue #3266 review — the driver's OWN subscriptions are private to this
+    // hook, so nothing the board subscribes to escalates on their behalf, and a
+    // parked subscription never un-parks by itself. The failure has to leave
+    // the hook, or the bot simply stops moving in silence.
+    it("reports a subscription that gave up instead of freezing silently", async () => {
+        currentState = botState({ priorityPlayerId: BOT });
+        // Not transient: escalates on the first failure rather than after the
+        // backoff ladder.
+        tickError = new Error(
+            "[CONVEX Q(game:getGameTick)] Uncaught ConvexError: nope"
+        );
+        const { result } = renderHook(() => useVsAiDriver(GAME, BOT));
+        await settleDriver();
+
+        expect(result.current.subscriptionError).toBeInstanceOf(Error);
+        // The bot never acted — that is the point of surfacing it.
+        expect(calls).toHaveLength(0);
+
+        // And the manual exit re-subscribes: the tick answers again, so the
+        // driver resumes.
+        tickError = null;
+        act(() => result.current.retrySubscription());
+        await settleDriver();
+        expect(result.current.subscriptionError).toBe(null);
+        expect(calls.map((c) => c.ref)).toContain("passPriority");
     });
 
     // Issue #1778 review finding 4 — a vs-AI game already in progress when

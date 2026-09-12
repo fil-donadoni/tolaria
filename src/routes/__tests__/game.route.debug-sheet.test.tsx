@@ -12,12 +12,20 @@ import { render, cleanup } from "@testing-library/react";
 
 let game: Record<string, unknown> | undefined;
 
-vi.mock("convex/react", () => ({
-    useQuery: () => game,
-    useMutation: () => vi.fn(),
-}));
+vi.mock("convex/react", async () => {
+    // `useResilientQuery` (issue #3266) subscribes through `useQueries`, so the
+    // mock answers both entry points from the one resolver.
+    const { mockUseQueries } =
+        await import("~/lib/testing/convex-react-query-mock");
+    const resolve = () => game;
+    return {
+        useQuery: resolve,
+        useQueries: mockUseQueries(resolve),
+        useMutation: () => vi.fn(),
+    };
+});
 vi.mock("@convex/_generated/api", () => ({
-    api: { game: { getGame: {}, leaveGame: {} } },
+    api: { game: { getGame: "game:getGame", leaveGame: "game:leaveGame" } },
 }));
 vi.mock("@tanstack/react-router", () => ({
     useNavigate: () => vi.fn(),

@@ -165,6 +165,37 @@ describe("useResilientQuery (issue #3266)", () => {
         expect(result.current.data).toBe(undefined);
     });
 
+    it("an argument change clears a standing escalation", () => {
+        // The board re-points the SAME hook instance at another game (Restart
+        // Solo, rematch, Switch Game). Only `retry()` ever un-parks, so a
+        // state that outlived its arguments would leave the next game parked
+        // on the previous game's verdict, with nothing on screen able to
+        // un-stick it.
+        h.result = new Error("Uncaught ConvexError: boom");
+        const { result, rerender } = mount({ gameId: "g1" });
+        act(() => rerender({ a: { gameId: "g1" } }));
+        expect(result.current.error).toBeInstanceOf(Error);
+
+        h.result = { seq: 1, game: "g2" };
+        act(() => rerender({ a: { gameId: "g2" } }));
+        expect(result.current.error).toBe(null);
+        expect(result.current.data).toEqual({ seq: 1, game: "g2" });
+    });
+
+    it("keeps the last good value across a manual retry", () => {
+        h.result = { seq: 1 };
+        const { result, rerender } = mount({ gameId: "g1" });
+        h.result = new Error("Uncaught ConvexError: boom");
+        act(() => rerender({ a: { gameId: "g1" } }));
+        expect(result.current.error).toBeInstanceOf(Error);
+
+        // The re-subscribe is a round trip: blanking the board for it is the
+        // teardown this hook exists to avoid, in miniature.
+        h.result = undefined;
+        act(() => result.current.retry());
+        expect(result.current.data).toEqual({ seq: 1 });
+    });
+
     it("drops the held value when the caller skips", () => {
         h.result = { seq: 1 };
         const { result, rerender } = mount({ gameId: "g1" });

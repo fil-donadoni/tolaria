@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "convex/react";
 import { useResilientQuery } from "~/hooks/useResilientQuery";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -163,10 +162,15 @@ export default function Board({
     const gameCardIds = useMemo(() => gameArtCardIds(game), [game]);
 
     const matchId = game?.matchId ?? null;
-    const match = useQuery(
+    // Resilient too (issue #3266 review): a timeout on THIS subscription, a
+    // sibling of the two above on the same component, reproduces the whole
+    // teardown by itself. Not part of `fatal` below, though — the Match meta
+    // only decorates the game-over screen, and the board is perfectly usable
+    // without it.
+    const match = useResilientQuery(
         api.matches.getMatch,
         pageVisible && matchId ? { matchId } : "skip"
-    );
+    ).data;
     useEffect(() => {
         if (!gameCardIds || gameCardIds.length === 0) return;
         // Art crops are only fetched when the user opens the zoom panel (hover

@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { useQuery } from "convex/react";
+import { useResilientQuery } from "~/hooks/useResilientQuery";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { usePageVisible } from "~/hooks/usePageVisible";
@@ -42,10 +42,15 @@ export default function ManualBoardContainer({
     // (the query below, `me`/`opponent` ordering in `ManualBoardView`) is
     // derived from it, so flipping it is the entire feature.
     const [steeredSeat, setSteeredSeat] = useState(playerId);
-    const state = useQuery(
+    // The Manual board's `getPublicState` (issue #3266 review): same 1s
+    // platform ceiling, same re-throw, same teardown of the whole tree through
+    // the router's catch boundary — the crash class is the query, not the
+    // board it feeds.
+    const stateQuery = useResilientQuery(
         api.game.getManualState,
         pageVisible ? { gameId, viewerId: steeredSeat } : "skip"
     );
+    const state = stateQuery.data;
 
     // Toggles to whichever OTHER seat is on the current state — reads
     // `state.players` rather than assuming the `-p1`/`-p2` id shape (no

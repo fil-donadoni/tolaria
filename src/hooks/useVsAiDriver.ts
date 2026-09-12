@@ -161,6 +161,14 @@ export type VsAiDriverStatus = {
      *  top and submits the first legal rung. Resolves once the submission
      *  settles. */
     resolveStuck: () => Promise<void>;
+    /** The driver's OWN subscriptions gave up (issue #3266 review). The board's
+     *  error surface cannot cover this: these two queries are private to this
+     *  hook, and a parked subscription never un-parks by itself — the bot would
+     *  simply stop moving, with nothing on screen saying why. `null` while at
+     *  least one retry is still possible. */
+    subscriptionError: Error | null;
+    /** Re-subscribes both of the driver's game queries. */
+    retrySubscription: () => void;
 };
 
 export function useVsAiDriver(
@@ -214,23 +222,25 @@ export function useVsAiDriver(
     // tears down `<Board>` through the router's catch boundary — with the
     // Brain's Worker disposed by the effect cleanup above on the way out.
     // `useResilientQuery` holds the last tick, re-subscribes with backoff, and
-    // never throws; a subscription that stays broken shows up on the BOARD's
-    // error surface, which subscribes to the same deployment, rather than
-    // here — the driver has no UI of its own to escalate onto, it just stops
-    // acting until the tick comes back.
-    const tick = useResilientQuery(
+    // never throws. One that gives up is reported through `subscriptionError`
+    // below: these queries are the driver's own, so nothing the BOARD
+    // subscribes to would ever escalate on their behalf, and a parked
+    // subscription never un-parks by itself — the bot would just stop moving.
+    const tickQuery = useResilientQuery(
         api.game.getGameTick,
         botId ? { gameId } : "skip"
-    ).data;
+    );
+    const tick = tickQuery.data;
     const botOwesInput = !!(
         botId &&
         (tick === null ||
             (tick && !tick.gameOver && tick.owedPlayerIds?.includes(botId)))
     );
-    const botState = useResilientQuery(
+    const botStateQuery = useResilientQuery(
         api.game.getPublicState,
         botId && botOwesInput ? { gameId, playerId: botId } : "skip"
-    ).data;
+    );
+    const botState = botStateQuery.data;
     // The bot's OWN decklist, wired into the search adapter so its simulated
     // library carries real card identities (issue #1509): fetch/tutor subtrees
     // then search the real fetchable cards instead of worthless placeholders.
@@ -305,6 +315,12 @@ export function useVsAiDriver(
             ],
         };
     }, [botDeck, botId, humanDeck, humanId]);
+    const retryTick = tickQuery.retry;
+    const retryBotState = botStateQuery.retry;
+    const retryDriverSubscriptions = useCallback(() => {
+        retryTick();
+        retryBotState();
+    }, [retryTick, retryBotState]);
     const [thinking, setThinking] = useState(false);
     // Rung 5's banner, stored WITH the state version it belongs to so the
     // exposed value can be DERIVED (below) rather than cleared from an effect:
@@ -1204,5 +1220,14 @@ export function useVsAiDriver(
             ? { expectedKind: stuckAt.expectedKind }
             : null;
 
-    return { thinking, stuck, resolveStuck };
+    return {
+        thinking,
+        stuck,
+        resolveStuck,
+        // Either query giving up is the same outcome for the player: the bot
+        // stops moving. The tick is reported first because it is the one that
+        // gates everything else.
+        subscriptionError: tickQuery.error ?? botStateQuery.error,
+        retrySubscription: retryDriverSubscriptions,
+    };
 }

@@ -60,10 +60,14 @@ type RetryState = {
     error: Error | null;
     /** The value carried across the parked window. */
     held: unknown;
-    /** Which arguments `held` belongs to. A board that switches games
-     *  (Restart Solo, rematch, Switch Game) must never be shown the previous
-     *  game's held state — the key is what makes the carry-over safe. */
-    heldKey: string | null;
+    /** Which arguments this whole state belongs to. A board that switches
+     *  games (Restart Solo, rematch, Switch Game) re-points the SAME hook
+     *  instance: without the key it would be shown the previous game's held
+     *  value, and — worse — would stay PARKED on the previous game's
+     *  escalation, since only `retry()` ever un-parks. Keying the state makes
+     *  an argument change a clean slate by construction, with no effect to
+     *  fire and no second source of truth. */
+    key: string | null;
 };
 
 /** The parked / skipped request: `useQueries` holds no watch at all for it,
@@ -74,7 +78,7 @@ const IDLE: RetryState = {
     parked: false,
     error: null,
     held: undefined,
-    heldKey: null,
+    key: null,
 };
 
 export function useResilientQuery<Query extends FunctionReference<"query">>(
@@ -90,7 +94,12 @@ export function useResilientQuery<Query extends FunctionReference<"query">>(
     const lastGood = useRef<{ value: Result | undefined; key: string } | null>(
         null
     );
-    const failures = useRef(0);
+    // Consecutive failures, scoped to the arguments they were counted under —
+    // a switch to another game starts its own ladder.
+    const failures = useRef<{ count: number; key: string | null }>({
+        count: 0,
+        key: null,
+    });
     const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const callerArgs = args[0];
@@ -100,12 +109,17 @@ export function useResilientQuery<Query extends FunctionReference<"query">>(
         [query, callerArgs]
     );
 
+    // Everything the retry state says applies to the arguments it was recorded
+    // under, and to nothing else.
+    const current = state.key === argsKey;
+    const parked = current && state.parked;
+
     // Parking is expressed as an empty request, which is what `useQuery` does
     // for `"skip"`: the watch is dropped, and mounting it again on the next
     // render issues a fresh execution.
     const request: RequestForQueries = useMemo(
         () =>
-            skipped || state.parked
+            skipped || parked
                 ? NO_REQUEST
                 : {
                       query: {
@@ -119,7 +133,7 @@ export function useResilientQuery<Query extends FunctionReference<"query">>(
         // re-subscribe on every render. Same reasoning (and the same
         // stringify) as `useQuery`'s own memo.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [argsKey, skipped, state.parked]
+        [argsKey, skipped, parked]
     );
     const raw = useQueries(request).query as Result | Error | undefined;
     const failure = raw instanceof Error ? raw : null;
@@ -132,7 +146,7 @@ export function useResilientQuery<Query extends FunctionReference<"query">>(
         // save) is a value worth carrying across the next failure.
         if (value === undefined) return;
         lastGood.current = { value, key: argsKey };
-        failures.current = 0;
+        failures.current = { count: 0, key: argsKey };
     }, [value, failure, skipped, argsKey]);
 
     useEffect(() => {
@@ -141,19 +155,25 @@ export function useResilientQuery<Query extends FunctionReference<"query">>(
             lastGood.current?.key === argsKey
                 ? lastGood.current.value
                 : undefined;
-        const heldKey = held === undefined ? null : argsKey;
-        const count = failures.current + 1;
-        failures.current = count;
+        const count =
+            failures.current.key === argsKey ? failures.current.count + 1 : 1;
+        failures.current = { count, key: argsKey };
         if (!isTransientQueryError(failure) || count > MAX_TRANSIENT_RETRIES) {
-            setState({ parked: true, error: failure, held, heldKey });
+            setState({ parked: true, error: failure, held, key: argsKey });
             return;
         }
         if (timer.current) clearTimeout(timer.current);
         timer.current = setTimeout(
-            () => setState({ parked: false, error: null, held, heldKey }),
+            () =>
+                setState({
+                    parked: false,
+                    error: null,
+                    held,
+                    key: argsKey,
+                }),
             retryDelayMs(count - 1)
         );
-        setState({ parked: true, error: null, held, heldKey });
+        setState({ parked: true, error: null, held, key: argsKey });
     }, [failure, argsKey]);
 
     useEffect(
@@ -165,16 +185,23 @@ export function useResilientQuery<Query extends FunctionReference<"query">>(
 
     const retry = useCallback(() => {
         if (timer.current) clearTimeout(timer.current);
-        failures.current = 0;
-        setState(IDLE);
+        failures.current = { count: 0, key: null };
+        // Keeps the last good value through the manual re-subscribe, the same
+        // way an automatic retry does — reading a ref from an event handler is
+        // not a render read. Dropping it here would blank the board for the
+        // round-trip the player just asked for.
+        const good = lastGood.current;
+        setState({
+            parked: false,
+            error: null,
+            held: good?.value,
+            key: good ? good.key : null,
+        });
     }, []);
 
     // The held value survives only until a fresh one arrives — and only for
     // the arguments it was captured under.
-    const carried =
-        state.heldKey === argsKey
-            ? (state.held as Result | undefined)
-            : undefined;
+    const carried = current ? (state.held as Result | undefined) : undefined;
     return {
         // `!== undefined`, never `??`: `null` is a VALUE here — `getGameTick`
         // returns it for a game whose tick row predates the feature, and the
@@ -182,8 +209,8 @@ export function useResilientQuery<Query extends FunctionReference<"query">>(
         // into the carried value turns a settled "no row" into "still
         // loading" and the bot never moves.
         data: skipped ? undefined : value !== undefined ? value : carried,
-        error: state.error,
-        retrying: state.parked && state.error === null,
+        error: current ? state.error : null,
+        retrying: parked && state.error === null,
         retry,
     };
 }
