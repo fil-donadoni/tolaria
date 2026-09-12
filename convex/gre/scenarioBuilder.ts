@@ -975,11 +975,17 @@ export function buildStateFromScenario(
     // already carries the counters, and the grant derives from them here.
     // Idempotent (`findKeywordCounterEntry`) and a no-op for a counter type
     // that grants no keyword, so the pass costs nothing on an ordinary board.
-    // Every lowered zone, not just the battlefield: CR 122.1b is "a keyword
-    // counter on a permanent OR ON A CARD IN A ZONE OTHER THAN THE
-    // BATTLEFIELD", and `addCounterToCard` writes the entry in all of them.
+    // BATTLEFIELD only, though CR 122.1b is "a keyword counter on a permanent
+    // OR ON A CARD IN A ZONE OTHER THAN THE BATTLEFIELD" and
+    // `addCounterToCard` writes the entry in all of them: the placement loop
+    // above seeds `counters` onto the battlefield branch alone, so a graveyard
+    // card's counters do not survive the round trip in the first place and a
+    // replay there would have nothing to read. The lowering REPORTS such an
+    // entry rather than pretending it is rebuild behaviour
+    // (`rebuiltByCounterReplay`), which is the honest shape until the counter
+    // itself is lowered for every zone.
     for (const player of state.players) {
-        for (const card of lowerableZoneCards(player)) {
+        for (const card of player.battlefield) {
             for (const [type, count] of Object.entries(card.counters ?? {})) {
                 if (count > 0) applyKeywordCounterGrant(state, card, type);
             }
@@ -3234,12 +3240,12 @@ function rebuiltByCounterReplay(
         return false;
     }
     const permanentId = entry.expiry.permanentId;
-    // CR 122.1b — "A keyword counter on a permanent OR ON A CARD IN A ZONE
-    // OTHER THAN THE BATTLEFIELD causes that object to gain that keyword", and
-    // `addCounterToCard` is zone-agnostic, so the bearer is searched in every
-    // zone this lowering places — the same four the replay walks.
+    // The BATTLEFIELD, matching the replay exactly: CR 122.1b also covers a
+    // card in another zone, and `addCounterToCard` writes the entry there, but
+    // the builder seeds `counters` only onto battlefield placements — so such
+    // an entry is not reproduced and must not claim to be.
     const bearer = state.players
-        .flatMap((p) => lowerableZoneCards(p))
+        .flatMap((p) => p.battlefield)
         .find((card) => card.id === permanentId);
     if (!bearer) return false;
     if ((bearer.counters?.[entry.expiry.counterType] ?? 0) <= 0) return false;
@@ -3431,7 +3437,14 @@ function lowerContinuousEffects(
             // only for the entries its replay would write.
             if (rebuiltByCounterReplay(state, entry)) continue;
             report(
-                "its expiry is not one a resolved spell leaves behind, and the rebuild does not reproduce this entry"
+                entry.expiry.kind === "counter"
+                    ? // CR 122.1b — a counter-borne effect the keyword-counter
+                      // replay does not write: a card-authored counter gate
+                      // (ICE Dread Wight's paralyzation lock), or a counter on
+                      // a card the builder seeds no counters onto (any zone but
+                      // the battlefield).
+                      `it is borne by a "${entry.expiry.counterType}" counter the rebuild's keyword-counter replay does not reproduce`
+                    : "its expiry is not one a resolved spell leaves behind, and the rebuild does not reproduce this entry"
             );
             continue;
         }

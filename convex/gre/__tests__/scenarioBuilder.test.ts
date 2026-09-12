@@ -4069,6 +4069,45 @@ describe("scenario spec — the Continuous Effects Registry (issue #3488)", () =
         ]);
     });
 
+    it("REPORTS a keyword counter on a card outside the battlefield, which the rebuild does not reproduce (CR 122.1b)", () => {
+        // CR 122.1b is "a keyword counter on a permanent OR ON A CARD IN A ZONE
+        // OTHER THAN THE BATTLEFIELD", and `addCounterToCard` is zone-agnostic
+        // — but `buildStateFromScenario` seeds `counters` onto battlefield
+        // placements only, so the counter itself does not survive and the
+        // replay has nothing to read. Reported by the counter it names rather
+        // than swallowed by the expiry KIND, which is the difference between a
+        // known gap and a silent one.
+        const state = buildStateFromScenario(makeState(), {
+            cards: [
+                { name: grizzlyBears.name, owner: "me", zone: "graveyard" },
+            ],
+        });
+        addCounterToCard(state, state.players[0].graveyard[0], "flying", 1);
+        expect(state.continuousEffects).toHaveLength(1);
+
+        const { spec, dropped } = specFromState(state, {
+            mySeatId: state.players[0].id,
+        });
+        expect(spec.continuousEffects).toBeUndefined();
+        expect(dropped).toContainEqual(
+            expect.stringContaining('borne by a "flying" counter')
+        );
+        // The battlefield twin of the same board says nothing, so the report
+        // is about the ZONE and not about counters in general.
+        const onBoard = buildStateFromScenario(makeState(), {
+            cards: [{ name: grizzlyBears.name, owner: "me" }],
+        });
+        addCounterToCard(
+            onBoard,
+            onBoard.players[0].battlefield[0],
+            "flying",
+            1
+        );
+        expect(
+            specFromState(onBoard, { mySeatId: onBoard.players[0].id }).dropped
+        ).toEqual([]);
+    });
+
     it("does NOT lower a source-expiry grant — beginApplyingStaticEffects re-derives it (CR 604.1)", () => {
         const state = buildStateFromScenario(makeState(), {
             cards: [
