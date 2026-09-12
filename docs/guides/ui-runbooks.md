@@ -134,6 +134,42 @@ Upsert-by-label, so re-running it is safe; the row itself stays
 deployment-local (ADR 0044). `scripts/__tests__/ui-gate-stress-scenario.test.ts`
 holds the label and the card names to the catalogue.
 
+## Open the debug sheet's AI trace, in a vs-AI game (2026-09-12)
+
+The `AI trace` box is mounted only for a vs-AI game (`debug-sheet.tsx`), so on
+the solo game every other board runbook here deals, this screen does not exist.
+It is the `game-debug-sheet-ai` surface (issue #3492), and it is the one walk in
+the lane that ENDS a match — its own, never one it found.
+
+1. From an EMPTY lobby (no active-game banner — the Loadout's primary plate is
+   disabled while the account holds any game, `src/lib/lobbyGate.ts`): click the
+   `Play vs Bot` Mode Tile.
+2. Select a tile from the **`Preset decks`** shelf, not `Your decks`. A preset
+   is a real 60-card list; the first selectable tile in the lobby is whatever
+   the account happens to own, and a two-card freeform leftover deals both seats
+   an empty library — the game ends on `The game is a draw` before the first
+   prompt.
+3. Click the Loadout's primary plate, then `Play vs AI` in the setup dialog.
+4. Answer the pregame prompts until **no modal is left**: the coin toss is a
+   `GameDialog` with four states (`pregame-dialog.tsx`), only one of which has a
+   button, and the bot answers its own half asynchronously. Then `Keep` the
+   opening hand. `dialog.tsx`'s scrim is `fixed inset-0`, so a dialog still up
+   makes step 5 impossible while looking like a layout bug.
+5. Click the slim edge tab at the left edge (`[data-debug-sheet-toggle]`, a `»`
+   chevron above the controller bar) or press <kbd>`</kbd>. The sheet's open
+flag persists per device in `tolaria:debugSheetOpen`, so check
+`aria-expanded` before clicking rather than toggling blind.
+6. The `AI trace` box sits at the top of the sheet. Its open body is
+   `[data-ai-trace-body]`; sections run ring → escalation log → outcome log.
+7. **Measuring?** Press each `Clear` inside the sheet first. The ring is a live
+   log of a live bot, and its row count is a function of how long you took —
+   two runs of the same tree measured `ctrls n13 small12` then `ctrls n21
+small19` at 1440x900x2.
+8. **Afterwards, end the game you created** — `Concede Match` on the lobby
+   banner, then the confirm dialog's own `Concede Match`. An active game left
+   behind gates the vs-AI dialog shut for the next run and for every concurrent
+   session (see `lobby-vs-ai`'s entry in `budgets.json`).
+
 ## Sign in from cold (2026-08-19)
 
 Every route is behind `<AuthGate>`, so a fresh browser profile lands on the
