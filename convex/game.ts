@@ -21,6 +21,7 @@ import {
 // where that copy would rot unnoticed.
 import {
     scenarioAnimationValidator,
+    scenarioContinuousEffectValidator,
     scenarioManaPoolValidator,
     scenarioRestrictedManaValidator,
 } from "./debugScenarioSpec";
@@ -15472,6 +15473,16 @@ export const debugSetupScenario = mutation({
                 me: v.optional(v.array(scenarioRestrictedManaValidator)),
                 opp: v.optional(v.array(scenarioRestrictedManaValidator)),
             })
+        ),
+        /** CR 611.2a / 613 (issue #3488) — the Continuous Effects Registry
+         *  entries a RESOLVED spell or ability left behind (a "+3/+3 until end
+         *  of turn", a "gains flying until end of turn"): the one provenance
+         *  no rebuild can walk back to, since the spell has left. Affected
+         *  permanents are named by PRESENTED CARD NAME per seat, the
+         *  `attachedTo` convention — never an instance id, which every rebuild
+         *  reassigns. */
+        continuousEffects: v.optional(
+            v.array(scenarioContinuousEffectValidator)
         ),
         companion: v.optional(
             v.object({

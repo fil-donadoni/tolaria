@@ -363,7 +363,14 @@ const scenarioContinuousEffectFields = {
     characteristicDefining: v.optional(v.boolean()),
 };
 
-const scenarioContinuousEffectValidator = v.union(
+/** EXPORTED because `debugSetupScenario`'s own `args` validator
+ *  (`convex/game.ts`) must declare the identical field: both live load paths
+ *  spread a `normalizeScenarioSpec(...)` result straight into that mutation,
+ *  so a field on this validator and absent from the mutation's args throws
+ *  `ArgumentValidationError` at the Convex boundary before the handler runs —
+ *  the sixth-site failure `debugSetupScenarioArgsLockStep.test.ts` exists to
+ *  catch (issue #2147). */
+export const scenarioContinuousEffectValidator = v.union(
     v.object({
         layer: v.union(
             v.literal(2),
