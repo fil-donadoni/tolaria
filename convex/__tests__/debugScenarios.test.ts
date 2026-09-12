@@ -149,6 +149,15 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
                     // re-entry instead), so this is the shape the verdict
                     // quiz's own capture produced.
                     activations: { "fetchland-crack": 1, bogus: "x" },
+                    // CR 106.4 / 603.3 / 502.1 (issue #3451) — the tap-state
+                    // trio. Normalize is the only path a stored row reaches
+                    // the builder by, so one it drops rebuilds a captured
+                    // mid-turn board with every tapped land freely untappable
+                    // and every "started the turn untapped" upkeep trigger
+                    // silent.
+                    manaCommitted: true,
+                    tapTriggerCommitted: true,
+                    startedTurnUntapped: true,
                 },
             ],
             phase: "PRECOMBAT_MAIN",
@@ -215,6 +224,9 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
                     count: 3,
                     counters: { "+1/+1": 2 },
                     activations: { "fetchland-crack": 1 },
+                    manaCommitted: true,
+                    tapTriggerCommitted: true,
+                    startedTurnUntapped: true,
                 },
             ],
             phase: "PRECOMBAT_MAIN",

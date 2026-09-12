@@ -72,6 +72,16 @@ const STORED: Required<ScenarioSpec> = {
             // triggered-ability resolution tally: no input renders it either,
             // and the card-level draft round trip is what carries it.
             abilityResolutions: { "psychatog-dies": 1 },
+            // CR 106.4 / 603.3 / 502.1 (issue #3451) — the tap-state trio.
+            // Unlike the two tallies above these DO render an input (three
+            // checkboxes under "More"), so what this row proves is the other
+            // half of the same contract: a rendered card field still has to
+            // survive the draft round trip, because the save path re-emits the
+            // card array wholesale.
+            tapped: true,
+            manaCommitted: true,
+            tapTriggerCommitted: true,
+            startedTurnUntapped: true,
         },
     ],
     phase: "POSTCOMBAT_MAIN",
@@ -253,6 +263,10 @@ describe("editing a scenario through the real form", () => {
             {
                 name: "Upheaval",
                 owner: "me",
+                tapped: true,
+                manaCommitted: true,
+                tapTriggerCommitted: true,
+                startedTurnUntapped: true,
                 activations: { "psychatog-pump": 2 },
                 abilityResolutions: { "psychatog-dies": 1 },
             },
@@ -275,6 +289,13 @@ describe("editing a scenario through the real form", () => {
         expect(editAndSave().cards[0]?.abilityResolutions).toEqual({
             "psychatog-dies": 1,
         });
+        // CR 106.4 / 603.3 / 502.1 (issue #3451) — the rendered trio survives
+        // the same round trip, checkbox and all.
+        const saved = editAndSave().cards[0];
+        expect(saved?.tapped).toBe(true);
+        expect(saved?.manaCommitted).toBe(true);
+        expect(saved?.tapTriggerCommitted).toBe(true);
+        expect(saved?.startedTurnUntapped).toBe(true);
     });
 
     it("drops a carried `combat` the admin renamed the cards out from under", () => {
