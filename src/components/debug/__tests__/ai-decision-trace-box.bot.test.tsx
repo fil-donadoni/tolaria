@@ -10,6 +10,11 @@
 // and the two things no layout-free suite can see unless they are asserted
 // here. `bun run check:ui` measures the resulting geometry in a real browser;
 // this file guards the contract that produces it.
+//
+// `.bot.test.tsx`, not `.test.tsx`: the order assertion drives the outcome log
+// through the real `trace-store`, which is a bot-only module, and
+// `bot-suite-boundary.test.ts` puts every test that imports one in the bot
+// suite.
 import { describe, it, expect, beforeEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import { clearAiDecisions, recordAiDecision } from "~/lib/ai/trace-store";

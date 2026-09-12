@@ -1821,7 +1821,7 @@ export const SURFACES: readonly Surface[] = [
             // surface measures the sheet's SHAPE at five viewports, and the
             // content it happens to be holding is not part of that. Section
             // ORDER is asserted offline, where it is a DOM fact and not a race
-            // (`ai-decision-trace-box.test.tsx`).
+            // (`ai-decision-trace-box.bot.test.tsx`).
             for (let pass = 0; pass < 4; pass++) {
                 const clears = page.locator(
                     `${DEBUG_SHEET} button:text-is("Clear")`
