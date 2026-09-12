@@ -92,7 +92,7 @@ export function useControllerActions(): ControllerState {
     const cancelCast = useMutation(api.game.cancelCast);
     const cancelActivation = useMutation(api.game.cancelActivation);
     const confirmAttackers = useMutation(api.game.confirmAttackers);
-    const toggleAttacker = useMutation(api.game.toggleAttacker);
+    const declareAttackers = useMutation(api.game.declareAttackers);
     const confirmBlockers = useMutation(api.game.confirmBlockers);
     const confirmDamage = useMutation(api.game.confirmDamage);
     const passPriority = useMutation(api.game.passPriority);
@@ -194,28 +194,22 @@ export function useControllerActions(): ControllerState {
         if (isBusy || eligibleIds.length === 0) return;
         setIsBusy(true);
         try {
+            // ONE mutation for the whole declaration (issue #3475) — the loop
+            // this replaced cost one full `gameStates` version, and one
+            // subscription invalidation, per creature.
+            //
             // The client eligibility predicate is a SUBSET of the server's
             // `validateAttackerEligibility` (it can't see engine-side
             // restrictions like Arboria / Island Sanctuary / the attacker cap),
-            // so an individual toggle may still be rejected. Tolerate each
-            // rejection on its own rather than aborting the whole run, and
-            // track what actually got declared — the sequence must walk the
-            // REAL attackers, never the optimistic client list.
-            const declared = [...(combat?.attackerIds ?? [])];
-            for (const id of eligibleIds) {
-                if (declared.includes(id)) continue;
-                try {
-                    await toggleAttacker({
-                        gameId,
-                        playerId,
-                        cardInstanceId: id,
-                    });
-                    declared.push(id);
-                } catch {
-                    // Server refused this creature (restriction the client
-                    // can't see, or the attacker cap). Skip it, keep going.
-                }
-            }
+            // so an individual creature may still be rejected. `declareAttackers`
+            // skips those rather than failing the batch, and returns what was
+            // ACTUALLY declared — the sequence must walk the real attackers,
+            // never the optimistic client list.
+            const { declaredIds: declared } = await declareAttackers({
+                gameId,
+                playerId,
+                attackerIds: eligibleIds,
+            });
             if (declared.length === 0) return;
             if (!defenderHasPlaneswalker) {
                 await confirmAttackers({ gameId, playerId });
@@ -231,9 +225,8 @@ export function useControllerActions(): ControllerState {
     }, [
         isBusy,
         eligibleIds,
-        combat,
         defenderHasPlaneswalker,
-        toggleAttacker,
+        declareAttackers,
         confirmAttackers,
         attackSequence,
         gameId,

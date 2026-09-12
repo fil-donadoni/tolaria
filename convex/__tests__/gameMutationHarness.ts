@@ -26,6 +26,16 @@ export interface MutationStub {
      *  the reader in that document's invalidation path. Nothing result-shaped
      *  can see it. */
     gets: string[];
+    /** Every `ctx.db.patch` / `ctx.db.insert`, in order — `table` is set only
+     *  for an insert.
+     *
+     *  The PERSISTED-VERSION count (issue #3475): `saveGameState` is the sole
+     *  writer of `gameStates` and bumps `seq` on every one of its writes, so
+     *  the number of writes addressed at a game's row IS the number of
+     *  document versions that declaration cost. Nothing result-shaped can see
+     *  that — a handler persisting eight versions and one persisting one end
+     *  at the identical state. */
+    writes: { id: string; table?: string }[];
     /** Convenience accessor for the single `gameStates` row every scenario
      *  here seeds as `gs-1`. */
     state: () => GameState;
@@ -41,6 +51,7 @@ export function makeMutationCtx(
     const docs = new Map<string, Row>();
     for (const seed of seeds) docs.set(seed._id as string, { ...seed });
     const gets: string[] = [];
+    const writes: { id: string; table?: string }[] = [];
 
     const ctx = {
         auth: {
@@ -55,10 +66,12 @@ export function makeMutationCtx(
             insert: async (table: string, doc: Row) => {
                 const id = `${table}-${docs.size + 1}`;
                 docs.set(id, { ...doc, _id: id, __table: table });
+                writes.push({ id, table });
                 return id;
             },
             patch: async (id: string, patch: Row) => {
                 docs.set(id, { ...docs.get(id), ...patch });
+                writes.push({ id });
             },
             query: (table: string) => ({
                 // A FULL SCAN — `.query(table).collect()` with no index, which
@@ -110,6 +123,7 @@ export function makeMutationCtx(
         ctx: ctx as unknown as MutationCtx,
         doc: (id) => docs.get(id)!,
         gets,
+        writes,
         // `saveGameState` persists the COMPACT form (`compactState`) — read
         // it back the same way the mutation's own `getLatestGameState` does
         // (`expandState`), or fields the compactor drops when falsy/default

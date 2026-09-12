@@ -356,11 +356,13 @@ export function useVsAiDriver(
         selectActivationDiscardCost: useMutation(
             api.game.selectActivationDiscardCost
         ),
-        toggleAttacker: useMutation(api.game.toggleAttacker),
-        toggleExert: useMutation(api.game.toggleExert),
+        // issue #3475 — the WHOLE declaration in one mutation. The bot fires
+        // its combat calls back-to-back, so the per-creature toggles cost one
+        // full `gameStates` version (and one subscription invalidation) each
+        // for a selection that is provisional until the confirm anyway.
+        declareAttackers: useMutation(api.game.declareAttackers),
         confirmAttackers: useMutation(api.game.confirmAttackers),
-        selectBlocker: useMutation(api.game.selectBlocker),
-        assignBlockerTarget: useMutation(api.game.assignBlockerTarget),
+        declareBlockers: useMutation(api.game.declareBlockers),
         confirmBlockers: useMutation(api.game.confirmBlockers),
         confirmDamage: useMutation(api.game.confirmDamage),
         declareMulligan: useMutation(api.game.declareMulligan),

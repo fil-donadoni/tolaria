@@ -31,11 +31,9 @@ function fakeMutations() {
         selectActivationCost: vi.fn().mockResolvedValue(null),
         selectActivationExileCost: vi.fn().mockResolvedValue(null),
         selectActivationDiscardCost: vi.fn().mockResolvedValue(null),
-        toggleAttacker: vi.fn().mockResolvedValue(null),
-        toggleExert: vi.fn().mockResolvedValue(null),
+        declareAttackers: vi.fn().mockResolvedValue(null),
         confirmAttackers: vi.fn().mockResolvedValue(null),
-        selectBlocker: vi.fn().mockResolvedValue(null),
-        assignBlockerTarget: vi.fn().mockResolvedValue(null),
+        declareBlockers: vi.fn().mockResolvedValue(null),
         confirmBlockers: vi.fn().mockResolvedValue(null),
         confirmDamage: vi.fn().mockResolvedValue(null),
         declareMulligan: vi.fn().mockResolvedValue(null),
@@ -459,40 +457,67 @@ describe("executeMove (issue #110)", () => {
         expect(m.tapForActivationPayment).not.toHaveBeenCalled();
     });
 
-    it("declare-attackers → toggle each then confirm", async () => {
+    // issue #3475 — ONE declaration mutation, not one per creature: the count
+    // of mutation calls (and so of persisted `gameStates` versions) must not
+    // grow with the size of the attack.
+    it("declare-attackers → ONE batched declaration then confirm", async () => {
         const m = await run({
             kind: "declare-attackers",
             attackerIds: ["a1", "a2"],
         });
-        expect(m.toggleAttacker).toHaveBeenNthCalledWith(1, {
+        expect(m.declareAttackers).toHaveBeenCalledTimes(1);
+        expect(m.declareAttackers).toHaveBeenCalledWith({
             ...GP,
-            cardInstanceId: "a1",
-        });
-        expect(m.toggleAttacker).toHaveBeenNthCalledWith(2, {
-            ...GP,
-            cardInstanceId: "a2",
+            attackerIds: ["a1", "a2"],
         });
         expect(m.confirmAttackers).toHaveBeenCalledWith(GP);
     });
 
-    it("declare-attackers with empty set → just confirm (no attack)", async () => {
+    // CR 508.1a (issue #1220) — the per-attacker planeswalker targets ride on
+    // the SAME call. They used to be dropped outright: the search planned an
+    // attack on a planeswalker and the executor realised it as an attack on
+    // the defending player.
+    it("declare-attackers carries planeswalker targets and exert costs", async () => {
+        const m = await run({
+            kind: "declare-attackers",
+            attackerIds: ["a1", "a2"],
+            attackTargets: { a1: "pw1" },
+            exertIds: ["a2"],
+        });
+        expect(m.declareAttackers).toHaveBeenCalledTimes(1);
+        expect(m.declareAttackers).toHaveBeenCalledWith({
+            ...GP,
+            attackerIds: ["a1", "a2"],
+            attackTargets: { a1: "pw1" },
+            exertIds: ["a2"],
+        });
+    });
+
+    it("declare-attackers with empty set → still ONE declaration + confirm", async () => {
         const m = await run({ kind: "declare-attackers", attackerIds: [] });
-        expect(m.toggleAttacker).not.toHaveBeenCalled();
+        expect(m.declareAttackers).toHaveBeenCalledTimes(1);
+        expect(m.declareAttackers).toHaveBeenCalledWith({
+            ...GP,
+            attackerIds: [],
+        });
         expect(m.confirmAttackers).toHaveBeenCalledWith(GP);
     });
 
-    it("declare-blockers → select+assign each, then confirm", async () => {
+    it("declare-blockers → ONE batched declaration then confirm", async () => {
         const m = await run({
             kind: "declare-blockers",
-            assignments: [{ blockerId: "b1", attackerId: "a1" }],
+            assignments: [
+                { blockerId: "b1", attackerId: "a1" },
+                { blockerId: "b2", attackerId: "a1" },
+            ],
         });
-        expect(m.selectBlocker).toHaveBeenCalledWith({
+        expect(m.declareBlockers).toHaveBeenCalledTimes(1);
+        expect(m.declareBlockers).toHaveBeenCalledWith({
             ...GP,
-            cardInstanceId: "b1",
-        });
-        expect(m.assignBlockerTarget).toHaveBeenCalledWith({
-            ...GP,
-            attackerId: "a1",
+            assignments: [
+                { blockerId: "b1", attackerId: "a1" },
+                { blockerId: "b2", attackerId: "a1" },
+            ],
         });
         expect(m.confirmBlockers).toHaveBeenCalledWith(GP);
     });

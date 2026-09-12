@@ -17,12 +17,32 @@ const calls: { ref: string; args: unknown }[] = [];
 // Card instance ids the fake server refuses to declare (stands in for an
 // engine-side restriction the client predicate can't see).
 const rejectedIds = new Set<string>();
+// Attackers already in the selection before the batch runs (the server returns
+// the WHOLE selection, not just what this call added).
+const priorAttackerIds: string[] = [];
 vi.mock("convex/react", () => ({
     useMutation: (ref: string) => (args: unknown) => {
         calls.push({ ref, args });
-        const id = (args as { cardInstanceId?: string })?.cardInstanceId;
-        if (ref === "toggleAttacker" && id && rejectedIds.has(id)) {
-            return Promise.reject(new Error("Creature can't attack"));
+        if (ref === "declareAttackers") {
+            // issue #3475 — the batched declaration skips what the server
+            // refuses and answers with the REAL selection.
+            const requested = (args as { attackerIds: string[] }).attackerIds;
+            return Promise.resolve({
+                declaredIds: [
+                    ...priorAttackerIds,
+                    ...requested.filter(
+                        (id) =>
+                            !rejectedIds.has(id) &&
+                            !priorAttackerIds.includes(id)
+                    ),
+                ],
+                rejected: requested
+                    .filter((id) => rejectedIds.has(id))
+                    .map((id) => ({
+                        cardInstanceId: id,
+                        reason: "Creature can't attack",
+                    })),
+            });
         }
         return Promise.resolve(null);
     },
@@ -32,7 +52,7 @@ vi.mock("@convex/_generated/api", () => {
         "cancelCast",
         "cancelActivation",
         "confirmAttackers",
-        "toggleAttacker",
+        "declareAttackers",
         "confirmBlockers",
         "confirmDamage",
         "passPriority",
@@ -181,6 +201,7 @@ describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
     beforeEach(() => {
         calls.length = 0;
         rejectedIds.clear();
+        priorAttackerIds.length = 0;
     });
 
     it("shows the button labelled with the eligible count", () => {
@@ -213,11 +234,12 @@ describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
             await findAction(result, "attack-with-all")!.onClick();
         });
 
-        const toggles = calls.filter((c) => c.ref === "toggleAttacker");
+        // issue #3475 — ONE declaration for the whole attack, never one call
+        // (and so one persisted `gameStates` version) per creature.
+        const declares = calls.filter((c) => c.ref === "declareAttackers");
+        expect(declares).toHaveLength(1);
         expect(
-            toggles.map(
-                (c) => (c.args as { cardInstanceId: string }).cardInstanceId
-            )
+            (declares[0].args as { attackerIds: string[] }).attackerIds
         ).toEqual(["a", "b"]);
         expect(calls.some((c) => c.ref === "confirmAttackers")).toBe(true);
         expect(seq.begin).not.toHaveBeenCalled();
@@ -233,7 +255,9 @@ describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
             await findAction(result, "attack-with-all")!.onClick();
         });
 
-        expect(calls.filter((c) => c.ref === "toggleAttacker")).toHaveLength(2);
+        expect(calls.filter((c) => c.ref === "declareAttackers")).toHaveLength(
+            1
+        );
         expect(calls.some((c) => c.ref === "confirmAttackers")).toBe(false);
         expect(seq.begin).toHaveBeenCalledWith(["a", "b"]);
     });
@@ -280,13 +304,12 @@ describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
             await findAction(result, "attack-with-all")!.onClick();
         });
 
-        // All three were attempted — the rejection did not short-circuit "c".
+        // All three were submitted in ONE call — the rejection did not
+        // short-circuit "c" — and the sequence walks only what was declared.
+        const declares = calls.filter((c) => c.ref === "declareAttackers");
+        expect(declares).toHaveLength(1);
         expect(
-            calls
-                .filter((c) => c.ref === "toggleAttacker")
-                .map(
-                    (c) => (c.args as { cardInstanceId: string }).cardInstanceId
-                )
+            (declares[0].args as { attackerIds: string[] }).attackerIds
         ).toEqual(["a", "b", "c"]);
         expect(seq.begin).toHaveBeenCalledWith(["a", "c"]);
     });
@@ -295,6 +318,7 @@ describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
         const me = player("me", [creature({ id: "a" }), creature({ id: "b" })]);
         const opp = player("opp", [planeswalker()]);
         const seq = makeSequence();
+        priorAttackerIds.push("a");
         const { result } = renderCtrl(me, opp, seq, {
             attackerIds: ["a"],
         });
@@ -303,14 +327,14 @@ describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
             await findAction(result, "attack-with-all")!.onClick();
         });
 
-        // "a" was already declared, so only "b" is toggled — but both walk.
+        // The batch is ADDITIVE and idempotent, so the client submits every
+        // eligible creature and the server leaves the already-declared "a"
+        // alone (it never toggles it off) — and both walk the sequence.
+        const declares = calls.filter((c) => c.ref === "declareAttackers");
+        expect(declares).toHaveLength(1);
         expect(
-            calls
-                .filter((c) => c.ref === "toggleAttacker")
-                .map(
-                    (c) => (c.args as { cardInstanceId: string }).cardInstanceId
-                )
-        ).toEqual(["b"]);
+            (declares[0].args as { attackerIds: string[] }).attackerIds
+        ).toEqual(["a", "b"]);
         expect(seq.begin).toHaveBeenCalledWith(["a", "b"]);
     });
 
@@ -336,7 +360,9 @@ describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
         await act(async () => {
             result.current.attackAllConfirm.confirm();
         });
-        expect(calls.filter((c) => c.ref === "toggleAttacker")).toHaveLength(2);
+        expect(calls.filter((c) => c.ref === "declareAttackers")).toHaveLength(
+            1
+        );
         expect(result.current.attackAllConfirm.open).toBe(false);
     });
 
@@ -373,7 +399,7 @@ describe("useControllerActions — Attack with all (design 2026-07-23)", () => {
 
         expect(result.current.attackAllConfirm.open).toBe(false);
         expect(calls.some((c) => c.ref === "confirmAttackers")).toBe(true);
-        expect(calls.some((c) => c.ref === "toggleAttacker")).toBe(false);
+        expect(calls.some((c) => c.ref === "declareAttackers")).toBe(false);
     });
 
     it("Space still skips the attack when no creature is eligible", () => {
