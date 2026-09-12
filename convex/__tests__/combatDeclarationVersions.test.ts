@@ -29,6 +29,8 @@ import {
 } from "../game";
 import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
 import { grizzlyBears } from "../cards/sets/lea/green";
+import { duelingGrounds } from "../cards/sets/inv/multicolor";
+import { serraAngel } from "../cards/sets/lea/white";
 import type { GameState, CardInstanceState } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
 import {
@@ -52,7 +54,10 @@ const stateVersions = (h: MutationStub) =>
 const runDeclareAttackers = (
     h: MutationStub,
     attackerIds: string[],
-    extra: { exertIds?: string[] } = {}
+    extra: {
+        exertIds?: string[];
+        attackTargets?: Record<string, string>;
+    } = {}
 ) =>
     runMutation<
         {
@@ -60,8 +65,9 @@ const runDeclareAttackers = (
             playerId: string;
             attackerIds: string[];
             exertIds?: string[];
+            attackTargets?: Record<string, string>;
         },
-        { declaredIds: string[] }
+        { declaredIds: string[]; rejected: { cardInstanceId: string }[] }
     >(declareAttackers as unknown as Handler<never, never>, h.ctx, {
         gameId: GAME_ID,
         playerId: "p1",
@@ -279,6 +285,38 @@ describe("combat declaration version cost (issue #3475)", () => {
         expect(stateVersions(h)).toBe(1);
     });
 
+    it("declares NOTHING in NO versions — the empty declaration is free", async () => {
+        // The bot's commonest combat answer is "no attack" / "no block". A
+        // batch that persisted a version for it would ADD a write where the
+        // per-toggle loop (which ran zero times) spent none.
+        const attack = makeMutationCtx("p1", [
+            gameStateSeed(declareAttackersState(3), SEED_SEQ),
+        ]);
+        const result = await runDeclareAttackers(attack, []);
+        expect(result.declaredIds).toEqual([]);
+        expect(stateVersions(attack)).toBe(0);
+        expect(attack.doc("gs-1").seq).toBe(SEED_SEQ);
+
+        const block = makeMutationCtx("p2", [
+            gameStateSeed(declareBlockersState(2, 2), SEED_SEQ),
+        ]);
+        await runDeclareBlockers(block, []);
+        expect(stateVersions(block)).toBe(0);
+        expect(block.doc("gs-1").seq).toBe(SEED_SEQ);
+    });
+
+    it("re-declaring the selection already in place costs no version either", async () => {
+        const h = makeMutationCtx("p1", [
+            gameStateSeed(declareAttackersState(2), SEED_SEQ),
+        ]);
+
+        await runDeclareAttackers(h, ["a1", "a2"]);
+        await runDeclareAttackers(h, ["a1", "a2"]);
+
+        expect(h.state().combat!.attackerIds).toEqual(["a1", "a2"]);
+        expect(stateVersions(h)).toBe(1);
+    });
+
     it("is additive and idempotent — re-declaring an attacker neither toggles it off nor costs a version per id", async () => {
         const h = makeMutationCtx("p1", [
             gameStateSeed(declareAttackersState(3), SEED_SEQ),
@@ -290,5 +328,68 @@ describe("combat declaration version cost (issue #3475)", () => {
         expect(result.declaredIds).toEqual(["a1", "a2", "a3"]);
         // One version per CALL, never per id: two calls, two versions.
         expect(stateVersions(h)).toBe(2);
+    });
+    it("a STALE planeswalker target drops the target, never the attacker (CR 508.1a)", async () => {
+        // The planeswalker the caller planned to attack is gone. `applyMove`
+        // drops the entry and keeps the creature attacking; the mutation must
+        // agree, or — since the search points EVERY attacker at the same
+        // planeswalker — one stale id would cancel the whole attack.
+        const h = makeMutationCtx("p1", [
+            gameStateSeed(declareAttackersState(2), SEED_SEQ),
+        ]);
+
+        const result = await runDeclareAttackers(h, ["a1", "a2"], {
+            attackTargets: { a1: "gone", a2: "gone" },
+        });
+
+        expect(result.declaredIds).toEqual(["a1", "a2"]);
+        expect(result.rejected).toEqual([]);
+        expect(h.state().combat!.attackTargets).toBeUndefined();
+        expect(stateVersions(h)).toBe(1);
+    });
+
+    it("enforces the battlefield-wide attacker cap inside the batch (CR 508.1a)", async () => {
+        // Dueling Grounds: one attacker per combat. The batch must refuse the
+        // rest exactly as `toggleAttacker` does — and still cost one version.
+        const state = declareAttackersState(3);
+        state.players[1].battlefield = [
+            makeInstance(duelingGrounds.id, { id: "dg", controllerId: "p2" }),
+        ];
+        const h = makeMutationCtx("p1", [gameStateSeed(state, SEED_SEQ)]);
+
+        const result = await runDeclareAttackers(h, ["a1", "a2", "a3"]);
+
+        expect(result.declaredIds).toEqual(["a1"]);
+        expect(result.rejected.map((r) => r.cardInstanceId)).toEqual([
+            "a2",
+            "a3",
+        ]);
+        expect(stateVersions(h)).toBe(1);
+    });
+
+    it("declareBlockers is ALL-OR-NOTHING — an illegal assignment persists no version", async () => {
+        // CR 509.1b — a ground blocker cannot block a flier. The whole batch
+        // is discarded, not the offending assignment alone, so the earlier
+        // legal blocks never reach the row (the per-click path persisted
+        // assignments 1..N-1 before throwing on N).
+        const state = declareBlockersState(2, 2);
+        state.players[0].battlefield[1] = makeInstance(serraAngel.id, {
+            id: "a2",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+            isAttacking: true,
+        });
+        const h = makeMutationCtx("p2", [gameStateSeed(state, SEED_SEQ)]);
+
+        await expect(
+            runDeclareBlockers(h, [
+                { blockerId: "b1", attackerId: "a1" },
+                { blockerId: "b2", attackerId: "a2" },
+            ])
+        ).rejects.toThrow();
+
+        expect(h.state().combat!.blockerAssignments).toEqual({});
+        expect(stateVersions(h)).toBe(0);
     });
 });

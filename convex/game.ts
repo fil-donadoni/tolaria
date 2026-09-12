@@ -13132,7 +13132,10 @@ export const toggleAttacker = mutation({
  *
  *  Authority is unchanged: this is the same validation the per-click path runs,
  *  and `confirmAttackers` still re-validates the whole set (CR 508.1d
- *  requirements, `validateDeclaredAttackers`) before the attack is locked in. */
+ *  requirements, `validateDeclaredAttackers`) before the attack is locked in.
+ *
+ *  A call that changes NOTHING — the empty declaration, or a re-send of the
+ *  selection already in place — persists NO version at all. */
 export const declareAttackers = mutation({
     args: {
         gameId: v.id("games"),
@@ -13155,19 +13158,47 @@ export const declareAttackers = mutation({
         const state = structuredClone(gameState.state) as GameState;
         const combat = assertAttackerDeclarationOpen(state, args.playerId);
 
+        // CR 508.1a (issue #1220) — keep only the attack targets that still
+        // resolve to a planeswalker the DEFENDING player controls. A stale
+        // entry (the planeswalker left since the caller planned the attack)
+        // DROPS THE TARGET, never the attacker: the creature attacks the
+        // defending player instead. Mirrors `applyMove`'s identical filter, so
+        // the search's plan and its realisation cannot disagree — routing the
+        // throw through the per-creature catch below would instead skip the
+        // attacker outright, and since the search points EVERY attacker at the
+        // same planeswalker, one stale id would cancel the whole attack.
+        const defenderBattlefield = getPlayer(
+            state,
+            getOpponentId(state, args.playerId)
+        ).battlefield;
+        const attackTargets: Record<string, string> = {};
+        for (const [attackerId, pwId] of Object.entries(
+            args.attackTargets ?? {}
+        )) {
+            if (
+                defenderBattlefield.some(
+                    (c) => c.id === pwId && isPlaneswalker(c)
+                )
+            ) {
+                attackTargets[attackerId] = pwId;
+            }
+        }
+
+        // Whether anything actually changed. A declaration that declares
+        // nothing — the bot's commonest combat answer is the EMPTY one — must
+        // not cost a persisted version at all, or this mutation would trade N
+        // versions for one where there used to be none (issue #3475 review).
+        let changed = false;
         const rejected: { cardInstanceId: string; reason: string }[] = [];
         for (const cardInstanceId of args.attackerIds) {
-            const planeswalkerId = args.attackTargets?.[cardInstanceId];
+            const planeswalkerId = attackTargets[cardInstanceId];
             try {
                 if (combat.attackerIds.includes(cardInstanceId)) {
-                    if (planeswalkerId !== undefined) {
-                        assertLegalAttackTarget(
-                            getPlayer(
-                                state,
-                                getOpponentId(state, args.playerId)
-                            ).battlefield,
+                    if (
+                        planeswalkerId !== undefined &&
+                        combat.attackTargets?.[cardInstanceId] !==
                             planeswalkerId
-                        );
+                    ) {
                         // Already declared: SET the target (never the
                         // toggle-off `toggleAttacker` does — a batch says
                         // where the attack goes, it does not flip it).
@@ -13175,6 +13206,7 @@ export const declareAttackers = mutation({
                             ...(combat.attackTargets ?? {}),
                             [cardInstanceId]: planeswalkerId,
                         };
+                        changed = true;
                     }
                     continue;
                 }
@@ -13185,6 +13217,7 @@ export const declareAttackers = mutation({
                     cardInstanceId,
                     planeswalkerId
                 );
+                changed = true;
             } catch (e) {
                 rejected.push({
                     cardInstanceId,
@@ -13200,6 +13233,7 @@ export const declareAttackers = mutation({
             if (combat.exertedIds?.includes(cardInstanceId)) continue;
             try {
                 applyExertToggle(state, combat, cardInstanceId);
+                changed = true;
             } catch (e) {
                 rejected.push({
                     cardInstanceId,
@@ -13208,13 +13242,15 @@ export const declareAttackers = mutation({
             }
         }
 
-        await saveGameState(
-            ctx,
-            args.gameId,
-            gameState.seq + 1,
-            state,
-            gameState
-        );
+        if (changed) {
+            await saveGameState(
+                ctx,
+                args.gameId,
+                gameState.seq + 1,
+                state,
+                gameState
+            );
+        }
         // The REAL selection, not the requested one — the caller's follow-up
         // (the planeswalker destination sequence) must walk what was actually
         // declared.
@@ -14219,7 +14255,9 @@ function applyBlockerAssignment(
  *  and the whole batch is discarded (the mutation's clone is dropped, so no
  *  partial block persists) rather than silently blocking with fewer creatures.
  *  `confirmBlockers` still re-validates the whole set (CR 509.1c minimums,
- *  `validateDeclaredBlockers`). */
+ *  `validateDeclaredBlockers`).
+ *
+ *  "No blocks" changes nothing and persists no version. */
 export const declareBlockers = mutation({
     args: {
         gameId: v.id("games"),
@@ -14255,15 +14293,22 @@ export const declareBlockers = mutation({
         }
         // Nothing is left half-selected: the batch never leaves a pending
         // blocker behind for the client to clear.
+        const hadPending = combat.pendingBlockerId !== undefined;
         combat.pendingBlockerId = undefined;
 
-        await saveGameState(
-            ctx,
-            args.gameId,
-            gameState.seq + 1,
-            state,
-            gameState
-        );
+        // "No blocks" is the commonest block declaration there is, and it
+        // changes nothing — it must cost no persisted version (issue #3475
+        // review), or this mutation would ADD one where the old path spent
+        // none.
+        if (args.assignments.length > 0 || hadPending) {
+            await saveGameState(
+                ctx,
+                args.gameId,
+                gameState.seq + 1,
+                state,
+                gameState
+            );
+        }
     },
 });
 
