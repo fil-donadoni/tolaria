@@ -1350,6 +1350,16 @@
         "source": "compiled"
     },
     {
+        "name": "Ant-Man's Air Force",
+        "scryfallId": "a94723d0-2137-41f6-87a1-6a33e1d50d1b",
+        "oracleId": "5d7eea87-b60f-4ab9-b485-30aadda0cd79",
+        "firstSet": "msc",
+        "firstPrintId": "a94723d0-2137-41f6-87a1-6a33e1d50d1b",
+        "firstPrintSet": "msc",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Antagonize",
         "scryfallId": "8bac1d2a-99dd-40b3-8823-ce9225efcdcf",
         "oracleId": "f4e860f1-e637-4640-b257-57c2e42793ce",
@@ -3260,6 +3270,16 @@
         "firstSet": "bok",
         "firstPrintId": "801c2b46-c7a7-44d6-ae38-5d34bf00c404",
         "firstPrintSet": "bok",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Bile-Vial Boggart",
+        "scryfallId": "2c0fcf98-1f3c-4cff-9234-7f3d0c8b22e9",
+        "oracleId": "5a651557-ce08-46ba-aecd-0e4fbfdef3c0",
+        "firstSet": "ecl",
+        "firstPrintId": "2c0fcf98-1f3c-4cff-9234-7f3d0c8b22e9",
+        "firstPrintSet": "ecl",
         "rarity": "common",
         "source": "compiled"
     },
@@ -7200,6 +7220,16 @@
         "source": "compiled"
     },
     {
+        "name": "Curious Farm Animals",
+        "scryfallId": "2402d759-84b6-41d2-ad78-9333974e9222",
+        "oracleId": "e451b5aa-5832-42b3-8d72-f67e126a529f",
+        "firstSet": "tla",
+        "firstPrintId": "2402d759-84b6-41d2-ad78-9333974e9222",
+        "firstPrintSet": "tla",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Curious Killbot",
         "scryfallId": "51a2b7e0-1f6c-4c17-9648-2d74d7789442",
         "oracleId": "d9cf6215-95fc-4058-97b0-14751d1c949e",
@@ -8852,6 +8882,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Disruptive Stormbrood // Petty Revenge",
+        "scryfallId": "bd78e8ae-e927-40e7-9580-966c5e81f53c",
+        "oracleId": "ec74ae5d-1284-443c-9842-18954f8cf5a8",
+        "firstSet": "tdm",
+        "firstPrintId": "bd78e8ae-e927-40e7-9580-966c5e81f53c",
+        "firstPrintSet": "tdm",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Distorting Wake",
         "scryfallId": "cf48eec9-96be-4f53-9d9a-c6f02d44c995",
         "oracleId": "e5387fc7-c3b3-4933-bffa-580ad793c7ab",
@@ -9435,6 +9475,16 @@
         "firstPrintId": "a683f79b-0330-4fac-8279-6c0d888414b8",
         "firstPrintSet": "aer",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Dubious Delicacy",
+        "scryfallId": "153265b4-0ca4-4245-9226-dd1a083ec91c",
+        "oracleId": "697b8045-0edb-4f7b-a933-4d41ec2b53d5",
+        "firstSet": "eoe",
+        "firstPrintId": "153265b4-0ca4-4245-9226-dd1a083ec91c",
+        "firstPrintSet": "eoe",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -12020,6 +12070,16 @@
         "firstSet": "ice",
         "firstPrintId": "d5350236-7bd2-462d-9768-50087626c764",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Flaring Pain",
+        "scryfallId": "eeb5c96a-1d16-459d-9968-ced9a8f1c520",
+        "oracleId": "cad19ad2-3ea9-43f5-bb5a-b0793402fab0",
+        "firstSet": "jud",
+        "firstPrintId": "eeb5c96a-1d16-459d-9968-ced9a8f1c520",
+        "firstPrintSet": "jud",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Flash",
@@ -17070,6 +17130,14 @@
         "firstSet": "ice",
         "firstPrintId": "cca42b74-9b42-482b-b12a-79cafdcd087e",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Impractical Joke",
+        "scryfallId": "39a816b4-39b8-421c-b828-68db901d34b7",
+        "oracleId": "c8da73ed-2834-4094-8723-a4ad75660290",
+        "firstSet": "sos",
+        "firstPrintId": "39a816b4-39b8-421c-b828-68db901d34b7",
+        "firstPrintSet": "sos"
     },
     {
         "name": "Improvised Club",
@@ -22954,6 +23022,16 @@
         "source": "compiled"
     },
     {
+        "name": "Nebelgast Intruder",
+        "scryfallId": "6c801346-0052-4f4b-a497-1567a34679fb",
+        "oracleId": "4c591977-f2af-4a6e-a0be-3dfb45a3598b",
+        "firstSet": "mid",
+        "firstPrintId": "6c801346-0052-4f4b-a497-1567a34679fb",
+        "firstPrintSet": "mid",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Necrite",
         "scryfallId": "311d752a-ce8a-44cb-8aeb-1ed66705eb09",
         "oracleId": "e6ab8a04-e225-4ff0-bb8b-c80d0e6ce50c",
@@ -28166,6 +28244,16 @@
         "firstSet": "lea",
         "firstPrintId": "410ac9e6-fbc1-4cc8-84db-84e2eb1bab97",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Rock Soldiers",
+        "scryfallId": "0fada65d-fd8d-4be9-b2bb-ea5cac78fdd7",
+        "oracleId": "0217da8e-e74f-4f5c-ab75-f17600f94405",
+        "firstSet": "tmt",
+        "firstPrintId": "0fada65d-fd8d-4be9-b2bb-ea5cac78fdd7",
+        "firstPrintSet": "tmt",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Rocket Launcher",

@@ -140,6 +140,85 @@ describe("spell slot — plain spell text (CR 113.3a)", () => {
     });
 });
 
+// ── 1b. The two shapes Impractical Joke needed (issue #3238) ───────────────
+
+describe("spell slot — CR 601.2c 'up to one target' and CR 615.12 anti-prevention", () => {
+    it('reads "up to one target …" as the same slot with a 0..1 count', () => {
+        const def = compiled(
+            spellCard({
+                oracleText:
+                    "Test Spell deals 3 damage to up to one target creature or planeswalker.",
+            })
+        );
+        // ONE positional slot, not two: the count is the whole of the
+        // difference, and the op still points at `{ target: 0 }`.
+        expect(def.effects).toEqual([
+            { op: "dealDamage", amount: 3, to: { target: 0 } },
+        ]);
+        expect(def.targetRequirement).toEqual({
+            type: ["Creature", "Planeswalker"],
+            count: { min: 0, max: 1 },
+        });
+    });
+
+    it("leaves the plain head alone — 'target creature' still announces exactly one", () => {
+        const def = compiled(
+            spellCard({
+                oracleText: "Test Spell deals 3 damage to target creature.",
+            })
+        );
+        expect(def.targetRequirement).toEqual({ type: "Creature", count: 1 });
+    });
+
+    it("refuses every LARGER 'up to' head — a plural phrase has to fan the effect out too", () => {
+        // "up to two target creatures" needs `TargetRequirement.count` AND a
+        // per-target op, and half of that is worse than none (the same refusal
+        // `descriptorRule`'s `plural` check makes). A head admitted here with
+        // only the count wired would compile a spell that damages ONE of the
+        // two creatures it announced.
+        const r = spellSlot.run(
+            "Test Spell deals 3 damage to up to two target creatures.",
+            instant
+        );
+        expect(r.ok).toBe(false);
+    });
+
+    it("lowers 'Damage can't be prevented this turn.' to the game-scoped Op (CR 615.12)", () => {
+        const def = compiled(
+            spellCard({ oracleText: "Damage can't be prevented this turn." })
+        );
+        expect(def.effects).toEqual([{ op: "suppressDamagePrevention" }]);
+        // No target, no duration argument: the Op is turn-scoped by
+        // construction and the sentence names nothing else.
+        expect(def.targetRequirement).toBeUndefined();
+    });
+
+    it("is EXACT — a SCOPED anti-prevention clause is refused, not read as the unscoped one", () => {
+        // The failure that would matter: "Damage from creature sources can't be
+        // prevented this turn" compiled to the unscoped Op would unprevent
+        // every source on the board, silently.
+        const r = spellSlot.run(
+            "Damage from creature sources can't be prevented this turn.",
+            instant
+        );
+        expect(r.ok).toBe(false);
+    });
+
+    it("keeps the ORDER the card prints — the lock is armed before the damage", () => {
+        const def = compiled(
+            spellCard({
+                typeLine: "Sorcery",
+                oracleText:
+                    "Damage can't be prevented this turn. Test Spell deals 3 damage to up to one target creature or planeswalker.",
+            })
+        );
+        expect(def.effects).toEqual([
+            { op: "suppressDamagePrevention" },
+            { op: "dealDamage", amount: 3, to: { target: 0 } },
+        ]);
+    });
+});
+
 // ── 2. Modal spell text (CR 700.2) ─────────────────────────────────────────
 
 describe("spell slot — modal spells (CR 700.2)", () => {
