@@ -925,6 +925,25 @@ const PRESET_DECK_SELECTED = `${PRESET_SHELF} [data-deck-tile][data-selected="tr
  * a vs-AI game is never in that state, but the branch costs one line and keeps
  * the helper honest about the two states the banner has.
  */
+/** `clickIfVisible`, with its `Unreachable` folded into a trace line instead of
+ *  thrown. For a retrying sequence that wants the diagnostic AND wants to keep
+ *  going: absent reads as `false`, and so does present-but-unclickable, with
+ *  the hit target recorded. */
+async function pressed(
+    page: Page,
+    selector: string,
+    timeout: number,
+    trace: string[],
+    pass: number
+): Promise<boolean> {
+    try {
+        return await clickIfVisible(page, selector, timeout);
+    } catch (err) {
+        trace.push(`pass${pass}: ${(err as Error).message}`);
+        return false;
+    }
+}
+
 async function concedeLaneGame(
     page: Page,
     ctx: WalkContext,
@@ -936,26 +955,30 @@ async function concedeLaneGame(
             trace.push(`pass${pass}: no active-game banner`);
             return true;
         }
-        if (await clickTransient(page, BANNER_CONCEDE, 3000)) {
+        // `clickIfVisible`, not `clickTransient`: nothing races these two the
+        // way the bot races the toss and the mulligan, so an actionability
+        // failure here is a real defect and must arrive with `topmostAt`'s hit
+        // target rather than as a bare `false` two passes later (PR #3501
+        // review). Caught rather than propagated so pass 1 still runs — the
+        // banner's control follows the MATCH's status, which trails the
+        // game's, so the second pass can succeed where the first could not.
+        if (await pressed(page, BANNER_CONCEDE, 3000, trace, pass)) {
             trace.push(`pass${pass}: pressed banner Concede`);
             const dialog = await visible(page, "[role=dialog]", 4000);
             trace.push(
                 `pass${pass}: confirm dialog ${dialog ? "open" : "ABSENT"}`
             );
-            let confirmed = false;
-            try {
-                confirmed = await clickIfVisible(
-                    page,
-                    CONFIRM_CONCEDE,
-                    STEP_TIMEOUT
-                );
-            } catch (err) {
-                trace.push(`pass${pass}: ${(err as Error).message}`);
-            }
+            const confirmed = await pressed(
+                page,
+                CONFIRM_CONCEDE,
+                STEP_TIMEOUT,
+                trace,
+                pass
+            );
             trace.push(
                 `pass${pass}: confirm plate ${confirmed ? "pressed" : "NOT PRESSED"}`
             );
-        } else if (await clickTransient(page, BANNER_LEAVE, 3000)) {
+        } else if (await pressed(page, BANNER_LEAVE, 3000, trace, pass)) {
             trace.push(`pass${pass}: pressed banner Leave`);
         } else {
             trace.push(`pass${pass}: banner offered neither Concede nor Leave`);
@@ -1017,27 +1040,33 @@ async function createVsAiGame(page: Page, ctx: WalkContext): Promise<void> {
 /**
  * Reach a live VS-AI board — the one game kind that mounts the AI trace box.
  *
- * Non-destructive by the same rule as `ensureBoard`: a match the lane did not
- * create is never cleared. The one game it WILL end is its own — a solo game
- * `ensureBoard` dealt earlier in the run would otherwise keep the vs-AI setup
- * dialog gated shut (`lobbyGate`'s `!hasActiveGame`), and the lane owns that
- * game outright.
+ * Non-destructive by the same rule as `ensureBoard`, and by a STRICTER reading
+ * of it (PR #3501 review): the only game this walk ever ends is one IT created,
+ * and `ensureBoard`'s solo game is not that game even though the lane owns it.
+ * The board rows share ONE solo game across all five viewports on purpose —
+ * `ensureBoard`'s own comment says viewports 2-5 reach a board through the
+ * `Resume` branch, on the game viewport 1 dealt — so conceding it here to free
+ * the vs-AI lobby gate would silently re-deal the subject `game-board` and
+ * `game-stress` are budgeted against, from the tail of every viewport pass.
+ * Those three rows are `unwalked` today and the collision is therefore
+ * unreachable; it is reported rather than resolved so that re-enabling them
+ * reds this row instead of quietly moving theirs.
  */
 async function ensureVsAiBoard(page: Page, ctx: WalkContext): Promise<void> {
     await goto(page, ctx, "/");
 
     if (await visible(page, BANNER_RESUME, 4000)) {
         if (ctx.createdVsAiGame) {
-            await clickTransient(page, BANNER_RESUME, 6000);
-            ctx.log("resumed the vs-AI game this lane created");
-        } else if (ctx.createdGame) {
-            if (!(await concedeLaneGame(page, ctx))) {
+            if (!(await clickIfVisible(page, BANNER_RESUME, 6000))) {
                 throw new Unreachable(
-                    "the lane's own solo game is still active and the lobby banner offered no way to end it, so the vs-AI setup dialog stays gated shut"
+                    "the lobby banner is up and this lane created the vs-AI game behind it, but its `Resume` could not be pressed — the walk cannot get back to the board it measured last viewport"
                 );
             }
-            ctx.createdGame = false;
-            await createVsAiGame(page, ctx);
+            ctx.log("resumed the vs-AI game this lane created");
+        } else if (ctx.createdGame) {
+            throw new Unreachable(
+                "the lane's own SOLO game is active (a board row dealt it), and this surface needs a vs-AI game the lobby gate will not open while any game is in progress. Conceding it here would re-deal the fixed subject `game-board`/`game-stress` are budgeted against, at the tail of every viewport — so the two cannot share a run yet. Whichever slice re-walks the board rows owns resolving this"
+            );
         } else {
             throw new Unreachable(
                 "an active game the lane did not create is in progress. The vs-AI setup dialog opens only from the Loadout's primary plate, which `lobbyGate` disables while the account holds ANY game (`src/lib/lobbyGate.ts`) \u2014 and ending a match the lane does not own is not its call. Finish or concede it, then re-run"

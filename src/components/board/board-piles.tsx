@@ -75,7 +75,18 @@ export default function BoardPiles({
                     // axe reds it `serious` (`scrollable-region-focusable`,
                     // measured at 844x390x3, issue #3492). The desktop row does
                     // not scroll, so it takes no tab stop it would not use.
-                    tabIndex={compact ? 0 : undefined}
+                    // `role="region"` + a name, not a bare `tabIndex`: the same
+                    // shape the deck builder's source pane already uses for
+                    // this rule (`budgets.json`, `deck-builder`), and it is
+                    // what keeps the new tab stop from landing a keyboard user
+                    // on an unlabelled block (PR #3501 review).
+                    {...(compact
+                        ? {
+                              tabIndex: 0,
+                              role: "region",
+                              "aria-label": "Opponent piles",
+                          }
+                        : {})}
                     data-testid="piles-opponent"
                 >
                     <PlayerGraveyard player={opponent} />
@@ -92,8 +103,16 @@ export default function BoardPiles({
                 <div
                     className={viewerRail}
                     style={railStyle}
-                    // See the opponent rail above — same scroll port, same rule.
-                    tabIndex={compact ? 0 : undefined}
+                    // See the opponent rail above — same scroll port, same
+                    // rule, and a name of its own so the two regions stay
+                    // distinguishable to a screen reader.
+                    {...(compact
+                        ? {
+                              tabIndex: 0,
+                              role: "region",
+                              "aria-label": "Your piles",
+                          }
+                        : {})}
                     data-testid="piles-player"
                 >
                     <PlayerGraveyard player={me} />
