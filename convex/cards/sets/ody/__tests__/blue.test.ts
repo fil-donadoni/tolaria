@@ -13,6 +13,8 @@ import { validateEffectScript } from "../../../../gre/effects/validate";
 import { projectPublicState } from "../../../../gameProjections";
 import { registerTokenDefinition } from "../../..";
 import { getDefinition } from "../../../index";
+import { collectTriggers } from "../../../../gre/triggers";
+import type { GameEvent } from "../../../types";
 
 const upheaval = getDefinition("9e201229-34a6-48c8-a07c-d8aefcf5f8a7");
 
@@ -126,5 +128,139 @@ describe("Upheaval (return all permanents to hand — mass bounce, CR 400.7, iss
         // carries its real identity rather than a hidden `null`.
         expect(projected.players[1].hand).toHaveLength(1);
         expect(projected.players[1].hand[0]).not.toBeNull();
+    });
+});
+
+const standstill = getDefinition("3ede3f6f-e642-4fe4-aa37-0f01cdf4d149");
+
+/** A SPELL_CAST event for `casterId`, shaped as `emitSpellCastEvent` builds it
+ *  (CR 601.2i) — the head is scope-gated on the caster and nothing else, so
+ *  the spell's own identity is deliberately the same in every case here. */
+const CAST_BY = (casterId: string): GameEvent => ({
+    type: "SPELL_CAST",
+    casterId,
+    spellInstanceId: `spell-${casterId}`,
+    spellCardId: upheaval.id,
+    spellTypes: upheaval.types,
+    spellSubtypes: [],
+    spellColors: ["U"],
+});
+
+/** Three library cards for `owner`, so a draw of three has something to take. */
+const libraryOf = (owner: string) =>
+    [0, 1, 2].map((n) =>
+        makeInstance(BEAR_ID, {
+            id: `${owner}-lib${n}`,
+            controllerId: owner,
+            ownerId: owner,
+            zone: "library",
+        })
+    );
+
+// Standstill — "When a player casts a spell, sacrifice this enchantment. If
+// you do, each of that player's opponents draws three cards." (CR 603.2 /
+// 601.2i cast trigger at `scope: "any"`; CR 701.21 sacrifice; CR 608.2h the
+// bind that expresses "if you do"; CR 109.5 the caster-relative complement.)
+//
+// The card earns hand-written tests despite the per-Op regime: it is the FIRST
+// definition to nest an `$event` player ref inside `{ opponentOf }`
+// (`{ opponentOf: { ref: "$event.caster" } }`), a construct COMBINATION the
+// interpreter suite covers on neither side alone — `opponentOf` is exercised
+// only over `"controller"` / `{ controllerOf }`, and `$event.caster` only in a
+// bare player position.
+describe("Standstill (cast-by-any-player trigger, sacrifice, if-you-do draw)", () => {
+    it("is a {1}{U} enchantment whose Effect Script validates, with no targets and no resolve()", () => {
+        expect(standstill.manaCost).toEqual({ X: 1, U: 1 });
+        expect(standstill.types).toEqual(["Enchantment"]);
+        expect(standstill.resolve).toBeUndefined();
+        expect(standstill.targetRequirement).toBeUndefined();
+        expect(validateEffectScript(standstill)).toEqual([]);
+    });
+
+    it("fires on the OPPONENT's cast and the Standstill controller draws three (CR 601.2i)", () => {
+        const ss = makeInstance(standstill.id, {
+            id: "ss",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [ss],
+                    library: libraryOf("p1"),
+                }),
+                makePlayer("p2", { library: libraryOf("p2") }),
+            ],
+        });
+        const triggers = collectTriggers(state, [CAST_BY("p2")]);
+        expect(triggers).toHaveLength(1);
+        state.stack.push(...triggers);
+        expect(resolveTopOfStack(state)).not.toBeNull();
+        // CR 701.21 — sacrificed by its controller into its owner's graveyard.
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual(["ss"]);
+        // CR 109.5 — "that player's opponents" is p2's opponent, i.e. p1.
+        expect(state.players[0].hand).toHaveLength(3);
+        expect(state.players[1].hand).toHaveLength(0);
+        // SURFACE (mandatory) — the sacrifice reaches the client through the
+        // real reducer, not just the engine state.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].battlefield).toHaveLength(0);
+        expect(projected.players[0].graveyard.map((c) => c.id)).toEqual(["ss"]);
+        expect(projected.players[0].hand).toHaveLength(3);
+    });
+
+    it("fires on its OWN controller's cast too, and then the OPPONENT draws (scope: any, CR 603.2)", () => {
+        const ss = makeInstance(standstill.id, {
+            id: "ss",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [ss],
+                    library: libraryOf("p1"),
+                }),
+                makePlayer("p2", { library: libraryOf("p2") }),
+            ],
+        });
+        const triggers = collectTriggers(state, [CAST_BY("p1")]);
+        expect(triggers).toHaveLength(1);
+        state.stack.push(...triggers);
+        expect(resolveTopOfStack(state)).not.toBeNull();
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual(["ss"]);
+        // The cards go to p1's OPPONENT — this is the half a "you draw"
+        // misreading would get backwards, and the reason the ref is
+        // `{ opponentOf: { ref: "$event.caster" } }` rather than "controller".
+        expect(state.players[1].hand).toHaveLength(3);
+        expect(state.players[0].hand).toHaveLength(0);
+    });
+
+    it('draws nothing when Standstill already left the battlefield — "if you do" is false (CR 608.2b)', () => {
+        const ss = makeInstance(standstill.id, {
+            id: "ss",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [ss],
+                    library: libraryOf("p1"),
+                }),
+                makePlayer("p2", { library: libraryOf("p2") }),
+            ],
+        });
+        const triggers = collectTriggers(state, [CAST_BY("p2")]);
+        state.stack.push(...triggers);
+        // Disenchanted with the trigger on the stack: by resolution there is
+        // nothing to sacrifice, so the `sacrifice` Op binds nothing and the
+        // `boundMatchesFilter` gate reads false.
+        state.players[0].battlefield = [];
+        state.players[0].graveyard.push({ ...ss, zone: "graveyard" });
+        expect(resolveTopOfStack(state)).not.toBeNull();
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.players[1].hand).toHaveLength(0);
     });
 });
