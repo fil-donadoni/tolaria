@@ -16012,6 +16012,14 @@
         "firstPrintSet": "usg"
     },
     {
+        "name": "Hickory Woodlot",
+        "scryfallId": "af7aafb7-6870-4d09-a191-70786766c459",
+        "oracleId": "26259c65-8f4e-42a6-b8a7-f65c36d35c4d",
+        "firstSet": "mmq",
+        "firstPrintId": "af7aafb7-6870-4d09-a191-70786766c459",
+        "firstPrintSet": "mmq"
+    },
+    {
         "name": "Hidden Path",
         "scryfallId": "cbc93c0b-0ac8-4b8f-b2f6-96887d1acd77",
         "oracleId": "f1c9f5df-d36a-4e15-bae4-81190e4be477",
@@ -24904,6 +24912,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Peat Bog",
+        "scryfallId": "bcc9d1e0-c8f4-4bac-90d4-8167f7a1515a",
+        "oracleId": "a176924c-78fc-4151-b2b5-1547b1114a40",
+        "firstSet": "mmq",
+        "firstPrintId": "bcc9d1e0-c8f4-4bac-90d4-8167f7a1515a",
+        "firstPrintSet": "mmq"
+    },
+    {
         "name": "Pegasus Charger",
         "scryfallId": "d62a5287-25ec-4e13-9e39-1c87a4052c4d",
         "oracleId": "81a5ac8d-b904-4755-a5bc-650e95f4138f",
@@ -27596,6 +27612,14 @@
         "firstPrintSet": "rav"
     },
     {
+        "name": "Remote Farm",
+        "scryfallId": "115cab84-60d7-4bf2-9beb-b4ed7b5ceaf4",
+        "oracleId": "2c38f4c7-1b3f-42b4-a175-edab7acd6cc6",
+        "firstSet": "mmq",
+        "firstPrintId": "115cab84-60d7-4bf2-9beb-b4ed7b5ceaf4",
+        "firstPrintSet": "mmq"
+    },
+    {
         "name": "Remove Enchantments",
         "scryfallId": "bf2e3a8a-b386-474d-b8e9-4c2d56a2b742",
         "oracleId": "fa879d99-3d2b-4a9a-a17f-d5ac109f8f44",
@@ -28884,6 +28908,14 @@
         "source": "compiled"
     },
     {
+        "name": "Sandstone Needle",
+        "scryfallId": "82bc7c6b-2e3d-42d1-b2bb-b37b6f34d33b",
+        "oracleId": "c8e0a1a5-8188-4677-9d8a-a18eb593343a",
+        "firstSet": "mmq",
+        "firstPrintId": "82bc7c6b-2e3d-42d1-b2bb-b37b6f34d33b",
+        "firstPrintSet": "mmq"
+    },
+    {
         "name": "Sandstorm",
         "scryfallId": "73cba9cd-73d9-442e-bd99-9cba9f398b64",
         "oracleId": "7bb41690-f8ec-462a-ba29-be453eb86fca",
@@ -28934,6 +28966,14 @@
         "firstPrintSet": "tmp",
         "rarity": "rare",
         "source": "compiled"
+    },
+    {
+        "name": "Saprazzan Skerry",
+        "scryfallId": "006871fd-2641-42cb-a2ac-a33d05fc5a35",
+        "oracleId": "e4e6e796-39ce-4a63-8c61-c7c956d75d78",
+        "firstSet": "mmq",
+        "firstPrintId": "006871fd-2641-42cb-a2ac-a33d05fc5a35",
+        "firstPrintSet": "mmq"
     },
     {
         "name": "Saproling Infestation",

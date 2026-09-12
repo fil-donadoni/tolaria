@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { getAllCards } from "../index";
 import { getManaTapOptionsDetailed } from "../../gre/constants";
+import { resolveEntersWithCounters } from "../entersWith";
 import { makeInstance, makePlayer, makeState } from "./setup";
 import type { ActivatedAbility, ManaCost } from "../types";
 
@@ -55,6 +56,10 @@ import type { ActivatedAbility, ManaCost } from "../types";
  *   - abilities the engine drops from the option list by rule: a zero-output
  *     `manaAmount` hook (CR 605.1a / #1889 — Everflowing Chalice with no
  *     counters), and a `canActivate` gate a bare-battlefield fixture fails.
+ *     NOT skipped, and deliberately: a `cost.removeCounter` leg (CR 122.6 —
+ *     the MMQ depletion lands), because the fixture seeds the entry counters
+ *     the card's own CR 614.1c replacement gives it, so the ability is
+ *     affordable and stays asserted.
  *   - abilities whose cost is not `{T}`-based, since the fixture taps nothing.
  *   - a SACRIFICE-cost mana ability on a card that also has a non-destructive
  *     one. `getManaTapOptionsDetailed` offers sacrifice options only as a last
@@ -124,9 +129,23 @@ function sweep(): Sweep {
         const abilities = fixedTapManaAbilities(def.activatedAbilities);
         if (abilities.length === 0) continue;
 
+        // CR 614.1c / 122.6 (issue #2712) — seed the counters the card's OWN
+        // entry replacement puts on it, exactly as `gre/scenarioBuilder.ts`
+        // does for a staged board. A depletion land's mana is gated behind a
+        // `cost.removeCounter` leg, so a fixture that places it bare is a land
+        // with no counters — correctly NOT a mana source — and the sweep would
+        // have to skip the whole cycle instead of asserting it. The oracle is
+        // the card's own declaration, so this is card-agnostic and adds nothing
+        // for a card that declares no entry counters.
+        const entryCounters = resolveEntersWithCounters(def, {
+            manaSpentToCast: {},
+        });
         const instance = makeInstance(def.id, {
             id: `sweep-${def.id}`,
             controllerId: "p1",
+            ...(Object.keys(entryCounters).length > 0
+                ? { counters: entryCounters }
+                : {}),
         });
         const state = makeState({
             players: [

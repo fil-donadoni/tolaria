@@ -2192,6 +2192,25 @@ export function getActivatedManaAbility(
     if (ability.canActivate && state && !ability.canActivate(card, state)) {
         return null;
     }
+    // CR 602.1 / 122.6 — an UNPAYABLE fixed counter-removal leg means there is
+    // no usable mana ability here at all, the same conclusion the `canActivate`
+    // gate above reaches for an un-imprinted Chrome Mox and `hasManaAbility`
+    // reaches for an Everflowing Chalice with no charge counters (issue #1889).
+    // A depletion land normally sacrifices itself the moment its last counter
+    // is spent, so this state is only reachable when something ELSE stripped
+    // the counters (Vampire Hexmage, Thief of Blood) — and then the land sits
+    // inert, which every consumer of this predicate must see: `hasManaAbility`
+    // (so the bot's coarse mana proxy stops counting it), `getFixedManaAmount`,
+    // and the tap mutations' fixed branch, which rejects rather than tapping a
+    // source it cannot charge. Needs no `state`: the counters are on the
+    // instance.
+    const counterLeg = ability.cost.removeCounter;
+    if (
+        counterLeg &&
+        (card.counters?.[counterLeg.type] ?? 0) < counterLeg.count
+    ) {
+        return null;
+    }
     return ability;
 }
 

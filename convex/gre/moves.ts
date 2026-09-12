@@ -690,11 +690,23 @@ function explicitYield(mana: ManaCost): ManaCost | undefined {
 /** Cost legs a `{T}` mana activation may carry and still have its FULL yield
  *  credited (issue #3027, review finding 1). `tapSourceIntoPayment`
  *  (`convex/game.ts`) executes exactly these as part of the same tap: the tap
- *  itself, and a SELF-sacrifice (`activateFixedSacrificeManaAbility` /
- *  the sacrifice branch — this is why Black Lotus commits end to end). */
+ *  itself, a SELF-sacrifice (`activateFixedSacrificeManaAbility` / the
+ *  sacrifice branch — this is why Black Lotus commits end to end), and a FIXED
+ *  counter-removal leg (`applyManaAbilityRemoveCounterCost`, issue #2712 — the
+ *  depletion lands' "Remove a depletion counter from this land").
+ *
+ *  `removeCounter` earns its row on the SAME test the other two pass, and on
+ *  both halves of it: the tap path executes the leg, AND the leg can never be
+ *  unfunded, because `getActivatedManaAbility` / `getManaTapOptionsDetailed`
+ *  drop an ability whose counters the source does not have — so an option that
+ *  reaches this function is one whose whole cost the emitted tap really pays.
+ *  Without the row a depletion land credited ONE mana and `planManaPayment`
+ *  returned null for a two-mana cast it can pay on its own, which is the bot
+ *  never playing the card at all. */
 const TAP_YIELD_CREDITABLE_COST_LEGS: ReadonlySet<string> = new Set([
     "tap",
     "sacrifice",
+    "removeCounter",
 ]);
 
 /** True when the whole cost of a `{T}` mana activation is paid by the tap the
