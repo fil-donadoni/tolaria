@@ -248,6 +248,16 @@ export const SCENARIO_JSON_SCHEMA = {
             description:
                 "Whether each seat did so during its LAST turn — Arboria forbids attacking a player who did not (default false).",
         },
+        hiddenHand: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+                me: { type: "integer" },
+                opp: { type: "integer" },
+            },
+            description:
+                "How many cards of UNKNOWN identity each seat holds, ADDED to whatever `cards` places in that hand (CR 400.2 — the hand is a hidden zone). They rebuild as opaque placeholders: never castable, never targetable, they only give the hand its size. Use it for 'opponent holds three unknown cards'; name the cards instead whenever the description names them.",
+        },
         turnsTaken: {
             type: "object",
             additionalProperties: false,
@@ -433,7 +443,8 @@ export function buildScenarioSystemPrompt(
         "  `artifactDamageToPlayerThisTurn`, `lifeGainedThisTurn`,",
         "  `deathsThisTurn`, `creatureAttackedThisTurn`,",
         "  `qualifyingActionThisTurn`, `qualifyingActionLastTurn`,",
-        "  `turnsTaken` and `revolt`: emit them ONLY when the description",
+        "  `hiddenHand`, `turnsTaken` and `revolt`: emit them ONLY when the",
+        "  description",
         "  actually calls for them, never as decoration. An",
         "  explicit 0 is a CLAIM, not a default — `stormCount: 0` says",
         "  'no spell has been cast this turn'.",

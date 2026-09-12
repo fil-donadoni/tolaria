@@ -46,6 +46,11 @@ export const SCENARIO_SPEC_FIELD_OWNER = {
     phase: "form-owned",
     landCount: "form-owned",
     libraryCount: "form-owned",
+    // CR 400.2 (issue #3452) — cards of unknown identity in a hand.
+    // `form-owned` like every field since issue #3463: "the opponent is
+    // holding three cards" is a position an admin must be able to type, not
+    // only one a capture can produce.
+    hiddenHand: "form-owned",
     turn: "form-owned",
     markLastDrawn: "form-owned",
     rngSeed: "form-owned",
@@ -194,6 +199,7 @@ export const SCENARIO_SPEC_FIELD_INPUT = {
     phase: { kind: "phase", label: "phase" },
     landCount: { kind: "number", label: "lands", min: 0 },
     libraryCount: { kind: "number", label: "library", min: 0 },
+    hiddenHand: { kind: "per-seat", label: "hidden hand", min: 0 },
     turn: { kind: "number", label: "turn", min: 1 },
     markLastDrawn: { kind: "boolean", label: "mark last drawn" },
     rngSeed: { kind: "number", label: "rng seed" },

@@ -11,6 +11,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+    assertLoadableIntoLiveGame,
     buildStateFromScenario,
     RESTRICTED_MANA_KEY_DISPOSITION,
     specFromState,
@@ -48,6 +49,7 @@ import {
     getLegalTargets,
     raiseTriggerTargetSelection,
 } from "../rules";
+import { PLACEHOLDER_CARD_ID } from "../constants";
 import { collectTriggers } from "../triggers";
 import { validateAttackerEligibility } from "../combat";
 import type { GameState, PendingChoice, PlayerState } from "../state";
@@ -3345,5 +3347,184 @@ describe("scenario spec — floating mana (issue #3460)", () => {
 
         expect(rebuilt.players[0].manaPool).toEqual({ U: 2 });
         expect(rebuilt.players[0].restrictedMana).toBeUndefined();
+    });
+});
+
+describe("scenario spec — a hand of cards the Bot could not see (issue #3452)", () => {
+    // CR 400.2 — the hand is a HIDDEN zone, so a position captured from one
+    // seat's view can count the other's hand and never name it. Before this
+    // field the lowering dropped those cards, and every in-play verdict was
+    // judged on a board where that seat held an EMPTY hand.
+
+    const hiddenCards = (state: GameState, seat: 0 | 1) =>
+        state.players[seat].hand.filter(
+            (card) => (card.card as { id?: string }).id === PLACEHOLDER_CARD_ID
+        );
+
+    it("seeds each seat's count, symmetrically", () => {
+        // The lowering only ever produces a hidden hand on the seat the Bot
+        // could not see, but the spec shape does not encode that asymmetry —
+        // a hand-written blade entry may seed either side, and the builder
+        // treats both identically.
+        const state = buildStateFromScenario(makeState(), {
+            cards: [],
+            hiddenHand: { me: 2, opp: 5 },
+        });
+
+        expect(state.players[0].hand).toHaveLength(2);
+        expect(state.players[1].hand).toHaveLength(5);
+        expect(hiddenCards(state, 0)).toHaveLength(2);
+        expect(hiddenCards(state, 1)).toHaveLength(5);
+        for (const card of [...state.players[0].hand]) {
+            expect(card.ownerId).toBe(state.players[0].id);
+            expect(card.controllerId).toBe(state.players[0].id);
+            expect(card.zone).toBe("hand");
+            expect(card.types).toEqual([]);
+        }
+        // Distinct instances: ids key the search's choice candidates and its
+        // dominance memo, so two placeholders sharing one id would collapse
+        // into one card everywhere downstream.
+        const ids = new Set(
+            [...state.players[0].hand, ...state.players[1].hand].map(
+                (c) => c.id
+            )
+        );
+        expect(ids.size).toBe(7);
+    });
+
+    it("ADDS them to the cards the spec names in the same hand, keeping markLastDrawn on a named one", () => {
+        // The `libraryCount` ordering (seed first, place second): seeding after
+        // placement would either delete what the spec placed by name or push a
+        // placeholder to the end of "me"'s hand, where `markLastDrawn`
+        // (CR 121.1) reads the last entry.
+        const state = buildStateFromScenario(makeState(), {
+            cards: [
+                { name: grizzlyBears.name, owner: "me", zone: "hand" },
+                { name: giantGrowth.name, owner: "me", zone: "hand" },
+            ],
+            hiddenHand: { me: 3 },
+            markLastDrawn: true,
+        });
+
+        expect(state.players[0].hand).toHaveLength(5);
+        expect(hiddenCards(state, 0)).toHaveLength(3);
+        const lastDrawn = state.players[0].hand.find(
+            (c) => c.id === state.players[0].lastDrawnCardId
+        );
+        expect(lastDrawn).toBeDefined();
+        expect((lastDrawn!.card as { id: string }).id).not.toBe(
+            PLACEHOLDER_CARD_ID
+        );
+    });
+
+    it("offers no legal action on a seeded placeholder, for either seat", () => {
+        // The safety invariant, verified rather than assumed: `getLegalActions`
+        // checks the sentinel id explicitly (`gre/rules.ts`), so a placeholder
+        // is never castable. It cannot be TARGETED either, structurally:
+        // `TargetRequirement.zone` is `"battlefield" | "graveyard"`, so no
+        // requirement in the catalogue can name a card in a hand at all.
+        const state = buildStateFromScenario(makeState(), {
+            cards: [],
+            hiddenHand: { me: 1, opp: 1 },
+            landCount: 4,
+        });
+
+        // Asked of the card's OWN controller, which is the seat that would
+        // otherwise be offered the cast: a built scenario does yield "cast"
+        // for a real hand card with the lands to pay for it, so an empty list
+        // here is the sentinel guard and not an accident of the fixture.
+        for (const seat of [0, 1] as const) {
+            for (const card of state.players[seat].hand) {
+                expect(
+                    getLegalActions(state, state.players[seat], card)
+                ).toEqual([]);
+            }
+        }
+    });
+
+    it("round-trips: N hidden cards lower to N and rebuild as N", () => {
+        const first = buildStateFromScenario(makeState(), {
+            cards: [{ name: grizzlyBears.name, owner: "opp", zone: "hand" }],
+            hiddenHand: { me: 4, opp: 2 },
+        });
+        const { spec, dropped } = specFromState(first, {
+            mySeatId: first.players[0].id,
+        });
+
+        expect(spec.hiddenHand).toEqual({ me: 4, opp: 2 });
+        // Counted, never dropped — the note this field replaced.
+        expect(dropped.some((note) => /hand/i.test(note))).toBe(false);
+        // The NAMED card still lowers by name alongside the count.
+        expect(
+            spec.cards.filter((c) => c.zone === "hand" && c.owner === "opp")
+        ).toHaveLength(1);
+
+        const second = buildStateFromScenario(makeState(), spec);
+        expect(hiddenCards(second, 0)).toHaveLength(4);
+        expect(hiddenCards(second, 1)).toHaveLength(2);
+        expect(second.players[1].hand).toHaveLength(3);
+    });
+
+    it("refuses to load into a LIVE game, and only there", () => {
+        // A placeholder is safe in a position rebuilt to be EVALUATED and
+        // unsafe in one a client renders and the turn structure plays out:
+        // the hand card reads a `CardDefinition` at render time, CR 514.1's
+        // cleanup discard counts the slot, and a hand pick or reveal reads
+        // characteristics it has none of. The two loaders that PERSIST refuse
+        // it; the builder itself does not, because the quiz rebuilds one on
+        // every judged decision.
+        const spec: ScenarioSpec = { cards: [], hiddenHand: { opp: 4 } };
+        expect(() => assertLoadableIntoLiveGame(spec)).toThrow(/hiddenHand/);
+        expect(() => buildStateFromScenario(makeState(), spec)).not.toThrow();
+
+        // Not a blanket refusal of the FIELD — a spec that seeds nothing
+        // loads, so a captured position whose hands were fully visible is
+        // unaffected whatever the field's shape.
+        expect(() =>
+            assertLoadableIntoLiveGame({ cards: [], hiddenHand: {} })
+        ).not.toThrow();
+        expect(() =>
+            assertLoadableIntoLiveGame({ cards: [], hiddenHand: { me: 0 } })
+        ).not.toThrow();
+        expect(() => assertLoadableIntoLiveGame({ cards: [] })).not.toThrow();
+    });
+
+    it("marks the last NAMED hand card as drawn, never a hidden one (CR 121.1)", () => {
+        // The editor-authorable combination no round trip produces:
+        // `markLastDrawn` with a hand that is ONLY hidden cards. Marking one
+        // would stamp an identity-less card as "the last card you drew this
+        // turn", and the lowering would then drop the mark with no note.
+        const onlyHidden = buildStateFromScenario(makeState(), {
+            cards: [],
+            hiddenHand: { me: 3 },
+            markLastDrawn: true,
+        });
+        expect(onlyHidden.players[0].lastDrawnCardId).toBeUndefined();
+        expect(onlyHidden.players[0].drawnThisTurn ?? []).toEqual([]);
+
+        const mixed = buildStateFromScenario(makeState(), {
+            cards: [{ name: grizzlyBears.name, owner: "me", zone: "hand" }],
+            hiddenHand: { me: 3 },
+            markLastDrawn: true,
+        });
+        const marked = mixed.players[0].hand.find(
+            (c) => c.id === mixed.players[0].lastDrawnCardId
+        );
+        expect((marked?.card as { id: string }).id).toBe(grizzlyBears.id);
+    });
+
+    it("omits the field when no hand holds an unknown card", () => {
+        // The `landsPlayed` convention rather than `life`'s: the builder clears
+        // both hands before seeding, so an absence round-trips to the same
+        // position and a spec captured from a perfect-information state (every
+        // headless self-play one) stays exactly what it was.
+        const state = buildStateFromScenario(makeState(), {
+            cards: [{ name: grizzlyBears.name, owner: "me", zone: "hand" }],
+        });
+        const { spec } = specFromState(state, {
+            mySeatId: state.players[0].id,
+        });
+
+        expect(spec.hiddenHand).toBeUndefined();
     });
 });

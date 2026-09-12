@@ -498,9 +498,10 @@ export function formatLoweringReport(report: LoweringSweepReport): string {
         `  JUDGEABLE ${report.judgeable} / ${report.decisions} decisions (${share(report.judgeable, report.decisions)})`,
         "",
         "  Headless self-play is a PERFECT-INFORMATION corpus: no hand carries",
-        "  PLACEHOLDER_CARD_ID, so the hidden-hand note and the `lowering-threw`",
-        "  refusal it drives are structurally absent here. This share is the",
-        "  engine's ceiling, not the debug panel's success rate in a browser.",
+        "  PLACEHOLDER_CARD_ID, so no lowering here produces a `hiddenHand`",
+        "  (issue #3452) and nothing exercises the path a browser capture takes",
+        "  through it. This share is the engine's ceiling, not the debug",
+        "  panel's success rate in a browser.",
         "",
     ];
 

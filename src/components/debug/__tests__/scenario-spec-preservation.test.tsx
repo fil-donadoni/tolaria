@@ -87,6 +87,10 @@ const STORED: Required<ScenarioSpec> = {
     phase: "POSTCOMBAT_MAIN",
     landCount: 4,
     libraryCount: 30,
+    // CR 400.2 (issue #3452) — asymmetric on purpose: the two seats are
+    // independent counts, so a round trip that mirrored them would pass on a
+    // symmetric fixture.
+    hiddenHand: { me: 2, opp: 6 },
     turn: 7,
     markLastDrawn: true,
     rngSeed: 4242,

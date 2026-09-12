@@ -37,7 +37,6 @@
 import { COMBAT_DROPPED_PREFIX, specFromState } from "../../scenarioBuilder";
 import { describeMove } from "../../describeMove";
 import { moveKey, decidingPlayer } from "../../search";
-import { PLACEHOLDER_CARD_ID } from "../../constants";
 import { seatPlayerId } from "../blade/matcher";
 import { buildSetupFreeVerdictState, candidateMoves } from "./candidates";
 import type { VerdictCandidate } from "./types";
@@ -171,28 +170,25 @@ export function lowerDecision(
         };
     }
 
-    // The hidden half of the board has no identity to lower. A projected
+    // The hidden half of the board has no identity to lower: a projected
     // client state gives a non-viewer's hand as `null` per card and the adapter
-    // rebuilds it as opaque placeholders (`PLACEHOLDER_CARD_ID`), which
-    // `specFromState` cannot name, and throws on. They are stripped rather than
-    // invented, and the hand size they carried is REPORTED: the opponent's hand
-    // count feeds the evaluation's `hand` term, so a verdict given here is one
-    // given on a board where the opponent holds fewer cards than they did. A
-    // headless caller passing a raw engine state has no placeholders and this
-    // is the identity.
-    const { state: visible, hidden } = withoutHiddenIdentities(position);
-
+    // rebuilds it as opaque placeholders (`PLACEHOLDER_CARD_ID`). Issue #3452
+    // moved that fact INTO the spec — `specFromState` counts them into
+    // `hiddenHand` and the rebuild seeds the same shape back — so this site no
+    // longer strips anything and the hand the verdict is judged on is the SIZE
+    // it was in play, which the evaluation's `hand` term reads. There is one
+    // path, not two: nothing pre-filters the position here.
     let spec: ScenarioSpec;
     let dropped: string[];
     try {
-        const lowered = specFromState(visible, { mySeatId: botId });
+        const lowered = specFromState(position, { mySeatId: botId });
         spec = lowered.spec;
-        dropped = [...hidden, ...lowered.dropped];
+        dropped = lowered.dropped;
     } catch (error) {
         return {
             ok: false,
             kind: "lowering-threw",
-            dropped: hidden,
+            dropped: [],
             error: `this position could not be lowered into a scenario: ${message(error)}`,
         };
     }
@@ -315,32 +311,6 @@ export function lowerDecision(
 
 function message(error: unknown): string {
     return error instanceof Error ? error.message : `${error}`;
-}
-
-/** The same state with every hidden-identity instance removed from a hand, plus
- *  one note per seat that lost cards. Libraries keep their placeholders: the
- *  lowering never names library contents, it only counts them. */
-function withoutHiddenIdentities(state: GameState): {
-    state: GameState;
-    hidden: string[];
-} {
-    const hidden: string[] = [];
-    const players = state.players.map((player) => {
-        const visible = player.hand.filter(
-            (card) => (card.card as { id?: string }).id !== PLACEHOLDER_CARD_ID
-        );
-        if (visible.length === player.hand.length) return player;
-        hidden.push(
-            `${player.id}'s hand: ${player.hand.length - visible.length} card(s) whose identity the Bot could not see — dropped, so the rebuilt hand is ${visible.length} card(s) and the evaluation's hand term reads lower here than it did in play`
-        );
-        return { ...player, hand: visible };
-    });
-    return hidden.length === 0
-        ? { state, hidden }
-        : {
-              state: { ...state, players: players as GameState["players"] },
-              hidden,
-          };
 }
 
 function sameList(a: string[], b: string[]): boolean {
