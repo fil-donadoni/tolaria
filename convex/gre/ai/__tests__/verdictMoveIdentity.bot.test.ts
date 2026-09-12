@@ -244,7 +244,7 @@ describe("canonicalMoveKey — a granted ability is its TEMPLATE (PR review, iss
                                 id,
                                 sourceCardId: sealOfFire.id,
                                 abilityId: "seal-of-fire-sac",
-                                duration: "endOfTurn",
+                                duration: { phase: "end-of-turn" },
                                 grantedAtTurn: 1,
                             },
                         ],
