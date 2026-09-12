@@ -1,0 +1,83 @@
+{
+    "id": "in-play:ph764j7sgrfrwzrqyjj1c01gwn8e6s3z",
+    "spec": {
+        "cards": [
+            {
+                "name": "Serra's Sanctum",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Opalescence",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Sterling Grove",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Enchantress's Presence",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Brushland",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Brushland",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Swords to Plowshares",
+                "owner": "me",
+                "zone": "hand"
+            }
+        ],
+        "life": {
+            "me": 20,
+            "opp": 20
+        },
+        "markLastDrawn": true,
+        "phase": "PRECOMBAT_MAIN",
+        "rngSeed": 633810363,
+        "turn": 1
+    },
+    "seat": "me",
+    "candidates": [
+        {
+            "key": "{\"kind\":\"pass\"}",
+            "description": "pass"
+        },
+        {
+            "key": "{\"kind\":\"play-land\",\"cardInstanceId\":\"121\"}",
+            "description": "play Serra's Sanctum"
+        },
+        {
+            "key": "{\"kind\":\"play-land\",\"cardInstanceId\":\"125\"}",
+            "description": "play Brushland"
+        },
+        {
+            "key": "{\"kind\":\"play-land\",\"cardInstanceId\":\"126\"}",
+            "description": "play Brushland"
+        }
+    ],
+    "answer": {
+        "kind": "right",
+        "rightIndexes": [
+            2
+        ]
+    },
+    "botPickIndex": 1,
+    "author": "Mr bambury",
+    "createdAt": "2026-09-11T15:19:08.760Z",
+    "source": "in-play",
+    "origin": {
+        "gameId": "jn77nb1dczdjp5whyx9kkxvc5n8e7489",
+        "seq": 6
+    }
+}

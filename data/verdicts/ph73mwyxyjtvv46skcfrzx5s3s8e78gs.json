@@ -1,0 +1,94 @@
+{
+    "id": "in-play:ph73mwyxyjtvv46skcfrzx5s3s8e78gs",
+    "spec": {
+        "cards": [
+            {
+                "name": "Serra's Sanctum",
+                "owner": "me"
+            },
+            {
+                "name": "Mountain",
+                "owner": "opp",
+                "summoningSick": true,
+                "tapped": true
+            },
+            {
+                "name": "Mogg Fanatic",
+                "owner": "opp",
+                "summoningSick": true
+            },
+            {
+                "name": "Opalescence",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Sterling Grove",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Enchantress's Presence",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Brushland",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Brushland",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Swords to Plowshares",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Wild Growth",
+                "owner": "me",
+                "zone": "hand"
+            }
+        ],
+        "life": {
+            "me": 20,
+            "opp": 20
+        },
+        "markLastDrawn": true,
+        "phase": "PRECOMBAT_MAIN",
+        "rngSeed": 633810363,
+        "turn": 3
+    },
+    "seat": "me",
+    "candidates": [
+        {
+            "key": "{\"kind\":\"pass\"}",
+            "description": "pass"
+        },
+        {
+            "key": "{\"kind\":\"play-land\",\"cardInstanceId\":\"127\"}",
+            "description": "play Brushland"
+        },
+        {
+            "key": "{\"kind\":\"play-land\",\"cardInstanceId\":\"128\"}",
+            "description": "play Brushland"
+        }
+    ],
+    "answer": {
+        "kind": "right",
+        "rightIndexes": [
+            1
+        ]
+    },
+    "botPickIndex": 1,
+    "author": "Mr bambury",
+    "createdAt": "2026-09-11T15:20:38.389Z",
+    "source": "in-play",
+    "origin": {
+        "gameId": "jn77nb1dczdjp5whyx9kkxvc5n8e7489",
+        "seq": 34
+    }
+}

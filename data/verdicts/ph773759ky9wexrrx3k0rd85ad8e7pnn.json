@@ -1,0 +1,131 @@
+{
+    "id": "in-play:ph773759ky9wexrrx3k0rd85ad8e7pnn",
+    "spec": {
+        "cards": [
+            {
+                "name": "Serra's Sanctum",
+                "owner": "me"
+            },
+            {
+                "name": "Brushland",
+                "owner": "me"
+            },
+            {
+                "attachedTo": "Serra's Sanctum",
+                "name": "Wild Growth",
+                "owner": "me"
+            },
+            {
+                "name": "Plains",
+                "owner": "me"
+            },
+            {
+                "name": "Sterling Grove",
+                "owner": "me"
+            },
+            {
+                "name": "Mountain",
+                "owner": "opp"
+            },
+            {
+                "name": "Rishadan Port",
+                "owner": "opp"
+            },
+            {
+                "name": "Mountain",
+                "owner": "opp",
+                "summoningSick": true,
+                "tapped": true
+            },
+            {
+                "name": "Skirk Prospector",
+                "owner": "opp",
+                "summoningSick": true
+            },
+            {
+                "name": "Swords to Plowshares",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Bloodstained Mire",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Mogg Fanatic",
+                "owner": "opp",
+                "zone": "exile"
+            },
+            {
+                "name": "Opalescence",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Enchantress's Presence",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Brushland",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Serra's Sanctum",
+                "owner": "me",
+                "zone": "hand"
+            }
+        ],
+        "life": {
+            "me": 18,
+            "opp": 20
+        },
+        "markLastDrawn": true,
+        "phase": "PRECOMBAT_MAIN",
+        "rngSeed": 633810363,
+        "turn": 7
+    },
+    "seat": "me",
+    "candidates": [
+        {
+            "key": "{\"kind\":\"pass\"}",
+            "description": "pass"
+        },
+        {
+            "key": "{\"kind\":\"cast-spell\",\"cardInstanceId\":\"133\",\"targets\":[],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"121\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}]}",
+            "description": "cast Opalescence"
+        },
+        {
+            "key": "{\"kind\":\"cast-spell\",\"cardInstanceId\":\"134\",\"targets\":[],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":1},{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"121\"}]}",
+            "description": "cast Enchantress's Presence"
+        },
+        {
+            "key": "{\"kind\":\"play-land\",\"cardInstanceId\":\"135\"}",
+            "description": "play Brushland"
+        },
+        {
+            "key": "{\"kind\":\"play-land\",\"cardInstanceId\":\"136\"}",
+            "description": "play Serra's Sanctum"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"125\",\"abilityId\":\"sterling-grove-search\",\"targets\":[],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"}]}",
+            "description": "activate Sterling Grove"
+        }
+    ],
+    "answer": {
+        "kind": "right",
+        "rightIndexes": [
+            3
+        ]
+    },
+    "botPickIndex": 4,
+    "author": "Mr bambury",
+    "createdAt": "2026-09-11T15:29:14.821Z",
+    "source": "in-play",
+    "origin": {
+        "gameId": "jn77nb1dczdjp5whyx9kkxvc5n8e7489",
+        "seq": 97
+    }
+}

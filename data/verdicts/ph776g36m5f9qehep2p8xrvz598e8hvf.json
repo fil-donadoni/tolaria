@@ -1,0 +1,337 @@
+{
+    "id": "in-play:ph776g36m5f9qehep2p8xrvz598e8hvf",
+    "spec": {
+        "activePlayer": "opp",
+        "artifactDamageToPlayerThisTurn": {
+            "me": 0,
+            "opp": 0
+        },
+        "cards": [
+            {
+                "manaCommitted": true,
+                "name": "Rishadan Port",
+                "owner": "me",
+                "tapped": true
+            },
+            {
+                "manaCommitted": true,
+                "name": "Treetop Village",
+                "owner": "me",
+                "tapped": true
+            },
+            {
+                "manaCommitted": true,
+                "name": "Karplusan Forest",
+                "owner": "me",
+                "tapped": true
+            },
+            {
+                "name": "Karplusan Forest",
+                "owner": "me"
+            },
+            {
+                "name": "Mox Diamond",
+                "owner": "me",
+                "startedTurnUntapped": true
+            },
+            {
+                "name": "Sphere of Resistance",
+                "owner": "me",
+                "summoningSick": true
+            },
+            {
+                "name": "Island",
+                "owner": "opp"
+            },
+            {
+                "name": "Swamp",
+                "owner": "opp"
+            },
+            {
+                "name": "Island",
+                "owner": "opp"
+            },
+            {
+                "activations": {
+                    "psychatog-ability": 1,
+                    "psychatog-ability-2": 4
+                },
+                "manaCommitted": true,
+                "name": "Psychatog",
+                "owner": "opp",
+                "startedTurnUntapped": true,
+                "tapped": true
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "summoningSick": true
+            },
+            {
+                "name": "Snow-Covered Forest",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Winter's Grasp",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Mox Diamond",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "activations": {
+                    "mishras-factory-animate": 1
+                },
+                "name": "Mishra's Factory",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Rishadan Port",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Mox Diamond",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "activations": {
+                    "polluted-delta-fetch": 1
+                },
+                "name": "Polluted Delta",
+                "owner": "opp",
+                "zone": "exile"
+            },
+            {
+                "name": "Impulse",
+                "owner": "opp",
+                "zone": "exile"
+            },
+            {
+                "activations": {
+                    "powder-keg-detonate": 1
+                },
+                "name": "Powder Keg",
+                "owner": "opp",
+                "zone": "exile"
+            },
+            {
+                "activations": {
+                    "polluted-delta-fetch": 1
+                },
+                "name": "Polluted Delta",
+                "owner": "opp",
+                "zone": "exile"
+            },
+            {
+                "name": "Underground River",
+                "owner": "opp",
+                "zone": "exile"
+            },
+            {
+                "name": "Counterspell",
+                "owner": "opp",
+                "zone": "exile"
+            },
+            {
+                "name": "Portent",
+                "owner": "opp",
+                "zone": "exile"
+            },
+            {
+                "name": "Underground River",
+                "owner": "opp",
+                "zone": "exile"
+            },
+            {
+                "name": "Pyroclasm",
+                "owner": "me",
+                "zone": "hand"
+            }
+        ],
+        "combat": {
+            "attackedThisTurn": {
+                "opp": [
+                    "Psychatog"
+                ]
+            },
+            "attackers": [
+                "Psychatog"
+            ],
+            "blockers": [],
+            "blockersConfirmed": true,
+            "confirmed": true
+        },
+        "continuousEffects": [
+            {
+                "affected": {
+                    "opp": [
+                        "Psychatog"
+                    ]
+                },
+                "controller": "opp",
+                "duration": {
+                    "phase": "end-of-turn"
+                },
+                "layer": 7,
+                "payload": {
+                    "kind": "pt-modify",
+                    "power": 1,
+                    "toughness": 1
+                },
+                "sublayer": "7c"
+            },
+            {
+                "affected": {
+                    "opp": [
+                        "Psychatog"
+                    ]
+                },
+                "controller": "opp",
+                "duration": {
+                    "phase": "end-of-turn"
+                },
+                "layer": 7,
+                "payload": {
+                    "kind": "pt-modify",
+                    "power": 1,
+                    "toughness": 1
+                },
+                "sublayer": "7c"
+            },
+            {
+                "affected": {
+                    "opp": [
+                        "Psychatog"
+                    ]
+                },
+                "controller": "opp",
+                "duration": {
+                    "phase": "end-of-turn"
+                },
+                "layer": 7,
+                "payload": {
+                    "kind": "pt-modify",
+                    "power": 1,
+                    "toughness": 1
+                },
+                "sublayer": "7c"
+            },
+            {
+                "affected": {
+                    "opp": [
+                        "Psychatog"
+                    ]
+                },
+                "controller": "opp",
+                "duration": {
+                    "phase": "end-of-turn"
+                },
+                "layer": 7,
+                "payload": {
+                    "kind": "pt-modify",
+                    "power": 1,
+                    "toughness": 1
+                },
+                "sublayer": "7c"
+            },
+            {
+                "affected": {
+                    "opp": [
+                        "Psychatog"
+                    ]
+                },
+                "controller": "opp",
+                "duration": {
+                    "phase": "end-of-turn"
+                },
+                "layer": 7,
+                "payload": {
+                    "kind": "pt-modify",
+                    "power": 1,
+                    "toughness": 1
+                },
+                "sublayer": "7c"
+            }
+        ],
+        "creatureAttackedThisTurn": true,
+        "damageDealtToPlayerThisTurn": {
+            "me": 0,
+            "opp": 0
+        },
+        "deathsThisTurn": 0,
+        "hiddenHand": {
+            "opp": 4
+        },
+        "landsPlayed": {
+            "opp": 1
+        },
+        "life": {
+            "me": 19,
+            "opp": 18
+        },
+        "lifeGainedThisTurn": {
+            "me": 0,
+            "opp": 0
+        },
+        "passCount": 1,
+        "phase": "DECLARE_BLOCKERS",
+        "priority": "me",
+        "qualifyingActionLastTurn": {
+            "me": true,
+            "opp": true
+        },
+        "qualifyingActionThisTurn": {
+            "opp": true
+        },
+        "revolt": {
+            "opp": true
+        },
+        "rngSeed": 677865760,
+        "spellsCastThisGame": {
+            "me": 5,
+            "opp": 4
+        },
+        "spellsCastThisTurn": {
+            "me": 0,
+            "opp": 0
+        },
+        "stormCount": 0,
+        "turn": 13,
+        "turnsTaken": {
+            "me": 6,
+            "opp": 7
+        }
+    },
+    "seat": "me",
+    "candidates": [
+        {
+            "key": "{\"kind\":\"pass\"}",
+            "description": "pass"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"126\",\"abilityId\":\"treetop-village-animate\",\"targets\":[],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"128\",\"manaChoiceIndex\":2},{\"cardInstanceId\":\"129\",\"manaChoiceIndex\":0}]}",
+            "description": "activate Treetop Village"
+        }
+    ],
+    "answer": {
+        "kind": "right",
+        "rightIndexes": [
+            1
+        ]
+    },
+    "botPickIndex": 1,
+    "author": "Mr bambury",
+    "createdAt": "2026-09-12T20:57:39.791Z",
+    "source": "in-play",
+    "origin": {
+        "gameId": "jn78yc10btgtg7kvzxa4zqk6818e8q41",
+        "seq": 234
+    }
+}

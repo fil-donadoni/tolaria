@@ -1,0 +1,215 @@
+{
+    "id": "in-play:ph7bwgd4j4mq6x6s6v0sr1jbq18e9vvn",
+    "spec": {
+        "activePlayer": "me",
+        "artifactDamageToPlayerThisTurn": {
+            "me": 0,
+            "opp": 0
+        },
+        "cards": [
+            {
+                "manaCommitted": true,
+                "name": "Rishadan Port",
+                "owner": "me",
+                "tapped": true
+            },
+            {
+                "manaCommitted": true,
+                "name": "Treetop Village",
+                "owner": "me",
+                "tapped": true
+            },
+            {
+                "manaCommitted": true,
+                "name": "Karplusan Forest",
+                "owner": "me",
+                "tapped": true
+            },
+            {
+                "name": "Karplusan Forest",
+                "owner": "me"
+            },
+            {
+                "name": "Mox Diamond",
+                "owner": "me",
+                "startedTurnUntapped": true
+            },
+            {
+                "name": "Sphere of Resistance",
+                "owner": "me",
+                "summoningSick": true
+            },
+            {
+                "manaCommitted": true,
+                "name": "Island",
+                "owner": "opp",
+                "tapped": true
+            },
+            {
+                "manaCommitted": true,
+                "name": "Swamp",
+                "owner": "opp",
+                "tapped": true
+            },
+            {
+                "manaCommitted": true,
+                "name": "Island",
+                "owner": "opp",
+                "summoningSick": true,
+                "tapped": true
+            },
+            {
+                "name": "Psychatog",
+                "owner": "opp",
+                "summoningSick": true
+            },
+            {
+                "name": "Snow-Covered Forest",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Winter's Grasp",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Mox Diamond",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "activations": {
+                    "mishras-factory-animate": 1
+                },
+                "name": "Mishra's Factory",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Rishadan Port",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Mox Diamond",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Underground River",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "activations": {
+                    "polluted-delta-fetch": 1
+                },
+                "name": "Polluted Delta",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Portent",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Underground River",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "activations": {
+                    "powder-keg-detonate": 1
+                },
+                "name": "Powder Keg",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Impulse",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Pyroclasm",
+                "owner": "me",
+                "zone": "hand"
+            }
+        ],
+        "combat": {
+            "attackers": [],
+            "blockers": [],
+            "blockersConfirmed": false,
+            "confirmed": true
+        },
+        "creatureAttackedThisTurn": false,
+        "damageDealtToPlayerThisTurn": {
+            "me": 0,
+            "opp": 0
+        },
+        "deathsThisTurn": 0,
+        "hiddenHand": {
+            "opp": 5
+        },
+        "life": {
+            "me": 19,
+            "opp": 19
+        },
+        "lifeGainedThisTurn": {
+            "me": 0,
+            "opp": 0
+        },
+        "passCount": 0,
+        "phase": "DECLARE_ATTACKERS",
+        "priority": "me",
+        "qualifyingActionLastTurn": {
+            "me": true,
+            "opp": true
+        },
+        "qualifyingActionThisTurn": {
+            "me": true
+        },
+        "rngSeed": 677865760,
+        "spellsCastThisGame": {
+            "me": 5,
+            "opp": 4
+        },
+        "spellsCastThisTurn": {
+            "me": 2,
+            "opp": 0
+        },
+        "stormCount": 2,
+        "turn": 12,
+        "turnsTaken": {
+            "me": 6,
+            "opp": 6
+        }
+    },
+    "seat": "me",
+    "candidates": [
+        {
+            "key": "{\"kind\":\"pass\"}",
+            "description": "pass"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"127\",\"abilityId\":\"treetop-village-animate\",\"targets\":[],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"129\",\"manaChoiceIndex\":2},{\"cardInstanceId\":\"130\",\"manaChoiceIndex\":0}]}",
+            "description": "activate Treetop Village"
+        }
+    ],
+    "answer": {
+        "kind": "right",
+        "rightIndexes": [
+            0
+        ]
+    },
+    "botPickIndex": 0,
+    "author": "Mr bambury",
+    "createdAt": "2026-09-12T20:55:43.608Z",
+    "source": "in-play",
+    "origin": {
+        "gameId": "jn78yc10btgtg7kvzxa4zqk6818e8q41",
+        "seq": 194
+    }
+}

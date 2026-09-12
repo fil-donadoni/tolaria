@@ -1,0 +1,140 @@
+{
+    "id": "in-play:ph76705nap7jrfpnazkhc95yks8e7h6m",
+    "spec": {
+        "cards": [
+            {
+                "name": "Serra's Sanctum",
+                "owner": "me",
+                "tapped": true
+            },
+            {
+                "name": "Brushland",
+                "owner": "me",
+                "tapped": true
+            },
+            {
+                "attachedTo": "Serra's Sanctum",
+                "name": "Wild Growth",
+                "owner": "me"
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "tapped": true
+            },
+            {
+                "name": "Opalescence",
+                "owner": "me"
+            },
+            {
+                "name": "Enchantress's Presence",
+                "owner": "me",
+                "summoningSick": true
+            },
+            {
+                "attachedTo": "Brushland",
+                "name": "Wild Growth",
+                "owner": "me",
+                "summoningSick": true
+            },
+            {
+                "name": "Mountain",
+                "owner": "opp"
+            },
+            {
+                "name": "Rishadan Port",
+                "owner": "opp"
+            },
+            {
+                "name": "Mountain",
+                "owner": "opp"
+            },
+            {
+                "name": "Skirk Prospector",
+                "owner": "opp"
+            },
+            {
+                "name": "Swamp",
+                "owner": "opp",
+                "summoningSick": true
+            },
+            {
+                "name": "Swords to Plowshares",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Serra's Sanctum",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Sterling Grove",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Bloodstained Mire",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Bloodstained Mire",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Mogg Fanatic",
+                "owner": "opp",
+                "zone": "exile"
+            },
+            {
+                "name": "Brushland",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Brushland",
+                "owner": "me",
+                "zone": "hand"
+            }
+        ],
+        "life": {
+            "me": 17,
+            "opp": 19
+        },
+        "markLastDrawn": true,
+        "phase": "PRECOMBAT_MAIN",
+        "rngSeed": 633810363,
+        "turn": 9
+    },
+    "seat": "me",
+    "candidates": [
+        {
+            "key": "{\"kind\":\"pass\"}",
+            "description": "pass"
+        },
+        {
+            "key": "{\"kind\":\"play-land\",\"cardInstanceId\":\"139\"}",
+            "description": "play Brushland"
+        },
+        {
+            "key": "{\"kind\":\"play-land\",\"cardInstanceId\":\"140\"}",
+            "description": "play Brushland"
+        }
+    ],
+    "answer": {
+        "kind": "right",
+        "rightIndexes": [
+            1
+        ]
+    },
+    "botPickIndex": 1,
+    "author": "Mr bambury",
+    "createdAt": "2026-09-11T16:26:01.392Z",
+    "source": "in-play",
+    "origin": {
+        "gameId": "jn77nb1dczdjp5whyx9kkxvc5n8e7489",
+        "seq": 145
+    }
+}

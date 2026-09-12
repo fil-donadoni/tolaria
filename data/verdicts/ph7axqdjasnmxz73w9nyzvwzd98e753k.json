@@ -1,0 +1,183 @@
+{
+    "id": "in-play:ph7axqdjasnmxz73w9nyzvwzd98e753k",
+    "spec": {
+        "cards": [
+            {
+                "name": "Serra's Sanctum",
+                "owner": "me"
+            },
+            {
+                "name": "Brushland",
+                "owner": "me"
+            },
+            {
+                "attachedTo": "Serra's Sanctum",
+                "name": "Wild Growth",
+                "owner": "me"
+            },
+            {
+                "name": "Plains",
+                "owner": "me"
+            },
+            {
+                "name": "Opalescence",
+                "owner": "me"
+            },
+            {
+                "name": "Enchantress's Presence",
+                "owner": "me"
+            },
+            {
+                "attachedTo": "Brushland",
+                "name": "Wild Growth",
+                "owner": "me"
+            },
+            {
+                "name": "Brushland",
+                "owner": "me"
+            },
+            {
+                "name": "Brushland",
+                "owner": "me"
+            },
+            {
+                "name": "Windswept Heath",
+                "owner": "me",
+                "summoningSick": true
+            },
+            {
+                "name": "Mountain",
+                "owner": "opp",
+                "tapped": true
+            },
+            {
+                "name": "Rishadan Port",
+                "owner": "opp"
+            },
+            {
+                "name": "Mountain",
+                "owner": "opp",
+                "tapped": true
+            },
+            {
+                "name": "Skirk Prospector",
+                "owner": "opp"
+            },
+            {
+                "name": "Swamp",
+                "owner": "opp",
+                "tapped": true
+            },
+            {
+                "name": "Volrath's Stronghold",
+                "owner": "opp"
+            },
+            {
+                "name": "Siege-Gang Commander",
+                "owner": "opp"
+            },
+            {
+                "name": "Goblin",
+                "owner": "opp",
+                "token": true
+            },
+            {
+                "name": "Goblin",
+                "owner": "opp",
+                "token": true
+            },
+            {
+                "name": "Goblin",
+                "owner": "opp",
+                "token": true
+            },
+            {
+                "name": "Sulfurous Springs",
+                "owner": "opp",
+                "summoningSick": true
+            },
+            {
+                "name": "Goblin Warchief",
+                "owner": "opp",
+                "summoningSick": true
+            },
+            {
+                "name": "Swords to Plowshares",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Serra's Sanctum",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Sterling Grove",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Elephant Grass",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Bloodstained Mire",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Bloodstained Mire",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Mogg Fanatic",
+                "owner": "opp",
+                "zone": "exile"
+            },
+            {
+                "name": "Sylvan Library",
+                "owner": "me",
+                "zone": "hand"
+            }
+        ],
+        "life": {
+            "me": 16,
+            "opp": 19
+        },
+        "markLastDrawn": true,
+        "phase": "PRECOMBAT_MAIN",
+        "rngSeed": 633810363,
+        "turn": 13
+    },
+    "seat": "me",
+    "candidates": [
+        {
+            "key": "{\"kind\":\"pass\"}",
+            "description": "pass"
+        },
+        {
+            "key": "{\"kind\":\"cast-spell\",\"cardInstanceId\":\"147\",\"targets\":[],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":1},{\"cardInstanceId\":\"124\"}]}",
+            "description": "cast Sylvan Library"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"130\",\"abilityId\":\"windswept-heath-fetch\",\"targets\":[],\"confirmTargets\":false,\"tapPlan\":[]}",
+            "description": "activate Windswept Heath"
+        }
+    ],
+    "answer": {
+        "kind": "right",
+        "rightIndexes": [
+            1
+        ]
+    },
+    "botPickIndex": 1,
+    "author": "Mr bambury",
+    "createdAt": "2026-09-11T16:28:36.757Z",
+    "source": "in-play",
+    "origin": {
+        "gameId": "jn77nb1dczdjp5whyx9kkxvc5n8e7489",
+        "seq": 226
+    }
+}

@@ -1,0 +1,162 @@
+{
+    "id": "in-play:ph7e6j6e90g934nwa1zm3443ps8e6khn",
+    "spec": {
+        "cards": [
+            {
+                "name": "Serra's Sanctum",
+                "owner": "me"
+            },
+            {
+                "name": "Brushland",
+                "owner": "me"
+            },
+            {
+                "attachedTo": "Serra's Sanctum",
+                "name": "Wild Growth",
+                "owner": "me"
+            },
+            {
+                "name": "Plains",
+                "owner": "me"
+            },
+            {
+                "name": "Sterling Grove",
+                "owner": "me"
+            },
+            {
+                "name": "Opalescence",
+                "owner": "me"
+            },
+            {
+                "name": "Mountain",
+                "owner": "opp"
+            },
+            {
+                "name": "Rishadan Port",
+                "owner": "opp"
+            },
+            {
+                "name": "Mountain",
+                "owner": "opp"
+            },
+            {
+                "name": "Skirk Prospector",
+                "owner": "opp"
+            },
+            {
+                "name": "Swamp",
+                "owner": "opp",
+                "summoningSick": true
+            },
+            {
+                "name": "Swords to Plowshares",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Serra's Sanctum",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Bloodstained Mire",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Bloodstained Mire",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Mogg Fanatic",
+                "owner": "opp",
+                "zone": "exile"
+            },
+            {
+                "name": "Enchantress's Presence",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Brushland",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Wild Growth",
+                "owner": "me",
+                "zone": "hand"
+            }
+        ],
+        "life": {
+            "me": 18,
+            "opp": 19
+        },
+        "markLastDrawn": true,
+        "phase": "PRECOMBAT_MAIN",
+        "rngSeed": 633810363,
+        "turn": 9
+    },
+    "seat": "me",
+    "candidates": [
+        {
+            "key": "{\"kind\":\"pass\"}",
+            "description": "pass"
+        },
+        {
+            "key": "{\"kind\":\"cast-spell\",\"cardInstanceId\":\"137\",\"targets\":[],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":1},{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"121\"}]}",
+            "description": "cast Enchantress's Presence"
+        },
+        {
+            "key": "{\"kind\":\"play-land\",\"cardInstanceId\":\"138\"}",
+            "description": "play Brushland"
+        },
+        {
+            "key": "{\"kind\":\"cast-spell\",\"cardInstanceId\":\"139\",\"targets\":[{\"type\":\"permanent\",\"id\":\"121\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":1}]}",
+            "description": "cast Wild Growth → Serra's Sanctum"
+        },
+        {
+            "key": "{\"kind\":\"cast-spell\",\"cardInstanceId\":\"139\",\"targets\":[{\"type\":\"permanent\",\"id\":\"122\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":1}]}",
+            "description": "cast Wild Growth → Brushland"
+        },
+        {
+            "key": "{\"kind\":\"cast-spell\",\"cardInstanceId\":\"139\",\"targets\":[{\"type\":\"permanent\",\"id\":\"124\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":1}]}",
+            "description": "cast Wild Growth → Plains"
+        },
+        {
+            "key": "{\"kind\":\"cast-spell\",\"cardInstanceId\":\"139\",\"targets\":[{\"type\":\"permanent\",\"id\":\"127\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":1}]}",
+            "description": "cast Wild Growth → Mountain"
+        },
+        {
+            "key": "{\"kind\":\"cast-spell\",\"cardInstanceId\":\"139\",\"targets\":[{\"type\":\"permanent\",\"id\":\"128\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":1}]}",
+            "description": "cast Wild Growth → Rishadan Port"
+        },
+        {
+            "key": "{\"kind\":\"cast-spell\",\"cardInstanceId\":\"139\",\"targets\":[{\"type\":\"permanent\",\"id\":\"129\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":1}]}",
+            "description": "cast Wild Growth → Mountain"
+        },
+        {
+            "key": "{\"kind\":\"cast-spell\",\"cardInstanceId\":\"139\",\"targets\":[{\"type\":\"permanent\",\"id\":\"131\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":1}]}",
+            "description": "cast Wild Growth → Swamp"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"125\",\"abilityId\":\"sterling-grove-search\",\"targets\":[],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"}]}",
+            "description": "activate Sterling Grove"
+        }
+    ],
+    "answer": {
+        "kind": "right",
+        "rightIndexes": [
+            1
+        ]
+    },
+    "botPickIndex": 1,
+    "author": "Mr bambury",
+    "createdAt": "2026-09-11T15:34:20.411Z",
+    "source": "in-play",
+    "origin": {
+        "gameId": "jn77nb1dczdjp5whyx9kkxvc5n8e7489",
+        "seq": 133
+    }
+}
