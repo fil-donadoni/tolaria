@@ -199,6 +199,15 @@ describe("gate.ts — machine-wide mutex", () => {
         expect(Number.isFinite(bStart)).toBe(true);
         // B may only begin once A has released — i.e. after A's last statement.
         expect(bStart).toBeGreaterThan(aOut);
+        // A queued waiter names the wait AND closes it: the health gate
+        // forwards these lines to the release terminal (issue #3487), where a
+        // last line of "waiting …" would still read as queued.
+        expect(second.stderr).toMatch(
+            /\[gate\] waiting .* for the heavy mutex/
+        );
+        expect(second.stderr).toMatch(
+            /\[gate\] acquired the heavy mutex after /
+        );
     }, 20_000);
 
     it("heartbeats the owner stamp while the held command BURNS CPU — a long hold never reads stale (issue #1924)", async () => {

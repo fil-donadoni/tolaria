@@ -28,11 +28,18 @@
  * stale-worktree report (worktrees whose branch is merged into the base —
  * the corpses policy of ADR 0110).
  *
- * Zero imports beyond node builtins and `lib/branches.ts` (itself builtins
- * only) — same constraint as bootstrap-worktree.
+ * Each step reports to the terminal while it runs (issue #3487) — start and
+ * end lines, the gate's `[gate]` mutex-wait lines live, a liveness line while
+ * a step is long — and the per-sha log still receives the full child output.
+ * `lib/health-step.ts` owns that.
+ *
+ * Zero imports beyond node builtins, `lib/branches.ts` and
+ * `lib/health-step.ts` (both builtins only) — same constraint as
+ * bootstrap-worktree.
  */
 import { spawnSync } from "node:child_process";
 import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "./lib/branches";
+import { runHealthStep, type HealthStep } from "./lib/health-step";
 import {
     existsSync,
     mkdirSync,
@@ -137,7 +144,7 @@ function status(root: string): never {
     process.exit(red ? 1 : 0);
 }
 
-function main(): void {
+async function main(): Promise<void> {
     const cwd = process.cwd();
     const primary = primaryCheckout(cwd);
     const root = primary ?? cwd;
@@ -189,24 +196,27 @@ function main(): void {
     delete env.TOLARIA_GATE_HELD;
     delete env.TOLARIA_ALLOW_FULL_SUITE;
 
-    const step = (cmd: string, args: string[], stepCwd: string): boolean => {
-        const r = spawnSync(cmd, args, { encoding: "utf8", cwd: stepCwd, env });
-        writeFileSync(
-            logPath,
-            `\n===== ${cmd} ${args.join(" ")} (exit ${r.status}) =====\n${r.stdout ?? ""}${r.stderr ?? ""}`,
-            { flag: "a" }
-        );
-        return r.status === 0;
-    };
+    // In series, stopping at the first red: `name` is what the RED verdict
+    // records as `failedStep`.
+    const scripts = ["worktree:init", "check:all", "test"];
+    const steps: HealthStep[] = scripts.map((name, i) => ({
+        ordinal: i + 1,
+        total: scripts.length,
+        name,
+        cmd: "bun",
+        args: ["run", name],
+    }));
 
     let failedStep: string | undefined;
     try {
         git(["worktree", "add", "--detach", wt, tip], root);
-        if (!step("bun", ["run", "worktree:init"], wt))
-            failedStep = "worktree:init";
-        else if (!step("bun", ["run", "check:all"], wt))
-            failedStep = "check:all";
-        else if (!step("bun", ["run", "test"], wt)) failedStep = "test";
+        for (const step of steps) {
+            const r = await runHealthStep(step, { cwd: wt, env, logPath });
+            if (!r.ok) {
+                failedStep = step.name;
+                break;
+            }
+        }
     } finally {
         spawnSync("git", ["worktree", "remove", "--force", wt], { cwd: root });
     }
@@ -243,4 +253,7 @@ function main(): void {
     console.log(`health-main: GREEN @ ${tip.slice(0, 8)}`);
 }
 
-main();
+main().catch((err: unknown) => {
+    console.error(err);
+    process.exit(1);
+});

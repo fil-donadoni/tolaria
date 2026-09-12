@@ -326,7 +326,15 @@ async function acquire() {
     let lastAnnounce = 0;
     for (;;) {
         if (tryAcquire()) {
-            logWait(Date.now() - t0);
+            const waitedMs = Date.now() - t0;
+            // Close the wait the retry lines opened (issue #3487): without it
+            // a terminal whose last line is "waiting …" still reads as queued
+            // once the command is running under the lock.
+            if (announcedFor !== null)
+                console.error(
+                    `[gate] acquired the heavy mutex after ${fmtDuration(waitedMs)}`
+                );
+            logWait(waitedMs);
             return;
         }
         const owner = readOwner();
