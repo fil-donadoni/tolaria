@@ -195,6 +195,50 @@ describe("CR 603.10 look-back — a departed permanent's leave triggers", () => 
         expect(ids).toContain("super-shredder-counter");
     });
 
+    it("unions NO retained-through-copy trigger onto a face-down departure (CR 707.2 / 707.9d)", () => {
+        // The sentinel branch must stamp no `copiedFrom`: the departure id
+        // alone cannot tell a face-down permanent from a face-UP copy OF one
+        // (CR 707.2's Clone-of-Grinning-Demon example presents the sentinel
+        // either way), and claiming the copy anchor would union the printed
+        // card's CR 707.9d retained triggers onto an object CR 708.2 gives no
+        // abilities at all.
+        const hidden: CardDefinition = {
+            ...grizzlyBears,
+            id: "look-back-hidden",
+            name: "Look-Back Hidden",
+            triggeredAbilities: [
+                {
+                    id: "hidden-retained-death",
+                    oracleText: "When this creature dies, draw a card.",
+                    retainedThroughCopy: true,
+                    event: "CREATURE_DIED",
+                    matches: (event, self) =>
+                        event.type === "CREATURE_DIED" &&
+                        event.creatureInstanceId === self.id,
+                    effects: [{ op: "draw", player: "controller", count: 1 }],
+                },
+            ],
+        };
+
+        withTemporaryDefinition(hidden, () => {
+            const card = makeInstance(hidden.id, {
+                id: "hidden",
+                controllerId: "p1",
+            });
+            const witness = makeInstance(superShredder.id, {
+                id: "witness",
+                controllerId: "p1",
+            });
+            const state = boardWith([card, witness]);
+            turnFaceDown(state, card, "morph");
+
+            removePermanentTo(state, "hidden", "graveyard");
+            const ids = firedIds(state);
+            expect(ids).not.toContain("hidden-retained-death");
+            expect(ids).toContain("super-shredder-counter");
+        });
+    });
+
     it("fires NO front-face leave trigger for a permanent that died TRANSFORMED (CR 712.8a)", () => {
         // CR 712.8a puts the front face back on the card the moment it leaves
         // the battlefield, so the destination-zone read saw a front face the
@@ -207,6 +251,13 @@ describe("CR 603.10 look-back — a departed permanent's leave triggers", () => 
                 {
                     id: "flipper-front-death",
                     oracleText: "When this creature dies, draw a card.",
+                    // CR 707.9d — what makes the transform leg OBSERVABLE.
+                    // Misrouting a transformed permanent to the copy branch
+                    // stamps `copiedFrom`, and `effectiveTriggeredAbilities`
+                    // then unions exactly the front face's retained triggers
+                    // back in; without the flag the two branches are
+                    // indistinguishable from the outside.
+                    retainedThroughCopy: true,
                     event: "CREATURE_DIED",
                     matches: (event, self) =>
                         event.type === "CREATURE_DIED" &&
