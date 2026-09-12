@@ -1,6 +1,7 @@
 import { useDraggable } from "@dnd-kit/react";
 import { cn } from "~/lib/utils";
 import { pileCardTop } from "~/lib/card-layout";
+import { CARD_RING_TILE_CLASS } from "~/lib/card-ring";
 import {
     activateTileOnKey,
     CARD_TILE_ATTR,
@@ -217,7 +218,12 @@ export default function DeckCardTile({
                 // pile-mates overlapping it — a buried tile shows a ~20px
                 // sliver, and a ring on a sliver is not a visible focus
                 // indicator (WCAG 2.4.11).
-                "group aspect-5/7 w-(--card-w) shrink-0 select-none transition",
+                // `CARD_RING_TILE_CLASS` (issue #3426): a stacked tile is
+                // `absolute` at `z-index: auto`, so without it the overlay
+                // rings below resolve their `z-index: 25` against the PILE and
+                // a buried card's ring paints over the cards on top of it.
+                // Sets no `z-index`, so the lift cues below still order tiles.
+                `group aspect-5/7 w-(--card-w) shrink-0 select-none transition ${CARD_RING_TILE_CLASS}`,
                 readOnly
                     ? "cursor-default"
                     : "cursor-grab touch-pan-x hover:-translate-y-0.5 hover:z-10 focus-visible:z-20 focus-visible:-translate-y-0.5",
