@@ -46,7 +46,15 @@ const SEQ = 42;
 
 /** The board a decision is taken on, and the wire projection of it the consult
  *  is handed — the two halves the trace store keeps. */
-function position(spec: ScenarioSpec): {
+function position(
+    spec: ScenarioSpec,
+    /** The seats' real nicknames, for a decision whose lowering has to survive
+     *  them (issue #3483). Applied BEFORE the projection, so the live board the
+     *  quiz reconstructs carries the names a real game's would — the blade
+     *  harness's own "Blade P1" / "Blade P2" are what the REBUILD gets, and the
+     *  gap between the two is the whole bug. */
+    seatNames?: [string, string]
+): {
     state: GameState;
     botId: string;
     source: AiTraceSource;
@@ -59,6 +67,10 @@ function position(spec: ScenarioSpec): {
         tier: "must",
         expect: { moves: [] },
     });
+    if (seatNames) {
+        state.players[0].name = seatNames[0];
+        state.players[1].name = seatNames[1];
+    }
     const botId = state.players[0].id;
     return {
         state,
@@ -137,6 +149,22 @@ const RESPONDING_ON_OPPONENTS_TURN: ScenarioSpec = {
     libraryCount: 20,
 };
 
+/** A board whose decision TARGETS A PLAYER (issue #3483). Seal of Fire's
+ *  "Sacrifice this enchantment: It deals 2 damage to any target" costs no mana
+ *  and no tap (CR 602.1), so at priority both seats and the creature are live
+ *  targets — and the two seat-targeting candidates are the ones the describer
+ *  renders with a player NAME. */
+const SEAL_AT_A_PLAYER: ScenarioSpec = {
+    cards: [
+        { name: "Seal of Fire", owner: "me", zone: "battlefield" },
+        { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+    ],
+    phase: "PRECOMBAT_MAIN",
+    turn: 3,
+    landCount: 0,
+    libraryCount: 20,
+};
+
 const DECLARE_ATTACKERS: ScenarioSpec = {
     cards: [
         { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
@@ -201,6 +229,49 @@ describe("buildVerdictQuiz — a judgement the fit can still read (issue #3405)"
             expect(pairs.pairs.length).toBe(quiz.candidates.length - 1);
         });
     }
+
+    it("judges a decision that TARGETS A PLAYER, at a table whose seats have real names (issue #3483)", () => {
+        const { state, botId, source } = position(SEAL_AT_A_PLAYER, [
+            "Mr bambury",
+            "Tessa",
+        ]);
+        const opponentId = state.players[1].id;
+        const chosen = candidateMoves(state, botId).find(
+            (move) =>
+                move.kind === "activate-ability" &&
+                move.targets.some(
+                    (target) =>
+                        target.type === "player" && target.id === opponentId
+                )
+        );
+        expect(chosen).toBeDefined();
+        // The live sentence names the player, which is a fact NO
+        // `ScenarioSpec` carries and no rebuild can reproduce. Comparing the
+        // two lists through it refused this whole class of decision.
+        expect(describeMove(chosen!, state)).toContain("Tessa");
+
+        const result = buildVerdictQuiz(
+            traceFor(state, botId, chosen!),
+            source
+        );
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        const { quiz } = result;
+
+        // The pick is the move that was played, carried across the rebuild by
+        // canonical key — and the candidate a tester reads names the seat's
+        // ROLE, never the harness's "Blade P2".
+        const played = quiz.candidates[quiz.botPickIndex].description;
+        expect(played).toContain("Seal of Fire");
+        expect(played).toContain("the opponent");
+        expect(played).not.toContain("Blade P");
+
+        // And the claim every one of these tests makes: the fit rebuilds this
+        // position and finds every candidate the quiz named.
+        const pairs = evalPairsOf(verdictOf(quiz, quiz.botPickIndex));
+        expect(pairs.error).toBeUndefined();
+        expect(pairs.pairs.length).toBe(quiz.candidates.length - 1);
+    });
 
     it("judges a position where the opponent is holding cards (CR 400.2, issue #3452)", () => {
         // The hidden hand has no IDENTITY to lower — the hand is a hidden zone,
