@@ -113,6 +113,16 @@ export const SCENARIO_SPEC_FIELD_OWNER = {
     // untouched by any edit of the row.
     manaPool: "preserved",
     restrictedMana: "preserved",
+    // CR 611.2a / 613 (issue #3488) — the registry entries a resolved spell
+    // left behind, `preserved` for the same reason `combat` is: a list of
+    // records that CROSS-REFERENCES the card list by presented name, carrying
+    // a layer, a sublayer, a payload union and a phase-boundary duration. No
+    // input kind in this form has that shape, and a text box for it would be
+    // the untypeable knob issue #3463 closed wearing an input. Captured
+    // (`specFromState`) or hand-written in a blade entry, and carried through
+    // untouched by any edit of the row — minus any entry whose permanents the
+    // edit removed (`dropStaleContinuousEffects`).
+    continuousEffects: "preserved",
     companion: "form-owned",
 } as const satisfies Record<keyof ScenarioSpec, ScenarioSpecFieldOwner>;
 
@@ -433,6 +443,7 @@ export function assembleScenarioSpec(
     if (!loaded) return spec;
     for (const key of PRESERVED_SCENARIO_SPEC_KEYS) carry(spec, loaded, key);
     dropStaleCombat(spec);
+    dropStaleContinuousEffects(spec);
     return spec;
 }
 
@@ -472,4 +483,36 @@ function dropStaleCombat(spec: ScenarioSpec): void {
     if (referenced.some((name) => !onBattlefield.has(name))) {
         delete spec.combat;
     }
+}
+
+/**
+ * CR 611.2a (issue #3488) — drop any carried continuous-effect entry whose
+ * affected permanents are no longer on the assembled battlefield.
+ *
+ * The `dropStaleCombat` hazard exactly: `cards` is form-owned and
+ * `continuousEffects` is preserved, so an admin removing a creature would save
+ * an entry naming a permanent that is not there, and `buildStateFromScenario`
+ * THROWS on one it cannot resolve — the golden row would simply stop loading.
+ *
+ * PER ENTRY, unlike the combat record: a combat is ONE declaration whose
+ * attacker list and blocker indexes only mean anything together, while each
+ * registry entry is an independent continuous effect. Dropping one loses that
+ * effect and nothing else, so dropping the whole list would discard pumps the
+ * edit never touched.
+ */
+function dropStaleContinuousEffects(spec: ScenarioSpec): void {
+    if (!spec.continuousEffects) return;
+    const onBattlefield = new Set(
+        spec.cards
+            .filter((card) => (card.zone ?? "battlefield") === "battlefield")
+            .map(presentedEntryName)
+    );
+    const kept = spec.continuousEffects.filter((entry) =>
+        [...(entry.affected.me ?? []), ...(entry.affected.opp ?? [])].every(
+            (name) => onBattlefield.has(name)
+        )
+    );
+    if (kept.length === spec.continuousEffects.length) return;
+    if (kept.length === 0) delete spec.continuousEffects;
+    else spec.continuousEffects = kept;
 }

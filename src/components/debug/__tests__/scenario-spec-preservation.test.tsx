@@ -158,6 +158,22 @@ const STORED: Required<ScenarioSpec> = {
     restrictedMana: {
         me: [{ color: "R", amount: 2, restriction: "creature-spell" }],
     },
+    // CR 611.2a / 613.4c (issue #3488) — a curated row captured after a pump
+    // resolved: the spell has left, so nothing on the board could re-derive
+    // this. `preserved`, and its affected names resolve against the assembled
+    // battlefield below, so this exercises the CARRY rather than
+    // `dropStaleContinuousEffects`.
+    continuousEffects: [
+        {
+            layer: 7,
+            sublayer: "7c",
+            affected: { me: ["Psychatog"] },
+            controller: "me",
+            duration: { phase: "end-of-turn" },
+            payload: { kind: "pt-modify", power: 3, toughness: 3 },
+            characteristicDefining: false,
+        },
+    ],
     companion: { name: "Lurrus of the Dream-Den", owner: "me", used: true },
 };
 
