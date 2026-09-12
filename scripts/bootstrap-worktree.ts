@@ -33,7 +33,7 @@
  * has no node_modules yet.
  */
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 const force = process.argv.includes("--force");
@@ -78,12 +78,20 @@ const primary = primaryCheckout();
 // (`bun run catalogue:ensure`, which `dev`/`build` run anyway), so a primary
 // checkout that never generated it must not fail the bootstrap — copying just
 // saves this worktree a ~1 MB Scryfall download.
+//
+// The Full Catalogue is a DIRECTORY holding one content-addressed artifact
+// since issue #3500, and it is copied whole rather than by file name — the name
+// is a content hash, so the primary's differs from this worktree's whenever the
+// two branches carry different generations. It is skipped outright when the
+// destination already exists (the normal case: the artifact is committed), so
+// this can never leave two artifacts behind, which is the one state the
+// client's build-time glob refuses to resolve.
 const COPIES = [
     { from: "convex/_generated", to: "convex/_generated" },
     { from: ".env.local", to: ".env.local" },
     {
-        from: "public/data/full-catalogue.json.gz",
-        to: "public/data/full-catalogue.json.gz",
+        from: "data/full-catalogue",
+        to: "data/full-catalogue",
         optional: true,
     },
 ] as const;
@@ -106,6 +114,11 @@ if (primary) {
             }
             continue;
         }
+        // `--force` means REPLACE, not merge: copying a directory over an
+        // existing one unions their contents, which for the content-addressed
+        // Full Catalogue would leave two artifacts and a build-time glob with
+        // no way to choose.
+        if (existsSync(dst)) rmSync(dst, { recursive: true, force: true });
         mkdirSync(dirname(dst), { recursive: true });
         cpSync(src, dst, { recursive: true });
         done.push(to);

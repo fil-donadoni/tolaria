@@ -23,7 +23,7 @@ export interface FullCatalogueRow {
     available: boolean;
 }
 
-/** Columnar wire format read from `data/full-catalogue.json.gz`. */
+/** Columnar wire format read from the `data/full-catalogue/` artifact. */
 interface FullCatalogueWire {
     names: string[];
     printIds: string[];
@@ -58,8 +58,64 @@ export function rehydrate(wire: FullCatalogueWire): FullCatalogueRow[] {
     return rows;
 }
 
-/** Public URL of the generated catalogue asset (`scripts/fetch-full-catalogue.mjs`). */
-export const CATALOGUE_URL = "/data/full-catalogue.json.gz";
+/**
+ * Every artifact `data/full-catalogue/` holds, as an emitted asset URL. Eager,
+ * so the URL is a build-time constant and the fetch owes no extra round trip.
+ *
+ * WHY A GLOB AND NOT A COMMITTED URL CONSTANT (issue #3500). The asset used to
+ * live at a fixed `/data/full-catalogue.json.gz` under `public/`, which Vite
+ * copies VERBATIM: the name carried no content hash, the `immutable` rule in
+ * `vercel.json` covers `/assets/` only, and a regenerated catalogue therefore
+ * reached nobody whose CDN or browser still held the old payload. The file
+ * name IS its content hash now (`scripts/fetch-full-catalogue.mjs`), the glob
+ * resolves at BUILD to whatever single file the directory holds, and Vite
+ * emits it as a hashed asset under `/assets/` — so regenerating re-points the
+ * URL, the immutable header becomes correct rather than a lie, and no
+ * hand-written constant has to be kept in sync with the name. Same mechanism
+ * as `src/lib/catalogueArtifact.ts`, which this used to be the counter-example
+ * to.
+ */
+const artifacts = import.meta.glob<string>(
+    "../../data/full-catalogue/full-catalogue-*.json.gz",
+    { query: "?url", import: "default", eager: true }
+);
+
+/**
+ * The one artifact's URL.
+ *
+ * `scripts/fetch-full-catalogue.mjs` deletes the stale file when it writes a
+ * new one and `scripts/__tests__/full-catalogue-size.test.ts` reds on a
+ * directory holding anything but exactly one — so more than one here means a
+ * merge brought in a second artifact, and picking one of them arbitrarily
+ * would ship a catalogue nobody chose (silently: both parse, both rehydrate,
+ * and the deck builder just shows a pool from the wrong generation).
+ *
+ * A FUNCTION, not a module-level constant, and called from inside
+ * `loadFullCatalogue`'s async body: the failure then surfaces through
+ * `useFullCatalogue`'s `error` — the degraded state the builder already
+ * renders — instead of throwing at module load, where it would take down every
+ * importer of this module including ones that never wanted the catalogue.
+ *
+ * `candidates` is a parameter only so the failure branch is unit-testable
+ * without a second copy of the asset on disk; production always passes the
+ * glob.
+ */
+export function fullCatalogueUrl(
+    candidates: Record<string, string> = artifacts
+): string {
+    const entries = Object.entries(candidates).sort(([a], [b]) =>
+        a.localeCompare(b)
+    );
+    if (entries.length !== 1) {
+        throw new Error(
+            `data/full-catalogue/ must hold exactly one artifact, found ${entries.length}` +
+                (entries.length === 0
+                    ? " — run: bun run catalogue:ensure"
+                    : `: ${entries.map(([p]) => p).join(", ")} — run: bun run catalogue:build`)
+        );
+    }
+    return entries[0]![1];
+}
 
 /**
  * Decode a fetched catalogue payload into its JSON text.
@@ -96,11 +152,12 @@ export function loadFullCatalogue(): Promise<FullCatalogueRow[]> {
 
     cataloguePromise = (async () => {
         const startMs = performance.now();
-        const response = await fetch(CATALOGUE_URL);
+        const url = fullCatalogueUrl();
+        const response = await fetch(url);
         if (!response.ok) {
             throw new Error(
-                `Full Catalogue fetch failed: ${response.status} ${response.statusText} — ` +
-                    `the asset is generated and gitignored; run \`bun run catalogue:ensure\``
+                `Full Catalogue fetch failed: ${response.status} ${response.statusText} ` +
+                    `for ${url} — run \`bun run catalogue:ensure\``
             );
         }
         const text = await decodeCatalogue(await response.arrayBuffer());

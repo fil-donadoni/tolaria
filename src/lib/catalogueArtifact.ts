@@ -24,9 +24,10 @@
 // class needing its own guard. The glob resolves at BUILD to whatever single
 // file `data/catalogue/` holds, Vite emits it as a hashed asset and hands back
 // its URL; regenerating the artifact re-points it with nothing to keep in
-// sync. Contrast `src/lib/fullCatalogue.ts`, whose stable unhashed
-// `/data/full-catalogue.json.gz` URL cannot be cache-busted on regeneration —
-// deliberately not copied here.
+// sync. `src/lib/fullCatalogue.ts` used to be the counter-example here — a
+// stable unhashed `/data/full-catalogue.json.gz` under `public/` that no cache
+// could be made to drop; issue #3500 gave it this same mechanism, so the two
+// large data assets now differ in nothing but their contents.
 import type { CardDefinition } from "@convex/cards/types";
 import { registerCompiledDefinitions } from "@convex/cards/catalogue";
 

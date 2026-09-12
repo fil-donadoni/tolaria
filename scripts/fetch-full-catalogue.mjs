@@ -1,13 +1,21 @@
 #!/usr/bin/env node
 /**
  * Downloads the Scryfall `default_cards` bulk → columnar reduction →
- * `data/full-catalogue.json.gz`.
+ * `data/full-catalogue/full-catalogue-<hash>.json.gz`.
  *
  * Usage:
  *   node scripts/fetch-full-catalogue.mjs
  *
  * Output:
- *   data/full-catalogue.json.gz — columnar, one array per field, gzipped.
+ *   data/full-catalogue/full-catalogue-<hash>.json.gz — columnar, one array
+ *   per field, gzipped, and CONTENT-ADDRESSED: the file name is the first 16
+ *   hex characters of the sha256 of its own bytes (issue #3500, mirroring
+ *   `scripts/lib/catalogue-merge.ts`). The directory holds exactly one, the
+ *   stale one is deleted here, and `src/lib/fullCatalogue.ts` resolves the URL
+ *   from whatever it finds — so a regenerated catalogue is a NEW URL that no
+ *   CDN or browser cache can answer with the old payload. The asset used to be
+ *   a verbatim copy at `public/data/full-catalogue.json.gz`, whose name never
+ *   moved and which Vercel's `/assets/` immutable rule never covered.
  *
  * Reduction (per ADR 0080):
  *   - columnar (arrays per field, not an array of objects)
@@ -52,9 +60,10 @@
  * mana cost and a "X // Y" type line.
  */
 
-import { createWriteStream } from "node:fs";
-import { mkdir, copyFile } from "node:fs/promises";
-import { resolve, dirname } from "node:path";
+import { createWriteStream, existsSync, readdirSync } from "node:fs";
+import { mkdir, readFile, rename, rm, stat } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { resolve, dirname, join } from "node:path";
 import { createGzip, createGunzip } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline";
@@ -63,8 +72,25 @@ import { Readable } from "node:stream";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..");
-const outPath = resolve(repoRoot, "data/full-catalogue.json.gz");
-const publicOutPath = resolve(repoRoot, "public/data/full-catalogue.json.gz");
+const outDir = resolve(repoRoot, "data/full-catalogue");
+/** Written first, hashed, then renamed. A crash mid-write must not leave a
+ *  file whose NAME claims a hash its bytes do not have. */
+const stagingPath = resolve(outDir, "full-catalogue.staging.json.gz");
+
+/** How many hex characters of the sha256 go in the file name — the same 16 as
+ *  the compiled catalogue artifact (`scripts/lib/catalogue-merge.ts`). */
+const HASH_CHARS = 16;
+
+export const artifactFileName = (hash) => `full-catalogue-${hash}.json.gz`;
+
+/** Every artifact currently in `data/full-catalogue/`, sorted. Shared with
+ *  `ensure-full-catalogue.mjs`, which must ask the same question. */
+export function committedArtifacts(dir = outDir) {
+    if (!existsSync(dir)) return [];
+    return readdirSync(dir)
+        .filter((f) => f.startsWith("full-catalogue-") && f.endsWith(".json.gz"))
+        .sort();
+}
 
 const SCRYFALL_BULK = "https://api.scryfall.com/bulk-data/default-cards";
 
@@ -344,16 +370,15 @@ async function main() {
         rarities,
     };
 
-    // 5. Write as gzipped JSON.
+    // 5. Write as gzipped JSON, content-addressed.
     const json = JSON.stringify(result);
 
-    // Measure raw and compressed sizes.
-    await mkdir(dirname(outPath), { recursive: true });
+    await mkdir(outDir, { recursive: true });
 
-    // Write through gzip.
+    // Write through gzip, to the staging name.
     await new Promise((resolvePromise, reject) => {
         const gzip = createGzip({ level: 9 });
-        const out = createWriteStream(outPath);
+        const out = createWriteStream(stagingPath);
         gzip.pipe(out);
         gzip.on("error", reject);
         out.on("finish", resolvePromise);
@@ -361,9 +386,26 @@ async function main() {
         gzip.end(json);
     });
 
+    // The hash is of the BYTES ON DISK, not of the JSON they compress: those
+    // bytes are what the browser fetches and what the name has to identify.
+    const gzBytes = await readFile(stagingPath);
+    const hash = createHash("sha256")
+        .update(gzBytes)
+        .digest("hex")
+        .slice(0, HASH_CHARS);
+    const fileName = artifactFileName(hash);
+    const outPath = join(outDir, fileName);
+    await rename(stagingPath, outPath);
+
+    // Exactly one artifact, always: a stale sibling would leave the client's
+    // build-time glob with two candidates and no way to choose (it refuses,
+    // by design — `fullCatalogueUrl`).
+    for (const stale of committedArtifacts()) {
+        if (stale !== fileName) await rm(join(outDir, stale));
+    }
+
     const rawSize = Buffer.byteLength(json, "utf-8");
-    const gzStats = await (await import("node:fs/promises")).stat(outPath);
-    const gzSize = gzStats.size;
+    const gzSize = (await stat(outPath)).size;
 
     console.log(
         `Wrote ${outPath} — ${paper.length} rows, ` +
@@ -372,11 +414,6 @@ async function main() {
             `(${(gzSize / paper.length).toFixed(1)} B/card).`
     );
 
-    // Copy to public/ so Vite serves it (both dev and production).
-    await mkdir(dirname(publicOutPath), { recursive: true });
-    await copyFile(outPath, publicOutPath);
-    console.log(`Copied to ${publicOutPath}`);
-
     if (gzSize > 1_500_000) {
         console.warn(
             `\nWARNING: ${(gzSize / 1024).toFixed(0)} KB exceeds the 1.5 MB budget.`
@@ -384,7 +421,11 @@ async function main() {
     }
 }
 
-main().catch((err) => {
-    console.error(err);
-    process.exit(1);
-});
+// Importable (`ensure-full-catalogue.mjs` reads the naming helpers) without
+// downloading a 200 MB bulk as a side effect.
+if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
+    main().catch((err) => {
+        console.error(err);
+        process.exit(1);
+    });
+}
