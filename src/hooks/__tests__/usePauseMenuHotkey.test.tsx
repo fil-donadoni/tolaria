@@ -53,10 +53,13 @@ describe("usePauseMenuHotkey", () => {
     it("honours a board's extra blockers, and only that board's", () => {
         const onOpen = vi.fn();
         mountOverlay("data-phase-sheet");
+        const initialProps: { extraBlockers?: string } = {
+            extraBlockers: "[data-phase-sheet]",
+        };
         const { rerender } = renderHook(
-            ({ extraBlockers }: { extraBlockers?: string }) =>
+            ({ extraBlockers }) =>
                 usePauseMenuHotkey({ enabled: true, onOpen, extraBlockers }),
-            { initialProps: { extraBlockers: "[data-phase-sheet]" } }
+            { initialProps }
         );
         pressEscape();
         expect(onOpen).not.toHaveBeenCalled();
