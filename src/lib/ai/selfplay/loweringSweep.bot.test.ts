@@ -16,12 +16,15 @@ import {
     PLAYER_STATE_ALLOWLIST,
 } from "@convex/gre/scenarioBuilder";
 import {
+    classifyStackObject,
     droppedMessageClass,
     formatLoweringReport,
     observeDecision,
     runLoweringSweep,
     type LoweringSweepConfig,
 } from "./loweringSweep";
+import { makeInstance } from "@convex/cards/__tests__/setup";
+import type { StackItem } from "@convex/gre";
 
 describe("lowering sweep: dropped-message classes (issue #3461)", () => {
     it("collapses the interpolations two decisions differ by", () => {
@@ -102,6 +105,104 @@ describe("lowering sweep: residue is derived, not copied (issue #3461)", () => {
         // report the whole state and the table would say nothing.
         expect(PLAYER_STATE_ALLOWLIST.has("life")).toBe(true);
         expect(observation.residue.player).not.toContain("life");
+    });
+});
+
+describe("lowering sweep: stack composition (issue #3456)", () => {
+    // Any real card id — the classifier reads the STACK-ITEM markers, never
+    // the definition, so which card is on the stack is irrelevant to it.
+    const CARD = "55fe6449-1f23-43dc-adee-d144cd505b5c";
+    const item = (overrides: Partial<StackItem>): StackItem =>
+        ({
+            ...makeInstance(CARD, { controllerId: "p1", zone: "stack" }),
+            castById: "p1",
+            ...overrides,
+        }) as StackItem;
+
+    it("names the seam that could rebuild each object, not the CR type", () => {
+        // The four shapes the triage of issue #3456 has to tell apart: only
+        // the first is replayable by a blade `cast` step, and only the third
+        // needs `activateAbilityOnState` (which the browser cannot import,
+        // ADR 0074).
+        expect(classifyStackObject(item({}), "p1")).toBe("spell (own)");
+        expect(
+            classifyStackObject(
+                item({ triggeredAbilityId: "t1", triggerSourceId: "src" }),
+                "p1"
+            )
+        ).toBe("triggered ability (own)");
+        expect(classifyStackObject(item({ abilityId: "a1" }), "p1")).toBe(
+            "activated ability (own)"
+        );
+        expect(
+            classifyStackObject(item({ castFromGraveyard: true }), "p1")
+        ).toBe("spell (cast from a graveyard) (own)");
+    });
+
+    it("reads the narrowest marker first, and the side off the controller", () => {
+        // The engine's OWN shapes, not invented ones: `pushReflexiveTrigger`
+        // (`gre/state.ts`) builds a reflexive trigger AS an inline delayed one,
+        // so it carries `delayedTriggerId` too and only its own flag separates
+        // them. Read `delayedTriggerId` first and every Madness / Warp cast
+        // window files as a delayed trigger.
+        expect(
+            classifyStackObject(
+                item({
+                    delayedTriggerId: "inline",
+                    delayedEffects: [],
+                    reflexiveTrigger: true,
+                }),
+                "p1"
+            )
+        ).toBe("reflexive trigger (own)");
+        expect(
+            classifyStackObject(item({ delayedTriggerId: "d1" }), "p1")
+        ).toBe("delayed trigger (own)");
+        // A copy (CR 707.10) QUALIFIES the kind — it is still a spell for
+        // every rebuild purpose, and it is the one object no `cast` step can
+        // produce.
+        expect(classifyStackObject(item({ isCopy: true }), "p1")).toBe(
+            "copy of a spell (own)"
+        );
+        // The side is relative to the DECIDING seat, which is what makes
+        // "responding to the opponent" countable.
+        expect(classifyStackObject(item({}), "p2")).toBe("spell (opponent's)");
+    });
+
+    it("reports a cast-commit snapshot no card allowlist covers, without editing the sweep", () => {
+        // Same acceptance criterion as the residue table one field over: a
+        // snapshot added to `StackItem` tomorrow must appear on its own, or
+        // the payload table under-states what a declarative `stack:` field
+        // would owe. Simulated by adding one now.
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            stack: [item({ chosenX: 3 })],
+        });
+        (
+            state.stack[0] as unknown as Record<string, unknown>
+        ).someFutureSnapshot = { paid: true };
+
+        const observation = observeDecision(state, "p1", "Pass priority");
+        expect(observation.stack).toContain("spell (own)");
+        expect(observation.stack).toContain("depth: 1 object(s)");
+        expect(observation.stackPayload).toContain("chosenX");
+        expect(observation.stackPayload).toContain("someFutureSnapshot");
+        // …and a key the spec DOES express for a card is not payload, or the
+        // table would claim a declarative field owes the whole instance.
+        expect(observation.stackPayload).not.toContain("isTapped");
+    });
+
+    it("says nothing at all on a quiet board", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+        const observation = observeDecision(state, "p1", "Pass priority");
+        expect(observation.stack).toBeNull();
+        expect(observation.stackPayload).toEqual([]);
     });
 });
 

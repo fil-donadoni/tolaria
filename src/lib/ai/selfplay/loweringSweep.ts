@@ -50,6 +50,7 @@ import {
     type GameState,
     type CardInstanceState,
     type PlayerState,
+    type StackItem,
 } from "@convex/gre";
 import { presetToPlayerInput } from "./decks";
 import { runHeadlessGame, type GameEndReason } from "./playGame";
@@ -111,6 +112,18 @@ export type LoweringSweepReport = {
     refusals: Record<VerdictRefusalKind, number>;
     /** `specFromState` message classes, by decisions touched. */
     dropped: SweepRow[];
+    /** Decisions taken with a NON-EMPTY stack — the denominator of the two
+     *  tables below, and the population `stack-not-empty` refuses (issue
+     *  #3456). Not a share of `decisions`: the question those tables answer is
+     *  "of the decisions a stack costs us, what is ON the stack", so a row
+     *  reading 60% means 60% of the refused class, not of the corpus. */
+    stackDecisions: number;
+    /** What the stack HOLDS, by decisions touched. */
+    stackObjects: SweepRow[];
+    /** Cast-commit / live-only keys those objects carry that no card allowlist
+     *  covers — what a declarative `stack:` spec field would have to express,
+     *  derived rather than listed. */
+    stackPayload: SweepRow[];
     /** Non-allowlisted state keys, by decisions touched, per scope. */
     residue: Record<ResidueScope, SweepRow[]>;
 };
@@ -126,6 +139,12 @@ export type DecisionObservation = {
     droppedClasses: string[];
     /** Residue keys, deduplicated per scope, same reasoning. */
     residue: Record<ResidueScope, string[]>;
+    /** `null` when the stack was empty. Otherwise what it held, deduplicated:
+     *  one label per object CLASS plus one for the depth (issue #3456). */
+    stack: string[] | null;
+    /** Keys the stack's objects carry that {@link CARD_STATE_ALLOWLIST} does
+     *  not — empty list when the stack was empty. */
+    stackPayload: string[];
 };
 
 /** The class a `dropped[]` message belongs to: the message with every
@@ -193,6 +212,71 @@ function residueKeys(value: object, allowlist: ReadonlySet<string>): string[] {
 
 /** Observe ONE decision: is it judgeable, what did the lowering drop, and what
  *  state does no allowlist cover. Pure. */
+/** What ONE stack object is, in the vocabulary the composition table ranks
+ *  (issue #3456).
+ *
+ *  The question it exists to answer is which SHAPE a spec-expressible stack
+ *  would need: a spell cast from a hand is the one a blade `cast` setup step
+ *  already replays (`gre/ai/blade/types.ts`), a triggered ability is what
+ *  `etb-trigger` / `phase-trigger` reach, and an activated ability is the one
+ *  step whose real path (`activateAbilityOnState`, `convex/game.ts`) the
+ *  browser cannot import at all (ADR 0074). So the kinds are named after the
+ *  seam that could rebuild them, not after the CR object type.
+ *
+ *  The order of the tests is the discriminating one, not the CR one. A
+ *  reflexive trigger (CR 603.2f — the Madness / Warp cast window) is BUILT as
+ *  an inline delayed trigger (`pushReflexiveTrigger`, ADR 0048): it carries
+ *  `delayedTriggerId` exactly as a delayed one does, and the only thing that
+ *  tells them apart is its own `reflexiveTrigger` flag — so that flag has to
+ *  be read FIRST or every reflexive trigger files as a delayed one, and the
+ *  table would say no cast window ever blocked a verdict.
+ *
+ *  `isCopy` (CR 707.10) is orthogonal — a copy of a spell is still a spell for
+ *  every rebuild purpose — so it QUALIFIES the kind instead of replacing it:
+ *  a copy is the one object no `cast` step can ever produce. */
+export function classifyStackObject(
+    item: StackItem,
+    decidingPlayerId: string
+): string {
+    const side =
+        (item.controllerId ?? item.castById) === decidingPlayerId
+            ? "own"
+            : "opponent's";
+    const kind = item.reflexiveTrigger
+        ? "reflexive trigger"
+        : item.delayedTriggerId
+          ? "delayed trigger"
+          : item.triggeredAbilityId || item.triggerSourceId
+            ? "triggered ability"
+            : item.abilityId
+              ? "activated ability"
+              : item.castFromGraveyard
+                ? "spell (cast from a graveyard)"
+                : "spell";
+    const copy = item.isCopy ? "copy of a " : "";
+    return `${copy}${kind} (${side})`;
+}
+
+/** Keys a stack object carries that the card allowlist does not cover.
+ *
+ *  DERIVED from `CARD_STATE_ALLOWLIST`, never a hand-written list of the
+ *  ~40 `StackItem` extras, for the same reason the residue tables are derived:
+ *  a cast-commit snapshot added tomorrow (the `unkickedCostPayments` of the
+ *  next ADR 0085) must appear here on its own, or the table would quietly keep
+ *  claiming a declarative `stack:` field owes only what someone remembered to
+ *  type. `castById` is excluded because it is the object's CONTROLLER, which
+ *  the composition table already reports per row. */
+function stackPayloadKeys(item: StackItem): string[] {
+    const out: string[] = [];
+    for (const [key, value] of Object.entries(item)) {
+        if (key === "castById") continue;
+        if (CARD_STATE_ALLOWLIST.has(key)) continue;
+        if (value === undefined) continue;
+        out.push(key);
+    }
+    return out;
+}
+
 export function observeDecision(
     state: GameState,
     botId: string,
@@ -233,6 +317,16 @@ export function observeDecision(
         }
     }
 
+    const stack = new Set<string>();
+    const stackPayload = new Set<string>();
+    for (const item of state.stack) {
+        stack.add(classifyStackObject(item, botId));
+        for (const key of stackPayloadKeys(item)) stackPayload.add(key);
+    }
+    if (state.stack.length > 0) {
+        stack.add(`depth: ${state.stack.length} object(s)`);
+    }
+
     return {
         refusal: outcome.ok ? null : outcome.kind,
         droppedClasses: [...droppedClasses],
@@ -241,6 +335,8 @@ export function observeDecision(
             player: [...player],
             game: residueKeys(state, GAME_STATE_ALLOWLIST),
         },
+        stack: state.stack.length === 0 ? null : [...stack],
+        stackPayload: [...stackPayload],
     };
 }
 
@@ -260,6 +356,9 @@ export class LoweringSweepTally {
     };
     private readonly endReasons = new Map<string, number>();
     private games = 0;
+    private stackDecisions = 0;
+    private readonly stackObjects = new Map<string, number>();
+    private readonly stackPayload = new Map<string, number>();
 
     add(observation: DecisionObservation): void {
         this.decisions += 1;
@@ -271,6 +370,15 @@ export class LoweringSweepTally {
         for (const scope of ["card", "player", "game"] as const) {
             for (const key of observation.residue[scope]) {
                 bump(this.residue[scope], key);
+            }
+        }
+        if (observation.stack !== null) {
+            this.stackDecisions += 1;
+            for (const label of observation.stack) {
+                bump(this.stackObjects, label);
+            }
+            for (const key of observation.stackPayload) {
+                bump(this.stackPayload, key);
             }
         }
     }
@@ -291,6 +399,9 @@ export class LoweringSweepTally {
             judgeable: this.judgeable,
             refusals: { ...this.refusals },
             dropped: rank(this.dropped),
+            stackDecisions: this.stackDecisions,
+            stackObjects: rank(this.stackObjects),
+            stackPayload: rank(this.stackPayload),
             residue: {
                 card: rank(this.residue.card),
                 player: rank(this.residue.player),
@@ -427,6 +538,26 @@ export function formatLoweringReport(report: LoweringSweepReport): string {
         "  The three `live-only state not captured` rows are the RESIDUE tables",
         "  below, rolled up with their keys masked away — read them there, not",
         "  as three separate causes at the top of this one.",
+        ""
+    );
+    lines.push(
+        ...section(
+            `STACK (issue #3456) — what is ON it, by decisions touched (of ${report.stackDecisions} with a non-empty stack)`,
+            report.stackObjects,
+            report.stackDecisions
+        )
+    );
+    lines.push(
+        ...section(
+            "STACK PAYLOAD — keys those objects carry that no card allowlist covers",
+            report.stackPayload,
+            report.stackDecisions
+        )
+    );
+    lines.push(
+        "  Both shares are of the STACK population, not of all decisions — the",
+        "  question is what a spec-expressible stack would have to carry, and",
+        "  the payload table is what a declarative `stack:` field would owe.",
         ""
     );
     for (const scope of ["game", "player", "card"] as const) {
