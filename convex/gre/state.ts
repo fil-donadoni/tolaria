@@ -854,6 +854,24 @@ export type CardInstanceState = {
          *  its own; only the permanent leaving the battlefield (a fresh object,
          *  CR 400.7) clears it. */
         duration?: Duration;
+        /** CR 613.1e layer 5 (issue #3459) — the colours the animate clause
+         *  asked for ("becomes a 3/2 BLUE AND BLACK Elemental creature",
+         *  Creeping Tar Pit), as PROVENANCE. The colours themselves live in
+         *  `colorOverride` / `temporaryColorOverride`, which the `setColor` Op
+         *  writes identically (CR 105.3), so the live fields cannot say WHO set
+         *  them; without this a lowered animation round-trips colourless. Same
+         *  footing as `setPower`/`setToughness` above — what was ASKED, never
+         *  what is true now, so it is not a second authority over the colour. */
+        colors?: Color[];
+        /** CR 611.2a layer 6 (issue #3459) — the keyword abilities the animate
+         *  clause granted as part of becoming a creature (Treetop Village's
+         *  trample, earthbend's haste), as PROVENANCE, for the same reason as
+         *  `colors`: each becomes a layer-6 registry entry that declares no
+         *  animation as its origin, so nothing on the board attributes it back.
+         *  Written on the FIRST application only (the grant block runs again on
+         *  a re-application, and those keywords belong to that later ability's
+         *  own duration, CR 611.2a). */
+        grantedAbilities?: string[];
     };
     /** Timed subtype change (CR 305.7 / 611.2 — "becomes a Swamp until its
      *  controller's next untap step", Orcish Farmer). While present, the
@@ -12262,6 +12280,188 @@ export function applyColorOverrideToPermanent(
     card.colorOverride = [...colors];
 }
 
+/** CR 208.2 / 611.1 — "becomes a creature": the animate PRIMITIVE, extracted
+ *  from the `SpellContext` method of the same name (issue #3459) so a caller
+ *  with no resolving item can execute the real thing. `SpellContext.animateAsCreature`
+ *  resolves its `TargetSelection` and delegates here, so there is exactly ONE
+ *  execution path — the same shape `revertAnimation` below has always had, and
+ *  the one the scenario rebuild needs: `buildStateFromScenario` re-EXECUTES a
+ *  lowered animation rather than restating its outcome, so the expiry, the
+ *  layer-6 grant entries and the layer-5 colour override are real rather than
+ *  declared.
+ *
+ *  `controllerId` is the controller of the ABILITY creating the effect
+ *  (CR 611.2c — fixed when the effect is created, because the ability is gone
+ *  by the time a boundary is counted), never the animated permanent's own
+ *  controller. On the spell path that is the resolving item's caster; a
+ *  scenario rebuild has no ability, and passes the permanent's controller as
+ *  the nearest truth.
+ *
+ *  Mutates `card` in place and re-syncs the layers it feeds; safe to call on an
+ *  already-animated permanent (one animation at a time, CR 611.1 — the
+ *  `grantedAbilities` clause still applies, see below). */
+export function animatePermanentAsCreature(
+    state: GameState,
+    card: CardInstanceState,
+    spec: AnimateSpec,
+    controllerId: string
+): void {
+    if (!card.animation) {
+        // PRD #2064 S4 — capture the layer-4 base BEFORE the animation
+        // becomes a derivation input, or the first sync would capture
+        // the ANIMATED line as the base and the animation would outlive
+        // its own revert (CR 400.7).
+        ensureLayers2to5Base(card);
+        // already animated — one at a time (type/P-T shape below is
+        // skipped on a SECOND application; `grantedAbilities` below
+        // still applies, matching Earthbend N re-applied to an
+        // already-earthbent land — see the `animate` Op doc comment).
+        const addedCreatureType = !card.types.includes("Creature");
+        // CR 208.2, 611.1: add only the types this animation grants
+        // that aren't already present, so the revert removes exactly
+        // what was added (e.g. Mishra's Factory gains "Artifact").
+        const addedTypes = (spec.additionalTypes ?? []).filter(
+            (t) => t !== "Creature" && !card.types.includes(t)
+        );
+        const addedSubtype =
+            spec.subtype !== undefined && !card.subtypes.includes(spec.subtype)
+                ? spec.subtype
+                : undefined;
+        card.animation = {
+            savedPower: card.power,
+            savedToughness: card.toughness,
+            // Issue #1705 — the layer-7b SET value, kept beside the
+            // pre-animation anchor so an identity swap can replay it.
+            setPower: spec.power,
+            setToughness: spec.toughness,
+            addedCreatureType,
+            addedTypes: addedTypes.length > 0 ? addedTypes : undefined,
+            addedSubtype,
+            // CR 611.2b — omitted `spec.duration` means an INDEFINITE
+            // animation (Earthbend N): no `Duration` is stored, so the
+            // phase-boundary purge (`tickAllDurations`) never reverts it.
+            duration: spec.duration
+                ? resolveDuration(spec.duration, controllerId, state)
+                : undefined,
+            // CR 613.7 — the layer timestamp of the animation, so its
+            // layer-4 half orders against a live `type-add` aura.
+            seq: allocStaticTimestamp(state),
+            // PROVENANCE (issue #3459) — what the animate clause ASKED
+            // for in its two clauses whose outcome is NOT recoverable
+            // from the board: the layer-5 colours land in
+            // `colorOverride` / `temporaryColorOverride`, which the
+            // `setColor` Op writes identically, and the keywords become
+            // layer-6 registry entries that declare no animation as
+            // their origin. Exactly the reason `setPower`/`setToughness`
+            // above exist (issue #1705): a replay needs the value that
+            // was set, and nothing else holds it. Recorded on the FIRST
+            // application only — the grant block below still runs on a
+            // second one (CR 611.2a), and those keywords belong to that
+            // LATER ability, never to this record.
+            ...(spec.colors ? { colors: [...spec.colors] } : {}),
+            ...(spec.grantedAbilities
+                ? { grantedAbilities: [...spec.grantedAbilities] }
+                : {}),
+        };
+        // PRD #2064 S4 — the type / subtype half is DERIVED from the
+        // `animation` record by `syncLayers2to5`; writing it here as
+        // well would be a second channel for one effect, and the two
+        // would disagree the moment anything recomputed.
+        syncLayers2to5(state);
+        card.power = spec.power;
+        card.toughness = spec.toughness;
+        // CR 613.1e layer 5 / CR 105.3 (issue #1872) — "becomes a 3/2
+        // BLUE AND BLACK Elemental creature" (Creeping Tar Pit). The
+        // colour clause is not a second channel: it goes through the
+        // very same `applyColorOverrideToPermanent` write the
+        // `setColor` Op's primitive uses, with the animation's OWN
+        // resolved duration, so the colour reverts at exactly the
+        // phase boundary the P/T and type line do — and an INDEFINITE
+        // animation's colour, like its type line, ends only when the
+        // permanent leaves the battlefield (CR 400.7). Inside the
+        // one-animation-at-a-time guard, so a second application is a
+        // no-op here exactly as `subtype` / `additionalTypes` are.
+        // Omitted `colors` leaves the printed colour alone — a
+        // colourless manland (Mishra's Factory) stays colourless
+        // (CR 105.2).
+        if (spec.colors) {
+            applyColorOverrideToPermanent(
+                card,
+                spec.colors,
+                card.animation.duration
+            );
+        }
+    }
+    // Keyword abilities an animate effect grants as part of "becomes a
+    // creature with [keyword]" share the ANIMATION'S OWN duration
+    // (CR 611.2a — a continuous effect from a resolving ability "lasts
+    // as long as stated by the spell or ability creating it", and the
+    // "until end of turn" in "becomes a 3/3 green Ape creature with
+    // trample until end of turn" governs the whole clause, keyword
+    // included). An INDEFINITE animation (Earthbend N's haste, no
+    // stated duration) still grants indefinitely — CR 611.2a's "until
+    // the end of the game" default — cleared only when the permanent
+    // leaves the battlefield. Applied unconditionally (even when
+    // `card.animation` was already set above) so a second
+    // earthbend-style application still (re)grants the keyword.
+    if (spec.grantedAbilities) {
+        // THIS ability's own stated duration (CR 611.2a), resolved
+        // here rather than read off the live `card.animation` record:
+        // the grant block runs even when the permanent was ALREADY
+        // animated, and that record belongs to the EARLIER effect.
+        // Reading it would make an "until end of turn" grant inherit a
+        // standing indefinite animation's non-boundary (Earthbend then
+        // Treetop Village → trample forever) and an indefinite grant
+        // inherit a live until-end-of-turn one (Treetop Village then
+        // Earthbend → haste destroyed at cleanup). Each ability's
+        // effect lasts as long as THAT ability states.
+        const grantDuration = spec.duration
+            ? resolveDuration(spec.duration, controllerId, state)
+            : undefined;
+        for (const ability of spec.grantedAbilities) {
+            // CR 113.1 (issue #1706) — same own-record idempotence
+            // gate as `grantStaticAbilityPermanent`: an `includes`
+            // gate would silently share another source's occurrence
+            // and own none of its own. A BOUNDED grant is not gated by
+            // it: an indefinite grant from some other source must not
+            // swallow this animation's own until-end-of-turn record.
+            if (
+                !grantDuration &&
+                hasIndefiniteKeywordGrant(state, card.id, ability)
+            )
+                continue;
+            ensureLayer6Base(card);
+            pushContinuousEffect(state, {
+                layer: 6,
+                affected: {
+                    kind: "instances",
+                    instanceIds: [card.id],
+                },
+                expiry: grantDuration
+                    ? {
+                          kind: "duration",
+                          duration: grantDuration,
+                          // CR 611.2c — the controller of an effect
+                          // from a resolving ability is fixed when the
+                          // effect is created; the ability is gone by
+                          // the time the boundary is counted.
+                          controllerId,
+                      }
+                    : {
+                          kind: "indefinite",
+                          // CR 611.2c — the ability's controller, not
+                          // the animated permanent's. See
+                          // `grantStaticAbility`.
+                          controllerId,
+                      },
+                payload: { kind: "keyword-grant", keyword: ability },
+                characteristicDefining: false,
+            });
+        }
+        syncLayer6(state);
+    }
+}
+
 /** Undoes the mutations applied by `animateAsCreature`, restoring the
  *  permanent to its pre-animation shape (CR 208.2 / 611.1). Safe to call on a
  *  card with no `animation` record (returns immediately). Called from the
@@ -18378,164 +18578,16 @@ export function buildSpellContext(
             }
             syncLayer6(state);
         },
-        // CR 208.2, 611.1: turns the target permanent into a creature with
-        // the given base P/T and optional subtype for the duration. We
-        // mutate the instance state directly so all existing readers
-        // (layers, combat, SBAs) see the creature-ness without special
-        // casing; the `animation` record tracks exactly what was added so
-        // the phase-boundary purge can restore the original shape.
-        //
-        // CR 302.6 — summoning sickness is governed by the `isSummoningSick`
-        // control-continuity flag set at entry (`markEnteredThisTurn`) and
-        // cleared at the controller's untap step. Animation does NOT touch it:
-        // a manland (Mishra's Factory) animated the turn it entered is still
-        // sick (flag set), while one controlled since a prior turn is not (flag
-        // cleared). This applies class-wide to every animate effect (Jade
-        // Statue, etc.).
+        // CR 208.2 / 611.1 — resolves the target and delegates to the
+        // exported primitive (`animatePermanentAsCreature`, issue #3459):
+        // one execution path, so a scenario rebuild that re-executes a
+        // lowered animation cannot drift from what a resolving ability does.
         animateAsCreature(target: TargetSelection, spec: AnimateSpec): void {
             if (target.type !== "permanent") return;
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
-            const card = found.card;
-            if (!card.animation) {
-                // PRD #2064 S4 — capture the layer-4 base BEFORE the animation
-                // becomes a derivation input, or the first sync would capture
-                // the ANIMATED line as the base and the animation would outlive
-                // its own revert (CR 400.7).
-                ensureLayers2to5Base(card);
-                // already animated — one at a time (type/P-T shape below is
-                // skipped on a SECOND application; `grantedAbilities` below
-                // still applies, matching Earthbend N re-applied to an
-                // already-earthbent land — see the `animate` Op doc comment).
-                const addedCreatureType = !card.types.includes("Creature");
-                // CR 208.2, 611.1: add only the types this animation grants
-                // that aren't already present, so the revert removes exactly
-                // what was added (e.g. Mishra's Factory gains "Artifact").
-                const addedTypes = (spec.additionalTypes ?? []).filter(
-                    (t) => t !== "Creature" && !card.types.includes(t)
-                );
-                const addedSubtype =
-                    spec.subtype !== undefined &&
-                    !card.subtypes.includes(spec.subtype)
-                        ? spec.subtype
-                        : undefined;
-                card.animation = {
-                    savedPower: card.power,
-                    savedToughness: card.toughness,
-                    // Issue #1705 — the layer-7b SET value, kept beside the
-                    // pre-animation anchor so an identity swap can replay it.
-                    setPower: spec.power,
-                    setToughness: spec.toughness,
-                    addedCreatureType,
-                    addedTypes: addedTypes.length > 0 ? addedTypes : undefined,
-                    addedSubtype,
-                    // CR 611.2b — omitted `spec.duration` means an INDEFINITE
-                    // animation (Earthbend N): no `Duration` is stored, so the
-                    // phase-boundary purge (`tickAllDurations`) never reverts it.
-                    duration: spec.duration
-                        ? resolveDuration(spec.duration, item.castById, state)
-                        : undefined,
-                    // CR 613.7 — the layer timestamp of the animation, so its
-                    // layer-4 half orders against a live `type-add` aura.
-                    seq: allocStaticTimestamp(state),
-                };
-                // PRD #2064 S4 — the type / subtype half is DERIVED from the
-                // `animation` record by `syncLayers2to5`; writing it here as
-                // well would be a second channel for one effect, and the two
-                // would disagree the moment anything recomputed.
-                syncLayers2to5(state);
-                card.power = spec.power;
-                card.toughness = spec.toughness;
-                // CR 613.1e layer 5 / CR 105.3 (issue #1872) — "becomes a 3/2
-                // BLUE AND BLACK Elemental creature" (Creeping Tar Pit). The
-                // colour clause is not a second channel: it goes through the
-                // very same `applyColorOverrideToPermanent` write the
-                // `setColor` Op's primitive uses, with the animation's OWN
-                // resolved duration, so the colour reverts at exactly the
-                // phase boundary the P/T and type line do — and an INDEFINITE
-                // animation's colour, like its type line, ends only when the
-                // permanent leaves the battlefield (CR 400.7). Inside the
-                // one-animation-at-a-time guard, so a second application is a
-                // no-op here exactly as `subtype` / `additionalTypes` are.
-                // Omitted `colors` leaves the printed colour alone — a
-                // colourless manland (Mishra's Factory) stays colourless
-                // (CR 105.2).
-                if (spec.colors) {
-                    applyColorOverrideToPermanent(
-                        card,
-                        spec.colors,
-                        card.animation.duration
-                    );
-                }
-            }
-            // Keyword abilities an animate effect grants as part of "becomes a
-            // creature with [keyword]" share the ANIMATION'S OWN duration
-            // (CR 611.2a — a continuous effect from a resolving ability "lasts
-            // as long as stated by the spell or ability creating it", and the
-            // "until end of turn" in "becomes a 3/3 green Ape creature with
-            // trample until end of turn" governs the whole clause, keyword
-            // included). An INDEFINITE animation (Earthbend N's haste, no
-            // stated duration) still grants indefinitely — CR 611.2a's "until
-            // the end of the game" default — cleared only when the permanent
-            // leaves the battlefield. Applied unconditionally (even when
-            // `card.animation` was already set above) so a second
-            // earthbend-style application still (re)grants the keyword.
-            if (spec.grantedAbilities) {
-                // THIS ability's own stated duration (CR 611.2a), resolved
-                // here rather than read off the live `card.animation` record:
-                // the grant block runs even when the permanent was ALREADY
-                // animated, and that record belongs to the EARLIER effect.
-                // Reading it would make an "until end of turn" grant inherit a
-                // standing indefinite animation's non-boundary (Earthbend then
-                // Treetop Village → trample forever) and an indefinite grant
-                // inherit a live until-end-of-turn one (Treetop Village then
-                // Earthbend → haste destroyed at cleanup). Each ability's
-                // effect lasts as long as THAT ability states.
-                const grantDuration = spec.duration
-                    ? resolveDuration(spec.duration, item.castById, state)
-                    : undefined;
-                for (const ability of spec.grantedAbilities) {
-                    // CR 113.1 (issue #1706) — same own-record idempotence
-                    // gate as `grantStaticAbilityPermanent`: an `includes`
-                    // gate would silently share another source's occurrence
-                    // and own none of its own. A BOUNDED grant is not gated by
-                    // it: an indefinite grant from some other source must not
-                    // swallow this animation's own until-end-of-turn record.
-                    if (
-                        !grantDuration &&
-                        hasIndefiniteKeywordGrant(state, card.id, ability)
-                    )
-                        continue;
-                    ensureLayer6Base(card);
-                    pushContinuousEffect(state, {
-                        layer: 6,
-                        affected: {
-                            kind: "instances",
-                            instanceIds: [card.id],
-                        },
-                        expiry: grantDuration
-                            ? {
-                                  kind: "duration",
-                                  duration: grantDuration,
-                                  // CR 611.2c — the controller of an effect
-                                  // from a resolving ability is fixed when the
-                                  // effect is created; the ability is gone by
-                                  // the time the boundary is counted.
-                                  controllerId: item.castById,
-                              }
-                            : {
-                                  kind: "indefinite",
-                                  // CR 611.2c — the ability's controller, not
-                                  // the animated permanent's. See
-                                  // `grantStaticAbility`.
-                                  controllerId: item.castById,
-                              },
-                        payload: { kind: "keyword-grant", keyword: ability },
-                        characteristicDefining: false,
-                    });
-                }
-                syncLayer6(state);
-            }
+            // CR 611.2c — the ABILITY's controller, not the permanent's.
+            animatePermanentAsCreature(state, found.card, spec, item.castById);
         },
         // CR 603.7a: queues a delayed triggered ability. On the template
         // path the resolve body lives on the scheduling card's def and is

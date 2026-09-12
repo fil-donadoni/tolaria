@@ -1,5 +1,7 @@
 import { v } from "convex/values";
 import type { ManaRestriction } from "./gre/types";
+import type { AnimateSpec, CardType, Color } from "./cards/types";
+import { colors as ALL_COLORS, PERMANENT_TYPES } from "./cards/types";
 import { MANA_COLORS } from "./gre/manaColors";
 
 // Debug scenario spec (issue #769, ADR 0044). The *argument* to the existing,
@@ -14,6 +16,46 @@ import { MANA_COLORS } from "./gre/manaColors";
 // and missing ones defaulted at load, never rejected. This validator is used
 // only on the WRITE path (`saveDebugScenario`), where we control the shape and
 // want well-formed rows.
+
+/** CR 208.2 / 611.1 / 611.2b (issue #3459) — the animate CALL a battlefield
+ *  entry was animated by, in the vocabulary of the engine's own `AnimateSpec`
+ *  (`convex/cards/types.ts`): base power and toughness, the creature subtype and
+ *  the extra card types added, the keyword abilities granted with them, the
+ *  colours the permanent becomes, and the phase boundary it all ends at.
+ *
+ *  The spec carries the CALL, never the resulting STATE: `buildStateFromScenario`
+ *  re-executes the engine's animate primitive with it, so the rebuilt permanent
+ *  gets a real animation record, a real layer-6 grant, a real layer-5 colour
+ *  override and a real expiry. Lowering the outcome instead would produce a
+ *  permanent animated FOREVER, which is a different board from the one captured
+ *  the moment the turn ends.
+ *
+ *  `duration` OMITTED means INDEFINITE (CR 611.2b — earthbend states no
+ *  duration), not "until end of turn": the two are different boards and only the
+ *  absence can say which. Battlefield only — an animation does not survive the
+ *  permanent leaving play (CR 400.7). */
+export const scenarioAnimationValidator = v.object({
+    power: v.number(),
+    toughness: v.number(),
+    subtype: v.optional(v.string()),
+    additionalTypes: v.optional(v.array(v.string())),
+    grantedAbilities: v.optional(v.array(v.string())),
+    colors: v.optional(v.array(v.string())),
+    duration: v.optional(
+        v.object({
+            phase: v.union(
+                v.literal("end-of-turn"),
+                v.literal("end-of-combat"),
+                v.literal("upkeep"),
+                v.literal("untap")
+            ),
+            skip: v.optional(v.number()),
+            player: v.optional(
+                v.union(v.literal("controller"), v.literal("opponent"))
+            ),
+        })
+    ),
+});
 
 /** A single card placement — mirrors the `cards[]` entry of
  *  `debugSetupScenario` (`convex/game.ts`). */
@@ -94,6 +136,9 @@ export const scenarioCardValidator = v.object({
     // untapped then tapped since is tapped with it TRUE. Battlefield only.
     startedTurnUntapped: v.optional(v.boolean()),
     copyOf: v.optional(v.string()),
+    // CR 208.2 / 611.1 (issue #3459) — this permanent is ANIMATED: see
+    // `scenarioAnimationValidator` above. Battlefield only.
+    animated: v.optional(scenarioAnimationValidator),
 });
 
 /** The phases a debug scenario may OPEN in — the `Phase` union
@@ -567,6 +612,14 @@ export type ScenarioCard = {
      *  upkeep triggers. Battlefield only; not derivable from `tapped`. */
     startedTurnUntapped?: boolean;
     copyOf?: string;
+    /** CR 208.2 / 611.1 (issue #3459) — the animate CALL this battlefield
+     *  permanent is animated by, in the engine's OWN vocabulary: the field is
+     *  typed `AnimateSpec` rather than a parallel shape, because a second
+     *  vocabulary for one effect is how the two drift. Re-executed by
+     *  `buildStateFromScenario` through the animate primitive itself, so the
+     *  expiry is real; `duration` absent means INDEFINITE (CR 611.2b), not
+     *  "until end of turn". Battlefield only. */
+    animated?: AnimateSpec;
 };
 
 /** CR 106.6 (issue #3460) — one unit of restricted floating mana in a spec, the
@@ -1053,6 +1106,78 @@ function normalizeBlocker(
     return blocking.length > 0 ? { blocker, blocking } : null;
 }
 
+/** CR 208.2 / 611.1 / 611.2b (issue #3459) — the tolerant read of one entry's
+ *  animate CALL (ADR 0044: a malformed row loads, it never throws).
+ *
+ *  `power` and `toughness` are the only required halves — an animation with no
+ *  P/T is not an animation (CR 208.2), so a row missing either is dropped whole
+ *  rather than rebuilt at the printed values, which is precisely the silent
+ *  wrong board this field exists to prevent.
+ *
+ *  The two vocabulary fields are filtered against the engine's own lists rather
+ *  than cast: `additionalTypes` against {@link PERMANENT_TYPES} (CR 300.1 — a
+ *  battlefield permanent can only gain a permanent type) and `colors` against
+ *  the `Color` union. An unrecognised member is DROPPED, never kept: the
+ *  rebuild hands both straight to the animate primitive, and a string the engine
+ *  does not know would land in a type line or a colour override nothing can read
+ *  back. An EMPTY surviving `colors` list is omitted entirely rather than passed
+ *  as `[]` — the animate primitive's validator rejects `[]` (no animate clause
+ *  reads "becomes colourless"), so an omission is the honest "no colour clause".
+ *
+ *  `duration` ABSENT is meaningful (CR 611.2b — INDEFINITE), so a malformed
+ *  duration is not silently downgraded to "until end of turn": `phase` is the
+ *  one required member, and a row without a readable one carries no duration,
+ *  which the round trip then reports as the indefinite animation it rebuilt. */
+function normalizeAnimation(raw: unknown): AnimateSpec | null {
+    if (!isRecord(raw)) return null;
+    const power = pickNumber(raw.power);
+    const toughness = pickNumber(raw.toughness);
+    if (power === undefined || toughness === undefined) return null;
+    const spec: AnimateSpec = { power, toughness };
+    set(spec, "subtype", pickString(raw.subtype));
+
+    const types = (pickStringArray(raw.additionalTypes) ?? []).filter(
+        (type): type is CardType =>
+            (PERMANENT_TYPES as readonly string[]).includes(type)
+    );
+    if (types.length > 0) spec.additionalTypes = types;
+
+    const granted = pickStringArray(raw.grantedAbilities);
+    if (granted) spec.grantedAbilities = granted;
+
+    const animColors = (pickStringArray(raw.colors) ?? []).filter(
+        (color): color is Color =>
+            (ALL_COLORS as readonly string[]).includes(color)
+    );
+    if (animColors.length > 0) spec.colors = animColors;
+
+    if (isRecord(raw.duration)) {
+        const phase = pickString(raw.duration.phase);
+        if (phase !== undefined && ANIMATION_PHASES.includes(phase)) {
+            const duration: NonNullable<AnimateSpec["duration"]> = {
+                phase: phase as NonNullable<AnimateSpec["duration"]>["phase"],
+            };
+            set(duration, "skip", pickNumber(raw.duration.skip));
+            const player = pickString(raw.duration.player);
+            if (player === "controller" || player === "opponent") {
+                duration.player = player;
+            }
+            spec.duration = duration;
+        }
+    }
+    return spec;
+}
+
+/** CR 611.2 — the phase boundaries a `DurationSpec` may name, as the load path
+ *  sees them: the same four the validator's union lists, kept beside the reader
+ *  that filters on them. */
+const ANIMATION_PHASES: readonly string[] = [
+    "end-of-turn",
+    "end-of-combat",
+    "upkeep",
+    "untap",
+];
+
 const ZONES = ["hand", "battlefield", "library", "graveyard", "exile"] as const;
 
 function normalizeCard(raw: unknown): ScenarioCard | null {
@@ -1089,6 +1214,10 @@ function normalizeCard(raw: unknown): ScenarioCard | null {
     set(card, "tapTriggerCommitted", pickBoolean(raw.tapTriggerCommitted));
     set(card, "startedTurnUntapped", pickBoolean(raw.startedTurnUntapped));
     set(card, "copyOf", pickString(raw.copyOf));
+    // CR 208.2 / 611.1 (issue #3459) — the animate call, dropped whole when
+    // malformed (see `normalizeAnimation`).
+    const animated = normalizeAnimation(raw.animated);
+    if (animated) card.animated = animated;
 
     if (isRecord(raw.counters)) {
         const counters: Record<string, number> = {};

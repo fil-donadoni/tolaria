@@ -20,6 +20,7 @@ import {
 // lock-step copy of `scenarioSpecValidator`, and a nested validator is exactly
 // where that copy would rot unnoticed.
 import {
+    scenarioAnimationValidator,
     scenarioManaPoolValidator,
     scenarioRestrictedManaValidator,
 } from "./debugScenarioSpec";
@@ -15215,6 +15216,18 @@ export const debugSetupScenario = mutation({
                  *  card-preview then shows both faces (Current + Original).
                  *  Battlefield only. */
                 copyOf: v.optional(v.string()),
+                /** CR 208.2 / 611.1 / 611.2b (issue #3459) — stage this
+                 *  battlefield permanent as ANIMATED: a manland that has
+                 *  already been activated this turn (Mishra's Factory as a 2/2
+                 *  Assembly-Worker artifact creature), or anything a resolved
+                 *  one-shot turned into a creature. The shape is the engine's
+                 *  own `AnimateSpec` and the builder re-EXECUTES it through the
+                 *  animate primitive, so the staged permanent attacks, carries
+                 *  its granted keywords and its colours, and stops being a
+                 *  creature at the stated boundary. `duration` OMITTED means
+                 *  INDEFINITE (CR 611.2b — earthbend), not "until end of turn".
+                 *  Battlefield only. */
+                animated: v.optional(scenarioAnimationValidator),
             })
         ),
         phase: v.optional(v.string()),
