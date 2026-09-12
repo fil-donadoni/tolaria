@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useResilientQuery } from "~/hooks/useResilientQuery";
+import { usePauseMenuHotkey } from "~/hooks/usePauseMenuHotkey";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { Player } from "~/types/game";
@@ -70,17 +71,6 @@ import MulliganPrompt from "./mulligan-prompt";
 import ErrorToast from "./error-toast";
 import BoardConnectionError from "./board-connection-error";
 import VsAiDriver from "./vs-ai-driver";
-
-const POPUP_SELECTORS = [
-    '[data-slot="dialog-content"]',
-    '[data-slot="popover-content"]',
-    '[data-slot="context-menu-content"]',
-    // The tester debug sheet (issue #3403). It is NON-modal, so nothing else
-    // stops this handler from running while it is open: without this entry
-    // Escape would close the sheet AND pop the pause menu behind it in the
-    // same keystroke.
-    '[data-slot="sheet-content"]',
-].join(",");
 
 type BoardProps = {
     gameId: Id<"games">;
@@ -219,17 +209,8 @@ export default function Board({
         };
     }, [isPortrait, landscapeCompact, viewportHeight]);
 
-    useEffect(() => {
-        const handler = (e: KeyboardEvent) => {
-            if (e.key !== "Escape") return;
-            if (state?.gameOver) return;
-            if (document.querySelector(POPUP_SELECTORS)) return;
-            e.preventDefault();
-            setPauseMenuOpen(true);
-        };
-        window.addEventListener("keydown", handler);
-        return () => window.removeEventListener("keydown", handler);
-    }, [state?.gameOver]);
+    const openPauseMenu = useCallback(() => setPauseMenuOpen(true), []);
+    usePauseMenuHotkey({ enabled: !state?.gameOver, onOpen: openPauseMenu });
 
     // Solo viewer follows whoever owes input (computeSoloViewerId). Computed
     // BEFORE the pending-choice buffer so the buffer submits as that seat — not
@@ -702,11 +683,7 @@ export default function Board({
                                             allPlayers={allPlayers}
                                         />
                                     )}
-                                    <Controller
-                                        onOpenMenu={() =>
-                                            setPauseMenuOpen(true)
-                                        }
-                                    />
+                                    <Controller onOpenMenu={openPauseMenu} />
                                     {gameOver && (
                                         <GameOverDialog
                                             gameOver={gameOver}

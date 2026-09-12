@@ -2,25 +2,37 @@
 // only the current Game (api.game.concede); Forfeit ends the whole Match
 // (api.game.forfeitMatch) and returns to the lobby. A Bo1 shows Concede only;
 // a Bo3 shows both. See `../pause-menu-dialog`.
+//
+// Issue #2353 — the same dialog on the Manual Board, where the mode rides the
+// board context's `isManualGame` discriminator: one Concede, dispatching the
+// finalizing `manualConcedeMatch` and never either GRE mutation.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent } from "@testing-library/react";
 import type { PublicMatch } from "@convex/matches";
 import type { Id } from "@convex/_generated/dataModel";
+import { GameContext } from "~/hooks/useGameContext";
 import PauseMenuDialog from "../pause-menu-dialog";
 
 const concede = vi.fn(() => Promise.resolve(undefined));
 const forfeitMatch = vi.fn(() => Promise.resolve(undefined));
+const manualConcedeMatch = vi.fn(() => Promise.resolve(undefined));
 const clearSession = vi.fn();
 
+const MUTATIONS: Record<string, typeof concede> = {
+    concede,
+    forfeitMatch,
+    manualConcedeMatch,
+};
+
 vi.mock("convex/react", () => ({
-    useMutation: (ref: { _name: string }) =>
-        ref._name === "concede" ? concede : forfeitMatch,
+    useMutation: (ref: { _name: string }) => MUTATIONS[ref._name],
 }));
 vi.mock("@convex/_generated/api", () => ({
     api: {
         game: {
             concede: { _name: "concede" },
             forfeitMatch: { _name: "forfeitMatch" },
+            manualConcedeMatch: { _name: "manualConcedeMatch" },
         },
     },
 }));
@@ -49,6 +61,7 @@ describe("PauseMenuDialog Concede vs Forfeit (issue #396)", () => {
     beforeEach(() => {
         concede.mockClear();
         forfeitMatch.mockClear();
+        manualConcedeMatch.mockClear();
         clearSession.mockClear();
     });
 
@@ -70,6 +83,7 @@ describe("PauseMenuDialog Concede vs Forfeit (issue #396)", () => {
         await Promise.resolve();
         expect(concede).toHaveBeenCalledWith({ gameId, playerId: "me" });
         expect(forfeitMatch).not.toHaveBeenCalled();
+        expect(manualConcedeMatch).not.toHaveBeenCalled();
     });
 
     it("Bo3: Concede Game loses one Game; Forfeit Match ends the Match", async () => {
@@ -110,5 +124,68 @@ describe("PauseMenuDialog Concede vs Forfeit (issue #396)", () => {
         });
         expect(clearSession).toHaveBeenCalledOnce();
         expect(concede).not.toHaveBeenCalled();
+        expect(manualConcedeMatch).not.toHaveBeenCalled();
+    });
+});
+
+describe("PauseMenuDialog in a Manual Game (issue #2353)", () => {
+    beforeEach(() => {
+        concede.mockClear();
+        forfeitMatch.mockClear();
+        manualConcedeMatch.mockClear();
+        clearSession.mockClear();
+    });
+
+    // Only the discriminator is read; `makeManualGameContext` is the one real
+    // producer of it.
+    const manualCtx = { isManualGame: true } as never;
+
+    it("offers one Concede even on a Bo3 Match, confirms first, and dispatches manualConcedeMatch — never a GRE mutation", async () => {
+        const { getByRole, queryByRole } = render(
+            <GameContext value={manualCtx}>
+                <PauseMenuDialog
+                    open
+                    onOpenChange={() => {}}
+                    gameId={gameId}
+                    playerId="me"
+                    match={bo(3)}
+                />
+            </GameContext>
+        );
+        expect(queryByRole("button", { name: "Concede Game" })).toBeNull();
+        expect(queryByRole("button", { name: "Concede Match" })).toBeNull();
+
+        fireEvent.click(getByRole("button", { name: "Concede" }));
+        // The confirmation step, not a dispatch.
+        expect(manualConcedeMatch).not.toHaveBeenCalled();
+        fireEvent.click(getByRole("button", { name: "Yes" }));
+        await Promise.resolve();
+
+        expect(manualConcedeMatch).toHaveBeenCalledWith({
+            gameId,
+            playerId: "me",
+        });
+        expect(concede).not.toHaveBeenCalled();
+        expect(forfeitMatch).not.toHaveBeenCalled();
+        // The route's `ManualGameOverDialog` owns the session teardown.
+        expect(clearSession).not.toHaveBeenCalled();
+    });
+
+    it("No backs out of the confirmation without dispatching anything", () => {
+        const { getByRole } = render(
+            <GameContext value={manualCtx}>
+                <PauseMenuDialog
+                    open
+                    onOpenChange={() => {}}
+                    gameId={gameId}
+                    playerId="me"
+                    match={null}
+                />
+            </GameContext>
+        );
+        fireEvent.click(getByRole("button", { name: "Concede" }));
+        fireEvent.click(getByRole("button", { name: "No" }));
+        expect(getByRole("button", { name: "Concede" })).toBeTruthy();
+        expect(manualConcedeMatch).not.toHaveBeenCalled();
     });
 });

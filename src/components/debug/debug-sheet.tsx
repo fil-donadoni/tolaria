@@ -40,7 +40,7 @@ import { DEBUG_SHEET_SHORTCUT_KEY } from "./debug-sheet-provider";
  * {@link DebugSheetProvider} rather than here — the board area is a SIBLING of
  * this component, not a descendant.
  *
- * Escape still closes it — `board.tsx`'s `POPUP_SELECTORS` lists
+ * Escape still closes it — `usePauseMenuHotkey`'s `POPUP_SELECTORS` lists
  * `[data-slot="sheet-content"]`, so that keystroke closes the sheet INSTEAD of
  * also popping the pause menu behind it.
  *

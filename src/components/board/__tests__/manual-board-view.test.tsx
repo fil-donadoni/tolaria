@@ -8,7 +8,13 @@
 // context this container synthesises, and each would render a confident,
 // meaningless cue if it slipped through.
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, cleanup, fireEvent, screen } from "@testing-library/react";
+import {
+    render,
+    cleanup,
+    fireEvent,
+    screen,
+    within,
+} from "@testing-library/react";
 import {
     manualCard,
     manualSeat,
@@ -96,7 +102,13 @@ vi.mock("~/hooks/useViewportHeight", () => ({
     useViewportHeight: () => 900,
 }));
 vi.mock("../hotkeys-legend", () => ({ default: () => <div /> }));
-vi.mock("../pause-menu-button", () => ({ default: () => <button /> }));
+// Forwards `onOpen` so the pause-menu tests (issue #2353) exercise the board's
+// real `onOpenMenu` wiring through the shared controller.
+vi.mock("../pause-menu-button", () => ({
+    default: ({ onOpen }: { onOpen: () => void }) => (
+        <button aria-label="Open game menu" onClick={onOpen} />
+    ),
+}));
 vi.mock("../controller-phase-panel", () => ({ default: () => <div /> }));
 
 const { default: ManualBoardView } = await import("../manual-board-view");
@@ -194,6 +206,80 @@ describe("the Manual Board on the shared board shell (#2169)", () => {
         // Opening the log never mutates the board's own class list — the
         // board is full width whether the log is open or closed (AC2).
         expect(board().className).toBe(classNameBefore);
+    });
+});
+
+// Issue #2353 — the controller's menu button used to be handed an inert
+// callback and no pause-menu dialog was mounted, so a Manual Game could only be
+// ended from the lobby banner. `Escape` was unwired too.
+describe("pause menu on the Manual Board (issue #2353)", () => {
+    const menuDialog = () =>
+        document.querySelector<HTMLElement>('[data-slot="dialog-content"]');
+    const pressEscape = () => fireEvent.keyDown(window, { key: "Escape" });
+
+    it("the menu button opens the menu, and a confirmed Concede dispatches manualConcedeMatch for the viewer's seat", () => {
+        renderBoard();
+        expect(screen.queryAllByText("Game Menu")).toHaveLength(0);
+
+        fireEvent.click(screen.getByRole("button", { name: "Open game menu" }));
+        expect(screen.getAllByText("Game Menu").length).toBeGreaterThan(0);
+
+        // Scoped to the dialog: the controller carries its own "Concede".
+        fireEvent.click(
+            within(menuDialog()!).getByRole("button", { name: "Concede" })
+        );
+        fireEvent.click(
+            within(menuDialog()!).getByRole("button", { name: "Yes" })
+        );
+        expect(MUTATIONS.manualConcedeMatch).toHaveBeenCalledWith({
+            gameId: "game-id",
+            playerId: "me",
+        });
+    });
+
+    it("Escape opens the same menu", () => {
+        renderBoard();
+        pressEscape();
+        expect(screen.getAllByText("Game Menu").length).toBeGreaterThan(0);
+    });
+
+    it("Space and Enter do not step the turn behind the open menu", () => {
+        renderBoard();
+        pressEscape();
+        expect(screen.getAllByText("Game Menu").length).toBeGreaterThan(0);
+
+        fireEvent.keyDown(window, { key: " " });
+        fireEvent.keyDown(window, { key: "Enter" });
+
+        expect(MUTATIONS.manualSetPhase).not.toHaveBeenCalled();
+        expect(MUTATIONS.manualEndTurn).not.toHaveBeenCalled();
+    });
+
+    it("Escape closes the open log instead of opening the menu behind it", () => {
+        renderBoard();
+        fireEvent.click(screen.getByText("Log"));
+        expect(
+            document.querySelector("[data-manual-log-surface]")
+        ).not.toBeNull();
+
+        pressEscape();
+
+        expect(document.querySelector("[data-manual-log-surface]")).toBeNull();
+        expect(screen.queryAllByText("Game Menu")).toHaveLength(0);
+    });
+
+    it("Escape does not open the menu while a verb menu is open", () => {
+        renderBoard();
+        fireEvent.click(
+            document.querySelector<HTMLElement>(
+                '[data-board-hand-card="hand1"]'
+            )!
+        );
+        expect(screen.getByText("Play to battlefield")).toBeTruthy();
+
+        pressEscape();
+
+        expect(screen.queryAllByText("Game Menu")).toHaveLength(0);
     });
 });
 
