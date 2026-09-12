@@ -159,8 +159,9 @@ const libraryOf = (owner: string) =>
 
 // Standstill — "When a player casts a spell, sacrifice this enchantment. If
 // you do, each of that player's opponents draws three cards." (CR 603.2 /
-// 601.2i cast trigger at `scope: "any"`; CR 701.21 sacrifice; CR 608.2h the
-// bind that expresses "if you do"; CR 109.5 the caster-relative complement.)
+// 601.2i cast trigger at `scope: "any"`; CR 701.21 sacrifice; CR 118.12 the
+// "if you do" cost check — Standstill is that rule's own worked example;
+// CR 109.5 the caster-relative complement.)
 //
 // The card earns hand-written tests despite the per-Op regime: it is the FIRST
 // definition to nest an `$event` player ref inside `{ opponentOf }`
@@ -237,7 +238,7 @@ describe("Standstill (cast-by-any-player trigger, sacrifice, if-you-do draw)", (
         expect(state.players[0].hand).toHaveLength(0);
     });
 
-    it('draws nothing when Standstill already left the battlefield — "if you do" is false (CR 608.2b)', () => {
+    it('draws nothing when Standstill already left the battlefield — the "if you do" cost was never paid (CR 118.12)', () => {
         const ss = makeInstance(standstill.id, {
             id: "ss",
             controllerId: "p1",
@@ -254,9 +255,11 @@ describe("Standstill (cast-by-any-player trigger, sacrifice, if-you-do draw)", (
         });
         const triggers = collectTriggers(state, [CAST_BY("p2")]);
         state.stack.push(...triggers);
-        // Disenchanted with the trigger on the stack: by resolution there is
-        // nothing to sacrifice, so the `sacrifice` Op binds nothing and the
-        // `boundMatchesFilter` gate reads false.
+        // CR 118.12's own example, verbatim: with the trigger on the stack
+        // Standstill is removed, so at resolution its controller is unable to
+        // pay the "sacrifice this enchantment" cost — the `sacrifice` Op binds
+        // nothing and the `boundMatchesFilter` gate reads false. No player
+        // draws.
         state.players[0].battlefield = [];
         state.players[0].graveyard.push({ ...ss, zone: "graveyard" });
         expect(resolveTopOfStack(state)).not.toBeNull();

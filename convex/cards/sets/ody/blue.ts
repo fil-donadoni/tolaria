@@ -38,19 +38,30 @@ export const upheaval: CardDefinition = {
 // Standstill player three cards). Nothing about the head is card-shaped — the
 // sphere cycle already ships this exact scope.
 //
-// CR 608.2h / 701.21 — "If you do" is the SACRIFICE's own bind, read back by
-// `boundMatchesFilter`. `sacrifice` binds ONLY when the object resolved on the
-// battlefield (`interpreter.ts` — `resolveObjectRef` re-checks presence before
-// the primitive runs), so a Standstill Disenchanted in response to its own
-// trigger sacrifices nothing, captures nothing, and the predicate reads false:
-// no draw. That is exactly "if you do", with no boolean Op and no new
-// predicate form — the same bind-then-read idiom Agatha's Soul Cauldron
-// (`woe/colorless.ts`) and Minsc & Boo (`clb/multicolor.ts`) already use.
-// The filter names Standstill's own printed card type (CR 205.2), and it can
-// never be the half that fails: layer 4 in this engine ADDS types and has no
-// type-STRIPPING form (`gre/layers.ts`), so a sacrificed Standstill is an
-// Enchantment in its CR 608.2h snapshot in every reachable state. The
-// predicate therefore answers precisely "did the sacrifice happen".
+// CR 118.12 — "[Do something]. If [a player] does, [effect]" makes the action a
+// COST paid at resolution, and the clause "checks whether the player chose to
+// pay an optional cost or started to pay a mandatory cost". THIS card is the
+// rule's own worked example: "an ability is activated that exiles Standstill.
+// When Standstill's ability resolves, you're unable to pay the 'sacrifice
+// Standstill' cost. No player will draw cards."
+//
+// CR 701.21 / 608.2h — that cost check is the SACRIFICE Op's own bind, read
+// back by `boundMatchesFilter`. `sacrifice` binds ONLY when the object
+// resolved on the battlefield (`interpreter.ts` — `resolveObjectRef` re-checks
+// presence before the primitive runs), so a Standstill removed in response to
+// its own trigger sacrifices nothing, captures nothing, and the predicate's
+// own `if (!snap) return false` short-circuit reads false: no draw. The same
+// bind-then-read idiom Agatha's Soul Cauldron (`woe/colorless.ts`) and Minsc &
+// Boo (`clb/multicolor.ts`) already use, with no boolean Op and no new
+// predicate form.
+//
+// The filter is EMPTY on purpose. Every other `boundMatchesFilter` site asks
+// what the snapshot WAS (Minsc & Boo's "if the sacrificed creature was a
+// Hamster"); CR 118.12 asks only whether the cost was paid, so the honest
+// predicate constrains no characteristic at all. A `{ type: "Enchantment" }`
+// filter would read as an equivalent tautology and is not one — `StaticTypeRemove`
+// (`kind: "type-remove"`, layer 4, `gre/layers2to5.ts`) is a shipped
+// type-STRIPPING form, so a card type is not something this gate may lean on.
 //
 // CR 109.5 / 102.1 — "each of that player's opponents" is
 // `{ opponentOf: { ref: "$event.caster" } }`: the ALREADY-CENSUSED
@@ -88,7 +99,7 @@ export const standstill: CardDefinition = {
                     op: "if",
                     predicate: {
                         boundMatchesFilter: { ref: "$sacrificed" },
-                        filter: { type: "Enchantment" },
+                        filter: {},
                     },
                     then: [
                         {
