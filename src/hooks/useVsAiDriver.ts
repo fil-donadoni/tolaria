@@ -82,7 +82,8 @@
 // clears the moment the bot acts.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
+import { useResilientQuery } from "~/hooks/useResilientQuery";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { ExpectedInputKind } from "@convex/gre/expectedInput";
@@ -207,16 +208,29 @@ export function useVsAiDriver(
         // Brain and never even try to spawn a Worker.
     }, [gameId, botId]);
 
-    const tick = useQuery(api.game.getGameTick, botId ? { gameId } : "skip");
+    // Resilient (issue #3266): Convex's 1s execution ceiling is a platform
+    // limit, so under machine contention even this single indexed row lookup
+    // can fail. A raw `useQuery` re-throws that during render and the throw
+    // tears down `<Board>` through the router's catch boundary — with the
+    // Brain's Worker disposed by the effect cleanup above on the way out.
+    // `useResilientQuery` holds the last tick, re-subscribes with backoff, and
+    // never throws; a subscription that stays broken shows up on the BOARD's
+    // error surface, which subscribes to the same deployment, rather than
+    // here — the driver has no UI of its own to escalate onto, it just stops
+    // acting until the tick comes back.
+    const tick = useResilientQuery(
+        api.game.getGameTick,
+        botId ? { gameId } : "skip"
+    ).data;
     const botOwesInput = !!(
         botId &&
         (tick === null ||
             (tick && !tick.gameOver && tick.owedPlayerIds?.includes(botId)))
     );
-    const botState = useQuery(
+    const botState = useResilientQuery(
         api.game.getPublicState,
         botId && botOwesInput ? { gameId, playerId: botId } : "skip"
-    );
+    ).data;
     // The bot's OWN decklist, wired into the search adapter so its simulated
     // library carries real card identities (issue #1509): fetch/tutor subtrees
     // then search the real fetchable cards instead of worthless placeholders.
@@ -227,10 +241,10 @@ export function useVsAiDriver(
     // lookup on the bot's (immutable) `gameDecks` row rather than the former
     // `getGame` subscription — it no longer re-executes on the `games` patches
     // that fire several times a turn.
-    const botDeck = useQuery(
+    const botDeck = useResilientQuery(
         api.game.getSeatDeck,
         botId ? { gameId, playerId: botId } : "skip"
-    );
+    ).data;
     // The HUMAN seat's decklist (issue #2790, PRD #2787) — the second entry
     // the #2788 per-seat shape was left room for. Read only once `botState`
     // has resolved the opponent's seat id; both `botId` and this id are the
@@ -250,10 +264,10 @@ export function useVsAiDriver(
     // consulted, which means fetching both seats and choosing between them
     // at the moment of use.
     const humanId = botState?.players.find((p) => p.id !== botId)?.id ?? null;
-    const humanDeck = useQuery(
+    const humanDeck = useResilientQuery(
         api.game.getSeatDeck,
         humanId ? { gameId, playerId: humanId } : "skip"
-    );
+    ).data;
     // Per-seat deck knowledge (issue #2788, generalised to two seats by
     // #2790), pre-computed in BOTH shapes so the difficulty gate at the search
     // site is a choice between two ready values rather than a render-time read

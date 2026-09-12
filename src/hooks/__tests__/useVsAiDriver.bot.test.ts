@@ -158,8 +158,12 @@ vi.mock("@convex/_generated/api", () => ({
     },
 }));
 
-vi.mock("convex/react", () => ({
-    useQuery: (ref: unknown, args: unknown) => {
+vi.mock("convex/react", async () => {
+    // `useResilientQuery` (issue #3266) subscribes through `useQueries`, so the
+    // mock answers both entry points from the one resolver below.
+    const { mockUseQueries } =
+        await import("~/lib/testing/convex-react-query-mock");
+    const resolve = (ref: unknown, args: unknown) => {
         if (args !== "skip") queryMounts.push({ ref, args });
         if (args === "skip") return undefined;
         // issue #1509 — the driver also queries the bot's own decklist
@@ -204,8 +208,8 @@ vi.mock("convex/react", () => ({
                 : currentState;
         }
         return currentState;
-    },
-    useMutation: (ref: unknown) => (args: unknown) => {
+    };
+    const useMutation = (ref: unknown) => (args: unknown) => {
         calls.push({ ref, args });
         // ADR 0091 / issue #1209 — a mutation can be held PENDING so a test can
         // observe the window in which a multi-step realisation is half-done
@@ -221,8 +225,13 @@ vi.mock("convex/react", () => ({
             return Promise.reject(new Error(rejectMutation.message));
         }
         return Promise.resolve(null);
-    },
-}));
+    };
+    return {
+        useQuery: resolve,
+        useQueries: mockUseQueries(resolve),
+        useMutation,
+    };
+});
 
 // issue #2470 review, finding 1 — `realiseBotAction` returns null on several
 // branches, and the driver then submits NOTHING. Off by default (every other

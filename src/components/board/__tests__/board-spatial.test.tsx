@@ -36,11 +36,19 @@ vi.mock("~/hooks/useElementSize", () => ({
 // other queries' results are either ignored or tolerate the same object, so the
 // mock returns one shared state value for every `useQuery`.
 const h = vi.hoisted(() => ({ state: undefined as unknown }));
-vi.mock("convex/react", () => ({
-    useQuery: () => h.state,
-    useMutation: () => async () => {},
-    useAction: () => async () => {},
-}));
+vi.mock("convex/react", async () => {
+    // `useResilientQuery` (issue #3266) subscribes through `useQueries`, so the
+    // mock answers both entry points from the one resolver.
+    const { mockUseQueries } =
+        await import("~/lib/testing/convex-react-query-mock");
+    const resolve = () => h.state;
+    return {
+        useQuery: resolve,
+        useQueries: mockUseQueries(resolve),
+        useMutation: () => async () => {},
+        useAction: () => async () => {},
+    };
+});
 vi.mock("~/lib/image-preload", () => ({ preloadCardImages: () => {} }));
 
 // Board chrome (data-driven / portal-heavy) → inert. The spatial subtree is the
