@@ -1143,21 +1143,39 @@ carte inerti.
 
 **Migrazione `resolve()` → `effects[]`**
 
-474 closure `resolve()`/`resolveSteps` residue: 320 nel bucket FREE del
+472 closure `resolve()`/`resolveSteps` residue: 318 nel bucket FREE del
 classificatore, 15 X-only, 139 Op-blocked. **Il numero FREE del sommario è un
 limite SUPERIORE**: conta anche le carte già valutate e marcate
-`NOT-DSL-migratable` (245 su 320, perché il clause-mapper legge il corpo della
+`NOT-DSL-migratable` (242 su 318, perché il clause-mapper legge il corpo della
 closure ma non la factory che la costruisce). La worklist davvero selezionabile
-è `migration-classifier.mjs --free`, che quelle carte le nasconde — oggi 75
-closure, non 320.
+è `migration-classifier.mjs --free`, che quelle carte le nasconde — oggi 76
+closure, non 318.
 
 Entrambi i gate storici sono caduti. Il secondo, "Op-blocked → 0" (#1438), è
-stato **ritirato** dall'audit del 2026-09-01: 78 Op per 139 closure, 37 dei
-quali bloccano una carta sola, l'85% in ice/lea/drk/leg/atq/arn/fem — nessun
-cluster con leva. Ne sono sopravvissute tre slice mirate: #3010 (il classifier
-sovrastima `Op-blocked`), #3011 (spostamento di zona intera a livello giocatore)
-e #3012 (`revealHand`); issue #1438 resta aperta solo come tracker di quel
-backlog, non più come gate.
+stato **ritirato** dall'audit del 2026-09-01 e il tracker **chiuso** da quello
+del 2026-09-12 (audit a `ae09e3266`, superseded #3010/#3011/#3012/#3517/#3518):
+79 Op per 139 closure, 38 dei quali bloccano una carta sola, l'85% in
+ice/lea/drk/leg/atq/arn/fem — nessun cluster con leva. La prova definitiva è
+che il bucket non si muove: 30 commit hanno toccato il Mechanics Registry dal
+2026-09-01 e `Op-blocked` è rimasto 139.
+
+Il secondo audit ha classificato tutte le 136 closure `Op-blocked` uniche, e
+**il 53% non è lavoro**: 20 sono artefatti del censimento (capacità consegnata
+che il classificatore non vede), 28 sono non-goal dichiarati per iscritto nel
+registry o in un ADR, 21 appartengono già a una issue aperta, 3 sono un misto
+dei tre. Le 64 residue sono la coda lunga che PRD #795 dava per morta per
+attrito: 51 blocker distinti, 36 su una carta sola, con nomi a forma di carta
+(`addHighTide`, `markGazeOfPainActive`, `applyCamouflagePileBlocks`,
+`setPileLabel`). **Quella tabella di "New-Op backlog" non era una worklist**: è
+ciò che faceva leggere 139 closure come 139 unità di lavoro. Il censimento si
+rigenera con lo script, quindi una tabella copiata a mano in un issue body è
+strettamente peggiore — ed era stantia di 81 closure e 16 Op quando è stata
+chiusa.
+
+Le cinque slice trattenute: #3010 (il classifier sbaglia in entrambe le
+direzioni), #3011 (spostamento di zona intera a livello giocatore), #3012
+(`revealHand`), #3517 (`forEach{players, simultaneous}` ammette una sola coppia
+di Op, CR 101.4) e #3518 (`dealDamage` non ha `bind`, CR 608.2h).
 
 Il primo, drenare il bucket FREE (#1435), è stato ritirato perché la sua
 condizione di uscita ("il sommario riporta FREE = 0") leggeva il numero
