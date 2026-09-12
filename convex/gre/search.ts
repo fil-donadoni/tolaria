@@ -1021,7 +1021,7 @@ export function applyMoveInSearch(
             // calc needs the caster's mana still untapped, mirroring the
             // real announce-time computation) and before the spell leaves
             // hand, mirroring `tryAutoCommitPendingCast`'s real-path order
-            // (`convex/game.ts`).
+            // (`convex/gre/activation.ts`).
             // CR 601.3 (issue #2980) — the zone the Move DECLARES, not the
             // hand: a hand-only lookup skipped this whole pre-cast cost block
             // for every graveyard and exile cast the enumerator offers, so an
@@ -1304,7 +1304,7 @@ export function applyMoveInSearch(
             // graveyard-source `exileThis`) while the stack item must still be
             // a snapshot of it — the same order, and the same retained
             // reference, that the mutation path uses (`activateAbilityOnState`,
-            // `convex/game.ts`).
+            // `convex/gre/activation.ts`).
             const source = findActivationSource(state, move.cardInstanceId);
             // CR 113.1 (issue #2468) — the ENTRY, not just the template: when
             // the ability reached `source` through a grant (an Aura's

@@ -549,7 +549,7 @@ import {
     resolveActivatedAbility,
     resolveTargetCount,
     sacrificeSnapshotFromSelection,
-    tapOtherCandidates,
+    tapOtherCostCandidates,
     tryAutoCommitPendingActivation,
     tryAutoCommitPendingCast,
 } from "./gre/activation";
@@ -4994,6 +4994,9 @@ export { payLoyaltyCost };
  *  re-derives them from `req`, resetting `selected` for the fresh group. The
  *  primary group's build in `announceCast` is the single-group analogue; both
  *  derive their filters from `pendingTargetFiltersFromRequirement`. */
+// `pendingTargetFiltersFromRequirement` moved to `./gre/rules` (issue #1193) so
+// the gre trigger-target path (`raiseTriggerTargetSelection`) can build a
+// `PendingTarget` without importing `game.ts`. Imported above; same behavior.
 function applyRequirementToPendingTarget(
     pt: PendingTarget,
     req: TargetRequirement,
@@ -5417,7 +5420,7 @@ export function finalizeTargetSelection(
         // control": illegal unless at least N matching untapped permanents
         // (other than the source) are on the activating player's battlefield.
         if (ability.cost.tapOtherFilter) {
-            const candidates = tapOtherCandidates(
+            const candidates = tapOtherCostCandidates(
                 player,
                 card.id,
                 ability.cost.tapOtherFilter.filter
@@ -6428,7 +6431,7 @@ export function buildAdditionalCostPicker(
         ? "exile"
         : "sacrifice";
     // Effective colours are derived per-candidate via the layer system
-    // (mirrors `tapOtherCandidates` above) so a `colors` filter (Natural
+    // (mirrors `tapOtherCostCandidates`, `gre/activation.ts`) so a `colors` filter (Natural
     // Order's "a green creature") reads the same colour the rest of the
     // engine sees, not the raw instance which carries no `colors` field.
     const candidates = player.battlefield.filter((c) => {

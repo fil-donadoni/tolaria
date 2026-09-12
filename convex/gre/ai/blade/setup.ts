@@ -301,7 +301,7 @@ function applyPass(
  * Activate a named permanent's activated ability through the REAL activation
  * path (issue #1491, ADR 0070 §4).
  *
- * `activateAbilityOnState` (`convex/game.ts`) IS that path: it was lifted out
+ * `activateAbilityOnState` (`convex/gre/activation.ts`) IS that path: it was lifted out
  * of the `activateAbility` mutation, which now calls it and keeps nothing but
  * the I/O (fetch the row, clone, persist). So the position this step reaches
  * is produced by the same legality checks and the same cost payments a live

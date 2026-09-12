@@ -836,7 +836,7 @@ export interface TargetRequirement {
      *  a TRIGGERED ability's `StackItem.triggerSourceId`, via
      *  `raiseTriggerTargetSelection` (CR 603.3d target choice at stack
      *  placement); an ACTIVATED ability's on-battlefield source `card`, via
-     *  `activateAbilityOnState` (`game.ts`) and the bot's matching
+     *  `activateAbilityOnState` (`gre/activation.ts`) and the bot's matching
      *  `enumerateAbilityMoves` (issue #2399 — Reflection of Kiki-Jiki's
      *  "another target nonlegendary creature you control"). Ignored on a SPELL
      *  requirement, which has no source permanent to exclude.
@@ -1272,7 +1272,7 @@ export interface ActivatedAbility {
          *  on the source, `-N` removes N, `0` is neutral. Its mere presence (a
          *  planeswalker's activated ability) makes the engine derive the three
          *  loyalty restrictions from it, so no separate flags are needed
-         *  (`game.ts` `assertLoyaltyActivationLegal`):
+         *  (`gre/activation.ts` `assertLoyaltyActivationLegal`):
          *   - sorcery-speed only, and only the source's controller during their
          *     own main phase with an empty stack (CR 606.3, reuses
          *     `isSorceryTiming`);
@@ -1864,7 +1864,7 @@ export interface ActivatedAbility {
      *  only ever writes it `true` and `serialize.ts` round-trips it, so there
      *  is no "unknown" state to fail open on.
      *
-     *  Enforced server-side by `assertActivationTimingLegal` (`convex/game.ts`)
+     *  Enforced server-side by `assertActivationTimingLegal` (`convex/gre/activation.ts`)
      *  and mirrored as a UI hint by `isActivationTimingAllowed`
      *  (`src/lib/card-utils.ts`) and as a bot-move gate by
      *  `enumerateAbilityMoves` / `hasFlexibleActivation`. */
@@ -1883,7 +1883,7 @@ export interface ActivatedAbility {
      *  (`gre/evaluate.ts`) skip ANY ability carrying a `canActivate` closure,
      *  so a closure-gated level bar would be a move the Bot never enumerates —
      *  it could never level a Class up at all. Enforced server-side by
-     *  `assertActivationTimingLegal` (`convex/game.ts`), mirrored as a UI hint
+     *  `assertActivationTimingLegal` (`convex/gre/activation.ts`), mirrored as a UI hint
      *  by `isActivationTimingAllowed` (`src/lib/card-utils.ts`). Built by
      *  `expandClassLevelBars` (`cards/abilities/classLevels.ts`); a card never
      *  writes it by hand. */
@@ -4549,7 +4549,7 @@ export interface SpellContext {
      *  generalized to a second zone rather than a new card-shaped primitive
      *  (ADR 0045 primitive reuse). Always SAME-PLAYER: no `zoneOwnerId`
      *  parameter, since no cross-player graveyard-cast primitive exists in
-     *  this engine (`castZoneOwner`'s doc, `convex/game.ts`). Flags the card
+     *  this engine (`castZoneOwner`'s doc, `convex/gre/activation.ts`). Flags the card
      *  `cardInstanceId` — found in `playerId`'s OWN graveyard — as castable
      *  from there by `playerId`. No-op if the id isn't in that player's
      *  graveyard OR is a LAND (CR 116.2a — a land is PLAYED, never CAST, so a
@@ -13306,7 +13306,7 @@ export type EffectOp =
      *  0045): the grant is appended to `state.spellManaSubstitutionGrants`,
      *  turned into ordinary `{from,to}` pairs by `getManaSubstitutions` for a
      *  payment that names a cast in progress, and popped by the single
-     *  cast-payment seam (`payCastManaCost`, `convex/game.ts`) once the
+     *  cast-payment seam (`payCastManaCost`, `convex/gre/activation.ts`) once the
      *  substitution is what made the cost payable — so an on-colour cast in
      *  between leaves the grant intact.
      *
@@ -13436,7 +13436,7 @@ export type EffectOp =
      *  discarded card without paying its mana cost"). Always SAME-PLAYER
      *  (`player`'s own graveyard) — no `zoneOwnerId`, since no cross-player
      *  graveyard-cast primitive exists (`castZoneOwner`'s doc,
-     *  `convex/game.ts`). `window` mirrors the exile primitive's own
+     *  `convex/gre/activation.ts`). `window` mirrors the exile primitive's own
      *  turn-scoping (`"this-turn"` / `"while-in-graveyard"`, default
      *  `"while-in-graveyard"`).
      *

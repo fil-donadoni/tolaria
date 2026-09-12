@@ -77,7 +77,7 @@ export function classLevelOf(
  *     the Class only HAS it "as long as this Class is level N or greater", and
  *     an ability an object does not have cannot be activated (CR 602.1).
  *
- *  Shared verbatim by `assertActivationTimingLegal` (`convex/game.ts`, the
+ *  Shared verbatim by `assertActivationTimingLegal` (`convex/gre/activation.ts`, the
  *  server authority), `enumerateAbilityMoves` / `hasFlexibleActivation`
  *  (`gre/moves.ts` / `gre/evaluate.ts`, the Bot) and `isActivationTimingAllowed`
  *  (`src/lib/card-utils.ts`, the UI affordance) — the `loyaltyActivationViolation`

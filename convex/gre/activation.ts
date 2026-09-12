@@ -261,7 +261,12 @@ export function canPayExileFromGraveyard(
  *  layer system so a `colors` filter ("white creatures") reads the same colour
  *  the rest of the engine sees. The activating player is the controller-relation
  *  reference, so `controllerRelation: "you"` resolves to `player`. */
-export function tapOtherCandidates(
+/** NOT `tapOtherCandidates` (`gre/activationCostPicks.ts`), which answers the
+ *  PICKER's question with a different signature and a different colour
+ *  derivation. This one is the announcement-time affordability gate; the two
+ *  were never ambiguous while this was a `game.ts` private, and the rename
+ *  keeps them unambiguous now that both live under `convex/gre/`. */
+export function tapOtherCostCandidates(
     player: PlayerState,
     sourceId: string,
     filter: PermanentFilter
@@ -343,7 +348,7 @@ export function castZoneOwner(
  *  Flashback/Escape — `locateCastSource` checks those first, so this is only
  *  ever reached for a card with neither (the permission then covers it for
  *  its normal printed mana cost). */
-export function findGraveyardPermissionCastable(
+function findGraveyardPermissionCastable(
     state: GameState,
     player: PlayerState,
     instanceId: string
@@ -366,7 +371,7 @@ export function findGraveyardPermissionCastable(
  *  below). Never returns a card that already has Flashback/Escape/the
  *  broad permission — `locateCastSource` checks those first, so this is
  *  only ever reached for a card with none of them. */
-export function findGraveyardGrantCastable(
+function findGraveyardGrantCastable(
     player: PlayerState,
     instanceId: string
 ): CardInstanceState | undefined {
@@ -381,7 +386,7 @@ export function findGraveyardGrantCastable(
  *  your graveyard"). Always same-player. Never returns a card that has
  *  Flashback/Escape/a broad-or-specific external permission — `locateCastSource`
  *  checks those first, so this is only reached for a card with none of them. */
-export function findIntrinsicGraveyardCastable(
+function findIntrinsicGraveyardCastable(
     player: PlayerState,
     instanceId: string
 ): CardInstanceState | undefined {
@@ -398,7 +403,7 @@ export function findIntrinsicGraveyardCastable(
  *  Never returns a card that already has Flashback/Escape/the broad
  *  permission/a specific grant — `locateCastSource` checks those first, so
  *  this is only ever reached for a card with none of them. */
-export function findGraveyardPermanentPermissionCastable(
+function findGraveyardPermanentPermissionCastable(
     state: GameState,
     player: PlayerState,
     instanceId: string
@@ -419,7 +424,7 @@ export function findGraveyardPermanentPermissionCastable(
  *  become a cast from the middle of the deck. Like the graveyard/library land
  *  permissions this is derived live from the battlefield every call — nothing
  *  on the card itself to check or clear. */
-export function findCastableLibraryTopSpell(
+function findCastableLibraryTopSpell(
     state: GameState,
     player: PlayerState,
     instanceId: string
@@ -1396,7 +1401,7 @@ export function payAlternativeCostHandChoice(
 /** What a cast-time mana payment produced, beyond draining the pool: the
  *  CR 106.6 riders it drew on (issues #1559 / #3354) and the CR 106.4
  *  per-colour record of the mana actually spent. */
-export interface CastManaPayment {
+interface CastManaPayment {
     /** CR 106.6 (issues #1559 / #3354) — which mana riders the payment drew
      *  on. A record, not a boolean: the riders are independent and a single
      *  payment can fire both. */
@@ -2025,13 +2030,6 @@ export function resolveTargetCount(
     return resolveTargetRequirementCount(count, chosenX, { requireX: true });
 }
 
-/** True when the selected targets have reached the maximum allowed for this
- *  requirement. Fixed N → selected >= N; range → selected >= max (undefined
- *  max means no upper limit, so this never triggers auto-advance). */
-// `pendingTargetFiltersFromRequirement` moved to `./gre/rules` (issue #1193) so
-// the gre trigger-target path (`raiseTriggerTargetSelection`) can build a
-// `PendingTarget` without importing `game.ts`. Imported above; same behavior.
-
 /** CR 601.2f / 118.5 — affordability gate for board-wide static NON-mana
  *  additional costs (Drought). Throws (the cast/activation is illegal) when the
  *  announcing `player` controls too few permanents to pay the per-pip
@@ -2141,25 +2139,6 @@ export function exileCostSnapshot(
 // enumerator needs the IDENTICAL selection to know which victims it must
 // submit, and a second copy here is exactly how the two would drift.
 
-/**
- * The PURE activation path (CR 602 — activating an activated ability), lifted
- * verbatim out of the `activateAbility` mutation below so it can be driven
- * WITHOUT a Convex `ctx`: the blade suite's engine-real `setup` steps need to
- * reach a position whose pending decision is produced by a real activation
- * (ADR 0070 §4 — a fetchland's live search-library choice), and a hand-built
- * approximation of that path is exactly the silent-divergence class the ADR
- * rejects.
- *
- * THE MUTATION CALLS THIS FUNCTION — there is no second copy. Everything the
- * mutation still owns is I/O: fetch the row, clone the state, persist. Every
- * legality check, every cost payment, every stack push lives here.
- *
- * Mutates `state` in place. The three former early-return points (targeted
- * ability → `pendingTarget`; deferred payment → `pendingActivation`; committed
- * → stack) all persisted the SAME `seq + 1` snapshot, so collapsing them into
- * a plain `return` costs nothing: the caller saves once, whichever way it
- * returned. Throws on any illegal activation, exactly as before.
- */
 /** CR 700.2 / 602.2b (issue #1341) — validates the mode an activation
  *  announced. A modal ability MUST name one of its declared modes; a
  *  non-modal ability must name none. Returns the chosen `AbilityMode`, or
@@ -2189,6 +2168,17 @@ export function resolveActivationMode(
     return mode;
 }
 
+/**
+ * Announce an activated ability (CR 602) — the entry point the
+ * `activateAbility` mutation calls and the blade suite's `activate` setup step
+ * drives, one function, no second copy (see the module header).
+ *
+ * Mutates `state` in place. The three former early-return points (targeted
+ * ability → `pendingTarget`; deferred payment → `pendingActivation`; committed
+ * → stack) all persist the SAME `seq + 1` snapshot, so each is a plain
+ * `return`: the caller saves once, whichever way it returned. Throws on any
+ * illegal activation.
+ */
 export function activateAbilityOnState(
     state: GameState,
     args: {
@@ -2705,7 +2695,7 @@ export function activateAbilityOnState(
     // control": illegal unless at least N matching untapped permanents
     // (other than the source) are available.
     if (ability.cost.tapOtherFilter) {
-        const candidates = tapOtherCandidates(
+        const candidates = tapOtherCostCandidates(
             player,
             card.id,
             ability.cost.tapOtherFilter.filter

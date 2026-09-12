@@ -201,7 +201,7 @@ function autoFinalizeLandEntryChoices(state: GameState): void {
 
 /** CR 702.66b / 601.2g (issue #1661) — pay a `cast-spell` search move's delve
  *  portion by exiling graveyard cards, mirroring `tryAutoCommitPendingCast`'s
- *  real-path order (`convex/game.ts`): the delve/flashback exile-cost cards
+ *  real-path order (`convex/gre/activation.ts`): the delve/flashback exile-cost cards
  *  move to exile BEFORE the cast card itself leaves its own zone.
  *
  *  MUST be called BEFORE `applyTapPlan` taps the move's mana sources.
@@ -710,7 +710,7 @@ export function applyActivationCostsForSearch(
         if (handOwner && handAbility?.cost.discardThis) {
             // CR 702.29c (issue #3118, closed here by #3206) — the cycling
             // MARKER must ride the search-side discard exactly as it rides the
-            // mutation's (`activateAbilityOnState`, `convex/game.ts`). Without
+            // mutation's (`activateAbilityOnState`, `convex/gre/activation.ts`). Without
             // it the ONE CARD_DISCARDED event carries no cause inside the tree,
             // so a "when you cycle this card" trigger (CR 702.29c) fires on the
             // real board and not in the Bot's search — the bot prices a cycling

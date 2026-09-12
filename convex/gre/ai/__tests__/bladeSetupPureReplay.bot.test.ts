@@ -91,8 +91,9 @@ describe("blade setup steps replay from the pure builder (issue #3479)", () => {
         expect(state.stack[0].abilityId).toBe("polluted-delta-fetch");
 
         // And its costs were PAID by the extracted machinery, not skipped:
-        // Polluted Delta is "{T}, Pay 1 life, Sacrifice this land" (CR 118.4 /
-        // 118.5), so the seat is down a life and the land has left the
+        // Polluted Delta is "{T}, Pay 1 life, Sacrifice this land" (CR 119.4
+        // life payment, CR 118.5 sacrifice), so the seat is down a life and
+        // the land has left the
         // battlefield. This is the assertion that fails if the extraction
         // loses a cost leg.
         expect(me(state).life).toBe(19);

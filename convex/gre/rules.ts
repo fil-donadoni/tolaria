@@ -440,7 +440,7 @@ export function canCastPermanentFromGraveyardByPermission(
  *  permission (Lurrus, issue #1392) this turn — the once-per-turn
  *  consumption side of `canCastPermanentFromGraveyardByPermission`. Called
  *  ONCE, at cast commit, by every commit site that can push a graveyard cast
- *  onto the stack (`convex/game.ts`: `tryAutoCommitPendingCast`,
+ *  onto the stack (`convex/gre/activation.ts`: `tryAutoCommitPendingCast`,
  *  `finalizeTargetSelection`, `announceCast`'s immediate-commit branch) —
  *  never at mere legality-check time (`getLegalActions`/`locateCastSource`
  *  are read-only). Idempotent (a player id is never pushed twice). */
@@ -1165,7 +1165,7 @@ export function getLegalActions(
     // neither Flashback, Escape, nor the broad permission already claimed
     // this card (those branches return first). Always same-player — a
     // graveyard grant has no cross-player shape (`castZoneOwner`'s doc,
-    // `convex/game.ts`), so `casterId` (defaulting to `player.id`) is
+    // `convex/gre/activation.ts`), so `casterId` (defaulting to `player.id`) is
     // checked directly against the grant. This branch fully owns the "cast"
     // decision for the granted card, exactly like the exile equivalent
     // (`isFreeExileCast`) below.
@@ -3822,7 +3822,7 @@ export function applySelfExclusion(
  *  folded into ONE merge so a requirement governed by a given source
  *  instance gets the IDENTICAL two substitutions wherever it is computed —
  *  originally inlined once, at ability announcement
- *  (`activateAbilityOnState`, `convex/game.ts`); reused as of issue #1853
+ *  (`activateAbilityOnState`, `convex/gre/activation.ts`); reused as of issue #1853
  *  round 3 by the CR 608.2b resolution-time reconstruction
  *  (`resolvingTargetRequirement`, `convex/gre/state.ts`) so a source whose
  *  colour word was changed (Sleight of Mind on a Circle of Protection)

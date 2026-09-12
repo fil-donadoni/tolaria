@@ -907,7 +907,7 @@ function projectGraveyardCard(
     // and disappears with the turn, no stale flag.
     //
     // LAST among the cast branches, matching `locateCastSource`'s own ordering
-    // (convex/game.ts): retrace costs the caster strictly more than any
+    // (convex/gre/activation.ts): retrace costs the caster strictly more than any
     // mechanism above (they replace or waive the mana cost; retrace ADDS a
     // discarded land), so a card qualifying for two of them must surface the
     // cheaper one. Projection order and cast-source order agreeing is what keeps

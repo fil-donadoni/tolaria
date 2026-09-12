@@ -13,7 +13,7 @@
 //
 // Before this module the authoritative list of parks was the chain of early
 // returns inside `tryAutoCommitPendingCast` / `tryAutoCommitPendingActivation`
-// (`convex/game.ts`) — a hand-maintained chain that three other places mirrored
+// (`convex/gre/activation.ts`) — a hand-maintained chain that three other places mirrored
 // and none of them completely. Every time a park was added, the vs-AI bot
 // announced the cast/activation, never submitted the pick, and hung on a move it
 // had generated itself. The class was fixed nine times one park at a time

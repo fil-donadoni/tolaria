@@ -17,27 +17,22 @@ import { describe, it, expect } from "vitest";
 import * as game from "../game";
 import * as activation from "../gre/activation";
 
-/** Every name `convex/game.ts` re-exports from the pure module. A new export
- *  added to `gre/activation.ts` and NOT re-exported here is fine; one that is
- *  re-exported as a re-implementation is what this list catches. */
-const RE_EXPORTED = [
-    "activateAbilityOnState",
-    "assertActivationTimingLegal",
-    "assertDiscardFilterCostAffordable",
-    "assertLoyaltyActivationLegal",
-    "assertSacrificeFilterCostAffordable",
-    "assertStaticAdditionalCostAffordable",
-    "buildPendingActivation",
-    "castZoneOwner",
-    "findPendingActivationSource",
-    "locateCastSource",
-    "payCastManaCost",
-    "resolveAbilityManaCost",
-    "tryAutoCommitPendingActivation",
-    "tryAutoCommitPendingCast",
-] as const;
+/** Every name `convex/game.ts` re-exports from the pure module, DERIVED rather
+ *  than listed: a name that appears in both namespaces is either the re-export
+ *  or the re-implementation that replaced it, which is exactly the pair this
+ *  file is here to tell apart. A list would have to be remembered; this cannot
+ *  fall behind a re-export added later. */
+const RE_EXPORTED = Object.keys(activation).filter((name) => name in game);
 
 describe("convex/game.ts re-exports the pure activation path (issue #3479)", () => {
+    it("covers the names the two modules actually share", () => {
+        // The floor, so the derived set can never go vacuously empty — a
+        // `game.ts` that re-exported nothing would otherwise make every
+        // assertion below disappear rather than fail.
+        expect(RE_EXPORTED.length).toBeGreaterThanOrEqual(14);
+        expect(RE_EXPORTED).toContain("activateAbilityOnState");
+    });
+
     for (const name of RE_EXPORTED) {
         it(`\`${name}\` is the SAME function object, not a copy`, () => {
             const fromGame = (game as Record<string, unknown>)[name];

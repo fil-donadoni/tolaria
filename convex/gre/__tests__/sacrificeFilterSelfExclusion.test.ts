@@ -135,7 +135,7 @@ describe("cost.sacrificeFilter payability threads selfInstanceId (CR 109.2, issu
         }
     });
 
-    it("convex/game.ts keeps ONE payability gate, and every entry point calls it", () => {
+    it("the server keeps ONE payability gate, and every entry point calls it", () => {
         // Until issue #3455 the up-front legality scan was DUPLICATED — the
         // same eight lines in `activateAbilityOnState` and in the
         // `pendingActivation` path — and this guard counted `>= 2` because
@@ -145,18 +145,35 @@ describe("cost.sacrificeFilter payability threads selfInstanceId (CR 109.2, issu
         // copies agreeing. So the guard asserts the shape that replaced it —
         // exactly one matcher call, owned by that helper, with every
         // announcement path routed through it.
-        const src = fs.readFileSync(
+        //
+        // The surface is TWO files since issue #3479: the CR 602 announcement
+        // path moved to `convex/gre/activation.ts` (so the browser can replay
+        // it — `convex/game.ts` imports `./auth`, which the client bundle may
+        // never reach, ADR 0074) and took the gate with it, while
+        // `finalizeTargetSelection` stayed behind. Both are read here, because
+        // a gate in one file and a hand-rolled copy in the other is exactly
+        // the shape this guard exists to refuse.
+        const gameSrc = fs.readFileSync(
             path.join(REPO_ROOT, "convex/game.ts"),
             "utf8"
         );
-        expect(sacrificeCostCalls(src).length).toBe(1);
-        expect(src).toContain(
+        const activationSrc = fs.readFileSync(
+            path.join(REPO_ROOT, "convex/gre/activation.ts"),
+            "utf8"
+        );
+        expect(sacrificeCostCalls(gameSrc).length).toBe(1);
+        expect(sacrificeCostCalls(activationSrc).length).toBe(0);
+        expect(activationSrc).toContain(
             "export function assertSacrificeFilterCostAffordable("
         );
         // The declaration plus at least the two announcement paths (the STACK
-        // activation and the non-stack mana one).
+        // activation and the non-stack mana one), wherever they now live.
         expect(
-            (src.match(/assertSacrificeFilterCostAffordable\(/g) ?? []).length
+            (
+                (gameSrc + activationSrc).match(
+                    /assertSacrificeFilterCostAffordable\(/g
+                ) ?? []
+            ).length
         ).toBeGreaterThanOrEqual(3);
     });
 });

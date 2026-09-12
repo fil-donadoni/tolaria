@@ -75,7 +75,8 @@ export function resolveGrantedActivatedAbility(
  *
  *  This is the single authority every consumer of "what can this permanent
  *  actually do" reads: `resolveActivatedAbility` (the activation entry point
- *  in `game.ts`), the blade harness's `setup` `activate` step (issue #1522),
+ *  in `gre/activation.ts`), the blade harness's `setup` `activate` step
+ *  (issue #1522),
  *  and — since issue #1880 — the mana-ability probes in `gre/constants.ts`
  *  (`getActivatedManaAbility`, `hasManaAbility`, `getManaTapOptionsDetailed`),
  *  which used to read `cardDef.activatedAbilities` alone and therefore made a
