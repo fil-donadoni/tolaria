@@ -82,6 +82,17 @@ const STORED: Required<ScenarioSpec> = {
             manaCommitted: true,
             tapTriggerCommitted: true,
             startedTurnUntapped: true,
+            // CR 208.2 / 611.1 (issue #3459) — the animate CALL: the third card
+            // field with no input of its own, and the one whose loss is
+            // invisible on the board (the permanent simply comes back a
+            // non-creature).
+            animated: {
+                power: 2,
+                toughness: 2,
+                subtype: "Assembly-Worker",
+                additionalTypes: ["Artifact"],
+                duration: { phase: "end-of-turn" },
+            },
         },
     ],
     phase: "POSTCOMBAT_MAIN",
@@ -281,6 +292,13 @@ describe("editing a scenario through the real form", () => {
                 startedTurnUntapped: true,
                 activations: { "psychatog-pump": 2 },
                 abilityResolutions: { "psychatog-dies": 1 },
+                animated: {
+                    power: 2,
+                    toughness: 2,
+                    subtype: "Assembly-Worker",
+                    additionalTypes: ["Artifact"],
+                    duration: { phase: "end-of-turn" },
+                },
             },
         ]);
         // The form-owned knobs inflate from the row and come back unchanged.
@@ -300,6 +318,15 @@ describe("editing a scenario through the real form", () => {
         // CR 608.2 (issue #3453) — the second such field, carried the same way.
         expect(editAndSave().cards[0]?.abilityResolutions).toEqual({
             "psychatog-dies": 1,
+        });
+        // CR 208.2 / 611.1 (issue #3459) — the third: an edit that dropped it
+        // would rebuild the staged manland as a non-creature.
+        expect(editAndSave().cards[0]?.animated).toEqual({
+            power: 2,
+            toughness: 2,
+            subtype: "Assembly-Worker",
+            additionalTypes: ["Artifact"],
+            duration: { phase: "end-of-turn" },
         });
         // CR 106.4 / 603.3 / 502.1 (issue #3451) — the rendered trio survives
         // the same round trip, checkbox and all.
