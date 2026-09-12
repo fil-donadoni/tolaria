@@ -94,11 +94,14 @@ import type { Phase } from "./types";
  *  What is deliberately NOT staged here is the tap's UNDO BOOKKEEPING —
  *  `chosenMana`, `tapBonusMana`, `manaPaidThisTap`, `lifePaidThisTap`,
  *  `exertedThisTap`, `manaCounterRemoval`. Those exist so `untapSourceFromPayment`
- *  can give back exactly what a tap took, and what it gives back lands in the
- *  MANA POOL — which `specFromState` cannot lower at all (it reports a floating
- *  pool as dropped, so every rebuild opens with an empty one). Staging them
- *  would let a rebuilt untap ADD life, counters and cost mana that this
- *  position never paid; see `CARD_STATE_ALLOWLIST`. */
+ *  can give back exactly what a tap took — and a REBUILT position has no tap to
+ *  give anything back for. Staging them would let a rebuilt untap ADD life,
+ *  counters and cost mana that this position never paid; see
+ *  `CARD_STATE_ALLOWLIST`. (Issue #3451 argued this from the mana pool being
+ *  unlowerable; issue #3460 lowered the pool, and the argument is unchanged —
+ *  it never rested on the pool's contents but on the absent tap. A captured
+ *  pool now arrives in full, and it arrives with no undo ledger behind it,
+ *  which is exactly right: nothing was taken to give back.) */
 function applyTapState(card: CardInstanceState, entry: ScenarioCard): void {
     if (entry.manaCommitted) card.manaCommitted = true;
     if (entry.tapTriggerCommitted) card.tapTriggerCommitted = true;
@@ -1355,8 +1358,7 @@ function seedDeclaredCombat(state: GameState, spec: ScenarioSpec): void {
 // tallies and the storm count, the retrospective per-turn tallies — damage
 // taken, life gained, deaths, whether anyone attacked, each ability's
 // resolutions — one companion slot). Everything else a live
-// `GameState` can hold — the stack, mana pool,
-// a mid-flight payment, combat beyond an empty DECLARE_ATTACKERS seed,
+// `GameState` can hold — the stack, a mid-flight payment, combat beyond an empty DECLARE_ATTACKERS seed,
 // delayed triggers, a per-card continuous effect the spec has no field for —
 // is reported here rather than silently discarded, so a caller never mistakes
 // a lossy capture for a complete one.
@@ -1561,9 +1563,11 @@ export const CARD_STATE_ALLOWLIST = new Set<string>([
     // the untap path's own: each is written once by a tap and read once by that
     // tap's reversal, and a REBUILT position has no tap to reverse. What the
     // reversal gives back is a resource this position never took — the produced
-    // mana above all, and the mana pool is the ONE thing `specFromState` cannot
-    // lower at all (a floating pool is reported as dropped, so every rebuild
-    // opens with an empty one).
+    // mana above all. (Issue #3451 stated that second half as "the mana pool is
+    // the one thing `specFromState` cannot lower"; issue #3460 lowered it, and
+    // the conclusion does not move — a captured pool is placed as captured, and
+    // the ABSENCE of an undo ledger beside it is what keeps a rebuilt untap from
+    // handing back mana no tap in this position ever produced.)
     //
     // Lowering them would therefore make the rebuilt undo strictly WORSE than
     // dropping them, and asymmetrically so: the two pool subtractions clamp at

@@ -3039,7 +3039,7 @@ describe("buildStateFromScenario — per-card tap state (issue #3451)", () => {
         expect(rebuiltBears?.startedTurnUntapped).toBe(true);
     });
 
-    it("reports the MANA POOL, never the six undo records that exist to refill it", () => {
+    it("lowers the MANA POOL, never the six undo records that exist to refill it", () => {
         const base = makeState();
         const live = buildStateFromScenario(base, {
             cards: [{ name: forest.name, owner: "me", tapped: true }],
@@ -3062,15 +3062,17 @@ describe("buildStateFromScenario — per-card tap state (issue #3451)", () => {
             mySeatId: live.players[0].id,
         });
 
-        // Exactly one loss, and it is the pool — which is the argument for
-        // allowlisting the six: the thing they give back is the thing the spec
-        // cannot carry, so a rebuild has nothing to give back.
-        expect(dropped).toEqual([
-            "me's mana pool: 2G — not lowered (mana pool isn't spec-expressible)",
-        ]);
+        // Nothing is lost on this board at all since issue #3460 lowered the
+        // pool — and the argument for allowlisting the six did not rest on the
+        // pool being unlowerable, it rests on the rebuild having no TAP to
+        // reverse. The pool arrives as captured; no undo ledger arrives with it.
+        expect(dropped).toEqual([]);
+        expect(lowered.manaPool).toEqual({ me: { G: 2 } });
 
-        // And the rebuild carries none of them, so its untap-toggle is a plain
-        // untap: no life, no counters and no cost mana minted out of nothing.
+        // And the rebuild carries none of the six, so its untap-toggle is a
+        // plain untap: no life, no counters and no cost mana minted out of
+        // nothing — and the pool it would have minted INTO is the captured one,
+        // neither topped up nor emptied.
         const rebuilt = buildStateFromScenario(base, lowered);
         const rebuiltForest = find(rebuilt, 0, forest.id);
         expect(rebuiltForest?.isTapped).toBe(true);
@@ -3080,7 +3082,7 @@ describe("buildStateFromScenario — per-card tap state (issue #3451)", () => {
         expect(rebuiltForest?.lifePaidThisTap).toBeUndefined();
         expect(rebuiltForest?.exertedThisTap).toBeUndefined();
         expect(rebuiltForest?.manaCounterRemoval).toBeUndefined();
-        expect(rebuilt.players[0].manaPool.G).toBe(0);
+        expect(rebuilt.players[0].manaPool.G).toBe(2);
     });
 
     // CR 502.1 / 603.4 — the behavioural half for `startedTurnUntapped`: the
@@ -3117,7 +3119,6 @@ describe("buildStateFromScenario — per-card tap state (issue #3451)", () => {
         expect(fires(false)).toBe(false);
     });
 });
-||||||| parent of 06090bf1b (Scenario spec: floating mana, pool and restricted, so a mid-turn spend decision can be judged (closes #3460))
 
 // CR 106.4 / 106.6 (issue #3460, PRD #3397) — FLOATING MANA. The pool decides
 // what is castable this instant, so before this widening a mid-turn position
