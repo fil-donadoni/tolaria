@@ -370,22 +370,38 @@ function clientManaAbilities(
     card: CardInstance,
     stateView?: TriggerStateView
 ): ActivatedAbility[] {
-    return getEffectiveActivatedAbilities(card as unknown as CardInstanceState)
-        .filter(
-            ({ ability: a }) =>
-                !a.useStack &&
-                (a.manaProduced ||
-                    a.manaChoices ||
-                    a.getManaChoices ||
-                    a.manaColorSource)
-        )
-        .map(({ ability }) => ability)
-        .filter(
-            (a) =>
-                stateView === undefined ||
-                !a.canActivate ||
-                a.canActivate(card as unknown as PermanentView, stateView)
-        );
+    return (
+        getEffectiveActivatedAbilities(card as unknown as CardInstanceState)
+            .filter(
+                ({ ability: a }) =>
+                    !a.useStack &&
+                    (a.manaProduced ||
+                        a.manaChoices ||
+                        a.getManaChoices ||
+                        a.manaColorSource)
+            )
+            .map(({ ability }) => ability)
+            .filter(
+                (a) =>
+                    stateView === undefined ||
+                    !a.canActivate ||
+                    a.canActivate(card as unknown as PermanentView, stateView)
+            )
+            // CR 602.1 / 122.6 (issue #2712) — an UNPAYABLE fixed counter-removal
+            // leg means no usable mana ability, the same answer the server's
+            // `getActivatedManaAbility` gives. Unlike the `canActivate` gate above
+            // this needs NO view — the counters are on the instance — so it
+            // applies unconditionally, and all three consumers of this list get it
+            // at once (the tap affordance, the ability-menu entry, the cost
+            // affordance) instead of only the one that threads a board through to
+            // `getManaTapOptions`. A depletion land whose counters an effect
+            // stripped (Vampire Hexmage, Thief of Blood) is otherwise the
+            // "clickable but rejected" shape.
+            .filter((a) => {
+                const leg = a.cost.removeCounter;
+                return !leg || (card.counters?.[leg.type] ?? 0) >= leg.count;
+            })
+    );
 }
 
 /** Returns true if a card has a tap mana ability (basic land subtype or
