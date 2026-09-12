@@ -10,8 +10,8 @@
 //   turn-face-up     → turnPermanentFaceUp (CR 116.2b / 702.37e, issue #2705)
 //   cast-spell       → announceCast → selectTargets? [→ confirmTargets] → tapForPayment?
 //   activate-ability → activateAbility → selectTargets? [→ confirmTargets] → tapForActivationPayment*
-//   declare-attackers→ toggleAttacker* → toggleExert* → confirmAttackers
-//   declare-blockers → (selectBlocker → assignBlockerTarget)* → confirmBlockers
+//   declare-attackers→ declareAttackers → confirmAttackers
+//   declare-blockers → declareBlockers → confirmBlockers
 //   mulligan         → declareMulligan
 //   mulligan-bottom  → submitResolutionChoice (kind "mulligan-bottom")
 //   resolution-choice→ submitResolutionChoice (any zone-pick kind, ADR 0016)
@@ -174,14 +174,24 @@ export type MoveMutations = {
     selectActivationDiscardCost: (
         a: GP & { cardInstanceIds: string[] }
     ) => Promise<unknown>;
-    toggleAttacker: (a: GP & { cardInstanceId: string }) => Promise<unknown>;
-    /** CR 508.1g / 701.43d — the optional exert cost for one declared
-     *  attacker. Separate from `toggleAttacker` because declining is the
-     *  default and the two toggles are independent decisions. */
-    toggleExert: (a: GP & { cardInstanceId: string }) => Promise<unknown>;
+    /** CR 508.1 — the WHOLE attacker declaration in one mutation: the
+     *  attackers, their optional planeswalker targets (CR 508.1a) and the
+     *  optional exert costs they pay (CR 508.1g / 701.43d). One persisted
+     *  `gameStates` version for the set rather than one per creature
+     *  (issue #3475), which is what the bot's burst of toggles used to cost. */
+    declareAttackers: (
+        a: GP & {
+            attackerIds: string[];
+            attackTargets?: Record<string, string>;
+            exertIds?: string[];
+        }
+    ) => Promise<unknown>;
     confirmAttackers: (a: GP) => Promise<unknown>;
-    selectBlocker: (a: GP & { cardInstanceId: string }) => Promise<unknown>;
-    assignBlockerTarget: (a: GP & { attackerId: string }) => Promise<unknown>;
+    /** CR 509.1 — the WHOLE block declaration in one mutation (issue #3475);
+     *  the per-click path costs two versions per assignment. */
+    declareBlockers: (
+        a: GP & { assignments: { blockerId: string; attackerId: string }[] }
+    ) => Promise<unknown>;
     confirmBlockers: (a: GP) => Promise<unknown>;
     /** Confirm the bot's portion of combat-damage assignment (CR 510.1c). Not a
      *  GRE `Move`: the damage step is resolved by the driver's gate (the search
@@ -691,29 +701,29 @@ export async function executeMove(
         }
 
         case "declare-attackers": {
-            // Each id starts undeclared, so toggle adds it. Forced attackers not
-            // in the set are auto-included by confirmAttackers (CR 508.1d).
-            for (const id of move.attackerIds) {
-                await mutations.toggleAttacker({ ...base, cardInstanceId: id });
-            }
-            // CR 508.1g / 701.43d — the optional exert costs, chosen while the
-            // declaration is still open (the server refuses `toggleExert` once
-            // `combat.confirmed` is set, which is exactly the CR's ordering).
-            for (const id of move.exertIds ?? []) {
-                await mutations.toggleExert({ ...base, cardInstanceId: id });
-            }
+            // ONE mutation for the whole declaration (issue #3475): the
+            // attackers, their planeswalker targets (CR 508.1a) and the
+            // optional exert costs (CR 508.1g / 701.43d) — which the server
+            // applies in that order, exactly as the toggle sequence did, and
+            // refuses once `combat.confirmed` is set. Forced attackers not in
+            // the set are auto-included by confirmAttackers (CR 508.1d).
+            await mutations.declareAttackers({
+                ...base,
+                attackerIds: move.attackerIds,
+                ...(move.attackTargets
+                    ? { attackTargets: move.attackTargets }
+                    : {}),
+                ...(move.exertIds ? { exertIds: move.exertIds } : {}),
+            });
             await mutations.confirmAttackers(base);
             return;
         }
 
         case "declare-blockers": {
-            for (const { blockerId, attackerId } of move.assignments) {
-                await mutations.selectBlocker({
-                    ...base,
-                    cardInstanceId: blockerId,
-                });
-                await mutations.assignBlockerTarget({ ...base, attackerId });
-            }
+            await mutations.declareBlockers({
+                ...base,
+                assignments: move.assignments,
+            });
             await mutations.confirmBlockers(base);
             return;
         }

@@ -12867,13 +12867,190 @@ export function assertLegalAttackTarget(
     }
 }
 
+/** CR 508.1 — the guards EVERY attacker-declaration mutation shares: the game
+ *  is live, this player owes the input (ADR 0047), the step is
+ *  DECLARE_ATTACKERS, the caller is the active player, and the declaration is
+ *  still open. Returns the narrowed, still-open `combat` so callers need no
+ *  non-null assertion. Extracted (issue #3475) so the per-click
+ *  `toggleAttacker` and the batched `declareAttackers` cannot drift on WHO may
+ *  declare and WHEN. */
+function assertAttackerDeclarationOpen(
+    state: GameState,
+    playerId: string
+): NonNullable<GameState["combat"]> {
+    assertGameNotOver(state);
+    assertExpectedInput(state, { playerId, expect: "priority" });
+
+    if (state.phase !== "DECLARE_ATTACKERS") {
+        throw new Error("Not in DECLARE_ATTACKERS phase");
+    }
+    if (playerId !== state.activePlayerId) {
+        throw new Error("Only the active player can declare attackers");
+    }
+    if (!state.combat || state.combat.confirmed) {
+        throw new Error("Attacker selection is not open");
+    }
+    return state.combat;
+}
+
+/** The SELECT half of an attacker declaration (CR 508.1): eligibility, the
+ *  battlefield-wide attacker cap, and the optional planeswalker attack target.
+ *  Shared by `toggleAttacker` and `declareAttackers` so one selection and eight
+ *  run the identical rules.
+ *
+ *  Every check runs BEFORE the first mutation of `state`, so a throw leaves the
+ *  selection exactly as it was — which is what lets the batched declaration
+ *  skip a creature the server refuses and keep going (the behaviour the
+ *  client's "Attack with all" loop used to get from one mutation per toggle). */
+function selectAttacker(
+    state: GameState,
+    combat: NonNullable<GameState["combat"]>,
+    playerId: string,
+    cardInstanceId: string,
+    planeswalkerId?: string
+): void {
+    const player = getPlayer(state, playerId);
+    const card = player.battlefield.find((c) => c.id === cardInstanceId);
+    if (!card) throw new Error("Card not on battlefield");
+    const defenderBattlefield = getPlayer(
+        state,
+        getOpponentId(state, playerId)
+    ).battlefield;
+    // CR 508.1a (issue #1220) — validate an optional planeswalker attack
+    // target: it must be a planeswalker the DEFENDING player controls. Its
+    // presence routes this attacker's combat damage to the planeswalker's
+    // loyalty instead of the defending player.
+    if (planeswalkerId !== undefined) {
+        assertLegalAttackTarget(defenderBattlefield, planeswalkerId);
+    }
+    // Select — must be eligible
+    const validation = validateAttackerEligibility(
+        card,
+        defenderBattlefield,
+        state
+    );
+    if (!validation.eligible) {
+        throw new Error(validation.reason);
+    }
+    // CR 508.1a — a battlefield-wide cap on how many creatures may be
+    // declared as attackers each combat (Caverns of Despair at two,
+    // Dueling Grounds at one). The cap is global regardless of who
+    // controls the source; reject the selection that would push the
+    // count past it. The whole-set twin of this check runs at confirm
+    // (`validateDeclaredAttackers`).
+    const attackerCap = getAttackerCapEffect(state);
+    if (
+        attackerCap !== undefined &&
+        combat.attackerIds.length >= attackerCap.max
+    ) {
+        throw new Error(attackerCap.oracleText);
+    }
+    combat.attackerIds.push(cardInstanceId);
+    // CR 508.1a (issue #1220) — record the planeswalker this attacker is
+    // attacking, if one was chosen at declaration. Absence = the
+    // defending player.
+    if (planeswalkerId !== undefined) {
+        combat.attackTargets = {
+            ...(combat.attackTargets ?? {}),
+            [cardInstanceId]: planeswalkerId,
+        };
+    }
+}
+
+/** The DESELECT half of an attacker declaration: CR 508.1d refuses a creature
+ *  required to attack, and the removal cascades to everything that named the
+ *  attacker (its planeswalker target, its exert choice, its band). */
+function deselectAttacker(
+    state: GameState,
+    combat: NonNullable<GameState["combat"]>,
+    playerId: string,
+    cardInstanceId: string
+): void {
+    const player = getPlayer(state, playerId);
+    const card = player.battlefield.find((c) => c.id === cardInstanceId);
+    if (!card) throw new Error("Card not on battlefield");
+    const defenderBattlefield = getPlayer(
+        state,
+        getOpponentId(state, playerId)
+    ).battlefield;
+    const idx = combat.attackerIds.indexOf(cardInstanceId);
+    if (idx === -1) return;
+    // CR 508.1d: can't deselect a creature required to attack
+    if (mustAttack(card, state, defenderBattlefield)) {
+        throw new Error(
+            `${getDefinition(card.card.id as string).name} must attack this combat if able`
+        );
+    }
+    combat.attackerIds.splice(idx, 1);
+    // Drop any planeswalker attack target for the deselected attacker.
+    if (combat.attackTargets?.[cardInstanceId]) {
+        delete combat.attackTargets[cardInstanceId];
+        if (Object.keys(combat.attackTargets).length === 0) {
+            combat.attackTargets = undefined;
+        }
+    }
+    // CR 508.1g / 701.43d: a deselected attacker is no longer
+    // attacking, so the optional exert cost chosen for it is void —
+    // dropped here rather than filtered at payment time so the client
+    // and the bot both read a selection that means what it says.
+    if (combat.exertedIds?.includes(cardInstanceId)) {
+        const kept = combat.exertedIds.filter((id) => id !== cardInstanceId);
+        combat.exertedIds = kept.length > 0 ? kept : undefined;
+    }
+    // CR 702.22f: a deselected attacker leaves any band it was in.
+    // Drop the now-stale member and discard bands that fall below a
+    // legal size (need 2+ members, 1+ with banding).
+    if (combat.bands) {
+        combat.bands = combat.bands
+            .map((b) => ({
+                ...b,
+                memberIds: b.memberIds.filter((id) => id !== cardInstanceId),
+            }))
+            .filter((b) => {
+                if (b.memberIds.length < 2) return false;
+                const members = b.memberIds
+                    .map((id) => player.battlefield.find((c) => c.id === id))
+                    .filter((c): c is NonNullable<typeof c> => !!c);
+                // CR 702.22c / 702.22j — the surviving members must
+                // still form a legal band (plain or bands-with-other).
+                return isLegalBandComposition(members);
+            });
+        if (combat.bands.length === 0) {
+            combat.bands = undefined;
+        }
+    }
+}
+
+/** CR 508.1a (issue #1220) — point an ALREADY-declared attacker at a
+ *  planeswalker, or clear the target back to the defending player when it
+ *  already attacks that same planeswalker (toggle-off). Never a deselection. */
+function retargetAttacker(
+    combat: NonNullable<GameState["combat"]>,
+    cardInstanceId: string,
+    planeswalkerId: string
+): void {
+    const targets = combat.attackTargets ?? {};
+    if (targets[cardInstanceId] === planeswalkerId) {
+        delete targets[cardInstanceId];
+    } else {
+        targets[cardInstanceId] = planeswalkerId;
+    }
+    combat.attackTargets =
+        Object.keys(targets).length > 0 ? targets : undefined;
+}
+
 /** Toggle a creature in/out of the attacker selection (visible to both clients
  *  in real-time). When `planeswalkerId` is supplied, the creature attacks that
  *  planeswalker (CR 508.1a, issue #1220) rather than the defending player:
  *  - selecting a creature with `planeswalkerId` declares it attacking the PW;
  *  - re-supplying `planeswalkerId` for an already-declared attacker retargets it
  *    (or clears the target back to the player when it already attacks that PW);
- *  - omitting `planeswalkerId` toggles declaration as before (target = player). */
+ *  - omitting `planeswalkerId` toggles declaration as before (target = player).
+ *
+ *  ONE creature, ONE persisted `gameStates` version. A caller that already
+ *  knows the whole selection (the bot, "Attack with all") uses
+ *  `declareAttackers` instead — same rules, one version for the whole set
+ *  (issue #3475). */
 export const toggleAttacker = mutation({
     args: {
         gameId: v.id("games"),
@@ -12889,21 +13066,7 @@ export const toggleAttacker = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        assertGameNotOver(state);
-        assertExpectedInput(state, {
-            playerId: args.playerId,
-            expect: "priority",
-        });
-
-        if (state.phase !== "DECLARE_ATTACKERS") {
-            throw new Error("Not in DECLARE_ATTACKERS phase");
-        }
-        if (args.playerId !== state.activePlayerId) {
-            throw new Error("Only the active player can declare attackers");
-        }
-        if (!state.combat || state.combat.confirmed) {
-            throw new Error("Attacker selection is not open");
-        }
+        const combat = assertAttackerDeclarationOpen(state, args.playerId);
 
         const player = getPlayer(state, args.playerId);
         const card = player.battlefield.find(
@@ -12924,113 +13087,19 @@ export const toggleAttacker = mutation({
             assertLegalAttackTarget(defenderBattlefield, args.planeswalkerId);
         }
 
-        const idx = state.combat.attackerIds.indexOf(args.cardInstanceId);
+        const idx = combat.attackerIds.indexOf(args.cardInstanceId);
         if (idx !== -1 && args.planeswalkerId !== undefined) {
-            // Already-declared attacker + a planeswalker target: retarget it
-            // (CR 508.1a). If it already attacks that same planeswalker, clear
-            // the target back to the defending player (toggle-off); otherwise
-            // point it at the planeswalker. Never a deselection.
-            const targets = state.combat.attackTargets ?? {};
-            if (targets[args.cardInstanceId] === args.planeswalkerId) {
-                delete targets[args.cardInstanceId];
-            } else {
-                targets[args.cardInstanceId] = args.planeswalkerId;
-            }
-            state.combat.attackTargets =
-                Object.keys(targets).length > 0 ? targets : undefined;
-            await saveGameState(
-                ctx,
-                args.gameId,
-                gameState.seq + 1,
-                state,
-                gameState
-            );
-            return;
-        }
-        if (idx !== -1) {
-            // CR 508.1d: can't deselect a creature required to attack
-            if (mustAttack(card, state, defenderBattlefield)) {
-                throw new Error(
-                    `${getDefinition(card.card.id as string).name} must attack this combat if able`
-                );
-            }
-            state.combat.attackerIds.splice(idx, 1);
-            // Drop any planeswalker attack target for the deselected attacker.
-            if (state.combat.attackTargets?.[args.cardInstanceId]) {
-                delete state.combat.attackTargets[args.cardInstanceId];
-                if (Object.keys(state.combat.attackTargets).length === 0) {
-                    state.combat.attackTargets = undefined;
-                }
-            }
-            // CR 508.1g / 701.43d: a deselected attacker is no longer
-            // attacking, so the optional exert cost chosen for it is void —
-            // dropped here rather than filtered at payment time so the client
-            // and the bot both read a selection that means what it says.
-            if (state.combat.exertedIds?.includes(args.cardInstanceId)) {
-                const kept = state.combat.exertedIds.filter(
-                    (id) => id !== args.cardInstanceId
-                );
-                state.combat.exertedIds = kept.length > 0 ? kept : undefined;
-            }
-            // CR 702.22f: a deselected attacker leaves any band it was in.
-            // Drop the now-stale member and discard bands that fall below a
-            // legal size (need 2+ members, 1+ with banding).
-            if (state.combat.bands) {
-                state.combat.bands = state.combat.bands
-                    .map((b) => ({
-                        ...b,
-                        memberIds: b.memberIds.filter(
-                            (id) => id !== args.cardInstanceId
-                        ),
-                    }))
-                    .filter((b) => {
-                        if (b.memberIds.length < 2) return false;
-                        const members = b.memberIds
-                            .map((id) =>
-                                player.battlefield.find((c) => c.id === id)
-                            )
-                            .filter((c): c is NonNullable<typeof c> => !!c);
-                        // CR 702.22c / 702.22j — the surviving members must
-                        // still form a legal band (plain or bands-with-other).
-                        return isLegalBandComposition(members);
-                    });
-                if (state.combat.bands.length === 0) {
-                    state.combat.bands = undefined;
-                }
-            }
+            retargetAttacker(combat, args.cardInstanceId, args.planeswalkerId);
+        } else if (idx !== -1) {
+            deselectAttacker(state, combat, args.playerId, args.cardInstanceId);
         } else {
-            // Select — must be eligible
-            const validation = validateAttackerEligibility(
-                card,
-                defenderBattlefield,
-                state
+            selectAttacker(
+                state,
+                combat,
+                args.playerId,
+                args.cardInstanceId,
+                args.planeswalkerId
             );
-            if (!validation.eligible) {
-                throw new Error(validation.reason);
-            }
-            // CR 508.1a — a battlefield-wide cap on how many creatures may be
-            // declared as attackers each combat (Caverns of Despair at two,
-            // Dueling Grounds at one). The cap is global regardless of who
-            // controls the source; reject the selection that would push the
-            // count past it. The whole-set twin of this check runs at confirm
-            // (`validateDeclaredAttackers`).
-            const attackerCap = getAttackerCapEffect(state);
-            if (
-                attackerCap !== undefined &&
-                state.combat.attackerIds.length >= attackerCap.max
-            ) {
-                throw new Error(attackerCap.oracleText);
-            }
-            state.combat.attackerIds.push(args.cardInstanceId);
-            // CR 508.1a (issue #1220) — record the planeswalker this attacker is
-            // attacking, if one was chosen at declaration. Absence = the
-            // defending player.
-            if (args.planeswalkerId !== undefined) {
-                state.combat.attackTargets = {
-                    ...(state.combat.attackTargets ?? {}),
-                    [args.cardInstanceId]: args.planeswalkerId,
-                };
-            }
         }
 
         await saveGameState(
@@ -13042,6 +13111,139 @@ export const toggleAttacker = mutation({
         );
     },
 });
+
+/** Declare a WHOLE attacker selection in ONE persisted `gameStates` version
+ *  (issue #3475). Functionally `toggleAttacker` × N + `toggleExert` × M, minus
+ *  the N + M read-modify-write cycles, subscription invalidations and document
+ *  versions that the per-creature round-trip pays for a declaration that is
+ *  provisional until `confirmAttackers` anyway.
+ *
+ *  ADDITIVE and idempotent: an id already declared is left alone (with its
+ *  `attackTargets` entry applied if one is supplied), never toggled off — the
+ *  callers are describing the attack they want, not flipping switches. Nothing
+ *  here deselects; `toggleAttacker` remains the only way out of a selection.
+ *
+ *  A creature the server refuses (an eligibility restriction the client cannot
+ *  see, the CR 508.1a attacker cap) is SKIPPED and reported in `rejected`
+ *  rather than aborting the batch — `selectAttacker` validates before it
+ *  mutates, so a skip leaves no partial state. This preserves the per-toggle
+ *  loop's tolerance, which "Attack with all" depends on, and keeps the bot
+ *  advancing (a declaration is never a freeze).
+ *
+ *  Authority is unchanged: this is the same validation the per-click path runs,
+ *  and `confirmAttackers` still re-validates the whole set (CR 508.1d
+ *  requirements, `validateDeclaredAttackers`) before the attack is locked in. */
+export const declareAttackers = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        attackerIds: v.array(v.string()),
+        /** CR 508.1a (issue #1220) — attackerId → the planeswalker it attacks.
+         *  Absent attackers attack the defending player. */
+        attackTargets: v.optional(v.record(v.string(), v.string())),
+        /** CR 508.1g / 701.43d — declared attackers whose OPTIONAL exert cost
+         *  the declarer chooses to pay. */
+        exertIds: v.optional(v.array(v.string())),
+    },
+    handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        const combat = assertAttackerDeclarationOpen(state, args.playerId);
+
+        const rejected: { cardInstanceId: string; reason: string }[] = [];
+        for (const cardInstanceId of args.attackerIds) {
+            const planeswalkerId = args.attackTargets?.[cardInstanceId];
+            try {
+                if (combat.attackerIds.includes(cardInstanceId)) {
+                    if (planeswalkerId !== undefined) {
+                        assertLegalAttackTarget(
+                            getPlayer(
+                                state,
+                                getOpponentId(state, args.playerId)
+                            ).battlefield,
+                            planeswalkerId
+                        );
+                        // Already declared: SET the target (never the
+                        // toggle-off `toggleAttacker` does — a batch says
+                        // where the attack goes, it does not flip it).
+                        combat.attackTargets = {
+                            ...(combat.attackTargets ?? {}),
+                            [cardInstanceId]: planeswalkerId,
+                        };
+                    }
+                    continue;
+                }
+                selectAttacker(
+                    state,
+                    combat,
+                    args.playerId,
+                    cardInstanceId,
+                    planeswalkerId
+                );
+            } catch (e) {
+                rejected.push({
+                    cardInstanceId,
+                    reason: e instanceof Error ? e.message : String(e),
+                });
+            }
+        }
+
+        // CR 508.1g / 701.43d — the optional exert costs, chosen while the
+        // declaration is still open. Applied after every attacker is in, so an
+        // id is exertable exactly when `toggleExert` would have found it.
+        for (const cardInstanceId of args.exertIds ?? []) {
+            if (combat.exertedIds?.includes(cardInstanceId)) continue;
+            try {
+                applyExertToggle(state, combat, cardInstanceId);
+            } catch (e) {
+                rejected.push({
+                    cardInstanceId,
+                    reason: e instanceof Error ? e.message : String(e),
+                });
+            }
+        }
+
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
+        // The REAL selection, not the requested one — the caller's follow-up
+        // (the planeswalker destination sequence) must walk what was actually
+        // declared.
+        return { declaredIds: [...combat.attackerIds], rejected };
+    },
+});
+
+/** CR 508.1g / 701.43d — flip the OPTIONAL exert choice for ONE declared
+ *  attacker. Shared by `toggleExert` and the batched `declareAttackers`
+ *  (issue #3475). Validates before it mutates, so a throw leaves the selection
+ *  untouched. */
+function applyExertToggle(
+    state: GameState,
+    combat: NonNullable<GameState["combat"]>,
+    cardInstanceId: string
+): void {
+    // The SAME authority the bot enumerates and the client renders from,
+    // so an id none of them offers cannot be smuggled in here.
+    if (!exertableAttackerIds(state).includes(cardInstanceId)) {
+        throw new Error(
+            "That creature is not a declared attacker you may exert"
+        );
+    }
+    const current = combat.exertedIds ?? [];
+    const next = current.includes(cardInstanceId)
+        ? current.filter((id) => id !== cardInstanceId)
+        : [...current, cardInstanceId];
+    combat.exertedIds = next.length > 0 ? next : undefined;
+}
 
 /** CR 508.1g / 701.43d — toggle the OPTIONAL "you may exert this creature as it
  *  attacks" cost for one declared attacker, while the declaration is still open.
@@ -13081,19 +13283,7 @@ export const toggleExert = mutation({
         if (!state.combat || state.combat.confirmed) {
             throw new Error("Attacker selection is not open");
         }
-        // The SAME authority the bot enumerates and the client renders from,
-        // so an id none of them offers cannot be smuggled in here.
-        if (!exertableAttackerIds(state).includes(args.cardInstanceId)) {
-            throw new Error(
-                "That creature is not a declared attacker you may exert"
-            );
-        }
-
-        const current = state.combat.exertedIds ?? [];
-        const next = current.includes(args.cardInstanceId)
-            ? current.filter((id) => id !== args.cardInstanceId)
-            : [...current, args.cardInstanceId];
-        state.combat.exertedIds = next.length > 0 ? next : undefined;
+        applyExertToggle(state, state.combat, args.cardInstanceId);
 
         await saveGameState(
             ctx,
@@ -13875,37 +14065,25 @@ export const selectBlocker = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        assertGameNotOver(state);
-        assertExpectedInput(state, {
-            playerId: args.playerId,
-            expect: "blockers",
-        });
-
-        if (state.phase !== "DECLARE_BLOCKERS") {
-            throw new Error("Not in DECLARE_BLOCKERS phase");
-        }
-        if (!state.combat || state.combat.blockersConfirmed) {
-            throw new Error("Blocker selection is not open");
-        }
-        // Melee (CR 509.1 variant, #669) — under `meleeCombat` the ATTACKING
-        // (active) player declares blocks; otherwise the defending player does.
-        if (args.playerId !== getBlockDeclarerId(state)) {
-            throw new Error("You can't declare blockers right now");
-        }
+        const combat = assertBlockerDeclarationOpen(
+            state,
+            args.playerId,
+            "declare"
+        );
 
         // The blocking creatures are always the DEFENDING player's, even when
         // Melee routes the declaration to the attacker.
         const defenderId = getOpponentId(state, state.activePlayerId);
 
         // If this card is already assigned as a blocker, unassign it
-        if (state.combat.blockerAssignments[args.cardInstanceId]?.length > 0) {
-            delete state.combat.blockerAssignments[args.cardInstanceId];
-            if (state.combat.pendingBlockerId === args.cardInstanceId) {
-                state.combat.pendingBlockerId = undefined;
+        if (combat.blockerAssignments[args.cardInstanceId]?.length > 0) {
+            delete combat.blockerAssignments[args.cardInstanceId];
+            if (combat.pendingBlockerId === args.cardInstanceId) {
+                combat.pendingBlockerId = undefined;
             }
-        } else if (state.combat.pendingBlockerId === args.cardInstanceId) {
+        } else if (combat.pendingBlockerId === args.cardInstanceId) {
             // If it's the current pending, deselect
-            state.combat.pendingBlockerId = undefined;
+            combat.pendingBlockerId = undefined;
         } else {
             // Select as pending: validate it's an eligible creature
             const player = getPlayer(state, defenderId);
@@ -13913,13 +14091,171 @@ export const selectBlocker = mutation({
                 (c) => c.id === args.cardInstanceId
             );
             if (!card) throw new Error("Card not on battlefield");
-            const types = card.types;
-            if (!types.includes("Creature")) {
-                throw new Error("Only creatures can block");
-            }
-            if (card.isTapped) throw new Error("Tapped creatures cannot block");
-            state.combat.pendingBlockerId = args.cardInstanceId;
+            assertCanBlock(card);
+            combat.pendingBlockerId = args.cardInstanceId;
         }
+
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
+    },
+});
+
+/** CR 509.1 — the guards every blocker-declaration mutation shares: the game is
+ *  live, this player owes the input (ADR 0047), the step is DECLARE_BLOCKERS,
+ *  the declaration is still open, and the caller is the player who declares
+ *  this combat's blocks (the defender, or the ATTACKER under Melee, #669).
+ *  Returns the narrowed, still-open `combat`. */
+function assertBlockerDeclarationOpen(
+    state: GameState,
+    playerId: string,
+    verb: "declare" | "assign"
+): NonNullable<GameState["combat"]> {
+    assertGameNotOver(state);
+    assertExpectedInput(state, { playerId, expect: "blockers" });
+
+    if (state.phase !== "DECLARE_BLOCKERS") {
+        throw new Error("Not in DECLARE_BLOCKERS phase");
+    }
+    if (!state.combat || state.combat.blockersConfirmed) {
+        throw new Error("Blocker selection is not open");
+    }
+    // Melee (CR 509.1 variant, #669) — under `meleeCombat` the ATTACKING
+    // (active) player declares blocks; otherwise the defending player does.
+    if (playerId !== getBlockDeclarerId(state)) {
+        throw new Error(
+            verb === "declare"
+                ? "You can't declare blockers right now"
+                : "You can't assign blockers right now"
+        );
+    }
+    return state.combat;
+}
+
+/** CR 509.1a — the creature-level half of a block declaration: only an untapped
+ *  creature can be declared as a blocker. `selectBlocker` runs it when the
+ *  blocker is picked; the batched `declareBlockers` runs it per assignment,
+ *  because it has no pending-blocker step to have run it already. */
+function assertCanBlock(card: CardInstanceState): void {
+    if (!card.types.includes("Creature")) {
+        throw new Error("Only creatures can block");
+    }
+    if (card.isTapped) throw new Error("Tapped creatures cannot block");
+}
+
+/** Assign ONE blocker to ONE attacker (CR 509.1a/1b): evasion eligibility, the
+ *  battlefield-wide blocker cap, and the blocker's own multi-block limit.
+ *  Shared by `assignBlockerTarget` and the batched `declareBlockers`
+ *  (issue #3475). Validates before it mutates. */
+function applyBlockerAssignment(
+    state: GameState,
+    combat: NonNullable<GameState["combat"]>,
+    blockerId: string,
+    attackerId: string
+): void {
+    if (!combat.attackerIds.includes(attackerId)) {
+        throw new Error("Target is not an attacker");
+    }
+
+    // Evasion checks (CR 509.1b): flying (CR 702.9) + landwalk (CR 702.14).
+    const activePlayer = getPlayer(state, state.activePlayerId);
+    const attacker = activePlayer.battlefield.find((c) => c.id === attackerId);
+    // The blocking creatures are the DEFENDING player's, even when Melee
+    // routes the declaration to the attacker.
+    const defender = getPlayer(
+        state,
+        getOpponentId(state, state.activePlayerId)
+    );
+    const blocker = defender.battlefield.find((c) => c.id === blockerId);
+    if (attacker && blocker) {
+        const check = validateBlockerEligibility(
+            attacker,
+            blocker,
+            defender.battlefield,
+            state
+        );
+        if (!check.eligible) {
+            throw new Error(check.reason);
+        }
+    }
+
+    const existing = combat.blockerAssignments[blockerId] ?? [];
+    // CR 509.1a — a battlefield-wide cap on how many creatures may be
+    // declared as blockers each combat (Caverns of Despair at two, Dueling
+    // Grounds at one). The cap counts distinct blocking creatures, not
+    // blocking assignments; a creature already blocking may still take a
+    // second attacker (Two-Headed Giant) without consuming a new slot.
+    // Reject only a NEW blocker that would push the count past the cap.
+    const blockerCap = getBlockerCapEffect(state);
+    if (
+        blockerCap !== undefined &&
+        existing.length === 0 &&
+        Object.keys(combat.blockerAssignments).filter(
+            (id) => (combat.blockerAssignments[id] ?? []).length > 0
+        ).length >= blockerCap.max
+    ) {
+        throw new Error(blockerCap.oracleText);
+    }
+    const maxAttackers = blocker ? getMaxBlockTargets(blocker) : 1;
+    if (existing.length >= maxAttackers) {
+        throw new Error(
+            `This creature can only block ${maxAttackers} attacker${maxAttackers > 1 ? "s" : ""}`
+        );
+    }
+    combat.blockerAssignments[blockerId] = [...existing, attackerId];
+}
+
+/** Declare a WHOLE set of blocks in ONE persisted `gameStates` version
+ *  (issue #3475). The per-click path costs TWO versions per assignment
+ *  (`selectBlocker` then `assignBlockerTarget`); this costs one for the lot,
+ *  which is what the bot and any "block like this" caller actually need.
+ *
+ *  Strict, unlike `declareAttackers`: the assignments come from a caller that
+ *  enumerated them as legal, so a refusal means the declaration itself is wrong
+ *  and the whole batch is discarded (the mutation's clone is dropped, so no
+ *  partial block persists) rather than silently blocking with fewer creatures.
+ *  `confirmBlockers` still re-validates the whole set (CR 509.1c minimums,
+ *  `validateDeclaredBlockers`). */
+export const declareBlockers = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        assignments: v.array(
+            v.object({ blockerId: v.string(), attackerId: v.string() })
+        ),
+    },
+    handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        const combat = assertBlockerDeclarationOpen(
+            state,
+            args.playerId,
+            "declare"
+        );
+
+        // The blocking creatures are always the DEFENDING player's, even when
+        // Melee routes the declaration to the attacker.
+        const defenderId = getOpponentId(state, state.activePlayerId);
+        for (const { blockerId, attackerId } of args.assignments) {
+            const card = getPlayer(state, defenderId).battlefield.find(
+                (c) => c.id === blockerId
+            );
+            if (!card) throw new Error("Card not on battlefield");
+            assertCanBlock(card);
+            applyBlockerAssignment(state, combat, blockerId, attackerId);
+        }
+        // Nothing is left half-selected: the batch never leaves a pending
+        // blocker behind for the client to clear.
+        combat.pendingBlockerId = undefined;
 
         await saveGameState(
             ctx,
@@ -13946,84 +14282,23 @@ export const assignBlockerTarget = mutation({
         if (!gameState) throw new Error("Game not found");
 
         const state = structuredClone(gameState.state) as GameState;
-        assertGameNotOver(state);
-        assertExpectedInput(state, {
-            playerId: args.playerId,
-            expect: "blockers",
-        });
+        const combat = assertBlockerDeclarationOpen(
+            state,
+            args.playerId,
+            "assign"
+        );
 
-        if (state.phase !== "DECLARE_BLOCKERS") {
-            throw new Error("Not in DECLARE_BLOCKERS phase");
-        }
-        if (!state.combat || state.combat.blockersConfirmed) {
-            throw new Error("Blocker selection is not open");
-        }
-        // Melee (#669) — the attacker assigns blocks under `meleeCombat`.
-        if (args.playerId !== getBlockDeclarerId(state)) {
-            throw new Error("You can't assign blockers right now");
-        }
-        if (!state.combat.pendingBlockerId) {
+        if (!combat.pendingBlockerId) {
             throw new Error("No blocker selected");
         }
-        if (!state.combat.attackerIds.includes(args.attackerId)) {
-            throw new Error("Target is not an attacker");
-        }
 
-        // Evasion checks (CR 509.1b): flying (CR 702.9) + landwalk (CR 702.14).
-        const activePlayer = getPlayer(state, state.activePlayerId);
-        const attacker = activePlayer.battlefield.find(
-            (c) => c.id === args.attackerId
-        );
-        // The blocking creatures are the DEFENDING player's, even when Melee
-        // routes the declaration to the attacker.
-        const defender = getPlayer(
+        applyBlockerAssignment(
             state,
-            getOpponentId(state, state.activePlayerId)
+            combat,
+            combat.pendingBlockerId,
+            args.attackerId
         );
-        const blocker = defender.battlefield.find(
-            (c) => c.id === state.combat!.pendingBlockerId
-        );
-        if (attacker && blocker) {
-            const check = validateBlockerEligibility(
-                attacker,
-                blocker,
-                defender.battlefield,
-                state
-            );
-            if (!check.eligible) {
-                throw new Error(check.reason);
-            }
-        }
-
-        const blockerId = state.combat.pendingBlockerId;
-        const existing = state.combat.blockerAssignments[blockerId] ?? [];
-        // CR 509.1a — a battlefield-wide cap on how many creatures may be
-        // declared as blockers each combat (Caverns of Despair at two, Dueling
-        // Grounds at one). The cap counts distinct blocking creatures, not
-        // blocking assignments; a creature already blocking may still take a
-        // second attacker (Two-Headed Giant) without consuming a new slot.
-        // Reject only a NEW blocker that would push the count past the cap.
-        const blockerCap = getBlockerCapEffect(state);
-        if (
-            blockerCap !== undefined &&
-            existing.length === 0 &&
-            Object.keys(state.combat.blockerAssignments).filter(
-                (id) => (state.combat!.blockerAssignments[id] ?? []).length > 0
-            ).length >= blockerCap.max
-        ) {
-            throw new Error(blockerCap.oracleText);
-        }
-        const maxAttackers = blocker ? getMaxBlockTargets(blocker) : 1;
-        if (existing.length >= maxAttackers) {
-            throw new Error(
-                `This creature can only block ${maxAttackers} attacker${maxAttackers > 1 ? "s" : ""}`
-            );
-        }
-        state.combat.blockerAssignments[blockerId] = [
-            ...existing,
-            args.attackerId,
-        ];
-        state.combat.pendingBlockerId = undefined;
+        combat.pendingBlockerId = undefined;
 
         await saveGameState(
             ctx,

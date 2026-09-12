@@ -133,11 +133,9 @@ function engineMutations(state: GameState): MoveMutations {
                 cardInstanceIds,
             });
         },
-        toggleAttacker: reject,
-        toggleExert: reject,
+        declareAttackers: reject,
         confirmAttackers: reject,
-        selectBlocker: reject,
-        assignBlockerTarget: reject,
+        declareBlockers: reject,
         confirmBlockers: reject,
         confirmDamage: reject,
         declareMulligan: reject,
