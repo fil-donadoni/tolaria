@@ -56,6 +56,13 @@ export type CardDraft = {
      *  captured position, not for someone to type. It still rides on the
      *  draft, because the save path re-emits the card array wholesale. */
     abilityResolutions?: Record<string, number>;
+    /** CR 208.2 / 611.1 (issue #3459) — carried OPAQUELY like the two tallies
+     *  above, and for the same reason: the animate CALL a captured position was
+     *  lowered with (`specFromState`) is not something an admin types, but the
+     *  save path re-emits the card array wholesale, so a draft that did not
+     *  carry it would DELETE the animation from the row on the next edit — and
+     *  the permanent would come back a non-creature. */
+    animated?: ScenarioCard["animated"];
 };
 
 /** A fresh, empty card row (defaults to a battlefield permanent the player
@@ -117,6 +124,7 @@ export function cardToDraft(card: ScenarioCard): CardDraft {
         startedTurnUntapped: card.startedTurnUntapped ?? false,
         activations: card.activations,
         abilityResolutions: card.abilityResolutions,
+        animated: card.animated,
     };
 }
 
@@ -173,6 +181,8 @@ export function draftToCard(draft: CardDraft): ScenarioCard {
     if (draft.abilityResolutions) {
         card.abilityResolutions = draft.abilityResolutions;
     }
+    // Re-emitted exactly as it was inflated — see `CardDraft.animated`.
+    if (draft.animated) card.animated = draft.animated;
 
     return card;
 }

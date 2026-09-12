@@ -38,11 +38,20 @@ import { tokenDefinitionId, tryGetDefinition } from "../../cards";
 import { findTokenSpec } from "../../cards/tokenCatalogue";
 import { projectFullState, projectPublicState } from "../../gameProjections";
 import {
+    animatePermanentAsCreature,
+    applyColorOverrideToPermanent,
     buildSpellContext,
     emitSpellCastEvent,
     resolveTopOfStack,
     shouldEnterTapped,
 } from "../state";
+import { advancePhase } from "../phases";
+import { deriveLayer6 } from "../layer6";
+import { getEffectiveColors } from "../../cards/effectiveColors";
+import { mishrasFactory } from "../../cards/sets/atq/colorless";
+import { creepingTarPit } from "../../cards/sets/wwk/colorless";
+import type { ContinuousEffect } from "../continuousEffects";
+import type { AnimateSpec } from "../../cards/types";
 import {
     NO_TARGETING_SOURCE,
     getLegalActions,
@@ -52,9 +61,17 @@ import {
 import { PLACEHOLDER_CARD_ID } from "../constants";
 import { collectTriggers } from "../triggers";
 import { validateAttackerEligibility } from "../combat";
-import type { GameState, PendingChoice, PlayerState } from "../state";
+import type {
+    CardInstanceState,
+    GameState,
+    PendingChoice,
+    PlayerState,
+} from "../state";
 import type { GameEvent } from "../../cards/types";
-import type { ScenarioSpec } from "../../debugScenarioSpec";
+import {
+    normalizeScenarioSpec,
+    type ScenarioSpec,
+} from "../../debugScenarioSpec";
 import { removedKeywordRows } from "../../cards/__tests__/setup";
 
 /** A live position at DECLARE_BLOCKERS with the attack declared and confirmed
@@ -3526,5 +3543,340 @@ describe("scenario spec — a hand of cards the Bot could not see (issue #3452)"
         });
 
         expect(spec.hiddenHand).toBeUndefined();
+    });
+});
+
+describe("scenario spec — an animated permanent (issue #3459)", () => {
+    const FACTORY_ANIMATION: AnimateSpec = {
+        power: 2,
+        toughness: 2,
+        subtype: "Assembly-Worker",
+        additionalTypes: ["Artifact"],
+        duration: { phase: "end-of-turn" },
+    };
+
+    /** A LIVE position with one animated permanent, animated the way the
+     *  engine animates: through the primitive itself
+     *  (`animatePermanentAsCreature`, the exact call the `animate` Op's
+     *  resolution makes), never by writing the record by hand. So the lowering
+     *  below reads a board the spec did not build. */
+    function animatedBoard(
+        def: { id: string; name: string },
+        animation: AnimateSpec,
+        extra?: Partial<ScenarioSpec>
+    ): { state: GameState; card: CardInstanceState } {
+        const state = buildStateFromScenario(makeState(), {
+            cards: [{ name: def.name, owner: "me", zone: "battlefield" }],
+            turn: 5,
+            ...extra,
+        });
+        const card = state.players[0].battlefield.find(
+            (c) => (c.card as { id?: string }).id === def.id
+        );
+        expect(card).toBeDefined();
+        const target = card as CardInstanceState;
+        animatePermanentAsCreature(
+            state,
+            target,
+            animation,
+            target.controllerId
+        );
+        return { state, card: target };
+    }
+
+    function findByDefId(
+        state: GameState,
+        seat: 0 | 1,
+        defId: string
+    ): CardInstanceState | undefined {
+        return state.players[seat].battlefield.find(
+            (c) => (c.card as { id?: string }).id === defId
+        );
+    }
+
+    function roundTrip(live: GameState): {
+        spec: ScenarioSpec;
+        dropped: string[];
+        rebuilt: GameState;
+    } {
+        const { spec, dropped } = specFromState(live, {
+            mySeatId: live.players[0].id,
+        });
+        return {
+            spec,
+            dropped,
+            rebuilt: buildStateFromScenario(makeState(), spec),
+        };
+    }
+
+    // ACCEPTANCE CRITERION — an animated manland is a creature on the rebuilt
+    // board AND the rebuilt position offers the attack with it. Before this
+    // field the rebuild restored the printed type line, so the candidate list
+    // had no attack and every verdict about the decision was refused.
+    it("round-trips an animated Mishra's Factory as an attacking creature (CR 208.2/611.1)", () => {
+        const { state: live, card } = animatedBoard(
+            mishrasFactory,
+            FACTORY_ANIMATION,
+            { phase: "DECLARE_ATTACKERS" }
+        );
+        expect(card.types).toContain("Creature");
+
+        const { spec, rebuilt } = roundTrip(live);
+        expect(spec.cards[0].animated).toEqual(FACTORY_ANIMATION);
+
+        const factory = findByDefId(rebuilt, 0, mishrasFactory.id);
+        expect(factory).toBeDefined();
+        const rebuiltFactory = factory as CardInstanceState;
+        expect(rebuiltFactory.types).toContain("Creature");
+        expect(rebuiltFactory.types).toContain("Artifact");
+        expect(rebuiltFactory.types).toContain("Land");
+        expect(rebuiltFactory.subtypes).toContain("Assembly-Worker");
+        expect(rebuiltFactory.power).toBe(2);
+        expect(rebuiltFactory.toughness).toBe(2);
+        // The same authority the Bot's own attacker enumeration filters on
+        // (`enumerateAttackerMoves` → `validateAttackerEligibility`), reached
+        // directly because `gre/moves` is a bot-only module.
+        expect(
+            validateAttackerEligibility(
+                rebuiltFactory,
+                rebuilt.players[1].battlefield,
+                rebuilt
+            ).eligible
+        ).toBe(true);
+    });
+
+    // ACCEPTANCE CRITERION — the rebuilt animation EXPIRES. Asserted by walking
+    // the rebuilt game through the engine's own phase progression
+    // (`advancePhase` → CLEANUP → `tickAllDurations`), never by reading the spec
+    // field back and never by calling `revertAnimation` by hand: a lowered
+    // animation that rebuilt as a literal override would pass both of those and
+    // still teach the fit that a manland is permanently a creature.
+    it("ends the rebuilt animation at its stated boundary (CR 611.2 / 514.2)", () => {
+        const { state: live } = animatedBoard(
+            mishrasFactory,
+            FACTORY_ANIMATION,
+            {
+                phase: "END_STEP",
+            }
+        );
+        const { rebuilt } = roundTrip(live);
+        const factory = findByDefId(rebuilt, 0, mishrasFactory.id);
+        expect(factory?.types).toContain("Creature");
+
+        rebuilt.phase = "END_STEP";
+        advancePhase(rebuilt);
+
+        const after = findByDefId(rebuilt, 0, mishrasFactory.id);
+        expect(after).toBeDefined();
+        expect(after?.types).not.toContain("Creature");
+        expect(after?.types).not.toContain("Artifact");
+        expect(after?.subtypes).not.toContain("Assembly-Worker");
+        expect(after?.animation).toBeUndefined();
+    });
+
+    // ACCEPTANCE CRITERION — an INDEFINITE animation (CR 611.2a, earthbend: no
+    // duration clause) must survive the same walk. A field that only knew
+    // "until end of turn" would be indistinguishable from the case above.
+    it("keeps an INDEFINITE animation through cleanup (CR 611.2a)", () => {
+        const { state: live } = animatedBoard(
+            forest,
+            { power: 0, toughness: 0, grantedAbilities: ["haste"] },
+            { phase: "END_STEP" }
+        );
+        const { spec, rebuilt } = roundTrip(live);
+        expect(spec.cards[0].animated?.duration).toBeUndefined();
+
+        rebuilt.phase = "END_STEP";
+        advancePhase(rebuilt);
+
+        const after = findByDefId(rebuilt, 0, forest.id);
+        expect(after?.types).toContain("Creature");
+        expect(after?.power).toBe(0);
+        expect(
+            deriveLayer6(rebuilt, after as CardInstanceState).staticAbilities
+        ).toContain("haste");
+    });
+
+    // ACCEPTANCE CRITERION — a COLOURED manland keeps both the clauses the
+    // record had to widen for: the layer-5 colours (CR 613.1e / 105.3) and the
+    // layer-6 keyword grants (CR 611.2a). Read through the engine's own
+    // effective-characteristic functions, never off the animation record.
+    it("round-trips a coloured manland's colours and granted keywords (CR 613.1e / 611.2a)", () => {
+        const animation: AnimateSpec = {
+            power: 3,
+            toughness: 2,
+            subtype: "Elemental",
+            colors: ["U", "B"],
+            grantedAbilities: ["flying", "vigilance"],
+            duration: { phase: "end-of-turn" },
+        };
+        const { state: live } = animatedBoard(creepingTarPit, animation);
+        expect(getEffectiveColors(live.players[0].battlefield[0])).toEqual([
+            "U",
+            "B",
+        ]);
+
+        const { spec, rebuilt } = roundTrip(live);
+        expect(spec.cards[0].animated).toEqual(animation);
+
+        const tarPit = findByDefId(rebuilt, 0, creepingTarPit.id);
+        expect(tarPit).toBeDefined();
+        const rebuiltTarPit = tarPit as CardInstanceState;
+        expect(getEffectiveColors(rebuiltTarPit)).toEqual(["U", "B"]);
+        const keywords = deriveLayer6(rebuilt, rebuiltTarPit).staticAbilities;
+        expect(keywords).toContain("flying");
+        expect(keywords).toContain("vigilance");
+        // And the colour goes with the animation, not past it (CR 613.1e —
+        // the override carries the animation's own duration).
+        rebuilt.phase = "END_STEP";
+        advancePhase(rebuilt);
+        const after = findByDefId(rebuilt, 0, creepingTarPit.id);
+        expect(getEffectiveColors(after as CardInstanceState)).not.toEqual([
+            "U",
+            "B",
+        ]);
+    });
+
+    // ACCEPTANCE CRITERION — nothing about the animation, and nothing about the
+    // two colour-override fields it writes, is reported as not captured on a
+    // board whose only continuous effect IS the animation.
+    it("reports no animation or colour-override residue for an animated board", () => {
+        const { state: live } = animatedBoard(creepingTarPit, {
+            power: 3,
+            toughness: 2,
+            subtype: "Elemental",
+            colors: ["U", "B"],
+            duration: { phase: "end-of-turn" },
+        });
+        const { dropped } = roundTrip(live);
+        // Pinned as an EQUALITY, not a filter: a filter over the strings this
+        // slice knows about would also pass if some NEW line appeared beside
+        // them. An animated coloured manland owes NOTHING — its layer-4 and
+        // layer-7b halves are derived from the record rather than stored, and it
+        // grants no keyword, so not even the blunt game-level
+        // `continuousEffects` line fires (that one belongs to the registry
+        // entries the sibling slice of PRD #3397 owns).
+        expect(dropped).toEqual([]);
+    });
+
+    // ACCEPTANCE CRITERION — the colour allowlisting is CONDITIONAL. The same
+    // two fields on a permanent the spec lowers no animation for are residue,
+    // because `applyColorOverrideToPermanent` is the `setColor` Op's primitive
+    // too and the rebuild regenerates nothing for it.
+    it("still reports a setColor-sourced override on a non-animated permanent (CR 105.3)", () => {
+        const live = buildStateFromScenario(makeState(), {
+            cards: [
+                { name: grizzlyBears.name, owner: "me", zone: "battlefield" },
+            ],
+        });
+        const bear = live.players[0].battlefield[0];
+        applyColorOverrideToPermanent(bear, ["U"], undefined);
+
+        const { dropped } = roundTrip(live);
+        expect(dropped.some((d) => /colorOverride/.test(d))).toBe(true);
+    });
+
+    // ACCEPTANCE CRITERION — the declared CR 613.7 loss (decision 4 on the
+    // issue): re-executing the animation re-mints its stamp, so a competing
+    // layer 2-5 / 7b entry on the same permanent is reported rather than
+    // silently reordered.
+    it("declares the CR 613.7 order loss when another layer 2-5 / 7b entry names the permanent", () => {
+        const { state: live, card } = animatedBoard(
+            mishrasFactory,
+            FACTORY_ANIMATION
+        );
+        const competing: ContinuousEffect = {
+            id: "ce-test-1",
+            layer: 7,
+            sublayer: "7b",
+            timestamp: 1,
+            affected: { kind: "instances", instanceIds: [card.id] },
+            expiry: { kind: "indefinite", controllerId: card.controllerId },
+            payload: { kind: "pt-set", power: 1, toughness: 1 },
+            characteristicDefining: false,
+        };
+        live.continuousEffects = [...(live.continuousEffects ?? []), competing];
+
+        const { dropped } = roundTrip(live);
+        expect(dropped.some((d) => /CR 613\.7 timestamp/.test(d))).toBe(true);
+    });
+
+    // LAYER 6 is in the same scan even though the issue's decision 4 named only
+    // layers 2-5 and 7b: an animate clause's granted keyword IS a layer-6 entry,
+    // and its order against an ability-stripper decides whether the keyword
+    // exists at all on the rebuilt board.
+    it("declares the order loss for a competing layer-6 entry too (CR 613.1f / 613.7)", () => {
+        const { state: live, card } = animatedBoard(
+            mishrasFactory,
+            FACTORY_ANIMATION
+        );
+        const stripper: ContinuousEffect = {
+            id: "ce-test-2",
+            layer: 6,
+            timestamp: 1,
+            affected: { kind: "instances", instanceIds: [card.id] },
+            expiry: { kind: "indefinite", controllerId: card.controllerId },
+            payload: { kind: "ability-loss" },
+            characteristicDefining: false,
+        };
+        live.continuousEffects = [...(live.continuousEffects ?? []), stripper];
+
+        const { dropped } = roundTrip(live);
+        expect(dropped.some((d) => /CR 613\.7 timestamp/.test(d))).toBe(true);
+    });
+
+    // The drift report must stay honest THROUGH the new baseline: a second
+    // layer-7 effect on an animated permanent is still not spec-expressible.
+    it("keeps reporting a characteristic the animation does NOT account for", () => {
+        const { state: live, card } = animatedBoard(
+            mishrasFactory,
+            FACTORY_ANIMATION
+        );
+        // A materialised pump on top of the animation (CR 613.4c) — the
+        // rebuilt board restores the animation's 2/2 and nothing else.
+        card.power = 4;
+
+        const { dropped } = roundTrip(live);
+        expect(dropped.some((d) => /power.*lowered animation/.test(d))).toBe(
+            true
+        );
+    });
+
+    // The tolerant load path (ADR 0044): a stored row is never rebuilt at the
+    // printed values just because one field of its animation is malformed.
+    it("drops a malformed animate call whole rather than rebuilding half of it", () => {
+        const rebuilt = buildStateFromScenario(
+            makeState(),
+            normalizeScenarioSpec({
+                cards: [
+                    {
+                        name: mishrasFactory.name,
+                        owner: "me",
+                        zone: "battlefield",
+                        // No toughness: not an animation (CR 208.2).
+                        animated: { power: 2, subtype: "Assembly-Worker" },
+                    },
+                    {
+                        name: forest.name,
+                        owner: "me",
+                        zone: "battlefield",
+                        animated: {
+                            power: 1,
+                            toughness: 1,
+                            // Neither a permanent type (CR 300.1) nor a colour:
+                            // both members are dropped, the call survives.
+                            additionalTypes: ["Instant"],
+                            colors: ["Q"],
+                        },
+                    },
+                ],
+            })
+        );
+        expect(findByDefId(rebuilt, 0, mishrasFactory.id)?.types).not.toContain(
+            "Creature"
+        );
+        const animatedForest = findByDefId(rebuilt, 0, forest.id);
+        expect(animatedForest?.types).toEqual(["Land", "Creature"]);
+        expect(animatedForest?.colorOverride).toBeUndefined();
     });
 });
