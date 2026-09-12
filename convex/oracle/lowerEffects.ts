@@ -231,6 +231,12 @@ export function lowerSentence(
                 { op: "dealDamage", amount: amount.value, to: to.value },
             ]);
         }
+        // CR 615.12 — the game-scoped anti-prevention lock. No fields, no
+        // target, no duration argument: the Op is turn-scoped by construction
+        // and cleared at CLEANUP (CR 514.2), exactly as Stomp's first line
+        // reads it (issue #3303).
+        case "suppress-damage-prevention":
+            return lowered([{ op: "suppressDamagePrevention" }]);
         case "draw": {
             const player = playerRef(sentence.player, slots);
             if (!player.ok) return player;

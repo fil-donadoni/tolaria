@@ -5162,6 +5162,54 @@
         "rarity": "common"
     },
     {
+        "name": "Rock Soldiers",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Elemental",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 3,
+            "R": 1
+        },
+        "power": 4,
+        "toughness": 3,
+        "oracleText": "When this creature enters, destroy up to one target noncreature artifact.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "rock-soldiers-trigger",
+                "oracleText": "When this creature enters, destroy up to one target noncreature artifact.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Artifact",
+                    "count": {
+                        "min": 0,
+                        "max": 1
+                    },
+                    "excludeTypes": [
+                        "Creature"
+                    ]
+                },
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "0fada65d-fd8d-4be9-b2bb-ea5cac78fdd7",
+        "rarity": "common"
+    },
+    {
         "name": "Scorpion's Sting",
         "types": [
             "Instant"
@@ -6818,6 +6866,102 @@
             }
         ],
         "id": "1531cb47-b0ff-4d66-acf2-ef5bb5f690fc",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Dubious Delicacy",
+        "types": [
+            "Artifact"
+        ],
+        "subtypes": [
+            "Food"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "oracleText": "Flash\nWhen this artifact enters, up to one target creature gets -3/-3 until end of turn.\n{2}, {T}, Sacrifice this artifact: You gain 3 life.\n{2}, {T}, Sacrifice this artifact: Target opponent loses 3 life.",
+        "staticAbilities": [
+            "flash"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "dubious-delicacy-ability",
+                "oracleText": "{2}, {T}, Sacrifice this artifact: You gain 3 life.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 3
+                    }
+                ]
+            },
+            {
+                "id": "dubious-delicacy-ability-2",
+                "oracleText": "{2}, {T}, Sacrifice this artifact: Target opponent loses 3 life.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "loseLife",
+                        "player": {
+                            "target": 0
+                        },
+                        "amount": 3
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1,
+                    "controller": "opponent"
+                }
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "dubious-delicacy-trigger",
+                "oracleText": "When this artifact enters, up to one target creature gets -3/-3 until end of turn.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "target": 0
+                        },
+                        "power": -3,
+                        "toughness": -3,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "153265b4-0ca4-4245-9226-dd1a083ec91c",
         "rarity": "uncommon"
     },
     {
@@ -11140,6 +11284,74 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Curious Farm Animals",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Boar",
+            "Elk",
+            "Bird",
+            "Ox"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "When this creature dies, you gain 3 life.\n{2}, Sacrifice this creature: Destroy up to one target artifact or enchantment.",
+        "activatedAbilities": [
+            {
+                "id": "curious-farm-animals-ability",
+                "oracleText": "{2}, Sacrifice this creature: Destroy up to one target artifact or enchantment.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Enchantment"
+                    ],
+                    "count": {
+                        "min": 0,
+                        "max": 1
+                    }
+                }
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "curious-farm-animals-trigger",
+                "oracleText": "When this creature dies, you gain 3 life.",
+                "head": {
+                    "kind": "died",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 3
+                    }
+                ]
+            }
+        ],
+        "id": "2402d759-84b6-41d2-ad78-9333974e9222",
+        "rarity": "common"
+    },
+    {
         "name": "Axgard Cavalry",
         "types": [
             "Creature"
@@ -13506,6 +13718,52 @@
             "flying"
         ],
         "id": "2bdb5850-df1e-4d8a-af7a-15cab080fb8f",
+        "rarity": "common"
+    },
+    {
+        "name": "Bile-Vial Boggart",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Goblin",
+            "Assassin"
+        ],
+        "manaCost": {
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "When this creature dies, put a -1/-1 counter on up to one target creature.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "bile-vial-boggart-trigger",
+                "oracleText": "When this creature dies, put a -1/-1 counter on up to one target creature.",
+                "head": {
+                    "kind": "died",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "counters",
+                        "action": "add",
+                        "counter": "-1/-1",
+                        "target": {
+                            "target": 0
+                        },
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "2c0fcf98-1f3c-4cff-9234-7f3d0c8b22e9",
         "rarity": "common"
     },
     {
@@ -31136,6 +31394,59 @@
             "retrace"
         ],
         "id": "6c02cc57-f589-4c5d-b306-cceb0ab3ce8b",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Nebelgast Intruder",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Spirit"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Flash\nFlying\nWhen this creature enters, up to one target creature an opponent controls gets -2/-0 until end of turn.",
+        "staticAbilities": [
+            "flash",
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "nebelgast-intruder-trigger",
+                "oracleText": "When this creature enters, up to one target creature an opponent controls gets -2/-0 until end of turn.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": {
+                        "min": 0,
+                        "max": 1
+                    },
+                    "controller": "opponent"
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "target": 0
+                        },
+                        "power": -2,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "6c801346-0052-4f4b-a497-1567a34679fb",
         "rarity": "uncommon"
     },
     {
@@ -49095,6 +49406,56 @@
         "rarity": "common"
     },
     {
+        "name": "Ant-Man's Air Force",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Insect"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Flying (This creature can't be blocked except by creatures with flying or reach.)\nWhenever this creature attacks, up to one target creature gets -1/-0 until end of turn.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "ant-man-s-air-force-trigger",
+                "oracleText": "Whenever this creature attacks, up to one target creature gets -1/-0 until end of turn.",
+                "head": {
+                    "kind": "attacks"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "target": 0
+                        },
+                        "power": -1,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "a94723d0-2137-41f6-87a1-6a33e1d50d1b",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Chardalyn Dragon",
         "types": [
             "Artifact",
@@ -55491,6 +55852,85 @@
         ],
         "id": "bd4e933b-de65-4089-877f-c598004b8e7e",
         "rarity": "common"
+    },
+    {
+        "name": "Disruptive Stormbrood",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dragon"
+        ],
+        "manaCost": {
+            "X": 4,
+            "G": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "Flying\nWhen this creature enters, destroy up to one target artifact or enchantment.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "disruptive-stormbrood-trigger",
+                "oracleText": "When this creature enters, destroy up to one target artifact or enchantment.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Enchantment"
+                    ],
+                    "count": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ]
+            }
+        ],
+        "insetSpell": {
+            "kind": "adventure",
+            "name": "Petty Revenge",
+            "manaCost": {
+                "X": 1,
+                "B": 1
+            },
+            "types": [
+                "Sorcery"
+            ],
+            "subtypes": [
+                "Omen"
+            ],
+            "oracleText": "Destroy target creature with power 3 or less. (Then shuffle this card into its owner's library.)",
+            "effects": [
+                {
+                    "op": "destroy",
+                    "target": {
+                        "target": 0
+                    }
+                }
+            ],
+            "targetRequirement": {
+                "type": "Creature",
+                "count": 1,
+                "powerFilter": {
+                    "max": 3
+                }
+            }
+        },
+        "id": "bd78e8ae-e927-40e7-9580-966c5e81f53c",
+        "rarity": "uncommon"
     },
     {
         "name": "Krovikan Scoundrel",
@@ -69580,6 +70020,27 @@
         ],
         "id": "eea658dd-7567-4b93-88a4-08b4ffb3dad7",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Flaring Pain",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "oracleText": "Damage can't be prevented this turn.\nFlashback {R} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+        "effects": [
+            {
+                "op": "suppressDamagePrevention"
+            }
+        ],
+        "flashback": {
+            "R": 1
+        },
+        "id": "eeb5c96a-1d16-459d-9968-ced9a8f1c520",
+        "rarity": "common"
     },
     {
         "name": "Elfhame Wurm",

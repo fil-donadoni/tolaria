@@ -103,6 +103,23 @@ export type EffectSentenceIR =
           readonly to: SubjectIR;
       }
     | {
+          /**
+           * CR 615.12 — "Damage can't be prevented this turn."
+           *
+           * A one-shot instruction with no subject at all: it names no source,
+           * no recipient and no duration but the turn, which is precisely why
+           * it lowers to the game-scoped `suppressDamagePrevention` Op rather
+           * than to either narrower anti-prevention shape (`lockDamage` binds
+           * ONE recipient, the `combat-damage-unpreventable` static binds ONE
+           * source and combat only). It carries no fields because the printed
+           * sentence carries none — matched as an EXACT span, so a wording
+           * that scopes the clause ("Damage from creature sources can't be
+           * prevented this turn") fails the card instead of compiling to the
+           * unscoped reading.
+           */
+          readonly kind: "suppress-damage-prevention";
+      }
+    | {
           readonly kind: "draw";
           readonly player: PlayerRefIR;
           readonly count: AmountIR;
@@ -273,7 +290,13 @@ export const subjectRule: Rule<SubjectIR> = rule<SubjectIR>(
         // CR 205.3 subtype) sits later in the phrase and is left alone.
         const probe = uncapitalise(span);
         if (isSelfPhrase(probe)) return ok({ kind: "self" as const });
-        if (probe === "any target" || probe.startsWith("target ")) {
+        if (
+            probe === "any target" ||
+            probe.startsWith("target ") ||
+            // CR 601.2c — "up to one target …" is the same announced slot with
+            // a `{ min: 0, max: 1 }` count; `targetFilterRule` owns the head.
+            probe.startsWith("up to one target ")
+        ) {
             const requirement = targetFilterRule.run(probe, ctx);
             if (!requirement.ok) return requirement;
             return ok({
@@ -372,6 +395,9 @@ const LIFE = /^(.+) (gain|gains|lose|loses) (\S+) life$/;
 const COUNTERS = /^Put (\S+) (\S+) counters? on (.+)$/;
 const DISCARD_RANDOM = /^(.+) discards (\S+) cards? at random$/;
 
+/** CR 615.12 — the printed sentence, whole, without its full stop. */
+const SUPPRESS_DAMAGE_PREVENTION = "Damage can't be prevented this turn";
+
 const KEYWORDS = keywordVocabulary();
 
 /** Exact restriction sentences (CR 602.5). Both templatings are printed. */
@@ -459,6 +485,12 @@ function effectSentence(span: string, ctx: unknown) {
             duration: duration.value,
         } satisfies EffectSentenceIR);
     }
+
+    // ── anti-prevention lock (CR 615.12) ───────────────────────────────────
+    if (span === SUPPRESS_DAMAGE_PREVENTION)
+        return ok({
+            kind: "suppress-damage-prevention" as const,
+        } satisfies EffectSentenceIR);
 
     // ── damage (CR 119.3) ──────────────────────────────────────────────────
     const damage = span.match(DAMAGE);

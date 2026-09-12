@@ -716,15 +716,16 @@ function finish(
  * the two are checked against each other rather than trusted separately.
  */
 export function targetRequirementFromDescriptor(
-    descriptor: DescriptorIR
+    descriptor: DescriptorIR,
+    count: TargetRequirement["count"] = 1
 ): RuleResult<TargetRequirement> {
     if (descriptor.plural === true)
         return fail("a plural target descriptor needs a count", "plural");
-    if (descriptor.anyTarget === true) return ok({ type: "any", count: 1 });
+    if (descriptor.anyTarget === true) return ok({ type: "any", count });
     if (descriptor.player !== undefined) {
         const requirement: Record<string, unknown> = {
             type: "player",
-            count: 1,
+            count,
         };
         if (descriptor.player === "opponent")
             requirement.controller = "opponent";
@@ -754,7 +755,7 @@ export function targetRequirementFromDescriptor(
                 : types.length === 1
                   ? types[0]
                   : [...types],
-        count: 1,
+        count,
     };
     if (descriptor.subtypes)
         requirement.subtypeFilter = [...descriptor.subtypes];
@@ -847,17 +848,44 @@ export function permanentFilterFromDescriptor(
 }
 
 /**
- * `"target creature you control"`, `"any target"` — a descriptor introduced by
- * the word "target" (CR 115.1). Singular only in grammar v0: a plural target
- * phrase carries a count ("two target creatures") whose lowering has to reach
- * `TargetRequirement.count` AND the effect's per-target ops, and half of that
- * is worse than none.
+ * CR 601.2c — the one optional-count head grammar v0 reads.
+ *
+ * "Up to one target creature" announces between zero and one target, so the
+ * whole of its lowering is `TargetRequirement.count` — the ops downstream still
+ * reference ONE positional slot (`{ target: 0 }`) and the interpreter already
+ * skips an op whose slot resolved to nothing (CR 608.2b). Every larger head
+ * ("up to two target creatures", "up to X target …") is a PLURAL phrase whose
+ * effect has to fan out per target as well, which is the half-a-feature
+ * `descriptorRule`'s `plural` refusal exists to forbid — so exactly this one
+ * spelling is admitted, and "up to two" falls through to the `"target "`
+ * prefix test below and fails there as it did before.
+ */
+const UP_TO_ONE_HEAD = "up to one target ";
+
+/**
+ * `"target creature you control"`, `"any target"`, `"up to one target
+ * creature or planeswalker"` — a descriptor introduced by the word "target"
+ * (CR 115.1), optionally under the CR 601.2c "up to one" head. Singular only
+ * in grammar v0: a plural target phrase carries a count ("two target
+ * creatures") whose lowering has to reach `TargetRequirement.count` AND the
+ * effect's per-target ops, and half of that is worse than none.
  */
 export const targetFilterRule: Rule<TargetRequirement> = rule(
     TARGET_FILTER,
     (span, ctx) => {
         if (span === "any target")
             return ok({ type: "any", count: 1 } as TargetRequirement);
+        if (span.startsWith(UP_TO_ONE_HEAD)) {
+            const descriptor = descriptorRule.run(
+                span.slice(UP_TO_ONE_HEAD.length),
+                ctx
+            );
+            if (!descriptor.ok) return descriptor;
+            return targetRequirementFromDescriptor(descriptor.value, {
+                min: 0,
+                max: 1,
+            });
+        }
         if (!span.startsWith("target "))
             return fail('a target filter starts with "target "', span);
         const descriptor = descriptorRule.run(
