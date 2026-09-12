@@ -93,13 +93,40 @@ function backFaceAsTokenSpec(backFace: CardBackFace): TokenSpec {
     };
 }
 
+/** The content-derived definition id a NONMODAL back face presents (CR 712.2)
+ *  — the id half of {@link registerBackFaceDefinition}, split out so a reader
+ *  can ask "is this def id that card's back face?" without minting a
+ *  definition as a side effect ({@link backFaceDefinitionIdOf}). One authority
+ *  on the codec: both callers go through here. */
+function nonmodalBackFaceDefinitionId(backFace: CardBackFace): string {
+    return tokenDefinitionId(backFaceAsTokenSpec(backFace));
+}
+
+/** CR 712.2 / 712.8f — the definition id `frontId` presents while TRANSFORMED,
+ *  or `undefined` when that card has no back face. PURE: unlike
+ *  `registerBackFaceDefinition` it registers nothing, so asking the question is
+ *  free of side effects.
+ *
+ *  Exists for the CR 603.10 look-back (`lookBackSelf`, `gre/copy.ts`), which
+ *  has to tell a departed permanent's THREE possible identity reversions apart
+ *  — copy, transform, face-down — from the definition id it presented as it
+ *  left, and has only that id plus the destination-zone card to go on. */
+export function backFaceDefinitionIdOf(frontId: string): string | undefined {
+    const frontDef = tryGetDefinition(frontId);
+    const backFace = frontDef?.backFace;
+    if (!backFace) return undefined;
+    return isModalDoubleFaced(frontDef ?? undefined)
+        ? modalBackFaceDefinitionId(frontId)
+        : nonmodalBackFaceDefinitionId(backFace);
+}
+
 /** Registers (idempotently, `registerTokenDefinition`) a synthesized
  *  `CardDefinition` for `backFace` and returns its id. Two permanents
  *  transforming from the SAME front definition with the SAME back-face spec
  *  share one entry (`tokenDefinitionId`'s content-hash convention). */
 function registerBackFaceDefinition(backFace: CardBackFace): string {
     const spec = backFaceAsTokenSpec(backFace);
-    const id = tokenDefinitionId(spec);
+    const id = nonmodalBackFaceDefinitionId(backFace);
     // Server-side color (`getCardColors`) is derived from `manaCost`, not
     // from `spec.colors` directly — mirrors `createTokenPermanents`
     // (`gre/state.ts`), which builds a one-pip-per-color `manaCost` from
