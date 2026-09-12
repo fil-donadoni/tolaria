@@ -1,4 +1,6 @@
 import { v } from "convex/values";
+import type { ManaRestriction } from "./gre/types";
+import { MANA_COLORS } from "./gre/manaColors";
 
 // Debug scenario spec (issue #769, ADR 0044). The *argument* to the existing,
 // unchanged `debugSetupScenario` builder (`convex/game.ts`) — the card
@@ -123,6 +125,64 @@ export const SCENARIO_PHASES = [
 /** The full spec accepted by the save path — the `debugSetupScenario` args
  *  minus `gameId`. Only `cards` is required; everything else defaults in the
  *  builder. */
+/**
+ * CR 106.6 (issue #3460) — the spend restrictions a unit of floating mana can
+ * carry, mirrored against the engine's own `ManaRestriction` union rather than
+ * hand-listed: the `satisfies` reds `tsc` the day the engine gains a member, so
+ * the load path below cannot start REFUSING a restriction the engine enforces.
+ * That matters because a unit is all-or-nothing there: a unit whose restriction
+ * cannot be read is dropped entirely, never kept restriction-less, since a unit
+ * carrying no restriction at all is UNRESTRICTED mana (CR 106.6 —
+ * `restrictedUnitAllowsSpell`), which is strictly more permissive than what was
+ * written.
+ */
+const MANA_RESTRICTION_PRESENCE = {
+    "creature-spell": true,
+    "artifact-spell": true,
+    "cumulative-upkeep": true,
+    "artifact-ability": true,
+    "legendary-spell": true,
+} satisfies Record<ManaRestriction, true>;
+
+/** The restriction members a spec may name, derived from the mirror above. */
+export const SCENARIO_MANA_RESTRICTIONS = Object.keys(
+    MANA_RESTRICTION_PRESENCE
+) as ManaRestriction[];
+
+/** CR 106.4 (issue #3460) — one seat's floating mana pool: colour-keyed
+ *  amounts, the shape `PlayerState.manaPool` itself has. A dynamic-key record
+ *  like a card's `counters`; the KEYS are checked against `MANA_COLORS` on the
+ *  load path and again by the builder, which throws on a colour the engine
+ *  cannot spend rather than seeding mana that would sit in the pool forever. */
+export const scenarioManaPoolValidator = v.record(v.string(), v.number());
+
+/** One unit of restricted floating mana (CR 106.6) — `PlayerState.
+ *  restrictedMana`'s own shape minus its one INSTANCE-keyed field,
+ *  `castableCardId` (Ice Cauldron): it names an instance id, and every rebuild
+ *  reassigns those, so a lowered id would name an object the rebuilt board does
+ *  not contain. `specFromState` reports such a unit instead of lowering it.
+ *
+ *  `restriction`'s member list is BUILT from `SCENARIO_MANA_RESTRICTIONS`
+ *  above rather than re-typed as literals, so the write path, the read type and
+ *  the engine's own union have exactly one home; the tolerant LOAD path
+ *  (`normalizeScenarioSpec`) re-checks a raw stored string against the same
+ *  list — a row on disk never passed through this validator, and the admin
+ *  preview normalizes hand-typed JSON before the write validator ever sees it
+ *  (`debug-scenario-preview.tsx`) — and DROPS THE UNIT when it does not match,
+ *  for the reason on the mirror above. */
+export const scenarioRestrictedManaValidator = v.object({
+    color: v.string(),
+    amount: v.number(),
+    restriction: v.optional(
+        v.union(...SCENARIO_MANA_RESTRICTIONS.map((r) => v.literal(r)))
+    ),
+    /** CR 106.6 riders (Delighted Halfling, Arena of Glory) — what happens to
+     *  the spell this mana is spent on, orthogonal to which spells it may pay
+     *  for. */
+    cantBeCounteredRider: v.optional(v.boolean()),
+    hasteRider: v.optional(v.boolean()),
+});
+
 export const scenarioSpecValidator = v.object({
     cards: v.array(scenarioCardValidator),
     phase: v.optional(v.string()),
@@ -397,6 +457,36 @@ export const scenarioSpecValidator = v.object({
             ),
         })
     ),
+    // CR 106.4 / 106.6 (issue #3460, PRD #3397) — FLOATING MANA: the unspent
+    // pool each seat holds right now, and the restricted half of it. Mana
+    // decides what is castable THIS INSTANT, so a rebuild that opens with an
+    // empty pool drops every move the floating mana could pay for — the
+    // candidate-list mismatch the verdict quiz refuses on, and in the case
+    // where the two lists happen to match anyway, a verdict filed on a board
+    // several mana poorer than the one that was judged. It fires on exactly
+    // the decisions worth judging: mid-turn, after tapping out.
+    //
+    // Keyed by the engine's own colour keys (`PlayerState.manaPool`) with the
+    // zero entries omitted — a dynamic-key record, the shape a card's
+    // `counters` already has.
+    manaPool: v.optional(
+        v.object({
+            me: v.optional(scenarioManaPoolValidator),
+            opp: v.optional(scenarioManaPoolValidator),
+        })
+    ),
+    // CR 106.6 — mana carrying a SPEND RESTRICTION (Metamorphosis, Mishra's
+    // Workshop, a cumulative-upkeep payment), which the engine keeps in a
+    // parallel pool because the restriction is enforced at payment time
+    // (`payManaCostForSpell`) and the fungible record above has nowhere to put
+    // it. One entry per unit, the shape `scenarioRestrictedManaValidator`
+    // documents.
+    restrictedMana: v.optional(
+        v.object({
+            me: v.optional(v.array(scenarioRestrictedManaValidator)),
+            opp: v.optional(v.array(scenarioRestrictedManaValidator)),
+        })
+    ),
     // CR 702.139c / ADR 0064 (issue #1392) — directly declare a companion
     // into a slot, bypassing the sideboard/maindeck auto-declare a
     // scenario's synthetic board never runs through. Mirrors
@@ -450,6 +540,19 @@ export type ScenarioCard = {
      *  upkeep triggers. Battlefield only; not derivable from `tapped`. */
     startedTurnUntapped?: boolean;
     copyOf?: string;
+};
+
+/** CR 106.6 (issue #3460) — one unit of restricted floating mana in a spec, the
+ *  read-path type of {@link scenarioRestrictedManaValidator}. `restriction` is
+ *  the engine's own union here: the load path validates the stored string
+ *  against {@link SCENARIO_MANA_RESTRICTIONS} and drops anything else, so a
+ *  spec that reaches the builder names only members the engine enforces. */
+export type ScenarioRestrictedMana = {
+    color: string;
+    amount: number;
+    restriction?: ManaRestriction;
+    cantBeCounteredRider?: boolean;
+    hasteRider?: boolean;
 };
 
 export type ScenarioSpec = {
@@ -572,6 +675,22 @@ export type ScenarioSpec = {
          *  the declaration above in either direction. */
         attackedThisTurn?: { me?: string[]; opp?: string[] };
         blockedThisTurn?: { me?: string[]; opp?: string[] };
+    };
+    /** CR 106.4 (issue #3460) — unspent floating mana per seat, keyed by the
+     *  engine's own colour keys with zero entries omitted. Omitted means both
+     *  pools are empty: the builder CLEARS them like the other per-turn state
+     *  (the `landsPlayed` precedent, issue #3446), because a pool empties at
+     *  the end of every step and phase and a scenario places a position rather
+     *  than replaying the turn that reached it. */
+    manaPool?: { me?: Record<string, number>; opp?: Record<string, number> };
+    /** CR 106.6 (issue #3460) — the restricted half of the pool above, one
+     *  entry per unit. Cleared and re-seeded exactly like `manaPool`; a unit
+     *  whose permission is keyed to a card INSTANCE (Ice Cauldron's
+     *  `castableCardId`) is reported by `specFromState` rather than lowered,
+     *  because a rebuild reassigns every instance id. */
+    restrictedMana?: {
+        me?: ScenarioRestrictedMana[];
+        opp?: ScenarioRestrictedMana[];
     };
     companion?: { name: string; owner?: "me" | "opp"; used?: boolean };
 };
@@ -804,6 +923,80 @@ function pickSeatNameLists(
     return pair.me || pair.opp ? pair : undefined;
 }
 
+/** CR 105.1 / 106.1b — the six mana types a pool key may name. A key outside
+ *  them is not a colour the engine can ever SPEND: every payment path consults
+ *  `MANA_COLORS`, so `{ Green: 5 }` would sit in the pool forever and render as
+ *  mana the board cannot use. */
+const SPENDABLE_COLORS = new Set<string>(MANA_COLORS);
+
+/** CR 106.4 (issue #3460) — one seat's floating mana pool: a colour-keyed
+ *  record of amounts, non-numeric values dropped (the `counters` precedent). An
+ *  empty or malformed record is an absence, never an error (ADR 0044).
+ *
+ *  An unknown COLOUR key is dropped too, and that direction is deliberate: less
+ *  mana than the row claims is a board the engine can actually reach, while
+ *  keeping the key would seed unspendable mana — a pool that reads as 8 on a
+ *  board that can spend 1. The builder is the loud half of the same rule (it
+ *  throws), because a hand-written spec never passes through here. */
+function pickManaRecord(value: unknown): Record<string, number> | undefined {
+    if (!isRecord(value)) return undefined;
+    const pool: Record<string, number> = {};
+    for (const [color, amount] of Object.entries(value)) {
+        if (!SPENDABLE_COLORS.has(color)) continue;
+        const n = pickNumber(amount);
+        if (n !== undefined) pool[color] = n;
+    }
+    return Object.keys(pool).length > 0 ? pool : undefined;
+}
+
+/** CR 106.6 (issue #3460) — one seat's restricted-mana units, read fail-CLOSED:
+ *  every branch here drops the WHOLE UNIT rather than part of it, because a
+ *  partial unit is the one outcome worse than no unit at all. A unit carrying
+ *  neither a `restriction` nor a `castableCardId` is UNRESTRICTED mana
+ *  (`restrictedUnitAllowsSpell` returns true for it — Arena of Glory's rider
+ *  rides exactly such a unit), so keeping a unit whose restriction was
+ *  unreadable would hand the rebuilt board mana spendable on ANYTHING: strictly
+ *  more permissive than the row asked for, which is how a verdict gets filed on
+ *  a board the judged seat never had.
+ *
+ *  So a unit is dropped when it is missing a colour or an amount, when its
+ *  colour is not one the engine can spend, when its `restriction` is not a
+ *  member the engine enforces (`SCENARIO_MANA_RESTRICTIONS`), or when it
+ *  carries a `castableCardId` — an instance id, which no rebuild can honour and
+ *  which `specFromState` refuses to lower for that reason. */
+function pickRestrictedMana(
+    value: unknown
+): ScenarioRestrictedMana[] | undefined {
+    if (!Array.isArray(value)) return undefined;
+    const units: ScenarioRestrictedMana[] = [];
+    for (const entry of value) {
+        if (!isRecord(entry)) continue;
+        const color = pickString(entry.color);
+        const amount = pickNumber(entry.amount);
+        if (color === undefined || amount === undefined) continue;
+        if (!SPENDABLE_COLORS.has(color)) continue;
+        // An instance-keyed permission (Ice Cauldron) survives no rebuild, and
+        // silently promoting it to unrestricted mana is the fail-OPEN this
+        // whole reader is shaped to avoid.
+        if (entry.castableCardId !== undefined) continue;
+        const unit: ScenarioRestrictedMana = { color, amount };
+        const restriction = pickString(entry.restriction);
+        if (restriction !== undefined) {
+            if (!(SCENARIO_MANA_RESTRICTIONS as string[]).includes(restriction))
+                continue;
+            unit.restriction = restriction as ManaRestriction;
+        }
+        set(
+            unit,
+            "cantBeCounteredRider",
+            pickBoolean(entry.cantBeCounteredRider)
+        );
+        set(unit, "hasteRider", pickBoolean(entry.hasteRider));
+        units.push(unit);
+    }
+    return units.length > 0 ? units : undefined;
+}
+
 /** CR 509.1a (issue #3458) — one blocking creature and the attackers it was
  *  declared against, as indexes into `combat.attackers`. A malformed entry is
  *  dropped, not thrown on; an entry naming no attacker is dropped too, since a
@@ -1033,6 +1226,23 @@ export function normalizeScenarioSpec(raw: unknown): ScenarioSpec {
             if (blockers.length > 0) combat.blockers = blockers;
         }
         if (Object.keys(combat).length > 0) spec.combat = combat;
+    }
+    // CR 106.4 / 106.6 (issue #3460) — floating mana, read off a raw stored row
+    // as tolerantly as every branch above: a malformed colour entry or unit is
+    // dropped rather than thrown on, and a pair that normalizes to nothing at
+    // all is left off the spec so it reads as the absence the builder defaults
+    // from (both pools empty).
+    if (isRecord(raw.manaPool)) {
+        const pair: NonNullable<ScenarioSpec["manaPool"]> = {};
+        set(pair, "me", pickManaRecord(raw.manaPool.me));
+        set(pair, "opp", pickManaRecord(raw.manaPool.opp));
+        if (pair.me || pair.opp) spec.manaPool = pair;
+    }
+    if (isRecord(raw.restrictedMana)) {
+        const pair: NonNullable<ScenarioSpec["restrictedMana"]> = {};
+        set(pair, "me", pickRestrictedMana(raw.restrictedMana.me));
+        set(pair, "opp", pickRestrictedMana(raw.restrictedMana.opp));
+        if (pair.me || pair.opp) spec.restrictedMana = pair;
     }
     if (isRecord(raw.companion)) {
         const name = pickString(raw.companion.name);

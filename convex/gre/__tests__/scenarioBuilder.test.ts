@@ -10,14 +10,18 @@
 // contract the pure signature promises.
 
 import { describe, expect, it } from "vitest";
-import { buildStateFromScenario, specFromState } from "../scenarioBuilder";
+import {
+    buildStateFromScenario,
+    RESTRICTED_MANA_KEY_DISPOSITION,
+    specFromState,
+} from "../scenarioBuilder";
 import {
     makeInstance,
     makePlayer,
     makeState,
     pushSpell,
 } from "../../cards/__tests__/setup";
-import { grizzlyBears } from "../../cards/sets/lea/green";
+import { giantGrowth, grizzlyBears } from "../../cards/sets/lea/green";
 import { gaeasTouch } from "../../cards/sets/drk/green";
 import { hillGiant, shivanDragon } from "../../cards/sets/lea/red";
 import { arboria } from "../../cards/sets/leg/green";
@@ -46,7 +50,7 @@ import {
 } from "../rules";
 import { collectTriggers } from "../triggers";
 import { validateAttackerEligibility } from "../combat";
-import type { GameState, PendingChoice } from "../state";
+import type { GameState, PendingChoice, PlayerState } from "../state";
 import type { GameEvent } from "../../cards/types";
 import type { ScenarioSpec } from "../../debugScenarioSpec";
 import { removedKeywordRows } from "../../cards/__tests__/setup";
@@ -1118,7 +1122,7 @@ describe("specFromState (issue #2148)", () => {
         );
     });
 
-    it("reports the stack and floating mana as dropped rather than silently losing them", () => {
+    it("reports the stack as dropped, and LOWERS the floating mana beside it", () => {
         const base = makeState();
         const state = buildStateFromScenario(base, {
             cards: [{ name: grizzlyBears.name, owner: "me" }],
@@ -1133,12 +1137,17 @@ describe("specFromState (issue #2148)", () => {
         });
         state.players[0].manaPool.R = 2;
 
-        const { dropped } = specFromState(state, {
+        const { spec, dropped } = specFromState(state, {
             mySeatId: state.players[0].id,
         });
 
         expect(dropped.some((d) => d.startsWith("stack:"))).toBe(true);
-        expect(dropped.some((d) => d.includes("mana pool"))).toBe(true);
+        // CR 106.4 (issue #3460) — the pool used to be reported here beside the
+        // stack. It is LOWERED now, so it must be in the spec and OUT of
+        // `dropped`: a fact the spec carries while still confessing to losing it
+        // reads as an unjudgeable position in the lowering sweep (PR #3465).
+        expect(spec.manaPool).toEqual({ me: { R: 2 } });
+        expect(dropped.some((d) => d.includes("mana pool"))).toBe(false);
     });
 
     // CR 500.8 (issue #2886) — an owed extra combat is turn-structure state a
@@ -3030,7 +3039,7 @@ describe("buildStateFromScenario — per-card tap state (issue #3451)", () => {
         expect(rebuiltBears?.startedTurnUntapped).toBe(true);
     });
 
-    it("reports the MANA POOL, never the six undo records that exist to refill it", () => {
+    it("lowers the MANA POOL, never the six undo records that exist to refill it", () => {
         const base = makeState();
         const live = buildStateFromScenario(base, {
             cards: [{ name: forest.name, owner: "me", tapped: true }],
@@ -3053,15 +3062,17 @@ describe("buildStateFromScenario — per-card tap state (issue #3451)", () => {
             mySeatId: live.players[0].id,
         });
 
-        // Exactly one loss, and it is the pool — which is the argument for
-        // allowlisting the six: the thing they give back is the thing the spec
-        // cannot carry, so a rebuild has nothing to give back.
-        expect(dropped).toEqual([
-            "me's mana pool: 2G — not lowered (mana pool isn't spec-expressible)",
-        ]);
+        // Nothing is lost on this board at all since issue #3460 lowered the
+        // pool — and the argument for allowlisting the six did not rest on the
+        // pool being unlowerable, it rests on the rebuild having no TAP to
+        // reverse. The pool arrives as captured; no undo ledger arrives with it.
+        expect(dropped).toEqual([]);
+        expect(lowered.manaPool).toEqual({ me: { G: 2 } });
 
-        // And the rebuild carries none of them, so its untap-toggle is a plain
-        // untap: no life, no counters and no cost mana minted out of nothing.
+        // And the rebuild carries none of the six, so its untap-toggle is a
+        // plain untap: no life, no counters and no cost mana minted out of
+        // nothing — and the pool it would have minted INTO is the captured one,
+        // neither topped up nor emptied.
         const rebuilt = buildStateFromScenario(base, lowered);
         const rebuiltForest = find(rebuilt, 0, forest.id);
         expect(rebuiltForest?.isTapped).toBe(true);
@@ -3071,7 +3082,7 @@ describe("buildStateFromScenario — per-card tap state (issue #3451)", () => {
         expect(rebuiltForest?.lifePaidThisTap).toBeUndefined();
         expect(rebuiltForest?.exertedThisTap).toBeUndefined();
         expect(rebuiltForest?.manaCounterRemoval).toBeUndefined();
-        expect(rebuilt.players[0].manaPool.G).toBe(0);
+        expect(rebuilt.players[0].manaPool.G).toBe(2);
     });
 
     // CR 502.1 / 603.4 — the behavioural half for `startedTurnUntapped`: the
@@ -3106,5 +3117,233 @@ describe("buildStateFromScenario — per-card tap state (issue #3451)", () => {
         // untapped Rasputin during the turn rebuilds with the trigger SILENT,
         // exactly as the live position had it.
         expect(fires(false)).toBe(false);
+    });
+});
+
+// CR 106.4 / 106.6 (issue #3460, PRD #3397) — FLOATING MANA. The pool decides
+// what is castable this instant, so before this widening a mid-turn position
+// captured after tapping out rebuilt several mana poorer: every move the
+// floating mana could pay for dropped out of the rebuilt candidate list, which
+// is the mismatch the verdict quiz refuses on, and in the case where the two
+// lists happened to match anyway, the verdict was filed on a different board.
+//
+// The BEHAVIOURAL half — what the rebuilt position actually lets the seat cast
+// — lives in `scenarioBuilderMana.bot.test.ts`: it reads the candidate list
+// through `candidateMoves`, a bot-only module (`bot-suite-boundary.test.ts`).
+describe("scenario spec — floating mana (issue #3460)", () => {
+    const BOARD: ScenarioSpec = {
+        cards: [{ name: grizzlyBears.name, owner: "me", zone: "hand" }],
+    };
+
+    it("lowers a floating pool on either seat, reporting neither as dropped (CR 106.4)", () => {
+        const live = buildStateFromScenario(makeState(), BOARD);
+        live.players[0].manaPool = { G: 1, W: 2 };
+        // A zero entry is what an emptied pool leaves (CR 106.4), so it is not
+        // a fact to carry: it must not reach the spec.
+        live.players[1].manaPool = { U: 1, B: 0 };
+
+        const { spec, dropped } = specFromState(live, {
+            mySeatId: live.players[0].id,
+        });
+
+        expect(spec.manaPool).toEqual({ me: { G: 1, W: 2 }, opp: { U: 1 } });
+        expect(dropped.filter((d) => /mana pool/i.test(d))).toEqual([]);
+
+        const rebuilt = buildStateFromScenario(makeState(), spec);
+        expect(rebuilt.players[0].manaPool).toEqual({ G: 1, W: 2 });
+        expect(rebuilt.players[1].manaPool).toEqual({ U: 1 });
+    });
+
+    it("lowers restricted mana with its restriction and its riders (CR 106.6)", () => {
+        const live = buildStateFromScenario(makeState(), BOARD);
+        const units: NonNullable<PlayerState["restrictedMana"]> = [
+            { color: "G", amount: 2, restriction: "creature-spell" },
+            { color: "R", amount: 1, cantBeCounteredRider: true },
+        ];
+        live.players[0].restrictedMana = units;
+
+        const { spec, dropped } = specFromState(live, {
+            mySeatId: live.players[0].id,
+        });
+
+        expect(spec.restrictedMana).toEqual({ me: units });
+        expect(dropped.filter((d) => /restricted/i.test(d))).toEqual([]);
+
+        const rebuilt = buildStateFromScenario(makeState(), spec);
+        expect(rebuilt.players[0].restrictedMana).toEqual(units);
+        expect(rebuilt.players[1].restrictedMana).toBeUndefined();
+    });
+
+    it("reports an INSTANCE-keyed unit rather than lowering it (Ice Cauldron, CR 106.6)", () => {
+        const live = buildStateFromScenario(makeState(), BOARD);
+        live.players[0].restrictedMana = [
+            // The permission names an instance id, and every rebuild allocates
+            // fresh ones — there is no object on the rebuilt board for it to
+            // point at, so the unit is reported instead.
+            { color: "U", amount: 1, castableCardId: "instance-that-moves" },
+            { color: "G", amount: 1, restriction: "creature-spell" },
+        ];
+
+        const { spec, dropped } = specFromState(live, {
+            mySeatId: live.players[0].id,
+        });
+
+        expect(spec.restrictedMana?.me).toEqual([
+            { color: "G", amount: 1, restriction: "creature-spell" },
+        ]);
+        expect(dropped.some((d) => d.includes("names a card INSTANCE"))).toBe(
+            true
+        );
+    });
+
+    it("keeps the spend restriction in the rebuild (CR 106.6)", () => {
+        // The claim is BEHAVIOURAL and read off the legality gate, not off the
+        // pool: restricted mana that rebuilt as fungible would make a spell
+        // castable that the judged seat could not cast. Two mana spendable only
+        // on a creature spell — the Bears are payable, Giant Growth (an Instant
+        // needing only {G}) is not.
+        const state = buildStateFromScenario(makeState(), {
+            cards: [
+                { name: grizzlyBears.name, owner: "me", zone: "hand" },
+                { name: giantGrowth.name, owner: "me", zone: "hand" },
+                { name: grizzlyBears.name, owner: "opp", zone: "battlefield" },
+            ],
+            landCount: 0,
+            restrictedMana: {
+                me: [{ color: "G", amount: 2, restriction: "creature-spell" }],
+            },
+        });
+        const me = state.players[0];
+        const bears = me.hand.find((c) => c.card.id === grizzlyBears.id)!;
+        const growth = me.hand.find((c) => c.card.id === giantGrowth.id)!;
+
+        expect(getLegalActions(state, me, bears)).toContain("cast");
+        expect(getLegalActions(state, me, growth)).not.toContain("cast");
+
+        // The discriminating half: with the SAME two mana unrestricted, the
+        // instant becomes payable — so the assertion above is about the
+        // restriction, not about the board being short of mana.
+        const fungible = buildStateFromScenario(makeState(), {
+            cards: [
+                { name: grizzlyBears.name, owner: "me", zone: "hand" },
+                { name: giantGrowth.name, owner: "me", zone: "hand" },
+                { name: grizzlyBears.name, owner: "opp", zone: "battlefield" },
+            ],
+            landCount: 0,
+            manaPool: { me: { G: 2 } },
+        });
+        const loose = fungible.players[0];
+        expect(
+            getLegalActions(
+                fungible,
+                loose,
+                loose.hand.find((c) => c.card.id === giantGrowth.id)!
+            )
+        ).toContain("cast");
+    });
+
+    it("lowers or reports EVERY field of a restricted-mana unit (CR 106.6)", () => {
+        // The `satisfies Record<keyof RestrictedMana, …>` on
+        // `RESTRICTED_MANA_KEY_DISPOSITION` reds `tsc` when the engine gains a
+        // unit field with no classification. This is the other half: a field
+        // classified `lowered` that the mapper does not actually copy would
+        // otherwise be lost in silence, because `restrictedMana` is a blanket
+        // allowlist entry and the residue detector no longer names it.
+        const live = buildStateFromScenario(makeState(), BOARD);
+        live.players[0].restrictedMana = [
+            {
+                color: "G",
+                amount: 2,
+                restriction: "creature-spell",
+                cantBeCounteredRider: true,
+                hasteRider: true,
+            },
+        ];
+        live.players[1].restrictedMana = [
+            { color: "U", amount: 1, castableCardId: "instance-that-moves" },
+        ];
+
+        const { spec, dropped } = specFromState(live, {
+            mySeatId: live.players[0].id,
+        });
+        const loweredKeys = Object.keys(spec.restrictedMana?.me?.[0] ?? {});
+
+        for (const [key, disposition] of Object.entries(
+            RESTRICTED_MANA_KEY_DISPOSITION
+        )) {
+            if (disposition === "lowered") {
+                expect(loweredKeys).toContain(key);
+            } else {
+                expect(loweredKeys).not.toContain(key);
+                expect(
+                    dropped.some((d) => d.includes("names a card INSTANCE"))
+                ).toBe(true);
+            }
+        }
+    });
+
+    it("reports an instance-keyed unit even at amount 0 (CR 106.6)", () => {
+        // The thing lost is the PERMISSION, not the mana, so the amount filter
+        // must not swallow the report.
+        const live = buildStateFromScenario(makeState(), BOARD);
+        live.players[0].restrictedMana = [
+            { color: "U", amount: 0, castableCardId: "instance-that-moves" },
+        ];
+
+        const { spec, dropped } = specFromState(live, {
+            mySeatId: live.players[0].id,
+        });
+
+        expect(spec.restrictedMana).toBeUndefined();
+        expect(dropped.some((d) => d.includes("names a card INSTANCE"))).toBe(
+            true
+        );
+    });
+
+    it("refuses a mana type the engine cannot spend (CR 105.1)", () => {
+        // Fail closed and LOUD: the tolerant load path drops such a key for a
+        // stored row, and a hand-written spec never passes through it, so the
+        // builder is the only place a "Green" can be caught before it becomes
+        // five mana nothing can spend.
+        expect(() =>
+            buildStateFromScenario(makeState(), {
+                ...BOARD,
+                manaPool: { me: { Green: 5 } },
+            })
+        ).toThrow(/not a mana type the engine can spend/);
+        expect(() =>
+            buildStateFromScenario(makeState(), {
+                ...BOARD,
+                restrictedMana: { opp: [{ color: "g", amount: 1 }] },
+            })
+        ).toThrow(/not a mana type the engine can spend/);
+    });
+
+    it("clears the pool the LOADED game was holding when the spec names none (CR 106.4)", () => {
+        // `debugSetupScenario` rebuilds onto the live game, so without the
+        // clear a captured position with an empty pool could not be placed at
+        // all — it would inherit whatever that game happened to hold.
+        const base = makeState();
+        base.players[0].manaPool = { G: 3 };
+        base.players[1].restrictedMana = [{ color: "R", amount: 1 }];
+
+        const rebuilt = buildStateFromScenario(base, BOARD);
+
+        expect(rebuilt.players[0].manaPool).toEqual({});
+        expect(rebuilt.players[1].restrictedMana).toBeUndefined();
+    });
+
+    it("places neither a non-positive pool entry nor an empty unit (CR 106.4)", () => {
+        // The engine's payment path clamps at zero (`payManaCostForSpell`
+        // spends `min(pool, required)`), so a non-positive amount is a state it
+        // never produced and the builder never places.
+        const rebuilt = buildStateFromScenario(makeState(), {
+            ...BOARD,
+            manaPool: { me: { G: 0, W: -1, U: 2 } },
+            restrictedMana: { me: [{ color: "R", amount: 0 }] },
+        });
+
+        expect(rebuilt.players[0].manaPool).toEqual({ U: 2 });
+        expect(rebuilt.players[0].restrictedMana).toBeUndefined();
     });
 });

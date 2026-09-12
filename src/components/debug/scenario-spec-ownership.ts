@@ -95,6 +95,19 @@ export const SCENARIO_SPEC_FIELD_OWNER = {
     // (`specFromState`) or hand-written in a blade entry, and carried through
     // untouched by any edit of the row — which is the whole job of this table.
     combat: "preserved",
+    // CR 106.4 / 106.6 (issue #3460) — floating mana, `preserved` for the same
+    // reason `combat` is: neither is a scalar knob. `manaPool` is a
+    // DYNAMIC-KEY record — six numeric knobs per seat, one per mana type
+    // (`MANA_COLORS` is closed, so a form COULD enumerate them; twelve inputs
+    // for a field captured far more often than typed is the trade, not an
+    // impossibility) — and `restrictedMana` is a list of units each carrying a
+    // restriction and two riders, which no input kind has a shape for at all.
+    // A text box for either would be the untypeable knob issue #3463 closed
+    // wearing an input. Both are captured
+    // (`specFromState`) or hand-written in a blade entry, and carried through
+    // untouched by any edit of the row.
+    manaPool: "preserved",
+    restrictedMana: "preserved",
     companion: "form-owned",
 } as const satisfies Record<keyof ScenarioSpec, ScenarioSpecFieldOwner>;
 

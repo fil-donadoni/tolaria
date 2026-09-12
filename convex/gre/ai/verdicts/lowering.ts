@@ -100,8 +100,9 @@ export type LoweredDecision = {
      *  offer the Bot's own move is refused, not returned. */
     botPickIndex: number;
     /** Everything the lowering could not carry (`specFromState`'s own report,
-     *  plus any hidden-identity note): the stack, a mana pool, combat past the
-     *  declare step, … A verdict given on a position missing one of those is a
+     *  plus any hidden-identity note): the stack, a mid-flight payment, an
+     *  instance-keyed restricted-mana permission (CR 106.6), … A verdict given
+     *  on a position missing one of those is a
      *  judgement about a DIFFERENT board, so this is surfaced, never buried. */
     dropped: string[];
 };
@@ -296,7 +297,7 @@ export function lowerDecision(
     if (botPickIndex === -1) {
         // The rebuild does not offer the move that was actually played, so it
         // is not this decision: the lowering lost something the decision
-        // depended on (a declared combat, a spell on the stack, a mana pool).
+        // depended on (a spell on the stack, a mid-flight payment).
         // Judging the list anyway would file an answer about a DIFFERENT
         // position under the Bot's name — the one failure of this whole flow
         // that nothing downstream could ever detect, because the verdict it

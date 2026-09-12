@@ -350,6 +350,21 @@ export const SCENARIO_SCHEMA_EXCLUSIONS = {
     // that coherence is the author's. It is CAPTURED from a live position
     // (`specFromState`) or hand-written in a blade entry.
     combat: "a declared combat must cohere with the board that produced it — captured, never generated",
+    // CR 106.4 (issue #3460) — a DYNAMIC-KEY record (one entry per colour), the
+    // same shape as a card's `counters` and excluded for the same mechanical
+    // reason stated at the top of this file: structured output does not support
+    // `additionalProperties: <type>`, so there is no schema to offer. An admin
+    // adds floating mana in the preview/edit step; the tolerant load path still
+    // accepts it if it somehow arrives.
+    manaPool:
+        "a colour-keyed record — structured output has no `additionalProperties: <type>` (the `counters` exclusion)",
+    // CR 106.6 (issue #3460) — restricted mana has to cohere with the board
+    // that produced it the way `combat` does: the restriction comes from the
+    // source that made the mana (Metamorphosis, Mishra's Workshop, a
+    // cumulative-upkeep payment), so a model handed the field would invent
+    // restricted mana no permanent on the board could have produced.
+    restrictedMana:
+        "a spend restriction comes from the source that made the mana — captured, never generated",
 } as const satisfies Partial<Record<keyof ScenarioSpec, string>>;
 
 /** Signature of the injected LLM call: given a system prompt and the user's

@@ -135,6 +135,14 @@ const STORED: Required<ScenarioSpec> = {
         attackedThisTurn: { me: ["Savannah Lions"] },
         blockedThisTurn: { opp: ["Grizzly Bears"] },
     },
+    // CR 106.4 / 106.6 (issue #3460) — a curated row captured mid-turn with
+    // mana still floating: two unrestricted, plus a unit spendable only on a
+    // creature spell. `preserved` like `combat`, so this exercises the
+    // carry-through path too.
+    manaPool: { me: { G: 1, W: 2 }, opp: { U: 1 } },
+    restrictedMana: {
+        me: [{ color: "R", amount: 2, restriction: "creature-spell" }],
+    },
     companion: { name: "Lurrus of the Dream-Den", owner: "me", used: true },
 };
 
