@@ -45,8 +45,12 @@ export default function DebugScenarioRow({
 }) {
     const hasPrompt = typeof row.prompt === "string" && row.prompt.length > 0;
     return (
-        <div className="flex min-w-0 items-center gap-1">
-            <DebugButton onClick={onToggleGolden} disabled={disabled}>
+        <div className="flex min-w-0 items-center gap-1 rounded-sm px-1 py-0.5 hover:bg-surface-elevated/60">
+            <DebugButton
+                onClick={onToggleGolden}
+                disabled={disabled}
+                title={row.golden ? "Golden — kept" : "Ephemeral — prunable"}
+            >
                 <span
                     className={
                         row.golden ? "text-accent-strong" : "text-text-disabled"
@@ -56,9 +60,15 @@ export default function DebugScenarioRow({
                 </span>
             </DebugButton>
             {onLoad ? (
+                // The row's VERB, so it carries the primary tone (issue
+                // #3494): it read exactly like the ★/✎/× glyphs beside it while
+                // every control on the surface was `secondary`.
                 <DebugButton
+                    variant="primary"
+                    size="sm"
                     onClick={onLoad}
                     disabled={disabled}
+                    title={`Load "${row.label}" into this game`}
                     // The label is the only elastic cell in the row (#3403):
                     // everything else is a one-glyph verb that must stay
                     // reachable at the debug sheet's 293px phone width.
@@ -72,19 +82,33 @@ export default function DebugScenarioRow({
                 </span>
             )}
             {onTest && (
-                <DebugButton onClick={onTest} disabled={disabled}>
+                <DebugButton
+                    variant="primary"
+                    size="sm"
+                    onClick={onTest}
+                    disabled={disabled}
+                    title="Start a fresh solo game on this scenario"
+                >
                     {testing ? "Starting…" : "Test"}
                 </DebugButton>
             )}
-            <DebugButton onClick={onEdit} disabled={disabled}>
+            <DebugButton onClick={onEdit} disabled={disabled} title="Edit">
                 {"✎"}
             </DebugButton>
             {hasPrompt && (
                 <>
-                    <DebugButton onClick={onRegenerate} disabled={disabled}>
+                    <DebugButton
+                        onClick={onRegenerate}
+                        disabled={disabled}
+                        title="Regenerate from the stored prompt"
+                    >
                         {"↻"}
                     </DebugButton>
-                    <DebugButton onClick={onVary} disabled={disabled}>
+                    <DebugButton
+                        onClick={onVary}
+                        disabled={disabled}
+                        title="Vary with a tweak"
+                    >
                         {"~"}
                     </DebugButton>
                 </>
@@ -93,6 +117,7 @@ export default function DebugScenarioRow({
                 variant="danger"
                 onClick={onDelete}
                 disabled={disabled}
+                title="Delete"
             >
                 {"×"}
             </DebugButton>

@@ -76,7 +76,7 @@ export default function DebugPanel({ gameId, playerId }: DebugPanelProps) {
             </div>
 
             {showScenarios && (
-                <div className="mt-2 flex flex-col gap-1 border-t border-border-accent/20 pt-2">
+                <div className="mt-3 flex flex-col gap-3 border-t border-border-accent/40 pt-3">
                     <DebugDbScenarios
                         gameId={gameId}
                         onEdit={(row) =>
@@ -87,19 +87,19 @@ export default function DebugPanel({ gameId, playerId }: DebugPanelProps) {
                             })
                         }
                     />
-                    <div className="mt-2 border-t border-border-accent/20 pt-2">
+                    <div className="border-t border-border-accent/40 pt-3">
                         <DebugBladeScenarios gameId={gameId} />
                     </div>
                     {/* "Copy as scenario" authors a spec FROM the live board,
                         so it belongs with the scenario surface rather than in
                         the top action row, which issue #3403 fixes at three. */}
-                    <div className="mt-2 border-t border-border-accent/20 pt-2">
+                    <div className="border-t border-border-accent/40 pt-3">
                         <DebugCopyScenario state={state} mySeatId={playerId} />
                     </div>
-                    <div className="mt-2 border-t border-border-accent/20 pt-2">
+                    <div className="border-t border-border-accent/40 pt-3">
                         <DebugGenerateScenario />
                     </div>
-                    <div className="mt-2 border-t border-border-accent/20 pt-2">
+                    <div className="border-t border-border-accent/40 pt-3">
                         <DebugSaveScenario
                             key={editingScenario?.id ?? "new"}
                             editing={editingScenario}

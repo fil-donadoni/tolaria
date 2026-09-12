@@ -5,6 +5,7 @@ import type { Doc, Id } from "@convex/_generated/dataModel";
 import { normalizeScenarioSpec } from "@convex/debugScenarioSpec";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
 import DebugButton from "./debug-button";
+import { DEBUG_INPUT_CLASS } from "./debug-form-styles";
 import DebugScenarioRow from "./debug-scenario-row";
 import DebugScenarioPreview from "./debug-scenario-preview";
 
@@ -120,11 +121,13 @@ export default function DebugDbScenarios({
     const varyingRow = rows.find((r) => r._id === varyingId) ?? null;
 
     return (
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between gap-2">
-                <span className="text-label">Load scenario</span>
+                <span className="text-sm font-medium text-text">
+                    Load scenario
+                </span>
                 {total > 0 && (
-                    <span className="text-[10px] text-text-disabled tabular-nums">
+                    <span className="text-xs text-text-muted tabular-nums">
                         {filter.trim() ? `${rows.length} / ${total}` : total}
                     </span>
                 )}
@@ -134,12 +137,13 @@ export default function DebugDbScenarios({
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
                 placeholder="Search scenarios…"
-                className="input-field w-full px-2 py-1 text-xs"
+                aria-label="search scenarios"
+                className={`${DEBUG_INPUT_CLASS} w-full`}
                 autoFocus
             />
-            <div className="max-h-40 overflow-y-auto flex flex-col gap-1">
+            <div className="max-h-56 overflow-y-auto flex flex-col gap-0.5 rounded-sm border border-border-subtle/60 p-1">
                 {rows.length === 0 ? (
-                    <span className="text-[10px] text-text-disabled">
+                    <span className="p-1 text-xs text-text-muted">
                         {scenarios === undefined
                             ? "Loading…"
                             : "No saved scenarios"}
@@ -174,8 +178,8 @@ export default function DebugDbScenarios({
             )}
 
             {varyingRow && (
-                <div className="flex flex-col gap-1 mt-1 pt-2 border-t border-border-accent/20">
-                    <span className="text-label">
+                <div className="flex flex-col gap-1.5 mt-1 pt-2 border-t border-border-accent/20">
+                    <span className="text-sm font-medium text-text">
                         {`Vary: ${varyingRow.label}`}
                     </span>
                     <input
@@ -183,10 +187,13 @@ export default function DebugDbScenarios({
                         value={tweak}
                         onChange={(e) => setTweak(e.target.value)}
                         placeholder="Tweak, e.g. add a second Mountain to opp"
-                        className="input-field w-full px-2 py-1 text-xs"
+                        aria-label="variation tweak"
+                        className={`${DEBUG_INPUT_CLASS} w-full`}
                     />
-                    <div className="flex gap-1">
+                    <div className="flex gap-1.5">
                         <DebugButton
+                            variant="primary"
+                            size="sm"
                             onClick={() =>
                                 void runRegenerate(varyingRow, tweak.trim())
                             }
@@ -198,6 +205,7 @@ export default function DebugDbScenarios({
                         </DebugButton>
                         <DebugButton
                             variant="danger"
+                            size="sm"
                             onClick={() => {
                                 setVaryingId(null);
                                 setTweak("");
@@ -221,7 +229,7 @@ export default function DebugDbScenarios({
             )}
 
             {error && (
-                <span className="text-[10px] text-danger-strong">{error}</span>
+                <span className="text-xs text-danger-strong">{error}</span>
             )}
         </div>
     );
