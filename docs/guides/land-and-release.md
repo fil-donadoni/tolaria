@@ -139,6 +139,11 @@ production deploy.
    [heavy mutex](#g-heavy-mutex): a throwaway worktree at that sha,
    `check:all` then `bun run test` (app, bot, blade), ~13 minutes with the
    4-worker cap. Deduplicated by sha: a tip already GREEN is not re-gated.
+   The terminal is never silent (issue #3487): each step prints
+   `health-main: [2/3] check:all — start` and `… — exit 0 after 4m12s`, the
+   gate's `[gate] waiting … for the heavy mutex` lines arrive live (a queue,
+   not a hang), and a long step prints `… — still running, 5m00s elapsed`
+   every minute. The full child output still goes only to the per-sha log.
 4. Reads `.claude/telemetry/health/last.json` and releases **only** if the
    record is GREEN and about exactly the tip being promoted. A record about
    another sha, a RED, or a run still marked `running` refuses with the reason.
