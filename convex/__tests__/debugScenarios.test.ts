@@ -1054,7 +1054,7 @@ describe("normalizeScenarioSpec — continuous effects are read fail-closed (iss
     });
 
     it("drops a layer-7 entry that names no sublayer, and a sublayer on any other layer (CR 613.4)", () => {
-        const { sublayer: _sublayer, ...noSublayer } = PUMP;
+        const noSublayer = { ...PUMP, sublayer: undefined };
         expect(
             normalizeScenarioSpec({
                 cards: [],
