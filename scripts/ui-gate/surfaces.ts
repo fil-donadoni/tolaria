@@ -188,9 +188,19 @@ async function clickIfVisible(
  * short prompt label here goes through `:text-is()` for that reason. */
 const MULLIGAN_KEEP = 'button:text-is("Keep")';
 const PREGAME_PLAY = '[role=dialog] button:text-is("Play")';
+const BANNER_RESUME = 'button:text-is("Resume")';
 const BANNER_LEAVE = 'button:text-is("Leave")';
 const BANNER_CONCEDE = 'button:text-is("Concede Match")';
-const CONFIRM_CONCEDE = '[role=dialog] button:text-is("Concede Match")';
+/** The confirm dialog's destructive plate. `:has-text()` here and `:text-is()`
+ *  on the banner twin above, and the asymmetry is load-bearing: Playwright's
+ *  `:text-is()` matches the SMALLEST element carrying the text, and this one is
+ *  an `ActionButton`, which wraps its label in a `<span>` — so the span matches
+ *  and the `button` never does. Measured: the banner press landed, the dialog
+ *  opened, and the plate read `NOT PRESSED` on every viewport of a full run,
+ *  leaving the lane's own game standing. Scoped to the dialog because the
+ *  banner button behind it carries the same words; inside the dialog the only
+ *  other control is `Cancel`. */
+const CONFIRM_CONCEDE = '[role=dialog] button:has-text("Concede Match")';
 
 /**
  * Open an event's page from `/limited`.
@@ -915,27 +925,50 @@ const PRESET_DECK_SELECTED = `${PRESET_SHELF} [data-deck-tile][data-selected="tr
  * a vs-AI game is never in that state, but the branch costs one line and keeps
  * the helper honest about the two states the banner has.
  */
-async function concedeLaneGame(page: Page, ctx: WalkContext): Promise<boolean> {
-    await goto(page, ctx, "/");
-    // CONCEDE FIRST, `Leave` only as the waiting-room fallback. The banner
-    // offers exactly one of the two and picks by the MATCH's status, while
-    // `leaveGame` re-reads the GAME's — so on a match still `pregame` around a
-    // game already `playing` the banner offers `Leave` and the mutation
-    // refuses it (`Cannot leave a game in progress; concede instead`, measured
-    // here on issue #3492). Reaching for the destructive control first means
-    // the one that CAN end a live match is the one tried first.
-    if (await clickTransient(page, BANNER_CONCEDE, 4000)) {
-        if (!(await clickTransient(page, CONFIRM_CONCEDE, STEP_TIMEOUT))) {
-            return false;
+async function concedeLaneGame(
+    page: Page,
+    ctx: WalkContext,
+    trace: string[] = []
+): Promise<boolean> {
+    for (let pass = 0; pass < 2; pass++) {
+        await goto(page, ctx, "/");
+        if (!(await visible(page, BANNER_RESUME, 4000))) {
+            trace.push(`pass${pass}: no active-game banner`);
+            return true;
         }
-        await page.waitForTimeout(1500);
+        if (await clickTransient(page, BANNER_CONCEDE, 3000)) {
+            trace.push(`pass${pass}: pressed banner Concede`);
+            const dialog = await visible(page, "[role=dialog]", 4000);
+            trace.push(
+                `pass${pass}: confirm dialog ${dialog ? "open" : "ABSENT"}`
+            );
+            let confirmed = false;
+            try {
+                confirmed = await clickIfVisible(
+                    page,
+                    CONFIRM_CONCEDE,
+                    STEP_TIMEOUT
+                );
+            } catch (err) {
+                trace.push(`pass${pass}: ${(err as Error).message}`);
+            }
+            trace.push(
+                `pass${pass}: confirm plate ${confirmed ? "pressed" : "NOT PRESSED"}`
+            );
+        } else if (await clickTransient(page, BANNER_LEAVE, 3000)) {
+            trace.push(`pass${pass}: pressed banner Leave`);
+        } else {
+            trace.push(`pass${pass}: banner offered neither Concede nor Leave`);
+        }
+        await page.waitForTimeout(2000);
         await settle(page);
-        return true;
+        if (!(await visible(page, BANNER_RESUME, 3000))) {
+            trace.push(`pass${pass}: banner gone`);
+            return true;
+        }
+        trace.push(`pass${pass}: banner still standing`);
     }
-    if (!(await clickTransient(page, BANNER_LEAVE, 4000))) return false;
-    await page.waitForTimeout(1500);
-    await settle(page);
-    return true;
+    return false;
 }
 
 /** Create a vs-AI game from a lobby with no active game. Same three lobby
@@ -993,9 +1026,9 @@ async function createVsAiGame(page: Page, ctx: WalkContext): Promise<void> {
 async function ensureVsAiBoard(page: Page, ctx: WalkContext): Promise<void> {
     await goto(page, ctx, "/");
 
-    if (await visible(page, "button:has-text('Resume')", 4000)) {
+    if (await visible(page, BANNER_RESUME, 4000)) {
         if (ctx.createdVsAiGame) {
-            await clickTransient(page, "button:has-text('Resume')", 6000);
+            await clickTransient(page, BANNER_RESUME, 6000);
             ctx.log("resumed the vs-AI game this lane created");
         } else if (ctx.createdGame) {
             if (!(await concedeLaneGame(page, ctx))) {
@@ -1811,7 +1844,27 @@ export const SURFACES: readonly Surface[] = [
         // next run — and every concurrent session's `lobby-vs-ai` with it.
         async cleanup(page, ctx) {
             if (!ctx.createdVsAiGame) return;
-            if (await concedeLaneGame(page, ctx)) ctx.createdVsAiGame = false;
+            const trace: string[] = [];
+            if (await concedeLaneGame(page, ctx, trace)) {
+                ctx.createdVsAiGame = false;
+                return;
+            }
+            // LOUD, even though `index.ts` swallows a cleanup failure into one
+            // line: a game left standing is not local hygiene debt, it is the
+            // precondition of the NEXT run (and of every concurrent session's
+            // `lobby-vs-ai`, whose own budget entry records exactly this).
+            const banner = (
+                (await page
+                    .locator(`[data-slot="banner"], :has(> ${BANNER_RESUME})`)
+                    .first()
+                    .innerText()
+                    .catch(() => "")) || "(no banner text)"
+            )
+                .replace(/\s+/g, " ")
+                .slice(0, 160);
+            throw new Error(
+                `could not end the vs-AI game this lane created — the lobby banner still reads "${banner}" [${trace.join("; ")}]. Clear it before the next run`
+            );
         },
     },
 ];
