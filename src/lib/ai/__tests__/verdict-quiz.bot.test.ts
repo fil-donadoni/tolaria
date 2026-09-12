@@ -16,7 +16,10 @@
 
 import { describe, it, expect } from "vitest";
 import { buildBladeState } from "@convex/gre/ai/blade/runner";
-import { candidateMoves } from "@convex/gre/ai/verdicts/candidates";
+import {
+    buildSetupFreeVerdictState,
+    candidateMoves,
+} from "@convex/gre/ai/verdicts/candidates";
 import { evalPairsOf } from "@convex/gre/ai/verdicts/evalPairs";
 import type { Verdict } from "@convex/gre/ai/verdicts/types";
 import { describeMove } from "@convex/gre/describeMove";
@@ -46,12 +49,62 @@ const SEQ = 42;
 
 /** The board a decision is taken on, and the wire projection of it the consult
  *  is handed — the two halves the trace store keeps. */
-function position(spec: ScenarioSpec): {
+/**
+ * The board as a REAL game hands it over (issue #3483): the seats' own
+ * nicknames, and an opaque per-game handle for every seat and every card
+ * instance — none of which a rebuild from a `ScenarioSpec` reproduces.
+ *
+ * It matters because the blade harness allocates the SAME ids on both sides:
+ * the fixture's live board and the lowering's rebuild both start from
+ * `buildBladeBaseState` and both number their instances from the same counter,
+ * so a comparison keyed off raw ids passes for free here and fails in play.
+ * Every id is PREFIXED rather than replaced, so uniqueness is preserved, and
+ * the substitution is on the quoted JSON token — which only a string-valued
+ * field can match (a card definition id is a UUID and an ability id is a
+ * slug, so neither collides with an instance id).
+ */
+function handlesOf(state: GameState): string[] {
+    const handles = new Set<string>(state.players.map((player) => player.id));
+    for (const player of state.players) {
+        for (const zone of [
+            player.battlefield,
+            player.hand,
+            player.graveyard,
+            player.exile,
+            player.library,
+        ]) {
+            for (const card of zone) handles.add(card.id);
+        }
+    }
+    for (const item of state.stack) handles.add(item.id);
+    return [...handles];
+}
+
+function asLiveGame(state: GameState, names: [string, string]): GameState {
+    const handles = handlesOf(state);
+    let json = JSON.stringify(state);
+    for (const handle of handles) {
+        json = json.replaceAll(`"${handle}"`, `"live-${handle}"`);
+    }
+    const live = JSON.parse(json) as GameState;
+    live.players[0].name = names[0];
+    live.players[1].name = names[1];
+    return live;
+}
+
+function position(
+    spec: ScenarioSpec,
+    /** Supply the seats' real nicknames to get the position a real table would
+     *  produce — see {@link asLiveGame}. Omit it and the fixture keeps the
+     *  blade harness's own names and ids, which is what every test written
+     *  before issue #3483 relies on. */
+    liveSeatNames?: [string, string]
+): {
     state: GameState;
     botId: string;
     source: AiTraceSource;
 } {
-    const state = buildBladeState({
+    const built = buildBladeState({
         label: "verdict-quiz fixture",
         spec,
         bot: "me",
@@ -59,6 +112,7 @@ function position(spec: ScenarioSpec): {
         tier: "must",
         expect: { moves: [] },
     });
+    const state = liveSeatNames ? asLiveGame(built, liveSeatNames) : built;
     const botId = state.players[0].id;
     return {
         state,
@@ -137,6 +191,22 @@ const RESPONDING_ON_OPPONENTS_TURN: ScenarioSpec = {
     libraryCount: 20,
 };
 
+/** A board whose decision TARGETS A PLAYER (issue #3483). Seal of Fire's
+ *  "Sacrifice this enchantment: It deals 2 damage to any target" costs no mana
+ *  and no tap (CR 602.1), so at priority both seats and the creature are live
+ *  targets — and the two seat-targeting candidates are the ones the describer
+ *  renders with a player NAME. */
+const SEAL_AT_A_PLAYER: ScenarioSpec = {
+    cards: [
+        { name: "Seal of Fire", owner: "me", zone: "battlefield" },
+        { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+    ],
+    phase: "PRECOMBAT_MAIN",
+    turn: 3,
+    landCount: 0,
+    libraryCount: 20,
+};
+
 const DECLARE_ATTACKERS: ScenarioSpec = {
     cards: [
         { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
@@ -201,6 +271,61 @@ describe("buildVerdictQuiz — a judgement the fit can still read (issue #3405)"
             expect(pairs.pairs.length).toBe(quiz.candidates.length - 1);
         });
     }
+
+    it("judges a decision that TARGETS A PLAYER, at a table whose seats have real names (issue #3483)", () => {
+        const { state, botId, source } = position(SEAL_AT_A_PLAYER, [
+            "Mr bambury",
+            "Tessa",
+        ]);
+        const opponentId = state.players[1].id;
+        // The premise: this board shares no identity with the one the lowering
+        // will rebuild. Asserted against the REBUILD's OWN handles — not
+        // against the shape of `asLiveGame`'s prefix, which it guarantees by
+        // construction and so could never fail (PR review).
+        const rebuiltHandles = new Set(
+            handlesOf(buildSetupFreeVerdictState(SEAL_AT_A_PLAYER))
+        );
+        const liveHandles = handlesOf(state);
+        expect(liveHandles.length).toBeGreaterThan(0);
+        expect(
+            liveHandles.filter((handle) => rebuiltHandles.has(handle))
+        ).toEqual([]);
+        const chosen = candidateMoves(state, botId).find(
+            (move) =>
+                move.kind === "activate-ability" &&
+                move.targets.some(
+                    (target) =>
+                        target.type === "player" && target.id === opponentId
+                )
+        );
+        expect(chosen).toBeDefined();
+        // The live sentence names the player, which is a fact NO
+        // `ScenarioSpec` carries and no rebuild can reproduce. Comparing the
+        // two lists through it refused this whole class of decision.
+        expect(describeMove(chosen!, state)).toContain("Tessa");
+
+        const result = buildVerdictQuiz(
+            traceFor(state, botId, chosen!),
+            source
+        );
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        const { quiz } = result;
+
+        // The pick is the move that was played, carried across the rebuild by
+        // canonical key — and the candidate a tester reads names the seat's
+        // ROLE, never the harness's "Blade P2".
+        const played = quiz.candidates[quiz.botPickIndex].description;
+        expect(played).toContain("Seal of Fire");
+        expect(played).toContain("the opponent");
+        expect(played).not.toContain("Blade P");
+
+        // And the claim every one of these tests makes: the fit rebuilds this
+        // position and finds every candidate the quiz named.
+        const pairs = evalPairsOf(verdictOf(quiz, quiz.botPickIndex));
+        expect(pairs.error).toBeUndefined();
+        expect(pairs.pairs.length).toBe(quiz.candidates.length - 1);
+    });
 
     it("judges a position where the opponent is holding cards (CR 400.2, issue #3452)", () => {
         // The hidden hand has no IDENTITY to lower — the hand is a hidden zone,

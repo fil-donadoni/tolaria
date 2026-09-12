@@ -31,11 +31,23 @@
 // exactly what the fit will do later: build through the SAME
 // `buildSetupFreeVerdictState`, enumerate through the SAME `candidateMoves`,
 // and key the candidates off THAT. What the caller supplies is the one thing
-// the rebuild cannot know — which candidate the Bot itself picked — matched
-// through the move describer's sentence, the vocabulary both sides share.
+// the rebuild cannot know — which candidate the Bot itself picked — named by
+// the move describer's sentence for the LIVE board, which is where the caller
+// read it and the only board it is matched against.
+//
+// WHAT THE TWO BOARDS ARE COMPARED BY (issue #3483). Not the describer. Its
+// sentence was called "the only vocabulary they share" and it is not one: it
+// names the PLAYER, so every decision targeting a player read "→ Mr bambury
+// (P1)" live and "→ Blade P2" on the rebuild, and `different-decision` refused
+// a position the spec had captured perfectly. `canonicalMoveKey`
+// (`gre/canonicalMoveKey.ts`) is the vocabulary both sides really share —
+// relative seat index for a player, definition id for a card instance, nothing
+// per-world — and the whole class goes with the name rather than that one
+// case. The describer stays what it is: the sentence a human READS.
 
 import { COMBAT_DROPPED_PREFIX, specFromState } from "../../scenarioBuilder";
 import { describeMove } from "../../describeMove";
+import { canonicalMoveKey, relativeSeatIndexes } from "../../canonicalMoveKey";
 import { moveKey, decidingPlayer } from "../../search";
 import { seatPlayerId } from "../blade/matcher";
 import { buildVerdictPosition, candidateMoves } from "./candidates";
@@ -81,7 +93,9 @@ export const QUIZ_SEAT = "me" as const;
  *    preference (`collectVerdictReport`'s UNCONSTRAINING).
  *  - `different-decision` — the rebuilt candidate list is not the live one.
  *  - `combat-not-captured` — the lowering lost a combat fact (issue #3458).
- *  - `pick-not-offered` — the rebuild does not offer the move that was played.
+ *  - `pick-not-offered` — the move that was played is not among the candidates:
+ *    the LIVE position never offered it (the live site), or the rebuild does
+ *    not (the invariant assertion behind the list comparison).
  */
 export const VERDICT_REFUSAL_KINDS = [
     "stack-mid-resolution",
@@ -368,48 +382,90 @@ export function lowerDecision(
         };
     }
 
+    // The sentences a tester reads are taken off the REBUILT board, whose seats
+    // carry the blade harness's own names ("Blade P1" / "Blade P2") — so a
+    // candidate rendered as "activate Seal of Fire → Blade P1" in the panel,
+    // which is not a player anybody at that table is called (issue #3483). The
+    // live nicknames must NOT be propagated here: the quiz's candidate keys
+    // have to resolve when `evalPairsOf` re-enumerates from the stored spec
+    // months later, and a spec carries no names. So the seats are named by
+    // their ROLE instead, in the same relative frame `canonicalMoveKey`
+    // compares in. Cosmetic and local, and placed exactly here — after every
+    // check above, none of which reads a player name, and before the only
+    // describer calls on `rebuilt`.
+    nameSeatsByRole(rebuilt, seatId);
+
     const candidates: VerdictCandidate[] = moves.map((move) => ({
+        // The STORED key stays `moveKey` (issue #3400) and this slice does not
+        // touch it: a verdict's candidates are found again by re-enumerating
+        // the SAME rebuild from the SAME spec, where the ids reproduce, so the
+        // structural key is the right handle there — and changing it would
+        // strand every verdict already in the corpus. The canonical key below
+        // answers a different question (the same move across TWO builds) and
+        // is never stored.
         key: moveKey(move),
         description: describeMove(move, rebuilt),
     }));
 
     // THE decision, or a different one? Everything above checks the rebuild
     // against itself; this checks it against the board the Bot actually
-    // searched. The two lists are compared through the describer because that
-    // is the only vocabulary they share — the ids underneath differ by
-    // construction — and a mismatch means the lowering lost something the
+    // searched. Compared by CANONICAL KEY (see this file's header): the ids
+    // underneath differ by construction and the describer's sentence is not
+    // invariant either, so the comparison runs in the one vocabulary both
+    // builds can produce. A mismatch means the lowering lost something the
     // decision depended on, whatever `dropped[]` did or did not manage to name.
-    const liveDescriptions = candidateMoves(position, botId)
-        .map((move) => describeMove(move, position))
-        .sort();
-    const rebuiltDescriptions = candidates
-        .map((candidate) => candidate.description)
-        .sort();
-    if (!sameList(liveDescriptions, rebuiltDescriptions)) {
+    const liveCandidates = candidateMoves(position, botId).map((move) => ({
+        key: canonicalMoveKey(move, position, botId),
+        description: describeMove(move, position),
+    }));
+    const rebuiltCandidates = moves.map((move, index) => ({
+        key: canonicalMoveKey(move, rebuilt, seatId),
+        description: candidates[index].description,
+    }));
+    const difference = candidateSetsDiffer(liveCandidates, rebuiltCandidates);
+    if (difference !== null) {
         return {
             ok: false,
             kind: "different-decision",
             dropped,
-            error: `the rebuilt position offers a different decision (${describeDifference(liveDescriptions, rebuiltDescriptions)}) — this one cannot be captured as a scenario`,
+            error: `the rebuilt position offers a different decision (${difference}) — this one cannot be captured as a scenario`,
         };
     }
 
-    // The Bot's pick, by the describer's sentence — the only vocabulary the
-    // live decision and the rebuilt position share (the ids underneath differ
-    // by construction). `findIndex` takes the first match: two candidates can
-    // describe identically only when they are the same play on interchangeable
-    // cards, in which case either index names the move that was made.
-    const botPickIndex = candidates.findIndex(
+    // The Bot's pick. Two hops, each in the vocabulary that is valid for it:
+    // the caller's sentence is matched against the LIVE list, where the
+    // describer produced it and where it is exact, and the move it names is
+    // then carried to the rebuilt list by canonical key. `find` / `findIndex`
+    // take the first match: two candidates can key identically only when they
+    // are the same play on interchangeable cards, in which case either one
+    // names the move that was made (the describer's own limit, unchanged).
+    const played = liveCandidates.find(
         (candidate) => candidate.description === chosenDescription
     );
+    if (played === undefined) {
+        // The caller named a move the LIVE position never offered, so this is
+        // not that decision. Judging the list anyway would file an answer about
+        // a DIFFERENT position under the Bot's name — the one failure of this
+        // whole flow that nothing downstream could ever detect, because the
+        // verdict it produces rebuilds and enumerates perfectly.
+        return {
+            ok: false,
+            kind: "pick-not-offered",
+            dropped,
+            error: `the Bot played "${chosenDescription}", which is not one of the moves the live position offered — this decision cannot be captured as a scenario`,
+        };
+    }
+    const botPickIndex = rebuiltCandidates.findIndex(
+        (candidate) => candidate.key === played.key
+    );
     if (botPickIndex === -1) {
-        // The rebuild does not offer the move that was actually played, so it
-        // is not this decision: the lowering lost something the decision
-        // depended on (a spell on the stack, a mid-flight payment).
-        // Judging the list anyway would file an answer about a DIFFERENT
-        // position under the Bot's name — the one failure of this whole flow
-        // that nothing downstream could ever detect, because the verdict it
-        // produces rebuilds and enumerates perfectly.
+        // UNREACHABLE while `candidateSetsDiffer` above returns null: it has
+        // already established that the two key multisets are equal, so a key
+        // found in the live list is in the rebuilt one. Kept as the assertion
+        // that says so, not as a second live failure mode — because the
+        // alternative is returning `botPickIndex: -1`, a verdict whose Bot pick
+        // points at no candidate, which is precisely the silently-undetectable
+        // record this whole function exists to refuse (PR review).
         return {
             ok: false,
             kind: "pick-not-offered",
@@ -430,6 +486,25 @@ export function lowerDecision(
     };
 }
 
+/** Name every seat of a REBUILT position by its role relative to `seatId`, so
+ *  the describer's sentences read "the opponent" rather than the blade
+ *  harness's "Blade P2". Mutates `state`, which the only caller built itself.
+ *  Derived from the same relative seat frame `canonicalMoveKey` keys in, so a
+ *  third seat gets a number rather than a special case. */
+function nameSeatsByRole(state: GameState, seatId: string): void {
+    const seats = relativeSeatIndexes(state, seatId);
+    for (const player of state.players) {
+        const seat = seats.get(player.id);
+        if (seat === undefined) continue;
+        player.name =
+            seat === 0
+                ? "the Bot"
+                : state.players.length === 2
+                  ? "the opponent"
+                  : `opponent ${seat}`;
+    }
+}
+
 function message(error: unknown): string {
     return error instanceof Error ? error.message : `${error}`;
 }
@@ -438,17 +513,55 @@ function sameList(a: string[], b: string[]): boolean {
     return a.length === b.length && a.every((value, i) => value === b[i]);
 }
 
-/** One sentence naming how the two candidate lists differ — the first move
- *  each list has that the other does not, which is what tells a reader whether
- *  they are looking at a lowering gap or a bug. */
-function describeDifference(live: string[], rebuilt: string[]): string {
-    const missing = live.find((move) => !rebuilt.includes(move));
-    const extra = rebuilt.find((move) => !live.includes(move));
+/** One candidate, as this guard handles them: the canonical key it is MATCHED
+ *  by and the describer's sentence it is REPORTED by. The two are deliberately
+ *  different jobs — the whole of issue #3483 was one function doing both. */
+export type ComparedCandidate = { key: string; description: string };
+
+/**
+ * Whether the live decision and the rebuilt one name the same set of moves —
+ * `null` when they agree, else ONE sentence naming how they differ.
+ *
+ * Matching is by CANONICAL KEY, which is what makes the comparison meaningful
+ * across two builds of the same position. REPORTING is by the describer's
+ * sentence, because a JSON key is not something a reader can act on — and each
+ * side reports in the vocabulary of the board it came from.
+ *
+ * Exported as the guard's own seam: "the rebuild is missing a move" and "the
+ * rebuild offers an extra one" are the two failures that MUST still be
+ * refused, and pinning them here names the mechanism instead of hunting a
+ * position that happens to produce one.
+ */
+export function candidateSetsDiffer(
+    live: ComparedCandidate[],
+    rebuilt: ComparedCandidate[]
+): string | null {
+    const liveKeys = live.map((candidate) => candidate.key).sort();
+    const rebuiltKeys = rebuilt.map((candidate) => candidate.key).sort();
+    if (
+        liveKeys.length === rebuiltKeys.length &&
+        liveKeys.every((key, i) => key === rebuiltKeys[i])
+    ) {
+        return null;
+    }
+    const inRebuild = new Set(rebuiltKeys);
+    const inLive = new Set(liveKeys);
+    const missing = live.find((candidate) => !inRebuild.has(candidate.key));
+    const extra = rebuilt.find((candidate) => !inLive.has(candidate.key));
     const parts: string[] = [];
-    if (missing)
-        parts.push(`the Bot had "${missing}" and the rebuild does not`);
-    if (extra) parts.push(`the rebuild offers "${extra}" and the Bot did not`);
+    if (missing) {
+        parts.push(
+            `the Bot had "${missing.description}" and the rebuild does not`
+        );
+    }
+    if (extra) {
+        parts.push(
+            `the rebuild offers "${extra.description}" and the Bot did not`
+        );
+    }
     if (parts.length === 0) {
+        // Same keys on both sides but not the same MULTIPLICITY — a
+        // duplicate-bearing list, which the set difference above cannot name.
         parts.push(
             `${live.length} move(s) in play against ${rebuilt.length} on the rebuild`
         );
