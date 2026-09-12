@@ -259,7 +259,43 @@ function sweep(): Sweep {
 
 const RESULT = sweep();
 
+/** CR 118.3 / 122.1 (issue #2712) — every ability declaring BOTH counter-cost
+ *  shapes. They share ONE instance field, `manaCounterRemoval`, which is what
+ *  all five untap/abort sites reverse: the FIXED `cost.removeCounter` leg
+ *  stamps it in `applyManaAbilityRemoveCounterCost`, and the SCALING
+ *  `manaChoiceRemovesCounters` cost stamps it inline in both tap paths. An
+ *  ability declaring both would have the second stamp clobber the first and
+ *  reverse only half the payment. Nothing in the type forbids it, so this is
+ *  the guard that does. */
+function bothCounterCostShapes(): string[] {
+    const offenders: string[] = [];
+    for (const def of getAllCards()) {
+        for (const ability of def.activatedAbilities ?? []) {
+            if (ability.useStack) continue;
+            if (
+                ability.cost.removeCounter &&
+                ability.manaChoiceRemovesCounters
+            ) {
+                offenders.push(`${def.name} / ${ability.id}`);
+            }
+        }
+    }
+    return offenders;
+}
+
 describe("mana abilities, catalogue-wide (CR 605.1a)", () => {
+    it("no mana ability declares BOTH counter-cost shapes (they share one undo field)", () => {
+        const offenders = bothCounterCostShapes();
+        expect(
+            offenders,
+            "these abilities declare `cost.removeCounter` AND " +
+                "`manaChoiceRemovesCounters`; both stamp `manaCounterRemoval`, " +
+                "so the second overwrites the first and an untap reverses only " +
+                "half the counters paid. Accumulate the field, or split the " +
+                "ability."
+        ).toEqual([]);
+    });
+
     it("every fixed-output {T} mana ability is offered by the engine, producing what it declares", () => {
         expect(RESULT.failures, RESULT.failures.join("\n\n")).toEqual([]);
     }, 120_000);

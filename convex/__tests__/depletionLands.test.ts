@@ -31,7 +31,12 @@
 // inside those functions' branch selection.
 
 import { describe, it, expect } from "vitest";
-import { tapSourceIntoPayment, tapUntap } from "../game";
+import {
+    cancelCast,
+    tapSourceIntoPayment,
+    tapUntap,
+    untapForPayment,
+} from "../game";
 import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
 import { applyPlayLand } from "../gre/playLand";
 import { projectPublicState } from "../gameProjections";
@@ -49,6 +54,7 @@ import {
     sandstoneNeedle,
     saprazzanSkerry,
 } from "../cards/sets/mmq/colorless";
+import { titaniaProtectorOfArgoth } from "../cards/sets/c14/green";
 import type { CardDefinition } from "../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
@@ -333,4 +339,110 @@ describe("depletion lands — the whole cycle", () => {
             ).toBeDefined();
         }
     );
+});
+
+describe("depletion lands — the CAST payment reversals (CR 106.4 / 118.3)", () => {
+    // `untapSourceFromPayment` funnels the ACTIVATION-side rollback, but the
+    // CAST side carries two inline copies of the same untap
+    // (`rollbackPendingCast` for the whole payment, `untapForPayment` for one
+    // land) and has to restate every reversal. Both had the counter hole, and
+    // the hole burns it permanently: the land then yields its two mana ONCE,
+    // for a spell that was never cast. Exactly the class #3214 (exert) and
+    // #3354 (life / the ability's own mana) already closed here — driven
+    // through the registered mutations, because that duplication is what a unit
+    // test on the shared helper cannot see.
+    function castPaymentState(): GameState {
+        const { state, player, land } = boardWith(hickoryWoodlot, 2);
+        // Pay the land into the cast the way `tapForPayment` does.
+        tapSourceIntoPayment(state, player, land, undefined, []);
+        state.pendingCast = {
+            playerId: "p1",
+            cardInstanceId: "spell",
+            manaCost: { G: 4 },
+            tappedLandIds: ["woodlot"],
+        };
+        return state;
+    }
+
+    it("untapping the one land restores its depletion counter", async () => {
+        const seeded = castPaymentState();
+        expect(seeded.players[0]!.battlefield[0]!.counters?.[DEPLETION]).toBe(
+            1
+        );
+        const stub = makeMutationCtx("p1", [gameStateSeed(seeded)]);
+
+        await runMutation<
+            { gameId: Id<"games">; playerId: string; cardInstanceId: string },
+            void
+        >(
+            untapForPayment as unknown as Handler<
+                {
+                    gameId: Id<"games">;
+                    playerId: string;
+                    cardInstanceId: string;
+                },
+                void
+            >,
+            stub.ctx,
+            { gameId: GAME_ID, playerId: "p1", cardInstanceId: "woodlot" }
+        );
+
+        const land = stub.state().players[0]!.battlefield[0]!;
+        expect(land.isTapped).toBe(false);
+        expect(land.counters?.[DEPLETION]).toBe(2);
+        expect(land.manaCounterRemoval).toBeUndefined();
+    });
+
+    it("cancelling the whole cast restores it too", async () => {
+        const stub = makeMutationCtx("p1", [gameStateSeed(castPaymentState())]);
+
+        await runMutation<{ gameId: Id<"games">; playerId: string }, void>(
+            cancelCast as unknown as Handler<
+                { gameId: Id<"games">; playerId: string },
+                void
+            >,
+            stub.ctx,
+            { gameId: GAME_ID, playerId: "p1" }
+        );
+
+        const land = stub.state().players[0]!.battlefield[0]!;
+        expect(land.isTapped).toBe(false);
+        expect(land.counters?.[DEPLETION]).toBe(2);
+        expect(land.manaCounterRemoval).toBeUndefined();
+    });
+});
+
+describe("depletion lands — the sacrifice is a real departure (CR 603.6 / 700.4)", () => {
+    // The rider routes through `removePermanentTo`, which queues
+    // `PERMANENT_LEFT` so the source's leave-the-battlefield watchers reach the
+    // stack. A raw `moveCard` would put the land in the graveyard just as
+    // silently and pass every other assertion in this file, so the claim needs
+    // a watcher: Titania, Protector of Argoth — "Whenever a land you control is
+    // put into a graveyard from the battlefield, create a 5/3 …" (CR 603.6e).
+    it("Titania sees the depleted land hit the graveyard and her trigger goes on the stack", async () => {
+        const { state, player } = boardWith(hickoryWoodlot, 1);
+        player.battlefield.push(
+            makeInstance(titaniaProtectorOfArgoth.id, {
+                id: "titania",
+                controllerId: "p1",
+                ownerId: "p1",
+                isSummoningSick: false,
+            })
+        );
+        const stub = makeMutationCtx("p1", [gameStateSeed(state)]);
+
+        await runTapUntap(stub.ctx, "woodlot");
+
+        const after = stub.state();
+        expect(
+            after.players[0]!.graveyard.find((c) => c.id === "woodlot")
+        ).toBeDefined();
+        // CR 605.3a — the MANA ability itself never uses the stack; what is on
+        // it is Titania's trigger, drained from `PERMANENT_LEFT` by the shared
+        // tap-mana trigger flush.
+        expect(after.stack).toHaveLength(1);
+        expect((after.stack[0]!.card as { id?: string }).id).toBe(
+            titaniaProtectorOfArgoth.id
+        );
+    });
 });

@@ -115,10 +115,10 @@ export const COST_LEG_CLAIMS = {
     },
     removeCounter: {
         paidBy: {
-            file: "convex/gre/state.ts",
+            file: "convex/gre/constants.ts",
             symbol: "canPayRemoveCounterCost",
         },
-        why: "CR 118.3 / 122.1 — checks the permanent carries enough counters of that type to pay in full.",
+        why: "CR 118.3 / 122.1 — checks the permanent carries enough counters of that type to pay in full. `autoPayable: false` is about the leg ALONE: `isAutoPayableManaAbilityCost` short-circuits on `if (cost.tap) return true`, so a {T}+removeCounter mana ability (the MMQ depletion lands, issue #2712) IS auto-committed by the planner — spending a counter, and sacrificing the land when it was the last one — exactly as a {T}+sacrifice ability already was. That is the right behaviour, because {T} is the only way to tap the source at all; what this flag withholds is a leg the planner would have to pay on its OWN, with no tap to hang it on.",
         autoPayable: false,
     },
     discardLastDrawn: {

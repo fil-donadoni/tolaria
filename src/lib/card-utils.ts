@@ -64,6 +64,7 @@ import {
     LANDWALK_KEYWORDS,
     LANDWALK_SUPERTYPE_KEYWORDS,
     assignHybridPips,
+    canPayRemoveCounterCost,
     getEffectiveManaChoices,
     getFixedSacrificeManaAbility,
     getFixedMultiColorTapManaAbility,
@@ -399,7 +400,13 @@ function clientManaAbilities(
             // "clickable but rejected" shape.
             .filter((a) => {
                 const leg = a.cost.removeCounter;
-                return !leg || (card.counters?.[leg.type] ?? 0) >= leg.count;
+                return (
+                    !leg ||
+                    canPayRemoveCounterCost(
+                        card as unknown as CardInstanceState,
+                        leg
+                    )
+                );
             })
     );
 }
@@ -2242,8 +2249,13 @@ export function getStackAbilities(
         // CR 122.6 — counter-removal cost is only legal if the source has
         // enough counters of the declared type.
         if (a.cost.removeCounter) {
-            const have = card.counters?.[a.cost.removeCounter.type] ?? 0;
-            if (have < a.cost.removeCounter.count) return false;
+            if (
+                !canPayRemoveCounterCost(
+                    card as unknown as CardInstanceState,
+                    a.cost.removeCounter
+                )
+            )
+                return false;
         }
         // CR 602.1 / 118.8 — "tap untapped permanents matching <filter> you
         // control" (Hand of Justice) and CR 702.122a Crew N ("total power N or

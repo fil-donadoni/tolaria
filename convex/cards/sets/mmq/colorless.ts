@@ -3,6 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
+import { makeTapForMana } from "../../abilities";
 import type { CardDefinition, Color, ManaCost } from "../../types";
 
 /** CR 122.1 — the counter these lands enter with and spend. The name is shared
@@ -54,17 +55,22 @@ function makeDepletionLand(args: {
         entersWith: { counters: [{ type: DEPLETION, count: 2 }] },
         activatedAbilities: [
             {
-                id: `${slug}-mana`,
-                oracleText: abilityText,
+                // The ordinary tap-for-mana shape from the shared factory
+                // (`cost: { tap: true }`, `useStack: false`, the `addMana`
+                // closure, `manaProduced`), with the two clauses that make this
+                // a depletion land layered on: the counter leg the tap also
+                // pays, and the rider that reads what is left. Composed rather
+                // than restated so there stays ONE definition of what a tap
+                // mana ability looks like.
+                ...makeTapForMana({
+                    id: `${slug}-mana`,
+                    oracleText: abilityText,
+                    produces,
+                }),
                 cost: {
                     tap: true,
                     removeCounter: { type: DEPLETION, count: 1 },
                 },
-                useStack: false,
-                effect: (ctx) => {
-                    ctx.addMana(produces);
-                },
-                manaProduced: produces,
                 sacrificesSourceWhenNoCountersRemain: DEPLETION,
             },
         ],

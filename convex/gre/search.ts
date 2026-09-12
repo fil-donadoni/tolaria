@@ -49,6 +49,8 @@ import type {
 } from "./state";
 import {
     moveCard,
+    canPayRemoveCounterCost,
+    payRemoveCounterCost,
     removeFromZone,
     resolveTopOfStack,
     emitPermanentEntered,
@@ -88,6 +90,8 @@ import {
 } from "./pendingTargetOrigin";
 import {
     manaTapSacrificesSource,
+    mayRemoveCountersForMana,
+    manaTapCounterCost,
     manaValue,
     mayBeSacrificedForMana,
 } from "./constants";
@@ -635,6 +639,25 @@ function applyTapPlan(
         ) {
             sacrificed.push(src.id);
             continue;
+        }
+        // CR 118.3 / 122.1 (issue #2712) — and the COUNTERS the activation
+        // spends, for the same reason the sacrifice above is modelled: a
+        // depletion land whose counters never move untaps next simulated turn
+        // and taps again forever, so the search values a two-use land as a
+        // permanent mana source. Read AFTER the sacrifice test, which asks
+        // about the counters BEFORE this payment. Behind the same cheap
+        // printed-definition prefilter, so an ordinary board pays one cached
+        // lookup per tap.
+        if (mayRemoveCountersForMana(src)) {
+            const leg = manaTapCounterCost(
+                src,
+                player.id,
+                manaGateBattlefields(state),
+                tap.manaChoiceIndex
+            );
+            if (leg && canPayRemoveCounterCost(src, leg)) {
+                payRemoveCounterCost(state, src, leg);
+            }
         }
         src.isTapped = true;
     }
