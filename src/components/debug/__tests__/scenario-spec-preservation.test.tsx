@@ -236,11 +236,12 @@ describe("scenario spec field ownership", () => {
         const cleared = assembleScenarioSpec({ cards: [] }, STORED);
         for (const key of SPEC_KEYS) {
             if (scenarioSpecFieldOwner(key) === "form-owned") continue;
-            // CR 508.1a (issue #3458) — `combat` is the exception, and not a
-            // hole in the rule: it REFERENCES the form-owned card list, so
-            // carrying it onto a board with no cards would save a row
-            // `buildStateFromScenario` throws on. Its own test is below.
-            if (key === "combat") {
+            // CR 508.1a (issue #3458) / CR 611.2a (issue #3488) — the two
+            // exceptions, and not a hole in the rule: both REFERENCE the
+            // form-owned card list, so carrying either onto a board with no
+            // cards would save a row `buildStateFromScenario` throws on. Their
+            // own tests are below.
+            if (key === "combat" || key === "continuousEffects") {
                 expect(cleared[key]).toBeUndefined();
                 continue;
             }
@@ -250,6 +251,26 @@ describe("scenario spec field ownership", () => {
         expect(cleared.phase).toBeUndefined();
         expect(cleared.landCount).toBeUndefined();
         expect(cleared.libraryCount).toBeUndefined();
+    });
+
+    it("drops only the STALE continuous-effect entries, never the whole list (issue #3488)", () => {
+        // PER ENTRY, unlike the combat record: a combat is one declaration
+        // whose attacker list and blocker indexes only mean anything together,
+        // while each registry entry is an independent continuous effect —
+        // dropping the list would discard pumps the edit never touched.
+        const carried = assembleScenarioSpec(FORM_ASSEMBLED, {
+            ...STORED,
+            continuousEffects: [
+                ...STORED.continuousEffects,
+                {
+                    layer: 6,
+                    affected: { opp: ["Nicol Bolas"] },
+                    controller: "opp",
+                    payload: { kind: "keyword-grant", keyword: "flying" },
+                },
+            ],
+        });
+        expect(carried.continuousEffects).toEqual(STORED.continuousEffects);
     });
 
     it("preserves nothing when creating a new scenario", () => {
@@ -286,15 +307,20 @@ describe("editing a scenario through the real form", () => {
         return call!.spec;
     };
 
-    // `combat` is excluded for the reason its own test below states: it is the
-    // one spec field that REFERENCES the card list, and this edit renames the
-    // card it names — so keeping it would save a row that cannot load.
-    it.each(SPEC_KEYS.filter((key) => key !== "cards" && key !== "combat"))(
-        "keeps `%s` across an edit",
-        (key) => {
-            expect(editAndSave()[key]).toEqual(STORED[key]);
-        }
-    );
+    // `combat` and `continuousEffects` are excluded for the reason their own
+    // tests below state: they are the spec fields that REFERENCE the card list,
+    // and this edit renames the card they name — so keeping either would save a
+    // row that cannot load.
+    it.each(
+        SPEC_KEYS.filter(
+            (key) =>
+                key !== "cards" &&
+                key !== "combat" &&
+                key !== "continuousEffects"
+        )
+    )("keeps `%s` across an edit", (key) => {
+        expect(editAndSave()[key]).toEqual(STORED[key]);
+    });
 
     it("still writes the edit the admin made", () => {
         const saved = editAndSave();
@@ -362,6 +388,15 @@ describe("editing a scenario through the real form", () => {
         // one attacker short. The golden row would simply stop loading.
         expect(PRESERVED_SCENARIO_SPEC_KEYS).toContain("combat");
         expect(editAndSave().combat).toBeUndefined();
+    });
+
+    it("drops a carried continuous effect whose permanent the admin renamed away (CR 611.2a, issue #3488)", () => {
+        // The `dropStaleCombat` hazard, one field over: `continuousEffects`
+        // names its affected permanents by presented name, and
+        // `buildStateFromScenario` THROWS on one it cannot resolve — so a
+        // renamed Psychatog would take the golden row out of service.
+        expect(PRESERVED_SCENARIO_SPEC_KEYS).toContain("continuousEffects");
+        expect(editAndSave().continuousEffects).toBeUndefined();
     });
 
     it("carries a `preserved` field through when its references still resolve", () => {
