@@ -10,7 +10,9 @@
 import { describe, it, expect } from "vitest";
 import { StackJournal, journalStepForMove } from "../verdicts/journal";
 import { buildVerdictPosition, candidateMoves } from "../verdicts/candidates";
-import { lowerDecision } from "../verdicts/lowering";
+import { lowerDecision, QUIZ_SEAT } from "../verdicts/lowering";
+import { seatPlayerId } from "../blade/matcher";
+import { canonicalMoveKey } from "../../canonicalMoveKey";
 import { applyMoveInSearch } from "../../search";
 import { describeMove } from "../../describeMove";
 import type { GameState } from "../../state";
@@ -117,8 +119,32 @@ describe("stack journal: a response decision lowers (issue #3480)", () => {
             outcome.lowered.setup
         );
         expect(rebuilt.stack).toHaveLength(1);
-        expect(outcome.lowered.candidates.map((c) => c.description)).toEqual(
-            candidateMoves(state, bot).map((move) => describeMove(move, state))
+        // Compared by CANONICAL KEY, not by the describer's sentence (issue
+        // #3483): the describer names the PLAYER, and the two boards cannot
+        // agree on a player's name — the live one carries the table's
+        // nicknames and a rebuild has only the seats a `ScenarioSpec` implies.
+        // A sentence comparison here asserted the display names the harness
+        // happened to share with itself; the key asserts what this test says
+        // it asserts, that the two positions offer the same decision.
+        //
+        // SORTED, which is also what the guard itself compares: the claim is
+        // the same SET of moves, never the same enumeration ORDER. The two
+        // cannot share an order here — the judged seat is `players[1]` in play
+        // and `players[0]` on a rebuild lowered with the Bot as `me`, so the
+        // per-player targets come out in opposite relative order.
+        const rebuiltSeat = seatPlayerId(rebuilt, QUIZ_SEAT);
+        expect(
+            candidateMoves(rebuilt, rebuiltSeat)
+                .map((move) => canonicalMoveKey(move, rebuilt, rebuiltSeat))
+                .sort()
+        ).toEqual(
+            candidateMoves(state, bot)
+                .map((move) => canonicalMoveKey(move, state, bot))
+                .sort()
+        );
+        // The stored list is still the same list, one entry per candidate.
+        expect(outcome.lowered.candidates).toHaveLength(
+            candidateMoves(state, bot).length
         );
     });
 
