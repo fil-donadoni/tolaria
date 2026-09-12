@@ -10,7 +10,11 @@
 // contract the pure signature promises.
 
 import { describe, expect, it } from "vitest";
-import { buildStateFromScenario, specFromState } from "../scenarioBuilder";
+import {
+    buildStateFromScenario,
+    RESTRICTED_MANA_KEY_DISPOSITION,
+    specFromState,
+} from "../scenarioBuilder";
 import {
     makeInstance,
     makePlayer,
@@ -3235,6 +3239,83 @@ describe("scenario spec — floating mana (issue #3460)", () => {
                 loose.hand.find((c) => c.card.id === giantGrowth.id)!
             )
         ).toContain("cast");
+    });
+
+    it("lowers or reports EVERY field of a restricted-mana unit (CR 106.6)", () => {
+        // The `satisfies Record<keyof RestrictedMana, …>` on
+        // `RESTRICTED_MANA_KEY_DISPOSITION` reds `tsc` when the engine gains a
+        // unit field with no classification. This is the other half: a field
+        // classified `lowered` that the mapper does not actually copy would
+        // otherwise be lost in silence, because `restrictedMana` is a blanket
+        // allowlist entry and the residue detector no longer names it.
+        const live = buildStateFromScenario(makeState(), BOARD);
+        live.players[0].restrictedMana = [
+            {
+                color: "G",
+                amount: 2,
+                restriction: "creature-spell",
+                cantBeCounteredRider: true,
+                hasteRider: true,
+            },
+        ];
+        live.players[1].restrictedMana = [
+            { color: "U", amount: 1, castableCardId: "instance-that-moves" },
+        ];
+
+        const { spec, dropped } = specFromState(live, {
+            mySeatId: live.players[0].id,
+        });
+        const loweredKeys = Object.keys(spec.restrictedMana?.me?.[0] ?? {});
+
+        for (const [key, disposition] of Object.entries(
+            RESTRICTED_MANA_KEY_DISPOSITION
+        )) {
+            if (disposition === "lowered") {
+                expect(loweredKeys).toContain(key);
+            } else {
+                expect(loweredKeys).not.toContain(key);
+                expect(
+                    dropped.some((d) => d.includes("names a card INSTANCE"))
+                ).toBe(true);
+            }
+        }
+    });
+
+    it("reports an instance-keyed unit even at amount 0 (CR 106.6)", () => {
+        // The thing lost is the PERMISSION, not the mana, so the amount filter
+        // must not swallow the report.
+        const live = buildStateFromScenario(makeState(), BOARD);
+        live.players[0].restrictedMana = [
+            { color: "U", amount: 0, castableCardId: "instance-that-moves" },
+        ];
+
+        const { spec, dropped } = specFromState(live, {
+            mySeatId: live.players[0].id,
+        });
+
+        expect(spec.restrictedMana).toBeUndefined();
+        expect(dropped.some((d) => d.includes("names a card INSTANCE"))).toBe(
+            true
+        );
+    });
+
+    it("refuses a mana type the engine cannot spend (CR 105.1)", () => {
+        // Fail closed and LOUD: the tolerant load path drops such a key for a
+        // stored row, and a hand-written spec never passes through it, so the
+        // builder is the only place a "Green" can be caught before it becomes
+        // five mana nothing can spend.
+        expect(() =>
+            buildStateFromScenario(makeState(), {
+                ...BOARD,
+                manaPool: { me: { Green: 5 } },
+            })
+        ).toThrow(/not a mana type the engine can spend/);
+        expect(() =>
+            buildStateFromScenario(makeState(), {
+                ...BOARD,
+                restrictedMana: { opp: [{ color: "g", amount: 1 }] },
+            })
+        ).toThrow(/not a mana type the engine can spend/);
     });
 
     it("clears the pool the LOADED game was holding when the spec names none (CR 106.4)", () => {

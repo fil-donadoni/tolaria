@@ -67,6 +67,22 @@ describe("buildStateFromScenario — what floating mana pays for (issue #3460)",
         expect(castableDefIds(tappedOut, tappedOut.players[0].id)).toEqual([]);
     });
 
+    // The AMOUNT has to survive too, not just the fact of some mana: a builder
+    // that seeded one mana for every colour named, or every amount as 1, passes
+    // the pair above and fails here.
+    it("carries the pool's AMOUNT, not merely its colours (CR 106.4)", () => {
+        const oneGreen = buildStateFromScenario(makeState(), {
+            ...TAPPED_OUT,
+            manaPool: { me: { G: 1 } },
+        });
+        const ids = castableDefIds(oneGreen, oneGreen.players[0].id);
+
+        // {G} covers Giant Growth…
+        expect(ids).toContain(giantGrowth.id);
+        // …and one mana is one short of the Bears' {1}{G}.
+        expect(ids).not.toContain(grizzlyBears.id);
+    });
+
     // CR 106.6 — the restriction is enforced at the LEGALITY gate
     // (`getLegalActions`), which is where this widening's restricted-mana claim
     // is asserted (`scenarioBuilder.test.ts`). It is deliberately not asserted

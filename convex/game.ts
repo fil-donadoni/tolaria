@@ -12,11 +12,14 @@ import { getAllCardNames, getDefinition, tryGetDefinition } from "./cards";
 import { isExileCostEligible } from "./cards/exileCostEligibility";
 import { classLevelActivationViolation } from "./cards/abilities/classLevels";
 import { buildStateFromScenario } from "./gre/scenarioBuilder";
-// CR 106.6 (issue #3460) — the restricted-mana unit validator is IMPORTED
+// CR 106.4 / 106.6 (issue #3460) — both nested mana validators are IMPORTED
 // rather than mirrored here: the rest of this mutation's args are a hand-kept
-// lock-step copy of `scenarioSpecValidator`, and a nested object validator is
-// exactly where that copy would rot unnoticed.
-import { scenarioRestrictedManaValidator } from "./debugScenarioSpec";
+// lock-step copy of `scenarioSpecValidator`, and a nested validator is exactly
+// where that copy would rot unnoticed.
+import {
+    scenarioManaPoolValidator,
+    scenarioRestrictedManaValidator,
+} from "./debugScenarioSpec";
 import { BLADE_SCENARIOS } from "./gre/ai/blade/registry";
 import { resolveBladeLoadState } from "./gre/ai/blade/runner";
 import {
@@ -18215,8 +18218,8 @@ export const debugSetupScenario = mutation({
          *  rather than inheriting the loaded game's. */
         manaPool: v.optional(
             v.object({
-                me: v.optional(v.record(v.string(), v.number())),
-                opp: v.optional(v.record(v.string(), v.number())),
+                me: v.optional(scenarioManaPoolValidator),
+                opp: v.optional(scenarioManaPoolValidator),
             })
         ),
         restrictedMana: v.optional(

@@ -38,7 +38,8 @@ export type VerdictQuiz = {
      *  offer the Bot's own move is refused below, not shown. */
     botPickIndex: number;
     /** Everything the lowering could not carry (`specFromState`'s own report):
-     *  the stack, a mana pool, combat past the declare step, … A verdict given
+     *  the stack, a mid-flight payment, an instance-keyed restricted-mana
+     *  permission (CR 106.6), … A verdict given
      *  on a position missing one of those is a judgement about a DIFFERENT
      *  board, so the quiz shows this rather than burying it. */
     dropped: string[];

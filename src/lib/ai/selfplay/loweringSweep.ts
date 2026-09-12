@@ -171,7 +171,10 @@ export function droppedMessageClass(message: string): string {
     // be caught by accident.
     out = out.replace(/\b[A-Z]+(?:_[A-Z]+)+\b/g, "<CONST>");
     // A floating mana pool prints as its own contents (`2R 1G`), which would
-    // otherwise be one class per colour combination.
+    // otherwise be one class per colour combination. Kept after issue #3460
+    // lowered the pool and retired that message: the normaliser is what makes
+    // the sweep's PRE-#3460 numbers (PR #3465's report on PRD #3397) comparable
+    // with today's, and no run can tell the two corpora apart without it.
     out = out.replace(/(?:\b\d+[WUBRGC]\b\s*)+/g, "<mana> ");
     return out.replace(/\d+/g, "N").replace(/\s+/g, " ").trim();
 }

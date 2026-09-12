@@ -194,7 +194,7 @@ export default function AiDecisionVerdictQuiz({
             )}
 
             {/* What the capture could not carry. A verdict given on a position
-                missing the stack, or a mana pool, is a judgement about a
+                missing the stack, or a mid-flight payment, is a judgement about a
                 different board — the tester decides, not the panel. Same
                 disclosure the refusal renders, one component (issue #3457). */}
             <AiDecisionDroppedNotes notes={quiz.dropped} />

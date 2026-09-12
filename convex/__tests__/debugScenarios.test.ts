@@ -836,6 +836,118 @@ describe("resolveScenarioGolden — golden defaults true (issue #1453)", () => {
     });
 });
 
+// CR 106.4 / 106.6 (issue #3460) — floating mana off a RAW stored row. Every
+// branch here is fail-CLOSED, and the direction is the whole point: a
+// restricted-mana unit carrying neither a `restriction` nor a `castableCardId`
+// is UNRESTRICTED mana (`restrictedUnitAllowsSpell`), so keeping a unit whose
+// permission could not be read would hand the rebuilt board mana spendable on
+// anything — strictly more permissive than the row asked for. The realistic
+// producer is not a future engine member but the admin JSON textarea, which
+// normalizes hand-typed JSON BEFORE the write validator ever sees it
+// (`debug-scenario-preview.tsx`).
+describe("normalizeScenarioSpec — floating mana is read fail-closed (issue #3460)", () => {
+    it("keeps a well-formed pool and unit", () => {
+        expect(
+            normalizeScenarioSpec({
+                cards: [],
+                manaPool: { me: { G: 1, W: 2 }, opp: { C: 1 } },
+                restrictedMana: {
+                    me: [
+                        {
+                            color: "R",
+                            amount: 2,
+                            restriction: "creature-spell",
+                            hasteRider: true,
+                        },
+                    ],
+                },
+            })
+        ).toEqual({
+            cards: [],
+            manaPool: { me: { G: 1, W: 2 }, opp: { C: 1 } },
+            restrictedMana: {
+                me: [
+                    {
+                        color: "R",
+                        amount: 2,
+                        restriction: "creature-spell",
+                        hasteRider: true,
+                    },
+                ],
+            },
+        });
+    });
+
+    it("drops a pool key that is not a mana type the engine can spend (CR 105.1)", () => {
+        // `Green` / `g` would sit in the pool forever: every payment path reads
+        // `MANA_COLORS`, so the row would render as eight mana on a board that
+        // can spend one.
+        expect(
+            normalizeScenarioSpec({
+                cards: [],
+                manaPool: { me: { Green: 5, g: 2, G: 1 } },
+            }).manaPool
+        ).toEqual({ me: { G: 1 } });
+        // Nothing left at all is an ABSENCE, not an empty record — that is what
+        // the builder's own clear leaves.
+        expect(
+            normalizeScenarioSpec({
+                cards: [],
+                manaPool: { me: { Green: 5 } },
+            }).manaPool
+        ).toBeUndefined();
+    });
+
+    it("drops the WHOLE unit when its restriction is not one the engine enforces (CR 106.6)", () => {
+        expect(
+            normalizeScenarioSpec({
+                cards: [],
+                restrictedMana: {
+                    me: [
+                        { color: "G", amount: 2, restriction: "creature" },
+                        {
+                            color: "R",
+                            amount: 1,
+                            restriction: "creature-spell",
+                        },
+                    ],
+                },
+            }).restrictedMana
+        ).toEqual({
+            me: [{ color: "R", amount: 1, restriction: "creature-spell" }],
+        });
+    });
+
+    it("drops a unit whose permission names a card INSTANCE (Ice Cauldron, CR 106.6)", () => {
+        // `specFromState` refuses to lower one, so a stored row carrying one was
+        // hand-written: promoting it to unrestricted mana is the fail-open.
+        expect(
+            normalizeScenarioSpec({
+                cards: [],
+                restrictedMana: {
+                    me: [{ color: "U", amount: 1, castableCardId: "inst-7" }],
+                },
+            }).restrictedMana
+        ).toBeUndefined();
+    });
+
+    it("drops a unit with no colour, no amount, or an unspendable colour", () => {
+        expect(
+            normalizeScenarioSpec({
+                cards: [],
+                restrictedMana: {
+                    me: [
+                        { amount: 2, restriction: "creature-spell" },
+                        { color: "G", restriction: "creature-spell" },
+                        { color: "Green", amount: 2 },
+                        "not an object",
+                    ],
+                },
+            }).restrictedMana
+        ).toBeUndefined();
+    });
+});
+
 describe("seedScenarioDirect — loadability guard reused (issue #1453, ADR 0044)", () => {
     // `seedScenarioDirect` rejects before write via the SAME
     // `collectUnresolvedCardNames` call as `saveDebugScenario` above —

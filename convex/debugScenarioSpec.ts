@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import type { ManaRestriction } from "./gre/types";
+import { MANA_COLORS } from "./gre/manaColors";
 
 // Debug scenario spec (issue #769, ADR 0044). The *argument* to the existing,
 // unchanged `debugSetupScenario` builder (`convex/game.ts`) — the card
@@ -128,10 +129,12 @@ export const SCENARIO_PHASES = [
  * CR 106.6 (issue #3460) — the spend restrictions a unit of floating mana can
  * carry, mirrored against the engine's own `ManaRestriction` union rather than
  * hand-listed: the `satisfies` reds `tsc` the day the engine gains a member, so
- * the load path below cannot silently start dropping a restriction it has never
- * heard of (a dropped restriction rebuilds as UNRESTRICTED mana, which is more
- * permissive than what was captured — the direction that changes what a
- * rebuilt position can cast).
+ * the load path below cannot start REFUSING a restriction the engine enforces.
+ * That matters because a unit is all-or-nothing there: a unit whose restriction
+ * cannot be read is dropped entirely, never kept restriction-less, since a unit
+ * carrying no restriction at all is UNRESTRICTED mana (CR 106.6 —
+ * `restrictedUnitAllowsSpell`), which is strictly more permissive than what was
+ * written.
  */
 const MANA_RESTRICTION_PRESENCE = {
     "creature-spell": true,
@@ -146,6 +149,13 @@ export const SCENARIO_MANA_RESTRICTIONS = Object.keys(
     MANA_RESTRICTION_PRESENCE
 ) as ManaRestriction[];
 
+/** CR 106.4 (issue #3460) — one seat's floating mana pool: colour-keyed
+ *  amounts, the shape `PlayerState.manaPool` itself has. A dynamic-key record
+ *  like a card's `counters`; the KEYS are checked against `MANA_COLORS` on the
+ *  load path and again by the builder, which throws on a colour the engine
+ *  cannot spend rather than seeding mana that would sit in the pool forever. */
+export const scenarioManaPoolValidator = v.record(v.string(), v.number());
+
 /** One unit of restricted floating mana (CR 106.6) — `PlayerState.
  *  restrictedMana`'s own shape minus its one INSTANCE-keyed field,
  *  `castableCardId` (Ice Cauldron): it names an instance id, and every rebuild
@@ -156,7 +166,10 @@ export const SCENARIO_MANA_RESTRICTIONS = Object.keys(
  *  above rather than re-typed as literals, so the write path, the read type and
  *  the engine's own union have exactly one home; the tolerant LOAD path
  *  (`normalizeScenarioSpec`) re-checks a raw stored string against the same
- *  list, because a row on disk never passed through this validator. */
+ *  list — a row on disk never passed through this validator, and the admin
+ *  preview normalizes hand-typed JSON before the write validator ever sees it
+ *  (`debug-scenario-preview.tsx`) — and DROPS THE UNIT when it does not match,
+ *  for the reason on the mirror above. */
 export const scenarioRestrictedManaValidator = v.object({
     color: v.string(),
     amount: v.number(),
@@ -458,8 +471,8 @@ export const scenarioSpecValidator = v.object({
     // `counters` already has.
     manaPool: v.optional(
         v.object({
-            me: v.optional(v.record(v.string(), v.number())),
-            opp: v.optional(v.record(v.string(), v.number())),
+            me: v.optional(scenarioManaPoolValidator),
+            opp: v.optional(scenarioManaPoolValidator),
         })
     ),
     // CR 106.6 — mana carrying a SPEND RESTRICTION (Metamorphosis, Mishra's
@@ -910,25 +923,47 @@ function pickSeatNameLists(
     return pair.me || pair.opp ? pair : undefined;
 }
 
+/** CR 105.1 / 106.1b — the six mana types a pool key may name. A key outside
+ *  them is not a colour the engine can ever SPEND: every payment path consults
+ *  `MANA_COLORS`, so `{ Green: 5 }` would sit in the pool forever and render as
+ *  mana the board cannot use. */
+const SPENDABLE_COLORS = new Set<string>(MANA_COLORS);
+
 /** CR 106.4 (issue #3460) — one seat's floating mana pool: a colour-keyed
  *  record of amounts, non-numeric values dropped (the `counters` precedent). An
- *  empty or malformed record is an absence, never an error (ADR 0044). */
+ *  empty or malformed record is an absence, never an error (ADR 0044).
+ *
+ *  An unknown COLOUR key is dropped too, and that direction is deliberate: less
+ *  mana than the row claims is a board the engine can actually reach, while
+ *  keeping the key would seed unspendable mana — a pool that reads as 8 on a
+ *  board that can spend 1. The builder is the loud half of the same rule (it
+ *  throws), because a hand-written spec never passes through here. */
 function pickManaRecord(value: unknown): Record<string, number> | undefined {
     if (!isRecord(value)) return undefined;
     const pool: Record<string, number> = {};
     for (const [color, amount] of Object.entries(value)) {
+        if (!SPENDABLE_COLORS.has(color)) continue;
         const n = pickNumber(amount);
         if (n !== undefined) pool[color] = n;
     }
     return Object.keys(pool).length > 0 ? pool : undefined;
 }
 
-/** CR 106.6 (issue #3460) — one seat's restricted-mana units. A unit needs a
- *  colour AND an amount to mean anything, so an entry missing either is
- *  dropped; a `restriction` the engine does not carry
- *  (`SCENARIO_MANA_RESTRICTIONS`) is dropped RATHER than passed through, which
- *  would rebuild as unrestricted mana — more permissive than what was
- *  written. */
+/** CR 106.6 (issue #3460) — one seat's restricted-mana units, read fail-CLOSED:
+ *  every branch here drops the WHOLE UNIT rather than part of it, because a
+ *  partial unit is the one outcome worse than no unit at all. A unit carrying
+ *  neither a `restriction` nor a `castableCardId` is UNRESTRICTED mana
+ *  (`restrictedUnitAllowsSpell` returns true for it — Arena of Glory's rider
+ *  rides exactly such a unit), so keeping a unit whose restriction was
+ *  unreadable would hand the rebuilt board mana spendable on ANYTHING: strictly
+ *  more permissive than the row asked for, which is how a verdict gets filed on
+ *  a board the judged seat never had.
+ *
+ *  So a unit is dropped when it is missing a colour or an amount, when its
+ *  colour is not one the engine can spend, when its `restriction` is not a
+ *  member the engine enforces (`SCENARIO_MANA_RESTRICTIONS`), or when it
+ *  carries a `castableCardId` — an instance id, which no rebuild can honour and
+ *  which `specFromState` refuses to lower for that reason. */
 function pickRestrictedMana(
     value: unknown
 ): ScenarioRestrictedMana[] | undefined {
@@ -939,12 +974,16 @@ function pickRestrictedMana(
         const color = pickString(entry.color);
         const amount = pickNumber(entry.amount);
         if (color === undefined || amount === undefined) continue;
+        if (!SPENDABLE_COLORS.has(color)) continue;
+        // An instance-keyed permission (Ice Cauldron) survives no rebuild, and
+        // silently promoting it to unrestricted mana is the fail-OPEN this
+        // whole reader is shaped to avoid.
+        if (entry.castableCardId !== undefined) continue;
         const unit: ScenarioRestrictedMana = { color, amount };
         const restriction = pickString(entry.restriction);
-        if (
-            restriction !== undefined &&
-            (SCENARIO_MANA_RESTRICTIONS as string[]).includes(restriction)
-        ) {
+        if (restriction !== undefined) {
+            if (!(SCENARIO_MANA_RESTRICTIONS as string[]).includes(restriction))
+                continue;
             unit.restriction = restriction as ManaRestriction;
         }
         set(

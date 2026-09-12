@@ -70,6 +70,7 @@ import { resolveEntersWithCounters } from "../cards/entersWith";
 import { turnFaceDown } from "./faceDown";
 import { finalizeMulligan } from "./mulligan";
 import { isPlaneswalker } from "./constants";
+import { MANA_COLORS } from "./manaColors";
 import {
     markAttacking,
     markDeclaredBlockers,
@@ -936,15 +937,30 @@ export function buildStateFromScenario(
     // produced and never one the builder should place.
     const seedPool = (
         player: PlayerState,
+        seat: "me" | "opp",
         pool: Record<string, number> | undefined
     ) => {
         if (!pool) return;
         for (const [color, amount] of Object.entries(pool)) {
+            // CR 105.1 / 106.1b — a key outside the six mana types is mana no
+            // payment path can ever spend (every one of them consults
+            // `MANA_COLORS`), so seeding it would place a pool that reads as
+            // five mana on a board that can spend none. THROWN rather than
+            // dropped, the treatment an unresolvable card name already gets:
+            // the tolerant load path drops it for a stored row, and a
+            // hand-written spec (a blade entry, a backlog file, a
+            // `debugSetupScenario` call) reaches here without passing through
+            // it at all.
+            if (!(MANA_COLORS as readonly string[]).includes(color)) {
+                throw new Error(
+                    `Scenario manaPool.${seat}: "${color}" is not a mana type the engine can spend (CR 105.1 — ${MANA_COLORS.join("/")}).`
+                );
+            }
             if (amount > 0) player.manaPool[color] = amount;
         }
     };
-    seedPool(p1, spec.manaPool?.me);
-    seedPool(p2, spec.manaPool?.opp);
+    seedPool(p1, "me", spec.manaPool?.me);
+    seedPool(p2, "opp", spec.manaPool?.opp);
 
     // CR 106.6 — the restricted units, placed in the parallel pool the engine
     // enforces restrictions from. Riders are written only when true because
@@ -953,11 +969,17 @@ export function buildStateFromScenario(
     // the fungible pool drops one.
     const seedRestricted = (
         player: PlayerState,
+        seat: "me" | "opp",
         units: ScenarioRestrictedMana[] | undefined
     ) => {
         if (!units) return;
         const placed: RestrictedMana[] = [];
         for (const unit of units) {
+            if (!(MANA_COLORS as readonly string[]).includes(unit.color)) {
+                throw new Error(
+                    `Scenario restrictedMana.${seat}: "${unit.color}" is not a mana type the engine can spend (CR 105.1 — ${MANA_COLORS.join("/")}).`
+                );
+            }
             if (unit.amount <= 0) continue;
             const next: RestrictedMana = {
                 color: unit.color,
@@ -972,8 +994,8 @@ export function buildStateFromScenario(
         }
         if (placed.length > 0) player.restrictedMana = placed;
     };
-    seedRestricted(p1, spec.restrictedMana?.me);
-    seedRestricted(p2, spec.restrictedMana?.opp);
+    seedRestricted(p1, "me", spec.restrictedMana?.me);
+    seedRestricted(p2, "opp", spec.restrictedMana?.opp);
 
     // Seed what has already been CAST (issue #3449, PRD #3397). Three tallies
     // a rebuilt position otherwise opens at zero:
@@ -2392,6 +2414,30 @@ export const PLAYER_STATE_ALLOWLIST = new Set<string>([
     "revealedHand",
 ]);
 
+/** CR 106.6 (issue #3460) — how `specFromState` treats every field of a
+ *  `RestrictedMana` unit, `satisfies Record<keyof RestrictedMana, …>` so a
+ *  SEVENTH field reds `tsc` here instead of vanishing from a capture in silence
+ *  (a third rider is the obvious candidate — `hasteRider` itself arrived with
+ *  issue #3354). The mirror is load-bearing precisely BECAUSE `restrictedMana`
+ *  is a blanket `PLAYER_STATE_ALLOWLIST` entry: before this widening any
+ *  non-empty pool produced a `dropped` line, so no unit field could be lost
+ *  unreported; now the lowering copies the keys it knows, and this is what
+ *  stands between a new one and a silent loss.
+ *
+ *  `tsc` catches the CLASSIFICATION; the disposition sweep in
+ *  `scenarioBuilder.test.ts` catches a key classified `lowered` that the mapper
+ *  below does not actually copy. */
+export const RESTRICTED_MANA_KEY_DISPOSITION = {
+    color: "lowered",
+    amount: "lowered",
+    restriction: "lowered",
+    cantBeCounteredRider: "lowered",
+    hasteRider: "lowered",
+    /** An INSTANCE id — no rebuild can honour it, so the unit carrying one is
+     *  reported in `dropped` rather than lowered. */
+    castableCardId: "reported",
+} as const satisfies Record<keyof RestrictedMana, "lowered" | "reported">;
+
 /** Generic "top-level state residue" detector for `GameState`, the same
  *  shape as `reportCardResidue` one level up: any key present on `state`
  *  that isn't in `GAME_STATE_ALLOWLIST` is live state the spec has no field
@@ -2834,9 +2880,13 @@ export function specFromState(
         // reported on its own rather than swallowed by the blanket allowlist
         // entry — the `drawnThisTurn` precedent (issue #3240), where the
         // expressible shape is allowlisted and the rest still speaks up.
-        const restricted = (p.restrictedMana ?? []).filter((u) => u.amount > 0);
+        const restricted = p.restrictedMana ?? [];
+        // `amount > 0` on the type-keyed half only: a zero-amount unit carries
+        // no mana, so dropping it loses nothing — but an INSTANCE-keyed unit is
+        // reported whatever its amount, because the thing being lost is the
+        // PERMISSION, not the mana.
         const typeKeyed = restricted.filter(
-            (u) => u.castableCardId === undefined
+            (u) => u.castableCardId === undefined && u.amount > 0
         );
         if (typeKeyed.length > 0) {
             spec.restrictedMana ??= {};
@@ -2853,7 +2903,9 @@ export function specFromState(
                 return unit;
             });
         }
-        const instanceKeyed = restricted.length - typeKeyed.length;
+        const instanceKeyed = restricted.filter(
+            (u) => u.castableCardId !== undefined
+        ).length;
         if (instanceKeyed > 0) {
             dropped.push(
                 `${label}: ${instanceKeyed} restricted mana unit(s) whose spend permission names a card INSTANCE (Ice Cauldron — CR 106.6) — every rebuild reassigns instance ids, so the permission would name an object the rebuilt board doesn't contain; not lowered`
