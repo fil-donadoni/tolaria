@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { PublicMatch } from "@convex/matches";
+import { GameContext } from "~/hooks/useGameContext";
 import GameDialog from "~/components/ui/game-dialog";
 import { Button } from "~/components/ui/button";
 import { clearSession } from "~/lib/session";
@@ -34,11 +35,23 @@ export default function PauseMenuDialog({
     const [isBusy, setIsBusy] = useState(false);
     const concede = useMutation(api.game.concede);
     const forfeitMatch = useMutation(api.game.forfeitMatch);
+    const manualConcede = useMutation(api.game.manualConcedeMatch);
+
+    // Issue #2353 — the Manual Board mounts this same dialog. The mode rides
+    // the board context's explicit discriminator (issue #2346), never a probe
+    // for a missing GRE state: `makeManualGameContext` is the only value that
+    // sets it, so the GRE board reads `undefined`. Structural read, same as
+    // `PreviewGameCtx` — `GameContext`'s declared type has no such field.
+    const gameCtx = useContext(GameContext) as {
+        isManualGame?: boolean;
+    } | null;
+    const isManualGame = gameCtx?.isManualGame === true;
 
     // A Bo3 keeps Concede (loses one Game) distinct from Forfeit (ends the
     // Match). A Bo1 — or a match-less legacy game — collapses to Concede only,
-    // since losing the single Game already ends everything.
-    const isBo3 = match?.bestOf === 3;
+    // since losing the single Game already ends everything. A Manual Game has
+    // ONE terminator (ADR 0080), so it never splits either.
+    const isBo3 = !isManualGame && match?.bestOf === 3;
 
     const handleOpenChange = (nextOpen: boolean) => {
         if (!nextOpen) setStep("menu");
@@ -49,7 +62,15 @@ export default function PauseMenuDialog({
         if (isBusy) return;
         setIsBusy(true);
         try {
-            await concede({ gameId, playerId });
+            // A Manual Game has no `gameStates` row, so `api.game.concede`
+            // throws "Game not found" there. `manualConcedeMatch` is the
+            // finalizing concede the lobby banner already calls: opponent
+            // recorded as winner, Match finalized, manual state deleted. No
+            // navigation here — the game route swaps a finished manual game
+            // for `ManualGameOverDialog`, whose "Back to Lobby" owns the
+            // session teardown. The server asserts the caller owns the seat.
+            if (isManualGame) await manualConcede({ gameId, playerId });
+            else await concede({ gameId, playerId });
             handleOpenChange(false);
         } finally {
             setIsBusy(false);
@@ -77,8 +98,12 @@ export default function PauseMenuDialog({
             <GameDialog
                 open={open}
                 onOpenChange={handleOpenChange}
-                title="Concede Game"
-                subtitle="Do you really want to concede this game?"
+                title={isManualGame ? "Concede" : "Concede Game"}
+                subtitle={
+                    isManualGame
+                        ? "Do you really want to concede? Your opponent wins the match."
+                        : "Do you really want to concede this game?"
+                }
                 dismissable
             >
                 <div className="flex gap-3 mt-2">

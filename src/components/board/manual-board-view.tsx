@@ -64,17 +64,24 @@ import {
 } from "~/lib/manual-runtime";
 import { useManualVerbPopoverState } from "~/hooks/useManualVerbPopover";
 import { useManualHotkeys } from "~/hooks/useManualHotkeys";
+import { usePauseMenuHotkey } from "~/hooks/usePauseMenuHotkey";
 import BoardBackground from "./board-background";
 import BoardSurface from "./board-surface";
 import Controller from "./controller";
 import ManualLogSurface from "./manual-log-surface";
 import ManualPeekDialog, { type ManualPeekRequest } from "./manual-peek-dialog";
 import ManualVerbPopover from "./manual-verb-popover";
+import PauseMenuDialog from "./pause-menu-dialog";
 
 /** A Manual Game never re-points the client session at another game — that is
  *  the sideboarding flow's affordance and Manual Mode has no match structure
  *  (ADR 0080). The inert context still requires the field. */
 const NO_SWITCH_GAME = () => {};
+
+/** Escape consumers the controller owns rather than this board: the portrait
+ *  phase sheet closes on Escape and carries no shared `data-slot` marker, so
+ *  the pause-menu hotkey must see it to stay out of its way (issue #2353). */
+const MANUAL_ESCAPE_BLOCKERS = "[data-phase-sheet]";
 
 /** The Manual Board (PRD #2162, issue #2169): the SHARED spatial board surface
  *  with manual behaviour injected at its seams, and nothing hand-written of its
@@ -323,10 +330,25 @@ export default function ManualBoardView({
         () => dispatch.endTurn({ playerId: viewerId }),
         [dispatch, viewerId]
     );
+    // Issue #2353 — the pause menu the controller's menu button and Escape
+    // open. Plain view state, same as `logOpen`; the dialog itself reads the
+    // manual discriminator off the board context below.
+    const [pauseMenuOpen, setPauseMenuOpen] = useState(false);
+    const openPauseMenu = useCallback(() => setPauseMenuOpen(true), []);
+    const manualSurfaceOpen =
+        logOpen || peek !== null || verbPopover.pending !== null;
     useManualHotkeys({
-        enabled: !logOpen && peek === null && verbPopover.pending === null,
+        enabled: !manualSurfaceOpen && !pauseMenuOpen,
         onNextPhase: nextPhase,
         onEndTurn: endTurn,
+    });
+    // The log, the peek dialog and the verb popover each close on Escape; the
+    // board owns their state, so it suspends the hotkey outright rather than
+    // relying on the DOM probe alone.
+    usePauseMenuHotkey({
+        enabled: !manualSurfaceOpen,
+        onOpen: openPauseMenu,
+        extraBlockers: MANUAL_ESCAPE_BLOCKERS,
     });
     const gameContext = useMemo(
         () =>
@@ -454,8 +476,27 @@ export default function ManualBoardView({
                                                             />
                                                             <Controller
                                                                 onOpenMenu={
-                                                                    NO_SWITCH_GAME
+                                                                    openPauseMenu
                                                                 }
+                                                            />
+                                                            {/* Inside `GameContext`: the
+                                                                dialog reads the manual
+                                                                discriminator there. No
+                                                                Match meta on this board,
+                                                                and the manual menu never
+                                                                splits Concede anyway. */}
+                                                            <PauseMenuDialog
+                                                                open={
+                                                                    pauseMenuOpen
+                                                                }
+                                                                onOpenChange={
+                                                                    setPauseMenuOpen
+                                                                }
+                                                                gameId={gameId}
+                                                                playerId={
+                                                                    viewerId
+                                                                }
+                                                                match={null}
                                                             />
                                                             {drag.ghost}
                                                         </main>
