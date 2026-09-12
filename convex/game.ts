@@ -11,7 +11,10 @@ import {
 import { getAllCardNames, getDefinition, tryGetDefinition } from "./cards";
 import { isExileCostEligible } from "./cards/exileCostEligibility";
 
-import { buildStateFromScenario } from "./gre/scenarioBuilder";
+import {
+    assertLoadableIntoLiveGame,
+    buildStateFromScenario,
+} from "./gre/scenarioBuilder";
 // CR 106.4 / 106.6 (issue #3460) — both nested mana validators are IMPORTED
 // rather than mirrored here: the rest of this mutation's args are a hand-kept
 // lock-step copy of `scenarioSpecValidator`, and a nested validator is exactly
@@ -15224,13 +15227,18 @@ export const debugSetupScenario = mutation({
         /** Fill each player's library with this many basic lands, colour-matched
          *  to the placed cards like `landCount`. Default: unchanged. */
         libraryCount: v.optional(v.number()),
-        /** CR 400.2 (issue #3452, PRD #3397) — seat this many cards of UNKNOWN
-         *  identity into a hand, rebuilt as the opaque placeholders
-         *  (`PLACEHOLDER_CARD_ID`) the Bot's own search runs on: never
-         *  castable, never targetable, valued exactly as they were in play.
-         *  ADDED to whatever `cards` places in the same hand. This is what
+        /** CR 400.2 (issue #3452, PRD #3397) — cards of UNKNOWN identity in a
+         *  hand, rebuilt as the opaque placeholders (`PLACEHOLDER_CARD_ID`)
+         *  the Bot's own search runs on: never castable, never targetable,
+         *  valued exactly as the lowered position valued them. It is what
          *  lets a verdict captured from one seat's view carry the other
          *  seat's hand SIZE, which the evaluation's `hand` term reads.
+         *
+         *  Declared here because the spec validator and these args are held in
+         *  lock step, and REFUSED by this mutation's handler
+         *  (`assertLoadableIntoLiveGame`): a live game renders the hand, runs
+         *  CR 514.1's cleanup discard over it and offers it to hand picks,
+         *  and each of those needs an identity the card does not have.
          *  Default: none seeded. */
         hiddenHand: v.optional(
             v.object({
@@ -15475,6 +15483,11 @@ export const debugSetupScenario = mutation({
         // from a vitest test with no Convex runtime AND from this mutation —
         // `args` (minus `gameId`) already matches the `ScenarioSpec` shape
         // it takes.
+        // CR 400.2 (issue #3452) — a spec seeding cards of unknown identity is
+        // refused HERE rather than at the spec boundary: it is a valid spec,
+        // and the verdict quiz rebuilds it every time. What it is not is a
+        // board a live game can hold.
+        assertLoadableIntoLiveGame(args);
         const state = buildStateFromScenario(
             gameState.state as GameState,
             args

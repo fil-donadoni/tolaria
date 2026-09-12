@@ -198,10 +198,15 @@ export const scenarioSpecValidator = v.object({
     // cards it lost.
     //
     // The rebuild seeds opaque placeholders (`PLACEHOLDER_CARD_ID`), the same
-    // instances the Bot's own search ran on — a ZERO-APPROXIMATION rebuild,
-    // not filler: unlike `libraryCount`'s basics a placeholder resolves to no
-    // `CardDefinition`, so it is never castable, never targetable, and its
-    // `cardValue` is exactly the number the search summed for it in play.
+    // instances the Bot's search held at its ROOT — not filler: unlike
+    // `libraryCount`'s basics a placeholder resolves to no `CardDefinition`,
+    // so it is never castable, never targetable, and it values exactly as the
+    // root position valued it. (Deeper in the search an informed opponent
+    // model replaces a hidden hand with sampled REAL identities every
+    // iteration — `determinize` — so this is a claim about the position being
+    // lowered, not about every leaf the search reached from it.)
+    //
+    // A live game cannot hold one: see `assertLoadableIntoLiveGame`.
     // ADDED to whatever `cards` places in the same hand, following
     // `libraryCount`'s seed-before-placement ordering.
     hiddenHand: v.optional(
@@ -588,8 +593,11 @@ export type ScenarioSpec = {
      *  one seat's view can COUNT the other's hand but never name it, and a
      *  spec names cards by name. ADDED to whatever `cards` places in the same
      *  hand. Unlike `libraryCount`'s filler basics these are not a stand-in:
-     *  a placeholder has no `CardDefinition`, so it can never be cast,
-     *  targeted or revealed, and it values exactly as it did in the search. */
+     *  a placeholder has no `CardDefinition`, so it can never be cast or
+     *  targeted, and it values exactly as the lowered position valued it.
+     *  Loadable by anything that EVALUATES the rebuilt position; refused by
+     *  the two loaders that persist one into a live game
+     *  (`assertLoadableIntoLiveGame`). */
     hiddenHand?: { me?: number; opp?: number };
     turn?: number;
     markLastDrawn?: boolean;

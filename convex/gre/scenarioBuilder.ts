@@ -262,6 +262,40 @@ function placeScenarioTokens(
  * those stay in the mutation, which delegates the state-construction work
  * here.
  */
+/** CR 400.2 (issue #3452) — what a `hiddenHand` spec may NOT be loaded into.
+ *
+ *  A placeholder is safe in a position that is REBUILT TO BE EVALUATED (the
+ *  verdict quiz's `buildSetupFreeVerdictState`, `evalPairsOf`, a blade run):
+ *  nothing there renders it, and `getLegalActions` already refuses it, so it
+ *  contributes its hand slot and nothing else. It is NOT safe in a LIVE game,
+ *  and the three surfaces that break each need an identity the card does not
+ *  have — inventing one would be the `withoutHiddenIdentities` bug in a new
+ *  costume:
+ *
+ *   - the viewer's own hand card reads its `CardDefinition` at RENDER time
+ *     (`useHandCardCommit` → `getDefinition`, which throws on an id the
+ *     registry cannot resolve — the crash class issue #2347 fixed for Manual
+ *     hands), so `hiddenHand.me` blanks the board on mount;
+ *   - CR 514.1's cleanup discard counts the whole hand, so a staged hand over
+ *     the maximum owes a discard whose candidate list cannot name the card
+ *     that has to go;
+ *   - a hand-zone pick or reveal (CR 401.4 — Thoughtseize, Mind Warp,
+ *     `reveal-hand`) puts the slot in front of a chooser whose filters read
+ *     characteristics a placeholder has none of.
+ *
+ *  So the two LOADERS that persist a scenario into a real game refuse it,
+ *  loudly, rather than seeding a board three surfaces cannot hold. The
+ *  surfaces and what closing them would take:
+ *  `docs/findings/3452-hidden-hand-live-surfaces.md`. */
+export function assertLoadableIntoLiveGame(spec: ScenarioSpec): void {
+    if (!spec.hiddenHand) return;
+    const { me = 0, opp = 0 } = spec.hiddenHand;
+    if (me <= 0 && opp <= 0) return;
+    throw new Error(
+        'This scenario seeds cards of unknown identity ("hiddenHand"), which a LIVE game cannot hold: the hand card renders a card definition, the cleanup discard (CR 514.1) counts the slot, and a hand pick or reveal has no characteristics to read. It is loadable by the verdict quiz and by a blade run, which only evaluate the position.'
+    );
+}
+
 export function buildStateFromScenario(
     baseState: GameState,
     spec: ScenarioSpec
@@ -486,15 +520,19 @@ export function buildStateFromScenario(
     // carries its own `cardValue`, so it would substitute a plausible number
     // for the captured one; an opaque placeholder resolves to no
     // `CardDefinition` (`getLegalActions` returns nothing for one — `rules.ts`
-    // checks the sentinel id explicitly), so it can never be cast, targeted or
-    // revealed, and it values exactly as the same shape did in the search that
-    // produced the decision.
+    // checks the sentinel id explicitly), so it can never be cast or targeted,
+    // and it values exactly as the position being lowered valued it.
+    //
+    // What it is NOT safe for is a live game — see
+    // `assertLoadableIntoLiveGame` above for the three surfaces and the
+    // refusal.
     //
     // BEFORE the placement loop, the `libraryCount` ordering: seeding after it
-    // would either delete what the spec placed by name or push a placeholder
-    // to the end of "me"'s hand, where `markLastDrawn` (CR 121.1) reads the
-    // last entry. So a seat may hold both named and hidden cards, and the
-    // named ones are the later entries.
+    // would push a placeholder to the END of "me"'s hand, which is where
+    // `markLastDrawn` (CR 121.1) looks. (Unlike `libraryCount`'s own
+    // historical bug this loop only pushes, so it could never DELETE what the
+    // spec placed by name.) So a seat may hold both named and hidden cards,
+    // and the named ones are the later entries.
     if (spec.hiddenHand) {
         seedHiddenHand(p1, spec.hiddenHand.me);
         seedHiddenHand(p2, spec.hiddenHand.opp);
@@ -819,8 +857,17 @@ export function buildStateFromScenario(
     // Mark "me"'s last hand card as drawn this turn (Jandor's Ring's
     // "discard the last card you drew this turn" cost). Cleared at the
     // next turn start by advanceTurn.
-    if (spec.markLastDrawn && p1.hand.length > 0) {
-        p1.lastDrawnCardId = p1.hand[p1.hand.length - 1].id;
+    // CR 400.2 (issue #3452) — the last NAMED card, never a hidden-identity
+    // one. The seeding order already puts placeholders first, so this differs
+    // only for the combination no round trip can produce and an editor can:
+    // `hiddenHand.me` with `markLastDrawn` and no named "me" hand card. Marking
+    // a placeholder there would stamp an identity-less card as "the last card
+    // you drew this turn" (Jandor's Ring's cost reads it), and `specFromState`
+    // would then drop the mark with no note, because the card it searches for
+    // is not in the lowered list.
+    const meNamedHandCards = visibleHand(p1);
+    if (spec.markLastDrawn && meNamedHandCards.length > 0) {
+        p1.lastDrawnCardId = meNamedHandCards[meNamedHandCards.length - 1].id;
         // CR 121.1 (issue #3240) — `lastDrawnCardId` and `drawnThisTurn` are
         // two readings of the same fact, and the reset above emptied the
         // second. Re-seed it with exactly the card just declared as drawn, so

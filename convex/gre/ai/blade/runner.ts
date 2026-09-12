@@ -20,7 +20,10 @@
  */
 
 import { getCardByName } from "../../../cards";
-import { buildStateFromScenario } from "../../scenarioBuilder";
+import {
+    assertLoadableIntoLiveGame,
+    buildStateFromScenario,
+} from "../../scenarioBuilder";
 // The base position lives in its own PURE module (issue #3405), and the
 // builder in `./build` (issue #3479): the verdict quiz builds the same position
 // in the browser and must not drag the registry and the harness in with it.
@@ -190,6 +193,10 @@ export function resolveBladeLoadState(
     if (!scenario) {
         throw new Error(`Unknown blade scenario: ${label}`);
     }
+    // CR 400.2 (issue #3452) — this loader PERSISTS into the developer's own
+    // game, unlike `buildBladeState` above, which only evaluates. A hidden
+    // hand is refused on this path for the reasons the assertion names.
+    assertLoadableIntoLiveGame(scenario.spec);
     return buildBladeLoadState(base, scenario);
 }
 
