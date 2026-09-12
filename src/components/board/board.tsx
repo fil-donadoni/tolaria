@@ -683,11 +683,7 @@ export default function Board({
                                             allPlayers={allPlayers}
                                         />
                                     )}
-                                    <Controller
-                                        onOpenMenu={() =>
-                                            setPauseMenuOpen(true)
-                                        }
-                                    />
+                                    <Controller onOpenMenu={openPauseMenu} />
                                     {gameOver && (
                                         <GameOverDialog
                                             gameOver={gameOver}

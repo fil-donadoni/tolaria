@@ -243,6 +243,18 @@ describe("pause menu on the Manual Board (issue #2353)", () => {
         expect(screen.getAllByText("Game Menu").length).toBeGreaterThan(0);
     });
 
+    it("Space and Enter do not step the turn behind the open menu", () => {
+        renderBoard();
+        pressEscape();
+        expect(screen.getAllByText("Game Menu").length).toBeGreaterThan(0);
+
+        fireEvent.keyDown(window, { key: " " });
+        fireEvent.keyDown(window, { key: "Enter" });
+
+        expect(MUTATIONS.manualSetPhase).not.toHaveBeenCalled();
+        expect(MUTATIONS.manualEndTurn).not.toHaveBeenCalled();
+    });
+
     it("Escape closes the open log instead of opening the menu behind it", () => {
         renderBoard();
         fireEvent.click(screen.getByText("Log"));
