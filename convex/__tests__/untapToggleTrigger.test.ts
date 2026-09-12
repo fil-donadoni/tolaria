@@ -22,7 +22,7 @@
 // the mutation's guard order before refunding.
 
 import { describe, it, expect } from "vitest";
-import { markTapTriggerCommitment } from "../game";
+import { markTapTriggerCommitment, untapToggleRefusal } from "../game";
 import {
     emitPermanentTapped,
     processPendingActionTriggers,
@@ -35,6 +35,8 @@ import {
 import type { ManaCost } from "../cards/types";
 import { untapStep } from "../gre/phases";
 import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import { buildStateFromScenario, specFromState } from "../gre/scenarioBuilder";
+import type { ScenarioCard } from "../debugScenarioSpec";
 
 const CITY_OF_BRASS = "f4e32327-380d-471e-813b-4c27477787ce"; // {T}: any color; becomes tapped → 1 dmg
 const FOREST = "6f1c8cb0-38eb-408b-94e8-16db83999b3b"; // {T}: G, no trigger
@@ -63,19 +65,16 @@ function priorityTapForMana(
     markTapTriggerCommitment(state, card, stackSizeBefore);
 }
 
-/** Replicates the `tapUntap` untap branch guards (mutation order:
- *  `manaCommitted` first, then `tapTriggerCommitted`) before refunding. Throws
- *  exactly the mutation's error strings so a rejected toggle is observable. */
+/** Replicates the `tapUntap` untap branch before refunding. The GUARD itself
+ *  is not replicated — it is the mutation's own `untapToggleRefusal` (issue
+ *  #3451), so this test cannot drift from the decision it is asserting; only
+ *  the refund arithmetic around it is local. */
 function attemptUntapToggle(
     player: PlayerState,
     card: CardInstanceState
 ): void {
-    if (card.isTapped && card.manaCommitted) {
-        throw new Error("Cannot untap: mana already spent");
-    }
-    if (card.isTapped && card.tapTriggerCommitted) {
-        throw new Error("Cannot untap: tap trigger already on the stack");
-    }
+    const refusal = card.isTapped ? untapToggleRefusal(card) : undefined;
+    if (refusal) throw new Error(refusal);
     // Refund the floated mana and untap (the ordinary "misclick undo").
     for (const [color, amount] of Object.entries(card.chosenMana ?? {})) {
         if (typeof amount === "number" && amount > 0) {
@@ -222,5 +221,54 @@ describe("untap-toggle after an irreversible tap-for-mana (CR 603.3, #793)", () 
             ).toThrowError("Cannot untap: tap trigger already on the stack");
             expect(p1.battlefield[0].isTapped).toBe(true);
         });
+    });
+});
+
+// ---- CR 106.4 / 603.3 (issue #3451) ----------------------------------------
+//
+// Both refusals above are facts about a position, and until issue #3451 a
+// `ScenarioSpec` carried neither: a captured mid-turn board rebuilt with every
+// tapped land freely untappable, so the rebuilt position offered an action the
+// captured one had already forbidden — and a verdict filed on it would be a
+// verdict about a different board (PRD #3397).
+describe("a rebuilt scenario position keeps both refusals (issue #3451)", () => {
+    /** The staged board, lowered and rebuilt once, so the assertion runs
+     *  against the instance `buildStateFromScenario` produced from
+     *  `specFromState`'s own output — not against the one the test staged. */
+    function rebuiltBattlefield(entry: Partial<ScenarioCard>) {
+        const base = makeState();
+        const live = buildStateFromScenario(base, {
+            cards: [
+                {
+                    name: "Forest",
+                    owner: "me",
+                    tapped: true,
+                    ...entry,
+                } as ScenarioCard,
+            ],
+        });
+        const { spec, dropped } = specFromState(live, {
+            mySeatId: live.players[0].id,
+        });
+        expect(dropped).toEqual([]);
+        return buildStateFromScenario(base, spec).players[0].battlefield[0];
+    }
+
+    it("refuses the untap-toggle on a land staged as having spent its mana", () => {
+        expect(
+            untapToggleRefusal(rebuiltBattlefield({ manaCommitted: true }))
+        ).toBe("Cannot untap: mana already spent");
+    });
+
+    it("refuses it on a source staged as having put a tap trigger on the stack", () => {
+        expect(
+            untapToggleRefusal(
+                rebuiltBattlefield({ tapTriggerCommitted: true })
+            )
+        ).toBe("Cannot untap: tap trigger already on the stack");
+    });
+
+    it("allows it on a plainly tapped land — the markers are per-instance, not a tapped-means-committed rule", () => {
+        expect(untapToggleRefusal(rebuiltBattlefield({}))).toBeUndefined();
     });
 });

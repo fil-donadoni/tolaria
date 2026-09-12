@@ -33,6 +33,14 @@ export type CardDraft = {
      *  under which a land in exile gets no play (or cast) affordance. */
     castableFromExileIncludesLand: boolean;
     attackedLastTurn: boolean;
+    /** CR 106.4 / 603.3 (issue #3451) — the two tap-irreversibility markers:
+     *  the source's mana is already spent, or its tap put a triggered ability
+     *  on the stack. Either makes the untap-to-refund toggle refuse it. */
+    manaCommitted: boolean;
+    tapTriggerCommitted: boolean;
+    /** CR 502.1 (issue #3451) — the untap-step snapshot an "if ~ started the
+     *  turn untapped" upkeep trigger reads (Rasputin Dreamweaver). */
+    startedTurnUntapped: boolean;
     /** CR 602.5 (issue #3448) — carried OPAQUELY, with no input of its own:
      *  the per-turn activation tally is keyed by internal ability id and
      *  exists for `specFromState` to lower a captured position, not for
@@ -71,6 +79,9 @@ export function emptyCardDraft(): CardDraft {
         castableFromExile: false,
         castableFromExileIncludesLand: false,
         attackedLastTurn: false,
+        manaCommitted: false,
+        tapTriggerCommitted: false,
+        startedTurnUntapped: false,
     };
 }
 
@@ -101,6 +112,9 @@ export function cardToDraft(card: ScenarioCard): CardDraft {
         castableFromExileIncludesLand:
             card.castableFromExileIncludesLand ?? false,
         attackedLastTurn: card.attackedLastTurn ?? false,
+        manaCommitted: card.manaCommitted ?? false,
+        tapTriggerCommitted: card.tapTriggerCommitted ?? false,
+        startedTurnUntapped: card.startedTurnUntapped ?? false,
         activations: card.activations,
         abilityResolutions: card.abilityResolutions,
     };
@@ -150,6 +164,9 @@ export function draftToCard(draft: CardDraft): ScenarioCard {
     if (draft.castableFromExileIncludesLand)
         card.castableFromExileIncludesLand = true;
     if (draft.attackedLastTurn) card.attackedLastTurn = true;
+    if (draft.manaCommitted) card.manaCommitted = true;
+    if (draft.tapTriggerCommitted) card.tapTriggerCommitted = true;
+    if (draft.startedTurnUntapped) card.startedTurnUntapped = true;
     // Re-emitted exactly as it was inflated — see `CardDraft.activations`.
     if (draft.activations) card.activations = draft.activations;
     // Re-emitted exactly as it was inflated — see `CardDraft.abilityResolutions`.

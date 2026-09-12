@@ -71,6 +71,26 @@ export const scenarioCardValidator = v.object({
     abilityResolutions: v.optional(v.record(v.string(), v.number())),
     attackedLastTurn: v.optional(v.boolean()),
     summoningSick: v.optional(v.boolean()),
+    // CR 106.4 / 603.3 (issue #3451) — the two TAP-IRREVERSIBILITY markers.
+    // `manaCommitted`: this source's mana has been spent on a spell or an
+    // activation whose cost is already paid, so `tapUntap`'s untap-to-refund
+    // toggle refuses it. `tapTriggerCommitted`: its most-recent tap-for-mana
+    // put a triggered ability on the stack (City of Brass, a third-party
+    // Manabarbs), which CR 603.3 gives no undo of, so the same toggle refuses
+    // it for the other reason. Battlefield only, and both are cleared at the
+    // untap step (CR 502) — a scenario opening BEFORE its controller's untap
+    // step is where they mean anything. Without them a rebuilt tapped land
+    // offers an untap the live position had already forbidden.
+    manaCommitted: v.optional(v.boolean()),
+    tapTriggerCommitted: v.optional(v.boolean()),
+    // CR 502.1 (issue #3451) — the snapshot taken at the top of this
+    // permanent's controller's untap step: was it untapped when the step
+    // began? Read by upkeep triggers phrased "if ~ started the turn untapped"
+    // (Rasputin Dreamweaver, LEG). The rebuild never RUNS an untap step, so
+    // this cannot be re-derived from `tapped`: a permanent tapped at the top
+    // of the step and untapped since is untapped with the flag FALSE, and one
+    // untapped then tapped since is tapped with it TRUE. Battlefield only.
+    startedTurnUntapped: v.optional(v.boolean()),
     copyOf: v.optional(v.string()),
 });
 
@@ -417,6 +437,18 @@ export type ScenarioCard = {
     abilityResolutions?: Record<string, number>;
     attackedLastTurn?: boolean;
     summoningSick?: boolean;
+    /** CR 106.4 / 603.3 (issue #3451) — this source's mana is already spent,
+     *  so the untap-to-refund toggle refuses it. Battlefield only; see the
+     *  validator's own note. */
+    manaCommitted?: boolean;
+    /** CR 603.3 (issue #3451) — this source's most-recent tap-for-mana put a
+     *  triggered ability on the stack, which has no undo. The sibling marker
+     *  of `manaCommitted`; battlefield only. */
+    tapTriggerCommitted?: boolean;
+    /** CR 502.1 (issue #3451) — was this permanent untapped when its
+     *  controller's untap step began? Read by "if ~ started the turn untapped"
+     *  upkeep triggers. Battlefield only; not derivable from `tapped`. */
+    startedTurnUntapped?: boolean;
     copyOf?: string;
 };
 
@@ -820,6 +852,10 @@ function normalizeCard(raw: unknown): ScenarioCard | null {
     );
     set(card, "attackedLastTurn", pickBoolean(raw.attackedLastTurn));
     set(card, "summoningSick", pickBoolean(raw.summoningSick));
+    // CR 106.4 / 603.3 / 502.1 (issue #3451) — the tap-state trio.
+    set(card, "manaCommitted", pickBoolean(raw.manaCommitted));
+    set(card, "tapTriggerCommitted", pickBoolean(raw.tapTriggerCommitted));
+    set(card, "startedTurnUntapped", pickBoolean(raw.startedTurnUntapped));
     set(card, "copyOf", pickString(raw.copyOf));
 
     if (isRecord(raw.counters)) {

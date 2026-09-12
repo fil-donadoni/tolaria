@@ -305,6 +305,53 @@ export default function DebugScenarioCardFields({
                             />
                             attacked
                         </label>
+                        {/* CR 106.4 / 603.3 (issue #3451) — the two
+                            tap-irreversibility markers. Only meaningful
+                            alongside `tapped`: they are what makes the
+                            untap-to-refund toggle refuse a source whose mana
+                            is already spent, or whose tap put a triggered
+                            ability on the stack (City of Brass). */}
+                        <label className="flex items-center gap-1 text-text-muted">
+                            <input
+                                type="checkbox"
+                                checked={draft.manaCommitted}
+                                onChange={(e) =>
+                                    onPatch({
+                                        manaCommitted: e.target.checked,
+                                    })
+                                }
+                            />
+                            mana spent
+                        </label>
+                        <label className="flex items-center gap-1 text-text-muted">
+                            <input
+                                type="checkbox"
+                                checked={draft.tapTriggerCommitted}
+                                onChange={(e) =>
+                                    onPatch({
+                                        tapTriggerCommitted: e.target.checked,
+                                    })
+                                }
+                            />
+                            tap trigger
+                        </label>
+                        {/* CR 502.1 (issue #3451) — the untap-step snapshot an
+                            "if ~ started the turn untapped" upkeep trigger
+                            reads (Rasputin Dreamweaver). Independent of
+                            `tapped`: the permanent may have been tapped or
+                            untapped since the step. */}
+                        <label className="flex items-center gap-1 text-text-muted">
+                            <input
+                                type="checkbox"
+                                checked={draft.startedTurnUntapped}
+                                onChange={(e) =>
+                                    onPatch({
+                                        startedTurnUntapped: e.target.checked,
+                                    })
+                                }
+                            />
+                            started untapped
+                        </label>
                     </div>
                 </div>
             )}

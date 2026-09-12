@@ -21,6 +21,8 @@ import { grizzlyBears } from "../../cards/sets/lea/green";
 import { gaeasTouch } from "../../cards/sets/drk/green";
 import { hillGiant, shivanDragon } from "../../cards/sets/lea/red";
 import { arboria } from "../../cards/sets/leg/green";
+import { rasputinDreamweaver } from "../../cards/sets/leg/multicolor";
+import { cityOfBrass } from "../../cards/sets/arn/colorless";
 import { fatalPush } from "../../cards/sets/aer/black";
 import { startingTown } from "../../cards/sets/fin/colorless";
 import { forest } from "../../cards/sets/lea/colorless";
@@ -2882,5 +2884,227 @@ describe("buildStateFromScenario — per-seat turn history (issue #3450)", () =>
         // `turnsTaken` IS always explicit: the builder does not clear it, so
         // an absence would inherit the loaded game's count.
         expect(quiet.turnsTaken).toEqual({ me: 0, opp: 0 });
+    });
+});
+
+// ---- CR 106.4 / 603.3 / 502.1 (issue #3451) --------------------------------
+//
+// A family of per-card TAP STATE survived no round trip, and it fires on almost
+// every mid-turn capture: any land that has paid for a spell was named in
+// `dropped[]`. It splits cleanly in two, and the split is the whole design.
+//
+// LOWERED — the two tap-IRREVERSIBILITY markers (`manaCommitted`,
+// `tapTriggerCommitted`) and the CR 502.1 untap-step snapshot
+// (`startedTurnUntapped`). Each is a fact the rebuild cannot re-derive: the
+// first two say the standalone untap-to-refund toggle must refuse this source,
+// the third is read by "if ~ started the turn untapped" upkeep triggers
+// (Rasputin Dreamweaver) and is independent of `tapped` in both directions.
+//
+// ALLOWLISTED — the tap's UNDO BOOKKEEPING (`chosenMana`, `tapBonusMana`,
+// `manaPaidThisTap`, `lifePaidThisTap`, `exertedThisTap`, `manaCounterRemoval`).
+// Those six exist so a reversal can give back exactly what a tap took, and what
+// it gives back lands in the MANA POOL — the one thing `specFromState` cannot
+// lower at all. Every rebuild opens with an empty pool, so there is nothing to
+// take back; lowering them would let a rebuilt untap MINT life, counters and
+// cost mana this position never paid.
+describe("buildStateFromScenario — per-card tap state (issue #3451)", () => {
+    const RASPUTIN = rasputinDreamweaver.name;
+
+    function find(state: GameState, seat: 0 | 1, defId: string) {
+        return state.players[seat].battlefield.find(
+            (c) => (c.card as { id?: string }).id === defId
+        );
+    }
+
+    it("stamps the trio on a battlefield permanent and on a token (CR 106.4/603.3/502.1)", () => {
+        const state = buildStateFromScenario(makeState(), {
+            cards: [
+                {
+                    name: forest.name,
+                    owner: "me",
+                    tapped: true,
+                    manaCommitted: true,
+                },
+                {
+                    name: cityOfBrass.name,
+                    owner: "me",
+                    tapped: true,
+                    tapTriggerCommitted: true,
+                },
+                { name: RASPUTIN, owner: "me", startedTurnUntapped: true },
+                // The token path is a separate placement seam
+                // (`createTokenPermanents`, never `makeInstance`), and a token
+                // is as tappable a mana source as a card — a Treasure spent on
+                // a spell is `manaCommitted` exactly like the Forest above.
+                {
+                    name: "Wasp",
+                    owner: "me",
+                    token: true,
+                    tapped: true,
+                    manaCommitted: true,
+                    startedTurnUntapped: true,
+                },
+                // The seat that declared nothing keeps the engine defaults:
+                // every one of these is per-INSTANCE, never a board-wide stamp.
+                { name: forest.name, owner: "opp", tapped: true },
+            ],
+        });
+
+        expect(find(state, 0, forest.id)?.manaCommitted).toBe(true);
+        expect(find(state, 0, cityOfBrass.id)?.tapTriggerCommitted).toBe(true);
+        expect(
+            find(state, 0, rasputinDreamweaver.id)?.startedTurnUntapped
+        ).toBe(true);
+        const token = state.players[0].battlefield.find((c) => c.isToken);
+        expect(token?.manaCommitted).toBe(true);
+        expect(token?.startedTurnUntapped).toBe(true);
+        expect(token?.isTapped).toBe(true);
+
+        const oppForest = find(state, 1, forest.id);
+        expect(oppForest?.isTapped).toBe(true);
+        expect(oppForest?.manaCommitted).toBeUndefined();
+        expect(oppForest?.tapTriggerCommitted).toBeUndefined();
+        expect(oppForest?.startedTurnUntapped).toBeUndefined();
+    });
+
+    it("round-trips all three and drops nothing", () => {
+        const base = makeState();
+        const live = buildStateFromScenario(base, {
+            cards: [
+                {
+                    name: forest.name,
+                    owner: "me",
+                    tapped: true,
+                    manaCommitted: true,
+                },
+                {
+                    name: cityOfBrass.name,
+                    owner: "opp",
+                    tapped: true,
+                    tapTriggerCommitted: true,
+                },
+                // Untapped AND started the turn untapped: the ordinary shape,
+                // and the one that proves the flag is not just an echo of
+                // `tapped` — see the discriminating case below it.
+                { name: RASPUTIN, owner: "me", startedTurnUntapped: true },
+                // Tapped NOW but it started the turn untapped (something tapped
+                // it since): a shape no derivation from `tapped` can produce.
+                {
+                    name: grizzlyBears.name,
+                    owner: "me",
+                    tapped: true,
+                    startedTurnUntapped: true,
+                },
+            ],
+        });
+
+        const { spec: lowered, dropped } = specFromState(live, {
+            mySeatId: live.players[0].id,
+        });
+        expect(dropped).toEqual([]);
+
+        const myForest = lowered.cards.find((c) => c.name === forest.name);
+        expect(myForest?.manaCommitted).toBe(true);
+        expect(myForest?.tapTriggerCommitted).toBeUndefined();
+        expect(
+            lowered.cards.find((c) => c.name === cityOfBrass.name)
+                ?.tapTriggerCommitted
+        ).toBe(true);
+        expect(
+            lowered.cards.find((c) => c.name === RASPUTIN)?.startedTurnUntapped
+        ).toBe(true);
+        const bears = lowered.cards.find((c) => c.name === grizzlyBears.name);
+        expect(bears?.tapped).toBe(true);
+        expect(bears?.startedTurnUntapped).toBe(true);
+
+        const rebuilt = buildStateFromScenario(base, lowered);
+        expect(find(rebuilt, 0, forest.id)?.manaCommitted).toBe(true);
+        expect(find(rebuilt, 1, cityOfBrass.id)?.tapTriggerCommitted).toBe(
+            true
+        );
+        expect(
+            find(rebuilt, 0, rasputinDreamweaver.id)?.startedTurnUntapped
+        ).toBe(true);
+        const rebuiltBears = find(rebuilt, 0, grizzlyBears.id);
+        expect(rebuiltBears?.isTapped).toBe(true);
+        expect(rebuiltBears?.startedTurnUntapped).toBe(true);
+    });
+
+    it("reports the MANA POOL, never the six undo records that exist to refill it", () => {
+        const base = makeState();
+        const live = buildStateFromScenario(base, {
+            cards: [{ name: forest.name, owner: "me", tapped: true }],
+        });
+        const tapped = live.players[0].battlefield[0];
+        // The complete undo-bookkeeping family, as a live tap-for-mana leaves
+        // it: the produced mana, a Wild-Growth-style bonus, the cost mana this
+        // activation itself paid, the painland life, the Arena-of-Glory exert
+        // and a Mana Battery's removed charge counters.
+        tapped.chosenMana = { G: 1 };
+        tapped.tapBonusMana = { G: 1 };
+        tapped.manaPaidThisTap = { U: 1 };
+        tapped.lifePaidThisTap = 1;
+        tapped.exertedThisTap = true;
+        tapped.manaCounterRemoval = { type: "charge", count: 2 };
+        // …and the pool those records would refund INTO.
+        live.players[0].manaPool.G = 2;
+
+        const { spec: lowered, dropped } = specFromState(live, {
+            mySeatId: live.players[0].id,
+        });
+
+        // Exactly one loss, and it is the pool — which is the argument for
+        // allowlisting the six: the thing they give back is the thing the spec
+        // cannot carry, so a rebuild has nothing to give back.
+        expect(dropped).toEqual([
+            "me's mana pool: 2G — not lowered (mana pool isn't spec-expressible)",
+        ]);
+
+        // And the rebuild carries none of them, so its untap-toggle is a plain
+        // untap: no life, no counters and no cost mana minted out of nothing.
+        const rebuilt = buildStateFromScenario(base, lowered);
+        const rebuiltForest = find(rebuilt, 0, forest.id);
+        expect(rebuiltForest?.isTapped).toBe(true);
+        expect(rebuiltForest?.chosenMana).toBeUndefined();
+        expect(rebuiltForest?.tapBonusMana).toBeUndefined();
+        expect(rebuiltForest?.manaPaidThisTap).toBeUndefined();
+        expect(rebuiltForest?.lifePaidThisTap).toBeUndefined();
+        expect(rebuiltForest?.exertedThisTap).toBeUndefined();
+        expect(rebuiltForest?.manaCounterRemoval).toBeUndefined();
+        expect(rebuilt.players[0].manaPool.G).toBe(0);
+    });
+
+    // CR 502.1 / 603.4 — the behavioural half for `startedTurnUntapped`: the
+    // rebuilt Rasputin's upkeep trigger has to make the same intervening-if
+    // decision the captured one did. Driven through `collectTriggers`, which is
+    // where the intervening-if is evaluated (CR 603.4), never a hand-built
+    // stack item.
+    it("a rebuilt Rasputin's upkeep trigger reads the staged snapshot (CR 502.1)", () => {
+        const base = makeState();
+        const upkeep = {
+            type: "PHASE_BEGIN",
+            phase: "UPKEEP",
+            activePlayerId: base.players[0].id,
+        } as unknown as GameEvent;
+        const fires = (startedTurnUntapped: boolean): boolean => {
+            const live = buildStateFromScenario(base, {
+                cards: [{ name: RASPUTIN, owner: "me", startedTurnUntapped }],
+                phase: "UPKEEP",
+            });
+            const { spec: lowered, dropped } = specFromState(live, {
+                mySeatId: live.players[0].id,
+            });
+            expect(dropped).toEqual([]);
+            const rebuilt = buildStateFromScenario(base, lowered);
+            return collectTriggers(rebuilt, [upkeep]).some(
+                (t) => t.triggeredAbilityId === "rasputin-upkeep-regrow"
+            );
+        };
+
+        expect(fires(true)).toBe(true);
+        // The discriminating half: a capture taken after something tapped and
+        // untapped Rasputin during the turn rebuilds with the trigger SILENT,
+        // exactly as the live position had it.
+        expect(fires(false)).toBe(false);
     });
 });

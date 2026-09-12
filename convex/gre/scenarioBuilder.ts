@@ -77,6 +77,31 @@ import {
 import { recordBlockedAttackers } from "./banding";
 import type { Phase } from "./types";
 
+/** CR 106.4 / 603.3 / 502.1 (issue #3451) — stamp one battlefield entry's
+ *  TAP STATE onto the instance the rebuild just placed: the two markers that
+ *  make a tap irreversible (`manaCommitted`, `tapTriggerCommitted` — either one
+ *  makes `tapUntap`'s untap-to-refund toggle refuse the source) plus the
+ *  CR 502.1 untap-step snapshot an "if ~ started the turn untapped" upkeep
+ *  trigger reads (Rasputin Dreamweaver).
+ *
+ *  All three are written only when the entry asks for them: absent means the
+ *  engine's own default (a reversible tap, a permanent that did not start the
+ *  turn untapped), which is the minimal shape `specFromState` produces.
+ *
+ *  What is deliberately NOT staged here is the tap's UNDO BOOKKEEPING —
+ *  `chosenMana`, `tapBonusMana`, `manaPaidThisTap`, `lifePaidThisTap`,
+ *  `exertedThisTap`, `manaCounterRemoval`. Those exist so `untapSourceFromPayment`
+ *  can give back exactly what a tap took, and what it gives back lands in the
+ *  MANA POOL — which `specFromState` cannot lower at all (it reports a floating
+ *  pool as dropped, so every rebuild opens with an empty one). Staging them
+ *  would let a rebuilt untap ADD life, counters and cost mana that this
+ *  position never paid; see `CARD_STATE_ALLOWLIST`. */
+function applyTapState(card: CardInstanceState, entry: ScenarioCard): void {
+    if (entry.manaCommitted) card.manaCommitted = true;
+    if (entry.tapTriggerCommitted) card.tapTriggerCommitted = true;
+    if (entry.startedTurnUntapped) card.startedTurnUntapped = true;
+}
+
 /** CR 602.5 (issue #3448) — the per-turn activation tallies a scenario entry
  *  declares, cleaned of the counts that say nothing: a key at zero or below
  *  means "not activated this turn", which is exactly what an ABSENT key
@@ -195,6 +220,12 @@ function placeScenarioTokens(
             token.damageMarked = entry.damageMarked;
         }
         if (entry.attackedLastTurn) token.attackedDuringLastTurn = true;
+        // CR 106.4 / 603.3 / 502.1 (issue #3451) — the tap-state trio, applied
+        // on the token path for the same reason as the card path below: a
+        // Treasure or a mana-producing creature token is a tappable source
+        // whose tap can already be committed, and any token can be a Rasputin's
+        // "started the turn untapped" subject.
+        applyTapState(token, entry);
         const tokenActivations = resolveScenarioActivations(entry.activations);
         if (tokenActivations) token.activationsThisTurn = tokenActivations;
         // CR 608.2 (issue #3453) — a token can be a trigger source with an
@@ -621,6 +652,8 @@ export function buildStateFromScenario(
                     (instance as CardInstanceState).attackedDuringLastTurn =
                         true;
                 }
+                // CR 106.4 / 603.3 / 502.1 (issue #3451) — the tap-state trio.
+                applyTapState(instance as CardInstanceState, entry);
                 // CR 302.6 / 400.7 — entered this turn: starts the
                 // control-continuity clock so a manland animated the same turn
                 // reads sick (#545). The `enteredOnTurn` stamp is the OTHER
@@ -1424,6 +1457,66 @@ export const CARD_STATE_ALLOWLIST = new Set<string>([
     "damageMarked",
     "attachedTo",
     "attackedDuringLastTurn",
+    // CR 106.4 / 603.3 / 502.1 (issue #3451) — the tap-state trio, lowered by
+    // `lowerCard` into the `ScenarioCard` keys of the same name and re-stamped
+    // by `applyTapState`.
+    "manaCommitted",
+    "tapTriggerCommitted",
+    "startedTurnUntapped",
+    // CR 106.4 / 605.1a / 605.4 / 122.6 / 701.43b (issue #3451) — the tap's
+    // UNDO BOOKKEEPING. Six records, one class: each is written when a source
+    // is tapped for mana and consumed by exactly one thing, the reversal of
+    // that tap (`untapSourceFromPayment` and the two inline copies of it in
+    // `game.ts` — `refundChosenManaOutput`, `refundTapBonusMana`,
+    // `restoreManaPaidOnUntap`, `restoreLifePaidOnUntap`, `restoreExertOnUntap`,
+    // and the `manaCounterRemoval` counter restore).
+    //
+    // They are rebuild bookkeeping, not spec-keyed data, and the argument is
+    // the untap path's own: each is written once by a tap and read once by that
+    // tap's reversal, and a REBUILT position has no tap to reverse. What the
+    // reversal gives back is a resource this position never took — the produced
+    // mana above all, and the mana pool is the ONE thing `specFromState` cannot
+    // lower at all (a floating pool is reported as dropped, so every rebuild
+    // opens with an empty one).
+    //
+    // Lowering them would therefore make the rebuilt undo strictly WORSE than
+    // dropping them, and asymmetrically so: the two pool subtractions clamp at
+    // zero (`Math.max(0, …)`), while the life restore, the charge-counter
+    // restore and the cost-mana refund are unclamped additions — a rebuilt
+    // untap-toggle would MINT life, counters and mana. Absent, the same toggle
+    // is a plain untap.
+    //
+    // What genuinely must survive is not the amount but the IRREVERSIBILITY,
+    // and that is `manaCommitted` / `tapTriggerCommitted` three lines up, which
+    // ARE lowered. (`chosenMana` has one non-undo reader — `getManaColor`'s
+    // colour preference inside `commitLandsForCost`, whose four call sites each
+    // filter on `isTapped && !manaCommitted`, i.e. they only ever inspect
+    // sources whose mana is still floating in the pool a rebuild does not
+    // have.)
+    //
+    // `exertedThisTap` closes the UNDO half of the exert only: its behavioural
+    // half, `skipNextUntap` (CR 701.43a — the permanent that does not untap
+    // next untap step), is neither lowered nor allowlisted and keeps its own
+    // `dropped[]` line. That is a separate hole, not one this row hides.
+    //
+    // All nine rows here — the trio above included — describe BATTLEFIELD
+    // facts, and all nine are cleared on the way back IN
+    // (`resetBattlefieldTransientState`, CR 400.7) rather than on the way out,
+    // so a card that has since left play can still carry one. The rows are
+    // deliberately global anyway: off the battlefield every one of them is dead
+    // state — the untap-toggle reads a battlefield source, `commitLandsForCost`
+    // walks the battlefield, and an "if ~ started the turn untapped" upkeep
+    // trigger needs its source on the battlefield to fire at all — so lowering
+    // them in a graveyard or a hand would stage noise, not fidelity. This is
+    // the one place the trio differs from `activationsThisTurn` three rows up,
+    // which IS lowered in every zone precisely because a departed card's tally
+    // is still read (CR 602.5).
+    "chosenMana",
+    "tapBonusMana",
+    "manaPaidThisTap",
+    "lifePaidThisTap",
+    "exertedThisTap",
+    "manaCounterRemoval",
     // CR 508.1k / 509.1g / 506.4 (issue #3458) — the four combat flags.
     // `isAttacking` / `isBlocking` are rebuild BEHAVIOUR: the builder seeds
     // them through `markAttacking` / `markDeclaredBlockers` from
@@ -1689,6 +1782,19 @@ function lowerCard(
         }
         if (card.attackedDuringLastTurn) entry.attackedLastTurn = true;
         if (card.isSummoningSick) entry.summoningSick = true;
+        // CR 106.4 / 603.3 (issue #3451) — the two tap-irreversibility markers.
+        // A tapped land whose mana is already spent, or whose tap put a trigger
+        // on the stack, is one `tapUntap` refuses to untap; a rebuild that drops
+        // the marker offers that untap, and (for `manaCommitted`) also lets
+        // `commitLandsForCost` attribute the NEXT payment to this
+        // already-spent source instead of the one it just tapped.
+        if (card.manaCommitted) entry.manaCommitted = true;
+        if (card.tapTriggerCommitted) entry.tapTriggerCommitted = true;
+        // CR 502.1 (issue #3451) — the untap-step snapshot. Not derivable from
+        // `tapped` in either direction, and the rebuild runs no untap step, so
+        // an unlowered Rasputin Dreamweaver rebuilds with its upkeep
+        // intervening-if reading FALSE on a board where it was true.
+        if (card.startedTurnUntapped) entry.startedTurnUntapped = true;
 
         if (card.faceDown) {
             if (card.isToken) {

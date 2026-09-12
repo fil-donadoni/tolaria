@@ -1462,6 +1462,35 @@ export function markTapTriggerCommitment(
     }
 }
 
+/** CR 106.4 / 603.3 — why the standalone untap-to-refund toggle (`tapUntap`'s
+ *  untap branch) must REFUSE this tapped source, or `undefined` when the tap is
+ *  still reversible.
+ *
+ *  Two markers, both class-wide and both cleared at the controller's untap step
+ *  (CR 502):
+ *  - `manaCommitted` — the mana this source produced has already been spent on
+ *    a spell or a paid activation cost. Untapping would refund mana that is no
+ *    longer floating.
+ *  - `tapTriggerCommitted` — its most-recent tap-for-mana put a triggered
+ *    ability on the stack (`markTapTriggerCommitment` above), which CR 603.3
+ *    gives no undo of. Untapping would refund the mana while the trigger's
+ *    effect stays applied.
+ *
+ *  Extracted from the mutation body (issue #3451) so the guard has ONE
+ *  definition: a rebuilt scenario position stages both markers
+ *  (`ScenarioCard.manaCommitted` / `tapTriggerCommitted`), and the test that
+ *  the staged position really does refuse the untap has to reach the mutation's
+ *  own decision rather than a copy of it. */
+export function untapToggleRefusal(
+    card: CardInstanceState
+): string | undefined {
+    if (card.manaCommitted) return "Cannot untap: mana already spent";
+    if (card.tapTriggerCommitted) {
+        return "Cannot untap: tap trigger already on the stack";
+    }
+    return undefined;
+}
+
 /** CR 106.4 / 605.1a — snapshot how much life a tap-for-mana's inline self-
  *  damage / life-cost riders (painland coloured-tap ping like Adarkar Wastes,
  *  Ancient Tomb's unconditional ping, Mana Confluence's "Pay 1 life") took, so
@@ -16179,23 +16208,11 @@ export const tapUntap = mutation({
             return;
         }
 
-        // Block untap if mana was spent on a cast
-        if (wasTapped && card.manaCommitted) {
-            throw new Error("Cannot untap: mana already spent");
-        }
-
-        // CR 603.3 — a triggered ability cannot be undone once put on the
-        // stack. If this source's most-recent tap-for-mana caused any
-        // triggered ability to go on the stack (its own "becomes tapped"
-        // self-damage like City of Brass, or a third-party Manabarbs watching
-        // land taps), the tap is a commitment: refunding the mana and
-        // untapping the source while the trigger's effect (lost life, etc.)
-        // stays applied would produce a state with no legal MTG equivalent.
-        // Mirrors the `manaCommitted` guard above; class-wide, set at the
-        // trigger-flush site below and cleared at the untap step / on spend.
-        if (wasTapped && card.tapTriggerCommitted) {
-            throw new Error("Cannot untap: tap trigger already on the stack");
-        }
+        // CR 106.4 / 603.3 — the two irreversibility guards, in the order the
+        // engine sets them (mana spent wins: committing mana CLEARS the
+        // tap-trigger flag).
+        const refusal = wasTapped ? untapToggleRefusal(card) : undefined;
+        if (refusal) throw new Error(refusal);
 
         // Track produced mana so we can carry it on the PERMANENT_TAPPED event
         // (CR 605.2 / 603.2 — Mana Flare reads `manaProduced` to add the
@@ -17629,6 +17646,27 @@ export const debugSetupScenario = mutation({
                  *  summoning-sick: the animated creature can't attack and can't
                  *  pay {T}. Battlefield default is `false`. #545. */
                 summoningSick: v.optional(v.boolean()),
+                /** CR 106.4 / 603.3 (issue #3451) — stage this battlefield
+                 *  source as one whose tap can no longer be reversed: its mana
+                 *  has already been spent on a spell (`manaCommitted`), or its
+                 *  most-recent tap-for-mana put a triggered ability on the
+                 *  stack (`tapTriggerCommitted` — City of Brass, Manabarbs),
+                 *  which CR 603.3 gives no undo of. Either makes `tapUntap`'s
+                 *  untap-to-refund toggle refuse the source; without them a
+                 *  staged tapped land offers an untap the captured position had
+                 *  already forbidden. Battlefield only, and both are cleared at
+                 *  the controller's untap step (CR 502). */
+                manaCommitted: v.optional(v.boolean()),
+                tapTriggerCommitted: v.optional(v.boolean()),
+                /** CR 502.1 (issue #3451) — stage the untap-step snapshot
+                 *  "this permanent was untapped when the turn's untap step
+                 *  began", which upkeep triggers phrased "if ~ started the turn
+                 *  untapped" read (Rasputin Dreamweaver). A scenario PLACES a
+                 *  board without running an untap step, so this cannot be
+                 *  derived from `tapped`: a permanent may be untapped now and
+                 *  have started the turn tapped, or the reverse. Battlefield
+                 *  only; default absent (= did not start the turn untapped). */
+                startedTurnUntapped: v.optional(v.boolean()),
                 /** Make this battlefield permanent a COPY of another card by
                  *  name (CR 707.2 — Clone, Copy Artifact, Vesuvan Doppelganger).
                  *  `name` is the copy's printed identity (preserved in
