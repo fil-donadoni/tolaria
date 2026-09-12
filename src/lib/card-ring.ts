@@ -66,3 +66,24 @@ export const COMBAT_GROUP_ROLE: readonly CardRingRole[] = [
     "combat-3",
     "combat-4",
 ] as const;
+
+/** A tile box that HOSTS a `.card-ring` and can be OVERLAPPED by a sibling
+ *  tile must be its own stacking context (issue #3426).
+ *
+ *  `.card-ring::after` carries `z-index: 25` — a WITHIN-CARD order (above the
+ *  art and its tint overlays, below the badges and the arrow highlight). A
+ *  stacked tile is typically `absolute` at `z-index: auto`, so it forms no
+ *  stacking context of its own and that 25 is resolved against the nearest
+ *  ancestor that does — the PILE — where it outranks every later sibling tile
+ *  (`z-index: auto`, painted by DOM order). A buried card's whole ring
+ *  rectangle then paints over the cards stacked on top of it and the pile
+ *  reads as a lattice of rings rather than a stack of outlined cards. The art
+ *  itself does not leak because `CardImage`'s `promoteLayer` makes it a
+ *  stacking context — the ring is a SIBLING of that layer, not inside it.
+ *
+ *  `isolate` on the tile gives the ring the containment its `z-index` already
+ *  assumed, leaving the within-card order untouched — the alternative, lowering
+ *  the ring's `z-index`, would re-open exactly that order. It sets no
+ *  `z-index` of its own, so a tile's own `hover:z-10` / `focus-visible:z-20` /
+ *  selected `z-10` lift cues keep ordering it against its pile-mates. */
+export const CARD_RING_TILE_CLASS = "isolate";

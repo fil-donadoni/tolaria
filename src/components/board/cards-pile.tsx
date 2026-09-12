@@ -25,6 +25,7 @@ import {
     type PileCategory,
 } from "~/lib/categorized-pile";
 import { pickerRingClass } from "~/lib/picker-ring";
+import { CARD_RING_TILE_CLASS } from "~/lib/card-ring";
 
 /** Small counter chips overlaid on a revealed pile card (fan/grid dialog) —
  *  the exile/graveyard pickers need them (Dauthi Voidwalker's void counter is
@@ -347,26 +348,6 @@ function FanLayout({
                         isFaceDown,
                         faceUpIds
                     );
-                    // Same hover language as a hand / battlefield card (QA): the
-                    // 3D tilt + glare wraps every pile card too, so graveyard,
-                    // exile and every dialog pile react identically to the
-                    // pointer instead of sitting inert.
-                    const inner = (
-                        <CardTilt3D>
-                            {faceDown ? (
-                                <CardBack />
-                            ) : (
-                                // Fan dialog cards render up to 13rem (208px)
-                                // wide (--pile-card-w) — a mid/large slot, no
-                                // `thumb`.
-                                <CardImage
-                                    card={cardInstance}
-                                    sizes="208px"
-                                    includeThumb={false}
-                                />
-                            )}
-                        </CardTilt3D>
-                    );
                     const isEligible = isEligibleCard(
                         cardInstance.id,
                         eligibleIds
@@ -376,11 +357,47 @@ function FanLayout({
                         !faceDown && !!onCardClick && !isEligible;
                     const isSelected =
                         selectedIds?.includes(cardInstance.id) ?? false;
+                    // Same hover language as a hand / battlefield card (QA): the
+                    // 3D tilt + glare wraps every pile card too, so graveyard,
+                    // exile and every dialog pile react identically to the
+                    // pointer instead of sitting inert.
+                    //
+                    // The picker ring rides INSIDE the tilt, on the same box as
+                    // the art — the battlefield arrangement (issue #3426). On
+                    // the clickable WRAPPER, an ancestor of the tilt that is
+                    // never transformed, the ring stayed flat while the face
+                    // scaled/lifted/rotated past it, so the art overhung its own
+                    // outline. ADR 0103 §8 has the ring clipped to the card's
+                    // printed corner, which it cannot be unless it travels with
+                    // the surface it outlines.
+                    const inner = (
+                        <CardTilt3D>
+                            <div
+                                className={`relative w-full h-full ${clickable ? pickerRingClass(isSelected) : "card-corner"}`}
+                            >
+                                {faceDown ? (
+                                    <CardBack />
+                                ) : (
+                                    // Fan dialog cards render up to 13rem (208px)
+                                    // wide (--pile-card-w) — a mid/large slot, no
+                                    // `thumb`.
+                                    <CardImage
+                                        card={cardInstance}
+                                        sizes="208px"
+                                        includeThumb={false}
+                                    />
+                                )}
+                            </div>
+                        </CardTilt3D>
+                    );
                     const action = renderCardAction?.(cardInstance, onClose);
                     return (
                         <div
                             key={cardInstance.id}
-                            className="relative w-(--pile-card-w) aspect-5/7 shrink-0"
+                            // `CARD_RING_TILE_CLASS`: fan tiles overlap by a
+                            // negative margin, so the ringed tile must contain
+                            // its own ring's `z-index` (issue #3426).
+                            className={`relative w-(--pile-card-w) aspect-5/7 shrink-0 ${CARD_RING_TILE_CLASS}`}
                             style={{
                                 marginLeft:
                                     cardIndex === 0
@@ -395,7 +412,7 @@ function FanLayout({
                                         onCardClick(cardInstance);
                                         onClose();
                                     }}
-                                    className={`w-full h-full bg-transparent border-0 p-0 cursor-pointer ${pickerRingClass(isSelected)}`}
+                                    className="w-full h-full bg-transparent border-0 p-0 cursor-pointer"
                                 >
                                     {inner}
                                 </button>
@@ -488,25 +505,31 @@ function GridCard({
     imageSizing: { sizes: string; includeThumb: boolean };
 }) {
     const faceDown = isCardFaceDown(cardInstance, isFaceDown, faceUpIds);
-    // Tilt + glare on hover, exactly like a board card (QA — uniform card
-    // interaction across zones and dialogs).
-    const inner = (
-        <CardTilt3D>
-            {faceDown ? (
-                <CardBack />
-            ) : (
-                <CardImage
-                    card={cardInstance}
-                    sizes={imageSizing.sizes}
-                    includeThumb={imageSizing.includeThumb}
-                />
-            )}
-        </CardTilt3D>
-    );
     const isEligible = isEligibleCard(cardInstance.id, eligibleIds);
     const clickable = !faceDown && !!onCardClick && isEligible;
     const isIneligible = !faceDown && !!onCardClick && !isEligible;
     const isSelected = selectedIds?.includes(cardInstance.id) ?? false;
+    // Tilt + glare on hover, exactly like a board card (QA — uniform card
+    // interaction across zones and dialogs). The ring is nested INSIDE the
+    // tilt for the reason the fan layout's own note carries (issue #3426) —
+    // same seam, grid variant.
+    const inner = (
+        <CardTilt3D>
+            <div
+                className={`relative w-full h-full ${clickable ? pickerRingClass(isSelected) : "card-corner"}`}
+            >
+                {faceDown ? (
+                    <CardBack />
+                ) : (
+                    <CardImage
+                        card={cardInstance}
+                        sizes={imageSizing.sizes}
+                        includeThumb={imageSizing.includeThumb}
+                    />
+                )}
+            </div>
+        </CardTilt3D>
+    );
     const action = renderCardAction?.(cardInstance, onClose);
     const caption = faceDown ? null : captionFor?.(cardInstance);
     return (
@@ -519,7 +542,7 @@ function GridCard({
                             onCardClick(cardInstance);
                             onClose();
                         }}
-                        className={`w-full h-full bg-transparent border-0 p-0 cursor-pointer ${pickerRingClass(isSelected)}`}
+                        className="w-full h-full bg-transparent border-0 p-0 cursor-pointer"
                     >
                         {inner}
                     </button>

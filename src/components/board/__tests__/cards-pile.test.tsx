@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, fireEvent } from "@testing-library/react";
+import { render, fireEvent, cleanup } from "@testing-library/react";
 import type { CardInstance } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
 import {
@@ -11,6 +11,7 @@ import {
     PILE_GRID_TILE_W,
     PILE_TILE_BOX,
 } from "~/lib/card-layout";
+import { CARD_RING_TILE_CLASS } from "~/lib/card-ring";
 import CardsPile from "../cards-pile";
 
 // Isolate CardsPile's ring/click-gating logic from real card art rendering
@@ -47,26 +48,27 @@ vi.mock("~/hooks/useInertialScroll", () => ({
     useInertialScroll: () => ({ current: null }),
 }));
 
-/** jsdom's CSS engine doesn't support `:has()` — the stubbed card-image
- *  marker is always a direct child of its ring/dim wrapper (button or plain
- *  div), so grab the wrapper via `parentElement` instead. */
+/** The INTERACTION wrapper of a pile card — the clickable `<button>`, the
+ *  dimmed ineligible `<div>`, or the passthrough slot.
+ *
+ *  Pile cards are wrapped in CardTilt3D (the same hover tilt/glare board cards
+ *  use) and, since issue #3426, in the RINGED box nested inside it, so walking
+ *  a fixed number of `parentElement` hops is not stable. Climb out of the whole
+ *  tilt subtree instead: the wrapper is whatever holds `[data-card-tilt-root]`. */
 function findCardWrapper(
     container: HTMLElement,
     id: string
 ): HTMLElement | null {
     const marker = container.querySelector(`[data-testid="card-image-${id}"]`);
-    // Pile cards are wrapped in CardTilt3D (the same hover tilt/glare board
-    // cards use), so walk past its two layers to the INTERACTION wrapper —
-    // the clickable <button>, the dimmed ineligible <div>, or the slot.
-    let el = (marker?.parentElement as HTMLElement | null) ?? null;
-    while (
-        el &&
-        (el.hasAttribute("data-card-tilt") ||
-            el.hasAttribute("data-card-tilt-root"))
-    ) {
-        el = el.parentElement;
-    }
-    return el;
+    const tiltRoot = marker?.closest("[data-card-tilt-root]") ?? null;
+    return (tiltRoot?.parentElement as HTMLElement | null) ?? null;
+}
+
+/** The box the card face is painted on — the one issue #3426 moved the picker
+ *  ring onto, directly wrapping the (stubbed) card image inside the tilt. */
+function findFaceBox(container: HTMLElement, id: string): HTMLElement | null {
+    const marker = container.querySelector(`[data-testid="card-image-${id}"]`);
+    return (marker?.parentElement as HTMLElement | null) ?? null;
 }
 
 function makeCard(id: string): CardInstance {
@@ -175,7 +177,9 @@ describe("CardsPile — filtered search eligibility (issue #933)", () => {
 
         const eligibleWrapper = findCardWrapper(baseElement, "artifact-1");
         expect(eligibleWrapper?.tagName).toBe("BUTTON");
-        expect(eligibleWrapper?.className).toContain("card-ring-candidate");
+        expect(findFaceBox(baseElement, "artifact-1")?.className).toContain(
+            "card-ring-candidate"
+        );
 
         // Ineligible card renders dimmed and NOT as a clickable button.
         const ineligibleWrapper = findCardWrapper(baseElement, "creature-2");
@@ -205,7 +209,9 @@ describe("CardsPile — filtered search eligibility (issue #933)", () => {
         for (const id of ["a", "b"]) {
             const wrapper = findCardWrapper(baseElement, id);
             expect(wrapper?.tagName).toBe("BUTTON");
-            expect(wrapper?.className).toContain("card-ring-candidate");
+            expect(findFaceBox(baseElement, id)?.className).toContain(
+                "card-ring-candidate"
+            );
         }
     });
 
@@ -222,8 +228,9 @@ describe("CardsPile — filtered search eligibility (issue #933)", () => {
                 selectedIds={["artifact-1"]}
             />
         );
-        const wrapper = findCardWrapper(baseElement, "artifact-1");
-        expect(wrapper?.className).toContain("card-ring-selected");
+        expect(findFaceBox(baseElement, "artifact-1")?.className).toContain(
+            "card-ring-selected"
+        );
     });
 
     it("fan layout: rings and enables clicks only on allow-listed cards", () => {
@@ -242,7 +249,9 @@ describe("CardsPile — filtered search eligibility (issue #933)", () => {
 
         const eligibleWrapper = findCardWrapper(baseElement, "artifact-1");
         expect(eligibleWrapper?.tagName).toBe("BUTTON");
-        expect(eligibleWrapper?.className).toContain("card-ring-candidate");
+        expect(findFaceBox(baseElement, "artifact-1")?.className).toContain(
+            "card-ring-candidate"
+        );
 
         const ineligibleWrapper = findCardWrapper(baseElement, "creature-2");
         expect(ineligibleWrapper?.tagName).not.toBe("BUTTON");
@@ -790,5 +799,165 @@ describe("CardsPile — segmented type filter footer (issue #2729, plain browse 
         const stickyBottoms = baseElement.querySelectorAll(".sticky.bottom-0");
         expect(stickyBottoms.length).toBe(1);
         expect(queryByRole("button", { name: "Done" })).toBeTruthy();
+    });
+});
+
+/** Every `.card-ring*` class on the chain from `from` (exclusive) up to
+ *  `stopAt` (exclusive) — the ancestors of the tilt, i.e. the boxes the hover
+ *  transform does NOT move. */
+function ancestorRingClasses(from: HTMLElement, stopAt: HTMLElement): string[] {
+    const found: string[] = [];
+    let el: HTMLElement | null = from.parentElement;
+    while (el && el !== stopAt) {
+        for (const c of Array.from(el.classList)) {
+            if (c.startsWith("card-ring")) found.push(c);
+        }
+        el = el.parentElement;
+    }
+    return found;
+}
+
+// Issue #3426. CardTilt3D scales, lifts and rotates the card face on hover; the
+// picker ring used to sit on the CLICKABLE WRAPPER, an ancestor of the tilt
+// that is never transformed, so the art visibly escaped its own outline. ADR
+// 0103 §8 says the ring is an inset outline clipped to the card's own corner —
+// it can only honour that by living on the SAME box as the face, which is the
+// arrangement the battlefield card already uses.
+describe("CardsPile — the picker ring travels with the hover tilt (issue #3426)", () => {
+    afterEach(() => vi.unstubAllGlobals());
+
+    for (const layout of ["grid", "fan"] as const) {
+        for (const role of ["candidate", "selected"] as const) {
+            it(`${layout} layout: the ${role} ring is inside the tilt subtree, never on an ancestor of it`, () => {
+                const card = makeCard("pick-1");
+                const { baseElement } = render(
+                    <CardsPile
+                        cards={[card]}
+                        isFaceDown={false}
+                        layout={layout}
+                        forceOpen
+                        onCardClick={vi.fn()}
+                        selectedIds={role === "selected" ? ["pick-1"] : []}
+                    />
+                );
+
+                const marker = baseElement.querySelector(
+                    '[data-testid="card-image-pick-1"]'
+                ) as HTMLElement;
+                const tiltRoot = marker.closest(
+                    "[data-card-tilt-root]"
+                ) as HTMLElement;
+                const tiltInner = marker.closest(
+                    "[data-card-tilt]"
+                ) as HTMLElement;
+                expect(tiltRoot).not.toBeNull();
+                expect(tiltInner).not.toBeNull();
+
+                // The ring resolves WITHIN the transformed element…
+                const ring = marker.closest(".card-ring") as HTMLElement | null;
+                expect(ring).not.toBeNull();
+                expect(ring!.className).toContain(`card-ring-${role}`);
+                expect(tiltInner.contains(ring)).toBe(true);
+
+                // …and nowhere above the tilt, up to the dialog body.
+                expect(
+                    ancestorRingClasses(tiltRoot, baseElement)
+                ).toStrictEqual([]);
+            });
+        }
+    }
+
+    it("grid layout: a dimmed ineligible card and a face-down card keep their chrome and the card corner", () => {
+        const cards = [makeCard("eligible-1"), makeCard("dimmed-2")];
+        const { baseElement } = render(
+            <CardsPile
+                cards={cards}
+                isFaceDown={false}
+                layout="grid"
+                forceOpen
+                onCardClick={vi.fn()}
+                eligibleIds={new Set(["eligible-1"])}
+            />
+        );
+        // The dim stays on the interaction wrapper (it is not a ring), and the
+        // un-ringed face box keeps the printed corner the ring would imply.
+        const dimmed = findCardWrapper(baseElement, "dimmed-2");
+        expect(dimmed?.className).toContain("opacity-40");
+        expect(dimmed?.className).toContain("card-corner");
+        const dimmedFace = findFaceBox(baseElement, "dimmed-2");
+        expect(dimmedFace?.className).toContain("card-corner");
+        expect(dimmedFace?.className).not.toContain("card-ring");
+
+        cleanup();
+
+        const back = makeCard("hidden-1");
+        const { baseElement: faceDownBody } = render(
+            <CardsPile
+                cards={[back]}
+                isFaceDown
+                layout="grid"
+                forceOpen
+                onCardClick={vi.fn()}
+            />
+        );
+        const backMarker = faceDownBody.querySelector(
+            '[data-testid="card-back"]'
+        ) as HTMLElement;
+        expect(backMarker.parentElement?.className).toContain("card-corner");
+        expect(backMarker.parentElement?.className).not.toContain("card-ring");
+        expect(backMarker.closest("[data-card-tilt]")).not.toBeNull();
+    });
+
+    it("grid layout: the counter chips and the per-card action stay OUTSIDE the tilt, so they never inherit the hover transform", () => {
+        const card = makeCard("counted-1");
+        card.counters = { "+1/+1": 2 };
+        const { baseElement } = render(
+            <CardsPile
+                cards={[card]}
+                isFaceDown={false}
+                layout="grid"
+                forceOpen
+                onCardClick={vi.fn()}
+                renderCardAction={() => (
+                    <button type="button" data-testid="card-action">
+                        Act
+                    </button>
+                )}
+            />
+        );
+        const marker = baseElement.querySelector(
+            '[data-testid="card-image-counted-1"]'
+        ) as HTMLElement;
+        const tiltRoot = marker.closest("[data-card-tilt-root]") as HTMLElement;
+
+        const chip =
+            Array.from(baseElement.querySelectorAll("span")).find((el) =>
+                el.textContent?.includes("+1/+1")
+            ) ?? null;
+        expect(chip).not.toBeNull();
+        const action = baseElement.querySelector(
+            '[data-testid="card-action"]'
+        ) as HTMLElement;
+        // Both are SIBLINGS of the tilt's subtree, not inside it.
+        expect(tiltRoot.contains(action)).toBe(false);
+        expect(tiltRoot.contains(chip)).toBe(false);
+    });
+
+    it("fan layout: an overlapping tile box is its own stacking context, so a buried card's ring cannot paint over the tiles on top of it", () => {
+        const cards = [makeCard("a"), makeCard("b"), makeCard("c")];
+        const { baseElement } = render(
+            <CardsPile
+                cards={cards}
+                isFaceDown={false}
+                layout="fan"
+                forceOpen
+                onCardClick={vi.fn()}
+            />
+        );
+        for (const id of ["a", "b", "c"]) {
+            const wrapper = findCardWrapper(baseElement, id);
+            const tileBox = wrapper?.parentElement;
+            expect(tileBox?.className).toContain(CARD_RING_TILE_CLASS);
+        }
     });
 });
