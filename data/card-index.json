@@ -32766,6 +32766,14 @@
         "source": "compiled"
     },
     {
+        "name": "Standstill",
+        "scryfallId": "3ede3f6f-e642-4fe4-aa37-0f01cdf4d149",
+        "oracleId": "fea4cb32-0329-4199-9abe-bff0cc45882a",
+        "firstSet": "ody",
+        "firstPrintId": "3ede3f6f-e642-4fe4-aa37-0f01cdf4d149",
+        "firstPrintSet": "ody"
+    },
+    {
         "name": "Star Compass",
         "scryfallId": "b1d0beb4-c3dd-4bb1-b49b-a48b2d4ad38d",
         "oracleId": "b5e9599f-9561-4e3f-9904-9a4dab98cabb",
