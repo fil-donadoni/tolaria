@@ -15216,7 +15216,7 @@ export const debugSetupScenario = mutation({
                  *  card-preview then shows both faces (Current + Original).
                  *  Battlefield only. */
                 copyOf: v.optional(v.string()),
-                /** CR 208.2 / 611.1 / 611.2b (issue #3459) — stage this
+                /** CR 208.2 / 611.1 / 611.2a (issue #3459) — stage this
                  *  battlefield permanent as ANIMATED: a manland that has
                  *  already been activated this turn (Mishra's Factory as a 2/2
                  *  Assembly-Worker artifact creature), or anything a resolved
@@ -15225,7 +15225,7 @@ export const debugSetupScenario = mutation({
                  *  animate primitive, so the staged permanent attacks, carries
                  *  its granted keywords and its colours, and stops being a
                  *  creature at the stated boundary. `duration` OMITTED means
-                 *  INDEFINITE (CR 611.2b — earthbend), not "until end of turn".
+                 *  INDEFINITE (CR 611.2a — earthbend), not "until end of turn".
                  *  Battlefield only. */
                 animated: v.optional(scenarioAnimationValidator),
             })

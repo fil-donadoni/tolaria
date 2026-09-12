@@ -55,6 +55,7 @@ import {
 } from "../debugScenarioSpec";
 import {
     type CardInstanceState,
+    type Duration,
     type GameState,
     type PlayerState,
     type RestrictedMana,
@@ -922,7 +923,7 @@ export function buildStateFromScenario(
         }
     }
 
-    // CR 208.2 / 611.1 / 611.2b (issue #3459) — EXECUTE every queued animate
+    // CR 208.2 / 611.1 / 611.2a (issue #3459) — EXECUTE every queued animate
     // call through the engine's own primitive, now that the whole board (and
     // every source-provenance layer entry it generates) exists.
     //
@@ -932,7 +933,8 @@ export function buildStateFromScenario(
     // for a coloured manland, a layer-6 grant per granted keyword, and — the
     // point of the whole field — a real EXPIRY that `tickAllDurations` ends at
     // the stated boundary (CR 611.2), or never, for an animation the spec states
-    // no duration for (CR 611.2b). Lowering the outcome as literal
+    // no duration for (CR 611.2a — "if no duration is stated, it lasts until the
+    // end of the game"). Lowering the outcome as literal
     // power/toughness/types overrides would rebuild a manland animated FOREVER.
     //
     // CR 611.2c — the animation's effect controller: a rebuilt board has no
@@ -1689,7 +1691,7 @@ function reportCharacteristicDrift(
     }
 }
 
-/** CR 208.2 / 611.1 / 611.2b (issue #3459) — lower one permanent's live
+/** CR 208.2 / 611.1 / 611.2a (issue #3459) — lower one permanent's live
  *  `animation` record back into the CALL that produced it, the shape
  *  `buildStateFromScenario` re-executes.
  *
@@ -1733,7 +1735,7 @@ function lowerAnimation(
     if (anim.colors && anim.colors.length > 0) {
         lowered.colors = [...anim.colors];
     }
-    // CR 611.2 / 611.2b — the stored `Duration` carries a RESOLVED `playerId`;
+    // CR 611.2 / 611.2a — the stored `Duration` carries a RESOLVED `playerId`;
     // the spec carries the symbolic `player` the card printed, re-resolved at
     // rebuild time against the permanent's controller (the same stand-in the
     // builder uses for the effect's controller). An unresolved boundary ("any
@@ -1784,14 +1786,27 @@ function lowerAnimation(
  *  competing registry entry in layers 2-5 or sublayer 7b that names this
  *  permanent.
  *
+ *  LAYER 6 is scanned too, though decision 4 on the issue named only layers 2-5
+ *  and 7b: an animate clause's `grantedAbilities` become layer-6 entries, and
+ *  their order against an ability-stripper (Humility) decides whether the
+ *  keyword survives at all — a grant stamped below the stripper derives nothing
+ *  live and derives the keyword on the rebuilt board, which is a different board
+ *  with no line of its own. The blunt
+ *  `game state: live-only state not captured (continuousEffects)` residue does
+ *  cover it today, but that line is what the sibling slice (the registry's own
+ *  duration entries) exists to retire, and this report must not be what makes
+ *  retiring it lossy.
+ *
  *  Two shapes are deliberately not scanned. The animation's own layer-4 and
  *  layer-7b halves are DERIVED from the record (`gre/layers2to5.ts`), never
- *  stored, so they cannot be mistaken for a competitor. And a board source's
- *  own entry (Blood Moon's "all lands are Mountains") is synthesized per
- *  derivation from the live source, never stored either — where it actually
- *  changes a characteristic the animation also touches, the characteristic-drift
- *  report above is what names it, because the drift baseline is the printed card
- *  plus the animation and nothing else. */
+ *  stored, so they cannot be mistaken for a competitor — and the animation's
+ *  layer-7b P/T is the permanent's BASE (`card.power`), under every stored
+ *  layer-7 entry, so a board source setting P/T (Humility) needs no order report
+ *  at all. And a board source's own entry (Blood Moon's "all lands are
+ *  Mountains") is synthesized per derivation from the live source, never stored
+ *  either — where it actually changes a characteristic the animation also
+ *  touches, the characteristic-drift report above is what names it, because the
+ *  drift baseline is the printed card plus the animation and nothing else. */
 function reportAnimationOrderLoss(
     state: GameState,
     card: CardInstanceState,
@@ -1800,7 +1815,7 @@ function reportAnimationOrderLoss(
 ): void {
     const competing = (state.continuousEffects ?? []).filter(
         (entry) =>
-            (entry.layer >= 2 && entry.layer <= 5) ||
+            (entry.layer >= 2 && entry.layer <= 6) ||
             (entry.layer === 7 && entry.sublayer === "7b")
     );
     const names = competing.filter(
@@ -1810,7 +1825,7 @@ function reportAnimationOrderLoss(
     );
     if (names.length > 0) {
         dropped.push(
-            `${label}: animated AND affected by ${names.length} other layer 2-5 / 7b continuous effect(s) — re-executing the animation re-mints its CR 613.7 timestamp, so the rebuilt board applies it ABOVE them whatever the live order was`
+            `${label}: animated AND affected by ${names.length} other layer 2-6 / 7b continuous effect(s) — re-executing the animation re-mints its CR 613.7 timestamp, so the rebuilt board applies it ABOVE them whatever the live order was`
         );
     }
 }
@@ -1923,20 +1938,6 @@ export const CARD_STATE_ALLOWLIST = new Set<string>([
     "hasAttackedThisTurn",
     "hasBlockedThisTurn",
     "faceDown",
-    // CR 208.2 / 611.1 (issue #3459) — the ANIMATION record, lowered by
-    // `lowerAnimation` into `ScenarioCard.animated` as the CALL that produced it
-    // and re-EXECUTED by the builder through the animate primitive. Allowlisted
-    // outright: every field of the record either rides in that call or is
-    // regenerated by it (`savedPower`/`savedToughness` are the pre-animation
-    // anchor, which is undo bookkeeping — the class the tap trio rejected in
-    // issue #3451 — and `seq` is a CR 613.7 stamp the rebuild re-mints, the loss
-    // `reportAnimationOrderLoss` declares).
-    //
-    // The two COLOUR-override fields the animation also writes are NOT here:
-    // they are allowlisted per card, and only when their live value is what the
-    // lowered animation regenerates (`animationColourKeys`). A blanket row for
-    // them would hide a `setColor`-sourced override.
-    "animation",
     // Rebuild BEHAVIOUR: `buildStateFromScenario` restamps it by calling
     // `turnFaceDown` for a `faceDown` entry (issue #2904), so it is never
     // spec-keyed data and never dropped.
@@ -2280,53 +2281,87 @@ function lowerCard(
         card,
         label,
         dropped,
-        animationColourKeys(card, entry.animated)
+        animationRebuildKeys(card, entry.animated)
     );
     return entry;
 }
 
-/** CR 613.1e / 105.3 (issue #3459) — the colour-override keys the lowered
- *  animation REGENERATES, and therefore the only ones this card may treat as
- *  rebuild behaviour instead of residue.
+/** CR 208.2 / 613.1e / 105.3 (issue #3459) — the keys THIS CARD may treat as
+ *  rebuild behaviour because its own lowered animation regenerates them. Every
+ *  one of them is conditional, which is why none is a row in
+ *  `CARD_STATE_ALLOWLIST`.
  *
- *  Conditional on purpose. `colorOverride` and `temporaryColorOverride` are
- *  written identically by the `setColor` Op's primitive and by an animate
- *  clause's `colors` (one shared write, `applyColorOverrideToPermanent`), so the
- *  fields cannot say who set them. Allowlisting them outright would trade an
- *  honest "not captured" line for a verdict filed on a board whose colours the
- *  rebuild never restores — the one failure downstream can never detect. So each
- *  is skipped only when its live value is exactly what re-executing the lowered
- *  animation will write:
+ *  `animation` is allowlisted exactly when the call was LOWERED. The record's
+ *  every field either rides in that call or is regenerated by it
+ *  (`savedPower`/`savedToughness` are the pre-animation anchor — undo
+ *  bookkeeping, the class the tap trio rejected in issue #3451; `seq` is a
+ *  CR 613.7 stamp the rebuild re-mints, the loss `reportAnimationOrderLoss`
+ *  declares). A global row would also cover a record on a card OUTSIDE the
+ *  battlefield, where `lowerAnimation` never runs: that cannot happen today
+ *  (`resetBattlefieldTransientState` reverts an animation on the way out,
+ *  CR 400.7), but it would be an invariant in another module silently holding
+ *  this report open, and a record that did survive a departure would vanish
+ *  with no note.
+ *
+ *  `colorOverride` / `temporaryColorOverride` are written identically by the
+ *  `setColor` Op's primitive and by an animate clause's `colors` (one shared
+ *  write, `applyColorOverrideToPermanent`), so the fields cannot say who set
+ *  them. Allowlisting them outright would trade an honest "not captured" line
+ *  for a verdict filed on a board whose colours the rebuild never restores —
+ *  the one failure downstream can never detect. So each is skipped only when
+ *  its live value is exactly what re-executing the lowered animation writes:
  *
  *   - `colorOverride` — equal, as a SET, to the animation's own `colors`;
- *   - `temporaryColorOverride` — the same colours, and no `restoreColorOverride`
- *     anchor: that anchor is an EARLIER override the animation reverts to, which
- *     the rebuild has no field for and must keep reporting.
+ *   - `temporaryColorOverride` — the same colours, the same resolved boundary
+ *     (the rebuild re-resolves the lowered `duration` against the same
+ *     controller, so the two records must agree phase for phase), and no
+ *     `restoreColorOverride` anchor: that anchor is an EARLIER override the
+ *     animation reverts to, which the rebuild has no field for and must keep
+ *     reporting.
  *
  *  A `setColor`-sourced override on a permanent that is not animated at all, or
- *  whose animation stated different colours, therefore keeps its own line. */
-function animationColourKeys(
+ *  whose animation stated different colours or a different boundary, therefore
+ *  keeps its own line. */
+function animationRebuildKeys(
     card: CardInstanceState,
     animated: AnimateSpec | undefined
 ): ReadonlySet<string> | undefined {
-    const colors = animated?.colors;
-    if (!colors) return undefined;
-    const allowed = new Set<string>();
-    if (
-        card.colorOverride &&
-        sameStringSet([...card.colorOverride], [...colors])
-    ) {
-        allowed.add("colorOverride");
+    if (!animated) return undefined;
+    const allowed = new Set<string>(["animation"]);
+    const colors = animated.colors;
+    if (colors) {
+        if (
+            card.colorOverride &&
+            sameStringSet([...card.colorOverride], [...colors])
+        ) {
+            allowed.add("colorOverride");
+        }
+        const temporary = card.temporaryColorOverride;
+        if (
+            temporary &&
+            temporary.restoreColorOverride === undefined &&
+            sameStringSet([...temporary.colors], [...colors]) &&
+            sameDuration(temporary.duration, card.animation?.duration)
+        ) {
+            allowed.add("temporaryColorOverride");
+        }
     }
-    const temporary = card.temporaryColorOverride;
-    if (
-        temporary &&
-        temporary.restoreColorOverride === undefined &&
-        sameStringSet([...temporary.colors], [...colors])
-    ) {
-        allowed.add("temporaryColorOverride");
-    }
-    return allowed.size > 0 ? allowed : undefined;
+    return allowed;
+}
+
+/** CR 611.2 — two resolved `Duration`s describing the same boundary. Compared
+ *  member by member rather than by `JSON.stringify`, so key order cannot decide
+ *  whether a colour override is rebuild behaviour. */
+function sameDuration(
+    a: Duration | undefined,
+    b: Duration | undefined
+): boolean {
+    if (a === undefined || b === undefined) return a === b;
+    return (
+        a.phase === b.phase &&
+        (a.skip ?? 0) === (b.skip ?? 0) &&
+        a.playerId === b.playerId
+    );
 }
 
 /** `state.combat` sub-fields `lowerCombat` carries into `spec.combat`, PLUS

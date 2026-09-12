@@ -12299,7 +12299,19 @@ export function applyColorOverrideToPermanent(
  *
  *  Mutates `card` in place and re-syncs the layers it feeds; safe to call on an
  *  already-animated permanent (one animation at a time, CR 611.1 — the
- *  `grantedAbilities` clause still applies, see below). */
+ *  `grantedAbilities` clause still applies, see below). The instance state is
+ *  mutated directly so every existing reader (layers, combat, SBAs) sees the
+ *  creature-ness with no special casing; the `animation` record tracks exactly
+ *  what was added so the phase-boundary purge can restore the original shape.
+ *
+ *  CR 302.6 — summoning sickness is governed by the `isSummoningSick`
+ *  control-continuity flag set at ENTRY (`markEnteredThisTurn`) and cleared at
+ *  the controller's untap step. Animation does NOT touch it: a manland
+ *  (Mishra's Factory) animated the turn it entered is still sick (flag set),
+ *  while one controlled since a prior turn is not (flag cleared). This applies
+ *  class-wide to every animate effect (Jade Statue, a crewed Vehicle, a staged
+ *  scenario board — `buildStateFromScenario` stamps the flag from its own
+ *  `summoningSick` entry and this call leaves it alone). */
 export function animatePermanentAsCreature(
     state: GameState,
     card: CardInstanceState,

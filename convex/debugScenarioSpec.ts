@@ -17,7 +17,7 @@ import { MANA_COLORS } from "./gre/manaColors";
 // only on the WRITE path (`saveDebugScenario`), where we control the shape and
 // want well-formed rows.
 
-/** CR 208.2 / 611.1 / 611.2b (issue #3459) — the animate CALL a battlefield
+/** CR 208.2 / 611.1 / 611.2a (issue #3459) — the animate CALL a battlefield
  *  entry was animated by, in the vocabulary of the engine's own `AnimateSpec`
  *  (`convex/cards/types.ts`): base power and toughness, the creature subtype and
  *  the extra card types added, the keyword abilities granted with them, the
@@ -30,7 +30,8 @@ import { MANA_COLORS } from "./gre/manaColors";
  *  permanent animated FOREVER, which is a different board from the one captured
  *  the moment the turn ends.
  *
- *  `duration` OMITTED means INDEFINITE (CR 611.2b — earthbend states no
+ *  `duration` OMITTED means INDEFINITE (CR 611.2a — "if no duration is
+ *  stated, it lasts until the end of the game"; earthbend states no
  *  duration), not "until end of turn": the two are different boards and only the
  *  absence can say which. Battlefield only — an animation does not survive the
  *  permanent leaving play (CR 400.7). */
@@ -651,7 +652,7 @@ export type ScenarioCard = {
      *  typed `AnimateSpec` rather than a parallel shape, because a second
      *  vocabulary for one effect is how the two drift. Re-executed by
      *  `buildStateFromScenario` through the animate primitive itself, so the
-     *  expiry is real; `duration` absent means INDEFINITE (CR 611.2b), not
+     *  expiry is real; `duration` absent means INDEFINITE (CR 611.2a), not
      *  "until end of turn". Battlefield only. */
     animated?: AnimateSpec;
 };
@@ -1140,7 +1141,7 @@ function normalizeBlocker(
     return blocking.length > 0 ? { blocker, blocking } : null;
 }
 
-/** CR 208.2 / 611.1 / 611.2b (issue #3459) — the tolerant read of one entry's
+/** CR 208.2 / 611.1 / 611.2a (issue #3459) — the tolerant read of one entry's
  *  animate CALL (ADR 0044: a malformed row loads, it never throws).
  *
  *  `power` and `toughness` are the only required halves — an animation with no
@@ -1158,7 +1159,18 @@ function normalizeBlocker(
  *  as `[]` — the animate primitive's validator rejects `[]` (no animate clause
  *  reads "becomes colourless"), so an omission is the honest "no colour clause".
  *
- *  `duration` ABSENT is meaningful (CR 611.2b — INDEFINITE), so a malformed
+ *  `grantedAbilities` is the one vocabulary field NOT filtered, deliberately:
+ *  the Mechanics Registry (`cards/mechanicsRegistry.ts`) is the keyword-name
+ *  authority and is CI-enforced, so an unknown keyword is not a shape the engine
+ *  produces — and unlike a bogus card type or colour, a bogus keyword is INERT
+ *  (it becomes a layer-6 entry no consult site matches, it does not corrupt a
+ *  type line or a colour override). Filtering it here would pull the whole
+ *  registry into every client bundle that imports this module's load path
+ *  (`normalizeScenarioSpec`, imported as a VALUE by the debug routes) to catch a
+ *  failure that cannot arise from a captured position and does nothing when
+ *  hand-authored.
+ *
+ *  `duration` ABSENT is meaningful (CR 611.2a — INDEFINITE), so a malformed
  *  duration is not silently downgraded to "until end of turn": `phase` is the
  *  one required member, and a row without a readable one carries no duration,
  *  which the round trip then reports as the indefinite animation it rebuilt. */

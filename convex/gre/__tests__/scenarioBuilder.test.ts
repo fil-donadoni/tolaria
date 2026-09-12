@@ -3674,10 +3674,10 @@ describe("scenario spec — an animated permanent (issue #3459)", () => {
         expect(after?.animation).toBeUndefined();
     });
 
-    // ACCEPTANCE CRITERION — an INDEFINITE animation (CR 611.2b, earthbend: no
+    // ACCEPTANCE CRITERION — an INDEFINITE animation (CR 611.2a, earthbend: no
     // duration clause) must survive the same walk. A field that only knew
     // "until end of turn" would be indistinguishable from the case above.
-    it("keeps an INDEFINITE animation through cleanup (CR 611.2b)", () => {
+    it("keeps an INDEFINITE animation through cleanup (CR 611.2a)", () => {
         const { state: live } = animatedBoard(
             forest,
             { power: 0, toughness: 0, grantedAbilities: ["haste"] },
@@ -3749,11 +3749,14 @@ describe("scenario spec — an animated permanent (issue #3459)", () => {
             duration: { phase: "end-of-turn" },
         });
         const { dropped } = roundTrip(live);
-        expect(
-            dropped.filter((d) =>
-                /animation|animated|colorOverride|printed baseline/.test(d)
-            )
-        ).toEqual([]);
+        // Pinned as an EQUALITY, not a filter: a filter over the strings this
+        // slice knows about would also pass if some NEW line appeared beside
+        // them. An animated coloured manland owes NOTHING — its layer-4 and
+        // layer-7b halves are derived from the record rather than stored, and it
+        // grants no keyword, so not even the blunt game-level
+        // `continuousEffects` line fires (that one belongs to the registry
+        // entries the sibling slice of PRD #3397 owns).
+        expect(dropped).toEqual([]);
     });
 
     // ACCEPTANCE CRITERION — the colour allowlisting is CONDITIONAL. The same
@@ -3793,6 +3796,30 @@ describe("scenario spec — an animated permanent (issue #3459)", () => {
             characteristicDefining: false,
         };
         live.continuousEffects = [...(live.continuousEffects ?? []), competing];
+
+        const { dropped } = roundTrip(live);
+        expect(dropped.some((d) => /CR 613\.7 timestamp/.test(d))).toBe(true);
+    });
+
+    // LAYER 6 is in the same scan even though the issue's decision 4 named only
+    // layers 2-5 and 7b: an animate clause's granted keyword IS a layer-6 entry,
+    // and its order against an ability-stripper decides whether the keyword
+    // exists at all on the rebuilt board.
+    it("declares the order loss for a competing layer-6 entry too (CR 613.1f / 613.7)", () => {
+        const { state: live, card } = animatedBoard(
+            mishrasFactory,
+            FACTORY_ANIMATION
+        );
+        const stripper: ContinuousEffect = {
+            id: "ce-test-2",
+            layer: 6,
+            timestamp: 1,
+            affected: { kind: "instances", instanceIds: [card.id] },
+            expiry: { kind: "indefinite", controllerId: card.controllerId },
+            payload: { kind: "ability-loss" },
+            characteristicDefining: false,
+        };
+        live.continuousEffects = [...(live.continuousEffects ?? []), stripper];
 
         const { dropped } = roundTrip(live);
         expect(dropped.some((d) => /CR 613\.7 timestamp/.test(d))).toBe(true);
