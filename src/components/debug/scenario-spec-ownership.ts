@@ -177,7 +177,27 @@ export const FORM_OWNED_SCENARIO_SPEC_KEYS = (
  *  - `cards` is the card repeater (`DebugScenarioCardFields`), which carries
  *    its own per-row labels — no spec-level input of its own.
  */
-export type ScenarioSpecFieldInput =
+/**
+ * WHERE a form-owned field renders (issue #3494). The save form grew to ~28
+ * spec inputs in one flat list, so the knobs used on nearly every scenario
+ * (`phase`, `life`, the land/library counts) sat among ones used on almost
+ * none (`stormCount`, the qualifying-action flags, `rngSeed`).
+ *
+ *  - `frequent` — rendered directly, always visible.
+ *  - `other` — rendered under the collapsed "Other options" disclosure.
+ *
+ * Declared HERE rather than in the component for the same reason the rest of
+ * this table is: `tsc` demands the axis on every row (the `satisfies` below),
+ * so a newly classified field cannot silently land in the wrong group — it
+ * cannot land in NO group at all, which is what a hardcoded list of "the
+ * common ones" in the renderer would have allowed.
+ */
+export type ScenarioSpecFieldGroup = "frequent" | "other";
+
+/** Every input shape carries its group — the axis is not optional. */
+type WithGroup<T> = T & { group: ScenarioSpecFieldGroup };
+
+export type ScenarioSpecFieldInput = WithGroup<
     | { kind: "cards" }
     | { kind: "number"; label: string; min?: number }
     | { kind: "phase"; label: string }
@@ -192,69 +212,138 @@ export type ScenarioSpecFieldInput =
      *  holder and the priority holder each name a single side, and `""` (the
      *  spec's own absent) is a real selectable value. */
     | { kind: "seat"; label: string }
-    | { kind: "companion"; label: string };
+    | { kind: "companion"; label: string }
+>;
 
 export const SCENARIO_SPEC_FIELD_INPUT = {
-    cards: { kind: "cards" },
-    phase: { kind: "phase", label: "phase" },
-    landCount: { kind: "number", label: "lands", min: 0 },
-    libraryCount: { kind: "number", label: "library", min: 0 },
-    hiddenHand: { kind: "per-seat", label: "hidden hand", min: 0 },
-    turn: { kind: "number", label: "turn", min: 1 },
-    markLastDrawn: { kind: "boolean", label: "mark last drawn" },
-    rngSeed: { kind: "number", label: "rng seed" },
-    poison: { kind: "per-seat", label: "poison", min: 0 },
-    life: { kind: "per-seat", label: "life" },
-    experience: { kind: "per-seat", label: "experience", min: 0 },
-    landsPlayed: { kind: "per-seat", label: "lands played", min: 0 },
+    cards: { kind: "cards", group: "frequent" },
+    phase: { kind: "phase", label: "phase", group: "frequent" },
+    landCount: { kind: "number", label: "lands", min: 0, group: "frequent" },
+    libraryCount: {
+        kind: "number",
+        label: "library",
+        min: 0,
+        group: "frequent",
+    },
+    hiddenHand: {
+        kind: "per-seat",
+        label: "hidden hand",
+        min: 0,
+        group: "frequent",
+    },
+    turn: { kind: "number", label: "turn", min: 1, group: "frequent" },
+    markLastDrawn: {
+        kind: "boolean",
+        label: "mark last drawn",
+        group: "other",
+    },
+    rngSeed: { kind: "number", label: "rng seed", group: "other" },
+    poison: { kind: "per-seat", label: "poison", min: 0, group: "other" },
+    life: { kind: "per-seat", label: "life", group: "frequent" },
+    experience: {
+        kind: "per-seat",
+        label: "experience",
+        min: 0,
+        group: "other",
+    },
+    landsPlayed: {
+        kind: "per-seat",
+        label: "lands played",
+        min: 0,
+        group: "other",
+    },
     spellsCastThisTurn: {
         kind: "per-seat",
         label: "spells cast this turn",
         min: 0,
+        group: "other",
     },
     spellsCastThisGame: {
         kind: "per-seat",
         label: "spells cast this game",
         min: 0,
+        group: "other",
     },
-    stormCount: { kind: "number", label: "storm count", min: 0 },
+    stormCount: {
+        kind: "number",
+        label: "storm count",
+        min: 0,
+        group: "other",
+    },
     damageDealtToPlayerThisTurn: {
         kind: "per-seat",
         label: "damage taken this turn",
         min: 0,
+        group: "other",
     },
     artifactDamageToPlayerThisTurn: {
         kind: "per-seat",
         label: "artifact damage taken this turn",
         min: 0,
+        group: "other",
     },
     lifeGainedThisTurn: {
         kind: "per-seat",
         label: "life gained this turn",
         min: 0,
+        group: "other",
     },
-    deathsThisTurn: { kind: "number", label: "creatures died", min: 0 },
+    deathsThisTurn: {
+        kind: "number",
+        label: "creatures died",
+        min: 0,
+        group: "other",
+    },
     creatureAttackedThisTurn: {
         kind: "boolean",
         label: "a creature attacked this turn",
+        group: "other",
     },
     qualifyingActionThisTurn: {
         kind: "per-seat-flag",
         label: "qualifying action this turn",
+        group: "other",
     },
     qualifyingActionLastTurn: {
         kind: "per-seat-flag",
         label: "qualifying action last turn",
+        group: "other",
     },
-    turnsTaken: { kind: "per-seat", label: "turns taken", min: 0 },
-    revolt: { kind: "per-seat-flag", label: "revolt" },
-    activePlayer: { kind: "seat", label: "active player" },
-    priority: { kind: "seat", label: "priority" },
-    passCount: { kind: "number", label: "passes", min: 0 },
-    companion: { kind: "companion", label: "companion" },
+    turnsTaken: {
+        kind: "per-seat",
+        label: "turns taken",
+        min: 0,
+        group: "other",
+    },
+    revolt: { kind: "per-seat-flag", label: "revolt", group: "other" },
+    activePlayer: { kind: "seat", label: "active player", group: "frequent" },
+    priority: { kind: "seat", label: "priority", group: "frequent" },
+    passCount: { kind: "number", label: "passes", min: 0, group: "other" },
+    companion: { kind: "companion", label: "companion", group: "other" },
 } as const satisfies {
     [K in FormOwnedScenarioSpecKey]: ScenarioSpecFieldInputFor<K>;
 };
+
+/** Widened read of a field's group, for the same reason
+ *  {@link scenarioSpecFieldOwner} exists: the table is `as const`, so a direct
+ *  comparison against one member would red `tsc` the day every row carried the
+ *  other. */
+export function scenarioSpecFieldGroup(
+    key: FormOwnedScenarioSpecKey
+): ScenarioSpecFieldGroup {
+    return SCENARIO_SPEC_FIELD_INPUT[key].group;
+}
+
+/** The form-owned keys in one group, in declaration order — what the renderer
+ *  loops over, so "which fields are frequent" is answered by the table and
+ *  never by the component (issue #3494). */
+export function formOwnedKeysInGroup(
+    group: ScenarioSpecFieldGroup
+): FormOwnedScenarioSpecKey[] {
+    return FORM_OWNED_SCENARIO_SPEC_KEYS.filter(
+        (key) => scenarioSpecFieldGroup(key) === group
+    );
+}
 
 /**
  * The kind a field's row MAY declare, derived from the type of its `SpecDraft`
@@ -263,10 +352,11 @@ export const SCENARIO_SPEC_FIELD_INPUT = {
  * rendered a single input against a `{ me, opp }` object — the rendering loop
  * narrows on `kind` and reads the draft field on the strength of it.
  */
-type ScenarioSpecFieldInputFor<K extends FormOwnedScenarioSpecKey> =
+type ScenarioSpecFieldInputFor<K extends FormOwnedScenarioSpecKey> = WithGroup<
     K extends keyof SpecDraft
         ? ScenarioSpecFieldInputForValue<SpecDraft[K]>
-        : { kind: "cards" };
+        : { kind: "cards" }
+>;
 
 type ScenarioSpecFieldInputForValue<V> = V extends SeatPairDraft
     ? { kind: "per-seat"; label: string; min?: number }

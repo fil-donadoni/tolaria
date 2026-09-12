@@ -62,6 +62,20 @@ export default function BoardHandPortrait({
         <div
             data-testid={testId}
             data-hand-scrolls={scrolls ? "true" : "false"}
+            // A scrollable region must be reachable from the keyboard (axe
+            // `scrollable-region-focusable`, WCAG 2.1.1) — the overlapped fan
+            // has no focusable child of its own to inherit that from, so
+            // without a tab stop the overflowing part of the hand is
+            // unreachable without a pointer. Only while it actually scrolls:
+            // a `justify-center` hand is not a scroll region and must not
+            // become a tab stop.
+            tabIndex={scrolls ? 0 : undefined}
+            // `role="region"` + a name, not a bare `tabIndex` — the shape
+            // `board-piles.tsx` and the deck builder's source pane already use
+            // for this rule, so a keyboard user never lands on an unlabelled
+            // block.
+            role={scrolls ? "region" : undefined}
+            aria-label={scrolls ? "Hand" : undefined}
             className={`flex h-full items-end ${
                 scrolls
                     ? "justify-start overflow-x-auto"

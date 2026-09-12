@@ -1,64 +1,32 @@
-import { SCENARIO_PHASES } from "@convex/debugScenarioSpec";
-import { DEBUG_INPUT_CLASS } from "./debug-form-styles";
-import DebugCardNameField from "./debug-card-name-field";
-import type {
-    SeatFlagPairDraft,
-    SeatPairDraft,
-    SpecDraft,
-} from "./scenario-draft";
-import {
-    type ScenarioSpecFieldInput,
-    FORM_OWNED_SCENARIO_SPEC_KEYS,
-    SCENARIO_SEATS,
-    SCENARIO_SPEC_FIELD_INPUT,
-    scenarioSpecFieldLabels,
-} from "./scenario-spec-ownership";
+import { useState } from "react";
+import DebugScenarioSpecField from "./debug-scenario-spec-field";
+import type { SpecDraft } from "./scenario-draft";
+import { formOwnedKeysInGroup } from "./scenario-spec-ownership";
 
-/** The `SpecDraft` fields each rendering branch reads. The casts below are the
- *  loop's one unchecked step — `SCENARIO_SPEC_FIELD_INPUT[key]` narrows on
- *  `kind`, which does not narrow `key` — and what makes them safe is the
- *  `ScenarioSpecFieldInputFor` pin in `scenario-spec-ownership.ts`: a row whose
- *  `kind` disagrees with its draft field's TYPE reds `tsc` there. */
-/** CR 102.1 / 117.1 (issue #3454) — a draft field narrowed to ONE seat plus
- *  the spec's own absent. It is a `<select>`, so it comes out of the free-text
- *  key set below rather than joining it. */
-type SeatDraftKey = {
-    [K in keyof SpecDraft]: SpecDraft[K] extends "" | "me" | "opp" ? K : never;
-}[keyof SpecDraft];
-type TextDraftKey = Exclude<
-    {
-        [K in keyof SpecDraft]: SpecDraft[K] extends string ? K : never;
-    }[keyof SpecDraft],
-    "phase" | SeatDraftKey
->;
-type BooleanDraftKey = {
-    [K in keyof SpecDraft]: SpecDraft[K] extends boolean ? K : never;
-}[keyof SpecDraft];
-type SeatPairDraftKey = {
-    [K in keyof SpecDraft]: SpecDraft[K] extends SeatPairDraft ? K : never;
-}[keyof SpecDraft];
-/** Issue #3450 — the BOOLEAN per-seat pairs (Arboria's qualifying-action
- *  flags, Revolt), two checkboxes rather than two number inputs. */
-type SeatFlagPairDraftKey = {
-    [K in keyof SpecDraft]: SpecDraft[K] extends SeatFlagPairDraft ? K : never;
-}[keyof SpecDraft];
+/** Which fields are which is the TABLE's answer, not this file's (issue
+ *  #3494): `scenario-spec-ownership.ts` carries a `group` on every row and
+ *  `tsc` demands it, so a newly classified field cannot land in no group — the
+ *  failure a hardcoded "common ones" list here would have allowed. */
+const FREQUENT_KEYS = formOwnedKeysInGroup("frequent");
+const OTHER_KEYS = formOwnedKeysInGroup("other");
 
 /**
- * The SPEC-LEVEL knobs of the scenario save form — one input per
- * `form-owned` field of `ScenarioSpec` (issue #3463).
+ * The SPEC-LEVEL knobs of the scenario save form — one input per `form-owned`
+ * field of `ScenarioSpec` (issue #3463), in TWO groups since issue #3494.
  *
- * It renders by ITERATING `FORM_OWNED_SCENARIO_SPEC_KEYS` rather than by
- * spelling out a fixed list of JSX rows: the classification table
- * (`scenario-spec-ownership.ts`) is then the only place a spec field has to be
- * named, and a field classified `form-owned` cannot be left unrendered — `tsc`
- * demands its row in `SCENARIO_SPEC_FIELD_INPUT`, the row makes this loop
- * render it, and `__tests__/scenario-spec-fields.test.tsx` asserts the
- * aria-labels the row derives are in the document. Before this, "the form
- * renders an input for it" was a claim in a doc comment.
+ * It renders by ITERATING the classification table rather than by spelling out
+ * a fixed list of JSX rows: the table (`scenario-spec-ownership.ts`) is then
+ * the only place a spec field has to be named, and a field classified
+ * `form-owned` cannot be left unrendered — `tsc` demands its row in
+ * `SCENARIO_SPEC_FIELD_INPUT`, the row makes this loop render it, and
+ * `__tests__/scenario-spec-fields.test.tsx` asserts the aria-labels the row
+ * derives are in the document.
  *
- * Per-seat fields (`poison` / `life` / `experience`) render as the me/opp pair
- * the spec's own `{ me?, opp? }` shape already has. Pure/controlled — the
- * parent owns the draft.
+ * The split exists because the form reached ~28 inputs in one flat list, so
+ * `phase` and `life` sat among `stormCount` and the qualifying-action flags
+ * with nothing to tell them apart. The rare ones are still all here, one click
+ * away — hiding a knob is what issue #3463 spent itself undoing, and
+ * "collapsed" is not "absent".
  */
 export default function DebugScenarioSpecFields({
     draft,
@@ -67,268 +35,52 @@ export default function DebugScenarioSpecFields({
     draft: SpecDraft;
     onPatch: (patch: Partial<SpecDraft>) => void;
 }) {
-    // `SCENARIO_PHASES` is what the form OFFERS, not what a stored row may
-    // hold: `specFromState` (`convex/gre/scenarioBuilder.ts`) lowers the live
-    // `Phase` verbatim, so a board captured mid-first-strike-damage arrives
-    // carrying a step the offer list omits. A `<select>` with no matching
-    // `<option>` renders as the blank first entry, which reads as "no phase
-    // set" and invites an admin to overwrite a value that was there — so the
-    // loaded value is always among the options.
-    const phaseOptions: readonly string[] =
-        draft.phase === "" ||
-        (SCENARIO_PHASES as readonly string[]).includes(draft.phase)
-            ? SCENARIO_PHASES
-            : [draft.phase, ...SCENARIO_PHASES];
+    const [showOther, setShowOther] = useState(false);
 
     return (
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-            {FORM_OWNED_SCENARIO_SPEC_KEYS.map((key) => {
-                // Widened on purpose: the table is `as const`, so a row
-                // without `min` would otherwise make `input.min` a type error
-                // on the union rather than an absent optional.
-                const input: ScenarioSpecFieldInput =
-                    SCENARIO_SPEC_FIELD_INPUT[key];
-                const labels = scenarioSpecFieldLabels(key);
-                switch (input.kind) {
-                    // The card repeater owns `cards` and carries its own
-                    // per-row labels — nothing spec-level to render.
-                    case "cards":
-                        return null;
-                    case "number": {
-                        const field = key as TextDraftKey;
-                        return (
-                            <label
-                                key={key}
-                                className="flex items-center gap-1 text-text-muted"
-                            >
-                                {input.label}
-                                <input
-                                    type="number"
-                                    min={input.min}
-                                    value={draft[field]}
-                                    aria-label={labels[0]}
-                                    onChange={(e) =>
-                                        onPatch({ [field]: e.target.value })
-                                    }
-                                    className={`${DEBUG_INPUT_CLASS} w-16`}
-                                />
-                            </label>
-                        );
-                    }
-                    case "phase":
-                        return (
-                            <label
-                                key={key}
-                                className="flex items-center gap-1 text-text-muted"
-                            >
-                                {input.label}
-                                <select
-                                    value={draft.phase}
-                                    aria-label={labels[0]}
-                                    onChange={(e) =>
-                                        onPatch({ phase: e.target.value })
-                                    }
-                                    className={DEBUG_INPUT_CLASS}
-                                >
-                                    <option value="">—</option>
-                                    {phaseOptions.map((p) => (
-                                        <option key={p} value={p}>
-                                            {p}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
-                        );
-                    case "seat": {
-                        const field = key as SeatDraftKey;
-                        return (
-                            <label
-                                key={key}
-                                className="flex items-center gap-1 text-text-muted"
-                            >
-                                {input.label}
-                                <select
-                                    value={draft[field]}
-                                    aria-label={labels[0]}
-                                    onChange={(e) =>
-                                        onPatch({
-                                            [field]: e.target
-                                                .value as SpecDraft[SeatDraftKey],
-                                        })
-                                    }
-                                    className={DEBUG_INPUT_CLASS}
-                                >
-                                    {/* "—" is the spec's own absent, which the
-                                        builder reads as "leave the base
-                                        state's turn holder alone". */}
-                                    <option value="">—</option>
-                                    {SCENARIO_SEATS.map((seat) => (
-                                        <option key={seat} value={seat}>
-                                            {seat}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
-                        );
-                    }
-                    case "boolean": {
-                        const field = key as BooleanDraftKey;
-                        return (
-                            <label
-                                key={key}
-                                className="flex items-center gap-1 text-text-muted"
-                            >
-                                <input
-                                    type="checkbox"
-                                    checked={draft[field]}
-                                    aria-label={labels[0]}
-                                    onChange={(e) =>
-                                        onPatch({ [field]: e.target.checked })
-                                    }
-                                />
-                                {input.label}
-                            </label>
-                        );
-                    }
-                    case "per-seat": {
-                        const field = key as SeatPairDraftKey;
-                        const pair = draft[field];
-                        return (
-                            <span
-                                key={key}
-                                className="flex items-center gap-1 text-text-muted"
-                            >
-                                {input.label}
-                                {SCENARIO_SEATS.map((seat, i) => (
-                                    <label
-                                        key={seat}
-                                        className="flex items-center gap-0.5 text-[10px] text-text-disabled"
-                                    >
-                                        {seat}
-                                        <input
-                                            type="number"
-                                            min={input.min}
-                                            value={pair[seat]}
-                                            aria-label={labels[i]}
-                                            onChange={(e) =>
-                                                onPatch({
-                                                    [field]: {
-                                                        ...pair,
-                                                        [seat]: e.target.value,
-                                                    },
-                                                })
-                                            }
-                                            className={`${DEBUG_INPUT_CLASS} w-14`}
-                                        />
-                                    </label>
-                                ))}
-                            </span>
-                        );
-                    }
-                    case "per-seat-flag": {
-                        // Issue #3450 — the flag pair. No blank state: the
-                        // builder CLEARS all three before seeding, so an
-                        // unchecked box and an absent field are the same
-                        // board, which is what lets two checkboxes stand in
-                        // for a tri-state.
-                        const field = key as SeatFlagPairDraftKey;
-                        const pair = draft[field];
-                        return (
-                            <span
-                                key={key}
-                                className="flex items-center gap-1 text-text-muted"
-                            >
-                                {input.label}
-                                {SCENARIO_SEATS.map((seat, i) => (
-                                    <label
-                                        key={seat}
-                                        className="flex items-center gap-0.5 text-[10px] text-text-disabled"
-                                    >
-                                        {seat}
-                                        <input
-                                            type="checkbox"
-                                            checked={pair[seat]}
-                                            aria-label={labels[i]}
-                                            onChange={(e) =>
-                                                onPatch({
-                                                    [field]: {
-                                                        ...pair,
-                                                        [seat]: e.target
-                                                            .checked,
-                                                    },
-                                                })
-                                            }
-                                        />
-                                    </label>
-                                ))}
-                            </span>
-                        );
-                    }
-                    case "companion":
-                        // CR 702.139c / ADR 0064 — a companion is a CARD name,
-                        // so it gets the same catalogue autocomplete a card row
-                        // does; the slot's seat and the "already used" state sit
-                        // beside it.
-                        return (
-                            <span
-                                key={key}
-                                className="flex items-center gap-1 text-text-muted"
-                            >
-                                {input.label}
-                                <DebugCardNameField
-                                    value={draft.companion.name}
-                                    onChange={(name) =>
-                                        onPatch({
-                                            companion: {
-                                                ...draft.companion,
-                                                name,
-                                            },
-                                        })
-                                    }
-                                    ariaLabel={labels[0]}
-                                    source="cards"
-                                    placeholder="Companion…"
-                                />
-                                <select
-                                    value={draft.companion.owner}
-                                    aria-label={labels[1]}
-                                    onChange={(e) =>
-                                        onPatch({
-                                            companion: {
-                                                ...draft.companion,
-                                                owner: e.target
-                                                    .value as SpecDraft["companion"]["owner"],
-                                            },
-                                        })
-                                    }
-                                    className={DEBUG_INPUT_CLASS}
-                                >
-                                    {SCENARIO_SEATS.map((seat) => (
-                                        <option key={seat} value={seat}>
-                                            {seat}
-                                        </option>
-                                    ))}
-                                </select>
-                                <label className="flex items-center gap-0.5 text-[10px] text-text-disabled">
-                                    <input
-                                        type="checkbox"
-                                        checked={draft.companion.used}
-                                        aria-label={labels[2]}
-                                        onChange={(e) =>
-                                            onPatch({
-                                                companion: {
-                                                    ...draft.companion,
-                                                    used: e.target.checked,
-                                                },
-                                            })
-                                        }
-                                    />
-                                    used
-                                </label>
-                            </span>
-                        );
-                }
-            })}
+        <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                {FREQUENT_KEYS.map((key) => (
+                    <DebugScenarioSpecField
+                        key={key}
+                        fieldKey={key}
+                        draft={draft}
+                        onPatch={onPatch}
+                    />
+                ))}
+            </div>
+
+            <button
+                type="button"
+                onClick={() => setShowOther((v) => !v)}
+                aria-expanded={showOther}
+                className="flex items-center gap-1.5 self-start rounded-sm py-1 text-xs text-text-muted hover:text-parchment"
+            >
+                <span aria-hidden className="font-mono">
+                    {showOther ? "▾" : "▸"}
+                </span>
+                Other options
+                <span className="tabular-nums text-text-disabled">
+                    ({OTHER_KEYS.length})
+                </span>
+            </button>
+
+            {/* Conditionally RENDERED, not merely hidden: a `<details>` body
+                stays in the document, so every test asserting "the form has an
+                input for this field" would keep passing while the disclosure
+                was broken shut. */}
+            {showOther && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-sm border border-border-subtle/60 bg-surface-base/40 p-2">
+                    {OTHER_KEYS.map((key) => (
+                        <DebugScenarioSpecField
+                            key={key}
+                            fieldKey={key}
+                            draft={draft}
+                            onPatch={onPatch}
+                        />
+                    ))}
+                </div>
+            )}
         </div>
     );
 }

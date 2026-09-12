@@ -371,6 +371,13 @@ const STICKY_SITES: Record<
         },
         why: "The results-count header pins to the shell's own source-panel scroller (`overflow-y-auto` — a `flex-1 basis-0` HEIGHT share below `lg` landscape, a bounded-width `deck-source-dock:` side column at tablet-landscape/desktop, issue #2585), not to `<main>`; the Constructed wrapper passes `<ResultsGrid` into that slot (issue #1623).",
     },
+    "components/debug/debug-save-scenario.tsx": {
+        ownedBy: {
+            rel: "components/debug/debug-sheet.tsx",
+            usage: "<DebugPanel",
+        },
+        why: "The scenario form's head group (title + label + Save/Update) pins to the DEBUG SHEET's own body — `[data-debug-sheet-body]`, `overflow-y-auto` inside the portaled sheet popup — never to `<main>` (issue #3494). `DebugSheet` renders `<DebugPanel` inside that port and `DebugPanel` renders this form; the pin is OPT-IN (`pinnedHead`) and only that path passes it, because `/admin/scenarios` mounts the same form in a `PanelBody` in normal page flow, where a sticky WOULD pin against the shell scroller.",
+    },
     "components/board/cards-pile.tsx": {
         portaledBy: {
             rel: "components/ui/game-dialog.tsx",

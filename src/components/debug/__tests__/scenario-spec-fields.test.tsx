@@ -26,6 +26,8 @@ import {
     FORM_OWNED_SCENARIO_SPEC_KEYS,
     SCENARIO_SPEC_FIELD_OWNER,
     SCENARIO_SPEC_FIELD_INPUT,
+    formOwnedKeysInGroup,
+    scenarioSpecFieldGroup,
     scenarioSpecFieldLabels,
 } from "../scenario-spec-ownership";
 
@@ -59,6 +61,20 @@ const LABELLED_KEYS = FORM_OWNED_SCENARIO_SPEC_KEYS.filter(
     (key) => SCENARIO_SPEC_FIELD_INPUT[key].kind !== "cards"
 );
 
+/** Expand "Other options" (issue #3494). The rare knobs render only once the
+ *  disclosure is open — CONDITIONALLY, not merely hidden, which is exactly why
+ *  every assertion below has to reach for them the way an admin does. */
+function expandOther() {
+    fireEvent.click(screen.getByText("Other options"));
+}
+
+/** Open the disclosure iff this field lives behind it. Derived from the
+ *  classification table, never from a hand-kept list of "the rare ones" —
+ *  re-grouping a field must not need an edit here. */
+function revealField(key: (typeof LABELLED_KEYS)[number]) {
+    if (scenarioSpecFieldGroup(key) === "other") expandOther();
+}
+
 describe("the scenario form renders every form-owned spec field", () => {
     beforeEach(() => {
         cleanup();
@@ -71,6 +87,7 @@ describe("the scenario form renders every form-owned spec field", () => {
 
     it.each(LABELLED_KEYS)("renders an input for `%s`", (key) => {
         render(<DebugSaveScenario />);
+        revealField(key);
         const labels = scenarioSpecFieldLabels(key);
         expect(labels.length).toBeGreaterThan(0);
         for (const label of labels) {
@@ -80,6 +97,7 @@ describe("the scenario form renders every form-owned spec field", () => {
 
     it("renders per-seat fields as a me/opp PAIR", () => {
         render(<DebugSaveScenario />);
+        expandOther();
         // `startsWith` covers `per-seat-flag` too (issue #3450): the flag
         // pairs are two controls per field exactly as the numeric ones are,
         // and an `=== "per-seat"` filter silently stopped asserting the
@@ -118,6 +136,7 @@ describe("the scenario form renders every form-owned spec field", () => {
 
     it("writes what the admin typed into the saved spec", () => {
         render(<DebugSaveScenario />);
+        expandOther();
         fireEvent.change(screen.getByLabelText("Card 1 name"), {
             target: { value: "Psychatog" },
         });
@@ -223,6 +242,7 @@ describe("the scenario form renders every form-owned spec field", () => {
                 }}
             />
         );
+        expandOther();
         fireEvent.change(screen.getByLabelText("rng seed"), {
             target: { value: "" },
         });
@@ -236,5 +256,73 @@ describe("the scenario form renders every form-owned spec field", () => {
         expect(saved.rngSeed).toBeUndefined();
         // Only the emptied SEAT goes; the other side of the pair stays.
         expect(saved.life).toEqual({ opp: 2 });
+    });
+    it("keeps the frequent knobs visible with the disclosure shut", () => {
+        // The whole point of the split: `phase` and `life` must not need a
+        // click. A field that drifted into `other` shows up here as a missing
+        // input, not as a silently deeper form.
+        render(<DebugSaveScenario />);
+        const frequent = formOwnedKeysInGroup("frequent").filter(
+            (key) => SCENARIO_SPEC_FIELD_INPUT[key].kind !== "cards"
+        );
+        expect(frequent.length).toBeGreaterThan(3);
+        for (const key of frequent) {
+            for (const label of scenarioSpecFieldLabels(key)) {
+                expect(screen.getByLabelText(label)).toBeTruthy();
+            }
+        }
+    });
+
+    it("hides the rare knobs until the disclosure is opened", () => {
+        render(<DebugSaveScenario />);
+        const other = formOwnedKeysInGroup("other");
+        expect(other.length).toBeGreaterThan(3);
+        for (const key of other) {
+            for (const label of scenarioSpecFieldLabels(key)) {
+                expect(screen.queryByLabelText(label)).toBeNull();
+            }
+        }
+        expandOther();
+        for (const key of other) {
+            for (const label of scenarioSpecFieldLabels(key)) {
+                expect(screen.getByLabelText(label)).toBeTruthy();
+            }
+        }
+    });
+
+    it("splits every form-owned field into exactly one group", () => {
+        // The grouping is READ from the classification table (issue #3494), so
+        // a newly classified field cannot land outside both groups — `tsc`
+        // demands the `group` on its row, and this pins that the two derived
+        // lists still partition the whole set.
+        const both = [
+            ...formOwnedKeysInGroup("frequent"),
+            ...formOwnedKeysInGroup("other"),
+        ].sort();
+        expect(both).toEqual([...FORM_OWNED_SCENARIO_SPEC_KEYS].sort());
+        expect(new Set(both).size).toBe(both.length);
+    });
+
+    it("pins the save CTA at the top of the form, not under every knob", () => {
+        // Issue #3494: the Save button used to be the LAST element, under the
+        // card rows and all ~28 spec inputs.
+        render(<DebugSaveScenario pinnedHead />);
+        const cta = screen.getByText("Save to DB");
+        const head = cta.closest("div.sticky");
+        expect(head).toBeTruthy();
+        // …and the label input is pinned WITH it — a head that scrolled the
+        // label away would leave an admin typing blind.
+        expect(head?.contains(screen.getByLabelText("scenario label"))).toBe(
+            true
+        );
+    });
+
+    it("does NOT pin without a scroll port to pin inside", () => {
+        // `/admin/scenarios` mounts this same form in a `PanelBody`, in normal
+        // page flow. A `sticky` there pins against the APP SHELL's scroller —
+        // the defect `shell-height-claims.guard.test.tsx` (issue #2274) exists
+        // to stop — so the pin is the caller's call, not the form's.
+        render(<DebugSaveScenario />);
+        expect(screen.getByText("Save to DB").closest("div.sticky")).toBeNull();
     });
 });
