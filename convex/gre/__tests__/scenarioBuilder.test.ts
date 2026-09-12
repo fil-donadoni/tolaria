@@ -4360,12 +4360,13 @@ describe("scenario spec — the Continuous Effects Registry (issue #3488)", () =
         ).toBe(false);
     });
 
-    it("refuses an ANIMATION's keyword half, which alone would rebuild a permanent no live board can hold (issue #3459)", () => {
+    it("leaves an ANIMATION's keyword half to the animation itself, so the rebuild grants it ONCE (issue #3459)", () => {
         // `animateAsCreature` writes its granted keywords as ordinary layer-6
-        // registry entries, while the animation itself is card-level residue
-        // this lowering reports. Lowering the keyword half alone rebuilds a
-        // LAND WITH TRAMPLE — the rebuilt board would gain an artefact rather
-        // than merely lose a fact, which is the worse failure.
+        // registry entries, and issue #3459 lowers the animate CALL, whose
+        // re-execution writes them again. Lowering the entries here too would
+        // push each grant TWICE — and the second copy would outlive the
+        // animation's own revert, leaving a Land with trample, a shape no live
+        // board can hold. One producer per effect: the animation's.
         const state = buildStateFromScenario(makeState(), {
             cards: [{ name: forest.name, owner: "me" }],
             phase: "PRECOMBAT_MAIN",
@@ -4387,14 +4388,27 @@ describe("scenario spec — the Continuous Effects Registry (issue #3488)", () =
         expect(land.types).toContain("Creature");
         expect(land.staticAbilities).toContain("trample");
 
-        const { spec, dropped } = specFromState(state, { mySeatId: me.id });
+        const { spec } = specFromState(state, { mySeatId: me.id });
+        // The animation's own field carries the CALL (issue #3459), and
+        // re-executing it regenerates the grant — so lowering the entry too
+        // would push it TWICE.
+        expect(spec.cards[0].animated).toBeDefined();
         expect(spec.continuousEffects).toBeUndefined();
-        expect(dropped).toContainEqual(expect.stringContaining("#3459"));
 
         const rebuilt = buildStateFromScenario(makeState(), spec);
         const rebuiltLand = rebuilt.players[0].battlefield[0];
-        expect(rebuiltLand.types).not.toContain("Creature");
-        expect(rebuiltLand.staticAbilities).not.toContain("trample");
+        expect(rebuiltLand.types).toContain("Creature");
+        // CR 113.1 — ONE occurrence, from the re-executed animation. A second
+        // entry would be a grant the live board never had, and would outlive
+        // the animation's own revert.
+        expect(
+            rebuilt.continuousEffects?.filter(
+                (e) =>
+                    e.payload.kind === "keyword-grant" &&
+                    e.payload.keyword === "trample"
+            )
+        ).toHaveLength(1);
+        expect(rebuiltLand.staticAbilities).toContain("trample");
     });
 
     it("declares the CR 613.7 ordering loss the rebuild actually creates, and stays silent when nothing is contested", () => {

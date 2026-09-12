@@ -3472,14 +3472,18 @@ function lowerContinuousEffects(
             continue;
         }
         // CR 611.2b (issue #3459) — an ANIMATION's granted keywords are
-        // ordinary layer-6 registry entries with the animation's own duration,
-        // and the animation itself is card-level residue this lowering
-        // reports. Lowering its keyword half alone would rebuild a Forest that
-        // is not a creature and HAS TRAMPLE — a shape no live board can hold,
-        // which is worse than the fact being lost. Refused until #3459 lands
-        // the animate CALL, which is what will regenerate these entries; a
-        // genuine until-end-of-turn grant that happens to sit on an animated
-        // permanent is refused with it, and says so.
+        // ordinary layer-6 registry entries carrying the animation's own
+        // duration, and `spec.cards[].animated` already lowers the animate
+        // CALL, whose re-execution writes them again. Lowering them here too
+        // would push each grant TWICE, and the second copy would outlive the
+        // animation's own revert — a Land with trample, which no live board
+        // can hold. ONE producer per effect, and it is the animation's.
+        //
+        // A genuine until-end-of-turn grant that merely happens to sit on an
+        // animated permanent is refused with them, and says so: the entries
+        // are indistinguishable here (the animation record does not declare
+        // which grants are its own), and a duplicated grant is worse than a
+        // reported one.
         if (
             payload.kind === "keyword-grant" &&
             entry.affected.instanceIds.some((id) =>
