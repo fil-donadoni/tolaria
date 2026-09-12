@@ -21,10 +21,25 @@
  *  primitive's `sm:max-w-sm` (384px) wraps. */
 export const DEBUG_SHEET_DESKTOP_WIDTH_PX = 480;
 
-/** Applied to the sheet's own popup. `lg:` only — below that the sheet keeps
- *  the overlay behaviour and its `w-[88%]` phone width. */
+/**
+ * Applied to the sheet's own popup. `lg:` only — below that the sheet keeps the
+ * overlay behaviour and its `w-[88%]` phone width.
+ *
+ * `data-[side=left]:` is LOAD-BEARING, not decoration (PR #3505 review). The
+ * rule it has to beat is the primitive's own
+ * `data-[side=left]:sm:max-w-sm` / `data-[side=left]:w-3/4`, which compile to
+ * `.cls[data-side="left"]` — specificity (0,2,0) against a bare utility's
+ * (0,1,0). Both live in the same `@layer utilities`, so the layer does not
+ * break the tie and the more specific rule wins whatever the source order and
+ * whichever media query is narrower: a plain `lg:max-w-[480px]` left the sheet
+ * at the primitive's 384px while {@link DEBUG_SHEET_PUSH_CLASS} still reserved
+ * 480px — a 96px dead gutter, measured. Matching the selector SHAPE puts both
+ * rules at (0,2,0), and Tailwind then emits `lg` after `sm`, so this one lands
+ * later and wins. `check:ui`'s `game-debug-sheet` walk measures the sheet's own
+ * box for exactly this reason.
+ */
 export const DEBUG_SHEET_DESKTOP_WIDTH_CLASS =
-    "lg:w-[480px] lg:max-w-[480px]" as const;
+    "data-[side=left]:lg:w-[480px] data-[side=left]:lg:max-w-[480px]" as const;
 
 /** Applied to the board area while the sheet is OPEN. A left MARGIN, not
  *  padding: the acceptance criterion is that the board's measured width

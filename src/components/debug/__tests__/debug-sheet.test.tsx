@@ -154,10 +154,27 @@ describe("DebugSheet — desktop width (issue #3493)", () => {
         expect(cls).toContain("w-[88%]");
         // At `lg` it is the width the board area gives up — one number, one
         // module, so the two cannot drift (`debug-sheet-metrics.ts`).
-        expect(cls).toContain(`lg:w-[${DEBUG_SHEET_DESKTOP_WIDTH_PX}px]`);
-        // …and the primitive's own `sm:max-w-sm` (384px) is overridden at that
-        // breakpoint, or the wider `w-` would simply not apply.
-        expect(cls).toContain(`lg:max-w-[${DEBUG_SHEET_DESKTOP_WIDTH_PX}px]`);
+        //
+        // `data-[side=left]:` on BOTH overrides is the whole point (PR #3505
+        // review): the primitive's `data-[side=left]:w-3/4` and
+        // `data-[side=left]:sm:max-w-sm` are (0,2,0) selectors, so a bare
+        // `lg:` utility at (0,1,0) loses to them at every width and the sheet
+        // stays 384px while the board reserves 480. Same shape, `lg` after
+        // `sm`, this one wins.
+        expect(cls).toContain(
+            `data-[side=left]:lg:w-[${DEBUG_SHEET_DESKTOP_WIDTH_PX}px]`
+        );
+        expect(cls).toContain(
+            `data-[side=left]:lg:max-w-[${DEBUG_SHEET_DESKTOP_WIDTH_PX}px]`
+        );
+        // The specificity claim itself, not just the strings: every desktop
+        // width override must carry the attribute qualifier the rule it beats
+        // carries. A future `lg:w-[…]` added without it re-opens the gutter.
+        for (const token of cls
+            .split(/\s+/)
+            .filter((c) => /(?:^|:)lg:(?:max-)?w-\[/.test(c))) {
+            expect(token.startsWith("data-[side=left]:")).toBe(true);
+        }
     });
 });
 

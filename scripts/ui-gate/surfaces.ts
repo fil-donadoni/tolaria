@@ -740,7 +740,6 @@ const MODE_TILE_SOLO = '[data-mode-tile="solo"]';
 const MODE_TILE_BOT = '[data-mode-tile="bot"]';
 const LOBBY_PRIMARY = "[data-lobby-primary]:not([disabled])";
 
-
 /**
  * Reach a live board. Runbook: "Start a solo game from cold" plus its
  * "Blocked by an active game" branch — with the branch resolved the safe way
@@ -1924,6 +1923,30 @@ export const SURFACES: readonly Surface[] = [
                         `at ${vw}px the open debug sheet must take ${DEBUG_SHEET_DESKTOP_WIDTH}px off the board area; measured ${given.toFixed(1)}px (closed ${closed.toFixed(1)}, open ${opened.toFixed(1)})`
                     );
                 }
+                // The OTHER half, and the half the board's box cannot see (PR
+                // #3505 review): the margin is driven by the board area's own
+                // class, so a sheet that renders NARROWER than the reserved
+                // width leaves a dead gutter and every number above still
+                // reads as a pass. The sheet's width is a different selector
+                // fighting the primitive's `data-[side=left]:sm:max-w-sm`, and
+                // that fight is exactly what this measures.
+                const sheet = await page
+                    .locator(DEBUG_SHEET)
+                    .first()
+                    .boundingBox();
+                if (!sheet) {
+                    throw new Unreachable(
+                        `the open sheet has no layout box — \`${DEBUG_SHEET}\` is mounted but occupies no space`
+                    );
+                }
+                if (
+                    Math.abs(sheet.width - DEBUG_SHEET_DESKTOP_WIDTH) >
+                    PUSH_TOLERANCE
+                ) {
+                    throw new Error(
+                        `at ${vw}px the open debug sheet must BE ${DEBUG_SHEET_DESKTOP_WIDTH}px wide, not just reserve it; measured ${sheet.width.toFixed(1)}px — the board gave up ${given.toFixed(1)}px, so the difference is a dead gutter`
+                    );
+                }
             } else if (Math.abs(given) > PUSH_TOLERANCE) {
                 throw new Error(
                     `below lg (${vw}px) the board width must not depend on the sheet's open flag; measured ${closed.toFixed(1)} closed vs ${opened.toFixed(1)} open`
@@ -1968,13 +1991,24 @@ export const SURFACES: readonly Surface[] = [
             // (deliberately — importing a DOM-typed module here drags it into
             // `bun run land`), so a typed callback would red `check:ts` on
             // `document` itself.
-            await page.evaluate(
+            const scrolled = (await page.evaluate(
                 `(() => {
                     const el = document.querySelector(${JSON.stringify(DEBUG_SHEET_BODY)});
-                    if (el) el.scrollTop = el.scrollHeight;
+                    if (!el) return 0;
+                    el.scrollTop = el.scrollHeight;
+                    return el.scrollTop;
                 })()`
-            );
+            )) as number;
             await page.waitForTimeout(300);
+            // A port that did not move proves nothing about a pinned head —
+            // the head would sit inside it whether `sticky` worked or not (PR
+            // #3505 review). The walk expands "Other options" first precisely
+            // so there is something to scroll.
+            if (scrolled <= PUSH_TOLERANCE) {
+                throw new Error(
+                    `the debug sheet's scroll port did not move (scrollTop ${scrolled}) — the pinned-head check below would pass vacuously`
+                );
+            }
             const port = await page
                 .locator(DEBUG_SHEET_BODY)
                 .first()

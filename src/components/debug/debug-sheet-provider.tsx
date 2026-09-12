@@ -54,7 +54,15 @@ export default function DebugSheetProvider({
     enabled: boolean;
     children: React.ReactNode;
 }) {
-    const [open, setOpenState] = useState(() => enabled && readOpen());
+    // Read the persisted flag UNCONDITIONALLY, and gate only what is EXPOSED
+    // (below) and what is WRITTEN (the effect). A lazy initializer runs once,
+    // and `enabled` is `import.meta.env.DEV || canUseDebugSheet(currentUser)`
+    // — `currentUser` is `undefined` until its Convex round trip resolves, so
+    // in a production build the first render of a reloaded board is reliably
+    // `enabled: false`. Gating the INITIALIZER on it therefore dropped a
+    // tester's persisted-open sheet on every reload, permanently, because the
+    // initializer never re-runs when the flag flips (PR #3505 review).
+    const [open, setOpenState] = useState(readOpen);
 
     const setOpen = useCallback(
         (next: boolean | ((prev: boolean) => boolean)) => {
@@ -91,6 +99,9 @@ export default function DebugSheetProvider({
         return () => window.removeEventListener("keydown", onKeyDown);
     }, [enabled]);
 
+    // `enabled &&` here, not in the state: a viewer who cannot open the sheet
+    // reports it closed no matter what this device's storage holds, and the
+    // moment `enabled` resolves true the persisted value is already there.
     const value = useMemo<DebugSheetContextValue>(
         () => ({ open: enabled && open, setOpen }),
         [enabled, open, setOpen]

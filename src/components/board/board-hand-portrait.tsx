@@ -70,8 +70,12 @@ export default function BoardHandPortrait({
             // a `justify-center` hand is not a scroll region and must not
             // become a tab stop.
             tabIndex={scrolls ? 0 : undefined}
-            role={scrolls ? "group" : undefined}
-            aria-label={scrolls ? "Hand (scrollable)" : undefined}
+            // `role="region"` + a name, not a bare `tabIndex` — the shape
+            // `board-piles.tsx` and the deck builder's source pane already use
+            // for this rule, so a keyboard user never lands on an unlabelled
+            // block.
+            role={scrolls ? "region" : undefined}
+            aria-label={scrolls ? "Hand" : undefined}
             className={`flex h-full items-end ${
                 scrolls
                     ? "justify-start overflow-x-auto"

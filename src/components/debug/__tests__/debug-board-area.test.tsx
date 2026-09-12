@@ -80,6 +80,31 @@ describe("DebugBoardArea — the push (issue #3493)", () => {
         );
     });
 
+    it("keeps the persisted flag when `enabled` resolves AFTER the first render", () => {
+        // `enabled` is `import.meta.env.DEV || canUseDebugSheet(currentUser)`,
+        // and `currentUser` is a Convex query — `undefined` until it resolves.
+        // In a production build a reloaded board therefore renders once with
+        // `enabled: false`, and gating the state INITIALIZER on that dropped a
+        // tester's persisted-open sheet permanently (PR #3505 review).
+        localStorage.setItem("tolaria:debugSheetOpen", "1");
+        const view = render(
+            <DebugSheetProvider enabled={false}>
+                <DebugBoardArea>
+                    <div data-testid="board" />
+                </DebugBoardArea>
+            </DebugSheetProvider>
+        );
+        expect(area().className).not.toContain(DEBUG_SHEET_PUSH_CLASS);
+        view.rerender(
+            <DebugSheetProvider enabled>
+                <DebugBoardArea>
+                    <div data-testid="board" />
+                </DebugBoardArea>
+            </DebugSheetProvider>
+        );
+        expect(area().className).toContain(DEBUG_SHEET_PUSH_CLASS);
+    });
+
     it("does not push for a viewer who cannot open the sheet", () => {
         // The open flag is PERSISTED per device, so a tester session on this
         // browser would otherwise reach across to a regular player's board.
