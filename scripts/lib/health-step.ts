@@ -45,6 +45,8 @@ export interface StepResult {
     ok: boolean;
     /** Child exit code; null when it died on a signal (as `spawnSync` reported). */
     status: number | null;
+    /** The signal that killed it, when one did — an OOM-killed `test` says so. */
+    signal: NodeJS.Signals | null;
     elapsedMs: number;
 }
 
@@ -128,7 +130,10 @@ export function runHealthStep(
         }, livenessMs);
 
         let settled = false;
-        const finish = (status: number | null) => {
+        const finish = (
+            status: number | null,
+            signal: NodeJS.Signals | null
+        ) => {
             if (settled) return;
             settled = true;
             clearInterval(liveness);
@@ -141,17 +146,21 @@ export function runHealthStep(
                 `\n===== ${step.cmd} ${step.args.join(" ")} (exit ${status}) =====\n${stdout}${stderr}`
             );
             const elapsedMs = Date.now() - t0;
-            out(
-                `${tag} — ${status === null ? "no exit code (signal or spawn failure)" : `exit ${status}`} after ${fmtElapsed(elapsedMs)}\n`
-            );
-            resolvePromise({ ok: status === 0, status, elapsedMs });
+            const how =
+                status !== null
+                    ? `exit ${status}`
+                    : signal
+                      ? `killed by ${signal}`
+                      : "no exit code (spawn failure)";
+            out(`${tag} — ${how} after ${fmtElapsed(elapsedMs)}\n`);
+            resolvePromise({ ok: status === 0, status, signal, elapsedMs });
         };
         // `close`, not `exit`: it fires after both pipes have drained, so the
         // log never loses a tail the child wrote just before exiting.
-        child.on("close", (code) => finish(code));
+        child.on("close", (code, signal) => finish(code, signal));
         child.on("error", (err) => {
             stderr += `${err.message}\n`;
-            finish(null);
+            finish(null, null);
         });
     });
 }

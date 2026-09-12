@@ -119,12 +119,14 @@ describe("health-step — terminal progress", () => {
 
     it("prints a liveness line naming the step and elapsed while it runs, and stops after it ends", async () => {
         const rec = recorder();
-        await runHealthStep(nodeStep(`setTimeout(() => {}, 900)`, "test"), {
+        // ~13 beats of room for the 2 asserted: under `bun run test`'s worker
+        // load a starved timer must not decide this test.
+        await runHealthStep(nodeStep(`setTimeout(() => {}, 2000)`, "test"), {
             cwd: dir,
             env: process.env,
             logPath,
             out: rec.out,
-            livenessMs: 200,
+            livenessMs: 150,
         });
         const alive = () =>
             rec.lines.filter((l) =>
@@ -176,8 +178,19 @@ describe("health-step — the per-sha log", () => {
         expect(r).toMatchObject({ ok: false, status: null });
         expect(readFileSync(logPath, "utf8")).toContain("ENOENT");
         expect(rec.text()).toContain(
-            "worktree:init — no exit code (signal or spawn failure)"
+            "worktree:init — no exit code (spawn failure)"
         );
+    });
+
+    it("names the signal that killed a step, and logs it as the old capture did", async () => {
+        const rec = recorder();
+        const r = await runHealthStep(
+            nodeStep(`process.kill(process.pid, "SIGKILL")`, "test"),
+            { cwd: dir, env: process.env, logPath, out: rec.out }
+        );
+        expect(r).toMatchObject({ ok: false, status: null, signal: "SIGKILL" });
+        expect(rec.text()).toMatch(/\[2\/3\] test — killed by SIGKILL after /);
+        expect(readFileSync(logPath, "utf8")).toContain("(exit null) =====");
     });
 });
 
