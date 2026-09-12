@@ -55,10 +55,11 @@ export function buildVerdictPosition(
     return buildPositionFromSpec(spec, setup, "verdict");
 }
 
-/** The setup-LESS case, which is every verdict the in-play quiz can produce
- *  today: the lowering has a live position and no way to say how it was
- *  reached (that is the journal slice). Kept as its own name because that is
- *  what its callers mean, and because `verdictStatesAgree` pins it. */
+/** The setup-LESS case: a decision taken on an EMPTY stack, where there is
+ *  nothing to walk. Since issue #3480 a decision taken over a stack goes
+ *  through `buildVerdictPosition` with the journal's steps instead. Kept as its
+ *  own name because that is what its callers mean, and because
+ *  `verdictStatesAgree` pins it. */
 export function buildSetupFreeVerdictState(spec: ScenarioSpec): GameState {
     return buildVerdictPosition(spec);
 }

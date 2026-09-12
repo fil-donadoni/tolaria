@@ -108,6 +108,11 @@ import {
 import { escalationLadder } from "~/lib/ai/owed-input";
 import { buildBotView, botActionToMove } from "~/lib/ai/bot-view";
 import { executeMove, type MoveMutations } from "~/lib/ai/executor";
+import {
+    clearStackJournal,
+    markJournalOpaque,
+    recordJournalPly,
+} from "~/lib/ai/stack-journal";
 import type { OwedPaymentMutations } from "~/lib/ai/pay-owed-payment";
 import type { DeclineMutations } from "~/lib/ai/decline";
 import {
@@ -205,6 +210,10 @@ export function useVsAiDriver(
             // stale entry. This effect's deps are `[gameId, botId]`, so it
             // fires on the swap and never mid-game.
             clearAiTraces();
+            // Same lifetime, same reason (issue #3480): a ply ring from a
+            // finished match names versions of a game that no longer exists,
+            // and a window assembled from it would walk a board nobody played.
+            clearStackJournal();
         };
         // `gameId` is in the deps, not just `botId`: Restart Solo / rematch /
         // Switch Game swaps `gameId` on the SAME hook instance (the board is
@@ -884,6 +893,12 @@ export function useVsAiDriver(
         if (realisation !== "worker") {
             const runner = realiseBotAction(action, realisationContext);
             if (runner) {
+                // issue #3480 — this branch submits something the stack
+                // journal has no `BladeSetupStep` for (a parked payment, a
+                // combat-damage confirmation, an escalation decline), so the
+                // window it lands in is refused rather than replayed with a
+                // hole where this was.
+                markJournalOpaque(botState, botId);
                 dispatch(signature, runner, {
                     expectedKind: view.owedInput!.kind,
                     outcome: "direct",
@@ -921,6 +936,15 @@ export function useVsAiDriver(
             // not say so would read as "the search kept choosing to pass".
             // Recorded BY `dispatch`, so a dispatch the in-flight guard
             // suppresses records nothing (review finding 4).
+            // issue #3480 — journalled like any other submitted move. This
+            // path fires exactly when `pass` is the bot's only legal move,
+            // which with a NON-EMPTY stack is the response window the journal
+            // exists for; unrecorded, it would be a hole in every one of them.
+            recordJournalPly({
+                state: botState,
+                playerId: botId,
+                move: { kind: "pass" },
+            });
             dispatch(
                 signature,
                 () => mutations.passPriority({ gameId, playerId: botId }),
@@ -1028,13 +1052,26 @@ export function useVsAiDriver(
                                             botId
                                         )
                                       : null);
-                            return chosen
-                                ? executeMove(chosen, {
-                                      gameId,
-                                      botId,
-                                      mutations,
-                                  })
-                                : undefined;
+                            if (!chosen) return undefined;
+                            // issue #3480 — the stack journal. Recorded HERE,
+                            // where the driver holds both the projection the
+                            // move was decided on and the move itself: it is
+                            // what lets a decision taken over a non-empty
+                            // stack be lowered onto the quiet board plus an
+                            // engine-real walk, instead of being refused.
+                            // Three references onto a bounded ring; the
+                            // lowering happens only if a tester opens the quiz.
+                            recordJournalPly({
+                                state: botState,
+                                playerId: botId,
+                                ...(knowledge ? { knowledge } : {}),
+                                move: chosen,
+                            });
+                            return executeMove(chosen, {
+                                gameId,
+                                botId,
+                                mutations,
+                            });
                         }
                     ),
                 { expectedKind: view.owedInput!.kind }

@@ -19,6 +19,8 @@ import {
     type VerdictRefusalKind,
 } from "@convex/gre/ai/verdicts/lowering";
 import type { VerdictCandidate } from "@convex/gre/ai/verdicts/types";
+import type { StackJournalEntry } from "@convex/gre/ai/verdicts/journal";
+import type { BladeSetupStep } from "@convex/gre/ai/blade/types";
 import type { ScenarioSpec } from "@convex/debugScenarioSpec";
 import type { DecisionTrace } from "@convex/gre";
 import type { AiTraceSource } from "./trace-store";
@@ -28,8 +30,12 @@ export type { VerdictRefusalKind };
 
 /** What the quiz renders and submits. */
 export type VerdictQuiz = {
-    /** The position, lowered from the board the search ran on. */
+    /** The position, lowered from the board the search ran on — or, with
+     *  something on the stack, from the quiet board the journal kept. */
     spec: ScenarioSpec;
+    /** The engine-real steps that walk `spec` back to the decision
+     *  (issue #3480). Absent for a decision taken on an empty stack. */
+    setup?: BladeSetupStep[];
     /** The candidates as the REBUILT position offers them, in enumeration
      *  order — the list the fit will re-derive, so an index here means the same
      *  move there. */
@@ -95,9 +101,23 @@ type RefusalPresentation = {
  * the whole reason the kind is a frozen union rather than a string.
  */
 export const QUIZ_REFUSALS: Record<QuizRefusalKind, RefusalPresentation> = {
-    "stack-not-empty": {
-        title: "Something was on the stack",
-        trackedBy: 3456,
+    "stack-mid-resolution": {
+        // A structural gap, not a coverage one: no setup step can put a
+        // half-resolved object back on the stack, so no journal will ever
+        // reach this position however complete it is.
+        title: "An object on the stack is partway through resolving",
+        // `null` like its unnamed neighbours, and not issue #3456 (closed by
+        // the journal): nothing open tracks this, and a tracking ref that
+        // names a CLOSED issue sends a tester to a thread that says the work
+        // is done.
+        trackedBy: null,
+    },
+    "stack-not-journalled": {
+        // Not one gap but the whole family of them: a window the driver never
+        // saw begin, a move in it with no faithful setup step, a replay whose
+        // stack came back different. Which one it was is in the detail line.
+        title: "The stack could not be walked back to a quiet board",
+        trackedBy: null,
     },
     "lowering-threw": {
         title: "This position could not be lowered into a scenario",
@@ -220,14 +240,20 @@ export type VerdictQuizResult =
  */
 export function buildVerdictQuiz(
     trace: DecisionTrace,
-    source: AiTraceSource
+    source: AiTraceSource,
+    journal?: StackJournalEntry | null
 ): VerdictQuizResult {
     const position = projectedToGameState(
         source.state,
         source.knowledge,
         source.botId
     );
-    const outcome = lowerDecision(position, source.botId, trace.chosen);
+    const outcome = lowerDecision(
+        position,
+        source.botId,
+        trace.chosen,
+        journal
+    );
     return outcome.ok
         ? { ok: true, quiz: outcome.lowered }
         : {

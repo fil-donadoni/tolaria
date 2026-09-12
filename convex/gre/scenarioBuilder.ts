@@ -2061,8 +2061,9 @@ const COMBAT_STATE_ALLOWLIST = new Set<string>([
  * cannot see one. An attack redirected at a planeswalker (CR 508.1b) admits
  * exactly the same blocks as an attack on the face (CR 509.1a), so the two
  * lists match move for move while the boards differ — the same argument the
- * `stack-not-empty` site already makes. Exported so the refusal keys off this
- * constant rather than off a string literal repeated in another file.
+ * stack sites already make (`stack-mid-resolution` / `stack-not-journalled`,
+ * issue #3480). Exported so the refusal keys off this constant rather than off
+ * a string literal repeated in another file.
  */
 export const COMBAT_DROPPED_PREFIX = "combat:";
 

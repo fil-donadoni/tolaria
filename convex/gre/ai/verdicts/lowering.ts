@@ -38,8 +38,11 @@ import { COMBAT_DROPPED_PREFIX, specFromState } from "../../scenarioBuilder";
 import { describeMove } from "../../describeMove";
 import { moveKey, decidingPlayer } from "../../search";
 import { seatPlayerId } from "../blade/matcher";
-import { buildSetupFreeVerdictState, candidateMoves } from "./candidates";
+import { buildVerdictPosition, candidateMoves } from "./candidates";
+import { materialiseJournalSteps, stackShape } from "./journal";
+import type { StackJournalEntry } from "./journal";
 import type { VerdictCandidate } from "./types";
+import type { BladeSeat, BladeSetupStep } from "../blade/types";
 import type { ScenarioSpec } from "../../../debugScenarioSpec";
 import type { GameState } from "../../state";
 
@@ -63,7 +66,13 @@ export const QUIZ_SEAT = "me" as const;
  * `LoweringSweepTally` seeds no counter for it and the whole refusals cell
  * becomes `NaN` on the first decision that hits it (PR review, issue #3461).
  *
- *  - `stack-not-empty` — something was on the stack; a spec has no stack.
+ *  - `stack-mid-resolution` — an object on the stack is PARTWAY THROUGH
+ *    resolving (`resolutionStep` / `collectedChoices`). No setup step puts a
+ *    half-resolved object back, and the collected answers are not replayable.
+ *  - `stack-not-journalled` — something was on the stack and the journal
+ *    (`verdicts/journal.ts`) cannot say how it got there: no window was open,
+ *    a move in it had no faithful setup step, a seat did not map, or the
+ *    replayed stack does not match the live one object for object.
  *  - `lowering-threw` — `specFromState` refused the position outright.
  *  - `rebuild-threw` — the spec came back but `buildStateFromScenario` could
  *    not rebuild it.
@@ -75,7 +84,8 @@ export const QUIZ_SEAT = "me" as const;
  *  - `pick-not-offered` — the rebuild does not offer the move that was played.
  */
 export const VERDICT_REFUSAL_KINDS = [
-    "stack-not-empty",
+    "stack-mid-resolution",
+    "stack-not-journalled",
     "lowering-threw",
     "combat-not-captured",
     "rebuild-threw",
@@ -89,8 +99,15 @@ export type VerdictRefusalKind = (typeof VERDICT_REFUSAL_KINDS)[number];
 
 /** One decision, lowered. */
 export type LoweredDecision = {
-    /** The position, lowered from the board the search ran on. */
+    /** The position, lowered from the board the search ran on — or, when the
+     *  decision was taken with something on the stack, from the QUIET board the
+     *  journal kept, with `setup` walking it back to here. */
     spec: ScenarioSpec;
+    /** The engine-real steps that walk `spec` to the decision (issue #3480).
+     *  Absent for a decision taken on an empty stack, which is the majority.
+     *  Exactly the field `Verdict` stores and `buildVerdictPosition` replays,
+     *  so a judgement filed from here rebuilds months later the same way. */
+    setup?: BladeSetupStep[];
     /** The candidates as the REBUILT position offers them, in enumeration
      *  order — the list the fit will re-derive, so an index here means the same
      *  move there. */
@@ -99,10 +116,17 @@ export type LoweredDecision = {
      *  offer the Bot's own move is refused, not returned. */
     botPickIndex: number;
     /** Everything the lowering could not carry (`specFromState`'s own report,
-     *  plus any hidden-identity note): the stack, a mid-flight payment, an
-     *  instance-keyed restricted-mana permission (CR 106.6), … A verdict given
-     *  on a position missing one of those is a
-     *  judgement about a DIFFERENT board, so this is surfaced, never buried. */
+     *  plus any hidden-identity note): a mid-flight payment, an instance-keyed
+     *  restricted-mana permission (CR 106.6), … A verdict given on a position
+     *  missing one of those is a judgement about a DIFFERENT board, so this is
+     *  surfaced, never buried.
+     *
+     *  It reports the board that was LOWERED, which with a journalled stack is
+     *  the QUIET one rather than the decision's own (issue #3480) — `setup`
+     *  walks the rest, so a fact the walk itself re-creates is not lost even
+     *  though nothing here names it. `loweringSweep.observeDecision`
+     *  deliberately re-derives its own tally on the live state instead, and
+     *  says why there. */
     dropped: string[];
 };
 
@@ -134,8 +158,18 @@ export type LoweringOutcome =
 export function lowerDecision(
     position: GameState,
     botId: string,
-    chosenDescription: string
+    chosenDescription: string,
+    journal?: StackJournalEntry | null
 ): LoweringOutcome {
+    // Which seat a live player id is, in the spec's own frame: `specFromState`
+    // is called with `mySeatId: botId`, so the Bot is `players[0]` = `"me"` in
+    // everything built from the result.
+    const liveSeatOf = (playerId: string): BladeSeat | null =>
+        playerId === botId
+            ? "me"
+            : position.players.some((p) => p.id === playerId)
+              ? "opp"
+              : null;
     // A decision taken with priority on the OPPONENT's turn used to refuse here
     // (`opponent-turn`): `ScenarioSpec` had no field for the turn holder, so
     // the rebuild always made the judged seat active and came back offering the
@@ -153,21 +187,59 @@ export function lowerDecision(
     // against the live one move for move. A turn holder that failed to survive
     // shows up there as sorcery-speed moves the live list never had.
 
+    // A decision taken with something ON THE STACK — the Bot holding priority
+    // over its own spell, or answering the opponent's. A `ScenarioSpec` has no
+    // stack, so the board that is lowered is the QUIET one the journal kept
+    // (`verdicts/journal.ts`) and the walk back to here travels as `setup`,
+    // exactly as a blade entry's does. Lowering the LIVE board instead would
+    // rebuild the same position with the spell simply gone, which can leave
+    // the candidate list IDENTICAL (pass, and whatever the Bot could do
+    // anyway) while the position is materially different — the Bolt that was
+    // about to kill a creature never happened.
+    //
+    // `source` is the board that gets lowered; `setup` is how it is walked
+    // back. Both stay at their empty-stack identity when there is no stack.
+    let source = position;
+    let setup: BladeSetupStep[] | undefined;
     if (position.stack.length > 0) {
-        // A decision taken with something ON THE STACK — the Bot holding
-        // priority over its own spell, or answering the opponent's. A
-        // `ScenarioSpec` has no stack: the rebuild is the same board with the
-        // spell simply gone, which can leave the candidate list IDENTICAL
-        // (pass, and whatever the Bot could do anyway) while the position is
-        // materially different — the Bolt that was about to kill a creature
-        // never happened. The list check below cannot see that, and the
-        // evaluation would learn the pair as if the board were quiet.
-        return {
-            ok: false,
-            kind: "stack-not-empty",
-            dropped: [],
-            error: `this decision was taken with ${position.stack.length} object(s) on the stack — a scenario spec cannot express a stack, so the rebuilt position is a quiet board and a different question`,
-        };
+        // CR 608.3 — an object PARTWAY through resolving. No setup step puts a
+        // half-resolved object back on the stack, and `collectedChoices` are
+        // answers already given inside this resolution, which nothing replays.
+        // Its own kind rather than the journal's: a journal that saw the whole
+        // window still cannot express this, so counting the two together would
+        // hide a structural gap behind a coverage one.
+        const midResolution = position.stack.filter(
+            (item) =>
+                item.resolutionStep !== undefined ||
+                item.collectedChoices !== undefined
+        );
+        if (midResolution.length > 0) {
+            return {
+                ok: false,
+                kind: "stack-mid-resolution",
+                dropped: [],
+                error: `${midResolution.length} object(s) on the stack are partway through resolving (CR 608.3) — a setup step puts an object on the stack, never a half-resolved one`,
+            };
+        }
+        if (!journal) {
+            return {
+                ok: false,
+                kind: "stack-not-journalled",
+                dropped: [],
+                error: `this decision was taken with ${position.stack.length} object(s) on the stack and no journalled walk to it — the caller either drives no journal, or the window held a move with no faithful setup step`,
+            };
+        }
+        const steps = materialiseJournalSteps(journal.steps, liveSeatOf);
+        if (!steps) {
+            return {
+                ok: false,
+                kind: "stack-not-journalled",
+                dropped: [],
+                error: "the journalled walk names a seat this position does not have — it belongs to another game, or to a seat the lowering cannot place",
+            };
+        }
+        source = journal.quiet;
+        setup = steps;
     }
 
     // The hidden half of the board has no identity to lower: a projected
@@ -181,7 +253,7 @@ export function lowerDecision(
     let spec: ScenarioSpec;
     let dropped: string[];
     try {
-        const lowered = specFromState(position, { mySeatId: botId });
+        const lowered = specFromState(source, { mySeatId: botId });
         spec = lowered.spec;
         dropped = lowered.dropped;
     } catch (error) {
@@ -200,10 +272,15 @@ export function lowerDecision(
     // (CR 508.1b) admits exactly the same blocks as an attack on the face
     // (CR 509.1a), and two same-named creatures render as the same
     // `describeMove` sentence — so the two lists match move for move while the
-    // board differs. The same argument `stack-not-empty` above makes, applied
+    // board differs. The same argument the stack sites above make, applied
     // where it is just as true. Before issue #3458 every one of these
     // positions was refused anyway (the spec had no combat at all), so this
     // keeps a wrong-board verdict from being the thing that widening bought.
+    // On a journalled window this reads the QUIET board's combat, not the
+    // decision's. They are the same combat: no `JournalStep` is a combat
+    // declaration (`verdicts/journal.ts` — a blade `declare-attackers` step
+    // declares AND walks priority, so it is not one move and is never
+    // recorded), so a window cannot cross one.
     const combatLost = dropped.filter((note) =>
         note.startsWith(COMBAT_DROPPED_PREFIX)
     );
@@ -218,17 +295,52 @@ export function lowerDecision(
 
     let rebuilt: GameState;
     try {
-        rebuilt = buildSetupFreeVerdictState(spec);
+        rebuilt = buildVerdictPosition(spec, setup);
     } catch (error) {
+        // A `setup`-carrying build that throws is the JOURNAL's failure, not
+        // the board's: `applyBladeSetup` throws `BladeSetupError` when a step
+        // finds no purchase in the real engine (ADR 0070 §4), which means the
+        // recorded walk does not describe this game. Counting it as
+        // `rebuild-threw` would file it under "the spec is unloadable" and
+        // point the next reader at the spec vocabulary instead of the journal.
         return {
             ok: false,
-            kind: "rebuild-threw",
+            kind: setup ? "stack-not-journalled" : "rebuild-threw",
             dropped,
-            error: `the lowered position could not be rebuilt: ${message(error)}`,
+            error: setup
+                ? `the journalled walk (${setup.length} step(s)) could not be replayed on the lowered board: ${message(error)}`
+                : `the lowered position could not be rebuilt: ${message(error)}`,
         };
     }
 
     const seatId = seatPlayerId(rebuilt, QUIZ_SEAT);
+
+    // Did the walk reproduce the STACK? `different-decision` below compares
+    // candidate LISTS, and a candidate list is exactly what a response the
+    // journal missed can leave unchanged: the opponent casting a second spell
+    // in reply adds an object to the board without adding a move to the Bot's
+    // options. So the stack itself is compared, object for object, in the only
+    // vocabulary the live game and a rebuild share (`stackShape` — names and
+    // seats, never instance ids, which the rebuild allocates itself). It fails
+    // CLOSED, like every other check here: a mismatch is a refusal.
+    if (setup) {
+        const rebuiltSeat = (playerId: string): BladeSeat | null =>
+            playerId === seatId
+                ? QUIZ_SEAT
+                : rebuilt.players.some((p) => p.id === playerId)
+                  ? "opp"
+                  : null;
+        const live = stackShape(position, liveSeatOf);
+        const replayed = stackShape(rebuilt, rebuiltSeat);
+        if (!sameList(live, replayed)) {
+            return {
+                ok: false,
+                kind: "stack-not-journalled",
+                dropped,
+                error: `the journalled walk rebuilt a different stack — in play [${live.join(" | ")}], on the rebuild [${replayed.join(" | ")}]`,
+            };
+        }
+    }
     if (decidingPlayer(rebuilt) !== seatId) {
         // The same check `evalPairsOf` runs before it builds a pair. Caught
         // here it is a sentence in the panel; caught there it is a verdict in
@@ -306,7 +418,16 @@ export function lowerDecision(
         };
     }
 
-    return { ok: true, lowered: { spec, candidates, botPickIndex, dropped } };
+    return {
+        ok: true,
+        lowered: {
+            spec,
+            ...(setup ? { setup } : {}),
+            candidates,
+            botPickIndex,
+            dropped,
+        },
+    };
 }
 
 function message(error: unknown): string {

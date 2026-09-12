@@ -96,7 +96,7 @@ describe("a verdict-quiz refusal, rendered (issue #3457)", () => {
     it("shows no disclosure at all when the refusal dropped nothing", () => {
         render(
             <AiDecisionQuizRefusal
-                refusal={quizRefusal("stack-not-empty", "the detail")}
+                refusal={quizRefusal("stack-not-journalled", "the detail")}
                 decision={{ id: 12 }}
                 onClose={() => {}}
             />
@@ -136,7 +136,7 @@ describe("a verdict-quiz refusal, rendered (issue #3457)", () => {
         writeText.mockRejectedValueOnce(new Error("denied"));
         render(
             <AiDecisionQuizRefusal
-                refusal={quizRefusal("stack-not-empty", "the detail")}
+                refusal={quizRefusal("stack-not-journalled", "the detail")}
                 decision={{ id: 12 }}
                 onClose={() => {}}
             />
@@ -152,12 +152,12 @@ describe("a verdict-quiz refusal, rendered (issue #3457)", () => {
     it("names the tracking issue for a refusal whose cause is one known spec gap", () => {
         render(
             <AiDecisionQuizRefusal
-                refusal={quizRefusal("stack-not-empty", "the detail")}
+                refusal={quizRefusal("combat-not-captured", "the detail")}
                 decision={{ id: 12 }}
                 onClose={() => {}}
             />
         );
-        expect(screen.getByText(/tracked by issue #3456/)).toBeTruthy();
+        expect(screen.getByText(/tracked by issue #3458/)).toBeTruthy();
     });
 
     it("leaves Close outside the scrolling prose, so it is reachable however long the drop list is", () => {

@@ -471,7 +471,11 @@ describe("buildVerdictQuiz — a judgement the fit can still read (issue #3405)"
         );
         expect(result.ok).toBe(false);
         if (result.ok) return;
-        expect(result.refusal.kind).toBe("stack-not-empty");
+        // With no journal handed in, a stack the lowering cannot walk back to
+        // a quiet board is refused — its own kind since issue #3480, because
+        // "nobody recorded the window" is a coverage gap a caller can close,
+        // not the structural one `stack-mid-resolution` names.
+        expect(result.refusal.kind).toBe("stack-not-journalled");
         expect(result.refusal.detail).toContain("on the stack");
         // The KIND is all the record carries: the title comes from the one
         // table, looked up by kind, so no refusal site can write its own
@@ -480,7 +484,7 @@ describe("buildVerdictQuiz — a judgement the fit can still read (issue #3405)"
             0
         );
         expect(formatRefusalReport(result.refusal, { id: 1 })).toContain(
-            QUIZ_REFUSALS["stack-not-empty"].title
+            QUIZ_REFUSALS["stack-not-journalled"].title
         );
     });
 });
@@ -538,14 +542,16 @@ describe("the refusal a panel renders (issue #3457)", () => {
     });
 
     it("names the tracking issue only for a kind whose cause IS one known gap", () => {
-        // `stack-not-empty` is issue #3456 and nothing else; a
+        // `combat-not-captured` is issue #3458 and nothing else; a
         // `different-decision` is caused by whichever fact the lowering lost
         // on THIS board, so it names none and lets `dropped[]` say it.
-        expect(QUIZ_REFUSALS["stack-not-empty"].trackedBy).toBe(3456);
+        expect(QUIZ_REFUSALS["combat-not-captured"].trackedBy).toBe(3458);
         expect(QUIZ_REFUSALS["different-decision"].trackedBy).toBe(null);
         expect(
-            formatRefusalReport(quizRefusal("stack-not-empty", "x"), { id: 1 })
-        ).toContain("tracked by issue #3456");
+            formatRefusalReport(quizRefusal("combat-not-captured", "x"), {
+                id: 1,
+            })
+        ).toContain("tracked by issue #3458");
         expect(
             formatRefusalReport(quizRefusal("different-decision", "x"), {
                 id: 1,
