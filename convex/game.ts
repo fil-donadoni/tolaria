@@ -12,6 +12,11 @@ import { getAllCardNames, getDefinition, tryGetDefinition } from "./cards";
 import { isExileCostEligible } from "./cards/exileCostEligibility";
 import { classLevelActivationViolation } from "./cards/abilities/classLevels";
 import { buildStateFromScenario } from "./gre/scenarioBuilder";
+// CR 106.6 (issue #3460) — the restricted-mana unit validator is IMPORTED
+// rather than mirrored here: the rest of this mutation's args are a hand-kept
+// lock-step copy of `scenarioSpecValidator`, and a nested object validator is
+// exactly where that copy would rot unnoticed.
+import { scenarioRestrictedManaValidator } from "./debugScenarioSpec";
 import { BLADE_SCENARIOS } from "./gre/ai/blade/registry";
 import { resolveBladeLoadState } from "./gre/ai/blade/runner";
 import {
@@ -18199,6 +18204,27 @@ export const debugSetupScenario = mutation({
          *  maindeck auto-declare (`selectCompanion`, game init) that a
          *  scenario's synthetic board never runs through. `used: true`
          *  exercises the "already summoned" state; default `false`. */
+        /** CR 106.4 / 106.6 (issue #3460) — FLOATING MANA: the unspent pool
+         *  each seat holds (colour-keyed, zero entries omitted) and the
+         *  restricted half of it, the mana a spend restriction gates
+         *  (Metamorphosis, Mishra's Workshop, a cumulative-upkeep payment).
+         *  Mana decides what is castable this instant, so this is what lets a
+         *  mid-turn, tapped-out spend decision be placed at all. Both are
+         *  CLEARED on every rebuild (CR 106.4 — a pool empties at the end of
+         *  each step and phase), so omitting them places two empty pools
+         *  rather than inheriting the loaded game's. */
+        manaPool: v.optional(
+            v.object({
+                me: v.optional(v.record(v.string(), v.number())),
+                opp: v.optional(v.record(v.string(), v.number())),
+            })
+        ),
+        restrictedMana: v.optional(
+            v.object({
+                me: v.optional(v.array(scenarioRestrictedManaValidator)),
+                opp: v.optional(v.array(scenarioRestrictedManaValidator)),
+            })
+        ),
         companion: v.optional(
             v.object({
                 name: v.string(),

@@ -50,12 +50,14 @@ import type { Color } from "../cards/types";
 import {
     resolveScenarioBattlefieldCounters,
     type ScenarioCard,
+    type ScenarioRestrictedMana,
     type ScenarioSpec,
 } from "../debugScenarioSpec";
 import {
     type CardInstanceState,
     type GameState,
     type PlayerState,
+    type RestrictedMana,
     allocInstanceId,
     beginApplyingStaticEffects,
     createTokenPermanents,
@@ -313,6 +315,18 @@ export function buildStateFromScenario(
     // post-land-drop main-phase decision be captured at all.
     p1.landsPlayedThisTurn = undefined;
     p2.landsPlayedThisTurn = undefined;
+    // CR 106.4 (issue #3460) — floating mana joins the per-turn family above,
+    // and it is the member with the shortest life of all: "each player's mana
+    // pool empties at the end of each step and phase". A scenario places a
+    // position, so the pool it describes is the one `spec.manaPool` /
+    // `spec.restrictedMana` name below and nothing else — without this clear
+    // `debugSetupScenario`, which rebuilds onto the LIVE game, hands the
+    // rebuilt board whatever that game happened to be holding, and a captured
+    // position with an empty pool could not be placed at all.
+    p1.manaPool = {};
+    p2.manaPool = {};
+    p1.restrictedMana = undefined;
+    p2.restrictedMana = undefined;
     // CR 120.3a / 119.3 / 700.4 / 508.1a / 608.2 (issue #3453) — the GAME-level
     // per-turn ledgers go with the per-player ones, for exactly the reason
     // above and one more: `debugSetupScenario` rebuilds onto the LIVE game, so
@@ -910,6 +924,56 @@ export function buildStateFromScenario(
             p2.landsPlayedThisTurn = spec.landsPlayed.opp;
         }
     }
+
+    // Seed floating mana (CR 106.4 / 106.6, issue #3460, PRD #3397). Mana is
+    // not bookkeeping: it decides what is castable RIGHT NOW, so this is the
+    // difference between a rebuilt mid-turn position that can pay for the
+    // spell under judgement and one that silently cannot.
+    //
+    // `> 0` per colour: the engine's own payment path clamps at zero
+    // (`payManaCostForSpell` spends `min(pool, required)`) and an emptied pool
+    // holds zeros, so a non-positive entry is never a state the engine
+    // produced and never one the builder should place.
+    const seedPool = (
+        player: PlayerState,
+        pool: Record<string, number> | undefined
+    ) => {
+        if (!pool) return;
+        for (const [color, amount] of Object.entries(pool)) {
+            if (amount > 0) player.manaPool[color] = amount;
+        }
+    };
+    seedPool(p1, spec.manaPool?.me);
+    seedPool(p2, spec.manaPool?.opp);
+
+    // CR 106.6 — the restricted units, placed in the parallel pool the engine
+    // enforces restrictions from. Riders are written only when true because
+    // the engine types them `?: true` (an absent rider and a false one are the
+    // same claim); a unit with no usable amount is skipped for the same reason
+    // the fungible pool drops one.
+    const seedRestricted = (
+        player: PlayerState,
+        units: ScenarioRestrictedMana[] | undefined
+    ) => {
+        if (!units) return;
+        const placed: RestrictedMana[] = [];
+        for (const unit of units) {
+            if (unit.amount <= 0) continue;
+            const next: RestrictedMana = {
+                color: unit.color,
+                amount: unit.amount,
+            };
+            if (unit.restriction !== undefined) {
+                next.restriction = unit.restriction;
+            }
+            if (unit.cantBeCounteredRider) next.cantBeCounteredRider = true;
+            if (unit.hasteRider) next.hasteRider = true;
+            placed.push(next);
+        }
+        if (placed.length > 0) player.restrictedMana = placed;
+    };
+    seedRestricted(p1, spec.restrictedMana?.me);
+    seedRestricted(p2, spec.restrictedMana?.opp);
 
     // Seed what has already been CAST (issue #3449, PRD #3397). Three tallies
     // a rebuilt position otherwise opens at zero:
@@ -2285,6 +2349,12 @@ export const PLAYER_STATE_ALLOWLIST = new Set<string>([
     "graveyard",
     "exile",
     "battlefield",
+    // CR 106.4 / 106.6 (issue #3460) — lowered into the spec's own `manaPool`
+    // and `restrictedMana` pairs and rebuilt from them, so neither is
+    // live-only residue any more. `manaPool` is a blanket entry (every pool is
+    // expressible); `restrictedMana` is not quite — an INSTANCE-keyed unit
+    // (Ice Cauldron) survives no rebuild and is reported by its own check in
+    // `specFromState`, the `drawnThisTurn` shape.
     "manaPool",
     "restrictedMana",
     "poisonCounters",
@@ -2381,9 +2451,9 @@ function reportPlayerStateResidue(
  * seat order — get this wrong and the capture comes out mirrored, #2148).
  *
  * Lossy by construction: `dropped` names every fact the spec couldn't carry
- * (the stack, mana pool, a mid-flight payment, combat beyond an empty
- * DECLARE_ATTACKERS seed, delayed triggers, per-card continuous-effect
- * residue, library contents, …) rather than silently omitting it — the whole
+ * (the stack, a mid-flight payment, an instance-keyed restricted-mana
+ * permission, delayed triggers, per-card continuous-effect residue, library
+ * contents, …) rather than silently omitting it — the whole
  * point of this function per issue #2148.
  */
 export function specFromState(
@@ -2748,18 +2818,46 @@ export function specFromState(
         ["me", me],
         ["opp", opp],
     ] as const) {
-        const floating = Object.entries(p.manaPool).filter(([, n]) => n !== 0);
+        // CR 106.4 (issue #3460) — the floating pool, LOWERED since this
+        // widening rather than reported: it decides what the seat can cast this
+        // instant, so a rebuild that emptied it posed a different question than
+        // the one judged. Omitted when empty, like `landsPlayed`: the builder
+        // clears both pools, so an absence round-trips to the same position.
+        const floating = Object.entries(p.manaPool).filter(([, n]) => n > 0);
         if (floating.length > 0) {
-            dropped.push(
-                `${label}'s mana pool: ${floating
-                    .map(([c, n]) => `${n}${c}`)
-                    .join(
-                        " "
-                    )} — not lowered (mana pool isn't spec-expressible)`
-            );
+            spec.manaPool ??= {};
+            spec.manaPool[label] = Object.fromEntries(floating);
         }
-        if (p.restrictedMana && p.restrictedMana.length > 0) {
-            dropped.push(`${label} has restricted floating mana — not lowered`);
+        // CR 106.6 — the restricted units. Everything the spec can name is
+        // lowered; a unit whose permission is keyed to a card INSTANCE (Ice
+        // Cauldron's `castableCardId`) is the one shape it cannot, so it is
+        // reported on its own rather than swallowed by the blanket allowlist
+        // entry — the `drawnThisTurn` precedent (issue #3240), where the
+        // expressible shape is allowlisted and the rest still speaks up.
+        const restricted = (p.restrictedMana ?? []).filter((u) => u.amount > 0);
+        const typeKeyed = restricted.filter(
+            (u) => u.castableCardId === undefined
+        );
+        if (typeKeyed.length > 0) {
+            spec.restrictedMana ??= {};
+            spec.restrictedMana[label] = typeKeyed.map((u) => {
+                const unit: ScenarioRestrictedMana = {
+                    color: u.color,
+                    amount: u.amount,
+                };
+                if (u.restriction !== undefined) {
+                    unit.restriction = u.restriction;
+                }
+                if (u.cantBeCounteredRider) unit.cantBeCounteredRider = true;
+                if (u.hasteRider) unit.hasteRider = true;
+                return unit;
+            });
+        }
+        const instanceKeyed = restricted.length - typeKeyed.length;
+        if (instanceKeyed > 0) {
+            dropped.push(
+                `${label}: ${instanceKeyed} restricted mana unit(s) whose spend permission names a card INSTANCE (Ice Cauldron — CR 106.6) — every rebuild reassigns instance ids, so the permission would name an object the rebuilt board doesn't contain; not lowered`
+            );
         }
         if (p.library.length > 0) {
             dropped.push(
