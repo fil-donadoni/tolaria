@@ -44,7 +44,13 @@ export type RecordedPly = {
     /** The per-seat deck knowledge the projection is reconstructed with —
      *  the same three inputs `AiTraceSource` keeps, for the same reason. */
     knowledge?: DeckKnowledgeBySeat;
-    move: Move;
+    /** `null` marks a submission the journal cannot express — the driver's
+     *  non-search realisations (a parked payment, a combat-damage
+     *  confirmation, an escalation decline). The engine-side `StackJournal`
+     *  carries a `broken` flag for the same fact; this store recomputes per
+     *  call and so carries it IN the ring, where the window that contains it
+     *  finds it (PR review, issue #3480). */
+    move: Move | null;
 };
 
 /** Deliberately short, like the trace ring it sits beside: a window is at most
@@ -59,6 +65,17 @@ let plies: RecordedPly[] = [];
  *  onto a bounded array, no clone and no engine call. */
 export function recordJournalPly(ply: RecordedPly): void {
     plies = [...plies, ply].slice(-PLY_RING_LIMIT);
+}
+
+/** Record a submission the journal cannot express, so the window containing it
+ *  is refused rather than replayed with a hole. Same contract as the engine
+ *  journal's `observeOpaque`, carried as a ply because this store keeps no
+ *  state of its own. */
+export function markJournalOpaque(
+    state: PublicGameState,
+    playerId: string
+): void {
+    recordJournalPly({ state, playerId, move: null });
 }
 
 export function clearStackJournal(): void {
@@ -76,10 +93,11 @@ export function getJournalPlies(): RecordedPly[] {
  *
  * A window starts at the most recent recorded ply whose projection showed an
  * EMPTY stack, which is the definition of the quiet board, and runs to the last
- * ply submitted before the decision. `null` when no such ply was recorded, or
- * when any move in the window has no faithful `BladeSetupStep` — both are the
- * `stack-not-journalled` refusal, and both are honest: the journal says it does
- * not know rather than offering a walk it cannot stand behind.
+ * ply submitted before the decision. `null` when no such ply was recorded, when
+ * the window holds a submission marked opaque, or when any move in it has no
+ * faithful `BladeSetupStep` — all three are the `stack-not-journalled` refusal,
+ * and all three are honest: the journal says it does not know rather than
+ * offering a walk it cannot stand behind.
  */
 export function journalEntryFor(
     seq: number,
@@ -100,6 +118,9 @@ export function journalEntryFor(
     );
     const steps: JournalStep[] = [];
     for (const ply of window) {
+        // A submission nobody could express, inside this window. The walk is
+        // incomplete, so there is no walk.
+        if (!ply.move) return null;
         // Each step is read against the board it was submitted on — a card
         // name cannot be resolved from an id on any other board.
         const at = projectedToGameState(

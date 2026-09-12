@@ -116,10 +116,17 @@ export type LoweredDecision = {
      *  offer the Bot's own move is refused, not returned. */
     botPickIndex: number;
     /** Everything the lowering could not carry (`specFromState`'s own report,
-     *  plus any hidden-identity note): the stack, a mid-flight payment, an
-     *  instance-keyed restricted-mana permission (CR 106.6), … A verdict given
-     *  on a position missing one of those is a
-     *  judgement about a DIFFERENT board, so this is surfaced, never buried. */
+     *  plus any hidden-identity note): a mid-flight payment, an instance-keyed
+     *  restricted-mana permission (CR 106.6), … A verdict given on a position
+     *  missing one of those is a judgement about a DIFFERENT board, so this is
+     *  surfaced, never buried.
+     *
+     *  It reports the board that was LOWERED, which with a journalled stack is
+     *  the QUIET one rather than the decision's own (issue #3480) — `setup`
+     *  walks the rest, so a fact the walk itself re-creates is not lost even
+     *  though nothing here names it. `loweringSweep.observeDecision`
+     *  deliberately re-derives its own tally on the live state instead, and
+     *  says why there. */
     dropped: string[];
 };
 
@@ -269,6 +276,11 @@ export function lowerDecision(
     // where it is just as true. Before issue #3458 every one of these
     // positions was refused anyway (the spec had no combat at all), so this
     // keeps a wrong-board verdict from being the thing that widening bought.
+    // On a journalled window this reads the QUIET board's combat, not the
+    // decision's. They are the same combat: no `JournalStep` is a combat
+    // declaration (`verdicts/journal.ts` — a blade `declare-attackers` step
+    // declares AND walks priority, so it is not one move and is never
+    // recorded), so a window cannot cross one.
     const combatLost = dropped.filter((note) =>
         note.startsWith(COMBAT_DROPPED_PREFIX)
     );

@@ -32,6 +32,7 @@ import { buildVerdictQuiz } from "../verdict-quiz";
 import {
     clearStackJournal,
     journalEntryFor,
+    markJournalOpaque,
     recordJournalPly,
 } from "../stack-journal";
 import type { AiTraceSource } from "../trace-store";
@@ -138,6 +139,25 @@ describe("the browser stack journal (issue #3480)", () => {
         expect(result.ok).toBe(false);
         if (result.ok) return;
         expect(result.refusal.kind).toBe("stack-not-journalled");
+    });
+
+    it("offers no window once a submission it cannot express lands in one", () => {
+        // The driver's non-search realisations — a parked payment, a
+        // combat-damage confirmation, an escalation decline — change the board
+        // and have no setup step. This store keeps no state of its own, so the
+        // fact rides IN the ring and the window that contains it finds it
+        // (PR review, issue #3480).
+        const state = buildVerdictPosition(RESPONSE_SPEC);
+        const bot = state.players[0].id;
+        recordJournalPly({
+            state: projectPublicState(state, QUIET_SEQ, bot),
+            playerId: bot,
+            move: moveNamed(state, bot, BOLT_THE_GIANT),
+        });
+        expect(journalEntryFor(DECISION_SEQ, bot)).not.toBe(null);
+
+        markJournalOpaque(projectPublicState(state, QUIET_SEQ, bot), bot);
+        expect(journalEntryFor(DECISION_SEQ, bot)).toBe(null);
     });
 
     it("offers no window for a decision taken before the plies it holds", () => {

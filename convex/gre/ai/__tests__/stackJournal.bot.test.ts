@@ -8,7 +8,7 @@
 // the shape of a data structure and nothing about that.
 
 import { describe, it, expect } from "vitest";
-import { StackJournal } from "../verdicts/journal";
+import { StackJournal, journalStepForMove } from "../verdicts/journal";
 import { buildVerdictPosition, candidateMoves } from "../verdicts/candidates";
 import { lowerDecision } from "../verdicts/lowering";
 import { applyMoveInSearch } from "../../search";
@@ -209,6 +209,52 @@ describe("stack journal: a response decision lowers (issue #3480)", () => {
         expect(outcome.ok).toBe(false);
         if (outcome.ok) return;
         expect(outcome.kind).toBe("stack-mid-resolution");
+    });
+
+    it("says nothing about a cast from a zone the step cannot name", () => {
+        // CR 601.3 — a `cast` step searches the caster's HAND and nothing else
+        // (`blade/setup.ts`), so a Flashback / Yawgmoth's Will / exile-grant
+        // cast recorded as a plain one replays as a same-named copy OUT OF
+        // HAND. Neither the stack fingerprint nor the candidate-list compare
+        // can see that: same seat, same name, and both boards are missing a
+        // copy of the card — from different zones (PR review, issue #3480).
+        const state = buildVerdictPosition(RESPONSE_SPEC);
+        const me = state.players[0].id;
+        const fromHand = candidateMoves(state, me).find(
+            (candidate) => describeMove(candidate, state) === BOLT_THE_GIANT
+        )!;
+        expect(journalStepForMove(state, me, fromHand)).not.toBe(null);
+        expect(
+            journalStepForMove(state, me, {
+                ...fromHand,
+                castFromZone: "graveyard",
+            } as Move)
+        ).toBe(null);
+    });
+
+    it("says nothing about activating a permanent the actor does not control", () => {
+        // CR 113.3c — an "any player may activate" ability is enumerated for
+        // the seat that does NOT control the permanent, and an `activate` step
+        // activates as the named permanent's CONTROLLER. With a same-named
+        // permanent on both sides the replay picks the wrong one, and
+        // `stackShape` reads `castById` — the activator — identically on both
+        // boards (PR review, issue #3480). Same check covers the graveyard and
+        // hand activation sources, which replay by throwing.
+        const state = buildVerdictPosition(RESPONSE_SPEC);
+        const [me, other] = state.players.map((player) => player.id);
+        const theirs = state.players[1].battlefield[0];
+        const activation = {
+            kind: "activate-ability",
+            cardInstanceId: theirs.id,
+            abilityId: "a",
+            targets: [],
+            confirmTargets: false,
+            tapPlan: [],
+        } as Move;
+        expect(journalStepForMove(state, me, activation)).toBe(null);
+        // …and the controller's own activation of the same permanent is still
+        // sayable, so the check narrows nothing it should not.
+        expect(journalStepForMove(state, other, activation)).not.toBe(null);
     });
 
     it("drops the window the moment the stack empties again", () => {

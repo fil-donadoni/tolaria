@@ -108,7 +108,11 @@ import {
 import { escalationLadder } from "~/lib/ai/owed-input";
 import { buildBotView, botActionToMove } from "~/lib/ai/bot-view";
 import { executeMove, type MoveMutations } from "~/lib/ai/executor";
-import { clearStackJournal, recordJournalPly } from "~/lib/ai/stack-journal";
+import {
+    clearStackJournal,
+    markJournalOpaque,
+    recordJournalPly,
+} from "~/lib/ai/stack-journal";
 import type { OwedPaymentMutations } from "~/lib/ai/pay-owed-payment";
 import type { DeclineMutations } from "~/lib/ai/decline";
 import {
@@ -889,6 +893,12 @@ export function useVsAiDriver(
         if (realisation !== "worker") {
             const runner = realiseBotAction(action, realisationContext);
             if (runner) {
+                // issue #3480 — this branch submits something the stack
+                // journal has no `BladeSetupStep` for (a parked payment, a
+                // combat-damage confirmation, an escalation decline), so the
+                // window it lands in is refused rather than replayed with a
+                // hole where this was.
+                markJournalOpaque(botState, botId);
                 dispatch(signature, runner, {
                     expectedKind: view.owedInput!.kind,
                     outcome: "direct",
@@ -926,6 +936,15 @@ export function useVsAiDriver(
             // not say so would read as "the search kept choosing to pass".
             // Recorded BY `dispatch`, so a dispatch the in-flight guard
             // suppresses records nothing (review finding 4).
+            // issue #3480 — journalled like any other submitted move. This
+            // path fires exactly when `pass` is the bot's only legal move,
+            // which with a NON-EMPTY stack is the response window the journal
+            // exists for; unrecorded, it would be a hole in every one of them.
+            recordJournalPly({
+                state: botState,
+                playerId: botId,
+                move: { kind: "pass" },
+            });
             dispatch(
                 signature,
                 () => mutations.passPriority({ gameId, playerId: botId }),

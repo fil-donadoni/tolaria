@@ -44,6 +44,7 @@
 
 import { tryGetDefinition } from "../../../cards";
 import { cloneGameState } from "../../clone";
+import { getPlayer } from "../../state";
 import { allInstances } from "../blade/matcher";
 import type { BladeSeat, BladeSetupStep } from "../blade/types";
 import type { Move } from "../../moves";
@@ -118,8 +119,12 @@ export class StackJournal {
      * next time the stack empties.
      */
     observe(before: GameState, playerId: string, move: Move): void {
-        if (before.stack.length === 0) {
-            this.quiet = cloneGameState(before);
+        const opensWindow = before.stack.length === 0;
+        if (opensWindow) {
+            // The previous window is over whatever happens next: a stale quiet
+            // board paired with a fresh step list is exactly the wrong-board
+            // verdict this whole flow exists to prevent.
+            this.quiet = null;
             this.steps = [];
             this.broken = false;
         }
@@ -127,8 +132,13 @@ export class StackJournal {
         const step = journalStepForMove(before, playerId, move);
         if (!step) {
             this.broken = true;
+            this.quiet = null;
             return;
         }
+        // Cloned only once the step is known to be sayable — a move that breaks
+        // the window would otherwise pay a full deep clone that the next line
+        // throws away.
+        if (opensWindow) this.quiet = cloneGameState(before);
         this.steps.push(step);
     }
 
@@ -173,6 +183,19 @@ export function journalStepForMove(
         case "pass":
             return { kind: "pass", by: playerId };
         case "cast-spell": {
+            // CR 601.3 — the ZONE the cast comes from. A `cast` step is
+            // hand-only by construction (`blade/setup.ts` searches
+            // `caster.hand`), so a Flashback / Yawgmoth's Will / exile-grant
+            // cast recorded without this replays as a SAME-NAMED COPY OUT OF
+            // HAND. Neither downstream check sees it: `stackShape` reads the
+            // same seat and the same name, and both boards are missing a copy
+            // of the card, just from different zones (PR review, issue #3480).
+            if (
+                move.castFromZone !== undefined &&
+                move.castFromZone !== "hand"
+            ) {
+                return null;
+            }
             // Every cast MODE and every extra payment the `cast` step cannot
             // name (CR 601.2b/118): a replay that dropped one would put a
             // different object on the stack under the same card name.
@@ -204,6 +227,24 @@ export function journalStepForMove(
                 move.chosenModeId !== undefined ||
                 move.chosenX !== undefined ||
                 move.costPicks !== undefined
+            ) {
+                return null;
+            }
+            // An `activate` step names a card on `controller`'s BATTLEFIELD and
+            // activates it as that permanent's controller
+            // (`blade/setup.ts`'s `battlefieldMatches`). `enumerateMoves`
+            // emits activations from three other sources: the actor's own
+            // graveyard and hand (cycling, ninjutsu), and the OPPONENT's
+            // battlefield for a CR 113.3c "any player may activate" ability.
+            // The first two throw on replay and cost only coverage; the third
+            // silently activates the actor's OWN same-named permanent, and
+            // `stackShape` cannot tell the two apart because `castById` is the
+            // ACTIVATOR on both boards (PR review, issue #3480). One check
+            // closes all three.
+            if (
+                !getPlayer(state, playerId).battlefield.some(
+                    (permanent) => permanent.id === move.cardInstanceId
+                )
             ) {
                 return null;
             }
@@ -323,6 +364,14 @@ export function materialiseJournalSteps(
  * to the board without adding a move to the Bot's options. So the stack itself
  * is compared, in the only vocabulary the live game and a rebuild share —
  * names and seats, never instance ids, which the rebuild allocates itself.
+ *
+ * WHAT IT DOES NOT SEE, and why that is survivable: targets, `chosenX`, a
+ * chosen mode, a kicker, and a copy (CR 707.10), which fingerprints as its
+ * original. Every one of those reaches the stack only through a move
+ * {@link journalStepForMove} already refuses, so for them this is the SECOND
+ * line of defence and never the first. Two objects the registry cannot name
+ * both collapse to `(unnamed)` and would collide — unreachable for the same
+ * reason: a step naming such a card is refused where it is recorded.
  */
 export function stackShape(
     state: GameState,
