@@ -17629,6 +17629,27 @@ export const debugSetupScenario = mutation({
                  *  summoning-sick: the animated creature can't attack and can't
                  *  pay {T}. Battlefield default is `false`. #545. */
                 summoningSick: v.optional(v.boolean()),
+                /** CR 106.4 / 603.3 (issue #3451) — stage this battlefield
+                 *  source as one whose tap can no longer be reversed: its mana
+                 *  has already been spent on a spell (`manaCommitted`), or its
+                 *  most-recent tap-for-mana put a triggered ability on the
+                 *  stack (`tapTriggerCommitted` — City of Brass, Manabarbs),
+                 *  which CR 603.3 gives no undo of. Either makes `tapUntap`'s
+                 *  untap-to-refund toggle refuse the source; without them a
+                 *  staged tapped land offers an untap the captured position had
+                 *  already forbidden. Battlefield only, and both are cleared at
+                 *  the controller's untap step (CR 502). */
+                manaCommitted: v.optional(v.boolean()),
+                tapTriggerCommitted: v.optional(v.boolean()),
+                /** CR 502.1 (issue #3451) — stage the untap-step snapshot
+                 *  "this permanent was untapped when the turn's untap step
+                 *  began", which upkeep triggers phrased "if ~ started the turn
+                 *  untapped" read (Rasputin Dreamweaver). A scenario PLACES a
+                 *  board without running an untap step, so this cannot be
+                 *  derived from `tapped`: a permanent may be untapped now and
+                 *  have started the turn tapped, or the reverse. Battlefield
+                 *  only; default absent (= did not start the turn untapped). */
+                startedTurnUntapped: v.optional(v.boolean()),
                 /** Make this battlefield permanent a COPY of another card by
                  *  name (CR 707.2 — Clone, Copy Artifact, Vesuvan Doppelganger).
                  *  `name` is the copy's printed identity (preserved in
