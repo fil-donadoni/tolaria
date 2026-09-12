@@ -37,6 +37,7 @@ import {
     getPendingChoiceMax,
     makeRng,
     type GameState,
+    type Move,
     type PendingChoice,
     type CardInstanceState,
     type SearchBudget,
@@ -107,6 +108,26 @@ export type SeatConfig = {
  *  injectable so a test can drive the `search-error` guard without a crashing
  *  card (mirrors how `resolvePending` failures are exercised). */
 type SearchFn = typeof search;
+
+/**
+ * Every ply this loop applies, handed over BEFORE it is applied (issue #3480).
+ *
+ * The lowering sweep's stack journal is the caller this exists for: a decision
+ * taken with something on the stack can only become a Verdict if someone
+ * recorded the walk from the last quiet board to it, and the loop that applies
+ * the moves is the only thing that knows them. `before` is the state the move
+ * is about to be applied to — the loop mutates in place, so an observer that
+ * keeps it must clone.
+ *
+ * `opaque` is everything the loop does that is NOT one applied `Move`: a
+ * pending choice answered through the resolvers, a mulligan declaration.
+ * Reported rather than silently skipped, because a journal that does not know
+ * it missed something is worse than no journal at all.
+ */
+export type PlyObserver = {
+    move: (before: GameState, playerId: string, move: Move) => void;
+    opaque: () => void;
+};
 
 /** Hard ply ceiling — a game past it is a non-terminating loop, not a long
  *  game, and ends as the `max-plies` guard stop (excluded from win rates).
@@ -415,7 +436,8 @@ export function runHeadlessGame(
     seatA: SeatConfig,
     seatB: SeatConfig,
     seed: number,
-    searchFn: SearchFn = search
+    searchFn: SearchFn = search,
+    observer?: PlyObserver
 ): GameResult {
     const rng = makeRng(seed);
     const nextSeed = () => Math.floor(rng() * 0x7fffffff);
@@ -454,8 +476,10 @@ export function runHeadlessGame(
                 // drive it through the real mulligan engine, as the live
                 // `declareMulligan` mutation does.
                 if (move.kind === "mulligan") {
+                    observer?.opaque();
                     recordDeclaration(state, pid, move.decision);
                 } else {
+                    observer?.move(state, pid, move);
                     applyMoveInSearch(state, pid, move);
                 }
             } else {
@@ -466,10 +490,12 @@ export function runHeadlessGame(
                     unhandledExpectedInput = computeExpectedInput(state)?.kind;
                     break;
                 }
+                observer?.move(state, pid, legal[0]);
                 applyMoveInSearch(state, pid, legal[0]);
             }
         } else if ((state.pendingChoices?.length ?? 0) > 0) {
             // A resolution node — production default policy.
+            observer?.opaque();
             try {
                 if (!resolvePending(state)) {
                     reason = "resolution-error";

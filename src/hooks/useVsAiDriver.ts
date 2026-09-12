@@ -108,6 +108,7 @@ import {
 import { escalationLadder } from "~/lib/ai/owed-input";
 import { buildBotView, botActionToMove } from "~/lib/ai/bot-view";
 import { executeMove, type MoveMutations } from "~/lib/ai/executor";
+import { clearStackJournal, recordJournalPly } from "~/lib/ai/stack-journal";
 import type { OwedPaymentMutations } from "~/lib/ai/pay-owed-payment";
 import type { DeclineMutations } from "~/lib/ai/decline";
 import {
@@ -205,6 +206,10 @@ export function useVsAiDriver(
             // stale entry. This effect's deps are `[gameId, botId]`, so it
             // fires on the swap and never mid-game.
             clearAiTraces();
+            // Same lifetime, same reason (issue #3480): a ply ring from a
+            // finished match names versions of a game that no longer exists,
+            // and a window assembled from it would walk a board nobody played.
+            clearStackJournal();
         };
         // `gameId` is in the deps, not just `botId`: Restart Solo / rematch /
         // Switch Game swaps `gameId` on the SAME hook instance (the board is
@@ -1028,13 +1033,26 @@ export function useVsAiDriver(
                                             botId
                                         )
                                       : null);
-                            return chosen
-                                ? executeMove(chosen, {
-                                      gameId,
-                                      botId,
-                                      mutations,
-                                  })
-                                : undefined;
+                            if (!chosen) return undefined;
+                            // issue #3480 — the stack journal. Recorded HERE,
+                            // where the driver holds both the projection the
+                            // move was decided on and the move itself: it is
+                            // what lets a decision taken over a non-empty
+                            // stack be lowered onto the quiet board plus an
+                            // engine-real walk, instead of being refused.
+                            // Three references onto a bounded ring; the
+                            // lowering happens only if a tester opens the quiz.
+                            recordJournalPly({
+                                state: botState,
+                                playerId: botId,
+                                ...(knowledge ? { knowledge } : {}),
+                                move: chosen,
+                            });
+                            return executeMove(chosen, {
+                                gameId,
+                                botId,
+                                mutations,
+                            });
                         }
                     ),
                 { expectedKind: view.owedInput!.kind }

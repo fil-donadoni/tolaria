@@ -43,6 +43,10 @@ import {
     VERDICT_REFUSAL_KINDS,
     type VerdictRefusalKind,
 } from "@convex/gre/ai/verdicts/lowering";
+import {
+    StackJournal,
+    type StackJournalEntry,
+} from "@convex/gre/ai/verdicts/journal";
 import { describeMove } from "@convex/gre/describeMove";
 import { createInitialGameState } from "@convex/gre";
 import {
@@ -53,7 +57,11 @@ import {
     type StackItem,
 } from "@convex/gre";
 import { presetToPlayerInput } from "./decks";
-import { runHeadlessGame, type GameEndReason } from "./playGame";
+import {
+    runHeadlessGame,
+    type GameEndReason,
+    type PlyObserver,
+} from "./playGame";
 
 /** The three state types the residue half walks, in report order. */
 export type ResidueScope = "card" | "player" | "game";
@@ -280,14 +288,17 @@ function stackPayloadKeys(item: StackItem): string[] {
 export function observeDecision(
     state: GameState,
     botId: string,
-    chosenDescription: string
+    chosenDescription: string,
+    journal?: StackJournalEntry | null
 ): DecisionObservation {
-    const outcome = lowerDecision(state, botId, chosenDescription);
+    const outcome = lowerDecision(state, botId, chosenDescription, journal);
 
     // The dropped tally is taken from `specFromState` DIRECTLY, not from the
-    // refusal's own `dropped`: `stack-not-empty` refuses before the lowering
-    // ever runs, and reading its (empty) list would make that refusal look
-    // lossless.
+    // refusal's own `dropped`: the two stack refusals fire before the lowering
+    // ever runs, and reading their (empty) list would make them look lossless.
+    // It also stays on the LIVE state, never on the journal's quiet board —
+    // this half measures what the spec vocabulary cannot carry about the
+    // position the Bot actually decided on.
     const droppedClasses = new Set<string>();
     try {
         for (const message of specFromState(state, { mySeatId: botId })
@@ -447,6 +458,15 @@ export function runLoweringSweep(
             presetToPlayerInput(config.deckB, 1, "B"),
         ];
         const state = createInitialGameState(players, seed);
+        // issue #3480 — the journal the loop feeds and the lowering reads. One
+        // per game: it holds a single window (the current stack's) and drops it
+        // the moment the stack empties, so nothing accumulates across games.
+        const journal = new StackJournal();
+        const observer: PlyObserver = {
+            move: (before, playerId, move) =>
+                journal.observe(before, playerId, move),
+            opaque: () => journal.observeOpaque(),
+        };
         const observing: typeof search = (
             position,
             playerId,
@@ -466,7 +486,8 @@ export function runLoweringSweep(
                     observeDecision(
                         position,
                         playerId,
-                        describeMove(move, position)
+                        describeMove(move, position),
+                        journal.entry()
                     )
                 );
             }
@@ -477,7 +498,8 @@ export function runLoweringSweep(
             { id: "A", budget: { iterations: config.iterations } },
             { id: "B", budget: { iterations: config.iterations } },
             seed,
-            observing
+            observing,
+            observer
         );
         tally.endGame(result.reason);
     }

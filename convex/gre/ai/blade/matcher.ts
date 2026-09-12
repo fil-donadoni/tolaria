@@ -22,7 +22,7 @@ import type { BladeSeat, MoveMatcher } from "./types";
  *  "Lightning Bolt" }`) must resolve the stack-resident name, or the entry
  *  false-fails under `moves` and false-passes under `forbidden`.
  *  (`StackItem extends CardInstanceState`.) */
-function allInstances(state: GameState): CardInstanceState[] {
+export function allInstances(state: GameState): CardInstanceState[] {
     const out: CardInstanceState[] = [];
     for (const p of state.players) {
         out.push(
