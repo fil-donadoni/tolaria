@@ -23,6 +23,7 @@ import {
 } from "../verdicts/candidates";
 import { sealOfFire } from "../../../cards/sets/nem/red";
 import { grizzlyBears } from "../../../cards/sets/lea/green";
+import { hillGiant } from "../../../cards/sets/lea/red";
 import { wrennAndSix } from "../../../cards/sets/mh1/multicolor";
 import {
     makeInstance,
@@ -134,31 +135,28 @@ describe("canonicalMoveKey — the vocabulary two builds share (issue #3483)", (
     });
 });
 
-/** CR 508.1a — one `declare-attackers` move, two Bears, aimed by
+/** CR 508.1a — one `declare-attackers` move whose attackers are aimed by
  *  `attackTargets` (attacker id -> planeswalker id): the ONE Move field whose
- *  object KEYS are per-world instance ids. `ids` supplies the handles, so the
+ *  object KEYS are per-world instance ids. The handles are supplied, so the
  *  same attack can be built on two boards that numbered their instances
- *  differently. */
-function attackOnPlaneswalker(ids: {
-    bearA: string;
-    bearB: string;
-    walker: string;
-    /** Which of the two Bears is pointed at the planeswalker; the other goes
-     *  to the face (CR 508.1a — an absent attacker attacks the player). */
-    aimed: ("bearA" | "bearB")[];
-}): { state: GameState; move: Move } {
+ *  differently; an attacker left out of `aimed` goes to the face, which is
+ *  always a legal declaration. */
+function attackOnPlaneswalker(
+    attackers: { cardId: string; id: string }[],
+    walker: string,
+    aimed: string[]
+): { state: GameState; move: Move } {
     const state = makeState({
         players: [
             makePlayer("p1", {
-                battlefield: [
-                    makeInstance(grizzlyBears.id, { id: ids.bearA }),
-                    makeInstance(grizzlyBears.id, { id: ids.bearB }),
-                ],
+                battlefield: attackers.map((attacker) =>
+                    makeInstance(attacker.cardId, { id: attacker.id })
+                ),
             }),
             makePlayer("p2", {
                 battlefield: [
                     makeInstance(wrennAndSix.id, {
-                        id: ids.walker,
+                        id: walker,
                         controllerId: "p2",
                     }),
                 ],
@@ -167,12 +165,12 @@ function attackOnPlaneswalker(ids: {
         phase: "DECLARE_ATTACKERS",
     });
     const attackTargets: Record<string, string> = {};
-    for (const which of ids.aimed) attackTargets[ids[which]] = ids.walker;
+    for (const id of aimed) attackTargets[id] = walker;
     return {
         state,
         move: {
             kind: "declare-attackers",
-            attackerIds: [ids.bearA, ids.bearB],
+            attackerIds: attackers.map((attacker) => attacker.id),
             attackTargets,
         },
     };
@@ -183,20 +181,29 @@ describe("canonicalMoveKey — the object-KEY cases (PR review, issue #3483)", (
         // Instance ids are bare integer STRINGS (`allocInstanceId`), and both
         // JS and `JSON.stringify` emit integer-like object keys in ascending
         // NUMERIC order whatever the insertion order was. So an
-        // `attackTargets` record serialised as an OBJECT followed each build's
-        // own id numbering, and the same attack keyed two different ways.
-        const live = attackOnPlaneswalker({
-            bearA: "47",
-            bearB: "23",
-            walker: "9",
-            aimed: ["bearA"],
-        });
-        const rebuilt = attackOnPlaneswalker({
-            bearA: "3",
-            bearB: "5",
-            walker: "7",
-            aimed: ["bearA"],
-        });
+        // `attackTargets` record serialised as an OBJECT came out in each
+        // build's own id order, and the same attack keyed two different ways.
+        //
+        // TWO DIFFERENT cards, or there is only one canonical key in the record
+        // and no order to get wrong. The numbering is the reverse of the
+        // canonical order on one side and not on the other: live has the Giant
+        // BELOW the Bears numerically, the rebuild has it above.
+        const live = attackOnPlaneswalker(
+            [
+                { cardId: grizzlyBears.id, id: "47" },
+                { cardId: hillGiant.id, id: "23" },
+            ],
+            "9",
+            ["47", "23"]
+        );
+        const rebuilt = attackOnPlaneswalker(
+            [
+                { cardId: grizzlyBears.id, id: "3" },
+                { cardId: hillGiant.id, id: "5" },
+            ],
+            "7",
+            ["3", "5"]
+        );
 
         expect(canonicalMoveKey(live.move, live.state, "p1")).toBe(
             canonicalMoveKey(rebuilt.move, rebuilt.state, "p1")
@@ -209,18 +216,12 @@ describe("canonicalMoveKey — the object-KEY cases (PR review, issue #3483)", (
         // the planeswalker" and "one attacks it, one goes to the face"
         // collapsed to one key — two semantically different moves the pick
         // lookup could then confuse for each other.
-        const both = attackOnPlaneswalker({
-            bearA: "47",
-            bearB: "23",
-            walker: "9",
-            aimed: ["bearA", "bearB"],
-        });
-        const one = attackOnPlaneswalker({
-            bearA: "47",
-            bearB: "23",
-            walker: "9",
-            aimed: ["bearA"],
-        });
+        const bears = [
+            { cardId: grizzlyBears.id, id: "47" },
+            { cardId: grizzlyBears.id, id: "23" },
+        ];
+        const both = attackOnPlaneswalker(bears, "9", ["47", "23"]);
+        const one = attackOnPlaneswalker(bears, "9", ["47"]);
 
         expect(canonicalMoveKey(both.move, both.state, "p1")).not.toBe(
             canonicalMoveKey(one.move, one.state, "p1")
