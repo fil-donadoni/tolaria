@@ -68,6 +68,14 @@ function EmptyPilePlaceholder({
         >
             {zoneIcon ? (
                 <span
+                    // `role="img"`, not a bare labelled span: `aria-label` is
+                    // PROHIBITED on an element with the implicit generic role,
+                    // and axe reds it `serious` (`aria-prohibited-attr`,
+                    // measured on the board at four of the five viewports,
+                    // issue #3492). The span wraps the zone's glyph and stands
+                    // in for the empty zone, so an image with that name is what
+                    // it actually is.
+                    role="img"
                     aria-label={emptyLabel}
                     className="opacity-90 transition duration-200 group-hover:opacity-100 group-hover:scale-110"
                 >

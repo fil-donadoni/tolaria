@@ -56,6 +56,13 @@ export interface WalkContext {
      *  lobby's My Decks list, then clears the field. `undefined` means
      *  nothing to clean up. */
     lastCreatedDeckName?: string;
+    /** Set once the lane has created the VS-AI game itself (issue #3492).
+     *  Deliberately NOT `createdGame`: that flag is `ensureStressBoard`'s
+     *  licence to load a debug scenario into the active match, and a vs-AI
+     *  match is the one board it must never do that to — the bot is driving
+     *  the other seat, so the position the probe measures would keep moving
+     *  under it. Two flags, two permissions. */
+    createdVsAiGame?: boolean;
     log(message: string): void;
 }
 
@@ -125,15 +132,75 @@ async function visible(
     }
 }
 
+/** Name whatever the browser hit-tests at a selector's own centre — the one
+ *  fact that turns "could not be clicked" into something a reader can fix.
+ *
+ *  The page function is passed as SOURCE TEXT, not a closure: this file
+ *  compiles under `tsconfig.scripts.json`, which carries no `lib.dom`, so a
+ *  literal `document` in a callback here is a type error rather than a
+ *  browser-side call (the same reason `probe.js` next door is plain JS). */
+async function topmostAt(page: Page, selector: string): Promise<string> {
+    try {
+        const box = await page.locator(selector).first().boundingBox();
+        if (!box) return "it has no layout box";
+        const x = Math.round(box.x + box.width / 2);
+        const y = Math.round(box.y + box.height / 2);
+        const found = await page.evaluate<string>(`(() => {
+            const el = document.elementFromPoint(${x}, ${y});
+            if (!el) return "nothing hit-tests there";
+            const cls = String(el.className || "").split(/\\s+/).filter(Boolean).slice(0, 4).join(".");
+            return "hit target is <" + el.tagName.toLowerCase() + (cls ? " class=\\"" + cls + "\\"" : "") + ">";
+        })()`);
+        return found;
+    } catch {
+        return "hit target could not be read";
+    }
+}
+
 async function clickIfVisible(
     page: Page,
     selector: string,
     timeout = STEP_TIMEOUT
 ): Promise<boolean> {
     if (!(await visible(page, selector, timeout))) return false;
-    await page.locator(selector).first().click({ timeout: STEP_TIMEOUT });
+    try {
+        await page.locator(selector).first().click({ timeout: STEP_TIMEOUT });
+    } catch (err) {
+        // Playwright's own message is `click: Timeout 8000ms exceeded.` and
+        // `index.ts` prints only its first line, so an un-narrated failure here
+        // reaches the receipt as a bare timeout with no selector in it — a run
+        // that says a click failed and not WHICH one (measured, issue #3492).
+        // The element was visible a moment ago, so this is an actionability
+        // failure, and the only fact that makes it fixable is WHAT is over it:
+        // hit-test the target's own centre and name whatever answers.
+        throw new Unreachable(
+            `\`${selector}\` was visible but could not be clicked (${await topmostAt(page, selector)}): ${(err as Error).message.split("\n")[0]}`
+        );
+    }
     return true;
 }
+
+/* Prompt buttons matched EXACTLY, never by substring. `:has-text()` is a
+ * case-insensitive SUBSTRING match, so `button:has-text('Keep')` also matches
+ * the phase bar's `Upkeep (UPKEEP)` stop — measured at 390x844x3 on issue
+ * #3492, where the mulligan click landed on the phase-stops panel instead and
+ * left a `[role=dialog]` standing that nothing in the walk could answer. Every
+ * short prompt label here goes through `:text-is()` for that reason. */
+const MULLIGAN_KEEP = 'button:text-is("Keep")';
+const PREGAME_PLAY = '[role=dialog] button:text-is("Play")';
+const BANNER_RESUME = 'button:text-is("Resume")';
+const BANNER_LEAVE = 'button:text-is("Leave")';
+const BANNER_CONCEDE = 'button:text-is("Concede Match")';
+/** The confirm dialog's destructive plate. `:has-text()` here and `:text-is()`
+ *  on the banner twin above, and the asymmetry is load-bearing: Playwright's
+ *  `:text-is()` matches the SMALLEST element carrying the text, and this one is
+ *  an `ActionButton`, which wraps its label in a `<span>` — so the span matches
+ *  and the `button` never does. Measured: the banner press landed, the dialog
+ *  opened, and the plate read `NOT PRESSED` on every viewport of a full run,
+ *  leaving the lane's own game standing. Scoped to the dialog because the
+ *  banner button behind it carries the same words; inside the dialog the only
+ *  other control is `Cancel`. */
+const CONFIRM_CONCEDE = '[role=dialog] button:has-text("Concede Match")';
 
 /**
  * Open an event's page from `/limited`.
@@ -721,8 +788,7 @@ async function ensureBoard(page: Page, ctx: WalkContext): Promise<void> {
     // resumed game is usually past them.
     await clickIfVisible(page, "button:has-text('Play')", 6000);
     for (let seat = 0; seat < 2; seat++) {
-        if (!(await clickIfVisible(page, "button:has-text('Keep')", 6000)))
-            break;
+        if (!(await clickIfVisible(page, MULLIGAN_KEEP, 6000))) break;
         await page.waitForTimeout(800);
     }
     await settle(page);
@@ -785,6 +851,291 @@ async function ensureStressBoard(page: Page, ctx: WalkContext): Promise<void> {
     await row.first().click({ timeout: STEP_TIMEOUT });
     await page.waitForTimeout(2500);
     await settle(page);
+}
+
+/**
+ * Click a prompt that may VANISH while it is being clicked.
+ *
+ * `clickIfVisible` above is the right primitive for a control the walk owns:
+ * a click that fails there is a defect and must surface. The coin toss and the
+ * mulligan prompt are different — the other seat answers its half too, in a
+ * vs-AI game asynchronously and while the page is live, so a control that was
+ * visible when `visible()` returned can be gone before Playwright's
+ * actionability check finishes. That race IS the prompt resolving itself,
+ * which is the state the caller wanted; reporting the surface UNWALKED on a
+ * `click: Timeout 8000ms exceeded` there (measured, issue #3492) describes a
+ * board that reached exactly the position asked for.
+ */
+async function clickTransient(
+    page: Page,
+    selector: string,
+    timeout = STEP_TIMEOUT
+): Promise<boolean> {
+    if (!(await visible(page, selector, timeout))) return false;
+    try {
+        await page.locator(selector).first().click({ timeout: STEP_TIMEOUT });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/** The debug sheet's slim edge toggle and the sheet it opens
+ *  (`debug-sheet.tsx`, issue #3403). The toggle's visible text is a chevron,
+ *  so the walk addresses the attributes the component declares, never a
+ *  string — and `aria-expanded` is what lets it OPEN the sheet rather than
+ *  toggle it blind: the flag is persisted per device
+ *  (`tolaria:debugSheetOpen`), so a second surface in the same context can
+ *  arrive with it already open, and a blind click would then close the very
+ *  thing being measured. */
+const DEBUG_SHEET_TOGGLE = "[data-debug-sheet-toggle]";
+const DEBUG_SHEET_TOGGLE_CLOSED =
+    '[data-debug-sheet-toggle][aria-expanded="false"]';
+const DEBUG_SHEET = "[data-debug-sheet]";
+/** The AI trace box's OPEN body (`ai-decision-trace-box.tsx`, issue #3492).
+ *  It carries the max-height this surface exists to measure, and it is
+ *  mounted only for a vs-AI game — which makes its absence the one reliable
+ *  tell that the walk reached the sheet on the wrong KIND of game. */
+const AI_TRACE_BODY = "[data-ai-trace-body]";
+
+/* The PRESET shelf's tiles, not "the first selectable tile anywhere in the
+ * lobby" (issue #3492). The lobby renders two shelves — `Your decks` and
+ * `Preset decks` (`lobby.tsx`) — and the unscoped selector `ensureBoard` uses
+ * reaches whichever comes first, which is the user's. On this shared dev
+ * account that is a `deck-builder` leftover: measured here, the vs-AI walk
+ * dealt `Deck 38`, a freeform two-card list, to BOTH seats and the game ended
+ * before the first prompt with `The game is a draw` — both players drew from
+ * an empty library at the same moment. A preset is a real 60-card list, so the
+ * position the probe measures is a board and not a scoreboard. */
+const PRESET_SHELF = 'section:has(h2:text-is("Preset decks"))';
+const PRESET_DECK_SELECT = `${PRESET_SHELF} [data-deck-tile] [data-deck-select]:not([disabled])`;
+const PRESET_DECK_SELECTED = `${PRESET_SHELF} [data-deck-tile][data-selected="true"]`;
+
+/**
+ * Concede the active match from the lobby banner (`active-game-notice.tsx`).
+ *
+ * ONLY ever called on a game the lane created itself — ending someone's match
+ * is their call, and every other walk here resumes rather than clears. The
+ * banner's own control opens a confirm dialog whose destructive plate carries
+ * the SAME label, so the second click is scoped to `[role=dialog]`: an
+ * unscoped `:has-text('Concede Match')` would re-click the banner button and
+ * leave the dialog standing.
+ *
+ * A waiting room (no opponent yet) offers `Leave` instead of `Concede Match`;
+ * a vs-AI game is never in that state, but the branch costs one line and keeps
+ * the helper honest about the two states the banner has.
+ */
+/** `clickIfVisible`, with its `Unreachable` folded into a trace line instead of
+ *  thrown. For a retrying sequence that wants the diagnostic AND wants to keep
+ *  going: absent reads as `false`, and so does present-but-unclickable, with
+ *  the hit target recorded. */
+async function pressed(
+    page: Page,
+    selector: string,
+    timeout: number,
+    trace: string[],
+    pass: number
+): Promise<boolean> {
+    try {
+        return await clickIfVisible(page, selector, timeout);
+    } catch (err) {
+        trace.push(`pass${pass}: ${(err as Error).message}`);
+        return false;
+    }
+}
+
+async function concedeLaneGame(
+    page: Page,
+    ctx: WalkContext,
+    trace: string[] = []
+): Promise<boolean> {
+    for (let pass = 0; pass < 2; pass++) {
+        await goto(page, ctx, "/");
+        if (!(await visible(page, BANNER_RESUME, 4000))) {
+            trace.push(`pass${pass}: no active-game banner`);
+            return true;
+        }
+        // `clickIfVisible`, not `clickTransient`: nothing races these two the
+        // way the bot races the toss and the mulligan, so an actionability
+        // failure here is a real defect and must arrive with `topmostAt`'s hit
+        // target rather than as a bare `false` two passes later (PR #3501
+        // review). Caught rather than propagated so pass 1 still runs — the
+        // banner's control follows the MATCH's status, which trails the
+        // game's, so the second pass can succeed where the first could not.
+        if (await pressed(page, BANNER_CONCEDE, 3000, trace, pass)) {
+            trace.push(`pass${pass}: pressed banner Concede`);
+            const dialog = await visible(page, "[role=dialog]", 4000);
+            trace.push(
+                `pass${pass}: confirm dialog ${dialog ? "open" : "ABSENT"}`
+            );
+            const confirmed = await pressed(
+                page,
+                CONFIRM_CONCEDE,
+                STEP_TIMEOUT,
+                trace,
+                pass
+            );
+            trace.push(
+                `pass${pass}: confirm plate ${confirmed ? "pressed" : "NOT PRESSED"}`
+            );
+        } else if (await pressed(page, BANNER_LEAVE, 3000, trace, pass)) {
+            trace.push(`pass${pass}: pressed banner Leave`);
+        } else {
+            trace.push(`pass${pass}: banner offered neither Concede nor Leave`);
+        }
+        await page.waitForTimeout(2000);
+        await settle(page);
+        if (!(await visible(page, BANNER_RESUME, 3000))) {
+            trace.push(`pass${pass}: banner gone`);
+            return true;
+        }
+        trace.push(`pass${pass}: banner still standing`);
+    }
+    return false;
+}
+
+/** Create a vs-AI game from a lobby with no active game. Same three lobby
+ *  steps `ensureBoard` uses, plus the setup dialog's confirm — the `bot` Mode
+ *  Tile's primary action opens that dialog instead of creating anything, which
+ *  is exactly what `lobby-vs-ai` measures one step earlier. */
+async function createVsAiGame(page: Page, ctx: WalkContext): Promise<void> {
+    if (!(await clickIfVisible(page, MODE_TILE_BOT, 6000))) {
+        throw new Unreachable(
+            "the lobby's Mode Tiles offered no 'Play vs Bot' tile"
+        );
+    }
+    if (!(await visible(page, PRESET_DECK_SELECTED, 2000))) {
+        if (!(await clickIfVisible(page, PRESET_DECK_SELECT, 6000))) {
+            throw new Unreachable(
+                "the lobby's `Preset decks` shelf offered no selectable tile \u2014 seed the deployment with `bun run seed:preset --all`"
+            );
+        }
+        await page.waitForTimeout(600);
+    }
+    if (!(await clickIfVisible(page, LOBBY_PRIMARY, 6000))) {
+        throw new Unreachable(
+            "the Loadout's primary action stayed disabled after selecting a preset deck and the 'Play vs Bot' Mode Tile"
+        );
+    }
+    if (!(await visible(page, "[role=dialog]", STEP_TIMEOUT))) {
+        throw new Unreachable(
+            "the 'Play vs Bot' primary action did not open the vs-AI setup dialog within 8s"
+        );
+    }
+    if (
+        !(await clickIfVisible(
+            page,
+            "[role=dialog] button:has-text('Play vs AI')",
+            STEP_TIMEOUT
+        ))
+    ) {
+        throw new Unreachable(
+            "the vs-AI setup dialog offered no 'Play vs AI' confirm"
+        );
+    }
+    ctx.createdVsAiGame = true;
+    ctx.log("created a vs-AI game");
+}
+
+/**
+ * Reach a live VS-AI board — the one game kind that mounts the AI trace box.
+ *
+ * Non-destructive by the same rule as `ensureBoard`, and by a STRICTER reading
+ * of it (PR #3501 review): the only game this walk ever ends is one IT created,
+ * and `ensureBoard`'s solo game is not that game even though the lane owns it.
+ * The board rows share ONE solo game across all five viewports on purpose —
+ * `ensureBoard`'s own comment says viewports 2-5 reach a board through the
+ * `Resume` branch, on the game viewport 1 dealt — so conceding it here to free
+ * the vs-AI lobby gate would silently re-deal the subject `game-board` and
+ * `game-stress` are budgeted against, from the tail of every viewport pass.
+ * Those three rows are `unwalked` today and the collision is therefore
+ * unreachable; it is reported rather than resolved so that re-enabling them
+ * reds this row instead of quietly moving theirs.
+ */
+async function ensureVsAiBoard(page: Page, ctx: WalkContext): Promise<void> {
+    await goto(page, ctx, "/");
+
+    if (await visible(page, BANNER_RESUME, 4000)) {
+        if (ctx.createdVsAiGame) {
+            if (!(await clickIfVisible(page, BANNER_RESUME, 6000))) {
+                throw new Unreachable(
+                    "the lobby banner is up and this lane created the vs-AI game behind it, but its `Resume` could not be pressed — the walk cannot get back to the board it measured last viewport"
+                );
+            }
+            ctx.log("resumed the vs-AI game this lane created");
+        } else if (ctx.createdGame) {
+            throw new Unreachable(
+                "the lane's own SOLO game is active (a board row dealt it), and this surface needs a vs-AI game the lobby gate will not open while any game is in progress. Conceding it here would re-deal the fixed subject `game-board`/`game-stress` are budgeted against, at the tail of every viewport — so the two cannot share a run yet. Whichever slice re-walks the board rows owns resolving this"
+            );
+        } else {
+            throw new Unreachable(
+                "an active game the lane did not create is in progress. The vs-AI setup dialog opens only from the Loadout's primary plate, which `lobbyGate` disables while the account holds ANY game (`src/lib/lobbyGate.ts`) \u2014 and ending a match the lane does not own is not its call. Finish or concede it, then re-run"
+            );
+        }
+    } else {
+        await createVsAiGame(page, ctx);
+    }
+
+    await page.waitForURL(/\/game/, { timeout: NAV_TIMEOUT }).catch(() => {
+        throw new Unreachable("the lobby never routed to /game");
+    });
+    await settle(page);
+
+    // Answer the pregame prompts until nothing modal is left standing.
+    //
+    // POLLED, not a fixed sequence. The coin toss is a modal `GameDialog` with
+    // four states (`pregame-dialog.tsx`: tossing / waiting / auto / prompt),
+    // only one of which has a button, and in a vs-AI game the bot answers its
+    // own half asynchronously — so which prompts this client ever sees, and in
+    // what order, is not something the walk can assume. What it CAN assert is
+    // the end state: no modal on the board. That matters more here than on any
+    // other surface, because the thing this one measures is opened from a
+    // `fixed` edge tab, and `dialog.tsx`'s scrim is `fixed inset-0` — a toss
+    // dialog still up reads as "the toggle is visible but unclickable"
+    // (measured, issue #3492).
+    const promptsDeadline = Date.now() + 45_000;
+    for (;;) {
+        if (await clickTransient(page, PREGAME_PLAY, 1200)) {
+            await page.waitForTimeout(600);
+            continue;
+        }
+        // The mulligan prompt is a draggable panel, not a dialog, so it never
+        // blocks the toggle — but leaving it up leaves the board in a position
+        // nobody chose, which is the flapping `game-board` was withdrawn for.
+        if (await clickTransient(page, MULLIGAN_KEEP, 1200)) {
+            await page.waitForTimeout(600);
+            continue;
+        }
+        if (!(await visible(page, "[role=dialog]", 800))) break;
+        if (Date.now() > promptsDeadline) {
+            const shown = (
+                (await page
+                    .locator("[role=dialog]")
+                    .first()
+                    .innerText()
+                    .catch(() => "")) || "(no text)"
+            )
+                .replace(/\s+/g, " ")
+                .slice(0, 200);
+            throw new Unreachable(
+                `a modal dialog was still open on the board 45s after the game was created, and it offered no \`Play\` or \`Keep\` to answer it with — the pregame sequence is stuck on: "${shown}"`
+            );
+        }
+        await page.waitForTimeout(500);
+    }
+    await settle(page);
+
+    if (
+        !(await visible(
+            page,
+            "text=/Pass|YOUR GO|Untap|Upkeep|Library/i",
+            10_000
+        ))
+    ) {
+        throw new Unreachable(
+            "reached /game but no board affordance rendered within 10s"
+        );
+    }
 }
 
 export const SURFACES: readonly Surface[] = [
@@ -1439,6 +1790,110 @@ export const SURFACES: readonly Surface[] = [
         label: "Game board — UI stress scenario",
         async walk(page, ctx) {
             await ensureStressBoard(page, ctx);
+        },
+    },
+    {
+        // Issue #3492 — the tester debug sheet with its AI trace box open. Its
+        // own surface rather than a step inside a board row, for the same
+        // reason `game-card-preview` is: it is a different SCREEN. A left
+        // sheet 88% of the viewport wide, with its own scroll port and its own
+        // `max-h` trace body inside that port, is not something a budget over
+        // the battlefield can say anything about.
+        //
+        // The one surface here that needs a VS-AI game. The trace box is
+        // mounted behind `vsAi` (`debug-sheet.tsx`), so on the solo game every
+        // other board row uses, this screen simply does not exist.
+        //
+        // LAST in the list on purpose: it is the only walk that ends a match,
+        // and it ends only matches the lane itself created. Running it after
+        // the board rows means the solo game they need is still standing while
+        // they need it.
+        id: "game-debug-sheet-ai",
+        label: "Debug sheet — AI trace open (vs-AI game)",
+        async walk(page, ctx) {
+            await ensureVsAiBoard(page, ctx);
+            if (!(await visible(page, DEBUG_SHEET_TOGGLE, STEP_TIMEOUT))) {
+                throw new Unreachable(
+                    "no debug-sheet edge toggle on the board — the route mounts it for a tester or in dev (`canUseDebugSheet`), and this lane runs its own vite dev server, so its absence means the board never finished rendering"
+                );
+            }
+            // Open it only if it is closed: `tolaria:debugSheetOpen` persists
+            // per device, so a blind click can just as easily shut it.
+            await clickIfVisible(page, DEBUG_SHEET_TOGGLE_CLOSED, 2000);
+            if (!(await visible(page, DEBUG_SHEET, STEP_TIMEOUT))) {
+                throw new Unreachable(
+                    "the edge toggle did not open the debug sheet within 8s"
+                );
+            }
+            // The box is `vsAi`-gated, and its open BODY is the node carrying
+            // the height contract this surface measures. Absent means one of
+            // two things and the message has to name both: the walk landed on
+            // a game that is not vs-AI, or the box mounted collapsed.
+            if (!(await visible(page, AI_TRACE_BODY, STEP_TIMEOUT))) {
+                const mounted = await page
+                    .locator(`${DEBUG_SHEET} :text("AI trace")`)
+                    .count();
+                throw new Unreachable(
+                    mounted
+                        ? "the debug sheet's AI trace box is mounted but COLLAPSED — its open body is what carries the `max-h` this surface measures"
+                        : "the debug sheet opened without an AI trace box — the box is `vsAi`-gated (`debug-sheet.tsx`), so this walk reached a game that is not vs-AI"
+                );
+            }
+            // CLEAR THE RING BEFORE PROBING, and keep clearing until it stays
+            // cleared. The ring is a live log of a live bot, so its ROW COUNT
+            // is a function of how long the walk took and of who won the coin
+            // toss — measured across two runs of the same tree it moved the
+            // desktop reading from `ctrls n13 small12` to `ctrls n21 small19`.
+            // That is the same "a ceiling that flaps is worse than no ceiling"
+            // finding that withdrew `game-board` (`budgets.json`), and the fix
+            // here is the same in spirit as `game-stress`'s fixed position: the
+            // surface measures the sheet's SHAPE at five viewports, and the
+            // content it happens to be holding is not part of that. Section
+            // ORDER is asserted offline, where it is a DOM fact and not a race
+            // (`ai-decision-trace-box.bot.test.tsx`).
+            for (let pass = 0; pass < 4; pass++) {
+                const clears = page.locator(
+                    `${DEBUG_SHEET} button:text-is("Clear")`
+                );
+                if ((await clears.count()) === 0) break;
+                // Front of the list every time: clearing one section unmounts
+                // its own button, so a stale index would address a gone node.
+                await clears
+                    .first()
+                    .click({ timeout: STEP_TIMEOUT })
+                    .catch(() => {});
+                await page.waitForTimeout(700);
+            }
+            await settle(page);
+        },
+        // The lane's own vs-AI game, ended so the deployment is left as this
+        // surface found it. That matters more here than anywhere else in the
+        // file: an active game left behind is exactly what gates the vs-AI
+        // setup dialog shut, so a run that skipped this would poison its own
+        // next run — and every concurrent session's `lobby-vs-ai` with it.
+        async cleanup(page, ctx) {
+            if (!ctx.createdVsAiGame) return;
+            const trace: string[] = [];
+            if (await concedeLaneGame(page, ctx, trace)) {
+                ctx.createdVsAiGame = false;
+                return;
+            }
+            // LOUD, even though `index.ts` swallows a cleanup failure into one
+            // line: a game left standing is not local hygiene debt, it is the
+            // precondition of the NEXT run (and of every concurrent session's
+            // `lobby-vs-ai`, whose own budget entry records exactly this).
+            const banner = (
+                (await page
+                    .locator(`[data-slot="banner"], :has(> ${BANNER_RESUME})`)
+                    .first()
+                    .innerText()
+                    .catch(() => "")) || "(no banner text)"
+            )
+                .replace(/\s+/g, " ")
+                .slice(0, 160);
+            throw new Error(
+                `could not end the vs-AI game this lane created — the lobby banner still reads "${banner}" [${trace.join("; ")}]. Clear it before the next run`
+            );
         },
     },
 ];
