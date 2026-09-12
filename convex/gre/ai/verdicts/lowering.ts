@@ -265,7 +265,7 @@ export function lowerDecision(
     // (CR 508.1b) admits exactly the same blocks as an attack on the face
     // (CR 509.1a), and two same-named creatures render as the same
     // `describeMove` sentence — so the two lists match move for move while the
-    // board differs. The same argument `stack-not-empty` above makes, applied
+    // board differs. The same argument the stack sites above make, applied
     // where it is just as true. Before issue #3458 every one of these
     // positions was refused anyway (the spec had no combat at all), so this
     // keeps a wrong-board verdict from being the thing that widening bought.
