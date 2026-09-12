@@ -82,7 +82,8 @@
 // clears the moment the bot acts.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
+import { useResilientQuery } from "~/hooks/useResilientQuery";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { ExpectedInputKind } from "@convex/gre/expectedInput";
@@ -160,6 +161,14 @@ export type VsAiDriverStatus = {
      *  top and submits the first legal rung. Resolves once the submission
      *  settles. */
     resolveStuck: () => Promise<void>;
+    /** The driver's OWN subscriptions gave up (issue #3266 review). The board's
+     *  error surface cannot cover this: these two queries are private to this
+     *  hook, and a parked subscription never un-parks by itself — the bot would
+     *  simply stop moving, with nothing on screen saying why. `null` while at
+     *  least one retry is still possible. */
+    subscriptionError: Error | null;
+    /** Re-subscribes both of the driver's game queries. */
+    retrySubscription: () => void;
 };
 
 export function useVsAiDriver(
@@ -207,16 +216,31 @@ export function useVsAiDriver(
         // Brain and never even try to spawn a Worker.
     }, [gameId, botId]);
 
-    const tick = useQuery(api.game.getGameTick, botId ? { gameId } : "skip");
+    // Resilient (issue #3266): Convex's 1s execution ceiling is a platform
+    // limit, so under machine contention even this single indexed row lookup
+    // can fail. A raw `useQuery` re-throws that during render and the throw
+    // tears down `<Board>` through the router's catch boundary — with the
+    // Brain's Worker disposed by the effect cleanup above on the way out.
+    // `useResilientQuery` holds the last tick, re-subscribes with backoff, and
+    // never throws. One that gives up is reported through `subscriptionError`
+    // below: these queries are the driver's own, so nothing the BOARD
+    // subscribes to would ever escalate on their behalf, and a parked
+    // subscription never un-parks by itself — the bot would just stop moving.
+    const tickQuery = useResilientQuery(
+        api.game.getGameTick,
+        botId ? { gameId } : "skip"
+    );
+    const tick = tickQuery.data;
     const botOwesInput = !!(
         botId &&
         (tick === null ||
             (tick && !tick.gameOver && tick.owedPlayerIds?.includes(botId)))
     );
-    const botState = useQuery(
+    const botStateQuery = useResilientQuery(
         api.game.getPublicState,
         botId && botOwesInput ? { gameId, playerId: botId } : "skip"
     );
+    const botState = botStateQuery.data;
     // The bot's OWN decklist, wired into the search adapter so its simulated
     // library carries real card identities (issue #1509): fetch/tutor subtrees
     // then search the real fetchable cards instead of worthless placeholders.
@@ -227,10 +251,10 @@ export function useVsAiDriver(
     // lookup on the bot's (immutable) `gameDecks` row rather than the former
     // `getGame` subscription — it no longer re-executes on the `games` patches
     // that fire several times a turn.
-    const botDeck = useQuery(
+    const botDeck = useResilientQuery(
         api.game.getSeatDeck,
         botId ? { gameId, playerId: botId } : "skip"
-    );
+    ).data;
     // The HUMAN seat's decklist (issue #2790, PRD #2787) — the second entry
     // the #2788 per-seat shape was left room for. Read only once `botState`
     // has resolved the opponent's seat id; both `botId` and this id are the
@@ -250,10 +274,10 @@ export function useVsAiDriver(
     // consulted, which means fetching both seats and choosing between them
     // at the moment of use.
     const humanId = botState?.players.find((p) => p.id !== botId)?.id ?? null;
-    const humanDeck = useQuery(
+    const humanDeck = useResilientQuery(
         api.game.getSeatDeck,
         humanId ? { gameId, playerId: humanId } : "skip"
-    );
+    ).data;
     // Per-seat deck knowledge (issue #2788, generalised to two seats by
     // #2790), pre-computed in BOTH shapes so the difficulty gate at the search
     // site is a choice between two ready values rather than a render-time read
@@ -291,6 +315,12 @@ export function useVsAiDriver(
             ],
         };
     }, [botDeck, botId, humanDeck, humanId]);
+    const retryTick = tickQuery.retry;
+    const retryBotState = botStateQuery.retry;
+    const retryDriverSubscriptions = useCallback(() => {
+        retryTick();
+        retryBotState();
+    }, [retryTick, retryBotState]);
     const [thinking, setThinking] = useState(false);
     // Rung 5's banner, stored WITH the state version it belongs to so the
     // exposed value can be DERIVED (below) rather than cleared from an effect:
@@ -1190,5 +1220,14 @@ export function useVsAiDriver(
             ? { expectedKind: stuckAt.expectedKind }
             : null;
 
-    return { thinking, stuck, resolveStuck };
+    return {
+        thinking,
+        stuck,
+        resolveStuck,
+        // Either query giving up is the same outcome for the player: the bot
+        // stops moving. The tick is reported first because it is the one that
+        // gates everything else.
+        subscriptionError: tickQuery.error ?? botStateQuery.error,
+        retrySubscription: retryDriverSubscriptions,
+    };
 }

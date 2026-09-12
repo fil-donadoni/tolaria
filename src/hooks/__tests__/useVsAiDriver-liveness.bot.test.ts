@@ -111,8 +111,12 @@ vi.mock("@convex/_generated/api", () => {
     };
 });
 
-vi.mock("convex/react", () => ({
-    useQuery: (ref: unknown, args: unknown) => {
+vi.mock("convex/react", async () => {
+    // `useResilientQuery` (issue #3266) subscribes through `useQueries`, so the
+    // mock answers both entry points from the one resolver below.
+    const { mockUseQueries } =
+        await import("~/lib/testing/convex-react-query-mock");
+    const resolve = (ref: unknown, args: unknown) => {
         if (args === "skip") return undefined;
         // `getSeatDeck` (issue #2506) stays unanswered here ON PURPOSE: this
         // suite's subject is the escalation ladder, and `ownDeck` only changes
@@ -141,8 +145,8 @@ vi.mock("convex/react", () => ({
             };
         }
         return currentState;
-    },
-    useMutation: (ref: unknown) => (args: unknown) => {
+    };
+    const useMutation = (ref: unknown) => (args: unknown) => {
         calls.push({ ref, args });
         if (mutationsThrow) return Promise.reject(new Error("server rejected"));
         // A hook for the fixtures that need an ACCEPTED mutation to actually
@@ -150,8 +154,13 @@ vi.mock("convex/react", () => ({
         // keys on that state version.
         onMutation?.(ref);
         return Promise.resolve(null);
-    },
-}));
+    };
+    return {
+        useQuery: resolve,
+        useQueries: mockUseQueries(resolve),
+        useMutation,
+    };
+});
 
 // The Brain Worker, stubbed. `brainResult` is what a consult resolves with;
 // `{ move: null }` is NOT hypothetical — `brain-client.ts`'s `worker.onerror`

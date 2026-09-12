@@ -38,11 +38,19 @@ vi.mock("~/hooks/useElementSize", () => ({
 }));
 
 const h = vi.hoisted(() => ({ state: undefined as unknown }));
-vi.mock("convex/react", () => ({
-    useQuery: () => h.state,
-    useMutation: () => async () => {},
-    useAction: () => async () => {},
-}));
+vi.mock("convex/react", async () => {
+    // `useResilientQuery` (issue #3266) subscribes through `useQueries`, so the
+    // mock answers both entry points from the one resolver.
+    const { mockUseQueries } =
+        await import("~/lib/testing/convex-react-query-mock");
+    const resolve = () => h.state;
+    return {
+        useQuery: resolve,
+        useQueries: mockUseQueries(resolve),
+        useMutation: () => async () => {},
+        useAction: () => async () => {},
+    };
+});
 vi.mock("~/lib/image-preload", () => ({ preloadCardImages: () => {} }));
 
 // Board chrome → inert; only the root effect is under test.

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "convex/react";
+import { useResilientQuery } from "~/hooks/useResilientQuery";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { Player } from "~/types/game";
@@ -68,6 +68,7 @@ import PutBackPicker from "./put-back-picker";
 import MinimizedChoiceIndicator from "./minimized-choice-indicator";
 import MulliganPrompt from "./mulligan-prompt";
 import ErrorToast from "./error-toast";
+import BoardConnectionError from "./board-connection-error";
 import VsAiDriver from "./vs-ai-driver";
 
 const POPUP_SELECTORS = [
@@ -125,21 +126,32 @@ export default function Board({
     const pageVisible = usePageVisible();
     const skipPhasePrefs = useSkipPhasePrefsState();
     const [pauseMenuOpen, setPauseMenuOpen] = useState(false);
-    const publicState = useQuery(
+    // Resilient subscriptions (issue #3266): Convex's 1s execution ceiling is
+    // a PLATFORM limit, and under machine contention even a one-row lookup can
+    // blow it. A raw `useQuery` re-throws that during render, which unmounts
+    // this whole tree through the router's catch boundary; `useResilientQuery`
+    // holds the last good state, re-subscribes with backoff, and only escalates
+    // to `error` once the failure stops looking transient.
+    const publicState = useResilientQuery(
         api.game.getPublicState,
         pageVisible && !showAllCards
             ? { gameId, playerId, debugAllActions }
             : "skip"
     );
-    const fullState = useQuery(
+    const fullState = useResilientQuery(
         api.game.getFullState,
         pageVisible && showAllCards ? { gameId, debugAllActions } : "skip"
     );
-    const state = showAllCards ? fullState : publicState;
+    const stateQuery = showAllCards ? fullState : publicState;
+    const state = stateQuery.data;
 
     // Owning Match (ADR 0029): the game-over screen shows the terminal Match
     // result. Resolve the matchId from the game doc, then the Match meta.
-    const game = useQuery(api.game.getGame, pageVisible ? { gameId } : "skip");
+    const gameQuery = useResilientQuery(
+        api.game.getGame,
+        pageVisible ? { gameId } : "skip"
+    );
+    const game = gameQuery.data;
 
     // Convex bandwidth: the id set is a first-class field on the `games` row
     // (`cardIds`, issue #2506) — the decklists it summarises moved to
@@ -150,10 +162,15 @@ export default function Board({
     const gameCardIds = useMemo(() => gameArtCardIds(game), [game]);
 
     const matchId = game?.matchId ?? null;
-    const match = useQuery(
+    // Resilient too (issue #3266 review): a timeout on THIS subscription, a
+    // sibling of the two above on the same component, reproduces the whole
+    // teardown by itself. Not part of `fatal` below, though — the Match meta
+    // only decorates the game-over screen, and the board is perfectly usable
+    // without it.
+    const match = useResilientQuery(
         api.matches.getMatch,
         pageVisible && matchId ? { matchId } : "skip"
-    );
+    ).data;
     useEffect(() => {
         if (!gameCardIds || gameCardIds.length === 0) return;
         // Art crops are only fetched when the user opens the zoom panel (hover
@@ -276,6 +293,21 @@ export default function Board({
     // stable instance id — see useRecentArrivals. Runs above the !state early
     // return like every other hook; undefined state yields an empty set.
     const recentArrivals = useRecentArrivals(state?.players, state?.stack);
+
+    // Escalated: retries are exhausted, or the failure was never the kind a
+    // retry fixes. The player gets a sentence and a button, never a stack trace
+    // and never a blank board (issue #3266).
+    const fatal = stateQuery.error ?? gameQuery.error;
+    if (fatal) {
+        return (
+            <BoardConnectionError
+                onRetry={() => {
+                    stateQuery.retry();
+                    gameQuery.retry();
+                }}
+            />
+        );
+    }
 
     if (!state) {
         return (

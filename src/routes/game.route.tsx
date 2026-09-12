@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
+import { useResilientQuery } from "~/hooks/useResilientQuery";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -50,10 +51,14 @@ export default function GameRoute() {
     const showDebugSheet = import.meta.env.DEV || canUseDebugSheet(currentUser);
 
     const pageVisible = usePageVisible();
-    const game = useQuery(
+    // Resilient (issue #3266 review): this read decides WHICH of the route's
+    // four faces renders, and it sits ABOVE `<Board>` — a re-thrown timeout
+    // here tears down the whole route, board included, past the same missing
+    // error boundary the fix inside the board exists to stop reaching.
+    const game = useResilientQuery(
         api.game.getGame,
         pageVisible && session.gameId ? { gameId: session.gameId } : "skip"
-    );
+    ).data;
     const leaveGame = useMutation(api.game.leaveGame);
 
     useEffect(() => {
