@@ -152,6 +152,7 @@ describe("seed:preset argument parsing (issue #3254)", () => {
             slug: "oath-ponza",
             all: false,
             dryRun: false,
+            target: "local",
         });
     });
 
@@ -160,6 +161,7 @@ describe("seed:preset argument parsing (issue #3254)", () => {
             slug: "",
             all: true,
             dryRun: false,
+            target: "local",
         });
     });
 

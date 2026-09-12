@@ -29,6 +29,25 @@
  * `--dry-run` builds and validates the payload and prints it, touching no
  * deployment — which is also what makes the refusal paths testable offline.
  *
+ * `--deploy` (issue #3499) flips constraint 1: instead of the primary
+ * checkout's `.env.local`, the write goes to whatever `CONVEX_DEPLOY_KEY`
+ * selects, from the current directory, with no env file involved. That is the
+ * shape a hosting build needs, and `bun run seed:preset:deploy` — chained
+ * after `convex deploy` in `vercel.json` — is the only intended caller: the
+ * Card Definitions of a list are CODE and ship with the deploy, while the
+ * Preset Deck referencing them is a ROW, and nothing wrote that row on
+ * production. So a list could be live and unpickable, which is what happened
+ * to Psychatog.
+ *
+ * **The canonical file wins on every deploy.** `seedPresetDirect` is
+ * upsert-by-slug and deliberately overwriting (`convex/decks.ts` §
+ * `presetSeedDecision`), and the sweep uses it unchanged: after a deploy every
+ * seedable Tier 1 row MATCHES `data/premodern-tier1-decks.json`. The cost is
+ * stated rather than discovered — Admin edits to a CANONICAL Tier 1 slug are
+ * not durable, and curating one of those lists means editing the canonical
+ * file. The opposite contract exists for the opposite job (`presetsToSeed`
+ * skips a slug already present); this entry point is not it.
+ *
  * `--all` is the SWEEP this file's own header used to name as the pending
  * second entry point ("a sweep seeding all six Tier 1 lists once #2719's card
  * slices land — is the moment to extract it, before the two copies drift").
@@ -44,12 +63,23 @@
  * are the interesting half of the output, the same posture `seed:backlog`
  * takes. It exits non-zero only when a deck that IS seedable could not be
  * written.
+ *
+ * ONE other non-zero path, and it is deliberate: `--deploy` with no deploy key
+ * in the environment. Chained into a build command, that exit reds the deploy —
+ * for a configuration fault, not a write failure. The alternative is worse. A
+ * renamed or dropped key would otherwise make the step exit 0 having seeded
+ * nothing, on every deploy, forever: precisely the silence issue #3499 exists
+ * to end. Nothing else here can fail a deploy.
  */
 
 import { dirname, join } from "node:path";
 import { tryGetCardByName } from "../convex/cards/index";
 import { buildPresetPayload } from "./lib/preset-deck-seed";
-import { seedPreset } from "./lib/seed-preset-run";
+import {
+    resolveSeedTarget,
+    seedPreset,
+    type SeedTarget,
+} from "./lib/seed-preset-run";
 import { readTier1Decks } from "./lib/tier1-decks";
 
 // This checkout's root. The canonical list and the card registry are
@@ -71,6 +101,9 @@ export interface SeedPresetArgs {
     /** Sweep every list in the canonical file (issue #3254). */
     all: boolean;
     dryRun: boolean;
+    /** Which deployment the write goes to — `--deploy` picks the one the
+     *  deploy environment's key selects (issue #3499). */
+    target: SeedTarget;
 }
 
 export function parseArgs(argv: string[]): SeedPresetArgs {
@@ -85,7 +118,12 @@ export function parseArgs(argv: string[]): SeedPresetArgs {
     if (!all && !slug) {
         throw new Error("usage: bun run seed:preset <slug|--all> [--dry-run]");
     }
-    return { slug, all, dryRun: argv.includes("--dry-run") };
+    return {
+        slug,
+        all,
+        dryRun: argv.includes("--dry-run"),
+        target: argv.includes("--deploy") ? "deployment" : "local",
+    };
 }
 
 /** One deck's outcome in a sweep, so the report and the exit code are decided
@@ -109,7 +147,8 @@ export interface SweepRow {
 export function seedOne(
     deck: ReturnType<typeof readTier1Decks>["decks"][number],
     suppliedOn: string,
-    dryRun: boolean
+    dryRun: boolean,
+    target: SeedTarget = "local"
 ): SweepRow {
     const { payload, problems } = buildPresetPayload(
         deck,
@@ -128,7 +167,7 @@ export function seedOne(
     if (dryRun) {
         return { slug: deck.slug, name: deck.name, state: "seedable" };
     }
-    const res = seedPreset(deck.slug, payload);
+    const res = seedPreset(deck.slug, payload, target);
     if (res.error) {
         return {
             slug: deck.slug,
@@ -160,9 +199,25 @@ function main(): void {
     // primary checkout, whose `.env.local` names the deployment.
     const file = readTier1Decks(ROOT);
 
+    // A deploy-time run has no env file and no operator watching it: the build
+    // log is the only place the chosen deployment is ever visible, and a
+    // missing key must read as a configuration failure there rather than as a
+    // sweep that quietly seeded nothing (issue #3499).
+    if (args.target === "deployment" && !args.dryRun) {
+        const plan = resolveSeedTarget("deployment");
+        if (plan.error) {
+            console.error(`${RED}seed:preset --deploy: ${plan.error}${RESET}`);
+            process.exit(1);
+        }
+        console.log(
+            `${DIM}--deploy: writing to the deployment CONVEX_DEPLOY_KEY selects` +
+                ` (canonical file wins on every deploy)${RESET}`
+        );
+    }
+
     if (args.all) {
         const rows = file.decks.map((d) =>
-            seedOne(d, file.source.suppliedOn, args.dryRun)
+            seedOne(d, file.source.suppliedOn, args.dryRun, args.target)
         );
         for (const row of rows) {
             if (row.state === "blocked") continue;
@@ -235,7 +290,7 @@ function main(): void {
         return;
     }
 
-    const res = seedPreset(args.slug, payload);
+    const res = seedPreset(args.slug, payload, args.target);
     if (res.error) {
         console.error(
             `${RED}seed:preset: the deployment refused the write${RESET}\n` +
