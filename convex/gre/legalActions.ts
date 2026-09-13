@@ -23,7 +23,6 @@
 
 import type { TargetSelection } from "../cards/types";
 import type {
-    CardInstanceState,
     ExpectedInput,
     GameState,
     PendingChoice,
@@ -34,7 +33,6 @@ import {
     getPendingChoiceMax,
     getPendingChoiceMin,
     getPlayer,
-    matchesPermanentFilter,
 } from "./state";
 // issue #2283 — the PendingTarget → TargetRequirement lowering moved to the
 // shared origin module so the Move enumerator (`moves.ts`) can reuse it without
@@ -55,7 +53,7 @@ import {
     SPECIAL_ACTION_MOVE_KINDS,
     type Move,
 } from "./moves";
-import { computeHardSkipFilters, effectivePermanentView } from "./phases";
+import { eligibleZonePickCards } from "./zonePickEligibility";
 
 // ---------------------------------------------------------------------------
 // Action vocabulary
@@ -390,58 +388,10 @@ function choiceActions(
 }
 
 /** The instance ids the chooser may legally include in a zone-pick submission
- *  — the enumeration mirror of `applyPendingChoiceSubmit`'s per-id validation:
- *  zone membership (of `zoneOwnerId ?? playerId`, or every battlefield for
- *  `allControllers` — CR 707), the `filter` (against the effective permanent
- *  view, CR 202.2), the `candidateIds` allow-list, and the `untap-pick` extra
- *  constraints (CR 502.1: tapped, not "does-not-untap", not vetoed by a
- *  hard-skip filter like Winter Orb's). */
+ *  — see `eligibleZonePickCards` (`zonePickEligibility.ts`), the shared
+ *  authority the `choose-permanents` candidate generator reads too. */
 function eligibleZonePickIds(state: GameState, head: PendingChoice): string[] {
-    const zoneOwner = getPlayer(state, head.zoneOwnerId ?? head.playerId);
-    let pool: CardInstanceState[];
-    switch (head.zone) {
-        case "battlefield":
-            pool = head.allControllers
-                ? state.players.flatMap((p) => p.battlefield)
-                : zoneOwner.battlefield;
-            break;
-        case "hand":
-            pool = zoneOwner.hand;
-            break;
-        case "library":
-            pool = zoneOwner.library;
-            break;
-        case "graveyard":
-            pool = zoneOwner.graveyard;
-            break;
-        default:
-            pool = [];
-    }
-    let cards = pool;
-    if (head.zone === "battlefield" && head.filter) {
-        cards = cards.filter((c) =>
-            matchesPermanentFilter(
-                effectivePermanentView(state, c),
-                head.filter!
-            )
-        );
-    }
-    if (head.candidateIds) {
-        cards = cards.filter((c) => head.candidateIds!.includes(c.id));
-    }
-    if (head.kind === "untap-pick") {
-        // CR 502.1 — only tapped permanents that are allowed to untap.
-        const vetoFilters = computeHardSkipFilters(state);
-        cards = cards.filter(
-            (c) =>
-                c.isTapped &&
-                !c.staticAbilities.includes("does-not-untap") &&
-                !vetoFilters.some((f) =>
-                    matchesPermanentFilter(effectivePermanentView(state, c), f)
-                )
-        );
-    }
-    return cards.map((c) => c.id);
+    return eligibleZonePickCards(state, head).map((c) => c.id);
 }
 
 // ---------------------------------------------------------------------------

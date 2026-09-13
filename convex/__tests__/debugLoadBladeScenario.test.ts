@@ -187,6 +187,29 @@ function arbitraryCurrentGameBaseState(): GameState {
  */
 function canonicalizeIdentity(state: GameState): GameState {
     const idMap = new Map(state.players.map((p, i) => [p.id, `seat-${i}`]));
+    // A player id can also be EMBEDDED in a string — eight shipped cards build
+    // a `choiceId` from it (Magnetic Mountain's `${scopedPlayerId}:mm-pick`),
+    // so the harness's "p1:mm-pick" and the loader's "user_abc123-p1:mm-pick"
+    // are the same position. Replaced only at identifier boundaries, longest
+    // id first, so a short harness id never rewrites part of a longer token.
+    const escape = (id: string) => id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const embedded = [...idMap.keys()]
+        .sort((a, b) => b.length - a.length)
+        .map(
+            (id) =>
+                [
+                    new RegExp(
+                        `(^|[^A-Za-z0-9_-])${escape(id)}(?=$|[^A-Za-z0-9_-])`,
+                        "g"
+                    ),
+                    idMap.get(id)!,
+                ] as const
+        );
+    const renameEmbedded = (text: string): string =>
+        embedded.reduce(
+            (acc, [pattern, seat]) => acc.replace(pattern, `$1${seat}`),
+            text
+        );
     const rename = (value: unknown): unknown => {
         if (Array.isArray(value)) return value.map(rename);
         if (value !== null && typeof value === "object") {
@@ -196,7 +219,9 @@ function canonicalizeIdentity(state: GameState): GameState {
             }
             return out;
         }
-        return typeof value === "string" ? (idMap.get(value) ?? value) : value;
+        return typeof value === "string"
+            ? (idMap.get(value) ?? renameEmbedded(value))
+            : value;
     };
     // The JSON round-trip first, so `undefined`-valued keys drop out exactly
     // as they did before this walk existed.

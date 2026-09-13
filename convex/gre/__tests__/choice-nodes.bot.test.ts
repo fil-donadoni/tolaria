@@ -229,7 +229,11 @@ describe("choice-node candidate contract (CR 608.2 / ADR 0016, issue #1425)", ()
         // node the playout descends past and a wall it leaf-scores at, which
         // is what an unregistered kind actually is.
         expect(hasChoiceCandidateGenerator("trigger-order")).toBe(true);
-        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(13);
+        // CR 608.2 (issue #3545) — a mid-resolution "choose [up to] N
+        // permanents". Same settle gap as `sacrifice-permanents`, plus the
+        // minimal-legal default answering every "up to N" with nothing.
+        expect(hasChoiceCandidateGenerator("choose-permanents")).toBe(true);
+        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(14);
     });
 
     it("searchable is per-CHOICE, not per-kind: a mandatory hand pick is not a node (PR #1914 review finding 2)", () => {
