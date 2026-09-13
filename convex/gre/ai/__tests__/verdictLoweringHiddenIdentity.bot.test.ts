@@ -1,5 +1,5 @@
 // The verdict lowering on a board holding a face-down object (issue #3554,
-// CR 406.3 / 708.2): captured under its real identity when the position
+// CR 406.3 / 708.2 / 708.5): captured under its real identity when the position
 // carries it, refused as `lowering-threw` — never `rebuild-threw` — when it
 // does not.
 
@@ -75,6 +75,39 @@ describe("verdict lowering — a face-down card in exile (issue #3554, CR 406.3)
         expect(Array.isArray(outcome.dropped)).toBe(true);
         expect(
             outcome.dropped.some((note) => note.startsWith("hidden identity:"))
+        ).toBe(true);
+    });
+});
+
+describe("verdict lowering — an Aura on a face-down permanent (issue #3554, CR 708.2)", () => {
+    it("refuses as lowering-threw rather than judge a board where the Aura fell off", () => {
+        const state = buildVerdictPosition({
+            ...OPP_HIDEAWAY_EXILE,
+            cards: [
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "hand" },
+                { name: "Shivan Dragon", owner: "me", faceDown: true },
+                { name: "Fear", owner: "me" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            ],
+        });
+        const botId = state.players[0].id;
+        const [morph] = state.players[0].battlefield.filter((c) => c.faceDown);
+        const fear = state.players[0].battlefield.find(
+            (c) => !c.faceDown && c.types.includes("Enchantment")
+        )!;
+        // The raw board holds the link; no spec can stage it, because the
+        // builder resolves a host by its PRESENTED identity.
+        fear.attachedTo = morph.id;
+
+        const outcome = lowerDecision(state, botId, chosen(state, botId));
+
+        expect(outcome.ok).toBe(false);
+        if (outcome.ok) return;
+        expect(outcome.kind).toBe("lowering-threw");
+        expect(outcome.error).toContain("attached to a face-down permanent");
+        expect(
+            outcome.dropped.some((note) => note.startsWith("face-down host:"))
         ).toBe(true);
     });
 });

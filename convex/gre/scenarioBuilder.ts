@@ -2025,7 +2025,14 @@ function presentedName(card: CardInstanceState): string {
  */
 export const HIDDEN_IDENTITY_DROPPED_PREFIX = "hidden identity:";
 
-/** CR 406.3 / 708.2 (issue #3554) — does `card` present the face-down
+/**
+ * Prefix of the note for an attachment whose host is FACE DOWN (CR 708.2,
+ * issue #3554): the Aura or Equipment is lowered, the link is not, so the
+ * rebuilt board differs — which `lowerDecision` refuses on by this prefix.
+ */
+export const FACE_DOWN_HOST_DROPPED_PREFIX = "face-down host:";
+
+/** CR 406.3 / 708.2 / 708.5 (issue #3554) — does `card` present the face-down
  *  sentinel with NO recoverable identity underneath? A raw engine state
  *  always keeps one: a face-down permanent carries `faceDownOf`, and a card
  *  exiled face down keeps its real `card.id` (only `knownTo` hides it). A
@@ -2056,7 +2063,7 @@ function nameableCards(
         const what = zone === "battlefield" ? "permanent" : "card";
         const where = zone === "battlefield" ? owner : `${owner}, ${zone}`;
         dropped.push(
-            `${HIDDEN_IDENTITY_DROPPED_PREFIX} a face-down ${what} (${where}) — this state carries only the face-down sentinel, not the object's real identity (CR 406.3 / 708.2), and a scenario spec can place a card only under a name the catalogue resolves; not lowered`
+            `${HIDDEN_IDENTITY_DROPPED_PREFIX} a face-down ${what} (${where}) — this state carries only the face-down sentinel, not the object's real identity (CR 406.3 / 708.2 / 708.5), and a scenario spec can place a card only under a name the catalogue resolves; not lowered`
         );
         return false;
     });
@@ -2731,7 +2738,7 @@ function lowerCard(
                 // definition, which is the sentinel, and `getCardByName`
                 // cannot resolve that.
                 dropped.push(
-                    `${label}: attached to a FACE-DOWN permanent (CR 708.2), which has no name the spec can reference — attachment dropped`
+                    `${FACE_DOWN_HOST_DROPPED_PREFIX} ${label} is attached to a FACE-DOWN permanent (CR 708.2), which has no name the spec can reference — attachment dropped`
                 );
             } else if (host) {
                 entry.attachedTo = presentedName(host);
@@ -2945,7 +2952,16 @@ function lowerCombat(
         for (const name of names) {
             const found = battlefields
                 .flat()
-                .find((c) => !taken.has(c.id) && presentedName(c) === name);
+                // A face-down permanent never matches: it presents the
+                // sentinel, whose name the catalogue cannot resolve (issue
+                // #3554), and the combat lowering refuses face-down combatants
+                // on its own.
+                .find(
+                    (c) =>
+                        !taken.has(c.id) &&
+                        !c.faceDown &&
+                        presentedName(c) === name
+                );
             if (!found) return null;
             taken.add(found.id);
             ids.push(found.id);

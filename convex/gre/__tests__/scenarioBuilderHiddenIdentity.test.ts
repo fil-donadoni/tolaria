@@ -1,5 +1,5 @@
 // specFromState — a face-down object whose real identity the state does not
-// carry (issue #3554, CR 406.3 / 708.2).
+// carry (issue #3554, CR 406.3 / 708.2 / 708.5).
 //
 // A raw engine state always keeps the identity underneath a face-down mask
 // (`faceDownOf` on a permanent, the real `card.id` on a card exiled face
@@ -103,7 +103,7 @@ function expectEveryNameResolves(spec: ScenarioSpec): void {
     }
 }
 
-describe("specFromState — a face-down object with no recoverable identity (issue #3554, CR 406.3 / 708.2)", () => {
+describe("specFromState — a face-down object with no recoverable identity (issue #3554, CR 406.3 / 708.2 / 708.5)", () => {
     it("refuses the hidden objects, naming each with its zone, and hands back a spec that rebuilds", () => {
         const raw = rawBoard();
         expectMatchesProjection(raw);
@@ -190,9 +190,36 @@ describe("specFromState — a face-down object with no recoverable identity (iss
         });
 
         expectEveryNameResolves(spec);
-        expect(
-            dropped.some((n) => n.includes("attached to a FACE-DOWN permanent"))
-        ).toBe(true);
+        expect(dropped.some((n) => n.startsWith("face-down host:"))).toBe(true);
+    });
+
+    it("lowers a combat on a board that also holds a morph (the name match skips face-down permanents)", () => {
+        // Review of issue #3554: the combat lowering binds attacker names
+        // back over the WHOLE battlefield, morph included, and naming the
+        // morph through the funnel threw once the funnel refused the sentinel.
+        const state = buildStateFromScenario(makeState(), {
+            cards: [
+                { name: "Shivan Dragon", owner: "me", faceDown: true },
+                { name: "Grizzly Bears", owner: "me" },
+            ],
+            phase: "DECLARE_BLOCKERS",
+            turn: 5,
+        });
+        const attacker = state.players[0].battlefield.find((c) => !c.faceDown)!;
+        attacker.isAttacking = true;
+        attacker.hasAttackedThisTurn = true;
+        state.creatureAttackedThisTurn = true;
+        state.combat = {
+            attackerIds: [attacker.id],
+            confirmed: true,
+            blockerAssignments: {},
+            blockersConfirmed: false,
+        };
+
+        const { spec } = specFromState(state, { mySeatId: "p1" });
+
+        expect(spec.combat?.attackers).toEqual(["Grizzly Bears"]);
+        expectEveryNameResolves(spec);
     });
 
     it("throws at the name funnel itself for a definition the catalogue cannot name", () => {

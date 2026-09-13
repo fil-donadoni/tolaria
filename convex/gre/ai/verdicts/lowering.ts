@@ -47,6 +47,7 @@
 
 import {
     COMBAT_DROPPED_PREFIX,
+    FACE_DOWN_HOST_DROPPED_PREFIX,
     HIDDEN_IDENTITY_DROPPED_PREFIX,
     specFromState,
 } from "../../scenarioBuilder";
@@ -93,7 +94,7 @@ export const QUIZ_SEAT = "me" as const;
  *  - `lowering-threw` — `specFromState` refused the position outright, or
  *    lowered it without an object whose real identity the state does not
  *    carry (a face-down object seen from a seat that may not look at it,
- *    CR 406.3 / 708.2 — issue #3554).
+ *    CR 406.3 / 708.2 / 708.5 — issue #3554).
  *  - `stack-not-lowerable` — an object the declared stack cannot name: a
  *    trigger, a copy, a mode, a kicker, a drifted ability snapshot, or a
  *    payment still mid-flight (`pendingCast` / `pendingActivation`). The
@@ -318,7 +319,7 @@ export function lowerDecision(
         };
     }
 
-    // CR 406.3 / 708.2 (issue #3554) — an object the lowering could not NAME
+    // CR 406.3 / 708.2 / 708.5 (issue #3554) — an object the lowering could not NAME
     // is a refusal, not a note. The one shipped case is a face-down object
     // seen from a seat that may not look at it (an opponent's hideaway card in
     // exile, an opponent's morph): the state holds only the face-down
@@ -340,7 +341,29 @@ export function lowerDecision(
             ok: false,
             kind: "lowering-threw",
             dropped,
-            error: `this position holds ${unnamed.join(", ")} whose real identity the lowered state does not carry (CR 406.3 / 708.2), so no scenario spec can place it`,
+            error: `this position holds ${unnamed.join(", ")} whose real identity the lowered state does not carry (CR 406.3 / 708.2 / 708.5), so no scenario spec can place it`,
+        };
+    }
+
+    // CR 708.2 (issue #3554) — the same argument for an attachment whose host
+    // is face down: the spec can name the Aura but not the permanent it
+    // enchants, so the rebuild puts it on the battlefield unattached. The
+    // candidate list usually survives that, which is exactly why it is refused
+    // here instead of left to `different-decision`.
+    const unattached = dropped
+        .filter((note) => note.startsWith(FACE_DOWN_HOST_DROPPED_PREFIX))
+        .map((note) =>
+            note
+                .slice(FACE_DOWN_HOST_DROPPED_PREFIX.length)
+                .split(" is attached")[0]
+                .trim()
+        );
+    if (unattached.length > 0) {
+        return {
+            ok: false,
+            kind: "lowering-threw",
+            dropped,
+            error: `${unattached.join(", ")} is attached to a face-down permanent the scenario spec cannot reference (CR 708.2), so the rebuilt board would lose the attachment`,
         };
     }
 
