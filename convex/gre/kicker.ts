@@ -73,18 +73,37 @@ export type KickerPayments = Record<string, number>;
  *    (CR 702.33c "any number of times")? Kicker may — that IS Multikicker,
  *    which CR 702.33c defines as a kicker cost rather than a separate identity.
  *    CR 702.175a has no such clause for offspring, so it may not; enforced at
- *    announcement by {@link resolveKickerPayments}. */
+ *    announcement by {@link resolveKickerPayments}.
+ *  - `printedLabel` — the WORD the keyword prints as, per repetition form, or
+ *    undefined for a form this keyword never prints in (issue #3220). The
+ *    label is a property of the KEYWORD, not of `multi`: "Multikicker" is
+ *    what a REPEATABLE kicker prints (CR 702.33c), but a repeatable squad
+ *    prints "Squad" and a squad entry that is not repeatable does not exist
+ *    at all (CR 702.157a folds "any number of times" into the keyword). One
+ *    table so the catalogue guard that compares a `description` against its
+ *    own cost (`kickerDeclarations.test.ts` — the Everflowing Chalice class,
+ *    issue #962) and any future renderer read the same answer instead of
+ *    each branching on `multi`. `repeated` present ⟺ `allowsMulti`, asserted
+ *    in `additionalCostKeywords.test.ts` so the two cannot drift. */
 export const ADDITIONAL_COST_KEYWORDS: Record<
     AdditionalCostKeyword,
     {
         countsAsKicked: boolean;
         requiresTrigger: boolean;
         allowsMulti: boolean;
+        printedLabel: { single?: string; repeated?: string };
     }
 > = {
     // CR 702.33a/d — the original, and the only identity "kicked" is defined
-    // over. CR 702.33c folds Multikicker in here rather than beside it.
-    kicker: { countsAsKicked: true, requiresTrigger: false, allowsMulti: true },
+    // over. CR 702.33c folds Multikicker in here rather than beside it, which
+    // is why this is the one row whose two repetition forms print DIFFERENT
+    // words.
+    kicker: {
+        countsAsKicked: true,
+        requiresTrigger: false,
+        allowsMulti: true,
+        printedLabel: { single: "Kicker", repeated: "Multikicker" },
+    },
     // CR 702.175a — same cost half word for word, a DIFFERENT consequence, and
     // never "kicked". Its twin trigger is what issue #2079 ships; until then
     // no shipped card may declare it (`additionalCostKeywords.test.ts`).
@@ -92,8 +111,47 @@ export const ADDITIONAL_COST_KEYWORDS: Record<
         countsAsKicked: false,
         requiresTrigger: true,
         allowsMulti: false,
+        printedLabel: { single: "Offspring" },
+    },
+    // CR 702.157a (issue #3220) — the family's third member, and the first to
+    // set BOTH repeatability flags: "you may pay [cost] any number of times"
+    // is the same clause Multikicker rides (CR 702.33c, reworded but not
+    // redefined), read here through `KickerCost.multi`, and the twin
+    // "create a token that's a copy of it for each time its squad cost was
+    // paid" is a real triggered ability the card must ship. Never kicked —
+    // CR 702.33d defines "kicked" over KICKER costs alone, so a squad payment
+    // lands in `unkickedCostPayments` and is invisible to `wasKicked`, the
+    // `count: "kicker"` ETB tally, `{ kickerCount: true }`, the kicked
+    // target-requirement swap and the client's `spellWasKicked` filter, while
+    // `{ additionalCostPaid: "squad" }` still reads it. CR 702.157b (each
+    // instance paid and triggered separately) is the per-id record's own
+    // shape — the count is keyed by `KickerCost.id`, never by keyword.
+    squad: {
+        countsAsKicked: false,
+        requiresTrigger: true,
+        allowsMulti: true,
+        // CR 702.157a — "any number of times" is part of the keyword's own
+        // definition, so a squad entry only ever exists in the REPEATED form
+        // and prints the same word in it: there is no "Multisquad", and a
+        // `multi`-less squad entry is a mis-declared card with no printed
+        // form at all, which is exactly what an absent `single` says.
+        printedLabel: { repeated: "Squad" },
     },
 };
+
+/** CR 702.33c / 702.157a (issue #3220) — the word this cost entry PRINTS as,
+ *  or undefined when the keyword has no printed form for that repetition
+ *  (a `multi`-less squad; a repeatable offspring). The single authority for
+ *  the label: "Multikicker" is not what `multi` means, it is what the KICKER
+ *  keyword prints when repeatable, and reading it off {@link ADDITIONAL_COST_KEYWORDS}
+ *  is what keeps the next member of the family from being mislabelled by a
+ *  `multi ? … : …` ternary somewhere else. */
+export function additionalCostPrintedLabel(
+    kicker: Pick<KickerCost, "keyword" | "multi">
+): string | undefined {
+    const row = ADDITIONAL_COST_KEYWORDS[additionalCostKeywordOf(kicker)];
+    return kicker.multi ? row.printedLabel.repeated : row.printedLabel.single;
+}
 
 /** CR 702.33a (ADR 0085) — the keyword identity of ONE cost entry. The SINGLE
  *  place the omitted-field default is applied: an entry that does not say which
