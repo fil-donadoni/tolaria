@@ -577,17 +577,27 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         bot: "me",
         budget: { iterations: 200 },
         tier: "must",
+        // A `predicate`, like the reachability entry above and for a reason
+        // MEASURED on this position: `expect.moves` is what
+        // `verdictsFromRegistry` turns into a fitted verdict (ADR 0124 §5), and
+        // the claim here is a TERMINAL one. A win's magnitude is scaled by no
+        // fittable weight, so the Eval Pair "X=3 over X=2" carries an all-zero
+        // feature basis — it landed in the fit's own CONTRADICTORY bucket
+        // ("identical feature vectors, opposite order") beside every other
+        // win-decided pair, contributing noise to the vector rather than a
+        // preference. The entry still blocks at `must`; what it does not do is
+        // vote on the weights. The entry ABOVE is the half that carries the
+        // preference into the corpus.
         expect: {
-            moves: [
-                {
-                    kind: "cast-spell",
-                    card: "Fireball",
-                    target: "opp",
-                    // The exact plan pins X: only the lethal X=3 needs all
-                    // three sources, so no `chosenX` field is owed.
-                    taps: ["Sandstone Needle", "Mountain", "Mountain"],
-                },
-            ],
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                // X=3 is the lethal one, and only it needs all three sources —
+                // the third being the Needle's last charge.
+                move.chosenX === 3 &&
+                move.tapPlan.length === 3,
+            describe:
+                "casts Fireball for X=3 off all three sources, spending Sandstone Needle's last charge",
         },
         note: "Issue #3530, the SPEND half of the pair opened above. Also the guard that the scarcity weight stays under a win: a fit that priced a charge above the terminal band would take the smaller Fireball and this entry reds.",
     },
