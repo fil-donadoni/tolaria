@@ -1337,6 +1337,54 @@ describe("`Target files` is read in both forms the queue contains (issue #3535)"
         ).toBeNull();
     });
 
+    it("reads the inline form — the whole declaration on the label line", () => {
+        // Six open issues write it this way, with nothing at all underneath. A
+        // reader that only looks BELOW the label discards every one of them.
+        expect(
+            parseTargetFiles(
+                "**Target files:** `convex/gre/loyalty.ts`, `convex/game.ts`, `src/lib/card-utils.ts`\n"
+            )
+        ).toEqual([
+            "convex/gre/loyalty.ts",
+            "convex/game.ts",
+            "src/lib/card-utils.ts",
+        ]);
+    });
+
+    it("keeps a symbol annotated beside an inline path out of the file set", () => {
+        // `botDrafter.ts` (`capabilityFitTerm`) — a function name harvested as a
+        // path classifies to a lane of its own and can push the issue out of a
+        // batch it belongs in.
+        expect(
+            parseTargetFiles(
+                "**Target files:** `convex/limited/botDrafter.ts` (`capabilityFitTerm`), `data/card-profiles/vintage-cube.json`"
+            )
+        ).toEqual([
+            "convex/limited/botDrafter.ts",
+            "data/card-profiles/vintage-cube.json",
+        ]);
+    });
+
+    it("an inline remainder with no code spans declares nothing", () => {
+        // The refusal to infer from prose, kept: only backticked spans count,
+        // so this stays honestly unknown rather than contributing a guess.
+        expect(
+            parseTargetFiles("**Target files:** see the table above\n")
+        ).toBeNull();
+    });
+
+    it("an inline declaration wins over the lines under the next label", () => {
+        expect(
+            parseTargetFiles(
+                [
+                    "**Target files:** `scripts/lib/queue-plan.ts`",
+                    "",
+                    "**Preset scenario:** MANDATORY — the diff reaches `convex/gre/**`.",
+                ].join("\n")
+            )
+        ).toEqual(["scripts/lib/queue-plan.ts"]);
+    });
+
     it("a label with no list under it is absent, not a declared-empty set", () => {
         // Absent means unknown, and unknown runs solo. An empty DECLARED set
         // would mean "touches no file", which overlaps nothing and batches

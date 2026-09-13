@@ -68,7 +68,7 @@ const HEADING = /^#{1,6}\s+/;
  * emits — but an existing bold label is read, not corrected.
  */
 export const TARGET_FILES_LABEL =
-    /^(?:#{1,6}\s+target files|\*\*\s*target files\s*:?\s*\*\*\s*:?\s*$)/i;
+    /^(?:#{1,6}\s+target files|\*\*\s*target files\s*:?\s*\*\*\s*:?\s*)/i;
 
 /**
  * Where a section ENDS: the next heading, or the next bold label.
@@ -117,7 +117,41 @@ export function targetFilesSection(body: string): string[] | null {
     if (start === -1) return null;
     const rest = lines.slice(start + 1);
     const end = rest.findIndex((l) => SECTION_BREAK.test(l.trim()));
-    return end === -1 ? rest : rest.slice(0, end);
+    const under = end === -1 ? rest : rest.slice(0, end);
+    return [...inlineDeclarations(lines[start]), ...under];
+}
+
+/**
+ * The third shape the live queue contains: the whole declaration on the label
+ * line itself — `` **Target files:** `a.ts`, `b.ts` `` — with nothing under it.
+ * Six open issues write it this way, and a reader that only looks at the lines
+ * BELOW the label discards every one of them.
+ *
+ * Only BACKTICKED spans count. That is what keeps this from becoming the prose
+ * inference the planner refuses: a remainder with no code spans declares
+ * nothing and the section falls back to the lines under the label, so
+ * `**Target files:** see the table above` stays honestly unknown rather than
+ * contributing a guess.
+ */
+function inlineDeclarations(label: string): string[] {
+    const remainder = label.trim().replace(TARGET_FILES_LABEL, "");
+    return [...remainder.matchAll(/`([^`]+)`/g)]
+        .map((m) => m[1].trim())
+        .filter(looksLikePath)
+        .map((path) => `- \`${path}\``);
+}
+
+/**
+ * A code span on the label line is a PATH, not a symbol.
+ *
+ * The inline form annotates its paths — ``convex/limited/botDrafter.ts`
+ * (`capabilityFitTerm`)`` — and a function name harvested as a path is not
+ * merely noise: it classifies to a lane of its own and can force the whole
+ * issue out of a batch it belongs in. A path has a separator, an extension, or
+ * is the whole-repo marker; nothing else here does.
+ */
+function looksLikePath(span: string): boolean {
+    return span.includes("/") || span.includes(".") || /^\*{1,2}$/.test(span);
 }
 
 /** Lines of the named section, up to the next heading. */
@@ -175,7 +209,7 @@ export function lintIssue(issue: LintableIssue): Finding[] {
             .trim()
             .replace(/^[-*]\s+/, "")
             .replace(/`/g, "");
-        if (!t || HEADING.test(raw)) continue;
+        if (!t) continue;
         if (t.startsWith(".github/workflows")) {
             findings.push({
                 rule: "unmergeable-ci-config",
