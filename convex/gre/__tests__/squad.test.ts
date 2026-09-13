@@ -133,15 +133,29 @@ describe("Squad — the cost half (CR 702.157a / 702.33c)", () => {
 
 describe("Squad — the trigger half (CR 702.157a / 603.4)", () => {
     it("with zero payments the trigger never goes on the stack (CR 603.4)", () => {
+        // A matched PAIR, because "the trigger is absent" is only evidence if
+        // the same read finds it when it IS there. `triggeredAbilityId` is the
+        // field `buildTriggerItem` stamps; reading any other one would make
+        // the negative row below pass for the wrong reason, and the positive
+        // row is what catches that.
+        const paid = castSquadron(1);
+        processPendingActionTriggers(paid);
+        resolveTriggerOrder(paid);
+        expect(
+            paid.stack.map((s) => s.triggeredAbilityId),
+            "the paid control never announced its trigger — this row reads the wrong field"
+        ).toContain("securitron-squadron-squad");
+
         const state = castSquadron(0);
         const perm = battlefield(state).find((c) => c.id === SQUADRON_ID)!;
         expect(perm.unkickedCostPayments).toBeUndefined();
         processPendingActionTriggers(state);
         resolveTriggerOrder(state);
-        // The INTERVENING IF is a check-time gate: an unpaid squad cost means
-        // no ability is ever announced, not an ability that fizzles.
+        // The INTERVENING IF is a CHECK-TIME gate: an unpaid squad cost means
+        // no ability is ever announced, not an ability that goes on the stack
+        // and then does nothing.
         expect(
-            state.stack.map((s) => s.abilityId ?? s.id),
+            state.stack.map((s) => s.triggeredAbilityId),
             "an unpaid squad cost still announced its trigger"
         ).not.toContain("securitron-squadron-squad");
         drainTriggers(state);
