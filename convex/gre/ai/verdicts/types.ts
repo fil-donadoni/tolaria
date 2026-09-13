@@ -70,6 +70,16 @@ export type Verdict = {
     setup?: BladeSetupStep[];
     /** The seat that owed the decision. */
     seat: BladeSeat;
+    /** Decklists the SEARCH was allowed to know when this decision was judged,
+     *  carried in the blade entry's own vocabulary (card NAMES, per seat) —
+     *  issue #3533.
+     *
+     *  Without it a verdict derived from an informed blade entry rebuilds as a
+     *  BLIND position: the two candidates the entry exists to separate then
+     *  carry identical feature vectors, the pair is reported as "the
+     *  evaluation cannot separate them at all", and the fit spends the entry's
+     *  pairs on whatever incidental comparisons the position still offers. */
+    deckKnowledge?: { seat: BladeSeat; cards: string[] }[];
     /** The candidates, in the order `enumerateMoves` produced them. */
     candidates: VerdictCandidate[];
     /** The judgement. */

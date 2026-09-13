@@ -159,6 +159,14 @@ export function determinize(
     // head is the only answerable choice, so it is read once here.
     const headChoice = next.pendingChoices?.[0];
 
+    // Issue #3533 — a `blind` world may carry no decklist knowledge of any
+    // kind, and the root's colour evidence (`GameState.deckColorKnowledge`,
+    // stamped once by `searchWithTrace`) rides in on the clone above. The
+    // search never stamps a root under this model, so this is the invariant
+    // held from the second end rather than a live path: a world this function
+    // returns is blind or it is not, whatever reached it.
+    if (opponentModel === "blind") next.deckColorKnowledge = undefined;
+
     for (const player of next.players) {
         const pinTop =
             topRevealed.has(player.id) ||

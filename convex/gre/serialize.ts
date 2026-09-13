@@ -2175,7 +2175,16 @@ export const PERSISTED_OPTIONAL_KEYS = [
 /** Optional GameState keys that are intentionally ephemeral — never
  *  persisted to the DB. The schema drift guard test accepts keys in this
  *  set without requiring them in PERSISTED_OPTIONAL_KEYS. */
-export const TRANSIENT_KEYS = new Set<string>([]);
+export const TRANSIENT_KEYS = new Set<string>([
+    // Search-only, never persisted (issue #3533). `deckColorKnowledge` is the
+    // decklist colour evidence `determinize` stamps onto a determinized world
+    // for the searching Bot (`gre/deckKnowledge.ts`, `gre/state.ts`). It is not
+    // game state: the authoritative `game.ts` path never produces one, and a
+    // saved row that somehow carried one would be re-teaching the opponent's
+    // decklist to every later reader of that row. Listed here rather than in
+    // `PERSISTED_OPTIONAL_KEYS` so `compactState` DROPS it.
+    "deckColorKnowledge",
+]);
 
 /** Pack a GameState into the slim Convex-storage form. Always writes v2
  *  (issue #1780 — token spec interning + cardId string table); there is no

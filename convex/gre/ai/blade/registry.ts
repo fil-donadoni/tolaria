@@ -6826,6 +6826,127 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Issue #3532, position B — the discriminating twin of position A, and the reason the preference is about EVIDENCE rather than about colours existing. Same card, same two materially identical basic-land targets, and the creature swapped for one of the OTHER colour (Savannah Lions is {W} where the Bears are {1}{G}, so its mana value and toughness move too — that shifts the opponent's `creatures` and `manaDevelopment` between the two SCENARIOS, never between the two targets inside either one, which is what the discrimination rests on). Now {W} is the colour the opponent is visibly using, {G} is evidenced by nothing but the Forest itself, and the expectation flips: coverage goes 1 → 1/4 on the Plains and 1 → 1 on the Forest, so B is driven POSITIVELY toward the other land rather than passing by abstention. What the pair rules out is a term that reads a colour's PRESENCE instead of its EVIDENCE — and, because the two halves differ only in which colour carries the creature, that position A did not pass through a target-ordering or positional artifact of the enumerator.",
     },
+
+    // ------------------------------------------------------------------
+    // The DECKLIST-INFORMED half of the colour-denial pair (issue #3533).
+    //
+    // The #3532 pair above reads the colour demand off the BOARD, so it needs
+    // a creature standing as evidence. This pair removes the creature
+    // entirely: both of the opponent's lands are their own only board
+    // evidence, so destroying either one takes the demand away with the
+    // supply and coverage stays 1 — the two targets are EXACTLY tied on every
+    // term, and a blind search picks between them by rollout noise. The only
+    // thing that separates them is the decklist an `expert` search is handed
+    // (`DIFFICULTY_KNOWS_OPPONENT`, `gre/difficulty.ts`), which says which
+    // colour that deck actually spends its cards on.
+    //
+    // Scathe Zombies and Pearled Unicorn are exact functional twins — vanilla
+    // 2/2 for {2}{B} and {2}{W} — so the two halves differ in NOTHING but the
+    // colour, not in mana value, body, or castability off two lands (neither
+    // is castable: the opponent has two lands and no third). Ruling out the
+    // "it just kills the land that stops a spell" reading is the whole reason
+    // the twins are matched this precisely.
+    // ------------------------------------------------------------------
+    {
+        label: "informed colour denial: the decklist, not the board, picks which land dies",
+        spec: {
+            cards: [
+                {
+                    name: "Stone Rain",
+                    owner: "me",
+                    zone: "hand",
+                    count: 2,
+                },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                // COLOURLESS on purpose (CR 105.2a): the opponent needs a
+                // clock — with nothing happening on either side, holding the
+                // card outranks every denial and the position stops being
+                // about colour at all — but a coloured body would put board
+                // evidence back on one of the two colours and reopen exactly
+                // the discrimination this pair exists to close.
+                {
+                    name: "Obsianus Golem",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Plains", owner: "opp", zone: "battlefield" },
+                { name: "Swamp", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        deckKnowledge: [
+            { seat: "opp", cards: Array(20).fill("Scathe Zombies") },
+        ],
+        budget: { iterations: 400 },
+        // ADR 0070 §3 — K>=3 seeds: the pick must not be rollout noise, which
+        // on this board is precisely what it WAS before the decklist arrived.
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                { kind: "cast-spell", card: "Stone Rain", target: "Swamp" },
+            ],
+        },
+        note: "Issue #3533, position A. The deck is twenty {2}{B} creatures, so {B} carries twenty units of decklist evidence against {W}'s zero (`ai/observedColors.ts`); the board contributes one unit per untapped source to each, symmetrically. Killing the Swamp drops the opponent's colour coverage 1 → 1/21, killing the Plains leaves it at 1 (the {W} demand was the Plains itself and leaves with it). On the BOARD alone the two targets are identical to the last decimal — this entry is the denial the observed board could not justify, taken because the decklist shows the colour matters.",
+    },
+    {
+        label: "informed colour denial: the same board demands the OTHER land on the mirrored decklist",
+        spec: {
+            cards: [
+                {
+                    name: "Stone Rain",
+                    owner: "me",
+                    zone: "hand",
+                    count: 2,
+                },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                // COLOURLESS on purpose (CR 105.2a): the opponent needs a
+                // clock — with nothing happening on either side, holding the
+                // card outranks every denial and the position stops being
+                // about colour at all — but a coloured body would put board
+                // evidence back on one of the two colours and reopen exactly
+                // the discrimination this pair exists to close.
+                {
+                    name: "Obsianus Golem",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Plains", owner: "opp", zone: "battlefield" },
+                { name: "Swamp", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        deckKnowledge: [
+            { seat: "opp", cards: Array(20).fill("Pearled Unicorn") },
+        ],
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                { kind: "cast-spell", card: "Stone Rain", target: "Plains" },
+            ],
+        },
+        note: "Issue #3533, position B — the discriminating twin of position A. Byte-identical board, byte-identical decklist SIZE, and the only difference is that the twenty creatures are {2}{W} Pearled Unicorns instead of {2}{B} Scathe Zombies (same 2/2 vanilla body, same mana value, equally uncastable off two lands). The expectation flips to the Plains. What the pair rules out is a decklist read that has degenerated into a fixed colour preference, or into 'kill whichever land the enumerator offers first' — neither survives a board that is unchanged while the answer moves.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the

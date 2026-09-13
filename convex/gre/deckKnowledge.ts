@@ -51,6 +51,9 @@
 // instance's identity while it sits in a hidden zone (library, hand, face-down
 // exile), so it is what this asks rather than a second, parallel notion.
 
+import type { Color } from "../cards/types";
+import { getCardColors } from "../cards/colors";
+import { tryGetDefinition } from "../cards";
 import { isSpellStackItem } from "./constants";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 
@@ -173,4 +176,127 @@ export function unseenRemainder(
         out.push(id);
     }
     return out;
+}
+
+// ---------------------------------------------------------------------------
+// The decklist as COLOUR evidence (issue #3533, PRD #3526)
+// ---------------------------------------------------------------------------
+//
+// WHY THIS LIVES HERE. `observedColors.ts` owns the opponent's colour-demand
+// estimate and is the single home for it (issue #2306, issue #3532). What it
+// could not see is the one thing an `expert` search is legitimately handed:
+// the seat's real decklist. A deck that is 40% green says more about what
+// denying green costs than two Forests on the battlefield do — but that has to
+// SHARPEN the existing evidence hierarchy, never bypass it, so the decklist is
+// lowered HERE into the same per-colour mass the other evidence classes speak,
+// and folded in there.
+//
+// ONE UNIT PER COLOURED CARD, which is the same unit every other class uses,
+// and deliberately the WEAKEST one (`POTENTIAL_MANA_WEIGHT`, 1): a card in the
+// decklist is the most purely potential evidence there is — it may never be
+// drawn. There are simply a lot of them, which is exactly why a deck's colour
+// identity outweighs two lands without any special pleading.
+//
+// NOT normalised to a share, and not netted against what is already on the
+// board. Both were considered:
+//
+//   - a normalised share would make the decklist a fixed mass whatever the
+//     deck size, i.e. a second, differently-scaled unit beside the board's —
+//     the drift this module exists to avoid;
+//   - netting against `unseenRemainder` would stop a green creature counting
+//     twice (battlefield 3 + decklist 1). It is rejected because the remainder
+//     is a ROOT quantity: it is exact where it is computed and goes stale at
+//     every node below, whereas the decklist's colour identity is constant over
+//     the whole search. A constant that is slightly generous beats a variable
+//     that is silently wrong, and the double count is 1 against 3.
+//
+// COLOURLESS IS NOT A COLOUR (CR 105.2a) and lands have no mana cost, so a
+// manabase contributes nothing here — the colour evidence a land carries is
+// already priced, on the board, by `untappedProducibleColors`.
+
+/** Per-colour evidence mass contributed by one seat's decklist, in the SAME
+ *  unit as `ObservedColorEvidence` (`gre/ai/observedColors.ts`): one point per
+ *  coloured card, counted once per colour the card actually is (a gold card
+ *  counts for each of its colours — it demands each of them). */
+export type DeckColorEvidence = Partial<Record<Exclude<Color, "C">, number>>;
+
+/** One seat's decklist colour evidence, addressed exactly like
+ *  {@link SeatDeckKnowledge}. */
+export type SeatDeckColors = { playerId: string; colors: DeckColorEvidence };
+
+/** Decklist colour evidence the SEARCHER is entitled to, per seat — the
+ *  lowered form of {@link DeckKnowledgeBySeat} that rides on `GameState` so
+ *  every leaf evaluation of a determinized tree reads the same one
+ *  (`gre/state.ts`, `gre/determinize.ts`).
+ *
+ *  Plain array of plain records, arrays/strings/numbers only, for the same
+ *  reason `DeckKnowledgeBySeat` is: it survives the structured-clone hop to
+ *  the Brain worker and the search's own `cloneGameState` unchanged. It is
+ *  also SMALL by construction — at most five numbers per seat — which is why
+ *  the lowered form rides along instead of the decklist itself, cloned once
+ *  per search node. */
+export type DeckColorsBySeat = SeatDeckColors[];
+
+/** Lower a decklist into {@link DeckColorEvidence}. A card id with no
+ *  resolvable definition contributes nothing — same posture as
+ *  `cardStaticColors` in `observedColors.ts`, and the same reason: an identity
+ *  the registry cannot resolve is not evidence of anything. */
+export function deckColorEvidence(
+    deckCardIds: readonly string[]
+): DeckColorEvidence {
+    const out: Record<string, number> = {};
+    for (const id of deckCardIds) {
+        const def = tryGetDefinition(id);
+        if (!def) continue;
+        for (const color of getCardColors(def)) {
+            // Type narrowing, not a behaviour guard: `getCardColors` reads the
+            // mana cost through `getColorsFromCost`, which already skips "C"
+            // (CR 105.2a — colourless is not a colour). The branch exists
+            // because its return type is the full `Color` union.
+            if (color === "C") continue;
+            out[color] = (out[color] ?? 0) + 1;
+        }
+    }
+    return out as DeckColorEvidence;
+}
+
+/** Every seat OTHER than `observerId` whose decklist the search was granted,
+ *  lowered into {@link DeckColorEvidence} — the whole of `GameState`'s
+ *  `deckColorKnowledge`, built ONCE per search (issue #3533).
+ *
+ *  THE OBSERVER IS EXCLUDED, and that exclusion is the gate, not a tidiness.
+ *  The client hands the Bot its OWN decklist at every difficulty (the `blind`
+ *  shape in `useVsAiDriver`), so "a decklist exists for this seat" is true on
+ *  `easy` as readily as on `expert`. What is true only at `expert`
+ *  (`DIFFICULTY_KNOWS_OPPONENT`, `gre/difficulty.ts`) is that a decklist exists
+ *  for a seat the searcher is not sitting in — and `evaluate` runs from BOTH
+ *  seats' viewpoints inside one search (`materialMargin(state, moverId)`,
+ *  `policyValue(fired, pid, …)`), so a gate that missed this would have
+ *  sharpened the estimate of the BOT's own colours at every difficulty.
+ *
+ *  `undefined` when there is nothing to stamp, so the caller can leave the
+ *  state object untouched and byte-identical on every non-expert path. */
+export function deckColorsForSearch(
+    deckKnowledge: DeckKnowledgeBySeat | undefined,
+    observerId: string
+): DeckColorsBySeat | undefined {
+    const out: DeckColorsBySeat = [];
+    for (const seat of deckKnowledge ?? []) {
+        if (seat.playerId === observerId) continue;
+        out.push({
+            playerId: seat.playerId,
+            colors: deckColorEvidence(seat.cardIds),
+        });
+    }
+    return out.length > 0 ? out : undefined;
+}
+
+/** This seat's decklist colour evidence, if the search was granted any for it.
+ *  Absence is the fail-closed answer and the ONLY discriminator — exactly as
+ *  for {@link knowledgeFor}, whose gate this one inherits. */
+export function deckColorsFor(
+    deckColors: DeckColorsBySeat | undefined,
+    playerId: string
+): DeckColorEvidence | undefined {
+    return deckColors?.find((c) => c.playerId === playerId)?.colors;
 }

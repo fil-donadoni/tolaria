@@ -234,6 +234,9 @@ import {
     substitutionsForBreadth,
     CASTABLE_PERMANENT_TYPES,
 } from "./constants";
+// Type-only, and deliberately so: `deckKnowledge.ts` imports this module for
+// its own state types, so a VALUE import here would be a runtime cycle.
+import type { DeckColorsBySeat } from "./deckKnowledge";
 import { PLAYER_COUNTER_FIELD, readPlayerCounters } from "./playerCounters";
 import { revertBestow } from "./bestow";
 import {
@@ -5531,6 +5534,35 @@ export type GameState = {
      *  the materialised model in `beginApplyingStaticEffects` and friends stays
      *  authoritative. */
     continuousEffects?: ContinuousEffect[];
+    /** SEARCH-ONLY. The decklist colour evidence the searching Bot was granted
+     *  for each seat, lowered by `deckColorEvidence` (`gre/deckKnowledge.ts`)
+     *  and stamped onto a determinized world by `determinize` — issue #3533,
+     *  PRD #3526.
+     *
+     *  NOT GAME STATE, and it never reaches the database: it is listed in
+     *  `TRANSIENT_KEYS` (`gre/serialize.ts`), so `compactState` drops it and
+     *  the authoritative server path in `game.ts` never sees one. It lives on
+     *  `GameState` because the quantity it feeds — the opponent colour-demand
+     *  estimate in `gre/ai/observedColors.ts` — is read at every LEAF of the
+     *  search tree, through `evaluate`, whose signature the whole engine calls;
+     *  riding on the world the leaf already holds is what lets the estimate
+     *  keep ONE home instead of growing a second, differently-fed derivation
+     *  behind an extra parameter threaded through a dozen call sites.
+     *
+     *  ABSENCE IS THE GATE, and it is the same fail-closed discriminator
+     *  `DeckKnowledgeBySeat` already is: `determinize` stamps a seat here only
+     *  when it was handed that seat's decklist AND that seat is not the search
+     *  observer — which is true exactly at `expert`
+     *  (`DIFFICULTY_KNOWS_OPPONENT`, `gre/difficulty.ts`; the client's `blind`
+     *  shape names the bot's OWN seat at every level, so gating on "a decklist
+     *  exists" alone would leak into `easy`/`medium`/`hard`). Every other
+     *  difficulty, every server path and every test that stamps nothing reads
+     *  `undefined` and behaves exactly as it did before this field existed.
+     *
+     *  Small by construction — at most five numbers per seat — because the
+     *  search's `cloneGameState` deep-copies it once per node. The decklist
+     *  itself never rides here for that reason. */
+    deckColorKnowledge?: DeckColorsBySeat;
 };
 
 /** Authoritative discriminated union describing what input the game is
