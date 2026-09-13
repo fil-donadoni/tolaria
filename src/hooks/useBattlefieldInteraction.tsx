@@ -290,17 +290,26 @@ export function useBattlefieldInteraction(player: Player) {
      *  would let the menu offer an ability whose picker then finds nothing
      *  (issue #2371). Carries the turn-scoped facts a `controlledSinceTurnStart`
      *  / `enteredThisTurn` filter dimension needs (CR 302.6 / 400.7, #1824);
-     *  without them those dimensions stay undefined and fail closed. */
-    function abilityStateView() {
-        return buildTriggerStateView(
-            allPlayers,
-            activePlayerId,
-            cannotActivateAbilitiesThisTurn,
-            lifeGainedThisTurn,
-            controlContinuity,
-            continuousEffects
-        );
-    }
+     *  without them those dimensions stay undefined and fail closed.
+     *
+     *  Built ONCE per render, as a value rather than the function it used to
+     *  be (issue #3190). `BoardBattlefield`/`BattlefieldStackFan` call
+     *  `renderCard` → `getActivatable` for every permanent, so a per-call
+     *  build made a battlefield render do N board-wide view builds — with
+     *  each build itself O(N) over the battlefield, N³ work per server push
+     *  (measured: 83 permanents, ~135 ms of a ~300 ms main-thread longtask).
+     *  Eager like `manaGateView` above, and deliberately NOT a `useMemo`: the
+     *  inputs (`allPlayers`, the freshly-built `controlContinuity` literal)
+     *  change on every render that matters, so a memo would buy nothing and
+     *  only risk handing a stale board to the affordance gates. */
+    const abilityStateView = buildTriggerStateView(
+        allPlayers,
+        activePlayerId,
+        cannotActivateAbilitiesThisTurn,
+        lifeGainedThisTurn,
+        controlContinuity,
+        continuousEffects
+    );
 
     // CR 106.1 (issue #1889) — `allPlayers` is handed to `hasManaAbility` below
     // (the same list `getManaChoices` already gets), so this branch agrees with
@@ -800,7 +809,7 @@ export function useBattlefieldInteraction(player: Player) {
         // Whistle. Without it the dimension stays undefined and the gate fails
         // open, offering the ability on a board where every candidate entered
         // this turn — a dead menu entry the server then rejects.
-        const stateView = abilityStateView();
+        const stateView = abilityStateView;
         // CR 113.3c — on a permanent the viewer does NOT control, only
         // "any player may activate" / "opponents only" / "the enchanted
         // creature's controller may activate" abilities are offered, and only
@@ -1016,7 +1025,7 @@ export function useBattlefieldInteraction(player: Player) {
                         spec,
                         card.id,
                         playerId,
-                        abilityStateView()
+                        abilityStateView
                     );
                     // CR 602.5b — unpayable cost, unactivatable ability. The
                     // menu gate (`getManaCostMenuAbility`) already withholds
