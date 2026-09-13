@@ -269,7 +269,7 @@ export const EVENT_FIELD_KINDS: {
         types: "scalar",
         subtypes: "scalar",
     },
-    // CR 115.7 / 702.21a — something became a target.
+    // CR 115.1 / 702.21a — something became a target (Ward watches it).
     BECAME_TARGET: {
         target: "target",
         sourceKind: "scalar",
@@ -345,7 +345,15 @@ export function lowerTriggerEvent(
             continue;
         }
         if (kind === "objectList") {
-            const ids = Array.isArray(value) ? (value as string[]) : [];
+            // Present but not a list is the one shape this walk must not
+            // guess about: an empty list resolves as "no objects", which a
+            // "damaged by" / "attacked with" clause reads as a different
+            // board (CR 603.2).
+            if (!Array.isArray(value)) {
+                blocked.push(key);
+                continue;
+            }
+            const ids = value as string[];
             const refs: ScenarioObjectRef[] = [];
             let lost = false;
             for (const id of ids) {
@@ -391,8 +399,33 @@ export function rebuildTriggerEvent(
     declared: ScenarioTriggerEvent,
     ports: TriggerEventRebuildPorts
 ): GameEvent {
+    // The declared event is AUTHORED as often as it is lowered (ADR 0044 — a
+    // preset scenario is hand-edited and the DB is the source of truth), and
+    // `resolveTopOfStack` gates the trigger branch on the item carrying an
+    // event at all, never on its SHAPE. So an event naming no member of the
+    // union, or a field the table classifies differently, would reach
+    // `interveningIf` / `resolve(ctx, event)` / every `$event.<field>` ref as
+    // an object whose every read is `undefined` — a different board, silently.
+    // Checked here with the same throw discipline `seedDeclaredStack`'s `pick`
+    // already applies to a name it cannot find.
+    const kinds = EVENT_FIELD_KINDS[declared.type as GameEvent["type"]] as
+        | Record<string, EventFieldKind>
+        | undefined;
+    if (!kinds) {
+        throw new Error(
+            `rebuildTriggerEvent: "${declared.type}" is not a GameEvent type (CR 603.2) — no row in EVENT_FIELD_KINDS.`
+        );
+    }
     const out: Record<string, unknown> = { type: declared.type };
     for (const [key, value] of Object.entries(declared.fields ?? {})) {
+        const kind = kinds[key];
+        const declaredKind =
+            value.kind === "objects" ? "objectList" : value.kind;
+        if (!kind || kind === "residue" || kind !== declaredKind) {
+            throw new Error(
+                `rebuildTriggerEvent: "${declared.type}.${key}" is declared as "${value.kind}", but the vocabulary says "${kind ?? "(no such field)"}".`
+            );
+        }
         switch (value.kind) {
             case "scalar":
                 out[key] = value.value;
@@ -445,6 +478,13 @@ export function triggerEventFingerprint(
             parts.push(`${key}=${ports.object(String(value))}`);
         } else if (kind === "objectList") {
             const ids = Array.isArray(value) ? (value as string[]) : [];
+            // A non-array renders as `(not a list)` rather than as an empty
+            // one — the lowering refuses it, and two different shapes must
+            // never render alike here.
+            if (!Array.isArray(value)) {
+                parts.push(`${key}=(not a list)`);
+                continue;
+            }
             parts.push(
                 `${key}=[${ids.map((id) => ports.object(id)).join(",")}]`
             );

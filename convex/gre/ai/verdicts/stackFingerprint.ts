@@ -173,6 +173,14 @@ function objectLabel(
 function facts(state: GameState, card: CardInstanceState): string {
     const out: string[] = [];
     if (card.isTapped) out.push("tapped");
+    // CR 302.6 (issue #3516) — summoning sickness, which is what separates the
+    // creature that JUST entered from its same-named twin. An entry trigger is
+    // precisely a statement about which copy, so without this a rebuild that
+    // bound the event to the wrong one fingerprints identically while its
+    // resolution lands on a different permanent. Non-circular: it comes from
+    // `lowerCard`'s own `summoningSick`, not from the `nth` this check exists
+    // to audit.
+    if (card.isSummoningSick) out.push("sick");
     if (card.damageMarked) out.push(`damage=${card.damageMarked}`);
     // CR 301.5 / 303.4 — an Aura or Equipment on it, counted from the other
     // side of the link (`attachedTo` lives on the attachment).

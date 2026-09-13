@@ -1879,6 +1879,16 @@ function seedDeclaredStack(state: GameState, spec: ScenarioSpec): void {
         index: number
     ): string => {
         if (ref.zone === "stack") {
+            // CR 405.1 — the same rule an announced target obeys: an event can
+            // only name an object that was ALREADY on the stack when its
+            // trigger was put there. Checked at both ends, so a forward
+            // reference is refused where it is written rather than diagnosed
+            // later as a rebuild that threw.
+            if (ref.index >= index) {
+                throw new Error(
+                    `buildStateFromScenario: the event of stack index ${index} names stack index ${ref.index}, which is not already on the stack — a reference points LOWER than its own index (CR 405.1).`
+                );
+            }
             const referenced = state.stack[ref.index];
             if (!referenced) {
                 throw new Error(
@@ -2048,6 +2058,13 @@ function seedDeclaredStack(state: GameState, spec: ScenarioSpec): void {
                 // they are written AFTER the primitive strips the source's.
                 ...(targets !== undefined ? { targets } : {}),
                 ...(entry.x !== undefined ? { chosenX: entry.x } : {}),
+                // CR 601.2 / 117.1a — the item spreads its SOURCE, so a
+                // permanent carrying the announcement-time snapshot hands it
+                // to its trigger. Lowered for every kind, so rebuilt for
+                // every kind.
+                ...(entry.castOffSorceryTiming
+                    ? { castOffSorceryTiming: true }
+                    : {}),
             });
             return;
         }
@@ -3637,6 +3654,7 @@ function lowerStackTarget(
  */
 function lowerEventObjectRef(
     state: GameState,
+    item: StackItem,
     instanceId: string,
     seatOf: (playerId: string) => "me" | "opp"
 ): ScenarioObjectRef | undefined {
@@ -3672,9 +3690,15 @@ function lowerEventObjectRef(
         }
     }
     // CR 405.1 — an object still in flight: the spell whose SPELL_CAST fired
-    // this trigger is on the stack under it.
+    // this trigger is on the stack under it. A reference must point LOWER than
+    // the referring item, the rule `lowerStackTarget` already applies to an
+    // announced target — an event naming something ABOVE its own trigger is
+    // not a position this lowering can have produced.
     const index = state.stack.findIndex((s) => s.id === instanceId);
-    return index === -1 ? undefined : { zone: "stack", index };
+    if (index === -1) return undefined;
+    const own = state.stack.findIndex((s) => s === item);
+    if (own !== -1 && index >= own) return undefined;
+    return { zone: "stack", index };
 }
 
 /**
@@ -3873,7 +3897,8 @@ function lowerStack(
                 );
             } else {
                 const lowered = lowerTriggerEvent(item.triggerEvent, {
-                    object: (id) => lowerEventObjectRef(state, id, seatOf),
+                    object: (id) =>
+                        lowerEventObjectRef(state, item, id, seatOf),
                     player: (id) =>
                         state.players.some((p) => p.id === id)
                             ? seatOf(id)
