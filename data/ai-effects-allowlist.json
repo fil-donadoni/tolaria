@@ -1064,13 +1064,6 @@
     },
     {
         "class": "ability",
-        "cardId": "cf5f3c61-1e54-4eea-bf82-311cfa988e6a",
-        "name": "Cursed Land",
-        "abilityId": "cursed-land-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "720d871d-1e7b-482e-bd1e-8ec79519fb86",
         "name": "Cursed Rack",
         "abilityId": "cursed-rack-choose-opponent",
@@ -1302,13 +1295,6 @@
     },
     {
         "class": "ability",
-        "cardId": "3455b006-9ea5-4aef-8ad2-d0701eb0cacf",
-        "name": "Farmstead",
-        "abilityId": "farmstead-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "af092da3-8713-4a59-86d3-827b942d6456",
         "name": "Farrel's Mantle",
         "abilityId": "farrels-mantle-unblocked",
@@ -1347,13 +1333,6 @@
         "cardId": "8da35f9f-e72c-4154-a212-7de98f84ad7d",
         "name": "Fasting",
         "abilityId": "fasting-upkeep-hunger",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "0eb8f591-d763-49bf-8ef9-86265aaa72f7",
-        "name": "Feedback",
-        "abilityId": "feedback-upkeep",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {
@@ -2443,13 +2422,6 @@
     },
     {
         "class": "ability",
-        "cardId": "ccc982b6-35b2-4e33-ace2-86cb79123e4f",
-        "name": "Power Leak",
-        "abilityId": "power-leak-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "62858604-ca5a-4f69-a045-a7515ebfabf2",
         "name": "Power Surge",
         "abilityId": "power-surge-damage",
@@ -3090,20 +3062,6 @@
         "cardId": "55da1e86-fe18-486a-b510-f941e6f6e378",
         "name": "Wall of Tombstones",
         "abilityId": "wall-of-tombstones-set-toughness",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "220a03ca-8c9b-4acb-821d-f6577fbb20fb",
-        "name": "Wanderlust",
-        "abilityId": "wanderlust-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "9e5e07a2-fbdf-4c4c-996a-fce40bab5de5",
-        "name": "Warp Artifact",
-        "abilityId": "warp-artifact-upkeep",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {

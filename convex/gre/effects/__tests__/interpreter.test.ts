@@ -42,6 +42,7 @@ import {
     runDamageReplacement,
     applyTargetPrevention,
     processPendingActionTriggers,
+    numberChoiceRange,
 } from "../../state";
 import type {
     CardInstanceState,
@@ -52,6 +53,7 @@ import type {
 import {
     applyMayPaySubmit,
     applyNameCardSubmit,
+    applyNumberChoiceSubmit,
     applyPendingChoiceSubmit,
     applyRandomRevealAck,
 } from "../../pendingChoiceSubmit";
@@ -14033,6 +14035,174 @@ describe("Effect Script Op: mayPay (CR 117.3a / 118.4, issue #806)", () => {
         expect(state.players[0].hand.map((c) => c.id)).toContain(
             "deadReturner"
         );
+    });
+});
+
+// --- payVariableMana (CR 107.3f, issue #1701) --------------------------------
+//
+// The Op's PERMANENT test (per-Op regime, PRD #795): the nominate -> pay ->
+// bound-value round trip, the amount-0 decline, the server-side ceiling, and
+// the wire-format assertion through `projectPublicState`. Every later card
+// reusing the Op inherits this coverage.
+
+describe("Effect Script Op: payVariableMana (CR 107.3f, issue #1701)", () => {
+    it("suspends with a number-pick PendingChoice, pays the nominated amount, and binds it as a numeric value a later Op reads", () => {
+        const id = registerScript("test-op-payvariable-roundtrip", [
+            {
+                op: "payVariableMana",
+                player: "controller",
+                prompt: "Pay any amount of mana",
+                bind: "$paid",
+            },
+            // The consequence reads the AMOUNT, not a boolean: this is the
+            // whole point of the Op (CR 107.3f — "where X is the amount of
+            // mana that player paid this way").
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { ref: "$paid" },
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { manaPool: { W: 2, G: 3 } }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the pick
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("number-pick");
+        expect(head.playerId).toBe("p1");
+        expect(head.paysMana).toBe(true);
+        expect(state.stack).toHaveLength(1); // CR 608.3 — stays on the stack
+
+        applyNumberChoiceSubmit(state, { playerId: "p1", amount: 4 });
+
+        // Paid out of the pool (CR 107.3f pays like any other may-pay mana
+        // leg): 5 mana in, 4 spent, 1 left.
+        const pool = state.players[0].manaPool;
+        expect(Object.values(pool).reduce((sum, n) => sum + n, 0)).toBe(1);
+        // …and the amount reached the reading Op.
+        expect(state.players[0].life).toBe(24);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("treats amount 0 as the decline — nothing is paid, and the binding is CAPTURED as zero rather than skipped", () => {
+        const id = registerScript("test-op-payvariable-decline", [
+            {
+                op: "payVariableMana",
+                player: "controller",
+                prompt: "Pay any amount of mana",
+                bind: "$paid",
+            },
+            // A comparison predicate against the binding: an UNCAPTURED ref
+            // makes the comparison false (CR 608.2b), so this firing is proof
+            // the nomination was recorded as a real 0 — not that the Op was
+            // skipped.
+            {
+                op: "if",
+                predicate: { left: { ref: "$paid" }, op: "eq", right: 0 },
+                then: [{ op: "loseLife", player: "opponent", amount: 3 }],
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { manaPool: { W: 2 } }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        applyNumberChoiceSubmit(state, { playerId: "p1", amount: 0 });
+        expect(state.players[0].manaPool.W).toBe(2); // nothing spent
+        expect(state.players[1].life).toBe(17); // the zero branch fired
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("refuses a nomination the pool cannot cover, and a negative one (CR 107.1b)", () => {
+        const id = registerScript("test-op-payvariable-ceiling", [
+            {
+                op: "payVariableMana",
+                player: "controller",
+                prompt: "Pay any amount of mana",
+                bind: "$paid",
+            },
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { ref: "$paid" },
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { manaPool: { U: 2 } }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(() =>
+            applyNumberChoiceSubmit(state, { playerId: "p1", amount: 3 })
+        ).toThrow(/between 0 and 2/);
+        expect(() =>
+            applyNumberChoiceSubmit(state, { playerId: "p1", amount: -1 })
+        ).toThrow(/non-negative/);
+        // Neither refusal consumed the choice or the mana, so the window is
+        // still answerable — a refused submission must never freeze the game
+        // (ADR 0047).
+        expect(state.pendingChoices).toHaveLength(1);
+        expect(state.players[0].manaPool.U).toBe(2);
+        applyNumberChoiceSubmit(state, { playerId: "p1", amount: 2 });
+        expect(state.players[0].life).toBe(22);
+    });
+
+    it("survives the wire projection with its bounds intact, to BOTH seats, leaking nothing hidden", () => {
+        const id = registerScript("test-op-payvariable-wire", [
+            {
+                op: "payVariableMana",
+                player: "controller",
+                prompt: "Pay any amount of mana",
+                bind: "$paid",
+            },
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { ref: "$paid" },
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { manaPool: { R: 3 } }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+
+        // The CHOOSER's view: the prompt and its live ceiling must survive the
+        // projection, or the client cannot render a bounded stepper at all.
+        const chooserView = projectPublicState(state, 1, "p1");
+        const chooserHead = chooserView.pendingChoices![0];
+        expect(chooserHead.kind).toBe("number-pick");
+        expect(chooserHead.paysMana).toBe(true);
+        expect(
+            numberChoiceRange(
+                chooserHead,
+                chooserView.players.find((p) => p.id === "p1")
+            )
+        ).toEqual({ min: 0, max: 3 });
+
+        // The OPPONENT's view: the same public prompt (CR 406.3 — a pending
+        // choice reaches both seats), and nothing about it is hidden
+        // information — the amount has not been nominated yet, so there is no
+        // answer to leak (issues #1977 / #1982).
+        const oppView = projectPublicState(state, 1, "p2");
+        const oppHead = oppView.pendingChoices![0];
+        expect(oppHead.kind).toBe("number-pick");
+        expect(oppHead.prompt).toBe("Pay any amount of mana");
+        expect(oppHead).not.toHaveProperty("chosenName");
+        expect(oppView.stack[0].collectedChoices ?? {}).toEqual({});
     });
 });
 

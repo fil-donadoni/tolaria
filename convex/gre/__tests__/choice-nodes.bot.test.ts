@@ -233,7 +233,13 @@ describe("choice-node candidate contract (CR 608.2 / ADR 0016, issue #1425)", ()
         // permanents". Same settle gap as `sacrifice-permanents`, plus the
         // minimal-legal default answering every "up to N" with nothing.
         expect(hasChoiceCandidateGenerator("choose-permanents")).toBe(true);
-        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(14);
+        // CR 107.1b / 107.3f (issue #1701) — the numeric nomination ("pay any
+        // amount of mana", "you may pay {X}"). Registered because the
+        // minimal-legal default is to nominate the floor, which for every
+        // shipped shape is ZERO: unregistered, the bot would decline every one
+        // of these and the card would simply not happen.
+        expect(hasChoiceCandidateGenerator("number-pick")).toBe(true);
+        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(15);
     });
 
     it("searchable is per-CHOICE, not per-kind: a mandatory hand pick is not a node (PR #1914 review finding 2)", () => {
