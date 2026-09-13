@@ -45,7 +45,6 @@ import {
 } from "./helpers";
 import { getDefinition } from "../../../index";
 import { tryAutoCommitPendingActivation } from "../../../../gre/activation";
-import { yotianSoldier } from "../../atq";
 
 const aladdinsLamp = getDefinition("8fecc5d2-5298-4d47-b085-f160603f220e");
 const aladdinsRing = getDefinition("bb2b74a2-cb74-4b54-b9c6-78c63f14cf5b");
@@ -73,6 +72,7 @@ const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
 const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
 const prodigalSorcerer = getDefinition("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a");
 const stoneRain = getDefinition("57ff74cb-a2ed-4123-ac42-f72f9820049e");
+const yotianSoldier = getDefinition("27cf53e3-76f6-4831-800e-1259394d779d");
 
 describe("ARN keyword creatures (CR 702 — staticAbilities)", () => {
     it("War Elephant has trample and banding", () => {
