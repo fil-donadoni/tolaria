@@ -1,6 +1,11 @@
 import { v } from "convex/values";
 import type { ManaRestriction } from "./gre/types";
-import type { AnimateSpec, CardType, Color } from "./cards/types";
+import type {
+    AnimateSpec,
+    CardType,
+    Color,
+    ManaPersistence,
+} from "./cards/types";
 import { colors as ALL_COLORS, PERMANENT_TYPES } from "./cards/types";
 import type { Duration } from "./gre/state";
 import type {
@@ -267,6 +272,12 @@ export const scenarioRestrictedManaValidator = v.object({
      *  for. */
     cantBeCounteredRider: v.optional(v.boolean()),
     hasteRider: v.optional(v.boolean()),
+    /** CR 702.189a (firebending, issue #3235) — the unit's LIFETIME, not a
+     *  rider: it says nothing about the spell the mana is spent on, only that
+     *  the unit survives the CR 500.5 emptying until the boundary it names.
+     *  A closed literal for the same reason `restriction` is a closed union —
+     *  a spec must not be able to name a duration the engine never honours. */
+    persistsUntil: v.optional(v.literal("end-of-combat")),
 });
 
 /** CR 702 — the STRUCTURED parameter of a parameterised keyword grant, the
@@ -938,6 +949,9 @@ export type ScenarioRestrictedMana = {
     restriction?: ManaRestriction;
     cantBeCounteredRider?: boolean;
     hasteRider?: boolean;
+    /** CR 702.189a (issue #3235) — the engine's own union, not a restated
+     *  string, so a second lifetime added there reds `tsc` here. */
+    persistsUntil?: ManaPersistence;
 };
 
 /** CR 702 — the read-path twin of {@link scenarioKeywordParameterValidator}.
@@ -1483,6 +1497,14 @@ function pickRestrictedMana(
             pickBoolean(entry.cantBeCounteredRider)
         );
         set(unit, "hasteRider", pickBoolean(entry.hasteRider));
+        // CR 702.189a — the one lifetime the engine honours. Anything else is
+        // dropped rather than promoted to "ordinary mana": a spec claiming a
+        // duration the engine cannot keep would rebuild a board the judged
+        // seat never had, the same fail-CLOSED this reader applies to
+        // `restriction`.
+        if (entry.persistsUntil === "end-of-combat") {
+            unit.persistsUntil = "end-of-combat";
+        }
         units.push(unit);
     }
     return units.length > 0 ? units : undefined;

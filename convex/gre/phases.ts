@@ -47,6 +47,7 @@ import {
     isDamageUnpreventableThisTurn,
     matchesPermanentFilter,
     discardToGraveyard,
+    manaPersistenceSurvives,
     resolveTopOfStack,
     revertAnimation,
     revertControlChange,
@@ -2742,12 +2743,33 @@ export function finalizeCleanup(state: GameState): void {
     // remains exiled"; Robber of the Rich while-source-lives) are untouched.
     for (const p of state.players) {
         for (const card of p.exile) {
+            // CR 514.2 / 608.2g (issue #3235) — two upper bounds, one sweep.
+            // The absolute one counts GLOBAL turns ("this turn", "until your
+            // next end step"); the own-turn one counts the GRANTEE's own
+            // `turnsTaken` ("until the end of YOUR next turn"), because extra
+            // turns (CR 500.7) break the alternation an absolute stamp needs.
+            // A card carries at most one; a card carrying neither is an
+            // open-ended grant (Ice Cauldron "as long as it remains exiled",
+            // Robber of the Rich while-source-lives) and is untouched.
+            const grantee =
+                card.castableFromExileUntilOwnTurn !== undefined &&
+                card.castableFromExileBy !== undefined
+                    ? state.players.find(
+                          (q) => q.id === card.castableFromExileBy
+                      )
+                    : undefined;
+            const ownTurnExpired =
+                grantee !== undefined &&
+                (grantee.turnsTaken ?? 0) >=
+                    card.castableFromExileUntilOwnTurn!;
             if (
-                card.castableFromExileUntilTurn !== undefined &&
-                state.turn >= card.castableFromExileUntilTurn
+                (card.castableFromExileUntilTurn !== undefined &&
+                    state.turn >= card.castableFromExileUntilTurn) ||
+                ownTurnExpired
             ) {
                 delete card.castableFromExileBy;
                 delete card.castableFromExileUntilTurn;
+                delete card.castableFromExileUntilOwnTurn;
                 // CR 702.185a/b (issue #1268) — the LOWER bound and the
                 // "warped card in exile" referent ride the same permission the
                 // impulse sweep is revoking here.
@@ -3531,15 +3553,31 @@ function advanceTurn(state: GameState): void {
  * Auto-phases (UNTAP, CLEANUP) are traversed without giving priority.
  * Returns the list of phases traversed (for event emission).
  */
-/** Empty mana pools for all players (CR 500.5 / 703.4q). Tapped lands become committed (non-untappable until untap step). */
-function emptyManaPools(state: GameState): void {
+/** Empty mana pools for all players (CR 500.5 / 703.4q). Tapped lands become
+ *  committed (non-untappable until untap step).
+ *
+ *  `leavingPhase` is the step/phase that is ENDING — `state.phase` at the one
+ *  call site, read before the transition. Only the CR 702.189a exception below
+ *  consults it; every other unit empties regardless. */
+function emptyManaPools(state: GameState, leavingPhase: Phase): void {
     for (const player of state.players) {
         for (const color of Object.keys(player.manaPool)) {
             player.manaPool[color] = 0;
         }
         // CR 106.6 / 500.5: restricted mana (e.g. Metamorphosis) empties with
-        // the rest of the pool at end of step/phase.
-        player.restrictedMana = undefined;
+        // the rest of the pool at end of step/phase — with ONE exception.
+        // CR 702.189a (firebending, issue #3235): "Until end of combat, you
+        // don't lose this mana as steps and phases end." A unit carrying a
+        // `persistsUntil` lifetime survives the boundaries its lifetime spans
+        // and empties at the one that ends it — for `"end-of-combat"`, the
+        // END_OF_COMBAT step's own exit, which is the combat phase's exit
+        // (see `advancePhase`'s `endCombatStep` call immediately above this
+        // one). `manaPersistenceSurvives` is the single authority on which
+        // boundary that is, and fails closed outside combat.
+        const surviving = (player.restrictedMana ?? []).filter((unit) =>
+            manaPersistenceSurvives(unit.persistsUntil, leavingPhase)
+        );
+        player.restrictedMana = surviving.length > 0 ? surviving : undefined;
         for (const card of player.battlefield) {
             if (card.isTapped) {
                 card.manaCommitted = true;
@@ -3609,7 +3647,12 @@ export function advancePhase(state: GameState): Phase[] {
     // player's mana pool empty. Must run after the END_OF_COMBAT teardown
     // above so "until end of combat" durations (which don't touch mana)
     // expire before this clears the pool.
-    emptyManaPools(state);
+    //
+    // `state.phase` is still the phase being LEFT here (the transition below
+    // has not run yet), which is exactly what CR 702.189a's combat-scoped mana
+    // needs in order to tell "a boundary inside combat" from "the boundary
+    // that ends combat".
+    emptyManaPools(state, state.phase);
 
     // CR 514.3a — "Once the stack is empty and all players pass in succession,
     // another cleanup step begins." A cleanup step that opened the 514.3

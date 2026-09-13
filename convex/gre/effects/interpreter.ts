@@ -2117,8 +2117,13 @@ function bottomLookedAtCards(
         // with `counters` (the silver counter) so a later "a card with a silver
         // counter on it" retrieval finds it. Exile is a public zone like the
         // graveyard leg above: no `markKnown`, no bottom-order pick.
-        for (const id of restTop) {
-            ctx.moveCardById(playerId, id, "library", "exile");
+        // CR 603.3b / 608.2i (issue #1558, PR #3549 review finding 1) — the
+        // un-kept cards leave in ONE occurrence, so one batched
+        // `CARDS_EXILED`, not one event per card. This leg carried the same
+        // per-card defect `exileTopOfLibrary` was caught with; fixed as a
+        // class rather than at the new Op alone.
+        const exiled = ctx.moveCardsById(playerId, restTop, "library", "exile");
+        for (const id of exiled) {
             if (counters) ctx.stampCardCounters(id, counters);
         }
         return;
@@ -2765,11 +2770,13 @@ export const OP_EXECUTORS: {
     // the X/generic slots, CR 106.1). `player` defaults to the resolving
     // controller — a ritual adds to its caster's pool (CR 106.4); an
     // announced-slot or relative player otherwise. Skipped when the player
-    // cannot be resolved (CR 608.2b).
+    // cannot be resolved (CR 608.2b). `persistsUntil` (CR 702.189a, issue
+    // #3235) is threaded straight through — the primitive owns the routing
+    // decision (fungible pool vs a lifetime-tagged unit), not this Op.
     addMana(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player ?? "controller");
         if (playerId === undefined) return;
-        ctx.addManaTo(playerId, op.mana);
+        ctx.addManaTo(playerId, op.mana, op.persistsUntil);
     },
     // CR 701.8 — destroy, through the replacement layer (regeneration /
     // indestructible / destroy replacements, ADR 0125).
@@ -3628,6 +3635,42 @@ export const OP_EXECUTORS: {
     // into your graveyard from your library" self-triggers fire (Gaea's
     // Blessing) — the mill analogue of `drawCards`. Deterministic — no choice,
     // no suspension. Skipped when the player is gone or `count` ≤ 0 (CR 608.2b).
+    // CR 701.13 / 406.3 (issue #3235) — exile the top N of a library, FACE UP.
+    // The impulse first leg (The Legend of Roku I). Composition only: the same
+    // `peekLibraryTop` window + per-card `moveCardById(…, "library", "exile")`
+    // pair `lookDistribute`'s `destination: "exile"` leg runs, plus the
+    // CR 607 `linkExileToSource` stamp `hideaway` uses. No new primitive.
+    exileTopOfLibrary(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return; // CR 608.2b — player gone, skip
+        // "Exile the top card" with no numeral is the common shape.
+        const count = op.count === undefined ? 1 : resolveValue(ctx, op.count);
+        if (count === undefined || count <= 0) return;
+        // A short library exiles what is there; an empty one exiles nothing
+        // and the whole Op is a clean no-op (CR 608.2b).
+        const topIds = ctx.peekLibraryTop(playerId, count);
+        if (topIds.length === 0) return;
+        // CR 603.3b / 608.2i — ONE instruction, ONE exile occurrence: the
+        // batched primitive emits a single `CARDS_EXILED` carrying all three
+        // cards, where a per-card `moveCardById` loop would emit three and
+        // give Laelia, the Blade Reforged three counters for one exile.
+        const exiled = ctx.moveCardsById(playerId, topIds, "library", "exile");
+        for (const id of exiled) {
+            // CR 607 / 406.6 — stamp the resolving source so a later Op (here
+            // or in a linked second ability) can name exactly these cards
+            // through `{ exiledWithSource: true }`.
+            if (op.linkToSource) {
+                ctx.linkExileToSource(id, ctx.sourceInstanceId);
+            }
+        }
+        // The same set as a picks binding for a consumer in THIS script —
+        // `mill`'s `bindAll` shape (issue #2600), written with the plain
+        // `noteChoice` a `choice` Op's picks use. Left uncaptured when nothing
+        // moved, so a reader finds nothing rather than falling back to a zone.
+        if (op.bindAll && exiled.length > 0) {
+            ctx.noteChoice(op.bindAll, exiled);
+        }
+    },
     mill(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return; // CR 608.2b — player gone, skip

@@ -2199,6 +2199,18 @@ export interface BoardManaColorSource {
  *    cast a spell paying neither its mana cost nor an alternative cost with an
  *    X in it). Affordable only while the caster's life total is at least the
  *    amount (CR 119.4) — paying down to exactly 0 is legal; SBAs then apply. */
+/** CR 500.5 / 702.189a — a unit of mana's LIFETIME when it is not the default
+ *  "empties as this step or phase ends". A closed union rather than a boolean
+ *  so a second duration (a hypothetical "until end of turn" mana) is one
+ *  member plus one arm in {@link manaPersistenceSurvives}, not a second
+ *  parallel flag on every bucket key.
+ *
+ *  `"end-of-combat"` — firebending (CR 702.189a): "Until end of combat, you
+ *  don't lose this mana as steps and phases end." The unit survives every
+ *  step boundary inside the combat phase and empties as the END_OF_COMBAT
+ *  step — the combat phase's own exit — ends. */
+export type ManaPersistence = "end-of-combat";
+
 export type ManaCostReplacement = "life-equal-to-mana-value";
 
 /** ADR 0093 — the action a graveyard play permission licenses. Playing a land
@@ -4338,6 +4350,23 @@ export interface SpellContext {
         from: MovableZone,
         to: MovableZone
     ) => void;
+    /** CR 400.7 / 603.3b / 608.2i (issue #1558, PR #3549 review) — the BATCHED
+     *  sibling of {@link moveCardById}: several cards moved by ONE instruction
+     *  ("exile the top three cards of your library") are ONE occurrence, so a
+     *  `CARDS_EXILED`-watching trigger fires once and counts three cards
+     *  rather than firing three times. Returns the ids that genuinely moved,
+     *  in the order given; an id not in `from` is skipped (CR 608.2b).
+     *
+     *  Use it wherever a single Oracle sentence moves more than one card to
+     *  the SAME destination. A `moveCardById` loop is the bug it exists to
+     *  prevent, and the call site cannot fix it after the fact — the per-card
+     *  event is already queued by the time the loop's next iteration runs. */
+    moveCardsById: (
+        playerId: string,
+        cardInstanceIds: readonly string[],
+        from: MovableZone,
+        to: MovableZone
+    ) => string[];
     /** CR 122.1 (issue #1570) — merge counters onto a card that already sits in
      *  exile (Karn, Scion of Urza's silver counter), so a later "a card with a
      *  <type> counter on it" `choice(zone: "exile")` + `hasCounter` filter finds
@@ -4532,8 +4561,21 @@ export interface SpellContext {
     /** Adds mana to a specific player's mana pool (CR 106.1, 605.4). Used by
      *  triggers like Mana Flare ("that player adds one mana...") and Wild
      *  Growth ("its controller adds an additional {G}") that target a player
-     *  other than the trigger's controller. */
-    addManaTo: (playerId: string, cost: ManaCost) => void;
+     *  other than the trigger's controller.
+     *
+     *  `persistsUntil` (CR 702.189a, issue #3235) gives the deposit a LIFETIME
+     *  longer than the CR 500.5 default: `"end-of-combat"` is firebending's
+     *  mana, which survives every step boundary inside the combat phase.
+     *  Omitted — every other caller — is the ordinary "empties as this step
+     *  ends" mana, unchanged. A persistent deposit lands in the tagged
+     *  `restrictedMana` list rather than the fungible pool (which has nowhere
+     *  to record a lifetime) with no restriction and no rider, so it remains
+     *  spendable on anything. */
+    addManaTo: (
+        playerId: string,
+        cost: ManaCost,
+        persistsUntil?: ManaPersistence
+    ) => void;
     /** Adds restricted mana to `playerId`'s pool (CR 106.6) — mana that can
      *  only pay for costs the `restriction` permits (e.g. Metamorphosis:
      *  "Spend this mana only to cast creature spells"). Empties at end of
@@ -4617,7 +4659,11 @@ export interface SpellContext {
         cardInstanceId: string,
         playerId: string,
         zoneOwnerId?: string,
-        window?: "this-turn" | "while-exiled" | "until-next-end-step",
+        window?:
+            | "this-turn"
+            | "while-exiled"
+            | "until-next-end-step"
+            | "until-end-of-your-next-turn",
         opts?: {
             withoutPayingManaCost?: boolean;
             includesLand?: boolean;
@@ -13540,7 +13586,17 @@ export type EffectOp =
            *     608.2b). */
           card: EffectRef | EffectExiledWithSourceSelector;
           player: EffectPlayerRef;
-          window?: "this-turn" | "while-exiled";
+          /** CR 514.2 / 608.2g — when the permission expires.
+           *   - `"while-exiled"` (the Op default): open-ended, for as long as
+           *     the card remains exiled (Ice Cauldron).
+           *   - `"this-turn"`: the ordinary impulse window (Expressive
+           *     Iteration), revoked at this turn's cleanup step.
+           *   - `"until-end-of-your-next-turn"` (issue #3235): "Until the end
+           *     of your next turn, you may play those cards" (The Legend of
+           *     Roku, chapter I) — the same absolute-turn stamp one turn
+           *     further out, so the window survives the opponent's turn in
+           *     between. */
+          window?: "this-turn" | "while-exiled" | "until-end-of-your-next-turn";
           withoutPayingManaCost?: boolean;
           includesLand?: boolean;
           /** CR 601.2f (issue #2383) — an object-scoped cost increase the
@@ -13776,7 +13832,28 @@ export type EffectOp =
      *  `player` names whose pool receives it — the resolving `"controller"` by
      *  default (a ritual adds to its caster's pool, CR 106.4). Skipped when the
      *  player cannot be resolved (CR 608.2b). */
-    | { op: "addMana"; mana: EffectManaPool; player?: EffectPlayerRef }
+    | {
+          op: "addMana";
+          mana: EffectManaPool;
+          player?: EffectPlayerRef;
+          /** CR 702.189a (firebending, issue #3235) — the LIFETIME of the mana
+           *  produced, when it is not the CR 500.5 default. `"end-of-combat"`
+           *  is "Until end of combat, you don't lose this mana as steps and
+           *  phases end": the mana survives every step boundary inside the
+           *  combat phase and empties as the END_OF_COMBAT step ends.
+           *
+           *  Omitted — every ritual, every Mana Flare-style trigger — is the
+           *  ordinary mana that empties at the very next boundary, unchanged.
+           *
+           *  Orthogonal to `mana` and `player`: it changes neither what is
+           *  produced nor whose pool receives it, and it does NOT restrict
+           *  what the mana may pay for (firebending's {R} is plain red mana
+           *  that simply outlives its step). Threaded straight through to
+           *  `SpellContext.addManaTo`, which routes a persistent deposit into
+           *  the tagged `restrictedMana` list — the fungible per-colour count
+           *  map has nowhere to record a lifetime. */
+          persistsUntil?: ManaPersistence;
+      }
     /** CR 701.8 — destroy the announced target permanent, or the current
      *  `forEach` member (`{ ref: "$each" }`, issue #807). Routes through
      *  `SpellContext.destroy`, so regeneration / indestructible / destroy
@@ -14845,6 +14922,48 @@ export type EffectOp =
           player: EffectPlayerRef;
           count: EffectValue;
           bind?: string;
+          bindAll?: string;
+      }
+    /** CR 701.13 / 406.3 (issue #3235) — exile the top `count` card(s) of a
+     *  library, FACE UP. The "impulse" first leg: "Exile the top three cards of
+     *  your library. Until the end of your next turn, you may play those
+     *  cards." (The Legend of Roku, chapter I.)
+     *
+     *  A SIBLING of the mill Op, not a widening of it. CR 701.17a defines
+     *  milling as putting cards "into their graveyard", so an Op named for
+     *  that keyword action but carrying a destination would misname the very
+     *  action the Mechanics Registry is the name authority for. One verb, one
+     *  zone change — this Op exiles, the other graveyards, and neither grows a
+     *  destination parameter.
+     *
+     *  A thin declarative skin over primitives that already exist, one
+     *  execution path (ADR 0045): `peekLibraryTop` names the window and
+     *  `moveCardById(player, id, "library", "exile")` moves each card — the
+     *  exact pair `lookDistribute`'s `destination: "exile"` leg already uses.
+     *  No new SpellContext primitive. It closes the gap Elkin Bottle
+     *  (`ice/colorless.ts`) confesses in prose: "exile-top + cast-from-exile
+     *  has no Op skin yet".
+     *
+     *  FACE UP (CR 406.3): the Oracle texts that reach this Op say plainly
+     *  "exile the top N cards", never "face down", so the default open-zone
+     *  visibility holds and both players may examine the cards. A face-down
+     *  impulse is `hideaway`'s job, which has its own Op.
+     *
+     *  `linkToSource` (CR 607 / 406.6) stamps each exiled card with the
+     *  resolving source's instance id, which is what lets a LATER Op — in this
+     *  script or in a linked second ability — name them through
+     *  `{ exiledWithSource: true }`. `bindAll` publishes the same set as a
+     *  picks binding for a consumer in the SAME script. Set whichever the
+     *  consumer needs; they are orthogonal and both may be omitted (a bare
+     *  "exile the top card" with no follow-up).
+     *
+     *  `count` defaults to 1; a non-positive count and an empty library are
+     *  both clean CR 608.2b no-ops, and a short library exiles what is there. */
+    | {
+          op: "exileTopOfLibrary";
+          player: EffectPlayerRef;
+          count?: EffectValue;
+          linkToSource?: boolean;
           bindAll?: string;
       }
     /** CR 701.20a reveal + CR 400.7 zone change — reveal the top `count` card(s)

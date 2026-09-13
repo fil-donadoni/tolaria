@@ -269,12 +269,15 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         binding:
             "EFFECT_OP_REGISTRY `mill` Op → SpellContext.peekLibraryTop + moveCardById (library → graveyard loop, issue #885)",
     },
-    // 701.13 Play
+    // 701.18 Play. (Was cited as CR 701.13, which is Exile — the `exile` row
+    // above already holds that number. Corrected against `bun run cr 701.18`
+    // while adding the `exileTopOfLibrary` Op below, whose own 701.13 citation
+    // made the collision visible.)
     {
         id: "play",
         name: "Play",
         kind: "keyword-action",
-        cr: "701.13",
+        cr: "701.18",
         status: "implemented",
         binding: "SpellContext.playLandForPlayer + core cast system",
     },
@@ -2493,6 +2496,23 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         cr: "702.188",
         status: "planned",
     },
+    // 702.189 Firebending N — TLA (Avatar: The Last Airbender), issue #3235.
+    // A parametrized keyword that DOES appear literally in `staticAbilities[]`
+    // ("firebending 4"), so `bindingPattern` is what the name-authority guard
+    // checks a card against — annihilator's shape, not earthbend's (earthbend
+    // is a keyword ACTION invoked as a verb inside an effect and never appears
+    // on a permanent's keyword line).
+    {
+        id: "firebending",
+        name: "Firebending",
+        kind: "keyword-ability",
+        cr: "702.189",
+        status: "implemented",
+        bindingPattern: /^firebending \d+$/i,
+        binding:
+            'expandFirebending (cards/abilities/firebending.ts) → attacksTrigger + the addMana Op\'s persistsUntil: "end-of-combat"',
+        note: 'CR 702.189a: "Firebending is a triggered ability. \'Firebending N\' means \'Whenever this creature attacks, add N {R}. Until end of combat, you don\'t lose this mana as steps and phases end.\'" Desugared at the single `getDefinition` seam (the ADR 0054 pattern annihilator, hideaway and exalted/prowess share) into ONE `attacksTrigger` per declared instance, `scope: "self"`, whose whole body is the already-shipped `addMana` Op (CR 106.1, issue #850) — no firebending-specific Op, no new primitive, no `resolve()` (primitive-reuse mandate). What the keyword DID need was a mana LIFETIME, which no engine mana had: the issue brief\'s premise that a "designated-source pool that persists past its step" already existed does not hold — `RestrictedMana` is documented as emptying with the fungible pool at every CR 500.5 boundary, and a grep for a duration/`doesNotEmpty` flag on any mana path returned nothing. So `addMana` gained one orthogonal optional field, `persistsUntil: ManaPersistence` (today the single member `"end-of-combat"`), threaded through `SpellContext.addManaTo` into `addRestrictedManaToPool`. A persistent unit is the Arena of Glory shape (issue #3354): a tagged `restrictedMana` entry with NO `restriction`, NO `castableCardId` and NO rider, so `restrictedUnitAllowsSpell` / `restrictedUnitAllowsAbility` both admit it for any cost — it is plain red mana that merely outlives its step. It lives in the tagged list rather than the fungible `manaPool` for the mundane reason that a `Record<string, number>` count map has nowhere to record a lifetime. `persistsUntil` joins the CR 106.4 bucket key at the deposit, so a persistent unit never merges into an ephemeral one; and it is EXCLUDED, fail-closed, from `reverseRestrictedManaFromPool` and both `manaBalanceForRestriction` lookups, which all ask "is the mana this TAP produced still unspent" — a firebending unit was produced by a resolved trigger, not by tapping a source, so without the exclusion untapping a plain Mountain before spending its {R} would have decremented the firebending unit instead. The boundary itself is `manaPersistenceSurvives` (gre/state.ts), the single authority `emptyManaPools` (gre/phases.ts) consults: `"end-of-combat"` survives every combat STEP boundary except END_OF_COMBAT\'s own exit — which is also the combat PHASE\'s exit, since this engine models combat as six sibling `Phase` values with no separate phase token (see `advancePhase`\'s `endCombatStep` call, CR 511.2/500.5a). It fails CLOSED outside combat: a persistent unit that somehow floats into a main phase (an effect that ENDS the combat phase and skips past END_OF_COMBAT \u2014 CR 724.2, Mandate of Peace) empties at the very next boundary — "until end of combat" can only ever mean less time than the rest of the turn, never more. CR 702.189b ("An ability that triggers whenever a player firebends triggers whenever a firebending ability they control resolves") is N/A: no card in the catalogue triggers off "whenever a player firebends", the same disposition earthbend\'s CR 701.66b clause carries. First cards: Avatar Roku, the back face of The Legend of Roku, and the 4/4 red Dragon token its {8} ability creates (tla/red.ts) — the token carries the keyword on its own `staticAbilities`, which is what makes "grantable to a token" true by construction rather than by a second code path.',
+    },
     // 714.2 Chapter ability (Sagas, ADR 0078). CR 714.2 says literally "A
     // chapter symbol is a keyword ability", which is why this is a
     // `keyword-ability` row outside the CR 702 block rather than a new
@@ -3226,6 +3246,15 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         mechanicId: "scry",
         binding: "SpellContext.orderTop",
         note: "Look at / reorder the top of a library (CR 401.4 look, CR 701.22 Scry, CR 701.25 Surveil, order-only; issue #885). A thin declarative skin over the single SpellContext primitive `orderTop` — the reusable drag-picker the imperative scry/surveil/put-back cards already share — one execution path (ADR 0045). SUSPENDS like `choice`/`mayPay`: the first execution raises the `order-top` PendingChoice on the top `count` cards (projected face-up as `libraryPeek`); on resume the KEPT cards return to the top in the chooser's order and the un-kept cards go to `destination` (`library-bottom` = Scry, Preordain; `graveyard` = Surveil; `none` = order-only, Ponder). The reorder-FROM-choice half deferred out of libraryLook (issue #844): its pick is consumed internally by `orderTop`, so there is no `bind` read by a later Op. The mill loop the same backlog note bundled ships as the separate `mill` Op below (a deterministic move, no choice).",
+    },
+    {
+        op: "exileTopOfLibrary",
+        status: "implemented",
+        cr: "701.13",
+        mechanicId: "exile",
+        binding:
+            "SpellContext.peekLibraryTop + moveCardById (library \u2192 exile loop) + linkExileToSource",
+        note: 'CR 701.13 Exile / CR 406.3 (issue #3235) \u2014 move the top `count` cards of a library to their owner\'s exile, FACE UP. The impulse first leg: "Exile the top three cards of your library. Until the end of your next turn, you may play those cards" (The Legend of Roku, chapter I). A SIBLING of `mill`, deliberately not a widening of it: CR 701.17a defines milling as putting cards "into their graveyard", so a `mill` Op carrying a destination would misname the very action this registry is the name authority for \u2014 one verb, one zone change. Composition only, no new SpellContext primitive (ADR 0045 primitive reuse): the same `peekLibraryTop` window plus a per-card `moveCardById(player, id, "library", "exile")` loop that `lookDistribute`\'s `destination: "exile"` leg already runs, plus the CR 607 `linkExileToSource` stamp `hideaway` uses. It closes the gap Elkin Bottle (ice/colorless.ts) confesses in prose \u2014 "exile-top + cast-from-exile has no Op skin yet" \u2014 which is why that card reaches its impulse through a `resolve()` closure. FACE UP (CR 406.3): every Oracle text that reaches this Op says plainly "exile the top N cards", never "face down", so the open-zone default holds and both players may examine them; a face-down impulse is `hideaway`\'s job and has its own Op. `linkToSource` (CR 607 / 406.6) stamps each exiled card with the resolving source\'s instance id so a later Op \u2014 in this script or in a LINKED second ability \u2014 names exactly these cards through `{ exiledWithSource: true }`; `bindAll` publishes the same set as a picks binding (`mill`\'s own shape, issue #2600) for a consumer in the SAME script. The two are orthogonal and both optional \u2014 a bare "exile the top card" with no follow-up sets neither. `count` defaults to 1 (the unnumbered "exile the top card" shape); a non-positive count, an empty library and a short library are all clean CR 608.2b outcomes \u2014 nothing, nothing, and what is there.',
     },
     {
         op: "mill",

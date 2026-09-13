@@ -3306,6 +3306,12 @@ describe("scenario spec — floating mana (issue #3460)", () => {
                 restriction: "creature-spell",
                 cantBeCounteredRider: true,
                 hasteRider: true,
+                // CR 702.189a (issue #3235) — the LIFETIME field. The fixture
+                // must carry every `lowered`-classified key or this guard
+                // cannot tell "the mapper drops it" from "the fixture never
+                // had it": a unit built without the field lowers without it
+                // whether or not the mapper knows the field exists.
+                persistsUntil: "end-of-combat",
             },
         ];
         live.players[1].restrictedMana = [

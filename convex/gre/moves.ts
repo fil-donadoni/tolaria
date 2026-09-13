@@ -38,6 +38,7 @@ import {
     getCostModifiers,
     getAbilityManaSubstitutions,
     resolveTargetRequirementCount,
+    unrestrictedFloatingMana,
 } from "./state";
 import { classLevelActivationViolation } from "../cards/abilities/classLevels";
 import { handCardMatchesFilter } from "./alternativeCost";
@@ -886,6 +887,28 @@ export function planManaPayment(
         const n = player.manaPool[c] ?? 0;
         for (let i = 0; i < n; i++) {
             sources.push({ options: new Map([[c, { via: "tap" }]]) });
+            capacity++;
+        }
+    }
+    // CR 106.6 (issue #3235) — a tagged-but-UNRESTRICTED floating unit (a rider,
+    // or firebending's end-of-combat lifetime) may pay for anything, so it is a
+    // zero-tap source exactly like fungible pool mana above. `getLegalActions`
+    // already folds eligible restricted mana into its own affordability census
+    // (`rules.ts`), and this planner disagreeing with it in the direction that
+    // makes the bot weaker is the gap
+    // `docs/findings/3354-bot-mana-readers-miss-restricted-pool.md` records:
+    // the move is simply never enumerated, so nothing reds and the seat passes
+    // holding mana. Firebending is the first source that produces such a unit
+    // WITHOUT a deliberate tap — a trigger the bot cannot decline — which is
+    // the condition that finding named as the day the gap opens.
+    // Genuinely restricted units are still excluded: their eligibility depends
+    // on the cost being paid, and folding them in unconditionally would have
+    // the bot enumerate casts the server then refuses.
+    for (const unit of unrestrictedFloatingMana(player)) {
+        if (!(MANA_COLORS as readonly string[]).includes(unit.color)) continue;
+        const color = unit.color as Color;
+        for (let i = 0; i < unit.amount; i++) {
+            sources.push({ options: new Map([[color, { via: "tap" }]]) });
             capacity++;
         }
     }

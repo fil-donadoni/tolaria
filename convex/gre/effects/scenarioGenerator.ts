@@ -37,7 +37,7 @@ import type {
     EffectValue,
     TargetSelection,
 } from "../../cards/types";
-import type { CardInstanceState, GameState } from "../state";
+import type { CardInstanceState, GameState, PlayerState } from "../state";
 import { EFFECT_OP_REGISTRY } from "../../cards/mechanicsRegistry";
 import { classLevelOf } from "../../cards/abilities/classLevels";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
@@ -771,6 +771,15 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // execution coverage comes from the Op's own interpreter tests and
             // the migrated cards' suspension/resume tests (per-Op regime).
             req.skip ??= `Op "scryReorder" suspends for a look/reorder-top choice — covered by the Op's interpreter tests and the card's suspension/resume tests`;
+            return;
+        case "exileTopOfLibrary":
+            // CR 701.13 (issue #3235) — exiles the top N library cards. Same
+            // disposition as `mill` below and for the same reason: the canned
+            // generator seeds only a minimal filler library, so there is no
+            // meaningful before/after library→exile delta to assert without
+            // inventing a deck. A DELIBERATE, surfaced skip; execution coverage
+            // is the Op's own interpreter tests.
+            req.skip ??= `Op "exileTopOfLibrary" moves top-of-library cards to exile — covered by the Op's interpreter tests`;
             return;
         case "mill":
             // `mill` (issue #885) moves the top N library cards to a graveyard.
@@ -1944,20 +1953,50 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     addMana(rawOp, _scenario, pre) {
         const op = rawOp as Extract<EffectOp, { op: "addMana" }>;
         const pid = assertionPlayerId(op.player ?? "controller");
-        const before = { ...findPlayer(pre, pid).manaPool };
+        // CR 106.1 / 702.189a (issue #3235) — a plain deposit lands in the
+        // fungible `manaPool`; one carrying a `persistsUntil` lifetime lands
+        // in the tagged `restrictedMana` list instead (the count map has
+        // nowhere to record a lifetime). The assertion reads the bucket the Op
+        // actually NAMES rather than summing both (PR #3549 review, nit 10):
+        // a both-buckets sum would report a correct deposit and a routing bug
+        // — mana in the wrong list — identically, which is precisely the class
+        // of defect the smoke sweep exists to catch.
+        const balance = (
+            player: Pick<PlayerState, "manaPool" | "restrictedMana">,
+            color: string
+        ): number =>
+            op.persistsUntil === undefined
+                ? (player.manaPool[color] ?? 0)
+                : (player.restrictedMana ?? []).reduce(
+                      (total, unit) =>
+                          unit.color === color &&
+                          unit.persistsUntil === op.persistsUntil
+                              ? total + unit.amount
+                              : total,
+                      0
+                  );
+        const preP = findPlayer(pre, pid);
         const added = Object.entries(op.mana).filter(([, n]) => (n ?? 0) > 0);
+        const before = Object.fromEntries(
+            added.map(([color]) => [color, balance(preP, color)])
+        );
         return {
             label: `addMana ${added
                 .map(([c, n]) => `${n}${c}`)
                 .join("")} to player ${pid}`,
             check: (post) => {
-                const pool = findPlayer(post, pid).manaPool;
+                const postP = findPlayer(post, pid);
                 for (const [color, amount] of added) {
                     const expected = (before[color] ?? 0) + (amount ?? 0);
-                    if ((pool[color] ?? 0) !== expected) {
+                    const actual = balance(postP, color);
+                    if (actual !== expected) {
+                        const where =
+                            op.persistsUntil === undefined
+                                ? "pool"
+                                : `${op.persistsUntil} bucket`;
                         return {
                             ok: false,
-                            detail: `${color} pool ${pool[color] ?? 0}, expected ${expected}`,
+                            detail: `${color} ${where} ${actual}, expected ${expected}`,
                         };
                     }
                 }
@@ -2390,6 +2429,16 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // without mis-modelling the source deck). Kept for the 1:1 coverage guard;
     // the mill loop is covered by the Op's own interpreter tests.
     mill() {
+        return null;
+    },
+    // `exileTopOfLibrary` (CR 701.13, issue #3235) — never reached, for the
+    // same reason as its `mill` sibling directly above: `analyseOp` skips every
+    // script carrying it, since the canned generator seeds only a minimal
+    // filler library and there is no library→exile delta it can assert without
+    // inventing a deck. Kept for the 1:1 coverage guard; the exile loop, the
+    // `linkToSource` stamp and the `bindAll` binding are covered by the Op's
+    // own interpreter tests.
+    exileTopOfLibrary() {
         return null;
     },
     // `revealTopAndRoute` (CR 701.20a) — never reached: `analyseOp` skips every

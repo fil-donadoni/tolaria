@@ -2352,6 +2352,15 @@ function isManaPool(value: unknown): boolean {
     return true;
 }
 
+/** The `persistsUntil` field of an `addMana` Op (CR 702.189a, issue #3235) —
+ *  the produced mana's LIFETIME. Exactly one member today, `"end-of-combat"`
+ *  (firebending); the closed literal test is what keeps a typo'd or invented
+ *  duration from silently validating into a `ManaPersistence`-typed field the
+ *  engine would then never honour. */
+function isManaPersistence(value: unknown): boolean {
+    return value === "end-of-combat";
+}
+
 /** A `mayPay` permanent leg's `count`: a fixed cardinal (positive int) or a
  *  summed-power threshold `{ minTotalPower: positive int }` (CR 118, Phyrexian
  *  Dreadnought — "sacrifice any number … total power ≥ N"). */
@@ -3273,7 +3282,14 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             player: isPlayerRef,
         },
         optional: {
-            window: (v: unknown) => v === "this-turn" || v === "while-exiled",
+            // CR 514.2 / 608.2g — a closed literal set. The primitive accepts
+            // two further windows ("until-next-end-step", "after-this-turn")
+            // that no DSL card has needed yet; the Op's surface stays the
+            // subset its cards actually name, so a typo can never validate.
+            window: (v: unknown) =>
+                v === "this-turn" ||
+                v === "while-exiled" ||
+                v === "until-end-of-your-next-turn",
             withoutPayingManaCost: isBoolean,
             // CR 305.9 (issue #1689) — true iff the grant's Oracle text says
             // "play" (land-inclusive), never for a "cast"-only grant.
@@ -3419,7 +3435,10 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // (optional) names whose pool (default the resolving controller).
     addMana: {
         required: { mana: isManaPool },
-        optional: { player: isPlayerRef },
+        // CR 702.189a (issue #3235) — `persistsUntil` is orthogonal to both
+        // siblings: it neither changes what is produced nor whose pool gets
+        // it, so no combination is rejected. Absent is the CR 500.5 default.
+        optional: { player: isPlayerRef, persistsUntil: isManaPersistence },
     },
     destroy: {
         required: { target: isObjectSelector },
@@ -4344,6 +4363,20 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             count: isEffectValue,
         },
         optional: { bind: isBindingName, bindAll: isBindingName },
+    },
+    // CR 701.13 / 406.3 (issue #3235) — exile the top N of a library, face up.
+    // `count` is OPTIONAL here (unlike `mill`'s, which is required): "exile the
+    // top card" with no number is the common shape, and the executor defaults
+    // to 1. No combination is rejected — `linkToSource` and `bindAll` are two
+    // independent ways for a later Op to name the exiled set and a script may
+    // use either, both, or neither.
+    exileTopOfLibrary: {
+        required: { player: isPlayerRef },
+        optional: {
+            count: isEffectValue,
+            linkToSource: isBoolean,
+            bindAll: isBindingName,
+        },
     },
     // CR 701.20a + CR 400.7 — reveal the top `count` card(s) of a library and
     // route each by what it IS (deterministic; no choice, never suspends).

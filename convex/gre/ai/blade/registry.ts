@@ -495,6 +495,64 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "CR 605.1a depletion-land reachability. Also the end-to-end cover for `removeCounter` in `TAP_YIELD_CREDITABLE_COST_LEGS` (moves.ts) and for the scenario builder defaulting a battlefield land's entry counters from `resolveEntersWithCounters` — a land placed with zero counters is not a mana source at all, so this entry fails on either half.",
     },
     {
+        // FLOATING-MANA reachability (CR 106.6, issue #3235). `me` has NO
+        // permanents at all and one {1}{R} creature in hand; the only mana on
+        // the board is two red floating in the TAGGED `restrictedMana` list —
+        // Arena of Glory's bare-rider shape, a unit that carries no
+        // `restriction` and no `castableCardId` and is therefore spendable on
+        // absolutely anything (`restrictedUnitAllowsSpell` returns true for it
+        // unconditionally). Casting is the only line that is not `pass`.
+        //
+        // The claim is REACHABILITY, not preference, and nothing else goes red
+        // when it breaks — which is the whole reason the entry exists.
+        // `getLegalActions` (rules.ts) has always folded eligible restricted
+        // mana into its affordability census, but `planManaPayment` (moves.ts)
+        // read `player.manaPool` alone, so the two authorities disagreed in the
+        // direction that makes the bot WEAKER: the cast was legal for a human
+        // and simply never enumerated for the bot, which passed holding mana
+        // (`docs/findings/3354-bot-mana-readers-miss-restricted-pool.md`).
+        //
+        // That finding called it latent "unless a shipped restricted source
+        // ever becomes auto-tappable". Firebending (CR 702.189a) is that
+        // source: its four red arrive from an attack trigger the bot cannot
+        // decline, so the gap is no longer reachable-only-on-purpose. This
+        // entry pins the CLASS — `unrestrictedFloatingMana` (gre/state.ts)
+        // admits the rider unit below and firebending's lifetime unit by the
+        // same predicate — rather than the card, because a firebending board
+        // needs a live combat step and would test the mana through a second
+        // mechanism at the same time.
+        label: "floating mana: casts off a tagged-but-unrestricted unit with no permanent on the board",
+        spec: {
+            cards: [{ name: "Goblin Ski Patrol", owner: "me", zone: "hand" }],
+            restrictedMana: {
+                me: [{ color: "R", amount: 2, hasteRider: true }],
+            },
+            phase: "PRECOMBAT_MAIN",
+            turn: 2,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        tier: "must",
+        // A `predicate`, like the depletion-land entry below and for the same
+        // reason: a reachability claim carries no preference, and feeding one
+        // to `verdictsFromRegistry` would move the fitted weights on a
+        // question that has no verdict in it (ADR 0124 §5).
+        expect: {
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                // The discriminating half: `me` controls NOTHING, so a plan
+                // with any tap in it would mean the mana came from somewhere
+                // this board does not have. Pool-sourced mana is a zero-tap
+                // `PlanSource` by construction (`cardInstanceId` undefined).
+                (move.tapPlan?.length ?? 0) === 0,
+            describe:
+                "casts its two-drop off the floating unrestricted unit, taps nothing",
+        },
+        note: "CR 106.6 floating-mana reachability. Covers `unrestrictedFloatingMana` at both readers that consume it — `planManaPayment` (gre/moves.ts, which decides whether the cast is enumerated at all) and `poolUnits`/`manaCensusFor` (gre/manaAvailability.ts, the colour-aware castability census). Genuinely RESTRICTED units are deliberately still excluded from both, since their eligibility depends on the cost being paid.",
+    },
+    {
         // ADVENTURE reachability (CR 715.3, issue #3303). The bot holds one
         // card with two castable halves and only two lands: the creature half
         // ({2}{R}) is unaffordable, the Adventure ({1}{R}) kills the

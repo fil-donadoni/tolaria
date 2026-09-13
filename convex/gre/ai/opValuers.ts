@@ -1387,6 +1387,24 @@ const grantGraveyardPlay: Valuer<"grantGraveyardPlay"> = () => ({
 
 const libraryLook: Valuer<"libraryLook"> = () => ZERO_OP_VALUE;
 
+/** CR 701.13 (issue #3235) — exiling the top of a library is the same
+ *  library-resource shift milling is, and unrecoverable rather than merely
+ *  displaced, so it carries `mill`'s per-card magnitude. What it does NOT
+ *  carry is mill's default SEAT: every Oracle text that reaches this Op exiles
+ *  the caster's OWN library (the impulse shape), so an unresolvable ref reads
+ *  as SELF and the points come out negative. The upside of an impulse
+ *  is priced by the paired `grantCastFromExile`, which has its own valuer —
+ *  double-counting it here would make a bare "exile the top card" look like
+ *  card advantage it does not produce on its own. */
+const exileTopOfLibrary: Valuer<"exileTopOfLibrary"> = (op, ctx) => {
+    const { amount, scaling } = ctx.value(op.count ?? 1);
+    const self = ctx.isSelf(op.player, "self");
+    return {
+        points: amount * MILL_PER_CARD_VALUE * (self ? -1 : 1),
+        tags: tagScaling(scaling, "cardAdvantage"),
+    };
+};
+
 const mill: Valuer<"mill"> = (op, ctx) => {
     const { amount, scaling } = ctx.value(op.count);
     // Harmful-by-default assumption: milling targets the OPPONENT (a
@@ -1893,6 +1911,7 @@ export const OP_VALUERS: {
     grantCastFromGraveyard,
     grantGraveyardPlay,
     libraryLook,
+    exileTopOfLibrary,
     mill,
     revealTopAndRoute,
     revealUntilMatch,
@@ -2181,6 +2200,12 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     chooseCategorized: "harmful",
     discardAtRandom: "harmful",
     mill: "harmful",
+    // CR 701.13 Exile (issue #3235) — harmful for the same reason its
+    // graveyard-bound sibling below is: the Op takes cards off `player`'s
+    // library for good. The impulse permission that usually follows is a
+    // SEPARATE Op with its own sign, so this one is never the beneficial half
+    // of that pair.
+    exileTopOfLibrary: "harmful",
     // CR 613.1b layer 2 — a control change strips the permanent from the
     // player who currently controls it.
     gainControl: "harmful",

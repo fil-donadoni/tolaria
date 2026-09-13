@@ -1002,6 +1002,22 @@ export function applyActivationCostsForSearch(
  *  `cost.mana`) rather than tapping the source: `cardInstanceId` itself is
  *  never tapped by this payment (CR 602.1 — Urza is never tapped by its own
  *  cost); only the permanent(s) named in `tapOtherIds`, if any, are. */
+/** KNOWN COARSENESS (PR #3549 review finding 7) — this applier TAPS sources but
+ *  never debits `manaPool` / `restrictedMana`, so mana ALREADY FLOATING when
+ *  the tree was entered is free inside it: a plan may draw on it once per
+ *  simulated cast without it ever running out. A pool source is a zero-tap
+ *  `PlanSource` (`cardInstanceId` undefined, `gre/moves.ts`), so it leaves no
+ *  `ManaTap` entry for this function to charge against even in principle —
+ *  closing it means changing the plan's shape, not this loop.
+ *
+ *  It was latent while floating mana was rare (the pool empties at every CR
+ *  500.5 boundary, so a search rarely started with any). Firebending (CR
+ *  702.189a, issue #3235) makes it routine: four red arrive from an attack
+ *  trigger the bot cannot decline and survive to end of combat. The error is
+ *  the bot OVER-estimating what it can cast in-tree, which shows up as an
+ *  optimistic line, not as an illegal move — every real move still goes
+ *  through `assertLegalAction` server-side (ADR 0074). Recorded in
+ *  `docs/findings/3549-search-does-not-debit-floating-mana.md`. */
 function applyTapPlan(
     state: GameState,
     playerId: string,

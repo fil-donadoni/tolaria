@@ -79,6 +79,45 @@ describe("restrictedManaLabel (#754, CR 106.6)", () => {
         expect(restrictedManaLabel(unit)).toBe("Restricted");
     });
 
+    it("a LIFETIME-tagged unit is labelled as spendable on anything, with the lifetime spelled out (CR 702.189a firebending, issue #3235)", () => {
+        const unit: RestrictedMana = {
+            color: "R",
+            amount: 4,
+            persistsUntil: "end-of-combat",
+        };
+        // NOT "Restricted": the unit carries no restriction at all — it sits in
+        // the tagged list only because the fungible pool has nowhere to record
+        // how long it lasts, and a player reading "Restricted" beside four red
+        // in their combat phase would be told the opposite of the truth.
+        expect(restrictedManaLabel(unit)).toBe(
+            "Any spell — lasts until end of combat"
+        );
+    });
+
+    it("a lifetime composes with a rider rather than replacing it — they are different clauses", () => {
+        const unit: RestrictedMana = {
+            color: "R",
+            amount: 1,
+            hasteRider: true,
+            persistsUntil: "end-of-combat",
+        };
+        expect(restrictedManaLabel(unit)).toBe(
+            "Any spell — creature spell gains haste, lasts until end of combat"
+        );
+    });
+
+    it("a lifetime composes with a real restriction too — eligibility and lifetime are orthogonal", () => {
+        const unit: RestrictedMana = {
+            color: "G",
+            amount: 2,
+            restriction: "creature-spell",
+            persistsUntil: "end-of-combat",
+        };
+        expect(restrictedManaLabel(unit)).toBe(
+            "Creature spells only — lasts until end of combat"
+        );
+    });
+
     it("labels the legendary-spell restriction (Delighted Halfling, #1559)", () => {
         const unit: RestrictedMana = {
             color: "W",

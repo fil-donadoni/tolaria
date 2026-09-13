@@ -33036,3 +33036,403 @@ describe("Effect Script Op: choice allControllers — every player's battlefield
         ).toBe(false);
     });
 });
+
+describe("Effect Script Op: exileTopOfLibrary (CR 701.13 / 406.3)", () => {
+    /** N library cards for p1, topmost first — `library[0]` is the top. */
+    function libraryOf(n: number): CardInstanceState[] {
+        return Array.from({ length: n }, (_, i) =>
+            makeInstance(BEAR_ID, {
+                id: `lib${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            })
+        );
+    }
+
+    it("exiles the top `count` cards, in order, leaving the rest of the library alone", () => {
+        const id = registerScript("test-op-exile-top", [
+            { op: "exileTopOfLibrary", player: "controller", count: 3 },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libraryOf(5) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].exile.map((c) => c.id)).toEqual([
+            "lib0",
+            "lib1",
+            "lib2",
+        ]);
+        expect(state.players[0].library.map((c) => c.id)).toEqual([
+            "lib3",
+            "lib4",
+        ]);
+    });
+
+    it("exiles FACE UP — an open zone with no per-viewer grant, so the OPPONENT's projection carries the real identity (CR 406.3)", () => {
+        const id = registerScript("test-op-exile-top-face-up", [
+            { op: "exileTopOfLibrary", player: "controller", count: 1 },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libraryOf(2) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].exile[0].knownTo).toBeUndefined();
+        // Wire format: the projection is what the client sees, and a face-down
+        // exile would show the sentinel id here instead.
+        const oppView = projectPublicState(state, 1, "p2");
+        const exiled = oppView.players.find((p) => p.id === "p1")!.exile;
+        expect(exiled.map((c) => c.card.id)).toEqual([BEAR_ID]);
+        expect(exiled[0].card.id).not.toBe(FACE_DOWN_CARD_ID);
+    });
+
+    it("`count` defaults to 1 — the unnumbered 'exile the top card' shape", () => {
+        const id = registerScript("test-op-exile-top-default", [
+            { op: "exileTopOfLibrary", player: "controller" },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libraryOf(3) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].exile.map((c) => c.id)).toEqual(["lib0"]);
+    });
+
+    it("a short library exiles what is there, and an empty one is a clean no-op (CR 608.2b)", () => {
+        const short = registerScript("test-op-exile-top-short", [
+            { op: "exileTopOfLibrary", player: "controller", count: 3 },
+        ]);
+        const shortState = makeState({
+            players: [
+                makePlayer("p1", { library: libraryOf(1) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(shortState, short, "p1");
+        resolveTopOfStack(shortState);
+        expect(shortState.players[0].exile.map((c) => c.id)).toEqual(["lib0"]);
+
+        const empty = registerScript("test-op-exile-top-empty", [
+            { op: "exileTopOfLibrary", player: "controller", count: 3 },
+        ]);
+        const emptyState = makeState();
+        pushSpell(emptyState, empty, "p1");
+        resolveTopOfStack(emptyState);
+        expect(emptyState.players[0].exile).toEqual([]);
+        // The sorcery still resolved into the graveyard — no suspend, no throw.
+        expect(emptyState.players[0].graveyard.map((c) => c.card.id)).toContain(
+            empty
+        );
+    });
+
+    it("targets the named player's library, not always the controller's", () => {
+        const id = registerScript("test-op-exile-top-opponent", [
+            { op: "exileTopOfLibrary", player: "opponent", count: 2 },
+        ]);
+        const oppLibrary = [0, 1, 2].map((i) =>
+            makeInstance(BEAR_ID, {
+                id: `opplib${i}`,
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "library",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libraryOf(2) }),
+                makePlayer("p2", { library: oppLibrary }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].exile).toEqual([]);
+        expect(state.players[1].exile.map((c) => c.id)).toEqual([
+            "opplib0",
+            "opplib1",
+        ]);
+    });
+
+    it("`bindAll` publishes the exiled ids as a picks binding a later Op iterates", () => {
+        const id = registerScript("test-op-exile-top-bindall", [
+            {
+                op: "exileTopOfLibrary",
+                player: "controller",
+                count: 2,
+                bindAll: "$exiled",
+            },
+            {
+                op: "forEach",
+                select: { set: "bound", ref: "$exiled" },
+                effects: [{ op: "gainLife", amount: 1, player: "controller" }],
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libraryOf(4) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(22);
+    });
+
+    it("`linkToSource` + `{ exiledWithSource: true }` grants EVERY exiled card, which a picks binding could not (CR 607)", () => {
+        const id = registerScript("test-op-exile-top-linked", [
+            {
+                op: "exileTopOfLibrary",
+                player: "controller",
+                count: 3,
+                linkToSource: true,
+            },
+            {
+                op: "grantCastFromExile",
+                card: { exiledWithSource: true },
+                player: "controller",
+                window: "until-end-of-your-next-turn",
+                includesLand: true,
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libraryOf(4) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const exiled = state.players[0].exile.filter((c) =>
+            ["lib0", "lib1", "lib2"].includes(c.id)
+        );
+        expect(exiled).toHaveLength(3);
+        for (const card of exiled) {
+            expect(card.castableFromExileBy).toBe("p1");
+            expect(card.castableFromExileIncludesLand).toBe(true);
+            // CR 514.2 / 608.2g — the window is stamped on p1's OWN turn
+            // count, not on a global turn number: p1 has taken 0 turns in the
+            // fixture, so the grant dies at the end of their 1st.
+            expect(card.castableFromExileUntilOwnTurn).toBe(1);
+            expect(card.castableFromExileUntilTurn).toBeUndefined();
+        }
+    });
+
+    it("without `linkToSource` nothing is linked, so the same grant reaches nothing (fail-closed)", () => {
+        const id = registerScript("test-op-exile-top-unlinked", [
+            { op: "exileTopOfLibrary", player: "controller", count: 3 },
+            {
+                op: "grantCastFromExile",
+                card: { exiledWithSource: true },
+                player: "controller",
+                window: "until-end-of-your-next-turn",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libraryOf(4) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        for (const card of state.players[0].exile) {
+            expect(card.castableFromExileBy).toBeUndefined();
+        }
+    });
+
+    it("survives the compact/expand round trip with its grant intact", () => {
+        const id = registerScript("test-op-exile-top-serialize", [
+            {
+                op: "exileTopOfLibrary",
+                player: "controller",
+                count: 1,
+                linkToSource: true,
+            },
+            {
+                op: "grantCastFromExile",
+                card: { exiledWithSource: true },
+                player: "controller",
+                window: "until-end-of-your-next-turn",
+                includesLand: true,
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libraryOf(2) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const round = expandState(compactState(state));
+        const card = round.players[0].exile.find((c) => c.id === "lib0")!;
+        expect(card.castableFromExileBy).toBe("p1");
+        // CR 514.2 / 608.2g — the OWN-turn bound, the one this window stamps.
+        expect(card.castableFromExileUntilOwnTurn).toBe(1);
+        expect(card.castableFromExileIncludesLand).toBe(true);
+    });
+});
+
+describe("grantCastFromExile window: until-end-of-your-next-turn (CR 514.2 / 608.2g)", () => {
+    /** Resolves an exile-top + grant script for `p1` and returns the exiled
+     *  card, so a test can read whichever bound was stamped. */
+    function grantedCard(
+        id: string,
+        overrides: Partial<GameState> = {},
+        p1Overrides: Record<string, unknown> = {},
+        window:
+            | "until-end-of-your-next-turn"
+            | "this-turn" = "until-end-of-your-next-turn"
+    ): { state: GameState; card: CardInstanceState } {
+        registerScript(id, [
+            {
+                op: "exileTopOfLibrary",
+                player: "controller",
+                count: 1,
+                linkToSource: true,
+            },
+            {
+                op: "grantCastFromExile",
+                card: { exiledWithSource: true },
+                player: "controller",
+                window,
+                includesLand: true,
+            },
+        ]);
+        const top = makeInstance(BEAR_ID, {
+            id: "win-top",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: [top], ...p1Overrides }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            ...overrides,
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        return {
+            state,
+            card: state.players[0].exile.find((c) => c.id === "win-top")!,
+        };
+    }
+
+    it("stamps the GRANTEE's own turn count, not a global turn number (CR 500.7 — extra turns break alternation)", () => {
+        // p1 has taken four turns; "your next turn" is their fifth, whatever
+        // the global turn counter happens to say and however many extra turns
+        // are inserted before it.
+        const { card } = grantedCard(
+            "test-window-own-turn",
+            { turn: 9 },
+            { turnsTaken: 4 }
+        );
+        expect(card.castableFromExileUntilOwnTurn).toBe(5);
+        // The ABSOLUTE bound is deliberately not stamped — the two are
+        // alternatives, and leaving both would revoke at whichever came first.
+        expect(card.castableFromExileUntilTurn).toBeUndefined();
+    });
+
+    it("is independent of WHOSE turn it is — the grantee's own count answers both cases", () => {
+        const own = grantedCard(
+            "test-window-own-seat",
+            { turn: 5, activePlayerId: "p1" },
+            { turnsTaken: 2 }
+        ).card;
+        const theirs = grantedCard(
+            "test-window-opp-seat",
+            { turn: 5, activePlayerId: "p2", priorityPlayerId: "p2" },
+            { turnsTaken: 2 }
+        ).card;
+        expect(own.castableFromExileUntilOwnTurn).toBe(3);
+        expect(theirs.castableFromExileUntilOwnTurn).toBe(3);
+    });
+
+    it("uses the ABSOLUTE bound for `this-turn`, which is what makes the two windows distinct", () => {
+        const { card } = grantedCard(
+            "test-window-this-turn-contrast",
+            { turn: 5 },
+            { turnsTaken: 2 },
+            "this-turn"
+        );
+        expect(card.castableFromExileUntilTurn).toBe(5);
+        expect(card.castableFromExileUntilOwnTurn).toBeUndefined();
+    });
+
+    it("the CLEANUP sweep revokes it at the end of the grantee's next turn and not before", () => {
+        const { state, card: granted } = grantedCard(
+            "test-window-sweep",
+            { turn: 1 },
+            { turnsTaken: 1 }
+        );
+        const card = () =>
+            state.players[0].exile.find((c) => c.id === "win-top")!;
+        expect(granted.castableFromExileUntilOwnTurn).toBe(2);
+
+        // This turn's cleanup: p1 is still on their 1st turn, so the grant
+        // stands (1 < 2).
+        finalizeCleanup(state);
+        expect(card().castableFromExileBy).toBe("p1");
+        // The opponent's turn ends. p1's own count did not move, so the grant
+        // is untouched — which is the whole point of counting their turns and
+        // not the global ones.
+        state.turn = 2;
+        state.activePlayerId = "p2";
+        finalizeCleanup(state);
+        expect(card().castableFromExileBy).toBe("p1");
+        // p1 takes their next turn and it ends: revoked, together with every
+        // sibling marker that rides the same permission.
+        state.turn = 3;
+        state.activePlayerId = "p1";
+        state.players[0].turnsTaken = 2;
+        finalizeCleanup(state);
+        expect(card().castableFromExileBy).toBeUndefined();
+        expect(card().castableFromExileUntilOwnTurn).toBeUndefined();
+        expect(card().castableFromExileIncludesLand).toBeUndefined();
+        // The card itself stays exiled — only the permission expired.
+        expect(card().zone).toBe("exile");
+    });
+
+    it("an EXTRA TURN does not lengthen the window — the defect an absolute turn stamp had (CR 500.7)", () => {
+        const { state } = grantedCard(
+            "test-window-extra-turn",
+            { turn: 1 },
+            { turnsTaken: 1 }
+        );
+        const card = () =>
+            state.players[0].exile.find((c) => c.id === "win-top")!;
+        // p1 takes an EXTRA turn immediately instead of passing to p2. Under
+        // an absolute `state.turn + 2` stamp the window would have survived
+        // this turn AND the opponent's — a whole extra turn too long.
+        state.turn = 2;
+        state.players[0].turnsTaken = 2;
+        finalizeCleanup(state);
+        expect(card().castableFromExileBy).toBeUndefined();
+    });
+
+    it("survives the compact/expand round trip on the own-turn bound", () => {
+        const { state } = grantedCard(
+            "test-window-own-turn-serialize",
+            { turn: 4 },
+            { turnsTaken: 3 }
+        );
+        const round = expandState(compactState(state));
+        const card = round.players[0].exile.find((c) => c.id === "win-top")!;
+        expect(card.castableFromExileUntilOwnTurn).toBe(4);
+        expect(card.castableFromExileBy).toBe("p1");
+    });
+});
