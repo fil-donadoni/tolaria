@@ -10,6 +10,7 @@ import { getCardByName } from "../../cards";
 import { search, searchWithTrace } from "../search";
 import { evaluate, evaluateBreakdown } from "../evaluate";
 import { DEFAULT_EVAL_WEIGHTS } from "../ai/evalWeights";
+import { UNKNOWN_COLOR_COVERAGE } from "../ai/colorCoverage";
 import { describeMove } from "../describeMove";
 import { enumerateMoves, type Move } from "../moves";
 import {
@@ -101,7 +102,14 @@ describe("evaluateBreakdown (DecisionTrace)", () => {
         ); // 2 × cardValue(Lightning Bolt), DSL-derived
     });
 
-    it("is symmetric: opponent's terms equal their own self-view", () => {
+    it("is symmetric in every term but the one that may not read a hand", () => {
+        // Issue #3532. `colorCoverage` is the ONE term whose value depends on
+        // WHOSE view is being taken, and deliberately: the seat's own half
+        // reads the costs in hand, the other seat's half may never read a hand
+        // — not even the determinized sample the search holds (PRD #3526) —
+        // and stands on `ai/observedColors.ts` instead. Every other term is
+        // still a pure function of the player, so the old whole-object
+        // equality is kept for all of them.
         const state = makeState({
             players: [
                 makePlayer("p1", { life: 12 }),
@@ -113,7 +121,21 @@ describe("evaluateBreakdown (DecisionTrace)", () => {
         });
         const fromP1 = evaluateBreakdown(state, "p1");
         const fromP2 = evaluateBreakdown(state, "p2");
-        expect(fromP1.opp).toEqual(fromP2.self);
+        const { colorCoverage: observed, ...observedRest } = fromP1.opp;
+        const { colorCoverage: own, ...ownRest } = fromP2.self;
+        expect(observedRest).toEqual(ownRest);
+
+        // And the asymmetry itself, in both directions, on this exact board:
+        // p2 holds a Lightning Bolt and controls no mana source at all, so
+        // their OWN view is a hand whose colour the base cannot supply — the
+        // floor. p1 cannot see that hand, and p2 has shown nothing (no
+        // permanent, no graveyard, no stack), so the observed estimate is
+        // UNKNOWN: neither the floor nor the ceiling.
+        expect(own).toBe(0);
+        expect(observed).toBe(
+            UNKNOWN_COLOR_COVERAGE * DEFAULT_EVAL_WEIGHTS.colorCoverageWeight
+        );
+        expect(observed).toBeGreaterThan(own);
     });
 });
 
