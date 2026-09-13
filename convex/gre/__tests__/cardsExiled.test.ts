@@ -138,6 +138,64 @@ describe("CARDS_EXILED emission (issue #1558, CR 400.1 / 603.3b / 608.2i)", () =
         }
     });
 
+    it("moveCardsById batches a 3-card library->exile move into ONE event (issue #3235 — the exileTopOfLibrary Op's primitive)", () => {
+        const library = [
+            bystanderCard("c1", "p1", "library"),
+            bystanderCard("c2", "p1", "library"),
+            bystanderCard("c3", "p1", "library"),
+        ];
+        const state = makeState({
+            players: [makePlayer("p1", { library }), makePlayer("p2")],
+        });
+        const stackItem = pushSpell(state, P1_SORCERY_ID, "p1");
+        const ctx = buildSpellContext(state, stackItem);
+        // "Exile the top three cards of your library" is ONE instruction and
+        // therefore ONE occurrence (CR 603.3b / 608.2i). A `moveCardById` loop
+        // emits three events instead, which is exactly how Laelia, the Blade
+        // Reforged gets three counters off a single three-card exile — the
+        // defect the batched primitive exists to prevent (PR #3549 review).
+        const moved = ctx.moveCardsById(
+            "p1",
+            ["c1", "c2", "c3"],
+            "library",
+            "exile"
+        );
+        expect(moved).toEqual(["c1", "c2", "c3"]);
+        expect(state.players[0].exile.map((c) => c.id)).toEqual([
+            "c1",
+            "c2",
+            "c3",
+        ]);
+        const exiledEvents = cardsExiledEvents(flushPendingEvents(state));
+        expect(exiledEvents).toHaveLength(1);
+        expect(exiledEvents[0].cards.map((c) => c.cardInstanceId)).toEqual([
+            "c1",
+            "c2",
+            "c3",
+        ]);
+        for (const c of exiledEvents[0].cards) {
+            expect(c.fromZone).toBe("library");
+            expect(c.ownerId).toBe("p1");
+        }
+    });
+
+    it("moveCardsById emits NOTHING when the destination is not exile, and skips an id that is not in `from` (CR 608.2b)", () => {
+        const library = [bystanderCard("c1", "p1", "library")];
+        const state = makeState({
+            players: [makePlayer("p1", { library }), makePlayer("p2")],
+        });
+        const stackItem = pushSpell(state, P1_SORCERY_ID, "p1");
+        const ctx = buildSpellContext(state, stackItem);
+        const moved = ctx.moveCardsById(
+            "p1",
+            ["c1", "not-there"],
+            "library",
+            "hand"
+        );
+        expect(moved).toEqual(["c1"]);
+        expect(cardsExiledEvents(flushPendingEvents(state))).toHaveLength(0);
+    });
+
     it("millCards emits NOTHING when no cards are redirected (plain mill to graveyard)", () => {
         const library = [bystanderCard("c1", "p1", "library")];
         const state = makeState({

@@ -4350,6 +4350,23 @@ export interface SpellContext {
         from: MovableZone,
         to: MovableZone
     ) => void;
+    /** CR 400.7 / 603.3b / 608.2i (issue #1558, PR #3549 review) — the BATCHED
+     *  sibling of {@link moveCardById}: several cards moved by ONE instruction
+     *  ("exile the top three cards of your library") are ONE occurrence, so a
+     *  `CARDS_EXILED`-watching trigger fires once and counts three cards
+     *  rather than firing three times. Returns the ids that genuinely moved,
+     *  in the order given; an id not in `from` is skipped (CR 608.2b).
+     *
+     *  Use it wherever a single Oracle sentence moves more than one card to
+     *  the SAME destination. A `moveCardById` loop is the bug it exists to
+     *  prevent, and the call site cannot fix it after the fact — the per-card
+     *  event is already queued by the time the loop's next iteration runs. */
+    moveCardsById: (
+        playerId: string,
+        cardInstanceIds: readonly string[],
+        from: MovableZone,
+        to: MovableZone
+    ) => string[];
     /** CR 122.1 (issue #1570) — merge counters onto a card that already sits in
      *  exile (Karn, Scion of Urza's silver counter), so a later "a card with a
      *  <type> counter on it" `choice(zone: "exile")` + `hasCounter` filter finds

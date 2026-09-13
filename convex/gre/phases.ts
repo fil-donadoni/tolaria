@@ -2743,12 +2743,33 @@ export function finalizeCleanup(state: GameState): void {
     // remains exiled"; Robber of the Rich while-source-lives) are untouched.
     for (const p of state.players) {
         for (const card of p.exile) {
+            // CR 514.2 / 608.2g (issue #3235) — two upper bounds, one sweep.
+            // The absolute one counts GLOBAL turns ("this turn", "until your
+            // next end step"); the own-turn one counts the GRANTEE's own
+            // `turnsTaken` ("until the end of YOUR next turn"), because extra
+            // turns (CR 500.7) break the alternation an absolute stamp needs.
+            // A card carries at most one; a card carrying neither is an
+            // open-ended grant (Ice Cauldron "as long as it remains exiled",
+            // Robber of the Rich while-source-lives) and is untouched.
+            const grantee =
+                card.castableFromExileUntilOwnTurn !== undefined &&
+                card.castableFromExileBy !== undefined
+                    ? state.players.find(
+                          (q) => q.id === card.castableFromExileBy
+                      )
+                    : undefined;
+            const ownTurnExpired =
+                grantee !== undefined &&
+                (grantee.turnsTaken ?? 0) >=
+                    card.castableFromExileUntilOwnTurn!;
             if (
-                card.castableFromExileUntilTurn !== undefined &&
-                state.turn >= card.castableFromExileUntilTurn
+                (card.castableFromExileUntilTurn !== undefined &&
+                    state.turn >= card.castableFromExileUntilTurn) ||
+                ownTurnExpired
             ) {
                 delete card.castableFromExileBy;
                 delete card.castableFromExileUntilTurn;
+                delete card.castableFromExileUntilOwnTurn;
                 // CR 702.185a/b (issue #1268) — the LOWER bound and the
                 // "warped card in exile" referent ride the same permission the
                 // impulse sweep is revoking here.

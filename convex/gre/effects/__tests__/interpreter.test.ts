@@ -33219,9 +33219,11 @@ describe("Effect Script Op: exileTopOfLibrary (CR 701.13 / 406.3)", () => {
         for (const card of exiled) {
             expect(card.castableFromExileBy).toBe("p1");
             expect(card.castableFromExileIncludesLand).toBe(true);
-            // CR 514.2 / 608.2g — granted on p1's own turn 1, so the window is
-            // stamped with p1's NEXT turn (turn 3 in this alternating engine).
-            expect(card.castableFromExileUntilTurn).toBe(3);
+            // CR 514.2 / 608.2g — the window is stamped on p1's OWN turn
+            // count, not on a global turn number: p1 has taken 0 turns in the
+            // fixture, so the grant dies at the end of their 1st.
+            expect(card.castableFromExileUntilOwnTurn).toBe(1);
+            expect(card.castableFromExileUntilTurn).toBeUndefined();
         }
     });
 
@@ -33275,32 +33277,38 @@ describe("Effect Script Op: exileTopOfLibrary (CR 701.13 / 406.3)", () => {
         const round = expandState(compactState(state));
         const card = round.players[0].exile.find((c) => c.id === "lib0")!;
         expect(card.castableFromExileBy).toBe("p1");
-        expect(card.castableFromExileUntilTurn).toBe(3);
+        // CR 514.2 / 608.2g — the OWN-turn bound, the one this window stamps.
+        expect(card.castableFromExileUntilOwnTurn).toBe(1);
         expect(card.castableFromExileIncludesLand).toBe(true);
     });
 });
 
 describe("grantCastFromExile window: until-end-of-your-next-turn (CR 514.2 / 608.2g)", () => {
-    /** Resolves an exile-top + grant script for `p1` at the given turn/active
-     *  player, and returns the stamped expiry turn. */
-    function stampedExpiry(turn: number, activePlayerId: string): number {
-        const id = registerScript(
-            `test-window-next-turn-${turn}-${activePlayerId}`,
-            [
-                {
-                    op: "exileTopOfLibrary",
-                    player: "controller",
-                    count: 1,
-                    linkToSource: true,
-                },
-                {
-                    op: "grantCastFromExile",
-                    card: { exiledWithSource: true },
-                    player: "controller",
-                    window: "until-end-of-your-next-turn",
-                },
-            ]
-        );
+    /** Resolves an exile-top + grant script for `p1` and returns the exiled
+     *  card, so a test can read whichever bound was stamped. */
+    function grantedCard(
+        id: string,
+        overrides: Partial<GameState> = {},
+        p1Overrides: Record<string, unknown> = {},
+        window:
+            | "until-end-of-your-next-turn"
+            | "this-turn" = "until-end-of-your-next-turn"
+    ): { state: GameState; card: CardInstanceState } {
+        registerScript(id, [
+            {
+                op: "exileTopOfLibrary",
+                player: "controller",
+                count: 1,
+                linkToSource: true,
+            },
+            {
+                op: "grantCastFromExile",
+                card: { exiledWithSource: true },
+                player: "controller",
+                window,
+                includesLand: true,
+            },
+        ]);
         const top = makeInstance(BEAR_ID, {
             id: "win-top",
             controllerId: "p1",
@@ -33308,108 +33316,123 @@ describe("grantCastFromExile window: until-end-of-your-next-turn (CR 514.2 / 608
             zone: "library",
         });
         const state = makeState({
-            players: [makePlayer("p1", { library: [top] }), makePlayer("p2")],
-            turn,
-            activePlayerId,
-            priorityPlayerId: activePlayerId,
+            players: [
+                makePlayer("p1", { library: [top], ...p1Overrides }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            ...overrides,
         });
         pushSpell(state, id, "p1");
         resolveTopOfStack(state);
-        return state.players[0].exile.find((c) => c.id === "win-top")!
-            .castableFromExileUntilTurn!;
+        return {
+            state,
+            card: state.players[0].exile.find((c) => c.id === "win-top")!,
+        };
     }
 
-    it("granted on your OWN turn, the window reaches your NEXT turn — two turn numbers out, so it survives the opponent's turn in between", () => {
-        expect(stampedExpiry(5, "p1")).toBe(7);
+    it("stamps the GRANTEE's own turn count, not a global turn number (CR 500.7 — extra turns break alternation)", () => {
+        // p1 has taken four turns; "your next turn" is their fifth, whatever
+        // the global turn counter happens to say and however many extra turns
+        // are inserted before it.
+        const { card } = grantedCard(
+            "test-window-own-turn",
+            { turn: 9 },
+            { turnsTaken: 4 }
+        );
+        expect(card.castableFromExileUntilOwnTurn).toBe(5);
+        // The ABSOLUTE bound is deliberately not stamped — the two are
+        // alternatives, and leaving both would revoke at whichever came first.
+        expect(card.castableFromExileUntilTurn).toBeUndefined();
     });
 
-    it("granted on the OPPONENT's turn, your next turn is the very next one", () => {
-        expect(stampedExpiry(5, "p2")).toBe(6);
+    it("is independent of WHOSE turn it is — the grantee's own count answers both cases", () => {
+        const own = grantedCard(
+            "test-window-own-seat",
+            { turn: 5, activePlayerId: "p1" },
+            { turnsTaken: 2 }
+        ).card;
+        const theirs = grantedCard(
+            "test-window-opp-seat",
+            { turn: 5, activePlayerId: "p2", priorityPlayerId: "p2" },
+            { turnsTaken: 2 }
+        ).card;
+        expect(own.castableFromExileUntilOwnTurn).toBe(3);
+        expect(theirs.castableFromExileUntilOwnTurn).toBe(3);
     });
 
-    it("is strictly longer than `this-turn`, which is what makes it a distinct window", () => {
-        const id = registerScript("test-window-this-turn-contrast", [
-            {
-                op: "exileTopOfLibrary",
-                player: "controller",
-                count: 1,
-                linkToSource: true,
-            },
-            {
-                op: "grantCastFromExile",
-                card: { exiledWithSource: true },
-                player: "controller",
-                window: "this-turn",
-            },
-        ]);
-        const top = makeInstance(BEAR_ID, {
-            id: "contrast-top",
-            controllerId: "p1",
-            ownerId: "p1",
-            zone: "library",
-        });
-        const state = makeState({
-            players: [makePlayer("p1", { library: [top] }), makePlayer("p2")],
-            turn: 5,
-            activePlayerId: "p1",
-        });
-        pushSpell(state, id, "p1");
-        resolveTopOfStack(state);
-        expect(
-            state.players[0].exile.find((c) => c.id === "contrast-top")!
-                .castableFromExileUntilTurn
-        ).toBe(5);
+    it("uses the ABSOLUTE bound for `this-turn`, which is what makes the two windows distinct", () => {
+        const { card } = grantedCard(
+            "test-window-this-turn-contrast",
+            { turn: 5 },
+            { turnsTaken: 2 },
+            "this-turn"
+        );
+        expect(card.castableFromExileUntilTurn).toBe(5);
+        expect(card.castableFromExileUntilOwnTurn).toBeUndefined();
     });
 
-    it("the CLEANUP sweep revokes it on that turn and not before", () => {
-        const id = registerScript("test-window-sweep", [
-            {
-                op: "exileTopOfLibrary",
-                player: "controller",
-                count: 1,
-                linkToSource: true,
-            },
-            {
-                op: "grantCastFromExile",
-                card: { exiledWithSource: true },
-                player: "controller",
-                window: "until-end-of-your-next-turn",
-                includesLand: true,
-            },
-        ]);
-        const top = makeInstance(BEAR_ID, {
-            id: "sweep-top",
-            controllerId: "p1",
-            ownerId: "p1",
-            zone: "library",
-        });
-        const state = makeState({
-            players: [makePlayer("p1", { library: [top] }), makePlayer("p2")],
-            turn: 1,
-            activePlayerId: "p1",
-        });
-        pushSpell(state, id, "p1");
-        resolveTopOfStack(state);
+    it("the CLEANUP sweep revokes it at the end of the grantee's next turn and not before", () => {
+        const { state, card: granted } = grantedCard(
+            "test-window-sweep",
+            { turn: 1 },
+            { turnsTaken: 1 }
+        );
         const card = () =>
-            state.players[0].exile.find((c) => c.id === "sweep-top")!;
-        expect(card().castableFromExileUntilTurn).toBe(3);
+            state.players[0].exile.find((c) => c.id === "win-top")!;
+        expect(granted.castableFromExileUntilOwnTurn).toBe(2);
 
-        // This turn's cleanup: still granted (1 < 3).
+        // This turn's cleanup: p1 is still on their 1st turn, so the grant
+        // stands (1 < 2).
         finalizeCleanup(state);
         expect(card().castableFromExileBy).toBe("p1");
-        // The opponent's turn ends: still granted (2 < 3).
+        // The opponent's turn ends. p1's own count did not move, so the grant
+        // is untouched — which is the whole point of counting their turns and
+        // not the global ones.
         state.turn = 2;
         state.activePlayerId = "p2";
         finalizeCleanup(state);
         expect(card().castableFromExileBy).toBe("p1");
-        // Your next turn ends: revoked, together with every sibling marker.
+        // p1 takes their next turn and it ends: revoked, together with every
+        // sibling marker that rides the same permission.
         state.turn = 3;
         state.activePlayerId = "p1";
+        state.players[0].turnsTaken = 2;
         finalizeCleanup(state);
         expect(card().castableFromExileBy).toBeUndefined();
-        expect(card().castableFromExileUntilTurn).toBeUndefined();
+        expect(card().castableFromExileUntilOwnTurn).toBeUndefined();
         expect(card().castableFromExileIncludesLand).toBeUndefined();
         // The card itself stays exiled — only the permission expired.
         expect(card().zone).toBe("exile");
+    });
+
+    it("an EXTRA TURN does not lengthen the window — the defect an absolute turn stamp had (CR 500.7)", () => {
+        const { state } = grantedCard(
+            "test-window-extra-turn",
+            { turn: 1 },
+            { turnsTaken: 1 }
+        );
+        const card = () =>
+            state.players[0].exile.find((c) => c.id === "win-top")!;
+        // p1 takes an EXTRA turn immediately instead of passing to p2. Under
+        // an absolute `state.turn + 2` stamp the window would have survived
+        // this turn AND the opponent's — a whole extra turn too long.
+        state.turn = 2;
+        state.players[0].turnsTaken = 2;
+        finalizeCleanup(state);
+        expect(card().castableFromExileBy).toBeUndefined();
+    });
+
+    it("survives the compact/expand round trip on the own-turn bound", () => {
+        const { state } = grantedCard(
+            "test-window-own-turn-serialize",
+            { turn: 4 },
+            { turnsTaken: 3 }
+        );
+        const round = expandState(compactState(state));
+        const card = round.players[0].exile.find((c) => c.id === "win-top")!;
+        expect(card.castableFromExileUntilOwnTurn).toBe(4);
+        expect(card.castableFromExileBy).toBe("p1");
     });
 });

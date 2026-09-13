@@ -1956,20 +1956,25 @@ const OP_ASSERTORS: Record<string, Assertor> = {
         // CR 106.1 / 702.189a (issue #3235) — a plain deposit lands in the
         // fungible `manaPool`; one carrying a `persistsUntil` lifetime lands
         // in the tagged `restrictedMana` list instead (the count map has
-        // nowhere to record a lifetime). The assertion is about the mana
-        // EXISTING, not about which bucket holds it, so it reads the player's
-        // total per-colour balance across both — a pool-only read would have
-        // reported every firebending-shaped script as a silent no-op.
+        // nowhere to record a lifetime). The assertion reads the bucket the Op
+        // actually NAMES rather than summing both (PR #3549 review, nit 10):
+        // a both-buckets sum would report a correct deposit and a routing bug
+        // — mana in the wrong list — identically, which is precisely the class
+        // of defect the smoke sweep exists to catch.
         const balance = (
             player: Pick<PlayerState, "manaPool" | "restrictedMana">,
             color: string
         ): number =>
-            (player.manaPool[color] ?? 0) +
-            (player.restrictedMana ?? []).reduce(
-                (total, unit) =>
-                    unit.color === color ? total + unit.amount : total,
-                0
-            );
+            op.persistsUntil === undefined
+                ? (player.manaPool[color] ?? 0)
+                : (player.restrictedMana ?? []).reduce(
+                      (total, unit) =>
+                          unit.color === color &&
+                          unit.persistsUntil === op.persistsUntil
+                              ? total + unit.amount
+                              : total,
+                      0
+                  );
         const preP = findPlayer(pre, pid);
         const added = Object.entries(op.mana).filter(([, n]) => (n ?? 0) > 0);
         const before = Object.fromEntries(
@@ -1985,9 +1990,13 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                     const expected = (before[color] ?? 0) + (amount ?? 0);
                     const actual = balance(postP, color);
                     if (actual !== expected) {
+                        const where =
+                            op.persistsUntil === undefined
+                                ? "pool"
+                                : `${op.persistsUntil} bucket`;
                         return {
                             ok: false,
-                            detail: `${color} balance ${actual}, expected ${expected}`,
+                            detail: `${color} ${where} ${actual}, expected ${expected}`,
                         };
                     }
                 }

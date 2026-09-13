@@ -357,6 +357,7 @@ function isHiddenInExile(card: CardInstanceState): boolean {
 function consumeExilePlayGrant(card: CardInstanceState): void {
     delete card.castableFromExileBy;
     delete card.castableFromExileUntilTurn;
+    delete card.castableFromExileUntilOwnTurn;
     // CR 702.185a (issue #1268) — the LOWER bound and the "warped card in
     // exile" referent ride the same consumed permission.
     delete card.castableFromExileFromTurn;

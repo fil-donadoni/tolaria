@@ -299,7 +299,7 @@ describe("Firebending's mana lifetime (CR 500.5 / 702.189a)", () => {
         expect(manaPersistenceSurvives("end-of-combat", "END_OF_COMBAT")).toBe(
             false
         );
-        // Fails closed outside combat (CR 506.4 — an effect that ends the
+        // Fails closed outside combat (CR 724.2 — an effect that ENDS the
         // combat phase must not leave the mana floating for the whole turn).
         for (const phase of [
             "PRECOMBAT_MAIN",

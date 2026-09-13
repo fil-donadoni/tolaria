@@ -1476,6 +1476,27 @@ export type CardInstanceState = {
      *  can also express "until end of your next turn" (grant with a later turn
      *  number) without a schema change. */
     castableFromExileUntilTurn?: number;
+    /** CR 514.2 / 608.2g (issue #3235, PR #3549 review finding 3) — the
+     *  "until the end of YOUR next turn" window's expiry, expressed as the
+     *  GRANTEE's own {@link PlayerState.turnsTaken} value rather than as a
+     *  global turn number.
+     *
+     *  It cannot be a global turn number. `castableFromExileUntilTurn` assumes
+     *  turns alternate, which EXTRA TURNS (CR 500.7) break: granted on your own
+     *  turn T, "your next turn" is T+2 normally but T+1 if an extra turn is
+     *  queued for you — and an extra turn granted AFTER the stamp moves the
+     *  boundary again, which no absolute stamp can follow. `turnsTaken` is
+     *  incremented once per turn its owner actually takes, extra turns
+     *  included (`advanceTurn`, gre/phases.ts), so "your next turn" is exactly
+     *  `turnsTaken + 1` at stamp time and stays exact however the turn order
+     *  is bent afterwards. Skipped turns (CR 614.10) come out right for the
+     *  same reason: a skipped turn is never taken, so it never increments.
+     *
+     *  Revoked by the SAME cleanup sweep the absolute bound is, against the
+     *  grantee named by `castableFromExileBy`. Mutually exclusive with
+     *  `castableFromExileUntilTurn` in practice — each window stamps one or
+     *  the other — and a card carrying neither is an open-ended grant. */
+    castableFromExileUntilOwnTurn?: number;
     /** LOWER turn bound for {@link castableFromExileBy} — the symmetric twin of
      *  {@link castableFromExileUntilTurn}, and the one shape the upper bound
      *  cannot express: the permission exists but has not OPENED yet. While set,
@@ -3416,10 +3437,10 @@ const COMBAT_STEPS: ReadonlyArray<Phase> = [
  *  combat-damage step, and is gone once the END_OF_COMBAT step has ended.
  *
  *  Fails CLOSED outside combat: a persistent unit that somehow floats into a
- *  main phase (an "end the combat phase" effect skipping straight past
- *  END_OF_COMBAT, CR 506.4) empties at the very next boundary rather than
- *  lingering for the rest of the turn. "Until end of combat" can only ever
- *  mean less time than that, never more. */
+ *  main phase — an effect that ENDS the combat phase, skipping straight past
+ *  END_OF_COMBAT (CR 724.2, Mandate of Peace) — empties at the very next
+ *  boundary rather than lingering for the rest of the turn. "Until end of
+ *  combat" can only ever mean less time than that, never more. */
 export function manaPersistenceSurvives(
     persistence: ManaPersistence | undefined,
     leavingPhase: Phase
@@ -15132,28 +15153,30 @@ function resolveStormTrigger(
  *  `state.turn >= card.castableFromExileUntilTurn` — it doesn't care whose
  *  turn the expiry number belongs to — so returning the correct absolute
  *  turn number here is sufficient; no new state field is needed. */
-/** CR 514.2 / 608.2g — the absolute turn number "until the end of your next
- *  turn" expires at (The Legend of Roku I: "Until the end of your next turn,
- *  you may play those cards").
+/** CR 514.2 / 608.2g — the GRANTEE'S OWN turn count that "until the end of your
+ *  next turn" expires at (The Legend of Roku I: "Until the end of your next
+ *  turn, you may play those cards").
  *
- *  The sweep in `gre/phases.ts` revokes a grant at the CLEANUP step of the turn
- *  whose number this returns, so returning `playerId`'s NEXT turn number makes
- *  the permission last through the whole of that turn and die with it.
+ *  Counted in `PlayerState.turnsTaken`, never in the global `state.turn`
+ *  (PR #3549 review finding 3). An absolute turn number would have to assume
+ *  turns alternate, and EXTRA TURNS (CR 500.7) break that in both directions:
+ *  granted on your own turn, your next turn is two global turns away normally
+ *  but ONE away with an extra turn queued, and an extra turn granted after the
+ *  stamp moves the boundary again where no absolute stamp can follow it — the
+ *  unsafe direction, a window running a whole extra turn long. `turnsTaken` is
+ *  incremented once per turn its owner actually TAKES, extra turns included
+ *  and skipped turns (CR 614.10) excluded, so "your next turn" is exactly one
+ *  more than it is now, whatever happens to the turn order afterwards.
  *
- *  Deliberately NOT `untilNextEndStepTurn` with the early return removed by
- *  accident: that function's early return exists because "until your next END
- *  STEP" can still be satisfied by the CURRENT turn's end step. "Your next
- *  TURN" never can — a grant created on your own turn always reaches past it —
- *  so this helper has no such branch, and the two must not be merged.
- *
- *  Turn numbers alternate in this 2-player engine (CLAUDE.md § Out of Scope —
- *  no 3+ player multiplayer), so `playerId`'s next turn is two away on their
- *  own turn and one away otherwise — the same arithmetic its sibling uses. */
-function untilEndOfYourNextTurnTurn(
-    state: GameState,
-    playerId: string
-): number {
-    return state.activePlayerId === playerId ? state.turn + 2 : state.turn + 1;
+ *  Deliberately NOT `untilNextEndStepTurn` with its early return removed:
+ *  that function's early return exists because "until your next END STEP" can
+ *  still be satisfied by the CURRENT turn's end step. "Your next TURN" never
+ *  can — a grant created on your own turn always reaches past it — so this
+ *  helper has no such branch, and the two must not be merged. (The sibling
+ *  carries the same alternation assumption on its own absolute stamp; that is
+ *  a pre-existing shape this change deliberately does not touch.) */
+function untilEndOfYourNextOwnTurn(state: GameState, playerId: string): number {
+    return (getPlayer(state, playerId).turnsTaken ?? 0) + 1;
 }
 
 function untilNextEndStepTurn(state: GameState, playerId: string): number {
@@ -17347,6 +17370,59 @@ export function buildSpellContext(
             }
             emitCardsExiled(state, exiledEntries);
         },
+        moveCardsById(
+            playerId: string,
+            cardInstanceIds: readonly string[],
+            from: MovableZone,
+            to: MovableZone
+        ): string[] {
+            // CR 603.3b / 608.2i (issue #1558, PR #3549 review finding 1) —
+            // several cards moved by ONE instruction ("exile the top three
+            // cards of your library") are ONE occurrence, so a
+            // `CARDS_EXILED`-watching trigger fires ONCE and counts three
+            // cards. A per-card `moveCardById` loop emits one event per card
+            // instead, which is exactly how Laelia, the Blade Reforged would
+            // get three counters off a single three-card exile. The batching
+            // discipline is `millCards`' own, and the reason this is a
+            // primitive rather than a loop at each call site is that the call
+            // sites cannot suppress an event the primitive already queued.
+            if (from === to) return [];
+            const player = getPlayer(state, playerId);
+            const fromField = ZONE_TO_FIELD[from];
+            const movedIds: string[] = [];
+            const exiledEntries: {
+                cardInstanceId: string;
+                cardId?: string;
+                fromZone: Exclude<MovableZone, "exile">;
+                ownerId: string;
+            }[] = [];
+            for (const cardInstanceId of cardInstanceIds) {
+                const exists = (player[fromField] as CardInstanceState[]).some(
+                    (c) => c.id === cardInstanceId
+                );
+                if (!exists) continue;
+                const moved = moveCardWithGraveyardReplacement(
+                    state,
+                    player,
+                    cardInstanceId,
+                    from,
+                    to
+                );
+                movedIds.push(moved.id);
+                // A direct `to: "exile"` request, or a graveyard-bound
+                // replacement that redirected this move to exile.
+                if (moved.zone === "exile") {
+                    exiledEntries.push({
+                        cardInstanceId: moved.id,
+                        cardId: (moved.card as { id?: string }).id,
+                        fromZone: from as Exclude<MovableZone, "exile">,
+                        ownerId: playerId,
+                    });
+                }
+            }
+            emitCardsExiled(state, exiledEntries);
+            return movedIds;
+        },
         moveCardById(
             playerId: string,
             cardInstanceId: string,
@@ -17917,11 +17993,13 @@ export function buildSpellContext(
             } else if (window === "until-end-of-your-next-turn") {
                 //   - "until-end-of-your-next-turn" (issue #3235): "Until the
                 //     end of your next turn, you may play those cards" (The
-                //     Legend of Roku, chapter I) — the same absolute-turn stamp
-                //     the two windows above use, one turn further out. See
-                //     `untilEndOfYourNextTurnTurn` for why it is not the
-                //     end-step helper.
-                card.castableFromExileUntilTurn = untilEndOfYourNextTurnTurn(
+                //     Legend of Roku, chapter I). The ONE window stamped on
+                //     the GRANTEE's own turn count rather than on a global
+                //     turn number, because extra turns (CR 500.7) break the
+                //     alternation an absolute stamp needs — see
+                //     `untilEndOfYourNextOwnTurn`, and
+                //     `castableFromExileUntilOwnTurn`'s own doc.
+                card.castableFromExileUntilOwnTurn = untilEndOfYourNextOwnTurn(
                     state,
                     playerId
                 );
@@ -17931,6 +18009,14 @@ export function buildSpellContext(
                     playerId
                 );
             } else {
+                delete card.castableFromExileUntilTurn;
+            }
+            // The two upper bounds are alternatives, never both: a re-grant
+            // under a different window must not leave the other one standing.
+            if (window !== "until-end-of-your-next-turn") {
+                delete card.castableFromExileUntilOwnTurn;
+            }
+            if (window !== "this-turn" && window !== "until-next-end-step") {
                 delete card.castableFromExileUntilTurn;
             }
             if (window === "after-this-turn") {
@@ -23034,6 +23120,7 @@ export function moveCard(
     if (from === "exile") {
         delete card.castableFromExileBy;
         delete card.castableFromExileUntilTurn;
+        delete card.castableFromExileUntilOwnTurn;
         // CR 702.185a/b (issue #1268) — the LOWER bound and the "warped card in
         // exile" referent ride the same permission window as the seven riders
         // beside them; a card pulled back out of exile keeps neither.
@@ -23303,6 +23390,7 @@ export function removeFromZone(
     // card leaves exile for the stack; clear the stale flag and its expiry marker.
     delete card.castableFromExileBy;
     delete card.castableFromExileUntilTurn;
+    delete card.castableFromExileUntilOwnTurn;
     // CR 702.185a/b (issue #1268) — the LOWER bound and the "warped card in
     // exile" referent are consumed with the permission they ride, exactly like
     // the upper bound directly above: the card is on the stack now, and a warp
@@ -24024,11 +24112,32 @@ export function spendablePoolForAbility(
 }
 
 /** Pays an activated ability's mana cost drawing on permitted restricted mana
- *  FIRST, then the fungible pool (CR 106.6, issue #728) — the activation twin
- *  of `payManaCostForSpell`, with the identical restricted-first settlement
- *  policy (it maximises the flexible mana the activator keeps and can never
- *  make a payment illegal, since coverage was confirmed against the merged
- *  pool). */
+ *  first, then the fungible pool, then the deferred tier (CR 106.6, issue
+ *  #728) — the activation twin of `payManaCostForSpell`, with the identical
+ *  THREE-tier settlement policy. Coverage was confirmed against the merged
+ *  pool before this is called, so no ordering here can make a payment illegal.
+ *
+ *  Restricted-first was the whole policy while every unit in this pool was
+ *  genuinely restricted: such a unit is strictly LESS flexible than pool mana,
+ *  so spending it first is free. A unit that is UNRESTRICTED
+ *  (`isUnrestrictedRiderUnit` — a rider, or a `persistsUntil` lifetime) breaks
+ *  that in both directions, and an ABILITY is the case where it always breaks
+ *  (PR #3549 review finding 4):
+ *
+ *   - a rider is spell-scoped by construction (can't-be-countered, haste on a
+ *     creature spell), so an ability can never USE one — spending Arena of
+ *     Glory's {R}{R} on an activation throws the rider away;
+ *   - a `persistsUntil` unit is the LONGER-lived mana on the table. Pool mana
+ *     empties at the very next step boundary; firebending's survives to end of
+ *     combat. Spending the more perishable mana first strictly dominates, so
+ *     Avatar Roku's own `{8}` must reach for the lands before the four red its
+ *     attack made — the opposite of what the blanket restricted-first rule did,
+ *     and it gave away exactly what the keyword exists for.
+ *
+ *  So every unrestricted unit is deferred BEHIND the fungible pool here, and
+ *  genuinely restricted ones stay first. This is the spell path's rule with
+ *  its `useful` test resolved to a constant: no rider is ever useful to an
+ *  ability. */
 export function payManaCostForAbility(
     player: PlayerState,
     cost: Record<string, number>,
@@ -24044,29 +24153,51 @@ export function payManaCostForAbility(
         return;
     }
 
+    const preferred: RestrictedMana[] = [];
+    const deferred: RestrictedMana[] = [];
+    for (const r of eligible) {
+        if (isUnrestrictedRiderUnit(r)) deferred.push(r);
+        else preferred.push(r);
+    }
+
     const merged = { ...player.manaPool };
-    const restrictedByColor: Record<string, number> = {};
+    const preferredByColor: Record<string, number> = {};
     for (const r of eligible) {
         merged[r.color] = (merged[r.color] ?? 0) + r.amount;
-        restrictedByColor[r.color] =
-            (restrictedByColor[r.color] ?? 0) + r.amount;
+    }
+    for (const r of preferred) {
+        preferredByColor[r.color] = (preferredByColor[r.color] ?? 0) + r.amount;
     }
     const before = { ...merged };
     payManaCost(merged, cost, substitutions, genericSpendOrder);
 
+    /** Drains `units` of `color` for up to `amount`. */
+    const drain = (
+        units: readonly RestrictedMana[],
+        color: string,
+        amount: number
+    ): void => {
+        let remaining = amount;
+        for (const r of units) {
+            if (remaining <= 0) break;
+            if (r.color !== color) continue;
+            const take = Math.min(r.amount, remaining);
+            r.amount -= take;
+            remaining -= take;
+        }
+    };
+
     for (const color of MANA_COLORS) {
         const consumed = (before[color] ?? 0) - (merged[color] ?? 0);
         if (consumed <= 0) continue;
-        let fromRestricted = Math.min(consumed, restrictedByColor[color] ?? 0);
-        const fromReal = consumed - fromRestricted;
-        for (const r of eligible) {
-            if (fromRestricted <= 0) break;
-            if (r.color !== color) continue;
-            const take = Math.min(r.amount, fromRestricted);
-            r.amount -= take;
-            fromRestricted -= take;
-        }
+        const fromPreferred = Math.min(consumed, preferredByColor[color] ?? 0);
+        drain(preferred, color, fromPreferred);
+        const fromReal = Math.min(
+            consumed - fromPreferred,
+            player.manaPool[color] ?? 0
+        );
         player.manaPool[color] = (player.manaPool[color] ?? 0) - fromReal;
+        drain(deferred, color, consumed - fromPreferred - fromReal);
     }
 
     const remaining = (player.restrictedMana ?? []).filter((r) => r.amount > 0);
@@ -24092,15 +24223,15 @@ export function payManaCostForAbility(
  *  unit's eligibility depends on the COST being paid (Metamorphosis' mana pays
  *  for creature spells only), which these readers do not all know, and folding
  *  it in unconditionally would make the Bot enumerate casts the server then
- *  refuses. That broader half stays as the findings drawer describes it. */
+ *  refuses. That broader half stays as the findings drawer describes it.
+ *
+ *  The membership test is {@link isUnrestrictedRiderUnit}, NOT a second copy
+ *  of its condition: one CR 106.6 rule, one authority (PR #3549 review). */
 export function unrestrictedFloatingMana(
     player: Pick<PlayerState, "restrictedMana">
 ): ReadonlyArray<{ color: string; amount: number }> {
     return (player.restrictedMana ?? []).filter(
-        (unit) =>
-            unit.restriction === undefined &&
-            unit.castableCardId === undefined &&
-            unit.amount > 0
+        (unit) => isUnrestrictedRiderUnit(unit) && unit.amount > 0
     );
 }
 
@@ -24306,14 +24437,18 @@ export function manaBalanceForRestrictionAnyRider(
 }
 
 /** CR 106.6 (issue #3354) — true for a `restrictedMana` unit that imposes NO
- *  spend restriction at all: it sits in the parallel pool only because a rider
- *  tagged it (Arena of Glory), and "this doesn't affect the mana's type" (CR
- *  106.6) means it may pay for anything the fungible pool could.
+ *  spend restriction at all: it sits in the parallel pool only because
+ *  something ORTHOGONAL to eligibility tagged it — a rider (Arena of Glory) or,
+ *  since issue #3235, a LIFETIME (`persistsUntil`, firebending) — and
+ *  "this doesn't affect the mana's type" (CR 106.6) means it may pay for
+ *  anything the fungible pool could.
  *
  *  This predicate is what every payment site outside the spell-cast and
- *  ability-activation seams needs: before this rider existed, "in
+ *  ability-activation seams needs: before these tags existed, "in
  *  `restrictedMana`" and "restricted" were the same statement and reading
- *  `player.manaPool` raw was correct for unrestricted mana. It no longer is. */
+ *  `player.manaPool` raw was correct for unrestricted mana. It no longer is.
+ *  It is the ONE authority on the question — {@link unrestrictedFloatingMana}
+ *  calls it rather than re-spelling it, so the two cannot drift. */
 export function isUnrestrictedRiderUnit(unit: RestrictedMana): boolean {
     return unit.restriction === undefined && unit.castableCardId === undefined;
 }
@@ -25931,11 +26066,18 @@ export function mayPayUnitIsEligible(
     return restriction !== undefined && unit.restriction === restriction;
 }
 
-/** Pays a `may-pay` mana leg drawing on eligible restricted mana FIRST, then
- *  the fungible pool (CR 106.6, settlement policy from ADR 0022). Mirrors
- *  `payManaCostForSpell` but keys eligibility on a `ManaRestriction` value
- *  rather than spell types. Caller MUST have confirmed coverage against the
- *  merged pool. */
+/** Pays a `may-pay` mana leg drawing on eligible restricted mana first, then
+ *  the fungible pool, then the deferred tier (CR 106.6, settlement policy from
+ *  ADR 0022). Mirrors `payManaCostForSpell` but keys eligibility on a
+ *  `ManaRestriction` value rather than spell types. Caller MUST have confirmed
+ *  coverage against the merged pool.
+ *
+ *  The deferred tier is `payManaCostForAbility`'s, for its reasons (PR #3549
+ *  review finding 4): a may-pay leg is not a spell, so no rider it spends can
+ *  ever fire, and a `persistsUntil` unit is the longer-lived mana on the table
+ *  — spending the more perishable pool mana first strictly dominates. Every
+ *  unrestricted unit therefore goes behind the pool; genuinely restricted ones
+ *  stay first, where they are free to spend. */
 function payManaCostForRestriction(
     player: PlayerState,
     cost: Record<string, number>,
@@ -25949,28 +26091,48 @@ function payManaCostForRestriction(
         payManaCost(player.manaPool, cost, substitutions);
         return;
     }
+    const preferred: RestrictedMana[] = [];
+    const deferred: RestrictedMana[] = [];
+    for (const r of eligible) {
+        if (isUnrestrictedRiderUnit(r)) deferred.push(r);
+        else preferred.push(r);
+    }
     const merged = { ...player.manaPool };
-    const restrictedByColor: Record<string, number> = {};
+    const preferredByColor: Record<string, number> = {};
     for (const r of eligible) {
         merged[r.color] = (merged[r.color] ?? 0) + r.amount;
-        restrictedByColor[r.color] =
-            (restrictedByColor[r.color] ?? 0) + r.amount;
+    }
+    for (const r of preferred) {
+        preferredByColor[r.color] = (preferredByColor[r.color] ?? 0) + r.amount;
     }
     const before = { ...merged };
     payManaCost(merged, cost, substitutions);
+    /** Drains `units` of `color` for up to `amount`. */
+    const drain = (
+        units: readonly RestrictedMana[],
+        color: string,
+        amount: number
+    ): void => {
+        let remaining = amount;
+        for (const r of units) {
+            if (remaining <= 0) break;
+            if (r.color !== color) continue;
+            const take = Math.min(r.amount, remaining);
+            r.amount -= take;
+            remaining -= take;
+        }
+    };
     for (const color of MANA_COLORS) {
         const consumed = (before[color] ?? 0) - (merged[color] ?? 0);
         if (consumed <= 0) continue;
-        let fromRestricted = Math.min(consumed, restrictedByColor[color] ?? 0);
-        const fromReal = consumed - fromRestricted;
-        for (const r of eligible) {
-            if (fromRestricted <= 0) break;
-            if (r.color !== color) continue;
-            const take = Math.min(r.amount, fromRestricted);
-            r.amount -= take;
-            fromRestricted -= take;
-        }
+        const fromPreferred = Math.min(consumed, preferredByColor[color] ?? 0);
+        drain(preferred, color, fromPreferred);
+        const fromReal = Math.min(
+            consumed - fromPreferred,
+            player.manaPool[color] ?? 0
+        );
         player.manaPool[color] = (player.manaPool[color] ?? 0) - fromReal;
+        drain(deferred, color, consumed - fromPreferred - fromReal);
     }
     const remaining = (player.restrictedMana ?? []).filter((r) => r.amount > 0);
     player.restrictedMana = remaining.length > 0 ? remaining : undefined;

@@ -2117,8 +2117,13 @@ function bottomLookedAtCards(
         // with `counters` (the silver counter) so a later "a card with a silver
         // counter on it" retrieval finds it. Exile is a public zone like the
         // graveyard leg above: no `markKnown`, no bottom-order pick.
-        for (const id of restTop) {
-            ctx.moveCardById(playerId, id, "library", "exile");
+        // CR 603.3b / 608.2i (issue #1558, PR #3549 review finding 1) — the
+        // un-kept cards leave in ONE occurrence, so one batched
+        // `CARDS_EXILED`, not one event per card. This leg carried the same
+        // per-card defect `exileTopOfLibrary` was caught with; fixed as a
+        // class rather than at the new Op alone.
+        const exiled = ctx.moveCardsById(playerId, restTop, "library", "exile");
+        for (const id of exiled) {
             if (counters) ctx.stampCardCounters(id, counters);
         }
         return;
@@ -3645,16 +3650,18 @@ export const OP_EXECUTORS: {
         // and the whole Op is a clean no-op (CR 608.2b).
         const topIds = ctx.peekLibraryTop(playerId, count);
         if (topIds.length === 0) return;
-        const exiled: string[] = [];
-        for (const id of topIds) {
-            ctx.moveCardById(playerId, id, "library", "exile");
+        // CR 603.3b / 608.2i — ONE instruction, ONE exile occurrence: the
+        // batched primitive emits a single `CARDS_EXILED` carrying all three
+        // cards, where a per-card `moveCardById` loop would emit three and
+        // give Laelia, the Blade Reforged three counters for one exile.
+        const exiled = ctx.moveCardsById(playerId, topIds, "library", "exile");
+        for (const id of exiled) {
             // CR 607 / 406.6 — stamp the resolving source so a later Op (here
             // or in a linked second ability) can name exactly these cards
             // through `{ exiledWithSource: true }`.
             if (op.linkToSource) {
                 ctx.linkExileToSource(id, ctx.sourceInstanceId);
             }
-            exiled.push(id);
         }
         // The same set as a picks binding for a consumer in THIS script —
         // `mill`'s `bindAll` shape (issue #2600), written with the plain

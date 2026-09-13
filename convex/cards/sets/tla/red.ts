@@ -40,15 +40,17 @@ import { colorChoiceModes } from "../../abilities/chooseColor";
 //         silently make two of the three cards unplayable. The link is also
 //         the CR's own answer to "which exiled cards".
 //
-//   II  — "Add one mana of any color." No new Op and, despite the issue
-//         brief's premise, no dependency on issue #1368: that issue is about
-//         an "any colour" choice inside a MANA ABILITY, which resolves outside
-//         the stack (CR 605.1b/605.4) and so cannot raise a choice at all. A
-//         Saga chapter is an ordinary triggered ability ON the stack, so the
-//         shipped `optionChoice` composition applies unchanged — five modes,
-//         one per colour (CR 105.1), each a single `addMana` Op. That is the
-//         same `colorChoiceModes` builder every "becomes the colour of your
-//         choice" card uses, with a different mode body.
+//   II  — "Add one mana of any color." No new Op, and no dependency on issue
+//         #1368 despite the brief citing one. That issue asks for a
+//         choice-driven any-colour mana Op for the cards it names (Coalition
+//         Relic, Manamorphose); this chapter needs no such Op because the
+//         five-mode `optionChoice` composition already expresses "choose a
+//         colour, then do something with it" — five modes, one per colour
+//         (CR 105.1), each a single `addMana` Op. That is the same
+//         `colorChoiceModes` builder every "becomes the colour of your choice"
+//         card uses, with a different mode body. What #1368 still owns is the
+//         shape this does NOT cover: a card whose any-colour mana is produced
+//         somewhere an `optionChoice` cannot be raised.
 //
 //   III — "Exile this Saga, then return it to the battlefield transformed
 //         under your control." — `exileAndReturnTransformed` (CR 712.14a)
@@ -172,9 +174,17 @@ export const theLegendOfRoku: CardDefinition = {
         subtypes: ["Avatar"],
         power: 4,
         toughness: 4,
-        // CR 712.2 — a back face with no mana cost takes its colour from its
-        // printed colour indicator: red.
-        colors: ["R"],
+        // COLOURLESS, deliberately — no `colors` key (PR #3549 review finding
+        // 2). CR 202.2b: an object with no coloured mana symbols in its mana
+        // cost is colourless, and a back face has no mana cost at all; only a
+        // printed COLOUR INDICATOR (CR 202.2f) would make it coloured. Avatar
+        // Roku's printing carries none (Scryfall tla #145 back face reports
+        // `colors: []` and no `color_indicator`), and neither does any other
+        // Avatar in the cycle — Aang, Destined Savior (tla/multicolor.ts) is
+        // declared the same way. Contrast Reflection of Kiki-Jiki
+        // (neo/red.ts), which DOES print an indicator and therefore DOES
+        // declare `colors: ["R"]`. The {8} ability's token is a different
+        // object and is genuinely red ("a 4/4 RED Dragon").
         // CR 702.189a — the keyword string is the WHOLE declaration; the
         // trigger is injected by `expandFirebending` at the `getDefinition`
         // seam, so the printed line and the enforcement cannot drift.

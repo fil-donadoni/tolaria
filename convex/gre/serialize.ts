@@ -212,6 +212,7 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "castableFromExileBy",
     "castableFromExileIncludesLand",
     "castableFromExileUntilTurn",
+    "castableFromExileUntilOwnTurn",
     "castableFromExileFromTurn",
     "castableFromGraveyardBy",
     "castableFromGraveyardUntilTurn",
@@ -599,6 +600,9 @@ function compactCard(
     // CR 514.2 / 608.2g — the turn-scoped expiry marker for an impulse play
     // grant (Headliner Scarlett / Expressive Iteration) must survive a save/load
     // so the cleanup revocation fires on the right turn.
+    if (card.castableFromExileUntilOwnTurn !== undefined) {
+        out.castableFromExileUntilOwnTurn = card.castableFromExileUntilOwnTurn;
+    }
     if (card.castableFromExileUntilTurn !== undefined) {
         out.castableFromExileUntilTurn = card.castableFromExileUntilTurn;
     }
@@ -1115,6 +1119,10 @@ function expandCard(
     }
     if (compact.castableFromExileBy) {
         result.castableFromExileBy = compact.castableFromExileBy as string;
+    }
+    if (compact.castableFromExileUntilOwnTurn !== undefined) {
+        result.castableFromExileUntilOwnTurn =
+            compact.castableFromExileUntilOwnTurn as number;
     }
     if (compact.castableFromExileUntilTurn !== undefined) {
         result.castableFromExileUntilTurn =
