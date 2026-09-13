@@ -16812,6 +16812,18 @@ export function buildSpellContext(
             transformPermanent(state, found.card);
             if ((found.card.card as { id?: string }).id !== faceBefore) {
                 found.card.transformedAtDelayedSeq = state.nextDelayedSeq ?? 0;
+                // CR 613.7g — "A double-faced permanent receives a new
+                // timestamp each time it transforms", and CR 613.7a gives its
+                // static abilities that timestamp. Without it a permanent whose
+                // FRONT face declared no static effect never had a layer
+                // timestamp at all (`beginApplyingStaticEffects` stamps only a
+                // face with effects), so its back face's grants were skipped by
+                // every derivation (issue #3249, Aang, Destined Savior's
+                // "Land creatures you control have vigilance"). The recompute
+                // brings the new face's statics in and the old face's out, in
+                // either direction.
+                found.card.staticSeq = allocStaticTimestamp(state);
+                recomputeContinuousEffects(state);
             }
         },
         // CR 712 / 400.7 (issue #2380) — "exile it, then return it to the

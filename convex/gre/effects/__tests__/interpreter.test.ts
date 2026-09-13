@@ -16409,6 +16409,78 @@ describe("Effect Script Op: delayedTrigger (CR 603.7)", () => {
         expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["dtb1"]);
     });
 
+    // CR 400.7 / 603.7c (issue #3249) — the engine never reallocates an
+    // instance id, so a captured permanent that LEAVES AND COMES BACK before
+    // the delayed trigger resolves would be re-bound as the same object. It is
+    // a new one: the capture is dropped at its re-entry and the body skips.
+    describe("capture of a permanent that re-enters is dropped (CR 400.7, issue #3249)", () => {
+        const scheduleDestroyAtEndStep = () => {
+            const id = registerScript("test-op-delayed-reentered", [
+                {
+                    op: "delayedTrigger",
+                    timing: "next-end-step",
+                    oracleText:
+                        "At the beginning of the next end step, destroy it.",
+                    capture: { $it: { target: 0 } },
+                    effects: [{ op: "destroy", target: { ref: "$it" } }],
+                },
+            ]);
+            const bear = makeInstance(BEAR_ID, {
+                controllerId: "p2",
+                ownerId: "p2",
+                id: "dtr1",
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1"),
+                    makePlayer("p2", { battlefield: [bear] }),
+                ],
+            });
+            pushSpell(state, id, "p1", [{ type: "permanent", id: "dtr1" }]);
+            resolveTopOfStack(state);
+            expect(state.delayedTriggers![0].payload).toEqual({ it: "dtr1" });
+            return state;
+        };
+        /** Bounces-and-returns `dtr1` through the real reanimation entry
+         *  funnel, from inside a resolving spell sitting on top of the stack. */
+        const blink = (state: GameState) => {
+            removePermanentTo(state, "dtr1", "graveyard");
+            const blinkId = registerScript("test-op-blink-scratch", []);
+            const blinker = pushSpell(state, blinkId, "p1");
+            expect(
+                buildSpellContext(state, blinker).returnToBattlefield(
+                    "p2",
+                    "dtr1",
+                    "graveyard"
+                )
+            ).toBe(true);
+            state.stack.pop();
+        };
+
+        it("a PENDING instance loses the capture, so the re-entered permanent survives", () => {
+            const state = scheduleDestroyAtEndStep();
+            blink(state);
+            expect(state.delayedTriggers![0].payload).toEqual({});
+            fireDelayedTriggers(state, "next-end-step");
+            resolveTopOfStack(state);
+            expect(
+                state.players[1].battlefield.some((c) => c.id === "dtr1")
+            ).toBe(true);
+        });
+
+        it("a FIRED trigger waiting under another item loses the capture too", () => {
+            const state = scheduleDestroyAtEndStep();
+            fireDelayedTriggers(state, "next-end-step");
+            expect(state.stack).toHaveLength(1);
+            blink(state);
+            expect(state.stack[0].delayedPayload).toEqual({});
+            resolveTopOfStack(state);
+            expect(
+                state.players[1].battlefield.some((c) => c.id === "dtr1")
+            ).toBe(true);
+        });
+    });
+
     it("skips the body Op when the captured permanent left before the trigger fired (CR 608.2b)", () => {
         const id = registerScript("test-op-delayed-gone", [
             {
@@ -19610,6 +19682,57 @@ describe("Effect Script Op: lookDistribute (CR 401.4, issue #984)", () => {
         expect(state.players[0].library.map((c) => c.id)).toHaveLength(4);
         expect(new Set(state.players[0].library.map((c) => c.id))).toEqual(
             new Set(["a", "b", "c", "d"])
+        );
+    });
+
+    // issue #3249 (Aang, at the Crossroads) — `keepTo: "battlefield"` PUTS the
+    // kept card onto the battlefield: a CR 400.7 zone change through the
+    // library → battlefield entry funnel, never a cast (CR 601.2).
+    it("keepTo battlefield: the kept card is put onto the battlefield summoning sick, the rest go to the bottom", () => {
+        const id = registerScript("test-op-dig-battlefield", [
+            {
+                op: "lookDistribute",
+                keepTo: "battlefield",
+                player: "controller",
+                look: 3,
+                take: 1,
+                optional: true,
+                randomBottom: true,
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", ["a", "b", "c", "d"]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("look-distribute");
+        expect(head.keepTo).toBe("battlefield");
+        expect(head.prompt).toContain("onto the battlefield");
+
+        submitKeep(state, ["b"]);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        const p1 = state.players[0];
+        const entered = p1.battlefield.find((c) => c.id === "b");
+        expect(entered?.zone).toBe("battlefield");
+        // CR 302.6 — it came under p1's control this turn.
+        expect(entered?.isSummoningSick).toBe(true);
+        expect(p1.hand.map((c) => c.id)).not.toContain("b");
+        // "d" was never looked at and is now on top; "a"/"c" are on the bottom.
+        expect(p1.library.map((c) => c.id)).toHaveLength(3);
+        expect(p1.library[0].id).toBe("d");
+        expect(new Set(p1.library.map((c) => c.id))).toEqual(
+            new Set(["a", "c", "d"])
+        );
+        // Wire format — the put card is a board permanent for both viewers.
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.players[0].battlefield.some((c) => c.id === "b")).toBe(
+            true
         );
     });
 

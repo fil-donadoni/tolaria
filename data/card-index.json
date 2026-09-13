@@ -50,6 +50,14 @@
         "source": "compiled"
     },
     {
+        "name": "Aang, at the Crossroads",
+        "scryfallId": "fea89ca0-8070-4f28-9851-994314f9d248",
+        "oracleId": "96e5d4a1-e59f-4140-823f-a17e15ee5d8d",
+        "firstSet": "tla",
+        "firstPrintId": "fea89ca0-8070-4f28-9851-994314f9d248",
+        "firstPrintSet": "tla"
+    },
+    {
         "name": "Aang's Iceberg",
         "scryfallId": "720fbd87-b1c1-4b3b-97a1-46b943b115e3",
         "oracleId": "646f9ad8-9d18-4b42-954a-e21a62e9f0e8",

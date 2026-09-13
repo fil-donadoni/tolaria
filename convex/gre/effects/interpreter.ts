@@ -4027,7 +4027,7 @@ export const OP_EXECUTORS: {
             // "battlefield" (issue #3249, Aang, at the Crossroads: "You may put
             // a creature card ... from among them onto the battlefield") — CR
             // 400.7 zone change through the shared library → battlefield
-            // entry primitive: the card is PUT, never cast (CR 601.1), so no
+            // entry primitive: the card is PUT, never cast (CR 601.2), so no
             // cast trigger fires, it enters summoning sick (CR 302.6) and its
             // own ETB triggers fire (CR 603.6a). Routed before the rest are
             // bottomed, the order the Oracle text states.
