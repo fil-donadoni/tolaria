@@ -10,8 +10,10 @@
 // production blade builder and the production enumerator — so "the candidates
 // a verdict names" and "the candidates the Bot has" cannot drift apart.
 
+import { deckColorsForSearch } from "../../deckKnowledge";
 import type { GameState } from "../../state";
-import { buildBladeState } from "../blade/runner";
+import { bladeDeckKnowledge, buildBladeState } from "../blade/runner";
+import { seatPlayerId } from "../blade/matcher";
 import type { BladeScenario } from "../blade/types";
 import type { Verdict } from "./types";
 
@@ -32,6 +34,9 @@ export function scenarioOfVerdict(verdict: Verdict): BladeScenario {
         spec: verdict.spec,
         ...(verdict.setup ? { setup: verdict.setup } : {}),
         bot: verdict.seat,
+        ...(verdict.deckKnowledge?.length
+            ? { deckKnowledge: verdict.deckKnowledge }
+            : {}),
         budget: { iterations: 1 },
         tier: "must",
         expect: { moves: [] },
@@ -43,5 +48,18 @@ export function scenarioOfVerdict(verdict: Verdict): BladeScenario {
  *  that cannot be rebuilt is a finding about the verdict, not something to
  *  approximate. */
 export function buildVerdictState(verdict: Verdict): GameState {
-    return buildBladeState(scenarioOfVerdict(verdict));
+    const scenario = scenarioOfVerdict(verdict);
+    const state = buildBladeState(scenario);
+    // Issue #3533 — the same root stamp `searchWithTrace` applies, applied
+    // here for the same reason: an Eval Pair is a snapshot of what `evaluate`
+    // saw when the decision was judged, and at `expert` what it saw included
+    // the opponent's decklist. Rebuilding blind does not merely lose
+    // precision, it makes the two candidates an informed entry separates
+    // structurally IDENTICAL — the pair is then reported as blind and the fit
+    // carries it as a constraint no weight can ever satisfy.
+    const deckColors = deckColorsForSearch(
+        bladeDeckKnowledge(state, scenario),
+        seatPlayerId(state, verdict.seat)
+    );
+    return deckColors ? { ...state, deckColorKnowledge: deckColors } : state;
 }

@@ -25,9 +25,14 @@ import { jasmineBoreal } from "../../cards/sets/leg/multicolor";
 import {
     deckColorEvidence,
     deckColorsFor,
+    deckColorsForSearch,
     type DeckKnowledgeBySeat,
 } from "../deckKnowledge";
 import { determinize } from "../determinize";
+import { searchWithTrace } from "../search";
+import { findBladeScenario } from "../ai/blade/registry";
+import { bladeDeckKnowledge, buildBladeState } from "../ai/blade/runner";
+import { seatPlayerId } from "../ai/blade/matcher";
 import { DIFFICULTY_KNOWS_OPPONENT, knowsOpponent } from "../difficulty";
 import { makeRng } from "../rng";
 import { observedOpponentColors } from "../ai/observedColors";
@@ -102,40 +107,43 @@ describe("deckColorEvidence — the decklist lowered into colour mass (issue #35
     });
 });
 
-describe("determinize — the gate that keeps the decklist at `expert` (issue #3533)", () => {
-    it("stamps a NON-OBSERVER seat the search was handed a decklist for", () => {
-        const next = determinize(
-            boardWithLonePlains(),
-            OBSERVER,
-            makeRng(1),
-            INFORMED
-        );
+describe("deckColorsForSearch — the gate that keeps the decklist at `expert` (issue #3533)", () => {
+    it("lowers a NON-OBSERVER seat the search was handed a decklist for", () => {
+        expect(deckColorsForSearch(INFORMED, OBSERVER)).toEqual([
+            { playerId: "p2", colors: { B: 20 } },
+        ]);
+    });
+
+    it("lowers NOTHING when the only decklist is the observer's own — the shape every non-expert difficulty sends", () => {
+        expect(deckColorsForSearch(BLIND, OBSERVER)).toBeUndefined();
+        expect(
+            deckColorsFor(deckColorsForSearch(BLIND, OBSERVER), OBSERVER)
+        ).toBeUndefined();
+    });
+
+    it("lowers nothing at all when no decklist is supplied", () => {
+        expect(deckColorsForSearch(undefined, OBSERVER)).toBeUndefined();
+    });
+});
+
+describe("determinize — a blinded world carries no decklist knowledge (issue #3533)", () => {
+    /** A root already stamped, exactly as `searchWithTrace` hands it over. */
+    function stampedRoot(): GameState {
+        const state = boardWithLonePlains();
+        state.deckColorKnowledge = deckColorsForSearch(INFORMED, OBSERVER);
+        return state;
+    }
+
+    it("carries the root's stamp into the sampled world", () => {
+        const next = determinize(stampedRoot(), OBSERVER, makeRng(1), INFORMED);
         expect(next.deckColorKnowledge).toEqual([
             { playerId: "p2", colors: { B: 20 } },
         ]);
     });
 
-    it("stamps NOTHING when the only decklist is the observer's own — the shape every non-expert difficulty sends", () => {
+    it("CLEARS it under the ladder's `blind` opponent model, whatever reached it", () => {
         const next = determinize(
-            boardWithLonePlains(),
-            OBSERVER,
-            makeRng(1),
-            BLIND
-        );
-        expect(next.deckColorKnowledge).toBeUndefined();
-        expect(
-            deckColorsFor(next.deckColorKnowledge, OBSERVER)
-        ).toBeUndefined();
-    });
-
-    it("stamps nothing at all when no decklist is supplied", () => {
-        const next = determinize(boardWithLonePlains(), OBSERVER, makeRng(1));
-        expect(next.deckColorKnowledge).toBeUndefined();
-    });
-
-    it("the ladder's `blind` opponent model wins over a supplied decklist", () => {
-        const next = determinize(
-            boardWithLonePlains(),
+            stampedRoot(),
             OBSERVER,
             makeRng(1),
             INFORMED,
@@ -143,12 +151,79 @@ describe("determinize — the gate that keeps the decklist at `expert` (issue #3
         );
         expect(next.deckColorKnowledge).toBeUndefined();
     });
+
+    it("invents nothing on an unstamped root", () => {
+        const next = determinize(
+            boardWithLonePlains(),
+            OBSERVER,
+            makeRng(1),
+            INFORMED
+        );
+        expect(next.deckColorKnowledge).toBeUndefined();
+    });
+});
+
+describe("searchWithTrace — the ROOT carries the stamp, so the trace reports the informed reading (issue #3533)", () => {
+    const LABEL =
+        "informed colour denial: the decklist, not the board, picks which land dies";
+
+    /** The opponent-seat `colorCoverage` the trace prints for each Stone Rain
+     *  target, keyed by the target's name. Read off `CandidateTrace.eval`,
+     *  which `buildTrace` derives from the ROOT state — the exact surface
+     *  that reported the blind number for an informed decision before the
+     *  stamp moved to the root. */
+    function coverageByTarget(
+        knowledge: DeckKnowledgeBySeat | undefined
+    ): Record<string, number> {
+        const scenario = findBladeScenario(LABEL)!;
+        const state = buildBladeState(scenario);
+        const botId = seatPlayerId(state, "me");
+        const { trace } = searchWithTrace(
+            state,
+            botId,
+            { iterations: 60 },
+            0xb1ade,
+            knowledge
+        );
+        const out: Record<string, number> = {};
+        for (const c of trace?.candidates ?? []) {
+            const m = /Stone Rain → (\w+)/.exec(c.label);
+            if (m) out[m[1]] = c.eval.opp.colorCoverage;
+        }
+        return out;
+    }
+
+    it("informed: the two land targets no longer price the same", () => {
+        const scenario = findBladeScenario(LABEL)!;
+        const built = buildBladeState(scenario);
+        const informed = bladeDeckKnowledge(built, scenario);
+        const seen = coverageByTarget(informed);
+        // The bot's own Mountains are legal targets too; the two that matter
+        // are the opponent's materially identical basics.
+        expect(seen).toHaveProperty("Plains");
+        expect(seen).toHaveProperty("Swamp");
+        expect(seen.Swamp).toBeLessThan(seen.Plains);
+    });
+
+    it("blind: the same two targets are indistinguishable, which is what the root stamp fixes", () => {
+        const seen = coverageByTarget(undefined);
+        expect(seen).toHaveProperty("Plains");
+        expect(seen).toHaveProperty("Swamp");
+        expect(seen.Swamp).toBe(seen.Plains);
+    });
 });
 
 describe("the estimate per difficulty — `expert` differs, the rest are byte-identical (issue #3533)", () => {
-    const blindBaseline = coverageOfEstimatedSeat(
-        determinize(boardWithLonePlains(), OBSERVER, makeRng(1))
-    );
+    /** The position as the SEARCH hands it to `evaluate`: the root, stamped
+     *  with whatever `deckColorsForSearch` allows for this difficulty. */
+    function rootFor(difficulty: "easy" | "medium" | "hard" | "expert") {
+        const state = boardWithLonePlains();
+        const knowledge = knowsOpponent(difficulty) ? INFORMED : BLIND;
+        state.deckColorKnowledge = deckColorsForSearch(knowledge, OBSERVER);
+        return state;
+    }
+
+    const blindBaseline = coverageOfEstimatedSeat(boardWithLonePlains());
 
     it("the blind baseline is the pre-change reading: the lone Plains covers the only colour shown", () => {
         expect(blindBaseline).toBe(1);
@@ -158,13 +233,8 @@ describe("the estimate per difficulty — `expert` differs, the rest are byte-id
         "%s reads byte-identically to the blind baseline",
         (difficulty) => {
             expect(DIFFICULTY_KNOWS_OPPONENT[difficulty]).toBe(false);
-            const knowledge = knowsOpponent(difficulty) ? INFORMED : BLIND;
-            const state = determinize(
-                boardWithLonePlains(),
-                OBSERVER,
-                makeRng(1),
-                knowledge
-            );
+            const state = rootFor(difficulty);
+            expect(state.deckColorKnowledge).toBeUndefined();
             expect(observedOpponentColors(state, "p2")).toEqual({ W: 1 });
             expect(coverageOfEstimatedSeat(state)).toBe(blindBaseline);
         }
@@ -172,12 +242,7 @@ describe("the estimate per difficulty — `expert` differs, the rest are byte-id
 
     it("expert VISIBLY differs on the same position — twenty units of uncovered {B} demand", () => {
         expect(knowsOpponent("expert")).toBe(true);
-        const state = determinize(
-            boardWithLonePlains(),
-            OBSERVER,
-            makeRng(1),
-            INFORMED
-        );
+        const state = rootFor("expert");
         expect(observedOpponentColors(state, "p2")).toEqual({ W: 1, B: 20 });
         expect(coverageOfEstimatedSeat(state)).toBeCloseTo(1 / 21, 10);
         expect(coverageOfEstimatedSeat(state)).not.toBe(blindBaseline);
@@ -186,13 +251,7 @@ describe("the estimate per difficulty — `expert` differs, the rest are byte-id
     it.each(["easy", "medium", "hard"] as const)(
         "%s leaves the OBSERVER's own seat blind too — the shape that leaks is the bot's own decklist, estimated from the other side",
         (difficulty) => {
-            const knowledge = knowsOpponent(difficulty) ? INFORMED : BLIND;
-            const state = determinize(
-                boardWithLonePlains(),
-                OBSERVER,
-                makeRng(1),
-                knowledge
-            );
+            const state = rootFor(difficulty);
             // `materialMargin(state, moverId)` runs `evaluate` from the HUMAN
             // seat's viewpoint too, which makes the bot's own seat the
             // ESTIMATED one. The bot's decklist is supplied at every
@@ -203,22 +262,29 @@ describe("the estimate per difficulty — `expert` differs, the rest are byte-id
         }
     );
 
-    it("still no hand read: the estimate is unchanged when the estimated seat's hand changes", () => {
+    it("still no hand read: two informed boards differing ONLY in the estimated seat's hand read identically", () => {
+        // Asserted on the STAMPED boards directly, never through
+        // `determinize`: determinization replaces that hand, so a test that
+        // planted a card and then determinized would be asserting that the
+        // sampler works, not that this module refuses to look. The planted
+        // card is BLACK — the very colour the decklist evidences — so reading
+        // the hand at the battlefield weight would show up as `B: 23`.
+        const empty = boardWithLonePlains();
         const withHand = boardWithLonePlains();
         withHand.players[1].hand = [
-            makeInstance(grizzlyBears.id, {
+            makeInstance(scatheZombies.id, {
                 id: "secret",
                 controllerId: "p2",
                 zone: "hand",
             }),
         ];
-        const informedState = determinize(
-            withHand,
-            OBSERVER,
-            makeRng(1),
-            INFORMED
+        const stamp = deckColorsForSearch(INFORMED, OBSERVER);
+        empty.deckColorKnowledge = stamp;
+        withHand.deckColorKnowledge = stamp;
+        expect(observedOpponentColors(withHand, "p2")).toEqual(
+            observedOpponentColors(empty, "p2")
         );
-        expect(observedOpponentColors(informedState, "p2")).toEqual({
+        expect(observedOpponentColors(withHand, "p2")).toEqual({
             W: 1,
             B: 20,
         });
@@ -227,12 +293,8 @@ describe("the estimate per difficulty — `expert` differs, the rest are byte-id
 
 describe("the wire — the stamp never reaches a viewer (issue #3533)", () => {
     it("projectPublicState strips `deckColorKnowledge` out of its `...state` spread", () => {
-        const state = determinize(
-            boardWithLonePlains(),
-            OBSERVER,
-            makeRng(1),
-            INFORMED
-        );
+        const state = boardWithLonePlains();
+        state.deckColorKnowledge = deckColorsForSearch(INFORMED, OBSERVER);
         expect(state.deckColorKnowledge).toBeDefined();
         const projected = projectPublicState(state, 1, OBSERVER);
         expect(
@@ -243,12 +305,8 @@ describe("the wire — the stamp never reaches a viewer (issue #3533)", () => {
 
 describe("serialization — the stamp is TRANSIENT and never reaches the row (issue #3533)", () => {
     it("compactState drops `deckColorKnowledge`", () => {
-        const state = determinize(
-            boardWithLonePlains(),
-            OBSERVER,
-            makeRng(1),
-            INFORMED
-        );
+        const state = boardWithLonePlains();
+        state.deckColorKnowledge = deckColorsForSearch(INFORMED, OBSERVER);
         expect(state.deckColorKnowledge).toBeDefined();
         const compacted = compactState(state);
         expect(compacted.deckColorKnowledge).toBeUndefined();

@@ -1781,5 +1781,11 @@ export function projectFullState(
             ...b,
             cards: b.cards.map(slimCard),
         })),
+        // Issue #3533 — mirror of the public projection: the searching Bot's
+        // decklist colour evidence is search-only and never crosses the wire.
+        // The debug view reveals every ZONE, which is a different claim from
+        // revealing a searcher's privileged knowledge, and the `...state`
+        // spread above is exactly how an unnamed field would ride out anyway.
+        deckColorKnowledge: undefined,
     };
 }

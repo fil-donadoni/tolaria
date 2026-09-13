@@ -90,10 +90,8 @@ import { cloneGameState } from "./clone";
 import { PLACEHOLDER_CARD_ID } from "./constants";
 import { tryGetDefinition } from "../cards";
 import {
-    deckColorEvidence,
     knowledgeFor,
     unseenRemainder,
-    type DeckColorsBySeat,
     type DeckKnowledgeBySeat,
 } from "./deckKnowledge";
 import type { OpponentModel } from "./ai/searchVariant";
@@ -161,12 +159,13 @@ export function determinize(
     // head is the only answerable choice, so it is read once here.
     const headChoice = next.pendingChoices?.[0];
 
-    // Issue #3533 — the decklist, lowered into colour evidence, for every seat
-    // the search is INFORMED about. Collected in the same loop that decides
-    // whether a seat is informed at all, so the two can never disagree, and
-    // stamped on the returned world (see `GameState.deckColorKnowledge`) rather
-    // than threaded through `evaluate`.
-    const deckColors: DeckColorsBySeat = [];
+    // Issue #3533 — a `blind` world may carry no decklist knowledge of any
+    // kind, and the root's colour evidence (`GameState.deckColorKnowledge`,
+    // stamped once by `searchWithTrace`) rides in on the clone above. The
+    // search never stamps a root under this model, so this is the invariant
+    // held from the second end rather than a live path: a world this function
+    // returns is blind or it is not, whatever reached it.
+    if (opponentModel === "blind") next.deckColorKnowledge = undefined;
 
     for (const player of next.players) {
         const pinTop =
@@ -203,22 +202,6 @@ export function determinize(
         // that decklist still admits (issue #2789).
         const deckCardIds = knowledgeFor(deckKnowledge, player.id);
         if (deckCardIds) {
-            // Reached only for a NON-observer, non-blinded seat — every
-            // `continue` above has already fired — which is precisely the
-            // "the search was told the OPPONENT's decklist" condition
-            // `DIFFICULTY_KNOWS_OPPONENT` names. The observer's own decklist,
-            // which the client hands over at EVERY difficulty (the `blind`
-            // shape in `useVsAiDriver`), never reaches this line and so never
-            // becomes colour evidence about the seat being estimated.
-            deckColors.push({
-                playerId: player.id,
-                // Recomputed per determinization (once per search iteration):
-                // a registry lookup per decklist entry, ~60 map reads against
-                // a budget of thousands of node expansions. Memoising it would
-                // trade that for a cache keyed on a caller-owned array, which
-                // is a worse thing to own in a pure module.
-                colors: deckColorEvidence(deckCardIds),
-            });
             determinizeInformedOpponent(
                 next,
                 player,
@@ -232,8 +215,6 @@ export function determinize(
             determinizeOpponent(player, rng, pinned);
         }
     }
-
-    if (deckColors.length > 0) next.deckColorKnowledge = deckColors;
 
     return next;
 }

@@ -260,6 +260,37 @@ export function deckColorEvidence(
     return out as DeckColorEvidence;
 }
 
+/** Every seat OTHER than `observerId` whose decklist the search was granted,
+ *  lowered into {@link DeckColorEvidence} — the whole of `GameState`'s
+ *  `deckColorKnowledge`, built ONCE per search (issue #3533).
+ *
+ *  THE OBSERVER IS EXCLUDED, and that exclusion is the gate, not a tidiness.
+ *  The client hands the Bot its OWN decklist at every difficulty (the `blind`
+ *  shape in `useVsAiDriver`), so "a decklist exists for this seat" is true on
+ *  `easy` as readily as on `expert`. What is true only at `expert`
+ *  (`DIFFICULTY_KNOWS_OPPONENT`, `gre/difficulty.ts`) is that a decklist exists
+ *  for a seat the searcher is not sitting in — and `evaluate` runs from BOTH
+ *  seats' viewpoints inside one search (`materialMargin(state, moverId)`,
+ *  `policyValue(fired, pid, …)`), so a gate that missed this would have
+ *  sharpened the estimate of the BOT's own colours at every difficulty.
+ *
+ *  `undefined` when there is nothing to stamp, so the caller can leave the
+ *  state object untouched and byte-identical on every non-expert path. */
+export function deckColorsForSearch(
+    deckKnowledge: DeckKnowledgeBySeat | undefined,
+    observerId: string
+): DeckColorsBySeat | undefined {
+    const out: DeckColorsBySeat = [];
+    for (const seat of deckKnowledge ?? []) {
+        if (seat.playerId === observerId) continue;
+        out.push({
+            playerId: seat.playerId,
+            colors: deckColorEvidence(seat.cardIds),
+        });
+    }
+    return out.length > 0 ? out : undefined;
+}
+
 /** This seat's decklist colour evidence, if the search was granted any for it.
  *  Absence is the fail-closed answer and the ONLY discriminator — exactly as
  *  for {@link knowledgeFor}, whose gate this one inherits. */

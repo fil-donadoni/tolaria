@@ -116,6 +116,12 @@ export function verdictFromScenario(
         spec: scenario.spec,
         ...(scenario.setup ? { setup: scenario.setup } : {}),
         seat: scenario.bot,
+        // Issue #3533 — the entry's own deck knowledge travels with the
+        // verdict, so `buildVerdictState` rebuilds the position the SEARCH
+        // saw rather than a blind twin of it.
+        ...(scenario.deckKnowledge?.length
+            ? { deckKnowledge: scenario.deckKnowledge }
+            : {}),
         candidates,
         author: REGISTRY_VERDICT_AUTHOR,
         createdAt: REGISTRY_VERDICT_TIMESTAMP,

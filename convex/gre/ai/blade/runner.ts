@@ -328,7 +328,7 @@ export function runBladeScenario(
  *  in this file: a silently-dropped card would quietly widen the unseen
  *  remainder, and an entry whose whole point is "this deck cannot contain the
  *  answer" would then pass for the wrong reason. */
-function bladeDeckKnowledge(
+export function bladeDeckKnowledge(
     state: GameState,
     scenario: BladeScenario
 ): DeckKnowledgeBySeat | undefined {

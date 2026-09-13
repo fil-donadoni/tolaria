@@ -144,7 +144,7 @@ import {
 } from "./evaluate";
 import { describeMove } from "./describeMove";
 import { determinize } from "./determinize";
-import type { DeckKnowledgeBySeat } from "./deckKnowledge";
+import { deckColorsForSearch, type DeckKnowledgeBySeat } from "./deckKnowledge";
 import { makeRng } from "./rng";
 import { hasCastableInstantHint } from "./heldInteraction";
 import {
@@ -5056,13 +5056,13 @@ export function searchWithTrace(
 }
 
 function runSearchWithTrace(
-    state: GameState,
+    rootState: GameState,
     playerId: string,
     budget: SearchBudget,
     seed: number,
     deckKnowledge?: DeckKnowledgeBySeat
 ): { move: Move | null; trace: DecisionTrace | null } {
-    const decider = decidingPlayer(state);
+    const decider = decidingPlayer(rootState);
     if (decider !== playerId) return { move: null, trace: null };
 
     // Explicit calibration surface (issue #2683). Resolved ONCE, here, from
@@ -5083,6 +5083,35 @@ function runSearchWithTrace(
     // reading the module-global itself, so a determinization is reproducible
     // from its inputs alone.
     const opponentModel = resolveOpponentModel(getSearchVariant());
+    // The decklist colour evidence this search is allowed to hold (issue
+    // #3533) — lowered ONCE, here, and carried by the ROOT state rather than
+    // stamped on each determinized world.
+    //
+    // Two reasons it belongs at the root and not inside `determinize`. It is
+    // constant for the whole search, so re-deriving it per iteration is pure
+    // waste; and, decisively, the root rules and the trace read `evaluate` /
+    // `observedOpponentColors` against THIS state, not against a world
+    // (`colorModeTiebreak` below, `buildTrace`'s `evaluateBreakdown`). A stamp
+    // that lived only on the worlds would have left `colorModePrior` reading
+    // informed evidence while the tie-break it is documented to agree with
+    // read blind evidence, and the DecisionTrace reporting the blind number
+    // for an informed decision. `cloneGameState` walks keys generically, so
+    // every world inherits it for free.
+    //
+    // The ladder's information-REMOVAL arm gets nothing: a `blind` variant
+    // that kept the decklist at the root would stop being blind at exactly
+    // the seam this evidence feeds (`determinize` clears it on that path too,
+    // so the invariant holds from either end).
+    const deckColors =
+        opponentModel === "blind"
+            ? undefined
+            : deckColorsForSearch(deckKnowledge, playerId);
+    // Shallow copy, never a mutation: `searchWithTrace` does not own the
+    // caller's state object, and every consumer below treats the root as
+    // read-only. Left byte-identical when there is nothing to stamp.
+    const state: GameState = deckColors
+        ? { ...rootState, deckColorKnowledge: deckColors }
+        : rootState;
     // Root rules disabled for this search (issue #3399). Same one place, same
     // reason: `selectRootMove` takes the set as an argument rather than
     // reading the module-global itself. Empty outside a run that asks.
