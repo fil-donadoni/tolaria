@@ -1211,6 +1211,13 @@ export function buildStateFromScenario(
             }
             if (unit.cantBeCounteredRider) next.cantBeCounteredRider = true;
             if (unit.hasteRider) next.hasteRider = true;
+            // CR 702.189a (issue #3235) — the unit's lifetime. A rebuilt
+            // position seeded mid-combat needs it or firebending mana that was
+            // floating at DECLARE_BLOCKERS reopens as mana that vanishes at
+            // the next boundary.
+            if (unit.persistsUntil !== undefined) {
+                next.persistsUntil = unit.persistsUntil;
+            }
             placed.push(next);
         }
         if (placed.length > 0) player.restrictedMana = placed;
@@ -3659,6 +3666,9 @@ export const RESTRICTED_MANA_KEY_DISPOSITION = {
     restriction: "lowered",
     cantBeCounteredRider: "lowered",
     hasteRider: "lowered",
+    /** CR 702.189a (issue #3235) — a closed union of engine-honoured
+     *  lifetimes, so the spec can name it and the rebuild can keep it. */
+    persistsUntil: "lowered",
     /** An INSTANCE id — no rebuild can honour it, so the unit carrying one is
      *  reported in `dropped` rather than lowered. */
     castableCardId: "reported",
@@ -4652,6 +4662,9 @@ export function specFromState(
                 }
                 if (u.cantBeCounteredRider) unit.cantBeCounteredRider = true;
                 if (u.hasteRider) unit.hasteRider = true;
+                if (u.persistsUntil !== undefined) {
+                    unit.persistsUntil = u.persistsUntil;
+                }
                 return unit;
             });
         }

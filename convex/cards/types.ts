@@ -2199,6 +2199,18 @@ export interface BoardManaColorSource {
  *    cast a spell paying neither its mana cost nor an alternative cost with an
  *    X in it). Affordable only while the caster's life total is at least the
  *    amount (CR 119.4) — paying down to exactly 0 is legal; SBAs then apply. */
+/** CR 500.5 / 702.189a — a unit of mana's LIFETIME when it is not the default
+ *  "empties as this step or phase ends". A closed union rather than a boolean
+ *  so a second duration (a hypothetical "until end of turn" mana) is one
+ *  member plus one arm in {@link manaPersistenceSurvives}, not a second
+ *  parallel flag on every bucket key.
+ *
+ *  `"end-of-combat"` — firebending (CR 702.189a): "Until end of combat, you
+ *  don't lose this mana as steps and phases end." The unit survives every
+ *  step boundary inside the combat phase and empties as the END_OF_COMBAT
+ *  step — the combat phase's own exit — ends. */
+export type ManaPersistence = "end-of-combat";
+
 export type ManaCostReplacement = "life-equal-to-mana-value";
 
 /** ADR 0093 — the action a graveyard play permission licenses. Playing a land
@@ -4532,8 +4544,21 @@ export interface SpellContext {
     /** Adds mana to a specific player's mana pool (CR 106.1, 605.4). Used by
      *  triggers like Mana Flare ("that player adds one mana...") and Wild
      *  Growth ("its controller adds an additional {G}") that target a player
-     *  other than the trigger's controller. */
-    addManaTo: (playerId: string, cost: ManaCost) => void;
+     *  other than the trigger's controller.
+     *
+     *  `persistsUntil` (CR 702.189a, issue #3235) gives the deposit a LIFETIME
+     *  longer than the CR 500.5 default: `"end-of-combat"` is firebending's
+     *  mana, which survives every step boundary inside the combat phase.
+     *  Omitted — every other caller — is the ordinary "empties as this step
+     *  ends" mana, unchanged. A persistent deposit lands in the tagged
+     *  `restrictedMana` list rather than the fungible pool (which has nowhere
+     *  to record a lifetime) with no restriction and no rider, so it remains
+     *  spendable on anything. */
+    addManaTo: (
+        playerId: string,
+        cost: ManaCost,
+        persistsUntil?: ManaPersistence
+    ) => void;
     /** Adds restricted mana to `playerId`'s pool (CR 106.6) — mana that can
      *  only pay for costs the `restriction` permits (e.g. Metamorphosis:
      *  "Spend this mana only to cast creature spells"). Empties at end of
@@ -13776,7 +13801,28 @@ export type EffectOp =
      *  `player` names whose pool receives it — the resolving `"controller"` by
      *  default (a ritual adds to its caster's pool, CR 106.4). Skipped when the
      *  player cannot be resolved (CR 608.2b). */
-    | { op: "addMana"; mana: EffectManaPool; player?: EffectPlayerRef }
+    | {
+          op: "addMana";
+          mana: EffectManaPool;
+          player?: EffectPlayerRef;
+          /** CR 702.189a (firebending, issue #3235) — the LIFETIME of the mana
+           *  produced, when it is not the CR 500.5 default. `"end-of-combat"`
+           *  is "Until end of combat, you don't lose this mana as steps and
+           *  phases end": the mana survives every step boundary inside the
+           *  combat phase and empties as the END_OF_COMBAT step ends.
+           *
+           *  Omitted — every ritual, every Mana Flare-style trigger — is the
+           *  ordinary mana that empties at the very next boundary, unchanged.
+           *
+           *  Orthogonal to `mana` and `player`: it changes neither what is
+           *  produced nor whose pool receives it, and it does NOT restrict
+           *  what the mana may pay for (firebending's {R} is plain red mana
+           *  that simply outlives its step). Threaded straight through to
+           *  `SpellContext.addManaTo`, which routes a persistent deposit into
+           *  the tagged `restrictedMana` list — the fungible per-colour count
+           *  map has nowhere to record a lifetime. */
+          persistsUntil?: ManaPersistence;
+      }
     /** CR 701.8 — destroy the announced target permanent, or the current
      *  `forEach` member (`{ ref: "$each" }`, issue #807). Routes through
      *  `SpellContext.destroy`, so regeneration / indestructible / destroy

@@ -37,7 +37,7 @@ import type {
     EffectValue,
     TargetSelection,
 } from "../../cards/types";
-import type { CardInstanceState, GameState } from "../state";
+import type { CardInstanceState, GameState, PlayerState } from "../state";
 import { EFFECT_OP_REGISTRY } from "../../cards/mechanicsRegistry";
 import { classLevelOf } from "../../cards/abilities/classLevels";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
@@ -1944,20 +1944,41 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     addMana(rawOp, _scenario, pre) {
         const op = rawOp as Extract<EffectOp, { op: "addMana" }>;
         const pid = assertionPlayerId(op.player ?? "controller");
-        const before = { ...findPlayer(pre, pid).manaPool };
+        // CR 106.1 / 702.189a (issue #3235) — a plain deposit lands in the
+        // fungible `manaPool`; one carrying a `persistsUntil` lifetime lands
+        // in the tagged `restrictedMana` list instead (the count map has
+        // nowhere to record a lifetime). The assertion is about the mana
+        // EXISTING, not about which bucket holds it, so it reads the player's
+        // total per-colour balance across both — a pool-only read would have
+        // reported every firebending-shaped script as a silent no-op.
+        const balance = (
+            player: Pick<PlayerState, "manaPool" | "restrictedMana">,
+            color: string
+        ): number =>
+            (player.manaPool[color] ?? 0) +
+            (player.restrictedMana ?? []).reduce(
+                (total, unit) =>
+                    unit.color === color ? total + unit.amount : total,
+                0
+            );
+        const preP = findPlayer(pre, pid);
         const added = Object.entries(op.mana).filter(([, n]) => (n ?? 0) > 0);
+        const before = Object.fromEntries(
+            added.map(([color]) => [color, balance(preP, color)])
+        );
         return {
             label: `addMana ${added
                 .map(([c, n]) => `${n}${c}`)
                 .join("")} to player ${pid}`,
             check: (post) => {
-                const pool = findPlayer(post, pid).manaPool;
+                const postP = findPlayer(post, pid);
                 for (const [color, amount] of added) {
                     const expected = (before[color] ?? 0) + (amount ?? 0);
-                    if ((pool[color] ?? 0) !== expected) {
+                    const actual = balance(postP, color);
+                    if (actual !== expected) {
                         return {
                             ok: false,
-                            detail: `${color} pool ${pool[color] ?? 0}, expected ${expected}`,
+                            detail: `${color} balance ${actual}, expected ${expected}`,
                         };
                     }
                 }

@@ -16,9 +16,17 @@ import type { RestrictedMana } from "~/types/game";
  *    combine with any of them and with each other.
  *
  *  With neither `restriction` nor `castableCardId`, a unit is here ONLY
- *  because a rider tagged it (CR 106.6, issue #3354): it is spendable on
- *  anything, so the base label says exactly that rather than lying with
- *  "Restricted", which is kept for the genuinely unlabelled fallback. */
+ *  because a rider tagged it (CR 106.6, issue #3354) or because it carries a
+ *  LIFETIME (`persistsUntil`, CR 702.189a firebending, issue #3235): either
+ *  way it is spendable on anything, so the base label says exactly that rather
+ *  than lying with "Restricted", which is kept for the genuinely unlabelled
+ *  fallback.
+ *
+ *  `persistsUntil` is appended as its own clause rather than folded into the
+ *  riders list because it is not a rider: it says nothing about the spell the
+ *  mana is spent on, only about how long the player has to spend it — which is
+ *  precisely the thing a player looking at a red pip in the combat phase needs
+ *  told, since every other pip beside it vanishes at the next step boundary. */
 export function restrictedManaLabel(
     unit: RestrictedMana,
     resolveCardName?: (instanceId: string) => string | undefined
@@ -32,7 +40,9 @@ export function restrictedManaLabel(
     if (unit.hasteRider) riders.push("creature spell gains haste");
     const base = (() => {
         if (unit.restriction === undefined) {
-            return riders.length > 0 ? "Any spell" : "Restricted";
+            return riders.length > 0 || unit.persistsUntil !== undefined
+                ? "Any spell"
+                : "Restricted";
         }
         switch (unit.restriction) {
             case "creature-spell":
@@ -49,7 +59,14 @@ export function restrictedManaLabel(
                 return "Restricted";
         }
     })();
-    return riders.length > 0 ? `${base} — ${riders.join(", ")}` : base;
+    const clauses = [...riders];
+    // CR 702.189a — the one clause that is about the mana's LIFETIME rather
+    // than about the spell it pays for. Spelled as the printed reminder text
+    // says it ("This mana lasts until end of combat"), not as the enum value.
+    if (unit.persistsUntil === "end-of-combat") {
+        clauses.push("lasts until end of combat");
+    }
+    return clauses.length > 0 ? `${base} — ${clauses.join(", ")}` : base;
 }
 
 /** Resolves the printed name of a card definition id (NOT an instance id) for

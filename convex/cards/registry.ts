@@ -25,6 +25,7 @@ import {
 import "./emblems";
 import { expandAnnihilator } from "./abilities/annihilator";
 import { expandCascade } from "./abilities/cascade";
+import { expandFirebending } from "./abilities/firebending";
 import { BESTOW_STATIC_EFFECT_KINDS, expandBestow } from "./abilities/bestow";
 import { expandFadingVanishing } from "./abilities/fadingVanishing";
 import { expandHideaway } from "./abilities/hideaway";
@@ -398,6 +399,8 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
     // instance of the keyword (CR 702.86b).
     // Cascade (CR 702.85, issue #3216) injects its "when you cast this spell"
     // trigger the same way — also one per declared instance (CR 702.85c).
+    // Firebending N (CR 702.189, issue #3235) its declare-attackers "add N {R}
+    // that lasts until end of combat" trigger, likewise one per instance.
     // Bestow (CR 702.103, ADR 0084) injects its layer-4 type change from the
     // `bestow` COST field rather than from a keyword string — the field is the
     // declaration — so that the type line a bestowed object reads is a derived
@@ -411,19 +414,21 @@ export const expandDefinition = (base: CardDefinition): CardDefinition => {
     // set depending on whether the card was compiled or hand-written.
     const expanded = expandBestow(
         expandCascade(
-            expandAnnihilator(
-                expandHideaway(
-                    expandKeywordTriggers(
-                        expandFadingVanishing(
-                            // CR 716.2 (issue #3234) — the Class level bars sit
-                            // beside `expandChapterAbilities`: both desugar a
-                            // printed TEXT BOX SECTION declared as data, and
-                            // both must run before any expander that reads the
-                            // ability arrays they inject into.
-                            expandClassLevelBars(
-                                expandChapterAbilities(
-                                    expandCompiledTriggers(
-                                        expandCompiledStatics(base)
+            expandFirebending(
+                expandAnnihilator(
+                    expandHideaway(
+                        expandKeywordTriggers(
+                            expandFadingVanishing(
+                                // CR 716.2 (issue #3234) — the Class level bars sit
+                                // beside `expandChapterAbilities`: both desugar a
+                                // printed TEXT BOX SECTION declared as data, and
+                                // both must run before any expander that reads the
+                                // ability arrays they inject into.
+                                expandClassLevelBars(
+                                    expandChapterAbilities(
+                                        expandCompiledTriggers(
+                                            expandCompiledStatics(base)
+                                        )
                                     )
                                 )
                             )

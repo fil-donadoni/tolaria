@@ -2765,11 +2765,13 @@ export const OP_EXECUTORS: {
     // the X/generic slots, CR 106.1). `player` defaults to the resolving
     // controller — a ritual adds to its caster's pool (CR 106.4); an
     // announced-slot or relative player otherwise. Skipped when the player
-    // cannot be resolved (CR 608.2b).
+    // cannot be resolved (CR 608.2b). `persistsUntil` (CR 702.189a, issue
+    // #3235) is threaded straight through — the primitive owns the routing
+    // decision (fungible pool vs a lifetime-tagged unit), not this Op.
     addMana(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player ?? "controller");
         if (playerId === undefined) return;
-        ctx.addManaTo(playerId, op.mana);
+        ctx.addManaTo(playerId, op.mana, op.persistsUntil);
     },
     // CR 701.8 — destroy, through the replacement layer (regeneration /
     // indestructible / destroy replacements, ADR 0125).

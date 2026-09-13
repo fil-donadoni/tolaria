@@ -2352,6 +2352,15 @@ function isManaPool(value: unknown): boolean {
     return true;
 }
 
+/** The `persistsUntil` field of an `addMana` Op (CR 702.189a, issue #3235) —
+ *  the produced mana's LIFETIME. Exactly one member today, `"end-of-combat"`
+ *  (firebending); the closed literal test is what keeps a typo'd or invented
+ *  duration from silently validating into a `ManaPersistence`-typed field the
+ *  engine would then never honour. */
+function isManaPersistence(value: unknown): boolean {
+    return value === "end-of-combat";
+}
+
 /** A `mayPay` permanent leg's `count`: a fixed cardinal (positive int) or a
  *  summed-power threshold `{ minTotalPower: positive int }` (CR 118, Phyrexian
  *  Dreadnought — "sacrifice any number … total power ≥ N"). */
@@ -3419,7 +3428,10 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // (optional) names whose pool (default the resolving controller).
     addMana: {
         required: { mana: isManaPool },
-        optional: { player: isPlayerRef },
+        // CR 702.189a (issue #3235) — `persistsUntil` is orthogonal to both
+        // siblings: it neither changes what is produced nor whose pool gets
+        // it, so no combination is rejected. Absent is the CR 500.5 default.
+        optional: { player: isPlayerRef, persistsUntil: isManaPersistence },
     },
     destroy: {
         required: { target: isObjectSelector },

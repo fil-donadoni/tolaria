@@ -37,6 +37,7 @@ import {
     type MovableZone,
     PERMANENT_TYPES,
     type PermanentFilter,
+    type ManaPersistence,
     type PermanentView,
     type SpellCastEvent,
     type BecameTargetEvent,
@@ -3371,7 +3372,63 @@ export type RestrictedMana = {
      *  `finalizeSpellResolution` onto the permanent the spell becomes, as an
      *  until-end-of-turn layer-6 keyword grant (CR 611.2c). */
     hasteRider?: true;
+    /** CR 702.189a (firebending, issue #3235) — how long this unit survives
+     *  the CR 500.5 end-of-step mana-pool emptying. Absent (every other unit,
+     *  including every rider-tagged one) means the default: the unit empties
+     *  with the fungible pool as each step and phase ends.
+     *
+     *  NOT a {@link ManaRiders} member, and deliberately so: a rider never
+     *  changes which spells the mana may pay for NOR how long it lasts — it
+     *  changes what happens to the spell it is spent on. This is a LIFETIME,
+     *  orthogonal to both `restriction` (eligibility) and the riders
+     *  (consequences), and a firebending unit carries no restriction and no
+     *  rider at all: it is plain red mana that simply outlives its step.
+     *
+     *  It is part of the CR 106.4 bucket key everywhere `restriction`,
+     *  `castableCardId` and the riders are (deposit, reversal, balance
+     *  lookup): two units of the same colour that empty at different moments
+     *  are not the same kind of mana, so a persistent unit must never merge
+     *  into an ephemeral one — nor, more dangerously, be the unit an untap
+     *  reversal decrements. */
+    persistsUntil?: ManaPersistence;
 };
+
+/** CR 500.5 / 702.189a — the six combat STEPS this engine models. There is no
+ *  separate "combat phase" `Phase` value: the phase's own exit is the instant
+ *  the END_OF_COMBAT step ends (see `advancePhase`'s `endCombatStep` call),
+ *  which is exactly why the membership test below is written against the
+ *  steps and why END_OF_COMBAT is the one that does NOT spare. */
+const COMBAT_STEPS: ReadonlyArray<Phase> = [
+    "BEGINNING_OF_COMBAT",
+    "DECLARE_ATTACKERS",
+    "DECLARE_BLOCKERS",
+    "FIRST_STRIKE_DAMAGE",
+    "COMBAT_DAMAGE",
+    "END_OF_COMBAT",
+];
+
+/** CR 500.5 / 702.189a — does a unit of mana with this lifetime survive the
+ *  pool-emptying that happens as `leavingPhase` ends?
+ *
+ *  `undefined` (every ordinary unit) never survives — the CR 500.5 default.
+ *  `"end-of-combat"` survives every combat step boundary EXCEPT the last:
+ *  firebending mana added in the declare-attackers step is still there in the
+ *  combat-damage step, and is gone once the END_OF_COMBAT step has ended.
+ *
+ *  Fails CLOSED outside combat: a persistent unit that somehow floats into a
+ *  main phase (an "end the combat phase" effect skipping straight past
+ *  END_OF_COMBAT, CR 506.4) empties at the very next boundary rather than
+ *  lingering for the rest of the turn. "Until end of combat" can only ever
+ *  mean less time than that, never more. */
+export function manaPersistenceSurvives(
+    persistence: ManaPersistence | undefined,
+    leavingPhase: Phase
+): boolean {
+    if (persistence !== "end-of-combat") return false;
+    return (
+        leavingPhase !== "END_OF_COMBAT" && COMBAT_STEPS.includes(leavingPhase)
+    );
+}
 
 /** CR 106.6 — the riders a unit of mana can carry: properties that never
  *  change WHICH spells the mana may pay for (that is `ManaRestriction`'s job),
@@ -17649,7 +17706,11 @@ export function buildSpellContext(
                 player.manaPool[color] = (player.manaPool[color] ?? 0) + amount;
             }
         },
-        addManaTo(playerId: string, cost: CardManaCost): void {
+        addManaTo(
+            playerId: string,
+            cost: CardManaCost,
+            persistsUntil?: ManaPersistence
+        ): void {
             const player = getPlayer(state, playerId);
             for (const [color, amount] of Object.entries(cost)) {
                 if (
@@ -17659,6 +17720,25 @@ export function buildSpellContext(
                     amount <= 0
                 )
                     continue;
+                // CR 702.189a (issue #3235) — a unit with a LIFETIME cannot
+                // live in the fungible `manaPool`, which is a bare per-colour
+                // count map with nowhere to record one. It goes into the same
+                // tagged `restrictedMana` list Arena of Glory's unrestricted
+                // rider unit already uses: no `restriction`, no
+                // `castableCardId`, no rider — so it stays eligible for
+                // absolutely any cost — only a longer life.
+                if (persistsUntil !== undefined) {
+                    addRestrictedManaToPool(
+                        player,
+                        color,
+                        amount,
+                        undefined,
+                        undefined,
+                        undefined,
+                        persistsUntil
+                    );
+                    continue;
+                }
                 player.manaPool[color] = (player.manaPool[color] ?? 0) + amount;
             }
         },
@@ -23997,7 +24077,13 @@ export function addRestrictedManaToPool(
     amount: number,
     restriction: ManaRestriction | undefined,
     castableCardId?: string,
-    riders?: ManaRiders
+    riders?: ManaRiders,
+    /** CR 702.189a (issue #3235) — the unit's LIFETIME. Omitted for every
+     *  ordinary deposit (the CR 500.5 default: empties as the step ends);
+     *  `"end-of-combat"` is firebending's longer-lived mana. Part of the
+     *  CR 106.4 merge key below, so a persistent unit never absorbs — or is
+     *  absorbed by — an ephemeral one of the same colour. */
+    persistsUntil?: ManaPersistence
 ): void {
     if (amount <= 0) return;
     const list = player.restrictedMana ?? [];
@@ -24006,6 +24092,7 @@ export function addRestrictedManaToPool(
             r.color === color &&
             r.restriction === restriction &&
             r.castableCardId === castableCardId &&
+            r.persistsUntil === persistsUntil &&
             manaRidersEqual(r, riders)
     );
     if (existing) existing.amount += amount;
@@ -24013,6 +24100,7 @@ export function addRestrictedManaToPool(
         const unit: RestrictedMana = { color, amount };
         if (restriction !== undefined) unit.restriction = restriction;
         if (castableCardId !== undefined) unit.castableCardId = castableCardId;
+        if (persistsUntil !== undefined) unit.persistsUntil = persistsUntil;
         // CR 106.6 riders (issue #1559 / #3354) — Delighted Halfling's mana
         // carries one alongside `restriction`, Arena of Glory's carries one
         // with NO restriction at all; kept in the merge key so a unit WITH a
@@ -24052,6 +24140,14 @@ export function reverseRestrictedManaFromPool(
             // restriction-keyed (or bare-rider) reversal is addressing. The
             // two are one key and must stay one key.
             r.castableCardId === undefined &&
+            // CR 702.189a (issue #3235) — a PERSISTENT unit is likewise its own
+            // bucket and is never a reversal's subject: firebending mana comes
+            // from a resolved trigger, not from tapping a source, so there is
+            // no activation to undo. Written as an exclusion rather than a
+            // threaded parameter precisely because no caller may ever address
+            // one — without it, untapping a plain Mountain before spending its
+            // {R} would decrement the firebending unit instead.
+            r.persistsUntil === undefined &&
             manaRidersEqual(r, riders)
     );
     if (entry) entry.amount = Math.max(0, entry.amount - amount);
@@ -24098,6 +24194,10 @@ export function manaBalanceForRestriction(
                 // bucket of its own and is never what a restriction-keyed
                 // (or bare-rider) lookup is asking about.
                 r.castableCardId === undefined &&
+                // CR 702.189a (issue #3235) — nor is a persistent one: this
+                // lookup exists to answer "is the mana THIS tap produced still
+                // unspent", and a firebending unit was produced by no tap.
+                r.persistsUntil === undefined &&
                 manaRidersEqual(r, riders)
         )?.amount ?? 0
     );
@@ -24125,7 +24225,13 @@ export function manaBalanceForRestrictionAnyRider(
         (total, r) =>
             r.color === color &&
             r.restriction === restriction &&
-            r.castableCardId === undefined
+            r.castableCardId === undefined &&
+            // CR 702.189a (issue #3235) — same exclusion as the exact-key
+            // sibling above: this is still "is the mana this TAP produced
+            // unspent", only rider-agnostic. A firebending unit was produced
+            // by a trigger and would otherwise report a refundable tap that
+            // does not exist.
+            r.persistsUntil === undefined
                 ? total + r.amount
                 : total,
         untagged
