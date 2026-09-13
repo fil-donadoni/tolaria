@@ -1599,12 +1599,18 @@ const choosePermanentsCandidates: ChoiceCandidateGenerator = (
                         : a.card.isTapped === (direction === "ascending")
                           ? -1
                           : 1;
+                // Flips with the direction too, like the tapped tie-break:
+                // two same-worth permanents told apart only by their key
+                // (a damaged and a healthy Bears) must lead the two
+                // directions differently, or both prefixes are one set and
+                // the dedupe leaves a single branch.
                 const byIdentity =
-                    a.identity < b.identity
+                    (direction === "ascending" ? 1 : -1) *
+                    (a.identity < b.identity
                         ? -1
                         : a.identity > b.identity
                           ? 1
-                          : 0;
+                          : 0);
                 return (
                     (sidePrimary ? bySide || byWorth : byWorth || bySide) ||
                     byTapped ||
