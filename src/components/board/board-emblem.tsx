@@ -3,6 +3,7 @@ import type { EmblemInstance } from "@convex/cards/types";
 import { getImageFallbackUrl, getImageSrcSet, getImageUrl } from "~/lib/images";
 import { buildEmblemPreviewBody } from "~/lib/preview-body";
 import CardPreview from "../cards/card-preview";
+import useCardSlotFloor from "~/hooks/useCardSlotFloor";
 
 /** A single command-zone emblem (CR 114) rendered as its printed Scryfall art
  *  (layout `emblem`, e.g. Sorin, Lord of Innistrad Emblem). The tile art URL is
@@ -22,6 +23,9 @@ export default function BoardEmblem({ emblem }: { emblem: EmblemInstance }) {
     // while the bitmap streams in.
     const [jpgFallback, setJpgFallback] = useState(false);
     const [loaded, setLoaded] = useState(false);
+    // The tile's own box is the slot — measured, never a hand-written hint
+    // (issue #3553). No source until the first measurement.
+    const { slotRef, floor, measured } = useCardSlotFloor<HTMLDivElement>();
 
     return (
         <CardPreview
@@ -34,35 +38,42 @@ export default function BoardEmblem({ emblem }: { emblem: EmblemInstance }) {
                 className="relative w-full h-full"
                 aria-label={`Emblem: ${emblem.name}. ${emblem.text}`}
             >
-                <div className="w-full h-full card-corner overflow-hidden ring-1 ring-border-accent/60 bg-surface-base">
+                <div
+                    ref={slotRef}
+                    className="w-full h-full card-corner overflow-hidden ring-1 ring-border-accent/60 bg-surface-base"
+                >
                     {imageId ? (
-                        <img
-                            {...(jpgFallback
-                                ? { src: getImageFallbackUrl(imageId) }
-                                : {
-                                      src: getImageUrl(imageId),
-                                      srcSet: getImageSrcSet(imageId, {
-                                          includeThumb: false,
-                                      }),
-                                      // The tile paints at ~--card-w-sm CSS wide,
-                                      // but on a 2× display that is ~150 device px
-                                      // — hint generously so the browser upgrades
-                                      // to Scryfall's `display` 672w rendition and
-                                      // the emblem art stays crisp (fixes the
-                                      // soft `grid`-downscale at 1× the pile slots
-                                      // used).
-                                      sizes: "200px",
-                                  })}
-                            className="w-full h-full object-cover block select-none"
-                            alt={emblem.name}
-                            decoding="async"
-                            draggable={false}
-                            onLoad={() => setLoaded(true)}
-                            onError={() => {
-                                if (!jpgFallback) setJpgFallback(true);
-                                else setLoaded(true);
-                            }}
-                        />
+                        // `measured &&`, not `imageId && measured ?` — a
+                        // not-yet-measured card must render NOTHING for the
+                        // frame, never the no-art placeholder.
+                        measured && (
+                            <img
+                                data-card-face="printed"
+                                {...(jpgFallback
+                                    ? { src: getImageFallbackUrl(imageId) }
+                                    : {
+                                          src: getImageUrl(imageId),
+                                          srcSet: getImageSrcSet(imageId, {
+                                              includeThumb:
+                                                  floor?.includeThumb ?? false,
+                                          }),
+                                          // "hint generously" used to live here —
+                                          // a 200px constant guessing at a tile
+                                          // that paints at ~--card-w-sm. The hint
+                                          // is the measured slot now (issue #3553).
+                                          sizes: floor?.sizes ?? "200px",
+                                      })}
+                                className="w-full h-full object-cover block select-none"
+                                alt={emblem.name}
+                                decoding="async"
+                                draggable={false}
+                                onLoad={() => setLoaded(true)}
+                                onError={() => {
+                                    if (!jpgFallback) setJpgFallback(true);
+                                    else setLoaded(true);
+                                }}
+                            />
+                        )
                     ) : (
                         <EmblemPlaceholder
                             name={emblem.name}

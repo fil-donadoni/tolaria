@@ -71,6 +71,7 @@ import {
     type Measurement,
     type ProbeResult,
     type SquareExample,
+    type SoftExample,
     type RecordChange,
     type SurfaceWalk,
 } from "./budgets.ts";
@@ -613,6 +614,21 @@ async function main(): Promise<number> {
                     // "5 cards are square" is not actionable, and the whole
                     // point of a shape check is that the reader cannot see the
                     // shape from a count.
+                    // `cardsSoft` names its offenders inline for the same
+                    // reason `cardsSquare` does (issue #3553): "3 cards are
+                    // soft" tells a reader nothing they can act on, while
+                    // "Brainstorm 208px needs 416, has 146 (thumb)" names the
+                    // slot, the deficit and the rendition that lost.
+                    const softEx = probe.cardsSoftN
+                        ? ` soft${probe.cardsSoftN}[` +
+                          (probe.cardsSoft as SoftExample[])
+                              .map(
+                                  (c) =>
+                                      `${c.t} ${c.w}px dec${c.dec} needs${c.need} has${c.have} ${c.src}`
+                              )
+                              .join("; ") +
+                          `]`
+                        : ` soft0`;
                     const squareEx = probe.cardsSquareN
                         ? ` square${probe.cardsSquareN}[` +
                           (probe.cardsSquare as SquareExample[])
@@ -626,7 +642,9 @@ async function main(): Promise<number> {
                     const detail =
                         `cards n${probe.cards.n} zero${probe.cards.zero} occ${probe.cards.occ} ` +
                         `stranded${probe.cards.stranded} reach${probe.cards.reachable}` +
-                        `${squareEx} | ` +
+                        `${squareEx}${softEx}` +
+                        `${probe.cardsSoftPending ? ` softPending${probe.cardsSoftPending}` : ""}` +
+                        `${probe.cardsSoftUnknown ? ` softUnknown${probe.cardsSoftUnknown}` : ""} | ` +
                         `ctrls n${probe.ctrls.n} zero${probe.ctrls.zero} occ${probe.ctrls.occ} ` +
                         `stranded${probe.ctrls.stranded} | starved${probe.starvedN} | ` +
                         `axe s${axe.serious}/c${axe.critical}${axe.ids.length ? ` (${axe.ids.join(",")})` : ""}` +

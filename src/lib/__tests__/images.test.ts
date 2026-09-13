@@ -26,6 +26,9 @@ import {
 } from "@convex/cards";
 import type { TokenSpec } from "@convex/cards/types";
 import {
+    CARD_RENDITION_WIDTHS,
+    CARD_SLOT_QUANTUM_PX,
+    cardSlotFloor,
     getArtCropImageUrl,
     getArtImageUrl,
     getImageFallbackUrl,
@@ -286,5 +289,114 @@ describe("an Adventure's art is the adventurer card's printing (CR 715.2c, issue
         expect(getArtCropImageUrl(resolveCardImageId(twinId)!)).toBe(
             getArtCropImageUrl(getCardByName("Brazen Borrower").id)
         );
+    });
+});
+
+/**
+ * The image-quality floor (issue #3553).
+ *
+ * The defect this replaces was a hand-written `sizes` constant per call site,
+ * with ~18 call sites declaring nothing and inheriting the board's 140px into
+ * a 180-260px slot. The floor is a FUNCTION of the measured slot, so the
+ * property under test is the one a constant can never hold: for any slot and
+ * any dpr, the candidate the declared hint resolves is at least as wide as the
+ * slot's device-pixel width.
+ */
+describe("cardSlotFloor (issue #3553)", () => {
+    /** What a browser resolves from a width-described srcset given a `sizes`
+     *  hint: the narrowest candidate at or above `sizes × dpr`, and the widest
+     *  available when none reaches it. Deliberately re-implemented here rather
+     *  than imported — the assertion is about what the BROWSER will do with
+     *  what `cardSlotFloor` declares, so the selection rule has to be stated
+     *  independently of the code under test. */
+    function resolved(
+        floor: { sizes: string; includeThumb: boolean },
+        dpr: number
+    ) {
+        const candidates = [
+            ...(floor.includeThumb ? [CARD_RENDITION_WIDTHS.thumb] : []),
+            CARD_RENDITION_WIDTHS.grid,
+            CARD_RENDITION_WIDTHS.display,
+        ];
+        const need = parseInt(floor.sizes, 10) * dpr;
+        return candidates.find((w) => w >= need) ?? candidates.at(-1)!;
+    }
+
+    // Every slot this app actually paints, from the smallest chip to the
+    // widest dialog tile, against every dpr the five-viewport matrix uses.
+    const SLOTS = [
+        40, 60, 64, 78, 84, 96, 100, 112, 120, 140, 160, 180, 208, 260,
+    ];
+    const DPRS = [1, 2, 3];
+
+    it("resolves a candidate at least as wide as the slot's device width", () => {
+        for (const slot of SLOTS) {
+            for (const dpr of DPRS) {
+                // Above the ladder's own top there is nothing to resolve —
+                // see the ceiling test below.
+                if (slot * dpr > CARD_RENDITION_WIDTHS.display) continue;
+                const floor = cardSlotFloor(slot, dpr);
+                expect({
+                    slot,
+                    dpr,
+                    got: resolved(floor, dpr) >= slot * dpr,
+                }).toEqual({ slot, dpr, got: true });
+            }
+        }
+    });
+
+    it("has a real ceiling at `display` 672w, and does not pretend otherwise", () => {
+        // A slot needing more than 672 device px (260 CSS px at 3×) cannot be
+        // covered by any rendition this srcset offers, and no `sizes` hint
+        // changes that — the fix would be a WIDER CDN rendition, which issue
+        // #3553 puts out of scope. The floor still declares the true slot
+        // width, so the browser takes the widest candidate there is and the
+        // gate's `cardsSoft` counts the shortfall instead of hiding it. This
+        // test exists so the ceiling is a recorded fact rather than a
+        // surprise the next reader debugs from a red run.
+        const floor = cardSlotFloor(260, 3);
+        expect(parseInt(floor.sizes, 10)).toBe(272);
+        expect(resolved(floor, 3)).toBe(CARD_RENDITION_WIDTHS.display);
+        expect(CARD_RENDITION_WIDTHS.display).toBeLessThan(260 * 3);
+    });
+
+    it("never resolves thumb for a slot wider than thumb's own pixel width", () => {
+        for (const slot of SLOTS) {
+            for (const dpr of DPRS) {
+                const floor = cardSlotFloor(slot, dpr);
+                if (resolved(floor, dpr) !== CARD_RENDITION_WIDTHS.thumb)
+                    continue;
+                expect({
+                    slot,
+                    dpr,
+                    fits: slot * dpr <= CARD_RENDITION_WIDTHS.thumb,
+                }).toEqual({ slot, dpr, fits: true });
+            }
+        }
+    });
+
+    it("keeps small slots on the cheap rendition — a floor, not an upgrade", () => {
+        // The counter-property to the one above: if the floor simply dropped
+        // `thumb` everywhere it would pass both assertions above while
+        // doubling the bytes of every chip and collapsed pile on the board.
+        expect(cardSlotFloor(64, 1).includeThumb).toBe(true);
+        expect(cardSlotFloor(40, 3).includeThumb).toBe(true);
+        // …and drops it exactly where 146 real pixels stop covering the slot.
+        expect(cardSlotFloor(180, 2).includeThumb).toBe(false);
+        expect(cardSlotFloor(120, 3).includeThumb).toBe(false);
+    });
+
+    it("rounds the declared hint UP to the quantum, never down", () => {
+        // Down would re-create the defect one quantum at a time. Up costs at
+        // most one rendition step and usually nothing at all.
+        const floor = cardSlotFloor(181, 2);
+        expect(parseInt(floor.sizes, 10)).toBe(192);
+        expect(parseInt(floor.sizes, 10) % CARD_SLOT_QUANTUM_PX).toBe(0);
+        expect(parseInt(cardSlotFloor(192, 2).sizes, 10)).toBe(192);
+    });
+
+    it("clamps a sub-1 devicePixelRatio so the floor never drops below CSS width", () => {
+        // Browser zoom-out reports dpr < 1. The floor is a floor.
+        expect(cardSlotFloor(208, 0.5).includeThumb).toBe(false);
     });
 });

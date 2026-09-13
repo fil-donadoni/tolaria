@@ -27,6 +27,9 @@ const CONTENT: PreviewBodyContent = {
     imageSrc: "https://cards.scryfall.io/art/front/c/1/saga.webp",
     imageFallbackSrc: "https://cards.scryfall.io/art_crop/front/c/1/saga.jpg",
     printedImageSrc: null,
+    // Null together with `printedImageSrc` by construction — the printed face
+    // builds its responsive srcset from the id (issue #3553).
+    printedImageId: null,
     types: ["Enchantment", "Land"],
     subtypes: ["Urza's", "Saga"],
     staticAbilities: [],

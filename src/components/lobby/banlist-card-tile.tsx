@@ -43,6 +43,7 @@ export default function BanlistCardTile({
                     // uses — so a never-built banlist card (e.g. Amulet of Quoz)
                     // still shows its real face.
                     <img
+                        data-card-face="printed"
                         src={getImageUrl(scryfallId)}
                         srcSet={getImageSrcSet(scryfallId)}
                         sizes="112px"

@@ -16,27 +16,90 @@ export function getPrintedCardImageUrl(
     return getScryfallImageUrl(scryfallId, face);
 }
 
-/** Default `sizes` hint matching the shared card surfaces: board cards render
- *  76–140px CSS wide (portrait hand → battlefield). The browser multiplies it
- *  by devicePixelRatio to pick a srcset candidate. Surfaces pass their real
- *  slot width instead (see the per-surface rendition strategy on
- *  {@link getImageSrcSet}). */
+/** Fallback `sizes` hint for a card slot that could not be MEASURED — a
+ *  zero-width box, or a test environment with no layout engine (happy-dom).
+ *  Every real browser render derives the hint from the slot itself
+ *  ({@link cardSlotFloor}, `useCardSlotFloor`), so this value is the
+ *  no-layout escape hatch and never the number a surface relies on.
+ *
+ *  It is NOT a floor: 140px was the board's upper bound, and ~18 call sites
+ *  inheriting it while rendering into a 180–260px slot is exactly the defect
+ *  issue #3553 records. A hint below the slot resolves a rendition below the
+ *  slot's device-pixel width, which reads as soft/pixelated art until a
+ *  resize re-evaluates the candidate. */
 export const DEFAULT_CARD_IMAGE_SIZES = "140px";
+
+/** The Scryfall WebP rendition widths {@link getImageSrcSet} offers, by name.
+ *  The whole responsive decision is a choice among these three, which is why
+ *  {@link cardSlotFloor} can be exact rather than approximate. */
+export const CARD_RENDITION_WIDTHS = {
+    thumb: 146,
+    grid: 488,
+    display: 672,
+} as const;
+
+/** The step a measured slot width is rounded UP to before it is declared.
+ *
+ *  UP, always: a declared hint under the real slot is the defect itself, so
+ *  rounding can only ever over-declare. The step exists so a drag-resize or a
+ *  sub-pixel reflow does not re-render every mounted card for a width change
+ *  that cannot move the resolved candidate. */
+export const CARD_SLOT_QUANTUM_PX = 16;
+
+/** What a MEASURED card slot asks of the srcset: the `sizes` hint to declare
+ *  and whether Scryfall's most compressed rendition may stay a candidate. */
+export interface CardSlotFloor {
+    sizes: string;
+    includeThumb: boolean;
+}
+
+/** The minimum image-quality floor for one measured slot (issue #3553).
+ *
+ *  `slotCssWidth` is the slot's real rendered width in CSS px; `dpr` the
+ *  display's `devicePixelRatio`. The browser resolves `sizes × dpr` against
+ *  the width-described candidates, so declaring the slot's own (rounded-up)
+ *  width makes it pick the smallest candidate at or above the slot's DEVICE
+ *  pixel width — which is the floor, stated once, instead of a constant a
+ *  human has to remember per call site.
+ *
+ *  `includeThumb` is the same decision one rendition lower: `thumb` is 146px
+ *  of actual pixels, so it stays a candidate only while the slot needs 146
+ *  device px or fewer. That keeps genuinely small slots (target chips,
+ *  collapsed piles) on the cheap rendition — the change is a FLOOR, not a
+ *  blanket upgrade — while a slot that outgrows `thumb` stops being offered
+ *  it at all. A `dpr` under 1 (browser zoom-out) is clamped to 1 so the floor
+ *  never drops below the CSS width. */
+export function cardSlotFloor(
+    slotCssWidth: number,
+    dpr: number
+): CardSlotFloor {
+    const declared = Math.max(
+        CARD_SLOT_QUANTUM_PX,
+        Math.ceil(slotCssWidth / CARD_SLOT_QUANTUM_PX) * CARD_SLOT_QUANTUM_PX
+    );
+    const deviceWidth = declared * Math.max(1, dpr);
+    return {
+        sizes: `${declared}px`,
+        includeThumb: deviceWidth <= CARD_RENDITION_WIDTHS.thumb,
+    };
+}
 
 /** Width-described srcset across Scryfall's WebP renditions (grid 488w,
  *  display 672w, plus thumb 146w unless excluded). Paired with a `sizes` hint
  *  it lets the browser fetch the rendition closest to the slot's DEVICE-pixel
  *  width.
  *
- *  The rendition strategy is PER SURFACE: `thumb` is Scryfall's most
- *  compressed rendition and reads visibly soft once a slot exceeds ~96px, so
- *  - SMALL slots (≤96px — collapsed piles, target chips, portrait hand) keep
- *    the default `includeThumb: true` with an ACCURATE `sizes` hint: bytes
- *    matter there and the compression artifacts are invisible at that size.
- *  - MID slots (hand 120px, stack 128px, battlefield cards, pickers ~112px,
- *    pile dialogs) pass `includeThumb: false` so a 1× screen resolves `grid`
- *    488w — Scryfall's own offline downscale — instead of `thumb`; `display`
- *    672w stays available for wide slots on high-DPR screens. */
+ *  The rendition strategy is NOT per surface any more (issue #3553). It was —
+ *  a table of "small slots pass `includeThumb: true`, mid slots pass `false`"
+ *  that every call site had to look itself up in — and the surfaces that
+ *  never did inherited `thumb` 146w into a 180–260px slot. `includeThumb` is
+ *  now the output of {@link cardSlotFloor} against the slot's MEASURED width,
+ *  so the same rule holds everywhere by construction: `thumb` stays a
+ *  candidate exactly while the slot needs 146 device px or fewer.
+ *
+ *  The `includeThumb` parameter survives for the no-layout fallback path and
+ *  for the handful of images whose slot is a fixed px constant in their own
+ *  style attribute. */
 export function getImageSrcSet(
     scryfallId: string,
     opts?: { includeThumb?: boolean; face?: CardImageFace }

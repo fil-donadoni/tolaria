@@ -22,6 +22,7 @@ import CardPreview from "./card-preview";
 import CardImageLoader from "./card-image-loader";
 import TokenPlaceholder from "./token-placeholder";
 import CardBack from "./card-back";
+import useCardSlotFloor from "~/hooks/useCardSlotFloor";
 
 // `contain: paint` + promoted layer keep Chrome's compositor from shipping
 // the bitmap as a low-res tile while ancestors are transitioning/rotating.
@@ -64,18 +65,18 @@ type CardImageProps = {
      */
     showCopyBadge?: boolean;
     /**
-     * `sizes` hint for the responsive srcset — the card's rendered CSS width.
-     * Defaults to the board's upper bound (140px); pass the real width when a
-     * surface renders cards substantially larger (dialogs, deck builder) so
-     * the browser upgrades to the `display` rendition instead of upscaling.
+     * FALLBACK `sizes` hint, used only when the slot cannot be measured — a
+     * zero-width box, or a test environment with no layout engine. A real
+     * browser render derives the hint from the slot itself
+     * (`useCardSlotFloor`), so this prop no longer decides the rendition and
+     * a call site that omits it is no longer under-declaring (issue #3553).
      */
     sizes?: string;
     /**
-     * Keep Scryfall's `thumb` 146w rendition in the srcset (default true).
-     * Mid-size slots (≥96px CSS — hand, stack, battlefield, pickers) pass
-     * `false` so a 1× display resolves `grid` 488w instead of the visibly
-     * softer `thumb`; small slots keep it for the bytes. See the rendition
-     * strategy on `getImageSrcSet` (src/lib/images.ts).
+     * FALLBACK for `thumb`'s presence in the srcset, on the same
+     * cannot-measure path as `sizes`. Measured slots derive it from
+     * `cardSlotFloor`: `thumb` is 146 real pixels, so it stays a candidate
+     * exactly while the slot needs 146 device px or fewer.
      */
     includeThumb?: boolean;
     /**
@@ -115,6 +116,17 @@ function CardImageImpl({
 }: CardImageProps) {
     const cardInstance = isCardInstance(card) ? card : undefined;
     const defId = getDefId(card);
+    // The wrapper below IS the slot — the image fills it — so its measured
+    // width is what the srcset hint must describe (issue #3553). Until the
+    // first measurement lands the `<img>` carries no source at all: a hint
+    // applied after the browser has already picked a candidate cannot
+    // un-pick it, and the whole defect is a candidate picked at first paint.
+    const {
+        slotRef,
+        floor,
+        measured: slotMeasured,
+    } = useCardSlotFloor<HTMLDivElement>();
+    const slot = floor ?? { sizes, includeThumb };
     const [loaded, setLoaded] = useState(false);
     // WebP-first with jpg fallback. Keyed to the image id (not a boolean) so a
     // memo-retained component that switches identity re-tries WebP for the new
@@ -169,38 +181,47 @@ function CardImageImpl({
             holdPreview={holdPreview}
         >
             <div
+                ref={slotRef}
                 className="relative w-full h-full card-corner overflow-hidden"
                 style={promoteLayer ? STABLE_LAYER : CONTAINED_LAYER}
             >
                 {faceDownFace?.kind === "back" ? (
                     <CardBack />
                 ) : imageId ? (
-                    <img
-                        {...(jpgFallbackFor === imageId
-                            ? { src: getImageFallbackUrl(imageId, face) }
-                            : {
-                                  src: getImageUrl(imageId, face),
-                                  srcSet: getImageSrcSet(imageId, {
-                                      includeThumb,
-                                      face,
-                                  }),
-                                  sizes,
-                              })}
-                        className="w-full h-full object-cover block select-none"
-                        style={{ WebkitTouchCallout: "none" }}
-                        alt={name}
-                        decoding="async"
-                        {...(lazy ? { loading: "lazy" as const } : {})}
-                        draggable={false}
-                        onLoad={() => setLoaded(true)}
-                        onError={() => {
-                            // WebP missing (spoiler/lowres printing) → retry
-                            // as jpg; a second failure ends the loader.
-                            if (jpgFallbackFor !== imageId)
-                                setJpgFallbackFor(imageId);
-                            else setLoaded(true);
-                        }}
-                    />
+                    // `slotMeasured &&` INSIDE the `imageId` branch, never
+                    // `imageId && slotMeasured ?` — a card whose slot has not
+                    // been measured yet must render nothing for that frame,
+                    // never the token placeholder, which is the "this card has
+                    // no printed art" face.
+                    slotMeasured && (
+                        <img
+                            data-card-face="printed"
+                            {...(jpgFallbackFor === imageId
+                                ? { src: getImageFallbackUrl(imageId, face) }
+                                : {
+                                      src: getImageUrl(imageId, face),
+                                      srcSet: getImageSrcSet(imageId, {
+                                          includeThumb: slot.includeThumb,
+                                          face,
+                                      }),
+                                      sizes: slot.sizes,
+                                  })}
+                            className="w-full h-full object-cover block select-none"
+                            style={{ WebkitTouchCallout: "none" }}
+                            alt={name}
+                            decoding="async"
+                            {...(lazy ? { loading: "lazy" as const } : {})}
+                            draggable={false}
+                            onLoad={() => setLoaded(true)}
+                            onError={() => {
+                                // WebP missing (spoiler/lowres printing) → retry
+                                // as jpg; a second failure ends the loader.
+                                if (jpgFallbackFor !== imageId)
+                                    setJpgFallbackFor(imageId);
+                                else setLoaded(true);
+                            }}
+                        />
+                    )
                 ) : (
                     <TokenPlaceholder
                         name={name}

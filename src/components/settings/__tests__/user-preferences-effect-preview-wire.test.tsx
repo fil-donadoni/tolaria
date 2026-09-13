@@ -39,6 +39,13 @@ const CONTENT: PreviewBodyContent = {
     imageSrc: "https://cards.scryfall.io/art/front/a/b/bolt.webp",
     imageFallbackSrc: "https://cards.scryfall.io/art_crop/front/a/b/bolt.jpg",
     printedImageSrc: "https://cards.scryfall.io/normal/front/a/b/bolt.jpg",
+    // The id the printed face builds its RESPONSIVE srcset from (issue
+    // #3553) — null together with `printedImageSrc` by construction, so a
+    // fixture that sets one and not the other renders no printed face at all.
+    printedImageId: {
+        id: "ab000000-0000-0000-0000-000000000000",
+        face: "front",
+    },
     types: ["Instant"],
     subtypes: [],
     staticAbilities: [],

@@ -44,6 +44,7 @@ export default function DragGhost({
             }}
         >
             <img
+                data-card-face="printed"
                 src={getImageUrl(printId)}
                 alt=""
                 draggable={false}

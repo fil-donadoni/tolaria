@@ -1,5 +1,6 @@
 import { useState } from "react";
 import CardPreviewFace from "./card-preview-face";
+import PrintedFaceImage from "./printed-face-image";
 import CardPreviewModeToggle, {
     type CardPreviewMode,
 } from "./card-preview-mode-toggle";
@@ -94,7 +95,10 @@ export default function CardPreviewBody({
         );
     }
 
-    if (mode === "printed" && content.printedImageSrc) {
+    // `printedImageId` rather than `printedImageSrc`: the renderer builds its
+    // own responsive srcset from the id (issue #3553), and the two are null
+    // together by construction.
+    if (mode === "printed" && content.printedImageId) {
         return (
             <div className="flex w-full flex-col">
                 {!isManualGame && (
@@ -103,13 +107,14 @@ export default function CardPreviewBody({
                         onChange={setToggledMode}
                     />
                 )}
-                {content.backFaceHalf?.printedImageSrc ? (
+                {content.backFaceHalf?.printedImageId ? (
                     // CR 712 (issue #3552) — a double-faced card's printed
                     // BACK beside its front, the way the physical card is
                     // read: side by side keeps the host's height unchanged.
                     <div className="grid grid-cols-2 gap-1">
-                        <img
-                            src={content.printedImageSrc}
+                        <PrintedFaceImage
+                            imageId={content.printedImageId.id}
+                            face={content.printedImageId.face}
                             alt={
                                 isManualGame
                                     ? content.displayName
@@ -118,16 +123,18 @@ export default function CardPreviewBody({
                             className="w-full card-corner"
                             onLoad={onImageLoaded}
                         />
-                        <img
-                            src={content.backFaceHalf.printedImageSrc}
+                        <PrintedFaceImage
+                            imageId={content.backFaceHalf.printedImageId.id}
+                            face={content.backFaceHalf.printedImageId.face}
                             alt={`${content.backFaceHalf.name} (printed back face)`}
                             className="w-full card-corner"
-                            data-card-preview-back-face-printed
+                            backFaceMarker
                         />
                     </div>
                 ) : (
-                    <img
-                        src={content.printedImageSrc}
+                    <PrintedFaceImage
+                        imageId={content.printedImageId.id}
+                        face={content.printedImageId.face}
                         alt={
                             isManualGame
                                 ? content.displayName

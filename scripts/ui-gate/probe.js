@@ -342,6 +342,116 @@ window.__tolariaProbe = () => {
           }
         : null;
 
+    // ── Image-quality floor (issue #3553) ──
+    //
+    // A card whose RESOLVED source is narrower than the slot it paints into,
+    // in DEVICE pixels, is soft — visibly so once the gap is a factor of two,
+    // which is what `sizes="140px"` inherited into a 180-260px draft-pack slot
+    // produced. The defect self-corrects on a slight window resize (the resize
+    // re-evaluates the srcset candidate), which is exactly why no test that
+    // never lays out real pixels can see it and why it belongs here.
+    //
+    // WHY `currentSrc` AND NOT `naturalWidth`. `naturalWidth` looks like the
+    // right measurement and is not: for a srcset with WIDTH descriptors the
+    // HTML spec gives the resolved resource a "current pixel density" of
+    // candidateWidth / sizesWidth, and `naturalWidth` is the intrinsic width
+    // DIVIDED by that density — so it reports the `sizes` hint back, whatever
+    // candidate was fetched. Browser-measured on this lane before the switch:
+    // every card on `draft-pick @ 1440x900x2` read `has112` against a declared
+    // `112px` while genuinely holding Scryfall's 488w `grid`. A check built on
+    // it reports the hint against itself and can never disagree with the
+    // markup.
+    //
+    // `currentSrc` IS the outcome: the candidate the browser selected and
+    // fetched, after `sizes`, dpr and its own heuristics. Its Scryfall path
+    // segment names the rendition, and the rendition's pixel width is a fixed
+    // published fact — the same three numbers `src/lib/images.ts` builds the
+    // srcset from.
+    //
+    // The LIMIT, stated rather than papered over: this measures the RESOURCE,
+    // so it cannot see a compositor that evicted a layer and re-decoded the
+    // (correct) resource at a lower resolution. Nothing exposed to JS can —
+    // `naturalWidth` does not move when that happens either. What the floor
+    // does for that class is remove its precondition on the surfaces where it
+    // was observed: a hint far below the slot is what made the re-decode
+    // visible.
+    //
+    // SCOPE: elements marked `data-card-face="printed"` — every printed card
+    // face this app renders from the Scryfall CDN. Deliberately NOT the raw
+    // `imgs` selector above: that also catches the art / art_crop preview
+    // pipeline (`card-preview-face`, `stack-row`, `inspect-overlay`), whose
+    // renditions are a different aspect ratio and a different question, out of
+    // scope per the issue. A marker is a named node in a reviewable diff; a
+    // heuristic over `src` is not.
+    const RENDITION_W = {
+        thumb: 146,
+        small: 146,
+        border_crop: 480,
+        grid: 488,
+        normal: 488,
+        display: 672,
+        large: 672,
+        png: 745,
+    };
+    const soft = [];
+    let softPending = 0;
+    // A rendition this table does not know is NOT silently skipped: an
+    // unmeasurable card face is a coverage hole, and this lane's whole contract
+    // is that a hole reds rather than reads green. It is reported separately so
+    // the run says which of the two happened.
+    let softUnknown = 0;
+    // WHY `offsetWidth` AND NOT THE BOUNDING RECT. A TAPPED permanent is drawn
+    // rotated 90°, and `getBoundingClientRect` returns the AXIS-ALIGNED box of
+    // the rotated result — so a 64x89 card reports a width of 89. The image
+    // rotates WITH its box: its own horizontal axis still spans 64 CSS px of
+    // screen, so nothing about its sharpness changed when it tapped. Measuring
+    // the rect reported `Sol Ring 93px dec64px ... thumb` on `game-debug-sheet`
+    // at every viewport — three tapped artifacts, no defect, a ceiling that
+    // would have moved with how many permanents happened to be tapped.
+    // `offsetWidth` is the LAYOUT box, which is the quantity `useCardSlotFloor`
+    // declares, so the two sides of this check measure the same thing.
+    //
+    // The known limit, in exchange: a `scale()` on an ancestor is invisible to
+    // both sides. The one scaled card surface is the drag ghost at 1.05, whose
+    // 5% is inside this check's own 1px tolerance at any real slot size.
+    for (const e of document.querySelectorAll('[data-card-face="printed"]')) {
+        if (isDecorativeArt(e)) continue;
+        const r = e.getBoundingClientRect();
+        if (r.width < 8 || r.height < 8) continue;
+        const layoutW = e.offsetWidth || r.width;
+        const url = e.currentSrc || e.src || "";
+        if (!url) {
+            softPending++;
+            continue;
+        }
+        // `https://cards.scryfall.io/<variant>/<face>/<a>/<b>/<id>.<ext>`
+        const variant = url.split("/")[3];
+        const have = RENDITION_W[variant];
+        if (!have) {
+            softUnknown++;
+            continue;
+        }
+        const need = layoutW * devicePixelRatio;
+        // 1px of slack for the sub-pixel rounding a fractional layout width
+        // produces; a real under-declaration is never within 1 device pixel.
+        if (have + 1 < need)
+            soft.push({
+                t: (e.getAttribute("alt") || e.tagName).trim().slice(0, 24),
+                w: Math.round(layoutW),
+                need: Math.round(need),
+                have: have,
+                src: variant,
+                // The hint the element is CURRENTLY declaring. It is the first
+                // thing a reader needs and the one thing the rendition alone
+                // cannot say: a `dec` below `w` is an under-declaration (the
+                // slot grew, or a fixed constant is wrong), while a `dec` at or
+                // above `w` with a too-small rendition means the browser is
+                // holding a candidate it resolved against an EARLIER, smaller
+                // box and has not re-picked.
+                dec: e.getAttribute("sizes") || "",
+            });
+    }
+
     // ── Square-corner check (ADR 0103 §7, issue #2724) ──
     //
     // A Magic card has a rounded corner, and the corner is a FRACTION of the
@@ -469,6 +579,10 @@ window.__tolariaProbe = () => {
         cardW,
         cardsSquareN: cornerSquare.length,
         cardsSquare: cornerSquare.slice(0, 6),
+        cardsSoftN: soft.length,
+        cardsSoft: soft.slice(0, 6),
+        cardsSoftPending: softPending,
+        cardsSoftUnknown: softUnknown,
         ctrls: probe(ctrls),
         starvedN: starved.length,
         starved: starved.slice(0, 4),
