@@ -393,6 +393,108 @@ export const scenarioContinuousEffectValidator = v.union(
     })
 );
 
+/**
+ * CR 601.2c / 602.2b (issue #3513, PRD #3397) — ONE announced target of an
+ * object on the declared stack, in the spec's own vocabulary: a NAME and a
+ * SEAT, never an instance id, which every rebuild reassigns.
+ *
+ * Four shapes, the four `TargetSelection.type` members a real announcement can
+ * carry. `"hand-card"` is deliberately not among them: it is never a real
+ * announced target (issue #1101 — `lookDistribute`'s `bind` snapshots the kept
+ * card so a later mana-value read resolves it there), so it is unrepresentable
+ * here rather than refused by a check, and `lowerStack` reports it as residue.
+ *
+ * `nth` is the ONE place this vocabulary is more exact than `attachedTo`'s and
+ * `combat`'s: it is the 0-based position of the intended permanent among the
+ * same-named permanents in that zone, in the order `cards` places them (which
+ * is the order `specFromState` captured them in). A name alone would resolve
+ * by consuming the first unconsumed instance, and two same-named permanents —
+ * one damaged, one not — would silently point the spell at the wrong one, on a
+ * board whose candidate list is identical either way. `resolveCombatants`'s
+ * consuming convention cannot be borrowed as-is for a second reason: CR 608.2b
+ * lets ONE spell name the SAME object in two slots (the Plague Spores ruling),
+ * which a consuming resolver cannot express at all. Omitted means 0.
+ */
+export const scenarioStackTargetValidator = v.union(
+    v.object({
+        kind: v.literal("permanent"),
+        name: v.string(),
+        seat: v.union(v.literal("me"), v.literal("opp")),
+        nth: v.optional(v.number()),
+    }),
+    v.object({
+        kind: v.literal("player"),
+        seat: v.union(v.literal("me"), v.literal("opp")),
+    }),
+    // CR 111.7 / 601.2c — a spell or ability targeting another object ALREADY
+    // on the stack (Counterspell, Tishana's Tidebinder), by its index in this
+    // same array. The reference always points LOWER than the referring item's
+    // own index: you can only target what is already there.
+    v.object({
+        kind: v.literal("stack"),
+        index: v.number(),
+    }),
+    v.object({
+        kind: v.literal("graveyard-card"),
+        name: v.string(),
+        seat: v.union(v.literal("me"), v.literal("opp")),
+        nth: v.optional(v.number()),
+    })
+);
+
+/**
+ * CR 405.1 (issue #3513, PRD #3397) — ONE object on the declared stack.
+ *
+ * A top-level array rather than a `zone: "stack"` on `ScenarioCard`, because an
+ * activated ability on the stack is NOT a card: its source permanent is already
+ * on the battlefield, and a second `ScenarioCard` naming it would build a
+ * second Rishadan Port and make every by-name battlefield match ambiguous. The
+ * ARRAY ORDER is the LIFO semantics — index 0 is the bottom, the last entry
+ * resolves first (CR 608.1).
+ *
+ * Two kinds ship here. A `trigger` is not among them: its `triggerEvent`
+ * payload needs a `GameEvent` vocabulary the spec does not have, and because
+ * `placeTriggersOnStack` ALWAYS writes that field, the residue rule refuses a
+ * trigger without needing a special case for it.
+ */
+export const scenarioStackItemValidator = v.object({
+    kind: v.union(v.literal("spell"), v.literal("ability")),
+    /** The SPELL's card name, or — for an `ability` — the presented name of the
+     *  SOURCE permanent whose ability was activated. */
+    name: v.string(),
+    /** CR 601.2 / 602.1 — the caster / activator (`StackItem.castById`). Not
+     *  necessarily the source's controller: "any player may activate"
+     *  (CR 113.3c). */
+    controller: v.union(v.literal("me"), v.literal("opp")),
+    /** `kind: "ability"` only — whose battlefield holds the SOURCE permanent.
+     *  Omitted means `controller`, the ordinary case. */
+    sourceSeat: v.optional(v.union(v.literal("me"), v.literal("opp"))),
+    /** `kind: "ability"` only, and REQUIRED there — the activated ability's id
+     *  on the source's definition (`StackItem.abilityId`). */
+    abilityId: v.optional(v.string()),
+    /** CR 601.2c — the announced targets, in ANNOUNCEMENT ORDER. The index is
+     *  load-bearing (`illegalTargetSlots`, `{ target: N }` in an Effect
+     *  Script), so this is a full list and never the journal's "at most one". */
+    targets: v.optional(v.array(scenarioStackTargetValidator)),
+    /** CR 107.3 / 601.2b — the value chosen for X (`StackItem.chosenX`). */
+    x: v.optional(v.number()),
+    /** CR 601.2 / 307.1 / 117.1a (issue #2473) — the ANNOUNCEMENT-time snapshot
+     *  "a sorcery could not have been cast right now". Absent means the cast
+     *  WAS at sorcery timing, the engine's own convention.
+     *
+     *  Lowered rather than re-derived, which is the whole reason the engine
+     *  snapshots it: the board a targeted cast COMMITS on is not the board it
+     *  was announced on, so recomputing it from the rebuilt position answers a
+     *  different question. And it cannot simply be reported as residue — every
+     *  instant cast into a response window carries it, so a residue rule that
+     *  refused it would refuse exactly the class this field exists for. */
+    castOffSorceryTiming: v.optional(v.boolean()),
+    /** `nth` for the ability's SOURCE permanent, read exactly as a target's is:
+     *  the 0-based position among same-named permanents on `sourceSeat`'s
+     *  battlefield. Omitted means 0. */
+    sourceNth: v.optional(v.number()),
+});
+
 export const scenarioSpecValidator = v.object({
     cards: v.array(scenarioCardValidator),
     phase: v.optional(v.string()),
@@ -739,6 +841,26 @@ export const scenarioSpecValidator = v.object({
     //
     // Names, never instance ids: every rebuild reassigns them.
     continuousEffects: v.optional(v.array(scenarioContinuousEffectValidator)),
+    // CR 405.1 / 601.2 / 602.2a (issue #3513, PRD #3397) — the objects IN
+    // FLIGHT, bottom-up. Before this field a position with anything on the
+    // stack could not be written down at all, so the whole class of RESPONSE
+    // decisions — the Bot holding priority over its own spell, or answering
+    // the opponent's — had to be reached by REPLAYING the moves that got
+    // there (`gre/ai/verdicts/journal.ts`), whose recorder sees only one seat's
+    // moves and therefore misses essentially every live response window
+    // (`docs/findings/3480-human-moves-never-reach-the-stack-journal.md`).
+    //
+    // DECLARED, not inverted (ADR 0125). This is not the stack INVERSION the
+    // journal rejects — deriving the board as it stood BEFORE the spell was
+    // paid for, which is impossible with no event log and a bare boolean
+    // `manaCommitted`. What is lowered here is the LIVE board, mana already
+    // spent and card already out of hand, with the objects in flight NAMED.
+    //
+    // A spec carrying one is NOT loadable into a live game
+    // (`assertLoadableIntoLiveGame`), exactly as `hiddenHand` is not: the
+    // verdict and blade paths only EVALUATE the rebuilt position, and playing
+    // one forward is a different contract.
+    stack: v.optional(v.array(scenarioStackItemValidator)),
     // CR 702.139c / ADR 0064 (issue #1392) — directly declare a companion
     // into a slot, bypassing the sideboard/maindeck auto-declare a
     // scenario's synthetic board never runs through. Mirrors
@@ -863,6 +985,34 @@ export type ScenarioContinuousEffect = ContinuousEffectSlot & {
     duration?: ScenarioContinuousEffectDuration;
     payload: ScenarioContinuousEffectPayload;
     characteristicDefining?: boolean;
+};
+
+/** CR 601.2c (issue #3513) — one announced target of a declared stack object.
+ *  See `scenarioStackTargetValidator` for why `nth` exists and why
+ *  `"hand-card"` is not a member. */
+export type ScenarioStackTarget =
+    | { kind: "permanent"; name: string; seat: "me" | "opp"; nth?: number }
+    | { kind: "player"; seat: "me" | "opp" }
+    | { kind: "stack"; index: number }
+    | {
+          kind: "graveyard-card";
+          name: string;
+          seat: "me" | "opp";
+          nth?: number;
+      };
+
+/** CR 405.1 (issue #3513) — one object on the declared stack. See
+ *  `scenarioStackItemValidator` for the shape's rationale. */
+export type ScenarioStackItem = {
+    kind: "spell" | "ability";
+    name: string;
+    controller: "me" | "opp";
+    sourceSeat?: "me" | "opp";
+    abilityId?: string;
+    targets?: ScenarioStackTarget[];
+    x?: number;
+    castOffSorceryTiming?: boolean;
+    sourceNth?: number;
 };
 
 export type ScenarioSpec = {
@@ -1023,6 +1173,13 @@ export type ScenarioSpec = {
      *  board. Omitted means none, and the builder seeds nothing — which is
      *  what every spec written before this field meant. */
     continuousEffects?: ScenarioContinuousEffect[];
+    /** CR 405.1 / 601.2 / 602.2a (issue #3513) — the objects in flight,
+     *  BOTTOM-UP: index 0 is the bottom of the stack and the last entry is the
+     *  one that resolves first (CR 608.1). Omitted means an empty stack, which
+     *  is what every spec written before this field meant. Declared, never
+     *  replayed (ADR 0125); a spec carrying one is refused by
+     *  `assertLoadableIntoLiveGame`. */
+    stack?: ScenarioStackItem[];
     companion?: { name: string; owner?: "me" | "opp"; used?: boolean };
 };
 
@@ -1958,6 +2115,35 @@ export function collectUnresolvedCardNames(
             ...(entry.affected.opp ?? []),
         ]) {
             if (!resolves(name) && !resolvesToken(name)) unresolved.add(name);
+        }
+    }
+    // CR 405.1 / 601.2c (issue #3513) — every name a declared stack object
+    // references: the spell's own card, an ability's SOURCE permanent, and the
+    // permanent / graveyard targets each announcement carries. Vouched here for
+    // the same reason the combat lists are (ADR 0044): `seedDeclaredStack`
+    // THROWS on a name it cannot find, so a row naming an unresolvable card
+    // would be accepted at WRITE and blow up at LOAD.
+    //
+    // A stack SPELL is a card, never a token — a token is not cast (CR 111.7) —
+    // so `resolves` alone vouches for it. An ability's source and a permanent
+    // target may both be tokens (a Vehicle token's crew ability, a Saproling
+    // targeted by a Bolt), so those take either resolution, like an Aura host.
+    for (const item of spec.stack ?? []) {
+        if (item.kind === "spell") {
+            if (!resolves(item.name)) unresolved.add(item.name);
+        } else if (!resolves(item.name) && !resolvesToken(item.name)) {
+            unresolved.add(item.name);
+        }
+        for (const target of item.targets ?? []) {
+            if (target.kind === "permanent") {
+                if (!resolves(target.name) && !resolvesToken(target.name)) {
+                    unresolved.add(target.name);
+                }
+            } else if (target.kind === "graveyard-card") {
+                // CR 111.7 — a token in a graveyard ceases to exist, so only a
+                // real card can be named there.
+                if (!resolves(target.name)) unresolved.add(target.name);
+            }
         }
     }
     return [...unresolved];

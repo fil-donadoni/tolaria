@@ -46,7 +46,12 @@ function getCardByName(name: string) {
 import { ensureLayer6Base, INDEFINITE_SOURCE_ID, syncLayer6 } from "./layer6";
 import { basicLandsForColors, getCardColors } from "../cards/colors";
 import { findTokenSpec, listTokenCatalogue } from "../cards/tokenCatalogue";
-import type { AnimateSpec, CardType, Color } from "../cards/types";
+import type {
+    AnimateSpec,
+    CardType,
+    Color,
+    TargetSelection,
+} from "../cards/types";
 import {
     resolveScenarioBattlefieldCounters,
     type ScenarioCard,
@@ -54,6 +59,7 @@ import {
     type ScenarioContinuousEffectPayload,
     type ScenarioRestrictedMana,
     type ScenarioSpec,
+    type ScenarioStackItem,
 } from "../debugScenarioSpec";
 import {
     type CardInstanceState,
@@ -61,6 +67,7 @@ import {
     type GameState,
     type PlayerState,
     type RestrictedMana,
+    type StackItem,
     allocInstanceId,
     animatePermanentAsCreature,
     applyKeywordCounterGrant,
@@ -82,6 +89,7 @@ import { refreshOffBattlefieldCharacteristics } from "./zoneCharacteristics";
 import { resolveEntersWithCounters } from "../cards/entersWith";
 import { turnFaceDown } from "./faceDown";
 import { finalizeMulligan } from "./mulligan";
+import { buildActivatedAbilityStackItem } from "./activationCommit";
 import { isPlaneswalker, PLACEHOLDER_CARD_ID } from "./constants";
 import { MANA_COLORS } from "./manaColors";
 import {
@@ -301,6 +309,20 @@ function placeScenarioTokens(
  *  surfaces and what closing them would take:
  *  `docs/findings/3452-hidden-hand-live-surfaces.md`. */
 export function assertLoadableIntoLiveGame(spec: ScenarioSpec): void {
+    // CR 405.1 (issue #3513) — a DECLARED stack, refused for the same reason
+    // and by the same rule as the hidden hand below: it is a perfectly valid
+    // spec, which the verdict quiz and a blade run rebuild every time, and it
+    // is not a board a live game can be set up INTO. Seeding one would drop a
+    // client into an open priority window over objects no player announced,
+    // with no `pendingCast`/`pendingTarget` behind them and no cast triggers on
+    // the queue — a position the engine can hold and no game could reach.
+    // Playing a declared position FORWARD is its own contract and its own
+    // slice; this message names the surface that will accept it.
+    if (spec.stack && spec.stack.length > 0) {
+        throw new Error(
+            `This scenario declares ${spec.stack.length} object(s) on the stack, which a LIVE game cannot be set up into: the objects were never announced, so no cast trigger, payment or target window behind them exists. It is loadable by the verdict quiz and by a blade run, which only evaluate the position.`
+        );
+    }
     if (!spec.hiddenHand) return;
     const { me = 0, opp = 0 } = spec.hiddenHand;
     if (me <= 0 && opp <= 0) return;
@@ -1348,6 +1370,11 @@ export function buildStateFromScenario(
 
     seedDeclaredCombat(state, spec);
 
+    // CR 405.1 / 601.2 (issue #3513) — the objects in flight, seeded LAST: an
+    // `ability` entry clones a permanent the combat seeding may have marked
+    // attacking, and every target names an object placed above.
+    seedDeclaredStack(state, spec);
+
     refreshOffBattlefieldCharacteristics(state);
 
     return state;
@@ -1583,6 +1610,197 @@ function seedDeclaredCombat(state: GameState, spec: ScenarioSpec): void {
  * label, and the verdict quiz would report it as an unexplained
  * `different-decision` far from the cause.
  */
+/**
+ * CR 405.1 / 601.2 / 602.2a (issue #3513, PRD #3397) — seed the objects the
+ * spec declares IN FLIGHT, bottom-up.
+ *
+ * DECLARED, not replayed — the decision ADR 0125 records. The alternative the
+ * blade suite uses for a response window is to walk a quiet board FORWARD
+ * through the engine's own move application (`cast` / `activate` setup steps,
+ * ADR 0070 §4), which is right there and wrong here for the same reason
+ * `seedDeclaredCombat` does not re-run `declare-attackers`: the board being
+ * rebuilt is a CAPTURED one that already carries every consequence of the cast
+ * — the mana gone, the card out of hand, the cast triggers already put — so
+ * replaying the move would apply them a second time and build a position that
+ * never existed. Inverting to the pre-cast board is not available either:
+ * there is no event log, and `manaCommitted` is a bare boolean with no
+ * attribution (`gre/ai/verdicts/journal.ts` makes that argument in full, and
+ * it still stands — declaring is not inverting).
+ *
+ * Runs LAST, after every permanent is placed and after the turn holder is
+ * final: an `ability` entry clones its SOURCE permanent off the battlefield
+ * (CR 608.2h — the item keeps the characteristics the ability was activated
+ * with) and a target names one.
+ *
+ * COHERENCE is the author's, as it already is for `phase`, `passCount` and
+ * `combat`: nothing here checks that the controller could have paid for the
+ * spell or that the ability's cost was payable. `specFromState` only ever
+ * lowers a stack a live game reached.
+ */
+function seedDeclaredStack(state: GameState, spec: ScenarioSpec): void {
+    const items = spec.stack;
+    if (!items || items.length === 0) return;
+    const p1 = state.players[0];
+    const p2 = state.players[1];
+    const seatPlayer = (seat: "me" | "opp"): PlayerState =>
+        seat === "me" ? p1 : p2;
+
+    /** The `nth` same-named object in `pool`, matched on PRESENTED definition
+     *  id exactly as `attachedTo` and `combat` match theirs (CR 707.2 — a
+     *  copy is found under the identity it presents). A miss is a THROW, never
+     *  a silently shorter stack: a rebuild missing the spell the decision was
+     *  ABOUT is a different position under the same label. */
+    const pick = (
+        pool: CardInstanceState[],
+        name: string,
+        nth: number,
+        role: string
+    ): CardInstanceState => {
+        const defId = combatDefId(name);
+        const matches = pool.filter(
+            (card) => (card.card as { id?: string }).id === defId
+        );
+        const found = matches[nth];
+        if (!found) {
+            throw new Error(
+                `buildStateFromScenario: the declared stack names "${name}" (nth ${nth}) as ${role}, but that zone holds ${matches.length} such object(s).`
+            );
+        }
+        return found;
+    };
+
+    items.forEach((entry, index) => {
+        const casterId = seatPlayer(entry.controller).id;
+        // CR 601.2c — resolved against the items ALREADY seeded, which is why
+        // a `stack` reference may only point lower (enforced below): the
+        // object it names has to exist by the time this one is announced.
+        const targets: TargetSelection[] | undefined = entry.targets?.map(
+            (target) => {
+                switch (target.kind) {
+                    case "permanent": {
+                        const seat = seatPlayer(target.seat);
+                        const card = pick(
+                            seat.battlefield,
+                            target.name,
+                            target.nth ?? 0,
+                            `the target of stack index ${index}`
+                        );
+                        return { type: "permanent" as const, id: card.id };
+                    }
+                    case "player":
+                        return {
+                            type: "player" as const,
+                            id: seatPlayer(target.seat).id,
+                        };
+                    case "graveyard-card": {
+                        const seat = seatPlayer(target.seat);
+                        const card = pick(
+                            seat.graveyard,
+                            target.name,
+                            target.nth ?? 0,
+                            `the graveyard target of stack index ${index}`
+                        );
+                        return {
+                            type: "graveyard-card" as const,
+                            id: card.id,
+                            playerId: seat.id,
+                        };
+                    }
+                    case "stack": {
+                        if (target.index >= index) {
+                            throw new Error(
+                                `buildStateFromScenario: stack index ${index} targets index ${target.index}, which is not already on the stack — a reference points LOWER than its own index (CR 405.1).`
+                            );
+                        }
+                        const referenced = state.stack[target.index];
+                        if (!referenced) {
+                            throw new Error(
+                                `buildStateFromScenario: stack index ${index} targets index ${target.index}, which the rebuild never seeded.`
+                            );
+                        }
+                        // CR 113.7a (issue #1562) — the engine's OWN rule for
+                        // what a spell target records as its source: an
+                        // activated ability's stack item borrows its source
+                        // permanent's battlefield id, a trigger's is fresh with
+                        // the real permanent kept separately. Writing the rule
+                        // rather than `referenced.id` is what keeps
+                        // Tishana's-Tidebinder-class effects correct, and
+                        // silently wrong if it were guessed.
+                        return {
+                            type: "spell" as const,
+                            id: referenced.id,
+                            stackSourceId:
+                                referenced.triggerSourceId ?? referenced.id,
+                        };
+                    }
+                }
+            }
+        );
+
+        if (entry.kind === "ability") {
+            if (!entry.abilityId) {
+                throw new Error(
+                    `buildStateFromScenario: stack index ${index} is an "ability" with no abilityId.`
+                );
+            }
+            const sourceSeat = seatPlayer(entry.sourceSeat ?? entry.controller);
+            const source = pick(
+                sourceSeat.battlefield,
+                entry.name,
+                entry.sourceNth ?? 0,
+                `the source of stack index ${index}`
+            );
+            // The engine's own commit primitive, never a hand-built item: it is
+            // what makes the item a CLONE of the source that keeps its `id`
+            // (CR 113.7a), and a literal here would drift from it silently.
+            state.stack.push({
+                ...buildActivatedAbilityStackItem(source, {
+                    castById: casterId,
+                    abilityId: entry.abilityId,
+                    ...(targets !== undefined ? { targets } : {}),
+                    ...(entry.x !== undefined ? { chosenX: entry.x } : {}),
+                }),
+                ...(entry.castOffSorceryTiming
+                    ? { castOffSorceryTiming: true }
+                    : {}),
+            });
+            return;
+        }
+
+        if (entry.abilityId !== undefined) {
+            throw new Error(
+                `buildStateFromScenario: stack index ${index} is a "spell" carrying an abilityId — a spell has no activated ability to name.`
+            );
+        }
+        const def = getCardByName(entry.name);
+        // A FRESH instance, deliberately: the card is on the stack, in no
+        // player's zone, and `cards` is not searched for it. A same-named entry
+        // in `cards` is therefore a SECOND object — the opponent holding a
+        // second Lightning Bolt while the first is in flight, which is an
+        // ordinary position and one `specFromState` produces verbatim.
+        state.stack.push({
+            id: allocInstanceId(state),
+            card: { id: def.id },
+            types: def.types,
+            subtypes: def.subtypes ?? [],
+            power: def.power,
+            toughness: def.toughness,
+            staticAbilities: def.staticAbilities ?? [],
+            controllerId: casterId,
+            ownerId: casterId,
+            zone: "stack",
+            isTapped: false,
+            isSummoningSick: false,
+            castById: casterId,
+            ...(targets !== undefined ? { targets } : {}),
+            ...(entry.x !== undefined ? { chosenX: entry.x } : {}),
+            ...(entry.castOffSorceryTiming
+                ? { castOffSorceryTiming: true }
+                : {}),
+        });
+    });
+}
+
 function seedContinuousEffects(state: GameState, spec: ScenarioSpec): void {
     const entries = spec.continuousEffects;
     if (!entries?.length) return;
@@ -2820,6 +3038,356 @@ function lowerCombat(
  *  those carry no name, so they are counted into the spec's `hiddenHand`
  *  rather than named in `cards`. The difference between this list and the
  *  hand is the count. */
+/**
+ * The prefix every stack loss `lowerStack` reports carries — the same contract
+ * `COMBAT_DROPPED_PREFIX` is, and for the same reason: a caller that judges a
+ * decision has to be able to REFUSE on a lost stack fact rather than read past
+ * it, and a candidate list cannot see one (the opponent casting a second spell
+ * in reply adds an object to the board without adding a move to the Bot's
+ * options). Exported so the refusal keys off this constant rather than off a
+ * string literal repeated in another file.
+ */
+export const STACK_DROPPED_PREFIX = "stack:";
+
+/**
+ * `StackItem` keys the declared stack CARRIES or the rebuild re-derives — the
+ * allowlist half of the fail-closed rule (issue #3513).
+ *
+ * `StackItem` is `CardInstanceState` plus ~45 announcement fields, and a stack
+ * the spec described APPROXIMATELY would be worse than no stack at all: a
+ * kicked spell, a copy (CR 707.10), a chosen mode, a storm snapshot and a
+ * mid-flight resolution all render identically under a name-and-seat
+ * fingerprint. So the rule is the one `CARD_STATE_ALLOWLIST` and
+ * `COMBAT_STATE_ALLOWLIST` already state: anything PRESENT and not named here
+ * is reported per item AND per field, and the whole stack is then withheld.
+ *
+ * Three groups:
+ *
+ *  1. structural — what any instance in any zone carries, all of it rebuilt
+ *     from the card definition (a spell) or cloned from the source (an
+ *     ability);
+ *  2. layer bookkeeping — the pre-layer bases, re-captured from the reloaded
+ *     characteristics at the first `syncLayer6` / `syncLayers2to5` exactly as
+ *     `CARD_STATE_ALLOWLIST` says of the same keys;
+ *  3. announcement — the four facts the spec lowers (`castById` → `controller`,
+ *     `targets`, `chosenX` → `x`, `abilityId`) plus `castOffSorceryTiming`,
+ *     which is lowered for the reason its own spec field documents.
+ *
+ * NOT here, deliberately, and each one a refusal: `triggeredAbilityId` /
+ * `triggerSourceId` / `triggerEvent` (a trigger is a later slice — and since
+ * `placeTriggersOnStack` always writes `triggerEvent`, this line refuses one
+ * with no special case for it), `isCopy`, `kickerPayments`, `chosenModeId`,
+ * `targetAmounts`, `illegalTargetSlots`, `stormSnapshot`, `delayedEffects`,
+ * `sourceLki`, `resolutionStep` / `collectedChoices` (CR 608.3, already its own
+ * refusal upstream in `lowerDecision`), and every other announcement field.
+ */
+const STACK_ITEM_ALLOWLIST = new Set<string>([
+    // 1 — structural.
+    "id",
+    "card",
+    "types",
+    "subtypes",
+    "power",
+    "toughness",
+    "staticAbilities",
+    "controllerId",
+    "ownerId",
+    "zone",
+    "isTapped",
+    "isSummoningSick",
+    "isToken",
+    // 2 — layer bookkeeping, re-derived on load.
+    "baseStaticAbilities",
+    "baseControllerId",
+    "baseTypes",
+    "baseSubtypes",
+    "printedSubtypes",
+    "staticSeq",
+    // 3 — the announcement, lowered.
+    "castById",
+    "targets",
+    "chosenX",
+    "abilityId",
+    "castOffSorceryTiming",
+]);
+
+/**
+ * The CLONE keys an `ability` item may additionally carry, because its item is
+ * a `structuredClone` of its source permanent (CR 608.2h) and the rebuild
+ * clones the REBUILT source — so every one of them is already lowered, and
+ * already residue-checked, on the source's own `ScenarioCard` entry
+ * (`lowerCard` / `CARD_STATE_ALLOWLIST`). Checking them a second time here
+ * would report the same fact twice and refuse positions the spec carries
+ * perfectly.
+ *
+ * What this does NOT excuse is a DIVERGENCE between the snapshot and the source
+ * as it now stands — the counter put on the Port after its ability was
+ * activated, the damage marked since. That is genuinely unexpressible (the
+ * spec has one entry for the permanent, not two), so `lowerStack` compares the
+ * two and reports every key they differ on.
+ */
+const STACK_ABILITY_CLONE_KEYS = CARD_STATE_ALLOWLIST;
+
+/**
+ * The one key excluded from that comparison, with its reason.
+ *
+ * `buildActivatedAbilityStackItem` clones the source BEFORE `recordActivation`
+ * tallies the activation, so the live item is one activation behind its source
+ * on `activationsThisTurn` — on EVERY {T} ability, which would make the
+ * comparison above fire on every position it exists to judge. It is also inert:
+ * every `oncePerTurn` reader looks the tally up on the BATTLEFIELD permanent
+ * (`moves.ts`, `activation.ts`, `search.ts`, `evaluate.ts`), never on the stack
+ * item, so the rebuilt clone carrying the source's current tally changes
+ * nothing the position can be asked.
+ */
+const STACK_CLONE_DIVERGENCE_IGNORED = new Set<string>(["activationsThisTurn"]);
+
+/**
+ * CR 405.1 / 601.2 / 602.2a (issue #3513, PRD #3397) — lower the objects in
+ * flight onto `spec.stack`, reporting what the spec cannot carry.
+ *
+ * FAIL-CLOSED AS A WHOLE: one unlowerable item withholds the ENTIRE stack. A
+ * partial stack is not a smaller loss than none — it is a position that looks
+ * complete and is not, and the candidate list it rebuilds can match the live
+ * one move for move while the board differs (the argument `COMBAT_DROPPED_PREFIX`
+ * already makes). The `dropped[]` notes still name every item and every field
+ * individually, because "which field blocked us, how often" is the number that
+ * decides which capability to build next.
+ */
+/** The 0-based position of `instanceId` among the permanents in `pool` that
+ *  present the SAME definition id — the `nth` a spec reference carries, read
+ *  back. `-1` is impossible for a card that is in the pool. */
+function nthAmongSameNamed(
+    pool: CardInstanceState[],
+    instanceId: string
+): number {
+    const target = pool.find((card) => card.id === instanceId);
+    if (!target) return 0;
+    const defId = (target.card as { id?: string }).id;
+    return pool
+        .filter((card) => (card.card as { id?: string }).id === defId)
+        .findIndex((card) => card.id === instanceId);
+}
+
+/** The 0-based position of `instanceId` among the same-named cards in a
+ *  non-battlefield zone, read exactly as above. */
+const nthInZone = nthAmongSameNamed;
+
+/**
+ * CR 601.2c — one announced target, lowered into the spec's name-and-seat
+ * vocabulary. `undefined` means "the spec cannot name this", which is a refusal
+ * at the call site, never an omitted slot: the INDEX of a target is
+ * load-bearing (`illegalTargetSlots`, `{ target: N }`), so a list one entry
+ * short is a different announcement.
+ */
+function lowerStackTarget(
+    state: GameState,
+    item: StackItem,
+    target: TargetSelection,
+    seatOf: (playerId: string) => "me" | "opp"
+): ScenarioStackTarget | undefined {
+    switch (target.type) {
+        case "player": {
+            const player = state.players.find((p) => p.id === target.id);
+            return player
+                ? { kind: "player", seat: seatOf(player.id) }
+                : undefined;
+        }
+        case "permanent": {
+            for (const player of state.players) {
+                const card = player.battlefield.find((c) => c.id === target.id);
+                if (!card) continue;
+                const nth = nthAmongSameNamed(player.battlefield, card.id);
+                return {
+                    kind: "permanent",
+                    name: presentedName(card),
+                    seat: seatOf(player.id),
+                    ...(nth > 0 ? { nth } : {}),
+                };
+            }
+            return undefined;
+        }
+        case "graveyard-card": {
+            const player = state.players.find((p) => p.id === target.playerId);
+            const card = player?.graveyard.find((c) => c.id === target.id);
+            if (!player || !card) return undefined;
+            const nth = nthInZone(player.graveyard, card.id);
+            return {
+                kind: "graveyard-card",
+                name: presentedName(card),
+                seat: seatOf(player.id),
+                ...(nth > 0 ? { nth } : {}),
+            };
+        }
+        case "spell": {
+            // CR 405.1 — another object on the SAME stack, by its index. The
+            // referenced item is found by its own id, never by `stackSourceId`:
+            // the two differ for a triggered ability (CR 113.7a), and the
+            // rebuild writes the pair back with the engine's own rule.
+            const index = state.stack.findIndex((s) => s.id === target.id);
+            if (index === -1) return undefined;
+            const own = state.stack.findIndex((s) => s === item);
+            // A reference must point LOWER than the referring item: you can
+            // only target what is already on the stack. A forward reference is
+            // not a position this lowering can have produced.
+            if (own !== -1 && index >= own) return undefined;
+            return { kind: "stack", index };
+        }
+        case "hand-card":
+            // Never a real announced target (issue #1101) — `lookDistribute`'s
+            // `bind` snapshots a kept card so a later mana-value read resolves
+            // it there. Unrepresentable in the spec by construction, so this is
+            // the one target type with no lowering at all.
+            return undefined;
+    }
+}
+
+/**
+ * CR 405.1 / 601.2 / 602.2a (issue #3513, PRD #3397) — lower the objects in
+ * flight onto `spec.stack`, reporting what the spec cannot carry.
+ *
+ * FAIL-CLOSED AS A WHOLE: one unlowerable item withholds the ENTIRE stack. A
+ * partial stack is not a smaller loss than none — it is a position that looks
+ * complete and is not, and the candidate list it rebuilds can match the live
+ * one move for move while the board differs (the argument
+ * `COMBAT_DROPPED_PREFIX` already makes). The `dropped[]` notes still name
+ * every item AND every field individually, because "which field blocked us,
+ * how often" is the number that decides which capability to build next.
+ */
+function lowerStack(
+    state: GameState,
+    spec: ScenarioSpec,
+    dropped: string[],
+    mySeatId: string
+): void {
+    if (state.stack.length === 0) return;
+    const seatOf = (playerId: string): "me" | "opp" =>
+        playerId === mySeatId ? "me" : "opp";
+    const entries: ScenarioStackItem[] = [];
+    let refused = false;
+    const refuse = (label: string, reason: string): void => {
+        refused = true;
+        dropped.push(`${STACK_DROPPED_PREFIX} ${label}: ${reason}`);
+    };
+
+    state.stack.forEach((item, index) => {
+        const isAbility = item.abilityId !== undefined;
+        const name = presentedName(item);
+        // The label every note about this item carries — what it is and where,
+        // so a sweep can group the residue by ITEM as well as by field.
+        const label = `index ${index} (${seatOf(item.castById)} ${name} ${
+            isAbility ? `ability:${item.abilityId}` : "spell"
+        })`;
+
+        for (const key of Object.keys(item)
+            .filter(
+                (k) =>
+                    !STACK_ITEM_ALLOWLIST.has(k) &&
+                    !(isAbility && STACK_ABILITY_CLONE_KEYS.has(k)) &&
+                    (item as Record<string, unknown>)[k] !== undefined
+            )
+            .sort()) {
+            refuse(label, `the spec has no field for "${key}"`);
+        }
+
+        let source: CardInstanceState | undefined;
+        let sourceBattlefield: CardInstanceState[] | undefined;
+        let sourceSeat: "me" | "opp" | undefined;
+        if (isAbility) {
+            // CR 113.7a — an activated ability's stack item borrows its source
+            // permanent's own battlefield id, which is what makes the source
+            // findable at all. A source that has LEFT (a sacrifice cost, a
+            // removal in response) leaves nothing to clone from, and the spec
+            // describes an ability BY its source.
+            for (const player of state.players) {
+                const found = player.battlefield.find((c) => c.id === item.id);
+                if (!found) continue;
+                source = found;
+                sourceBattlefield = player.battlefield;
+                sourceSeat = seatOf(player.id);
+                break;
+            }
+            if (!source) {
+                refuse(
+                    label,
+                    "its source permanent is no longer on the battlefield (CR 608.2h) — the spec describes an ability by its source, and there is none to name"
+                );
+            } else {
+                const snapshot = source;
+                for (const key of [
+                    ...new Set([
+                        ...Object.keys(item),
+                        ...Object.keys(snapshot),
+                    ]),
+                ]
+                    .filter(
+                        (k) =>
+                            !STACK_ITEM_ALLOWLIST.has(k) &&
+                            !STACK_CLONE_DIVERGENCE_IGNORED.has(k) &&
+                            JSON.stringify(
+                                (item as Record<string, unknown>)[k]
+                            ) !==
+                                JSON.stringify(
+                                    (
+                                        snapshot as unknown as Record<
+                                            string,
+                                            unknown
+                                        >
+                                    )[k]
+                                )
+                    )
+                    .sort()) {
+                    refuse(
+                        label,
+                        `its CR 608.2h snapshot has drifted from the source permanent on "${key}" — the spec has one entry for the permanent, not two`
+                    );
+                }
+            }
+        }
+
+        const targets: ScenarioStackTarget[] = [];
+        for (const [slot, target] of (item.targets ?? []).entries()) {
+            const loweredTarget = lowerStackTarget(state, item, target, seatOf);
+            if (!loweredTarget) {
+                refuse(
+                    label,
+                    `target slot ${slot} ("${target.type}") names an object the spec cannot: it is in no zone the spec describes, it points forward on the stack, or it is a "hand-card" bind, which is never a real announced target (issue #1101)`
+                );
+                continue;
+            }
+            targets.push(loweredTarget);
+        }
+
+        const controller = seatOf(item.castById);
+        entries.push({
+            kind: isAbility ? "ability" : "spell",
+            name,
+            controller,
+            ...(isAbility && source && sourceBattlefield && sourceSeat
+                ? {
+                      abilityId: item.abilityId,
+                      ...(sourceSeat !== controller ? { sourceSeat } : {}),
+                      ...(nthAmongSameNamed(sourceBattlefield, source.id) > 0
+                          ? {
+                                sourceNth: nthAmongSameNamed(
+                                    sourceBattlefield,
+                                    source.id
+                                ),
+                            }
+                          : {}),
+                  }
+                : {}),
+            ...(targets.length > 0 ? { targets } : {}),
+            ...(item.chosenX !== undefined ? { x: item.chosenX } : {}),
+            ...(item.castOffSorceryTiming
+                ? { castOffSorceryTiming: true }
+                : {}),
+        });
+    });
+
+    if (!refused) spec.stack = entries;
+}
+
 function visibleHand(player: PlayerState): CardInstanceState[] {
     return player.hand.filter(
         (card) => (card.card as { id?: string }).id !== PLACEHOLDER_CARD_ID
@@ -2893,8 +3461,12 @@ export const GAME_STATE_ALLOWLIST = new Set<string>([
     // CR 508.1 / 509.1 (issue #3458) — lowered into `combat`, whose own
     // sub-fields have their own allowlist (`COMBAT_STATE_ALLOWLIST`).
     "combat",
-    // Covered by a bespoke `dropped` message below.
+    // CR 405.1 / 601.2 (issue #3513) — lowered into `spec.stack`, with a
+    // per-item, per-field residue report for what it cannot carry
+    // (`lowerStack`). Allowlisted for the shape that round-trips, like
+    // `combat` and `continuousEffects` above.
     "stack",
+    // Covered by a bespoke `dropped` message below.
     "pendingCast",
     "pendingActivation",
     "pendingCompanionPay",
@@ -3827,11 +4399,14 @@ export function specFromState(
 
     // ---- global state the table in buildStateFromScenario doesn't cover --
 
-    if (state.stack.length > 0) {
-        dropped.push(
-            `stack: ${state.stack.length} item(s) — the spell/ability stack isn't spec-expressible (see the blade suite's "setup" steps for a response-window position instead)`
-        );
-    }
+    // CR 405.1 / 601.2 (issue #3513) — the objects IN FLIGHT. A single
+    // `dropped[]` note used to stand here ("the spell/ability stack isn't
+    // spec-expressible"), and it took out every RESPONSE decision — the class
+    // the verdict quiz reached only through a replayed walk whose recorder is
+    // blind to the opponent's moves. The spec carries the fact now, so the note
+    // is gone rather than relaxed; what remains reported is what `spec.stack`
+    // genuinely cannot express, per item and per field.
+    lowerStack(state, spec, dropped, opts.mySeatId);
     // The turn holder, the priority holder and the pass count used to be two
     // `dropped[]` notes here; issue #3454 gave the spec `activePlayer`,
     // `priority` and `passCount`, and the lowering above carries all three —

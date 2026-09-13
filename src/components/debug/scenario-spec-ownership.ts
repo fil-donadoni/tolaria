@@ -123,6 +123,15 @@ export const SCENARIO_SPEC_FIELD_OWNER = {
     // untouched by any edit of the row — minus any entry whose permanents the
     // edit removed (`dropStaleContinuousEffects`).
     continuousEffects: "preserved",
+    // CR 405.1 / 601.2 (issue #3513) — the objects in flight, `preserved` for
+    // the same reason `combat` is: a list of records that CROSS-REFERENCES the
+    // card list by presented name and seat, carries a full target list whose
+    // INDEX is load-bearing, and lets one entry point at another BY INDEX in
+    // its own array. No input kind in this form has that shape, and a text box
+    // for it would be the untypeable knob issue #3463 closed wearing an input.
+    // Captured (`specFromState`) or hand-written in a blade entry, and carried
+    // through untouched by any edit of the row.
+    stack: "preserved",
     companion: "form-owned",
 } as const satisfies Record<keyof ScenarioSpec, ScenarioSpecFieldOwner>;
 

@@ -1149,7 +1149,7 @@ describe("specFromState (issue #2148)", () => {
         );
     });
 
-    it("reports the stack as dropped, and LOWERS the floating mana beside it", () => {
+    it("LOWERS the stack and the floating mana beside it", () => {
         const base = makeState();
         const state = buildStateFromScenario(base, {
             cards: [{ name: grizzlyBears.name, owner: "me" }],
@@ -1168,7 +1168,18 @@ describe("specFromState (issue #2148)", () => {
             mySeatId: state.players[0].id,
         });
 
-        expect(dropped.some((d) => d.startsWith("stack:"))).toBe(true);
+        // CR 405.1 (issue #3513) — the stack used to be reported here, as one
+        // `dropped[]` note that took out every RESPONSE decision. It is
+        // LOWERED now, by the same rule the pool below follows: in the spec,
+        // and OUT of `dropped`.
+        expect(spec.stack).toEqual([
+            {
+                kind: "spell",
+                name: grizzlyBears.name,
+                controller: "me",
+            },
+        ]);
+        expect(dropped.some((d) => d.startsWith("stack:"))).toBe(false);
         // CR 106.4 (issue #3460) — the pool used to be reported here beside the
         // stack. It is LOWERED now, so it must be in the spec and OUT of
         // `dropped`: a fact the spec carries while still confessing to losing it

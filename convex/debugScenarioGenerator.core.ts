@@ -386,6 +386,14 @@ export const SCENARIO_SCHEMA_EXCLUSIONS = {
     // (`specFromState`) or hand-written in a blade entry.
     continuousEffects:
         "a resolved spell's continuous effect must cohere with the board that produced it — captured, never generated",
+    // CR 405.1 / 601.2 (issue #3513) — the objects in flight have to COHERE
+    // with the board the way `combat` does, and harder: the spell must be one
+    // its controller could have paid for and legally targeted, the ability one
+    // its source actually has, and an on-stack reference must point at an
+    // object lower in the same array. A model handed the fields would produce
+    // stacks the engine can hold and no game could reach. It is CAPTURED from
+    // a live position (`specFromState`) or hand-written in a blade entry.
+    stack: "a declared stack must cohere with the board and the announcements that produced it — captured, never generated",
 } as const satisfies Partial<Record<keyof ScenarioSpec, string>>;
 
 /** Signature of the injected LLM call: given a system prompt and the user's
