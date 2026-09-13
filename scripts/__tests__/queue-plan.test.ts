@@ -1369,7 +1369,9 @@ describe("`Target files` is read in both forms the queue contains (issue #3535)"
         // The refusal to infer from prose, kept: only backticked spans count,
         // so this stays honestly unknown rather than contributing a guess.
         expect(
-            parseTargetFiles("**Target files:** see the table above\n")
+            parseTargetFiles(
+                "**Target files:** see scripts/lib/queue-plan.ts and the table above\n"
+            )
         ).toBeNull();
     });
 
