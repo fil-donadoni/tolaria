@@ -56,6 +56,87 @@ triage umbrella #2785, 11 as self-declared out-of-scope (explicit
 existing same-topic ref that sat just outside the tightened window. No
 confession comment was deleted or watered down to make the guard pass.
 
+## No card name in an engine identifier (`convex/cards/__tests__/engineIdentifierNames.test.ts`, #1918)
+
+Derivation for the norm `.claude/rules/gre-development.md` § Naming states in
+six lines. It is NOT in `convex/CLAUDE.md`: the on-demand tier had 98 bytes of
+headroom against `ON_DEMAND_CEILING_BYTES` when this landed, and a guard's
+reasoning is exactly what this file is for.
+
+**The rule** (issue #1917). An engine identifier is named after the MECHANIC,
+never after the card that introduced it. `islandSanctuaryProtection` is a
+`GameState` key the next "can only be attacked by creatures with flying" card
+cannot use without a sweep; `playerAttackRequirements` is one it can. Two
+halves, and only one is a rule:
+
+- **Generic NAME from card #1 — always.** Costs nothing, it is a mechanical
+  rename, and it is what the second card hooks onto.
+- **Generic SHAPE from card #1 — no.** Generalizing before the second case is
+  guessing the axis of variation. `landManaRidersThisTurn` generalized well
+  precisely because it came after Deep Water + High Tide + Chaos Moon; on High
+  Tide alone it would have been `islandManaBonus: number`, wrong axis. Rename
+  now, keep the narrow shape until card #2 shows the axis.
+
+**Why a guard rather than a convention.** The rule is mechanically verifiable —
+card names are enumerable, engine identifiers are enumerable, and the check is
+containment. The hand audit of 2026-07-29 that produced #1917's rename list was
+true for 2026-07-29 only, and the guard found two identifiers it had missed
+(below).
+
+**Surfaces.** Every top-level `interface`/`type` declaration in
+`convex/gre/state.ts` and `convex/cards/types.ts`, members read through the
+TypeScript AST, plus the Op names in `EFFECT_OP_REGISTRY`. Issue #1918 specified
+four declarations — `GameState`, `PlayerState`, `CardInstanceState`,
+`SpellContext` — and review found that a hand-listed set is a blind spot with no
+tell: `PlayerPreferences` (reached through `GameState.playerPreferences`, which
+is in `PERSISTED_OPTIONAL_KEYS`, so persisted state shape) carries
+`libraryOfLengRouting`, and `TriggerStateView` carries the
+`gazeOfPainActiveThisTurn` mirror that #1917 explicitly lists for rename. Both
+were live violations, invisible to the four-name sweep. Sweeping the two files
+is the same work and closes the class. The AST is used rather than a runtime key
+list because a type has no runtime keys, and because it sees the REQUIRED
+members too — `PERSISTED_OPTIONAL_KEYS` is exhaustive over the OPTIONAL ones
+only.
+
+**Detection.** Normalise the card name (lowercase, non-alphanumerics dropped:
+"Gaze of Pain" → `gazeofpain`); flag when an identifier contains it. Containment
+runs **identifier ⊃ card name, never the reverse** — that is what keeps the Op
+`animate` from being flagged by the card "Animate Wall" while still flagging a
+hypothetical `animateWallCounter`.
+
+**`MIN_NAME_LENGTH = 5` is a floor, not a free choice.** Measured against the
+catalogue: at 6 the real offender `GameState.meleeCombat` ← the card "Melee" is
+lost; at 4 the six extra pairs are all English substrings ("Bind" inside
+`captureBinding` / `recallCapturedBinding` / `capturedBindings`, "Rout" inside
+`revealTopAndRoute`) with no true positive among them.
+
+**Two lists, asymmetric on purpose.**
+
+- `ALLOWLIST` — (surface, identifier, card) rows that ARE card-named and not
+  renamed yet, each with its tracking issue. Pre-populated with the #1917 sweep
+  deliberately: landing the guard BEFORE the sweep is what makes it impossible
+  for the sweep to stop halfway. A row matching nothing reds, so it only shrinks.
+- `RULES_VOCABULARY_NAMES` — a card name that is also ordinary rules vocabulary
+  (`Island`, `Flash`, `Overload`, `Regeneration`, `Sacrifice`, `Blessing`,
+  `Exclude`, `Recall`), dropped from the corpus across all surfaces. This is the
+  FAIL-OPEN list, so it is held to the stricter test: the name must be a real
+  card AND the row must suppress something today. `Forest`/`Mountain`/`Plains`/
+  `Swamp` were in the first draft and suppressed nothing — the assertion deleted
+  them. Add a row the day the collision fires, with the identifier that fired it.
+
+**Anti-vacuity.** "Scanned nothing" and "found nothing" look identical, so two
+checks stand behind the sweep: `GameState`'s extracted members are cross-checked
+against `PERSISTED_OPTIONAL_KEYS` + `TRANSIENT_KEYS`, and each file must yield a
+floor of scanned members (`MEMBER_FLOORS`), so a reshape the AST walk cannot
+read — a mapped type, an intersection, a namespace, a split interface — reds
+instead of silently shrinking the surface.
+
+**Stated scope limit.** An anonymous inline shape is not a declaration and is not
+swept: `types.ts`'s `preferences?: { libraryOfLengRouting?: … }` is invisible
+while the `PlayerPreferences` member it mirrors is caught. A rename sweep greps
+the old name, so the mirror travels with the original; what the guard promises is
+that the original cannot be missed.
+
 ## Identity-only per-card tests (`scripts/__tests__/identity-only-card-tests.test.ts`)
 
 916 blocks that read a card's own definition fields and asserted them straight
