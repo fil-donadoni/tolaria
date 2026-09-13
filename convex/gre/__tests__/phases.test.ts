@@ -3197,9 +3197,18 @@ describe("CR 514.2 — turn-scoped global flags clear at CLEANUP, not END_OF_COM
         ["graveyardBoundRedirectThisTurn", [{ ownerId: "p1" }]],
         [
             "graveyardPlayPermissionThisTurn",
-            [{ playerId: "p1", zones: ["land", "spell"] }],
+            [
+                {
+                    playerId: "p1",
+                    sourceId: "yawgmoths-will",
+                    actions: ["play-land", "cast"],
+                },
+            ],
         ],
-        ["graveyardPermanentCastUsedThisTurn", ["p1"]],
+        [
+            "graveyardPlayPermissionUsesThisTurn",
+            [{ playerId: "p1", sourceId: "lurrus" }],
+        ],
         ["gazeOfPainActiveThisTurn", ["p1"]],
         ["damageCapShields", [{ playerId: "p1", maxDamage: 1 }]],
         ["landManaReplacedToBlueThisTurn", ["p1"]],

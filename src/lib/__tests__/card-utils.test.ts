@@ -5389,14 +5389,14 @@ describe("shouldShowOracleText — preview Oracle-text gate", () => {
         expect(show(def)).toBe(true);
     });
 
-    it("shows FULL Oracle text for a card with land-play clauses NOT in the field allowlist (Icetill Explorer — extraLandDrops + playsLandsFromGraveyard)", () => {
+    it("shows FULL Oracle text for a card with land-play clauses NOT in the field allowlist (Icetill Explorer — extraLandDrops + graveyardPlayPermission)", () => {
         // "You may play an additional land." (extraLandDrops) + "You may play
-        // lands from your graveyard." (playsLandsFromGraveyard) + a landfall
+        // lands from your graveyard." (graveyardPlayPermission) + a landfall
         // trigger. Only the trigger had a structured row; the two land clauses
         // were dropped by the old allowlist. 3 paragraphs > 1 row → show.
         const def = getDefinition("d9482aab-6ddf-48e1-84fa-b13d5ff81e69");
         expect(def.extraLandDrops).toBeDefined();
-        expect(def.playsLandsFromGraveyard).toBe(true);
+        expect(def.graveyardPlayPermission).toEqual({ actions: ["play-land"] });
         expect((def.triggeredAbilities?.length ?? 0) > 0).toBe(true);
         expect(show(def)).toBe(true);
     });

@@ -1,7 +1,7 @@
 // Graveyard-cast/land-play permission capability tests (CR 305.1-analog /
 // 601, issue #1149 — the BROAD, turn-scoped shape that powers Yawgmoth's
 // Will). Covers the whole GRE → game.ts path the capability crosses:
-//   - the permission lookup (convex/gre/rules.ts: getGraveyardPlayPermission,
+//   - the permission lookup (convex/gre/rules.ts: getGraveyardPlayPermissions,
 //     canPlayLandsFromGraveyard, canCastFromGraveyardByPermission)
 //   - the cast/play affordance gate (getLegalActions offers "play" for a
 //     graveyard LAND, "cast" for a graveyard SPELL, while the permission is
@@ -28,7 +28,7 @@ import {
     getLegalActions,
     assertLegalAction,
     canPlayLandsFromGraveyard,
-    getGraveyardPlayPermission,
+    getGraveyardPlayPermissions,
     canCastFromGraveyardByPermission,
 } from "../rules";
 import {
@@ -46,15 +46,41 @@ import { lightningBolt, mountain } from "../../cards/sets/lea";
 
 describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #1149)", () => {
     describe("permission lookup (convex/gre/rules.ts)", () => {
-        it("getGraveyardPlayPermission is undefined with no grant", () => {
+        it("getGraveyardPlayPermissions is empty with no grant and no grantor", () => {
             const state = makeState();
-            expect(getGraveyardPlayPermission(state, "p1")).toBeUndefined();
+            expect(
+                getGraveyardPlayPermissions(state, getPlayer(state, "p1"))
+            ).toEqual([]);
         });
 
-        it("canPlayLandsFromGraveyard is true when the grant's zones include land", () => {
+        it("getGraveyardPlayPermissions returns the turn-scoped grant tagged with its source", () => {
             const state = makeState({
                 graveyardPlayPermissionThisTurn: [
-                    { playerId: "p1", zones: ["land", "spell"] },
+                    {
+                        playerId: "p1",
+                        sourceId: "yawgmoths-will",
+                        actions: ["play-land", "cast"],
+                    },
+                ],
+            });
+            expect(
+                getGraveyardPlayPermissions(state, getPlayer(state, "p1"))
+            ).toEqual([
+                { actions: ["play-land", "cast"], sourceId: "yawgmoths-will" },
+            ]);
+            expect(
+                getGraveyardPlayPermissions(state, getPlayer(state, "p2"))
+            ).toEqual([]);
+        });
+
+        it("canPlayLandsFromGraveyard is true when the grant licenses play-land", () => {
+            const state = makeState({
+                graveyardPlayPermissionThisTurn: [
+                    {
+                        playerId: "p1",
+                        sourceId: "yawgmoths-will",
+                        actions: ["play-land", "cast"],
+                    },
                 ],
             });
             expect(
@@ -66,10 +92,14 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
             ).toBe(false);
         });
 
-        it("canPlayLandsFromGraveyard is false when the grant's zones exclude land", () => {
+        it("canPlayLandsFromGraveyard is false when the grant does not license play-land", () => {
             const state = makeState({
                 graveyardPlayPermissionThisTurn: [
-                    { playerId: "p1", zones: ["spell"] },
+                    {
+                        playerId: "p1",
+                        sourceId: "yawgmoths-will",
+                        actions: ["cast"],
+                    },
                 ],
             });
             expect(
@@ -89,7 +119,12 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
                     makePlayer("p2"),
                 ],
                 graveyardPlayPermissionThisTurn: [
-                    { playerId: "p1", zones: ["spell"], maxManaValue: 0 },
+                    {
+                        playerId: "p1",
+                        sourceId: "yawgmoths-will",
+                        actions: ["cast"],
+                        maxManaValue: 0,
+                    },
                 ],
             });
             expect(
@@ -113,7 +148,11 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
                     makePlayer("p2"),
                 ],
                 graveyardPlayPermissionThisTurn: [
-                    { playerId: "p1", zones: ["land", "spell"] },
+                    {
+                        playerId: "p1",
+                        sourceId: "yawgmoths-will",
+                        actions: ["play-land", "cast"],
+                    },
                 ],
             });
             expect(
@@ -150,7 +189,11 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
                     makePlayer("p2"),
                 ],
                 graveyardPlayPermissionThisTurn: [
-                    { playerId: "p1", zones: ["land", "spell"] },
+                    {
+                        playerId: "p1",
+                        sourceId: "yawgmoths-will",
+                        actions: ["play-land", "cast"],
+                    },
                 ],
             });
             const p1 = getPlayer(state, "p1");
@@ -178,7 +221,11 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
                     makePlayer("p2"),
                 ],
                 graveyardPlayPermissionThisTurn: [
-                    { playerId: "p1", zones: ["land", "spell"] },
+                    {
+                        playerId: "p1",
+                        sourceId: "yawgmoths-will",
+                        actions: ["play-land", "cast"],
+                    },
                 ],
             });
             const p1 = getPlayer(state, "p1");
@@ -214,7 +261,11 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
                     makePlayer("p2"),
                 ],
                 graveyardPlayPermissionThisTurn: [
-                    { playerId: "p1", zones: ["land"] },
+                    {
+                        playerId: "p1",
+                        sourceId: "yawgmoths-will",
+                        actions: ["play-land"],
+                    },
                 ],
             });
             expect(
@@ -237,7 +288,11 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
                     makePlayer("p2"),
                 ],
                 graveyardPlayPermissionThisTurn: [
-                    { playerId: "p1", zones: ["land", "spell"] },
+                    {
+                        playerId: "p1",
+                        sourceId: "yawgmoths-will",
+                        actions: ["play-land", "cast"],
+                    },
                 ],
             });
             const src = locateCastSource(
@@ -263,7 +318,11 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
                     makePlayer("p2"),
                 ],
                 graveyardPlayPermissionThisTurn: [
-                    { playerId: "p1", zones: ["land", "spell"] },
+                    {
+                        playerId: "p1",
+                        sourceId: "yawgmoths-will",
+                        actions: ["play-land", "cast"],
+                    },
                 ],
             });
             const flags = graveyardCastStackFlags(state, gyBolt, "graveyard");
@@ -283,7 +342,11 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
             const state = makeState({
                 players: [p1, makePlayer("p2")],
                 graveyardPlayPermissionThisTurn: [
-                    { playerId: "p1", zones: ["land", "spell"] },
+                    {
+                        playerId: "p1",
+                        sourceId: "yawgmoths-will",
+                        actions: ["play-land", "cast"],
+                    },
                 ],
             });
 
@@ -335,7 +398,11 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
                 players: [p1, makePlayer("p2")],
                 activePlayerId: "p1",
                 graveyardPlayPermissionThisTurn: [
-                    { playerId: "p1", zones: ["land", "spell"] },
+                    {
+                        playerId: "p1",
+                        sourceId: "yawgmoths-will",
+                        actions: ["play-land", "cast"],
+                    },
                 ],
             });
             applyPlayLandFromGraveyard(state, p1, "gy-mountain");
@@ -367,7 +434,11 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
                 players: [p1, makePlayer("p2")],
                 activePlayerId: "p1",
                 graveyardPlayPermissionThisTurn: [
-                    { playerId: "p1", zones: ["land", "spell"] },
+                    {
+                        playerId: "p1",
+                        sourceId: "yawgmoths-will",
+                        actions: ["play-land", "cast"],
+                    },
                 ],
             });
             const played = applyPlayLandFromGraveyard(
@@ -386,7 +457,11 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
             const state = makeState({
                 phase: "CLEANUP",
                 graveyardPlayPermissionThisTurn: [
-                    { playerId: "p1", zones: ["land", "spell"] },
+                    {
+                        playerId: "p1",
+                        sourceId: "yawgmoths-will",
+                        actions: ["play-land", "cast"],
+                    },
                 ],
             });
             finalizeCleanup(state);
@@ -411,7 +486,11 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
                 ],
                 phase: "CLEANUP",
                 graveyardPlayPermissionThisTurn: [
-                    { playerId: "p1", zones: ["land", "spell"] },
+                    {
+                        playerId: "p1",
+                        sourceId: "yawgmoths-will",
+                        actions: ["play-land", "cast"],
+                    },
                 ],
             });
             finalizeCleanup(state);
@@ -436,7 +515,11 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
                 players: [p1, makePlayer("p2")],
                 priorityPlayerId: "p1",
                 graveyardPlayPermissionThisTurn: [
-                    { playerId: "p1", zones: ["land", "spell"] },
+                    {
+                        playerId: "p1",
+                        sourceId: "yawgmoths-will",
+                        actions: ["play-land", "cast"],
+                    },
                 ],
             });
             const projected = projectPublicState(state, 1, "p1");
@@ -459,7 +542,11 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
                 players: [p1, makePlayer("p2")],
                 priorityPlayerId: "p1",
                 graveyardPlayPermissionThisTurn: [
-                    { playerId: "p1", zones: ["land", "spell"] },
+                    {
+                        playerId: "p1",
+                        sourceId: "yawgmoths-will",
+                        actions: ["play-land", "cast"],
+                    },
                 ],
             });
             const projected = projectPublicState(state, 1, "p2");
@@ -482,7 +569,11 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
                 players: [p1, makePlayer("p2")],
                 priorityPlayerId: "p1",
                 graveyardPlayPermissionThisTurn: [
-                    { playerId: "p1", zones: ["land", "spell"] },
+                    {
+                        playerId: "p1",
+                        sourceId: "yawgmoths-will",
+                        actions: ["play-land", "cast"],
+                    },
                 ],
             });
             const projected = projectPublicState(state, 1, "p1");

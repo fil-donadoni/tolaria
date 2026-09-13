@@ -365,6 +365,21 @@ export const PLAYER_COUNTER_KINDS = ["poison", "energy", "experience"] as const;
 /** One of {@link PLAYER_COUNTER_KINDS}. */
 export type PlayerCounterKind = (typeof PLAYER_COUNTER_KINDS)[number];
 
+/** Card types a resolving STACK ITEM can become on resolution (CR 608.3 →
+ *  the object enters the battlefield as a permanent). Deliberately EXCLUDES
+ *  Land: lands are never cast (CR 305.1), so a land never resolves off the
+ *  stack. Lives here in the leaf `types` module (no runtime imports) so card
+ *  sets can reference it — Lurrus of the Dream-Den's graveyard play permission
+ *  names these as its `cardTypes` — without a registry import cycle.
+ *  Re-exported from `gre/constants` for back-compat. */
+export const CASTABLE_PERMANENT_TYPES = [
+    "Creature",
+    "Artifact",
+    "Enchantment",
+    "Planeswalker",
+    "Battle",
+] as const satisfies readonly CardType[];
+
 /** Permanent types that can be dealt damage (CR 120.3) and the set of
  *  permanent types matched by a `"any target"` spell (CR 115.4). Lives here in
  *  the leaf `types` module (no runtime imports) so card sets can reference it
@@ -2184,6 +2199,42 @@ export interface BoardManaColorSource {
  *    X in it). Affordable only while the caster's life total is at least the
  *    amount (CR 119.4) — paying down to exactly 0 is legal; SBAs then apply. */
 export type ManaCostReplacement = "life-equal-to-mana-value";
+
+/** ADR 0093 — the action a graveyard play permission licenses. Playing a land
+ *  is a special action that uses no stack and consumes a land drop (CR 305.1);
+ *  casting uses the stack (CR 601.3). The graveyard IS the zone, so the member
+ *  names the ACTION, never a card kind. */
+export type GraveyardPlayAction = "play-land" | "cast";
+
+/** ADR 0093 (issue #2244) — THE one record describing every "you may play
+ *  lands and/or cast spells from your graveyard" permission. Sources differ
+ *  only by duration: the CONTINUOUS form is `CardDefinition
+ *  .graveyardPlayPermission` (live while the permanent is on the
+ *  battlefield), the TURN-SCOPED form is `GameState
+ *  .graveyardPlayPermissionThisTurn` (the `grantGraveyardPlay` Op). Every gate
+ *  is DATA read by the single resolver `getGraveyardPlayPermissions`
+ *  (`gre/rules.ts`), never re-checked at a call site. */
+export interface GraveyardPlayPermission {
+    actions: GraveyardPlayAction[];
+    /** The cast action's card types — a plain LIST, not the general card
+     *  filter (which fails OPEN on a dimension it does not recognise).
+     *  Absent = any castable type. */
+    cardTypes?: CardType[];
+    /** The cast action's mana-value ceiling. Absent = uncapped. */
+    maxManaValue?: number;
+    /** One use per turn, spent per SOURCE (two sources grant two uses). */
+    oncePerTurn?: boolean;
+    /** Present only during the controller's own turn ("during each of your
+     *  turns"). */
+    yourTurnOnly?: boolean;
+}
+
+/** A {@link GraveyardPlayPermission} the resolver found live, tagged with the
+ *  instance id of the source that granted it — the key its once-per-turn use
+ *  is spent against. */
+export interface LiveGraveyardPlayPermission extends GraveyardPlayPermission {
+    sourceId: string;
+}
 
 export interface CostLegs {
     /** MANA leg (CR 117.3a / 118.9). For a may-pay this is mana paid on top of
@@ -5361,19 +5412,21 @@ export interface SpellContext {
         playerId: string,
         breadth: ManaSubstitutionBreadth
     ) => void;
-    /** CR 305.1-analog / 601 (issue #1149) — grants `playerId` a turn-scoped,
-     *  player-wide permission to play lands and/or cast spells from their OWN
-     *  graveyard (Yawgmoth's Will: "Until end of turn, you may play lands and
-     *  cast spells from your graveyard"). `zones` lists which card kinds the
-     *  grant covers; `maxManaValue` optionally caps the spell half. Idempotent
-     *  per player: a repeated grant UNIONS the zones and a broader
-     *  (`undefined`) `maxManaValue` always wins over a narrower one. Cleared
-     *  unconditionally at CLEANUP (CR 514.2), same boundary as
-     *  `restrictSpellCasting`. See the `grantGraveyardPlay` Op doc
-     *  (`convex/cards/types.ts`) for the full parameter shape. */
+    /** CR 305.1-analog / 601 (issue #1149, ADR 0093) — grants `playerId` the
+     *  TURN-SCOPED form of the graveyard play permission record (Yawgmoth's
+     *  Will: "Until end of turn, you may play lands and cast spells from your
+     *  graveyard"), granted by `sourceId` (the resolving card's instance).
+     *  `actions` lists which actions it licenses; `maxManaValue` optionally
+     *  caps the cast half. Idempotent per (player, source): a repeated grant
+     *  UNIONS the actions and a broader (`undefined`) `maxManaValue` always
+     *  wins over a narrower one. Cleared unconditionally at CLEANUP (CR
+     *  514.2), same boundary as `restrictSpellCasting`. See the
+     *  `grantGraveyardPlay` Op doc (`convex/cards/types.ts`) for the full
+     *  parameter shape. */
     grantGraveyardPlay: (
         playerId: string,
-        zones: Array<"land" | "spell">,
+        sourceId: string,
+        actions: GraveyardPlayAction[],
         maxManaValue?: number
     ) => void;
     /** Replaces the mana produced by `playerId`'s LANDS with {U} until end of
@@ -13400,22 +13453,21 @@ export type EffectOp =
      *  graveyard (Yawgmoth's Will: "Until end of turn, you may play lands and
      *  cast spells from your graveyard"). A thin declarative skin over
      *  `SpellContext.grantGraveyardPlay`, one execution path (ADR 0045).
-     *  `zones` lists which card kinds the grant covers — `"land"` and/or
-     *  `"spell"`; omitted defaults to BOTH (the Yawgmoth's Will shape).
-     *  `maxManaValue` optionally caps the SPELL half's mana value (unused by
-     *  Yawgmoth's Will — lands have no mana cost and are unaffected — but the
-     *  SAME parametrized shape a future SCOPED grant would reuse, mirroring
-     *  how `grantedFlashback` generalizes Snapcaster's single-card case).
-     *  Read live off `state.graveyardPlayPermissionThisTurn` by
-     *  `canPlayLandsFromGraveyard` (the land half) and `getLegalActions` /
-     *  `locateCastSource` (the spell half); cleared unconditionally at
-     *  CLEANUP (CR 514.2), the same boundary as `restrictCasting` /
+     *  `actions` lists which actions the grant licenses — `"play-land"` and/or
+     *  `"cast"` (ADR 0093: the graveyard IS the zone, the member names the
+     *  ACTION); omitted defaults to BOTH (the Yawgmoth's Will shape).
+     *  `maxManaValue` optionally caps the CAST half's mana value (unused by
+     *  Yawgmoth's Will). The grant lands on `state
+     *  .graveyardPlayPermissionThisTurn` as the turn-scoped form of the
+     *  {@link GraveyardPlayPermission} record, read by the single resolver
+     *  `getGraveyardPlayPermissions` (`gre/rules.ts`); cleared unconditionally
+     *  at CLEANUP (CR 514.2), the same boundary as `restrictCasting` /
      *  `restrictActivation`. Skipped when the player cannot be resolved
      *  (CR 608.2b). */
     | {
           op: "grantGraveyardPlay";
           player: EffectPlayerRef;
-          zones?: Array<"land" | "spell">;
+          actions?: GraveyardPlayAction[];
           maxManaValue?: number;
       }
     /** CR 614 (issue #1145 / #1149) — arms a turn-scoped "if a card would be
@@ -18055,24 +18107,25 @@ export interface CardDefinition {
      *  is on the battlefield (CR 305.2 — Fastbond). Added to LAND_DROPS_PER_TURN
      *  at land-play legality check time. Use 999 for unlimited. */
     extraLandDrops?: number;
-    /** Unconditional, player-wide permission (CR 305.1-analog — the land-play
-     *  special action with 305.1's "from their hand" zone lifted; a land is
-     *  played, never cast, CR 305.9) to play lands from the controller's own graveyard, as
-     *  though they were in hand, while ANY permanent with this flag is on the
-     *  battlefield (Icetill Explorer, issue #1190). Read live from the
-     *  battlefield (like `extraLandDrops`) via `canPlayLandsFromGraveyard`, so
-     *  the permission ends the instant the granting source leaves play — no
-     *  stale flag, no `GameState` field. Distinct from a SCOPED once-per-turn
-     *  permission granted to a specific card (Serra Paragon, issue #1149),
-     *  which is a per-instance `CardInstanceState` grant, not player-wide. */
-    playsLandsFromGraveyard?: boolean;
+    /** ADR 0093 (issue #2244) — the CONTINUOUS graveyard play permission this
+     *  permanent grants its controller while it is on the battlefield: "you
+     *  may play lands and/or cast spells from your graveyard" (CR 601.3 /
+     *  CR 305.1-analog). ONE record for every card in the class — Crucible of
+     *  Worlds / Icetill Explorer / Ramunap Excavator (`{ actions:
+     *  ["play-land"] }`), Lurrus of the Dream-Den (cast, permanent types, MV ≤
+     *  2, once per turn, own turn only). Read live off the battlefield by the
+     *  single resolver `getGraveyardPlayPermissions` (`gre/rules.ts`), so the
+     *  permission ends the instant the source leaves play — no stale flag. The
+     *  TURN-SCOPED form of the same record is `GameState
+     *  .graveyardPlayPermissionThisTurn` (the `grantGraveyardPlay` Op). */
+    graveyardPlayPermission?: GraveyardPlayPermission;
     /** Unconditional, player-wide permission (CR 305.1-analog — the land-play
      *  special action with 305.1's "from their hand" zone lifted; a land is
      *  played, never cast, CR 305.9) to play lands from the TOP of the controller's own
      *  library — and only the top card (index 0) — as though they were in
      *  hand, while ANY permanent with this flag is on the battlefield
      *  (Courser of Kruphix, Oracle of Mul Daya, Augur of Autumn). The sibling
-     *  of {@link playsLandsFromGraveyard} for the other permitted alternate
+     *  of {@link graveyardPlayPermission} for the other permitted alternate
      *  land-play zone; read live off the battlefield the same way
      *  (`canPlayLandsFromTopOfLibrary`, `gre/rules.ts`), so the permission
      *  ends the instant the granting source leaves play — no stale flag, no
@@ -18118,21 +18171,6 @@ export interface CardDefinition {
     castsSpellsFromTopOfLibrary?: {
         manaCostReplacement?: ManaCostReplacement;
     };
-    /** CR 702.139 (issue #1392, Lurrus of the Dream-Den) — "Once during each
-     *  of your turns, you may cast a permanent spell with mana value N or
-     *  less from your graveyard." A STATIC, battlefield-derived permission —
-     *  mirrors `playsLandsFromGraveyard`'s shape (read live off the
-     *  battlefield, so it ends the instant the granting source leaves play,
-     *  no stale flag) — but scoped to PERMANENT cards only (never Land,
-     *  never Instant/Sorcery — CR 110.1/300.1, `CASTABLE_PERMANENT_TYPES`),
-     *  capped by `maxManaValue`, AND capped at one use per turn (tracked in
-     *  `GameState.graveyardPermanentCastUsedThisTurn`, cleared at CLEANUP —
-     *  `canCastPermanentFromGraveyardByPermission`, `gre/rules.ts`).
-     *  Distinct from the turn-scoped Op-granted permission
-     *  (`grantGraveyardPlay`/`graveyardPlayPermissionThisTurn`, Yawgmoth's
-     *  Will — CR 305.1-analog/601, issue #1149), which has no once-per-turn
-     *  cap, isn't source-bound, and covers ANY spell (not just permanents). */
-    castsPermanentsFromGraveyard?: { maxManaValue: number };
     /** While ANY permanent with this flag is on the battlefield, no player may
      *  play a land (CR 305.1 special action prohibition) AND a land that would
      *  enter the battlefield from any source is prevented from entering (CR 614

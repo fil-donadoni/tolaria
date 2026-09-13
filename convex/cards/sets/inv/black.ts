@@ -1400,9 +1400,9 @@ export const urborgSkeleton: CardDefinition = {
 //     `graveyard-bound` replacement (#1145) already ships it, scoped to an
 //     opponent's graveyard by Dauthi Voidwalker (`mh2/black.ts`); Agenda is
 //     the same entry with the predicate flipped to its controller's own.
-//   - clause 2 → #2244: one graveyard play permission record + a single
-//     resolver, retiring `playsLandsFromGraveyard` (#1190) and
-//     `castsPermanentsFromGraveyard` (#1392) — ADR 0093.
+//   - clause 2 → shipped by #2244 (ADR 0093): the one graveyard play
+//     permission record + single resolver; Agenda declares
+//     `graveyardPlayPermission: { actions: ["play-land", "cast"] }`.
 //   - clause 1 → #2245: a battlefield-scanned STATIC spell-count cap (NOT a
 //     turn-scoped flag — the cap must die with the enchantment mid-turn).
 // The whole card stays one stub until both land (every clause must be

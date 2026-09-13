@@ -3258,75 +3258,115 @@ describe("delayedTrigger timing: until-next-turn-creature-attacks-you (CR 606 / 
 });
 
 // New Op (issue #1149) → full per-Op regime: interpreter coverage of the
-// construct combinations it participates in (default zones / narrowed zones /
-// maxManaValue / idempotent merge), plus a wire-format assertion through
-// projectPublicState.
-describe("Effect Script Op: grantGraveyardPlay (CR 305.1-analog / 601, issue #1149)", () => {
-    it("grants the controller a broad (land + spell) graveyard-cast permission by default (Yawgmoth's Will)", () => {
+// construct combinations it participates in (default actions / narrowed
+// actions / maxManaValue / idempotent merge per source), plus a wire-format
+// assertion through projectPublicState.
+describe("Effect Script Op: grantGraveyardPlay (CR 305.1-analog / 601, issue #1149, ADR 0093)", () => {
+    /** Pushes the spell and returns its stack id — the grant's `sourceId`. */
+    function pushGrant(
+        state: GameState,
+        id: string,
+        targets?: Parameters<typeof pushSpell>[3]
+    ): string {
+        pushSpell(state, id, "p1", targets);
+        return state.stack[state.stack.length - 1].id;
+    }
+
+    it("grants the controller both actions by default, sourced by the resolving spell (Yawgmoth's Will)", () => {
         const id = registerScript("test-op-grant-gy-broad", [
             { op: "grantGraveyardPlay", player: "controller" },
         ]);
         const state = makeState();
-        pushSpell(state, id, "p1");
+        const sourceId = pushGrant(state, id);
         resolveTopOfStack(state);
         expect(state.graveyardPlayPermissionThisTurn).toEqual([
             {
                 playerId: "p1",
-                zones: ["land", "spell"],
+                sourceId,
+                actions: ["play-land", "cast"],
                 maxManaValue: undefined,
             },
         ]);
     });
 
-    it("narrows to the declared zones when provided", () => {
+    it("narrows to the declared actions when provided", () => {
         const id = registerScript("test-op-grant-gy-narrow", [
-            { op: "grantGraveyardPlay", player: "opponent", zones: ["land"] },
+            {
+                op: "grantGraveyardPlay",
+                player: "opponent",
+                actions: ["play-land"],
+            },
         ]);
         const state = makeState();
-        pushSpell(state, id, "p1");
+        const sourceId = pushGrant(state, id);
         resolveTopOfStack(state);
         expect(state.graveyardPlayPermissionThisTurn).toEqual([
-            { playerId: "p2", zones: ["land"], maxManaValue: undefined },
+            {
+                playerId: "p2",
+                sourceId,
+                actions: ["play-land"],
+                maxManaValue: undefined,
+            },
         ]);
     });
 
-    it("carries an optional maxManaValue cap on the spell half", () => {
+    it("carries an optional maxManaValue cap on the cast half", () => {
         const id = registerScript("test-op-grant-gy-mv", [
             {
                 op: "grantGraveyardPlay",
                 player: "controller",
-                zones: ["spell"],
+                actions: ["cast"],
                 maxManaValue: 3,
             },
         ]);
         const state = makeState();
-        pushSpell(state, id, "p1");
+        const sourceId = pushGrant(state, id);
         resolveTopOfStack(state);
         expect(state.graveyardPlayPermissionThisTurn).toEqual([
-            { playerId: "p1", zones: ["spell"], maxManaValue: 3 },
+            { playerId: "p1", sourceId, actions: ["cast"], maxManaValue: 3 },
         ]);
     });
 
-    it("is idempotent per player — a second grant UNIONS zones, and an unlimited maxManaValue wins over a narrower one", () => {
+    it("is idempotent per source — a second grant UNIONS actions, and an unlimited maxManaValue wins over a narrower one", () => {
         const id = registerScript("test-op-grant-gy-idem", [
             {
                 op: "grantGraveyardPlay",
                 player: "controller",
-                zones: ["spell"],
+                actions: ["cast"],
                 maxManaValue: 3,
             },
-            { op: "grantGraveyardPlay", player: "controller", zones: ["land"] },
+            {
+                op: "grantGraveyardPlay",
+                player: "controller",
+                actions: ["play-land"],
+            },
         ]);
         const state = makeState();
-        pushSpell(state, id, "p1");
+        const sourceId = pushGrant(state, id);
         resolveTopOfStack(state);
         expect(state.graveyardPlayPermissionThisTurn).toEqual([
             {
                 playerId: "p1",
-                zones: ["spell", "land"],
+                sourceId,
+                actions: ["cast", "play-land"],
                 maxManaValue: undefined,
             },
         ]);
+    });
+
+    it("keeps grants from two different sources as two entries", () => {
+        const id = registerScript("test-op-grant-gy-two-sources", [
+            { op: "grantGraveyardPlay", player: "controller" },
+        ]);
+        const state = makeState();
+        const first = pushGrant(state, id);
+        resolveTopOfStack(state);
+        const second = pushGrant(state, id);
+        resolveTopOfStack(state);
+        expect(first).not.toBe(second);
+        expect(
+            state.graveyardPlayPermissionThisTurn?.map((e) => e.sourceId)
+        ).toEqual([first, second]);
     });
 
     it("locks the announced player target", () => {
@@ -3336,12 +3376,13 @@ describe("Effect Script Op: grantGraveyardPlay (CR 305.1-analog / 601, issue #11
             { targetRequirement: { type: "player", count: 1 } }
         );
         const state = makeState();
-        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        const sourceId = pushGrant(state, id, [{ type: "player", id: "p2" }]);
         resolveTopOfStack(state);
         expect(state.graveyardPlayPermissionThisTurn).toEqual([
             {
                 playerId: "p2",
-                zones: ["land", "spell"],
+                sourceId,
+                actions: ["play-land", "cast"],
                 maxManaValue: undefined,
             },
         ]);
@@ -3352,13 +3393,14 @@ describe("Effect Script Op: grantGraveyardPlay (CR 305.1-analog / 601, issue #11
             { op: "grantGraveyardPlay", player: "controller" },
         ]);
         const state = makeState();
-        pushSpell(state, id, "p1");
+        const sourceId = pushGrant(state, id);
         resolveTopOfStack(state);
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.graveyardPlayPermissionThisTurn).toEqual([
             {
                 playerId: "p1",
-                zones: ["land", "spell"],
+                sourceId,
+                actions: ["play-land", "cast"],
                 maxManaValue: undefined,
             },
         ]);

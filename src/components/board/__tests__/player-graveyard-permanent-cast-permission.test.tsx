@@ -88,10 +88,10 @@ vi.mock("../../cards/selectable-card", () => ({
 import PlayerGraveyard from "../player-graveyard";
 
 // The projection tags an eligible PERMANENT with `legalActions` +
-// `castKind: "graveyard-permanent-permission"` only while Lurrus (or any
-// `castsPermanentsFromGraveyard` grantor) is on the battlefield and the
-// once-per-turn use hasn't been spent (gameProjections.ts
-// `projectGraveyardCard`, issue #1392).
+// `castKind: "graveyard-permission"` only while Lurrus (or any graveyard play
+// permission covering it) is on the battlefield and its once-per-turn use
+// hasn't been spent (gameProjections.ts `projectGraveyardCard`, issue #1392,
+// ADR 0093).
 function makeEligiblePermanent(
     legalActions: CardInstance["legalActions"] = ["cast"]
 ): CardInstance {
@@ -103,7 +103,7 @@ function makeEligiblePermanent(
         zone: "graveyard",
         isTapped: false,
         legalActions,
-        castKind: "graveyard-permanent-permission",
+        castKind: "graveyard-permission",
     };
 }
 

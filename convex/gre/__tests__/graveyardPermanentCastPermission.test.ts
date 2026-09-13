@@ -1,11 +1,12 @@
-// Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€”
-// Lurrus of the Dream-Den). Covers the whole GRE -> game.ts -> UI path the
-// capability crosses:
+// Static graveyard-permanent-cast permission (CR 601.3, issue #1392 â€”
+// Lurrus of the Dream-Den), a row on the one graveyard play permission record
+// (ADR 0093). Covers the whole GRE -> game.ts -> UI path the capability
+// crosses:
 //   - the permission lookup (convex/gre/rules.ts:
-//     canCastPermanentFromGraveyardByPermission, markGraveyardPermanentCastUsed)
+//     canCastFromGraveyardByPermission, markGraveyardPlayPermissionUsed)
 //   - the cast affordance gate (getLegalActions offers "cast" for an eligible
 //     PERMANENT card in the controller's OWN graveyard while Lurrus (or any
-//     `castsPermanentsFromGraveyard` grantor) is on the battlefield and the
+//     graveyard play permission covering it) is on the battlefield and its
 //     once-per-turn use hasn't been spent â€” NOT otherwise)
 //   - the real cast-commit seam (locateCastSource / castRawManaCost /
 //     graveyardCastStackFlags exported from game.ts) â€” pays the card's
@@ -33,8 +34,8 @@ import { finalizeCleanup } from "../phases";
 import {
     getLegalActions,
     assertLegalAction,
-    canCastPermanentFromGraveyardByPermission,
-    markGraveyardPermanentCastUsed,
+    canCastFromGraveyardByPermission,
+    markGraveyardPlayPermissionUsed,
 } from "../rules";
 import {
     locateCastSource,
@@ -59,6 +60,7 @@ function withLurrusOnBattlefield(
     overrides: Parameters<typeof makePlayer>[1] = {}
 ) {
     const onBattlefield = makeInstance(lurrus.id, {
+        id: "lurrus-p1",
         controllerId: "p1",
         ownerId: "p1",
         zone: "battlefield",
@@ -71,7 +73,7 @@ function withLurrusOnBattlefield(
 
 describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€” Lurrus)", () => {
     describe("permission lookup (convex/gre/rules.ts)", () => {
-        it("is false with no castsPermanentsFromGraveyard grantor on the battlefield", () => {
+        it("is false with no graveyard play permission grantor on the battlefield", () => {
             const gyLions = makeInstance(savannahLions.id, {
                 zone: "graveyard",
                 controllerId: "p1",
@@ -84,7 +86,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
                 ],
             });
             expect(
-                canCastPermanentFromGraveyardByPermission(
+                canCastFromGraveyardByPermission(
                     state,
                     getPlayer(state, "p1"),
                     gyLions
@@ -106,7 +108,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
                 ],
             });
             expect(
-                canCastPermanentFromGraveyardByPermission(
+                canCastFromGraveyardByPermission(
                     state,
                     getPlayer(state, "p1"),
                     gyLions
@@ -128,7 +130,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
                 ],
             });
             expect(
-                canCastPermanentFromGraveyardByPermission(
+                canCastFromGraveyardByPermission(
                     state,
                     getPlayer(state, "p1"),
                     gyAngel
@@ -149,7 +151,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
                 ],
             });
             expect(
-                canCastPermanentFromGraveyardByPermission(
+                canCastFromGraveyardByPermission(
                     state,
                     getPlayer(state, "p1"),
                     gyMountain
@@ -170,7 +172,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
                 ],
             });
             expect(
-                canCastPermanentFromGraveyardByPermission(
+                canCastFromGraveyardByPermission(
                     state,
                     getPlayer(state, "p1"),
                     gyBolt
@@ -189,10 +191,12 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
                     withLurrusOnBattlefield({ graveyard: [gyLions] }),
                     makePlayer("p2"),
                 ],
-                graveyardPermanentCastUsedThisTurn: ["p1"],
+                graveyardPlayPermissionUsesThisTurn: [
+                    { playerId: "p1", sourceId: "lurrus-p1" },
+                ],
             });
             expect(
-                canCastPermanentFromGraveyardByPermission(
+                canCastFromGraveyardByPermission(
                     state,
                     getPlayer(state, "p1"),
                     gyLions
@@ -211,10 +215,12 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
                     withLurrusOnBattlefield({ graveyard: [gyLions] }),
                     makePlayer("p2"),
                 ],
-                graveyardPermanentCastUsedThisTurn: ["p2"],
+                graveyardPlayPermissionUsesThisTurn: [
+                    { playerId: "p2", sourceId: "lurrus-p1" },
+                ],
             });
             expect(
-                canCastPermanentFromGraveyardByPermission(
+                canCastFromGraveyardByPermission(
                     state,
                     getPlayer(state, "p1"),
                     gyLions
@@ -237,7 +243,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
                 ],
             });
             expect(
-                canCastPermanentFromGraveyardByPermission(
+                canCastFromGraveyardByPermission(
                     state,
                     getPlayer(state, "p1"),
                     gyLions
@@ -270,7 +276,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
             });
         }
 
-        it("canCastPermanentFromGraveyardByPermission is false for a flash MV<=2 permanent on the OPPONENT's turn", () => {
+        it("canCastFromGraveyardByPermission is false for a flash MV<=2 permanent on the OPPONENT's turn", () => {
             const gyFlashLions = flashLionInGraveyard();
             const state = makeState({
                 players: [
@@ -281,7 +287,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
                 priorityPlayerId: "p1",
             });
             expect(
-                canCastPermanentFromGraveyardByPermission(
+                canCastFromGraveyardByPermission(
                     state,
                     getPlayer(state, "p1"),
                     gyFlashLions
@@ -307,7 +313,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
         // predicate test above and the wire-projection test below already
         // cover the real CR 702.139a divergence end-to-end (both are the
         // actual production call shape: `projectGraveyardCard` only invokes
-        // `getLegalActions` once `canCastPermanentFromGraveyardByPermission`
+        // `getLegalActions` once `canCastFromGraveyardByPermission`
         // is already true).
 
         it("the wire affordance does NOT tag a flash MV<=2 permanent on the OPPONENT's turn", () => {
@@ -331,7 +337,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
             expect(slim.castKind).toBeUndefined();
         });
 
-        it("canCastPermanentFromGraveyardByPermission is true for the SAME flash MV<=2 permanent on YOUR OWN turn", () => {
+        it("canCastFromGraveyardByPermission is true for the SAME flash MV<=2 permanent on YOUR OWN turn", () => {
             const gyFlashLions = flashLionInGraveyard();
             const state = makeState({
                 players: [
@@ -342,7 +348,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
                 priorityPlayerId: "p1",
             });
             expect(
-                canCastPermanentFromGraveyardByPermission(
+                canCastFromGraveyardByPermission(
                     state,
                     getPlayer(state, "p1"),
                     gyFlashLions
@@ -387,26 +393,42 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
                 (c) => c.id === "gy-flash-lions"
             )!;
             expect(slim.legalActions).toBeDefined();
-            expect(slim.castKind).toBe("graveyard-permanent-permission");
+            expect(slim.castKind).toBe("graveyard-permission");
         });
     });
 
-    describe("markGraveyardPermanentCastUsed", () => {
-        it("records the player id, idempotently", () => {
+    describe("markGraveyardPlayPermissionUsed (ADR 0093 â€” keyed by source)", () => {
+        const lurrusPermission = {
+            ...lurrus.graveyardPlayPermission!,
+            sourceId: "lurrus-p1",
+        };
+
+        it("records { playerId, sourceId }, idempotently", () => {
             const state = makeState();
-            markGraveyardPermanentCastUsed(state, "p1");
-            markGraveyardPermanentCastUsed(state, "p1");
-            expect(state.graveyardPermanentCastUsedThisTurn).toEqual(["p1"]);
+            markGraveyardPlayPermissionUsed(state, "p1", lurrusPermission);
+            markGraveyardPlayPermissionUsed(state, "p1", lurrusPermission);
+            expect(state.graveyardPlayPermissionUsesThisTurn).toEqual([
+                { playerId: "p1", sourceId: "lurrus-p1" },
+            ]);
         });
 
         it("tracks multiple players independently", () => {
             const state = makeState();
-            markGraveyardPermanentCastUsed(state, "p1");
-            markGraveyardPermanentCastUsed(state, "p2");
-            expect(state.graveyardPermanentCastUsedThisTurn).toEqual([
-                "p1",
-                "p2",
+            markGraveyardPlayPermissionUsed(state, "p1", lurrusPermission);
+            markGraveyardPlayPermissionUsed(state, "p2", lurrusPermission);
+            expect(state.graveyardPlayPermissionUsesThisTurn).toEqual([
+                { playerId: "p1", sourceId: "lurrus-p1" },
+                { playerId: "p2", sourceId: "lurrus-p1" },
             ]);
+        });
+
+        it("spends nothing for a permission that is not once-per-turn", () => {
+            const state = makeState();
+            markGraveyardPlayPermissionUsed(state, "p1", {
+                actions: ["play-land", "cast"],
+                sourceId: "yawgmoths-will",
+            });
+            expect(state.graveyardPlayPermissionUsesThisTurn).toBeUndefined();
         });
     });
 
@@ -487,7 +509,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
     });
 
     describe("cast-commit seam (game.ts) â€” pays the normal printed mana cost", () => {
-        it("locateCastSource routes an eligible card to the graveyard zone with viaGraveyardPermanentPermission, at its printed cost", () => {
+        it("locateCastSource routes an eligible card to the graveyard zone carrying the selected permission, at its printed cost", () => {
             const gyLions = makeInstance(savannahLions.id, {
                 id: "gy-lions",
                 zone: "graveyard",
@@ -507,7 +529,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
             );
             expect(src.zone).toBe("graveyard");
             expect(src.card?.id).toBe("gy-lions");
-            expect(src.viaGraveyardPermanentPermission).toBe(true);
+            expect(src.graveyardPermission?.sourceId).toBe("lurrus-p1");
             // Normal printed cost {W} â€” NOT an alternative/flashback cost.
             expect(castRawManaCost(state, src.card!, src.zone)).toEqual({
                 W: 1,
@@ -546,7 +568,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
             const p1 = getPlayer(state, "p1");
 
             const src = locateCastSource(state, p1, "gy-lions");
-            expect(src.viaGraveyardPermanentPermission).toBe(true);
+            expect(src.graveyardPermission?.sourceId).toBe("lurrus-p1");
             const removed = removeFromZone(
                 state,
                 p1,
@@ -562,8 +584,12 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
             // Real commit sites (tryAutoCommitPendingCast,
             // finalizeTargetSelection, announceCast) debit the once-per-turn
             // use exactly here, at commit.
-            if (src.viaGraveyardPermanentPermission) {
-                markGraveyardPermanentCastUsed(state, "p1");
+            if (src.graveyardPermission) {
+                markGraveyardPlayPermissionUsed(
+                    state,
+                    "p1",
+                    src.graveyardPermission
+                );
             }
             state.stack.push(stackItem);
             resolveTopOfStack(state);
@@ -576,7 +602,9 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
                     (c) => c.id === "gy-lions"
                 )
             ).toBe(true);
-            expect(state.graveyardPermanentCastUsedThisTurn).toEqual(["p1"]);
+            expect(state.graveyardPlayPermissionUsesThisTurn).toEqual([
+                { playerId: "p1", sourceId: "lurrus-p1" },
+            ]);
 
             // The once-per-turn cap now blocks a second eligible card this
             // turn, even with Lurrus (now on a fresh battlefield instance)
@@ -588,7 +616,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
             });
             state.players[0].graveyard.push(secondLions);
             expect(
-                canCastPermanentFromGraveyardByPermission(
+                canCastFromGraveyardByPermission(
                     state,
                     getPlayer(state, "p1"),
                     secondLions
@@ -598,13 +626,15 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
     });
 
     describe("CLEANUP expiry (CR 514.2)", () => {
-        it("clears graveyardPermanentCastUsedThisTurn unconditionally at CLEANUP", () => {
+        it("clears graveyardPlayPermissionUsesThisTurn unconditionally at CLEANUP", () => {
             const state = makeState({
                 phase: "CLEANUP",
-                graveyardPermanentCastUsedThisTurn: ["p1"],
+                graveyardPlayPermissionUsesThisTurn: [
+                    { playerId: "p1", sourceId: "lurrus-p1" },
+                ],
             });
             finalizeCleanup(state);
-            expect(state.graveyardPermanentCastUsedThisTurn).toBeUndefined();
+            expect(state.graveyardPlayPermissionUsesThisTurn).toBeUndefined();
         });
 
         it("the once-per-turn use is available again after CLEANUP resets it", () => {
@@ -619,11 +649,13 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
                     makePlayer("p2"),
                 ],
                 phase: "CLEANUP",
-                graveyardPermanentCastUsedThisTurn: ["p1"],
+                graveyardPlayPermissionUsesThisTurn: [
+                    { playerId: "p1", sourceId: "lurrus-p1" },
+                ],
             });
             finalizeCleanup(state);
             expect(
-                canCastPermanentFromGraveyardByPermission(
+                canCastFromGraveyardByPermission(
                     state,
                     getPlayer(state, "p1"),
                     gyLions
@@ -633,7 +665,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
     });
 
     describe("frontend wiring â€” projectPublicState tags the affordance", () => {
-        it('attaches legalActions + castKind: "graveyard-permanent-permission" to the viewer\'s OWN eligible graveyard permanent', () => {
+        it('attaches legalActions + castKind: "graveyard-permission" to the viewer\'s OWN eligible graveyard permanent', () => {
             const gyLions = makeInstance(savannahLions.id, {
                 id: "gy-lions",
                 zone: "graveyard",
@@ -655,7 +687,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
                 (c) => c.id === "gy-lions"
             )!;
             expect(slim.legalActions).toBeDefined();
-            expect(slim.castKind).toBe("graveyard-permanent-permission");
+            expect(slim.castKind).toBe("graveyard-permission");
         });
 
         it("does NOT tag the OPPONENT's view of the same card", () => {

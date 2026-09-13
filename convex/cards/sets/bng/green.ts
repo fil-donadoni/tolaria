@@ -65,7 +65,7 @@ export const satyrWayfinder: CardDefinition = {
 //   - `playsLandsFromTopOfLibrary: true` (CR 305.1-analog permission) — read
 //     live off the battlefield by `canPlayLandsFromTopOfLibrary` /
 //     `isPlayableLibraryTopLand` (`convex/gre/rules.ts`), position-strict at
-//     index 0. The sibling of Icetill Explorer's `playsLandsFromGraveyard`
+//     index 0. The sibling of Icetill Explorer's `graveyardPlayPermission`
 //     (#1190) for the other permitted alternate land-play zone, and
 //     deliberately a SEPARATE field from the reveal above: the CR does not tie
 //     the two (Vizier of the Menagerie plays off the top without revealing;

@@ -40,7 +40,11 @@ import {
 } from "./state";
 import { clearZoneCharacteristics } from "./zoneCharacteristics";
 import { checkStateBasedActions } from "./sba";
-import { canPlayLandsFromGraveyard, isPlayableLibraryTopLand } from "./rules";
+import {
+    canPlayLandsFromGraveyard,
+    isPlayableLibraryTopLand,
+    spendGraveyardPlayPermission,
+} from "./rules";
 import { exileCastPermission } from "./castCost";
 import { checkAscendCityBlessing } from "./cityBlessing";
 import { tryGetDefinition } from "../cards";
@@ -416,6 +420,10 @@ export function applyPlayLandFromGraveyard(
         return null;
     }
 
+    // CR 305.1-analog (ADR 0093) — spend the graveyard play permission this
+    // land play used (a no-op unless it is once-per-turn), after the
+    // pay-choice suspension above so a parked play has spent nothing yet.
+    spendGraveyardPlayPermission(state, player, "play-land", graveyardCard);
     // CR 712.12 — the chosen face is stamped before anything reads it.
     stampChosenFace(state, graveyardCard, face);
     // CR 614.1c — tapped-on-entry is decided from the PRE-move board, exactly
@@ -869,6 +877,17 @@ export function finalizeLandEntry(
         // the far side of the window and still before the zone move. Same
         // ordering as the unsuspended paths: `shouldEnterTapped` below asks
         // about the LAND that is entering.
+        // CR 305.1-analog (ADR 0093) — the delayed graveyard play spends its
+        // graveyard play permission here, exactly like the immediate path in
+        // `applyPlayLandFromGraveyard` (a no-op unless once-per-turn).
+        if (playSource.zone === "graveyard") {
+            spendGraveyardPlayPermission(
+                state,
+                player,
+                "play-land",
+                playSource.card
+            );
+        }
         stampChosenFace(state, playSource.card, face);
         const forcedTapped = shouldEnterTapped(state, playSource.card);
         const willEnterTapped = forcedTapped || !accept;

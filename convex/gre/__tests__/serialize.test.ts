@@ -2604,13 +2604,17 @@ describe("optional field round-trip smoke tests", () => {
         );
     });
 
-    it("graveyardPlayPermissionThisTurn (issue #1149 — Yawgmoth's Will)", () => {
+    it("graveyardPlayPermissionThisTurn (issue #1149 — Yawgmoth's Will, ADR 0093 record)", () => {
         const state = freshState();
         state.graveyardPlayPermissionThisTurn = [
             {
                 playerId: "p1",
-                zones: ["land", "spell"],
-                maxManaValue: undefined,
+                sourceId: "yawgmoths-will",
+                actions: ["play-land", "cast"],
+                cardTypes: ["Creature", "Artifact"],
+                maxManaValue: 3,
+                oncePerTurn: true,
+                yourTurnOnly: true,
             },
         ];
         expect(roundTrip(state).graveyardPlayPermissionThisTurn).toEqual(
@@ -2618,11 +2622,14 @@ describe("optional field round-trip smoke tests", () => {
         );
     });
 
-    it("graveyardPermanentCastUsedThisTurn (issue #1392 — Lurrus of the Dream-Den)", () => {
+    it("graveyardPlayPermissionUsesThisTurn (ADR 0093 — uses keyed by source)", () => {
         const state = freshState();
-        state.graveyardPermanentCastUsedThisTurn = ["p1", "p2"];
-        expect(roundTrip(state).graveyardPermanentCastUsedThisTurn).toEqual(
-            state.graveyardPermanentCastUsedThisTurn
+        state.graveyardPlayPermissionUsesThisTurn = [
+            { playerId: "p1", sourceId: "lurrus-a" },
+            { playerId: "p1", sourceId: "lurrus-b" },
+        ];
+        expect(roundTrip(state).graveyardPlayPermissionUsesThisTurn).toEqual(
+            state.graveyardPlayPermissionUsesThisTurn
         );
     });
 

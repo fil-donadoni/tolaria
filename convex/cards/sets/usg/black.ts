@@ -96,7 +96,7 @@ export const duress: CardDefinition = {
 // stays DSL-first per ADR 0045 — no new engine logic, a thin wrapper over the
 // already-shipped `graveyard-bound` replacement infra). Both Ops are
 // turn-scoped, cleared unconditionally at CLEANUP (CR 514.2) — omitting
-// `zones` on `grantGraveyardPlay` defaults to `["land", "spell"]`, the exact
+// `actions` on `grantGraveyardPlay` defaults to `["play-land", "cast"]`, the exact
 // "play lands AND cast spells" shape this card needs. Vintage Cube FREE
 // tranche, issue #686.
 export const yawgmothsWill: CardDefinition = {

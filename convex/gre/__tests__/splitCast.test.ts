@@ -331,7 +331,11 @@ describe("CR 709.3 outside the HAND — the halves are offered there too (issue 
             // reaches `getLegalActions`'s zone-BLIND final branch instead and
             // the graveyard branch under test is never entered.
             state.graveyardPlayPermissionThisTurn = [
-                { playerId: "p1", zones: ["spell", "land"] },
+                {
+                    playerId: "p1",
+                    sourceId: "yawgmoths-will",
+                    actions: ["cast", "play-land"],
+                },
             ];
         } else {
             p1.battlefield.push(

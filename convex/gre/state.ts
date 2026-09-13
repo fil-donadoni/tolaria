@@ -29,6 +29,8 @@ import {
     type FlashbackCost,
     type EmblemInstance,
     type GameEvent,
+    type GraveyardPlayAction,
+    type LiveGraveyardPlayPermission,
     type ManaCost as CardManaCost,
     type MayPayCost,
     type CostLegs,
@@ -5158,42 +5160,34 @@ export type GameState = {
      *  edge case (CR 103.8a skips only the DRAW step, not UPKEEP, so a flag
      *  armed on turn 1 would otherwise never be consumed). */
     skipDrawStepThisTurn?: string[];
-    /** CR 305.1-analog / 601 / 514.2 (issue #1149) — turn-scoped, player-wide
-     *  permission to play lands and/or cast spells from OWN graveyard
-     *  (Yawgmoth's Will: "Until end of turn, you may play lands and cast
-     *  spells from your graveyard"). Granted by the `grantGraveyardPlay`
-     *  Effect Script Op. `zones` names which card kinds the grant covers;
-     *  `maxManaValue` optionally caps the spell half (unused by Yawgmoth's
-     *  Will, reserved for a future scoped grant reusing this shape). Read
-     *  live by `canPlayLandsFromGraveyard` (land half, unioned with the
-     *  battlefield-derived `playsLandsFromGraveyard` permission, #1190) and
-     *  `getLegalActions` / `locateCastSource` (spell half). Distinct from the
-     *  per-instance SCOPED grant a future card (Serra Paragon, still a
-     *  tracked stub) would need — that grants ONE specific graveyard card,
-     *  not every card a player owns. Cleared unconditionally at CLEANUP
-     *  (CR 514.2), same boundary as `cannotCastSpellsThisTurn`. */
-    graveyardPlayPermissionThisTurn?: {
+    /** CR 601.3 / CR 514.2 (issue #1149, ADR 0093) — the TURN-SCOPED form of
+     *  the one graveyard play permission record (Yawgmoth's Will: "Until end
+     *  of turn, you may play lands and cast spells from your graveyard"),
+     *  granted by the `grantGraveyardPlay` Op. Same grammar as the CONTINUOUS
+     *  form `CardDefinition.graveyardPlayPermission`; the two differ only in
+     *  lifetime. Each entry names its grantee and its granting source. Read
+     *  ONLY through the single resolver `getGraveyardPlayPermissions`
+     *  (`gre/rules.ts`), which applies every gate the record carries. A
+     *  SCOPED once-per-turn permission (Serra Paragon, issue #1239) is a row
+     *  of this same record with `oncePerTurn`/`yourTurnOnly`, never a
+     *  per-instance grant. Cleared unconditionally at CLEANUP (CR 514.2),
+     *  same boundary as `cannotCastSpellsThisTurn`. */
+    graveyardPlayPermissionThisTurn?: (LiveGraveyardPlayPermission & {
         playerId: string;
-        zones: Array<"land" | "spell">;
-        maxManaValue?: number;
+    })[];
+    /** CR 601.3 / CR 514.2 (ADR 0093) — the once-per-turn uses spent this
+     *  turn, keyed by SOURCE: `{ playerId, sourceId }` per spent permission,
+     *  so each once-per-turn permission spends its own use (two sources under
+     *  one controller grant two uses). Written only by
+     *  `markGraveyardPlayPermissionUsed` at cast commit / land play, read only
+     *  by the resolver. Cleared unconditionally at CLEANUP (CR 514.2) —
+     *  correct for "once during each of YOUR turns" because such a permission
+     *  also carries `yourTurnOnly`, so no use can be spent across the boundary
+     *  on the opponent's turn. */
+    graveyardPlayPermissionUsesThisTurn?: {
+        playerId: string;
+        sourceId: string;
     }[];
-    /** CR 601.3 (issue #1392, Lurrus of the Dream-Den) — per-player
-     *  once-per-turn usage tracking for the STATIC, battlefield-derived
-     *  CASTING PERMISSION. Not CR 702.139 (Companion): the graveyard clause is
-     *  a separate printed static ability, not part of the keyword.
-     *  graveyard-permanent-cast permission (`CardDefinition
-     *  .castsPermanentsFromGraveyard`). Contains the ids of players who have
-     *  already used such a permission this turn — checked by
-     *  `canCastPermanentFromGraveyardByPermission` (`gre/rules.ts`), set by
-     *  `markGraveyardPermanentCastUsed` at cast commit. Cleared
-     *  unconditionally at CLEANUP (CR 514.2), same boundary as
-     *  `graveyardPlayPermissionThisTurn` above — correct for "once during
-     *  each of YOUR turns" because casting a permanent without flash already
-     *  requires sorcery timing (the controller's own turn), so a global
-     *  every-turn-boundary reset is behaviorally identical to a
-     *  controller-turn-scoped one (mirrors `activationsThisTurn`'s same
-     *  reasoning, CR 602.5). */
-    graveyardPermanentCastUsedThisTurn?: string[];
     /** Turn-scoped all-unblocked combat-damage redirects (CR 614.6 — Kjeldoran
      *  Royal Guard). Each entry redirects ALL combat damage that unblocked
      *  attackers would deal to `playerId` onto the permanent `toPermanentId`
@@ -18800,22 +18794,30 @@ export function buildSpellContext(
 
         grantGraveyardPlay(
             playerId: string,
-            zones: Array<"land" | "spell">,
+            sourceId: string,
+            actions: GraveyardPlayAction[],
             maxManaValue?: number
         ): void {
-            // CR 305.1-analog / 601 (issue #1149) — grant/extend a turn-scoped
-            // graveyard play/cast permission (Yawgmoth's Will). Idempotent per
-            // player: a repeated grant UNIONS the zones and a broader
-            // (undefined) maxManaValue always wins over a narrower cap.
-            // Cleared unconditionally at CLEANUP (CR 514.2).
+            // CR 601.3 (issue #1149, ADR 0093) — grant/extend the turn-scoped
+            // form of the graveyard play permission record (Yawgmoth's Will).
+            // Idempotent per (player, source): a repeated grant UNIONS the
+            // actions and a broader (undefined) maxManaValue always wins over
+            // a narrower cap. Cleared unconditionally at CLEANUP (CR 514.2).
             const list = state.graveyardPlayPermissionThisTurn ?? [];
-            const existing = list.find((e) => e.playerId === playerId);
+            const existing = list.find(
+                (e) => e.playerId === playerId && e.sourceId === sourceId
+            );
             if (!existing) {
-                list.push({ playerId, zones: [...zones], maxManaValue });
+                list.push({
+                    playerId,
+                    sourceId,
+                    actions: [...actions],
+                    maxManaValue,
+                });
             } else {
-                existing.zones = Array.from(
-                    new Set([...existing.zones, ...zones])
-                ) as Array<"land" | "spell">;
+                existing.actions = Array.from(
+                    new Set([...existing.actions, ...actions])
+                );
                 if (maxManaValue === undefined) {
                     existing.maxManaValue = undefined;
                 }

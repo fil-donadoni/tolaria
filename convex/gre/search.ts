@@ -107,7 +107,7 @@ import {
     applyDelveExileForSearch,
     applyCastCostPicksForSearch,
 } from "./applyMove";
-import { markGraveyardPermanentCastUsed } from "./rules";
+import { spendGraveyardPlayPermission } from "./rules";
 import { additionalCostPaymentSnapshot } from "./kicker";
 import {
     castSourceForSearch,
@@ -1193,8 +1193,13 @@ export function applyMoveInSearch(
                 castFromZone,
                 playerId
             );
-            if (castMechanism === "permanent-permission") {
-                markGraveyardPermanentCastUsed(state, playerId);
+            if (castMechanism === "permission") {
+                spendGraveyardPlayPermission(
+                    state,
+                    castSource.owner,
+                    "cast",
+                    spellCard
+                );
             }
             const stackItem: StackItem = {
                 ...spellCard,

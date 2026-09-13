@@ -278,9 +278,8 @@ export interface CardInstance {
      *  `legalActions`.
      *  `"graveyard-grant"` (issue #1344) is a SPECIFIC-CARD grant (Malcolm,
      *  Alluring Scoundrel), distinct from the BROAD `"graveyard-permission"`
-     *  (Yawgmoth's Will) — both currently render the same "Cast" label.
-     *  `"graveyard-permanent-permission"` (issue #1392) is Lurrus's STATIC,
-     *  once-per-turn, permanent-cards-only permission — also renders "Cast".
+     *  (any graveyard play permission, ADR 0093 — Yawgmoth's Will, Lurrus of
+     *  the Dream-Den) — both currently render the same "Cast" label.
      *  `"retrace"` (CR 702.81a, issue #2358) pays the printed mana cost PLUS a
      *  discarded land card, so it labels and explains itself separately.
      *  MIRROR of the union in `convex/gameProjections.ts` — keep both in step. */
@@ -289,7 +288,6 @@ export interface CardInstance {
         | "escape"
         | "graveyard-permission"
         | "graveyard-grant"
-        | "graveyard-permanent-permission"
         | "retrace";
     /** CR 702.34a / 118.5 / 107.3 — max {X} announceable on this flashback
      *  cast, bounded by its `flashbackExileFromGraveyard` cost (Flash of

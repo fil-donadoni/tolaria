@@ -3830,7 +3830,7 @@ export function enumerateMoves(
         }
     }
     // CR 305.9 — a land can be played from a NON-hand zone whenever an effect
-    // grants the permission: the graveyard under `playsLandsFromGraveyard`
+    // grants the permission: the graveyard under a `play-land` graveyard play permission
     // (Icetill Explorer / Crucible of Worlds / Ramunap Excavator, #1190), or
     // the TOP of the library under `playsLandsFromTopOfLibrary` (Courser of
     // Kruphix). Legality itself is unchanged — `getLegalActions` has always

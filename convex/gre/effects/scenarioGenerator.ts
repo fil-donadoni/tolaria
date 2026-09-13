@@ -603,7 +603,7 @@ function analyseOp(op: EffectOp, req: Requirements): void {
         case "grantGraveyardPlay":
             // CR 305.1-analog / 601 (issue #1149) — a turn-scoped graveyard
             // play/cast permission grant on a player; the deterministic
-            // outcome is the player id (with its zones/maxManaValue) landing
+            // outcome is the player id (with its actions/maxManaValue) landing
             // in state.graveyardPlayPermissionThisTurn (asserted below).
             analysePlayer(op.player, req, false);
             return;
