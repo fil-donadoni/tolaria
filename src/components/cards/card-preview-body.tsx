@@ -110,7 +110,11 @@ export default function CardPreviewBody({
                     <div className="grid grid-cols-2 gap-1">
                         <img
                             src={content.printedImageSrc}
-                            alt={`${content.displayName} (printed)`}
+                            alt={
+                                isManualGame
+                                    ? content.displayName
+                                    : `${content.displayName} (printed)`
+                            }
                             className="w-full card-corner"
                             onLoad={onImageLoaded}
                         />
