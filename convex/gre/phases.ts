@@ -2925,13 +2925,12 @@ const TURN_SCOPED_GLOBAL_FLAGS = [
     // CR 601 / 514.2 (issue #1149) — Yawgmoth's Will's "you may play lands and
     // cast spells from your graveyard this turn" permission.
     "graveyardPlayPermissionThisTurn",
-    // CR 601.3 / 514.2 (issue #1392, Lurrus of the Dream-Den) — the
-    // once-per-turn usage tally for the STATIC graveyard-permanent-cast
-    // permission ("once during each of your turns"). 601.3 is the anchor
-    // because the flag records how much of a CASTING PERMISSION has been
-    // used; Lurrus's graveyard clause is a printed static ability, NOT its
-    // companion ability, so CR 702.139 (Companion) does not apply.
-    "graveyardPermanentCastUsedThisTurn",
+    // CR 601.3 / 514.2 (ADR 0093) — the once-per-turn uses of graveyard play
+    // permissions, keyed by source ("once during each of your turns"). 601.3
+    // is the anchor because the tally records how much of a CASTING
+    // PERMISSION has been used; Lurrus's graveyard clause is a printed static
+    // ability, NOT its companion ability, so Companion does not apply.
+    "graveyardPlayPermissionUsesThisTurn",
     // CR 603.7a / 514.2 — Gaze of Pain's floating "until end of turn" rider,
     // which fires on `ATTACKER_UNBLOCKED`: it must survive END_OF_COMBAT to
     // still be armed for a second combat phase.

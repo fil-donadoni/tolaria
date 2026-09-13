@@ -2,6 +2,7 @@
 // `import * as iko from "./sets/iko"` resolves through iko/index.ts.
 
 import type { CardDefinition, SpellContext } from "../../types";
+import { CASTABLE_PERMANENT_TYPES } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Lutri, the Spellchaser — Companion framework tracer card (issue #1391,
@@ -122,12 +123,14 @@ export const lutri: CardDefinition = {
 //
 // The graveyard-cast ability ("Once during each of your turns, you may cast
 // a permanent spell with mana value 2 or less from your graveyard") is a
-// STATIC, battlefield-derived permission — `castsPermanentsFromGraveyard:
-// { maxManaValue: 2 }`, read live off the battlefield by
-// `canCastPermanentFromGraveyardByPermission` (gre/rules.ts), mirroring how
-// Icetill Explorer's `playsLandsFromGraveyard: true` is a bare declarative
-// field, not an activated/triggered ability or an Effect Script Op. Lifelink
-// is a standard implemented keyword (Mechanics Registry, CR 702.15).
+// STATIC, battlefield-derived permission — a row on the one graveyard play
+// permission record (ADR 0093): cast only, permanent card types, mana value
+// 2 or less, once per turn (the use keyed to THIS source), during its
+// controller's own turn only — read live off the battlefield by the single
+// resolver `getGraveyardPlayPermissions` (gre/rules.ts). The same bare
+// declarative field as Icetill Explorer's, not an activated/triggered ability
+// or an Effect Script Op. Lifelink is a standard implemented keyword
+// (Mechanics Registry, CR 702.15).
 export const lurrus: CardDefinition = {
     // Kept as a literal (not imported from `gre/companion.ts`'s `LURRUS_ID`):
     // same import-cycle rationale as `lutri` above (multicolor.ts →
@@ -158,7 +161,13 @@ export const lurrus: CardDefinition = {
     // CR 702.139a / 702.15 — Companion and Lifelink are both Mechanics
     // Registry keyword rows with `status: "implemented"` (Guard A).
     staticAbilities: ["companion", "lifelink"],
-    castsPermanentsFromGraveyard: { maxManaValue: 2 },
+    graveyardPlayPermission: {
+        actions: ["cast"],
+        cardTypes: [...CASTABLE_PERMANENT_TYPES],
+        maxManaValue: 2,
+        oncePerTurn: true,
+        yourTurnOnly: true,
+    },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -69,7 +69,7 @@ export function everyPermanent(
  *  your starting deck has mana value 2 or less." Built on `everyPermanent`
  *  above; the per-card mana value read via `manaValue` (constants.ts) — the
  *  same helper the graveyard-cast permission itself uses
- *  (`canCastPermanentFromGraveyardByPermission`, gre/rules.ts) to keep the
+ *  (`graveyardPlayPermissionCovers`, gre/rules.ts) to keep the
  *  deckbuild condition and the battlefield ability's cap textually aligned. */
 export const permanentManaValueAtMost2: CompanionCondition = everyPermanent(
     (def) => manaValue(def.manaCost) <= 2

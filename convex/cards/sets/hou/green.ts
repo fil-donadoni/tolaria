@@ -6,11 +6,12 @@
 import type { CardDefinition } from "../../types";
 
 // Ramunap Excavator — {2}{G} Creature — Snake Cleric, 2/3. "You may play
-// lands from your graveyard." A single bare declarative field, no `resolve()`
-// and no Effect Script: `playsLandsFromGraveyard: true` is the CR
-// 305.1-analog player-wide land-play permission (issue #1190), read live off
-// the battlefield by `canPlayLandsFromGraveyard` (`convex/gre/rules.ts`), so
-// the permission ends the instant this creature leaves play — no stale flag.
+// lands from your graveyard." A single declarative field, no `resolve()` and
+// no Effect Script: `graveyardPlayPermission: { actions: ["play-land"] }` is a
+// row on the one graveyard play permission record (ADR 0093, CR
+// 305.1-analog), read live off the battlefield by the single resolver
+// `getGraveyardPlayPermissions` (`convex/gre/rules.ts`), so the permission
+// ends the instant this creature leaves play — no stale flag.
 // Same shape as Icetill Explorer (`eoe/green.ts`) and Crucible of Worlds
 // (`5dn/colorless.ts`); the source's card type is irrelevant to the
 // permission scan.
@@ -24,5 +25,5 @@ export const ramunapExcavator: CardDefinition = {
     subtypes: ["Snake", "Cleric"],
     power: 2,
     toughness: 3,
-    playsLandsFromGraveyard: true,
+    graveyardPlayPermission: { actions: ["play-land"] },
 };

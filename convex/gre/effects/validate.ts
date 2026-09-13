@@ -589,9 +589,9 @@ const SHIELD_MATCH_COLORS = new Set(["W", "U", "B", "R", "G"]);
  *  count and colourless is not one. */
 const DEVOTION_COLORS = new Set(["W", "U", "B", "R", "G"]);
 
-/** Valid `grantGraveyardPlay.zones` members (issue #1149) — which card kinds
- *  a graveyard-cast permission grant covers. */
-const GRAVEYARD_PLAY_ZONES = new Set(["land", "spell"]);
+/** Valid `grantGraveyardPlay.actions` members (issue #1149, ADR 0093) — which
+ *  actions a graveyard play permission grant licenses. */
+const GRAVEYARD_PLAY_ACTIONS = new Set(["play-land", "cast"]);
 
 function isStringArray(value: unknown, allowed?: Set<string>): boolean {
     return (
@@ -3240,12 +3240,12 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     },
     // CR 305.1-analog / 601 (issue #1149) — grant a turn-scoped, player-wide
     // graveyard play/cast permission (Yawgmoth's Will). `player` names the
-    // grantee; `zones` (optional, defaults to both) narrows to "land" and/or
-    // "spell"; `maxManaValue` (optional) caps the spell half.
+    // grantee; `actions` (optional, defaults to both) narrows to "play-land"
+    // and/or "cast"; `maxManaValue` (optional) caps the cast half.
     grantGraveyardPlay: {
         required: { player: isPlayerRef },
         optional: {
-            zones: (v: unknown) => isStringArray(v, GRAVEYARD_PLAY_ZONES),
+            actions: (v: unknown) => isStringArray(v, GRAVEYARD_PLAY_ACTIONS),
             maxManaValue: (v: unknown) =>
                 typeof v === "number" && Number.isInteger(v) && v >= 0,
         },

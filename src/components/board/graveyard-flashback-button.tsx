@@ -40,19 +40,15 @@ export default function GraveyardFlashbackButton({
     // tags which graveyard-cast mechanism surfaced this affordance so the
     // label and disabled-tooltip match.
     const isEscape = card.castKind === "escape";
-    // CR 305.1-analog / 601 (issue #1149) — a BROAD permission cast
-    // (Yawgmoth's Will) pays the card's NORMAL printed mana cost, not an
-    // alternative one. CR 601.3 / 118.9 (issue #1344) — a
+    // CR 601.3 (ADR 0093) — a graveyard play permission cast (Yawgmoth's
+    // Will, Lurrus of the Dream-Den) pays the card's NORMAL printed mana
+    // cost, not an alternative one. CR 601.3 / 118.9 (issue #1344) — a
     // SPECIFIC-CARD grant (Malcolm, Alluring Scoundrel) renders identically —
     // "Cast", gated purely by `legalActions` (which is already free when the
     // grant waives the mana cost, `castRawManaCost`'s graveyard-grant branch).
-    // CR 702.139 (issue #1392) — Lurrus's STATIC, once-per-turn,
-    // permanent-cards-only permission also pays the normal printed mana
-    // cost and renders identically.
     const isPermissionCast =
         card.castKind === "graveyard-permission" ||
-        card.castKind === "graveyard-grant" ||
-        card.castKind === "graveyard-permanent-permission";
+        card.castKind === "graveyard-grant";
     // CR 702.81a (issue #2358) — a RETRACE cast is the only graveyard mechanism
     // that pays the card's PRINTED mana cost *plus* an extra cost (discard a
     // land card), so it needs its own label and its own disabled explanation.

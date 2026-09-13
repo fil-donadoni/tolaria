@@ -133,12 +133,14 @@ describe("Yawgmoth's Will (CR 305.1-analog / 601 permission + CR 614 redirect, i
         });
         const state = makeState({ players: [p1, makePlayer("p2")] });
         pushSpell(state, yawgmothsWill.id, "p1");
+        const sourceId = state.stack[state.stack.length - 1].id;
         resolveTopOfStack(state);
 
         expect(state.graveyardPlayPermissionThisTurn).toEqual([
             {
                 playerId: "p1",
-                zones: ["land", "spell"],
+                sourceId,
+                actions: ["play-land", "cast"],
                 maxManaValue: undefined,
             },
         ]);

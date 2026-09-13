@@ -2494,16 +2494,17 @@ export const OP_EXECUTORS: {
         if (playerId === undefined) return;
         ctx.grantSpellManaSubstitution(playerId, op.breadth);
     },
-    // CR 305.1-analog / 601 (issue #1149) — grant a turn-scoped, player-wide
-    // permission to play lands and/or cast spells from OWN graveyard
-    // (Yawgmoth's Will). `zones` defaults to BOTH lands and spells when
-    // omitted. Skipped when the player is gone (CR 608.2b).
+    // CR 601.3 (issue #1149, ADR 0093) — grant the turn-scoped form of the
+    // graveyard play permission record (Yawgmoth's Will), sourced by the
+    // resolving object. `actions` defaults to BOTH playing lands and casting
+    // spells when omitted. Skipped when the player is gone (CR 608.2b).
     grantGraveyardPlay(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return;
         ctx.grantGraveyardPlay(
             playerId,
-            op.zones ?? ["land", "spell"],
+            ctx.sourceInstanceId,
+            op.actions ?? ["play-land", "cast"],
             op.maxManaValue
         );
     },

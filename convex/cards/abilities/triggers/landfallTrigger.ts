@@ -12,7 +12,7 @@
 // oracle text and effect. Live consumers: Bristly Bill, Spine Sower
 // (`sets/otj/green.ts`) and Icetill Explorer (`sets/eoe/green.ts`, issue
 // #1190 — its landfall-mill half; the "play lands from graveyard" half is a
-// separate `playsLandsFromGraveyard` static declaration, not part of this
+// separate `graveyardPlayPermission` static declaration, not part of this
 // factory). Other Landfall cards from issue #694 remain tracked stubs
 // blocked on OTHER capabilities and do NOT use this factory yet: Omnath /
 // Scythecat Cub (#1189, per-turn ability-resolution-count escalation),

@@ -418,14 +418,14 @@ describe("enumerateMoves — a cast from the GRAVEYARD (issue #2971)", () => {
         // baseline this half of the test needs in order to mean anything.
         expect(castOf(state, "p1", "gyBroad")).toBeUndefined();
         state.graveyardPlayPermissionThisTurn = [
-            { playerId: "p1", zones: ["spell"] },
+            { playerId: "p1", sourceId: "yawgmoths-will", actions: ["cast"] },
         ];
         expect(castOf(state, "p1", "gyBroad")?.castFromZone).toBe("graveyard");
     });
 
     it("charges Lurrus's once-per-turn permanent permission at commit (CR 702.139)", () => {
         // The most delicate new line in both sandboxes: the real commit sites
-        // call `markGraveyardPermanentCastUsed`, and a sandbox that does not
+        // call `markGraveyardPlayPermissionUsed`, and a sandbox that does not
         // recasts the same permanent every turn for free — a line that does not
         // exist. Two permanents in the graveyard, so the SECOND one disappearing
         // from the next enumeration is what proves the charge landed.
@@ -463,13 +463,15 @@ describe("enumerateMoves — a cast from the GRAVEYARD (issue #2971)", () => {
                 return t;
             })(),
         ]) {
-            expect(after.graveyardPermanentCastUsedThisTurn).toEqual(["p1"]);
+            expect(after.graveyardPlayPermissionUsesThisTurn).toEqual([
+                { playerId: "p1", sourceId: "lurrus" },
+            ]);
             // …and the permission is spent for the turn, so the OTHER permanent
             // is no longer a candidate.
             expect(castOf(after, "p1", "gyPerm-1")).toBeUndefined();
         }
         // The parent state is untouched (both sandboxes clone).
-        expect(state.graveyardPermanentCastUsedThisTurn).toBeUndefined();
+        expect(state.graveyardPlayPermissionUsesThisTurn).toBeUndefined();
     });
 
     it("announces an explicit chosenX: 0 when the ZONE cost has no X but the printed one does (CR 107.3b)", () => {

@@ -121,19 +121,12 @@ export const LANDWALK_SNOW_SUBTYPE_KEYWORDS: Record<string, string> = {
     "snow forestwalk": "Forest",
 };
 
-/** Card types a resolving STACK ITEM can become on resolution (CR 608.3 →
- *  the object enters the battlefield as a permanent). Deliberately EXCLUDES
- *  Land: lands are never cast (CR 305.1), so a land never resolves off the
- *  stack. For the full CR 300.1 permanent-type set (incl. Land) — the correct
- *  set for "target permanent" and "permanent card" checks — use the canonical
- *  `PERMANENT_TYPES` re-exported just below. */
-export const CASTABLE_PERMANENT_TYPES = [
-    "Creature",
-    "Artifact",
-    "Enchantment",
-    "Planeswalker",
-    "Battle",
-] as const;
+/** Card types a resolving STACK ITEM can become on resolution — defined in the
+ *  leaf `cards/types` module so card sets can reference it without a registry
+ *  import cycle; re-exported here for back-compat. For the full CR 300.1
+ *  permanent-type set (incl. Land) use the canonical `PERMANENT_TYPES`
+ *  re-exported just below. */
+export { CASTABLE_PERMANENT_TYPES } from "../cards/types";
 
 /** The complete CR 300.1 permanent card types (incl. Land). Canonical
  *  definition in the leaf `cards/types` module (avoids a registry import

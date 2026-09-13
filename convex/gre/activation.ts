@@ -31,6 +31,7 @@ import type {
     ActivatedAbility,
     CardDefinition,
     CardType,
+    LiveGraveyardPlayPermission,
     ManaCost,
     PermanentFilter,
     TargetRequirement,
@@ -74,13 +75,12 @@ import { effectivePermanentView } from "./permanentView";
 import { drainAutoPasses, isSorceryTiming } from "./phases";
 import { findRetraceCastable } from "./retrace";
 import {
-    canCastFromGraveyardByPermission,
-    canCastPermanentFromGraveyardByPermission,
     effectiveRequirementForSource,
     getLegalTargets,
     isCastableLibraryTopSpell,
-    markGraveyardPermanentCastUsed,
+    markGraveyardPlayPermissionUsed,
     pendingTargetFiltersFromRequirement,
+    selectGraveyardPlayPermission,
     targetingSourceFromCard,
 } from "./rules";
 import {
@@ -341,23 +341,29 @@ export function castZoneOwner(
     );
 }
 
-/** CR 305.1-analog / 601 (issue #1149) — the SPELL half of the BROAD,
- *  turn-scoped graveyard-cast permission (Yawgmoth's Will). Returns the
- *  NON-LAND card in `player`'s graveyard matching `instanceId` while the
- *  permission covers it, or undefined. Never returns a card that already has
- *  Flashback/Escape — `locateCastSource` checks those first, so this is only
- *  ever reached for a card with neither (the permission then covers it for
- *  its normal printed mana cost). */
+/** CR 601.3 (ADR 0093, issue #2244) — the cast half of the graveyard play
+ *  permission record. Returns the NON-LAND card in `player`'s graveyard
+ *  matching `instanceId` together with the live permission that covers
+ *  casting it (`selectGraveyardPlayPermission`), or undefined. Never reached
+ *  for a card another mechanism claims — `locateCastSource` checks those
+ *  first — so the permission always covers the card for its normal printed
+ *  mana cost. */
 function findGraveyardPermissionCastable(
     state: GameState,
     player: PlayerState,
     instanceId: string
-): CardInstanceState | undefined {
+):
+    | { card: CardInstanceState; permission: LiveGraveyardPlayPermission }
+    | undefined {
     const card = player.graveyard.find((c) => c.id === instanceId);
-    if (!card) return undefined;
-    return canCastFromGraveyardByPermission(state, player, card)
-        ? card
-        : undefined;
+    if (!card || card.types.includes("Land")) return undefined;
+    const permission = selectGraveyardPlayPermission(
+        state,
+        player,
+        "cast",
+        card
+    );
+    return permission ? { card, permission } : undefined;
 }
 
 /** Per-card cast-from-graveyard grant lookup (CR 601.3 / 118.9,
@@ -396,25 +402,6 @@ function findIntrinsicGraveyardCastable(
     return def?.castableFromOwnGraveyard ? card : undefined;
 }
 
-/** CR 702.139 (issue #1392, Lurrus of the Dream-Den) — the STATIC,
- *  battlefield-derived graveyard-permanent-cast permission lookup. Returns
- *  the card in `player`'s graveyard matching `instanceId` while
- *  `canCastPermanentFromGraveyardByPermission` covers it, or undefined.
- *  Never returns a card that already has Flashback/Escape/the broad
- *  permission/a specific grant — `locateCastSource` checks those first, so
- *  this is only ever reached for a card with none of them. */
-function findGraveyardPermanentPermissionCastable(
-    state: GameState,
-    player: PlayerState,
-    instanceId: string
-): CardInstanceState | undefined {
-    const card = player.graveyard.find((c) => c.id === instanceId);
-    if (!card) return undefined;
-    return canCastPermanentFromGraveyardByPermission(state, player, card)
-        ? card
-        : undefined;
-}
-
 /** CR 601.3 (issue #2398, Bolas's Citadel) — the cast-from-top-of-
  *  library lookup. Returns the NONLAND card on top of `player`'s own library
  *  when it matches `instanceId` and `player` holds the cast-from-top
@@ -438,13 +425,13 @@ function findCastableLibraryTopSpell(
  *  CR 702.138, or the BROAD graveyard-cast permission, CR 305.1-analog / 601,
  *  issue #1149). A single choke point so every cast-commit site derives the
  *  origin identically. The `card` is undefined when the id isn't castable
- *  from any zone (callers throw "Card not in hand"). `viaGraveyardPermanentPermission`
- *  is set true ONLY when the STATIC graveyard-permanent-cast permission
- *  (Lurrus, issue #1392) is what supplied this cast — the ordered chain
- *  below reaches that branch only when no higher-precedence mechanism
- *  (Flashback/Escape/the broad permission/a specific grant) already claimed
- *  the card, so the flag unambiguously identifies which permission to debit
- *  its once-per-turn use against at commit (`markGraveyardPermanentCastUsed`).
+ *  from any zone (callers throw "Card not in hand"). `graveyardPermission`
+ *  is set ONLY when a graveyard play permission (ADR 0093) is what supplied
+ *  this cast — the ordered chain below reaches that branch only when no
+ *  higher-precedence mechanism (Flashback/Escape/a specific grant/an
+ *  intrinsic permission) already claimed the card — and it carries the exact
+ *  permission selected, so the commit spends that source's once-per-turn use
+ *  and no other (`markGraveyardPlayPermissionUsed`).
  *  `viaRetrace` is the same idea for Retrace (CR 702.81, issue #2358): the
  *  LAST branch of the chain, so the flag unambiguously says "this cast owes
  *  the discard-a-land additional cost" and no other mechanism's cast ever
@@ -458,7 +445,7 @@ export function locateCastSource(
 ): {
     card?: CardInstanceState;
     zone: CastFromZone;
-    viaGraveyardPermanentPermission?: true;
+    graveyardPermission?: LiveGraveyardPlayPermission;
     viaRetrace?: true;
 } {
     const inHand = player.hand.find((c) => c.id === instanceId);
@@ -470,18 +457,10 @@ export function locateCastSource(
     // CR 702.138b — a card with escape may be cast from its owner's graveyard.
     const escape = findEscapeCastable(state, player, instanceId);
     if (escape) return { card: escape, zone: "graveyard" };
-    // CR 305.1-analog / 601 (issue #1149) — a card castable purely under the
-    // BROAD graveyard-cast permission (neither Flashback nor Escape).
-    const permissionCast = findGraveyardPermissionCastable(
-        state,
-        player,
-        instanceId
-    );
-    if (permissionCast) return { card: permissionCast, zone: "graveyard" };
     // CR 601.3 / 118.9 (issue #1344) — a card castable purely under a
     // SPECIFIC-CARD graveyard-cast grant (Malcolm, Alluring Scoundrel),
-    // reached only when the card has none of Flashback/Escape/the broad
-    // permission (those branches above already returned).
+    // reached only when the card has neither Flashback nor Escape (those
+    // branches above already returned).
     const grantCast = findGraveyardGrantCastable(player, instanceId);
     if (grantCast) return { card: grantCast, zone: "graveyard" };
     // CR 702.51 / 601.3 (issue #1338) — a card castable purely under its OWN
@@ -495,20 +474,22 @@ export function locateCastSource(
     if (intrinsicGraveyardCast) {
         return { card: intrinsicGraveyardCast, zone: "graveyard" };
     }
-    // CR 702.139 (issue #1392) — a card castable purely under Lurrus's
-    // STATIC, once-per-turn, permanent-cards-only permission, reached only
-    // when the card has none of Flashback/Escape/the broad permission/a
-    // specific grant (those branches above already returned).
-    const permanentPermissionCast = findGraveyardPermanentPermissionCastable(
+    // CR 601.3 (ADR 0093, issue #2244) — a card castable under a live
+    // graveyard play permission (Yawgmoth's Will, Lurrus, …), reached only
+    // when no keyword, per-card grant or intrinsic permission above claimed
+    // it — `graveyardCastMechanism`'s precedence, so another mechanism never
+    // costs the caster a once-per-turn use. The selected permission rides the
+    // result so the commit spends exactly that source's use.
+    const permissionCast = findGraveyardPermissionCastable(
         state,
         player,
         instanceId
     );
-    if (permanentPermissionCast) {
+    if (permissionCast) {
         return {
-            card: permanentPermissionCast,
+            card: permissionCast.card,
             zone: "graveyard",
-            viaGraveyardPermanentPermission: true,
+            graveyardPermission: permissionCast.permission,
         };
     }
     // CR 601.3 (issue #2398, Bolas's Citadel) — the NONLAND card on
@@ -1726,12 +1707,16 @@ export function tryAutoCommitPendingCast(
         }
     }
 
-    // CR 702.139 (issue #1392) — this cast is enabled EXCLUSIVELY by Lurrus's
-    // STATIC graveyard-permanent-cast permission (no higher-precedence
-    // mechanism claimed the card, `locateCastSource`'s ordered chain): debit
-    // its once-per-turn use now, at commit.
-    if (castSource.viaGraveyardPermanentPermission) {
-        markGraveyardPermanentCastUsed(state, playerId);
+    // CR 601.3 (ADR 0093) — this cast is enabled by a graveyard play
+    // permission (no higher-precedence mechanism claimed the card,
+    // `locateCastSource`'s ordered chain): spend the selected permission's
+    // once-per-turn use now, at commit, against its own source.
+    if (castSource.graveyardPermission) {
+        markGraveyardPlayPermissionUsed(
+            state,
+            playerId,
+            castSource.graveyardPermission
+        );
     }
     // CR 601.3 / 702.34 — remove from the zone the card was actually cast from
     // (hand, exile for Ice Cauldron's noted card, or graveyard for Flashback).

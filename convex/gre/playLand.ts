@@ -40,7 +40,11 @@ import {
 } from "./state";
 import { clearZoneCharacteristics } from "./zoneCharacteristics";
 import { checkStateBasedActions } from "./sba";
-import { canPlayLandsFromGraveyard, isPlayableLibraryTopLand } from "./rules";
+import {
+    canPlayLandsFromGraveyard,
+    isPlayableLibraryTopLand,
+    spendGraveyardPlayPermission,
+} from "./rules";
 import { exileCastPermission } from "./castCost";
 import { checkAscendCityBlessing } from "./cityBlessing";
 import { tryGetDefinition } from "../cards";
@@ -554,13 +558,33 @@ export function applyPlayLandFromAnyZone(
                 cardInstanceId,
                 face
             );
-        case "graveyard":
+        case "graveyard": {
+            // CR 305.1-analog (ADR 0093) — a graveyard source resolves here
+            // ONLY under a graveyard play permission, so this is the one place
+            // a land play spends one (a no-op unless once-per-turn). Spent as
+            // the special action is taken, before any CR 614.12 pay-choice
+            // parks the entry: that choice decides how the land enters, never
+            // whether it was played. An effect that itself licenses the play
+            // (`playLandForPlayer`) calls `applyPlayLandFromGraveyard`
+            // directly and spends nothing.
+            const graveyardCard = player.graveyard.find(
+                (c) => c.id === cardInstanceId
+            );
+            if (graveyardCard) {
+                spendGraveyardPlayPermission(
+                    state,
+                    player,
+                    "play-land",
+                    graveyardCard
+                );
+            }
             return applyPlayLandFromGraveyard(
                 state,
                 player,
                 cardInstanceId,
                 face
             );
+        }
         case "exile":
             return applyPlayLandFromExile(state, player, cardInstanceId, face);
         case null:

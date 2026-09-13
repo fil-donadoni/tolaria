@@ -64,12 +64,13 @@ export const ouroboroid: CardDefinition = {
 // declarations, no `resolve()`:
 //   - `extraLandDrops: 1` (CR 305.2 — Fastbond-style, read live off the
 //     battlefield by `getExtraLandDrops`).
-//   - `playsLandsFromGraveyard: true` (CR 305.1-analog permission, issue
-//     #1190 — read live off the battlefield by `canPlayLandsFromGraveyard`;
-//     widens `playCard`'s land-play source resolution to accept a graveyard
-//     land while this permanent is in play). Unconditional and player-wide —
-//     distinct from the SCOPED once-per-turn permission granted to one
-//     specific card (Serra Paragon, issue #1149).
+//   - `graveyardPlayPermission: { actions: ["play-land"] }` (CR 305.1-analog,
+//     issue #1190 — a row on the one graveyard play permission record, ADR
+//     0093, read live off the battlefield by the single resolver
+//     `getGraveyardPlayPermissions`; widens `playCard`'s land-play source
+//     resolution to accept a graveyard land while this permanent is in play).
+//     Unlimited — a scoped once-per-turn permission (Serra Paragon, issue
+//     #1239) is the same record with `oncePerTurn` set.
 //   - Landfall→mill: the shared `landfallTrigger` factory (a
 //     `PERMANENT_ENTERED` trigger gated to lands you control, CR 603.6a /
 //     109.2) with a pure DSL `mill` Op on the controller — no target, no
@@ -86,7 +87,7 @@ export const icetillExplorer: CardDefinition = {
     power: 2,
     toughness: 4,
     extraLandDrops: 1,
-    playsLandsFromGraveyard: true,
+    graveyardPlayPermission: { actions: ["play-land"] },
     triggeredAbilities: [
         landfallTrigger({
             id: "icetill-explorer-landfall",

@@ -4,6 +4,9 @@ import type {
     CardSupertype,
     CardType,
     Color,
+    GraveyardPlayAction,
+    GraveyardPlayPermission,
+    LiveGraveyardPlayPermission,
     TargetRequirement,
     TargetSelection,
 } from "../cards/types";
@@ -19,7 +22,6 @@ import { findTriggeredAbility } from "./copy";
 import { computeExpectedInput } from "./expectedInput";
 import { isSorceryTimingFor } from "./phases";
 import {
-    CASTABLE_PERMANENT_TYPES,
     DAMAGEABLE_PERMANENT_TYPES,
     LAND_DROPS_PER_TURN,
     MANA_COLORS,
@@ -183,33 +185,133 @@ export function getExtraLandDrops(player: PlayerState): number {
     return extra;
 }
 
-/** Whether `player` currently holds an unconditional, player-wide permission
- *  to play lands from their own graveyard (CR 305.1-analog — the land-play
- *  special action with 305.1's "from their hand" zone lifted; a land is
- *  played, never cast, CR 305.9), granted by ANY permanent declaring
- *  `playsLandsFromGraveyard` on their battlefield (Icetill Explorer, issue
- *  #1190). Read live from the battlefield (mirrors `getExtraLandDrops`), so
- *  the permission ends the instant the granting source leaves play — no
- *  stale flag. Distinct from a SCOPED once-per-turn permission granted to one
- *  specific graveyard card (Serra Paragon, issue #1149), which is tracked as
- *  a per-instance `CardInstanceState` grant instead. */
+/** ADR 0093 (issue #2244) — THE resolver: every graveyard play permission
+ *  `player` can use right now, each tagged with the `sourceId` that granted
+ *  it. The union of the CONTINUOUS form (every permanent on `player`'s
+ *  battlefield declaring `CardDefinition.graveyardPlayPermission`, read live
+ *  so it ends the instant the source leaves play) and the TURN-SCOPED form
+ *  (`state.graveyardPlayPermissionThisTurn`, the `grantGraveyardPlay` Op).
+ *
+ *  Every gate a record carries is applied HERE and nowhere else: a
+ *  `yourTurnOnly` permission is absent off `player`'s turn (CR 601.3 — the
+ *  permission is what lets the spell begin to be cast at all, so an absent
+ *  one leaves only the card's normal zone rules, under which a graveyard card
+ *  is not castable), and a `oncePerTurn` permission whose source has already
+ *  spent its use this turn is absent. A call site that reaches a permission
+ *  at all has therefore passed its gates — the fail-open split ADR 0093
+ *  retired was three readers, each re-implementing a different subset. The
+ *  card-shaped axes (`cardTypes`, `maxManaValue`) depend on the card and are
+ *  applied by {@link graveyardPlayPermissionCovers}. */
+export function getGraveyardPlayPermissions(
+    state: GameState,
+    player: PlayerState
+): LiveGraveyardPlayPermission[] {
+    const live: LiveGraveyardPlayPermission[] = [];
+    for (const card of player.battlefield) {
+        const cardId = (card.card as { id?: string }).id;
+        if (!cardId) continue;
+        const permission = tryGetDefinition(cardId)?.graveyardPlayPermission;
+        if (permission) live.push({ ...permission, sourceId: card.id });
+    }
+    for (const grant of state.graveyardPlayPermissionThisTurn ?? []) {
+        if (grant.playerId !== player.id) continue;
+        live.push({
+            actions: grant.actions,
+            sourceId: grant.sourceId,
+            ...(grant.cardTypes !== undefined
+                ? { cardTypes: grant.cardTypes }
+                : {}),
+            ...(grant.maxManaValue !== undefined
+                ? { maxManaValue: grant.maxManaValue }
+                : {}),
+            ...(grant.oncePerTurn ? { oncePerTurn: true } : {}),
+            ...(grant.yourTurnOnly ? { yourTurnOnly: true } : {}),
+        });
+    }
+    return live.filter(
+        (permission) =>
+            (!permission.yourTurnOnly || state.activePlayerId === player.id) &&
+            !(
+                permission.oncePerTurn &&
+                isGraveyardPlayPermissionSpent(
+                    state,
+                    player.id,
+                    permission.sourceId
+                )
+            )
+    );
+}
+
+/** Whether `sourceId`'s once-per-turn graveyard play permission has already
+ *  been spent by `playerId` this turn (ADR 0093 — uses keyed by SOURCE). */
+function isGraveyardPlayPermissionSpent(
+    state: GameState,
+    playerId: string,
+    sourceId: string
+): boolean {
+    return (
+        state.graveyardPlayPermissionUsesThisTurn?.some(
+            (use) => use.playerId === playerId && use.sourceId === sourceId
+        ) ?? false
+    );
+}
+
+/** Whether `permission` licenses `action` for `card` (ADR 0093). The
+ *  card-shaped axes narrow the CAST action only: `cardTypes` is a plain type
+ *  LIST (absent = any castable type), never the fail-open card filter, and
+ *  `maxManaValue` caps the card's mana value (absent = uncapped). A land is
+ *  played, never cast (CR 305.9), and carries neither restriction. */
+export function graveyardPlayPermissionCovers(
+    permission: GraveyardPlayPermission,
+    action: GraveyardPlayAction,
+    card: CardInstanceState
+): boolean {
+    if (!permission.actions.includes(action)) return false;
+    if (action === "play-land") return true;
+    if (
+        permission.cardTypes !== undefined &&
+        !permission.cardTypes.some((t) => card.types.includes(t))
+    ) {
+        return false;
+    }
+    return (
+        permission.maxManaValue === undefined ||
+        manaValue(getInstanceManaCost(card)) <= permission.maxManaValue
+    );
+}
+
+/** The live permission `player` spends to take `action` with `card`, or
+ *  `undefined` when none covers it (ADR 0093). When several cover the same
+ *  play or cast the selection is deterministic, never a prompt (maintainer
+ *  decision on issue #2244): a permission that is NOT once-per-turn first —
+ *  spending it costs nothing, so it dominates — else the first once-per-turn
+ *  permission scanned (battlefield order, then turn-scoped grants). */
+export function selectGraveyardPlayPermission(
+    state: GameState,
+    player: PlayerState,
+    action: GraveyardPlayAction,
+    card: CardInstanceState
+): LiveGraveyardPlayPermission | undefined {
+    const covering = getGraveyardPlayPermissions(state, player).filter(
+        (permission) => graveyardPlayPermissionCovers(permission, action, card)
+    );
+    return (
+        covering.find((permission) => !permission.oncePerTurn) ?? covering[0]
+    );
+}
+
+/** Whether `player` may play lands from their own graveyard right now (CR
+ *  305.1-analog — the land-play special action with 305.1's "from their hand"
+ *  zone lifted; a land is played, never cast, CR 305.9). A query over the
+ *  resolver: any live permission licensing `"play-land"` — Crucible of
+ *  Worlds, Icetill Explorer, Ramunap Excavator (continuous) or Yawgmoth's Will
+ *  (turn-scoped). */
 export function canPlayLandsFromGraveyard(
     state: GameState,
     player: PlayerState
 ): boolean {
-    for (const card of player.battlefield) {
-        const cardId = (card.card as { id?: string }).id;
-        if (!cardId) continue;
-        const def = tryGetDefinition(cardId);
-        if (def?.playsLandsFromGraveyard) return true;
-    }
-    // CR 305.1-analog / 601 (issue #1149) — the BROAD, turn-scoped
-    // graveyard-cast/land-play permission (Yawgmoth's Will) also covers
-    // lands when its `zones` include "land" — unioned with the
-    // battlefield-derived permission above.
-    return (
-        getGraveyardPlayPermission(state, player.id)?.zones.includes("land") ??
-        false
+    return getGraveyardPlayPermissions(state, player).some((permission) =>
+        permission.actions.includes("play-land")
     );
 }
 
@@ -347,113 +449,69 @@ export function libraryTopCastLifeCost(
     );
 }
 
-/** Reads the turn-scoped, player-wide graveyard play/cast permission granted
- *  to `playerId` by the `grantGraveyardPlay` Effect Script Op (Yawgmoth's
- *  Will, CR 305.1-analog / 601, issue #1149), or `undefined` if none is
- *  active. Distinct from the unconditional, indefinite,
- *  battlefield-derived `playsLandsFromGraveyard` land-only permission
- *  (#1190, Icetill Explorer) folded into `canPlayLandsFromGraveyard` above. */
-export function getGraveyardPlayPermission(
-    state: GameState,
-    playerId: string
-): { zones: Array<"land" | "spell">; maxManaValue?: number } | undefined {
-    return state.graveyardPlayPermissionThisTurn?.find(
-        (e) => e.playerId === playerId
-    );
-}
-
 /** Whether `card` — a NON-LAND card sitting in `player`'s own graveyard — is
- *  currently castable purely under the BROAD, turn-scoped graveyard-cast
- *  permission (Yawgmoth's Will, issue #1149): the permission covers
- *  `"spell"` and, when capped, the card's printed mana value is within
- *  `maxManaValue`. Callers only reach this for a card with NEITHER Flashback
- *  nor Escape — those own keyword-cast mechanisms take precedence (their own
- *  branches in `getLegalActions` return before this is ever consulted). */
+ *  castable right now under a graveyard play permission (ADR 0093): a query
+ *  over the resolver, true iff {@link selectGraveyardPlayPermission} finds a
+ *  live permission covering the cast. Every gate (own turn, once per turn,
+ *  card types, mana value) is already applied there — a FLASH permanent under
+ *  Lurrus's permission is not castable on the opponent's turn because the
+ *  permission itself is absent then, not because this function checks.
+ *  Callers reach this only for a card no keyword or per-card mechanism
+ *  already claimed (`graveyardCastMechanism`'s precedence). */
 export function canCastFromGraveyardByPermission(
     state: GameState,
     player: PlayerState,
     card: CardInstanceState
 ): boolean {
     if (card.types.includes("Land")) return false;
-    const permission = getGraveyardPlayPermission(state, player.id);
-    if (!permission || !permission.zones.includes("spell")) return false;
-    if (permission.maxManaValue === undefined) return true;
-    const cardId = (card.card as { id?: string }).id;
-    const def = cardId ? tryGetDefinition(cardId) : undefined;
-    return manaValue(def?.manaCost) <= permission.maxManaValue;
+    return (
+        selectGraveyardPlayPermission(state, player, "cast", card) !== undefined
+    );
 }
 
-/** CR 702.139 (issue #1392, Lurrus of the Dream-Den) — true iff `player`
- *  currently holds a STATIC, battlefield-derived permission to cast `card` —
- *  a PERMANENT card (never Land, never Instant/Sorcery, CR 110.1/300.1) —
- *  from their own graveyard: some permanent on `player`'s battlefield
- *  declares `CardDefinition.castsPermanentsFromGraveyard` with a
- *  `maxManaValue` at or above `card`'s printed mana value, AND `player`
- *  hasn't already used such a permission this turn
- *  (`state.graveyardPermanentCastUsedThisTurn`). Read live from the
- *  battlefield every call (mirrors `canPlayLandsFromGraveyard`), so the
- *  permission ends the instant the granting source leaves play — no stale
- *  flag. Distinct from `canCastFromGraveyardByPermission` above (the BROAD,
- *  turn-scoped, Op-granted, any-spell, uncapped Yawgmoth's Will permission).
- *
- *  CR 702.139a's Oracle text is "Once during each of YOUR TURNS" — the
- *  permission only exists while `player` is the active player
- *  (`state.activePlayerId === player.id`). Without this gate, a FLASH
- *  permanent (MV ≤ the grant's cap) in the graveyard would be castable on
- *  the OPPONENT's turn too, because the flash/sorcery-timing check in the
- *  cast branches (`gre/rules.ts`'s `isPermanentPermissionCast`,
- *  `gameProjections.ts`'s affordance) short-circuits to instant-speed
- *  legality and never itself asks whose turn it is. This function is the
- *  SINGLE shared source both call sites read, so gating it here fixes
- *  legality and the wire affordance together — no duplicated own-turn check
- *  at either call site. */
-export function canCastPermanentFromGraveyardByPermission(
+/** Spends `permission`'s use for `playerId` this turn (ADR 0093 — keyed by
+ *  SOURCE, so another source's use is untouched). A no-op for a permission
+ *  that is not once-per-turn. Called ONCE per play or cast, at the commit —
+ *  every cast-commit site that can push a graveyard cast onto the stack and
+ *  the graveyard land-play settle (`applyPlayLandFromGraveyard`) — never at
+ *  legality-check time (`getLegalActions` / `locateCastSource` are
+ *  read-only). Idempotent. */
+export function markGraveyardPlayPermissionUsed(
+    state: GameState,
+    playerId: string,
+    permission: LiveGraveyardPlayPermission
+): void {
+    if (!permission.oncePerTurn) return;
+    if (isGraveyardPlayPermissionSpent(state, playerId, permission.sourceId)) {
+        return;
+    }
+    state.graveyardPlayPermissionUsesThisTurn = [
+        ...(state.graveyardPlayPermissionUsesThisTurn ?? []),
+        { playerId, sourceId: permission.sourceId },
+    ];
+}
+
+/** Selects the permission `player` uses to take `action` with `card` and
+ *  spends it ({@link selectGraveyardPlayPermission} then
+ *  {@link markGraveyardPlayPermissionUsed}) — for a commit site that knows
+ *  only that a graveyard play permission enabled the action: the graveyard
+ *  land-play settle and the Bot's two sandboxes. Returns the permission
+ *  spent, or `undefined` when none covers the action. */
+export function spendGraveyardPlayPermission(
     state: GameState,
     player: PlayerState,
+    action: GraveyardPlayAction,
     card: CardInstanceState
-): boolean {
-    if (state.activePlayerId !== player.id) {
-        return false;
-    }
-    if (
-        !(CASTABLE_PERMANENT_TYPES as readonly CardType[]).some((t) =>
-            card.types.includes(t)
-        )
-    ) {
-        return false;
-    }
-    if (state.graveyardPermanentCastUsedThisTurn?.includes(player.id)) {
-        return false;
-    }
-    const mv = manaValue(getInstanceManaCost(card));
-    for (const perm of player.battlefield) {
-        const permCardId = (perm.card as { id?: string }).id;
-        if (!permCardId) continue;
-        const grant =
-            tryGetDefinition(permCardId)?.castsPermanentsFromGraveyard;
-        if (grant && mv <= grant.maxManaValue) return true;
-    }
-    return false;
-}
-
-/** Marks `playerId` as having used a STATIC graveyard-permanent-cast
- *  permission (Lurrus, issue #1392) this turn — the once-per-turn
- *  consumption side of `canCastPermanentFromGraveyardByPermission`. Called
- *  ONCE, at cast commit, by every commit site that can push a graveyard cast
- *  onto the stack (`convex/gre/activation.ts`: `tryAutoCommitPendingCast`,
- *  `finalizeTargetSelection`, `announceCast`'s immediate-commit branch) —
- *  never at mere legality-check time (`getLegalActions`/`locateCastSource`
- *  are read-only). Idempotent (a player id is never pushed twice). */
-export function markGraveyardPermanentCastUsed(
-    state: GameState,
-    playerId: string
-): void {
-    if (!state.graveyardPermanentCastUsedThisTurn) {
-        state.graveyardPermanentCastUsedThisTurn = [];
-    }
-    if (!state.graveyardPermanentCastUsedThisTurn.includes(playerId)) {
-        state.graveyardPermanentCastUsedThisTurn.push(playerId);
-    }
+): LiveGraveyardPlayPermission | undefined {
+    const permission = selectGraveyardPlayPermission(
+        state,
+        player,
+        action,
+        card
+    );
+    if (permission)
+        markGraveyardPlayPermissionUsed(state, player.id, permission);
+    return permission;
 }
 
 const ALL_HAND_ACTIONS: CardAction[] = [
@@ -1102,30 +1160,6 @@ export function getLegalActions(
         return actions;
     }
 
-    // CR 305.1-analog / 601 (issue #1149) — a NON-LAND card in the player's
-    // OWN graveyard, while the player holds the BROAD, turn-scoped
-    // graveyard-cast permission (Yawgmoth's Will) covering it, is castable
-    // from there for its normal printed mana cost. Only reached when the
-    // card has NEITHER Flashback nor Escape (those branches above return
-    // first); a LAND is handled by the "play" branch instead.
-    const isPermissionCast =
-        player.graveyard.some((c) => c.id === card.id) &&
-        canCastFromGraveyardByPermission(state, player, card);
-    if (isPermissionCast) {
-        if (
-            passesCastPhaseRestriction(state, card) &&
-            anyCastAnnouncementLegal(state, caster, card, {
-                timingZone: "graveyard",
-                // CR 709.3a — the permission pays "its mana cost", and the
-                // spell it puts on the stack is the announced HALF.
-                cost: (subject) => getInstanceManaCost(subject) ?? {},
-            })
-        ) {
-            actions.push("cast");
-        }
-        return actions;
-    }
-
     // CR 702.51 / 601.3 (issue #1338, Hogaak) — a NON-LAND card in the player's
     // OWN graveyard whose definition declares `castableFromOwnGraveyard` ("You
     // may cast this card from your graveyard") is castable from there for its
@@ -1191,34 +1225,28 @@ export function getLegalActions(
         return actions;
     }
 
-    // CR 702.139 (issue #1392, Lurrus of the Dream-Den) — a PERMANENT card in
-    // the player's OWN graveyard, while the player holds a STATIC,
-    // battlefield-derived, once-per-turn permission covering it
-    // (`canCastPermanentFromGraveyardByPermission`), is castable from there
+    // CR 601.3 (ADR 0093, issue #2244) — a NON-LAND card in the player's OWN
+    // graveyard, while a live graveyard play permission covers casting it
+    // (Yawgmoth's Will, Lurrus of the Dream-Den, …), is castable from there
     // for its normal printed mana cost. Only reached when the card has none
-    // of Flashback, Escape, the BROAD permission, or a per-card grant (those
-    // branches above return first) — a card that qualifies for more than one
-    // mechanism prefers the higher-precedence one, sparing Lurrus's scarce
-    // once-per-turn use. Distinct from `isPermissionCast` above: source-bound
-    // (ends when the granting permanent leaves play), permanent-cards-only,
-    // and capped at one use per turn. `canCastPermanentFromGraveyardByPermission`
-    // itself gates on `state.activePlayerId === player.id` (CR 702.139a "Once
-    // during each of YOUR TURNS") — the `baseLegal` check below is ONLY the
-    // within-your-turn flash-vs-sorcery-timing split (CR 702.139a's "using its
-    // normal timing permissions"), never a substitute for the own-turn gate.
-    const isPermanentPermissionCast =
+    // of Flashback, Escape, a per-card grant or an intrinsic permission (those
+    // branches above return first) — the same precedence as
+    // `graveyardCastMechanism`, so a card another mechanism already permits
+    // never spends a once-per-turn use. Every gate the permission carries
+    // (own turn, once per turn, card types, mana value) is applied inside the
+    // resolver; the timing check below is ONLY the flash-vs-sorcery split of
+    // the card's normal timing permissions, never a substitute for the
+    // own-turn gate. A LAND is handled by the "play" branch instead.
+    const isPermissionCast =
         player.graveyard.some((c) => c.id === card.id) &&
-        canCastPermanentFromGraveyardByPermission(state, player, card);
-    if (isPermanentPermissionCast) {
+        canCastFromGraveyardByPermission(state, player, card);
+    if (isPermissionCast) {
         if (
             passesCastPhaseRestriction(state, card) &&
             anyCastAnnouncementLegal(state, caster, card, {
                 timingZone: "graveyard",
-                // CR 709.3a — as above. Unreachable for a split card in the
-                // admitted class (this branch takes PERMANENT cards only, and
-                // a split card with a permanent face is CR 709.5, out of scope
-                // per ADR 0121) — walked anyway, so the day 709.5 ships this
-                // branch is not the one that forgot.
+                // CR 709.3a — the permission pays "its mana cost", and the
+                // spell it puts on the stack is the announced HALF.
                 cost: (subject) => getInstanceManaCost(subject) ?? {},
             })
         ) {
@@ -2136,7 +2164,7 @@ function coloredCostLeftover(
          *  full game state, threaded down from `canPotentiallyPayCost`'s own
          *  optional `state` param. Commit 10b27d7a made every one of
          *  `canPotentiallyPayCost`'s ten call sites (hand-cast, flashback,
-         *  escape, madness, graveyard-permission, permanent-permission,
+         *  escape, madness, graveyard-permission,
          *  graveyard-grant, free-exile, alternative-cost, intrinsic-graveyard)
          *  pass `state`; issue #1751 finding 1 closed the one remaining gap,
          *  the Phyrexian branch (`solvePhyrexianSplit`), which now forwards

@@ -46,7 +46,6 @@ import { isSplitCastId } from "./splitCast";
 import { hasRebound } from "./rebound";
 import {
     canCastFromGraveyardByPermission,
-    canCastPermanentFromGraveyardByPermission,
     canCastSpellsFromTopOfLibrary,
     libraryTopCastLifeCost,
 } from "./rules";
@@ -344,8 +343,7 @@ export type GraveyardCastMechanism =
     | "retrace"
     | "grant"
     | "intrinsic"
-    | "permission"
-    | "permanent-permission";
+    | "permission";
 
 /** CR 601.3 — which mechanism, if any, lets `caster` cast `card` out of
  *  `player`'s graveyard right now, or `undefined` when none does.
@@ -405,15 +403,11 @@ export function graveyardCastMechanismForMember(
     ) {
         return "intrinsic";
     }
-    // CR 601.3 (issue #1149, Yawgmoth's Will) — the broad, player-wide
-    // permission.
+    // CR 601.3 (ADR 0093, issue #2244) — a graveyard play permission, whatever
+    // its source (Yawgmoth's Will's turn-scoped grant, Lurrus's once-per-turn
+    // static): the single resolver has already applied every gate it carries.
     if (canCastFromGraveyardByPermission(state, player, card)) {
         return "permission";
-    }
-    // CR 702.139 (issue #1392, Lurrus) — the once-per-turn permanent-only
-    // permission held by a battlefield source.
-    if (canCastPermanentFromGraveyardByPermission(state, player, card)) {
-        return "permanent-permission";
     }
     return undefined;
 }

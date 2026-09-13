@@ -3023,7 +3023,7 @@ export type DisplayAbilities = {
  *    - enter-tapped mechanics (CR 614.12 shocklands, conditional-tapped lands,
  *      plain `entersTapped`)
  *    - `drawReplacement`, `revealsHand`, `extraLandDrops`,
- *      `playsLandsFromGraveyard`, … and any field added in the future.
+ *      `graveyardPlayPermission`, … and any field added in the future.
  *  For those, and for spells/auras/cards with no structured abilities at all,
  *  the Oracle text is the only place the behavior is described, so it must be
  *  shown. When it is shown, the structured render is suppressed by the caller
@@ -3034,7 +3034,7 @@ export type DisplayAbilities = {
  *  Enumerating every oracle-bearing field (the old approach) silently dropped a
  *  clause the day a new field shipped — the Enduring Renewal (`drawReplacement`
  *  / `revealsHand`) and Icetill Explorer (`extraLandDrops` /
- *  `playsLandsFromGraveyard`) bug. When the printed Oracle text has MORE
+ *  `graveyardPlayPermission`) bug. When the printed Oracle text has MORE
  *  non-empty lines than the structured view can render, at least one clause is
  *  unrepresented, so the full Oracle text is printed. The named-field checks
  *  below remain as an explicit fast-path/safety-net for the CR-documented cases

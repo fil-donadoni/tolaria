@@ -17,7 +17,6 @@ import {
 import type { ActivatedAbility, ManaCost, TextChange } from "./cards/types";
 import {
     canCastFromGraveyardByPermission,
-    canCastPermanentFromGraveyardByPermission,
     canPlayLandsFromGraveyard,
     canCastSpellsFromTopOfLibrary,
     isCastableLibraryTopSpell,
@@ -128,12 +127,12 @@ export type SlimExileCard = SlimCardInstance & {
 
 /** Graveyard card in projected state: slim, plus `legalActions` when the viewer
  *  may cast it from the graveyard via Flashback (CR 702.34), escape (CR
- *  702.138), the BROAD turn-scoped graveyard-cast permission (CR 305.1-analog
- *  / 601, Yawgmoth's Will, issue #1149), a SPECIFIC-CARD graveyard-cast grant
- *  (CR 601.3 / 118.9, Malcolm, Alluring Scoundrel, issue #1344), or
- *  play it as a LAND under an unconditional play-lands-from-graveyard
- *  permission (CR 305.1-analog, Icetill Explorer #1190, or the same BROAD
- *  #1149 permission when its zones cover "land"). Present only on the
+ *  702.138), a graveyard play permission licensing `cast` (CR 601.3, ADR 0093 —
+ *  Yawgmoth's Will, Lurrus of the Dream-Den), a SPECIFIC-CARD graveyard-cast
+ *  grant (CR 601.3 / 118.9, Malcolm, Alluring Scoundrel, issue #1344), or
+ *  play it as a LAND under a graveyard play permission licensing `play-land`
+ *  (CR 305.1-analog — Crucible of Worlds, Icetill Explorer, Yawgmoth's Will).
+ *  Present only on the
  *  viewer's own graveyard cards; drives the Flashback / Escape / Cast / Play
  *  affordance's enabled state, exactly like {@link SlimExileCard.legalActions}
  *  for an exile cast. */
@@ -156,7 +155,6 @@ export type SlimGraveyardCard = SlimCardInstance & {
         | "escape"
         | "graveyard-permission"
         | "graveyard-grant"
-        | "graveyard-permanent-permission"
         | "retrace";
     /** CR 702.34a / 118.5 / 107.3 — the maximum {X} the caster may announce on
      *  THIS flashback cast, bounded by its `flashbackExileFromGraveyard`
@@ -845,12 +843,31 @@ function projectGraveyardCard(
     if (isOwnGraveyard && hasEscape(state, card)) {
         return { ...slim, legalActions: legalActionsFor(), castKind: "escape" };
     }
-    // CR 305.1-analog / 601 (issue #1149) — a NON-LAND card sitting in the
-    // viewer's own graveyard while the BROAD, turn-scoped graveyard-cast
-    // permission (Yawgmoth's Will) covers it — re-derived live every
-    // projection, so the affordance disappears the instant the permission
-    // expires (CLEANUP), no stale flag. Only reached when the card has
-    // NEITHER Flashback nor Escape (those branches above return first).
+    // CR 601.3 / 118.9 (issue #1344) — a NON-LAND card sitting in the
+    // viewer's own graveyard tagged with a per-card cast grant (Malcolm,
+    // Alluring Scoundrel — `castableFromGraveyardBy`), reached only when the
+    // card has neither Flashback nor Escape (those branches return first).
+    // Distinct `castKind` from `"graveyard-permission"` so the client could
+    // label it differently later, though both currently render the same
+    // "Cast" affordance.
+    if (isOwnGraveyard && card.castableFromGraveyardBy === player.id) {
+        return {
+            ...slim,
+            legalActions: legalActionsFor(),
+            castKind: "graveyard-grant",
+        };
+    }
+    // CR 601.3 (ADR 0093, issue #2244) — a NON-LAND card sitting in the
+    // viewer's own graveyard while a live graveyard play permission covers
+    // casting it (Yawgmoth's Will, Lurrus of the Dream-Den, …). Re-derived
+    // live every projection through the SAME resolver the legality branch
+    // reads, so the affordance disappears the instant the permission lapses —
+    // its source leaves play, its once-per-turn use is spent, CLEANUP clears a
+    // turn-scoped grant, or it is not the viewer's turn for a `yourTurnOnly`
+    // permission (a FLASH permanent under Lurrus is not castable on the
+    // opponent's turn, here or in `getLegalActions`). Only reached when no
+    // keyword or per-card grant claimed the card (the branches above return
+    // first), matching `graveyardCastMechanism`'s precedence.
     if (
         isOwnGraveyard &&
         canCastFromGraveyardByPermission(state, player, card)
@@ -859,46 +876,6 @@ function projectGraveyardCard(
             ...slim,
             legalActions: legalActionsFor(),
             castKind: "graveyard-permission",
-        };
-    }
-    // CR 601.3 / 118.9 (issue #1344) — a NON-LAND card sitting in the
-    // viewer's own graveyard tagged with a per-card cast grant (Malcolm,
-    // Alluring Scoundrel — `castableFromGraveyardBy`), reached only when the
-    // card has neither Flashback, Escape, nor the broad permission above
-    // (those branches return first). Distinct `castKind` from
-    // `"graveyard-permission"` so the client could label it differently
-    // later, though both currently render the same "Cast" affordance.
-    if (isOwnGraveyard && card.castableFromGraveyardBy === player.id) {
-        return {
-            ...slim,
-            legalActions: legalActionsFor(),
-            castKind: "graveyard-grant",
-        };
-    }
-    // CR 702.139 (issue #1392, Lurrus of the Dream-Den) — a PERMANENT card
-    // sitting in the viewer's own graveyard while a STATIC,
-    // battlefield-derived, once-per-turn permission covers it
-    // (`canCastPermanentFromGraveyardByPermission`) — re-derived live every
-    // projection, so the affordance disappears the instant the granting
-    // source leaves play, OR the permission is used up this turn, OR it
-    // isn't `player`'s turn (CR 702.139a "Once during each of YOUR TURNS" —
-    // enforced INSIDE `canCastPermanentFromGraveyardByPermission` itself via
-    // `state.activePlayerId === player.id`, so this call site and the
-    // `gre/rules.ts` legality branch always agree, including for a FLASH
-    // permanent that would otherwise read as castable on the opponent's
-    // turn). Only reached when the card has none of Flashback, Escape, the
-    // broad permission, or a per-card grant (those branches above return
-    // first). Distinct `castKind` from `"graveyard-permission"` (both
-    // currently render the same "Cast" affordance, `graveyard-flashback-
-    // button.tsx`) so the client could label it differently later.
-    if (
-        isOwnGraveyard &&
-        canCastPermanentFromGraveyardByPermission(state, player, card)
-    ) {
-        return {
-            ...slim,
-            legalActions: legalActionsFor(),
-            castKind: "graveyard-permanent-permission",
         };
     }
     // CR 702.81a (issue #2358) — a NONLAND card in the viewer's own graveyard

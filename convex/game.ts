@@ -204,7 +204,7 @@ import {
 } from "./gre/targetFilters";
 import {
     assertLegalAction,
-    markGraveyardPermanentCastUsed,
+    markGraveyardPlayPermissionUsed,
     getLegalTargets,
     checkPermanentTargetFilters,
     checkSpellTargetFilters,
@@ -6418,11 +6418,15 @@ export function finalizeTargetSelection(
         if (altHandChoice?.pickedCardIds) {
             payAlternativeCostHandChoice(state, playerId, altHandChoice);
         }
-        // CR 702.139 (issue #1392) — debit Lurrus's once-per-turn use now, at
-        // commit, when it EXCLUSIVELY enabled this cast (see the matching
-        // comment in `tryAutoCommitPendingCast`).
-        if (castSource.viaGraveyardPermanentPermission) {
-            markGraveyardPermanentCastUsed(state, playerId);
+        // CR 601.3 (ADR 0093) — spend the graveyard play permission's
+        // once-per-turn use now, at commit, when one enabled this cast (see
+        // the matching comment in `tryAutoCommitPendingCast`).
+        if (castSource.graveyardPermission) {
+            markGraveyardPlayPermissionUsed(
+                state,
+                playerId,
+                castSource.graveyardPermission
+            );
         }
         // issue #1156 — a cross-player exile grant removes from the ACTUAL
         // exile owner, not the caster.
@@ -8394,11 +8398,15 @@ export const announceCast = mutation({
             // CR 107.4f — pay the Phyrexian pips chosen as life as the spell
             // moves to the stack (Phyrexian Metamorph's {U/P} for 2 life).
             if (phyrexianPayLife > 0) player.life -= phyrexianPayLife;
-            // CR 702.139 (issue #1392) — debit Lurrus's once-per-turn use
-            // now, at commit, when it EXCLUSIVELY enabled this cast (see the
-            // matching comment in `tryAutoCommitPendingCast`).
-            if (castSource.viaGraveyardPermanentPermission) {
-                markGraveyardPermanentCastUsed(state, args.playerId);
+            // CR 601.3 (ADR 0093) — spend the graveyard play permission's
+            // once-per-turn use now, at commit, when one enabled this cast
+            // (see the matching comment in `tryAutoCommitPendingCast`).
+            if (castSource.graveyardPermission) {
+                markGraveyardPlayPermissionUsed(
+                    state,
+                    args.playerId,
+                    castSource.graveyardPermission
+                );
             }
             // issue #1156 — a cross-player exile grant removes from the
             // ACTUAL exile owner, not the caster.

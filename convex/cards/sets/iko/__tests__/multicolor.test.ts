@@ -19,7 +19,7 @@ import {
 import { projectPublicState } from "../../../../gameProjections";
 import type { GameState } from "../../../../gre/state";
 import {
-    canCastPermanentFromGraveyardByPermission,
+    canCastFromGraveyardByPermission,
     getLegalActions,
 } from "../../../../gre/rules";
 import { getDefinition } from "../../../index";
@@ -173,9 +173,7 @@ describe("Lurrus of the Dream-Den (Companion, Lifelink, static graveyard-permane
             ],
         });
         const p1 = state.players[0];
-        expect(
-            canCastPermanentFromGraveyardByPermission(state, p1, gyLions)
-        ).toBe(true);
+        expect(canCastFromGraveyardByPermission(state, p1, gyLions)).toBe(true);
         expect(getLegalActions(state, p1, gyLions)).toContain("cast");
     });
 });

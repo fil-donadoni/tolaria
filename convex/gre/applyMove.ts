@@ -149,7 +149,7 @@ import { applyCastModeCharacteristics } from "./castMode";
 import { turnFaceUp } from "./faceDown";
 import { COMPANION_SUMMON_COST } from "./companion";
 import { spellHasDelve, delveEligibleCards, genericPortion } from "./payWith";
-import { genericManaShortfall, markGraveyardPermanentCastUsed } from "./rules";
+import { genericManaShortfall, spendGraveyardPlayPermission } from "./rules";
 import {
     buildCastExileCostChoice,
     castSourceForSearch,
@@ -1480,9 +1480,9 @@ export function applyMoveForSearch(
             );
             if (castSource === null) return next;
             const castFromZone = castSource.zone;
-            // CR 702.139 (issue #1392, Lurrus) — the once-per-turn
-            // permanent-permission cast is CONSUMED at commit by every real
-            // commit site (`markGraveyardPermanentCastUsed`). Read the
+            // CR 601.3 (ADR 0093) — a once-per-turn graveyard play permission
+            // (Lurrus) is SPENT at commit by every real commit site
+            // (`markGraveyardPlayPermissionUsed`). Read the
             // mechanism while the card is still IN the graveyard, then charge
             // it: without this the search recasts the same permanent every turn
             // for free and prices a line that does not exist.
@@ -1504,8 +1504,13 @@ export function applyMoveForSearch(
                 castFromZone,
                 playerId
             );
-            if (castMechanism === "permanent-permission") {
-                markGraveyardPermanentCastUsed(next, playerId);
+            if (castMechanism === "permission") {
+                spendGraveyardPlayPermission(
+                    next,
+                    castSource.owner,
+                    "cast",
+                    spellCard
+                );
             }
             const stackItem: StackItem = {
                 ...spellCard,

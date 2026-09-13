@@ -140,7 +140,11 @@ function board(opts: {
         // scan; setting it is what routes the card through the permission
         // branch rather than `getLegalActions`'s zone-blind fallback.
         state.graveyardPlayPermissionThisTurn = [
-            { playerId: "p1", zones: ["spell", "land"] },
+            {
+                playerId: "p1",
+                sourceId: "yawgmoths-will",
+                actions: ["cast", "play-land"],
+            },
         ];
     }
     return state;
