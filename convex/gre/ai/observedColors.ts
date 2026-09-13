@@ -45,6 +45,24 @@
 //     chooser (Fellwar Stone) DOES count, resolved against the real, PUBLIC
 //     board — that resolution is not hidden information.
 //
+//   - a DECKLIST the search was explicitly granted for this seat (issue
+//     #3533) is the fourth class, and the only one that is not read off the
+//     board. It weighs the same as an untapped source's producible colour, and
+//     for the same reason: a card sitting in a deck is the purest form of
+//     POTENTIAL — it may never be drawn. What makes it matter is that there
+//     are sixty of them, so a deck that is 40% green outweighs two Forests
+//     without any special pleading and without a second scale.
+//
+// THE DECKLIST IS NOT PUBLIC, and nothing above is weakened by admitting it.
+// It arrives only on a world `determinize` stamped (`GameState.deckColorKnowledge`),
+// and `determinize` stamps a seat only when the search was HANDED that seat's
+// decklist and that seat is not the observer — true exactly at `expert`
+// (`DIFFICULTY_KNOWS_OPPONENT`, `gre/difficulty.ts`). At every other
+// difficulty, on every server path, and in every test that stamps nothing, the
+// field is `undefined` and this module computes byte-identically to before.
+// Still NO HAND READ at any difficulty: a decklist says what the deck
+// CONTAINS, never what the opponent is holding.
+//
 // This stays a HEURISTIC input (a search-prior deviation, never a filter) —
 // see `colorModePrior` in `choicePriors.ts`.
 
@@ -57,6 +75,7 @@ import { getPlayer } from "../state";
 import { getManaTapOptionsDetailed, type ManaTapOption } from "../constants";
 import { MANA_COLORS } from "../manaColors";
 import { getEffectiveActivatedAbilities } from "../activatedAbilities";
+import { deckColorsFor } from "../deckKnowledge";
 
 /** Per-colour evidence SCORE (not a probability) — higher means more visibly
  *  threatened. An absent key is zero evidence for that colour. Never carries
@@ -77,6 +96,13 @@ const COMMITTED_WEIGHT = 3;
  *  POTENTIAL until spent, so it counts for less than an actuated signal
  *  (criterion 3: it must still count for SOMETHING, never zero). */
 const POTENTIAL_MANA_WEIGHT = 1;
+/** Weight of ONE coloured card in a decklist the search was granted (issue
+ *  #3533). Deliberately the same as {@link POTENTIAL_MANA_WEIGHT}: both are
+ *  potential rather than actuation, and sharing the unit is what keeps the
+ *  decklist SHARPENING this hierarchy instead of becoming a second scale
+ *  bolted beside it. The decklist's weight comes from its COUNT, not from a
+ *  per-card premium. */
+const DECKLIST_CARD_WEIGHT = 1;
 
 function addColors(
     evidence: Record<string, number>,
@@ -209,6 +235,18 @@ export function observedOpponentColors(
     for (const c of untappedProducibleColors(state, opponent)) {
         evidence[c] = (evidence[c] ?? 0) + POTENTIAL_MANA_WEIGHT;
     }
+    // The decklist, when the search was granted this seat's (issue #3533) —
+    // folded into the SAME map, at the same scale, so every consumer of this
+    // derivation sharpens at once and none of them grows a decklist branch of
+    // its own. `undefined` at every difficulty but `expert`.
+    const deckColors = deckColorsFor(state.deckColorKnowledge, opponentId);
+    if (deckColors) {
+        for (const [color, count] of Object.entries(deckColors)) {
+            if (!count || count <= 0) continue;
+            evidence[color] =
+                (evidence[color] ?? 0) + count * DECKLIST_CARD_WEIGHT;
+        }
+    }
     return evidence as ObservedColorEvidence;
 }
 
@@ -228,8 +266,16 @@ export type ColorDemandEstimate =
     | { kind: "unknown" };
 
 /** {@link observedOpponentColors}, lifted into {@link ColorDemandEstimate}:
- *  `unknown` exactly when the position has shown nothing at all. Public
- *  information only — this is the SAME derivation, never a second one. */
+ *  `unknown` exactly when the position has shown nothing at all. This is the
+ *  SAME derivation, never a second one — which is exactly why the `expert`
+ *  decklist (issue #3533) arrives THROUGH `observedOpponentColors` rather than
+ *  beside it.
+ *
+ *  A consequence worth naming: a seat whose decklist the search was granted is
+ *  effectively never `unknown`, because a decklist with any coloured card in
+ *  it is evidence on turn zero. That is the correct reading and the whole
+ *  point of the abstention — `unknown` answers "the position has shown
+ *  nothing", and to an informed search the position HAS shown something. */
 export function estimateOpponentColorDemand(
     state: GameState,
     opponentId: string
