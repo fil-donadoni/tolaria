@@ -28,7 +28,12 @@ import {
 import { backFaceDefinitionIdOf } from "../../../../gre/transform";
 import { projectPublicState } from "../../../../gameProjections";
 import type { PermanentView } from "../../../types";
-import { getCardByName, getDefinition, tryGetDefinition } from "../../../index";
+import {
+    getCardByName,
+    getDefinition,
+    tryGetDefinition,
+    withTemporaryDefinition,
+} from "../../../index";
 
 const aang = getDefinition("fea89ca0-8070-4f28-9851-994314f9d248");
 const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
@@ -332,6 +337,41 @@ describe("Aang, Destined Savior — back face (CR 712.8e / 613.1f / 701.66a, iss
         expect(getEffectivePower(state, bent)).toBe(2);
         expect(getEffectiveToughness(state, bent)).toBe(2);
         expect(bent.staticAbilities).toContain("haste");
+    });
+
+    // The cold-decode test above memoizes Aang's back-face definition, so every
+    // later transform in this file reuses it. A variant whose back face has a
+    // different content-derived id has never been decoded: transforming it
+    // goes through `registerBackFaceDefinition`, the path a live server takes.
+    it("a back face first registered by the transform itself carries its triggered abilities", () => {
+        const variant = {
+            ...aang,
+            id: "test-aang-registration-variant",
+            backFace: { ...aang.backFace!, name: "Aang, Registration Savior" },
+        };
+        withTemporaryDefinition(variant, () => {
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: [
+                            mine(variant.id, "variant"),
+                            mine(forest.id, "vland"),
+                        ],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            scratch(state).transform({ type: "permanent", id: "variant" });
+            expect(onBattlefield(state, "variant")!.transformed).toBe(true);
+            beginCombat(state, "p1");
+            expect(
+                state.stack.some(
+                    (s) =>
+                        s.triggeredAbilityId ===
+                        "aang-destined-savior-earthbend"
+                )
+            ).toBe(true);
+        });
     });
 
     it("does not trigger at the beginning of the opponent's combat", () => {
