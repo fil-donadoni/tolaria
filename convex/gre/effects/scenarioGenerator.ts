@@ -772,6 +772,15 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // the migrated cards' suspension/resume tests (per-Op regime).
             req.skip ??= `Op "scryReorder" suspends for a look/reorder-top choice — covered by the Op's interpreter tests and the card's suspension/resume tests`;
             return;
+        case "exileTopOfLibrary":
+            // CR 701.13 (issue #3235) — exiles the top N library cards. Same
+            // disposition as `mill` below and for the same reason: the canned
+            // generator seeds only a minimal filler library, so there is no
+            // meaningful before/after library→exile delta to assert without
+            // inventing a deck. A DELIBERATE, surfaced skip; execution coverage
+            // is the Op's own interpreter tests.
+            req.skip ??= `Op "exileTopOfLibrary" moves top-of-library cards to exile — covered by the Op's interpreter tests`;
+            return;
         case "mill":
             // `mill` (issue #885) moves the top N library cards to a graveyard.
             // The canned generator seeds only a minimal filler library and does
@@ -2411,6 +2420,16 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // without mis-modelling the source deck). Kept for the 1:1 coverage guard;
     // the mill loop is covered by the Op's own interpreter tests.
     mill() {
+        return null;
+    },
+    // `exileTopOfLibrary` (CR 701.13, issue #3235) — never reached, for the
+    // same reason as its `mill` sibling directly above: `analyseOp` skips every
+    // script carrying it, since the canned generator seeds only a minimal
+    // filler library and there is no library→exile delta it can assert without
+    // inventing a deck. Kept for the 1:1 coverage guard; the exile loop, the
+    // `linkToSource` stamp and the `bindAll` binding are covered by the Op's
+    // own interpreter tests.
+    exileTopOfLibrary() {
         return null;
     },
     // `revealTopAndRoute` (CR 701.20a) — never reached: `analyseOp` skips every

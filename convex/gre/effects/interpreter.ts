@@ -3630,6 +3630,40 @@ export const OP_EXECUTORS: {
     // into your graveyard from your library" self-triggers fire (Gaea's
     // Blessing) — the mill analogue of `drawCards`. Deterministic — no choice,
     // no suspension. Skipped when the player is gone or `count` ≤ 0 (CR 608.2b).
+    // CR 701.13 / 406.3 (issue #3235) — exile the top N of a library, FACE UP.
+    // The impulse first leg (The Legend of Roku I). Composition only: the same
+    // `peekLibraryTop` window + per-card `moveCardById(…, "library", "exile")`
+    // pair `lookDistribute`'s `destination: "exile"` leg runs, plus the
+    // CR 607 `linkExileToSource` stamp `hideaway` uses. No new primitive.
+    exileTopOfLibrary(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return; // CR 608.2b — player gone, skip
+        // "Exile the top card" with no numeral is the common shape.
+        const count = op.count === undefined ? 1 : resolveValue(ctx, op.count);
+        if (count === undefined || count <= 0) return;
+        // A short library exiles what is there; an empty one exiles nothing
+        // and the whole Op is a clean no-op (CR 608.2b).
+        const topIds = ctx.peekLibraryTop(playerId, count);
+        if (topIds.length === 0) return;
+        const exiled: string[] = [];
+        for (const id of topIds) {
+            ctx.moveCardById(playerId, id, "library", "exile");
+            // CR 607 / 406.6 — stamp the resolving source so a later Op (here
+            // or in a linked second ability) can name exactly these cards
+            // through `{ exiledWithSource: true }`.
+            if (op.linkToSource) {
+                ctx.linkExileToSource(id, ctx.sourceInstanceId);
+            }
+            exiled.push(id);
+        }
+        // The same set as a picks binding for a consumer in THIS script —
+        // `mill`'s `bindAll` shape (issue #2600), written with the plain
+        // `noteChoice` a `choice` Op's picks use. Left uncaptured when nothing
+        // moved, so a reader finds nothing rather than falling back to a zone.
+        if (op.bindAll && exiled.length > 0) {
+            ctx.noteChoice(op.bindAll, exiled);
+        }
+    },
     mill(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return; // CR 608.2b — player gone, skip

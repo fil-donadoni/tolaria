@@ -19,9 +19,10 @@
 // firebends", so there is nothing to wire up — the same disposition earthbend's
 // own CR 701.66b clause carries (`mechanicsRegistry.ts`).
 //
-// MULTIPLE INSTANCES: CR 702.189 carries no "each triggers separately" subrule
-// the way annihilator's CR 702.86b does, but it does not need one — 702.189a
-// says firebending IS a triggered ability, so two instances are two abilities
+// MULTIPLE INSTANCES: this keyword's section carries no "each triggers
+// separately" subrule the way CR 702.86b does for annihilator.
+// It does not need one: CR 702.189a says firebending IS a triggered
+// ability, so two instances are two abilities
 // and the engine's per-entry trigger scan fires both by construction. The
 // expansion therefore counts EVERY matching string (annihilator's shape), not
 // the first, and keys the injected id on N so two instances of DIFFERENT N

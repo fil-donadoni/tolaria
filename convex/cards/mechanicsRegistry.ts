@@ -269,12 +269,15 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         binding:
             "EFFECT_OP_REGISTRY `mill` Op → SpellContext.peekLibraryTop + moveCardById (library → graveyard loop, issue #885)",
     },
-    // 701.13 Play
+    // 701.18 Play. (Was cited as CR 701.13, which is Exile — the `exile` row
+    // above already holds that number. Corrected against `bun run cr 701.18`
+    // while adding the `exileTopOfLibrary` Op below, whose own 701.13 citation
+    // made the collision visible.)
     {
         id: "play",
         name: "Play",
         kind: "keyword-action",
-        cr: "701.13",
+        cr: "701.18",
         status: "implemented",
         binding: "SpellContext.playLandForPlayer + core cast system",
     },
@@ -3243,6 +3246,15 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         mechanicId: "scry",
         binding: "SpellContext.orderTop",
         note: "Look at / reorder the top of a library (CR 401.4 look, CR 701.22 Scry, CR 701.25 Surveil, order-only; issue #885). A thin declarative skin over the single SpellContext primitive `orderTop` — the reusable drag-picker the imperative scry/surveil/put-back cards already share — one execution path (ADR 0045). SUSPENDS like `choice`/`mayPay`: the first execution raises the `order-top` PendingChoice on the top `count` cards (projected face-up as `libraryPeek`); on resume the KEPT cards return to the top in the chooser's order and the un-kept cards go to `destination` (`library-bottom` = Scry, Preordain; `graveyard` = Surveil; `none` = order-only, Ponder). The reorder-FROM-choice half deferred out of libraryLook (issue #844): its pick is consumed internally by `orderTop`, so there is no `bind` read by a later Op. The mill loop the same backlog note bundled ships as the separate `mill` Op below (a deterministic move, no choice).",
+    },
+    {
+        op: "exileTopOfLibrary",
+        status: "implemented",
+        cr: "701.13",
+        mechanicId: "exile",
+        binding:
+            "SpellContext.peekLibraryTop + moveCardById (library \u2192 exile loop) + linkExileToSource",
+        note: 'CR 701.13 Exile / CR 406.3 (issue #3235) \u2014 move the top `count` cards of a library to their owner\'s exile, FACE UP. The impulse first leg: "Exile the top three cards of your library. Until the end of your next turn, you may play those cards" (The Legend of Roku, chapter I). A SIBLING of `mill`, deliberately not a widening of it: CR 701.17a defines milling as putting cards "into their graveyard", so a `mill` Op carrying a destination would misname the very action this registry is the name authority for \u2014 one verb, one zone change. Composition only, no new SpellContext primitive (ADR 0045 primitive reuse): the same `peekLibraryTop` window plus a per-card `moveCardById(player, id, "library", "exile")` loop that `lookDistribute`\'s `destination: "exile"` leg already runs, plus the CR 607 `linkExileToSource` stamp `hideaway` uses. It closes the gap Elkin Bottle (ice/colorless.ts) confesses in prose \u2014 "exile-top + cast-from-exile has no Op skin yet" \u2014 which is why that card reaches its impulse through a `resolve()` closure. FACE UP (CR 406.3): every Oracle text that reaches this Op says plainly "exile the top N cards", never "face down", so the open-zone default holds and both players may examine them; a face-down impulse is `hideaway`\'s job and has its own Op. `linkToSource` (CR 607 / 406.6) stamps each exiled card with the resolving source\'s instance id so a later Op \u2014 in this script or in a LINKED second ability \u2014 names exactly these cards through `{ exiledWithSource: true }`; `bindAll` publishes the same set as a picks binding (`mill`\'s own shape, issue #2600) for a consumer in the SAME script. The two are orthogonal and both optional \u2014 a bare "exile the top card" with no follow-up sets neither. `count` defaults to 1 (the unnumbered "exile the top card" shape); a non-positive count, an empty library and a short library are all clean CR 608.2b outcomes \u2014 nothing, nothing, and what is there.',
     },
     {
         op: "mill",

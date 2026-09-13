@@ -35122,6 +35122,14 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "The Legend of Roku",
+        "scryfallId": "95f2f5af-d405-4534-8683-5a9001f997b4",
+        "oracleId": "2f26f270-26d9-46d3-957f-19f52d51eb03",
+        "firstSet": "tla",
+        "firstPrintId": "95f2f5af-d405-4534-8683-5a9001f997b4",
+        "firstPrintSet": "tla"
+    },
+    {
         "name": "The One Ring",
         "scryfallId": "d5806e68-1054-458e-866d-1f2470f682b2",
         "oracleId": "3aa83ed2-f48b-4ce6-a614-2c54ddf50538",

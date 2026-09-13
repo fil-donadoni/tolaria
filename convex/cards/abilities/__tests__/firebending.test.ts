@@ -40,7 +40,6 @@ import {
 import { advancePhase } from "../../../gre/phases";
 import { collectTriggers, placeTriggersOnStack } from "../../../gre/triggers";
 import { projectPublicState } from "../../../gameProjections";
-import { restrictedManaLabel } from "../../../../src/lib/restricted-mana";
 import { isNamedMechanic, MECHANICS_REGISTRY } from "../../mechanicsRegistry";
 import { makeInstance, makePlayer, makeState } from "../../__tests__/setup";
 import {
@@ -344,7 +343,10 @@ describe("Firebending's mana lifetime (CR 500.5 / 702.189a)", () => {
 });
 
 describe("Firebending's mana on the wire (CR 106.6)", () => {
-    it("projectPublicState carries the unit and its lifetime, and the pool label says so instead of lying with 'Restricted'", () => {
+    // The pool LABEL is a client-side pure function and is asserted in
+    // `src/lib/__tests__/restricted-mana.test.ts` — a convex test may not
+    // import from `src/` (the two live in different tsconfig projects).
+    it("projectPublicState carries the unit and its lifetime", () => {
         const id = registerFirebender("synthetic-firebending-wire", [
             "firebending 4",
         ]);
@@ -355,9 +357,6 @@ describe("Firebending's mana on the wire (CR 106.6)", () => {
         expect(me.restrictedMana).toEqual([
             { color: "R", amount: 4, persistsUntil: "end-of-combat" },
         ]);
-        expect(restrictedManaLabel(me.restrictedMana![0])).toBe(
-            "Any spell — lasts until end of combat"
-        );
     });
 });
 

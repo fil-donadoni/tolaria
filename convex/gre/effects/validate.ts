@@ -3282,7 +3282,14 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             player: isPlayerRef,
         },
         optional: {
-            window: (v: unknown) => v === "this-turn" || v === "while-exiled",
+            // CR 514.2 / 608.2g — a closed literal set. The primitive accepts
+            // two further windows ("until-next-end-step", "after-this-turn")
+            // that no DSL card has needed yet; the Op's surface stays the
+            // subset its cards actually name, so a typo can never validate.
+            window: (v: unknown) =>
+                v === "this-turn" ||
+                v === "while-exiled" ||
+                v === "until-end-of-your-next-turn",
             withoutPayingManaCost: isBoolean,
             // CR 305.9 (issue #1689) — true iff the grant's Oracle text says
             // "play" (land-inclusive), never for a "cast"-only grant.
@@ -4356,6 +4363,20 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             count: isEffectValue,
         },
         optional: { bind: isBindingName, bindAll: isBindingName },
+    },
+    // CR 701.13 / 406.3 (issue #3235) — exile the top N of a library, face up.
+    // `count` is OPTIONAL here (unlike `mill`'s, which is required): "exile the
+    // top card" with no number is the common shape, and the executor defaults
+    // to 1. No combination is rejected — `linkToSource` and `bindAll` are two
+    // independent ways for a later Op to name the exiled set and a script may
+    // use either, both, or neither.
+    exileTopOfLibrary: {
+        required: { player: isPlayerRef },
+        optional: {
+            count: isEffectValue,
+            linkToSource: isBoolean,
+            bindAll: isBindingName,
+        },
     },
     // CR 701.20a + CR 400.7 — reveal the top `count` card(s) of a library and
     // route each by what it IS (deterministic; no choice, never suspends).

@@ -15132,6 +15132,30 @@ function resolveStormTrigger(
  *  `state.turn >= card.castableFromExileUntilTurn` — it doesn't care whose
  *  turn the expiry number belongs to — so returning the correct absolute
  *  turn number here is sufficient; no new state field is needed. */
+/** CR 514.2 / 608.2g — the absolute turn number "until the end of your next
+ *  turn" expires at (The Legend of Roku I: "Until the end of your next turn,
+ *  you may play those cards").
+ *
+ *  The sweep in `gre/phases.ts` revokes a grant at the CLEANUP step of the turn
+ *  whose number this returns, so returning `playerId`'s NEXT turn number makes
+ *  the permission last through the whole of that turn and die with it.
+ *
+ *  Deliberately NOT `untilNextEndStepTurn` with the early return removed by
+ *  accident: that function's early return exists because "until your next END
+ *  STEP" can still be satisfied by the CURRENT turn's end step. "Your next
+ *  TURN" never can — a grant created on your own turn always reaches past it —
+ *  so this helper has no such branch, and the two must not be merged.
+ *
+ *  Turn numbers alternate in this 2-player engine (CLAUDE.md § Out of Scope —
+ *  no 3+ player multiplayer), so `playerId`'s next turn is two away on their
+ *  own turn and one away otherwise — the same arithmetic its sibling uses. */
+function untilEndOfYourNextTurnTurn(
+    state: GameState,
+    playerId: string
+): number {
+    return state.activePlayerId === playerId ? state.turn + 2 : state.turn + 1;
+}
+
 function untilNextEndStepTurn(state: GameState, playerId: string): number {
     const isOwnTurn = state.activePlayerId === playerId;
     const ownEndStepNotYetStarted =
@@ -17821,6 +17845,7 @@ export function buildSpellContext(
                 | "this-turn"
                 | "while-exiled"
                 | "until-next-end-step"
+                | "until-end-of-your-next-turn"
                 | "after-this-turn" = "while-exiled",
             opts?: {
                 /** CR 601.3 / 118.9 (issue #1156) — also waive the card's
@@ -17889,6 +17914,17 @@ export function buildSpellContext(
             //     bound cannot express.
             if (window === "this-turn") {
                 card.castableFromExileUntilTurn = state.turn;
+            } else if (window === "until-end-of-your-next-turn") {
+                //   - "until-end-of-your-next-turn" (issue #3235): "Until the
+                //     end of your next turn, you may play those cards" (The
+                //     Legend of Roku, chapter I) — the same absolute-turn stamp
+                //     the two windows above use, one turn further out. See
+                //     `untilEndOfYourNextTurnTurn` for why it is not the
+                //     end-step helper.
+                card.castableFromExileUntilTurn = untilEndOfYourNextTurnTurn(
+                    state,
+                    playerId
+                );
             } else if (window === "until-next-end-step") {
                 card.castableFromExileUntilTurn = untilNextEndStepTurn(
                     state,
@@ -24035,6 +24071,37 @@ export function payManaCostForAbility(
 
     const remaining = (player.restrictedMana ?? []).filter((r) => r.amount > 0);
     player.restrictedMana = remaining.length > 0 ? remaining : undefined;
+}
+
+/** CR 106.6 (issue #3235) — the `restrictedMana` units that are not actually
+ *  RESTRICTED: no `restriction`, no `castableCardId`. Such a unit sits in the
+ *  tagged list only because it carries something orthogonal to eligibility —
+ *  a rider (Arena of Glory) or a LIFETIME (firebending) — and both
+ *  `restrictedUnitAllowsSpell` and `restrictedUnitAllowsAbility` return `true`
+ *  for it unconditionally. For any reader asking "how much mana is floating",
+ *  it is therefore indistinguishable from fungible pool mana.
+ *
+ *  It exists because the Bot's mana readers count `manaPool` alone
+ *  (`docs/findings/3354-bot-mana-readers-miss-restricted-pool.md`), which was
+ *  a latent gap for exactly as long as no restricted source was reachable
+ *  without a deliberate tap. Firebending (CR 702.189a) ends that: its mana
+ *  arrives from a trigger the Bot cannot decline, so an unpatched reader would
+ *  have the Bot sitting on four red it cannot see every time it attacks.
+ *
+ *  Deliberately NARROWER than "every restricted unit": a genuinely restricted
+ *  unit's eligibility depends on the COST being paid (Metamorphosis' mana pays
+ *  for creature spells only), which these readers do not all know, and folding
+ *  it in unconditionally would make the Bot enumerate casts the server then
+ *  refuses. That broader half stays as the findings drawer describes it. */
+export function unrestrictedFloatingMana(
+    player: Pick<PlayerState, "restrictedMana">
+): ReadonlyArray<{ color: string; amount: number }> {
+    return (player.restrictedMana ?? []).filter(
+        (unit) =>
+            unit.restriction === undefined &&
+            unit.castableCardId === undefined &&
+            unit.amount > 0
+    );
 }
 
 /** True if a single restricted-mana unit may pay for a spell (CR 106.6).

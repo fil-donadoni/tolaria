@@ -139,6 +139,9 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     loseAllAbilitiesWhileSourceRemains: false,
     loseLife: false,
     markAssignsNoCombatDamage: false,
+    // CR 701.13 (issue #3235) — deterministic: it exiles the top N and
+    // returns. No `ctx.request*`, no `return "suspend"`.
+    exileTopOfLibrary: false,
     mill: false,
     moveSpellFromStack: false,
     moveZone: false,

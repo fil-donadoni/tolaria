@@ -4642,7 +4642,11 @@ export interface SpellContext {
         cardInstanceId: string,
         playerId: string,
         zoneOwnerId?: string,
-        window?: "this-turn" | "while-exiled" | "until-next-end-step",
+        window?:
+            | "this-turn"
+            | "while-exiled"
+            | "until-next-end-step"
+            | "until-end-of-your-next-turn",
         opts?: {
             withoutPayingManaCost?: boolean;
             includesLand?: boolean;
@@ -13565,7 +13569,17 @@ export type EffectOp =
            *     608.2b). */
           card: EffectRef | EffectExiledWithSourceSelector;
           player: EffectPlayerRef;
-          window?: "this-turn" | "while-exiled";
+          /** CR 514.2 / 608.2g — when the permission expires.
+           *   - `"while-exiled"` (the Op default): open-ended, for as long as
+           *     the card remains exiled (Ice Cauldron).
+           *   - `"this-turn"`: the ordinary impulse window (Expressive
+           *     Iteration), revoked at this turn's cleanup step.
+           *   - `"until-end-of-your-next-turn"` (issue #3235): "Until the end
+           *     of your next turn, you may play those cards" (The Legend of
+           *     Roku, chapter I) — the same absolute-turn stamp one turn
+           *     further out, so the window survives the opponent's turn in
+           *     between. */
+          window?: "this-turn" | "while-exiled" | "until-end-of-your-next-turn";
           withoutPayingManaCost?: boolean;
           includesLand?: boolean;
           /** CR 601.2f (issue #2383) — an object-scoped cost increase the
@@ -14891,6 +14905,48 @@ export type EffectOp =
           player: EffectPlayerRef;
           count: EffectValue;
           bind?: string;
+          bindAll?: string;
+      }
+    /** CR 701.13 / 406.3 (issue #3235) — exile the top `count` card(s) of a
+     *  library, FACE UP. The "impulse" first leg: "Exile the top three cards of
+     *  your library. Until the end of your next turn, you may play those
+     *  cards." (The Legend of Roku, chapter I.)
+     *
+     *  A SIBLING of the mill Op, not a widening of it. CR 701.17a defines
+     *  milling as putting cards "into their graveyard", so an Op named for
+     *  that keyword action but carrying a destination would misname the very
+     *  action the Mechanics Registry is the name authority for. One verb, one
+     *  zone change — this Op exiles, the other graveyards, and neither grows a
+     *  destination parameter.
+     *
+     *  A thin declarative skin over primitives that already exist, one
+     *  execution path (ADR 0045): `peekLibraryTop` names the window and
+     *  `moveCardById(player, id, "library", "exile")` moves each card — the
+     *  exact pair `lookDistribute`'s `destination: "exile"` leg already uses.
+     *  No new SpellContext primitive. It closes the gap Elkin Bottle
+     *  (`ice/colorless.ts`) confesses in prose: "exile-top + cast-from-exile
+     *  has no Op skin yet".
+     *
+     *  FACE UP (CR 406.3): the Oracle texts that reach this Op say plainly
+     *  "exile the top N cards", never "face down", so the default open-zone
+     *  visibility holds and both players may examine the cards. A face-down
+     *  impulse is `hideaway`'s job, which has its own Op.
+     *
+     *  `linkToSource` (CR 607 / 406.6) stamps each exiled card with the
+     *  resolving source's instance id, which is what lets a LATER Op — in this
+     *  script or in a linked second ability — name them through
+     *  `{ exiledWithSource: true }`. `bindAll` publishes the same set as a
+     *  picks binding for a consumer in the SAME script. Set whichever the
+     *  consumer needs; they are orthogonal and both may be omitted (a bare
+     *  "exile the top card" with no follow-up).
+     *
+     *  `count` defaults to 1; a non-positive count and an empty library are
+     *  both clean CR 608.2b no-ops, and a short library exiles what is there. */
+    | {
+          op: "exileTopOfLibrary";
+          player: EffectPlayerRef;
+          count?: EffectValue;
+          linkToSource?: boolean;
           bindAll?: string;
       }
     /** CR 701.20a reveal + CR 400.7 zone change — reveal the top `count` card(s)

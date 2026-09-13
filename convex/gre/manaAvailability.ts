@@ -45,7 +45,7 @@
 // PURE. No async, no state mutation.
 
 import type { CardInstanceState, GameState, PlayerState } from "./state";
-import { normalizeManaCost } from "./state";
+import { normalizeManaCost, unrestrictedFloatingMana } from "./state";
 import type { Color, ManaCost } from "../cards/types";
 import { normalizedHybridPips } from "./manaColors";
 import {
@@ -391,6 +391,18 @@ function poolUnits(player: PlayerState): Set<Color>[] {
     for (const c of MANA_COLORS) {
         const n = player.manaPool[c] ?? 0;
         for (let i = 0; i < n; i++) units.push(new Set<Color>([c]));
+    }
+    // CR 106.6 (issue #3235) — floating mana that is tagged but not RESTRICTED
+    // (a rider, or firebending's end-of-combat lifetime) is spendable on
+    // anything, so it is pool mana as far as this census is concerned. Without
+    // it a bot that just attacked with a firebender reads its own four red as
+    // zero. Genuinely restricted units stay out: their eligibility depends on
+    // the cost being paid, which this census does not know.
+    for (const unit of unrestrictedFloatingMana(player)) {
+        if (!(MANA_COLORS as readonly string[]).includes(unit.color)) continue;
+        for (let i = 0; i < unit.amount; i++) {
+            units.push(new Set<Color>([unit.color as Color]));
+        }
     }
     return units;
 }
