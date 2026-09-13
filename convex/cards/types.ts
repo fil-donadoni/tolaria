@@ -10272,10 +10272,12 @@ export interface CardMilledEvent {
  *  more specific event covers.
  *
  *  Scope, stated as an exclusion so it can never double-fire (the producer
- *  census that defines it): the only emitters are the two general zone-change
+ *  census that defines it): the emitters are the two general zone-change
  *  primitives `SpellContext.moveZone` / `moveCardById` and the CR 614
  *  reveal-bin (`binRevealedTopCard`), all three funnelled through
- *  `moveCardWithGraveyardReplacement` in `gre/state.ts`. Those primitives take a
+ *  `moveCardWithGraveyardReplacement` in `gre/state.ts`, plus the stack's own
+ *  exit `sendStackItemToGraveyard` (`fromZone: "stack"` — no other event ever
+ *  describes a spell card leaving the stack). Those primitives take a
  *  `MovableZone` (`library | hand | graveyard | exile` — the battlefield is NOT
  *  a member), so this event can never describe a battlefield death, and neither
  *  the discard choke point (`discardToGraveyard`) nor the mill choke point
@@ -10287,6 +10289,7 @@ export interface CardMilledEvent {
  *  | battlefield → graveyard                    | CREATURE_DIED / PERMANENT_LEFT |
  *  | hand → graveyard, as a DISCARD (CR 701.9)  | CARD_DISCARDED             |
  *  | library → graveyard, as a MILL (CR 701.17) | CARD_MILLED                |
+ *  | stack → graveyard (a spell card, CR 608.2n / 701.6a) | **this event** (`fromZone: "stack"`) |
  *  | any other general move into a graveyard    | **this event**             |
  *
  *  That last row is exactly the gap it closes: "reveal the top four cards …
@@ -10311,8 +10314,10 @@ export interface CardPutIntoGraveyardEvent {
      *  graveyard. */
     cardId?: string;
     /** Zone the card came from, for a trigger that cares (never
-     *  `"battlefield"` — see the scope note above). */
-    fromZone: MovableZone;
+     *  `"battlefield"` — see the scope note above). `"stack"` is a spell
+     *  card that left the stack for its owner's graveyard: resolved,
+     *  countered, or countered on resolution for illegal targets. */
+    fromZone: MovableZone | "stack";
     /** Card types snapshotted at the moment of the move (CR 603.10 last-known
      *  information), for "whenever a permanent card is put into …"-style
      *  filters. */
@@ -16055,6 +16060,20 @@ export type EffectOp =
            *  behaviour for every pre-existing `choice` Op card). Skipped
            *  entirely if this player ref cannot be resolved (CR 608.2b). */
           zoneOwnerId?: EffectPlayerRef;
+          /** `zone: "battlefield"` only — candidates come from EVERY player's
+           *  battlefield instead of one zone owner's. "Untap up to two lands"
+           *  (Cloud of Faeries) and "untap up to three lands" (Frantic Search)
+           *  print no "you control", so an opponent's land is as legal a pick
+           *  as the caster's own (CR 109.2 — an unqualified "land" means a
+           *  land permanent on the battlefield). Maps 1:1 onto the `allControllers` flag
+           *  `SpellContext.requestChoice` already carries for the `resolve()`
+           *  cards (Clone, Time Spiral), and the submit validator, the client
+           *  and the Bot's candidate pool all already honour it on the
+           *  `PendingChoice` — this only exposes it to the DSL. Mutually
+           *  exclusive with `zoneOwnerId` and `candidates`
+           *  (validator-enforced): each of those already names whose
+           *  permanents are in play. */
+          allControllers?: true;
           filter?: EffectCardFilter;
           /** CR 601.2c / 608.2 — restricts the pick to specific ALREADY-KNOWN
            *  objects instead of a whole zone: the announced targets, or

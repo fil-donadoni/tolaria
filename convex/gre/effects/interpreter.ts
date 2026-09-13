@@ -1948,8 +1948,16 @@ function choiceCandidates(
         if (filter === UNMATCHABLE_FILTER) {
             return { available: 0, candidateIds: [] };
         }
+        // `allControllers` — every battlefield counts toward the clamp, so
+        // "untap up to two lands" with one land of each player's still asks
+        // for two. The pool itself is left to the `PendingChoice` flag, which
+        // the submit validator already reads (CR 608.2b clamp only here).
+        const owners = op.allControllers ? ctx.allPlayerIds : [zoneOwnerId];
         return {
-            available: ctx.getBattlefieldIds(zoneOwnerId, filter).length,
+            available: owners.reduce(
+                (n, owner) => n + ctx.getBattlefieldIds(owner, filter).length,
+                0
+            ),
         };
     }
     if (op.zone === "hand") {
@@ -5295,6 +5303,7 @@ export const OP_EXECUTORS: {
                   ? { candidateIds }
                   : {}),
             ...(op.zoneOwnerId !== undefined ? { zoneOwnerId } : {}),
+            ...(op.allControllers ? { allControllers: true } : {}),
             // CR 701.19a (issue #788 re-review finding 1) — this `choice` Op
             // handler's library branch (`choiceCandidates` above) always scans
             // the WHOLE zone via `matchesCardFilter`, never a peeked top-N

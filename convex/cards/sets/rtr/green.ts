@@ -46,10 +46,9 @@ const WORLDSPINE_WURM_ID = "543d55cb-3a6b-4620-af25-10ae74ed32c4";
 //    library origins — CR 701.17 mill is implemented
 //    (mechanicsRegistry.ts `mill` — status "implemented"), so CARD_MILLED is
 //    included, unlike the older Moonshadow precedent (ecl/black.ts) which
-//    predates mill shipping. NOT covered: a spell countered on the stack
-//    going straight to the graveyard (stack → graveyard has no matching
-//    event in the engine's vocabulary) — out of scope, a rare edge case for
-//    a creature spell with no other stack-interaction hooks.
+//    predates mill shipping. A spell countered on the stack going straight
+//    to the graveyard is covered too: `sendStackItemToGraveyard` emits
+//    CARD_PUT_INTO_GRAVEYARD with `fromZone: "stack"`.
 //
 // The shuffle-into-library body composes two already-shipped Ops instead of
 // the scoped-to-spell-resolution `shuffleSelfIntoLibrary` Op (which is

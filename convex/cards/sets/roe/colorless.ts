@@ -68,11 +68,9 @@ import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
  *  in that graveyard when the trigger resolves), and step 3 randomizes, so the
  *  split into two moves is outcome-identical to one sweep.
  *
- *  KNOWN ENGINE GAP, pre-existing and shared with both sibling cards: a card
- *  put into a graveyard FROM THE STACK routes through `sendStackItemToGraveyard`,
- *  which emits no event at all, so no member of the array can observe it. Not
- *  reachable by countering here (`cantBeCountered`), and documented as out of
- *  scope for this family in `rtr/green.ts`. */
+ *  A card put into a graveyard FROM THE STACK routes through
+ *  `sendStackItemToGraveyard`, which emits CARD_PUT_INTO_GRAVEYARD with
+ *  `fromZone: "stack"`, so the array observes that origin as well. */
 function emrakulShuffleGraveyardFromAnywhere(): TriggeredAbility {
     return {
         id: "emrakul-shuffle-graveyard",

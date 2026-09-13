@@ -6052,6 +6052,14 @@
         "source": "compiled"
     },
     {
+        "name": "Cloud of Faeries",
+        "scryfallId": "4e76d04a-0038-4b5b-a026-3056ee940da9",
+        "oracleId": "adc1f3b4-cce7-42c9-a208-dbab1d1924f5",
+        "firstSet": "ulg",
+        "firstPrintId": "4e76d04a-0038-4b5b-a026-3056ee940da9",
+        "firstPrintSet": "ulg"
+    },
+    {
         "name": "Cloudchaser Eagle",
         "scryfallId": "3a70a6da-dea3-49c0-8c49-6a2229c3ac91",
         "oracleId": "add18787-2329-4355-a524-66fefda8d06e",
@@ -6350,6 +6358,14 @@
         "firstPrintSet": "5dn",
         "rarity": "uncommon",
         "source": "compiled"
+    },
+    {
+        "name": "Compost",
+        "scryfallId": "2523c403-0025-48c7-8ff1-e66ca27ee585",
+        "oracleId": "4681bcc2-8a46-44cd-8b04-6ab140904dea",
+        "firstSet": "uds",
+        "firstPrintId": "2523c403-0025-48c7-8ff1-e66ca27ee585",
+        "firstPrintSet": "uds"
     },
     {
         "name": "Compulsion",
@@ -20846,6 +20862,14 @@
         "source": "compiled"
     },
     {
+        "name": "Man-o'-War",
+        "scryfallId": "4dbf9bf9-75cd-4b25-a3a1-43b7e029700b",
+        "oracleId": "67a3541c-8408-40c8-b44f-90035b860f57",
+        "firstSet": "vis",
+        "firstPrintId": "4dbf9bf9-75cd-4b25-a3a1-43b7e029700b",
+        "firstPrintSet": "vis"
+    },
+    {
         "name": "Mana Clash",
         "scryfallId": "72955141-d990-459f-adbe-7d3d0f5f6c95",
         "oracleId": "a2f5a5fd-14dc-48e8-bdb0-984a83288023",
@@ -27134,6 +27158,14 @@
         "source": "compiled"
     },
     {
+        "name": "Raven Familiar",
+        "scryfallId": "b104638d-29aa-490c-8cfb-e08fc94efb59",
+        "oracleId": "47aabd9d-0f68-490a-a2ae-5cd9ef689be6",
+        "firstSet": "ulg",
+        "firstPrintId": "b104638d-29aa-490c-8cfb-e08fc94efb59",
+        "firstPrintSet": "ulg"
+    },
+    {
         "name": "Ravenous Baboons",
         "scryfallId": "6d00b68b-8b6a-48c9-8911-2a3270897091",
         "oracleId": "1d9bd0a5-3ba0-44e5-9cb3-966f6b9dc14a",
@@ -28122,6 +28154,14 @@
         "firstPrintSet": "rtr",
         "rarity": "uncommon",
         "source": "compiled"
+    },
+    {
+        "name": "Rishadan Cutpurse",
+        "scryfallId": "947fc270-11e3-46cd-9086-e880a5845c79",
+        "oracleId": "147e0e74-f76b-4f0a-951f-d39afdd72c02",
+        "firstSet": "mmq",
+        "firstPrintId": "947fc270-11e3-46cd-9086-e880a5845c79",
+        "firstPrintSet": "mmq"
     },
     {
         "name": "Rishadan Port",

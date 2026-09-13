@@ -8,6 +8,7 @@ import type {
     TargetSelection,
 } from "../../types";
 import { BASIC_LAND_SUBTYPES } from "../../types";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Impulse — {1}{U} Instant. "Look at the top four cards of your library. Put one
 // of them into your hand and the rest on the bottom of your library in any
@@ -179,5 +180,36 @@ export const visionCharm: CardDefinition = {
                 });
             },
         },
+    ],
+};
+
+// Man-o'-War — {2}{U} 2/2 Jellyfish. "When this creature enters, return target
+// creature to its owner's hand." A CR 603.3d targeted ETB trigger (the target is
+// announced as the trigger goes on the stack) whose body is the `moveZone`
+// target shape to `hand` (CR 400.7 — a new object in its OWNER's hand). Written
+// structurally identical to the compiler's own output, so it round-trips; the
+// compiled row sits in quarantine only because the generated smoke scenario
+// cannot model a `moveZone` on an announced creature, which is what the per-card
+// test in `vis/__tests__/blue.test.ts` covers instead.
+export const manOWar: CardDefinition = {
+    id: "4dbf9bf9-75cd-4b25-a3a1-43b7e029700b", // VIS 37
+    rarity: "common",
+    name: "Man-o'-War",
+    oracleText:
+        "When this creature enters, return target creature to its owner's hand.",
+    manaCost: { X: 2, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Jellyfish"],
+    power: 2,
+    toughness: 2,
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "man-o-war-etb-bounce",
+            oracleText:
+                "When this creature enters, return target creature to its owner's hand.",
+            scope: "self",
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
+        }),
     ],
 };

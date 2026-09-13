@@ -7911,6 +7911,9 @@ function sendStackItemToGraveyard(state: GameState, item: StackItem): void {
         item.ownerId,
         "stack"
     );
+    // Read before `resetStackTransientState` strips it: a copy of a spell is
+    // not a card, and ceases to exist off the stack (CR 707.10a).
+    const isCopy = item.isCopy === true;
     item.zone = destination;
     resetStackTransientState(item);
     (owner[destination] as CardInstanceState[]).push(item);
@@ -7918,6 +7921,20 @@ function sendStackItemToGraveyard(state: GameState, item: StackItem): void {
         shuffleAfterGraveyardBoundLibraryRedirect(state, owner);
     } else if (destination !== "graveyard") {
         applyGraveyardRedirectCounters(item, tagCounters);
+    } else if (!isCopy) {
+        // CR 603.6c — a "put into a graveyard from anywhere" trigger sees a
+        // spell card reaching the graveyard off the stack too (resolved,
+        // countered, or countered on resolution). Every stack departure into a
+        // graveyard funnels through here, so this is the one emitter; emitted
+        // AFTER the card has landed, like every other graveyard-entry event.
+        emitCardPutIntoGraveyard(
+            state,
+            item.ownerId,
+            item.id,
+            (item.card as { id?: string }).id,
+            "stack",
+            item.types
+        );
     }
 }
 
@@ -11863,9 +11880,11 @@ export function emitCardMilled(
  *  CARD_MILLED don't cover: a "put the rest into your graveyard" dig
  *  (Malevolent Rumble), a CR 614 reveal-bin, an exile-to-graveyard move.
  *
- *  The single choke point is `moveCardWithGraveyardReplacement`, called only by
- *  `SpellContext.moveZone` / `moveCardById` / `binRevealedTopCard`; the
- *  non-overlap census lives on `CardPutIntoGraveyardEvent` (`cards/types.ts`).
+ *  Two callers: `moveCardWithGraveyardReplacement` (called only by
+ *  `SpellContext.moveZone` / `moveCardById` / `binRevealedTopCard`) and
+ *  `sendStackItemToGraveyard` (a spell card leaving the stack, `fromZone:
+ *  "stack"`); the non-overlap census lives on `CardPutIntoGraveyardEvent`
+ *  (`cards/types.ts`).
  *  Emitted AFTER the card has landed in the graveyard, so a self-trigger
  *  (Worldspine Wurm's shuffle-back) can locate it there — the same discipline as
  *  `emitCardDiscarded` / `emitCardMilled`. */
@@ -11874,7 +11893,7 @@ export function emitCardPutIntoGraveyard(
     ownerId: string,
     cardInstanceId: string,
     cardId: string | undefined,
-    fromZone: MovableZone,
+    fromZone: MovableZone | "stack",
     types?: ReadonlyArray<CardType>
 ): void {
     state.pendingEvents = [
