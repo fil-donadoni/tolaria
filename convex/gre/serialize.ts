@@ -302,6 +302,7 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "typeLineHolds",
     "toughness",
     "transformed",
+    "transformedAtDelayedSeq",
     "transformedFrom",
     "triggersThisTurn",
     "unkickedCostPayments",
@@ -616,6 +617,12 @@ function compactCard(
     // that exiles it, and the marker is what the delayed trigger re-reads to
     // answer CR 400.7.
     if (card.warped) out.warped = true;
+    // CR 701.27f (issue #3249) — a transformed permanent sits on the
+    // battlefield across saves while a delayed trigger that would transform it
+    // again waits for its boundary; the stamp is what that trigger re-reads.
+    if (card.transformedAtDelayedSeq !== undefined) {
+        out.transformedAtDelayedSeq = card.transformedAtDelayedSeq;
+    }
     // CR 601.3 / 118.9 (issue #1156) — Dauthi Voidwalker's free-cast waiver
     // rides `castableFromExileBy`'s permission window and must survive a
     // save/load the same way.
@@ -1116,6 +1123,10 @@ function expandCard(
     }
     if (compact.warped) {
         result.warped = true;
+    }
+    if (compact.transformedAtDelayedSeq !== undefined) {
+        result.transformedAtDelayedSeq =
+            compact.transformedAtDelayedSeq as number;
     }
     if (compact.castFromExileNotAsAdventure) {
         result.castFromExileNotAsAdventure = true;
@@ -1697,6 +1708,9 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
     // save while the fired trigger sits on the stack awaiting priority.
     if (item.delayedEffects) base.delayedEffects = item.delayedEffects;
     if (item.delayedOracleText) base.delayedOracleText = item.delayedOracleText;
+    // CR 701.27f (issue #3249) — a fired delayed trigger waiting on the stack
+    // must still know which `delayed-N` creation it answers to.
+    if (item.delayedOrigin) base.delayedOrigin = item.delayedOrigin;
     // CR 725 (issue #1305) — a source-less inherent designation trigger (the
     // Monarch's end-step draw) keys its marker-card art + name off this id; it
     // must survive a save while the trigger sits on the stack, or the client
@@ -1880,6 +1894,10 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
     }
     if (compact.delayedOracleText) {
         item.delayedOracleText = compact.delayedOracleText as string;
+    }
+    if (compact.delayedOrigin) {
+        item.delayedOrigin =
+            compact.delayedOrigin as StackItem["delayedOrigin"];
     }
     // CR 725 (issue #1305) — rehydrate the designation-marker id so the
     // Monarch's on-stack draw keeps its marker art after a save/load.

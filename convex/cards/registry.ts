@@ -14,6 +14,7 @@ import type {
     TokenSpec,
     TriggeredAbility,
 } from "./types";
+import { backFaceAsTokenSpec } from "./backFaceSpec";
 import { resolveTokenStaticEffects } from "./tokenStaticEffects";
 import {
     isTokenTriggeredEventKind,
@@ -742,6 +743,31 @@ setRegistryEntry(FACE_DOWN_CARD_ID, {
     ],
 });
 
+/** CR 712.8e (issue #3249) — the triggered abilities, closures intact, of the
+ *  PRINTED nonmodal back face whose content-derived id is `cardId`, or
+ *  undefined when no printed card declares that face. A transformed
+ *  permanent presents its back face through the token codec, and a cold
+ *  decode of that id can rebuild a trigger only for the three
+ *  `TokenTriggeredEventKind`s — anything else (a `PHASE_BEGIN` trigger, a
+ *  targeted trigger) would come back as a never-firing stub. A back face is
+ *  not a token: the card that declares it is in this same registry, so the
+ *  real ability objects are recoverable instead of reconstructed. Scans only
+ *  printed definitions that declare a back face, and only on a registry miss
+ *  (the result is memoized with the synthesized definition). */
+function printedBackFaceTriggers(
+    cardId: string
+): TriggeredAbility[] | undefined {
+    for (const [id, def] of registry) {
+        const backFace = def.backFace;
+        if (id !== def.id || !backFace?.triggeredAbilities?.length) continue;
+        if (backFace.kind === "modal") continue;
+        if (tokenDefinitionId(backFaceAsTokenSpec(backFace)) === cardId) {
+            return backFace.triggeredAbilities;
+        }
+    }
+    return undefined;
+}
+
 /** Lazy synthesis of a token CardDefinition from a content-derived id
  *  (e.g. `token:Wasp|Artifact,Creature|Insect||1|1||flying`). Server-side
  *  registrations from `createToken` cover the canonical case, but the
@@ -869,9 +895,13 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
     // This decode path is a fallback for a registry MISS only — the common,
     // live-game path registers the REAL closures directly
     // (`createTokenPermanents`), never going through this reconstruction.
+    const hasEncodedTriggers =
+        triggeredAbilitiesRaw !== undefined && triggeredAbilitiesRaw.length > 0;
     const triggeredAbilities: TriggeredAbility[] | undefined =
-        triggeredAbilitiesRaw && triggeredAbilitiesRaw.length > 0
-            ? (
+        !hasEncodedTriggers
+            ? undefined
+            : (printedBackFaceTriggers(cardId) ??
+              (
                   JSON.parse(decodeURIComponent(triggeredAbilitiesRaw)) as {
                       id: string;
                       oracleText: string;
@@ -903,8 +933,7 @@ function maybeSynthesizeToken(cardId: string): CardDefinition | null {
                       event: d.event,
                       matches: () => false,
                   };
-              })
-            : undefined;
+              }));
     const manaCost: ManaCost = {};
     for (const c of colors) manaCost[c] = (manaCost[c] ?? 0) + 1;
     const def: CardDefinition = {

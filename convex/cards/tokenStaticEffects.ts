@@ -35,7 +35,7 @@ import {
     type StaticEffect,
     type TokenStaticEffectKey,
 } from "./types";
-import type { StaticPTCDA } from "./types";
+import type { StaticKeywordGrant, StaticPTCDA } from "./types";
 
 /** CR 604.3 — "This token gets +1/+1 for each artifact you control", the
  *  characteristic-defining ability on Urza's Saga's Construct (CR 714, mh2).
@@ -61,6 +61,23 @@ function ptCdaArtifactsYouControl(): StaticPTCDA {
     };
 }
 
+/** CR 613.1f / 205.2a — "Land creatures you control have vigilance." (Aang,
+ *  Destined Savior, the back face of Aang, at the Crossroads, issue #3249.) A
+ *  layer-6 keyword grant over a TYPE INTERSECTION: the target must be both a
+ *  Land and a Creature (an earthbended land, a manland mid-animation), read off
+ *  the live `types` the layer system maintains — a land that is not currently a
+ *  creature, and a creature that is not a land, get nothing. */
+function vigilanceLandCreaturesYouControl(): StaticKeywordGrant {
+    return {
+        kind: "keyword-grant",
+        applies: (target, source) =>
+            target.controllerId === source.controllerId &&
+            target.types.includes("Land") &&
+            target.types.includes("Creature"),
+        keyword: "vigilance",
+    };
+}
+
 /** The single ENCODE/DECODE table. Exhaustive by construction — see the module
  *  header. Add a key to {@link TokenStaticEffectKey} and the compiler demands
  *  the factory here (and vice versa). */
@@ -71,6 +88,7 @@ export const TOKEN_STATIC_EFFECT_FACTORIES: Record<
     // CR 303.4 — "This token can't be enchanted." (Tetravite, `sets/atq`.)
     "cant-be-enchanted-self": cantBeEnchantedSelfGuard,
     "pt-cda-artifacts-you-control": ptCdaArtifactsYouControl,
+    "vigilance-land-creatures-you-control": vigilanceLandCreaturesYouControl,
 };
 
 /** Legacy ids written before the keys existed encoded effect KINDS in the same

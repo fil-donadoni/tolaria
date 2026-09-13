@@ -71,6 +71,29 @@ export function buildDelayedTriggerStackItem(
         // def (its id is the constant INLINE_DELAYED_TRIGGER_ID), so carry it
         // onto the stack item for the client to render the ability tile.
         ...(t.oracleText ? { delayedOracleText: t.oracleText } : {}),
+        // CR 701.27f (issue #3249) — carry the creation moment and the
+        // creating permanent, so a transform instruction in the body can tell
+        // whether its own source has transformed since.
+        ...delayedOriginOf(t),
+    };
+}
+
+/** `delayed-N` → `{ delayedOrigin: { seq: N, sourceInstanceId } }`, or nothing
+ *  for an instance whose id does not carry its creation counter. Every
+ *  scheduler mints the id as `delayed-${state.nextDelayedSeq}` right after
+ *  incrementing the counter, so N IS the creation moment. */
+function delayedOriginOf(
+    t: DelayedTriggerInstance
+): Pick<StackItem, "delayedOrigin"> {
+    const match = /^delayed-(\d+)$/.exec(t.id);
+    if (!match) return {};
+    return {
+        delayedOrigin: {
+            seq: Number(match[1]),
+            ...(t.sourceInstanceId
+                ? { sourceInstanceId: t.sourceInstanceId }
+                : {}),
+        },
     };
 }
 

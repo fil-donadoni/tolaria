@@ -7,6 +7,7 @@ import type {
     PhaseInRider,
     LibraryDestination,
     LookDistributeDestination,
+    LookDistributeKeepTo,
 } from "../gre/types";
 
 type CardId = string;
@@ -2576,6 +2577,17 @@ export interface CardBackFace {
     /** Activated abilities the back face has (e.g. a transform-back ability
      *  on a card that flips both directions). */
     activatedAbilities?: ActivatedAbility[];
+    /** Triggered abilities the back face has (CR 712.8e — a transformed
+     *  permanent has only its back face's characteristics, abilities
+     *  included). Issue #3249, Aang, Destined Savior's "At the beginning of
+     *  combat on your turn, earthbend 2." Full closure-bearing
+     *  `TriggeredAbility[]`, folded onto the synthesized back-face definition
+     *  like `TokenSpec.triggeredAbilities`. A cold decode of the back face's
+     *  content-derived id recovers the REAL closures from the printed card
+     *  that declares this face (`maybeSynthesizeToken`, `cards/registry.ts`),
+     *  so a printed back face's triggers never degrade to the token codec's
+     *  never-firing stub. */
+    triggeredAbilities?: TriggeredAbility[];
     /** Printed Oracle text of the back face (display/reference only). */
     oracleText?: string;
     /** CR 614.12 / 712.12 — the back face's own land-entry pay-choice ("As
@@ -2714,7 +2726,8 @@ export interface EffectCardBackFace {
  *  dying to the CR 704.5f SBA). */
 export type TokenStaticEffectKey =
     | "cant-be-enchanted-self"
-    | "pt-cda-artifacts-you-control";
+    | "pt-cda-artifacts-you-control"
+    | "vigilance-land-creatures-you-control";
 
 /** Characteristics a card takes on in every zone OTHER than the battlefield
  *  (CR 113.6c — "an ability that states which zones it doesn't function in
@@ -5799,14 +5812,15 @@ export interface SpellContext {
         destination?: LookDistributeDestination;
         /** `kind: "look-distribute"` only (issue #2070) — where the KEPT cards
          *  land: `"hand"` (every card shipped before #2070 — Impulse, Stock
-         *  Up, Narset) or `"library-top"` (Thassa's Oracle). Orthogonal to
+         *  Up, Narset), `"library-top"` (Thassa's Oracle) or `"battlefield"`
+         *  (issue #3249, Aang, at the Crossroads). Orthogonal to
          *  `destination` above (the UN-kept cards' target). Client-routing +
-         *  labelling hint (the picker's keep-pile reads "Hand" or "Top of
-         *  library"); the GRE applies the actual move via the `lookDistribute`
-         *  Op's own `keepTo`, not by reading this back off the choice. Always
-         *  set at the one raise site (`lookDistribute`) — never left to an
-         *  implicit default. */
-        keepTo?: "hand" | "library-top";
+         *  labelling hint (the picker's keep-pile reads "Hand", "Top of
+         *  library" or "Battlefield"); the GRE applies the actual move via the
+         *  `lookDistribute` Op's own `keepTo`, not by reading this back off the
+         *  choice. Always set at the one raise site (`lookDistribute`) — never
+         *  left to an implicit default. */
+        keepTo?: LookDistributeKeepTo;
         /** `look-distribute` only — the un-kept cards go to `destination` in a
          *  RANDOM order, so the submitted second-zone order is discarded
          *  server-side. The client mounts the simple grid pick (nothing to
@@ -15039,9 +15053,14 @@ export type EffectOp =
            *  Oracle: "put up to one of them on top of your library") routes
            *  the kept card(s) through `putLibraryCardsOnTop` instead of
            *  `moveCardById`'s library→hand leg — `picks[0]` ends up the very
-           *  top when more than one is kept. Orthogonal to `destination`
-           *  (the UN-kept cards' target) — the two never interact. */
-          keepTo: "hand" | "library-top";
+           *  top when more than one is kept. `"battlefield"` (issue #3249,
+           *  Aang, at the Crossroads: "You may put a creature card with mana
+           *  value 4 or less from among them onto the battlefield") routes
+           *  each kept card through `putFromLibraryOntoBattlefield` — a CR
+           *  400.7 zone change that PUTS the card, never casts it. Orthogonal
+           *  to `destination` (the UN-kept cards' target) — the two never
+           *  interact. */
+          keepTo: LookDistributeKeepTo;
           /** Who MAKES the keep choice (Karn, Scion of Urza's +1: "an opponent
            *  chooses one of them", issue #1570). Omitted = the library owner
            *  chooses (every card shipped before #1570 — Impulse, Stock Up,

@@ -1156,8 +1156,9 @@ const hideaway: Valuer<"hideaway"> = () => ({
 });
 
 // `keepTo` (issue #2070) is not read here — the heuristic values "cards
-// selected out of a look window" the same whether they land in hand or on
-// top of the library (both beat a random topdeck); a card-shaped refinement
+// selected out of a look window" the same whether they land in hand, on top
+// of the library, or onto the battlefield (issue #3249 — all beat a random
+// topdeck, and the sign is what the search needs); a card-shaped refinement
 // (e.g. weighing library-top lower once a second `keepTo` consumer exists)
 // is a future bot-slice concern, not this issue's scope.
 const lookDistribute: Valuer<"lookDistribute"> = (op, ctx) => {
