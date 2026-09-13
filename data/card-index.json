@@ -8642,6 +8642,14 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Diamond Valley",
+        "scryfallId": "e85f6f21-15a0-4a36-be95-5a0299cd01a5",
+        "oracleId": "84cef34a-c3e1-4059-b4cd-c481938a53a5",
+        "firstSet": "arn",
+        "firstPrintId": "e85f6f21-15a0-4a36-be95-5a0299cd01a5",
+        "firstPrintSet": "arn"
+    },
+    {
         "name": "Dictate of Heliod",
         "scryfallId": "95602d52-988c-472b-ba8e-cf25aa92f1fc",
         "oracleId": "b989279c-665d-4f15-afc1-adf3872a4851",
@@ -16698,6 +16706,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Hurr Jackal",
+        "scryfallId": "f4aadda8-8577-480d-8186-532d2b173c15",
+        "oracleId": "d17f5afa-a884-4b99-aa9e-89ddb3d43b22",
+        "firstSet": "arn",
+        "firstPrintId": "f4aadda8-8577-480d-8186-532d2b173c15",
+        "firstPrintSet": "arn"
+    },
+    {
         "name": "Hurricane",
         "scryfallId": "52f5a19f-16e4-4d35-89e1-969ac8202f88",
         "oracleId": "9c021685-4017-49c7-9f58-2ae0243361a0",
@@ -21446,6 +21462,14 @@
         "firstPrintSet": "lgn",
         "rarity": "common",
         "source": "compiled"
+    },
+    {
+        "name": "Merchant Ship",
+        "scryfallId": "2b827094-fb2c-46db-b898-02e0c308601f",
+        "oracleId": "69556f6c-c05b-4902-bac7-012f0ed81b75",
+        "firstSet": "arn",
+        "firstPrintId": "2b827094-fb2c-46db-b898-02e0c308601f",
+        "firstPrintSet": "arn"
     },
     {
         "name": "Merciless Resolve",
@@ -28896,6 +28920,14 @@
         "firstSet": "fem",
         "firstPrintId": "3f6f1fcb-d903-4a31-abab-40488569eef6",
         "firstPrintSet": "fem"
+    },
+    {
+        "name": "Sandals of Abdallah",
+        "scryfallId": "8f99a520-b8a9-40b0-9854-48aac297c5ee",
+        "oracleId": "ff77074f-48ef-4c01-8ede-4e9be3e483f4",
+        "firstSet": "arn",
+        "firstPrintId": "8f99a520-b8a9-40b0-9854-48aac297c5ee",
+        "firstPrintSet": "arn"
     },
     {
         "name": "Sandsteppe Citadel",
