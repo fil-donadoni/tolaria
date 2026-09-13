@@ -1668,7 +1668,7 @@ function seedContinuousEffects(state: GameState, spec: ScenarioSpec): void {
  * CR 405.1 / 601.2 / 602.2a (issue #3513, PRD #3397) — seed the objects the
  * spec declares IN FLIGHT, bottom-up.
  *
- * DECLARED, not replayed — the decision ADR 0125 records. The alternative the
+ * DECLARED, not replayed — the decision ADR 0127 records. The alternative the
  * blade suite uses for a response window is to walk a quiet board FORWARD
  * through the engine's own move application (`cast` / `activate` setup steps,
  * ADR 0070 §4), which is right there and wrong here for the same reason

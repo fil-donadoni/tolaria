@@ -1,6 +1,6 @@
 // CR 405.1 / 601.2 / 602.2a (issue #3513, PRD #3397) — the scenario spec's
 // DECLARED STACK: a position with objects in flight is written down, not
-// reached by replaying the moves that put them there (ADR 0125).
+// reached by replaying the moves that put them there (ADR 0127).
 //
 // Every LIVE position here is built by the ENGINE — `buildBladeState` walks a
 // quiet board forward through the real cast / activation pipeline

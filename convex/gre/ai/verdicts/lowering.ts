@@ -204,7 +204,7 @@ export function lowerDecision(
     // A decision taken with something ON THE STACK — the Bot holding priority
     // over its own spell, or answering the opponent's.
     //
-    // `ScenarioSpec` HAS a declared stack as of issue #3513 / ADR 0125, and
+    // `ScenarioSpec` HAS a declared stack as of issue #3513 / ADR 0127, and
     // `specFromState` lowers one. This path does not read it yet: moving the
     // verdict lowering onto the declared stack and deleting the journal is
     // issue #3514, kept a separate slice so the spec vocabulary lands and is

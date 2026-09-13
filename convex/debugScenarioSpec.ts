@@ -853,7 +853,7 @@ export const scenarioSpecValidator = v.object({
     // moves and therefore misses essentially every live response window
     // (`docs/findings/3480-human-moves-never-reach-the-stack-journal.md`).
     //
-    // DECLARED, not inverted (ADR 0125). This is not the stack INVERSION the
+    // DECLARED, not inverted (ADR 0127). This is not the stack INVERSION the
     // journal rejects — deriving the board as it stood BEFORE the spell was
     // paid for, which is impossible with no event log and a bare boolean
     // `manaCommitted`. What is lowered here is the LIVE board, mana already
@@ -1180,7 +1180,7 @@ export type ScenarioSpec = {
      *  BOTTOM-UP: index 0 is the bottom of the stack and the last entry is the
      *  one that resolves first (CR 608.1). Omitted means an empty stack, which
      *  is what every spec written before this field meant. Declared, never
-     *  replayed (ADR 0125); a spec carrying one is refused by
+     *  replayed (ADR 0127); a spec carrying one is refused by
      *  `assertLoadableIntoLiveGame`. */
     stack?: ScenarioStackItem[];
     companion?: { name: string; owner?: "me" | "opp"; used?: boolean };
