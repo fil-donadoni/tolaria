@@ -380,6 +380,89 @@ describe("the verdict lowering declares a TRIGGER on the stack (issue #3516)", (
     });
 });
 
+describe("a spell targeting a TRIGGER on the declared stack (issue #3516)", () => {
+    /** CR 113.7a — the pairing the issue names: a stack item targeting a
+     *  trigger resolves to `triggerSourceId ?? item.id`. An activated
+     *  ability's item borrows its source's battlefield id, a trigger's is
+     *  fresh with the source kept separately, and `seedDeclaredStack` writes
+     *  the ENGINE's rule rather than `referenced.id`. Until this slice no
+     *  declared stack could hold a trigger, so that line had no position to
+     *  be wrong in. */
+    it("rebuilds the CR 113.7a source pairing, and Stifle counters the same trigger", () => {
+        const state = engineBuilt(
+            {
+                cards: [
+                    { name: "Enduring Courage", owner: "me" },
+                    { name: "Forest", owner: "me", count: 2 },
+                    { name: "Mountain", owner: "me" },
+                    { name: "Grizzly Bears", owner: "me", zone: "hand" },
+                    { name: "Lightning Bolt", owner: "me", zone: "hand" },
+                    { name: "Island", owner: "opp" },
+                    { name: "Mountain", owner: "opp" },
+                    { name: "Stifle", owner: "opp", zone: "hand" },
+                    { name: "Lightning Bolt", owner: "opp", zone: "hand" },
+                ],
+                phase: "PRECOMBAT_MAIN",
+                turn: 5,
+                activePlayer: "me",
+                landCount: 1,
+                libraryCount: 20,
+            },
+            [
+                { kind: "cast", card: "Grizzly Bears", by: "me" },
+                { kind: "resolve-top" },
+                // CR 117.3b — priority restarts with the ACTIVE player after
+                // the trigger is placed, so the opponent has to be passed to
+                // before they can answer it.
+                { kind: "pass", seat: "me" },
+                {
+                    kind: "cast",
+                    card: "Stifle",
+                    by: "opp",
+                    target: "Enduring Courage",
+                },
+            ]
+        );
+        const botId = state.players[0].id;
+        expect(state.stack).toHaveLength(2);
+        const [trigger, stifle] = state.stack;
+        expect(stifle.targets?.[0]).toMatchObject({
+            type: "spell",
+            id: trigger.id,
+            stackSourceId: trigger.triggerSourceId,
+        });
+
+        const outcome = lower(state, botId);
+        if (!outcome.ok) throw new Error(`refused ${outcome.kind}`);
+        expect(outcome.lowered.spec.stack?.[1].targets).toEqual([
+            { kind: "stack", index: 0 },
+        ]);
+        const rebuilt = buildVerdictPosition(outcome.lowered.spec);
+        const [rebuiltTrigger, rebuiltStifle] = rebuilt.stack;
+        // The pairing, read back: the item's own id, and the SOURCE permanent
+        // it is pinned to — never the fresh item id in both slots.
+        expect(rebuiltStifle.targets?.[0]).toMatchObject({
+            type: "spell",
+            id: rebuiltTrigger.id,
+            stackSourceId: rebuiltTrigger.triggerSourceId,
+        });
+        expect(rebuiltTrigger.triggerSourceId).not.toBe(rebuiltTrigger.id);
+
+        // Through the resolution: Stifle counters the trigger, so the entering
+        // Bears is NOT pumped — on both boards.
+        resolveTopOfStack(state);
+        resolveTopOfStack(rebuilt);
+        expect(state.stack).toHaveLength(0);
+        expect(rebuilt.stack).toHaveLength(0);
+        expect(
+            state.players[0].battlefield.filter(
+                (card) => getEffectivePower(state, card) === 4
+            )
+        ).toHaveLength(0);
+        expect(boardShape(rebuilt)).toEqual(boardShape(state));
+    });
+});
+
 describe("a trigger the spec cannot declare is refused by field (issue #3516)", () => {
     /** Soul Net watches every death ("whenever a creature dies"); the creature
      *  that died is an opponent's GOBLIN TOKEN, which ceased to exist the
