@@ -47,8 +47,77 @@ export interface Finding {
 
 const HEADING = /^#{1,6}\s+/;
 
+/**
+ * The `Target files` section label, in BOTH forms the queue actually contains
+ * (issue #3535).
+ *
+ * The Agent Brief template emits every other section as a bold label, and its
+ * `Target files` section was no exception; this lint's own fix hint, and the
+ * planner's reader, matched a markdown HEADING only. Template, lint and reader
+ * therefore disagreed three ways, and an author following the intake skill
+ * verbatim silently lost batching: 77 of the 200 open `ready-for-agent` issues
+ * declared a real list of paths under the bold label and every one of them was
+ * read as "unknown blast radius" and scheduled solo.
+ *
+ * This constant is the single authority on what is accepted. The planner's
+ * `parseTargetFiles` imports it rather than re-stating the pattern, so the
+ * drift cannot come back by editing one copy.
+ *
+ * The HEADING form stays canonical for issues written from now on — it is what
+ * `TARGET_FILES_FIX` tells an author to write and what the intake template now
+ * emits — but an existing bold label is read, not corrected.
+ */
+export const TARGET_FILES_LABEL =
+    /^(?:#{1,6}\s+target files|\*\*\s*target files\s*:?\s*\*\*\s*:?\s*$)/i;
+
+/**
+ * Where a section ENDS: the next heading, or the next bold label.
+ *
+ * A bold-labelled section has no `#` to stop at, so without the second
+ * alternative a `**Target files:**` with nothing under it would swallow the
+ * list items of whatever section came after it.
+ */
+export const SECTION_BREAK = /^(?:#{1,6}\s+|\*\*[^*]+\*\*:?\s*$)/;
+
+/**
+ * Does the body DECLARE a file set — a `Target files` label with at least one
+ * list item under it?
+ *
+ * A label with nothing under it is not a declaration: the planner reads it as
+ * absent (unknown blast radius, scheduled solo), so the lint must say the same
+ * thing rather than let an author believe an empty section bought them
+ * batching.
+ */
+export function declaresTargetFiles(body: string): boolean {
+    return (targetFilesSection(body) ?? []).some((l) =>
+        /^[-*]\s+/.test(l.trim())
+    );
+}
+
+/** The one sentence that names the accepted forms, shared by the fix hint. */
+export const TARGET_FILES_FIX =
+    "add a `## Target files` section listing the modules/globs it touches (coarse is fine) — the template's `**Target files:**` label is read too";
+
 function hasSection(body: string, name: RegExp): boolean {
     return body.split("\n").some((l) => HEADING.test(l) && name.test(l));
+}
+
+/**
+ * The raw lines of the `Target files` section, in either accepted form, or
+ * `null` when the section is ABSENT.
+ *
+ * `null` is not the same as `[]`, and the planner's whole scheduling decision
+ * hangs off the difference: absent means the blast radius is unknown and the
+ * issue runs solo; empty would mean "declares it touches nothing", which is
+ * never what a label with no list under it is saying.
+ */
+export function targetFilesSection(body: string): string[] | null {
+    const lines = body.split("\n");
+    const start = lines.findIndex((l) => TARGET_FILES_LABEL.test(l.trim()));
+    if (start === -1) return null;
+    const rest = lines.slice(start + 1);
+    const end = rest.findIndex((l) => SECTION_BREAK.test(l.trim()));
+    return end === -1 ? rest : rest.slice(0, end);
 }
 
 /** Lines of the named section, up to the next heading. */
@@ -61,7 +130,6 @@ function section(body: string, name: RegExp): string[] {
     return end === -1 ? rest : rest.slice(0, end);
 }
 
-const TARGET_FILES = /target files/i;
 const ACCEPTANCE = /acceptance criteria/i;
 const PARENT = /^#{1,6}\s+parent/i;
 
@@ -102,7 +170,7 @@ export function lintIssue(issue: LintableIssue): Finding[] {
 
     // An issue no agent can land: it is not malformed, it is misrouted, and
     // claiming it burns a full implement + review cycle before failing at push.
-    for (const raw of section(body, TARGET_FILES)) {
+    for (const raw of targetFilesSection(body) ?? []) {
         const t = raw
             .trim()
             .replace(/^[-*]\s+/, "")
@@ -146,13 +214,13 @@ export function lintIssue(issue: LintableIssue): Finding[] {
         });
     }
 
-    if (!hasSection(body, TARGET_FILES)) {
+    if (!declaresTargetFiles(body)) {
         findings.push({
             rule: "no-target-files",
             severity: "advisory",
             message:
                 "no `Target files` section — the planner will not guess a file set, so the issue is scheduled SOLO and the rest of the batch waits behind it",
-            fix: "add a `## Target files` section listing the modules/globs it touches (coarse is fine)",
+            fix: TARGET_FILES_FIX,
         });
     }
 

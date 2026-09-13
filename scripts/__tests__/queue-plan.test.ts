@@ -16,6 +16,7 @@ vi.mock("node:fs", async (importOriginal) => {
 });
 import {
     planBatch,
+    parseTargetFiles,
     pathsOverlap,
     normalizePath,
     isAppendOnlyPath,
@@ -1239,6 +1240,136 @@ describe("`- *` means the whole repo", () => {
         };
         expect(numbers(planBatch(issues, CONFIG, makePort(details)))).toEqual([
             100,
+        ]);
+    });
+});
+
+describe("`Target files` is read in both forms the queue contains (issue #3535)", () => {
+    // The Agent Brief template emitted a BOLD label while the reader matched a
+    // markdown HEADING only, so a section that was there, with a real list of
+    // paths under it, classified as ABSENT. Measured on the 200 open
+    // `ready-for-agent` issues at filing time: 82 used the bold form only, and
+    // 77 of them listed paths that were discarded — every one of those issues
+    // was scheduled solo with the rest of the batch waiting behind it.
+    it("reads the heading form", () => {
+        expect(
+            parseTargetFiles(
+                ["## Target files", "", "- `scripts/lib/queue-plan.ts`"].join(
+                    "\n"
+                )
+            )
+        ).toEqual(["scripts/lib/queue-plan.ts"]);
+    });
+
+    it("reads the bold-label form the intake template emitted", () => {
+        expect(
+            parseTargetFiles(
+                [
+                    "**Target files:**",
+                    "",
+                    "- `scripts/lib/queue-plan.ts`",
+                    "- `scripts/lib/queue-lint.ts`",
+                ].join("\n")
+            )
+        ).toEqual(["scripts/lib/queue-plan.ts", "scripts/lib/queue-lint.ts"]);
+    });
+
+    it("reads the bold label with the colon outside the emphasis", () => {
+        expect(
+            parseTargetFiles(["**Target files**:", "", "- `src/`"].join("\n"))
+        ).toEqual(["src"]);
+    });
+
+    it("stops at the explanatory prose that follows the list", () => {
+        // The template's own shape: label, list, then a paragraph. The
+        // paragraph is not a path, and nothing after it belongs to the section.
+        expect(
+            parseTargetFiles(
+                [
+                    "**Target files:**",
+                    "",
+                    "- `src/components/Hand.tsx`",
+                    "",
+                    "Coarse is fine; the implementer is not bound by this list.",
+                    "",
+                    "- `convex/gre/state.ts`",
+                ].join("\n")
+            )
+        ).toEqual(["src/components/Hand.tsx"]);
+    });
+
+    it("keeps the preamble prose ahead of the list from ending the section", () => {
+        expect(
+            parseTargetFiles(
+                [
+                    "**Target files:**",
+                    "",
+                    "Scheduling metadata, module granularity:",
+                    "",
+                    "- `scripts/lib/queue-lint.ts`",
+                ].join("\n")
+            )
+        ).toEqual(["scripts/lib/queue-lint.ts"]);
+    });
+
+    it("reads a `- *` everything-declaration through either form", () => {
+        for (const label of ["## Target files", "**Target files:**"]) {
+            expect(parseTargetFiles([label, "", "- *"].join("\n"))).toEqual([
+                EVERYTHING,
+            ]);
+        }
+    });
+
+    it("does not swallow the next section's list items", () => {
+        // A bold label has no `#` to stop at. Without a bold-label section
+        // break, an empty `Target files` would adopt whatever list came next —
+        // and declare the issue touches files nobody wrote there.
+        expect(
+            parseTargetFiles(
+                [
+                    "**Target files:**",
+                    "",
+                    "**Out of scope:**",
+                    "",
+                    "- `convex/gre/state.ts`",
+                ].join("\n")
+            )
+        ).toBeNull();
+    });
+
+    it("a label with no list under it is absent, not a declared-empty set", () => {
+        // Absent means unknown, and unknown runs solo. An empty DECLARED set
+        // would mean "touches no file", which overlaps nothing and batches
+        // beside everything — the one answer that is actively wrong.
+        for (const label of ["## Target files", "**Target files:**"]) {
+            expect(
+                parseTargetFiles(`${label}\n\nnothing to declare.`)
+            ).toBeNull();
+        }
+    });
+
+    it("no section at all is still absent", () => {
+        expect(
+            parseTargetFiles("## Acceptance criteria\n\n- [ ] it works")
+        ).toBeNull();
+    });
+
+    it("an issue declaring files under the bold label batches", () => {
+        const issues = [issue(100, {}), issue(200, {})];
+        const details = {
+            100: {
+                body: body({ targetFiles: null }).concat(
+                    "\n\n**Target files:**\n\n- `src/components/Hand.tsx`\n"
+                ),
+            },
+            200: {
+                body: body({ targetFiles: null }).concat(
+                    "\n\n**Target files:**\n\n- `src/components/Battlefield.tsx`\n"
+                ),
+            },
+        };
+        expect(numbers(planBatch(issues, CONFIG, makePort(details)))).toEqual([
+            100, 200,
         ]);
     });
 });
