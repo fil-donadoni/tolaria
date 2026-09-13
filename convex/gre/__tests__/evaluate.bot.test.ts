@@ -1514,7 +1514,14 @@ describe("manaDevelopment term (issue #2686)", () => {
         const zeroed = { ...DEFAULT_EVAL_WEIGHTS, manaDevWeight: 0 };
         const castDelta = (w: typeof DEFAULT_EVAL_WEIGHTS) =>
             evaluate(inPlay, "p1", w) - evaluate(inHand, "p1", w);
-        expect(castDelta(DEFAULT_EVAL_WEIGHTS)).toBe(castDelta(zeroed));
+        // Close to 9 digits, not bit-identical: the two deltas sum the same
+        // terms in a different rounding order, so a refitted weight vector
+        // can move the last bits (6e-14 at the issue #2718 refit). A real toll
+        // is the size of `manaDevWeight` itself, ten orders above this bound.
+        expect(castDelta(DEFAULT_EVAL_WEIGHTS)).toBeCloseTo(
+            castDelta(zeroed),
+            9
+        );
     });
 
     it("keeps the base justified once the spell that wanted it is in play (issue #2928)", () => {
