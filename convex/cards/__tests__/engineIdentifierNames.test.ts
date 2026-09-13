@@ -9,27 +9,37 @@
 // a sweep; `playerAttackRequirements` is one it can.
 //
 // The rule is worth a guard rather than a convention because it is
-// MECHANICALLY VERIFIABLE: card names are enumerable (1819 `CardDefinition`s
-// today), engine identifiers are enumerable, and the check is containment. The
-// hand audit of 2026-07-29 was true for 2026-07-29 only.
+// MECHANICALLY VERIFIABLE: card names are enumerable, engine identifiers are
+// enumerable, and the check is containment. The hand audit of 2026-07-29 was
+// true for 2026-07-29 only.
 //
 // Sibling in form to `mechanicsRegistry.test.ts` (Guard A) /
 // `divergenceMarkers.test.ts` (Guard B) / `drawPrimitiveGuard.test.ts`: a
 // catalogue-wide sweep against a narrow allowlist whose every entry is
 // asserted to still be load-bearing, so it empties out instead of rotting.
 //
-// SURFACES (issue #1918). Four declaration sites, five identifier sets:
-//   1. `GameState` keys              — `convex/gre/state.ts`
-//   2. `PlayerState` keys            — `convex/gre/state.ts`
-//   3. `CardInstanceState` keys      — `convex/gre/state.ts`
-//   4. Effect Script Op names        — `EFFECT_OP_REGISTRY` (runtime)
-//   5. `SpellContext` members        — `convex/cards/types.ts`
-// The three type surfaces are read from SOURCE through the TypeScript AST
+// SURFACES. EVERY top-level `interface`/`type` declaration in the two type
+// files — `convex/gre/state.ts` and `convex/cards/types.ts` — plus the Op
+// names in `EFFECT_OP_REGISTRY`. Issue #1918 named four declarations
+// (`GameState`, `PlayerState`, `CardInstanceState`, `SpellContext`); a
+// hand-listed set turned out to be a blind spot with no tell, since
+// `PlayerPreferences` and `TriggerStateView` are separate declarations reached
+// THROUGH those four, and both hold a live violation. Sweeping the files is
+// the same work and closes the class.
+//
+// The type surfaces are read from SOURCE through the TypeScript AST
 // (`scripts/lib/identity-test-classifier.ts` precedent) rather than a runtime
 // key list, because a type has no runtime keys and because the AST sees the
 // REQUIRED members too — `PERSISTED_OPTIONAL_KEYS` is exhaustive over the
 // OPTIONAL ones only. Those serialize tuples are still used, as a
 // self-check that the AST extraction actually found `GameState` (below).
+//
+// SCOPE LIMIT, stated rather than hidden: an ANONYMOUS inline shape is not a
+// declaration and is not swept — `types.ts`'s
+// `preferences?: { libraryOfLengRouting?: … }` is invisible here while the
+// `PlayerPreferences` member it mirrors is caught. A rename sweep greps the
+// old name, so the mirror travels with the original; what the guard promises
+// is that the original cannot be missed.
 //
 // DIRECTION OF CONTAINMENT: identifier ⊃ normalised card name, never the
 // reverse. That is what keeps the Op `animate` from being flagged by the card
@@ -56,12 +66,14 @@ const TYPES_TS = path.resolve("convex/cards/types.ts");
 const normalise = (s: string): string =>
     s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
-/** Minimum normalised card-name length considered. Measured against the
- *  current catalogue: at 4 the only new pairs are pure English substrings —
- *  "Bind" inside `recallCapturedBinding`/`captureBinding` and "Rout" inside
- *  `revealTopAndRoute` — and NO true positive appears below 5. Raising it
- *  further buys nothing (5, 6 and 7 differ only by the rules-vocabulary names
- *  exempted below) while losing real short card names. */
+/** Minimum normalised card-name length considered. **5 is a floor, not a free
+ *  choice**: raising it to 6 loses a real offender, `GameState.meleeCombat` ←
+ *  the card "Melee" (5 normalised characters). Lowering it to 4 adds six pairs
+ *  and all six are English substrings — "Bind" inside `captureBinding`,
+ *  `recallCapturedBinding` (Op and `SpellContext`) and
+ *  `CardInstanceState.capturedBindings`, "Rout" inside `revealTopAndRoute` —
+ *  with no true positive among them. Both figures measured against the current
+ *  catalogue. */
 const MIN_NAME_LENGTH = 5;
 
 /** Card names that are ALSO ordinary rules vocabulary: a keyword ability, a
@@ -70,18 +82,16 @@ const MIN_NAME_LENGTH = 5;
  *  the vocabulary it collides with, not one row per (surface, identifier)
  *  pair, because the collision is a property of the WORD.
  *
- *  The cost is known and accepted: an identifier genuinely named after the
- *  card "Flash" would not be caught. A name only belongs here when the engine
- *  would use the word with no card in existence. */
+ *  This is the FAIL-OPEN list, so it is the one to keep honest: the cost of a
+ *  row is that an identifier genuinely named after the card "Flash" would not
+ *  be caught, forever, with no tell. A name belongs here only when the engine
+ *  would use the word with no such card in existence, and the test below
+ *  additionally deletes any row that suppresses nothing today. */
 const RULES_VOCABULARY_NAMES: ReadonlyArray<{
     readonly card: string;
     readonly vocabulary: string;
 }> = [
     { card: "Island", vocabulary: "basic land type (CR 205.3i)" },
-    { card: "Forest", vocabulary: "basic land type (CR 205.3i)" },
-    { card: "Mountain", vocabulary: "basic land type (CR 205.3i)" },
-    { card: "Plains", vocabulary: "basic land type (CR 205.3i)" },
-    { card: "Swamp", vocabulary: "basic land type (CR 205.3i)" },
     {
         card: "Flash",
         vocabulary:
@@ -96,6 +106,11 @@ const RULES_VOCABULARY_NAMES: ReadonlyArray<{
     {
         card: "Blessing",
         vocabulary: "the city's blessing, granted by ascend (CR 702.131)",
+    },
+    {
+        card: "Exclude",
+        vocabulary:
+            "plain English verb — the excludeTypes / excludeColors / excludeSource filter family",
     },
     {
         card: "Recall",
@@ -117,31 +132,31 @@ const ALLOWLIST: ReadonlyArray<{
     readonly issue: number;
 }> = [
     {
-        surface: "GameState key",
+        surface: "GameState",
         identifier: "camouflageCombat",
         card: "Camouflage",
         issue: 1917,
     },
     {
-        surface: "GameState key",
+        surface: "GameState",
         identifier: "meleeCombat",
         card: "Melee",
         issue: 1917,
     },
     {
-        surface: "GameState key",
+        surface: "GameState",
         identifier: "islandSanctuaryProtection",
         card: "Island Sanctuary",
         issue: 1917,
     },
     {
-        surface: "GameState key",
+        surface: "GameState",
         identifier: "gazeOfPainActiveThisTurn",
         card: "Gaze of Pain",
         issue: 1917,
     },
     {
-        surface: "GameState key",
+        surface: "GameState",
         identifier: "highTideThisTurn",
         card: "High Tide",
         issue: 1917,
@@ -153,90 +168,122 @@ const ALLOWLIST: ReadonlyArray<{
         issue: 1917,
     },
     {
-        surface: "SpellContext member",
+        surface: "SpellContext",
         identifier: "setIslandSanctuaryProtection",
         card: "Island Sanctuary",
         issue: 1917,
     },
     {
-        surface: "SpellContext member",
+        surface: "SpellContext",
         identifier: "markGazeOfPainActive",
         card: "Gaze of Pain",
         issue: 1917,
     },
     {
-        surface: "SpellContext member",
+        surface: "SpellContext",
         identifier: "applyCamouflagePileBlocks",
         card: "Camouflage",
         issue: 1917,
     },
     {
-        surface: "SpellContext member",
+        surface: "SpellContext",
         identifier: "addHighTide",
         card: "High Tide",
         issue: 1917,
     },
+    {
+        surface: "TriggerStateView",
+        identifier: "gazeOfPainActiveThisTurn",
+        card: "Gaze of Pain",
+        issue: 1917,
+    },
+    {
+        surface: "PlayerPreferences",
+        identifier: "libraryOfLengRouting",
+        card: "Library of Leng",
+        issue: 1917,
+    },
 ];
 
-/** Top-level member names of an `interface X {}` / `type X = {}` declaration,
- *  read from source through the TypeScript AST. Nested object types are NOT
- *  descended into — a nested member is not an addressable engine identifier
- *  on this surface, and a brace counter would mis-read the block comments
- *  these declarations are full of. */
-function declarationMemberNames(file: string, declName: string): string[] {
+/** EVERY top-level `interface X {}` / `type X = {…}` declaration in a source
+ *  file, as `{ label: "X", identifiers: [...] }` — one surface per
+ *  declaration, so the offender message names the type you have to edit.
+ *
+ *  Deliberately the WHOLE file rather than a hand-listed set of type names.
+ *  A hand-listed set is a blind spot with no tell: `GameState.playerPreferences`
+ *  is a persisted key, but `PlayerPreferences` is its own declaration, so a
+ *  four-name list scanned the container and missed
+ *  `PlayerPreferences.libraryOfLengRouting` — a live violation that postdates
+ *  the 2026-07-29 hand audit, i.e. exactly the drift this guard exists to
+ *  catch. The client-facing mirrors (`TriggerStateView`,
+ *  `ReplacementStateView`) are the same story. Sweeping the file closes the
+ *  class instead of the two instances.
+ *
+ *  Nested object types are still NOT descended into: a nested member's
+ *  enclosing type is itself a declaration here whenever it is one the engine
+ *  addresses by name, and an anonymous inline shape is not an addressable
+ *  identifier surface. */
+function declarationSurfaces(
+    file: string
+): Array<{ label: string; identifiers: string[] }> {
     const source = ts.createSourceFile(
         file,
         fs.readFileSync(file, "utf8"),
         ts.ScriptTarget.Latest,
         /* setParentNodes */ false
     );
-    const names: string[] = [];
+    const surfaces: Array<{ label: string; identifiers: string[] }> = [];
     for (const stmt of source.statements) {
         let members: ts.NodeArray<ts.TypeElement> | undefined;
-        if (ts.isInterfaceDeclaration(stmt) && stmt.name.text === declName) {
+        let label: string | undefined;
+        if (ts.isInterfaceDeclaration(stmt)) {
+            // `extends` needs no special handling: an interface's OWN members
+            // are `stmt.members` regardless, and a base declared in either
+            // scanned file is swept as its own surface. Only a base declared
+            // in a third file escapes — a scope limit of "these two files",
+            // not a hole in the walk.
+            label = stmt.name.text;
             members = stmt.members;
         } else if (
             ts.isTypeAliasDeclaration(stmt) &&
-            stmt.name.text === declName &&
             ts.isTypeLiteralNode(stmt.type)
         ) {
+            label = stmt.name.text;
             members = stmt.type.members;
         }
-        if (!members) continue;
+        if (!members || !label) continue;
+        const identifiers: string[] = [];
         for (const member of members) {
             const name = member.name;
             if (name && (ts.isIdentifier(name) || ts.isStringLiteral(name))) {
-                names.push(name.text);
+                identifiers.push(name.text);
             }
         }
+        if (identifiers.length > 0) surfaces.push({ label, identifiers });
     }
-    if (names.length === 0) {
-        throw new Error(
-            `no members extracted for \`${declName}\` in ${file} — the declaration moved or ` +
-                `changed shape, and this guard would otherwise pass vacuously`
-        );
-    }
-    return names;
+    return surfaces;
 }
 
-const GAME_STATE_KEYS = declarationMemberNames(STATE_TS, "GameState");
-const PLAYER_STATE_KEYS = declarationMemberNames(STATE_TS, "PlayerState");
-const CARD_INSTANCE_KEYS = declarationMemberNames(
-    STATE_TS,
-    "CardInstanceState"
-);
-const SPELL_CONTEXT_MEMBERS = declarationMemberNames(TYPES_TS, "SpellContext");
 const OP_NAMES = EFFECT_OP_REGISTRY.map((row) => row.op);
 
 const SURFACES: ReadonlyArray<{
     readonly label: string;
     readonly identifiers: readonly string[];
 }> = [
-    { label: "GameState key", identifiers: GAME_STATE_KEYS },
-    { label: "PlayerState key", identifiers: PLAYER_STATE_KEYS },
-    { label: "CardInstanceState key", identifiers: CARD_INSTANCE_KEYS },
+    ...declarationSurfaces(STATE_TS),
+    ...declarationSurfaces(TYPES_TS),
     { label: "Op", identifiers: OP_NAMES },
-    { label: "SpellContext member", identifiers: SPELL_CONTEXT_MEMBERS },
+];
+
+/** Measured floors, per file, for the anti-vacuity check below. A refactor
+ *  that reshapes a declaration into something the AST walk cannot read (a
+ *  mapped type, an intersection, a namespace) shrinks the scanned surface with
+ *  NO test failing — the guard just stops looking. These floors are what turns
+ *  that into a red. Raise them when the files grow; never lower one to make a
+ *  refactor pass without re-checking what stopped being scanned. */
+const MEMBER_FLOORS: ReadonlyArray<{ file: string; members: number }> = [
+    { file: STATE_TS, members: 500 },
+    { file: TYPES_TS, members: 1150 },
 ];
 
 type Offence = {
@@ -250,10 +297,17 @@ type Offence = {
  *  hand-built corpus, which is what proves the guard can go red at all. */
 function findOffences(
     surfaces: ReadonlyArray<{ label: string; identifiers: readonly string[] }>,
-    cardNames: readonly string[]
+    cardNames: readonly string[],
+    /** Names to leave IN the corpus even though RULES_VOCABULARY_NAMES exempts
+     *  them — how the load-bearing test below asks "what does this row
+     *  actually suppress?". */
+    ignoreVocabularyFor: readonly string[] = []
 ): Offence[] {
+    const reinstated = new Set(ignoreVocabularyFor.map(normalise));
     const exempt = new Set(
-        RULES_VOCABULARY_NAMES.map((row) => normalise(row.card))
+        RULES_VOCABULARY_NAMES.map((row) => normalise(row.card)).filter(
+            (name) => !reinstated.has(name)
+        )
     );
     const needles = cardNames
         .map((name) => ({ name, normalised: normalise(name) }))
@@ -297,12 +351,14 @@ const describeOffence = (o: Offence): string =>
 
 describe("No card name in an engine identifier (issue #1918)", () => {
     it("the AST extraction really found GameState — every serialized optional key is a member", () => {
-        // Anti-vacuity: if `declarationMemberNames` ever matched the wrong
-        // declaration, the sweep below would pass while scanning nothing
-        // useful. `PERSISTED_OPTIONAL_KEYS` + `TRANSIENT_KEYS` are exhaustive
-        // over GameState's optional keys by construction (serialize.ts's own
-        // drift guard), so they must all appear in the extracted member list.
-        const extracted = new Set(GAME_STATE_KEYS);
+        // Anti-vacuity, part 1. If the AST walk ever stopped seeing the
+        // `GameState` declaration, the sweep below would pass while scanning
+        // nothing useful. `PERSISTED_OPTIONAL_KEYS` + `TRANSIENT_KEYS` are
+        // exhaustive over GameState's optional keys by construction
+        // (serialize.ts's own drift guard), so they must all appear.
+        const gameState = SURFACES.find((s) => s.label === "GameState");
+        expect(gameState, "no `GameState` surface was extracted").toBeDefined();
+        const extracted = new Set(gameState!.identifiers);
         const missing = [
             ...(PERSISTED_OPTIONAL_KEYS as readonly string[]),
             ...TRANSIENT_KEYS,
@@ -310,8 +366,28 @@ describe("No card name in an engine identifier (issue #1918)", () => {
         expect(
             missing,
             "GameState keys named by serialize.ts that the AST extraction did not see — " +
-                "`declarationMemberNames` is reading the wrong declaration"
+                "`declarationSurfaces` is reading the wrong declaration"
         ).toEqual([]);
+    });
+
+    it("each scanned file still yields its floor of members", () => {
+        // Anti-vacuity, part 2. `GameState` has a cross-check; the other ~200
+        // declarations have none, so a reshape that the AST walk cannot read
+        // (a mapped type, an intersection, a namespace, a split interface)
+        // would silently shrink the surface with no test failing. The floors
+        // are what makes that shrinkage a red.
+        for (const floor of MEMBER_FLOORS) {
+            const total = declarationSurfaces(floor.file).reduce(
+                (n, s) => n + s.identifiers.length,
+                0
+            );
+            expect(
+                total,
+                `${path.basename(floor.file)} yields ${total} scanned members, below the ` +
+                    `measured floor of ${floor.members} — a declaration stopped being readable ` +
+                    `by the AST walk and is no longer swept`
+            ).toBeGreaterThanOrEqual(floor.members);
+        }
     });
 
     it("flags a synthetic offender (proof the guard can fail)", () => {
@@ -384,15 +460,32 @@ describe("No card name in an engine identifier (issue #1918)", () => {
         }
     });
 
-    it("every RULES_VOCABULARY_NAMES entry names a real card", () => {
-        const cardNames = new Set(getAllCards().map((card) => card.name));
+    it("every RULES_VOCABULARY_NAMES entry names a real card AND suppresses something", () => {
+        // The mirror of the ALLOWLIST staleness test, and the more important
+        // of the two: this is the FAIL-OPEN list. A speculative row here
+        // widens the blind spot across every surface, forever, with no tell.
+        // So a row earns its place twice — the name must be a real card (or it
+        // exempts nothing at all), and dropping it must actually change a
+        // verdict (or it is a guess about a collision that never happened).
+        const cardNames = getAllCards().map((card) => card.name);
+        const known = new Set(cardNames);
         const unknown = RULES_VOCABULARY_NAMES.filter(
-            (row) => !cardNames.has(row.card)
+            (row) => !known.has(row.card)
         ).map((row) => row.card);
         expect(
             unknown,
             "RULES_VOCABULARY_NAMES rows for names that are not in the catalogue — the row " +
                 "exempts nothing and should go"
+        ).toEqual([]);
+
+        const idle = RULES_VOCABULARY_NAMES.filter((row) => {
+            const withoutRow = findOffences(SURFACES, cardNames, [row.card]);
+            return !withoutRow.some((o) => o.card === row.card);
+        }).map((row) => row.card);
+        expect(
+            idle,
+            "RULES_VOCABULARY_NAMES rows that suppress nothing — delete them; re-add a row the " +
+                "day the collision actually fires, with the identifier that fired it"
         ).toEqual([]);
     });
 });

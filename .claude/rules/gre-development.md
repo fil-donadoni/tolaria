@@ -104,9 +104,9 @@ Every optional `GameState` field goes in `PERSISTED_OPTIONAL_KEYS` or
 An engine identifier is named after the MECHANIC: `playerAttackRequirements`,
 never `islandSanctuaryProtection`. The generic NAME comes from card #1 — always,
 it is a mechanical rename; the generic SHAPE waits for card #2 to show the axis
-of variation. Enforced catalogue-wide over `GameState` / `PlayerState` /
-`CardInstanceState` keys, Op names and `SpellContext` members by
-`convex/cards/__tests__/engineIdentifierNames.test.ts` (issue #1918).
+of variation. Enforced catalogue-wide by
+`convex/cards/__tests__/engineIdentifierNames.test.ts` (issue #1918) over every
+top-level declaration in `gre/state.ts` + `cards/types.ts` plus the Op names.
 
 ## Code patterns
 

@@ -293,25 +293,39 @@ Two halves, and only one of them is a rule:
 
 `convex/cards/__tests__/engineIdentifierNames.test.ts` enforces it
 catalogue-wide, because the rule is mechanically verifiable: card names are
-enumerable. It sweeps five identifier sets — `GameState`, `PlayerState` and
-`CardInstanceState` keys plus `SpellContext` members (all read from source
-through the TypeScript AST, so REQUIRED members are covered too, not only the
-`PERSISTED_OPTIONAL_KEYS` ones) and `EFFECT_OP_REGISTRY` Op names — and flags
-any identifier that CONTAINS a normalised card name (lowercase, non-alphanumerics
-dropped: "Gaze of Pain" → `gazeofpain`).
+enumerable. It sweeps **every top-level `interface`/`type` declaration** in
+`convex/gre/state.ts` and `convex/cards/types.ts`, plus `EFFECT_OP_REGISTRY`
+Op names, and flags any identifier that CONTAINS a normalised card name
+(lowercase, non-alphanumerics dropped: "Gaze of Pain" → `gazeofpain`).
+
+Whole files, not the four declarations issue #1918 named: `PlayerPreferences`
+and `TriggerStateView` are separate declarations reached THROUGH `GameState`,
+and each held a live violation that a hand-listed set missed silently. The
+members come from the TypeScript AST, so REQUIRED members are covered too, not
+only the `PERSISTED_OPTIONAL_KEYS` ones. An ANONYMOUS inline shape is the
+stated scope limit — it is not a declaration and is not swept.
 
 The containment runs **identifier ⊃ card name, never the reverse** — that is
 what keeps the Op `animate` from being flagged by the card "Animate Wall".
-Names shorter than 5 normalised characters are out of the corpus (measured: at
-4 the only new pairs are English substrings, "Bind" inside `captureBinding` and
-"Rout" inside `revealTopAndRoute`, and no true positive lives below 5).
+Names shorter than 5 normalised characters are out of the corpus, and 5 is a
+floor rather than a free choice: at 6 the real offender `meleeCombat` ← "Melee"
+is lost, at 4 the six extra pairs are all English substrings ("Bind" inside
+`captureBinding`, "Rout" inside `revealTopAndRoute`).
+
+Two anti-vacuity checks stand behind the sweep, because "scanned nothing" and
+"found nothing" look identical: `GameState`'s member list is cross-checked
+against `PERSISTED_OPTIONAL_KEYS` + `TRANSIENT_KEYS`, and each file must yield
+a floor of scanned members, so a reshape the AST walk cannot read (a mapped
+type, an intersection, a namespace) reds instead of shrinking the surface.
 
 Two narrow lists, both asserted to stay truthful:
 
 - `RULES_VOCABULARY_NAMES` — a card name that is ALSO ordinary rules vocabulary
-  (a basic land type, `flash`, `sacrifice`, `regeneration`, …). One row per
-  WORD, with the vocabulary it collides with; a row naming a card that is not
-  in the catalogue reds.
+  (`island`, `flash`, `sacrifice`, `regeneration`, `exclude`, …). One row per
+  WORD, with the vocabulary it collides with. This is the FAIL-OPEN list, so it
+  is held to the stricter test: a row naming a card that is not in the
+  catalogue reds, and so does a row that suppresses nothing today — add the row
+  the day the collision fires, not in anticipation of it.
 - `ALLOWLIST` — a (surface, identifier, card) triple that IS card-named and not
   renamed yet, each with its open tracking issue. A row matching nothing reds,
   so the list can only shrink; it was pre-populated with the issue #1917 sweep
