@@ -108,6 +108,32 @@ export type EvalWeights = {
      *  is worth — see the calibration note in `evaluate.ts`'s
      *  `manaDevelopmentTerm`. */
     manaDevWeight: number;
+    /** Full worth of a mana base that supplies EVERY colour its own seat
+     *  needs — the colour-coverage term (issue #3532, PRD #3526). The term is
+     *  this weight times a coverage fraction in [0, 1], so this is the whole
+     *  swing between a base that covers what the seat wants and one that
+     *  covers none of it, and the margin between the two seats is what prices
+     *  colour denial and colour screw.
+     *
+     *  Sized at two mana sources for the PRIOR: losing a colour outright is
+     *  the base being wrong in a way no further land of the wrong type fixes,
+     *  which is worth more than the one source a denial spell physically
+     *  removes — and well under a card, because a colour the opponent cannot
+     *  produce this turn is not a colour they can never produce. The fit moves
+     *  it from there (`verdicts/features.ts`); the blade entries that guard it
+     *  discriminate on the SIGN, not the magnitude.
+     *
+     *  READ IT BESIDE `manaDevWeight`, never alone: issue #3531 made the
+     *  development term's demand colour-aware too (`coversCostColors` gates
+     *  `raise(c)`), so a colour-dead hand card is already kept out of the
+     *  curve's top end. On the own seat the two terms move together over part
+     *  of their range, which means a refit splits one signal across two
+     *  weights — the same refit that introduced this one moved `manaDevWeight`
+     *  9.512 → 9.679, and neither number is evidence about its own term in
+     *  isolation. What separates them: development is about the land COUNT the
+     *  curve still wants, this is about a colour the base cannot produce AT
+     *  ALL, and only this one has an opponent-seat half. */
+    colorCoverageWeight: number;
     /** Bonus per castable held instant / live flexible activation, the
      *  reactive-flexibility term (`W_FLEX`). */
     flexWeight: number;
@@ -262,6 +288,7 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     manaWeight: 12,
     tappedManaWeight: 9,
     manaDevWeight: 12,
+    colorCoverageWeight: 24,
     flexWeight: 6,
     flexCardCap: 3,
     sourceBreadthWeight: 4,
@@ -334,27 +361,28 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
 export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     ...FIT_BASE_EVAL_WEIGHTS,
     lifeWeight: 8,
-    permanentWeight: 4.98237,
-    manaWeight: 11.103105,
-    tappedManaWeight: 10.103105,
-    manaDevWeight: 9.524549,
-    flexWeight: 5.86416,
+    permanentWeight: 5.030644,
+    manaWeight: 11.219716,
+    tappedManaWeight: 10.219716,
+    manaDevWeight: 9.688723,
+    colorCoverageWeight: 26.649245,
+    flexWeight: 5.850806,
     deckingWeight: 1.5,
-    graveyardEngineWeight: 68.481558,
-    graveyardReachFraction: 0.20019,
+    graveyardEngineWeight: 66.362558,
+    graveyardReachFraction: 0.198682,
     latent: Object.freeze({
-        damage: 20.896146,
-        cardAdvantage: 38.103593,
-        lifeSwing: 7.676104,
-        boardRemoval: 115.188232,
-        ramp: 11.548267,
+        damage: 20.927004,
+        cardAdvantage: 38.322739,
+        lifeSwing: 7.686075,
+        boardRemoval: 115.785881,
+        ramp: 11.562039,
         evasion: 40,
         tempo: 55,
-        disruption: 92.020832,
+        disruption: 93.073998,
         recursion: 140,
-        tokens: 0.4815,
-        pump: 7.903532,
-        protection: 56.63866,
+        tokens: 0.490655,
+        pump: 7.937356,
+        protection: 56.747115,
     }),
 });
 

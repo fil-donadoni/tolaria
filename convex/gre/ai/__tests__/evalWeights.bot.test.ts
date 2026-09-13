@@ -76,6 +76,11 @@ describe("DEFAULT_EVAL_WEIGHTS (issue #2683)", () => {
             manaWeight: 12,
             tappedManaWeight: 9,
             manaDevWeight: 12,
+            // Issue #3532 — the colour-coverage term's whole swing, prior at
+            // two mana sources: the term is a fraction in [0, 1] times this,
+            // so it is the difference between a base that supplies every
+            // colour its seat needs and one that supplies none of them.
+            colorCoverageWeight: 24,
             flexWeight: 6,
             flexCardCap: 3,
             sourceBreadthWeight: 4,

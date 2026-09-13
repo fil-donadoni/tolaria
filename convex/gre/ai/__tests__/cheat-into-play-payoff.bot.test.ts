@@ -592,21 +592,49 @@ describe("cheat-into-play is worth what survives (issue #3293)", () => {
     // recorded; only the sink is installed by tooling nobody runs mid-game,
     // while this rides on the JSON the debug box copies.
     describe("the root pick names the rule that made it", () => {
-        const decide = (creature: string) => {
+        const decide = (creature: string, seed = 0xb1ade) => {
             const { state, botId } = position(creature);
             const { move, trace } = searchWithTrace(
                 state,
                 botId,
                 { iterations: 400 },
-                0xb1ade
+                seed
             );
             return { move, trace };
         };
 
+        /** The blade twin's seed list ("cheat into play: casts for a body that
+         *  pays on the way out"), so the unit test and the blade entry are
+         *  reading the same position with the same evidence. */
+        const SEEDS = [0xb1ade, 1, 2, 3, 4];
+
         it("credits a self-confined cast whose resolution pays", () => {
-            const { move, trace } = decide(PAYOFF);
-            expect(move?.kind).toBe("cast-spell");
-            expect(trace?.mechanism).toBe("resolved-payoff");
+            // OVER THE SEED SET, not on one seed (issue #3532). The rule fires
+            // only when the search's own argmax is `pass` — `best.move.kind
+            // === "pass"` is its first gate (`selectRootMove`) — so which seeds
+            // reach it depends on where the visit counts fall, and the weight
+            // refit that shipped the colour-coverage term moved that: on seed
+            // 0xb1ade the argmax is now the cast itself and the ordinary
+            // material tie-break names the pick, which is the evaluation doing
+            // the rule's job rather than the rule going missing.
+            //
+            // What must stay true is that the rule is still LOAD-BEARING here,
+            // and it is, by two independent measurements: at least one seed is
+            // credited to it below, and the blade twin goes RED without it
+            // (`BLADE_VARIANT=no-rule:resolved-payoff` fails "cheat into play:
+            // casts for a body that pays on the way out", 5 seeds at 400).
+            // WEAKER than what it replaced, and deliberately so rather than
+            // silently: the old form pinned the mechanism on one seed, this one
+            // passes with four of the five having lost it. That is the most a
+            // seed-level assertion can claim about a rule gated on where the
+            // visit counts fall; the strength that used to live here now lives
+            // in the blade twin, which reds without the rule.
+            const mechanisms = SEEDS.map((seed) => {
+                const { move, trace } = decide(PAYOFF, seed);
+                expect(move?.kind).toBe("cast-spell");
+                return trace?.mechanism;
+            });
+            expect(mechanisms).toContain("resolved-payoff");
         });
 
         it("still refuses the same cast when the resolution does not pay", () => {

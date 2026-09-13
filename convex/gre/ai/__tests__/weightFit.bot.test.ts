@@ -38,6 +38,7 @@ const ZERO_TERMS: Record<keyof EvalTerms, number> = {
     permanents: 0,
     mana: 0,
     manaDevelopment: 0,
+    colorCoverage: 0,
     flexibility: 0,
     library: 0,
     graveyard: 0,

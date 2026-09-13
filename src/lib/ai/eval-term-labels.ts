@@ -120,6 +120,20 @@ export const EVAL_TERM_LABELS: Record<keyof EvalTerms, EvalTermLabel> = {
         gain: "develops its mana",
         loss: "falls behind on mana",
     },
+    colorCoverage: {
+        short: "Cc",
+        name: "Colour coverage (colours the mana base supplies of what this seat needs)",
+        // Half the term's whole swing. The term is a FRACTION times its weight,
+        // so there is no "one unit" of it to halve the way a source or a card
+        // has one: what it measures is how much of a seat's colour demand its
+        // base covers, and half of that is the coarsest reading that still
+        // means something — roughly "a colour they were using went missing", as
+        // against the quarter-step an evidence re-weighting can produce with no
+        // colour actually lost.
+        floor: W.colorCoverageWeight / 2,
+        gain: "gets the colours it needs",
+        loss: "loses a colour it needs",
+    },
     flexibility: {
         short: "Fx",
         name: "Flexibility (options / reach)",
