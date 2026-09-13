@@ -66,6 +66,7 @@ const BOP = getCardByName("Birds of Paradise").id; // 0/1 mana dork
 const GIANT_GROWTH = getCardByName("Giant Growth").id; // {G} instant +3/+3
 const FOREST = getCardByName("Forest").id;
 const CONTAINMENT_PRIEST = getCardByName("Containment Priest").id; // {1}{W} 2/2 flash, no ETB/target choices
+const PLAINS = getCardByName("Plains").id; // pays Containment Priest's {W}
 const IRONROOT = getCardByName("Ironroot Treefolk").id; // 3/5 ground
 const SPIDER = getCardByName("Giant Spider").id; // 2/4 reach
 
@@ -1895,7 +1896,21 @@ describe("reactivePrior — soft reactive-line bias (issue #223)", () => {
                             zone: "hand",
                         }),
                     ],
-                    battlefield: [land("p1", "m1"), land("p1", "m2")],
+                    // PLAINS, not Mountains: Containment Priest costs {1}{W}
+                    // and the castability gate is colour-aware since issue
+                    // #3531 — two Mountains no longer pay for it.
+                    battlefield: [
+                        makeInstance(PLAINS, {
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            id: "w1",
+                        }),
+                        makeInstance(PLAINS, {
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            id: "w2",
+                        }),
+                    ],
                 }),
                 makePlayer("p2"),
             ],

@@ -70,6 +70,13 @@ import {
 import { dangerClock, predictCombatOutcome } from "./dangerClock";
 import { castableHeldInteraction } from "./heldInteraction";
 import {
+    canPayCost,
+    coversCostColors,
+    manaCensusFor,
+    manaUnitsFor,
+    type ManaUnits,
+} from "./manaAvailability";
+import {
     creatureValueRaw,
     dslLatentPiecesById,
     dslRealizedAbilityValueById,
@@ -321,47 +328,31 @@ export type EvalTerms = {
     graveyardReach: number;
 };
 
-/** Untapped mana sources + floating mana available to `player` this turn — the
- *  color-blind coarse proxy the `mana` term and the flexibility / castability
- *  gates all share (CR 601 colored requirements are not modelled).
+/** The colour units `player` can pay with RIGHT NOW — their floating pool plus
+ *  every mana their untapped permanents could produce (issue #3531). One census
+ *  per `evaluate` call per player; every castability question in this file is
+ *  then asked of it through `canPayCost`.
  *
- *  Known asymmetry (issue #2247): an untapped source counts exactly 1
- *  regardless of its real output, while floating mana in the pool counts per
- *  unit — so tapping a multi-mana source (Sol Ring) and floating the surplus
- *  reads as a gain over leaving it untapped. `evaluateAutoTapPosition`'s
- *  smart-auto-tap ranking does NOT rely on this function for that decision:
- *  #2247 adds a dedicated surplus-avoidance term to `solveSmartAutoTapCore`
- *  (`autoTap.ts`, `planSurplus`, reading `floatingAfterPlan`'s exact leftover
- *  pool directly) sized to dominate this proxy's noise for the ranking, so
- *  the auto-tap bug is fixed without correcting the proxy itself here.
- *
- *  Out of scope for #2247: correcting this function (and its duplicate,
- *  `heldInteraction.ts`'s `availableManaFor`) to count a source's real output
- *  would move the `mana`/flexibility terms on every ISMCTS leaf and the
- *  castability gates bot-wide, for every board with a multi-mana untapped
- *  source — a change disproportionate to, and independently verifiable from,
- *  the ranking fix above. Left as a deliberate simplification pending its own
- *  slice if a symptom traces back to this proxy specifically (rather than to
- *  the auto-tap ranking, which #2247 already covers). */
-function availableManaFor(player: PlayerState): number {
-    let n = 0;
-    for (const perm of player.battlefield) {
-        // CR 605.1a / 305.6 — a source counts only if it can actually produce
-        // mana. A fetchland (no mana ability) is NOT a source (issue #1499);
-        // nor is a board-conditional source whose CURRENT output is zero — an
-        // Everflowing Chalice with no charge counters (issue #1889), which is
-        // why the controller's own battlefield is threaded through.
-        if (isUntappedManaSource(perm, player.battlefield)) n += 1;
-    }
-    for (const c of ["W", "U", "B", "R", "G", "C"] as const) {
-        n += player.manaPool[c] ?? 0;
-    }
-    return n;
+ *  It REPLACES the scalar `availableManaFor` proxy (`manaValue(cost) <= n`) the
+ *  `mana` term, the flexibility term and the castability gates used to share.
+ *  That proxy could not see colour, so a Lightning Bolt held with three Islands
+ *  scored as a live reactive option and a combat trick the opponent's board
+ *  could not cast was predicted anyway. It also carried the issue-#2247
+ *  asymmetry — an untapped source counted exactly 1 whatever its real output,
+ *  while pool mana counted per unit, so tapping a Sol Ring and floating the
+ *  surplus read as a GAIN. Both are gone: `manaUnitsFor` counts one unit per
+ *  mana a source actually taps for (CR 605.1a), so a Sol Ring is two units
+ *  tapped or untapped and the float is no longer a free +1. */
+function availableManaUnitsFor(
+    state: GameState,
+    player: PlayerState
+): { now: ManaUnits; base: ManaUnits } {
+    return manaCensusFor(state, player);
 }
 
 /** How many MANA SOURCES `player` controls, tapped or not (CR 502.3, issue
- *  #3377) — the `mana` term's MATERIAL half, as against `availableManaFor`'s
- *  "what can I spend right now".
+ *  #3377) — the `mana` term's MATERIAL half, as against
+ *  `availableManaUnitsFor`'s "what can I spend right now".
  *
  *  The distinction is the whole fix. `terms.mana` used to be the untapped
  *  count, so tapping four lands to activate an ability read as losing
@@ -375,7 +366,7 @@ function availableManaFor(player: PlayerState): number {
  *
  *  What the untapped count was really measuring is the OPTION to act this
  *  turn, and `flexibilityTerm` already prices that, off the same
- *  `availableManaFor` number. Counting sources here leaves the two terms
+ *  available-mana census. Counting sources here leaves the two terms
  *  saying different things instead of one saying both badly.
  *
  *  The land-drop invariant (issue #149) is preserved exactly: playing a land
@@ -385,8 +376,8 @@ function availableManaFor(player: PlayerState): number {
  *
  *  The floating POOL is deliberately not counted here: it empties at the end
  *  of every step and phase (CR 500.5), so it is the least durable thing on the
- *  board. It stays in `availableManaFor`, where "can I pay for this right now"
- *  is the question being asked. */
+ *  board. It stays in `availableManaUnitsFor`, where "can I pay for this right
+ *  now" is the question being asked. */
 function manaSourceTermFor(player: PlayerState, weights: EvalWeights): number {
     let total = 0;
     for (const perm of player.battlefield) {
@@ -417,12 +408,16 @@ export function hasCastableInstant(
 ): boolean {
     const player = state.players.find((p) => p.id === playerId);
     if (!player) return false;
-    const availableMana = availableManaFor(player);
+    // COLOUR-AWARE since issue #3531: one census of what this seat can pay
+    // with, then the real cost question per card. The scalar proxy this
+    // replaced answered "is the hand's cheapest instant's mana value covered",
+    // so a Lightning Bolt held with three Islands read as a live trick.
+    const units = manaUnitsFor(state, player);
     return player.hand.some(
         (c) =>
             hasInstantSpeed(c) &&
             (!extra || extra(c)) &&
-            manaValue(getInstanceManaCost(c)) <= availableMana
+            canPayCost(units, getInstanceManaCost(c), { life: player.life })
     );
 }
 
@@ -548,7 +543,8 @@ function hasFlexibleActivation(
     state: GameState,
     player: PlayerState,
     perm: CardInstanceState,
-    availableMana: number
+    units: ManaUnits,
+    life: number
 ): boolean {
     // The shared "does something beyond producing mana" authority (CR 605.1a) —
     // the same predicate the auto-tapper uses, never a parallel copy.
@@ -609,7 +605,7 @@ function hasFlexibleActivation(
             if (perm.isTapped) continue;
             if (isTapLockedBySummoningSickness(perm)) continue;
         }
-        if (manaValue(ability.cost.mana) > availableMana) continue;
+        if (!canPayCost(units, ability.cost.mana, { life })) continue;
         return true;
     }
     return false;
@@ -621,8 +617,9 @@ function hasFlexibleActivation(
  *  Two halves, one shared budget:
  *
  *    * HAND — holdable instants the player has enough open mana to cast THIS
- *      turn (`availableMana` ≥ the card's mana value, the same color-blind proxy
- *      the `mana` term uses).
+ *      turn — the COLOUR-AWARE question since issue #3531 (`canPayCost`
+ *      against this seat's own mana units), not the mana-value proxy that
+ *      credited a trick the open sources could not pay for.
  *    * BOARD — permanents offering an instant-speed ACTIVATED option that is
  *      still the player's, live or in flight (`hasFlexibleActivation`). The
  *      mirror case: every seam that expressed option value read
@@ -652,19 +649,22 @@ function hasFlexibleActivation(
 function flexibilityTerm(
     state: GameState,
     player: PlayerState,
-    availableMana: number,
+    units: ManaUnits,
     weights: EvalWeights
 ): number {
     let castable = 0;
     for (const card of player.hand) {
         if (castable >= weights.flexCardCap) break;
         if (!hasInstantSpeed(card)) continue;
-        if (manaValue(getInstanceManaCost(card)) > availableMana) continue;
+        if (
+            !canPayCost(units, getInstanceManaCost(card), { life: player.life })
+        )
+            continue;
         castable += 1;
     }
     for (const perm of player.battlefield) {
         if (castable >= weights.flexCardCap) break;
-        if (!hasFlexibleActivation(state, player, perm, availableMana))
+        if (!hasFlexibleActivation(state, player, perm, units, player.life))
             continue;
         castable += 1;
     }
@@ -785,9 +785,29 @@ function quietDefensiveGrantFlat(
  *    near a small life swing), and the tie-break that settles it is #2939's
  *    activation-timing rule, not this weight.
  *
+ *  DEMAND IS COLOUR-AWARE (issue #3531). A hand card raises the curve only
+ *  when the player's mana BASE can supply the COLOURS its cost demands: five
+ *  Mountains develop nothing toward a held {B}{B}, and the term used to say
+ *  they covered it. The question is asked of `manaUnitsFor(..., {
+ *  ignoreTapState: true })` — every mana source the player controls, tapped or
+ *  not — because development is about the base, not about this turn's open
+ *  mana, exactly as the land count below is.
+ *
+ *  COLOURS ONLY, never quantity: `coversCostColors` asks whether the pips can
+ *  be matched and deliberately ignores how many sources are left for the
+ *  generic portion. A 6-drop in a two-land hand is precisely what two lands are
+ *  still developing TOWARD — gating demand on affordability would make demand
+ *  never exceed the land count, collapse `min(lands, curveTop)` to `curveTop`
+ *  and delete the "you are behind on lands" half of the term.
+ *
+ *  A permanent already on the battlefield raises the curve UNCONDITIONALLY:
+ *  it was cast, so the base demonstrably paid for it once, whatever the base
+ *  looks like now.
+ *
  *  Zero card names, pure, and state-only by construction. */
 function manaDevelopmentTerm(
     player: PlayerState,
+    base: ManaUnits,
     weights: EvalWeights
 ): number {
     // The TOP OF THE CURVE this player's mana base is for: the largest mana
@@ -802,7 +822,14 @@ function manaDevelopmentTerm(
         const mv = manaValue(getInstanceManaCost(c));
         if (mv > curveTop) curveTop = mv;
     };
-    for (const c of player.hand) raise(c);
+    // The BASE, tap state ignored — the same quantity the land count below is
+    // about. Built once, then asked one colour question per hand card.
+    const baseUnits = base;
+    for (const c of player.hand) {
+        const cost = getInstanceManaCost(c);
+        if (!coversCostColors(baseUnits, cost, { life: player.life })) continue;
+        raise(c);
+    }
     // Every land counts — tapped or untapped — because development is about the
     // BASE the hand can draw on, not the current-turn tap state (which the
     // `mana` term already prices). Each land up to the curve's top end is
@@ -1133,21 +1160,25 @@ function playerTerms(
             }
         }
     }
-    const availableMana = availableManaFor(player);
+    const manaCensus = availableManaUnitsFor(state, player);
     // MATERIAL: how many sources are owned, not how many are untapped right
     // now (issue #3377 — see `manaSourceTermFor`). Tapping a source to pay for
     // something forfeits nothing durable; it untaps next turn (CR 502.3), and
     // the option it gave up THIS turn is `flexibility`'s job, priced below off
-    // `availableMana`.
+    // `manaCensus.now`.
     terms.mana = manaSourceTermFor(player, weights);
     // The mana-development term prices the base against the hand's castability
     // (issue #2686) — additive to `mana`, never a replacement for it, and zero
     // on any board whose land count already covers the hand's mana needs.
-    terms.manaDevelopment = manaDevelopmentTerm(player, weights);
+    terms.manaDevelopment = manaDevelopmentTerm(
+        player,
+        manaCensus.base,
+        weights
+    );
     // Reactive flexibility uses the SAME available-mana count as the affordability
     // gate, so it can only reward instants the player can actually cast now — and
     // activated options the player can actually pay for (issue #1890 item 3).
-    terms.flexibility = flexibilityTerm(state, player, availableMana, weights);
+    terms.flexibility = flexibilityTerm(state, player, manaCensus.now, weights);
     return terms;
 }
 
@@ -1615,6 +1646,7 @@ export function declaredCombatDelta(
     // its block window (the reactive rollout default policy casts it; see
     // `policyValue`), trading up. Absent a castable pump both views are unchanged.
     const attackerHeld = castableHeldInteraction(
+        state,
         state.players.find((p) => p.id === attackerId)!
     );
     const ownView = viewerId === attackerId;
@@ -1822,7 +1854,7 @@ function cautiousBlockPenalty(
     blockersByAttacker: Map<string, CardInstanceState[]>,
     weights: EvalWeights
 ): number {
-    const held = castableHeldInteraction(attacker);
+    const held = castableHeldInteraction(state, attacker);
     if (!held.pump && !held.removal) return 0;
 
     const cval = (c: CardInstanceState) =>

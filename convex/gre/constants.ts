@@ -2381,8 +2381,10 @@ export function hasManaAbility(
 }
 
 /** Whether a permanent counts as ONE available untapped mana source for the
- *  bot's coarse, color-blind mana proxy (the `evaluate` mana / flexibility
- *  terms, `hasCastableInstant`, and the held-interaction predictor). A source
+ *  bot's coarse, colour-blind SOURCE COUNT — `untappedSourceQuality`
+ *  (`evaluate.ts`) and nothing else since issue #3531, which moved the
+ *  `evaluate` flexibility terms, `hasCastableInstant` and the held-interaction
+ *  predictor onto the colour-aware census in `gre/manaAvailability.ts`. A source
  *  counts only if it is UNTAPPED and can ACTUALLY produce mana (CR 605.1a): a
  *  basic-land subtype (`getBasicLandMana`) or an activated mana ability
  *  (`!useStack && manaProduced|manaChoices|manaColorSource`). A land with NO mana ability does

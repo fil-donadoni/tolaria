@@ -17,14 +17,17 @@
 // OPT-IN structured `aiCombatHint`s declared on the `CardDefinition` (see
 // `convex/cards/types.ts`). It models only interaction the player can actually
 // cast THIS combat: an instant-timing card (CR 702.8 flash or an Instant) whose
-// mana value the player has the open, untapped mana to pay — the SAME coarse,
-// color-blind affordability proxy the `evaluate` flexibility term and `mana`
-// term use (CR 601 colored requirements are not modelled at this resolution).
+// cost the player's open, untapped sources can actually pay — COLOUR INCLUDED
+// since issue #3531, through the one shared reader (`canPayCost`,
+// `manaAvailability.ts`) the `evaluate` flexibility term and the castability
+// gates ask. This module used to carry its OWN copy of the colour-blind
+// `availableManaFor` proxy, so it predicted a Giant Growth off three Islands.
 //
 // PURE and prediction-only: nothing here changes how a spell actually resolves.
 
 import type { GameState, PlayerState } from "./state";
-import { isUntappedManaSource, hasInstantSpeed, manaValue } from "./constants";
+import { hasInstantSpeed } from "./constants";
+import { canPayCost, manaUnitsFor, type ManaUnits } from "./manaAvailability";
 import { getInstanceManaCost, getInstanceAiCombatHint } from "../cards/index";
 
 /** A pump the held interaction can apply to a single creature this combat. */
@@ -41,44 +44,21 @@ export type HeldInteraction = {
     removal: boolean;
 };
 
-/** Available mana for `player` — untapped mana sources on the battlefield plus
- *  floating mana. The coarse, color-blind proxy the `evaluate` `mana` /
- *  flexibility terms use (CR 601 colored costs are not modelled here): one
- *  untapped land or mana permanent counts as one mana.
- *
- *  Mirrors `evaluate.ts`'s `availableManaFor` exactly, including its known
- *  untapped-source-vs-floating-mana asymmetry (issue #2247's divergence note
- *  there) — an untapped multi-mana source still counts as 1 here. Left
- *  unfixed for the same reason: this predictor is combat-side castability
- *  only, not the auto-tap ranking #2247 fixes, so the asymmetry does not
- *  reproduce the reported bug through this call site. */
-export function availableManaFor(player: PlayerState): number {
-    let mana = 0;
-    for (const perm of player.battlefield) {
-        // CR 605.1a / 305.6 — count only sources that can actually produce
-        // mana; a fetchland (no mana ability) is not one (issue #1499), nor is
-        // a board-conditional source whose CURRENT output is zero — an
-        // Everflowing Chalice with no charge counters (issue #1889).
-        if (isUntappedManaSource(perm, player.battlefield)) {
-            mana += 1;
-        }
-    }
-    for (const c of ["W", "U", "B", "R", "G", "C"] as const) {
-        mana += player.manaPool[c] ?? 0;
-    }
-    return mana;
-}
-
 /** Whether `player` holds at least one castable instant carrying an
  *  `aiCombatHint` — the castability gate (instant timing + affordable mana
  *  value) the issue calls out, reused as the entry point for "is held
  *  interaction relevant at all". Pure. */
-export function hasCastableInstantHint(player: PlayerState): boolean {
-    const mana = availableManaFor(player);
+export function hasCastableInstantHint(
+    state: GameState | undefined,
+    player: PlayerState
+): boolean {
+    const units = manaUnitsFor(state, player);
     return player.hand.some((card) => {
         if (!hasInstantSpeed(card)) return false;
         if (!getInstanceAiCombatHint(card)) return false;
-        return manaValue(getInstanceManaCost(card)) <= mana;
+        return canPayCost(units, getInstanceManaCost(card), {
+            life: player.life,
+        });
     });
 }
 
@@ -89,14 +69,21 @@ export function hasCastableInstantHint(player: PlayerState): boolean {
  *  tricks — a coarse over-estimate matching the rest of the crude predictor;
  *  the typical case is one trick). Returns the largest castable pump and whether
  *  any castable held instant is removal. */
-export function castableHeldInteraction(player: PlayerState): HeldInteraction {
-    const mana = availableManaFor(player);
+export function castableHeldInteraction(
+    state: GameState | undefined,
+    player: PlayerState
+): HeldInteraction {
+    const units: ManaUnits = manaUnitsFor(state, player);
     const result: HeldInteraction = { removal: false };
     for (const card of player.hand) {
         if (!hasInstantSpeed(card)) continue;
         const hint = getInstanceAiCombatHint(card);
         if (!hint) continue;
-        if (manaValue(getInstanceManaCost(card)) > mana) continue; // affordability gate
+        // Affordability gate — colour included (issue #3531).
+        if (
+            !canPayCost(units, getInstanceManaCost(card), { life: player.life })
+        )
+            continue;
         if (hint.removal) result.removal = true;
         if (hint.pump) {
             const size = hint.pump.power + hint.pump.toughness;
@@ -118,5 +105,5 @@ export function heldInteractionFor(
 ): HeldInteraction {
     const player = state.players.find((p) => p.id === playerId);
     if (!player) return { removal: false };
-    return castableHeldInteraction(player);
+    return castableHeldInteraction(state, player);
 }

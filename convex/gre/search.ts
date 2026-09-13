@@ -1690,7 +1690,7 @@ function rolloutEpsilonFor(state: GameState, weights: EvalWeights): number {
         state.phase === "BEGINNING_OF_COMBAT" ||
         state.phase === "END_OF_COMBAT";
     if (!inCombat) return weights.rolloutEpsilon;
-    const anyHeld = state.players.some((p) => hasCastableInstantHint(p));
+    const anyHeld = state.players.some((p) => hasCastableInstantHint(state, p));
     return anyHeld ? weights.rolloutEpsilonReactive : weights.rolloutEpsilon;
 }
 
