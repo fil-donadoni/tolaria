@@ -36,6 +36,8 @@ import {
     restrictedUnitAllowsSpell,
     manaBalanceForRestriction,
     manaPersistenceSurvives,
+    payManaCostForAbility,
+    payManaCostForSpell,
 } from "../../../gre/state";
 import { advancePhase } from "../../../gre/phases";
 import { collectTriggers, placeTriggersOnStack } from "../../../gre/triggers";
@@ -339,6 +341,47 @@ describe("Firebending's mana lifetime (CR 500.5 / 702.189a)", () => {
         expect(state.phase).toBe("POSTCOMBAT_MAIN");
         expect(redBalance(state, "p1")).toBe(0);
         expect(state.players[0].restrictedMana).toBeUndefined();
+    });
+});
+
+describe("Firebending's mana is spent LAST (CR 106.6 / 106.4)", () => {
+    /** p1 with `pool` fungible red and `persistent` end-of-combat red. */
+    function seat(pool: number, persistent: number) {
+        const p = makePlayer("p1", {
+            manaPool: { W: 0, U: 0, B: 0, R: pool, G: 0, C: 0 },
+        });
+        p.restrictedMana = [
+            { color: "R", amount: persistent, persistsUntil: "end-of-combat" },
+        ];
+        return p;
+    }
+
+    it("an ACTIVATED ability reaches for the pool first — the persistent unit outlives it, so spending the perishable mana strictly dominates", () => {
+        const p = seat(2, 4);
+        // Avatar Roku's own {8} is the live case: {3} here stands for it.
+        payManaCostForAbility(p, { X: 3 }, ["Creature"]);
+        expect(p.manaPool.R).toBe(0);
+        expect(p.restrictedMana).toEqual([
+            { color: "R", amount: 3, persistsUntil: "end-of-combat" },
+        ]);
+    });
+
+    it("it is spent once the pool runs out, not hoarded — the deferral is an ORDER, not a refusal", () => {
+        const p = seat(1, 4);
+        payManaCostForAbility(p, { X: 4 }, ["Creature"]);
+        expect(p.manaPool.R).toBe(0);
+        expect(p.restrictedMana).toEqual([
+            { color: "R", amount: 1, persistsUntil: "end-of-combat" },
+        ]);
+    });
+
+    it("a SPELL defers it the same way (the shipped three-tier settlement already did)", () => {
+        const p = seat(2, 4);
+        payManaCostForSpell(p, { X: 3 }, ["Creature"]);
+        expect(p.manaPool.R).toBe(0);
+        expect(p.restrictedMana).toEqual([
+            { color: "R", amount: 3, persistsUntil: "end-of-combat" },
+        ]);
     });
 });
 
