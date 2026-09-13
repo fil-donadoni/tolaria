@@ -149,7 +149,7 @@ export const EVENT_FIELD_KINDS: {
         spellSubtypes: "scalar",
         spellColors: "scalar",
     },
-    // CR 701.20a — a permanent became tapped. `manaProduced` is a `ManaCost`,
+    // CR 701.26a — a permanent became tapped (Tap). `manaProduced` is a `ManaCost`,
     // plain data with no identity in it.
     PERMANENT_TAPPED: {
         permanentId: "object",
@@ -284,7 +284,7 @@ export const EVENT_FIELD_KINDS: {
         types: "scalar",
         subtypes: "scalar",
     },
-    // CR 701.19a — a batch of exiled cards, each with its own origin zone.
+    // CR 701.13a — a batch of exiled cards (Exile), each with its own origin zone.
     // A nested array of object ids is a shape this vocabulary does not carry:
     // refused rather than approximated.
     CARDS_EXILED: { cards: "residue" },
