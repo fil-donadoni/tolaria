@@ -502,6 +502,79 @@ describe("CardPreview — Arena click model (#332)", () => {
         });
     });
 
+    // CR 712 (issue #3552) — a double-faced card's BACK face on every board
+    // preview host, through the real `CardPreview` and the real card (no
+    // hand-built body): the hover dock, the right-click anchored pin and the
+    // mobile long-press overlay. Transient surfaces, so no click to reach it.
+    describe("double-faced card — the back face on every host (CR 712)", () => {
+        const SINK = getCardByName("Sink into Stupor");
+        const renderSinkOnBoard = () =>
+            render(
+                <GameContext value={GAME_CTX}>
+                    <CardPreview cardId={SINK.id} cardName={SINK.name}>
+                        <div>face</div>
+                    </CardPreview>
+                </GameContext>
+            );
+        const expectBackFace = (host: Element | null) => {
+            expect(host).toBeTruthy();
+            const section = host!.querySelector(
+                "[data-card-preview-back-face]"
+            );
+            expect(section).toBeTruthy();
+            expect(section!.textContent).toContain("Back face");
+            expect(section!.textContent).toContain("Soporific Springs");
+            expect(section!.textContent).toContain("you may pay 3 life");
+            const art = section!.querySelector("img") as HTMLImageElement;
+            expect(art.src).toContain("/art/back/");
+            expect(art.src).toContain(SINK.id);
+        };
+
+        it("the hover dock", () => {
+            const { container } = renderSinkOnBoard();
+            hoverEnter(container.firstElementChild as HTMLElement);
+            dwellPast();
+            expectBackFace(dock());
+        });
+
+        it("the anchored pin", () => {
+            const { container } = renderSinkOnBoard();
+            rightPress(container.firstElementChild as HTMLElement);
+            release();
+            expectBackFace(anchored());
+        });
+
+        it("the mobile long-press overlay", () => {
+            const { container } = renderSinkOnBoard();
+            act(() => {
+                fireEvent.touchStart(container.firstElementChild!, {
+                    touches: [{ clientX: 10, clientY: 10 }],
+                });
+                vi.advanceTimersByTime(400);
+            });
+            expectBackFace(document.querySelector(".fixed.inset-0"));
+        });
+
+        it("the printed mode shows the printed BACK image", () => {
+            const { container } = renderSinkOnBoard();
+            hoverEnter(container.firstElementChild as HTMLElement);
+            dwellPast();
+            act(() => {
+                (
+                    document.querySelector(
+                        '[data-card-preview-dock] [data-preview-mode="printed"]'
+                    ) as HTMLElement
+                ).click();
+            });
+            const back = document.querySelector(
+                "[data-card-preview-dock] img[data-card-preview-back-face-printed]"
+            ) as HTMLImageElement;
+            expect(back).toBeTruthy();
+            expect(back.src).toContain("/grid/back/");
+            expect(back.src).toContain(SINK.id);
+        });
+    });
+
     // Portal ≠ React tree: all three preview surfaces are portal'd to
     // document.body but stay REACT descendants of the card instance, so their
     // events used to bubble into the card's own handlers — clicking the

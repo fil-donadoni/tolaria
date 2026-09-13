@@ -4,9 +4,14 @@ import {
     parentIdOfInsetSpell,
 } from "@convex/cards/insetSpell";
 import {
+    isModalDoubleFaced,
+    modalBackFaceDefinitionId,
+} from "@convex/cards/modalDfc";
+import {
     getArtCropImageUrl,
     getArtImageUrl,
     getPrintedCardImageUrl,
+    resolveBackFaceImageId,
     resolveCardImageFace,
     resolveCardImageId,
 } from "~/lib/images";
@@ -29,7 +34,11 @@ import {
 } from "~/lib/graveyard-milestones";
 import type { FaceDownFace } from "~/lib/face-down";
 import type { CardInstance, Player } from "~/types/game";
-import type { EmblemInstance } from "@convex/cards/types";
+import type {
+    CardBackFace,
+    EmblemInstance,
+    ManaCost,
+} from "@convex/cards/types";
 import type { ContinuousEffect } from "@convex/gre/continuousEffects";
 import {
     computeEngineViewBadge,
@@ -82,6 +91,44 @@ export type PreviewInsetHalf = {
     typeLine: string;
     oracleParagraphs: string[];
 };
+
+/** CR 712.1 / 712.8a (issue #3552) — the BACK face of a double-faced card
+ *  that is not showing it, rendered as a subordinate section of the front face.
+ *
+ *  Outside the battlefield and the stack a double-faced card has only its
+ *  front face's characteristics (CR 712.8a), so the front stays the face the
+ *  preview is ABOUT; this section is printed text, labelled so it never reads
+ *  as a live characteristic — the same discipline {@link PreviewInsetHalf}
+ *  keeps. Both kinds (nonmodal transform, modal) produce the identical shape:
+ *  they differ in the door that turns the face up, not in what a player needs
+ *  to read before walking through it (CR 712.11b / 712.12).
+ *
+ *  Absent for a permanent that has ALREADY turned the face up: its definition
+ *  is the back face itself (a synthesized transform face or the `#back` twin),
+ *  which declares no further back face. Unlike the inset half it carries its
+ *  own ART: the back face of a double-faced printing is a different picture,
+ *  served from the same Scryfall id under the `back/` path. */
+export type PreviewBackFaceHalf = {
+    /** The section heading — states that the card HAS a back face. */
+    label: string;
+    name: string;
+    /** Always null for every printed back face today (CR 712.8f leaves the
+     *  front's cost behind); kept so a face that did print one would show it. */
+    manaCost: string | null;
+    typeLine: string;
+    oracleParagraphs: string[];
+    /** "P/T" for a creature face, "Loyalty N" for a planeswalker face (CR
+     *  306.5b), null otherwise. */
+    statLine: string | null;
+    /** `art` WebP of the printing's BACK face; null without a printed id. */
+    imageSrc: string | null;
+    /** art_crop JPG fallback for {@link imageSrc}. */
+    imageFallbackSrc: string | null;
+    /** Printed BACK card (grid WebP) — the "Printed card" mode's second image. */
+    printedImageSrc: string | null;
+};
+
+export const BACK_FACE_HALF_LABEL = "Back face";
 
 export type PreviewBodyContent = {
     cardName: string;
@@ -183,7 +230,66 @@ export type PreviewBodyContent = {
      *  every ordinary card. Optional (not merely nullable) so hand-built
      *  `PreviewBodyContent` fixtures predating the field keep compiling. */
     insetHalf?: PreviewInsetHalf | null;
+    /** CR 712 (issue #3552) — the back face of a double-faced card showing its
+     *  front, or null. Optional (not merely nullable) so hand-built
+     *  `PreviewBodyContent` fixtures predating the field keep compiling. */
+    backFaceHalf?: PreviewBackFaceHalf | null;
 };
+
+/** The characteristics a back-face section prints — the subset a
+ *  `CardBackFace` record and a registered twin `CardDefinition` share. */
+type BackFaceCharacteristics = Pick<
+    CardBackFace,
+    | "name"
+    | "types"
+    | "subtypes"
+    | "supertypes"
+    | "power"
+    | "toughness"
+    | "loyalty"
+    | "oracleText"
+> & { manaCost?: ManaCost };
+
+/** Builds the back-face section for `defId` (see {@link PreviewBackFaceHalf}),
+ *  or null for a card with no back face — including a permanent whose
+ *  definition IS a turned-up back face.
+ *
+ *  The modal kind reads its registered twin (`${defId}#back`, ADR 0122 §1),
+ *  the definition that actually becomes the permanent; the nonmodal kind has
+ *  no definition until something transforms, so it reads the printed
+ *  `CardBackFace` record. Art is never resolved from the twin id (synthetic):
+ *  {@link resolveBackFaceImageId} answers the printing's id and the `back`
+ *  face is requested explicitly. */
+function buildBackFaceHalf(defId: string): PreviewBackFaceHalf | null {
+    const def = tryGetDefinition(defId);
+    const backFace = def?.backFace;
+    if (!def || !backFace) return null;
+    const face: BackFaceCharacteristics = isModalDoubleFaced(def)
+        ? (tryGetDefinition(modalBackFaceDefinitionId(defId)) ?? backFace)
+        : backFace;
+    const statLine =
+        face.power !== undefined && face.toughness !== undefined
+            ? `${face.power}/${face.toughness}`
+            : face.loyalty !== undefined
+              ? `Loyalty ${face.loyalty}`
+              : null;
+    const imageId = resolveBackFaceImageId(defId);
+    return {
+        label: BACK_FACE_HALF_LABEL,
+        name: face.name,
+        manaCost: manaCostToString(face.manaCost) || null,
+        typeLine: formatTypeLine(face.types, face.subtypes, face.supertypes),
+        oracleParagraphs: (face.oracleText ?? "")
+            .split("\n")
+            .filter((p) => p.length > 0),
+        statLine,
+        imageSrc: imageId ? getArtImageUrl(imageId, "back") : null,
+        imageFallbackSrc: imageId ? getArtCropImageUrl(imageId, "back") : null,
+        printedImageSrc: imageId
+            ? getPrintedCardImageUrl(imageId, "back")
+            : null,
+    };
+}
 
 /** Builds the subordinate half-section for `defId` (see {@link
  *  PreviewInsetHalf}), in whichever of the two directions applies. Returns null
@@ -420,6 +526,7 @@ export function buildPreviewBody(
         milestones,
         isManualGame: !!gameCtx?.isManualGame,
         insetHalf: buildInsetHalf(defId),
+        backFaceHalf: buildBackFaceHalf(defId),
         engineView: def ? computeEngineViewBadge(def) : null,
         engineTree: def ? buildEngineViewTree(def) : null,
         engineReportGameId: gameCtx?.gameId ?? null,

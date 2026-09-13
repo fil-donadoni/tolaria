@@ -4,6 +4,7 @@ import { formatOracleText } from "~/lib/oracle-text";
 import CardImageLoader from "./card-image-loader";
 import TokenPlaceholder from "./token-placeholder";
 import CardPreviewAbilities from "./card-preview-abilities";
+import CardPreviewBackFace from "./card-preview-back-face";
 import CardPreviewCounters from "./card-preview-counters";
 import CardPreviewEngineView from "./card-preview-engine-view";
 import CardPreviewNotedMana from "./card-preview-noted-mana";
@@ -71,6 +72,7 @@ export default function CardPreviewFace({
     engineTree,
     engineReportGameId,
     insetHalf,
+    backFaceHalf,
     size,
     onImageLoaded,
     imageLoaded = true,
@@ -236,6 +238,9 @@ export default function CardPreviewFace({
                             ))}
                         </div>
                     </div>
+                )}
+                {backFaceHalf && (
+                    <CardPreviewBackFace half={backFaceHalf} size={size} />
                 )}
                 <CardPreviewEngineView
                     badge={engineView}

@@ -9,7 +9,8 @@
 import { describe, it, expect, afterEach, beforeEach } from "vitest";
 import { render, cleanup, fireEvent } from "@testing-library/react";
 import CardPreviewBody from "../card-preview-body";
-import type { PreviewBodyContent } from "~/lib/preview-body";
+import { getCardByName } from "@convex/cards";
+import { buildPreviewBody, type PreviewBodyContent } from "~/lib/preview-body";
 import {
     setPreviewPreferenceDefault,
     resetPreviewPreferenceDefaultForTests,
@@ -126,5 +127,74 @@ describe("CardPreviewBody renders the inset half of a two-part frame (CR 715.2)"
             <CardPreviewBody {...CONTENT} size="sm" />
         );
         expect(container.textContent ?? "").not.toContain("Adventure");
+    });
+});
+
+// CR 712 (issue #3552) — the back face reaches the DOM of the composition every
+// preview host renders, built through the REAL `buildPreviewBody`, in both
+// preview modes.
+describe("CardPreviewBody renders the back face of a double-faced card (CR 712)", () => {
+    const SINK = getCardByName("Sink into Stupor");
+    const SERRA = getCardByName("Serra Angel");
+    const backFace = (root: ParentNode) =>
+        root.querySelector("[data-card-preview-back-face]");
+
+    it("prints the back face's label, name, type line, text and BACK art without a click", () => {
+        const { container } = render(
+            <CardPreviewBody {...buildPreviewBody(SINK.id)} size="sm" />
+        );
+        const section = backFace(container);
+        expect(section).toBeTruthy();
+        const text = section!.textContent ?? "";
+        expect(text).toContain("Back face");
+        expect(text).toContain("Soporific Springs");
+        expect(text).toContain("Land");
+        expect(text).toContain("you may pay 3 life");
+        const art = section!.querySelector(
+            'img[alt="Soporific Springs"]'
+        ) as HTMLImageElement;
+        expect(art.src).toContain("/art/back/");
+        expect(art.src).toContain(SINK.id);
+        // The front block is still the primary face.
+        expect(container.textContent).toContain("Sink into Stupor");
+    });
+
+    it("shows the printed BACK image beside the front in the printed mode", () => {
+        setPreviewPreferenceDefault("printed");
+        const { container } = render(
+            <CardPreviewBody {...buildPreviewBody(SINK.id)} size="sm" />
+        );
+        const front = container.querySelector(
+            'img[alt="Sink into Stupor (printed)"]'
+        ) as HTMLImageElement;
+        const back = container.querySelector(
+            "img[data-card-preview-back-face-printed]"
+        ) as HTMLImageElement;
+        expect(front.src).toContain("/grid/front/");
+        expect(back.src).toContain("/grid/back/");
+        expect(back.src).toContain(SINK.id);
+        expect(back.getAttribute("alt")).toBe(
+            "Soporific Springs (printed back face)"
+        );
+    });
+
+    it("renders a card with no back face exactly as a body without the field, in both modes", () => {
+        const body = buildPreviewBody(SERRA.id);
+        expect(body.backFaceHalf).toBeNull();
+        const today: PreviewBodyContent = { ...body };
+        delete today.backFaceHalf;
+        for (const mode of ["computed", "printed"] as const) {
+            setPreviewPreferenceDefault(mode);
+            const withField = render(<CardPreviewBody {...body} size="sm" />)
+                .container.innerHTML;
+            cleanup();
+            const withoutField = render(
+                <CardPreviewBody {...today} size="sm" />
+            ).container.innerHTML;
+            cleanup();
+            expect(withField).toBe(withoutField);
+            expect(withField).not.toContain("data-card-preview-back-face");
+            expect(withField).not.toContain("Back face");
+        }
     });
 });

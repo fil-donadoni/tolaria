@@ -126,6 +126,24 @@ export function resolveCardImageId(cardId: string): string | null {
     return printId && !isSyntheticCardId(printId) ? printId : null;
 }
 
+/** The Scryfall id whose `back/` CDN path serves the BACK face art of the
+ *  double-faced card `frontId` (CR 712, issue #3552), for a preview of a card
+ *  that has NOT turned that face up.
+ *
+ *  Never the modal twin's id: `${parentId}#back` is synthetic, and a real
+ *  double-faced printing shares ONE Scryfall id across both faces, each served
+ *  under its own `front/`/`back/` path. So this is the back face's own
+ *  declared `imagePrintId` when it is a real id, else the front face's print
+ *  id — the same precedence `modalBackTwinDefinition` (`cards/modalDfc.ts`)
+ *  and `backFaceAsTokenSpec` (`cards/backFaceSpec.ts`) register the turned-up
+ *  face with, so the preview and the transformed permanent show one art.
+ *  Callers pair it with face `"back"`. */
+export function resolveBackFaceImageId(frontId: string): string | null {
+    const backPrintId = tryGetDefinition(frontId)?.backFace?.imagePrintId;
+    if (backPrintId && !isSyntheticCardId(backPrintId)) return backPrintId;
+    return resolveCardImageId(frontId);
+}
+
 /** Resolves which face's URL segment to request for `cardId` (issue #1595,
  *  CR 712). A transformed permanent's `card.card.id` is swapped by
  *  `transformPermanent` (`gre/transform.ts`) to a synthesized `CardDefinition`

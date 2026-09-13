@@ -237,11 +237,24 @@ export default function InspectOverlay({
                     }`}
                 >
                     {mode === "printed" && body.printedImageSrc ? (
-                        <img
-                            src={body.printedImageSrc}
-                            alt={`${body.displayName} (printed)`}
-                            className="mx-auto max-h-full w-auto object-contain"
-                        />
+                        <>
+                            <img
+                                src={body.printedImageSrc}
+                                alt={`${body.displayName} (printed)`}
+                                className="mx-auto max-h-full w-auto object-contain"
+                            />
+                            {/* CR 712 (issue #3552) — the printed BACK of a
+                                double-faced card, beside the front in the
+                                split row and below it in the stacked column. */}
+                            {body.backFaceHalf?.printedImageSrc && (
+                                <img
+                                    src={body.backFaceHalf.printedImageSrc}
+                                    alt={`${body.backFaceHalf.name} (printed back face)`}
+                                    className="mx-auto max-h-full min-w-0 w-auto object-contain"
+                                    data-card-preview-back-face-printed
+                                />
+                            )}
+                        </>
                     ) : (
                         <CardPreviewFace
                             {...body}
