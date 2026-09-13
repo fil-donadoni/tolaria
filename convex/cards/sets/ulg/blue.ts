@@ -10,8 +10,8 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // untap up to two lands." plus Cycling {2}. The ETB is Frantic Search's untap
 // pair below (a `choose-permanents` pick of up to two lands on EVERY player's
 // battlefield — no "you control" is printed, CR 109.2 — then `tapUntap` over
-// the picks, CR 701.26b). Cycling is the shared `cyclingAbility` factory
-// (CR 702.29a).
+// the picks, CR 701.26b untap).
+// Cycling is the shared `cyclingAbility` factory (CR 702.29a Cycling).
 // compiler-gap: "Cycling {2}" (#2693)
 // compiler-gap: "When this creature enters, untap up to two lands." (#2693)
 export const cloudOfFaeries: CardDefinition = {
