@@ -1737,102 +1737,105 @@ export function buildTriggerStateView(
                 ownerId: c.ownerId,
                 types: c.types ?? [],
             })),
-            battlefield: p.battlefield.map((c) => ({
-                id: c.id,
-                controllerId: c.controllerId,
-                ownerId: c.ownerId,
-                types: c.types ?? [],
-                subtypes: c.subtypes ?? [],
-                staticAbilities: c.staticAbilities ?? [],
-                // CR 613.4 — EFFECTIVE P/T, not the instance's base values.
-                // Counters (layer 7c) and anthems/pump (7d) are applied at
-                // READ time by the layer system and are never baked into
-                // `c.power`, so weighing the base value here made the crew
-                // affordability hint disagree with the server's own
-                // `getEffectivePower` (a creature pumped over the Crew N
-                // threshold had the ability hidden; a shrunk one was offered
-                // and then rejected). Same computation as the server's, via
-                // the shared client-side layer projection.
-                power: getEffectivePower(layerState, toPermanentView(c)),
-                toughness: getEffectiveToughness(
-                    layerState,
-                    toPermanentView(c)
-                ),
-                isTapped: c.isTapped === true,
-                // CR 202.2 / 613.1d — effective colours for a tapOtherFilter
-                // colour clause (Hand of Justice), via the single colour
-                // authority: layer-5 override SETS, `grantedColors` UNION.
-                colors: getEffectiveColors(c as unknown as PermanentView),
-                // CR 702.122b — "crews Vehicles as though its power were N
-                // greater" (Shorikai's Pilot token) feeds the Crew N
-                // affordability hint below; without it a board that CAN crew
-                // only thanks to the bonus would never be offered the ability.
-                crewPowerBonus: tryGetDefinition(c.card.id)?.crewPowerBonus,
-                // CR 205.4a — LIVE supertypes, for a `sacrificeFilter`
-                // activation cost narrowed by supertype (Sunstone / Glacial
-                // Crevasses / Whiteout's "sacrifice a snow land"). Printed
-                // supertypes ALONE (`tryGetDefinition(...).supertypes`) missed
-                // a snow status granted by a `supertype-set` static effect or
-                // indefinite mutation (Melting / Arcum's Weathervane) — the
-                // server resolves the cost via `liveSupertypesOf`
-                // (`activateAbilityOnState`, game.ts), so a Weathervane'd land
-                // was a dead affordance: the server would activate the
-                // ability, the client gate would hide it (issue #2235
-                // review). `liveSupertypesOf` reads `grantedSupertypes`/
-                // `removedSupertypes`, which cross the wire unchanged
-                // (`slimCard` only strips `card`/`knownTo`).
-                supertypes: liveSupertypesOf(c),
-                // CR 111.5 / 701.21 — token-ness, for a `sacrificeFilter`
-                // activation cost narrowed by `isToken` (Thopter Foundry's
-                // "sacrifice a NONTOKEN artifact", Caribou Range's "sacrifice
-                // a Caribou TOKEN"). `CardInstanceState.isToken` IS a real
-                // persisted/wire field (unlike `supertypes`/`colors` above,
-                // which need a registry lookup) — read it straight off the
-                // instance rather than the definition. Omitting this left
-                // every view entry reading `isToken: undefined`, which
-                // `matchesPermanentFilter` treats as `false` — silently
-                // hiding a token-sacrifice ability with tokens on board and
-                // silently OFFERING a nontoken-only sacrifice ability whose
-                // only candidates were tokens (issue #1951 review, round 2).
-                isToken: c.isToken === true,
-                // CR 508/509 — combat-role filters (a `sacrificeFilter`/
-                // `tapOtherFilter` scoped to attackers/blockers). Same
-                // fail-closed-vs-fail-open class as `isToken` above: an
-                // unpopulated `isAttacking`/`isBlocking` reads as `false`
-                // regardless of reality (issue #1951 review round 3, MAJOR 5
-                // — "fix the class, not the field").
-                isAttacking: c.isAttacking === true,
-                isBlocking: c.isBlocking === true,
-                // CR 111 / 707.1 — token provenance, for a `sacrificeFilter`
-                // scoped to "tokens created with <this>" (Tetravus-style).
-                // Direct wire field, same as `isToken`, no registry lookup.
-                createdBy: c.createdBy,
-                // CR 307.1 / 117.1a — the cast-time snapshot a CR 603.4
-                // check-time condition reads off the permanent itself
-                // (Necromancy's "if you cast it any time a sorcery couldn't
-                // have been cast", issue #2392). Same fail-silent class as
-                // `isToken`/`isAttacking` above: an unpopulated flag reads
-                // `undefined`, which every `=== true` condition treats as
-                // "cast at sorcery speed" — the wrong answer for EVERY
-                // off-window cast, with nothing to distinguish it from a
-                // genuine one. `CardInstanceState.castOffSorceryTiming` is a
-                // real persisted/wire field (`slimCard` only strips
-                // `card`/`knownTo`), so it is read straight off the instance.
-                castOffSorceryTiming: c.castOffSorceryTiming === true,
-                // CR 400.7 / Keldon Twilight-style continuity filters. Only
-                // meaningful with `turnState` (mirrors `toMatchablePermanent`
-                // exactly); omitted, both stay undefined — fail-closed, same
-                // as every other unsupplied filter dimension here.
-                ...(turnState
-                    ? {
-                          enteredThisTurn: c.enteredOnTurn === turnState.turn,
-                          controlledSinceTurnStart: hasControlledSinceTurnStart(
-                              turnState,
-                              c
-                          ),
-                      }
-                    : {}),
-            })),
+            battlefield: p.battlefield.map((c) => {
+                // ONE projection per permanent, read by both P/T lookups
+                // below — `toPermanentView` spreads the whole instance, so
+                // calling it per lookup allocated a second copy of every card
+                // on the board for nothing (issue #3190).
+                const permanentView = toPermanentView(c);
+                return {
+                    id: c.id,
+                    controllerId: c.controllerId,
+                    ownerId: c.ownerId,
+                    types: c.types ?? [],
+                    subtypes: c.subtypes ?? [],
+                    staticAbilities: c.staticAbilities ?? [],
+                    // CR 613.4 — EFFECTIVE P/T, not the instance's base values.
+                    // Counters (layer 7c) and anthems/pump (7d) are applied at
+                    // READ time by the layer system and are never baked into
+                    // `c.power`, so weighing the base value here made the crew
+                    // affordability hint disagree with the server's own
+                    // `getEffectivePower` (a creature pumped over the Crew N
+                    // threshold had the ability hidden; a shrunk one was offered
+                    // and then rejected). Same computation as the server's, via
+                    // the shared client-side layer projection.
+                    power: getEffectivePower(layerState, permanentView),
+                    toughness: getEffectiveToughness(layerState, permanentView),
+                    isTapped: c.isTapped === true,
+                    // CR 202.2 / 613.1d — effective colours for a tapOtherFilter
+                    // colour clause (Hand of Justice), via the single colour
+                    // authority: layer-5 override SETS, `grantedColors` UNION.
+                    colors: getEffectiveColors(c as unknown as PermanentView),
+                    // CR 702.122b — "crews Vehicles as though its power were N
+                    // greater" (Shorikai's Pilot token) feeds the Crew N
+                    // affordability hint below; without it a board that CAN crew
+                    // only thanks to the bonus would never be offered the ability.
+                    crewPowerBonus: tryGetDefinition(c.card.id)?.crewPowerBonus,
+                    // CR 205.4a — LIVE supertypes, for a `sacrificeFilter`
+                    // activation cost narrowed by supertype (Sunstone / Glacial
+                    // Crevasses / Whiteout's "sacrifice a snow land"). Printed
+                    // supertypes ALONE (`tryGetDefinition(...).supertypes`) missed
+                    // a snow status granted by a `supertype-set` static effect or
+                    // indefinite mutation (Melting / Arcum's Weathervane) — the
+                    // server resolves the cost via `liveSupertypesOf`
+                    // (`activateAbilityOnState`, game.ts), so a Weathervane'd land
+                    // was a dead affordance: the server would activate the
+                    // ability, the client gate would hide it (issue #2235
+                    // review). `liveSupertypesOf` reads `grantedSupertypes`/
+                    // `removedSupertypes`, which cross the wire unchanged
+                    // (`slimCard` only strips `card`/`knownTo`).
+                    supertypes: liveSupertypesOf(c),
+                    // CR 111.5 / 701.21 — token-ness, for a `sacrificeFilter`
+                    // activation cost narrowed by `isToken` (Thopter Foundry's
+                    // "sacrifice a NONTOKEN artifact", Caribou Range's "sacrifice
+                    // a Caribou TOKEN"). `CardInstanceState.isToken` IS a real
+                    // persisted/wire field (unlike `supertypes`/`colors` above,
+                    // which need a registry lookup) — read it straight off the
+                    // instance rather than the definition. Omitting this left
+                    // every view entry reading `isToken: undefined`, which
+                    // `matchesPermanentFilter` treats as `false` — silently
+                    // hiding a token-sacrifice ability with tokens on board and
+                    // silently OFFERING a nontoken-only sacrifice ability whose
+                    // only candidates were tokens (issue #1951 review, round 2).
+                    isToken: c.isToken === true,
+                    // CR 508/509 — combat-role filters (a `sacrificeFilter`/
+                    // `tapOtherFilter` scoped to attackers/blockers). Same
+                    // fail-closed-vs-fail-open class as `isToken` above: an
+                    // unpopulated `isAttacking`/`isBlocking` reads as `false`
+                    // regardless of reality (issue #1951 review round 3, MAJOR 5
+                    // — "fix the class, not the field").
+                    isAttacking: c.isAttacking === true,
+                    isBlocking: c.isBlocking === true,
+                    // CR 111 / 707.1 — token provenance, for a `sacrificeFilter`
+                    // scoped to "tokens created with <this>" (Tetravus-style).
+                    // Direct wire field, same as `isToken`, no registry lookup.
+                    createdBy: c.createdBy,
+                    // CR 307.1 / 117.1a — the cast-time snapshot a CR 603.4
+                    // check-time condition reads off the permanent itself
+                    // (Necromancy's "if you cast it any time a sorcery couldn't
+                    // have been cast", issue #2392). Same fail-silent class as
+                    // `isToken`/`isAttacking` above: an unpopulated flag reads
+                    // `undefined`, which every `=== true` condition treats as
+                    // "cast at sorcery speed" — the wrong answer for EVERY
+                    // off-window cast, with nothing to distinguish it from a
+                    // genuine one. `CardInstanceState.castOffSorceryTiming` is a
+                    // real persisted/wire field (`slimCard` only strips
+                    // `card`/`knownTo`), so it is read straight off the instance.
+                    castOffSorceryTiming: c.castOffSorceryTiming === true,
+                    // CR 400.7 / Keldon Twilight-style continuity filters. Only
+                    // meaningful with `turnState` (mirrors `toMatchablePermanent`
+                    // exactly); omitted, both stay undefined — fail-closed, same
+                    // as every other unsupplied filter dimension here.
+                    ...(turnState
+                        ? {
+                              enteredThisTurn:
+                                  c.enteredOnTurn === turnState.turn,
+                              controlledSinceTurnStart:
+                                  hasControlledSinceTurnStart(turnState, c),
+                          }
+                        : {}),
+                };
+            }),
         })),
         activePlayerId,
         cannotActivateAbilitiesThisTurn,
