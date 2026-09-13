@@ -22,9 +22,9 @@ import { additionalCostPaidCondition } from "../../abilities/triggers/shared";
 // Each half is declared separately below, because each rides a different
 // engine seam.
 //
-// COST HALF — a `kickers[]` entry (ADR 0079). Squad's cost clause is word for
-// word Multikicker's (CR 702.33c "any number of times"), so it is the SAME
-// repeatability axis: `multi: true`. What separates it from a Kicker is
+// COST HALF — a `kickers[]` entry (ADR 0079). Squad's cost clause is the same
+// clause as Multikicker's, differently worded (CR 702.33c "any number of
+// times"), so it is the SAME repeatability axis: `multi: true`. What separates it from a Kicker is
 // CR 702.33d — "kicked" is defined over KICKER costs alone — so the entry
 // carries the ADR 0085 discriminator `keyword: "squad"`, whose
 // ADDITIONAL_COST_KEYWORDS row (`gre/kicker.ts`) says `countsAsKicked: false`.
@@ -46,7 +46,7 @@ import { additionalCostPaidCondition } from "../../abilities/triggers/shared";
 // resolution-time answer and covers strictly more (an ability COPY put on the
 // stack without re-running `matches`, CR 707.10) — here it is unnecessary
 // because `count` is the payment tally itself: zero payments means a
-// non-positive count, which `createTokenCopy` skips (CR 707.1).
+// non-positive count, and the Op skips a non-positive count.
 //
 // The body is ONE already-exercised Op — no new verb. `createTokenCopy` with
 // `source: { ref: "$source" }` reads the creature as it now sits on the

@@ -162,7 +162,7 @@ describe("Kicker declarations (CR 702.33 / 702.33e, ADR 0079)", () => {
                 }
             });
 
-            // 3. `multi` cross-check, newline-tolerant (CR 702.33e / 702.157a
+            // 3. `multi` cross-check, newline-tolerant (CR 702.33c / 702.157a
             // — `multi` is what actually makes an additional cost repeatable;
             // check 1 above derives its expected LABEL from the entry's own
             // `multi`, so it can never catch `multi` being wrong in the first

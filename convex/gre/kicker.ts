@@ -115,7 +115,8 @@ export const ADDITIONAL_COST_KEYWORDS: Record<
     },
     // CR 702.157a (issue #3220) — the family's third member, and the first to
     // set BOTH repeatability flags: "you may pay [cost] any number of times"
-    // is the same axis Multikicker rides (`KickerCost.multi`), and the twin
+    // is the same clause Multikicker rides (CR 702.33c, reworded but not
+    // redefined), read here through `KickerCost.multi`, and the twin
     // "create a token that's a copy of it for each time its squad cost was
     // paid" is a real triggered ability the card must ship. Never kicked —
     // CR 702.33d defines "kicked" over KICKER costs alone, so a squad payment

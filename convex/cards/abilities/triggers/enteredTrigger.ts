@@ -188,10 +188,14 @@ export function enteredTrigger(args: EnteredTriggerArgs): TriggeredAbility {
                     toughness: event.toughness,
                     // CR 111.1 (issue #3220) — "whenever a creature TOKEN you
                     // control enters". Snapshotted by `emitPermanentEntered`
-                    // like the P/T above; an event without the field leaves
-                    // this undefined and an `isToken` filter fails closed,
-                    // which is the pre-issue behaviour for a serialized
-                    // fixture that predates it.
+                    // like the P/T above. An event without the field leaves
+                    // this undefined, and `matchesPermanentFilter` compares
+                    // `isToken === true`, so the two filter directions degrade
+                    // OPPOSITELY: `isToken: true` fails CLOSED (never fires,
+                    // which is what this issue found) and `isToken: false`
+                    // fails OPEN (fires on tokens too). Both directions are
+                    // pinned in `gre/__tests__/tokenEnteredTrigger.test.ts` —
+                    // only the first has a shipped card.
                     isToken: event.isToken,
                 };
                 if (

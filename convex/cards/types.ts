@@ -9713,12 +9713,15 @@ export interface PermanentEnteredEvent {
      *  creature token you control enters" (Securitron Squadron's +1/+1
      *  counter). The filter has existed since issue #920, but the subject
      *  `enteredTrigger` builds is assembled from the EVENT, so without this
-     *  field the filter had nothing to read and failed CLOSED: the trigger
-     *  simply never fired, silently, with every other test green. Optional
-     *  and omitted when false, exactly like `wasCast` / `power`, so every
-     *  pre-existing `PERMANENT_ENTERED` fixture deserializes as "not a token"
-     *  — which is the answer that was already being given, just now on
-     *  purpose. */
+     *  field the filter had nothing to read — and because
+     *  `matchesPermanentFilter` compares `isToken === true`, the two
+     *  directions degraded OPPOSITELY: `isToken: true` failed CLOSED (the
+     *  trigger simply never fired, silently, with every other test green)
+     *  while `isToken: false` — "whenever a NONTOKEN creature enters" — failed
+     *  OPEN and matched tokens. Optional and omitted when false, exactly like
+     *  `wasCast` / `power`, so every pre-existing `PERMANENT_ENTERED` fixture
+     *  deserializes as "not a token" — which is the answer that was already
+     *  being given, just now on purpose. */
     isToken?: boolean;
 }
 

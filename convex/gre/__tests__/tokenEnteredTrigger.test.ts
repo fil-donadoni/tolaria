@@ -17,6 +17,7 @@ import { describe, it, expect } from "vitest";
 import {
     buildSpellContext,
     createTokenPermanents,
+    emitPermanentEntered,
     processPendingActionTriggers,
     resolveTopOfStack,
     getPlayer,
@@ -97,6 +98,59 @@ registerTokenDefinition({
             oracleText: "Whenever a creature enters, you gain 1 life.",
             scope: "any",
             filter: { types: "Creature" },
+            resolve: (ctx) => {
+                ctx.gainLife(ctx.controller, 1);
+            },
+        }),
+    ],
+} satisfies CardDefinition);
+
+/** Watcher: "Whenever a creature TOKEN you control enters, you gain 1 life."
+ *  (CR 111.1, issue #3220 — Securitron Squadron's counter clause, reduced to
+ *  its filter.) `PermanentFilter.isToken` has existed since issue #920, but
+ *  the subject `enteredTrigger` assembles comes from the EVENT, so until the
+ *  event carried the flag this watcher could never fire. */
+const TOKEN_WATCHER_ID = "test-3220-token-watcher";
+registerTokenDefinition({
+    id: TOKEN_WATCHER_ID,
+    name: "Test Token Watcher",
+    rarity: "common",
+    manaCost: { W: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "test-3220-token-watcher-trigger",
+            oracleText:
+                "Whenever a creature token you control enters, you gain 1 life.",
+            scope: "yours",
+            filter: { types: "Creature", isToken: true },
+            resolve: (ctx) => {
+                ctx.gainLife(ctx.controller, 1);
+            },
+        }),
+    ],
+} satisfies CardDefinition);
+
+/** The OTHER direction: "Whenever a NONTOKEN creature you control enters …".
+ *  `matchesPermanentFilter` compares `card.isToken === true`, so an absent
+ *  subject field reads as "not a token" — which means `isToken: true` failed
+ *  CLOSED (never fired) while `isToken: false` failed OPEN (fired on tokens
+ *  too). Only the first direction has a shipped card, so this watcher exists
+ *  to pin the second: nothing else in the catalogue can reach it. */
+const NONTOKEN_WATCHER_ID = "test-3220-nontoken-watcher";
+registerTokenDefinition({
+    id: NONTOKEN_WATCHER_ID,
+    name: "Test Nontoken Watcher",
+    rarity: "common",
+    manaCost: { W: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "test-3220-nontoken-watcher-trigger",
+            oracleText:
+                "Whenever a nontoken creature you control enters, you gain 1 life.",
+            scope: "yours",
+            filter: { types: "Creature", isToken: false },
             resolve: (ctx) => {
                 ctx.gainLife(ctx.controller, 1);
             },
@@ -585,5 +639,66 @@ describe("a token's announced cardId resolves in the registry (issue #2300 censu
         const bf = getPlayer(state, "p1").battlefield.map((c) => c.id);
         expect(bf).not.toContain("blue-bystander");
         expect(bf).toContain("green-bystander");
+    });
+});
+
+describe("an entry trigger can tell a token from a printed permanent (CR 111.1, issue #3220)", () => {
+    /** Puts a PRINTED creature onto the battlefield through the real emit
+     *  chokepoint, so the event carries whatever `emitPermanentEntered`
+     *  decides — never a hand-built payload, which is exactly the shape that
+     *  would mask the missing field this block exists for. */
+    function enterPrinted(state: GameState, defId: string, id: string): void {
+        const card = makeInstance(defId, {
+            id,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        getPlayer(state, "p1").battlefield.push(card);
+        emitPermanentEntered(state, card);
+    }
+
+    const firedIds = (state: GameState) => {
+        processPendingActionTriggers(state);
+        return state.stack.map((s) => s.triggeredAbilityId);
+    };
+
+    it("the event announces a token's token-ness, and a printed permanent's absence of it", () => {
+        const tokenState = boardWith([]);
+        createTokenPermanents(tokenState, THOPTER, "p1", 1);
+        expect(enteredEvents(tokenState)[0]).toMatchObject({ isToken: true });
+
+        const printedState = boardWith([]);
+        enterPrinted(printedState, ONE_ONE_BLUE_ID, "printed");
+        // Omitted rather than `false` — the JSON-minimal shape every other
+        // optional provenance flag on this event uses.
+        expect(
+            (enteredEvents(printedState)[0] as { isToken?: boolean }).isToken
+        ).toBeUndefined();
+    });
+
+    it("`isToken: true` fires on a token and NOT on a printed creature", () => {
+        const onToken = boardWith([TOKEN_WATCHER_ID]);
+        createTokenPermanents(onToken, THOPTER, "p1", 1);
+        expect(firedIds(onToken)).toEqual(["test-3220-token-watcher-trigger"]);
+
+        const onPrinted = boardWith([TOKEN_WATCHER_ID]);
+        enterPrinted(onPrinted, ONE_ONE_BLUE_ID, "printed");
+        expect(firedIds(onPrinted)).toEqual([]);
+    });
+
+    it("`isToken: false` fires on a printed creature and NOT on a token", () => {
+        // The direction that failed OPEN before the event carried the flag:
+        // "whenever a NONTOKEN creature you control enters" matched tokens,
+        // and no shipped card could have caught it.
+        const onToken = boardWith([NONTOKEN_WATCHER_ID]);
+        createTokenPermanents(onToken, THOPTER, "p1", 1);
+        expect(firedIds(onToken)).toEqual([]);
+
+        const onPrinted = boardWith([NONTOKEN_WATCHER_ID]);
+        enterPrinted(onPrinted, ONE_ONE_BLUE_ID, "printed");
+        expect(firedIds(onPrinted)).toEqual([
+            "test-3220-nontoken-watcher-trigger",
+        ]);
     });
 });
