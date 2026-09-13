@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { StateDesignationDefinition } from "@convex/cards/designations";
 import { getImageFallbackUrl, getImageSrcSet, getImageUrl } from "~/lib/images";
+import useCardSlotFloor from "~/hooks/useCardSlotFloor";
 import { buildDesignationPreviewBody } from "~/lib/preview-body";
 import CardPreview from "../cards/card-preview";
 
@@ -26,6 +27,10 @@ export default function BoardDesignation({
     // hides the raw box while the bitmap streams in.
     const [jpgFallback, setJpgFallback] = useState(false);
     const [loaded, setLoaded] = useState(false);
+    // The tile's own box is the slot — measured, never a hand-written hint
+    // (issue #3553). No source until the first measurement: see
+    // `useCardSlotFloor`.
+    const { slotRef, floor, measured } = useCardSlotFloor<HTMLDivElement>();
 
     return (
         <CardPreview
@@ -38,27 +43,34 @@ export default function BoardDesignation({
                 className="relative w-full h-full"
                 aria-label={`Designation: ${designation.name}.`}
             >
-                <div className="w-full h-full card-corner overflow-hidden ring-1 ring-border-accent/60 bg-surface-base">
-                    <img
-                        {...(jpgFallback
-                            ? { src: getImageFallbackUrl(imageId) }
-                            : {
-                                  src: getImageUrl(imageId),
-                                  srcSet: getImageSrcSet(imageId, {
-                                      includeThumb: false,
-                                  }),
-                                  sizes: "200px",
-                              })}
-                        className="w-full h-full object-cover block select-none"
-                        alt={designation.name}
-                        decoding="async"
-                        draggable={false}
-                        onLoad={() => setLoaded(true)}
-                        onError={() => {
-                            if (!jpgFallback) setJpgFallback(true);
-                            else setLoaded(true);
-                        }}
-                    />
+                <div
+                    ref={slotRef}
+                    className="w-full h-full card-corner overflow-hidden ring-1 ring-border-accent/60 bg-surface-base"
+                >
+                    {measured && (
+                        <img
+                            data-card-face="printed"
+                            {...(jpgFallback
+                                ? { src: getImageFallbackUrl(imageId) }
+                                : {
+                                      src: getImageUrl(imageId),
+                                      srcSet: getImageSrcSet(imageId, {
+                                          includeThumb:
+                                              floor?.includeThumb ?? false,
+                                      }),
+                                      sizes: floor?.sizes ?? "200px",
+                                  })}
+                            className="w-full h-full object-cover block select-none"
+                            alt={designation.name}
+                            decoding="async"
+                            draggable={false}
+                            onLoad={() => setLoaded(true)}
+                            onError={() => {
+                                if (!jpgFallback) setJpgFallback(true);
+                                else setLoaded(true);
+                            }}
+                        />
+                    )}
                     {!loaded && (
                         <div className="absolute inset-0 animate-pulse bg-surface-raised/60" />
                     )}

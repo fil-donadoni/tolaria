@@ -22,6 +22,7 @@ export default function OrderCard({
 }) {
     return (
         <img
+            data-card-face="printed"
             src={getImageUrl(defId)}
             srcSet={getImageSrcSet(defId)}
             sizes={`${cardW}px`}

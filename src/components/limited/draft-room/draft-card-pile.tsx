@@ -64,6 +64,7 @@ export default function DraftCardPile({
                 if (!printId) return null;
                 return (
                     <img
+                        data-card-face="printed"
                         key={card.key}
                         src={getImageUrl(printId)}
                         alt=""

@@ -66,6 +66,7 @@ export const BUDGET_KEYS = [
     "cardsOcc",
     "cardsStranded",
     "cardsSquare",
+    "cardsSoft",
     "ctrlsZero",
     "ctrlsOcc",
     "ctrlsStranded",
@@ -123,6 +124,30 @@ export interface ProbeResult {
      *  canvas is tainted. */
     cardsSquareN: number;
     cardsSquare: SquareExample[];
+    /** SOFT card faces (issue #3553) — a printed card face whose RESOLVED
+     *  source is narrower than the slot it paints into, measured in DEVICE
+     *  pixels (`slot CSS width × devicePixelRatio` vs the decoded bitmap's
+     *  `naturalWidth`). A hard floor of 0 everywhere.
+     *
+     *  It measures the OUTCOME, not the markup: `naturalWidth` is the bitmap
+     *  the browser actually resolved, so it catches both classes the issue
+     *  records — a `sizes` hint below the slot (a hand-written per-call-site
+     *  constant, or the 140px default ~18 call sites inherited), and a
+     *  compositor that evicted the layer and decoded at the hint instead of at
+     *  the image's intrinsic width. Neither is visible to happy-dom, and both
+     *  self-repair on a slight resize, which is what made this the defect
+     *  nobody could hold still long enough to see.
+     *
+     *  Scoped to `data/card-face="printed"` — the printed faces this app
+     *  renders from the CDN. The art / art_crop preview pipeline is a
+     *  different rendition family and out of scope. */
+    cardsSoftN: number;
+    cardsSoft: SoftExample[];
+    /** Printed faces whose bitmap had not arrived when the probe ran. Reported
+     *  rather than counted (`naturalWidth === 0` would read as infinitely
+     *  soft) and deliberately NOT budgeted: a lazy card below the fold
+     *  legitimately has no bitmap, and `cardsZero` already owns "no box". */
+    cardsSoftPending: number;
     ctrls: ProbeCounts;
     starvedN: number;
     starved: unknown[];
@@ -152,6 +177,19 @@ export interface SquareExample {
     r: number;
 }
 
+/** One soft card face, named so the run says WHICH card and by how much
+ *  (issue #3553). `t` is the image's `alt` (the card name), `w` the slot's CSS
+ *  width, `need` that width in device pixels, `have` the resolved source's
+ *  intrinsic width, `src` the CDN rendition segment (`thumb`/`grid`/`display`)
+ *  the browser settled on. */
+export interface SoftExample {
+    t: string;
+    w: number;
+    need: number;
+    have: number;
+    src: string;
+}
+
 /** axe-core's violation counts for one viewport (issue #2580/#2593). */
 export interface AxeCount {
     serious: number;
@@ -176,6 +214,7 @@ export function metricsOf(probe: ProbeResult, axe: AxeCount): Ceilings {
         cardsOcc: probe.cards.occ,
         cardsStranded: probe.cards.stranded,
         cardsSquare: probe.cardsSquareN,
+        cardsSoft: probe.cardsSoftN,
         ctrlsZero: probe.ctrls.zero,
         ctrlsOcc: probe.ctrls.occ,
         ctrlsStranded: probe.ctrls.stranded,
@@ -346,7 +385,7 @@ export interface Evaluation {
 
 function fmtMetrics(m: Ceilings): string {
     return [
-        `cards zero${m.cardsZero} occ${m.cardsOcc} stranded${m.cardsStranded} square${m.cardsSquare}`,
+        `cards zero${m.cardsZero} occ${m.cardsOcc} stranded${m.cardsStranded} square${m.cardsSquare} soft${m.cardsSoft}`,
         `ctrls zero${m.ctrlsZero} occ${m.ctrlsOcc} stranded${m.ctrlsStranded}`,
         `starved${m.starved}`,
         `small${m.small}`,

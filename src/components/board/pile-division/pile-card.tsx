@@ -40,6 +40,7 @@ export default function PileCard({
             }}
         >
             <img
+                data-card-face="printed"
                 src={getImageUrl(defId)}
                 srcSet={getImageSrcSet(defId)}
                 sizes={`${CARD_W}px`}

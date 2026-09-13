@@ -342,6 +342,57 @@ window.__tolariaProbe = () => {
           }
         : null;
 
+    // ── Image-quality floor (issue #3553) ──
+    //
+    // A card whose RESOLVED source is narrower than the slot it paints into,
+    // in DEVICE pixels, is soft — visibly so once the gap is a factor of two,
+    // which is what `sizes="140px"` inherited into a 180-260px draft-pack slot
+    // produced. The defect self-corrects on a slight window resize (the resize
+    // re-evaluates the srcset candidate and re-rasterizes the layer), which is
+    // exactly why no test that never lays out real pixels can see it and why
+    // it belongs here.
+    //
+    // MEASURED, never declared. `naturalWidth` is the intrinsic width of the
+    // bitmap the browser ACTUALLY resolved and decoded — not the `sizes` hint,
+    // not the `src`, not the srcset the markup offered. So this counts the
+    // outcome, including the compositor-eviction class where Chrome decodes at
+    // the hint rather than at the image's intrinsic width.
+    //
+    // SCOPE: elements marked `data-card-face="printed"` — every printed card
+    // face this app renders from the Scryfall CDN. Deliberately NOT the raw
+    // `imgs` selector above: that also catches the art / art_crop preview
+    // pipeline (`card-preview-face`, `stack-row`, `inspect-overlay`), whose
+    // renditions are a different aspect ratio and a different question, out of
+    // scope per the issue. A marker is a named node in a reviewable diff; a
+    // heuristic over `src` is not.
+    //
+    // UNLOADED images are reported (`softPending`) and NOT counted: an image
+    // with no bitmap yet has `naturalWidth === 0`, which would read as
+    // infinitely soft. `cardsZero` already owns the "no box" case; a lazy card
+    // below the fold legitimately has neither.
+    const soft = [];
+    let softPending = 0;
+    for (const e of document.querySelectorAll('[data-card-face="printed"]')) {
+        if (isDecorativeArt(e)) continue;
+        const r = e.getBoundingClientRect();
+        if (r.width < 8 || r.height < 8) continue;
+        if (!e.complete || !e.naturalWidth) {
+            softPending++;
+            continue;
+        }
+        const need = r.width * devicePixelRatio;
+        // 1px of slack for the sub-pixel rounding a fractional layout width
+        // produces; a real under-declaration is never within 1 device pixel.
+        if (e.naturalWidth + 1 < need)
+            soft.push({
+                t: (e.getAttribute("alt") || e.tagName).trim().slice(0, 24),
+                w: Math.round(r.width),
+                need: Math.round(need),
+                have: e.naturalWidth,
+                src: (e.currentSrc || e.src || "").split("/").slice(3, 4)[0],
+            });
+    }
+
     // ── Square-corner check (ADR 0103 §7, issue #2724) ──
     //
     // A Magic card has a rounded corner, and the corner is a FRACTION of the
@@ -469,6 +520,9 @@ window.__tolariaProbe = () => {
         cardW,
         cardsSquareN: cornerSquare.length,
         cardsSquare: cornerSquare.slice(0, 6),
+        cardsSoftN: soft.length,
+        cardsSoft: soft.slice(0, 6),
+        cardsSoftPending: softPending,
         ctrls: probe(ctrls),
         starvedN: starved.length,
         starved: starved.slice(0, 4),
