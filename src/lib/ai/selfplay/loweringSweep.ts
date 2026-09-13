@@ -125,6 +125,10 @@ export type LoweringSweepReport = {
      *  covers — what a declarative `stack:` spec field would have to express,
      *  derived rather than listed. */
     stackPayload: SweepRow[];
+    /** Decisions with a non-empty stack OR a blocker (a payment mid-flight
+     *  blocks with an empty stack) — the denominator of the two rows below,
+     *  so a mid-flight blocker can never push a share past 100%. */
+    stackBlockerDecisions: number;
     /** What WITHHELD the declared stack (issue #3514), by the FIELD that
      *  blocked it (`StackBlocker.field`), by decisions touched. Where
      *  `stackPayload` lists every non-card key an object carries, this is only
@@ -404,6 +408,7 @@ export class LoweringSweepTally {
     private readonly stackPayload = new Map<string, number>();
     private readonly stackBlockers = new Map<string, number>();
     private stackTriggerBlocked = 0;
+    private stackBlockerDecisions = 0;
 
     add(observation: DecisionObservation): void {
         this.decisions += 1;
@@ -425,6 +430,12 @@ export class LoweringSweepTally {
             for (const key of observation.stackPayload) {
                 bump(this.stackPayload, key);
             }
+        }
+        if (
+            observation.stack !== null ||
+            observation.stackBlockers.length > 0
+        ) {
+            this.stackBlockerDecisions += 1;
         }
         for (const field of observation.stackBlockers) {
             bump(this.stackBlockers, field);
@@ -453,6 +464,7 @@ export class LoweringSweepTally {
             stackDecisions: this.stackDecisions,
             stackObjects: rank(this.stackObjects),
             stackPayload: rank(this.stackPayload),
+            stackBlockerDecisions: this.stackBlockerDecisions,
             stackBlockers: rank(this.stackBlockers),
             stackTriggerBlocked: this.stackTriggerBlocked,
             residue: {
@@ -612,14 +624,14 @@ export function formatLoweringReport(report: LoweringSweepReport): string {
         ...section(
             "STACK BLOCKERS (issue #3514) — the field that withheld the declared stack, by decisions touched",
             report.stackBlockers,
-            report.stackDecisions
+            report.stackBlockerDecisions
         )
     );
     lines.push(
         `  trigger fields among the blockers: ${report.stackTriggerBlocked} decision(s) (${share(
             report.stackTriggerBlocked,
-            report.stackDecisions
-        )} of the stack population) — the ceiling issue #3516 could free`,
+            report.stackBlockerDecisions
+        )} of ${report.stackBlockerDecisions} decisions with a stack or a mid-flight payment) — the ceiling issue #3516 could free`,
         ""
     );
     lines.push(

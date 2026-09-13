@@ -315,11 +315,21 @@ export function lowerDecision(
     try {
         rebuilt = buildVerdictPosition(spec);
     } catch (error) {
+        // A declared stack the BUILDER could not place (a target `nth` it
+        // cannot find, a stack reference it refuses) is the declarative path
+        // going wrong — the fault `stack-rebuild-mismatch` exists to surface —
+        // not an unloadable board. Told apart by construction, not by parsing
+        // the message: the same spec with its stack withheld either rebuilds
+        // (the stack was the fault) or throws too (the board was).
+        const stackFault =
+            (spec.stack?.length ?? 0) > 0 && rebuildsWithoutStack(spec);
         return {
             ok: false,
-            kind: "rebuild-threw",
+            kind: stackFault ? "stack-rebuild-mismatch" : "rebuild-threw",
             dropped,
-            error: `the lowered position could not be rebuilt: ${message(error)}`,
+            error: stackFault
+                ? `the declared stack could not be placed on the rebuilt board: ${message(error)}`
+                : `the lowered position could not be rebuilt: ${message(error)}`,
         };
     }
 
@@ -499,6 +509,15 @@ function nameSeatsByRole(state: GameState, seatId: string): void {
                 : state.players.length === 2
                   ? "the opponent"
                   : `opponent ${seat}`;
+    }
+}
+
+function rebuildsWithoutStack(spec: ScenarioSpec): boolean {
+    try {
+        buildVerdictPosition({ ...spec, stack: undefined });
+        return true;
+    } catch {
+        return false;
     }
 }
 

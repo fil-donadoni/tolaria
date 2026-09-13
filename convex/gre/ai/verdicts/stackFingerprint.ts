@@ -20,6 +20,13 @@
 // that agree on every fact here are interchangeable for the position, so
 // picking either is not a different board.
 //
+// WHAT THE FACTS DO NOT SEE, and why that is survivable: an until-end-of-turn
+// pump or other continuous effect, summoning sickness, phasing. Two same-named
+// permanents differing ONLY there would fingerprint alike. The rebuild still
+// resolves `nth` against a battlefield placed in the live order (the lowering
+// never merges distinct instances into a `count`), so reaching the wrong one
+// needs a builder fault AND a pair indistinguishable on every fact below.
+//
 // Instance ids never appear: each build allocates its own.
 
 import { tryGetDefinition } from "../../../cards";
@@ -90,7 +97,7 @@ function targetLabel(
             for (const player of state.players) {
                 const card = player.battlefield.find((c) => c.id === target.id);
                 if (card) {
-                    return `permanent:${seatOf(player.id) ?? "?"} ${nameOf(card)}${facts(card)}`;
+                    return `permanent:${seatOf(player.id) ?? "?"} ${nameOf(card)}${facts(state, card)}`;
                 }
             }
             return "permanent:?";
@@ -113,10 +120,19 @@ function targetLabel(
 
 /** The per-instance facts two same-named permanents can differ by. Empty for a
  *  pristine permanent, so the common label stays short. */
-function facts(card: CardInstanceState): string {
+function facts(state: GameState, card: CardInstanceState): string {
     const out: string[] = [];
     if (card.isTapped) out.push("tapped");
     if (card.damageMarked) out.push(`damage=${card.damageMarked}`);
+    // CR 301.5 / 303.4 — an Aura or Equipment on it, counted from the other
+    // side of the link (`attachedTo` lives on the attachment).
+    const attached = state.players.reduce(
+        (n, player) =>
+            n +
+            player.battlefield.filter((c) => c.attachedTo === card.id).length,
+        0
+    );
+    if (attached > 0) out.push(`attached=${attached}`);
     const counters = Object.entries(card.counters ?? {})
         .filter(([, n]) => n)
         .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
