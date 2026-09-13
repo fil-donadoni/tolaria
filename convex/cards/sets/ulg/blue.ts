@@ -113,8 +113,8 @@ export const ravenFamiliar: CardDefinition = {
 // choose-hand-card)` + `discard` looter pair (the shipped Vodalian Merchant
 // template, inv/blue.ts), then a `choice(choose-permanents, zone:
 // "battlefield", filter: { type: "Land" }, allControllers: true)` picks up to
-// three lands — ANY player's, since the Oracle prints no "you control" (CR
-// 109.4), the same reading Time Spiral's "untap up to six lands" takes
+// three lands — ANY player's, since the Oracle prints no "you control"
+// (CR 109.2), the same reading Time Spiral's "untap up to six lands" takes
 // (usg/blue.ts) — and a `forEach { set: "bound" }`
 // over that PICKS binding untaps each pick (`tapUntap`, CR 701.26). Was
 // `resolveSteps` until issue #1284 widened `forEach { set: "bound" }`'s

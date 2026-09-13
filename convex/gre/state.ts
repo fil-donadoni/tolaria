@@ -17520,6 +17520,12 @@ export function buildSpellContext(
                 item.delayedTriggerId
             )
                 return outcome;
+            // CR 707.10a — a copy of a spell ceases to exist in any zone but
+            // the stack, so a countered copy goes nowhere. Checked before every
+            // destination branch: `resetStackTransientState` would strip the
+            // flag and leave a real-looking card in the owner's zone. The
+            // fizzle and resolve paths already skip copies the same way.
+            if (item.isCopy) return outcome;
             switch (destination) {
                 case "exile":
                     item.zone = "exile";

@@ -4713,6 +4713,18 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                     '"allControllers" is valid only with zone: "battlefield", and never together with "zoneOwnerId" or "candidates"'
                 );
             }
+            // Only a pick whose consumer may act on ANY player's permanent.
+            // A sacrifice is never one: a player can't sacrifice a permanent
+            // they don't control (CR 701.21a), and `ctx.sacrifice` does not
+            // re-check the controller, so the widening would fail open there.
+            if (
+                entry.allControllers !== undefined &&
+                entry.kind !== "choose-permanents"
+            ) {
+                errors.push(
+                    '"allControllers" is valid only with kind: "choose-permanents" — a sacrifice pick may never reach a permanent its chooser does not control (CR 701.21a)'
+                );
+            }
             // Value checks, not `in`: an explicitly-`undefined` optional key is
             // the same as an absent one everywhere else in the grammar.
             // CR 400.2 / 701.20a (issue #3205) — `candidates` names objects
