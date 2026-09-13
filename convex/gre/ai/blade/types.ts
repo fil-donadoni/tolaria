@@ -151,6 +151,21 @@ export type BladeSetupStep =
      *  choice. Throws when the seat's hand holds no (or more than one) card of
      *  that name. */
     | { kind: "discard"; card: string; controller?: BladeSeat }
+    /** Answer the head `PendingChoice` with the named cards, through the
+     *  search's own applier (`applyMoveInSearch`'s `resolution-choice` case —
+     *  `applyPendingChoiceSubmit`, the resolver the `submitResolutionChoice`
+     *  mutation drives), so the suspended resolution resumes exactly as a live
+     *  answer resumes it (CR 608.2).
+     *
+     *  Added for issue #3545: a spell whose decision under test sits BEHIND an
+     *  earlier mandatory pick (Frantic Search's "discard two" before its
+     *  "untap up to three lands") had no expressible position — the earlier
+     *  pick is itself the root decision, and no step could answer it. Names are
+     *  matched against the choice's own eligible pool, one distinct instance
+     *  per repeated name. Throws when no choice is pending, when a name has no
+     *  (or too few) eligible instances, or when the answer leaves the SAME
+     *  choice still at the head (the resolver rejected it). */
+    | { kind: "choose"; cards: string[] }
     /** Activate the named battlefield permanent's activated ability through
      *  the REAL activation path (`activateAbilityOnState`, `gre/activation.ts`
      *  — the exact function the `activateAbility` mutation calls), so every

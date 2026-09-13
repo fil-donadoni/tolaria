@@ -49,6 +49,7 @@ import { getEffectiveActivatedAbilities } from "../../activatedAbilities";
 import { enumerateMoves } from "../../moves";
 import type { Move } from "../../moves";
 import { applyMoveInSearch } from "../../search";
+import { eligibleZonePickCards } from "../../zonePickEligibility";
 import type { CardInstanceState, GameState, StackItem } from "../../state";
 import {
     discardToGraveyard,
@@ -648,6 +649,52 @@ function applyKnowLibraryTop(
     );
 }
 
+/** Issue #3545 — answer the head pending choice with the named cards through
+ *  `applyMoveInSearch`, the applier the search itself replays a
+ *  `resolution-choice` with. See the step's doc in `types.ts`. */
+function applyChoose(
+    state: GameState,
+    label: string,
+    step: Extract<BladeSetupStep, { kind: "choose" }>
+): void {
+    const head = state.pendingChoices?.[0];
+    if (!head) {
+        throw new BladeSetupError(label, step, "no choice is pending.");
+    }
+    const pool = eligibleZonePickCards(state, head);
+    const ids: string[] = [];
+    for (const name of step.cards) {
+        const defId = definitionIdForName(name);
+        const card = pool.find(
+            (c) =>
+                !ids.includes(c.id) &&
+                (c.card as { id?: string } | undefined)?.id === defId
+        );
+        if (!card) {
+            throw new BladeSetupError(
+                label,
+                step,
+                `no (further) eligible "${name}" for the pending ${head.kind} choice.`
+            );
+        }
+        ids.push(card.id);
+    }
+    applyMoveInSearch(state, head.playerId, {
+        kind: "resolution-choice",
+        stackItemId: head.stackItemId,
+        step: head.step,
+        choiceId: head.choiceId,
+        cardInstanceIds: ids,
+    });
+    if (state.pendingChoices?.[0] === head) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `the ${head.kind} choice rejected the answer and is still pending.`
+        );
+    }
+}
+
 /**
  * Apply a scenario's `setup` sequence to a freshly built state, in order.
  * A no-op when the entry declares none. Mutates `state` in place and returns
@@ -679,6 +726,9 @@ export function applyBladeSetup(
                 break;
             case "discard":
                 applyDiscard(state, step, scenario.label);
+                break;
+            case "choose":
+                applyChoose(state, scenario.label, step);
                 break;
             case "declare-attackers":
                 // Logic in `combatSetup.ts`; this file keeps only the dispatch.

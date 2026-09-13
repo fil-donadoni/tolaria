@@ -6548,6 +6548,133 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: 'Issue #3292. Kjeldoran Dead is a 3/1 whose ETB is `choice { player: "controller" } -> sacrifice($sac)` (CR 701.21) — the caster picks one of their OWN creatures. With a 6/4 Craw Wurm as the only other body, casting it is strictly worse than passing whichever creature the sacrifice takes, so the bot must not cast. It used to, because the ability script priced that sacrifice as +120 board removal: the permanent was credited a standing EDICT it does not have, and `dslRealizedAbilityScriptValue` puts that credit on the board at EVERY search leaf — measured at 590 points before the fix against 430 after (a 160-point swing), on the same two-creature board. Discriminating, measured at authoring time on all five seeds: `cast-spell` before the valuer split, `pass` after. SECOND cause, found by issue #3377: it was ALSO leaning on the `mana` term counting untapped sources, so a 3-mana cast started 36 points down whatever it did. Making that term tap-aware turned this entry red and exposed the real gap — `sacrifice-permanents` had no candidate generator, so `settleStackForBreakdown` could not get past the suspended choice and the margin scored the ENTERING BODY with both creatures still on the battlefield (512, sacrifice invisible). With the generator registered the cast settles to `pendingChoices: 0` and a margin delta of −149 points, and the entry holds on its own reason.',
     },
     {
+        // Issue #3545 — `choose-permanents` "up to N" (CR 608.2), the MAX
+        // extreme. The root decision is Frantic Search's live untap pick,
+        // reached by really casting it (the cast taps all three Islands),
+        // resolving it and answering the mandatory discard first.
+        //
+        // Onulet in hand is what makes the answer unhedged, and it is the whole
+        // point of the entry, measured: with nothing to spend the mana on, one
+        // untapped land is worth about one evaluation point before the next
+        // untap step, every cardinality ties inside rollout noise, and the pick
+        // splits across 0 / 1 / 2 / 3 by seed. With a {3} body in hand only all
+        // three lands cast it this turn.
+        //
+        // The opponent's two TAPPED Mountains are the discriminating half: the
+        // pool is all-controllers (`allControllers: true`), so "untap three
+        // lands" can name theirs, and the generator does emit that branch (the
+        // opponent-side prefix) — the predicate rejects any id the chooser does
+        // not control.
+        label: "choose-permanents: Frantic Search untaps all three of its own lands, never the opponent's",
+        spec: {
+            cards: [
+                { name: "Frantic Search", owner: "me", zone: "hand" },
+                { name: "Grizzly Bears", owner: "me", zone: "hand", count: 2 },
+                { name: "Onulet", owner: "me", zone: "hand" },
+                { name: "Island", owner: "me", zone: "battlefield", count: 3 },
+                {
+                    name: "Mountain",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 2,
+                    tapped: true,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        setup: [
+            { kind: "cast", card: "Frantic Search", by: "me" },
+            { kind: "resolve-top" },
+            { kind: "choose", cards: ["Grizzly Bears", "Grizzly Bears"] },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            // A `predicate`: the claim is a CARDINALITY plus a side, which a
+            // partial `moves` matcher cannot state (three copies of one name
+            // match a single Island).
+            predicate: (move, state) => {
+                if (move?.kind !== "resolution-choice") return false;
+                const chooser = state.pendingChoices?.[0]?.playerId;
+                const own = new Set(
+                    state.players
+                        .find((p) => p.id === chooser)
+                        ?.battlefield.map((c) => c.id) ?? []
+                );
+                return (
+                    move.cardInstanceIds.length === 3 &&
+                    move.cardInstanceIds.every((id) => own.has(id))
+                );
+            },
+            describe: "untaps exactly three lands, all of them the bot's own",
+        },
+        note: 'Issue #3545. `choose-permanents` had no candidate generator: the choice was no search node, so `brain.ts`\'s minimal-legal default submitted `min` — zero — for every "up to N", and the settle could not get past the suspended choice. Measured at authoring time: 5/5 seeds choose the three own Islands. Proof-of-failure: unregistering `choose-permanents` from `CHOICE_CANDIDATE_GENERATORS` reds this entry.',
+    },
+    {
+        // Issue #3545 — the per-pick-cost shape: Magnetic Mountain's "choose any
+        // number of tapped blue creatures … pay {4} for each". Mana for exactly
+        // ONE payment, so the decline and the max-pick both end with nothing
+        // untapped and only a size-1 branch does anything. The generator emits
+        // that branch (the intermediate cardinality); the SEARCH cannot price it.
+        label: "choose-permanents: Magnetic Mountain picks exactly the one creature it can pay for",
+        spec: {
+            cards: [
+                {
+                    name: "Magnetic Mountain",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 2,
+                    summoningSick: false,
+                },
+                {
+                    name: "Phantom Monster",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                    summoningSick: false,
+                },
+                {
+                    name: "Air Elemental",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                    summoningSick: false,
+                },
+            ],
+            phase: "UPKEEP",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+            life: { me: 20, opp: 20 },
+        },
+        setup: [{ kind: "phase-trigger" }, { kind: "resolve-top" }],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "stretch",
+        beyondBudget: {
+            cause: "valuation",
+            note: 'Measured on issue #3545, and filed `valuation` with no `passesAt` because no budget clears it: 2-3/5 seeds at 400 and at 1200 iterations, at opponent life 20 AND at 4 (where the untapped 4-power flier is lethal over two ground Wurms). The candidate set is right — decline, both extremes at max, and both size-1 branches — and the visits split evenly across them. The reason is the settle through the pay-per-pick `may-pay`: `bestBranchThroughChoice` takes the branch with the best material margin, paying {4} costs mana-term points and an untapped creature is worth nothing to `evaluate`, so "choose one" settles to the SAME state as the decline (eval total 781.7 on every branch on the two-flier board; the reward also saturates at 1 − terminalBand when the margin clips). Pricing a creature\'s readiness is a leaf term on every ISMCTS node, not a candidate generator — drafted in `docs/findings/3545-untapped-creature-readiness-is-unpriced.md`.',
+        },
+        expect: {
+            predicate: (move) =>
+                move?.kind === "resolution-choice" &&
+                move.cardInstanceIds.length === 1,
+            describe: "chooses exactly one of the two tapped blue creatures",
+        },
+        note: "Issue #3545's sharpest cardinality case, kept as the record of what the generator alone cannot reach. The generator half is guarded deterministically instead — `choose-permanents-choice-node.bot.test.ts` asserts the size-1 branch is emitted for this pool shape.",
+    },
+    {
         label: "sacrifice sign NEGATIVE CONTROL: still casts a genuine edict",
         spec: {
             cards: [
