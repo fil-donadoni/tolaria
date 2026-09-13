@@ -107,6 +107,7 @@ it is a mechanical rename; the generic SHAPE waits for card #2 to show the axis
 of variation. Enforced catalogue-wide by
 `convex/cards/__tests__/engineIdentifierNames.test.ts` (issue #1918) over every
 top-level declaration in `gre/state.ts` + `cards/types.ts` plus the Op names.
+Derivation: `docs/agents/gre-guards.md` § No card name in an engine identifier.
 
 ## Code patterns
 
