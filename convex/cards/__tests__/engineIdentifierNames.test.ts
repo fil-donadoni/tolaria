@@ -270,7 +270,7 @@ function findOffences(
             const haystack = normalise(identifier);
             for (const needle of needles) {
                 if (!haystack.includes(needle.normalised)) continue;
-                const key = `${surface.label} ${identifier} ${needle.name}`;
+                const key = `${surface.label}|${identifier}|${needle.name}`;
                 if (seen.has(key)) continue;
                 seen.add(key);
                 offences.push({
@@ -363,11 +363,11 @@ describe("No card name in an engine identifier (issue #1918)", () => {
         const cardNames = getAllCards().map((card) => card.name);
         const live = new Set(
             findOffences(SURFACES, cardNames).map(
-                (o) => `${o.surface} ${o.identifier} ${o.card}`
+                (o) => `${o.surface}|${o.identifier}|${o.card}`
             )
         );
         const stale = ALLOWLIST.filter(
-            (a) => !live.has(`${a.surface} ${a.identifier} ${a.card}`)
+            (a) => !live.has(`${a.surface}|${a.identifier}|${a.card}`)
         ).map(
             (a) =>
                 `${a.surface} \`${a.identifier}\` / "${a.card}" (issue #${a.issue})`
