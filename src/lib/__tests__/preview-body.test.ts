@@ -10,6 +10,8 @@ import {
     buildEmblemPreviewBody,
     computeEngineViewBadge,
 } from "~/lib/preview-body";
+import { modalBackFaceDefinitionId } from "@convex/cards/modalDfc";
+import { backFaceDefinitionIdOf } from "@convex/gre/transform";
 import type { CardInstance } from "~/types/game";
 import type { EmblemInstance } from "@convex/cards/types";
 
@@ -625,5 +627,83 @@ describe("buildPreviewBody — the inset half of a two-part frame (CR 715.2)", (
 
     it("is null for an ordinary card", () => {
         expect(buildPreviewBody(SERRA.id).insetHalf).toBeNull();
+    });
+});
+
+// CR 712.1 / 712.8a (issue #3552) — the BACK face of a double-faced card that is
+// showing its front. Before this, every preview surface rendered only the front
+// definition, so a player could not read the land behind a modal spell
+// (CR 712.11b / 712.12) or the planeswalker a transform card becomes. This
+// suite pins the DATA; `card-preview-body.test.tsx`, `card-preview.test.tsx`
+// and `inspect-overlay.test.tsx` pin that it reaches every host's DOM.
+describe("buildPreviewBody — the back face of a double-faced card (CR 712)", () => {
+    const SINK = getCardByName("Sink into Stupor");
+    const JACE = getCardByName("Jace, Vryn's Prodigy");
+
+    it("carries the MODAL back face, read off its registered twin", () => {
+        const half = buildPreviewBody(SINK.id).backFaceHalf;
+
+        expect(half).toBeTruthy();
+        expect(half!.label).toBe("Back face");
+        expect(half!.name).toBe("Soporific Springs");
+        expect(half!.manaCost).toBeNull();
+        expect(half!.typeLine).toBe("Land");
+        const text = half!.oracleParagraphs.join(" ");
+        expect(text).toContain("you may pay 3 life");
+        expect(text).toContain("{T}: Add {U}.");
+        expect(half!.statLine).toBeNull();
+    });
+
+    it("carries the NONMODAL back face of a card that has not transformed, loyalty included (CR 306.5b)", () => {
+        const half = buildPreviewBody(JACE.id).backFaceHalf;
+
+        expect(half).toBeTruthy();
+        expect(half!.label).toBe("Back face");
+        expect(half!.name).toBe("Jace, Telepath Unbound");
+        expect(half!.typeLine).toContain("Planeswalker");
+        expect(half!.typeLine).toContain("Jace");
+        expect(half!.statLine).toBe("Loyalty 5");
+        expect(half!.oracleParagraphs[0]).toContain(
+            "+1: Up to one target creature gets -2/-0"
+        );
+    });
+
+    it("requests the printing's BACK art from the real print id, never a synthetic twin id", () => {
+        for (const card of [SINK, JACE]) {
+            const half = buildPreviewBody(card.id).backFaceHalf!;
+            const path = `back/${card.id[0]}/${card.id[1]}/${card.id}`;
+            expect(half.imageSrc).toBe(
+                `https://cards.scryfall.io/art/${path}.webp`
+            );
+            expect(half.imageFallbackSrc).toBe(
+                `https://cards.scryfall.io/art_crop/${path}.jpg`
+            );
+            expect(half.printedImageSrc).toBe(
+                `https://cards.scryfall.io/grid/${path}.webp`
+            );
+        }
+    });
+
+    it("keeps the FRONT face as the face the preview is about (CR 712.8a)", () => {
+        const body = buildPreviewBody(SINK.id);
+
+        expect(body.displayName).toBe("Sink into Stupor");
+        expect(body.typeLine).toBe("Instant");
+        expect(body.imageSrc).toContain("/art/front/");
+    });
+
+    it("adds nothing to a permanent ALREADY showing its back face", () => {
+        const modal = buildPreviewBody(modalBackFaceDefinitionId(SINK.id));
+        expect(modal.displayName).toBe("Soporific Springs");
+        expect(modal.backFaceHalf).toBeNull();
+
+        const transformed = buildPreviewBody(backFaceDefinitionIdOf(JACE.id)!);
+        expect(transformed.displayName).toBe("Jace, Telepath Unbound");
+        expect(transformed.imageSrc).toContain("/art/back/");
+        expect(transformed.backFaceHalf).toBeNull();
+    });
+
+    it("is null for a card with no back face", () => {
+        expect(buildPreviewBody(SERRA.id).backFaceHalf).toBeNull();
     });
 });

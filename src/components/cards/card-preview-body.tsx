@@ -103,16 +103,36 @@ export default function CardPreviewBody({
                         onChange={setToggledMode}
                     />
                 )}
-                <img
-                    src={content.printedImageSrc}
-                    alt={
-                        isManualGame
-                            ? content.displayName
-                            : `${content.displayName} (printed)`
-                    }
-                    className="w-full card-corner"
-                    onLoad={onImageLoaded}
-                />
+                {content.backFaceHalf?.printedImageSrc ? (
+                    // CR 712 (issue #3552) — a double-faced card's printed
+                    // BACK beside its front, the way the physical card is
+                    // read: side by side keeps the host's height unchanged.
+                    <div className="grid grid-cols-2 gap-1">
+                        <img
+                            src={content.printedImageSrc}
+                            alt={`${content.displayName} (printed)`}
+                            className="w-full card-corner"
+                            onLoad={onImageLoaded}
+                        />
+                        <img
+                            src={content.backFaceHalf.printedImageSrc}
+                            alt={`${content.backFaceHalf.name} (printed back face)`}
+                            className="w-full card-corner"
+                            data-card-preview-back-face-printed
+                        />
+                    </div>
+                ) : (
+                    <img
+                        src={content.printedImageSrc}
+                        alt={
+                            isManualGame
+                                ? content.displayName
+                                : `${content.displayName} (printed)`
+                        }
+                        className="w-full card-corner"
+                        onLoad={onImageLoaded}
+                    />
+                )}
             </div>
         );
     }

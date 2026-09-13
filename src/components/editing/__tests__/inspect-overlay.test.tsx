@@ -351,3 +351,58 @@ describe("InspectOverlay keyboard dismissal (issue #2593)", () => {
         expect(panel().getAttribute("tabindex")).toBe("-1");
     });
 });
+
+// CR 712 (issue #3552) — the editing surfaces (deck builder, Draft Room) read a
+// double-faced card's BACK face through this overlay, in both layouts and both
+// modes, through the real component and the real card.
+describe("InspectOverlay shows a double-faced card's back face (CR 712)", () => {
+    const JACE = getCardByName("Jace, Vryn's Prodigy");
+    const backFace = () =>
+        content().querySelector("[data-card-preview-back-face]");
+
+    afterEach(() => {
+        cleanup();
+        vi.unstubAllGlobals();
+    });
+
+    for (const viewport of ["portrait", "landscape"] as const) {
+        it(`prints the back face in the ${viewport} layout`, () => {
+            stubViewport(viewport);
+            renderOverlay({ cardId: JACE.id });
+            expect(content().dataset.inspectContent).toBe(
+                viewport === "portrait" ? "stacked" : "split"
+            );
+            const text = backFace()?.textContent ?? "";
+            expect(text).toContain("Jace, Telepath Unbound");
+            expect(text).toContain("Planeswalker");
+            expect(text).toContain("Loyalty 5");
+            const art = backFace()!.querySelector("img") as HTMLImageElement;
+            expect(art.src).toContain("/art/back/");
+        });
+    }
+
+    it("shows the printed BACK image in the Printed mode", () => {
+        stubViewport("landscape");
+        renderOverlay({ cardId: JACE.id });
+        fireEvent.click(
+            document.querySelector('[data-preview-mode="printed"]')!
+        );
+        const back = content().querySelector(
+            "img[data-card-preview-back-face-printed]"
+        ) as HTMLImageElement;
+        expect(back.src).toContain("/grid/back/");
+        expect(back.src).toContain(JACE.id);
+    });
+
+    it("adds no back face to a card without one", () => {
+        stubViewport("landscape");
+        renderOverlay({ cardId: getCardByName("Serra Angel").id });
+        expect(backFace()).toBeNull();
+        fireEvent.click(
+            document.querySelector('[data-preview-mode="printed"]')!
+        );
+        expect(
+            content().querySelector("img[data-card-preview-back-face-printed]")
+        ).toBeNull();
+    });
+});
