@@ -1,7 +1,7 @@
 // Static graveyard-permanent-cast permission affordance (CR 702.139, issue
 // #1392 — Lurrus of the Dream-Den). A PERMANENT card in the viewer's own
 // graveyard whose projection carries `legalActions` + `castKind:
-// "graveyard-permanent-permission"` (gameProjections.ts
+// "graveyard-permission"` (gameProjections.ts
 // `projectGraveyardCard`) must render a "Cast" button
 // (GraveyardFlashbackButton, which also handles the Flashback/Escape/
 // graveyard-permission/graveyard-grant labels) and dispatch `announceCast` —

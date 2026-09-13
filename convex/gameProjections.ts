@@ -127,12 +127,12 @@ export type SlimExileCard = SlimCardInstance & {
 
 /** Graveyard card in projected state: slim, plus `legalActions` when the viewer
  *  may cast it from the graveyard via Flashback (CR 702.34), escape (CR
- *  702.138), the BROAD turn-scoped graveyard-cast permission (CR 305.1-analog
- *  / 601, Yawgmoth's Will, issue #1149), a SPECIFIC-CARD graveyard-cast grant
- *  (CR 601.3 / 118.9, Malcolm, Alluring Scoundrel, issue #1344), or
- *  play it as a LAND under an unconditional play-lands-from-graveyard
- *  permission (CR 305.1-analog, Icetill Explorer #1190, or the same BROAD
- *  #1149 permission when its zones cover "land"). Present only on the
+ *  702.138), a graveyard play permission licensing `cast` (CR 601.3, ADR 0093 —
+ *  Yawgmoth's Will, Lurrus of the Dream-Den), a SPECIFIC-CARD graveyard-cast
+ *  grant (CR 601.3 / 118.9, Malcolm, Alluring Scoundrel, issue #1344), or
+ *  play it as a LAND under a graveyard play permission licensing `play-land`
+ *  (CR 305.1-analog — Crucible of Worlds, Icetill Explorer, Yawgmoth's Will).
+ *  Present only on the
  *  viewer's own graveyard cards; drives the Flashback / Escape / Cast / Play
  *  affordance's enabled state, exactly like {@link SlimExileCard.legalActions}
  *  for an exile cast. */

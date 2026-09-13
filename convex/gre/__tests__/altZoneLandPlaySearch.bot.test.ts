@@ -2,7 +2,7 @@
 // permission actually allows, not from hand unconditionally.
 //
 // `enumerateMoves` now offers a `play-land` move for a graveyard land under
-// `playsLandsFromGraveyard` (Icetill Explorer / Crucible of Worlds / Ramunap
+// `graveyardPlayPermission` (Icetill Explorer / Crucible of Worlds / Ramunap
 // Excavator, #1190) and for the top library land under
 // `playsLandsFromTopOfLibrary` (Courser of Kruphix). Both leaves —
 // `applyMoveForSearch` (the greedy 1-ply sandbox) and `applyMoveInSearch` (the

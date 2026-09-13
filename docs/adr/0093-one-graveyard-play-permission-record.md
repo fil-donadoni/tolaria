@@ -98,6 +98,14 @@ card's instance for the Op form). Each permission spends its own use, which is
 what CR gives (each ability functions independently) and what makes the record
 safe for a non-legendary holder.
 
+**Selection is deterministic, never a prompt** (maintainer decision on issue
+#2244, 2026-09-13). When several live permissions cover the same play or cast,
+the resolver picks one: a permission that is not once-per-turn first (spending
+it costs nothing, so it dominates), else the first once-per-turn permission
+scanned — battlefield order, then turn-scoped grants. The player is never asked
+which permission to spend; with a single permission live (every shipped board,
+and Serra Paragon on her own) there is nothing to ask.
+
 **No graveyard-owner axis.** Every reader keeps assuming the caster's OWN
 graveyard. Cards that cast from an opponent's graveyard exist in Magic but none
 is in this catalogue, and unifying is exactly what makes adding the axis later a
