@@ -14,11 +14,11 @@ Antiquities' Tawnos's Coffin (issue #295) uses the modern Oracle (ADR 0004):
 > it. If you do, return the other exiled cards to the battlefield under their
 > owner's control attached to that permanent.
 
-This is the **exile** sibling of phasing's holding bundle (ADR 0021). The two
+This is the **exile** sibling of phasing's holding bundle (ADR 0126). The two
 look alike — host + attached Auras leave together and come back as a unit — but
 differ on the points that matter:
 
-|                          | Phasing (ADR 0021)                               | Tawnos's Coffin (this ADR)                                           |
+|                          | Phasing (ADR 0126)                               | Tawnos's Coffin (this ADR)                                           |
 | ------------------------ | ------------------------------------------------ | -------------------------------------------------------------------- |
 | Zone change              | No (CR 702.26h) — silent, no triggers            | **Yes** — exile; leaves/enters triggers fire                         |
 | Returned object identity | Same object                                      | **New** object (CR 400.7)                                            |
@@ -26,7 +26,7 @@ differ on the points that matter:
 | Return driver            | Continuous duration ending (immediate, no stack) | **Triggered ability** (CR 603.7a) — on the source's leave _or_ untap |
 
 The repo had no "becomes untapped" event: `untap-cycle` existed only as a
-deferred `PhaseReturnCondition` branch (ADR 0021), and every untap site flipped
+deferred `PhaseReturnCondition` branch (ADR 0126), and every untap site flipped
 `isTapped = false` inline. The "you may choose not to untap" clause, by
 contrast, already existed as the `may-choose-not-to-untap` optional-untap static
 (ADR 0005), so only the return half was new.

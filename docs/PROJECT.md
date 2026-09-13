@@ -442,7 +442,7 @@ un Figure rimbalzato torna 1/1 Kithkin.
 
 ### 5.8 Replacement effects
 
-`convex/gre/replacements.ts` — danno, distruzione (ADR 0020), pescata (seam
+`convex/gre/replacements.ts` — danno, distruzione (ADR 0125), pescata (seam
 unificato e riprendibile, ADR 0061), sostituzioni di ingresso in campo.
 
 ### 5.9 Pending Choice: sospensione e ripresa

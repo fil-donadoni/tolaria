@@ -1,4 +1,4 @@
-# ADR 0020 — Destroy-replacement via the replacement framework; regeneration kept separate
+# ADR 0125 — Destroy-replacement via the replacement framework; regeneration kept separate
 
 **Status:** Accepted (2026-06-16)
 

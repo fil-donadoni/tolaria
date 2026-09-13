@@ -42,7 +42,7 @@ from ROLLOUTS, and the rollout default policy plays greedily; it will not
 execute a specific deterministic combo, so the subtree below the self-mill
 scores like the subtree below anything else and the +24 leaf edge is washed out.
 Compounding it slightly, Brain Freeze is an Instant, so casting it at sorcery
-speed is `isDiscouragedRolloutMove` (ADR 0021) — a default-policy headwind that
+speed is `isDiscouragedRolloutMove` (ADR 0020 §4) — a default-policy headwind that
 applies to BOTH targets equally, so it explains the noise but not the
 preference.
 

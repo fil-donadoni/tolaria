@@ -437,7 +437,7 @@ export const orimsTouch: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────
-// Replacement effects (CR 614, ADR 0020) — damage clamp / redirect
+// Replacement effects (CR 614, ADR 0125) — damage clamp / redirect
 // ─────────────────────────────────────────────────────────────────────────
 
 // Divine Presence — "If a source would deal 4 or more damage to a permanent

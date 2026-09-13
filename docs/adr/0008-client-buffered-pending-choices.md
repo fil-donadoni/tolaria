@@ -1,4 +1,4 @@
-# ADR 0007 — Client-buffered pending choice submission
+# ADR 0008 — Client-buffered pending choice submission
 
 **Status:** Accepted (2026-05-26)
 

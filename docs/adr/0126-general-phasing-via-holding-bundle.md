@@ -1,4 +1,4 @@
-# ADR 0021 — General phasing via a silent holding-bundle move
+# ADR 0126 — General phasing via a silent holding-bundle move
 
 **Status:** Accepted (2026-06-16)
 

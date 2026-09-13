@@ -9,7 +9,7 @@ import type { CardDefinition } from "../../types";
 // "Flash. If a nontoken creature would enter and it wasn't cast, exile it
 // instead." Flash is a shipped keyword (mechanicsRegistry.ts). The
 // replacement clause is a permanent-bound `replacementEffects[]` entry
-// (ADR 0020 pattern) on the new `"enters-battlefield"` `ReplacementEventKind`
+// (ADR 0125 pattern) on the new `"enters-battlefield"` `ReplacementEventKind`
 // (`gre/replacements.ts::applyEnterBattlefieldReplacements`, issue #1148),
 // fired at every chokepoint that places a permanent on the battlefield:
 // cast-resolution (`wasCast: true`), reanimation/tutor-to-battlefield/hand-
