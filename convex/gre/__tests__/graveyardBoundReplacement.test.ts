@@ -400,6 +400,24 @@ describe("graveyard-bound replacement (CR 614, issue #1145)", () => {
         });
     });
 
+    it("a countered spell COPY goes to no zone at all (CR 707.10a)", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const copy = pushSpell(state, P2_SORCERY_ID, "p2");
+        copy.isCopy = true;
+        const counterer = pushSpell(state, P1_SORCERY_ID, "p1");
+        buildSpellContext(state, counterer).counter({
+            type: "spell",
+            id: copy.id,
+        });
+        const p2 = state.players[1];
+        expect(state.stack.some((i) => i.id === copy.id)).toBe(false);
+        for (const zone of [p2.graveyard, p2.exile, p2.hand, p2.library]) {
+            expect(zone.some((c) => c.id === copy.id)).toBe(false);
+        }
+    });
+
     it("redirects a generic moveZone/moveCardById library->graveyard move (self-mill effects) to exile", () => {
         const library = [bystanderCard("c1", "p1", "library")];
         const state = makeState({

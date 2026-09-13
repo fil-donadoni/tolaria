@@ -1512,13 +1512,6 @@
     },
     {
         "class": "ability",
-        "cardId": "d0fcd8d3-f159-49a1-8dd9-582ae4a0adc3",
-        "name": "Goblin Patrol",
-        "abilityId": "goblin-patrol-echo",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "de839540-a7b9-4f91-91df-3fd4f5c0bc4e",
         "name": "Goblin Sappers",
         "abilityId": "goblin-sappers-rr",

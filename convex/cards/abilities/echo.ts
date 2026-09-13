@@ -46,7 +46,7 @@ export function echoTrigger(args: EchoArgs): TriggeredAbility {
     const oracle =
         args.oracleText ??
         `Echo ${args.costLabel} (At the beginning of your upkeep, if this came under your control since the beginning of your last upkeep, sacrifice it unless you pay its echo cost.)`;
-    return phaseTrigger({
+    const trigger = phaseTrigger({
         id: args.id ?? "echo",
         oracleText: oracle,
         phase: "UPKEEP",
@@ -77,4 +77,26 @@ export function echoTrigger(args: EchoArgs): TriggeredAbility {
             }
         },
     });
+    return {
+        ...trigger,
+        // AI-only shadow script (PRD #1423) — never executed; `resolve` above
+        // stays the executed path because `markEchoPaid` has no Op. It prices
+        // the same CR 702.30a decision for `OP_VALUERS`: pay the echo cost, or
+        // lose the permanent. Declared once here so every Echo card is valued,
+        // rather than one card at a time.
+        aiEffects: [
+            {
+                op: "mayPay",
+                player: "controller",
+                cost: args.cost,
+                prompt: `Pay echo (${args.costLabel}) to keep this permanent?`,
+                bind: "$paid",
+            },
+            {
+                op: "if",
+                predicate: { not: { binding: "$paid" } },
+                then: [{ op: "sacrifice", target: { ref: "$source" } }],
+            },
+        ],
+    };
 }

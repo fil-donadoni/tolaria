@@ -6593,6 +6593,23 @@ describe("validateEffectScript — choice allControllers", () => {
         );
     });
 
+    it("rejects it on a sacrifice pick, which may never reach a permanent its chooser does not control (CR 701.21a)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    untapAnyLands({ kind: "sacrifice-permanents" })[0],
+                    {
+                        op: "sacrifice",
+                        permanents: { ref: "$lands" },
+                    } as EffectOp,
+                ],
+            })
+        );
+        expect(errors.join("\n")).toContain(
+            'valid only with kind: "choose-permanents"'
+        );
+    });
+
     it("rejects `false`, a second spelling of the default", () => {
         const errors = validateEffectScript(
             host({ effects: untapAnyLands({ allControllers: false }) })
