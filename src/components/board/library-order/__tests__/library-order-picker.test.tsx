@@ -166,6 +166,26 @@ describe("LibraryOrderPicker", () => {
         expect(getByText("Your hand")).toBeTruthy();
     });
 
+    // issue #3249 (Aang, at the Crossroads) — `keepTo: "battlefield"` reads the
+    // keep (right) zone as "Battlefield": the kept card is PUT onto the
+    // battlefield, so neither "Your hand" nor "Top of library" may show.
+    it("renders BATTLEFIELD/BOTTOM chrome in distribute mode with keepTo battlefield", () => {
+        const { getByText, queryByText } = renderPicker(
+            <LibraryOrderPicker
+                lookedAt={looked}
+                destination="library-bottom"
+                prompt="Aang, at the Crossroads"
+                submitting={false}
+                distribute={{ keep: 1, min: 0, keepTo: "battlefield" }}
+                onConfirm={vi.fn()}
+            />
+        );
+        expect(getByText("Bottom of library")).toBeTruthy();
+        expect(getByText("Battlefield")).toBeTruthy();
+        expect(queryByText("Your hand")).toBeNull();
+        expect(queryByText("Top of library")).toBeNull();
+    });
+
     // issue #2070 (Thassa's Oracle) — `keepTo: "library-top"` reads the keep
     // (right) zone as "Top of library" instead of "Your hand"; the left/bottom
     // zone is unaffected.
