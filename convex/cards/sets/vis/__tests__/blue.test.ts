@@ -217,3 +217,59 @@ describe("Vision Charm (VIS, {U} modal instant — CR 700.2)", () => {
         }
     });
 });
+
+const manOWar = getDefinition("4dbf9bf9-75cd-4b25-a3a1-43b7e029700b");
+
+// The compiled row sits in quarantine because the generated smoke scenario
+// cannot model `moveZone` on an announced creature — so this is that coverage.
+describe("Man-o'-War (CR 603.3d targeted ETB, CR 400.3 owner's hand)", () => {
+    it("returns the target to its OWNER's hand, not its controller's, and the board projection loses it", () => {
+        const jelly = makeInstance(manOWar.id, {
+            id: "jelly",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        // p2 controls a creature p1 OWNS: the bounce must land in p1's hand.
+        const bears = makeInstance(grizzlyBears.id, {
+            id: "bears",
+            controllerId: "p2",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [jelly] }),
+                makePlayer("p2", { battlefield: [bears] }),
+            ],
+        });
+        state.stack.push({
+            ...jelly,
+            id: "trig-jelly",
+            zone: "stack",
+            castById: "p1",
+            triggeredAbilityId: "man-o-war-etb-bounce",
+            triggerSourceId: jelly.id,
+            triggerEvent: {
+                type: "PERMANENT_ENTERED",
+                instanceId: jelly.id,
+                controllerId: "p1",
+                types: jelly.types,
+            } as StackItem["triggerEvent"],
+            targets: [{ type: "permanent", id: "bears" }],
+        } as StackItem);
+        resolveTopOfStack(state);
+
+        expect(state.players[1].battlefield.some((c) => c.id === "bears")).toBe(
+            false
+        );
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["bears"]);
+        expect(state.players[1].hand).toHaveLength(0);
+
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.players[1].battlefield.some((c) => c.id === "bears")
+        ).toBe(false);
+        expect(projected.players[0].hand.map((c) => c?.id)).toEqual(["bears"]);
+    });
+});

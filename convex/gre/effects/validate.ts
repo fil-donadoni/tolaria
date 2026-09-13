@@ -4688,6 +4688,9 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                     allowExcludeSource: true,
                 }),
             zoneOwnerId: isPlayerRef,
+            // Every player's battlefield ("untap up to two lands"). `true`
+            // only: `false` would be a second spelling of the default.
+            allControllers: (v) => v === true,
             id: isNonEmptyString,
             candidates: (v) =>
                 Array.isArray(v) && v.length > 0 && v.every(isObjectSelector),
@@ -4695,6 +4698,33 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         },
         check: (entry) => {
             const errors: string[] = [];
+            // `allControllers` widens a BATTLEFIELD pick to every player's
+            // permanents. `zoneOwnerId` and `candidates` each already say whose
+            // objects are in play, so pairing either with it is two answers to
+            // one question; a hidden zone has no "every player's" reading at
+            // all (the submit validator's pool is battlefield-only).
+            if (
+                entry.allControllers !== undefined &&
+                (entry.zone !== "battlefield" ||
+                    entry.zoneOwnerId !== undefined ||
+                    entry.candidates !== undefined)
+            ) {
+                errors.push(
+                    '"allControllers" is valid only with zone: "battlefield", and never together with "zoneOwnerId" or "candidates"'
+                );
+            }
+            // Only a pick whose consumer may act on ANY player's permanent.
+            // A sacrifice is never one: a player can't sacrifice a permanent
+            // they don't control (CR 701.21a), and `ctx.sacrifice` does not
+            // re-check the controller, so the widening would fail open there.
+            if (
+                entry.allControllers !== undefined &&
+                entry.kind !== "choose-permanents"
+            ) {
+                errors.push(
+                    '"allControllers" is valid only with kind: "choose-permanents" — a sacrifice pick may never reach a permanent its chooser does not control (CR 701.21a)'
+                );
+            }
             // Value checks, not `in`: an explicitly-`undefined` optional key is
             // the same as an absent one everywhere else in the grammar.
             // CR 400.2 / 701.20a (issue #3205) — `candidates` names objects
