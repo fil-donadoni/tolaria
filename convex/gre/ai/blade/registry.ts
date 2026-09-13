@@ -6116,6 +6116,31 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Issue #2706 — the first `cast-permission` static. With landCount 0 the printed cost cannot be paid, so a `cast-spell` move at all IS the free cast; no other line exists.",
     },
     {
+        // The Aluren deck's engine piece reaches the stack (issue #2718, the
+        // Premodern Tier 1 list). Same zero-land shape as the entry above, so a
+        // `cast-spell` IS the free cast — but on a mana value 3 creature whose
+        // ETB (`lookDistribute`) and Echo upkeep (`mayPay`) the search must then
+        // simulate through. A search that could not answer either would
+        // stall on the rollout, and the move would never be preferred.
+        label: "cast permission: casts Raven Familiar for free under Aluren with no lands",
+        spec: {
+            cards: [
+                { name: "Aluren", owner: "me", zone: "battlefield" },
+                { name: "Raven Familiar", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "cast-spell", card: "Raven Familiar" }] },
+        note: "Issue #2718 — reachability, not preference: a free card-advantage body on an empty board has no competing line.",
+    },
+    {
         // DISCRIMINATING PAIR, HALF 1 of 2 (issue #3081).
         // PAIRED WITH: "self-tap source: pays a {T} ability entirely from the
         // OTHER lands".

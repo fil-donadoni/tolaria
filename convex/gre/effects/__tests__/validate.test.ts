@@ -6537,3 +6537,66 @@ describe("issue #2713 — the three Op parameters' validator rules", () => {
         ).toEqual([]);
     });
 });
+
+// `choice.allControllers` — "untap up to two lands" picks from EVERY player's
+// battlefield (CR 109.2: an unqualified "land" is any land permanent).
+describe("validateEffectScript — choice allControllers", () => {
+    const untapAnyLands = (over: Record<string, unknown> = {}): EffectOp[] => [
+        {
+            op: "choice",
+            kind: "choose-permanents",
+            player: "controller",
+            zone: "battlefield",
+            allControllers: true,
+            filter: { type: "Land" },
+            count: { min: 0, max: 2 },
+            prompt: "Untap up to two lands",
+            bind: "$lands",
+            ...over,
+        } as EffectOp,
+        {
+            op: "forEach",
+            select: { set: "bound", ref: "$lands" },
+            effects: [
+                { op: "tapUntap", action: "untap", target: { ref: "$each" } },
+            ],
+        } as EffectOp,
+    ];
+
+    it("accepts it on a battlefield pick", () => {
+        expect(
+            validateEffectScript(host({ effects: untapAnyLands() }))
+        ).toEqual([]);
+    });
+
+    it("rejects it off the battlefield", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: untapAnyLands({
+                    kind: "choose-hand-card",
+                    zone: "hand",
+                    filter: undefined,
+                }),
+            })
+        );
+        expect(errors.join("\n")).toContain(
+            '"allControllers" is valid only with zone: "battlefield"'
+        );
+    });
+
+    it("rejects it next to zoneOwnerId, which already names whose permanents are in play", () => {
+        const errors = validateEffectScript(
+            host({ effects: untapAnyLands({ zoneOwnerId: "opponent" }) })
+        );
+        expect(errors.join("\n")).toContain(
+            'never together with "zoneOwnerId" or "candidates"'
+        );
+    });
+
+    it("rejects `false`, a second spelling of the default", () => {
+        const errors = validateEffectScript(
+            host({ effects: untapAnyLands({ allControllers: false }) })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+    });
+});

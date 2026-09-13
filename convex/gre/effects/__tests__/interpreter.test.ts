@@ -32968,3 +32968,71 @@ describe('moveZone — to: "library-top" from a graveyard target (CR 400.7, issu
         );
     });
 });
+
+// `choice.allControllers` — "untap up to two lands" (Cloud of Faeries) prints no
+// "you control", so the pick spans EVERY player's battlefield (CR 109.2). The
+// PendingChoice flag is what the submit validator, the client and the Bot read;
+// the interpreter's own job is to set it and to clamp against every battlefield.
+describe("Effect Script Op: choice allControllers — every player's battlefield (CR 109.2)", () => {
+    const UNTAP_ANY_LANDS: EffectOp[] = [
+        {
+            op: "choice",
+            kind: "choose-permanents",
+            player: "controller",
+            zone: "battlefield",
+            allControllers: true,
+            filter: { type: "Land" },
+            count: { min: 0, max: 2 },
+            prompt: "Untap up to two lands.",
+            bind: "$lands",
+        },
+        {
+            op: "forEach",
+            select: { set: "bound", ref: "$lands" },
+            effects: [
+                { op: "tapUntap", action: "untap", target: { ref: "$each" } },
+            ],
+        },
+    ];
+
+    it("offers both players' lands, clamps against both, and untaps the opponent's pick", () => {
+        const id = registerScript(
+            "test-op-choice-all-controllers",
+            UNTAP_ANY_LANDS
+        );
+        const land = (landId: string, owner: string) =>
+            makeInstance(LAND_ID, {
+                id: landId,
+                controllerId: owner,
+                ownerId: owner,
+                isTapped: true,
+            });
+        // ONE land each: a single-battlefield clamp would cap the pick at 1.
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land("mine", "p1")] }),
+                makePlayer("p2", { battlefield: [land("theirs", "p2")] }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.allControllers).toBe(true);
+        expect(head.count).toEqual({ min: 0, max: 2 });
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["mine", "theirs"],
+        });
+        expect(state.players[0].battlefield[0].isTapped).toBe(false);
+        expect(state.players[1].battlefield[0].isTapped).toBe(false);
+        // Wire format: the opponent's untapped land survives the projection.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.players[1].battlefield.find((c) => c.id === "theirs")!
+                .isTapped
+        ).toBe(false);
+    });
+});
