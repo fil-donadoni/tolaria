@@ -36,6 +36,7 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
+import { emitBlockersConfirmedEvents } from "../../../../gre/phases";
 import {
     makeInstance,
     makePlayer,
@@ -620,5 +621,162 @@ describe("Raiding Party — symmetric Plains destruction (CR 701.8)", () => {
             (c.subtypes ?? []).includes("Plains")
         );
         expect(remainingPlains).toHaveLength(0);
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Dwarven Soldier (issue #2118) — the combat-pairing batch trigger. Every
+// assertion runs through the PRODUCTION emitter `emitBlockersConfirmedEvents`
+// rather than a hand-built event, so the `attackerSubtypes`/`blockerSubtypes`
+// the `matches` predicate reads are the ones the engine actually populates.
+// ═══════════════════════════════════════════════════════════════════════════
+describe("Dwarven Soldier ({1}{R} 2/1 — blocks/becomes-blocked-by Orc trigger, CR 509.1h / 603.3b)", () => {
+    // p1 always controls the attacker, p2 the blocker(s) —
+    // `emitBlockersConfirmedEvents` resolves sides off `state.activePlayerId`
+    // ("p1" by default in `makeState`).
+    function setupCombat(opts: {
+        soldierRole: "attacker" | "blocker";
+        /** The lone attacker, when the Soldier is the BLOCKER. */
+        attacker?: CardInstanceState;
+        /** The blocker(s), when the Soldier is the ATTACKER. */
+        otherBlockers?: CardInstanceState[];
+    }) {
+        const soldier = makeInstance(dwarvenSoldier.id, {
+            id: "soldier",
+            controllerId: opts.soldierRole === "attacker" ? "p1" : "p2",
+            ownerId: opts.soldierRole === "attacker" ? "p1" : "p2",
+            isAttacking: opts.soldierRole === "attacker",
+            isBlocking: opts.soldierRole === "blocker",
+        });
+        const attacker: CardInstanceState =
+            opts.soldierRole === "attacker"
+                ? soldier
+                : (opts.attacker ??
+                  makeInstance(grizzlyBears.id, {
+                      id: "atk",
+                      controllerId: "p1",
+                      ownerId: "p1",
+                      isAttacking: true,
+                  }));
+        const blockers: CardInstanceState[] =
+            opts.soldierRole === "blocker"
+                ? [soldier]
+                : (opts.otherBlockers ?? []);
+
+        const blockerAssignments: Record<string, string[]> = {};
+        for (const b of blockers) blockerAssignments[b.id] = [attacker.id];
+
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield:
+                        opts.soldierRole === "attacker"
+                            ? [soldier]
+                            : [attacker],
+                }),
+                makePlayer("p2", { battlefield: blockers }),
+            ],
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackerIds: [attacker.id],
+                confirmed: true,
+                blockerAssignments,
+                blockersConfirmed: true,
+            },
+        });
+        return { state, soldier };
+    }
+
+    function orc(id: string, defId: string): CardInstanceState {
+        return makeInstance(defId, {
+            id,
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+    }
+
+    it("fires when the Soldier BECOMES BLOCKED BY an Orc (uses the Stack, does not auto-resolve)", () => {
+        const { state, soldier } = setupCombat({
+            soldierRole: "attacker",
+            otherBlockers: [orc("captain", orcishCaptain.id)],
+        });
+
+        emitBlockersConfirmedEvents(state);
+        expect(state.stack).toHaveLength(1); // on the Stack, not auto-resolved
+        expect(state.stack[0].triggeredAbilityId).toBe(
+            "dwarven-soldier-orc-pump"
+        );
+        resolveTopOfStack(state);
+        expect(getEffectivePower(state, soldier)).toBe(2);
+        expect(getEffectiveToughness(state, soldier)).toBe(3);
+    });
+
+    it("fires when the Soldier BLOCKS an Orc (the other direction of the same Oracle line)", () => {
+        const attackingOrc = makeInstance(orcishVeteran.id, {
+            id: "atk-orc",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const { state, soldier } = setupCombat({
+            soldierRole: "blocker",
+            attacker: attackingOrc,
+        });
+
+        emitBlockersConfirmedEvents(state);
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
+        expect(getEffectiveToughness(state, soldier)).toBe(3);
+    });
+
+    it("does NOT fire when blocked only by a non-Orc", () => {
+        const bears = makeInstance(grizzlyBears.id, {
+            id: "bears",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const { state, soldier } = setupCombat({
+            soldierRole: "attacker",
+            otherBlockers: [bears],
+        });
+
+        emitBlockersConfirmedEvents(state);
+        expect(state.stack).toHaveLength(0);
+        expect(getEffectiveToughness(state, soldier)).toBe(1);
+    });
+
+    it("fires exactly ONCE when blocked by TWO Orcs (CR 603.3b batching — +0/+2, never +0/+4)", () => {
+        const { state, soldier } = setupCombat({
+            soldierRole: "attacker",
+            otherBlockers: [
+                orc("captain", orcishCaptain.id),
+                orc("spy", orcishSpy.id),
+            ],
+        });
+
+        emitBlockersConfirmedEvents(state);
+        expect(state.stack).toHaveLength(1); // not two
+        resolveTopOfStack(state);
+        expect(getEffectiveToughness(state, soldier)).toBe(3); // +2 once
+    });
+
+    it("fires exactly ONCE when only ONE of several blockers is an Orc (mixed pairing)", () => {
+        const bears = makeInstance(grizzlyBears.id, {
+            id: "bears",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const { state, soldier } = setupCombat({
+            soldierRole: "attacker",
+            otherBlockers: [bears, orc("spy", orcishSpy.id)],
+        });
+
+        emitBlockersConfirmedEvents(state);
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
+        expect(getEffectiveToughness(state, soldier)).toBe(3);
     });
 });
