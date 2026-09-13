@@ -2834,6 +2834,7 @@ export function finalizeCleanup(state: GameState): void {
         const kept = state.delayedTriggers.filter(
             (t) =>
                 t.timing !== "leaves-battlefield" &&
+                t.timing !== "dies" &&
                 t.timing !== "attacks-unblocked" &&
                 t.timing !== "this-turn-creature-blocks" &&
                 t.timing !== "this-turn-creature-deals-combat-damage-to-player"

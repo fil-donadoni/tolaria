@@ -1200,7 +1200,7 @@ function isManaValueValue(value: unknown): boolean {
  *  No `of` selector — like `abilityResolutionCount` it is scoped to the
  *  resolving STACK ITEM's own `additionalSacrificeSnapshot`, so there is
  *  nothing to select and no ref position for the ordered ref pass to
- *  family-check. `read` is a closed two-member string union; `plus` is an
+ *  family-check. `read` is a closed three-member string union; `plus` is an
  *  OPTIONAL non-negative integer literal (0 is legal — it is an offset, not a
  *  count, so `isPositiveInt` would wrongly reject the identity), never a
  *  ref/X/nested value. No other keys are permitted. */
@@ -1214,7 +1214,8 @@ function isSacrificedValue(value: unknown): boolean {
     if (!Object.keys(s).every((k) => k === "read" || k === "plus")) {
         return false;
     }
-    if (s.read !== "manaValue" && s.read !== "power") return false;
+    if (s.read !== "manaValue" && s.read !== "power" && s.read !== "toughness")
+        return false;
     if (s.plus === undefined) return true;
     return (
         typeof s.plus === "number" && Number.isInteger(s.plus) && s.plus >= 0
@@ -2981,6 +2982,10 @@ const DELAYED_TIMINGS = new Set([
     // watched permanent's PERMANENT_LEFT, not a step boundary. Requires
     // `watch`; rejects `targetPlayer` (checked below).
     "leaves-battlefield",
+    // Instance dies-watch (CR 603.7a / 700.4) — the leave-watch narrowed to
+    // the watched creature's CREATURE_DIED. Requires `watch`; rejects
+    // `targetPlayer`, exactly like `leaves-battlefield`.
+    "dies",
     // Indefinite instance leave-watch (CR 603.7a / 603.10, issue #1470) — the
     // same `watch` + PERMANENT_LEFT machinery with NO "this turn" bound: it is
     // excluded from the CLEANUP purge (phases.ts), so it survives end of turn
@@ -5008,11 +5013,13 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             // so each demands `watch`; the phase-boundary and repeating
             // combat-watch timings fire at a step / on any creature and reject
             // it. The instance-scoped timings differ only in their firing
-            // EVENT (PERMANENT_LEFT vs ATTACKER_UNBLOCKED) and their turn
-            // bound (the CLEANUP purge, phases.ts), never in required fields.
+            // EVENT (PERMANENT_LEFT vs CREATURE_DIED vs ATTACKER_UNBLOCKED) and
+            // their turn bound (the CLEANUP purge, phases.ts), never in
+            // required fields.
             const instanceScoped =
                 entry.timing === "leaves-battlefield" ||
                 entry.timing === "leaves-battlefield-indefinite" ||
+                entry.timing === "dies" ||
                 entry.timing === "attacks-unblocked";
             if (instanceScoped && !("watch" in entry)) {
                 errors.push(
@@ -5021,7 +5028,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             }
             if (!instanceScoped && "watch" in entry) {
                 errors.push(
-                    `field "watch" is only valid with the instance-scoped timings "leaves-battlefield" / "leaves-battlefield-indefinite" / "attacks-unblocked"`
+                    `field "watch" is only valid with the instance-scoped timings "leaves-battlefield" / "leaves-battlefield-indefinite" / "dies" / "attacks-unblocked"`
                 );
             }
             return errors;

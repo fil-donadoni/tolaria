@@ -3670,7 +3670,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  value-grammar member — the SEVENTEENTH — and like every member since `X`
  *  (#852) it is NOT an Op and NOT a structural construct, so it earns no
  *  EFFECT_OP_REGISTRY row and does not reopen ADR 0045. It reads a
- *  characteristic (mana value / power) of the permanent SACRIFICED TO PAY the
+ *  characteristic (mana value / power / toughness) of the permanent SACRIFICED TO PAY the
  *  resolving spell or ability's additional cost, as LAST KNOWN INFORMATION off
  *  the stack item's `additionalSacrificeSnapshot` (CR 601.2f / 608.2h).
  *  Reason to exist: the existing `manaValue` member's `of` is an object

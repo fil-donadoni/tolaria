@@ -4672,6 +4672,12 @@ export interface SpellContext {
      *  was sacrificed for the cost. Used by Freyalise Supplicant ("deals damage
      *  equal to half the sacrificed creature's power, rounded down"). */
     getAdditionalSacrificePower: () => number | undefined;
+    /** Effective TOUGHNESS snapshotted alongside `getAdditionalSacrificePower`
+     *  (CR 608.2h last-known information, CR 613 layer 7c). Returns
+     *  `undefined` when no creature was sacrificed for the cost. Read by the
+     *  `sacrificed` value's `read: "toughness"` (Diamond Valley — "gain life
+     *  equal to the sacrificed creature's toughness"). */
+    getAdditionalSacrificeToughness: () => number | undefined;
     /** Domain (CR 702 preamble — an italic ability word, no independent rules
      *  meaning of its own): the number of basic land types among lands
      *  `playerId` controls (0–5, CR 305.6 — a dual land with two basic
@@ -6847,6 +6853,14 @@ export type DelayedTriggerTiming =
      *  not at a step boundary; any instance still pending expires unfired at
      *  CLEANUP (the "this turn" bound, CR 514.2). */
     | "leaves-battlefield"
+    /** CR 603.7a / 700.4 — the DIES twin of `leaves-battlefield`: "When that
+     *  creature dies this turn, …" (Sandals of Abdallah). Same instance-scoped
+     *  watch (`watchInstanceId`, `watch` required) and the same this-turn
+     *  CLEANUP purge (CR 514.2), but it fires only on the watched instance's
+     *  `CREATURE_DIED` — put into a graveyard from the battlefield (CR 700.4) —
+     *  never on a bounce, an exile, or a graveyard → exile redirect, all of
+     *  which `leaves-battlefield` matches. Dequeued by firing. */
+    | "dies"
     /** CR 603.7a / 603.10 (issue #1470) — the INDEFINITE twin of
      *  `leaves-battlefield`: same instance-scoped watch (`watchInstanceId`,
      *  same `PERMANENT_LEFT` match in `gre/triggers.ts`, dequeued on firing),
@@ -12360,8 +12374,8 @@ export type EffectManaValueValue = {
 export type EffectSacrificedValue = {
     sacrificed: {
         /** Which characteristic of the cost-sacrificed permanent to read:
-         *  its mana value (CR 202.3) or its power (CR 208.1). */
-        read: "manaValue" | "power";
+         *  its mana value (CR 202.3), its power or its toughness (CR 208.1). */
+        read: "manaValue" | "power" | "toughness";
         /** Fixed non-negative integer offset added to the read value
          *  (defaults to 0). A literal only — see the type's doc comment. */
         plus?: number;

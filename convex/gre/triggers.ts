@@ -617,6 +617,29 @@ export function collectTriggers(
         state.delayedTriggers = remaining.length > 0 ? remaining : undefined;
     }
 
+    // CR 603.7a / 700.4 — instance DIES-watch delayed triggers. A
+    // `timing: "dies"` instance ("When that creature dies this turn, …" —
+    // Sandals of Abdallah) is the leave-watch above narrowed to ONE departure:
+    // put into a graveyard from the battlefield. It matches the watched id
+    // against this batch's CREATURE_DIED ids (`recentlyDead`), never
+    // PERMANENT_LEFT, so a bounce or an exile leaves it pending until CLEANUP
+    // purges it (the "this turn" bound, CR 514.2). Dequeued by firing.
+    if (state.delayedTriggers?.length && recentlyDead.size > 0) {
+        const remaining: DelayedTriggerInstance[] = [];
+        for (const t of state.delayedTriggers) {
+            const fires =
+                t.timing === "dies" &&
+                t.watchInstanceId !== undefined &&
+                recentlyDead.has(t.watchInstanceId);
+            if (fires) {
+                out.push(buildDelayedTriggerStackItem(state, t));
+            } else {
+                remaining.push(t);
+            }
+        }
+        state.delayedTriggers = remaining.length > 0 ? remaining : undefined;
+    }
+
     // CR 603.7a / 509.1h — instance UNBLOCKED-ATTACK watch delayed triggers.
     // An `timing: "attacks-unblocked"` instance ("This turn, when target
     // creature you control attacks and isn't blocked, …" — Delif's Cone /

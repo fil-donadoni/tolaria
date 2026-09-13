@@ -229,6 +229,7 @@ export function applyCastSacrificeVictims(
         mv: snap.mv,
         ...(snap.subtypes ? { subtypes: snap.subtypes } : {}),
         ...(snap.power !== undefined ? { power: snap.power } : {}),
+        ...(snap.toughness !== undefined ? { toughness: snap.toughness } : {}),
     };
 }
 

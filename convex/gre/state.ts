@@ -2364,6 +2364,12 @@ export type StackItem = CardInstanceState & {
          *  mana value (pumps, X/1 creatures, etc.). Omitted for sacrificed
          *  permanents without a power characteristic. */
         power?: number;
+        /** Effective TOUGHNESS at the moment of sacrifice — `power`'s twin
+         *  (CR 613 layer 7c, last-known-information CR 608.2h). Read at resolve
+         *  via `SpellContext.getAdditionalSacrificeToughness` for "gain life
+         *  equal to the sacrificed creature's toughness" (Diamond Valley).
+         *  Omitted for sacrificed permanents without a toughness. */
+        toughness?: number;
     };
     /** Type and amount of mana spent to pay THIS activation's cost (CR 106.10).
      *  Captured at activation commit (the manaPool delta) when the ability sets
@@ -17818,6 +17824,9 @@ export function buildSpellContext(
         },
         getAdditionalSacrificePower(): number | undefined {
             return item.additionalSacrificeSnapshot?.power;
+        },
+        getAdditionalSacrificeToughness(): number | undefined {
+            return item.additionalSacrificeSnapshot?.toughness;
         },
         getManaValue(target: TargetSelection): number {
             if (target.type === "permanent") {
