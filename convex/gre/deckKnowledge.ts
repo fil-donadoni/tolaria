@@ -249,6 +249,10 @@ export function deckColorEvidence(
         const def = tryGetDefinition(id);
         if (!def) continue;
         for (const color of getCardColors(def)) {
+            // Type narrowing, not a behaviour guard: `getCardColors` reads the
+            // mana cost through `getColorsFromCost`, which already skips "C"
+            // (CR 105.2a — colourless is not a colour). The branch exists
+            // because its return type is the full `Color` union.
             if (color === "C") continue;
             out[color] = (out[color] ?? 0) + 1;
         }

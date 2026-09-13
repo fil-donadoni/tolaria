@@ -1789,6 +1789,12 @@ describe("schema drift guard", () => {
             },
         ];
 
+        // Issue #3533 — search-only, and the only TRANSIENT_KEYS member: a
+        // key this block never populates is a key the guard cannot see, so it
+        // is set here for exactly the same reason as every persisted one
+        // above.
+        state.deckColorKnowledge = [{ playerId: "p1", colors: { G: 4 } }];
+
         const stateKeys = new Set(Object.keys(state));
         const missing = [...stateKeys].filter((k) => !allKnown.has(k));
         expect(

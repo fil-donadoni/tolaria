@@ -182,6 +182,26 @@ describe("the estimate per difficulty — `expert` differs, the rest are byte-id
         expect(coverageOfEstimatedSeat(state)).not.toBe(blindBaseline);
     });
 
+    it.each(["easy", "medium", "hard"] as const)(
+        "%s leaves the OBSERVER's own seat blind too — the shape that leaks is the bot's own decklist, estimated from the other side",
+        (difficulty) => {
+            const knowledge = knowsOpponent(difficulty) ? INFORMED : BLIND;
+            const state = determinize(
+                boardWithLonePlains(),
+                OBSERVER,
+                makeRng(1),
+                knowledge
+            );
+            // `materialMargin(state, moverId)` runs `evaluate` from the HUMAN
+            // seat's viewpoint too, which makes the bot's own seat the
+            // ESTIMATED one. The bot's decklist is supplied at every
+            // difficulty, so a gate that asked only "is there a decklist"
+            // would sharpen this reading on `hard` and never touch the
+            // assertions above.
+            expect(observedOpponentColors(state, OBSERVER)).toEqual({});
+        }
+    );
+
     it("still no hand read: the estimate is unchanged when the estimated seat's hand changes", () => {
         const withHand = boardWithLonePlains();
         withHand.players[1].hand = [
