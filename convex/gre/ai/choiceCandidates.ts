@@ -54,7 +54,7 @@ import {
     mayPaySacrificeThreshold,
     normalizeMayPayCost,
 } from "../state";
-import { getEffectivePower } from "../layers";
+import { getEffectivePower, getEffectiveToughness } from "../layers";
 import { tryGetDefinition } from "../../cards";
 import type { LibraryDestination, PendingChoiceKind } from "../types";
 // VALUE import from `moves.ts`, which imports `choiceCandidates` back (issue
@@ -1444,16 +1444,33 @@ function choosePermanentsIsSearchable(choice: PendingChoice): boolean {
 }
 
 /** A `choose-permanents` pick's stable identity (property 2): the card's
- *  definition identity, which SIDE of the chooser it sits on, and whether it
- *  is tapped. Unlike a sacrifice (always the chooser's own permanents), this
- *  pool can span controllers (`allControllers`, CR 707), so "Island" alone
- *  would give "untap my Island" and "untap their Island" one tree key and
- *  merge the only interesting wrong answer into the right one. Controller
- *  side and tapped state are public, so the key is still identical across
- *  determinizations. */
-function sidedPickIdentity(card: CardInstanceState, chooserId: string): string {
+ *  definition identity, which SIDE of the chooser it sits on, whether it is
+ *  tapped, and the public state that makes two same-named permanents
+ *  different answers — effective power/toughness (counters, copies, anthems),
+ *  marked damage and counters. Unlike a sacrifice (always the chooser's own
+ *  permanents), this pool can span controllers (`allControllers`), so
+ *  "Island" alone would give "untap my Island" and "untap their Island" one
+ *  tree key and merge the only interesting wrong answer into the right one;
+ *  and on the counter / damage sites a name-only key would merge "the damaged
+ *  Bears" with "the healthy Bears" and the set dedupe would drop one of them
+ *  (PR review finding 1). Every part is public battlefield state, so the key
+ *  is still identical across determinizations. */
+function sidedPickIdentity(
+    state: GameState,
+    card: CardInstanceState,
+    chooserId: string
+): string {
     const side = card.controllerId === chooserId ? "mine" : "theirs";
-    return `${side}${card.isTapped ? " tapped" : ""}:${stableCardIdentity(card)}`;
+    const body = card.types.includes("Creature")
+        ? ` ${getEffectivePower(state, card)}/${getEffectiveToughness(state, card)}`
+        : "";
+    const damage = card.damageMarked ? ` dmg${card.damageMarked}` : "";
+    const counters = Object.entries(card.counters ?? {})
+        .filter(([, n]) => n > 0)
+        .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+        .map(([kind, n]) => ` ${kind}x${n}`)
+        .join("");
+    return `${side}${card.isTapped ? " tapped" : ""}:${stableCardIdentity(card)}${body}${damage}${counters}`;
 }
 
 /** `choose-permanents` (CR 608.2), issue #3545 — every mid-resolution
@@ -1514,7 +1531,9 @@ const choosePermanentsCandidates: ChoiceCandidateGenerator = (
     const chooserId = choice.playerId;
     const pool = eligibleZonePickCards(state, choice);
 
-    // CR 608.2b — the requirement clamps to what is actually there.
+    // The requirement clamps to what is actually there — the same clamp the
+    // interpreter applies when it raises the choice (issue #677), so on a
+    // live choice `min <= pool.length` already holds.
     const max = Math.min(getPendingChoiceMax(choice.count), pool.length);
     const min = Math.min(
         Math.max(0, getPendingChoiceMin(choice.count)),
@@ -1534,7 +1553,7 @@ const choosePermanentsCandidates: ChoiceCandidateGenerator = (
     const emit = (cards: CardInstanceState[]): void => {
         if (out.length >= CHOICE_TOP_K) return;
         const setKey = cards
-            .map((c) => sidedPickIdentity(c, chooserId))
+            .map((c) => sidedPickIdentity(state, c, chooserId))
             .sort()
             .join(" | ");
         if (seenSets.has(setKey)) return;
@@ -1550,33 +1569,48 @@ const choosePermanentsCandidates: ChoiceCandidateGenerator = (
 
     const entries = pool.map((card) => ({
         card,
-        identity: sidedPickIdentity(card, chooserId),
+        identity: sidedPickIdentity(state, card, chooserId),
         worth: prospectiveCardWorth(state, card),
         mine: card.controllerId === chooserId,
     }));
     type Entry = (typeof entries)[number];
+    // `sidePrimary` orders by controller side BEFORE worth. The own-first
+    // rankings keep worth primary (ownership is a tie-break at equal worth);
+    // the other-side-first prefix must not, or it collapses into the
+    // ascending prefix whenever the two sides' worths differ, and an opponent
+    // permanent in the MIDDLE of the worth order is never offered at all (PR
+    // review finding 2).
     const rank = (
         direction: "ascending" | "descending",
-        mineFirst: boolean
+        mineFirst: boolean,
+        sidePrimary = false
     ): CardInstanceState[] =>
         [...entries]
-            .sort(
-                (a: Entry, b: Entry) =>
-                    (direction === "ascending"
+            .sort((a: Entry, b: Entry) => {
+                const byWorth =
+                    direction === "ascending"
                         ? a.worth - b.worth
-                        : b.worth - a.worth) ||
-                    (a.mine === b.mine ? 0 : a.mine === mineFirst ? -1 : 1) ||
-                    (a.card.isTapped === b.card.isTapped
+                        : b.worth - a.worth;
+                const bySide =
+                    a.mine === b.mine ? 0 : a.mine === mineFirst ? -1 : 1;
+                const byTapped =
+                    a.card.isTapped === b.card.isTapped
                         ? 0
                         : a.card.isTapped === (direction === "ascending")
                           ? -1
-                          : 1) ||
-                    (a.identity < b.identity
+                          : 1;
+                const byIdentity =
+                    a.identity < b.identity
                         ? -1
                         : a.identity > b.identity
                           ? 1
-                          : 0)
-            )
+                          : 0;
+                return (
+                    (sidePrimary ? bySide || byWorth : byWorth || bySide) ||
+                    byTapped ||
+                    byIdentity
+                );
+            })
             .map((e) => e.card);
 
     const ascending = rank("ascending", true);
@@ -1584,7 +1618,7 @@ const choosePermanentsCandidates: ChoiceCandidateGenerator = (
     emit(ascending.slice(0, max));
     emit(descending.slice(0, max));
     if (entries.some((e) => !e.mine) && entries.some((e) => e.mine)) {
-        emit(rank("ascending", false).slice(0, max));
+        emit(rank("ascending", false, true).slice(0, max));
     }
 
     const lo = Math.max(min, 1);

@@ -113,6 +113,71 @@ describe("choose-permanents candidate generator (issue #3545)", () => {
         }
     });
 
+    it("still offers the opponent-side branch when its permanent sits in the MIDDLE of the worth order (PR review finding 2)", () => {
+        // Own side spread cheap/expensive, the opponent's one body in between:
+        // neither worth-ordered prefix of three ever reaches it, so only a
+        // side-first ranking can.
+        const body = (name: string, owner: string, id: string) =>
+            makeInstance(getCardByName(name).id, {
+                id,
+                controllerId: owner,
+                ownerId: owner,
+                isSummoningSick: false,
+            });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        body("Llanowar Elves", "p1", "p1-elves-1"),
+                        body("Llanowar Elves", "p1", "p1-elves-2"),
+                        body("Llanowar Elves", "p1", "p1-elves-3"),
+                        body("Craw Wurm", "p1", "p1-wurm-1"),
+                        body("Craw Wurm", "p1", "p1-wurm-2"),
+                        body("Craw Wurm", "p1", "p1-wurm-3"),
+                    ],
+                }),
+                makePlayer("p2", {
+                    battlefield: [body("Grizzly Bears", "p2", "p2-bears")],
+                }),
+            ],
+        });
+        const candidates = generate(
+            state,
+            untapChoice({ filter: undefined, count: { min: 0, max: 3 } })
+        );
+        expect(candidates.some((c) => ids(c).includes("p2-bears"))).toBe(true);
+    });
+
+    it("keys same-named permanents in different states apart (PR review finding 1)", () => {
+        // A damaged and a healthy Grizzly Bears are different answers to a
+        // "-1/-1 counter on a creature" pick; a name-only key merged them and
+        // the set dedupe dropped one.
+        const bears = (id: string, damageMarked: number) =>
+            makeInstance(getCardByName("Grizzly Bears").id, {
+                id,
+                controllerId: "p1",
+                ownerId: "p1",
+                damageMarked,
+            });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [bears("hurt", 1), bears("healthy", 0)],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const picked = generate(
+            state,
+            untapChoice({
+                allControllers: undefined,
+                filter: undefined,
+                count: 1,
+            })
+        ).map((c) => ids(c).join());
+        expect(new Set(picked)).toEqual(new Set(["hurt", "healthy"]));
+    });
+
     it("emits the decline whenever min <= 0, and never when min > 0", () => {
         const state = mirroredLands();
         const declines = (choice: PendingChoice) =>

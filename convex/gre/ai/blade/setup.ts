@@ -679,13 +679,23 @@ function applyChoose(
         }
         ids.push(card.id);
     }
-    applyMoveInSearch(state, head.playerId, {
-        kind: "resolution-choice",
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds: ids,
-    });
+    try {
+        applyMoveInSearch(state, head.playerId, {
+            kind: "resolution-choice",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ids,
+        });
+    } catch (error) {
+        // The resolver THROWS on a rejected answer — surface it with the
+        // entry's label rather than as a bare engine error (PR review).
+        throw new BladeSetupError(
+            label,
+            step,
+            `the ${head.kind} choice rejected the answer: ${String(error)}`
+        );
+    }
     if (state.pendingChoices?.[0] === head) {
         throw new BladeSetupError(
             label,

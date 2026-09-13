@@ -17,9 +17,8 @@ import { effectivePermanentView } from "./permanentView";
 /** The cards the chooser may legally include in a zone-pick submission — the
  *  enumeration mirror of `applyPendingChoiceSubmit`'s per-id validation: zone
  *  membership (of `zoneOwnerId ?? playerId`, or every battlefield for
- *  `allControllers` — CR 707), the `filter` (against the effective permanent
- *  view, CR 202.2), the `candidateIds` allow-list, and the `untap-pick` extra
- *  constraints (CR 502.1: tapped, not "does-not-untap", not vetoed by a
+ *  `allControllers`), the `filter` (against the effective permanent view), the `candidateIds` allow-list, and the `untap-pick` extra
+ *  constraints (CR 502.3: tapped, not "does-not-untap", not vetoed by a
  *  hard-skip filter like Winter Orb's). A candidate outside this set is not a
  *  worse answer, it is one the submit path THROWS on. */
 export function eligibleZonePickCards(
@@ -59,7 +58,7 @@ export function eligibleZonePickCards(
         cards = cards.filter((c) => head.candidateIds!.includes(c.id));
     }
     if (head.kind === "untap-pick") {
-        // CR 502.1 — only tapped permanents that are allowed to untap.
+        // CR 502.3 — only tapped permanents that are allowed to untap.
         const vetoFilters = computeHardSkipFilters(state);
         cards = cards.filter(
             (c) =>

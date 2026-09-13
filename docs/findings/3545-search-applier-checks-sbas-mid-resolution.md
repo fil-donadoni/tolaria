@@ -10,7 +10,7 @@ confidence: low
 the new land. When the search answers that `may-pay` through
 `applyMoveInSearch` (`convex/gre/search.ts`, the may-pay case), the applier
 calls `checkStateBasedActions` while the resolution is still suspended on the
-next choice. The Aura has no host at that moment, so CR 704.5n puts it into the
+next choice. The Aura has no host at that moment, so CR 704.5m puts it into the
 graveyard before the re-attach pick is made. CR 704.3 checks state-based
 actions only when a player would receive priority, never mid-resolution.
 
