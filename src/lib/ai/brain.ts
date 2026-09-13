@@ -924,6 +924,14 @@ export function chooseResolution(choice: OwedChoice): string[] {
         // so everything lands in pile B — a weak-but-legal choice; smart
         // partitioning is deferred.
         case "choose-permanents":
+            // Issue #3545 — NOT the live policy for this kind. Every
+            // mid-resolution `choose-permanents` is an in-tree search node
+            // (`choosePermanentsCandidates`, `convex/gre/ai/choiceCandidates.ts`),
+            // so the `searchable` gate hands it to the Worker and this branch
+            // is reached only for the as-enters `copy` family that the
+            // applicability predicate deliberately leaves here, and as the
+            // driver's safety net when a search yields nothing.
+            //
             // CR 707.5 (#2451) — an as-enters `copy` is an OPTIONAL choice
             // (`min` is 0, every printed clause is a "you may"), so the shared
             // "submit `min`" default below would decline it every time, and
@@ -938,6 +946,7 @@ export function chooseResolution(choice: OwedChoice): string[] {
                     .slice(0, Math.max(min, Math.min(1, max)))
                     .map((c) => c.id);
             }
+            // Safety net only (see above): the minimal legal answer.
             return candidates.slice(0, min).map((c) => c.id);
         case "pick-source":
         case "choose-hand-card":

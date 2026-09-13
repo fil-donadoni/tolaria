@@ -331,6 +331,29 @@ const FIXTURES: Partial<Record<PendingChoiceKind, () => GameState>> = {
                 ],
             }
         ),
+    // CR 608.2 (issue #3545) — "untap up to two lands": an optional pick over
+    // two of the bot's own tapped lands, the shape the minimal-legal default
+    // used to answer with nothing.
+    "choose-permanents": () =>
+        stateWithBotChoice(
+            {
+                kind: "choose-permanents",
+                zone: "battlefield",
+                filter: { types: "Land" },
+                count: { min: 0, max: 2 },
+                prompt: "Untap up to two lands.",
+            },
+            {
+                battlefield: ["bf-forest-1", "bf-forest-2"].map((id) =>
+                    makeInstance(getCardByName("Forest").id, {
+                        id,
+                        controllerId: BOT,
+                        ownerId: BOT,
+                        isTapped: true,
+                    })
+                ),
+            }
+        ),
     "land-entry-tapped": () =>
         stateWithBotChoice(
             {

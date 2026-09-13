@@ -69,6 +69,7 @@ import type { LibraryDestination, PendingChoiceKind } from "../types";
 import { enumerateCastMoves, type Move } from "../moves";
 import { exileCastPermission } from "../castCost";
 import { getLegalActions } from "../rules";
+import { eligibleZonePickCards } from "../zonePickEligibility";
 import { targetKey } from "../state";
 import type { Color } from "../../cards/types";
 import {
@@ -1415,6 +1416,192 @@ const sacrificePermanentsCandidates: ChoiceCandidateGenerator = (
     return out;
 };
 
+/** The applicability gate `choosePermanentsCandidates` declines on — ONE
+ *  predicate for gate and generator, as `sacrificePermanentsIsSearchable`.
+ *
+ *  Two clauses, and the second is not redundant with anything:
+ *
+ *  - `max > 0` — a choice that picks nothing is no decision. Mandatory picks
+ *    (`min > 0`) are IN scope, deliberately: the gap this closes is first a
+ *    settle that cannot get past the suspended choice (a probe scoring half a
+ *    resolution), and that does not depend on `min` at all.
+ *  - no `asEntersCardId` — the ADR 0100 as-enters `copy` family (Clone, Copy
+ *    Artifact, Vesuvan Doppelganger, Phyrexian Metamorph, Phantasmal Image,
+ *    CR 614.1c / 707.5) stays on its hand-written policy in `brain.ts`'s
+ *    minimal-legal answer, beside its `discard` twin (issue #2389). Three
+ *    reasons: those policies are argued and measured, and this is the only
+ *    sub-case where registering the kind would REPLACE a heuristic with an
+ *    unmeasured search; the `discard` policy reads the mana situation, which
+ *    is not on the pending choice and so is invisible to a generator; and the
+ *    settle failure does not reach them — an as-enters choice is a permanent
+ *    parked in `stagedEntries` with an empty `stackItemId`, not a suspended
+ *    resolution, so there is nothing to unblock. */
+function choosePermanentsIsSearchable(choice: PendingChoice): boolean {
+    return (
+        getPendingChoiceMax(choice.count) > 0 &&
+        choice.asEntersCardId === undefined
+    );
+}
+
+/** A `choose-permanents` pick's stable identity (property 2): the card's
+ *  definition identity, which SIDE of the chooser it sits on, and whether it
+ *  is tapped. Unlike a sacrifice (always the chooser's own permanents), this
+ *  pool can span controllers (`allControllers`, CR 707), so "Island" alone
+ *  would give "untap my Island" and "untap their Island" one tree key and
+ *  merge the only interesting wrong answer into the right one. Controller
+ *  side and tapped state are public, so the key is still identical across
+ *  determinizations. */
+function sidedPickIdentity(card: CardInstanceState, chooserId: string): string {
+    const side = card.controllerId === chooserId ? "mine" : "theirs";
+    return `${side}${card.isTapped ? " tapped" : ""}:${stableCardIdentity(card)}`;
+}
+
+/** `choose-permanents` (CR 608.2), issue #3545 — every mid-resolution
+ *  "choose [up to] N permanents" the DSL `choice` Op or `ctx.requestChoice`
+ *  raises (Frantic Search's untap, Magnetic Mountain's pay-per-pick, Kudzu's
+ *  re-attach, Time Spiral's all-controllers untap).
+ *
+ *  Two failures closed, and the first is the larger. With no generator,
+ *  `settleStackForBreakdown` cannot get past the suspended choice, so every
+ *  probe resolving a spell or ability that leads to one scored HALF a
+ *  resolution — the `sacrifice-permanents` shape (issue #3377), live on every
+ *  mandatory site. And the minimal-legal default in `brain.ts` submits exactly
+ *  `min`, so every "up to N" was answered with nothing.
+ *
+ *  SIGN-AGNOSTIC. The generator never derives whether a pick helps or harms
+ *  its subjects: of the optional sites only a few are pure upside (untap your
+ *  own lands); the rest are trade-offs — a -1/-1 counter on a creature you
+ *  control or 3 damage, a per-pick mana payment — where zero can be right. It
+ *  emits both directions and lets the search score the resulting states, the
+ *  discipline `sacrificePermanentsCandidates` follows.
+ *
+ *  CARDINALITY IS THE DECISION. For "up to N" a fixed-size emitter would offer
+ *  singletons and the decline for "untap up to three lands" — this very bug in
+ *  a new form. So the pool is ranked two ways (prospective worth ascending and
+ *  descending; the tapped tie-break flips with the direction, so two lands of
+ *  equal worth still give two distinct sets) and prefixes are emitted across
+ *  the `[min, max]` ladder, spending the `CHOICE_TOP_K` budget in order:
+ *
+ *   1. the decline, whenever `min <= 0` — without it the kind becomes
+ *      searchable with only acting branches and the bot can never say no
+ *      (measured on Gut, True Soul Zealot for `sacrifice-permanents`);
+ *   2. both extremes at `max`;
+ *   3. where the pool spans controllers, the `max` prefix with the OTHER side
+ *      first — ownership is a tie-break, never a filter: the chooser's own
+ *      permanents sort ahead at equal worth so own-side sets are seeded first,
+ *      but a branch never emitted is one whose rejection cannot be shown;
+ *   4. intermediate cardinalities from the centre outward, alternating
+ *      direction — they only matter where a per-pick cost exists, which is a
+ *      minority of sites, so they are what truncation eats.
+ *
+ *  The pool is `eligibleZonePickCards` — the same authority `legalActions`
+ *  enumerates with and the submit path validates against (zone membership
+ *  including the all-controllers case, the filter over the effective view,
+ *  the allow-list). A candidate the submit path rejects is a THROW mid-search.
+ *
+ *  Bounded by the mover: the settle refuses a choice owed to anyone but the
+ *  player it models before any generator is consulted, so the settle half of
+ *  the fix reaches only choices owed to the mover (issue #3545 property 6).
+ *
+ *  No `hint`: a pick gives up no material and gains none of its own —
+ *  `materialGivenUp` / `materialGained` would be a sign this generator
+ *  deliberately does not derive. */
+const choosePermanentsCandidates: ChoiceCandidateGenerator = (
+    state,
+    choice
+) => {
+    if (!choosePermanentsIsSearchable(choice)) return [];
+    const chooserId = choice.playerId;
+    const pool = eligibleZonePickCards(state, choice);
+
+    // CR 608.2b — the requirement clamps to what is actually there.
+    const max = Math.min(getPendingChoiceMax(choice.count), pool.length);
+    const min = Math.min(
+        Math.max(0, getPendingChoiceMin(choice.count)),
+        pool.length
+    );
+
+    const submit = (cards: CardInstanceState[]): Move => ({
+        kind: "resolution-choice",
+        stackItemId: choice.stackItemId,
+        step: choice.step,
+        choiceId: choice.choiceId,
+        cardInstanceIds: cards.map((c) => c.id),
+    });
+
+    const out: Omit<ChoiceCandidate, "prior">[] = [];
+    const seenSets = new Set<string>();
+    const emit = (cards: CardInstanceState[]): void => {
+        if (out.length >= CHOICE_TOP_K) return;
+        const setKey = cards
+            .map((c) => sidedPickIdentity(c, chooserId))
+            .sort()
+            .join(" | ");
+        if (seenSets.has(setKey)) return;
+        seenSets.add(setKey);
+        out.push({
+            key: `choose-permanents:${setKey || "none"}`,
+            move: submit(cards),
+        });
+    };
+
+    if (min <= 0) emit([]);
+    if (max <= 0) return out;
+
+    const entries = pool.map((card) => ({
+        card,
+        identity: sidedPickIdentity(card, chooserId),
+        worth: prospectiveCardWorth(state, card),
+        mine: card.controllerId === chooserId,
+    }));
+    type Entry = (typeof entries)[number];
+    const rank = (
+        direction: "ascending" | "descending",
+        mineFirst: boolean
+    ): CardInstanceState[] =>
+        [...entries]
+            .sort(
+                (a: Entry, b: Entry) =>
+                    (direction === "ascending"
+                        ? a.worth - b.worth
+                        : b.worth - a.worth) ||
+                    (a.mine === b.mine ? 0 : a.mine === mineFirst ? -1 : 1) ||
+                    (a.card.isTapped === b.card.isTapped
+                        ? 0
+                        : a.card.isTapped === (direction === "ascending")
+                          ? -1
+                          : 1) ||
+                    (a.identity < b.identity
+                        ? -1
+                        : a.identity > b.identity
+                          ? 1
+                          : 0)
+            )
+            .map((e) => e.card);
+
+    const ascending = rank("ascending", true);
+    const descending = rank("descending", true);
+    emit(ascending.slice(0, max));
+    emit(descending.slice(0, max));
+    if (entries.some((e) => !e.mine) && entries.some((e) => e.mine)) {
+        emit(rank("ascending", false).slice(0, max));
+    }
+
+    const lo = Math.max(min, 1);
+    const hi = max - 1;
+    const centre = (lo + hi) / 2;
+    const sizes: number[] = [];
+    for (let size = lo; size <= hi; size++) sizes.push(size);
+    sizes.sort((a, b) => Math.abs(a - centre) - Math.abs(b - centre) || a - b);
+    sizes.forEach((size, i) => {
+        const [first, second] =
+            i % 2 === 0 ? [ascending, descending] : [descending, ascending];
+        emit(first.slice(0, size));
+        emit(second.slice(0, size));
+    });
+    return out;
+};
+
 /** The registry: choice kind → candidate generator. A kind with NO generator is
  *  not yet an in-tree decision node — the search treats it exactly as before
  *  (no decider, playout stops there), so adding a tranche is purely additive. */
@@ -1457,6 +1644,10 @@ export const CHOICE_CANDIDATE_GENERATORS: Partial<
     // generator the settle cannot get past the suspended choice, so a probe
     // scores the entering body and never the sacrifice that pays for it.
     "sacrifice-permanents": sacrificePermanentsCandidates,
+    // CR 608.2 (issue #3545) — see `choosePermanentsCandidates`: the settle
+    // could not get past a suspended "choose [up to] N permanents", and the
+    // minimal-legal default answered every "up to N" with nothing.
+    "choose-permanents": choosePermanentsCandidates,
 };
 
 /** Per-kind APPLICABILITY predicate, read from the `PendingChoice` alone.
@@ -1484,6 +1675,9 @@ const CHOICE_GENERATOR_APPLIES: Partial<
     // a Worker round-trip that enumerates nothing.
     "order-top": orderTopIsSearchable,
     "sacrifice-permanents": sacrificePermanentsIsSearchable,
+    // Issue #3545 — excludes the as-enters `copy` family, which stays on its
+    // own `brain.ts` policy; see `choosePermanentsIsSearchable`.
+    "choose-permanents": choosePermanentsIsSearchable,
 };
 
 /** Whether `kind` is an in-tree choice node (has a registered generator).
