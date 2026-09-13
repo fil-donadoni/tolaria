@@ -53,8 +53,9 @@ opponent's lands` when this was measured) — whose own note recorded that
   case is the general one and this position merely stopped being an instance
   of it. (The hold that shipped instead answers
   this by asking the STRUCTURAL question — did the resolution reach the
-  opponent's record at all — which Vision Charm's re-typed Forests answer yes to
-  even though every term reads flat.)
+  opponent's record at all — which Vision Charm's re-typed Forests answer yes
+  to, and which at the time was the only thing that separated them, every term
+  reading flat.)
 
 **Why it may not deserve its own issue.** The cheap fixes are refuted above, and
 what is left is a want-side rule rather than a refusal: either a leaf-decisive

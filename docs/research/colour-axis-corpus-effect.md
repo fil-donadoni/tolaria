@@ -36,7 +36,9 @@ BLADE_VERDICTS=1 BLADE_VERDICTS_OUT=<path>.json \
 
 The two sides are NOT the same corpus: #3532 shipped its own two-entry Stone
 Rain pair, which is +2 verdicts and +6 pairs. So the totals are context and the
-pair-level diff is the measurement.
+pair-level diff is the measurement. (#3532 is `08b8825ba`; the after tip is one
+commit later, and that commit's blade entry is a `predicate`, which lowers to a
+GAP rather than a verdict — it moves none of these counts.)
 
 ## The two blind pairs it resolved
 
