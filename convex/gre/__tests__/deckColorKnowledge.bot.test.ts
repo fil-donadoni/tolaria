@@ -39,7 +39,7 @@ import { observedOpponentColors } from "../ai/observedColors";
 import { observedColorCoverage } from "../ai/colorCoverage";
 import { manaCensusFor } from "../manaAvailability";
 import { compactState, expandState } from "../serialize";
-import { projectPublicState } from "../../gameProjections";
+import { projectFullState, projectPublicState } from "../../gameProjections";
 import type { GameState } from "../state";
 
 /** The observer seat; `p2` is the seat being estimated throughout. */
@@ -297,6 +297,15 @@ describe("the wire — the stamp never reaches a viewer (issue #3533)", () => {
         state.deckColorKnowledge = deckColorsForSearch(INFORMED, OBSERVER);
         expect(state.deckColorKnowledge).toBeDefined();
         const projected = projectPublicState(state, 1, OBSERVER);
+        expect(
+            (projected as { deckColorKnowledge?: unknown }).deckColorKnowledge
+        ).toBeUndefined();
+    });
+
+    it("projectFullState strips it too — the debug view reveals every ZONE, not a searcher's knowledge", () => {
+        const state = boardWithLonePlains();
+        state.deckColorKnowledge = deckColorsForSearch(INFORMED, OBSERVER);
+        const projected = projectFullState(state, 1);
         expect(
             (projected as { deckColorKnowledge?: unknown }).deckColorKnowledge
         ).toBeUndefined();
