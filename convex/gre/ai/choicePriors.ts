@@ -63,6 +63,13 @@ export type ChoiceCandidateHint = {
      *  The mirror of `materialGivenUp`: same rough point currency, opposite
      *  sign of intent. */
     materialGained?: number;
+    /** Mana this candidate pays out of the pool (CR 107.3f — a
+     *  `payVariableMana` nomination, issue #1701). 0 / undefined when it pays
+     *  none. Its own field rather than a reuse of `materialGivenUp`: that one
+     *  is board/card worth in the Forge point currency, and floating mana is
+     *  neither — summing the two would price one mana like one point of a
+     *  creature's worth. */
+    manaPaid?: number;
     /** Set when this candidate IS a genuine PROTECTION-colour-mode pick
      *  (issue #2306, narrowed by review finding 1) — an `option-pick` /
      *  `trigger-mode` candidate whose option carried
@@ -105,6 +112,12 @@ const MATERIAL_PRIOR_SCALE = 400;
 
 /** Life total fraction at which paying life stops looking cheap. */
 const LIFE_PRIOR_SCALE = 20;
+
+/** Mana at which a variable nomination (CR 107.3f, issue #1701) stops looking
+ *  cheap — an ordering bias only, never a legality or a preference the search
+ *  cannot overturn. 12 is a full big-turn pool: emptying it opens last, one or
+ *  two mana barely move off the band's middle. */
+const MANA_PRIOR_SCALE = 12;
 
 /** Prior of a `search-library` candidate that finds nothing of worth — and so
  *  of "fail to find" (CR 701.23b) itself. Every real find scores above it by
@@ -323,6 +336,20 @@ export function heuristicChoicePrior(
         (choice.zoneOwnerId ?? choice.playerId) === choice.playerId
     ) {
         return signedMaterialPrior(candidate);
+    }
+
+    // CR 107.1b / 107.3f (issue #1701) — a numeric nomination is not a yes/no
+    // answer either (`acceptOf` returns undefined for it), so without a branch
+    // here every amount would sit at the flat `NEUTRAL_PRIOR` and the ORDER in
+    // which the tree opens them would be the generator's emission order. Mana
+    // is a real resource, so cheaper opens first — a bias only: the expensive
+    // branches are still opened (the generator emits at most five and
+    // `CHOICE_TOP_K` is eight), so a monotone consequence like Decree of
+    // Justice's X Soldiers still gets its max evaluated and can win on its own
+    // settled value rather than on this ordering.
+    if (choice.kind === "number-pick") {
+        const paid = candidate.hint?.manaPaid ?? 0;
+        return clampPrior(0.6 - paid / MANA_PRIOR_SCALE);
     }
 
     const accept = acceptOf(candidate.move);

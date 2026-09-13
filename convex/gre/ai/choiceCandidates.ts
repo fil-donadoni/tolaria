@@ -70,7 +70,7 @@ import { enumerateCastMoves, type Move } from "../moves";
 import { exileCastPermission } from "../castCost";
 import { getLegalActions } from "../rules";
 import { eligibleZonePickCards } from "../zonePickEligibility";
-import { targetKey } from "../state";
+import { targetKey, numberChoiceRange } from "../state";
 import type { Color } from "../../cards/types";
 import {
     getChoicePriorGeneration,
@@ -313,6 +313,49 @@ const mayPayCandidates: ChoiceCandidateGenerator = (state, choice) => {
                     discardWorth,
                 lifePaid,
             },
+        });
+    }
+    return out;
+};
+
+/** `number-pick` (CR 107.1b / 107.3f, issue #1701): a NUMERIC nomination —
+ *  "pay any amount of mana", "you may pay {X}". The answer space is the whole
+ *  live range, which for a paying nomination is `0 … spendable pool` and can
+ *  be a dozen values on a real board, so the generator is self-pruning by
+ *  construction: it emits the two ENDS (nominate nothing — which IS the
+ *  decline, CR 107.3f — and nominate everything affordable) plus the smallest
+ *  real payments and the midpoint.
+ *
+ *  That shape is not arbitrary. The two printed families put their whole value
+ *  at opposite ends of the range: a count-scaled consequence (Decree of
+ *  Justice's X Soldiers) is monotone, so the MAX is the only interesting
+ *  answer, while a CAPPED one (Power Leak / Errant Minion prevent at most 2 of
+ *  2 damage) is worthless above its cap, and the cap is small. A generator
+ *  that emitted only the ends would answer the second family by overpaying its
+ *  entire pool; one that emitted the whole range would open `CHOICE_TOP_K`
+ *  arbitrary branches and rank them on rollout noise. The small values plus
+ *  both ends cover both families in at most five branches.
+ *
+ *  `numberChoiceRange` is the single authority on the bounds — the same one
+ *  `applyNumberChoiceSubmit` validates against and the client's stepper
+ *  renders — so every candidate is legal by construction, never by luck. */
+const numberPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
+    const payer = state.players.find((p) => p.id === choice.playerId);
+    const { min, max } = numberChoiceRange(choice, payer);
+    const wanted = [min, min + 1, min + 2, Math.floor((min + max) / 2), max];
+    const out: Omit<ChoiceCandidate, "prior">[] = [];
+    const seen = new Set<number>();
+    for (const amount of wanted) {
+        if (amount < min || amount > max || seen.has(amount)) continue;
+        seen.add(amount);
+        out.push({
+            key: `number-pick:${amount}`,
+            move: { kind: "number-choice", amount },
+            // The mana leg is the whole cost of a paying nomination, and it is
+            // neither material nor life — the two costs the shared prior seam
+            // reads. Carried so `numberPickPrior` can rank cheap before dear
+            // without a second board scan.
+            hint: { manaPaid: choice.paysMana ? amount : 0 },
         });
     }
     return out;
@@ -1649,6 +1692,12 @@ export const CHOICE_CANDIDATE_GENERATORS: Partial<
     Record<PendingChoiceKind, ChoiceCandidateGenerator>
 > = {
     "may-pay": mayPayCandidates,
+    // CR 107.1b / 107.3f (issue #1701) — the numeric nomination. Without a
+    // generator the settle could not get past the suspended prompt at all and
+    // the minimal-legal fallback would answer every "you may pay {X}" with
+    // zero, which is the whole card unplayed (Decree of Justice cycles into no
+    // Soldiers at all).
+    "number-pick": numberPickCandidates,
     "land-entry-tapped": landEntryCandidates,
     "draw-replacement": drawReplacementCandidates,
     "option-pick": optionPickCandidates,

@@ -122,6 +122,12 @@ export function describeMove(move: Move, state: GameState): string {
                 : "let them draw (decline)";
         case "name-card":
             return `name a card (${move.cardName})`;
+        case "number-choice":
+            // CR 107.3f (issue #1701) — amount 0 IS the decline, so it is
+            // described as one rather than as "nominate 0".
+            return move.amount === 0
+                ? "nominate nothing (decline)"
+                : `nominate ${move.amount}`;
         case "random-reveal-ack":
             return "acknowledge coin flip";
         case "madness-decline":

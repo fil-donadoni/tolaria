@@ -34,7 +34,7 @@ import {
 } from "@convex/gre";
 import { cardValueById } from "@convex/gre";
 import { manaValue, parseHybridCostKey } from "@convex/gre/constants";
-import { mayPayUnitIsEligible } from "@convex/gre/state";
+import { mayPayUnitIsEligible, numberChoiceRange } from "@convex/gre/state";
 import { matchesPermanentFilter } from "@convex/cards/filters";
 import { hasControlledSinceTurnStart } from "@convex/gre/controlContinuity";
 import { getColorsFromCost, getCardColorIdentity } from "@convex/cards/colors";
@@ -842,6 +842,17 @@ function buildOwedChoice(
             head.kind === "name-card"
                 ? nameCardDefaultFor(state, head)
                 : undefined,
+        // CR 107.1b / 107.3f (issue #1701) — the nomination floor, read off the
+        // SAME `numberChoiceRange` authority the submit validates against, so
+        // the brain's fallback answer is legal by construction (issue #2497's
+        // rule, applied to this family).
+        numberFloor:
+            head.kind === "number-pick"
+                ? numberChoiceRange(
+                      head,
+                      state.players.find((p) => p.id === head.playerId)
+                  ).min
+                : undefined,
     };
 }
 
@@ -1219,6 +1230,21 @@ export function botActionToMove(
                 return null;
             }
             return { kind: "name-card", cardName: action.cardName };
+        }
+        case "number-choice": {
+            // CR 107.1b / 107.3f (issue #1701) — routes through
+            // `submitNumberChoice`. Only the amount travels; the server reads
+            // the head choice and re-validates the amount against its live
+            // range (and, for a paying nomination, actually spends the mana).
+            const head = state.pendingChoices?.[0];
+            if (
+                !head ||
+                head.kind !== "number-pick" ||
+                head.playerId !== botId
+            ) {
+                return null;
+            }
+            return { kind: "number-choice", amount: action.amount };
         }
         case "random-reveal-ack": {
             // CR 705.2 / ADR 0023 — routes through `submitRandomRevealAck`. No

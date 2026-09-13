@@ -14,6 +14,7 @@ import {
     mayPaySacrificeSelectionPower,
     mayPayRequiredDiscards,
 } from "~/lib/card-utils";
+import { numberChoiceRange } from "@convex/gre/state";
 import { formatOracleText } from "~/lib/oracle-text";
 import {
     mayPayPermanentPickHint,
@@ -28,6 +29,7 @@ import { Panel } from "~/components/ui/panel";
 import { Button } from "~/components/ui/button";
 import PendingChoiceOptions from "~/components/board/pending-choice-options";
 import CardNameInput from "~/components/board/card-name-input";
+import NumberAmountInput from "~/components/board/number-amount-input";
 import CardImage from "~/components/cards/card-image";
 import RandomRevealOverlay from "~/components/board/random-reveal-overlay";
 import MinimizeChoiceButton, {
@@ -80,6 +82,7 @@ export default function PendingChoicePrompt({
     const submitReboundDecline = useMutation(api.game.submitReboundDecline);
     const announceCast = useMutation(api.game.announceCast);
     const submitNameCard = useMutation(api.game.submitNameCard);
+    const submitNumberChoice = useMutation(api.game.submitNumberChoice);
     const submitResolutionChoice = useMutation(api.game.submitResolutionChoice);
     const [isBusy, setIsBusy] = useState(false);
     const bufferCtx = usePendingChoiceBuffer();
@@ -126,6 +129,18 @@ export default function PendingChoicePrompt({
     // returns null for the chooser of those kinds, above); the non-chooser gets
     // the generic "Waiting for X" line at the bottom.
     const isNameCard = choice.kind === "name-card";
+    // CR 107.1b / 107.3f (issue #1701) — a NUMERIC nomination ("pay any amount
+    // of mana", "you may pay {X}"): a bounded stepper, not a yes/no. The bounds
+    // come from `numberChoiceRange`, the SAME server authority
+    // `applyNumberChoiceSubmit` re-validates against, read against the LIVE
+    // chooser — so tapping another land while the prompt is open raises the
+    // ceiling here exactly as it does server-side, and the stepper can never
+    // offer an amount the submit would refuse.
+    const isNumberPick = choice.kind === "number-pick";
+    const numberRange = numberChoiceRange(
+        choice,
+        allPlayers.find((p) => p.id === choice.playerId)
+    );
 
     // All zone-pick kinds use the client-side buffer (ADR 0007).
     const selected = bufferCtx.buffer.length;
@@ -427,6 +442,26 @@ export default function PendingChoicePrompt({
                                                 step: choice.step,
                                                 choiceId: choice.choiceId,
                                                 cardInstanceIds: [id],
+                                            });
+                                        } finally {
+                                            setIsBusy(false);
+                                        }
+                                    }}
+                                />
+                            ) : isNumberPick ? (
+                                <NumberAmountInput
+                                    min={numberRange.min}
+                                    max={numberRange.max}
+                                    paysMana={choice.paysMana === true}
+                                    disabled={isBusy}
+                                    onSubmit={async (amount) => {
+                                        if (isBusy) return;
+                                        setIsBusy(true);
+                                        try {
+                                            await submitNumberChoice({
+                                                gameId,
+                                                playerId,
+                                                amount,
                                             });
                                         } finally {
                                             setIsBusy(false);

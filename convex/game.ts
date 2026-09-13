@@ -471,6 +471,7 @@ import {
     applyMayPaySubmit,
     applyLandEntrySubmit,
     applyNameCardSubmit,
+    applyNumberChoiceSubmit,
     applyRandomRevealAck,
 } from "./gre/pendingChoiceSubmit";
 import {
@@ -13345,6 +13346,44 @@ export const submitNameCard = mutation({
         applyNameCardSubmit(state, {
             playerId: args.playerId,
             cardName: args.cardName,
+        });
+
+        const nextSeq = gameState.seq + 1;
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
+        await finalizeGameOver(ctx, args.gameId, nextSeq, state);
+    },
+});
+
+/** Submits the nominated amount to a pending `number-pick` choice (CR 107.1b /
+ *  107.3f, issue #1701). The amount is re-validated server-side against the
+ *  choice's LIVE range — a non-negative integer no greater than the payer's
+ *  spendable pool for a paying nomination — and, when the choice pays, spent
+ *  as a generic mana leg through the shared may-pay payment path. Amount 0 is
+ *  the decline and always legal. Used by Decree of Justice's cycling trigger,
+ *  Errant Minion and Power Leak. */
+export const submitNumberChoice = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        amount: v.number(),
+    },
+    handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "choice",
+        });
+
+        applyNumberChoiceSubmit(state, {
+            playerId: args.playerId,
+            amount: args.amount,
         });
 
         const nextSeq = gameState.seq + 1;

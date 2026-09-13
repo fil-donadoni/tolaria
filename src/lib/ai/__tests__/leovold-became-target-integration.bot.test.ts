@@ -155,6 +155,7 @@ function engineMutations(state: GameState): MoveMutations {
         submitDrawReplacementPay: reject,
         submitLandEntryChoice: reject,
         submitNameCard: reject,
+        submitNumberChoice: reject,
         submitRandomRevealAck: reject,
         passPriority: reject,
     };

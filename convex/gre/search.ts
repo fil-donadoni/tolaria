@@ -205,6 +205,7 @@ import {
 import {
     applyLandEntrySubmit,
     applyMayPaySubmit,
+    applyNumberChoiceSubmit,
     applyPendingChoiceSubmit,
     applyRandomRevealAck,
 } from "./pendingChoiceSubmit";
@@ -770,6 +771,20 @@ export function applyMoveInSearch(
                     : {}),
                 ...(move.discardIds ? { discardIds: move.discardIds } : {}),
             });
+            drainAutoPasses(state);
+            checkStateBasedActions(state);
+            return;
+        }
+
+        case "number-choice": {
+            // CR 107.1b / 107.3f (issue #1701) — a numeric nomination. Applied
+            // through the SAME validated resolver the `submitNumberChoice`
+            // mutation drives, so the search cannot diverge from the
+            // authoritative path: the amount is re-checked against the live
+            // range and, for a paying nomination, actually spent from the pool
+            // — which is the point, since the whole decision the tree is
+            // scoring is what that mana buys.
+            applyNumberChoiceSubmit(state, { playerId, amount: move.amount });
             drainAutoPasses(state);
             checkStateBasedActions(state);
             return;

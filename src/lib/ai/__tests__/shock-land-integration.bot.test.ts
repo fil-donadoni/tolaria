@@ -67,6 +67,7 @@ function engineMutations(state: GameState): MoveMutations {
             applyLandEntrySubmit(state, { playerId, accept });
         },
         submitNameCard: reject,
+        submitNumberChoice: reject,
         submitRandomRevealAck: reject,
         passPriority: reject,
     };
