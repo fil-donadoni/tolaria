@@ -211,3 +211,33 @@ export function observedOpponentColors(
     }
     return evidence as ObservedColorEvidence;
 }
+
+/** The opponent's colour DEMAND as this searcher is allowed to know it — the
+ *  three-state reading of {@link observedOpponentColors} that issue #3532's
+ *  colour-coverage term prices.
+ *
+ *  The third state is the whole point. Read an empty evidence map as "this
+ *  player needs no colours" and every denial becomes free: their coverage is
+ *  vacuously perfect and nothing we take from their mana base can ever lower
+ *  it. Read it as "this player needs every colour" — the vacuous heuristic
+ *  issue #2306 exists to kill — and every denial of every colour scores, on a
+ *  board that has shown nothing. `unknown` is the abstention: a fixed reading
+ *  that is invariant to the mana base, so neither mistake is available. */
+export type ColorDemandEstimate =
+    | { kind: "known"; evidence: ObservedColorEvidence }
+    | { kind: "unknown" };
+
+/** {@link observedOpponentColors}, lifted into {@link ColorDemandEstimate}:
+ *  `unknown` exactly when the position has shown nothing at all. Public
+ *  information only — this is the SAME derivation, never a second one. */
+export function estimateOpponentColorDemand(
+    state: GameState,
+    opponentId: string
+): ColorDemandEstimate {
+    const evidence = observedOpponentColors(state, opponentId);
+    for (const color of MANA_COLORS) {
+        if (color === "C") continue;
+        if ((evidence[color] ?? 0) > 0) return { kind: "known", evidence };
+    }
+    return { kind: "unknown" };
+}

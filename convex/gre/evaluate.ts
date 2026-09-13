@@ -76,6 +76,13 @@ import {
     manaUnitsFor,
     type ManaUnits,
 } from "./manaAvailability";
+// Issue #3532 — the colour-coverage quantity, computed for BOTH seats off one
+// derivation each: the hand for the seat whose hand may be read, the observed
+// evidence (`ai/observedColors.ts`) for the seat whose hand never may be.
+import {
+    observedColorCoverage,
+    ownHandColorCoverage,
+} from "./ai/colorCoverage";
 import {
     creatureValueRaw,
     dslLatentPiecesById,
@@ -306,6 +313,13 @@ export type EvalTerms = {
      *  `manaDevelopmentTerm` for the calibration and the on-curve vs flooded
      *  contrast it draws. */
     manaDevelopment: number;
+    /** Issue #3532 — how much of the colour this seat NEEDS its own mana base
+     *  can supply, as a fraction in [0, 1] times `colorCoverageWeight`. The
+     *  demand is the hand's costs for the seat whose hand may be read and the
+     *  observed evidence (`ai/observedColors.ts`) for the seat whose hand never
+     *  may be, so the margin between the two seats prices colour DENIAL on one
+     *  side and colour SCREW on the other. See `ai/colorCoverage.ts`. */
+    colorCoverage: number;
     /** Reactive flexibility (ADR 0021 slice 1): bounded option-value bonus for
      *  holdable instants in hand the player can afford to cast this turn, PLUS
      *  (issue #1890 item 3) permanents offering a live, affordable instant-speed
@@ -1088,10 +1102,23 @@ export function permanentRealisedValue(
 
 /** The weighted contributions of one player's resources, from their own
  *  perspective. `sumTerms` of this equals the legacy `playerScore`. */
+/** Which seat `playerTerms` is being asked about, RELATIVE TO THE VIEWER
+ *  (issue #3532). Every caller evaluates a position from one player's point of
+ *  view and asks for both seats' terms, so the distinction is always available
+ *  and never guessed.
+ *
+ *  It exists for exactly one reason: the hidden-information boundary. `own` may
+ *  read the hand; `observed` may not — not even the determinized sample the
+ *  search holds (PRD #3526's central non-goal). Only `colorCoverage` honours it
+ *  today; the older `hand` term prices the determinized sample on both seats,
+ *  which is its own pre-existing question and not one this seat flag changes. */
+type SeatView = "own" | "observed";
+
 function playerTerms(
     state: GameState,
     player: PlayerState,
-    weights: EvalWeights
+    weights: EvalWeights,
+    seat: SeatView
 ): EvalTerms {
     const terms: EvalTerms = {
         life: player.life * weights.lifeWeight,
@@ -1120,6 +1147,7 @@ function playerTerms(
         permanents: 0,
         mana: 0,
         manaDevelopment: 0,
+        colorCoverage: 0,
         flexibility: 0,
         library: libraryTerm(state, player, weights),
         graveyard: graveyardEngineTerm(player, weights),
@@ -1175,6 +1203,16 @@ function playerTerms(
         manaCensus.base,
         weights
     );
+    // Colour coverage (issue #3532) — the same `base` census, asked the colour
+    // question instead of the count one: what fraction of the colours this seat
+    // needs can its own mana base actually produce. The two seats differ only
+    // in where the DEMAND comes from, which is the hidden-information boundary
+    // — see `ai/colorCoverage.ts`.
+    terms.colorCoverage =
+        weights.colorCoverageWeight *
+        (seat === "own"
+            ? ownHandColorCoverage(player, manaCensus.base)
+            : observedColorCoverage(state, player, manaCensus.base));
     // Reactive flexibility uses the SAME available-mana count as the affordability
     // gate, so it can only reward instants the player can actually cast now — and
     // activated options the player can actually pay for (issue #1890 item 3).
@@ -1190,6 +1228,7 @@ function sumTerms(t: EvalTerms): number {
         t.permanents +
         t.mana +
         t.manaDevelopment +
+        t.colorCoverage +
         t.flexibility +
         t.library +
         t.graveyard +
@@ -1201,9 +1240,10 @@ function sumTerms(t: EvalTerms): number {
 function playerScore(
     state: GameState,
     player: PlayerState,
-    weights: EvalWeights
+    weights: EvalWeights,
+    seat: SeatView
 ): number {
-    return sumTerms(playerTerms(state, player, weights));
+    return sumTerms(playerTerms(state, player, weights, seat));
 }
 
 /** Score `state` from `playerId`'s perspective. Higher = better for the player.
@@ -1224,7 +1264,8 @@ export function evaluate(
     if (!me || !opp) return 0;
 
     const margin =
-        playerScore(state, me, weights) - playerScore(state, opp, weights);
+        playerScore(state, me, weights, "own") -
+        playerScore(state, opp, weights, "observed");
 
     // Terminal detection. A recorded game-over is authoritative; otherwise a
     // player at ≤ 0 life has effectively lost (SBA may not have run on this
@@ -1940,7 +1981,10 @@ export function materialMargin(
     const me = state.players.find((p) => p.id === playerId);
     const opp = state.players.find((p) => p.id !== playerId);
     if (!me || !opp) return 0;
-    return playerScore(state, me, weights) - playerScore(state, opp, weights);
+    return (
+        playerScore(state, me, weights, "own") -
+        playerScore(state, opp, weights, "observed")
+    );
 }
 
 /** `playerId`'s view of a position, decomposed into per-player, per-term
@@ -1976,6 +2020,7 @@ export function evaluateBreakdown(
         permanents: 0,
         mana: 0,
         manaDevelopment: 0,
+        colorCoverage: 0,
         flexibility: 0,
         library: 0,
         graveyard: 0,
@@ -1984,8 +2029,8 @@ export function evaluateBreakdown(
     if (!me || !opp) {
         return { self: empty, opp: empty, margin: 0, danger: 0, total: 0 };
     }
-    const self = playerTerms(state, me, weights);
-    const oppTerms = playerTerms(state, opp, weights);
+    const self = playerTerms(state, me, weights, "own");
+    const oppTerms = playerTerms(state, opp, weights, "observed");
     const margin = sumTerms(self) - sumTerms(oppTerms);
     return {
         self,

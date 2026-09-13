@@ -108,6 +108,21 @@ export type EvalWeights = {
      *  is worth — see the calibration note in `evaluate.ts`'s
      *  `manaDevelopmentTerm`. */
     manaDevWeight: number;
+    /** Full worth of a mana base that supplies EVERY colour its own seat
+     *  needs — the colour-coverage term (issue #3532, PRD #3526). The term is
+     *  this weight times a coverage fraction in [0, 1], so this is the whole
+     *  swing between a base that covers what the seat wants and one that
+     *  covers none of it, and the margin between the two seats is what prices
+     *  colour denial and colour screw.
+     *
+     *  Sized at two mana sources for the PRIOR: losing a colour outright is
+     *  the base being wrong in a way no further land of the wrong type fixes,
+     *  which is worth more than the one source a denial spell physically
+     *  removes — and well under a card, because a colour the opponent cannot
+     *  produce this turn is not a colour they can never produce. The fit moves
+     *  it from there (`verdicts/features.ts`); the blade entries that guard it
+     *  discriminate on the SIGN, not the magnitude. */
+    colorCoverageWeight: number;
     /** Bonus per castable held instant / live flexible activation, the
      *  reactive-flexibility term (`W_FLEX`). */
     flexWeight: number;
@@ -262,6 +277,7 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     manaWeight: 12,
     tappedManaWeight: 9,
     manaDevWeight: 12,
+    colorCoverageWeight: 24,
     flexWeight: 6,
     flexCardCap: 3,
     sourceBreadthWeight: 4,

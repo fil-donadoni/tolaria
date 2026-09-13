@@ -6710,8 +6710,68 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Issue #2710. CR 614.12a as-enters choice reachability AND quality: the option list is CR 205.3m's whole creature-type table, so without `PendingChoice.options[].subtype` + `subtypeModePrior` (gre/ai/choicePriors.ts) the top-K truncation is alphabetical and the answer is always Advisor. Human/Soldier are deliberately present on the bot's OWN board so a presence-only prior with a wrong sign fails here too.",
     },
+    {
+        label: "colour denial: destroys the only source of a colour the opponent is visibly using",
+        spec: {
+            cards: [
+                { name: "Stone Rain", owner: "me", zone: "hand" },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Forest", owner: "opp", zone: "battlefield" },
+                { name: "Plains", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        // ADR 0070 §3 — K>=3 seeds: the pick must not be rollout noise.
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                { kind: "cast-spell", card: "Stone Rain", target: "Forest" },
+            ],
+        },
+        note: "Issue #3532, position A of the colour-coverage pair. The two legal targets are MATERIALLY IDENTICAL — both basic lands, so `mana`, `permanents` and the `boardRemoval` latent the held Stone Rain is priced at move by exactly the same amount whichever dies. The only axis that separates them is `colorCoverage`: the Grizzly Bears is standing evidence that this opponent plays {G} (`ai/observedColors.ts`), and it SURVIVES the land, so killing the Forest leaves a demanded colour with no source (coverage 1 → 1/4). The Plains is its own only evidence for {W}: kill it and the demand leaves with the supply, coverage stays 1, and the card bought nothing. Before the term, `evaluate` returned the same number for both branches and the pick was rollout noise. Position B below is the SAME board with the evidence moved to the other colour, and demands the other land.",
+    },
+    {
+        label: "colour denial: does not spend the card on a colour nothing but the land itself evidences",
+        spec: {
+            cards: [
+                { name: "Stone Rain", owner: "me", zone: "hand" },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                { name: "Savannah Lions", owner: "opp", zone: "battlefield" },
+                { name: "Forest", owner: "opp", zone: "battlefield" },
+                { name: "Plains", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                { kind: "cast-spell", card: "Stone Rain", target: "Forest" },
+            ],
+        },
+        note: "Issue #3532, position B — the discriminating twin of position A, and the reason the preference is about EVIDENCE rather than about colours existing. Same board, same card, same two materially identical targets; only the creature's colour has moved, so now {W} is the colour the opponent is visibly using and {G} is evidenced by nothing but the Forest itself. Destroying that Forest takes the demand away with the supply and leaves coverage exactly where it was — the denial half of the term must not fire on it. A term that scored EVERY colour the opponent could produce (the vacuous heuristic issue #2306 exists to kill) passes position A and fails here, which is the whole point of running the pair.",
+    },
 ];
-
 /** "The bot answered the ENGINE-RAISED target selection with a submission the
  *  server would accept, and the game moved on" (issue #2283).
  *
