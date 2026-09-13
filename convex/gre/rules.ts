@@ -34,7 +34,6 @@ import {
     manaValue,
     normalizedHybridPips,
     pendingSourceIsSpell,
-    pureGenericManaSubCost,
     resolvePendingTargetKind,
 } from "./constants";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
@@ -52,7 +51,6 @@ import {
     hasCastTimingFlashGrant,
     hasCardSelfFlashPermission,
 } from "../cards/castRestrictions";
-import { tapManaBonusUnits } from "./tapManaBonus";
 // Issue #2420 — the ONE model of a `tapOtherFilter` mana ability (Urza, Lord
 // High Artificer), shared with the payment planner (`planManaPayment`,
 // moves.ts) so this affordance census and the concrete tap plan can never
@@ -60,6 +58,7 @@ import { tapManaBonusUnits } from "./tapManaBonus";
 // module's header for why "the mana belongs to the permanent that gets
 // tapped" is the exact model rather than "the converter is a mana source".
 import { manaConverterColors } from "./manaConverters";
+import { boardManaUnits, getProducibleManaUnits } from "./manaAvailability";
 import type { ManaTapOption } from "./constants";
 import { PHYREXIAN_LIFE_PER_PIP, phyrexianPipCount } from "./phyrexian";
 import { matchesPermanentFilter } from "../cards/filters";
@@ -1919,203 +1918,6 @@ export function getProducibleManaOptions(
     return options;
 }
 
-/** Returns one entry per INDIVIDUAL mana a permanent could produce from a
- *  single tap, each entry being the set of colors that mana could be. A source
- *  that taps for multiple mana (Sol Ring → {C}{C}) yields multiple entries, so
- *  affordability counts the real quantity, not one-per-source.
- *
- *  A tap is a single shared cost, so only ONE mana ability can be used per
- *  activation (CR 605.1a) — but when a permanent declares MULTIPLE tap
- *  abilities (Starting Town: "{T}: Add {C}" and "{T}, Pay 1 life: Add one mana
- *  of any color", issue #1695) they are ALTERNATIVES for that same tap, not
- *  competitors where only the "best" one counts.
- *
- *  Single-authority form (issue #1695 finding 1, review-blocking): the unit
- *  list is derived from `getManaTapOptionsDetailed(…, { requireTap: true })`
- *  — the SAME list `getProducibleManaOptions` (the real auto-tap payment
- *  planner) and the tap mutations read — instead of re-deriving a parallel
- *  ability filter here. A prior version of this fix unioned every
- *  `activatedAbilities` entry with `!ability.cost.tap` as the only exclusion,
- *  which missed that `getManaTapOptionsDetailed` ALSO drops every
- *  sacrifice-cost option whenever a non-sacrifice tap option exists on the
- *  same source (`combined = nonSacrifice.length > 0 ? nonSacrifice :
- *  sacrifice` — "prefer non-destructive options; fall back to sacrifice only
- *  when there is no other way to tap this source for mana", constants.ts).
- *  Archaeological Dig ("{T}: Add {C}" / "{T}, Sacrifice: Add one mana of any
- *  color") is the case: only {C} is ever payable, but the old per-ability
- *  union offered the gate all five colors — a false-positive Cast button the
- *  payment step then refused. Routing through the shared helper makes the
- *  gate and the payment planner agree by construction; a life-cost ability
- *  (Starting Town) is NOT bucketed as a sacrifice option (only `cost
- *  .sacrifice` is), so the already-verified "errs toward affordable" bias for
- *  life costs is unchanged.
- *
- *  Every entry in the shared list (`ManaTapOption`) is one whole tap
- *  alternative — one ability's output, or one basic-land-subtype's intrinsic
- *  `{T}: Add C` (CR 305.6, folded in by `getManaTapOptionsDetailed` itself) —
- *  and only ONE alternative is ever used per tap. Each alternative is expanded
- *  into its own ordered per-mana colour-set list (one entry per unit of mana
- *  it produces), then every alternative is unioned position-by-position: the
- *  unit COUNT is the largest quantity any single alternative can produce
- *  (matches the existing "real quantity, not one-per-source" rule — only one
- *  alternative fires per tap, so quantity can't be summed across them), and
- *  each position's COLOR SET is the union of every alternative's colour at
- *  that position. An alternative shorter than the max simply has nothing to
- *  contribute past its own length, so it never inflates the quantity another
- *  alternative alone wouldn't already claim. This keeps the result
- *  declaration-order-independent (issue #1695 AC) and preserves the Sol
- *  Ring-style two-mana case (only one ability, no regression). A choice
- *  ability (dual land / Talisman) contributes one option per choice, so its
- *  colours land in the union exactly like the old "one unit, colors = union
- *  of choices" special case did.
- *
- *  NOTE — `manaRestriction` is NOT consulted here, same as before this
- *  rewrite: this list only tracks which raw colours a source could ever
- *  produce, not whether the resulting mana is legally spendable on a given
- *  spell. Restricted mana is honoured only once it reaches the pool, at
- *  `coloredCostLeftover` below (CR 106.6). Delighted Halfling (issue #1559)
- *  IS now exactly the previously-hypothetical shape: an UNRESTRICTED `{C}`
- *  tap ability combined with a SEPARATE, RESTRICTED-any-colour tap ability
- *  ("Spend this mana only to cast a legendary spell..."). The leak is real
- *  and live: this gate unions both abilities' colours with no restriction
- *  awareness, so the castability check (whatever consumes
- *  `getProducibleManaUnits`, e.g. offering "Cast" on a spell) treats the
- *  restricted any-colour mana as freely spendable, and will offer "cast" for
- *  a NON-legendary spell the restricted mana can't legally pay for (CR 106.6
- *  is still enforced correctly at actual payment time —
- *  `payManaCostForSpell` / `spendablePoolForSpell` — so no illegal cast can
- *  ever actually commit; this is a castability-AFFORDANCE overcount, not a
- *  legality hole). tracked-by: #1733 */
-function getProducibleManaUnits(
-    card: CardInstanceState,
-    /** CR 602.5b / 605.1a (issue #1695 re-review, regression fix) — the
-     *  controller's id + a REAL, BOTH-PLAYERS `battlefields` view (built by
-     *  `coloredCostLeftover` from `opts.state` when a caller has one).
-     *  Board-dependent `canActivate` (Mox Opal's Metalcraft, Fanatic of
-     *  Rhonas's Ferocious — both scan only the controller's own battlefield,
-     *  `hasMetalcraft` in `types.ts` / the Ferocious closure in `mh3/green.ts`)
-     *  AND board-dependent `getManaChoices` (Fellwar Stone scans every OTHER
-     *  player's battlefield) both need it. Omitting these args (as this
-     *  function did before this fix) makes `minimalManaGateView` fall back to
-     *  `{ players: [] }`, so `canActivate` is permanently false and the mana
-     *  ability is dropped from the gate even though the real board — the one
-     *  `convex/game.ts`'s payment planner passes — satisfies it. A view
-     *  containing only the controller's OWN entry is NOT a safe substitute:
-     *  Fellwar Stone's chooser explicitly skips any entry matching
-     *  `controllerId`, so an own-only view makes it see zero opponents and
-     *  return `[]` — which the caller treats as "no options" rather than
-     *  falling back to the static list, trading the current safe
-     *  over-approximation for an under-approximating hidden-cast bug of this
-     *  same shape. See `coloredCostLeftover`'s `opts.state` doc for why this
-     *  is only ever populated from a full `GameState`, never from `player`
-     *  alone. */
-    controllerId?: string,
-    battlefields?: ReadonlyArray<{
-        playerId: string;
-        battlefield: readonly CardInstanceState[];
-    }>
-): Set<Color>[] {
-    // requireTap: only a genuine {T} ability counts as an auto-payable "unit"
-    // — the SAME `requireTap: true` invariant `getProducibleManaOptions` (the
-    // real auto-tap planner) uses. Board view is identical between the two
-    // WHEN THE CALLER HAS PASSED A `state` (issue #1751 finding 4, closed
-    // fully by issue #1754): this function is fed the FULL, both-players
-    // `battlefields` view built from `opts.state` (via `coloredCostLeftover`,
-    // only when a caller has one — see that param's own doc), and
-    // `getProducibleManaOptions`'s one caller (`planManaPayment`, moves.ts)
-    // always builds and passes the same FULL, both-players view from its own
-    // (mandatory) `state` param — so a self-referential ability (Mox Opal's
-    // Metalcraft, Fanatic of Rhonas's Ferocious) AND an opponent-scanning
-    // chooser (Fellwar Stone) are both visible to the two callers identically
-    // ON THAT PATH. Issue #1757 closed the last board-blind `coloredCostLeftover`
-    // callers that used to pass no `state` at all: `maxAffordableX`'s
-    // bot-enumeration call site in moves.ts, every `genericManaShortfall`
-    // caller, AND — a fifth holdout the reviewer's escalation surfaced in the
-    // same round — the Phyrexian split solver's two remaining state-less call
-    // sites (`solvePhyrexianSplit` in `enumerateCastMoves`, moves.ts, and
-    // `resolvePhyrexianCastPayment` on the real server cast path, game.ts,
-    // finding 1 / finding 2), plus `phyrexianLifePipOptions`'s
-    // `projectPublicState` call site (gameProjections.ts, found while
-    // verifying this very comment). Every caller now has a `state` in scope
-    // and passes it, so this function only falls back to `undefined,
-    // undefined` (board-blind) for a caller that genuinely has no `GameState`
-    // on hand (there is none today); the "identical" guarantee is no longer
-    // scoped to a subset of callers.
-    const detailed = getManaTapOptionsDetailed(
-        card,
-        controllerId,
-        battlefields,
-        {
-            requireTap: true,
-        }
-    );
-
-    // Issue #2420 review finding 2 — the widened `requireTap` gate now also
-    // returns a PURE-GENERIC `cost.mana` option (Farrelite Priest's
-    // repeatable "{1}: Add {W}"), which is NET ZERO: activating it spends as
-    // much generic mana as it returns, unlike a genuine {T} source. Counting
-    // its produced colour as a free +1 unit (the pre-fix behaviour) let
-    // `canPotentiallyPayCost` (below) offer "Cast" on a spell that was NOT
-    // actually payable — measured on [Farrelite Priest, Plains] casting
-    // Island Sanctuary {1}{W}. Net the ability's own funding requirement out
-    // of its produced units so this affordance census matches what
-    // `planManaPayment` (moves.ts) can ACTUALLY realise (it funds the same
-    // sub-cost from an OTHER plain source, `fundGenericFromPlain`) —
-    // deliberately still an OVER-approximation elsewhere (this function's own
-    // header), never an under-approximation: a net-negative shape
-    // (Nomadic Elf's `{X:1,G:1}`) is excluded upstream by
-    // `isAutoPayableManaAbilityCost` (constants.ts) and never reaches
-    // `detailed` at all, so it needs no clamp here.
-    const perOptionUnits: Set<Color>[][] = detailed.map((opt) => {
-        const units: Set<Color>[] = [];
-        for (const c of MANA_COLORS) {
-            const amount = opt.mana[c] ?? 0;
-            for (let i = 0; i < amount; i++) units.push(new Set<Color>([c]));
-        }
-        if (opt.source.kind === "activated") {
-            const abilityId = opt.source.abilityId;
-            const ability = getEffectiveActivatedAbilities(card).find(
-                (r) => r.ability.id === abilityId
-            )?.ability;
-            // Issue #2420 review round 2 finding 2 — a `tapOtherFilter`
-            // ability (Urza, Lord High Artificer's "Tap an untapped
-            // artifact you control: Add {U}.") taps a DIFFERENT permanent
-            // than `card`, so its produced mana is never CARD's own unit —
-            // counting it here double-counted the fodder artifact against
-            // that SAME artifact's own row, elsewhere in this same census
-            // (measured: [Urza, Mox Sapphire] casting Lord of Atlantis
-            // {U}{U} — offered "cast" although `planManaPayment` returns
-            // null). This function contributes 0 for a `tapOtherFilter`
-            // ability's OWNER; `coloredCostLeftover` (below) models the
-            // real capacity instead, by widening each matching untapped
-            // FODDER candidate's own row with the ability's produced
-            // colours — capacity bounded at one unit per physical
-            // permanent, never per ability.
-            if (ability?.cost.tapOtherFilter) {
-                units.length = 0;
-            }
-            const generic = ability?.cost.mana
-                ? pureGenericManaSubCost(ability.cost.mana)
-                : null;
-            if (generic !== null && generic > 0) {
-                units.splice(Math.max(0, units.length - generic));
-            }
-        }
-        return units;
-    });
-
-    const maxLen = perOptionUnits.reduce((m, u) => Math.max(m, u.length), 0);
-    const best: Set<Color>[] = [];
-    for (let i = 0; i < maxLen; i++) {
-        const colors = new Set<Color>();
-        for (const units of perOptionUnits) {
-            for (const c of units[i] ?? []) colors.add(c);
-        }
-        best.push(colors);
-    }
-    return best;
-}
-
 /** True if the player has enough mana — already in the pool plus what could
  *  be produced by tapping untapped permanents — to cover the spell's mana
  *  cost. Excludes creatures with summoning sickness (CR 302.1). Treats every
@@ -2307,54 +2109,21 @@ function coloredCostLeftover(
                 }
             }
         }
-        for (const perm of player.battlefield) {
-            if (perm.isTapped) continue;
-            const widen = converterColors.get(perm.id);
-            // CR 302.1 — creature with summoning sickness can't pay {T}.
-            // It CAN still be tapped to pay another permanent's
-            // `tapOtherFilter` cost, though (CR 302.6 gates a {T}/{Q} cost
-            // and nothing else — cf. crew, CR 702.122b), so a sick permanent
-            // still contributes the converter's colours as its one unit.
-            if (isTapLockedBySummoningSickness(perm)) {
-                if (widen && widen.size > 0) sources.push(new Set(widen));
-                continue;
-            }
-            // One entry per mana the source taps for: a {C}{C} source (Sol Ring)
-            // contributes two, not one (issue #132).
-            const base = getProducibleManaUnits(
-                perm,
-                boardControllerId,
-                boardBattlefields
-            );
-            if (widen && widen.size > 0) {
-                // Fold the converter's colours into ONE unit — the FIRST
-                // slot of this permanent's own row when it has one (a
-                // second, independent unit would re-introduce the
-                // double-count), or a single new row when `perm` has no
-                // mana ability of its own (a "bare" artifact this ability
-                // alone makes into a mana source).
-                if (base.length > 0) {
-                    sources.push(new Set([...base[0], ...widen]));
-                    for (let i = 1; i < base.length; i++) sources.push(base[i]);
-                } else {
-                    sources.push(new Set(widen));
-                }
-            } else {
-                for (const unit of base) sources.push(unit);
-            }
-            // CR 605.4 — a Wild-Growth-style triggered mana ability on ANOTHER
-            // permanent adds extra mana when THIS land is tapped for mana. It only
-            // fires on a for-mana tap, so gate on the land actually producing base
-            // mana; then fold in the declared bonus units (Wild Growth {G},
-            // Gauntlet {R}, Mana Flare produced colour, Fertile Ground any colour).
-            if (base.length > 0) {
-                for (const unit of tapManaBonusUnits(
-                    player.battlefield,
-                    perm
-                )) {
-                    sources.push(unit);
-                }
-            }
+        // The board census is the SHARED one (issue #3531): the bot's
+        // colour-aware castability reader asks the same question of the same
+        // units, so the leaf heuristic and this gate cannot drift apart. Every
+        // fold that used to be spelled out here — one unit per mana produced
+        // (issue #132), the `tapOtherFilter` converter widening its fodder's
+        // own row (issue #2420), CR 302.1 summoning sickness, CR 605.4
+        // Wild-Growth bonus units — now lives in `boardManaUnits`
+        // (`manaAvailability.ts`), which is also where `getProducibleManaUnits`
+        // moved to.
+        for (const unit of boardManaUnits(player.battlefield, {
+            converters: converterColors,
+            controllerId: boardControllerId,
+            battlefields: boardBattlefields,
+        })) {
+            sources.push(unit);
         }
     }
 

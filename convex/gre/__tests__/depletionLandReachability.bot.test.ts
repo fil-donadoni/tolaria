@@ -13,10 +13,12 @@
 //    the battlefield producing nothing, and a plan that taps it produces a
 //    Move the real mutation rejects.
 //
-// `enumerateMoves` is the seam, so it is what this asserts — the coarse
-// `availableManaFor` proxy in `evaluate.ts` deliberately counts any untapped
-// source as ONE mana (issue #2247's documented divergence) and is not the
-// mechanism that decides whether a cast is offered.
+// `enumerateMoves` is the seam, so it is what this asserts. The leaf
+// heuristic's mana census is not the mechanism that decides whether a cast is
+// offered — and since issue #3531 it is no longer a scalar proxy at all:
+// `availableManaFor` is gone, and `manaUnitsFor` (`gre/manaAvailability.ts`)
+// counts one colour unit per mana a source actually taps for, which retired
+// issue #2247's one-per-source asymmetry along with it.
 
 import { describe, it, expect } from "vitest";
 import { getCardByName } from "../../cards";

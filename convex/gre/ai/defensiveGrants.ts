@@ -184,6 +184,7 @@ export function isQuietFor(state: GameState, card: CardInstanceState): boolean {
     }
     if (facesCombatDamage(state, card)) return false;
     const opponent = state.players.find((p) => p.id !== card.controllerId);
-    if (opponent && castableHeldInteraction(opponent).removal) return false;
+    if (opponent && castableHeldInteraction(state, opponent).removal)
+        return false;
     return true;
 }

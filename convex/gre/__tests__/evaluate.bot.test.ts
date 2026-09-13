@@ -922,6 +922,8 @@ describe("evaluate — declare-attackers leaf distinguishes attack sets (issue #
     });
 });
 
+const GROWTH_LAND = getCardByName("Forest").id; // pays Giant Growth's {G}
+
 describe("reactive flexibility (ADR 0021 slice 1, issue #221)", () => {
     const handCard = (cardId: string, id: string) =>
         makeInstance(cardId, {
@@ -930,8 +932,12 @@ describe("reactive flexibility (ADR 0021 slice 1, issue #221)", () => {
             id,
             zone: "hand",
         });
+    // A FOREST, not a Mountain: the held instant is Giant Growth ({G}), and
+    // since issue #3531 the flexibility gate is COLOUR-AWARE — an untapped
+    // Mountain no longer credits a green trick, which is the whole point of
+    // that slice. The fixture had ridden the colour-blind proxy since #221.
     const land = (id: string, tapped: boolean) =>
-        makeInstance(MOUNTAIN, {
+        makeInstance(GROWTH_LAND, {
             controllerId: "p1",
             ownerId: "p1",
             id,
@@ -1220,12 +1226,22 @@ describe("evaluateAutoTapPosition — source-quality bonus (issue #794)", () => 
     });
 });
 
+const DEV_LAND = getCardByName("Forest").id; // {T}: G
+const DEV_HELD = getCardByName("Giant Spider").id; // {3}{G} 2/4, MV 4
+
 describe("manaDevelopment term (issue #2686)", () => {
     // A basic land instance and a hand card instance, both controlled by `p1`.
+    //
+    // FORESTS, and a green hand (Grizzly Bears {1}{G}, Giant Spider {3}{G}):
+    // since issue #3531 demand is COLOUR-AWARE, so a hand card only raises the
+    // curve when the base can supply its pips. These fixtures are about the
+    // COUNT half of the term — on curve vs flooded — so they hold the colour
+    // half satisfied throughout; the colour half has its own fixtures at the
+    // bottom of this describe.
     const land = (id: string) =>
-        makeInstance(MOUNTAIN, { controllerId: "p1", ownerId: "p1", id });
+        makeInstance(DEV_LAND, { controllerId: "p1", ownerId: "p1", id });
     const held = (id: string) =>
-        makeInstance(GIANT, {
+        makeInstance(DEV_HELD, {
             controllerId: "p1",
             ownerId: "p1",
             id,
@@ -1233,7 +1249,7 @@ describe("manaDevelopment term (issue #2686)", () => {
         });
 
     it("prices an early-game land above 2 life, and a flooded land below a relevant card", () => {
-        // On-curve: 2 lands, one 4-MV Hill Giant in hand (handNeed 4 > lands 2).
+        // On-curve: 2 lands, one 4-MV Giant Spider in hand (handNeed 4 > lands 2).
         const twoLands = makeState({
             players: [
                 makePlayer("p1", {
@@ -1293,7 +1309,7 @@ describe("manaDevelopment term (issue #2686)", () => {
         expect(onCurveLand).toBeGreaterThan(
             2 * DEFAULT_EVAL_WEIGHTS.lifeWeight
         );
-        // Flooded land < a relevant card (the held Hill Giant's latent worth).
+        // Flooded land < a relevant card (the held Giant Spider's latent worth).
         expect(floodedLand).toBeLessThan(cardValue(sevenLands, held("h1")));
     });
 
@@ -1360,7 +1376,7 @@ describe("manaDevelopment term (issue #2686)", () => {
     });
 
     it("keeps an on-curve land above 2 life with the same realistic hand (issue #2927)", () => {
-        // Same four cheap cards plus one 4-MV Hill Giant: the top of the curve
+        // Same four cheap cards plus one 4-MV Giant Spider: the top of the curve
         // is now 4, so lands 1-4 are on curve and the fourth still earns the
         // development bonus.
         const hand = [...["h1", "h2", "h3", "h4"].map(cheap), held("big")];
@@ -1377,6 +1393,74 @@ describe("manaDevelopment term (issue #2686)", () => {
                 DEFAULT_EVAL_WEIGHTS.manaDevWeight,
             6
         );
+    });
+
+    // Issue #3531 — demand is colour-aware. Same land COUNT, same hand mana
+    // value: only the colour of the base differs, and a base that cannot cast
+    // the hand is developing nothing toward it.
+    it("a base that cannot pay the hand's colours develops nothing (issue #3531)", () => {
+        const offColour = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: Array.from({ length: 3 }, (_, i) =>
+                        makeInstance(MOUNTAIN, {
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            id: `r${i}`,
+                        })
+                    ),
+                    hand: [held("h1")], // Giant Spider, {3}{G}
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const onColour = withLands(3, [held("h1")]);
+        expect(devTerm(onColour)).toBe(3 * DEFAULT_EVAL_WEIGHTS.manaDevWeight);
+        expect(devTerm(offColour)).toBe(0);
+    });
+
+    // The colour gate is COLOURS ONLY, never quantity — and the discriminating
+    // case is a MULTI-PIP cost, not a big generic one. `coversCostColors` is a
+    // membership question; running the pip-MATCHING greedy there (it consumes
+    // one distinct source per pip) answers "no" for one Island holding
+    // Counterspell {U}{U} — the canonical "behind on lands" position — so
+    // demand could never exceed the source count, `min(lands, curveTop)` would
+    // collapse to `curveTop`, and the whole "you are behind" half of the term
+    // would be deleted. A single-pip card cannot catch that.
+    it("an unaffordable but on-colour hand card still raises the curve (issue #3531)", () => {
+        // Generic blindness: a 4-MV one-pip card off two on-colour lands.
+        const twoForests = withLands(2, [held("h1")]); // Giant Spider, {3}{G}
+        expect(devTerm(twoForests)).toBe(
+            2 * DEFAULT_EVAL_WEIGHTS.manaDevWeight
+        );
+
+        // PIP blindness: one Island, Counterspell {U}{U} in hand. The base is
+        // the right colour and one source short — which is the term's subject.
+        const ISLAND = getCardByName("Island").id;
+        const COUNTERSPELL = getCardByName("Counterspell").id;
+        const oneIsland = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(ISLAND, {
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            id: "i1",
+                        }),
+                    ],
+                    hand: [
+                        makeInstance(COUNTERSPELL, {
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            id: "cs",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(devTerm(oneIsland)).toBe(DEFAULT_EVAL_WEIGHTS.manaDevWeight);
     });
 
     // Issue #2928: casting is not a mana-development change. A card moving
@@ -1411,7 +1495,7 @@ describe("manaDevelopment term (issue #2686)", () => {
         });
 
     it("does not move when a card leaves the hand for the battlefield (issue #2928)", () => {
-        // Six lands and one 4-MV Hill Giant: the hand tops out at 4, which the
+        // Six lands and one 4-MV Giant Spider: the hand tops out at 4, which the
         // six lands already cover. Casting it is the move the bot is supposed
         // to make, and the term must not charge for it.
         const inHand = board(6, [held("g")], []);

@@ -2027,7 +2027,18 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         bot: "me",
         budget: { iterations: 200 },
-        seeds: [12, 14, 15, 18, 19, 25, 27],
+        // Issue #3531 re-pin: 12, 15, 18, 19 — the seeds that pick the mode
+        // once castability is colour-aware, swept over 0..29 exactly as issue
+        // #3194 swept them. Three of the original seven (14, 25, 27) moved to
+        // the mill mode, which is the tie this entry's own note predicted
+        // would move: it records that the mode wins here on rollout noise
+        // rather than on preference, because the mana axis could not see
+        // colour. #3531 gives castability that axis (and refits the vector),
+        // so the noise fell differently; the mode is still live and still
+        // chosen, which is the entry's whole claim. What it must keep doing is
+        // go red if `reachesOnlyOwnSideThroughChoice` ever fires HERE — and it
+        // does: with the guard firing, these four stop picking the mode too.
+        seeds: [12, 15, 18, 19],
         tier: "must",
         expect: {
             predicate: (move) =>
@@ -2036,7 +2047,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             describe:
                 "the land-type mode is still chosen when the OPPONENT controls lands of the re-typed subtype",
         },
-        note: "Issue #3194, position B — the discriminating twin, and the reason position A's guard is a preference and not a ban. The opponent controls three Forests, so the same mode reaches the opponent's mana base and `reachesOnlyOwnSideThroughChoice` (search.ts) answers false on the very first branch that re-types one of them: no penalty, no hold. These seven seeds are the ones that pick the mode, and they pick it byte-identically before and after the fix — so the entry goes red the moment the self-confined guard starts firing on a position it must not touch. What it does NOT claim is that the bot PREFERS the mode here on every seed: the evaluator's mana term is colour-blind by construction (`evaluate.ts`, \"CR 601 colored requirements are not modelled\"), so denying green reads as no material change at all, and the remaining 23 seeds tie into the mill mode on rollout noise. Making the bot actively want the denial needs a colour-aware mana axis, which issue #3194 puts out of scope.",
+        note: "Issue #3194, position B — the discriminating twin, and the reason position A's guard is a preference and not a ban. The opponent controls three Forests, so the same mode reaches the opponent's mana base and `reachesOnlyOwnSideThroughChoice` (search.ts) answers false on the very first branch that re-types one of them: no penalty, no hold. The pinned seeds are the ones that pick the mode, and the entry goes red the moment the self-confined guard starts firing on a position it must not touch (PROVEN: with `reachesOnlyOwnSideThroughChoice` forced true for every cast, all four pinned seeds chose `pass`). What it does NOT claim is that the bot PREFERS the mode here on every seed — the rest tie into the mill mode on rollout noise. Issue #3194 recorded that making the bot actively WANT the denial needed a colour-aware mana axis and put it out of scope; issue #3531 shipped that axis for CASTABILITY (and refitted the vector), which moved the tie rather than settling it: swept over the same seeds 0..29, the mode is picked on 4 (12, 15, 18, 19) where it was picked on 7, the three that moved going to the mill mode. The margin is thinner than #3194 left it, and the denial is still not something the evaluator positively wants: the `mana` term itself is still a colour-blind SOURCE COUNT (`manaSourceTermFor`), so re-typing an opponent's Forests still reads as no material change. What #3531 gave the position is a colour-aware view of what a hand can CAST, not of what a mana base is WORTH.",
     },
     {
         label: "cast variant: Ancestral Recall draws for the BOT, not the opponent",
@@ -4209,6 +4220,61 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Twin of the entry above; only the decklist differs (issue #2876).",
     },
     {
+        // ISSUE #3531 — the COLOUR arm of the same board. The two entries above
+        // vary the attacker's DECKLIST; this one varies nothing but the COLOUR
+        // of the attacker's single untapped land, with the trick-holding
+        // decklist of the first entry unchanged.
+        //
+        // The defender is entitled to the whole of this: an opponent's
+        // battlefield is public (CR 400.2), and whether an open Mountain can
+        // pay {G} is a rules fact, not a read of a hidden zone. Before this
+        // slice `castableHeldInteraction` asked `manaValue(cost) <=
+        // availableManaFor(player)` — one open land, Giant Growth's mana value
+        // 1, "castable" — so the defender played around a trick the attacker
+        // could not cast off a Mountain, declined the block and donated 2
+        // damage plus a free kill on every seed.
+        label: "informed defender: DOES block when the attacker's open land cannot PAY for the trick",
+        spec: {
+            cards: [
+                {
+                    name: "Savannah Lions",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                // A MOUNTAIN — the single difference from the first entry of
+                // this trio. Giant Growth costs {G}.
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                // Physically a Mountain in every entry of the trio — see the
+                // first one for why the physical hand is never what the bot
+                // reasons about.
+                { name: "Mountain", owner: "me", zone: "hand" },
+                {
+                    name: "Ironroot Treefolk",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        setup: [{ kind: "declare-attackers" }],
+        bot: "opp",
+        // The SAME trick-holding decklist as the first entry: the deck really
+        // does hold Giant Growth, and it is still unpayable on this board.
+        deckKnowledge: [{ seat: "me", cards: ["Giant Growth"] }],
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "declare-blockers", card: "Ironroot Treefolk" }],
+        },
+        note: "Issue #3531. Discriminating pair with the first entry of this trio: same board, same decklist, only the untapped land's colour different.",
+    },
+    {
         // THE ANTI-CLAIRVOYANCE ARM of the same board (issue #2876 review
         // finding 3). Same position, same physical Giant Growth in the
         // attacker's hand — and NO deck knowledge, so nothing lawfully tells
@@ -4716,7 +4782,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: { forbidden: [{ kind: "cast-spell", card: "Dark Ritual" }] },
-        note: "The same blunder without the sacrifice cost, which is why the fix is not card-shaped: the bot burned the Ritual with nothing to cast, on every seed, with and without creatures in the library. Here the evaluator is actively WRONG rather than merely ignored — `availableManaFor` counts pool mana per unit (the issue #2247 asymmetry), so tapping one Swamp into three black reads as +24 at the leaf — and the hold is what corrects the pick.",
+        note: "The same blunder without the sacrifice cost, which is why the fix is not card-shaped: the bot burned the Ritual with nothing to cast, on every seed, with and without creatures in the library. Here the evaluator was actively WRONG rather than merely ignored — the old `availableManaFor` proxy counted pool mana per unit but an untapped source as exactly one (the issue #2247 asymmetry), so tapping one Swamp into three black read as +24 at the leaf. Issue #3531 retired that proxy (`manaUnitsFor`, gre/manaAvailability.ts, counts one unit per mana a source taps for, in the pool and on the battlefield alike), so the inflation is gone and the entry now stands on the hold alone — which is what it was always asserting.",
     },
     {
         label: "wasted mana NEGATIVE CONTROL: casts Dark Ritual when it turns on a Craw Wurm",
