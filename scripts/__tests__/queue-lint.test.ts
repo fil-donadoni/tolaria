@@ -1,5 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { lintIssue, isBlocking, type LintableIssue } from "../lib/queue-lint";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import {
+    lintIssue,
+    isBlocking,
+    targetFilesSection,
+    TARGET_FILES_FIX,
+    TARGET_FILES_LABEL,
+    type LintableIssue,
+} from "../lib/queue-lint";
+import { parseTargetFiles } from "../lib/queue-plan";
 
 /**
  * Queue lint — well-formedness of an issue before it is worked (issue #2188).
@@ -250,5 +260,100 @@ describe("queue lint — every finding is actionable (issue #2188)", () => {
             "unmergeable-ci-config",
             "unmergeable-outside-repo",
         ]);
+    });
+});
+
+describe("template, lint hint and reader name the same form (issue #3535)", () => {
+    /**
+     * The three copies of one convention. They were allowed to drift — the
+     * intake skill emitted a bold label, the fix hint named a heading, and the
+     * reader matched a heading only — and the cost was silent: 77 open issues
+     * declared a real file list that the planner discarded, and each one was
+     * scheduled solo.
+     *
+     * The reader is the arbiter. Both of the other two are asserted against it,
+     * so changing what is accepted in one place and not the others reds here.
+     */
+    const SKILL = path.join(
+        __dirname,
+        "..",
+        "..",
+        ".claude",
+        "skills",
+        "new-qa-issue",
+        "SKILL.md"
+    );
+
+    it("the reader accepts the label the intake template emits", () => {
+        const template = fs.readFileSync(SKILL, "utf8");
+        const label = template
+            .split("\n")
+            .find((l) => /target files/i.test(l) && !/^\s*[-*]\s/.test(l));
+        expect(
+            label,
+            "the Agent Brief template names a Target files section"
+        ).toBeDefined();
+        expect(TARGET_FILES_LABEL.test(label!.trim())).toBe(true);
+    });
+
+    it("the reader accepts every form the fix hint names", () => {
+        const quoted = [...TARGET_FILES_FIX.matchAll(/`([^`]+)`/g)]
+            .map((m) => m[1])
+            .filter((form) => /target files/i.test(form));
+        expect(quoted.length).toBeGreaterThan(0);
+        for (const form of quoted) {
+            expect(
+                parseTargetFiles(`${form}\n\n- \`scripts/lib/thing.ts\``),
+                `the fix hint tells an author to write ${form}`
+            ).toEqual(["scripts/lib/thing.ts"]);
+        }
+    });
+
+    it("the lint and the planner read the SAME section", () => {
+        // One body, two callers: the lint's `.github/workflows` scan and the
+        // planner's blast radius must never disagree about whether a section is
+        // there.
+        const bold = "**Target files:**\n\n- `scripts/lib/thing.ts`";
+        expect(targetFilesSection(bold)).not.toBeNull();
+        expect(parseTargetFiles(bold)).toEqual(["scripts/lib/thing.ts"]);
+
+        const none = "## Acceptance criteria\n\n- [ ] it works";
+        expect(targetFilesSection(none)).toBeNull();
+        expect(parseTargetFiles(none)).toBeNull();
+    });
+
+    it("flags an unmergeable workflow path declared under the BOLD label", () => {
+        // The blocking rule read the heading form only, so a bold-labelled
+        // issue touching `.github/workflows/**` reached an agent that could not
+        // push it.
+        const body = WELL_FORMED.replace(
+            /## Target files[\s\S]*$/,
+            "**Target files:**\n\n- `.github/workflows/ci.yml`\n"
+        );
+        const f = lintIssue(issue({ body })).find(
+            (x) => x.rule === "unmergeable-ci-config"
+        )!;
+        expect(f).toBeDefined();
+        expect(f.severity).toBe("blocking");
+    });
+
+    it("does not flag a missing section when only the bold label is used", () => {
+        const body = WELL_FORMED.replace(
+            /## Target files[\s\S]*$/,
+            "**Target files:**\n\n- `scripts/lib/thing.ts`\n"
+        );
+        expect(lintIssue(issue({ body })).map((x) => x.rule)).not.toContain(
+            "no-target-files"
+        );
+    });
+
+    it("still flags a bold label with nothing under it", () => {
+        const body = WELL_FORMED.replace(
+            /## Target files[\s\S]*$/,
+            "**Target files:**\n"
+        );
+        expect(lintIssue(issue({ body })).map((x) => x.rule)).toContain(
+            "no-target-files"
+        );
     });
 });

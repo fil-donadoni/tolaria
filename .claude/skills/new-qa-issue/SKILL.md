@@ -73,7 +73,7 @@ What should happen after the fix. Be specific about edge cases.
 - What should NOT be changed
 - Adjacent features that are separate
 
-**Target files:**
+## Target files
 
 - `path/or/glob`
 ```
@@ -81,7 +81,7 @@ What should happen after the fix. Be specific about edge cases.
 **Durability rules:**
 
 - NO file paths or line numbers in the descriptive sections — they go stale
-- Exception: the **Target files** section is scheduling metadata for the processing loop's file-disjoint batching — module/glob granularity, coarse is fine, staleness acceptable, the implementing agent is not bound by it. Always include it; a change that touches everything gets `- *` (schedules solo).
+- Exception: the **Target files** section is scheduling metadata for the processing loop's file-disjoint batching — module/glob granularity, coarse is fine, staleness acceptable, the implementing agent is not bound by it. Always include it; a change that touches everything gets `- *` (schedules solo). It is the one section written as a `## Target files` HEADING, not as a bold label: the planner reads a bold `**Target files:**` too (issue #3535), but the heading is canonical and is what the queue lint's fix hint names.
 - Describe types, interfaces, and behavioral contracts
 - Each acceptance criterion must be independently testable
 - **`area:game-bot` issues carry a mandatory `Blade:` acceptance line**

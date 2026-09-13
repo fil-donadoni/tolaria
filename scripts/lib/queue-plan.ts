@@ -27,7 +27,7 @@
 //
 // The orchestrator EXECUTES this plan; it does not re-derive it.
 
-import { lintIssue, type Finding } from "./queue-lint";
+import { lintIssue, targetFilesSection, type Finding } from "./queue-lint";
 import { classifyPath, laneFor, type Lane } from "../check-lane";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -484,21 +484,27 @@ export function isAppendOnlyPath(path: string, point: string): boolean {
 const HEADING = /^#{1,6}\s+/;
 
 /**
- * Read the `Target files` section.
+ * Read the `Target files` section, in either form the queue contains — the
+ * `## Target files` heading and the Agent Brief template's `**Target files:**`
+ * label (issue #3535). `targetFilesSection` is the single authority on which
+ * forms are accepted; this reader only turns the section's lines into paths.
  *
  * Returns `null` when the section is absent — which is NOT the same as an empty
  * list. The planner does not infer a file set from prose: inference is a
  * judgment call, and a wrong guess parallelizes two issues that collide. An
  * absent section means "unknown", and unknown runs solo.
+ *
+ * **A label with no list items under it is absent too.** The section is there,
+ * but it declares nothing, and an empty DECLARED set is the one answer that is
+ * actively wrong: it reads as "this issue touches no file", which overlaps
+ * nothing and batches happily beside everything.
  */
 export function parseTargetFiles(body: string): string[] | null {
-    const lines = body.split("\n");
-    const start = lines.findIndex((l) => /^#{1,6}\s+target files/i.test(l));
-    if (start === -1) return null;
+    const section = targetFilesSection(body);
+    if (section === null) return null;
 
     const items: string[] = [];
-    for (const line of lines.slice(start + 1)) {
-        if (HEADING.test(line)) break;
+    for (const line of section) {
         const trimmed = line.trim();
         if (trimmed === "") continue;
         if (/^[-*]\s+/.test(trimmed)) {
@@ -509,7 +515,7 @@ export function parseTargetFiles(body: string): string[] | null {
         // is the template's explanatory paragraph, and the list is over.
         if (items.length > 0) break;
     }
-    return items;
+    return items.length > 0 ? items : null;
 }
 
 /**
