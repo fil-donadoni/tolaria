@@ -34,6 +34,7 @@ import type {
     StackItem,
 } from "./state";
 import { getPlayer, allocInstanceId } from "./state";
+import { stackTransformStamp } from "./transform";
 import {
     effectiveTriggeredAbilities,
     findTriggeredAbility,
@@ -192,8 +193,8 @@ function buildTriggerItem(
         // on the stack, never inherited.
         chosenModeId: undefined,
         // CR 701.27f (issue #3537) — the moment this ability is put onto the
-        // stack, as its source's transform count.
-        sourceTransformCount: self.transformCount ?? 0,
+        // stack, as its source and that source's transform count.
+        stackTransformStamp: stackTransformStamp(self),
     };
 }
 

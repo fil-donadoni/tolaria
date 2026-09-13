@@ -52,7 +52,7 @@ import {
     modalBackFaceDefinitionId,
 } from "../cards/modalDfc";
 import { rebuildCopiableValuesAndReplayOverlays } from "./identitySwap";
-import type { CardInstanceState } from "./state";
+import type { CardInstanceState, StackTransformStamp } from "./state";
 import type { LayerStateView } from "./layers";
 
 /** The content-derived definition id a NONMODAL back face presents (CR 712.2)
@@ -375,4 +375,14 @@ export function transformPermanent(
         // function — one front-face rebuild, not two that can drift apart.
         revertTransform(state, card);
     }
+}
+
+/** CR 701.27f (issue #3537) — the put-onto-the-stack stamp of an activated or
+ *  triggered ability of `source`: that permanent, and how many times it had
+ *  transformed at that moment. `transformedSincePutOnStack` (gre/state.ts)
+ *  compares it with the permanent's live `transformCount` at resolution. */
+export function stackTransformStamp(
+    source: CardInstanceState
+): StackTransformStamp {
+    return { sourceInstanceId: source.id, count: source.transformCount ?? 0 };
 }

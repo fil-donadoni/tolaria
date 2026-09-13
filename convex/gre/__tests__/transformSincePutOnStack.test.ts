@@ -18,7 +18,11 @@ import { activateAbilityOnState } from "../activation";
 import { buildActivatedAbilityStackItem } from "../activationCommit";
 import { refreshExpectedInput } from "../expectedInput";
 import { compactState, expandState } from "../serialize";
-import { resolveTopOfStack, type GameState } from "../state";
+import {
+    processPendingActionTriggers,
+    resolveTopOfStack,
+    type GameState,
+} from "../state";
 import { collectTriggers, placeTriggersOnStack } from "../triggers";
 
 const SELF_ID = "test-701-27f-self-transformer";
@@ -35,6 +39,36 @@ registerTokenDefinition({
             cost: { mana: { X: 2 } },
             useStack: true,
             effects: [{ op: "transform", target: { ref: "$source" } }],
+        },
+        {
+            id: "self-reflexive-transform",
+            oracleText: "{1}: When you do, transform this artifact.",
+            cost: { mana: { X: 1 } },
+            useStack: true,
+            effects: [
+                {
+                    op: "reflexiveTrigger",
+                    oracleText: "When you do, transform this artifact.",
+                    capture: { $me: { ref: "$source" } },
+                    effects: [{ op: "transform", target: { ref: "$me" } }],
+                },
+            ],
+        },
+        {
+            id: "self-reflexive-then-transform",
+            oracleText:
+                "{1}: When you do, transform this artifact. Transform this artifact.",
+            cost: { mana: { X: 1 } },
+            useStack: true,
+            effects: [
+                {
+                    op: "reflexiveTrigger",
+                    oracleText: "When you do, transform this artifact.",
+                    capture: { $me: { ref: "$source" } },
+                    effects: [{ op: "transform", target: { ref: "$me" } }],
+                },
+                { op: "transform", target: { ref: "$source" } },
+            ],
         },
     ],
     triggeredAbilities: [
@@ -103,7 +137,10 @@ function self(state: GameState) {
     return state.players[0].battlefield.find((c) => c.id === "self")!;
 }
 
-function activateSelfTransform(state: GameState): void {
+function activateSelfTransform(
+    state: GameState,
+    abilityId = "self-transform"
+): void {
     // Priority input is not what these tests are about: hand it back to p1
     // before each announcement.
     state.priorityPlayerId = "p1";
@@ -112,7 +149,7 @@ function activateSelfTransform(state: GameState): void {
     activateAbilityOnState(state, {
         playerId: "p1",
         cardInstanceId: "self",
-        abilityId: "self-transform",
+        abilityId,
         keepPriority: true,
     });
 }
@@ -174,6 +211,36 @@ describe("CR 701.27f — a non-delayed ability of a permanent transforms it only
         expect(self(state).transformed).toBe(true);
         resolveTopOfStack(state);
         expect(self(state).transformed).toBe(true);
+    });
+
+    it("a REFLEXIVE trigger of the permanent: ignored when it transformed after the trigger was put onto the stack", () => {
+        const state = board();
+        activateSelfTransform(state, "self-reflexive-transform");
+        resolveTopOfStack(state);
+        processPendingActionTriggers(state);
+        expect(state.stack.map((s) => s.reflexiveTrigger === true)).toEqual([
+            true,
+        ]);
+
+        activateSelfTransform(state);
+        resolveTopOfStack(state);
+        expect(self(state).transformed).toBe(true);
+        resolveTopOfStack(state);
+        // The reflexive trigger's instruction is ignored.
+        expect(self(state).transformed).toBe(true);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("a REFLEXIVE trigger created BEFORE a transform in the same resolution is put onto the stack after it, so it still transforms", () => {
+        const state = board();
+        activateSelfTransform(state, "self-reflexive-then-transform");
+        resolveTopOfStack(state);
+        expect(self(state).transformed).toBe(true);
+        processPendingActionTriggers(state);
+        expect(state.stack).toHaveLength(1);
+
+        resolveTopOfStack(state);
+        expect(self(state).transformed).toBeFalsy();
     });
 
     it("an ability of a DIFFERENT permanent that transforms it is unaffected", () => {

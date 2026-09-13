@@ -23,6 +23,7 @@ import type { CardInstanceState, GameState, StackItem } from "./state";
 import type { TargetSelection } from "../cards/types";
 import type { GrantedAbilityOrigin } from "./activatedAbilities";
 import { emitAbilityActivated } from "./state";
+import { stackTransformStamp } from "./transform";
 
 /** Everything an activation contributes to its stack item BEYOND the source
  *  permanent's own snapshot. Every field is optional except the two that make
@@ -101,8 +102,8 @@ export function buildActivatedAbilityStackItem(
             ? { notedManaSpent: commit.notedManaSpent }
             : {}),
         // CR 701.27f (issue #3537) — the moment this ability is put onto the
-        // stack, as its source's transform count.
-        sourceTransformCount: source.transformCount ?? 0,
+        // stack, as its source and that source's transform count.
+        stackTransformStamp: stackTransformStamp(source),
     };
 }
 

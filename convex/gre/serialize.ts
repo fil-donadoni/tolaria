@@ -1722,8 +1722,8 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
     if (item.delayedOrigin) base.delayedOrigin = item.delayedOrigin;
     // CR 701.27f (issue #3537) — an ability waiting on the stack must still
     // know its source's transform count at the moment it was put there.
-    if (item.sourceTransformCount !== undefined) {
-        base.sourceTransformCount = item.sourceTransformCount;
+    if (item.stackTransformStamp) {
+        base.stackTransformStamp = item.stackTransformStamp;
     }
     // CR 725 (issue #1305) — a source-less inherent designation trigger (the
     // Monarch's end-step draw) keys its marker-card art + name off this id; it
@@ -1913,8 +1913,9 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
         item.delayedOrigin =
             compact.delayedOrigin as StackItem["delayedOrigin"];
     }
-    if (compact.sourceTransformCount !== undefined) {
-        item.sourceTransformCount = compact.sourceTransformCount as number;
+    if (compact.stackTransformStamp) {
+        item.stackTransformStamp =
+            compact.stackTransformStamp as StackItem["stackTransformStamp"];
     }
     // CR 725 (issue #1305) — rehydrate the designation-marker id so the
     // Monarch's on-stack draw keeps its marker art after a save/load.

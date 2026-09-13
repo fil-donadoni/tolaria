@@ -117,6 +117,7 @@ import {
     revertTransform,
     stampBackFaceForEntry,
     transformPermanent,
+    stackTransformStamp,
 } from "./transform";
 import { applyIndefiniteSupertypeMutation, liveSupertypesOf } from "./snow";
 import {
@@ -1249,7 +1250,7 @@ export type CardInstanceState = {
     /** CR 701.27f (issue #3537) — how many times THIS object has transformed,
      *  incremented by `SpellContext.transform` on every real flip. An activated
      *  or triggered ability of this permanent records the count as it is put
-     *  onto the stack (`StackItem.sourceTransformCount`); when the two differ
+     *  onto the stack (`StackItem.stackTransformStamp`); when the two differ
      *  at resolution the permanent has transformed since, and the ability's
      *  instruction to transform it is ignored. Cleared on CR 400.7 re-entry. */
     transformCount?: number;
@@ -2578,13 +2579,15 @@ export type StackItem = CardInstanceState & {
      *  triggered ability of a permanent" never transforms that permanent when
      *  it has already transformed since the delayed trigger was created. */
     delayedOrigin?: { seq: number; sourceInstanceId?: string };
-    /** CR 701.27f (issue #3537) — the source permanent's `transformCount` at
-     *  the moment this activated or triggered ability was put onto the stack,
-     *  stamped by `buildActivatedAbilityStackItem` and `buildTriggerItem`. An
-     *  explicit field rather than the snapshot's own cloned `transformCount`,
-     *  so an item no builder stamped (a spell, a delayed or reflexive trigger)
-     *  is never mistaken for one whose source has not transformed. */
-    sourceTransformCount?: number;
+    /** CR 701.27f (issue #3537) — which permanent this activated or
+     *  triggered ability belongs to and its `transformCount` at the moment the
+     *  ability was put onto the stack (`stackTransformStamp`, gre/transform.ts),
+     *  stamped by `buildActivatedAbilityStackItem`, `buildTriggerItem` and a
+     *  reflexive trigger's placement. An explicit field rather than the
+     *  snapshot's own cloned `transformCount`, so an item nothing stamped (a
+     *  spell, a delayed trigger) is never mistaken for one whose source has
+     *  not transformed. */
+    stackTransformStamp?: StackTransformStamp;
     /** CR 603.12/603.3d — the target requirement of a REFLEXIVE triggered
      *  ability (the `reflexiveTrigger` Op). A reflexive ability has no
      *  `cardDef.triggeredAbilities[]` row, so the requirement its targets are
@@ -6080,6 +6083,15 @@ export function processPendingActionTriggers(state: GameState): void {
     // action to have emitted a trigger-visible event).
     const reflexive = state.pendingReflexiveTriggers ?? [];
     if (reflexive.length > 0) delete state.pendingReflexiveTriggers;
+    // CR 701.27f (issue #3537) — "since the ability was put onto the stack":
+    // a reflexive trigger is put there NOW, so its source's transform count is
+    // re-read here rather than kept from its creation mid-resolution.
+    for (const item of reflexive) {
+        const stamp = item.stackTransformStamp;
+        if (!stamp) continue;
+        const source = findOnBattlefield(state, stamp.sourceInstanceId);
+        if (source) item.stackTransformStamp = stackTransformStamp(source.card);
+    }
     const events = flushPendingEvents(state);
     if (events.length === 0 && reflexive.length === 0) return;
     const triggers = [...reflexive, ...collectTriggers(state, events)];
@@ -10560,26 +10572,28 @@ export function transformedSinceDelayedOrigin(
     );
 }
 
+/** CR 701.27f (issue #3537) — the put-onto-the-stack moment of a
+ *  non-delayed activated or triggered ability, as its source permanent and
+ *  that permanent's `transformCount` then. */
+export interface StackTransformStamp {
+    sourceInstanceId: string;
+    count: number;
+}
+
 /** CR 701.27f (issue #3537) — true when `item` is a non-delayed activated or
- *  triggered ability of `card` itself and `card` has transformed since that
- *  ability was put onto the stack, so its instruction to transform `card` is
- *  ignored. An ability of a DIFFERENT permanent, a spell, or an item no stack
- *  builder stamped transforms unconditionally here. */
+ *  triggered ability (reflexive included) of `card` itself and `card` has
+ *  transformed since that ability was put onto the stack, so its instruction
+ *  to transform `card` is ignored. An ability of a DIFFERENT permanent, a
+ *  spell, or an unstamped item transforms unconditionally here. */
 export function transformedSincePutOnStack(
     item: StackItem,
     card: CardInstanceState
 ): boolean {
-    if (item.sourceTransformCount === undefined) return false;
-    if (item.delayedTriggerId !== undefined) return false;
-    const sourceId =
-        item.triggeredAbilityId !== undefined
-            ? item.triggerSourceId
-            : item.abilityId !== undefined
-              ? item.id
-              : undefined;
+    const stamp = item.stackTransformStamp;
     return (
-        sourceId === card.id &&
-        (card.transformCount ?? 0) !== item.sourceTransformCount
+        stamp !== undefined &&
+        stamp.sourceInstanceId === card.id &&
+        (card.transformCount ?? 0) !== stamp.count
     );
 }
 
@@ -18859,6 +18873,13 @@ export function buildSpellContext(
             targetRequirement?: TargetRequirement
         ): void {
             const controller = item.castById;
+            // CR 701.27f (issue #3537) — a reflexive trigger is a triggered
+            // ability of the resolving ability's source permanent (none for a
+            // spell: its id is on no battlefield).
+            const reflexiveSource = findOnBattlefield(
+                state,
+                item.triggerSourceId ?? item.id
+            );
             const reflexive: StackItem = {
                 id: allocInstanceId(state),
                 card: { id: sourceCardId },
@@ -18874,6 +18895,13 @@ export function buildSpellContext(
                 delayedEffects: [...effects],
                 delayedOracleText: oracleText,
                 reflexiveTrigger: true,
+                ...(reflexiveSource
+                    ? {
+                          stackTransformStamp: stackTransformStamp(
+                              reflexiveSource.card
+                          ),
+                      }
+                    : {}),
                 ...(Object.keys(payload).length > 0
                     ? { delayedPayload: payload }
                     : {}),
