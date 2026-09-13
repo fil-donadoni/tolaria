@@ -16,7 +16,11 @@ import {
     applyPendingChoiceSubmit,
     applyRandomRevealAck,
 } from "../../../../gre/pendingChoiceSubmit";
-import { advancePhase, applyAllCombatDamage } from "../../../../gre/phases";
+import {
+    advancePhase,
+    applyAllCombatDamage,
+    finalizeCleanup,
+} from "../../../../gre/phases";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import {
     canPayDiscardLastDrawn,
@@ -25,6 +29,8 @@ import {
     type GameState,
     getPlayer,
     payDiscardLastDrawn,
+    processPendingActionTriggers,
+    removePermanentTo,
     resolveTopOfStack,
     type StackItem,
 } from "../../../../gre/state";
@@ -1043,5 +1049,81 @@ describe("Bazaar of Baghdad ({T}: Draw two cards, then discard three cards)", ()
         expect(state.players[0].graveyard).toHaveLength(2);
         expect(state.players[0].library).toHaveLength(1);
         expect(state.stack).toHaveLength(0);
+    });
+});
+
+// Sandals of Abdallah — the `dies` delayed-trigger timing (CR 603.7a / 700.4).
+// The watch fires only when the targeted creature is put into a graveyard from
+// the battlefield; a bounce is a leave-the-battlefield that is NOT a death, so
+// it must leave the artifact alone and let CLEANUP expire the watch (CR 514.2).
+describe("Sandals of Abdallah (instance dies-watch, CR 603.7a / 700.4)", () => {
+    const sandals = getDefinition("8f99a520-b8a9-40b0-9854-48aac297c5ee");
+
+    function activateSandals(): GameState {
+        const source = makeInstance(sandals.id, {
+            id: "sandals1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [source, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...source,
+            id: "ability1",
+            zone: "stack",
+            castById: "p1",
+            abilityId: "sandals-of-abdallah-islandwalk",
+            triggerSourceId: "sandals1",
+            targets: [{ type: "permanent", id: "bear1" }],
+        });
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    const onBattlefield = (state: GameState, id: string) =>
+        state.players[0].battlefield.some((c) => c.id === id);
+
+    it("schedules a dies watch keyed to the target, capturing the artifact", () => {
+        const state = activateSandals();
+        const watch = state.delayedTriggers?.find((t) => t.timing === "dies");
+        expect(watch?.watchInstanceId).toBe("bear1");
+        expect(watch?.payload.sandals).toBe("sandals1");
+    });
+
+    it("destroys the artifact when the creature dies", () => {
+        const state = activateSandals();
+        removePermanentTo(state, "bear1", "graveyard");
+        processPendingActionTriggers(state);
+        expect(state.stack.some((s) => s.delayedTriggerId !== undefined)).toBe(
+            true
+        );
+        resolveTopOfStack(state);
+        expect(onBattlefield(state, "sandals1")).toBe(false);
+        expect(
+            state.players[0].graveyard.some((c) => c.id === "sandals1")
+        ).toBe(true);
+        expect(state.delayedTriggers).toBeUndefined();
+    });
+
+    it("does NOT fire when the creature leaves without dying, and expires at CLEANUP", () => {
+        const state = activateSandals();
+        removePermanentTo(state, "bear1", "hand");
+        processPendingActionTriggers(state);
+        expect(state.stack).toHaveLength(0);
+        expect(state.delayedTriggers?.some((t) => t.timing === "dies")).toBe(
+            true
+        );
+        finalizeCleanup(state);
+        expect(state.delayedTriggers).toBeUndefined();
+        expect(onBattlefield(state, "sandals1")).toBe(true);
     });
 });

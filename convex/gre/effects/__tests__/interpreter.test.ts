@@ -31605,6 +31605,30 @@ describe("EffectValue `sacrificed` (CR 601.2f / 608.2h, issue #2375)", () => {
         expect(state.players[1].life).toBe(16);
     });
 
+    // `read: "toughness"` is the third column (Diamond Valley: "gain life
+    // equal to the sacrificed creature's toughness"). Power, toughness and mana
+    // value all differ, so reading the wrong column cannot pass.
+    it("reads the cost-sacrificed permanent's TOUGHNESS when `read` says so", () => {
+        const id = registerScript("test-value-sacrificed-toughness", [
+            {
+                op: "dealDamage",
+                amount: { sacrificed: { read: "toughness" } },
+                to: { target: 0 },
+            },
+        ]);
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushWithSacrifice(state, id, {
+            cardInstanceId: "victim",
+            mv: 2,
+            power: 1,
+            toughness: 5,
+        });
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(15);
+    });
+
     // CR 608.2b — an unresolvable amount makes the Op do nothing rather than
     // deal 0/NaN damage. No snapshot means no additional sacrifice was paid,
     // which is the fail-CLOSED reading: nothing was sacrificed, nothing is

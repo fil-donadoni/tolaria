@@ -606,6 +606,7 @@ export const aladdinsLamp: CardDefinition = {
 // information, read off the cost snapshot by the `sacrificed` value's
 // `read: "toughness"` — the creature is in the graveyard before the ability
 // is on the stack.)
+// compiler-gap: "{T}, Sacrifice a creature: You gain life equal to the sacrificed creature's toughness." (#2693)
 export const diamondValley: CardDefinition = {
     id: "e85f6f21-15a0-4a36-be95-5a0299cd01a5",
     rarity: "rare",
@@ -638,6 +639,7 @@ export const diamondValley: CardDefinition = {
 // CR 700.4 put into a graveyard from the battlefield, so a bounce or exile
 // of the creature never fires it; CR 603.7c the captured artifact is only
 // destroyed if it is still that same object on the battlefield.)
+// compiler-gap: "{2}, {T}: Target creature gains islandwalk until end of turn. When that creature dies this turn, destroy this artifact." (#2693)
 export const sandalsOfAbdallah: CardDefinition = {
     id: "8f99a520-b8a9-40b0-9854-48aac297c5ee",
     rarity: "uncommon",

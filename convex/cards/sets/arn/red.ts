@@ -481,6 +481,7 @@ export const ydwenEfreet: CardDefinition = {
 // 701.19 regenerate; the `preventRegeneration` Op writes the turn-scoped
 // can't-be-regenerated marker purged at CLEANUP — Gravebind's clause, here on
 // a tap ability.)
+// compiler-gap: "{T}: Target creature can't be regenerated this turn." (#2693)
 export const hurrJackal: CardDefinition = {
     id: "f4aadda8-8577-480d-8186-532d2b173c15",
     rarity: "common",
