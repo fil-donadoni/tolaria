@@ -5,6 +5,59 @@
 import type { CardDefinition, SpellContext } from "../../types";
 import { makeTapForMana } from "../../abilities";
 
+// Faerie Conclave — the ULG "manland" cycle's blue member, the same three
+// lines as Treetop Village below with a different animated body:
+//  • "This land enters tapped." (`entersTapped`.)
+//  • "{T}: Add {U}." (CR 605.1a/605.3a mana ability, `useStack: false`.)
+//  • "{1}{U}: This land becomes a 2/1 blue Faerie creature with flying until
+//    end of turn. It's still a land." (CR 611.1 animate.) The `animate` Op
+//    sets the 2/1 base P/T and the Faerie subtype, grants flying (CR 702.9a)
+//    and applies the layer-5 colour set (CR 613.1e — blue REPLACES the land's
+//    colourlessness, CR 105.3), all on the SAME end-of-turn duration so the
+//    whole animation reverts together. No `additionalTypes`: like Treetop
+//    Village and unlike Mishra's Factory this becomes a plain creature, and
+//    "It's still a land" is exactly what `animate` already does by ADDING the
+//    Creature type rather than setting it.
+//
+// compiler-gap: {1}{U}: This land becomes a 2/1 blue Faerie creature with flying until end of turn. It's still a land. (#2693)
+export const faerieConclave: CardDefinition = {
+    id: "ae3ede87-b026-4781-81ab-8652664f8e41",
+    name: "Faerie Conclave",
+    rarity: "uncommon",
+    oracleText:
+        "This land enters tapped.\n{T}: Add {U}.\n{1}{U}: This land becomes a 2/1 blue Faerie creature with flying until end of turn. It's still a land.",
+    manaCost: {},
+    types: ["Land"],
+    entersTapped: true,
+    activatedAbilities: [
+        makeTapForMana({
+            id: "faerie-conclave-mana",
+            oracleText: "{T}: Add {U}.",
+            produces: { U: 1 },
+        }),
+        {
+            id: "faerie-conclave-animate",
+            oracleText:
+                "{1}{U}: This land becomes a 2/1 blue Faerie creature with flying until end of turn. It's still a land.",
+            cost: { mana: { X: 1, U: 1 } },
+            useStack: true,
+            animatesSelf: true,
+            effects: [
+                {
+                    op: "animate",
+                    target: { ref: "$source" },
+                    power: 2,
+                    toughness: 1,
+                    subtype: "Faerie",
+                    colors: ["U"],
+                    grantedAbilities: ["flying"],
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+};
+
 // Grim Monolith — "This artifact doesn't untap during your untap step.
 // {T}: Add {C}{C}{C}. {4}: Untap this artifact." (CR 502.1 untap
 // restriction, CR 605.1a/605.3a mana ability `useStack: false`.) Identical

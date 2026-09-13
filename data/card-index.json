@@ -11148,6 +11148,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Faerie Conclave",
+        "scryfallId": "ae3ede87-b026-4781-81ab-8652664f8e41",
+        "oracleId": "0c25f6b1-8fb3-4406-9605-0282d2dbbcec",
+        "firstSet": "ulg",
+        "firstPrintId": "ae3ede87-b026-4781-81ab-8652664f8e41",
+        "firstPrintSet": "ulg"
+    },
+    {
         "name": "Faerie Duelist",
         "scryfallId": "a7da9c9b-aeef-4f48-bc8f-39425841cc8c",
         "oracleId": "ccbf7141-69c9-407d-b68e-c1c63ddef213",
