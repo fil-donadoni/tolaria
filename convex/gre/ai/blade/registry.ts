@@ -477,8 +477,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // and `expect.moves` is what `verdictsFromRegistry` turns into a fitted
         // VERDICT (ADR 0124 §5). Feeding a reachability position to the weight
         // fit moved the vector far enough to flip an unrelated `must` entry
-        // ("choice-behind payoff: the re-type mode stays live against the
-        // opponent's lands", red at seed 19) — a preference regression bought
+        // ("choice-behind payoff: the re-type mode denies the opponent the
+        // colour it is visibly using", then still seed-pinned around a tie and
+        // red at seed 19; issue #3534 has since re-expressed it as an
+        // unpinned preference) — a preference regression bought
         // with a claim that has no preference in it. The entry still blocks at
         // `must`; what it no longer does is vote on the weights.
         expect: {
@@ -2063,10 +2065,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             describe:
                 "not the land-type mode (which can only re-type the bot's own sole blue source)",
         },
-        note: "Issue #3194, position A of the discriminating pair. The only land on either battlefield is the bot's own Island, so the land-type mode can do nothing but re-type its own single blue source — and passing, or the mill mode aimed at the opponent, is free. Three seams each failed to see it, and the fix is measured on THESE seeds: before it, all eight cast the self-only mode (8 of 30 swept seeds); after it, none of the thirty does. The seeds are the failing ones on purpose — an entry seeded where the noise already fell the right way proves nothing. Pair with position B below, which is the SAME mode in a position where it is correct and which this fix leaves untouched (7 of 30 seeds pick it, before and after, byte-identical).",
+        note: "Issue #3194, position A of the discriminating pair. The only land on either battlefield is the bot's own Island, so the land-type mode can do nothing but re-type its own single blue source — and passing, or the mill mode aimed at the opponent, is free. Three seams each failed to see it, and the fix is measured on THESE seeds: before it, all eight cast the self-only mode (8 of 30 swept seeds); after it, none of the thirty does. The seeds are the failing ones on purpose — an entry seeded where the noise already fell the right way proves nothing. Pair with position B below, which is the SAME mode in a position where it is correct and which this fix leaves untouched (7 of 30 seeds picked it, before and after, byte-identical, when #3194 measured it; issue #3534 re-expressed B around the colour axis and it is now 30 of 30).",
     },
     {
-        label: "choice-behind payoff: the re-type mode stays live against the opponent's lands",
+        label: "choice-behind payoff: the re-type mode denies the opponent the colour it is visibly using",
         spec: {
             cards: [
                 { name: "Vision Charm", owner: "me", zone: "hand" },
@@ -2078,6 +2080,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                     zone: "battlefield",
                     count: 3,
                 },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
             ],
             phase: "PRECOMBAT_MAIN",
             turn: 1,
@@ -2085,27 +2088,21 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         bot: "me",
         budget: { iterations: 200 },
-        // Issue #3531 re-pin: 12, 15, 18, 19 — the seeds that pick the mode
-        // once castability is colour-aware, swept over 0..29 exactly as issue
-        // #3194 swept them. Three of the original seven (14, 25, 27) moved to
-        // the mill mode, which is the tie this entry's own note predicted
-        // would move: it records that the mode wins here on rollout noise
-        // rather than on preference, because the mana axis could not see
-        // colour. #3531 gives castability that axis (and refits the vector),
-        // so the noise fell differently; the mode is still live and still
-        // chosen, which is the entry's whole claim. What it must keep doing is
-        // go red if `reachesOnlyOwnSideThroughChoice` ever fires HERE — and it
-        // does: with the guard firing, these four stop picking the mode too.
-        seeds: [12, 15, 18, 19],
+        // ADR 0070 §3 — the canonical K>=3 seed set, NOT a pinned list. Issue
+        // #3534 measured the whole 0..29 sweep this entry used to be seeded
+        // from: 30 of 30 pick the mode. There is no longer a tie to seed
+        // around, so the seeds carry no information beyond "not a single
+        // draw".
+        seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
             predicate: (move) =>
                 move?.kind === "cast-spell" &&
                 move.chosenModeId === "land-type",
             describe:
-                "the land-type mode is still chosen when the OPPONENT controls lands of the re-typed subtype",
+                "the land-type mode, which strips the opponent of the colour it is visibly using",
         },
-        note: "Issue #3194, position B — the discriminating twin, and the reason position A's guard is a preference and not a ban. The opponent controls three Forests, so the same mode reaches the opponent's mana base and `reachesOnlyOwnSideThroughChoice` (search.ts) answers false on the very first branch that re-types one of them: no penalty, no hold. The pinned seeds are the ones that pick the mode, and the entry goes red the moment the self-confined guard starts firing on a position it must not touch (PROVEN: with `reachesOnlyOwnSideThroughChoice` forced true for every cast, all four pinned seeds chose `pass`). What it does NOT claim is that the bot PREFERS the mode here on every seed — the rest tie into the mill mode on rollout noise. Issue #3194 recorded that making the bot actively WANT the denial needed a colour-aware mana axis and put it out of scope; issue #3531 shipped that axis for CASTABILITY (and refitted the vector), which moved the tie rather than settling it: swept over the same seeds 0..29, the mode is picked on 4 (12, 15, 18, 19) where it was picked on 7, the three that moved going to the mill mode. The margin is thinner than #3194 left it, and the denial is still not something the evaluator positively wants: the `mana` term itself is still a colour-blind SOURCE COUNT (`manaSourceTermFor`), so re-typing an opponent's Forests still reads as no material change. What #3531 gave the position is a colour-aware view of what a hand can CAST, not of what a mana base is WORTH.",
+        note: "Issue #3194, position B — the discriminating twin, and the reason position A's guard is a preference and not a ban. The opponent controls three Forests, so the same mode reaches the opponent's mana base and `reachesOnlyOwnSideThroughChoice` (search.ts) answers false on the very first branch that re-types one of them: no penalty, no hold. PROVEN to still discriminate: with `reachesOnlyOwnSideThroughChoice` forced true for every cast, every seed here stops casting. WHAT CHANGED (issue #3534): until #3532 this entry was a pinned list of the seeds where rollout noise fell the right way, because the mode's whole payoff — the opponent loses green — priced at exactly zero on a colour-blind SOURCE COUNT, and the entry's own note said so. `colorCoverage` (`ai/colorCoverage.ts`) is that axis, and it needs the demand to OUTLIVE the supply: three Forests and nothing else re-base the estimate with the re-type (the Forests become Islands, so {G} leaves the demand set with the last source that evidenced it) and the denial prices at zero even now. The Grizzly Bears is the surviving evidence — the same shape as #3532's own pair, where the Bears is what makes killing the Forest better than killing the Plains — so re-typing the Forests leaves a demanded colour with no source. MEASURED over seeds 0..29 at 200 iterations: 8 of 30 picked the mode without the Bears (22 took the mill mode), 30 of 30 with it. The entry now asserts a PREFERENCE.",
     },
     {
         label: "cast variant: Ancestral Recall draws for the BOT, not the opponent",

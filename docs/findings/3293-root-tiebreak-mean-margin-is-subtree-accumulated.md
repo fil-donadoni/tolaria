@@ -42,10 +42,16 @@ wins on 5/5 at 1200 — byte-identically before and after the confinement fix.
   behind on some axis at 1 ply;
 - an AXIS-WISE dominance floor (no term better, at least one worse, compared
   only on fully-settled outcomes) gets that to **one** red, and the one it keeps
-  is `choice-behind payoff: the re-type mode stays live against the opponent's
-lands` — whose own note records that `evaluate`'s mana term is colour-blind by
-  construction, so a rule of this shape cannot tell "there is no effect" from
-  "the evaluator cannot see the effect". (The hold that shipped instead answers
+  is `choice-behind payoff: the re-type mode denies the opponent the colour it
+is visibly using` (renamed by issue #3534; it read `… stays live against the
+opponent's lands` when this was measured) — whose own note recorded that
+  `evaluate`'s mana term was colour-blind by construction, so a rule of this
+  shape could not tell "there is no effect" from "the evaluator cannot see the
+  effect". Issue #3532 shipped the `colorCoverage` term and #3534 re-expressed
+  the entry around it, so the position is no longer flat on every axis; the
+  point the finding makes about a dominance floor is unchanged, since the flat
+  case is the general one and this position merely stopped being an instance
+  of it. (The hold that shipped instead answers
   this by asking the STRUCTURAL question — did the resolution reach the
   opponent's record at all — which Vision Charm's re-typed Forests answer yes to
   even though every term reads flat.)
