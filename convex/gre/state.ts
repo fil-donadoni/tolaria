@@ -1245,7 +1245,7 @@ export type CardInstanceState = {
      *  object has never transformed. The rule's OTHER sentence (a non-delayed
      *  ability, "since the ability was put onto the stack") is not read off
      *  this stamp: an activated ability's stack item carries its source's id,
-     *  not a put-onto-the-stack moment (tracked-by: the issue #3249 residue). */
+     *  not a put-onto-the-stack moment (tracked-by: #3537). */
     transformedAtDelayedSeq?: number;
     /** Transient combat pile label (Raging River, CR 509.2 variant —
      *  ADR 0012). Set when a divider assigns this creature to the "left" or
