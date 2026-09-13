@@ -16,6 +16,7 @@ import { describe, expect, it } from "vitest";
 import { buildBladeState } from "../ai/blade/runner";
 import { buildBladeBaseState } from "../ai/blade/baseState";
 import {
+    assertLiveGameCanContinue,
     assertLoadableIntoLiveGame,
     buildStateFromScenario,
     specFromState,
@@ -433,24 +434,31 @@ describe("a stack the spec cannot carry is REFUSED whole (issue #3513)", () => {
     });
 });
 
-describe("a declared stack is not loadable into a live game (issue #3513)", () => {
-    it("refuses, naming the surfaces that DO accept it", () => {
-        expect(() =>
-            assertLoadableIntoLiveGame({
-                cards: [],
-                stack: [
-                    {
-                        kind: "spell",
-                        name: lightningBolt.name,
-                        controller: "me",
-                    },
-                ],
-            })
-        ).toThrow(/stack.*verdict quiz|verdict quiz/);
-        expect(() =>
-            assertLoadableIntoLiveGame({ cards: [], stack: [] })
-        ).not.toThrow();
-        expect(() => assertLoadableIntoLiveGame({ cards: [] })).not.toThrow();
+describe("a CAPTURED stack reloads into a live game (issue #3515)", () => {
+    it("lowers a live response window into a spec both live loaders accept", () => {
+        // The "Copy as scenario" round trip, end to end: a position the ENGINE
+        // built (the opponent's Bolt in flight at my Bears) is lowered from my
+        // own seat's view, and the spec that comes back is one a LIVE game can
+        // be set up into — the refusal ADR 0127 §8 left behind, and the whole
+        // point of this slice. The rebuild's fingerprint is asserted by the
+        // round-trip suites above; what is asserted here is LOADABILITY.
+        const { lowered, rebuilt } = roundTrip(
+            OPP_TURN,
+            [
+                {
+                    kind: "cast",
+                    card: lightningBolt.name,
+                    by: "opp",
+                    target: grizzlyBears.name,
+                },
+            ],
+            0
+        );
+
+        expect(lowered.stack).toHaveLength(1);
+        expect(() => assertLoadableIntoLiveGame(lowered)).not.toThrow();
+        expect(() => assertLiveGameCanContinue(rebuilt)).not.toThrow();
+        expect(rebuilt.stack).toHaveLength(1);
     });
 });
 

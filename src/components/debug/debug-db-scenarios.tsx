@@ -60,11 +60,22 @@ export default function DebugDbScenarios({
 
     if (!isAdmin) return null;
 
-    const handleLoad = (spec: unknown) => {
+    const handleLoad = async (spec: unknown) => {
         // Tolerant load (ADR 0044): drop unknown fields, default missing ones,
         // then hand the clean args to the unchanged builder.
         const normalized = normalizeScenarioSpec(spec);
-        void setupScenario({ gameId, ...normalized });
+        setError(null);
+        try {
+            await setupScenario({ gameId, ...normalized });
+        } catch (e) {
+            // The loader REFUSES some rows, and the tester has to be told which
+            // and why (issue #3515): a hidden hand a live game cannot hold
+            // (CR 400.2), and — now that a declared stack loads — a built
+            // position nobody can act in (CR 103.5 / 508.1). This used to be a
+            // bare `void`, so a refusal reached the console as an unhandled
+            // rejection and the sheet simply did nothing.
+            setError(e instanceof Error ? e.message : "Load failed");
+        }
     };
 
     const handleToggleGolden = (row: Doc<"debugScenarios">) => {
@@ -154,7 +165,7 @@ export default function DebugDbScenarios({
                             key={s._id}
                             row={s}
                             disabled={busyId !== null}
-                            onLoad={() => handleLoad(s.spec)}
+                            onLoad={() => void handleLoad(s.spec)}
                             onToggleGolden={() => handleToggleGolden(s)}
                             onEdit={() => onEdit(s)}
                             onRegenerate={() => void runRegenerate(s)}

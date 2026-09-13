@@ -315,26 +315,76 @@ function placeScenarioTokens(
  *  surfaces and what closing them would take:
  *  `docs/findings/3452-hidden-hand-live-surfaces.md`. */
 export function assertLoadableIntoLiveGame(spec: ScenarioSpec): void {
-    // CR 405.1 (issue #3513) — a DECLARED stack, refused for the same reason
-    // and by the same rule as the hidden hand below: it is a perfectly valid
-    // spec, which the verdict quiz and a blade run rebuild every time, and it
-    // is not a board a live game can be set up INTO. Seeding one would drop a
-    // client into an open priority window over objects no player announced,
-    // with no `pendingCast`/`pendingTarget` behind them and no cast triggers on
-    // the queue — a position the engine can hold and no game could reach.
-    // Playing a declared position FORWARD is its own contract and its own
-    // slice; this message names the surface that will accept it.
-    if (spec.stack && spec.stack.length > 0) {
-        throw new Error(
-            `This scenario declares ${spec.stack.length} object(s) on the stack, which a LIVE game cannot be set up into: the objects were never announced, so no cast trigger, payment or target window behind them exists. It is loadable by the verdict quiz and by a blade run, which only evaluate the position.`
-        );
-    }
+    // CR 405.1 (issue #3515) — a DECLARED stack used to be refused here
+    // alongside the hidden hand (ADR 0127 §8), on the argument that the
+    // objects were never announced so nothing stands behind them. What stands
+    // behind an announcement is a PAYMENT, a target window and the cast
+    // triggers it fired, and every one of those is already SPENT by the time
+    // the objects are in flight: a declared stack is the board as it stood
+    // after them, not a cast waiting to happen. So playing one forward asks
+    // the engine for nothing an ordinary response window does not already
+    // hold, and the refusal is gone. What a live game cannot CONTINUE from is
+    // a different question, read off the built position rather than the spec
+    // by `assertLiveGameCanContinue` below.
     if (!spec.hiddenHand) return;
     const { me = 0, opp = 0 } = spec.hiddenHand;
     if (me <= 0 && opp <= 0) return;
     throw new Error(
         'This scenario seeds cards of unknown identity ("hiddenHand"), which a LIVE game cannot hold: the hand card renders a card definition, the cleanup discard (CR 514.1) counts the slot, and a hand pick or reveal has no characteristics to read. It is loadable by the verdict quiz and by a blade run, which only evaluate the position.'
     );
+}
+
+/** CR 117.3 / 508.1 / 103.5 (issue #3515) — what a live game cannot CONTINUE
+ *  from, read off the BUILT position rather than off the spec.
+ *
+ *  `assertLoadableIntoLiveGame` above refuses what a live game cannot HOLD, and
+ *  it can answer that from the spec alone (a hand slot has no identity no
+ *  matter what board it lands on). Whether the seat holding priority can
+ *  actually ACT is a fact about the position the builder produced — the phase,
+ *  the priority holder and the combat object together — so it is checked once,
+ *  after the build, by the two loaders that persist a scenario into a real
+ *  game. An unplayable board is worse than a refused one: the client shows a
+ *  position, and every mutation it offers throws.
+ *
+ *  Both refusals fire ONLY over a non-empty stack — the capability this slice
+ *  opened — so nothing that loads today stops loading.
+ *
+ *  What is deliberately NOT refused is a merely INCOHERENT position the engine
+ *  can still play forward, the standing convention for `phase` / `priority` /
+ *  `passCount` / `combat`: a stack over an unconfirmed BLOCK declaration is a
+ *  strange board, but CR 509.1 makes the declaration the expected input, the
+ *  declarer confirms out of it, and the game moves. */
+export function assertLiveGameCanContinue(state: GameState): void {
+    if (state.stack.length === 0) return;
+
+    // CR 103.5 — "no player receives priority during the mulligan phase", which
+    // `passPriority` says in as many words. The builder finalizes whatever
+    // mulligan the base game was in, so a spec naming the phase back leaves a
+    // board where the declared objects can never resolve and no mulligan action
+    // is open either.
+    if (state.phase === "MULLIGAN") {
+        throw new Error(
+            `This scenario puts ${state.stack.length} object(s) on the stack at the MULLIGAN phase, which a live game cannot play forward: no player receives priority during the mulligan phase (CR 103.5), so nothing can ever resolve them. Name a phase that grants priority (the spec's own vocabulary, SCENARIO_PHASES).`
+        );
+    }
+
+    // CR 508.1 — attackers are declared as a TURN-BASED ACTION, before any
+    // player receives priority in that step, so objects in flight over an
+    // UNCONFIRMED declaration is a position no game reaches. A live one cannot
+    // leave it either: `passPriority` refuses to pass before the declaration is
+    // confirmed, and `confirmAttackers` takes only the ACTIVE player while they
+    // hold priority — so a spec that parks priority on the responder, which is
+    // the shape every response window has and the reason this slice exists,
+    // leaves neither mutation open to anybody.
+    if (
+        state.phase === "DECLARE_ATTACKERS" &&
+        state.combat &&
+        !state.combat.confirmed
+    ) {
+        throw new Error(
+            `This scenario puts ${state.stack.length} object(s) on the stack at DECLARE_ATTACKERS with the attack declaration unconfirmed, which a live game cannot play forward: attackers are declared before any player gets priority (CR 508.1), so passing is refused until the declaration is confirmed and only the active player holding priority may confirm it. Declare \`combat.confirmed: true\`, or move the stack to a phase outside the declaration.`
+        );
+    }
 }
 
 export function buildStateFromScenario(
@@ -1100,8 +1150,34 @@ export function buildStateFromScenario(
             : p2.id
         : state.activePlayerId;
     state.passCount = spec.passCount ?? 0;
-    state.pendingCast = undefined;
     state.stack = [];
+
+    // CR 117.1 / 601.2 / 608.2 (issue #3515) — every MID-FLIGHT decision the
+    // base state was holding, cleared with the stack it belonged to. A
+    // scenario is a full board reset (the `state.combat = undefined` argument
+    // above, one zone further in): each of these names a stack item or a card
+    // instance the placement loop has just destroyed, so a survivor points at
+    // an object that no longer exists — and the engine reads it FIRST.
+    // `computeExpectedInput` ranks a pending choice and a pending target above
+    // priority, so a stale one makes the loaded position owe an answer about a
+    // dead item: `passPriority` refuses (`assertNoPendingChoices`), and the
+    // submit mutations resolve against whatever is on the stack now. Harmless
+    // while a scenario could only ever be a quiet board — it is the declared
+    // stack (this slice) that makes "load a response position into a game that
+    // is itself mid-response" the ordinary case. `specFromState` already treats
+    // these as unlowerable and reports them `dropped`, so clearing them is what
+    // makes the rebuild match the lowering's own contract.
+    state.pendingCast = undefined;
+    state.pendingActivation = undefined;
+    state.pendingCompanionPay = undefined;
+    state.pendingTarget = undefined;
+    state.pendingChoices = undefined;
+    state.pendingTriggerBatch = undefined;
+    state.pendingReflexiveTriggers = undefined;
+    state.pendingReveals = undefined;
+    state.pendingUntapStep = undefined;
+    state.pendingCleanupDiscard = undefined;
+    state.pendingExtraCleanupStep = undefined;
 
     // Pin the PRNG so the next random draw is deterministic (CR 705 /
     // ADR 0023) — e.g. force a Bottle of Suleiman coin flip to WIN/LOSE.

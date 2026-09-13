@@ -4,6 +4,9 @@
 
 accepted (2026-09-12, verdict-quiz design session; PRD #3397, issue #3513)
 
+amended 2026-09-13 (issue #3515): decision 8 is lifted — a spec carrying a
+stack IS loadable into a live game. See below.
+
 ## Context
 
 `ScenarioSpec` (`convex/debugScenarioSpec.ts`) describes a BOARD. Until this
@@ -94,12 +97,17 @@ journal established is not contradicted; it is sidestepped.
    complete, and its candidate list can match the live one move for move while
    the board differs — the argument `COMBAT_DROPPED_PREFIX` already makes.
 
-8. **A spec carrying a stack is NOT loadable into a live game.**
-   `assertLoadableIntoLiveGame` refuses it, exactly as it refuses `hiddenHand`:
-   the objects were never announced, so no payment, target window or cast
-   trigger behind them exists. The verdict and blade paths only EVALUATE a
-   rebuilt position; playing one forward is a different contract and its own
-   slice.
+8. ~~**A spec carrying a stack is NOT loadable into a live game.**~~
+   **AMENDED by issue #3515: it is.** The refusal read "the objects were never
+   announced, so no payment, target window or cast trigger behind them exists"
+   — but each of those is SPENT by the time the objects are in flight, so what
+   the spec describes is the board AFTER the announcement, which a live game
+   continues from exactly as it continues from a response window it reached by
+   play. `assertLoadableIntoLiveGame` now refuses only `hiddenHand`; a second
+   assertion over the BUILT position (`assertLiveGameCanContinue`) refuses a
+   board nobody can act in — a stack at `MULLIGAN` (CR 103.5) or over an
+   unconfirmed attack declaration (CR 508.1), where `passPriority` is closed
+   and the confirming mutation is out of reach of whoever holds priority.
 
 ## Consequences
 
