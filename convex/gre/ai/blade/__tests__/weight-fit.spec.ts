@@ -32,7 +32,9 @@ import {
     formatFittedWeights,
     formatVerdictReport,
     formatWeightFitReport,
+    verdictCorpus,
     verdictsFromRegistry,
+    VERDICT_DIR,
     type EvalPair,
     type FittableWeightKey,
 } from "../../verdicts";
@@ -97,6 +99,27 @@ describe("weight fit report formatting (issue #3401)", () => {
     });
 });
 
+/** The registry PLUS `data/verdicts/**` — the corpus issue #3402 built and
+ *  issue #3534's refit is asked to run over. */
+async function wholeCorpus(scenarios: typeof BLADE_SCENARIOS) {
+    const fs = (await import(/* @vite-ignore */ "node" + ":fs")) as {
+        existsSync: (p: string) => boolean;
+        readdirSync: (p: string) => string[];
+        readFileSync: (p: string, enc: string) => string;
+    };
+    const files = fs.existsSync(VERDICT_DIR)
+        ? fs
+              .readdirSync(VERDICT_DIR)
+              .filter((name) => name.endsWith(".json"))
+              .sort()
+              .map((name) => ({
+                  path: `${VERDICT_DIR}/${name}`,
+                  contents: fs.readFileSync(`${VERDICT_DIR}/${name}`, "utf8"),
+              }))
+        : [];
+    return verdictCorpus(files, scenarios);
+}
+
 const RUN = ENV.BLADE_FIT === "1";
 
 describe.runIf(RUN)("weight fit (runner)", () => {
@@ -106,7 +129,18 @@ describe.runIf(RUN)("weight fit (runner)", () => {
             (s) => tier === "all" || s.tier === tier
         );
         const t0 = performance.now();
-        const { verdicts, gaps } = verdictsFromRegistry(scenarios);
+        // The registry alone by default, the WHOLE corpus under
+        // BLADE_FIT_FILES=1 (issue #3534). The two are deliberately different
+        // runs: `bun run fit:weights` is the provenance of the committed
+        // vector and must stay reproducible from git alone, while
+        // `data/verdicts/**` is a pulled artefact (`bun run verdicts:pull`)
+        // whose contents move under the fit. Reading the directory here is the
+        // same dynamic-import shape `verdict-report.spec.ts` uses, and for the
+        // same reason: the verdicts module takes file CONTENTS, never a path.
+        const { verdicts, gaps } =
+            ENV.BLADE_FIT_FILES === "1"
+                ? await wholeCorpus(scenarios)
+                : verdictsFromRegistry(scenarios);
         // BOTH the pairs and the fit start from the hand-picked prior, never
         // from the committed vector: the basis is a derivative read at the
         // linearisation point, and `λ‖w − w0‖²` regularises toward `w0`. Refit
