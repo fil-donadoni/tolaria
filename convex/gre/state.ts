@@ -117,6 +117,7 @@ import {
     revertTransform,
     stampBackFaceForEntry,
     transformPermanent,
+    stackTransformStamp,
 } from "./transform";
 import { applyIndefiniteSupertypeMutation, liveSupertypesOf } from "./snow";
 import {
@@ -1243,10 +1244,16 @@ export type CardInstanceState = {
      *  created (the creation incremented the counter TO N, so a transform
      *  before it stamps at most N - 1). Cleared on CR 400.7 re-entry — the new
      *  object has never transformed. The rule's OTHER sentence (a non-delayed
-     *  ability, "since the ability was put onto the stack") is not read off
-     *  this stamp: an activated ability's stack item carries its source's id,
-     *  not a put-onto-the-stack moment (tracked-by: #3537). */
+     *  ability, "since the ability was put onto the stack") reads
+     *  `transformCount` below instead. */
     transformedAtDelayedSeq?: number;
+    /** CR 701.27f (issue #3537) — how many times THIS object has transformed,
+     *  incremented by `SpellContext.transform` on every real flip. An activated
+     *  or triggered ability of this permanent records the count as it is put
+     *  onto the stack (`StackItem.stackTransformStamp`); when the two differ
+     *  at resolution the permanent has transformed since, and the ability's
+     *  instruction to transform it is ignored. Cleared on CR 400.7 re-entry. */
+    transformCount?: number;
     /** Transient combat pile label (Raging River, CR 509.2 variant —
      *  ADR 0012). Set when a divider assigns this creature to the "left" or
      *  "right" pile; consumed by `validateBlockerEligibility` against the
@@ -2572,6 +2579,15 @@ export type StackItem = CardInstanceState & {
      *  triggered ability of a permanent" never transforms that permanent when
      *  it has already transformed since the delayed trigger was created. */
     delayedOrigin?: { seq: number; sourceInstanceId?: string };
+    /** CR 701.27f (issue #3537) — which permanent this activated or
+     *  triggered ability belongs to and its `transformCount` at the moment the
+     *  ability was put onto the stack (`stackTransformStamp`, gre/transform.ts),
+     *  stamped by `buildActivatedAbilityStackItem`, `buildTriggerItem` and a
+     *  reflexive trigger's placement. An explicit field rather than the
+     *  snapshot's own cloned `transformCount`, so an item nothing stamped (a
+     *  spell, a delayed trigger) is never mistaken for one whose source has
+     *  not transformed. */
+    stackTransformStamp?: StackTransformStamp;
     /** CR 603.12/603.3d — the target requirement of a REFLEXIVE triggered
      *  ability (the `reflexiveTrigger` Op). A reflexive ability has no
      *  `cardDef.triggeredAbilities[]` row, so the requirement its targets are
@@ -6067,6 +6083,15 @@ export function processPendingActionTriggers(state: GameState): void {
     // action to have emitted a trigger-visible event).
     const reflexive = state.pendingReflexiveTriggers ?? [];
     if (reflexive.length > 0) delete state.pendingReflexiveTriggers;
+    // CR 701.27f (issue #3537) — "since the ability was put onto the stack":
+    // a reflexive trigger is put there NOW, so its source's transform count is
+    // re-read here rather than kept from its creation mid-resolution.
+    for (const item of reflexive) {
+        const stamp = item.stackTransformStamp;
+        if (!stamp) continue;
+        const source = findOnBattlefield(state, stamp.sourceInstanceId);
+        if (source) item.stackTransformStamp = stackTransformStamp(source.card);
+    }
     const events = flushPendingEvents(state);
     if (events.length === 0 && reflexive.length === 0) return;
     const triggers = [...reflexive, ...collectTriggers(state, events)];
@@ -10547,6 +10572,31 @@ export function transformedSinceDelayedOrigin(
     );
 }
 
+/** CR 701.27f (issue #3537) — the put-onto-the-stack moment of a
+ *  non-delayed activated or triggered ability, as its source permanent and
+ *  that permanent's `transformCount` then. */
+export interface StackTransformStamp {
+    sourceInstanceId: string;
+    count: number;
+}
+
+/** CR 701.27f (issue #3537) — true when `item` is a non-delayed activated or
+ *  triggered ability (reflexive included) of `card` itself and `card` has
+ *  transformed since that ability was put onto the stack, so its instruction
+ *  to transform `card` is ignored. An ability of a DIFFERENT permanent, a
+ *  spell, or an unstamped item transforms unconditionally here. */
+export function transformedSincePutOnStack(
+    item: StackItem,
+    card: CardInstanceState
+): boolean {
+    const stamp = item.stackTransformStamp;
+    return (
+        stamp !== undefined &&
+        stamp.sourceInstanceId === card.id &&
+        (card.transformCount ?? 0) !== stamp.count
+    );
+}
+
 /** Removes a permanent from battlefield and moves it to the target zone of its owner.
  *  When `toZone` is "hand" or "library", the card becomes a new object
  *  (CR 400.7) and battlefield-only transient state (tap, marked damage, regen
@@ -12939,6 +12989,7 @@ export function resetBattlefieldTransientState(
     // CR 400.7 / 701.27f (issue #3249) — the transform stamp belongs to the
     // previous object; the new one has never transformed.
     delete card.transformedAtDelayedSeq;
+    delete card.transformCount;
     // CR 400.7 / 611.2b (issue #1470) — an INDEFINITE animation (earthbend N's
     // "becomes a 0/0 creature with haste that's still a land") mutates the
     // instance IN PLACE (`types`, `subtypes`, `power`, `toughness`), so merely
@@ -16815,15 +16866,19 @@ export function buildSpellContext(
                 throw new Error("Cannot transform a player");
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
-            // CR 701.27f — a delayed triggered ability OF this permanent that
-            // tries to transform it does so only if it hasn't transformed
-            // since that delayed trigger was created; otherwise the
+            // CR 701.27f — an activated or triggered ability OF this
+            // permanent that tries to transform it does so only if it hasn't
+            // transformed since the ability was put onto the stack (a delayed
+            // one: since that delayed trigger was created); otherwise the
             // instruction is ignored.
             if (transformedSinceDelayedOrigin(item, found.card)) return;
+            if (transformedSincePutOnStack(item, found.card)) return;
             const faceBefore = (found.card.card as { id?: string }).id;
             transformPermanent(state, found.card);
             if ((found.card.card as { id?: string }).id !== faceBefore) {
                 found.card.transformedAtDelayedSeq = state.nextDelayedSeq ?? 0;
+                found.card.transformCount =
+                    (found.card.transformCount ?? 0) + 1;
                 // CR 613.7g — "A double-faced permanent receives a new
                 // timestamp each time it transforms", and CR 613.7a gives its
                 // static abilities that timestamp. Without it a permanent whose
@@ -18818,6 +18873,13 @@ export function buildSpellContext(
             targetRequirement?: TargetRequirement
         ): void {
             const controller = item.castById;
+            // CR 701.27f (issue #3537) — a reflexive trigger is a triggered
+            // ability of the resolving ability's source permanent (none for a
+            // spell: its id is on no battlefield).
+            const reflexiveSource = findOnBattlefield(
+                state,
+                item.triggerSourceId ?? item.id
+            );
             const reflexive: StackItem = {
                 id: allocInstanceId(state),
                 card: { id: sourceCardId },
@@ -18833,6 +18895,13 @@ export function buildSpellContext(
                 delayedEffects: [...effects],
                 delayedOracleText: oracleText,
                 reflexiveTrigger: true,
+                ...(reflexiveSource
+                    ? {
+                          stackTransformStamp: stackTransformStamp(
+                              reflexiveSource.card
+                          ),
+                      }
+                    : {}),
                 ...(Object.keys(payload).length > 0
                     ? { delayedPayload: payload }
                     : {}),

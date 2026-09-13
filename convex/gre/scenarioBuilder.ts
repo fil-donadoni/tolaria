@@ -3135,6 +3135,9 @@ const STACK_ITEM_ALLOWLIST = new Set<string>([
     "baseSubtypes",
     "printedSubtypes",
     "staticSeq",
+    // CR 701.27f (issue #3537) — the put-onto-the-stack transform stamp,
+    // re-stamped by `buildActivatedAbilityStackItem` from the REBUILT source.
+    "stackTransformStamp",
     // 3 — the announcement, lowered.
     "castById",
     "targets",
