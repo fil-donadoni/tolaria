@@ -96,7 +96,7 @@ describe("a verdict-quiz refusal, rendered (issue #3457)", () => {
     it("shows no disclosure at all when the refusal dropped nothing", () => {
         render(
             <AiDecisionQuizRefusal
-                refusal={quizRefusal("stack-not-journalled", "the detail")}
+                refusal={quizRefusal("stack-not-lowerable", "the detail")}
                 decision={{ id: 12 }}
                 onClose={() => {}}
             />
@@ -136,7 +136,7 @@ describe("a verdict-quiz refusal, rendered (issue #3457)", () => {
         writeText.mockRejectedValueOnce(new Error("denied"));
         render(
             <AiDecisionQuizRefusal
-                refusal={quizRefusal("stack-not-journalled", "the detail")}
+                refusal={quizRefusal("stack-not-lowerable", "the detail")}
                 decision={{ id: 12 }}
                 onClose={() => {}}
             />

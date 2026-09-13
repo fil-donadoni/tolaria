@@ -1685,8 +1685,8 @@ function seedContinuousEffects(state: GameState, spec: ScenarioSpec): void {
  * replaying the move would apply them a second time and build a position that
  * never existed. Inverting to the pre-cast board is not available either:
  * there is no event log, and `manaCommitted` is a bare boolean with no
- * attribution (`gre/ai/verdicts/journal.ts` makes that argument in full, and
- * it still stands — declaring is not inverting).
+ * attribution (ADR 0127 makes that argument in full, and it still stands —
+ * declaring is not inverting).
  *
  * Runs LAST, after every permanent is placed and after the turn holder is
  * final: an `ability` entry clones its SOURCE permanent off the battlefield
@@ -1936,6 +1936,26 @@ export type SpecFromStateResult = {
      *  nothing on the stack, no pending decision, combat not yet declared,
      *  and no per-card continuous-effect residue. */
     dropped: string[];
+    /** CR 405.1 (issue #3514) — what withheld the declared stack, one entry per
+     *  item AND blocking fact: the same losses the `stack:` notes in `dropped`
+     *  report, as data. Empty whenever `spec.stack` carries the whole stack
+     *  (including an empty one). A caller refuses on it and a sweep counts it
+     *  by `field` — which fact blocks the stack most often is the number that
+     *  decides which capability to build next. */
+    stackBlockers: StackBlocker[];
+};
+
+/** One fact that withheld the declared stack (issue #3514). */
+export type StackBlocker = {
+    /** The object, as `seat name kind` (`opp Impulse spell`,
+     *  `me Rishadan Port ability:rishadan-port-ability-2`) — or `index N` for
+     *  an object with no name to give. */
+    item: string;
+    /** What blocked it: a `StackItem` key the spec has no field for
+     *  (`triggerEvent`), `snapshot:<key>` for a CR 608.2h clone that drifted
+     *  from its source, `target:<type>` for an announced target the spec
+     *  cannot name, `source-left-battlefield`, or `faceDown`. */
+    field: string;
 };
 
 /** Every distinct token shape, reverse-indexed by its synthesized definition
@@ -2796,8 +2816,8 @@ const COMBAT_STATE_ALLOWLIST = new Set<string>([
  * cannot see one. An attack redirected at a planeswalker (CR 508.1b) admits
  * exactly the same blocks as an attack on the face (CR 509.1a), so the two
  * lists match move for move while the boards differ — the same argument the
- * stack sites already make (`stack-mid-resolution` / `stack-not-journalled`,
- * issue #3480). Exported so the refusal keys off this constant rather than off
+ * stack sites already make (`stack-not-lowerable` /
+ * `stack-rebuild-mismatch`, issue #3514). Exported so the refusal keys off this constant rather than off
  * a string literal repeated in another file.
  */
 export const COMBAT_DROPPED_PREFIX = "combat:";
@@ -3296,6 +3316,7 @@ function lowerStack(
     state: GameState,
     spec: ScenarioSpec,
     dropped: string[],
+    blockers: StackBlocker[],
     mySeatId: string
 ): void {
     if (state.stack.length === 0) return;
@@ -3303,9 +3324,17 @@ function lowerStack(
         playerId === mySeatId ? "me" : "opp";
     const entries: ScenarioStackItem[] = [];
     let refused = false;
-    const refuse = (label: string, reason: string): void => {
+    const refuse = (
+        index: number,
+        item: string,
+        field: string,
+        reason: string
+    ): void => {
         refused = true;
-        dropped.push(`${STACK_DROPPED_PREFIX} ${label}: ${reason}`);
+        blockers.push({ item, field });
+        dropped.push(
+            `${STACK_DROPPED_PREFIX} index ${index} (${item}): ${reason}`
+        );
     };
 
     state.stack.forEach((item, index) => {
@@ -3316,6 +3345,7 @@ function lowerStack(
         // something the builder throws on.
         if (item.faceDown) {
             refused = true;
+            blockers.push({ item: `index ${index}`, field: "faceDown" });
             dropped.push(
                 `${STACK_DROPPED_PREFIX} index ${index}: the object is FACE DOWN (CR 708.2) and has no name the spec can reference`
             );
@@ -3324,9 +3354,9 @@ function lowerStack(
         const name = presentedName(item);
         // The label every note about this item carries — what it is and where,
         // so a sweep can group the residue by ITEM as well as by field.
-        const label = `index ${index} (${seatOf(item.castById)} ${name} ${
+        const label = `${seatOf(item.castById)} ${name} ${
             isAbility ? `ability:${item.abilityId}` : "spell"
-        })`;
+        }`;
 
         for (const key of Object.keys(item)
             .filter(
@@ -3336,7 +3366,7 @@ function lowerStack(
                     (item as Record<string, unknown>)[k] !== undefined
             )
             .sort()) {
-            refuse(label, `the spec has no field for "${key}"`);
+            refuse(index, label, key, `the spec has no field for "${key}"`);
         }
 
         let source: CardInstanceState | undefined;
@@ -3358,7 +3388,9 @@ function lowerStack(
             }
             if (!source) {
                 refuse(
+                    index,
                     label,
+                    "source-left-battlefield",
                     "its source permanent is no longer on the battlefield (CR 608.2h) — the spec describes an ability by its source, and there is none to name"
                 );
             } else {
@@ -3400,7 +3432,9 @@ function lowerStack(
                     )
                     .sort()) {
                     refuse(
+                        index,
                         label,
+                        `snapshot:${key}`,
                         `its CR 608.2h snapshot has drifted from the source permanent on "${key}" — the spec has one entry for the permanent, not two`
                     );
                 }
@@ -3412,7 +3446,9 @@ function lowerStack(
             const loweredTarget = lowerStackTarget(state, item, target, seatOf);
             if (!loweredTarget) {
                 refuse(
+                    index,
                     label,
+                    `target:${target.type}`,
                     `target slot ${slot} ("${target.type}") names an object the spec cannot: it is in no zone the spec describes, it points forward on the stack, or it is a "hand-card" bind, which is never a real announced target (issue #1101)`
                 );
                 continue;
@@ -4465,7 +4501,8 @@ export function specFromState(
     // blind to the opponent's moves. The spec carries the fact now, so the note
     // is gone rather than relaxed; what remains reported is what `spec.stack`
     // genuinely cannot express, per item and per field.
-    lowerStack(state, spec, dropped, opts.mySeatId);
+    const stackBlockers: StackBlocker[] = [];
+    lowerStack(state, spec, dropped, stackBlockers, opts.mySeatId);
     // The turn holder, the priority holder and the pass count used to be two
     // `dropped[]` notes here; issue #3454 gave the spec `activePlayer`,
     // `priority` and `passCount`, and the lowering above carries all three —
@@ -4686,5 +4723,5 @@ export function specFromState(
 
     reportGameStateResidue(state, dropped);
 
-    return { spec, dropped };
+    return { spec, dropped, stackBlockers };
 }

@@ -860,8 +860,9 @@ export const scenarioSpecValidator = v.object({
     // stack could not be written down at all, so the whole class of RESPONSE
     // decisions — the Bot holding priority over its own spell, or answering
     // the opponent's — had to be reached by REPLAYING the moves that got
-    // there (`gre/ai/verdicts/journal.ts`), whose recorder sees only one seat's
-    // moves and therefore misses essentially every live response window
+    // there (the issue #3480 stack journal, retired by issue #3514), whose
+    // recorder saw only one seat's moves and therefore missed essentially
+    // every live response window
     // (`docs/findings/3480-human-moves-never-reach-the-stack-journal.md`).
     //
     // DECLARED, not inverted (ADR 0127). This is not the stack INVERSION the

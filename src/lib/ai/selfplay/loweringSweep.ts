@@ -40,13 +40,10 @@ import {
 } from "@convex/gre/scenarioBuilder";
 import {
     lowerDecision,
+    midFlightPaymentBlockers,
     VERDICT_REFUSAL_KINDS,
     type VerdictRefusalKind,
 } from "@convex/gre/ai/verdicts/lowering";
-import {
-    StackJournal,
-    type StackJournalEntry,
-} from "@convex/gre/ai/verdicts/journal";
 import { describeMove } from "@convex/gre/describeMove";
 import { createInitialGameState } from "@convex/gre";
 import {
@@ -57,11 +54,7 @@ import {
     type StackItem,
 } from "@convex/gre";
 import { presetToPlayerInput } from "./decks";
-import {
-    runHeadlessGame,
-    type GameEndReason,
-    type PlyObserver,
-} from "./playGame";
+import { runHeadlessGame, type GameEndReason } from "./playGame";
 
 /** The three state types the residue half walks, in report order. */
 export type ResidueScope = "card" | "player" | "game";
@@ -132,6 +125,16 @@ export type LoweringSweepReport = {
      *  covers — what a declarative `stack:` spec field would have to express,
      *  derived rather than listed. */
     stackPayload: SweepRow[];
+    /** What WITHHELD the declared stack (issue #3514), by the FIELD that
+     *  blocked it (`StackBlocker.field`), by decisions touched. Where
+     *  `stackPayload` lists every non-card key an object carries, this is only
+     *  what the spec genuinely cannot say — the residue that decides the next
+     *  slice. */
+    stackBlockers: SweepRow[];
+    /** …of those decisions, how many had at least one TRIGGER field among
+     *  their blockers — the share the trigger slice (issue #3516) would free,
+     *  if nothing else blocked them too. */
+    stackTriggerBlocked: number;
     /** Non-allowlisted state keys, by decisions touched, per scope. */
     residue: Record<ResidueScope, SweepRow[]>;
 };
@@ -153,7 +156,18 @@ export type DecisionObservation = {
     /** Keys the stack's objects carry that {@link CARD_STATE_ALLOWLIST} does
      *  not — empty list when the stack was empty. */
     stackPayload: string[];
+    /** The FIELDS that withheld the declared stack, deduplicated — empty when
+     *  the stack was declared whole (or was empty). */
+    stackBlockers: string[];
 };
+
+/** Whether a blocking field belongs to a TRIGGERED ability on the stack
+ *  (`triggerEvent`, `triggerSourceId`, `triggeredAbilityId`,
+ *  `delayedTriggerId`, `reflexiveTrigger`) — derived by name, so a trigger
+ *  marker added tomorrow counts without editing this. */
+export function isTriggerBlocker(field: string): boolean {
+    return /trigger/i.test(field);
+}
 
 /** The class a `dropped[]` message belongs to: the message with every
  *  interpolation masked.
@@ -300,22 +314,27 @@ function stackPayloadKeys(item: StackItem): string[] {
 export function observeDecision(
     state: GameState,
     botId: string,
-    chosenDescription: string,
-    journal?: StackJournalEntry | null
+    chosenDescription: string
 ): DecisionObservation {
-    const outcome = lowerDecision(state, botId, chosenDescription, journal);
+    const outcome = lowerDecision(state, botId, chosenDescription);
 
     // The dropped tally is taken from `specFromState` DIRECTLY, not from the
-    // refusal's own `dropped`: the two stack refusals fire before the lowering
-    // ever runs, and reading their (empty) list would make them look lossless.
-    // It also stays on the LIVE state, never on the journal's quiet board —
-    // this half measures what the spec vocabulary cannot carry about the
-    // position the Bot actually decided on.
+    // refusal's own `dropped`: `stack-mid-resolution` fires before the
+    // lowering ever runs, and reading its (empty) list would make it look
+    // lossless. The stack blockers come from the same call for the same
+    // reason — they are PRESENT on a decision whatever refused it first.
     const droppedClasses = new Set<string>();
+    const stackBlockers = new Set<string>();
+    for (const blocker of midFlightPaymentBlockers(state)) {
+        stackBlockers.add(blocker.field);
+    }
     try {
-        for (const message of specFromState(state, { mySeatId: botId })
-            .dropped) {
+        const lowered = specFromState(state, { mySeatId: botId });
+        for (const message of lowered.dropped) {
             droppedClasses.add(droppedMessageClass(message));
+        }
+        for (const blocker of lowered.stackBlockers) {
+            stackBlockers.add(blocker.field);
         }
     } catch (error) {
         droppedClasses.add(
@@ -360,6 +379,7 @@ export function observeDecision(
         },
         stack: state.stack.length === 0 ? null : [...stack],
         stackPayload: [...stackPayload],
+        stackBlockers: [...stackBlockers],
     };
 }
 
@@ -382,6 +402,8 @@ export class LoweringSweepTally {
     private stackDecisions = 0;
     private readonly stackObjects = new Map<string, number>();
     private readonly stackPayload = new Map<string, number>();
+    private readonly stackBlockers = new Map<string, number>();
+    private stackTriggerBlocked = 0;
 
     add(observation: DecisionObservation): void {
         this.decisions += 1;
@@ -404,6 +426,12 @@ export class LoweringSweepTally {
                 bump(this.stackPayload, key);
             }
         }
+        for (const field of observation.stackBlockers) {
+            bump(this.stackBlockers, field);
+        }
+        if (observation.stackBlockers.some(isTriggerBlocker)) {
+            this.stackTriggerBlocked += 1;
+        }
     }
 
     endGame(reason: GameEndReason): void {
@@ -425,6 +453,8 @@ export class LoweringSweepTally {
             stackDecisions: this.stackDecisions,
             stackObjects: rank(this.stackObjects),
             stackPayload: rank(this.stackPayload),
+            stackBlockers: rank(this.stackBlockers),
+            stackTriggerBlocked: this.stackTriggerBlocked,
             residue: {
                 card: rank(this.residue.card),
                 player: rank(this.residue.player),
@@ -470,15 +500,6 @@ export function runLoweringSweep(
             presetToPlayerInput(config.deckB, 1, "B"),
         ];
         const state = createInitialGameState(players, seed);
-        // issue #3480 — the journal the loop feeds and the lowering reads. One
-        // per game: it holds a single window (the current stack's) and drops it
-        // the moment the stack empties, so nothing accumulates across games.
-        const journal = new StackJournal();
-        const observer: PlyObserver = {
-            move: (before, playerId, move) =>
-                journal.observe(before, playerId, move),
-            opaque: () => journal.observeOpaque(),
-        };
         const observing: typeof search = (
             position,
             playerId,
@@ -498,8 +519,7 @@ export function runLoweringSweep(
                     observeDecision(
                         position,
                         playerId,
-                        describeMove(move, position),
-                        journal.entry()
+                        describeMove(move, position)
                     )
                 );
             }
@@ -510,8 +530,7 @@ export function runLoweringSweep(
             { id: "A", budget: { iterations: config.iterations } },
             { id: "B", budget: { iterations: config.iterations } },
             seed,
-            observing,
-            observer
+            observing
         );
         tally.endGame(result.reason);
     }
@@ -588,6 +607,20 @@ export function formatLoweringReport(report: LoweringSweepReport): string {
             report.stackPayload,
             report.stackDecisions
         )
+    );
+    lines.push(
+        ...section(
+            "STACK BLOCKERS (issue #3514) — the field that withheld the declared stack, by decisions touched",
+            report.stackBlockers,
+            report.stackDecisions
+        )
+    );
+    lines.push(
+        `  trigger fields among the blockers: ${report.stackTriggerBlocked} decision(s) (${share(
+            report.stackTriggerBlocked,
+            report.stackDecisions
+        )} of the stack population) — the ceiling issue #3516 could free`,
+        ""
     );
     lines.push(
         "  Both shares are of the STACK population, not of all decisions — the",

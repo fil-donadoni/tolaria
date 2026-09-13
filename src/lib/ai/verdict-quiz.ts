@@ -19,8 +19,6 @@ import {
     type VerdictRefusalKind,
 } from "@convex/gre/ai/verdicts/lowering";
 import type { VerdictCandidate } from "@convex/gre/ai/verdicts/types";
-import type { StackJournalEntry } from "@convex/gre/ai/verdicts/journal";
-import type { BladeSetupStep } from "@convex/gre/ai/blade/types";
 import type { ScenarioSpec } from "@convex/debugScenarioSpec";
 import type { DecisionTrace } from "@convex/gre";
 import type { AiTraceSource } from "./trace-store";
@@ -30,12 +28,9 @@ export type { VerdictRefusalKind };
 
 /** What the quiz renders and submits. */
 export type VerdictQuiz = {
-    /** The position, lowered from the board the search ran on — or, with
-     *  something on the stack, from the quiet board the journal kept. */
+    /** The position, lowered from the board the search ran on — stack
+     *  included, as declared objects (`spec.stack`, issue #3514). */
     spec: ScenarioSpec;
-    /** The engine-real steps that walk `spec` back to the decision
-     *  (issue #3480). Absent for a decision taken on an empty stack. */
-    setup?: BladeSetupStep[];
     /** The candidates as the REBUILT position offers them, in enumeration
      *  order — the list the fit will re-derive, so an index here means the same
      *  move there. */
@@ -102,9 +97,9 @@ type RefusalPresentation = {
  */
 export const QUIZ_REFUSALS: Record<QuizRefusalKind, RefusalPresentation> = {
     "stack-mid-resolution": {
-        // A structural gap, not a coverage one: no setup step can put a
-        // half-resolved object back on the stack, so no journal will ever
-        // reach this position however complete it is.
+        // A structural gap, not a vocabulary one: the declared stack holds
+        // announced objects, never a half-resolved one, so no widening of the
+        // spec reaches this position.
         title: "An object on the stack is partway through resolving",
         // `null` like its unnamed neighbours, and not issue #3456 (closed by
         // the journal): nothing open tracks this, and a tracking ref that
@@ -112,15 +107,16 @@ export const QUIZ_REFUSALS: Record<QuizRefusalKind, RefusalPresentation> = {
         // is done.
         trackedBy: null,
     },
-    "stack-not-journalled": {
-        // Not one gap but the whole family of them: a window the driver never
-        // saw begin, a move in it with no faithful setup step, a replay whose
-        // stack came back different. Which one it was is in the detail line.
-        title: "The stack could not be walked back to a quiet board",
-        trackedBy: null,
-    },
     "lowering-threw": {
         title: "This position could not be lowered into a scenario",
+        trackedBy: null,
+    },
+    "stack-not-lowerable": {
+        // Not one gap but a family — a trigger, a copy, a mode, a kicker, a
+        // payment mid-flight. The detail line names the item and the FIELD
+        // that blocked it, so no single tracking issue is honest here (the
+        // trigger slice, issue #3516, is one member of the family).
+        title: "An object on the stack cannot be declared in a scenario",
         trackedBy: null,
     },
     "combat-not-captured": {
@@ -132,6 +128,13 @@ export const QUIZ_REFUSALS: Record<QuizRefusalKind, RefusalPresentation> = {
     },
     "rebuild-threw": {
         title: "The lowered scenario could not be rebuilt",
+        trackedBy: null,
+    },
+    "stack-rebuild-mismatch": {
+        // Every object WAS named and the rebuild still differs — a builder
+        // fault, not a vocabulary gap. The detail line carries both
+        // fingerprints, targets and `x` included, so the object is named.
+        title: "The rebuilt stack is not the stack in play",
         trackedBy: null,
     },
     "no-decision-owed": {
@@ -240,20 +243,14 @@ export type VerdictQuizResult =
  */
 export function buildVerdictQuiz(
     trace: DecisionTrace,
-    source: AiTraceSource,
-    journal?: StackJournalEntry | null
+    source: AiTraceSource
 ): VerdictQuizResult {
     const position = projectedToGameState(
         source.state,
         source.knowledge,
         source.botId
     );
-    const outcome = lowerDecision(
-        position,
-        source.botId,
-        trace.chosen,
-        journal
-    );
+    const outcome = lowerDecision(position, source.botId, trace.chosen);
     return outcome.ok
         ? { ok: true, quiz: outcome.lowered }
         : {

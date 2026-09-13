@@ -19,10 +19,14 @@ import {
     classifyStackObject,
     droppedMessageClass,
     formatLoweringReport,
+    isTriggerBlocker,
+    LoweringSweepTally,
     observeDecision,
     runLoweringSweep,
+    type DecisionObservation,
     type LoweringSweepConfig,
 } from "./loweringSweep";
+import { VERDICT_REFUSAL_KINDS } from "@convex/gre/ai/verdicts/lowering";
 import { makeInstance } from "@convex/cards/__tests__/setup";
 import type { StackItem } from "@convex/gre";
 
@@ -216,6 +220,47 @@ describe("lowering sweep: stack composition (issue #3456)", () => {
         expect(observation.stackPayload).not.toContain("isTapped");
     });
 
+    it("counts what withheld the declared stack by FIELD, and the trigger share (issue #3514)", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            stack: [
+                item({
+                    triggeredAbilityId: "t1",
+                    triggerSourceId: "src",
+                    triggerEvent: { type: "CAST" },
+                } as unknown as Partial<StackItem>),
+            ],
+        });
+        const observation = observeDecision(state, "p1", "Pass priority");
+        expect(observation.stackBlockers).toContain("triggerEvent");
+        expect(observation.stackBlockers.some(isTriggerBlocker)).toBe(true);
+        // A field the spec DOES declare never blocks.
+        expect(observation.stackBlockers).not.toContain("castById");
+
+        const tally = new LoweringSweepTally();
+        tally.add(observation);
+        tally.add({ ...observation, stackBlockers: ["isCopy"] });
+        const report = tally.report({
+            deckA: "a",
+            deckB: "b",
+            games: 0,
+            seed: 1,
+            iterations: 1,
+        });
+        expect(report.stackTriggerBlocked).toBe(1);
+        expect(report.stackBlockers).toContainEqual({
+            label: "triggerEvent",
+            decisions: 1,
+        });
+        expect(report.stackBlockers).toContainEqual({
+            label: "isCopy",
+            decisions: 1,
+        });
+        expect(formatLoweringReport(report)).toContain("STACK BLOCKERS");
+    });
+
     it("says nothing at all on a quiet board", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
@@ -225,6 +270,41 @@ describe("lowering sweep: stack composition (issue #3456)", () => {
         const observation = observeDecision(state, "p1", "Pass priority");
         expect(observation.stack).toBeNull();
         expect(observation.stackPayload).toEqual([]);
+        expect(observation.stackBlockers).toEqual([]);
+    });
+});
+
+describe("lowering sweep: every refusal kind has a counter (issue #3514)", () => {
+    it("reports a NUMBER for every kind, including the two new stack kinds", () => {
+        // A kind with no seeded counter turns its cell into `NaN` the first
+        // time it fires (PR review, issue #3461) — so every kind fires once.
+        const quiet: DecisionObservation = {
+            refusal: null,
+            droppedClasses: [],
+            residue: { card: [], player: [], game: [] },
+            stack: null,
+            stackPayload: [],
+            stackBlockers: [],
+        };
+        const tally = new LoweringSweepTally();
+        for (const kind of VERDICT_REFUSAL_KINDS) {
+            tally.add({ ...quiet, refusal: kind });
+        }
+        const report = tally.report({
+            deckA: "a",
+            deckB: "b",
+            games: 0,
+            seed: 1,
+            iterations: 1,
+        });
+        expect(VERDICT_REFUSAL_KINDS).toContain("stack-not-lowerable");
+        expect(VERDICT_REFUSAL_KINDS).toContain("stack-rebuild-mismatch");
+        expect(VERDICT_REFUSAL_KINDS).not.toContain(
+            "stack-not-journalled" as never
+        );
+        for (const kind of VERDICT_REFUSAL_KINDS) {
+            expect(report.refusals[kind]).toBe(1);
+        }
     });
 });
 
