@@ -1625,6 +1625,15 @@ export function projectPublicState(
         // next `Omit` on `PublicGameState` silently removes. The wire-format
         // test pins it for the same reason.
         continuousEffects: state.continuousEffects,
+        // Issue #3533 — the searching Bot's decklist colour evidence. It is
+        // PRIVILEGED and search-only: `determinize` stamps it on the world the
+        // client-side Brain walks, and nothing on the authoritative path ever
+        // produces one, so this is defence-in-depth rather than a live leak.
+        // Named explicitly anyway, because the `...state` spread above is the
+        // exact mechanism by which a field nobody named would reach the wire —
+        // and this one would hand a viewer the colour composition of the other
+        // seat's decklist.
+        deckColorKnowledge: undefined,
     };
 }
 

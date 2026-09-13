@@ -34,6 +34,7 @@ import { observedOpponentColors } from "../ai/observedColors";
 import { observedColorCoverage } from "../ai/colorCoverage";
 import { manaCensusFor } from "../manaAvailability";
 import { compactState, expandState } from "../serialize";
+import { projectPublicState } from "../../gameProjections";
 import type { GameState } from "../state";
 
 /** The observer seat; `p2` is the seat being estimated throughout. */
@@ -221,6 +222,22 @@ describe("the estimate per difficulty — `expert` differs, the rest are byte-id
             W: 1,
             B: 20,
         });
+    });
+});
+
+describe("the wire — the stamp never reaches a viewer (issue #3533)", () => {
+    it("projectPublicState strips `deckColorKnowledge` out of its `...state` spread", () => {
+        const state = determinize(
+            boardWithLonePlains(),
+            OBSERVER,
+            makeRng(1),
+            INFORMED
+        );
+        expect(state.deckColorKnowledge).toBeDefined();
+        const projected = projectPublicState(state, 1, OBSERVER);
+        expect(
+            (projected as { deckColorKnowledge?: unknown }).deckColorKnowledge
+        ).toBeUndefined();
     });
 });
 
