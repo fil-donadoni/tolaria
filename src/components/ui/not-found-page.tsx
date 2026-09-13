@@ -11,7 +11,7 @@
 // doesn't reshuffle the artwork under the user.
 import { useState } from "react";
 import AmbientPageGround from "@/components/ui/ambient-page-ground";
-import { getImageFallbackUrl, getImageUrl } from "@/lib/images";
+import { getImageFallbackUrl, getImageSrcSet, getImageUrl } from "@/lib/images";
 import { pickLostInCard } from "@/lib/lostInCards";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
@@ -29,11 +29,26 @@ export default function NotFoundPage() {
             <AmbientPageGround />
             <div className="relative z-10 mx-auto flex min-h-[60dvh] max-w-6xl flex-1 flex-col items-center justify-center gap-6 px-4 py-10 text-center sm:px-8">
                 <img
-                    src={
-                        useJpgFallback
-                            ? getImageFallbackUrl(card.id)
-                            : getImageUrl(card.id)
-                    }
+                    data-card-face="printed"
+                    {...(useJpgFallback
+                        ? { src: getImageFallbackUrl(card.id) }
+                        : {
+                              src: getImageUrl(card.id),
+                              // A 244px slot is 732 device px on the phone
+                              // viewport (3×) — `grid` 488w alone reads soft
+                              // there (issue #3553). The hint is a constant
+                              // because the slot is: `w-[244px]` is a fixed
+                              // length in this page's own CSS, and the
+                              // `cardsSoft` gate is what verifies it stays
+                              // true. `display` 672w is the widest rendition
+                              // the srcset offers, so a 3× phone is still
+                              // 60px short of the floor — closing that needs a
+                              // wider CDN rendition, out of scope for #3553.
+                              srcSet: getImageSrcSet(card.id, {
+                                  includeThumb: false,
+                              }),
+                              sizes: "244px",
+                          })}
                     alt={card.name}
                     width={244}
                     height={340}

@@ -14,6 +14,7 @@ import {
     resolveBackFaceImageId,
     resolveCardImageFace,
     resolveCardImageId,
+    type CardImageFace,
 } from "~/lib/images";
 import {
     formatTypeLine,
@@ -126,6 +127,10 @@ export type PreviewBackFaceHalf = {
     imageFallbackSrc: string | null;
     /** Printed BACK card (grid WebP) — the "Printed card" mode's second image. */
     printedImageSrc: string | null;
+    /** The Scryfall id and face `printedImageSrc` was built from, so the
+     *  renderer can build a RESPONSIVE srcset for the back face too (issue
+     *  #3553). Null exactly when `printedImageSrc` is. */
+    printedImageId: { id: string; face: CardImageFace } | null;
 };
 
 export const BACK_FACE_HALF_LABEL = "Back face";
@@ -144,6 +149,11 @@ export type PreviewBodyContent = {
      *  surface of the phase-2 preview toggle. Null for tokens without a
      *  printed identity (the toggle hides then). */
     printedImageSrc: string | null;
+    /** The Scryfall id and face `printedImageSrc` was built from, so the
+     *  renderer can build a RESPONSIVE srcset for it rather than pinning the
+     *  one rendition this URL names (issue #3553). Null exactly when
+     *  `printedImageSrc` is. */
+    printedImageId: { id: string; face: CardImageFace } | null;
     types: string[];
     subtypes: string[];
     staticAbilities: string[];
@@ -288,6 +298,7 @@ function buildBackFaceHalf(defId: string): PreviewBackFaceHalf | null {
         printedImageSrc: imageId
             ? getPrintedCardImageUrl(imageId, "back")
             : null,
+        printedImageId: imageId ? { id: imageId, face: "back" } : null,
     };
 }
 
@@ -461,6 +472,7 @@ export function buildPreviewBody(
     const printedImageSrc = imageId
         ? getPrintedCardImageUrl(imageId, face)
         : null;
+    const printedImageId = imageId ? { id: imageId, face } : null;
     const showOwner =
         !!cardInstance &&
         !!gameCtx &&
@@ -498,6 +510,7 @@ export function buildPreviewBody(
         imageSrc,
         imageFallbackSrc,
         printedImageSrc,
+        printedImageId,
         types,
         subtypes,
         staticAbilities:
@@ -589,6 +602,7 @@ export function buildFaceDownPreviewBody(
         imageSrc,
         imageFallbackSrc,
         printedImageSrc: null,
+        printedImageId: null,
         manaCost: null,
         oracleParagraphs: null,
         milestones: null,
@@ -645,6 +659,7 @@ export function buildEmblemPreviewBody(
         imageSrc: id ? getArtImageUrl(id) : null,
         imageFallbackSrc: id ? getArtCropImageUrl(id) : null,
         printedImageSrc: id ? getPrintedCardImageUrl(id) : null,
+        printedImageId: id ? { id, face: "front" } : null,
         types: [],
         subtypes: [],
         staticAbilities: [],
@@ -688,6 +703,7 @@ export function buildDesignationPreviewBody(designation: {
         imageSrc: getArtImageUrl(id),
         imageFallbackSrc: getArtCropImageUrl(id),
         printedImageSrc: getPrintedCardImageUrl(id),
+        printedImageId: { id, face: "front" },
         types: [],
         subtypes: [],
         staticAbilities: [],

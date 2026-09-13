@@ -63,6 +63,7 @@ export default function DraftSelectionActions({
             >
                 {thumb && axis === "row" && (
                     <img
+                        data-card-face="printed"
                         src={thumb}
                         alt=""
                         draggable={false}

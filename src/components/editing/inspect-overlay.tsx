@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { buildPreviewBody } from "~/lib/preview-body";
 import { useViewportMode } from "~/hooks/useViewportMode";
 import CardPreviewFace from "~/components/cards/card-preview-face";
+import PrintedFaceImage from "~/components/cards/printed-face-image";
 import CardPreviewModeToggle, {
     type CardPreviewMode,
 } from "~/components/cards/card-preview-mode-toggle";
@@ -236,22 +237,26 @@ export default function InspectOverlay({
                         split ? "flex-row" : "flex-col overflow-y-auto"
                     }`}
                 >
-                    {mode === "printed" && body.printedImageSrc ? (
+                    {mode === "printed" && body.printedImageId ? (
                         <>
-                            <img
-                                src={body.printedImageSrc}
+                            <PrintedFaceImage
+                                imageId={body.printedImageId.id}
+                                face={body.printedImageId.face}
                                 alt={`${body.displayName} (printed)`}
                                 className="mx-auto max-h-full w-auto object-contain"
                             />
                             {/* CR 712 (issue #3552) — the printed BACK of a
                                 double-faced card, beside the front in the
                                 split row and below it in the stacked column. */}
-                            {body.backFaceHalf?.printedImageSrc && (
-                                <img
-                                    src={body.backFaceHalf.printedImageSrc}
+                            {body.backFaceHalf?.printedImageId && (
+                                <PrintedFaceImage
+                                    imageId={
+                                        body.backFaceHalf.printedImageId.id
+                                    }
+                                    face={body.backFaceHalf.printedImageId.face}
                                     alt={`${body.backFaceHalf.name} (printed back face)`}
                                     className="mx-auto max-h-full min-w-0 w-auto object-contain"
-                                    data-card-preview-back-face-printed
+                                    backFaceMarker
                                 />
                             )}
                         </>

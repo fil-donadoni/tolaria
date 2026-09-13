@@ -96,6 +96,7 @@ export default function PeekPanel({
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
             {thumb && (
                 <img
+                    data-card-face="printed"
                     src={thumb}
                     alt=""
                     draggable={false}
