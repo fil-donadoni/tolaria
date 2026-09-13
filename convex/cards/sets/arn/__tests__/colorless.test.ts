@@ -29,6 +29,7 @@ import {
     type GameState,
     getPlayer,
     payDiscardLastDrawn,
+    type PendingActivation,
     processPendingActionTriggers,
     removePermanentTo,
     resolveTopOfStack,
@@ -43,6 +44,8 @@ import {
     LOSE_SEED,
 } from "./helpers";
 import { getDefinition } from "../../../index";
+import { tryAutoCommitPendingActivation } from "../../../../gre/activation";
+import { yotianSoldier } from "../../atq";
 
 const aladdinsLamp = getDefinition("8fecc5d2-5298-4d47-b085-f160603f220e");
 const aladdinsRing = getDefinition("bb2b74a2-cb74-4b54-b9c6-78c63f14cf5b");
@@ -1125,5 +1128,65 @@ describe("Sandals of Abdallah (instance dies-watch, CR 603.7a / 700.4)", () => {
         finalizeCleanup(state);
         expect(state.delayedTriggers).toBeUndefined();
         expect(onBattlefield(state, "sandals1")).toBe(true);
+    });
+});
+
+// Diamond Valley — the `sacrificed` value's `read: "toughness"` through the REAL
+// activation commit (`tryAutoCommitPendingActivation` → the cost snapshot).
+// CR 608.2h: the creature is in the graveyard before the ability resolves, so
+// the life gained is its last-known toughness.
+describe("Diamond Valley ({T}, Sacrifice a creature: gain life = its toughness, CR 608.2h)", () => {
+    const diamondValley = getDefinition("e85f6f21-15a0-4a36-be95-5a0299cd01a5");
+
+    it("gains life equal to the sacrificed creature's toughness", () => {
+        const valley = makeInstance(diamondValley.id, {
+            id: "valley",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // Yotian Soldier: mana value 3, 1/4 — only the toughness column gives 24.
+        const soldier = makeInstance(yotianSoldier.id, {
+            id: "soldier",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [valley, soldier] }),
+                makePlayer("p2"),
+            ],
+            priorityPlayerId: "p1",
+        });
+        const pa: PendingActivation = {
+            playerId: "p1",
+            cardInstanceId: "valley",
+            abilityId: "diamond-valley-gain-life",
+            manaCost: {},
+            tappedLandIds: [],
+            tapSource: true,
+            sacrificeSource: false,
+            sacrificeSelection: {
+                playerId: "p1",
+                reason: "Diamond Valley",
+                requirements: [
+                    {
+                        filter: { types: "Creature" },
+                        count: 1,
+                        snapshot: true,
+                    },
+                ],
+                picked: ["soldier"],
+            },
+            targets: [],
+        };
+        state.pendingActivation = pa;
+        expect(tryAutoCommitPendingActivation(state, "p1")).not.toBeNull();
+        expect(state.players[0].graveyard.some((c) => c.id === "soldier")).toBe(
+            true
+        );
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(24);
+        // Wire format: the life total the client renders survives projection.
+        expect(projectPublicState(state, 1, "p1").players[0].life).toBe(24);
     });
 });
