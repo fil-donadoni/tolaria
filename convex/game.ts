@@ -24,6 +24,7 @@ import {
     scenarioContinuousEffectValidator,
     scenarioManaPoolValidator,
     scenarioRestrictedManaValidator,
+    scenarioStackItemValidator,
 } from "./debugScenarioSpec";
 import { BLADE_SCENARIOS } from "./gre/ai/blade/registry";
 import { resolveBladeLoadState } from "./gre/ai/blade/runner";
@@ -15662,6 +15663,15 @@ export const debugSetupScenario = mutation({
         continuousEffects: v.optional(
             v.array(scenarioContinuousEffectValidator)
         ),
+        /** CR 405.1 / 601.2 / 602.2a (issue #3513) — the objects IN FLIGHT.
+         *  Declared here to keep the two validators in lock step (a field on
+         *  `scenarioSpecValidator` and absent from these args throws
+         *  `ArgumentValidationError` at the Convex boundary before the handler
+         *  runs), and REFUSED by this mutation's handler
+         *  (`assertLoadableIntoLiveGame`) exactly as `hiddenHand` above is: a
+         *  position with a stack is one the verdict and blade paths EVALUATE,
+         *  never one a live game is set up into. */
+        stack: v.optional(v.array(scenarioStackItemValidator)),
         companion: v.optional(
             v.object({
                 name: v.string(),

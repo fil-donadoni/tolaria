@@ -174,6 +174,27 @@ const STORED: Required<ScenarioSpec> = {
             characteristicDefining: false,
         },
     ],
+    // CR 405.1 / 601.2c (issue #3513) — the objects IN FLIGHT: an activated
+    // ability whose source is on the battlefield above, and a spell answering
+    // it. A carried stack is dropped when its references no longer resolve
+    // against `cards` (`dropStaleStack`), so both names must be present in the
+    // form's own assembly below or this fixture would exercise the DROP and
+    // never the carry.
+    stack: [
+        {
+            kind: "ability",
+            name: "Psychatog",
+            controller: "me",
+            abilityId: "psychatog-pump",
+        },
+        {
+            kind: "spell",
+            name: "Lightning Bolt",
+            controller: "opp",
+            targets: [{ kind: "permanent", name: "Psychatog", seat: "me" }],
+            castOffSorceryTiming: true,
+        },
+    ],
     companion: { name: "Lurrus of the Dream-Den", owner: "me", used: true },
 };
 
@@ -236,12 +257,16 @@ describe("scenario spec field ownership", () => {
         const cleared = assembleScenarioSpec({ cards: [] }, STORED);
         for (const key of SPEC_KEYS) {
             if (scenarioSpecFieldOwner(key) === "form-owned") continue;
-            // CR 508.1a (issue #3458) / CR 611.2a (issue #3488) — the two
-            // exceptions, and not a hole in the rule: both REFERENCE the
-            // form-owned card list, so carrying either onto a board with no
-            // cards would save a row `buildStateFromScenario` throws on. Their
-            // own tests are below.
-            if (key === "combat" || key === "continuousEffects") {
+            // CR 508.1a (issue #3458) / CR 611.2a (issue #3488) / CR 405.1
+            // (issue #3513) — the three exceptions, and not a hole in the rule:
+            // each REFERENCES the form-owned card list, so carrying one onto a
+            // board with no cards would save a row `buildStateFromScenario`
+            // throws on. Their own tests are below.
+            if (
+                key === "combat" ||
+                key === "continuousEffects" ||
+                key === "stack"
+            ) {
                 expect(cleared[key]).toBeUndefined();
                 continue;
             }
@@ -271,6 +296,60 @@ describe("scenario spec field ownership", () => {
             ],
         });
         expect(carried.continuousEffects).toEqual(STORED.continuousEffects);
+    });
+
+    it("carries the declared stack when its references still resolve (issue #3513)", () => {
+        const carried = assembleScenarioSpec(FORM_ASSEMBLED, STORED);
+        expect(carried.stack).toEqual(STORED.stack);
+    });
+
+    it("drops the WHOLE declared stack when a reference stops resolving (issue #3513)", () => {
+        // The whole array, unlike the registry entries above: the stack is one
+        // position whose order and whose `{ kind: "stack" }` index references
+        // only mean anything together, so dropping one entry would renumber the
+        // rest and silently re-point every reference above it.
+        const renamed = assembleScenarioSpec(
+            {
+                ...FORM_ASSEMBLED,
+                cards: FORM_ASSEMBLED.cards.map((card) =>
+                    card.name === "Psychatog"
+                        ? { ...card, name: "Upheaval" }
+                        : card
+                ),
+            },
+            STORED
+        );
+        expect(renamed.stack).toBeUndefined();
+
+        // By SEAT too, not just by presence: `seedDeclaredStack` looks the
+        // ability's source up on ONE battlefield.
+        const movedSeat = assembleScenarioSpec(
+            {
+                ...FORM_ASSEMBLED,
+                cards: FORM_ASSEMBLED.cards.map((card) =>
+                    card.name === "Psychatog"
+                        ? { ...card, owner: "opp" as const }
+                        : card
+                ),
+            },
+            STORED
+        );
+        expect(movedSeat.stack).toBeUndefined();
+
+        // And by COUNT: a reference carrying `nth: 1` needs a SECOND Psychatog.
+        const tooFew = assembleScenarioSpec(FORM_ASSEMBLED, {
+            ...STORED,
+            stack: [
+                {
+                    kind: "ability",
+                    name: "Psychatog",
+                    controller: "me",
+                    abilityId: "psychatog-pump",
+                    sourceNth: 1,
+                },
+            ],
+        });
+        expect(tooFew.stack).toBeUndefined();
     });
 
     it("drops an entry the edit made unresolvable by SEAT or by COUNT (issue #3488)", () => {
@@ -357,16 +436,17 @@ describe("editing a scenario through the real form", () => {
         return call!.spec;
     };
 
-    // `combat` and `continuousEffects` are excluded for the reason their own
-    // tests below state: they are the spec fields that REFERENCE the card list,
-    // and this edit renames the card they name — so keeping either would save a
-    // row that cannot load.
+    // `combat`, `continuousEffects` and `stack` are excluded for the reason
+    // their own tests below state: they are the spec fields that REFERENCE the
+    // card list, and this edit renames the card they name — so keeping any of
+    // them would save a row that cannot load.
     it.each(
         SPEC_KEYS.filter(
             (key) =>
                 key !== "cards" &&
                 key !== "combat" &&
-                key !== "continuousEffects"
+                key !== "continuousEffects" &&
+                key !== "stack"
         )
     )("keeps `%s` across an edit", (key) => {
         expect(editAndSave()[key]).toEqual(STORED[key]);
