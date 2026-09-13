@@ -1243,10 +1243,16 @@ export type CardInstanceState = {
      *  created (the creation incremented the counter TO N, so a transform
      *  before it stamps at most N - 1). Cleared on CR 400.7 re-entry — the new
      *  object has never transformed. The rule's OTHER sentence (a non-delayed
-     *  ability, "since the ability was put onto the stack") is not read off
-     *  this stamp: an activated ability's stack item carries its source's id,
-     *  not a put-onto-the-stack moment (tracked-by: #3537). */
+     *  ability, "since the ability was put onto the stack") reads
+     *  `transformCount` below instead. */
     transformedAtDelayedSeq?: number;
+    /** CR 701.27f (issue #3537) — how many times THIS object has transformed,
+     *  incremented by `SpellContext.transform` on every real flip. An activated
+     *  or triggered ability of this permanent records the count as it is put
+     *  onto the stack (`StackItem.sourceTransformCount`); when the two differ
+     *  at resolution the permanent has transformed since, and the ability's
+     *  instruction to transform it is ignored. Cleared on CR 400.7 re-entry. */
+    transformCount?: number;
     /** Transient combat pile label (Raging River, CR 509.2 variant —
      *  ADR 0012). Set when a divider assigns this creature to the "left" or
      *  "right" pile; consumed by `validateBlockerEligibility` against the
@@ -2572,6 +2578,13 @@ export type StackItem = CardInstanceState & {
      *  triggered ability of a permanent" never transforms that permanent when
      *  it has already transformed since the delayed trigger was created. */
     delayedOrigin?: { seq: number; sourceInstanceId?: string };
+    /** CR 701.27f (issue #3537) — the source permanent's `transformCount` at
+     *  the moment this activated or triggered ability was put onto the stack,
+     *  stamped by `buildActivatedAbilityStackItem` and `buildTriggerItem`. An
+     *  explicit field rather than the snapshot's own cloned `transformCount`,
+     *  so an item no builder stamped (a spell, a delayed or reflexive trigger)
+     *  is never mistaken for one whose source has not transformed. */
+    sourceTransformCount?: number;
     /** CR 603.12/603.3d — the target requirement of a REFLEXIVE triggered
      *  ability (the `reflexiveTrigger` Op). A reflexive ability has no
      *  `cardDef.triggeredAbilities[]` row, so the requirement its targets are
@@ -10547,6 +10560,29 @@ export function transformedSinceDelayedOrigin(
     );
 }
 
+/** CR 701.27f (issue #3537) — true when `item` is a non-delayed activated or
+ *  triggered ability of `card` itself and `card` has transformed since that
+ *  ability was put onto the stack, so its instruction to transform `card` is
+ *  ignored. An ability of a DIFFERENT permanent, a spell, or an item no stack
+ *  builder stamped transforms unconditionally here. */
+export function transformedSincePutOnStack(
+    item: StackItem,
+    card: CardInstanceState
+): boolean {
+    if (item.sourceTransformCount === undefined) return false;
+    if (item.delayedTriggerId !== undefined) return false;
+    const sourceId =
+        item.triggeredAbilityId !== undefined
+            ? item.triggerSourceId
+            : item.abilityId !== undefined
+              ? item.id
+              : undefined;
+    return (
+        sourceId === card.id &&
+        (card.transformCount ?? 0) !== item.sourceTransformCount
+    );
+}
+
 /** Removes a permanent from battlefield and moves it to the target zone of its owner.
  *  When `toZone` is "hand" or "library", the card becomes a new object
  *  (CR 400.7) and battlefield-only transient state (tap, marked damage, regen
@@ -12939,6 +12975,7 @@ export function resetBattlefieldTransientState(
     // CR 400.7 / 701.27f (issue #3249) — the transform stamp belongs to the
     // previous object; the new one has never transformed.
     delete card.transformedAtDelayedSeq;
+    delete card.transformCount;
     // CR 400.7 / 611.2b (issue #1470) — an INDEFINITE animation (earthbend N's
     // "becomes a 0/0 creature with haste that's still a land") mutates the
     // instance IN PLACE (`types`, `subtypes`, `power`, `toughness`), so merely
@@ -16815,15 +16852,19 @@ export function buildSpellContext(
                 throw new Error("Cannot transform a player");
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
-            // CR 701.27f — a delayed triggered ability OF this permanent that
-            // tries to transform it does so only if it hasn't transformed
-            // since that delayed trigger was created; otherwise the
+            // CR 701.27f — an activated or triggered ability OF this
+            // permanent that tries to transform it does so only if it hasn't
+            // transformed since the ability was put onto the stack (a delayed
+            // one: since that delayed trigger was created); otherwise the
             // instruction is ignored.
             if (transformedSinceDelayedOrigin(item, found.card)) return;
+            if (transformedSincePutOnStack(item, found.card)) return;
             const faceBefore = (found.card.card as { id?: string }).id;
             transformPermanent(state, found.card);
             if ((found.card.card as { id?: string }).id !== faceBefore) {
                 found.card.transformedAtDelayedSeq = state.nextDelayedSeq ?? 0;
+                found.card.transformCount =
+                    (found.card.transformCount ?? 0) + 1;
                 // CR 613.7g — "A double-faced permanent receives a new
                 // timestamp each time it transforms", and CR 613.7a gives its
                 // static abilities that timestamp. Without it a permanent whose

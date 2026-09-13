@@ -191,6 +191,9 @@ function buildTriggerItem(
         // and resolve as nothing. The mode is announced as the ability is put
         // on the stack, never inherited.
         chosenModeId: undefined,
+        // CR 701.27f (issue #3537) — the moment this ability is put onto the
+        // stack, as its source's transform count.
+        sourceTransformCount: self.transformCount ?? 0,
     };
 }
 

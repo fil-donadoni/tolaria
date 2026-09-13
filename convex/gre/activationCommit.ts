@@ -100,6 +100,9 @@ export function buildActivatedAbilityStackItem(
         ...(commit.notedManaSpent
             ? { notedManaSpent: commit.notedManaSpent }
             : {}),
+        // CR 701.27f (issue #3537) — the moment this ability is put onto the
+        // stack, as its source's transform count.
+        sourceTransformCount: source.transformCount ?? 0,
     };
 }
 
