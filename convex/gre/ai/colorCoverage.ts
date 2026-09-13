@@ -51,7 +51,7 @@
 // weakest evidence class is an UNTAPPED source's producible colour — so when
 // that source taps, the colour leaves the demand set and the ratio is re-based.
 // MEASURED (a green creature beside a Plains, no white permanent): 0.25 with
-// the Plains untapped and 0 with it tapped, 6.60 margin points at the committed
+// the Plains untapped and 0 with it tapped, 6.66 margin points at the committed
 // weight. So a tap-based denial (a Rishadan Port activation, Rising Waters) is
 // priced here after all — by DILUTION rather than by denial, in the same
 // direction but for the wrong reason, and it unwinds at the next untap step.
@@ -65,7 +65,7 @@
 // "committed"), one that is EXILED or BOUNCED does not. MEASURED (a green
 // creature, a Swamp, a black card in the graveyard): 0.5714 before, 0.5714
 // after destroying the creature, 1.0 after exiling it — so exile-based removal
-// scores 11.32 points worse than destruction on an identical board. That is
+// scores 11.42 points worse than destruction on an identical board. That is
 // ~10% of one removal's worth and cannot stop a removal from happening, but it
 // can pick the wrong removal spell. It is inherent to estimating demand from
 // live public evidence, which is what PRD #3526 mandates; no weight fixes it.
