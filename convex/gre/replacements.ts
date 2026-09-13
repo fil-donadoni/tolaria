@@ -446,7 +446,7 @@ export function applyTapReplacements(
     return result === null ? null : (result as TapReplacementEvent);
 }
 
-/** Runs CR 614 destroy replacements (ADR 0020). Consults permanent-bound
+/** Runs CR 614 destroy replacements (ADR 0125). Consults permanent-bound
  *  `replacementEffects[]` with `eventKind: "destroy"` first, then the transient
  *  `state.destroyReplacementShields` (Pyramids mode 2). Returns the event if
  *  the destruction should proceed, or null if a replacement intercepted it —

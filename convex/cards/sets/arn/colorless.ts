@@ -386,7 +386,7 @@ export const ebonyHorse: CardDefinition = {
 
 // Pyramids — modal. The engine models `modes` only on spells, so the "Choose
 // one —" is expressed as two equally-priced ({2}) single-mode activated
-// abilities: behaviorally identical to picking one mode (ADR 0020). Mode 1
+// abilities: behaviorally identical to picking one mode (ADR 0125). Mode 1
 // destroys an Aura; mode 2 records a one-shot destroy replacement on a land.
 export const pyramids: CardDefinition = {
     id: "d2e9decf-47b7-44e0-b380-8055b6011021",

@@ -2759,7 +2759,7 @@ export const OP_EXECUTORS: {
         ctx.addManaTo(playerId, op.mana);
     },
     // CR 701.8 — destroy, through the replacement layer (regeneration /
-    // indestructible / destroy replacements, ADR 0020).
+    // indestructible / destroy replacements, ADR 0125).
     destroy(ctx, op) {
         const target = resolveObjectRef(ctx, op.target);
         if (!target) return;

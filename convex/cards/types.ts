@@ -4999,7 +4999,7 @@ export interface SpellContext {
      *  Pyramids): the next time `target` would be destroyed before `duration`
      *  expires, the destruction is replaced — the permanent stays on the
      *  battlefield and its marked damage is removed (oracle "remove all damage
-     *  marked on it instead"). One-shot. See ADR 0020. No-op if the target has
+     *  marked on it instead"). One-shot. See ADR 0125. No-op if the target has
      *  left the battlefield. */
     addDestroyReplacementShield: (
         target: TargetSelection,
@@ -11342,7 +11342,7 @@ export interface TapReplacementEvent {
  *  would be destroyed this turn" save runs as a transient destroy
  *  replacement; a permanent-bound `replacementEffects[]` entry with
  *  `eventKind: "destroy"` consumes this for an "if ~ would be destroyed,
- *  instead ..." continuous effect. See ADR 0020. */
+ *  instead ..." continuous effect. See ADR 0125. */
 export interface DestroyReplacementEvent {
     kind: "destroy";
     /** Instance id of the permanent about to be destroyed. */
@@ -13683,7 +13683,7 @@ export type EffectOp =
     /** CR 701.8 — destroy the announced target permanent, or the current
      *  `forEach` member (`{ ref: "$each" }`, issue #807). Routes through
      *  `SpellContext.destroy`, so regeneration / indestructible / destroy
-     *  replacements (ADR 0020) apply exactly as for imperative cards.
+     *  replacements (ADR 0125) apply exactly as for imperative cards.
      *  `bind` snapshots the permanent's power/toughness/controller/owner
      *  (issue #1106) BEFORE it leaves the battlefield (CR 608.2h). `cantBeRegenerated` (ADR 0053,
      *  Do or Die's "They can't be regenerated") is a direct passthrough of

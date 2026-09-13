@@ -434,7 +434,7 @@ describe("Ruham Djinn (CR 604.3 CDA — -2/-2 while white is most common)", () =
 });
 
 // ---------------------------------------------------------------------------
-// Divine Presence — damage replacement clamp (CR 614, ADR 0020)
+// Divine Presence — damage replacement clamp (CR 614, ADR 0125)
 // ---------------------------------------------------------------------------
 
 describe("Divine Presence (CR 614 damage clamp — 4+ becomes 3)", () => {

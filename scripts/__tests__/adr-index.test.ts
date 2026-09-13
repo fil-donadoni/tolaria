@@ -17,10 +17,16 @@ import * as path from "path";
  * A record missing from it is not merely undocumented, it is unfindable, and
  * the next design pass re-litigates a decision that was already made.
  *
- * **Keyed by FILENAME, not by number.** Two ADR numbers are legitimately shared
- * (0020 and 0021 each cover two records, annotated `⚠️ (number shared)` in the
- * index), so a number-keyed check would either report a false duplicate or
- * silently accept one of the pair standing in for the other.
+ * **Keyed by FILENAME, not by number**, for the completeness half: a row and a
+ * record are the same thing only if they name the same file.
+ *
+ * The NUMBER is guarded separately (issue #3527). It used to be un-guardable:
+ * `0020` and `0021` each covered two unrelated records, so the index warned
+ * readers to "rely on the slug, not the number" and 101 citations of the form
+ * `ADR 0020` were undecidable without opening the file. The duplicates were
+ * renumbered to `0125` / `0126` and every citation rewritten, which makes the
+ * number an identifier again — and an identifier nothing enforces goes back to
+ * being a slug within one careless `cp`.
  */
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
@@ -60,6 +66,47 @@ describe("docs/adr/README.md is the complete index", () => {
         expect(
             orphans,
             `index row(s) pointing at a missing file:\n${orphans.join("\n")}`
+        ).toEqual([]);
+    });
+});
+
+describe("ADR numbers identify exactly one record (issue #3527)", () => {
+    it("has no duplicate number", () => {
+        const byNumber = new Map<string, string[]>();
+        for (const file of adrFiles()) {
+            const n = file.slice(0, 4);
+            byNumber.set(n, [...(byNumber.get(n) ?? []), file]);
+        }
+        const shared = [...byNumber.entries()].filter(
+            ([, files]) => files.length > 1
+        );
+        expect(
+            shared.map(([n, files]) => `${n}: ${files.join(", ")}`),
+            "two records share a number — a citation of the form `ADR NNNN` " +
+                "cannot say which one it means. Take the next free number for " +
+                "the newer record and rewrite its citations."
+        ).toEqual([]);
+    });
+
+    it("never opens a record with somebody else's number", () => {
+        // Only the records that USE the `# ADR NNNN — …` convention are
+        // checked. Roughly ninety open with a prose title instead, and this
+        // guard is about a heading that CONTRADICTS its filename (0008 opened
+        // `# ADR 0007 — …` for months), not about imposing a house style on
+        // the rest.
+        const wrong: string[] = [];
+        for (const file of adrFiles()) {
+            const head = fs
+                .readFileSync(path.join(ADR_DIR, file), "utf8")
+                .split("\n")[0];
+            const m = /^#\s*ADR\s+(\d{4})\b/.exec(head);
+            if (m && m[1] !== file.slice(0, 4)) {
+                wrong.push(`${file} opens "${head.trim()}"`);
+            }
+        }
+        expect(
+            wrong,
+            `ADR heading names a different number than its filename:\n${wrong.join("\n")}`
         ).toEqual([]);
     });
 });

@@ -5293,7 +5293,7 @@ export type GameState = {
     /** Transient destroy-replacement shields (CR 614, Pyramids mode 2). Each
      *  entry replaces the next destruction of its keyed permanent before
      *  `duration` expires. Consumed via `destroyWithReplacements`; unconsumed
-     *  remainder purged at expiry. See ADR 0020. */
+     *  remainder purged at expiry. See ADR 0125. */
     destroyReplacementShields?: DestroyReplacementShield[];
     /** CR 614 (issue #1145) — turn-scoped "if a card would be put into your
      *  graveyard from anywhere this turn, exile it instead" grants
@@ -5321,7 +5321,7 @@ export type GameState = {
      *  (host + attached Auras/Equipment). Phased permanents live here instead
      *  of any battlefield array, so every battlefield reader treats them as
      *  nonexistent for free. Bundles return via `removePermanentTo`'s
-     *  source-leaves hook (Oubliette). See ADR 0021. */
+     *  source-leaves hook (Oubliette). See ADR 0126. */
     phasedOut?: PhasedOutBundle[];
     /** CR 603.7a / ADR 0028 — creatures held in exile by an exile-and-return
      *  effect (Tawnos's Coffin), awaiting their source's "leaves the
@@ -5580,7 +5580,7 @@ export type DamageRedirection =
 /** Transient destroy-replacement shield (CR 614, Pyramids). The next time the
  *  keyed permanent would be destroyed before `duration` expires, the
  *  destruction is replaced: the permanent stays and its marked damage is
- *  removed. One-shot per charge. See ADR 0020. */
+ *  removed. One-shot per charge. See ADR 0125. */
 export type DestroyReplacementShield = {
     targetInstanceId: string;
     remaining: number;
@@ -10193,7 +10193,7 @@ export function resolveFight(
         powerB
     );
     // CR 704.5g — now resolve lethal for whichever creature(s) took lethal
-    // damage, through the destroy replacement (regeneration, ADR 0020).
+    // damage, through the destroy replacement (regeneration, ADR 0125).
     if (lethalB !== null) destroyWithReplacements(state, lethalB);
     if (lethalA !== null) destroyWithReplacements(state, lethalA);
 }
@@ -10323,7 +10323,7 @@ export function regenerateOrDestroy(
     return true;
 }
 
-/** Replacement-aware destroy wrapper (CR 614, ADR 0020). Runs the destroy
+/** Replacement-aware destroy wrapper (CR 614, ADR 0125). Runs the destroy
  *  replacement layer FIRST (permanent-bound `replacementEffects[]` with
  *  `eventKind: "destroy"` plus transient `destroyReplacementShields` — Pyramids
  *  mode 2). If a replacement intercepts the destruction, the permanent stays
@@ -15560,7 +15560,7 @@ export function buildSpellContext(
                 unredirectable
             );
             if (lethalId) {
-                // CR 704.5g lethal → destroy replacement (CR 614, ADR 0020),
+                // CR 704.5g lethal → destroy replacement (CR 614, ADR 0125),
                 // then the regeneration shield gets its chance (CR 614.5,
                 // 701.19a). issue #1054 — the CAUSER is the controller of the
                 // resolving spell/ability, which is not necessarily the damage
@@ -16848,7 +16848,7 @@ export function buildSpellContext(
             }
             for (const id of ids) {
                 // Each victim independently gets a chance to consume a destroy
-                // replacement (CR 614, ADR 0020) or a regeneration shield
+                // replacement (CR 614, ADR 0125) or a regeneration shield
                 // (CR 614.5, 701.19a) — unless the caller opts out via
                 // `cantBeRegenerated` (CR 701.19c). issue #1054 — the
                 // resolving spell/ability's controller is the causer for

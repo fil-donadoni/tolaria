@@ -3221,7 +3221,7 @@ function tickAllDurations(state: GameState): void {
     }
 
     // Transient destroy-replacement shields (Pyramids mode 2). Unconsumed
-    // remainder wears off at the same boundary (ADR 0020).
+    // remainder wears off at the same boundary (ADR 0125).
     if (state.destroyReplacementShields?.length) {
         const kept: typeof state.destroyReplacementShields = [];
         for (const shield of state.destroyReplacementShields) {

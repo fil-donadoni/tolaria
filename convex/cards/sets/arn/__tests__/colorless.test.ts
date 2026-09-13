@@ -441,7 +441,7 @@ describe("Ebony Horse ({2},{T}: untap attacker + prevent its combat damage both 
     });
 });
 
-describe("Pyramids (modal destroy-aura / save land, CR 614 + ADR 0020)", () => {
+describe("Pyramids (modal destroy-aura / save land, CR 614 + ADR 0125)", () => {
     it("mode 1 destroys a target Aura", () => {
         const pyr = makeInstance(pyramids.id, { id: "pyr" });
         const land = makeInstance(forest.id, { id: "land" });
