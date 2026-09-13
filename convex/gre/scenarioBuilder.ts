@@ -60,6 +60,7 @@ import {
     type ScenarioRestrictedMana,
     type ScenarioSpec,
     type ScenarioStackItem,
+    type ScenarioStackTarget,
 } from "../debugScenarioSpec";
 import {
     type CardInstanceState,

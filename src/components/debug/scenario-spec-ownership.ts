@@ -453,6 +453,7 @@ export function assembleScenarioSpec(
     for (const key of PRESERVED_SCENARIO_SPEC_KEYS) carry(spec, loaded, key);
     dropStaleCombat(spec);
     dropStaleContinuousEffects(spec);
+    dropStaleStack(spec);
     return spec;
 }
 
@@ -492,6 +493,75 @@ function dropStaleCombat(spec: ScenarioSpec): void {
     if (referenced.some((name) => !onBattlefield.has(name))) {
         delete spec.combat;
     }
+}
+
+/**
+ * CR 405.1 / 601.2c (issue #3513) — drop a carried `stack` whose references no
+ * longer name anything on the assembled board.
+ *
+ * The `dropStaleCombat` hazard exactly, on the field with the most references:
+ * an `ability` entry names its SOURCE permanent and every `permanent` /
+ * `graveyard-card` target names a card in a seat's zone, all by presented name
+ * and position (`nth`), and `seedDeclaredStack` THROWS on one it cannot find —
+ * so an admin who renamed a creature would save a golden row that simply stops
+ * loading.
+ *
+ * The WHOLE array, like a combat and unlike the registry entries: the stack is
+ * one position whose order and whose index references (`{ kind: "stack" }`)
+ * only mean anything together, so dropping one entry would renumber the rest
+ * and silently re-point every reference above it.
+ */
+function dropStaleStack(spec: ScenarioSpec): void {
+    if (!spec.stack) return;
+    // BY SEAT, ZONE and COUNT, the `dropStaleContinuousEffects` shape: a
+    // reference carries `nth`, so the name must still be present at least
+    // `nth + 1` times in that seat's own zone — a `count` the admin lowered is
+    // a throw at load that a presence-only check waves through.
+    const available = new Map<string, number>();
+    for (const card of spec.cards) {
+        const key = `${card.owner}:${card.zone ?? "battlefield"}:${presentedEntryName(card)}`;
+        available.set(key, (available.get(key) ?? 0) + (card.count ?? 1));
+    }
+    const has = (
+        seat: "me" | "opp",
+        zone: "battlefield" | "graveyard",
+        name: string,
+        nth: number
+    ) => (available.get(`${seat}:${zone}:${name}`) ?? 0) > nth;
+
+    const resolves = spec.stack.every((item) => {
+        if (
+            item.kind === "ability" &&
+            !has(
+                item.sourceSeat ?? item.controller,
+                "battlefield",
+                item.name,
+                item.sourceNth ?? 0
+            )
+        ) {
+            return false;
+        }
+        return (item.targets ?? []).every((target) => {
+            if (target.kind === "permanent") {
+                return has(
+                    target.seat,
+                    "battlefield",
+                    target.name,
+                    target.nth ?? 0
+                );
+            }
+            if (target.kind === "graveyard-card") {
+                return has(
+                    target.seat,
+                    "graveyard",
+                    target.name,
+                    target.nth ?? 0
+                );
+            }
+            return true;
+        });
+    });
+    if (!resolves) delete spec.stack;
 }
 
 /**
