@@ -549,19 +549,19 @@ describe("buildVerdictQuiz — a judgement the fit can still read (issue #3405)"
         expect(keys.every((key) => key.length > 0)).toBe(true);
     });
 
-    it("refuses a decision taken with a spell on the stack", () => {
+    it("lowers a decision taken with a spell on the stack", () => {
         // A decision taken with a SPELL ON THE STACK, on the Bot's own turn —
-        // the ordinary "do I hold up anything else?" window. The lowering
-        // cannot express a stack, so the rebuild is the same board with the
-        // Bolt simply gone: a quiet position where nothing is about to die.
-        // Every other guard passes (the Bot's own move is there, the list
-        // survives), which is exactly why this one exists.
+        // "do I answer this?", the commonest window there is. Until issue
+        // #3514 it was refused: the rebuild was the same board with the Bolt
+        // simply gone. The stack now travels in `spec.stack`, through the
+        // PROJECTED state a browser capture reads (hidden hand included).
         const state = buildBladeState({
             label: "verdict-quiz spell-on-stack fixture",
             spec: {
                 cards: [
                     { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
-                    { name: "Mountain", owner: "me", zone: "hand" },
+                    { name: "Mountain", owner: "me", zone: "battlefield" },
+                    { name: "Lightning Bolt", owner: "me", zone: "hand" },
                     { name: "Mountain", owner: "opp", zone: "battlefield" },
                     { name: "Lightning Bolt", owner: "opp", zone: "hand" },
                 ],
@@ -570,9 +570,6 @@ describe("buildVerdictQuiz — a judgement the fit can still read (issue #3405)"
                 landCount: 0,
                 libraryCount: 20,
             },
-            // The opponent Bolts the Bot's creature in the Bot's own main
-            // phase; priority comes back to the Bot with the spell still on the
-            // stack — "do I answer this?", the commonest window there is.
             setup: [
                 // The Bot passes with an empty stack, which is what hands the
                 // opponent the window to cast into.
@@ -594,23 +591,24 @@ describe("buildVerdictQuiz — a judgement the fit can still read (issue #3405)"
             traceFor(state, botId, candidateMoves(state, botId)[0]),
             { state: projectPublicState(state, SEQ, botId), botId }
         );
-        expect(result.ok).toBe(false);
-        if (result.ok) return;
-        // With no journal handed in, a stack the lowering cannot walk back to
-        // a quiet board is refused — its own kind since issue #3480, because
-        // "nobody recorded the window" is a coverage gap a caller can close,
-        // not the structural one `stack-mid-resolution` names.
-        expect(result.refusal.kind).toBe("stack-not-journalled");
-        expect(result.refusal.detail).toContain("on the stack");
-        // The KIND is all the record carries: the title comes from the one
-        // table, looked up by kind, so no refusal site can write its own
-        // (issue #3457).
-        expect(QUIZ_REFUSALS[result.refusal.kind].title.length).toBeGreaterThan(
-            0
-        );
-        expect(formatRefusalReport(result.refusal, { id: 1 })).toContain(
-            QUIZ_REFUSALS["stack-not-journalled"].title
-        );
+        if (!result.ok) {
+            throw new Error(
+                `refused ${result.refusal.kind}: ${result.refusal.detail}`
+            );
+        }
+        expect(result.quiz.spec.stack).toEqual([
+            {
+                kind: "spell",
+                name: "Lightning Bolt",
+                controller: "opp",
+                targets: [
+                    { kind: "permanent", name: "Grizzly Bears", seat: "me" },
+                ],
+                // Cast on the Bot's turn, so off its caster's sorcery timing.
+                castOffSorceryTiming: true,
+            },
+        ]);
+        expect(result.quiz.candidates.length).toBeGreaterThan(1);
     });
 });
 

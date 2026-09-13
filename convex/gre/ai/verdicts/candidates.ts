@@ -15,8 +15,7 @@
 // `buildBladeState`. The activation path now lives in `gre/activation.ts` and
 // the builder in `blade/build.ts`, both pure, so `buildSetupFreeVerdictState`
 // is a CALL into the production builder with no steps — and a position whose
-// pending decision comes from a real activation is replayable here too, which
-// is what the journal slice needs. `verdictStatesAgree` (its test) still pins
+// pending decision comes from a real activation is replayable here too. `verdictStatesAgree` (its test) still pins
 // it to `buildVerdictState`, so a future re-fork reds.
 
 import { enumerateMoves, type Move } from "../../moves";
@@ -55,11 +54,10 @@ export function buildVerdictPosition(
     return buildPositionFromSpec(spec, setup, "verdict");
 }
 
-/** The setup-LESS case: a decision taken on an EMPTY stack, where there is
- *  nothing to walk. Since issue #3480 a decision taken over a stack goes
- *  through `buildVerdictPosition` with the journal's steps instead. Kept as its
- *  own name because that is what its callers mean, and because
- *  `verdictStatesAgree` pins it. */
+/** The setup-LESS case: every lowered decision since issue #3514, whose stack
+ *  (if any) travels in `spec.stack` rather than as steps. Kept as its own name
+ *  because that is what its callers mean, and because `verdictStatesAgree`
+ *  pins it. */
 export function buildSetupFreeVerdictState(spec: ScenarioSpec): GameState {
     return buildVerdictPosition(spec);
 }

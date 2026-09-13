@@ -72,27 +72,11 @@ export default function AiDecisionVerdictQuiz({
         const source = getAiTraceSource(record.id);
         if (!source) return;
         void import("~/lib/ai/verdict-quiz")
-            .then(async ({ buildVerdictQuiz }) => {
+            .then(({ buildVerdictQuiz }) => {
                 if (cancelled) return;
-                // issue #3480 — the walk from the last quiet board to this
-                // decision, when the driver recorded one. `undefined` for a
-                // decision taken on an empty stack (where nothing is owed) and
-                // for a window the journal could not follow, which the lowering
-                // turns into the `stack-not-journalled` refusal rather than a
-                // guess. Loaded from the same lazy chunk so a board that never
-                // opens the quiz never pays for the store.
-                const { journalEntryFor } =
-                    await import("~/lib/ai/stack-journal");
-                if (cancelled) return;
-                const journal =
-                    record.seq === undefined
-                        ? null
-                        : journalEntryFor(
-                              record.seq,
-                              source.botId,
-                              source.knowledge
-                          );
-                const result = buildVerdictQuiz(record.trace, source, journal);
+                // A decision taken over a stack lowers like any other since
+                // issue #3514: the stack travels in `spec.stack`.
+                const result = buildVerdictQuiz(record.trace, source);
                 setState(
                     result.ok
                         ? { status: "ready", quiz: result.quiz }
@@ -124,11 +108,6 @@ export default function AiDecisionVerdictQuiz({
             const { gameId } = getStoredSession();
             await submitVerdict({
                 spec: state.quiz.spec,
-                // The engine-real walk from `spec` to the decision, when the
-                // decision was taken over a stack (issue #3480). The row
-                // already stores it and `buildVerdictState` already replays it
-                // — omitted, a stack verdict would rebuild as a quiet board.
-                ...(state.quiz.setup ? { setup: state.quiz.setup } : {}),
                 // The seat the lowering named — one constant, so the spec
                 // and the row can never disagree about which side moved.
                 seat: QUIZ_SEAT,
