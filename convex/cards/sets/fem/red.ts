@@ -602,16 +602,6 @@ export const dwarvenLieutenant: CardDefinition = {
     ],
 };
 
-// DIVERGENCE (tracked-by: #2118): the "Whenever this creature blocks or becomes
-// blocked by one or more Orcs, this creature gets +0/+2 until end of turn"
-// trigger is NOT modelled — a vanilla 2/1 ships. NOTHING BLOCKS IT ANY MORE:
-// this is queued card work, not a capability gap. When the deferral was written
-// the engine had no way to fire a "one or more" batch trigger exactly once per
-// combat (CR 603.3b) instead of once per BLOCKERS_CONFIRMED pair; both halves
-// have since shipped — `oncePerEventBatch: true` on `TriggeredAbility` does the
-// batching, and the event itself carries `attackerSubtypes`/`blockerSubtypes`
-// for the "by one or more Orcs" filter. Amphibious Kavu (`pls/green.ts`) is the
-// same Oracle line with a colour filter and is the shape to copy.
 export const dwarvenSoldier: CardDefinition = {
     id: "6fe77608-0b33-43f5-83fb-ae993ca1bf7c", // FEM 53a (canonical art)
     rarity: "common",
@@ -623,6 +613,44 @@ export const dwarvenSoldier: CardDefinition = {
     subtypes: ["Dwarf", "Soldier"],
     power: 2,
     toughness: 1,
+    triggeredAbilities: [
+        {
+            id: "dwarven-soldier-orc-pump",
+            oracleText:
+                "Whenever this creature blocks or becomes blocked by one or more Orcs, this creature gets +0/+2 until end of turn.",
+            // The engine emits one BLOCKERS_CONFIRMED per attacker/blocker
+            // PAIR (CR 509.1h), so a "one or more Orcs" batch trigger reads
+            // the pair the Soldier is part of and collapses the whole
+            // confirmation batch into a single firing with
+            // `oncePerEventBatch` (CR 603.3b) — two Orcs blocking it is +0/+2
+            // once, never +0/+4. Bidirectional: `matches` discriminates which
+            // side of the pair the Soldier is on and inspects the OTHER side's
+            // subtypes, which the event carries directly (no TriggerStateView
+            // lookup). Same shape as Amphibious Kavu (`pls/green.ts`) with a
+            // subtype filter instead of a colour one.
+            event: "BLOCKERS_CONFIRMED",
+            matches: (event, self) => {
+                if (event.type !== "BLOCKERS_CONFIRMED") return false;
+                const isBlockedAttacker = event.attackerId === self.id;
+                const isBlocker = event.blockerId === self.id;
+                if (!isBlockedAttacker && !isBlocker) return false;
+                const otherSubtypes = isBlockedAttacker
+                    ? event.blockerSubtypes
+                    : event.attackerSubtypes;
+                return otherSubtypes.includes("Orc");
+            },
+            oncePerEventBatch: true,
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 0,
+                    toughness: 2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
 };
 
 export const dwarvenSoldierFemB: CardPrint = {
