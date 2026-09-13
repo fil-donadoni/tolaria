@@ -30,7 +30,6 @@ import { compactState, expandState } from "../../../../gre/serialize";
 import { projectPublicState } from "../../../../gameProjections";
 import type { PermanentView } from "../../../types";
 import {
-    getCardByName,
     getDefinition,
     tryGetDefinition,
     withTemporaryDefinition,
@@ -38,9 +37,9 @@ import {
 
 const aang = getDefinition("fea89ca0-8070-4f28-9851-994314f9d248");
 const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
-const bears = getCardByName("Grizzly Bears");
-const crawWurm = getCardByName("Craw Wurm");
-const bolt = getCardByName("Lightning Bolt");
+const bears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870"); // Grizzly Bears
+const crawWurm = getDefinition("bfed1a95-bd67-4e16-a781-81866028af2f"); // Craw Wurm
+const bolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a"); // Lightning Bolt
 
 const mine = (defId: string, id: string, zone?: CardInstanceState["zone"]) =>
     makeInstance(defId, {
