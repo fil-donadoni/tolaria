@@ -63,7 +63,12 @@ export function buildDelayedTriggerStackItem(
         isTapped: false,
         castById: t.controller,
         delayedTriggerId: t.triggerId,
-        delayedPayload: t.payload,
+        // A COPY, never the instance's own object: a repeating timing keeps its
+        // instance queued after firing, and the CR 400.7 capture scrub
+        // (`dropDelayedCapturesOfEnteringObject`) must be able to treat the
+        // pending instance and the resolving stack item separately — as they
+        // already are after a save/reload.
+        delayedPayload: { ...t.payload },
         // ADR 0048 — an inline-body instance carries its Effect Script onto the
         // stack item, so resolution needs no card-def lookup.
         ...(t.effects ? { delayedEffects: t.effects } : {}),

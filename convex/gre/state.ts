@@ -8100,7 +8100,9 @@ function finalizeSpellResolution(
         // see `clearExileLinksToEnteringSource`'s doc. A first-ever cast is a
         // no-op (no prior incarnation ever stamped this id).
         clearExileLinksToEnteringSource(state, item.id);
-        dropDelayedCapturesOfEnteringObject(state, item.id);
+        dropDelayedCapturesOfEnteringObject(state, item.id, {
+            resolvingItemPopped: true,
+        });
         // CR 113.6c — an ability that functions only OUTSIDE the battlefield
         // switches off here: Grist stops being a 1/1 Insect creature the
         // instant it resolves as a planeswalker. Before the layer-4 grants
@@ -10490,14 +10492,20 @@ export function clearExileLinksToEnteringSource(
  *  do for an object that is simply gone (CR 608.2b).
  *
  *  Scrubs every PENDING instance and every fired delayed trigger WAITING on
- *  the stack. The top stack item is left alone: an entry happens while that
- *  item resolves, and a delayed body that itself returns its captured object
- *  ("return that card to the battlefield", earthbend's return leg) must keep
- *  reading the binding it is in the middle of using. A frozen LIST capture
- *  loses only the re-entering member. */
+ *  the stack. The item that is resolving is left alone — a delayed body that
+ *  itself returns its captured object ("return that card to the battlefield",
+ *  earthbend's return leg) must keep reading the binding it is in the middle
+ *  of using — and the CALLER says where that item is, because the funnels
+ *  disagree: an effect-driven entry runs while its item still sits on top of
+ *  the stack, but a permanent SPELL has already been popped when
+ *  `finalizeSpellResolution` puts it onto the battlefield, so the top item
+ *  there is a WAITING one (a fired delayed trigger the recast was flashed in
+ *  above) and must be scrubbed like the rest. A frozen LIST capture loses only
+ *  the re-entering member. */
 export function dropDelayedCapturesOfEnteringObject(
     state: GameState,
-    instanceId: string
+    instanceId: string,
+    entry: { resolvingItemPopped: boolean }
 ): void {
     const scrub = (payload: Record<string, string | string[]>): void => {
         for (const [key, value] of Object.entries(payload)) {
@@ -10511,7 +10519,9 @@ export function dropDelayedCapturesOfEnteringObject(
         }
     };
     for (const t of state.delayedTriggers ?? []) scrub(t.payload);
-    const resolving = state.stack[state.stack.length - 1];
+    const resolving = entry.resolvingItemPopped
+        ? undefined
+        : state.stack[state.stack.length - 1];
     for (const item of state.stack) {
         if (item !== resolving && item.delayedPayload) {
             scrub(item.delayedPayload);
@@ -13363,7 +13373,9 @@ function stageReanimatedOnBattlefield(
     // same instance id stamped is now stale — drop it before anything can
     // read it as this new object's own pile.
     clearExileLinksToEnteringSource(state, card.id);
-    dropDelayedCapturesOfEnteringObject(state, card.id);
+    dropDelayedCapturesOfEnteringObject(state, card.id, {
+        resolvingItemPopped: false,
+    });
     card.zone = "battlefield";
     // CR 113.6c — see the spell-resolution twin: the off-battlefield ability
     // switches off on arrival, before the entry path's layer-4 grants.

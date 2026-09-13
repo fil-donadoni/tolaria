@@ -26,6 +26,7 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { backFaceDefinitionIdOf } from "../../../../gre/transform";
+import { compactState, expandState } from "../../../../gre/serialize";
 import { projectPublicState } from "../../../../gameProjections";
 import type { PermanentView } from "../../../types";
 import {
@@ -275,10 +276,14 @@ describe("Aang, at the Crossroads — delayed transform (CR 603.6c / 603.7a / 70
         expect(state.stack).toHaveLength(2);
         resolveTopOfStack(state);
         expect(onBattlefield(state, "aang")!.transformed).toBe(true);
-        resolveTopOfStack(state);
+        // A save between the two resolutions (the game waits on priority):
+        // the fired trigger's `delayedOrigin` and Aang's transform stamp must
+        // both survive the DB round trip, or the second trigger flips him back.
+        const reloaded = expandState(compactState(state));
+        resolveTopOfStack(reloaded);
         // Not flipped back to the front face.
-        expect(onBattlefield(state, "aang")!.transformed).toBe(true);
-        expect(state.stack).toHaveLength(0);
+        expect(onBattlefield(reloaded, "aang")!.transformed).toBe(true);
+        expect(reloaded.stack).toHaveLength(0);
     });
 });
 

@@ -625,7 +625,9 @@ function settleEnteredLand(
     // drop it now, on THIS new object's entry, not at its departure. See
     // `clearExileLinksToEnteringSource`'s doc in state.ts.
     clearExileLinksToEnteringSource(state, card.id);
-    dropDelayedCapturesOfEnteringObject(state, card.id);
+    dropDelayedCapturesOfEnteringObject(state, card.id, {
+        resolvingItemPopped: false,
+    });
 
     // CR 305.2 — track the land drop.
     if (card.types.includes("Land")) {

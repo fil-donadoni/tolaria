@@ -16479,6 +16479,30 @@ describe("Effect Script Op: delayedTrigger (CR 603.7)", () => {
                 state.players[1].battlefield.some((c) => c.id === "dtr1")
             ).toBe(true);
         });
+
+        // Review finding (issue #3249) — a permanent SPELL is popped BEFORE
+        // `finalizeSpellResolution` puts it onto the battlefield, so the top
+        // item at that moment is the fired delayed trigger it was cast above.
+        it("a permanent SPELL recast above the fired trigger drops the capture too", () => {
+            const state = scheduleDestroyAtEndStep();
+            fireDelayedTriggers(state, "next-end-step");
+            removePermanentTo(state, "dtr1", "hand");
+            state.players[1].hand = state.players[1].hand.filter(
+                (c) => c.id !== "dtr1"
+            );
+            const recast = pushSpell(state, BEAR_ID, "p2");
+            recast.id = "dtr1";
+            resolveTopOfStack(state);
+            expect(
+                state.players[1].battlefield.some((c) => c.id === "dtr1")
+            ).toBe(true);
+            expect(state.stack).toHaveLength(1);
+            expect(state.stack[0].delayedPayload).toEqual({});
+            resolveTopOfStack(state);
+            expect(
+                state.players[1].battlefield.some((c) => c.id === "dtr1")
+            ).toBe(true);
+        });
     });
 
     it("skips the body Op when the captured permanent left before the trigger fired (CR 608.2b)", () => {
