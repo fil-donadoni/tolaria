@@ -318,16 +318,6 @@ export const feedback: CardDefinition = {
     types: ["Enchantment"],
     subtypes: ["Aura"],
     targetRequirement: { type: "Enchantment", count: 1 },
-    // NOT DSL-migratable (ADR 0045): the damage target is "that player" =
-    // enchanted enchantment's CONTROLLER, re-derived at RESOLVE time (control
-    // can change between trigger-fire and resolution). `phaseTrigger`'s
-    // `effects[]` dispatch has no player-ref construct for "current
-    // controller of this aura's host" — only `"controller"` (the aura's own
-    // controller) / `"opponent"` / an announced `{ target }` / `{
-    // controllerOf: { target } }`, none of which reach `source.attachedTo`.
-    // Blocked on: a new `EffectPlayerRef` value construct exposing the
-    // aura-host's controller re-read live (e.g. `{ controllerOf: "$host" }`
-    // or a `{ ref: "$source.attachedTo.controller" }` shape).
     triggeredAbilities: [
         phaseTrigger({
             id: "feedback-upkeep",
@@ -335,9 +325,21 @@ export const feedback: CardDefinition = {
                 "At the beginning of the upkeep of enchanted enchantment's controller, Feedback deals 1 damage to that player.",
             phase: "UPKEEP",
             scope: "host-controller",
-            resolve: (ctx, _event, hostController) => {
-                ctx.dealDamage({ type: "player", id: hostController }, 1);
-            },
+            // CR 303.4 / 603.6a — "that player" is the enchanted enchantment's
+            // CURRENT controller, read at RESOLVE time: `$host` is the implicit
+            // attachment-host snapshot every ability-site script gets (issue
+            // #1341), bound by `runEffectScript` on its FRESH entry from the
+            // live `ctx.getAttachedToId()` link — the moment CR 608.2 fixes the
+            // ability's subject — and `.controller` reads that snapshot's
+            // controller slot. A control change between the trigger firing and
+            // its resolution is honoured; one after resolution begins is not.
+            effects: [
+                {
+                    op: "dealDamage",
+                    amount: 1,
+                    to: { player: { ref: "$host.controller" } },
+                },
+            ],
         }),
     ],
 };
@@ -738,16 +740,11 @@ export const pirateShip: CardDefinition = {
 // The pre-Oracle Alpha printing was "lose 1 life unless pay {U}" — a wholly
 // different effect; issue #960 corrected it to the modern damage/prevention.
 //
-// "Pay any amount of mana … prevent X of that [2] damage" is decomposed into
-// two sequential {1} optional payments (CR 117.3a), each preventing one of the
-// two points of damage: paying more than {2} prevents nothing further, so the
-// game-observable outcome (take 0, 1, or 2 damage) is faithful across the whole
-// legal range without needing a variable-amount payment primitive. This is a
-// primitive-reuse decomposition, NOT the {2}-lump cap-hack that conflates the
-// two points into one all-or-nothing may-pay (rejected for Errant Minion, ICE
-// #628) — each point is offered independently, so partial (pay {1}) prevention
-// is expressible. The final `dealDamage` runs only after BOTH choices are
-// collected, so a single `resolve` re-run on resume never double-applies it.
+// The payment is ONE nomination, not a sequence of fixed ones: CR 107.3f — "if
+// the value of X isn't defined, the controller of the spell or ability chooses
+// the value of X at the appropriate time (either as it's put on the stack or as
+// it resolves)". The `payVariableMana` Op (issue #1701) raises exactly that
+// prompt and binds the amount paid; the prevention then reads it as a value.
 export const powerLeak: CardDefinition = {
     id: "ccc982b6-35b2-4e33-ace2-86cb79123e4f",
     rarity: "common",
@@ -758,16 +755,6 @@ export const powerLeak: CardDefinition = {
     types: ["Enchantment"],
     subtypes: ["Aura"],
     targetRequirement: { type: "Enchantment", count: 1 },
-    // NOT DSL-migratable (ADR 0045): same host-controller blocker as
-    // Feedback above — "that player" (the damage target AND the mayPay
-    // payer) is enchanted enchantment's controller, re-derived at RESOLVE
-    // time, which the `effects[]` player-ref grammar cannot express (no
-    // construct reaches `source.attachedTo`'s live controller). The
-    // sequential-mayPay/partial-prevention shape itself (two independent {1}
-    // may-pays, each preventing one point) is otherwise expressible via
-    // `mayPay` + `if`, but is moot while the player-ref gap stands.
-    // Blocked on: the same `EffectPlayerRef` value construct noted on
-    // Feedback.
     triggeredAbilities: [
         phaseTrigger({
             id: "power-leak-upkeep",
@@ -775,32 +762,38 @@ export const powerLeak: CardDefinition = {
                 "At the beginning of the upkeep of enchanted enchantment's controller, that player may pay any amount of mana. This Aura deals 2 damage to that player. Prevent X of that damage, where X is the amount of mana that player paid this way.",
             phase: "UPKEEP",
             scope: "host-controller",
-            resolve: (ctx, _event, hostController) => {
-                let prevented = 0;
-                const first = ctx.requestMayPay({
-                    playerId: hostController,
-                    choiceId: "power-leak-prevent-1",
-                    cost: { X: 1 },
-                    prompt: "Pay {1} to prevent 1 damage from Power Leak?",
-                });
-                if (first === undefined) return; // suspended
-                if (first) prevented++;
-                const second = ctx.requestMayPay({
-                    playerId: hostController,
-                    choiceId: "power-leak-prevent-2",
-                    cost: { X: 1 },
-                    prompt: "Pay {1} to prevent 1 more damage from Power Leak?",
-                });
-                if (second === undefined) return; // suspended
-                if (second) prevented++;
-                const damage = 2 - prevented;
-                if (damage > 0) {
-                    ctx.dealDamage(
-                        { type: "player", id: hostController },
-                        damage
-                    );
-                }
-            },
+            // CR 303.4 / 603.6a — "that player" is the enchanted enchantment's
+            // current controller, read through the implicit `$host` snapshot;
+            // see Feedback above for the bind-timing note.
+            //
+            // CR 107.3f nomination, then CR 615.1 prevention, then the damage.
+            // The shield is installed BEFORE the damage because that is what
+            // "prevent X of that damage" means: a CR 615.1 shield the damage
+            // event then walks into, not an arithmetic reduction of the amount
+            // (the difference is observable — a source-side "damage can't be
+            // prevented" static overrides a shield and leaves it unspent,
+            // CR 615.12). Nothing can be dealt to that player between the two
+            // Ops: they are one resolution, with no priority in between.
+            effects: [
+                {
+                    op: "payVariableMana",
+                    player: { ref: "$host.controller" },
+                    prompt: "Pay any amount of mana — each {1} prevents 1 damage from Power Leak",
+                    bind: "$paid",
+                },
+                {
+                    op: "preventDamage",
+                    mode: "next-n",
+                    to: { player: { ref: "$host.controller" } },
+                    amount: { ref: "$paid" },
+                    duration: { phase: "end-of-turn" },
+                },
+                {
+                    op: "dealDamage",
+                    amount: 2,
+                    to: { player: { ref: "$host.controller" } },
+                },
+            ],
         }),
     ],
 };

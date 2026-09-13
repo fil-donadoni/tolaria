@@ -525,21 +525,36 @@ export const farmstead: CardDefinition = {
                 "At the beginning of your upkeep, you may pay {W}{W}. If you do, you gain 1 life.",
             phase: "UPKEEP",
             scope: "host-controller",
-            // NOT DSL-migratable (ADR 0045, issue #831): the affected player is
-            // the enchanted land's controller (host-controller scope), which no
-            // EffectPlayerRef expresses ("controller" is the Aura's controller).
-            // Blocked on: host-controller player ref.
-            resolve: (ctx, _event, hostController) => {
-                // CR 117.3a optional cost — may pay {W}{W}; gain 1 life on pay.
-                const accept = ctx.requestMayPay({
-                    playerId: hostController,
-                    choiceId: hostController,
+            // CR 303.4 / 603.6a — "that player" is the enchanted permanent's
+            // CURRENT controller, read at RESOLVE time: `$host` is the implicit
+            // attachment-host snapshot every ability-site script gets
+            // (issue #1341), bound by `runEffectScript` on its FRESH entry from
+            // the live `ctx.getAttachedToId()` link, which is the moment CR 608.2
+            // fixes the ability's subject. `.controller` reads that snapshot's
+            // controller slot, so a control change between the trigger firing
+            // and its resolution is honoured and a later one is not.
+            //
+            // CR 117.3a optional cost — may pay {W}{W}; gain 1 life on pay.
+            effects: [
+                {
+                    op: "mayPay",
+                    player: { ref: "$host.controller" },
                     cost: { W: 2 },
                     prompt: "Pay {W}{W} to gain 1 life? (Farmstead)",
-                });
-                if (accept === undefined) return;
-                if (accept) ctx.gainLife(hostController, 1);
-            },
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$paid" },
+                    then: [
+                        {
+                            op: "gainLife",
+                            player: { ref: "$host.controller" },
+                            amount: 1,
+                        },
+                    ],
+                },
+            ],
         }),
     ],
 };

@@ -201,9 +201,18 @@ function isSnapshotNameRef(value: unknown): boolean {
     );
 }
 
-/** `{ ref: "$binding.property" }` — SHAPE only (single `ref` key holding a
- *  `$binding.property` string). Whether the binding exists and the property
- *  is legal is decided by the ordered ref pass (`checkRefUses`). */
+/** `{ ref: "$binding.property" }` or the BARE `{ ref: "$binding" }` — SHAPE
+ *  only (a single `ref` key holding a `$binding[.property]` string). Whether
+ *  the binding exists, which FAMILY it belongs to, and whether the property is
+ *  legal are all decided by the ordered ref pass (`checkRefUses`).
+ *
+ *  The bare form is the NUMERIC binding read (CR 107.1b / 107.3f, issue #1701):
+ *  `count: { ref: "$paid" }` reads the amount a `payVariableMana` nomination
+ *  paid. Admitting it here is a shape widening only — `checkRefUse`'s bare
+ *  numeric branch still rejects a bare ref naming any other family, so a
+ *  `{ ref: "$snapshot" }` in a numeric position is refused exactly as it was
+ *  before (as a malformed ref then, as a family mismatch now, with a message
+ *  that says which). */
 function isRefValue(value: unknown): boolean {
     if (typeof value !== "object" || value === null) return false;
     const keys = Object.keys(value);
@@ -211,7 +220,7 @@ function isRefValue(value: unknown): boolean {
         keys.length === 1 &&
         keys[0] === "ref" &&
         typeof (value as { ref: unknown }).ref === "string" &&
-        /^\$[A-Za-z][A-Za-z0-9]*\.[A-Za-z]+$/.test(
+        /^\$[A-Za-z][A-Za-z0-9]*(\.[A-Za-z]+)?$/.test(
             (value as { ref: string }).ref
         )
     );
