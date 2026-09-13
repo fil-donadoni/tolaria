@@ -950,15 +950,18 @@ describe("check:ui probe — the shell return band is culled from every control 
  * A printed card face whose RESOLVED source is narrower than the slot it paints
  * into, in DEVICE pixels, is soft. Every other counter in this probe reads
  * clean on it: the image is present, correctly boxed, unoccluded, reachable,
- * properly rounded. Only the BITMAP is too small, and the defect self-repairs
- * on a slight window resize — which is why it survived this long and why it
- * cannot be tested anywhere a layout engine does not exist.
+ * properly rounded. Only the RESOLVED RENDITION is too small, and the defect
+ * self-repairs on a slight window resize — which is why it survived this long
+ * and why it cannot be tested anywhere a layout engine does not exist.
  *
- * The check reads `naturalWidth`, the bitmap the browser actually decoded —
- * never the `sizes` hint or the `srcset` the markup offered. That is what makes
- * it catch the second class too: a compositor that evicted the layer and
- * decoded at the hint rather than at the image's intrinsic width offers the
- * same markup and produces a smaller `naturalWidth`.
+ * The check reads `currentSrc` — the candidate the browser actually selected —
+ * and looks its published pixel width up in the probe's rendition table. The
+ * first implementation read `naturalWidth` and was withdrawn: for a
+ * width-descriptor srcset the spec divides `naturalWidth` by the resource's
+ * current pixel density (candidateWidth / sizesWidth), so it reports the
+ * `sizes` hint back and can never disagree with the markup. That is not a
+ * subtlety anyone should have to rediscover from a green run, so the case has
+ * its own test below.
  *
  * Symmetric on purpose, and `devicePixelRatio` is stubbed explicitly: the whole
  * quantity is `slot CSS width × dpr`, so a check proven at one dpr has not been
@@ -970,12 +973,12 @@ function probeSoft(opts: {
     dpr: number;
     html: string;
     rects: Record<string, StubRect>;
-    /** `naturalWidth` per element id — the bitmap the browser resolved. Omit an
-     *  id to leave it at happy-dom's 0, which is the not-yet-loaded case. */
-    natural?: Record<string, number>;
-    /** `complete` per element id; defaults to `true` for every id in
-     *  `natural`. */
-    incomplete?: string[];
+    /** `currentSrc` per element id — the candidate the browser resolved. Omit
+     *  an id to leave it unresolved, which is the not-yet-loaded case. */
+    current?: Record<string, string>;
+    /** `offsetWidth` per element id, when it must DIFFER from the rect's
+     *  width — a rotated (tapped) card is the case that matters. */
+    layoutW?: Record<string, number>;
 }) {
     const window = new Window({ url: "http://localhost/" });
     const context = createContext(window as unknown as object);
@@ -987,14 +990,20 @@ function probeSoft(opts: {
     Object.defineProperty(window, "devicePixelRatio", { value: opts.dpr });
 
     for (const [id, r] of Object.entries(opts.rects)) {
-        doc.getElementById(id)!.getBoundingClientRect = () =>
-            fullRect(r) as never;
-    }
-    for (const [id, w] of Object.entries(opts.natural ?? {})) {
         const el = doc.getElementById(id)!;
-        Object.defineProperty(el, "naturalWidth", { value: w });
-        Object.defineProperty(el, "complete", {
-            value: !(opts.incomplete ?? []).includes(id),
+        el.getBoundingClientRect = () => fullRect(r) as never;
+        // The LAYOUT width, which is what the check reads — see the
+        // rotated-card case below for why the two differ and which one is
+        // right. Defaults to the rect's width so every test that is not about
+        // rotation states one number.
+        Object.defineProperty(el, "offsetWidth", {
+            configurable: true,
+            value: opts.layoutW?.[id] ?? r.width,
+        });
+    }
+    for (const [id, url] of Object.entries(opts.current ?? {})) {
+        Object.defineProperty(doc.getElementById(id)!, "currentSrc", {
+            value: url,
         });
     }
     doc.elementFromPoint = (() => null) as never;
@@ -1007,18 +1016,28 @@ function probeSoft(opts: {
                 cardsSoftN: number;
                 cardsSoft: { t: string; need: number; have: number }[];
                 cardsSoftPending: number;
+                cardsSoftUnknown: number;
             };
         }
     ).__result;
 }
 
+/** A Scryfall CDN URL for one rendition — the shape `src/lib/images.ts` builds
+ *  and the shape the probe parses its variant segment out of. */
+function cdn(variant: string) {
+    return `https://cards.scryfall.io/${variant}/front/b/d/bd.webp`;
+}
+
 /** One printed card face, marked the way every CDN-backed face this app renders
- *  is (`data-card-face="printed"`). */
+ *  is (`data-card-face="printed"`). `src` is deliberately a DIFFERENT rendition
+ *  from the `currentSrc` the tests stub: `src` is the non-responsive fallback,
+ *  and a check that read it instead of the resolved candidate would measure the
+ *  wrong thing on every real render. */
 function faceHtml(id = "card") {
     return `
         <div id="board">
             <img id="${id}" alt="Brainstorm" data-card-face="printed"
-                 src="https://cards.scryfall.io/grid/front/b/d/bd.webp" />
+                 src="${cdn("grid")}" />
         </div>
     `;
 }
@@ -1034,14 +1053,14 @@ describe("check:ui probe — image-quality floor (issue #3553)", () => {
             dpr: 2,
             html: faceHtml(),
             rects: { card: { left: 0, top: 0, width: 180, height: 251 } },
-            natural: { card: 146 },
+            current: { card: cdn("thumb") },
         });
         expect(r.cardsSoftN).toBe(1);
         expect(r.cardsSoft[0]!.need).toBe(360);
         expect(r.cardsSoft[0]!.have).toBe(146);
     });
 
-    it("does not flag a slot whose resolved source covers its device width", () => {
+    it("does not flag a slot whose resolved candidate covers its device width", () => {
         // Same slot, `grid` 488w resolved: 488 >= 360.
         const r = probeSoft({
             vw: 1440,
@@ -1049,7 +1068,7 @@ describe("check:ui probe — image-quality floor (issue #3553)", () => {
             dpr: 2,
             html: faceHtml(),
             rects: { card: { left: 0, top: 0, width: 180, height: 251 } },
-            natural: { card: 488 },
+            current: { card: cdn("grid") },
         });
         expect(r.cardsSoftN).toBe(0);
     });
@@ -1064,13 +1083,13 @@ describe("check:ui probe — image-quality floor (issue #3553)", () => {
             dpr: 1,
             html: faceHtml(),
             rects: { card: { left: 0, top: 0, width: 64, height: 89 } },
-            natural: { card: 146 },
+            current: { card: cdn("thumb") },
         });
         expect(r.cardsSoftN).toBe(0);
     });
 
     it("scales the requirement with devicePixelRatio", () => {
-        // The identical 120px CSS slot and the identical `grid` 488w bitmap:
+        // The identical 120px CSS slot and the identical `grid` 488w candidate:
         // fine at 3× (360 needed), soft at 5× (600 needed). Nothing about the
         // markup differs between the two — only the display does, which is
         // exactly why a hand-written per-call-site constant cannot hold this.
@@ -1082,7 +1101,7 @@ describe("check:ui probe — image-quality floor (issue #3553)", () => {
                 dpr: 3,
                 html: faceHtml(),
                 rects: { card: rect },
-                natural: { card: 488 },
+                current: { card: cdn("grid") },
             }).cardsSoftN
         ).toBe(0);
         expect(
@@ -1092,32 +1111,71 @@ describe("check:ui probe — image-quality floor (issue #3553)", () => {
                 dpr: 5,
                 html: faceHtml(),
                 rects: { card: rect },
-                natural: { card: 488 },
+                current: { card: cdn("grid") },
             }).cardsSoftN
         ).toBe(1);
     });
 
-    it("reports an unloaded face as pending instead of counting it soft", () => {
-        // `naturalWidth === 0` on an image with no bitmap yet would read as
-        // infinitely soft and red every run with a lazy card below the fold.
+    it("measures the RESOLVED candidate, not the fallback `src`", () => {
+        // The regression that made the first implementation vacuous, in the
+        // form it can still come back: reading the element's own `src` (or, as
+        // it was, its density-corrected `naturalWidth`) instead of the
+        // candidate the browser chose. `faceHtml`'s `src` is `grid` 488w while
+        // the resolved candidate here is `thumb` — a check reading `src` calls
+        // this clean.
+        const r = probeSoft({
+            vw: 1440,
+            vh: 900,
+            dpr: 2,
+            html: faceHtml(),
+            rects: { card: { left: 0, top: 0, width: 208, height: 290 } },
+            current: { card: cdn("thumb") },
+        });
+        expect(r.cardsSoftN).toBe(1);
+        expect(r.cardsSoft[0]!.have).toBe(146);
+    });
+
+    it("reports an unresolved face as pending instead of counting it soft", () => {
+        // A lazy card below the fold has no candidate yet; counting it would
+        // red every run that scrolls.
+        const doc = probeSoft({
+            vw: 1440,
+            vh: 900,
+            dpr: 2,
+            html: `
+                <div id="board">
+                    <img id="card" alt="Brainstorm" data-card-face="printed" />
+                </div>
+            `,
+            rects: { card: { left: 0, top: 0, width: 180, height: 251 } },
+        });
+        expect(doc.cardsSoftN).toBe(0);
+        expect(doc.cardsSoftPending).toBe(1);
+    });
+
+    it("counts an unknown rendition rather than skipping it", () => {
+        // A CDN variant the table does not price is an UNMEASURABLE card face,
+        // and this lane's contract is that a coverage hole reds. Skipping it
+        // silently is the one outcome that must not happen — that is how a
+        // check keeps passing while measuring less and less.
         const r = probeSoft({
             vw: 1440,
             vh: 900,
             dpr: 2,
             html: faceHtml(),
             rects: { card: { left: 0, top: 0, width: 180, height: 251 } },
-            natural: { card: 0 },
-            incomplete: ["card"],
+            current: { card: cdn("some_new_variant") },
         });
         expect(r.cardsSoftN).toBe(0);
-        expect(r.cardsSoftPending).toBe(1);
+        expect(r.cardsSoftUnknown).toBe(1);
     });
 
     it("ignores an image that is not a printed card face", () => {
         // The art / art_crop preview pipeline is a different rendition family
         // with a different aspect ratio, out of scope per the issue — and a
-        // decorative full-bleed background is not a card at all. Neither
-        // carries the marker, so neither is measured.
+        // decorative full-bleed background is not a card at all. The first
+        // carries no marker; the second is excluded as decorative even though
+        // it (wrongly) carries one.
         const r = probeSoft({
             vw: 1440,
             vh: 900,
@@ -1127,22 +1185,64 @@ describe("check:ui probe — image-quality floor (issue #3553)", () => {
                     <img id="art" alt="Brainstorm"
                          src="https://cards.scryfall.io/art_crop/front/b/d/bd.jpg" />
                     <img id="ground" alt="" aria-hidden="true" data-ambient-art
-                         data-card-face="printed"
-                         src="https://cards.scryfall.io/grid/front/b/d/bd.webp" />
+                         data-card-face="printed" src="${cdn("thumb")}" />
                 </div>
             `,
             rects: {
                 art: { left: 0, top: 0, width: 400, height: 320 },
                 ground: { left: 0, top: 0, width: 1440, height: 900 },
             },
-            natural: { art: 146, ground: 146 },
+            current: {
+                art: "https://cards.scryfall.io/art_crop/front/b/d/bd.jpg",
+                ground: cdn("thumb"),
+            },
+        });
+        expect(r.cardsSoftN).toBe(0);
+        expect(r.cardsSoftUnknown).toBe(0);
+    });
+
+    it("measures a TAPPED card by its layout width, not its rotated rect", () => {
+        // Browser-measured on `game-debug-sheet`: three tapped artifacts read
+        // `Sol Ring 93px dec64px needs186 has146 thumb` at every viewport. A
+        // tapped permanent is drawn rotated 90°, so `getBoundingClientRect`
+        // hands back the AXIS-ALIGNED box of the rotated result — the card's
+        // 89px height as its width. The image rotates with its box: its own
+        // horizontal axis still spans 64 CSS px of screen, and nothing about
+        // its sharpness changed when it tapped. Measuring the rect would have
+        // made this ceiling a function of how many permanents happen to be
+        // tapped when the lane runs.
+        const r = probeSoft({
+            vw: 1440,
+            vh: 900,
+            dpr: 2,
+            html: faceHtml(),
+            // The rotated result: 89 wide, 64 tall.
+            rects: { card: { left: 0, top: 0, width: 89, height: 64 } },
+            layoutW: { card: 64 },
+            current: { card: cdn("thumb") },
         });
         expect(r.cardsSoftN).toBe(0);
     });
 
+    it("still flags a rotated card whose LAYOUT width outgrows the rendition", () => {
+        // The counter-case: rotation must not become a blanket exemption. A
+        // 180px tapped card needs 360 device px however it is oriented.
+        const r = probeSoft({
+            vw: 1440,
+            vh: 900,
+            dpr: 2,
+            html: faceHtml(),
+            rects: { card: { left: 0, top: 0, width: 251, height: 180 } },
+            layoutW: { card: 180 },
+            current: { card: cdn("thumb") },
+        });
+        expect(r.cardsSoftN).toBe(1);
+        expect(r.cardsSoft[0]!.need).toBe(360);
+    });
+
     it("tolerates one device pixel of sub-pixel rounding", () => {
         // A fractional layout width (a flex track dividing an odd container)
-        // makes `need` land a hair above the source's own width. A real
+        // makes `need` land a hair above the rendition's own width. A real
         // under-declaration is never within one device pixel, and reporting
         // this would make the ceiling a function of container arithmetic.
         const r = probeSoft({
@@ -1151,7 +1251,7 @@ describe("check:ui probe — image-quality floor (issue #3553)", () => {
             dpr: 1,
             html: faceHtml(),
             rects: { card: { left: 0, top: 0, width: 488.4, height: 680 } },
-            natural: { card: 488 },
+            current: { card: cdn("grid") },
         });
         expect(r.cardsSoftN).toBe(0);
     });

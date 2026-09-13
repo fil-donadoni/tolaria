@@ -52,7 +52,13 @@ export default function useCardSlotFloor<T extends HTMLElement>(): {
     useLayoutEffect(() => {
         const el = slotRef.current;
         const read = () => {
-            const width = el ? el.getBoundingClientRect().width : 0;
+            // `offsetWidth`, the LAYOUT box — never `getBoundingClientRect`,
+            // which returns the axis-aligned box of the TRANSFORMED result. A
+            // tapped permanent is drawn rotated 90°, so its rect reports the
+            // card's height as its width; the image rotates with the box and
+            // its own horizontal axis still spans the layout width. The ui-gate
+            // probe measures the same quantity for the same reason.
+            const width = el ? el.offsetWidth : 0;
             const next =
                 width > 0
                     ? cardSlotFloor(width, window.devicePixelRatio || 1)

@@ -25,31 +25,34 @@ import CardImage from "../card-image";
 
 const CARD_ID = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
 
-/** Make every element in the document report `width` — the slot wrapper
- *  included, which is the box `useCardSlotFloor` observes. Restored per test.
- */
+/** Make every element in the document report `offsetWidth` — the slot wrapper
+ *  included, which is the LAYOUT box `useCardSlotFloor` reads (never the
+ *  bounding rect, which on a tapped, rotated card reports the card's height).
+ *  Restored per test. */
 function stubLayout(width: number, dpr: number) {
-    const originalRect = Element.prototype.getBoundingClientRect;
+    const original = Object.getOwnPropertyDescriptor(
+        HTMLElement.prototype,
+        "offsetWidth"
+    );
     const originalDpr = window.devicePixelRatio;
-    Element.prototype.getBoundingClientRect = function () {
-        return {
-            width,
-            height: width * 1.4,
-            left: 0,
-            top: 0,
-            right: width,
-            bottom: width * 1.4,
-            x: 0,
-            y: 0,
-            toJSON() {},
-        } as DOMRect;
-    };
+    Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
+        configurable: true,
+        get: () => width,
+    });
     Object.defineProperty(window, "devicePixelRatio", {
         configurable: true,
         value: dpr,
     });
     return () => {
-        Element.prototype.getBoundingClientRect = originalRect;
+        if (original)
+            Object.defineProperty(
+                HTMLElement.prototype,
+                "offsetWidth",
+                original
+            );
+        else
+            delete (HTMLElement.prototype as unknown as Record<string, unknown>)
+                .offsetWidth;
         Object.defineProperty(window, "devicePixelRatio", {
             configurable: true,
             value: originalDpr,

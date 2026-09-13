@@ -624,7 +624,7 @@ async function main(): Promise<number> {
                           (probe.cardsSoft as SoftExample[])
                               .map(
                                   (c) =>
-                                      `${c.t} ${c.w}px needs${c.need} has${c.have} ${c.src}`
+                                      `${c.t} ${c.w}px dec${c.dec} needs${c.need} has${c.have} ${c.src}`
                               )
                               .join("; ") +
                           `]`
@@ -643,7 +643,8 @@ async function main(): Promise<number> {
                         `cards n${probe.cards.n} zero${probe.cards.zero} occ${probe.cards.occ} ` +
                         `stranded${probe.cards.stranded} reach${probe.cards.reachable}` +
                         `${squareEx}${softEx}` +
-                        `${probe.cardsSoftPending ? ` softPending${probe.cardsSoftPending}` : ""} | ` +
+                        `${probe.cardsSoftPending ? ` softPending${probe.cardsSoftPending}` : ""}` +
+                        `${probe.cardsSoftUnknown ? ` softUnknown${probe.cardsSoftUnknown}` : ""} | ` +
                         `ctrls n${probe.ctrls.n} zero${probe.ctrls.zero} occ${probe.ctrls.occ} ` +
                         `stranded${probe.ctrls.stranded} | starved${probe.starvedN} | ` +
                         `axe s${axe.serious}/c${axe.critical}${axe.ids.length ? ` (${axe.ids.join(",")})` : ""}` +

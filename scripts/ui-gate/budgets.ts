@@ -67,6 +67,7 @@ export const BUDGET_KEYS = [
     "cardsStranded",
     "cardsSquare",
     "cardsSoft",
+    "cardsSoftUnknown",
     "ctrlsZero",
     "ctrlsOcc",
     "ctrlsStranded",
@@ -129,25 +130,35 @@ export interface ProbeResult {
      *  pixels (`slot CSS width × devicePixelRatio` vs the decoded bitmap's
      *  `naturalWidth`). A hard floor of 0 everywhere.
      *
-     *  It measures the OUTCOME, not the markup: `naturalWidth` is the bitmap
-     *  the browser actually resolved, so it catches both classes the issue
-     *  records — a `sizes` hint below the slot (a hand-written per-call-site
-     *  constant, or the 140px default ~18 call sites inherited), and a
-     *  compositor that evicted the layer and decoded at the hint instead of at
-     *  the image's intrinsic width. Neither is visible to happy-dom, and both
-     *  self-repair on a slight resize, which is what made this the defect
-     *  nobody could hold still long enough to see.
+     *  It measures the OUTCOME, not the markup: `currentSrc` is the candidate
+     *  the browser actually selected and fetched, so a `sizes` hint below the
+     *  slot — a hand-written per-call-site constant, or the 140px default ~18
+     *  call sites inherited — shows up as the rendition it really cost.
+     *  `naturalWidth` was the first implementation and was withdrawn: for a
+     *  width-descriptor srcset the spec divides it by the resource's current
+     *  pixel density, so it reports the `sizes` hint back and can never
+     *  disagree with the markup (see `probe.js`). The limit that remains,
+     *  stated in the same place: this measures the RESOURCE, so a compositor
+     *  re-decoding a correct resource at lower resolution is outside what any
+     *  JS-visible quantity can see.
      *
      *  Scoped to `data/card-face="printed"` — the printed faces this app
      *  renders from the CDN. The art / art_crop preview pipeline is a
      *  different rendition family and out of scope. */
     cardsSoftN: number;
     cardsSoft: SoftExample[];
-    /** Printed faces whose bitmap had not arrived when the probe ran. Reported
-     *  rather than counted (`naturalWidth === 0` would read as infinitely
-     *  soft) and deliberately NOT budgeted: a lazy card below the fold
-     *  legitimately has no bitmap, and `cardsZero` already owns "no box". */
+    /** Printed faces the browser had not yet resolved a candidate for when the
+     *  probe ran (no `currentSrc`). Reported rather than counted, and
+     *  deliberately NOT budgeted: a lazy card below the fold legitimately has
+     *  no resolved source, and `cardsZero` already owns "no box". */
     cardsSoftPending: number;
+    /** Printed faces whose resolved rendition the probe does not know the
+     *  pixel width of — a new CDN variant, or an art pipeline that grew the
+     *  marker. Budgeted at 0 everywhere, because an unmeasurable card face is
+     *  a coverage hole and this lane's contract is that a hole reds rather
+     *  than reads green. The fix is a row in `probe.js`'s `RENDITION_W`, or
+     *  removing a marker that does not belong. */
+    cardsSoftUnknown: number;
     ctrls: ProbeCounts;
     starvedN: number;
     starved: unknown[];
@@ -179,15 +190,19 @@ export interface SquareExample {
 
 /** One soft card face, named so the run says WHICH card and by how much
  *  (issue #3553). `t` is the image's `alt` (the card name), `w` the slot's CSS
- *  width, `need` that width in device pixels, `have` the resolved source's
- *  intrinsic width, `src` the CDN rendition segment (`thumb`/`grid`/`display`)
- *  the browser settled on. */
+ *  width, `need` that width in device pixels, `have` the published pixel width
+ *  of the rendition the browser resolved, `src` that rendition's CDN path
+ *  segment (`thumb`/`grid`/`display`). */
 export interface SoftExample {
     t: string;
     w: number;
     need: number;
     have: number;
     src: string;
+    /** The `sizes` hint the element declares at probe time. Distinguishes an
+     *  under-declaration from a stale candidate the browser has not re-picked
+     *  after the slot grew — see `probe.js`. */
+    dec: string;
 }
 
 /** axe-core's violation counts for one viewport (issue #2580/#2593). */
@@ -215,6 +230,7 @@ export function metricsOf(probe: ProbeResult, axe: AxeCount): Ceilings {
         cardsStranded: probe.cards.stranded,
         cardsSquare: probe.cardsSquareN,
         cardsSoft: probe.cardsSoftN,
+        cardsSoftUnknown: probe.cardsSoftUnknown,
         ctrlsZero: probe.ctrls.zero,
         ctrlsOcc: probe.ctrls.occ,
         ctrlsStranded: probe.ctrls.stranded,
@@ -385,7 +401,7 @@ export interface Evaluation {
 
 function fmtMetrics(m: Ceilings): string {
     return [
-        `cards zero${m.cardsZero} occ${m.cardsOcc} stranded${m.cardsStranded} square${m.cardsSquare} soft${m.cardsSoft}`,
+        `cards zero${m.cardsZero} occ${m.cardsOcc} stranded${m.cardsStranded} square${m.cardsSquare} soft${m.cardsSoft}/${m.cardsSoftUnknown}`,
         `ctrls zero${m.ctrlsZero} occ${m.ctrlsOcc} stranded${m.ctrlsStranded}`,
         `starved${m.starved}`,
         `small${m.small}`,
