@@ -8500,10 +8500,16 @@ export function emitPermanentEntered(
     }
 ): void {
     const cardId = (card.card as { id?: string }).id;
+    // CR 111.1 (issue #3220) — the entering permanent's TOKEN-ness, carried on
+    // the event so a `PermanentFilter.isToken` on an entry trigger has
+    // something to read ("whenever a creature token you control enters"). The
+    // slim `card` param has no declared `isToken`, so it is read through the
+    // same widening the Arboria check below already uses.
+    const isToken = (card as { isToken?: boolean }).isToken === true;
     // Arboria (CR 508.1c) — putting a NONTOKEN permanent onto the battlefield
     // is a qualifying action for its controller this turn (a token does not
     // count). Unlocks attacks against them on the opponent's following turn.
-    if (!(card as { isToken?: boolean }).isToken) {
+    if (!isToken) {
         const controller = state.players.find(
             (p) => p.id === card.controllerId
         );
@@ -8545,6 +8551,7 @@ export function emitPermanentEntered(
                 : {}),
             ...(power !== undefined ? { power } : {}),
             ...(toughness !== undefined ? { toughness } : {}),
+            ...(isToken ? { isToken: true } : {}),
         },
     ];
 }

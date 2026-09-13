@@ -105,7 +105,35 @@ describe("AdditionalCostKeyword ↔ Mechanics Registry (CR 702.33a, ADR 0085)", 
     it("pins each member's kicked-ness (CR 702.33d)", () => {
         expect(ADDITIONAL_COST_KEYWORDS.kicker.countsAsKicked).toBe(true);
         expect(ADDITIONAL_COST_KEYWORDS.offspring.countsAsKicked).toBe(false);
+        // CR 702.157a (issue #3220) — squad is the first member to set BOTH
+        // repeatability flags, and it is still not a kicker cost.
+        expect(ADDITIONAL_COST_KEYWORDS.squad.countsAsKicked).toBe(false);
+        expect(ADDITIONAL_COST_KEYWORDS.squad.allowsMulti).toBe(true);
+        expect(ADDITIONAL_COST_KEYWORDS.squad.requiresTrigger).toBe(true);
     });
+
+    // CR 702.33c / 702.157a (issue #3220) — `printedLabel` and `allowsMulti`
+    // answer the same question from two sides ("may this entry repeat?" /
+    // "what does it print when it does?"), so they are pinned AGAINST each
+    // other rather than each on its own: a row that gains a `repeated` label
+    // without the flag would mislabel a cost the engine then refuses to
+    // charge twice, and a row that gains the flag without the label makes
+    // `additionalCostPrintedLabel` return undefined for the only form the
+    // entry can legally take.
+    it.each(unionMembers)(
+        "%s's printed labels agree with allowsMulti (CR 702.33c)",
+        (keyword) => {
+            const row = ADDITIONAL_COST_KEYWORDS[keyword];
+            expect(row.printedLabel.repeated !== undefined).toBe(
+                row.allowsMulti
+            );
+            // A keyword with no printed word in EITHER form could never be
+            // written on a card at all.
+            expect(
+                row.printedLabel.single ?? row.printedLabel.repeated
+            ).toBeTruthy();
+        }
+    );
 });
 
 describe("shipped kickers[] entries obey their keyword's table row (ADR 0085)", () => {

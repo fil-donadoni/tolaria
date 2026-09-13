@@ -29694,6 +29694,14 @@
         "source": "compiled"
     },
     {
+        "name": "Securitron Squadron",
+        "scryfallId": "b689a206-aec3-4a31-95cf-3d4b840db04c",
+        "oracleId": "96312b75-3110-4506-9f95-0c6c17d9da11",
+        "firstSet": "pip",
+        "firstPrintId": "b689a206-aec3-4a31-95cf-3d4b840db04c",
+        "firstPrintSet": "pip"
+    },
+    {
         "name": "Sedge Scorpion",
         "scryfallId": "66733fcb-fddc-4c15-bc51-c2cd42ac5a70",
         "oracleId": "fbadf7a3-0d54-40fe-a763-f641dd448e56",

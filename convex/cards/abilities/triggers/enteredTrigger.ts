@@ -186,6 +186,13 @@ export function enteredTrigger(args: EnteredTriggerArgs): TriggeredAbility {
                     // shipped.
                     power: event.power,
                     toughness: event.toughness,
+                    // CR 111.1 (issue #3220) — "whenever a creature TOKEN you
+                    // control enters". Snapshotted by `emitPermanentEntered`
+                    // like the P/T above; an event without the field leaves
+                    // this undefined and an `isToken` filter fails closed,
+                    // which is the pre-issue behaviour for a serialized
+                    // fixture that predates it.
+                    isToken: event.isToken,
                 };
                 if (
                     !matchesPermanentFilter(subject, args.filter, {

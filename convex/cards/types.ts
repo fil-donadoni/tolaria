@@ -217,6 +217,10 @@ export interface EscapeCost {
  *   - **702.175a** "Offspring [cost]" means "You may pay an additional [cost] as
  *     you cast this spell" AND "When this permanent enters, if its offspring
  *     cost was paid, create a token that's a copy of it, except it's 1/1."
+ *   - **702.157a** "Squad [cost]" means "As an additional cost to cast this
+ *     spell, you may pay [cost] any number of times" AND "When this creature
+ *     enters, if its squad cost was paid, create a token that's a copy of it
+ *     for each time its squad cost was paid."
  *
  *  The cost machinery is therefore shared verbatim ({@link KickerCost} and the
  *  whole `gre/kicker.ts` subsystem, ADR 0079). What is NOT shared is one
@@ -237,8 +241,15 @@ export interface EscapeCost {
  *  Multikicker is deliberately NOT a member: CR 702.33c — "A multikicker cost is
  *  a kicker cost" — so it is the same identity, expressed as
  *  {@link KickerCost.multi} on a `"kicker"` entry (ADR 0079: repeatability is a
- *  property of ONE cost entry, not of the card). */
-export type AdditionalCostKeyword = "kicker" | "offspring";
+ *  property of ONE cost entry, not of the card).
+ *
+ *  Squad (CR 702.157a, issue #3220) IS a member, for the opposite reason: it is
+ *  a keyword in its own right with its own CR section and its own twin trigger,
+ *  and its "any number of times" clause is the SAME repeatability axis
+ *  Multikicker uses — so it is a member whose row sets both `allowsMulti` and
+ *  `requiresTrigger`, and whose payments are NOT kicked (CR 702.33d again
+ *  defines "kicked" over kicker costs alone). */
+export type AdditionalCostKeyword = "kicker" | "offspring" | "squad";
 
 /** CR 702.33 — ONE Kicker: an OPTIONAL additional cost the caster may choose to
  *  pay as they cast the spell ("You may pay an additional [cost] as you cast
@@ -9697,6 +9708,18 @@ export interface PermanentEnteredEvent {
      *  available" rather than throwing. */
     power?: number;
     toughness?: number;
+    /** CR 111.1 — true iff the entering permanent is a TOKEN (issue #3220).
+     *  Read by `PermanentFilter.isToken` on an entry trigger — "whenever a
+     *  creature token you control enters" (Securitron Squadron's +1/+1
+     *  counter). The filter has existed since issue #920, but the subject
+     *  `enteredTrigger` builds is assembled from the EVENT, so without this
+     *  field the filter had nothing to read and failed CLOSED: the trigger
+     *  simply never fired, silently, with every other test green. Optional
+     *  and omitted when false, exactly like `wasCast` / `power`, so every
+     *  pre-existing `PERMANENT_ENTERED` fixture deserializes as "not a token"
+     *  — which is the answer that was already being given, just now on
+     *  purpose. */
+    isToken?: boolean;
 }
 
 /** Leave-the-battlefield event emitted whenever a permanent transitions

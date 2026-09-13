@@ -28,6 +28,7 @@ import { getAllCards } from "../index";
 // which is exactly how a `{ additionalCostPaid }` inside a modal card's mode script
 // would escape the fail-closed trap below.
 import { allEffectScriptValues } from "./effectSites";
+import { additionalCostPrintedLabel } from "../../gre/kicker";
 import type { KickerCost } from "../types";
 
 const cardsWithKickers = getAllCards().filter(
@@ -147,26 +148,40 @@ describe("Kicker declarations (CR 702.33 / 702.33e, ADR 0079)", () => {
                 // no fixed cost string to compare against (its wording is
                 // prose), so only the mana-only case is asserted here.
                 if (legCount(k) === 1 && k.mana !== undefined) {
+                    // The LABEL is a property of the keyword, not of `multi`
+                    // (issue #3220): a repeatable kicker prints "Multikicker"
+                    // (CR 702.33c) but a repeatable squad prints "Squad"
+                    // (CR 702.157a). `additionalCostPrintedLabel` is the one
+                    // table both this guard and any renderer read, and it
+                    // returns undefined for a repetition form the keyword has
+                    // no printed word for — which is itself a mis-declared
+                    // entry and fails the `toBe` below with the label in view.
                     expect(k.description).toBe(
-                        `${k.multi ? "Multikicker" : "Kicker"} ${manaCostToString(k.mana)}`
+                        `${additionalCostPrintedLabel(k)} ${manaCostToString(k.mana)}`
                     );
                 }
             });
 
-            // 3. `multi` cross-check, newline-tolerant (CR 702.33e — `multi`
-            // is what actually makes a Kicker repeatable; check 1 above
-            // derives its expected LABEL from `k.multi` itself, so it can
-            // never catch `multi` being wrong in the first place). A card
-            // printed "Multikicker {2}" but declared with `multi` omitted
-            // (or vice versa) is the Everflowing Chalice bug class this
-            // guard exists to prevent. Restricted to a SINGLE-Kicker card —
-            // no printed "and/or" card has ever paired Multikicker with a
-            // second Kicker, so a two-Kicker Oracle line never reads
-            // "Multikicker" and this assertion would be vacuous there.
+            // 3. `multi` cross-check, newline-tolerant (CR 702.33e / 702.157a
+            // — `multi` is what actually makes an additional cost repeatable;
+            // check 1 above derives its expected LABEL from the entry's own
+            // `multi`, so it can never catch `multi` being wrong in the first
+            // place). A card printed "Multikicker {2}" but declared with
+            // `multi` omitted (or vice versa) is the Everflowing Chalice bug
+            // class this guard exists to prevent; a Squad card declared
+            // without `multi` is the same bug in the same place, and shows up
+            // here as a label the Oracle text never prints (issue #3220).
+            // Restricted to a SINGLE-entry card — no printed "and/or" card
+            // has ever paired a repeatable cost with a second one, so a
+            // two-entry Oracle line never reads the repeated label and this
+            // assertion would be vacuous there.
             if (kickers.length === 1 && oracle.length > 0) {
-                expect(kickers[0].multi === true).toBe(
-                    /(^|\n)Multikicker\b/.test(oracle)
-                );
+                const label = additionalCostPrintedLabel(kickers[0]);
+                expect(
+                    label !== undefined &&
+                        new RegExp(`(^|\\n)${label}\\b`).test(oracle),
+                    `Oracle text prints no "${label}" line for ${card.name ?? card.id} — its \`multi\` (${kickers[0].multi === true}) disagrees with the printed keyword`
+                ).toBe(true);
             }
         }
     );
