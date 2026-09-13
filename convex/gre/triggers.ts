@@ -63,7 +63,12 @@ export function buildDelayedTriggerStackItem(
         isTapped: false,
         castById: t.controller,
         delayedTriggerId: t.triggerId,
-        delayedPayload: t.payload,
+        // A COPY, never the instance's own object: a repeating timing keeps its
+        // instance queued after firing, and the CR 400.7 capture scrub
+        // (`dropDelayedCapturesOfEnteringObject`) must be able to treat the
+        // pending instance and the resolving stack item separately — as they
+        // already are after a save/reload.
+        delayedPayload: { ...t.payload },
         // ADR 0048 — an inline-body instance carries its Effect Script onto the
         // stack item, so resolution needs no card-def lookup.
         ...(t.effects ? { delayedEffects: t.effects } : {}),
@@ -71,6 +76,29 @@ export function buildDelayedTriggerStackItem(
         // def (its id is the constant INLINE_DELAYED_TRIGGER_ID), so carry it
         // onto the stack item for the client to render the ability tile.
         ...(t.oracleText ? { delayedOracleText: t.oracleText } : {}),
+        // CR 701.27f (issue #3249) — carry the creation moment and the
+        // creating permanent, so a transform instruction in the body can tell
+        // whether its own source has transformed since.
+        ...delayedOriginOf(t),
+    };
+}
+
+/** `delayed-N` → `{ delayedOrigin: { seq: N, sourceInstanceId } }`, or nothing
+ *  for an instance whose id does not carry its creation counter. Every
+ *  scheduler mints the id as `delayed-${state.nextDelayedSeq}` right after
+ *  incrementing the counter, so N IS the creation moment. */
+function delayedOriginOf(
+    t: DelayedTriggerInstance
+): Pick<StackItem, "delayedOrigin"> {
+    const match = /^delayed-(\d+)$/.exec(t.id);
+    if (!match) return {};
+    return {
+        delayedOrigin: {
+            seq: Number(match[1]),
+            ...(t.sourceInstanceId
+                ? { sourceInstanceId: t.sourceInstanceId }
+                : {}),
+        },
     };
 }
 

@@ -2135,11 +2135,15 @@ function bottomLookedAtCards(
  *  un-kept pile) so the wording never claims a card goes to hand when it's
  *  headed to the library top, or vice-versa for the rest. */
 function keepPromptFor(
-    keepTo: "hand" | "library-top",
+    keepTo: OpOf<"lookDistribute">["keepTo"],
     destination: LookDistributeDestination
 ): string {
     const keepPhrase =
-        keepTo === "hand" ? "into your hand" : "on top of your library";
+        keepTo === "hand"
+            ? "into your hand"
+            : keepTo === "battlefield"
+              ? "onto the battlefield"
+              : "on top of your library";
     const restPhrase =
         destination === "graveyard"
             ? "put the rest into your graveyard"
@@ -4019,6 +4023,16 @@ export const OP_EXECUTORS: {
         if (op.keepTo === "hand") {
             for (const id of picks)
                 ctx.moveCardById(playerId, id, "library", "hand");
+        } else if (op.keepTo === "battlefield") {
+            // "battlefield" (issue #3249, Aang, at the Crossroads: "You may put
+            // a creature card ... from among them onto the battlefield") — CR
+            // 400.7 zone change through the shared library → battlefield
+            // entry primitive: the card is PUT, never cast (CR 601.2), so no
+            // cast trigger fires, it enters summoning sick (CR 302.6) and its
+            // own ETB triggers fire (CR 603.6a). Routed before the rest are
+            // bottomed, the order the Oracle text states.
+            for (const id of picks)
+                ctx.putFromLibraryOntoBattlefield(playerId, id);
         } else {
             // "library-top" (Thassa's Oracle) — `picks[0]` (the first kept
             // id) ends up the very top when more than one is kept, mirroring

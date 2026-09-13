@@ -1809,11 +1809,14 @@ function isRevealScope(value: unknown): boolean {
 
 /** The REQUIRED `keepTo` of a `lookDistribute` Op (issue #2070) — where the
  *  KEPT cards land: `"hand"` (every card shipped before #2070) or
- *  `"library-top"` (Thassa's Oracle). No default — the field is required
- *  precisely so a schema-valid card can never silently fall back to the old
- *  hard-coded hand behaviour. */
+ *  `"library-top"` (Thassa's Oracle) or `"battlefield"` (Aang, at the
+ *  Crossroads, issue #3249). No default — the field is required precisely so
+ *  a schema-valid card can never silently fall back to the old hard-coded
+ *  hand behaviour. */
 function isLookDistributeKeepTo(value: unknown): boolean {
-    return value === "hand" || value === "library-top";
+    return (
+        value === "hand" || value === "library-top" || value === "battlefield"
+    );
 }
 
 /** The `categories` list of a `revealAndCategorize` Op (issue #1364, Atraxa):

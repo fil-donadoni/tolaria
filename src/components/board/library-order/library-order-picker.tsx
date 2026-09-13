@@ -22,13 +22,16 @@
 // `cardInstanceIds`, the bottom cards (ordered) as `secondZoneIds`.
 import { useCallback, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { LookDistributeDestination } from "@convex/gre/types";
+import type {
+    LookDistributeDestination,
+    LookDistributeKeepTo,
+} from "@convex/gre/types";
 import {
     canAddCategorizedPick,
     type PickCategory,
 } from "@convex/gre/categorizedPick";
 import { SLOT_SPRING } from "~/lib/board-motion";
-import { Minus, Hand, Layers, Skull } from "lucide-react";
+import { Minus, Hand, Layers, Skull, Swords } from "lucide-react";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import { useViewportWidth } from "~/hooks/useViewportWidth";
 import { fitTileWidth, modalChromePaddingX } from "~/lib/reorder-strip-width";
@@ -51,7 +54,7 @@ import { computeLayout, insertionIndex, type Zone } from "./layout";
 type ZoneMeta = {
     title: string;
     hint: string;
-    icon: "library" | "hand" | "graveyard";
+    icon: "library" | "hand" | "graveyard" | "battlefield";
 };
 
 function ZoneLabel({ meta, accent }: { meta: ZoneMeta; accent: boolean }) {
@@ -60,7 +63,9 @@ function ZoneLabel({ meta, accent }: { meta: ZoneMeta; accent: boolean }) {
             ? Hand
             : meta.icon === "graveyard"
               ? Skull
-              : Layers;
+              : meta.icon === "battlefield"
+                ? Swords
+                : Layers;
     return (
         <div
             className={`flex items-center gap-2 rounded-sm border px-2 py-1 ${
@@ -104,6 +109,13 @@ const META_LIBRARY_TOP_KEEP: ZoneMeta = {
     title: "Top of library",
     hint: "cards you keep",
     icon: "library",
+};
+/** `keepTo: "battlefield"` chrome (issue #3249, Aang, at the Crossroads) — the
+ *  keep pile when the kept card is PUT onto the battlefield, never cast. */
+const META_BATTLEFIELD_KEEP: ZoneMeta = {
+    title: "Battlefield",
+    hint: "put onto the battlefield",
+    icon: "battlefield",
 };
 const META_HAND_POOL: ZoneMeta = {
     title: "Your hand",
@@ -198,8 +210,9 @@ export default function LibraryOrderPicker({
      *  the KEEP zone (Narset's "noncreature, nonland" filter) — a
      *  non-eligible card is bounced back to the BOTTOM if dragged onto the
      *  keep side. `keepTo` (issue #2070) — `"hand"` (default, every card
-     *  before #2070) or `"library-top"` (Thassa's Oracle) — labels the keep
-     *  zone "Your hand" or "Top of library"; purely cosmetic, the submit
+     *  before #2070), `"library-top"` (Thassa's Oracle) or `"battlefield"`
+     *  (Aang, at the Crossroads, issue #3249) — labels the keep zone "Your
+     *  hand", "Top of library" or "Battlefield"; purely cosmetic, the submit
      *  shape is identical either way (the GRE, not the picker, applies the
      *  actual move). `categories` (issue #1364, Atraxa) is the CATEGORIZED
      *  keep: at most one card per category and each card claimable by only
@@ -211,7 +224,7 @@ export default function LibraryOrderPicker({
         keep: number;
         min?: number;
         eligibleIds?: string[];
-        keepTo?: "hand" | "library-top";
+        keepTo?: LookDistributeKeepTo;
         categories?: PickCategory[];
     };
     /** `putBack` mode (Brainstorm, CR 401.4): the LEFT zone is the HAND (source
@@ -241,10 +254,11 @@ export default function LibraryOrderPicker({
     // BOTTOM, fused with the library fan like scry's own bottom leg;
     // `graveyard` reads GRAVEYARD and detaches, mirroring Surveil's own
     // graveyard leg in the non-distribute `chromeFor` branch below. The RIGHT
-    // (keep) zone reads HAND or TOP OF LIBRARY per `distribute.keepTo` (issue
-    // #2070, Thassa's Oracle) — `keepTo` defaults to `"hand"` (every card
-    // shipped before #2070) when the caller omits it.
-    const keepToHand = (distribute?.keepTo ?? "hand") === "hand";
+    // (keep) zone reads HAND, TOP OF LIBRARY or BATTLEFIELD per
+    // `distribute.keepTo` (issue #2070, Thassa's Oracle; issue #3249, Aang) —
+    // `keepTo` defaults to `"hand"` (every card shipped before #2070) when the
+    // caller omits it.
+    const keepTo = distribute?.keepTo ?? "hand";
     const chrome = distribute
         ? {
               leftMeta:
@@ -253,7 +267,12 @@ export default function LibraryOrderPicker({
                       : destination === "exile"
                         ? META_EXILE
                         : META_LIBRARY_BOTTOM,
-              rightMeta: keepToHand ? META_HAND : META_LIBRARY_TOP_KEEP,
+              rightMeta:
+                  keepTo === "hand"
+                      ? META_HAND
+                      : keepTo === "battlefield"
+                        ? META_BATTLEFIELD_KEEP
+                        : META_LIBRARY_TOP_KEEP,
               hasSecond: true,
               detached: destination === "graveyard" || destination === "exile",
           }
@@ -269,12 +288,13 @@ export default function LibraryOrderPicker({
           : chromeFor(destination);
     const { leftMeta, rightMeta, hasSecond, detached } = chrome;
     // The distribute KEEP zone is DETACHED from the library mock (QA Narset)
-    // only when it reads HAND: a real gap + an accent panel instead of the
-    // fused under-deck tuck, so "drag right = into your hand" never reads as
-    // "top of library". A `keepTo: "library-top"` keep zone (Thassa's Oracle)
-    // stays UN-detached — it fuses with the library mock like the ordinary
-    // order-top modes, because it genuinely IS the library top.
-    const detachRight = distribute !== undefined && keepToHand;
+    // whenever it leaves the library — HAND or BATTLEFIELD (issue #3249): a
+    // real gap + an accent panel instead of the fused under-deck tuck, so
+    // "drag right" never reads as "top of library". A `keepTo: "library-top"`
+    // keep zone (Thassa's Oracle) stays UN-detached — it fuses with the
+    // library mock like the ordinary order-top modes, because it genuinely IS
+    // the library top.
+    const detachRight = distribute !== undefined && keepTo !== "library-top";
 
     // Both `distribute` and `putBack` are "pool" modes: every card starts in the
     // LEFT (`second`) zone and the player pulls exactly `keep` into the RIGHT

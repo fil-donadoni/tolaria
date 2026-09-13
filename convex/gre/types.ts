@@ -128,8 +128,8 @@ export type ZonePickKind =
     // the kept cards (`cardInstanceIds`, exactly `count.min === count.max
     // === keep`) and the cards ordered onto the bottom (`secondZoneIds`) —
     // but unlike `order-top` the FIRST list goes to `PendingChoice.keepTo`
-    // (`"hand"` — every card shipped before #2070 — or `"library-top"`,
-    // Thassa's Oracle), not always back on top, and `PendingChoice.destination`
+    // (`"hand"` — every card shipped before #2070 — `"library-top"`, Thassa's
+    // Oracle, or `"battlefield"`, issue #3249), not always back on top, and `PendingChoice.destination`
     // (the SECOND list's target) is always `library-bottom`. Applied by the
     // `lookDistribute` Effect Op (`gre/effects/interpreter.ts`), which moves
     // the kept cards to `keepTo` (`moveCardById`→hand or
@@ -194,6 +194,11 @@ export type LibraryDestination = "library-bottom" | "graveyard" | "none";
  *  counter) — the same zone move `bottomLookedAtCards`'s graveyard leg already
  *  performs, mirrored with a counter tag. */
 export type LookDistributeDestination = LibraryDestination | "exile";
+/** Where the KEPT cards of a `look-distribute` choice go (issue #2070) — the
+ *  orthogonal twin of {@link LookDistributeDestination}. `"hand"` (Impulse),
+ *  `"library-top"` (Thassa's Oracle) or `"battlefield"` (issue #3249, Aang, at
+ *  the Crossroads — put, never cast: CR 400.7 zone change). */
+export type LookDistributeKeepTo = "hand" | "library-top" | "battlefield";
 /** CR 702.26 — condition under which a phased-out bundle phases back in. A
  *  discriminated union so future phasing variants stay expressible:
  *   - `source-leaves` (Oubliette): phase in when the named source leaves the

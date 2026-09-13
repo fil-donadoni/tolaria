@@ -1235,6 +1235,18 @@ export type CardInstanceState = {
      *  712.8a) can restore it. Public to both players (unlike `faceDownOf`,
      *  no hiding is needed). Only meaningful while `transformed` is true. */
     transformedFrom?: string;
+    /** CR 701.27f (issue #3249) — the value of `GameState.nextDelayedSeq` at
+     *  this permanent's most recent transform, stamped by
+     *  `SpellContext.transform`. A delayed triggered ability `delayed-N` of
+     *  this permanent that tries to transform it does nothing when this is
+     *  `>= N`: the permanent has transformed since that delayed trigger was
+     *  created (the creation incremented the counter TO N, so a transform
+     *  before it stamps at most N - 1). Cleared on CR 400.7 re-entry — the new
+     *  object has never transformed. The rule's OTHER sentence (a non-delayed
+     *  ability, "since the ability was put onto the stack") is not read off
+     *  this stamp: an activated ability's stack item carries its source's id,
+     *  not a put-onto-the-stack moment (tracked-by: #3537). */
+    transformedAtDelayedSeq?: number;
     /** Transient combat pile label (Raging River, CR 509.2 variant —
      *  ADR 0012). Set when a divider assigns this creature to the "left" or
      *  "right" pile; consumed by `validateBlockerEligibility` against the
@@ -2553,6 +2565,13 @@ export type StackItem = CardInstanceState & {
      *  ability tile (art + oracle text) instead of the full-card image. Undefined
      *  for the legacy template path, where the text lives on the card def. */
     delayedOracleText?: string;
+    /** CR 701.27f (issue #3249) — where this fired delayed trigger came from:
+     *  `seq` is the `N` of the `delayed-N` instance (the `nextDelayedSeq`
+     *  value its CREATION took), `sourceInstanceId` the permanent whose
+     *  ability created it. `SpellContext.transform` reads both so "a delayed
+     *  triggered ability of a permanent" never transforms that permanent when
+     *  it has already transformed since the delayed trigger was created. */
+    delayedOrigin?: { seq: number; sourceInstanceId?: string };
     /** CR 603.12/603.3d — the target requirement of a REFLEXIVE triggered
      *  ability (the `reflexiveTrigger` Op). A reflexive ability has no
      *  `cardDef.triggeredAbilities[]` row, so the requirement its targets are
@@ -2704,6 +2723,12 @@ export type DelayedTriggerInstance = {
      *  phase-boundary timing. A pending leave-watch expires unfired at CLEANUP
      *  (the "this turn" bound, CR 514.2). */
     watchInstanceId?: string;
+    /** CR 701.27f (issue #3249) — the permanent whose ability CREATED this
+     *  delayed trigger (the scheduling stack item's `triggerSourceId`, else
+     *  its own id — `SpellContext.sourceInstanceId`). Carried onto the fired
+     *  stack item's `delayedOrigin`, so "a delayed triggered ability of a
+     *  permanent" can be told apart from one that merely targets it. */
+    sourceInstanceId?: string;
     /** CR 702.88a (Rebound) — marks this delayed trigger as the rebound
      *  reflexive Cast/Decline window rather than a generic scheduled effect.
      *  Holds the instance id of the exiled rebound card (in the
@@ -3254,6 +3279,7 @@ import type {
     ManaRestriction,
     LibraryDestination,
     LookDistributeDestination,
+    LookDistributeKeepTo,
 } from "./types";
 export type {
     ZonePickKind,
@@ -3270,6 +3296,7 @@ export type {
     ManaRestriction,
     LibraryDestination,
     LookDistributeDestination,
+    LookDistributeKeepTo,
 };
 
 /** Default prompts for an `order-top` choice keyed by destination — used when a
@@ -3763,8 +3790,9 @@ export type PendingChoice = {
      *  sends the un-kept card to exile with a silver counter, issue #1570. */
     destination?: LookDistributeDestination;
     /** `kind: "look-distribute"` only (issue #2070) — where the KEPT cards
-     *  land: `"hand"` (every card shipped before #2070) or `"library-top"`
-     *  (Thassa's Oracle). Orthogonal to `destination` above, which names the
+     *  land: `"hand"` (every card shipped before #2070), `"library-top"`
+     *  (Thassa's Oracle) or `"battlefield"` (issue #3249, Aang, at the
+     *  Crossroads). Orthogonal to `destination` above, which names the
      *  UN-kept cards' target. Set at the one raise site
      *  (`SpellContext.requestChoice` from the `lookDistribute` Op) — never
      *  left to an implicit default (fail-closed: a consumer that forgets to
@@ -3772,7 +3800,7 @@ export type PendingChoice = {
      *  Read by the frontend picker to label the keep-pile and by the bot's
      *  look-distribute chooser to decide whether "kept" competes with the
      *  hand-size / card-advantage heuristics a hand-bound keep implies. */
-    keepTo?: "hand" | "library-top";
+    keepTo?: LookDistributeKeepTo;
     /** Client-routing hint for a `choose-hand-card` pick that puts the chosen
      *  cards on TOP of the chooser's library in chosen order (Brainstorm's
      *  `putBack` Op, CR 401.4). Purely a UI discriminator: the submit path and
@@ -8072,6 +8100,9 @@ function finalizeSpellResolution(
         // see `clearExileLinksToEnteringSource`'s doc. A first-ever cast is a
         // no-op (no prior incarnation ever stamped this id).
         clearExileLinksToEnteringSource(state, item.id);
+        dropDelayedCapturesOfEnteringObject(state, item.id, {
+            resolvingItemPopped: true,
+        });
         // CR 113.6c — an ability that functions only OUTSIDE the battlefield
         // switches off here: Grist stops being a 1/1 Insect creature the
         // instant it resolves as a planeswalker. Before the layer-4 grants
@@ -10446,6 +10477,74 @@ export function clearExileLinksToEnteringSource(
             }
         }
     }
+}
+
+/** CR 400.7 / 603.7c (issue #3249) — the delayed-trigger twin of
+ *  `clearExileLinksToEnteringSource`, called from the same three entry
+ *  funnels. A delayed triggered ability's `capture` freezes an INSTANCE ID at
+ *  scheduling ("transform Aang at the beginning of the next upkeep",
+ *  "sacrifice it at the beginning of the next end step"), and the engine never
+ *  reallocates an instance id across zone changes — so without this a
+ *  permanent that left and came back before the delayed trigger resolved would
+ *  be re-bound as the SAME object, when CR 400.7 makes it a new one "with no
+ *  memory of or relation to its previous existence". Dropping the stale id
+ *  here makes the body's binding unresolved, so its Ops skip exactly as they
+ *  do for an object that is simply gone (CR 608.2b).
+ *
+ *  Scrubs every PENDING instance and every fired delayed trigger WAITING on
+ *  the stack. The item that is resolving is left alone — a delayed body that
+ *  itself returns its captured object ("return that card to the battlefield",
+ *  earthbend's return leg) must keep reading the binding it is in the middle
+ *  of using — and the CALLER says where that item is, because the funnels
+ *  disagree: an effect-driven entry runs while its item still sits on top of
+ *  the stack, but a permanent SPELL has already been popped when
+ *  `finalizeSpellResolution` puts it onto the battlefield, so the top item
+ *  there is a WAITING one (a fired delayed trigger the recast was flashed in
+ *  above) and must be scrubbed like the rest. A frozen LIST capture loses only
+ *  the re-entering member. */
+export function dropDelayedCapturesOfEnteringObject(
+    state: GameState,
+    instanceId: string,
+    entry: { resolvingItemPopped: boolean }
+): void {
+    const scrub = (payload: Record<string, string | string[]>): void => {
+        for (const [key, value] of Object.entries(payload)) {
+            if (Array.isArray(value)) {
+                if (value.includes(instanceId)) {
+                    payload[key] = value.filter((id) => id !== instanceId);
+                }
+            } else if (value === instanceId) {
+                delete payload[key];
+            }
+        }
+    };
+    for (const t of state.delayedTriggers ?? []) scrub(t.payload);
+    const resolving = entry.resolvingItemPopped
+        ? undefined
+        : state.stack[state.stack.length - 1];
+    for (const item of state.stack) {
+        if (item !== resolving && item.delayedPayload) {
+            scrub(item.delayedPayload);
+        }
+    }
+}
+
+/** CR 701.27f (issue #3249) — true when `item` is a fired delayed triggered
+ *  ability of `card` itself and `card` has transformed since that delayed
+ *  trigger was created, so its instruction to transform `card` is ignored. A
+ *  spell, a non-delayed ability, or a delayed trigger of a DIFFERENT permanent
+ *  transforms unconditionally here. */
+export function transformedSinceDelayedOrigin(
+    item: StackItem,
+    card: CardInstanceState
+): boolean {
+    const origin = item.delayedOrigin;
+    return (
+        origin !== undefined &&
+        origin.sourceInstanceId === card.id &&
+        card.transformedAtDelayedSeq !== undefined &&
+        card.transformedAtDelayedSeq >= origin.seq
+    );
 }
 
 /** Removes a permanent from battlefield and moves it to the target zone of its owner.
@@ -12837,6 +12936,9 @@ export function resetBattlefieldTransientState(
     delete card.hasBlockedThisTurn;
     delete card.damagedBySources;
     delete card.controlChanges;
+    // CR 400.7 / 701.27f (issue #3249) — the transform stamp belongs to the
+    // previous object; the new one has never transformed.
+    delete card.transformedAtDelayedSeq;
     // CR 400.7 / 611.2b (issue #1470) — an INDEFINITE animation (earthbend N's
     // "becomes a 0/0 creature with haste that's still a land") mutates the
     // instance IN PLACE (`types`, `subtypes`, `power`, `toughness`), so merely
@@ -13271,6 +13373,9 @@ function stageReanimatedOnBattlefield(
     // same instance id stamped is now stale — drop it before anything can
     // read it as this new object's own pile.
     clearExileLinksToEnteringSource(state, card.id);
+    dropDelayedCapturesOfEnteringObject(state, card.id, {
+        resolvingItemPopped: false,
+    });
     card.zone = "battlefield";
     // CR 113.6c — see the spell-resolution twin: the off-battlefield ability
     // switches off on arrival, before the entry path's layer-4 grants.
@@ -16710,7 +16815,28 @@ export function buildSpellContext(
                 throw new Error("Cannot transform a player");
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
+            // CR 701.27f — a delayed triggered ability OF this permanent that
+            // tries to transform it does so only if it hasn't transformed
+            // since that delayed trigger was created; otherwise the
+            // instruction is ignored.
+            if (transformedSinceDelayedOrigin(item, found.card)) return;
+            const faceBefore = (found.card.card as { id?: string }).id;
             transformPermanent(state, found.card);
+            if ((found.card.card as { id?: string }).id !== faceBefore) {
+                found.card.transformedAtDelayedSeq = state.nextDelayedSeq ?? 0;
+                // CR 613.7g — "A double-faced permanent receives a new
+                // timestamp each time it transforms", and CR 613.7a gives its
+                // static abilities that timestamp. Without it a permanent whose
+                // FRONT face declared no static effect never had a layer
+                // timestamp at all (`beginApplyingStaticEffects` stamps only a
+                // face with effects), so its back face's grants were skipped by
+                // every derivation (issue #3249, Aang, Destined Savior's
+                // "Land creatures you control have vigilance"). The recompute
+                // brings the new face's statics in and the old face's out, in
+                // either direction.
+                found.card.staticSeq = allocStaticTimestamp(state);
+                recomputeContinuousEffects(state);
+            }
         },
         // CR 712 / 400.7 (issue #2380) — "exile it, then return it to the
         // battlefield transformed under its owner's control": the ORI
@@ -18656,6 +18782,9 @@ export function buildSpellContext(
             const instance: DelayedTriggerInstance = {
                 id: `delayed-${state.nextDelayedSeq}`,
                 sourceCardId,
+                // CR 701.27f (issue #3249) — the creating permanent, the same
+                // id `SpellContext.sourceInstanceId` reports for this item.
+                sourceInstanceId: item.triggerSourceId ?? item.id,
                 triggerId,
                 controller: item.castById,
                 timing,
