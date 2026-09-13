@@ -99,6 +99,15 @@ every union member. New value: grep and update every consumer.
 Every optional `GameState` field goes in `PERSISTED_OPTIONAL_KEYS` or
 `TRANSIENT_KEYS` (`serialize.ts`); the drift guard fails otherwise.
 
+## Naming — the mechanic, never the card (issue #1917)
+
+An engine identifier is named after the MECHANIC: `playerAttackRequirements`,
+never `islandSanctuaryProtection`. The generic NAME comes from card #1 — always,
+it is a mechanical rename; the generic SHAPE waits for card #2 to show the axis
+of variation. Enforced catalogue-wide over `GameState` / `PlayerState` /
+`CardInstanceState` keys, Op names and `SpellContext` members by
+`convex/cards/__tests__/engineIdentifierNames.test.ts` (issue #1918).
+
 ## Code patterns
 
 Pure functions, no async. Card definitions are DATA. Types from

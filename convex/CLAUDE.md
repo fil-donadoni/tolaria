@@ -274,6 +274,49 @@ with a non-empty value, run the suite.
   helpers from `convex/gre/constants.ts` — never local
 - Mana abilities use `useStack: false` (CR 605.3a)
 
+## Naming — the mechanic, never the card (issue #1917, guard #1918)
+
+**An engine identifier takes its name from the MECHANIC, never from the card
+that happened to introduce it.** `islandSanctuaryProtection` is a `GameState`
+key the next "can only be attacked by creatures with flying" card cannot use
+without a sweep; `playerAttackRequirements` is one it can.
+
+Two halves, and only one of them is a rule:
+
+- **Generic NAME from card #1 — always.** It costs nothing, it is a mechanical
+  rename, and it is what the second card hooks onto.
+- **Generic SHAPE from card #1 — no.** Generalizing before the second case
+  means guessing the axis of variation. `landManaRidersThisTurn` generalized
+  well precisely because it came after Deep Water + High Tide + Chaos Moon; on
+  High Tide alone it would have been `islandManaBonus: number`, wrong axis. So
+  rename now, keep the narrow shape until card #2 shows the axis.
+
+`convex/cards/__tests__/engineIdentifierNames.test.ts` enforces it
+catalogue-wide, because the rule is mechanically verifiable: card names are
+enumerable. It sweeps five identifier sets — `GameState`, `PlayerState` and
+`CardInstanceState` keys plus `SpellContext` members (all read from source
+through the TypeScript AST, so REQUIRED members are covered too, not only the
+`PERSISTED_OPTIONAL_KEYS` ones) and `EFFECT_OP_REGISTRY` Op names — and flags
+any identifier that CONTAINS a normalised card name (lowercase, non-alphanumerics
+dropped: "Gaze of Pain" → `gazeofpain`).
+
+The containment runs **identifier ⊃ card name, never the reverse** — that is
+what keeps the Op `animate` from being flagged by the card "Animate Wall".
+Names shorter than 5 normalised characters are out of the corpus (measured: at
+4 the only new pairs are English substrings, "Bind" inside `captureBinding` and
+"Rout" inside `revealTopAndRoute`, and no true positive lives below 5).
+
+Two narrow lists, both asserted to stay truthful:
+
+- `RULES_VOCABULARY_NAMES` — a card name that is ALSO ordinary rules vocabulary
+  (a basic land type, `flash`, `sacrifice`, `regeneration`, …). One row per
+  WORD, with the vocabulary it collides with; a row naming a card that is not
+  in the catalogue reds.
+- `ALLOWLIST` — a (surface, identifier, card) triple that IS card-named and not
+  renamed yet, each with its open tracking issue. A row matching nothing reds,
+  so the list can only shrink; it was pre-populated with the issue #1917 sweep
+  precisely so that sweep cannot stop halfway.
+
 ## Primitive reuse (mandatory)
 
 Target scale ~80k cards — one primitive per card does not scale. Before adding

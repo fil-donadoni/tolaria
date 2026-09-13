@@ -90,9 +90,9 @@ const RULES_VOCABULARY_NAMES: ReadonlyArray<{
     { card: "Overload", vocabulary: "keyword ability overload (CR 702.96)" },
     {
         card: "Regeneration",
-        vocabulary: "keyword action regenerate (CR 701.15)",
+        vocabulary: "keyword action regenerate (CR 701.19)",
     },
-    { card: "Sacrifice", vocabulary: "keyword action sacrifice (CR 701.17)" },
+    { card: "Sacrifice", vocabulary: "keyword action sacrifice (CR 701.21)" },
     {
         card: "Blessing",
         vocabulary: "the city's blessing, granted by ascend (CR 702.131)",
