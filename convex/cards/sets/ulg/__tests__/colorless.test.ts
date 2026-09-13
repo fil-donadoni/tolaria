@@ -375,3 +375,95 @@ describe("Treetop Village (manland animate, CR 611.1 / 613.1e / 702.19a)", () =>
         expect(getEffectiveColors(live)).toEqual([]);
     });
 });
+
+const faerieConclave = getDefinition("ae3ede87-b026-4781-81ab-8652664f8e41");
+
+// The manland cycle's blue member. Deliberately shorter than Treetop
+// Village's block above: the `animate` Op, the end-of-turn duration and the
+// cleanup revert are the SAME code paths that block already drives, so what is
+// re-asserted here is only what differs per card — the produced colour, the
+// animated body (2/1 blue Faerie) and the granted keyword — plus the
+// MANDATORY wire-format leg, which the projection can drop per field.
+describe("Faerie Conclave (manland animate, CR 611.1 / 613.1e / 702.9a)", () => {
+    function animatedConclave() {
+        const conclave = makeInstance(faerieConclave.id, {
+            id: "conclave",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [conclave] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...conclave,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "faerie-conclave-animate",
+        } as StackItem);
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    // CR 305.2 + CR 605.1a — both printed non-animate lines, driven through the
+    // real land-drop and tap-for-mana entry points rather than read off the
+    // definition (a land inert in the engine would go green on the fields).
+    it("enters tapped and taps for {U} through the engine", () => {
+        const conclave = makeInstance(faerieConclave.id, {
+            id: "conclave-hand",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const player = makePlayer("p1", { hand: [conclave] });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        state.activePlayerId = "p1";
+        state.phase = "PRECOMBAT_MAIN";
+        const played = applyPlayLand(state, player, "conclave-hand")!;
+        expect(played.zone).toBe("battlefield");
+        expect(played.isTapped).toBe(true);
+        // Untap it by hand — the point here is the mana ability, not CR 502.1.
+        played.isTapped = false;
+        tapSourceIntoPayment(state, player, played, undefined, []);
+        expect(player.manaPool.U).toBe(1);
+        expect(played.isTapped).toBe(true);
+        // CR 605.1a — a mana ability never uses the stack.
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("becomes a 2/1 blue Faerie with flying and stays a land", () => {
+        const state = animatedConclave();
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "conclave"
+        )!;
+        // CR 611.1 — the Creature type is ADDED: "It's still a land."
+        expect(live.types).toEqual(
+            expect.arrayContaining(["Land", "Creature"])
+        );
+        expect(live.subtypes).toContain("Faerie");
+        expect(getEffectivePower(state, live)).toBe(2);
+        expect(getEffectiveToughness(state, live)).toBe(1);
+        // CR 702.9a — flying is granted for the animation's duration.
+        expect(live.staticAbilities).toContain("flying");
+        // CR 613.1e / 105.3 — the layer-5 set makes the colourless land blue.
+        expect(getEffectiveColors(live)).toEqual(["U"]);
+    });
+
+    it("MANDATORY wire format: the animated body survives projectPublicState", () => {
+        const state = animatedConclave();
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "conclave"
+        )!;
+        expect(slim.types).toEqual(
+            expect.arrayContaining(["Land", "Creature"])
+        );
+        expect(slim.subtypes).toContain("Faerie");
+        expect(getEffectivePower(projected, slim)).toBe(2);
+        expect(getEffectiveToughness(projected, slim)).toBe(1);
+        expect(slim.staticAbilities).toContain("flying");
+        expect(getEffectiveColors(slim)).toEqual(["U"]);
+    });
+});
