@@ -623,6 +623,12 @@ describe("cheat-into-play is worth what survives (issue #3293)", () => {
             // credited to it below, and the blade twin goes RED without it
             // (`BLADE_VARIANT=no-rule:resolved-payoff` fails "cheat into play:
             // casts for a body that pays on the way out", 5 seeds at 400).
+            // WEAKER than what it replaced, and deliberately so rather than
+            // silently: the old form pinned the mechanism on one seed, this one
+            // passes with four of the five having lost it. That is the most a
+            // seed-level assertion can claim about a rule gated on where the
+            // visit counts fall; the strength that used to live here now lives
+            // in the blade twin, which reds without the rule.
             const mechanisms = SEEDS.map((seed) => {
                 const { move, trace } = decide(PAYOFF, seed);
                 expect(move?.kind).toBe("cast-spell");

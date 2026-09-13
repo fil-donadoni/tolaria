@@ -121,7 +121,18 @@ export type EvalWeights = {
      *  removes — and well under a card, because a colour the opponent cannot
      *  produce this turn is not a colour they can never produce. The fit moves
      *  it from there (`verdicts/features.ts`); the blade entries that guard it
-     *  discriminate on the SIGN, not the magnitude. */
+     *  discriminate on the SIGN, not the magnitude.
+     *
+     *  READ IT BESIDE `manaDevWeight`, never alone: issue #3531 made the
+     *  development term's demand colour-aware too (`coversCostColors` gates
+     *  `raise(c)`), so a colour-dead hand card is already kept out of the
+     *  curve's top end. On the own seat the two terms move together over part
+     *  of their range, which means a refit splits one signal across two
+     *  weights — the same refit that introduced this one moved `manaDevWeight`
+     *  9.512 → 9.679, and neither number is evidence about its own term in
+     *  isolation. What separates them: development is about the land COUNT the
+     *  curve still wants, this is about a colour the base cannot produce AT
+     *  ALL, and only this one has an opponent-seat half. */
     colorCoverageWeight: number;
     /** Bonus per castable held instant / live flexible activation, the
      *  reactive-flexibility term (`W_FLEX`). */

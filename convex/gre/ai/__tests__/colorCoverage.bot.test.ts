@@ -203,6 +203,11 @@ describe("observedColorCoverage — the seat whose hand never may be read (issue
 
         const coverage = observedColorCoverage(state, opponent, units);
         expect(coverage).toBe(UNKNOWN_COLOR_COVERAGE);
+        // The VALUE, not just the constant: the midpoint is load-bearing. It is
+        // what makes the abstention equidistant from the two readings below, so
+        // a drift toward either (0.9 reads as "needs no colours", 0.35 as
+        // "needs every colour") is a silent change of the third state.
+        expect(UNKNOWN_COLOR_COVERAGE).toBe(0.5);
         // The two readings it refuses, spelled out on this exact board:
         // "needs no colours" is a vacuously perfect 1 (every denial free),
         // "needs every colour" is 1 of 5 (every denial scores, on a board that

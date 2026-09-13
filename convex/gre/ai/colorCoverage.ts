@@ -19,10 +19,20 @@
 //     (`gre/manaAvailability.ts`, the reader issue #3531 built — the same
 //     authority the real castability gate runs from);
 //   - opponent seat: `estimateOpponentColorDemand` (`ai/observedColors.ts`),
-//     whose evidence hierarchy is public information by construction. The
-//     opponent's hand is NEVER read — not even the determinized sample the
-//     search holds. `colorCoverage.bot.test.ts` proves it with a `hand`
-//     accessor that throws.
+//     whose evidence hierarchy is public information by construction.
+//     `observedColorCoverage` never reads a hand on any path, and
+//     `colorCoverage.bot.test.ts` proves it with a `hand` accessor that throws.
+//
+// WHAT THAT GUARANTEE IS AND IS NOT. It is about the ESTIMATE, not about the
+// evaluator: `evaluate(state, viewer)` treats the VIEWER's seat as `own` by
+// construction, so a call made from the opponent's own viewpoint — the search
+// ranking the opponent's own choices (`materialMargin(settled.state, moverId)`
+// and `policyValue(fired, pid, …)` in `search.ts`) — runs the own-seat half on
+// that seat's determinized hand. That is the determinization working as
+// designed, and it is what `hand`, `flexibility` and `manaDevelopment` have
+// always done on whichever seat is the viewer. The line this module draws is
+// the one PRD #3526 asks for: NOTHING reads the hand of the seat being
+// ESTIMATED, on any path, ever.
 //
 // THE SUPPLY IS THE `base` CENSUS, TAP STATE IGNORED — on both seats, and this
 // is a deliberate boundary, not an oversight. A tapped source untaps in its
@@ -32,17 +42,40 @@
 // so the bot refused every mana-costed activation). Pricing tap state HERE
 // would re-introduce exactly that on both seats: paying a cost would read as
 // self-inflicted colour screw, and an opponent casting a spell would read as a
-// gain for us. What that leaves out is the tap-based denial class (a Rishadan
-// Port activation, Rising Waters): those stay priced colour-blind, by the
-// `mana` term's own untapped-vs-tapped split. Re-typing (Vision Charm, Blood
-// Moon), destruction (Stone Rain) and static mana-ability rewrites
-// (Contamination) all change the BASE and are priced here.
+// gain for us. Re-typing (Vision Charm, Blood Moon), destruction (Stone Rain)
+// and static mana-ability rewrites (Contamination) all change the BASE and are
+// priced here.
+//
+// TAP STATE IS NOT FULLY OUT, and the residue is in the DENOMINATOR, not the
+// supply. The opponent's demand comes from `observedOpponentColors`, whose
+// weakest evidence class is an UNTAPPED source's producible colour — so when
+// that source taps, the colour leaves the demand set and the ratio is re-based.
+// MEASURED (a green creature beside a Plains, no white permanent): 0.25 with
+// the Plains untapped and 0 with it tapped, 6.60 margin points at the committed
+// weight. So a tap-based denial (a Rishadan Port activation, Rising Waters) is
+// priced here after all — by DILUTION rather than by denial, in the same
+// direction but for the wrong reason, and it unwinds at the next untap step.
+// Living with it is deliberate: the alternative is a second, tap-blind
+// derivation of the evidence, and one derivation shared with every other
+// colour heuristic is worth more than 6.60 points of exactness (issue #2306).
+//
+// A LIVE-EVIDENCE DEMAND HAS ONE MORE COST, and it is the largest artefact in
+// this module: removing a permanent removes the evidence it carried. A creature
+// that DIES keeps its colour (battlefield weight 3 → graveyard weight 3, both
+// "committed"), one that is EXILED or BOUNCED does not. MEASURED (a green
+// creature, a Swamp, a black card in the graveyard): 0.5714 before, 0.5714
+// after destroying the creature, 1.0 after exiling it — so exile-based removal
+// scores 11.32 points worse than destruction on an identical board. That is
+// ~10% of one removal's worth and cannot stop a removal from happening, but it
+// can pick the wrong removal spell. It is inherent to estimating demand from
+// live public evidence, which is what PRD #3526 mandates; no weight fixes it.
+// Recorded in `docs/findings/` rather than papered over.
 //
 // Pure, no card names, state-only.
 
 import type { Color } from "../../cards/types";
 import { getInstanceManaCost } from "../../cards";
-import type { GameState, PlayerState } from "../state";
+import type { CardInstanceState, GameState, PlayerState } from "../state";
 import { coversCostColors, type ManaUnits } from "../manaAvailability";
 import { estimateOpponentColorDemand } from "./observedColors";
 
@@ -77,10 +110,7 @@ export const UNKNOWN_COLOR_COVERAGE = 0.5;
 const NO_UNITS: ManaUnits = [];
 
 /** Whether `cost` demands any colour at all — see {@link NO_UNITS}. */
-function demandsColor(
-    card: Parameters<typeof getInstanceManaCost>[0],
-    life: number
-): boolean {
+function demandsColor(card: CardInstanceState, life: number): boolean {
     return !coversCostColors(NO_UNITS, getInstanceManaCost(card), { life });
 }
 

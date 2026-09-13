@@ -6769,9 +6769,10 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 { kind: "cast-spell", card: "Stone Rain", target: "Forest" },
             ],
         },
-        note: "Issue #3532, position B — the discriminating twin of position A, and the reason the preference is about EVIDENCE rather than about colours existing. Same board, same card, same two materially identical targets; only the creature's colour has moved, so now {W} is the colour the opponent is visibly using and {G} is evidenced by nothing but the Forest itself. Destroying that Forest takes the demand away with the supply and leaves coverage exactly where it was — the denial half of the term must not fire on it. A term that scored EVERY colour the opponent could produce (the vacuous heuristic issue #2306 exists to kill) passes position A and fails here, which is the whole point of running the pair.",
+        note: "Issue #3532, position B — the discriminating twin of position A, and the reason the preference is about EVIDENCE rather than about colours existing. Same card, same two materially identical basic-land targets, and the creature swapped for one of the OTHER colour (Savannah Lions is {W} where the Bears are {1}{G}, so its mana value and toughness move too — that shifts the opponent's `creatures` and `manaDevelopment` between the two SCENARIOS, never between the two targets inside either one, which is what the discrimination rests on). Now {W} is the colour the opponent is visibly using, {G} is evidenced by nothing but the Forest itself, and the expectation flips: coverage goes 1 → 1/4 on the Plains and 1 → 1 on the Forest, so B is driven POSITIVELY toward the other land rather than passing by abstention. What the pair rules out is a term that reads a colour's PRESENCE instead of its EVIDENCE — and, because the two halves differ only in which colour carries the creature, that position A did not pass through a target-ordering or positional artifact of the enumerator.",
     },
 ];
+
 /** "The bot answered the ENGINE-RAISED target selection with a submission the
  *  server would accept, and the game moved on" (issue #2283).
  *
