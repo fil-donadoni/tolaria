@@ -49,6 +49,7 @@ import {
     getProducibleColorsOnBoard,
     hasInstantSpeed,
     manaValue,
+    finiteManaUsesRemaining,
     hasManaAbility,
 } from "./constants";
 import type { ActivatedAbility } from "../cards/types";
@@ -308,6 +309,12 @@ export type EvalTerms = {
     creatures: number;
     permanents: number;
     mana: number;
+    /** CR 118.3 / 122.1 (issue #3530) — the charges left on the player's FINITE
+     *  mana sources: a source whose mana ability pays by removing counters from
+     *  itself has a fixed number of activations in it, and each one spent is
+     *  gone. Zero on every renewable board, so it moves only the positions that
+     *  hold such a source. See `finiteManaUsesTermFor`. */
+    finiteManaUses: number;
     /** Mana development (issue #2686): the value of the player's mana base
      *  relative to what the hand still wants to cast. See
      *  `manaDevelopmentTerm` for the calibration and the on-curve vs flooded
@@ -397,6 +404,44 @@ function manaSourceTermFor(player: PlayerState, weights: EvalWeights): number {
     for (const perm of player.battlefield) {
         if (!hasManaAbility(perm, undefined, player.battlefield)) continue;
         total += perm.isTapped ? weights.tappedManaWeight : weights.manaWeight;
+    }
+    return total;
+}
+
+/** The CHARGES left on this player's finite mana sources (CR 118.3 / 122.1,
+ *  issue #3530) — the `mana` term's missing dimension.
+ *
+ *  `manaSourceTermFor` above reads one of two values per permanent, untapped or
+ *  tapped, and knows nothing about how many times a source can still be used.
+ *  On a depletion land (Hickory Woodlot: "{T}, Remove a depletion counter from
+ *  this land: Add {G}{G}. If there are no depletion counters on this land,
+ *  sacrifice it.") that made spending a use a GAIN: measured on the issue's own
+ *  board — the land at full charge, two basic lands, a two-drop in hand — the
+ *  world that paid with the land scored +1.000000 above the world that paid
+ *  with the two basics, exactly `manaWeight − tappedManaWeight`, because one
+ *  source was tapped instead of two. Only the LAST use registered, and only as
+ *  the one-off loss of the permanent when it sacrificed itself: a two-use land
+ *  priced free, free, then catastrophic, when it should be half-priced twice.
+ *
+ *  So each remaining use is worth `finiteManaUseWeight` and spending one costs
+ *  exactly that, at every charge level. The term is ADDITIVE to `mana`, never a
+ *  replacement for it: a finite source is still a source, and a renewable one
+ *  contributes zero here — `finiteManaUsesRemaining` reads the ability's own
+ *  fixed `cost.removeCounter` leg, so nothing about this is card-shaped or
+ *  counter-name-shaped, and an ordinary board pays one cached definition lookup
+ *  per permanent.
+ *
+ *  Tapped or untapped makes no difference here, for the reason issue #3377
+ *  gives about `mana`: a tapped source untaps (CR 502.3), and what this term
+ *  counts is the fuel that does not come back. */
+function finiteManaUsesTermFor(
+    player: PlayerState,
+    weights: EvalWeights
+): number {
+    let total = 0;
+    for (const perm of player.battlefield) {
+        const uses = finiteManaUsesRemaining(perm);
+        if (uses > 0) total += uses * weights.finiteManaUseWeight;
     }
     return total;
 }
@@ -1097,6 +1142,11 @@ export function permanentRealisedValue(
     if (controller && hasManaAbility(perm, undefined, controller.battlefield)) {
         total += perm.isTapped ? weights.tappedManaWeight : weights.manaWeight;
     }
+    // CR 118.3 (issue #3530) — and the CHARGES that die with it: destroying a
+    // depletion land at full charge takes two activations away, not one
+    // permanent's worth of nothing. Zero for every renewable source, so this
+    // line is a no-op on the boards the lens was calibrated against.
+    total += finiteManaUsesRemaining(perm) * weights.finiteManaUseWeight;
     return total;
 }
 
@@ -1121,6 +1171,7 @@ function playerTerms(
     seat: SeatView
 ): EvalTerms {
     const terms: EvalTerms = {
+        finiteManaUses: 0,
         life: player.life * weights.lifeWeight,
         // Latent worth of the hand (ADR 0018): each card's `cardValue`, replacing
         // the old flat per-card constant. A bomb in hand now outweighs a spare
@@ -1195,6 +1246,10 @@ function playerTerms(
     // the option it gave up THIS turn is `flexibility`'s job, priced below off
     // `manaCensus.now`.
     terms.mana = manaSourceTermFor(player, weights);
+    // CR 118.3 / 122.1 (issue #3530) — what the two-valued `mana` read above
+    // cannot see: how many activations a counter-paid source has left. Zero on
+    // a board of renewable sources.
+    terms.finiteManaUses = finiteManaUsesTermFor(player, weights);
     // The mana-development term prices the base against the hand's castability
     // (issue #2686) — additive to `mana`, never a replacement for it, and zero
     // on any board whose land count already covers the hand's mana needs.
@@ -1227,6 +1282,7 @@ function sumTerms(t: EvalTerms): number {
         t.creatures +
         t.permanents +
         t.mana +
+        t.finiteManaUses +
         t.manaDevelopment +
         t.colorCoverage +
         t.flexibility +
@@ -2019,6 +2075,7 @@ export function evaluateBreakdown(
         creatures: 0,
         permanents: 0,
         mana: 0,
+        finiteManaUses: 0,
         manaDevelopment: 0,
         colorCoverage: 0,
         flexibility: 0,

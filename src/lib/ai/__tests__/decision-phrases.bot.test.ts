@@ -35,6 +35,7 @@ const ZERO_TERMS: EvalTerms = {
     creatures: 0,
     permanents: 0,
     mana: 0,
+    finiteManaUses: 0,
     manaDevelopment: 0,
     colorCoverage: 0,
     flexibility: 0,

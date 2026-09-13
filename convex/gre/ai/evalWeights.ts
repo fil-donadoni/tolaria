@@ -98,6 +98,19 @@ export type EvalWeights = {
      *  The land-drop invariant (issue #149) is untouched: a land ENTERS
      *  untapped and so is still scored at the full `manaWeight`. */
     tappedManaWeight: number;
+    /** Per REMAINING USE of a finite mana source — one whose mana ability pays
+     *  by removing counters from itself (CR 118.3 / 122.1, issue #3530). The
+     *  `finiteManaUses` term is this weight times the charges left, so it is
+     *  what spending one costs and what destroying the source takes away.
+     *
+     *  The PRIOR is `manaWeight − tappedManaWeight` — the premium this vector
+     *  already puts on a source being usable RIGHT NOW, which is precisely what
+     *  one activation is worth. It must also be strictly above that premium, or
+     *  paying with one finite source instead of two renewable ones still reads
+     *  as a gain (the +1.000000 issue #3530 measured); at the prior's own
+     *  numbers the two are equal and the fit is what separates them, against the
+     *  depletion-land verdict in the corpus. */
+    finiteManaUseWeight: number;
     /** Per on-curve land, the mana-development term (`W_MANA_DEV`, issue
      *  #2686): a land contributes this ON TOP of `permanentWeight` +
      *  `manaWeight` while the player's land count is still below the total
@@ -287,6 +300,9 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     permanentWeight: 5,
     manaWeight: 12,
     tappedManaWeight: 9,
+    // 3 = `manaWeight − tappedManaWeight` at this vector: one activation's
+    // worth, read off the premium the vector already prices (issue #3530).
+    finiteManaUseWeight: 3,
     manaDevWeight: 12,
     colorCoverageWeight: 24,
     flexWeight: 6,
@@ -364,6 +380,7 @@ export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     permanentWeight: 5.132232,
     manaWeight: 11.390998,
     tappedManaWeight: 10.390998,
+    finiteManaUseWeight: 3,
     manaDevWeight: 10.594123,
     colorCoverageWeight: 29.640823,
     flexWeight: 5.857484,
