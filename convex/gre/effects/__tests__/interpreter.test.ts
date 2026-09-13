@@ -31508,7 +31508,12 @@ describe("EffectValue `sacrificed` (CR 601.2f / 608.2h, issue #2375)", () => {
     function pushWithSacrifice(
         state: GameState,
         scriptId: string,
-        snapshot?: { cardInstanceId: string; mv: number; power?: number }
+        snapshot?: {
+            cardInstanceId: string;
+            mv: number;
+            power?: number;
+            toughness?: number;
+        }
     ) {
         const item = pushSpell(state, scriptId, "p1", [
             { type: "player", id: "p2" },
