@@ -630,8 +630,20 @@ _Avoid_: Acceptance test, milestone scenario
 Two **Blade Scenarios** identical except for one card, asserting opposite verdicts. Neither proves anything alone — only the pair distinguishes a **Brain** that reads the consequence from one that always, or never, makes the play.
 _Avoid_: A/B test, control pair
 
+**Scenario Spec**:
+The vocabulary a position is written in: cards by NAME and seat, never by instance id, which every rebuild reassigns. Describes a board **and its Stack**, whose objects are named rather than derived by replaying the moves that put them there. What a **Verdict**, a **Blade Scenario** and a preset scenario all carry, so one position means the same thing to the quiz, the suite and the Debug panel.
+_Avoid_: Serialized state, save file, board dump, snapshot
+
+**Lowering**:
+The pass from a live position to the **Scenario Spec** that describes it, always reporting what it could not carry. Not a serialisation: a translation with DECLARED loss, and the loss is what decides whether a position is judgeable at all.
+_Avoid_: Export, serialization, conversion, capture
+
+**Refusal**:
+The outcome of a **Lowering** that stops with a NAMED cause instead of producing an approximate position. A refusal is data — its kinds are counted, so the tally says which missing capability costs the most positions — never an error to hide or a position to approximate past.
+_Avoid_: Error, failure, skip, dropped
+
 **Verdict**:
-A player's answer to one decision the **Brain** faced: the position, every candidate move the **Brain** could legally make there, and which one is right (the **Brain**'s own move being one possible answer). The unit of training data for the **Evaluation**: kept as the position and the answer, never as numbers, so it stays valid when the **Evaluation** gains a new term. Collected in play, from a quiz, or from the **Blade Scenario** registry, whose expected moves are verdicts already.
+A player's answer to one decision the **Brain** faced: the position — written in the **Scenario Spec** — every candidate move the **Brain** could legally make there, and which one is right (the **Brain**'s own move being one possible answer). The unit of training data for the **Evaluation**: kept as the position and the answer, never as numbers, so it stays valid when the **Evaluation** gains a new term. Collected in play, from a quiz, or from the **Blade Scenario** registry, whose expected moves are verdicts already.
 _Avoid_: Label, rating, feedback, thumbs up
 
 **Eval Pair**:
