@@ -114,7 +114,8 @@ import {
     controlsLandWithSupertype,
     negatedLandwalkSubtypes,
 } from "@convex/cards/landwalkNegation";
-import { effectivePower, effectiveToughness } from "./effective-stats";
+import { toLayerState, toPermanentView } from "./effective-stats";
+import { getEffectivePower, getEffectiveToughness } from "@convex/gre/layers";
 
 export function isLand(card: CardInstance): boolean {
     return card.types?.includes("Land") ?? false;
@@ -1706,6 +1707,16 @@ export function buildTriggerStateView(
      *  signature; `TRIGGER_STATE_VIEW_CENSUS` is what keeps it honest. */
     continuousEffects?: readonly ContinuousEffect[]
 ): TriggerStateView {
+    // CR 613 — the board-wide layer state, built ONCE per call and shared by
+    // every permanent's effective-P/T read below (issue #3190). The
+    // `effectivePower`/`effectiveToughness` wrappers each rebuild it from
+    // `players`, so calling them per permanent made ONE view build O(N²) on
+    // the permanent count — the exact bug class issue #2931 / PR #3189 fixed
+    // for the P/T badge, still live here. The primitives are that PR's, reused
+    // verbatim: no parallel cache, same inputs (no emblems — this view has
+    // never been handed any — plus `continuousEffects`), so the derived P/T is
+    // field-for-field what the wrappers produced.
+    const layerState = toLayerState(players, undefined, continuousEffects);
     return {
         players: players.map((p) => ({
             id: p.id,
@@ -1742,12 +1753,10 @@ export function buildTriggerStateView(
                 // threshold had the ability hidden; a shrunk one was offered
                 // and then rejected). Same computation as the server's, via
                 // the shared client-side layer projection.
-                power: effectivePower(players, c, undefined, continuousEffects),
-                toughness: effectiveToughness(
-                    players,
-                    c,
-                    undefined,
-                    continuousEffects
+                power: getEffectivePower(layerState, toPermanentView(c)),
+                toughness: getEffectiveToughness(
+                    layerState,
+                    toPermanentView(c)
                 ),
                 isTapped: c.isTapped === true,
                 // CR 202.2 / 613.1d — effective colours for a tapOtherFilter
