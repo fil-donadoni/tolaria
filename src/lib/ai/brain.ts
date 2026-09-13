@@ -1184,6 +1184,11 @@ export function chooseResolution(choice: OwedChoice): string[] {
         case "name-card":
         case "madness-cast":
         case "rebound-cast":
+        // CR 107.1b / 107.3f (issue #1701) — a numeric nomination answers with
+        // a scalar through its own `submitNumberChoice` mutation, never with
+        // instance ids, so it is never resolved here either: it is an in-tree
+        // search node with a nominate-nothing FALLBACK in `decideBotAction`.
+        case "number-pick":
             throw new Error(
                 `chooseResolution: "${kind}" is not resolved here (use the dedicated path)`
             );

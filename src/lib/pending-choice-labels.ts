@@ -61,6 +61,8 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     "trigger-mode": "Choose a mode",
     // name-card family (CR 202.3)
     "name-card": "Name a card",
+    // numeric-nomination family (CR 107.1b / 107.3f, issue #1701)
+    "number-pick": "Choose an amount",
     // random-reveal family (CR 705, ADR 0023)
     "random-reveal": "Coin flip",
     // pile-division divide-then-choose family (ADR 0053)

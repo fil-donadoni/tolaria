@@ -5934,6 +5934,42 @@ export interface SpellContext {
         manaRestriction?: ManaRestriction;
     }) => boolean | undefined;
 
+    /** Requests a NUMERIC nomination (CR 107.1b / 107.3f, issue #1701). On
+     *  first call enqueues a `number-pick` `PendingChoice` and returns
+     *  `undefined` — the caller must return early to suspend; on resume it
+     *  returns the amount the player nominated. `choiceId` disambiguates
+     *  multiple enqueues within a step and must be stable across replays.
+     *
+     *  With `payMana` the nomination is also PAID, as generic mana out of the
+     *  nominating player's pool: CR 107.3f's "you may pay {X}" / "may pay any
+     *  amount of mana", where X is not defined by the ability's text and the
+     *  controller chooses it AS THE ABILITY RESOLVES. The payment rides the
+     *  existing may-pay payment path (same `ManaRestriction` handling), and the
+     *  ceiling is the payer's live spendable pool — validated server-side at
+     *  the submit boundary, never trusted from the client.
+     *
+     *  ONE prompt per decision (Arena parity, issue #2244): amount 0 IS the
+     *  decline, so there is no separate accept/decline question. Composing an
+     *  `option-pick` over numbers with a `requestMayPay` was considered and
+     *  rejected — two prompts for one decision, and the second can decline
+     *  after the amount is already nominated, which is not CR 107.3f's shape. */
+    requestNumberChoice: (req: {
+        playerId: string;
+        choiceId: string;
+        prompt: string;
+        /** Floor of the nominal range. Omit for 0 (every shipped shape). */
+        min?: number;
+        /** Authored ceiling, when the ability's own text caps the nomination.
+         *  Omit when the only bound is the payer's pool. */
+        max?: number;
+        /** Spend the nominated amount as generic mana (CR 107.3f). Omit for a
+         *  bare nomination that spends nothing. */
+        payMana?: true;
+        /** Spend restriction the payment may additionally draw on (CR 106.6) —
+         *  the same channel `requestMayPay` takes. */
+        manaRestriction?: ManaRestriction;
+    }) => number | undefined;
+
     /** Records the per-permanent billing list for a "pay-or-penalty over a mass
      *  effect" rider (CR 608.2 — Stench of Evil). Pass one entry per permanent
      *  actually affected (typically the controller id of each destroyed
@@ -16409,6 +16445,48 @@ export type EffectOp =
           prompt: string;
           /** REQUIRED — the boolean binding name (`"$paid"`). A may-pay whose
            *  outcome nothing reads is meaningless, so the grammar demands it. */
+          bind: string;
+      }
+    /** CR 107.3f (issue #1701) — a VARIABLE-amount mana payment whose amount
+     *  is the player's to nominate, and whose amount is then READABLE: "that
+     *  player may pay any amount of mana" (Errant Minion, Power Leak) and "you
+     *  may pay {X}. If you do, …" (Decree of Justice) are the same decision —
+     *  nominate N >= 0, pay N, read N. CR 107.3f: "If the value of X isn't
+     *  defined, the controller of the spell or ability chooses the value of X
+     *  at the appropriate time (either as it's put on the stack or AS IT
+     *  RESOLVES)"; this Op is the as-it-resolves half, which the cast-time
+     *  `{X}` machinery (`chosenX`, CR 107.3a) does not reach.
+     *
+     *  Maps 1:1 onto `SpellContext.requestNumberChoice` with `payMana`, riding
+     *  the `number-pick` Pending Choice family. Like `choice` / `mayPay` the
+     *  interpreter SUSPENDS the script here and resumes when the player
+     *  answers. The payment itself is the existing may-pay mana path (same
+     *  `ManaRestriction` handling, same already-tapped-pool rule), and the
+     *  affordability ceiling is the payer's spendable pool, enforced
+     *  server-side at the submit boundary.
+     *
+     *  `bind` (REQUIRED) names a NUMERIC binding — the amount actually paid —
+     *  read by a later Op as an `EffectValue` (`count: { ref: "$paid" }`,
+     *  `amount: { ref: "$paid" }`). Required for the same reason `mayPay`'s
+     *  boolean bind is: a payment nothing reads back is meaningless.
+     *
+     *  ONE prompt per decision (Arena parity, issue #2244) — amount 0 IS the
+     *  decline, so this Op carries no accept/decline flag and never raises a
+     *  second question. What it deliberately does NOT do: a FIXED leg
+     *  alongside the variable one (`{X}{R}` — Flameblast Dragon) and an
+     *  `EffectValue` CAP on the nomination ("X can't be greater than the life
+     *  you gained") — no shipped card needs either, so the axis of variation
+     *  is not yet shown and the ungeneralized shape ships (ADR 0045
+     *  "generalize, don't add" cuts both ways). */
+    | {
+          op: "payVariableMana";
+          /** Who nominates and pays (CR 107.3f — the controller of the spell
+           *  or ability; for an Aura upkeep trigger, the host's controller via
+           *  `{ ref: "$host.controller" }`). */
+          player: EffectPlayerRef;
+          prompt: string;
+          /** REQUIRED — the NUMERIC binding name (`"$paid"`), the amount
+           *  actually paid. */
           bind: string;
       }
     /** CR 701.6a — counter the announced target spell (remove it from the

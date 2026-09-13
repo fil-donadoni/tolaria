@@ -114,6 +114,7 @@ import {
     forcedCategorizedCover,
 } from "../categorizedPick";
 import { manaCostsEqual } from "../constants";
+import { readTaggedNumber } from "../numberBinding";
 
 type OpOf<K extends EffectOp["op"]> = Extract<EffectOp, { op: K }>;
 
@@ -423,6 +424,19 @@ function readBoolBinding(ctx: SpellContext, name: string): boolean | undefined {
     return stored[0] === MAYPAY_YES;
 }
 
+/** Reads a NUMERIC binding (CR 107.1b / 107.3f, issue #1701) — the amount a
+ *  `payVariableMana` nomination paid. Returns `undefined` when the binding was
+ *  never captured (its Op was skipped — CR 608.2b) or holds a payload of a
+ *  different family (a boolean, a name, a picks list, an object snapshot), so a
+ *  bare `ref` in a numeric position can never mis-read one of those as a
+ *  number: the reading Op simply skips, exactly as for any missing ref. */
+function readNumberBinding(
+    ctx: SpellContext,
+    name: string
+): number | undefined {
+    return readTaggedNumber(readBinding(ctx, name));
+}
+
 /** Applies a relational operator (CR 107 — number comparison). */
 function compareNumbers(
     left: number,
@@ -635,6 +649,17 @@ function resolveValue(
         return inner === undefined ? undefined : -inner;
     }
     if ("ref" in value) {
+        // CR 107.1b / 107.3f (issue #1701) — a BARE ref in a numeric position
+        // reads a NUMERIC binding: the amount a `payVariableMana` nomination
+        // paid (`count: { ref: "$paid" }`). Tried first because a bare ref has
+        // no property to walk, and it was DEAD in this position before the
+        // numeric binding family existed (`parseRef` yields no property, and
+        // every branch below requires one), so nothing is displaced. The
+        // payload tag is what makes it unambiguous — a boolean, a name or an
+        // object snapshot bound under the same name reads `undefined` here and
+        // the Op skips, rather than silently producing NaN.
+        const numeric = readNumberBinding(ctx, value.ref);
+        if (numeric !== undefined) return numeric;
         const parsed = parseRef(value.ref);
         if (!parsed) return undefined;
         const snap = readBinding(ctx, parsed.binding);
@@ -5443,6 +5468,28 @@ export const OP_EXECUTORS: {
             choiceId: op.bind,
             cost: resolvedCost,
             prompt: op.prompt,
+        });
+        if (paid === undefined) return "suspend"; // enqueued — wait
+    },
+    // CR 107.3f (issue #1701) — a VARIABLE-amount mana payment. First execution
+    // enqueues the `number-pick` choice and SUSPENDS; the resumed execution
+    // (after the generic `submitNumberChoice` commit) reads the AMOUNT back —
+    // `requestNumberChoice` stores it under this Op's binding name, so the
+    // binding IS the amount paid, read by a later Op as an `EffectValue`
+    // (`{ ref: "$paid" }`). The ceiling is the payer's spendable pool, applied
+    // and re-validated at the submit boundary, so nothing about affordability
+    // is decided here.
+    payVariableMana(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return; // CR 608.2b — payer gone, skip
+        const paid = ctx.requestNumberChoice({
+            // The binding name doubles as the choiceId (unique within the
+            // script, validator-enforced), exactly as it does for `mayPay`, so
+            // the stored answer IS the binding `readNumberBinding` reads.
+            choiceId: op.bind,
+            playerId,
+            prompt: op.prompt,
+            payMana: true,
         });
         if (paid === undefined) return "suspend"; // enqueued — wait
     },

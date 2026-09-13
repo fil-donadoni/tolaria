@@ -4956,6 +4956,18 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         // mana cost read off a runtime-selected object (issue #1150).
         optional: { cost: isMayPayCostOrDynamic },
     },
+    // CR 107.3f (issue #1701) — a variable-amount mana payment the player
+    // nominates as the ability resolves. No `cost` field of any kind: the
+    // amount IS the answer, bounded server-side by the payer's spendable pool.
+    // `bind` is REQUIRED: a payment whose amount nothing reads is meaningless,
+    // the same grammar rule `mayPay`'s boolean bind carries.
+    payVariableMana: {
+        required: {
+            player: isPlayerRef,
+            prompt: isNonEmptyString,
+            bind: isBindingName,
+        },
+    },
     // if — the `if` structural construct (ADR 0045, issue #806). `predicate`
     // shape is checked here; branch Op validity and predicate binding
     // references are checked by the recursive branch / ordered ref passes.
@@ -5553,12 +5565,25 @@ function parseRef(ref: string): { binding: string; property: string } | null {
 // divideIntoPiles list capture are the identical `string[]` runtime storage,
 // distinguished only by provenance — the family check on `s.set === "bound"`
 // (below, in `checkOpListRefs`) accepts either.
-type BindingKind = "snapshot" | "picks" | "boolean" | "player" | "list";
+// A NUMBER binding (CR 107.1b / 107.3f, issue #1701) stores the amount a
+// `payVariableMana` nomination paid, as a TAGGED single value. It is read ONLY
+// by a bare ref in a NUMERIC value position (`count: { ref: "$paid" }`) — a
+// position that had no bare-ref reader at all before this family existed, so
+// nothing else can claim it and nothing it displaces.
+type BindingKind =
+    | "snapshot"
+    | "picks"
+    | "boolean"
+    | "player"
+    | "list"
+    | "number";
 
 /** The binding family a `bind`-carrying Op declares. */
 function bindingKindOf(op: unknown): BindingKind {
     if (op === "choice") return "picks";
     if (op === "mayPay") return "boolean";
+    // issue #1701 — the amount paid, read back in a numeric value position.
+    if (op === "payVariableMana") return "number";
     // issue #1085 — `nameCard` stores the chosen name as a single-element
     // string array, the identical runtime shape a `choice` Op's picks use,
     // so a later `EffectCardFilter.name` bare ref reads it through the SAME
@@ -5881,6 +5906,29 @@ function checkRefUse(
         if (family !== "player") {
             errors.push(
                 `${at}: ref "${use.ref}" names a ${family} binding in a bare player position — only a players-set forEach "$each" is a player binding`
+            );
+        }
+        return;
+    }
+    // Numeric position, BARE shape (CR 107.1b / 107.3f, issue #1701): the
+    // amount a `payVariableMana` nomination paid, read as an `EffectValue`
+    // (`count: { ref: "$paid" }`). Before this family a bare ref here was
+    // always malformed — every numeric read needed a `.power` / `.toughness` /
+    // `.manaValue` property — so accepting it costs no earlier shape. The
+    // family check is what keeps a snapshot or a boolean out of a numeric
+    // position, where the interpreter would resolve nothing (CR 608.2b) and
+    // the Op would silently skip.
+    if (use.kind === "number" && !use.ref.includes(".")) {
+        const family = declared.get(use.ref);
+        if (family === undefined) {
+            errors.push(
+                `${at}: ref "${use.ref}" references undefined binding "${use.ref}" — no earlier Op binds it (a bare numeric ref reads a payVariableMana Op's bind)`
+            );
+            return;
+        }
+        if (family !== "number") {
+            errors.push(
+                `${at}: ref "${use.ref}" names a ${family} binding in a bare numeric position — only a payVariableMana Op's bind is a number binding; power/toughness/manaValue refs read a snapshot with a property path`
             );
         }
         return;
