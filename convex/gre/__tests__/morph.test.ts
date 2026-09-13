@@ -570,6 +570,23 @@ describe("morph — revealed as it leaves (CR 708.9)", () => {
         expect((inHand.card as { id: string }).id).toBe(ANGEL);
     });
 
+    it("a face-down permanent EXILED is revealed in exile as its real card (CR 708.9)", () => {
+        // Issue #3554 — the exile destination of the same battlefield-departure
+        // funnel. An exiled object still presenting the 2/2 sentinel would be
+        // unnameable everywhere downstream (a scenario spec, a "cards exiled
+        // with" reference), so the reveal is pinned here, not assumed.
+        const { state, permanent } = faceDownBoard(0);
+        removePermanentTo(state, permanent.id, "exile");
+        const inExile = state.players[0].exile.find(
+            (c) => c.id === permanent.id
+        )!;
+        expect(inExile.faceDown).toBeUndefined();
+        expect(inExile.faceDownOf).toBeUndefined();
+        expect((inExile.card as { id: string }).id).toBe(ANGEL);
+        const opp = projectPublicState(state, 1, "p2");
+        expect(opp.players[0].exile[0].card.id).toBe(ANGEL);
+    });
+
     /** A face-down Exalted Angel spell on the stack, countered by the spell
      *  `counterId` (cast by p2 targeting it) and resolved. Each player gets a
      *  one-card library so a "draw a card" rider (Remand) has something to

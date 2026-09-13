@@ -612,6 +612,46 @@ describe("buildVerdictQuiz — a judgement the fit can still read (issue #3405)"
     });
 });
 
+describe("buildVerdictQuiz — a face-down card the Bot may not look at (issue #3554)", () => {
+    it("refuses as lowering-threw through the real projection, never rebuild-threw", () => {
+        // CR 406.3 — the opponent's card exiled face down, known only to its
+        // owner. Through `projectPublicState` the Bot's view holds only the
+        // face-down sentinel, which used to reach the spec by its display name
+        // and throw inside the rebuild.
+        const { state, botId, source } = position({
+            ...MAIN_PHASE,
+            cards: [
+                ...MAIN_PHASE.cards,
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "exile",
+                    faceDownExile: true,
+                },
+            ],
+        });
+        const moves = candidateMoves(state, botId);
+        expect(moves.length).toBeGreaterThan(1);
+
+        const result = buildVerdictQuiz(
+            traceFor(state, botId, moves[0]),
+            source
+        );
+
+        expect(result.ok).toBe(false);
+        if (result.ok) return;
+        expect(result.refusal.kind).toBe("lowering-threw");
+        expect(result.refusal.detail).toContain(
+            "a face-down card (opp, exile)"
+        );
+        expect(
+            result.refusal.dropped.some((note) =>
+                note.startsWith("hidden identity:")
+            )
+        ).toBe(true);
+    });
+});
+
 describe("the refusal a panel renders (issue #3457)", () => {
     it("titles every kind the quiz can refuse with, the lowering's and its own", () => {
         // The vocabulary is INHERITED, never restated: every kind

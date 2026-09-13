@@ -15,8 +15,10 @@
  */
 
 import {
+    FACE_DOWN_CARD_ID,
     getCardByName as getCatalogueCardByName,
     tokenDefinitionId,
+    tryGetCardByName,
     tryGetDefinition,
 } from "../cards";
 import { isInsetSpellDefinitionId } from "../cards/insetSpell";
@@ -1993,6 +1995,16 @@ function displayNameForDefId(defId: string, isToken: boolean): string {
             `specFromState: definition "${defId}" is not in the runtime registry.`
         );
     }
+    // Issue #3554 — the invariant, at the one funnel every lowered card name
+    // passes through: a name is written into a spec only if the builder's
+    // lookup (`getCardByName`) resolves it. A definition registered by ID
+    // alone — the CR 708.2 face-down sentinel is the shipped one — would
+    // otherwise reach the spec and throw inside the rebuild, far from here.
+    if (!tryGetCardByName(def.name)) {
+        throw new Error(
+            `specFromState: "${def.name}" (definition "${defId}") is not a name the catalogue resolves, so a spec carrying it could not be rebuilt.`
+        );
+    }
     return def.name;
 }
 
@@ -2004,6 +2016,57 @@ function displayNameForDefId(defId: string, isToken: boolean): string {
 function presentedName(card: CardInstanceState): string {
     const defId = (card.card as { id?: string }).id ?? "";
     return displayNameForDefId(defId, card.isToken === true);
+}
+
+/**
+ * Prefix every "this object's identity is not in the state" note starts with
+ * (issue #3554), so `lowerDecision` can refuse on it by prefix rather than by
+ * a string literal repeated in another file.
+ */
+export const HIDDEN_IDENTITY_DROPPED_PREFIX = "hidden identity:";
+
+/**
+ * Prefix of the note for an attachment whose host is FACE DOWN (CR 708.2,
+ * issue #3554): the Aura or Equipment is lowered, the link is not, so the
+ * rebuilt board differs — which `lowerDecision` refuses on by this prefix.
+ */
+export const FACE_DOWN_HOST_DROPPED_PREFIX = "face-down host:";
+
+/** CR 406.3 / 708.2 / 708.5 (issue #3554) — does `card` present the face-down
+ *  sentinel with NO recoverable identity underneath? A raw engine state
+ *  always keeps one: a face-down permanent carries `faceDownOf`, and a card
+ *  exiled face down keeps its real `card.id` (only `knownTo` hides it). A
+ *  PROJECTED state does not: `projectExileCard` swaps a non-knower's view of
+ *  a face-down exile to the sentinel, and the battlefield projection strips
+ *  an opponent's `faceDownOf`. What is left has no name the spec can carry. */
+function hidesIdentity(card: CardInstanceState): boolean {
+    return (
+        (card.card as { id?: string }).id === FACE_DOWN_CARD_ID &&
+        !(card.faceDown && card.faceDownOf)
+    );
+}
+
+/** `cards`, minus every one whose identity the state does not carry — each
+ *  reported onto `dropped` under {@link HIDDEN_IDENTITY_DROPPED_PREFIX},
+ *  naming the object and its zone. Such a card is REFUSED, never placed
+ *  under the sentinel's display name ("Face-down creature"): the sentinel is
+ *  registered by definition id only, so `getCardByName` throws on it during
+ *  the rebuild (a `rebuild-threw` far from the cause, issue #3554). */
+function nameableCards(
+    cards: CardInstanceState[],
+    zone: LowerableZone,
+    owner: "me" | "opp",
+    dropped: string[]
+): CardInstanceState[] {
+    return cards.filter((card) => {
+        if (!hidesIdentity(card)) return true;
+        const what = zone === "battlefield" ? "permanent" : "card";
+        const where = zone === "battlefield" ? owner : `${owner}, ${zone}`;
+        dropped.push(
+            `${HIDDEN_IDENTITY_DROPPED_PREFIX} a face-down ${what} (${where}) — this state carries only the face-down sentinel, not the object's real identity (CR 406.3 / 708.2 / 708.5), and a scenario spec can place a card only under a name the catalogue resolves; not lowered`
+        );
+        return false;
+    });
 }
 
 /** The name (and `copyOf`, when it's a legitimately-lowerable copy) to place
@@ -2669,7 +2732,15 @@ function lowerCard(
                 ...state.players[0].battlefield,
                 ...state.players[1].battlefield,
             ].find((c) => c.id === card.attachedTo);
-            if (host) {
+            if (host?.faceDown) {
+                // CR 708.2 — the same refusal a face-down stack TARGET gets
+                // (`lowerStackTarget`): a reference resolves on the PRESENTED
+                // definition, which is the sentinel, and `getCardByName`
+                // cannot resolve that.
+                dropped.push(
+                    `${FACE_DOWN_HOST_DROPPED_PREFIX} ${label} is attached to a FACE-DOWN permanent (CR 708.2), which has no name the spec can reference — attachment dropped`
+                );
+            } else if (host) {
                 entry.attachedTo = presentedName(host);
             } else {
                 dropped.push(
@@ -2881,7 +2952,16 @@ function lowerCombat(
         for (const name of names) {
             const found = battlefields
                 .flat()
-                .find((c) => !taken.has(c.id) && presentedName(c) === name);
+                // A face-down permanent never matches: it presents the
+                // sentinel, whose name the catalogue cannot resolve (issue
+                // #3554), and the combat lowering refuses face-down combatants
+                // on its own.
+                .find(
+                    (c) =>
+                        !taken.has(c.id) &&
+                        !c.faceDown &&
+                        presentedName(c) === name
+                );
             if (!found) return null;
             taken.add(found.id);
             ids.push(found.id);
@@ -4286,10 +4366,20 @@ export function specFromState(
     const cards: ScenarioCard[] = [];
 
     for (const zone of ["battlefield", "graveyard", "exile"] as const) {
-        for (const card of zoneCards(me, zone)) {
+        for (const card of nameableCards(
+            zoneCards(me, zone),
+            zone,
+            "me",
+            dropped
+        )) {
             cards.push(lowerCard(state, me, card, zone, "me", dropped));
         }
-        for (const card of zoneCards(opp, zone)) {
+        for (const card of nameableCards(
+            zoneCards(opp, zone),
+            zone,
+            "opp",
+            dropped
+        )) {
             cards.push(lowerCard(state, opp, card, zone, "opp", dropped));
         }
     }
@@ -4308,8 +4398,13 @@ export function specFromState(
     // used to, and reported the loss in `dropped[]`), so a headless caller
     // passing a raw engine state — which has no placeholders — is unaffected
     // and every caller gets the same fidelity.
-    const meNamedHand = visibleHand(me);
-    const oppNamedHand = visibleHand(opp);
+    const meNamedHand = nameableCards(visibleHand(me), "hand", "me", dropped);
+    const oppNamedHand = nameableCards(
+        visibleHand(opp),
+        "hand",
+        "opp",
+        dropped
+    );
     const meHand = meNamedHand.map((card) =>
         lowerCard(state, me, card, "hand", "me", dropped)
     );
