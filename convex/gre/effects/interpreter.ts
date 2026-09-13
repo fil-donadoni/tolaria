@@ -786,7 +786,9 @@ function resolveValue(
         const read =
             value.sacrificed.read === "power"
                 ? ctx.getAdditionalSacrificePower()
-                : ctx.getAdditionalSacrificeMv();
+                : value.sacrificed.read === "toughness"
+                  ? ctx.getAdditionalSacrificeToughness()
+                  : ctx.getAdditionalSacrificeMv();
         if (read === undefined) return undefined;
         return read + (value.sacrificed.plus ?? 0);
     }
@@ -5683,12 +5685,13 @@ export const OP_EXECUTORS: {
         // (the object already left) would never fire — skip scheduling
         // entirely (CR 608.2b). Every instance-scoped timing resolves the
         // watch identically; they diverge only in the firing event
-        // (PERMANENT_LEFT vs ATTACKER_UNBLOCKED, triggers.ts) and the CLEANUP
-        // purge (phases.ts).
+        // (PERMANENT_LEFT vs CREATURE_DIED vs ATTACKER_UNBLOCKED, triggers.ts)
+        // and the CLEANUP purge (phases.ts).
         let watchInstanceId: string | undefined;
         if (
             op.timing === "leaves-battlefield" ||
             op.timing === "leaves-battlefield-indefinite" ||
+            op.timing === "dies" ||
             op.timing === "attacks-unblocked"
         ) {
             const watched =

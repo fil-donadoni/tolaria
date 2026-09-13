@@ -476,3 +476,30 @@ export const ydwenEfreet: CardDefinition = {
         },
     ],
 };
+
+// Hurr Jackal — "{T}: Target creature can't be regenerated this turn." (CR
+// 701.19 regenerate; the `preventRegeneration` Op writes the turn-scoped
+// can't-be-regenerated marker purged at CLEANUP — Gravebind's clause, here on
+// a tap ability.)
+// compiler-gap: "{T}: Target creature can't be regenerated this turn." (#2693)
+export const hurrJackal: CardDefinition = {
+    id: "f4aadda8-8577-480d-8186-532d2b173c15",
+    rarity: "common",
+    name: "Hurr Jackal",
+    oracleText: "{T}: Target creature can't be regenerated this turn.",
+    manaCost: { R: 1 },
+    types: ["Creature"],
+    subtypes: ["Jackal"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "hurr-jackal-no-regen",
+            oracleText: "{T}: Target creature can't be regenerated this turn.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [{ op: "preventRegeneration", target: { target: 0 } }],
+        },
+    ],
+};

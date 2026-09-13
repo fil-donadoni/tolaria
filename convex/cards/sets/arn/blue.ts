@@ -397,3 +397,58 @@ export const oldManOfTheSea: CardDefinition = {
         },
     ],
 };
+
+// Merchant Ship — Dandân's Island restrictions (CR 508.1c attack restriction;
+// CR 603.8 "when you control no Islands" state trigger) plus "Whenever this
+// creature attacks and isn't blocked, you gain 2 life." (CR 509.1h — the
+// ATTACKER_UNBLOCKED event fires once per unblocked attacker when blockers are
+// confirmed, Murk Dwellers' trigger.)
+// compiler-gap: "This creature can't attack unless defending player controls an Island." (#2693)
+// compiler-gap: "Whenever this creature attacks and isn't blocked, you gain 2 life." (#2693)
+// compiler-gap: "When you control no Islands, sacrifice this creature." (#2693)
+export const merchantShip: CardDefinition = {
+    id: "2b827094-fb2c-46db-b898-02e0c308601f",
+    rarity: "uncommon",
+    name: "Merchant Ship",
+    oracleText:
+        "This creature can't attack unless defending player controls an Island.\nWhenever this creature attacks and isn't blocked, you gain 2 life.\nWhen you control no Islands, sacrifice this creature.",
+    manaCost: { U: 1 },
+    types: ["Creature"],
+    subtypes: ["Human"],
+    power: 0,
+    toughness: 2,
+    staticEffects: [
+        {
+            kind: "attack-restriction",
+            id: "merchant-ship-island-restriction",
+            oracleText:
+                "This creature can't attack unless defending player controls an Island.",
+            predicate: (_self, defenderBattlefield) =>
+                defenderBattlefield.some((c) => c.subtypes.includes("Island")),
+        },
+    ],
+    triggeredAbilities: [
+        {
+            id: "merchant-ship-unblocked-life",
+            oracleText:
+                "Whenever this creature attacks and isn't blocked, you gain 2 life.",
+            event: "ATTACKER_UNBLOCKED",
+            matches: (event, self) =>
+                event.type === "ATTACKER_UNBLOCKED" &&
+                event.attackerId === self.id,
+            effects: [{ op: "gainLife", player: "controller", amount: 2 }],
+        },
+        sacrificeSelfWhen({
+            id: "merchant-ship-no-islands",
+            oracleText: "When you control no Islands, sacrifice this creature.",
+            condition: (self, state) => {
+                const controller = state.players.find(
+                    (p) => p.id === self.controllerId
+                );
+                return !controller?.battlefield.some((c) =>
+                    c.subtypes.includes("Island")
+                );
+            },
+        }),
+    ],
+};

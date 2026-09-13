@@ -2087,6 +2087,7 @@ export function sacrificeSnapshotFromSelection(
         mv: snap.mv,
         ...(snap.subtypes ? { subtypes: snap.subtypes } : {}),
         ...(snap.power !== undefined ? { power: snap.power } : {}),
+        ...(snap.toughness !== undefined ? { toughness: snap.toughness } : {}),
     };
 }
 

@@ -600,25 +600,91 @@ export const aladdinsLamp: CardDefinition = {
     ],
 };
 
+// Diamond Valley — "{T}, Sacrifice a creature: You gain life equal to the
+// sacrificed creature's toughness." (CR 602.1 / 118.8 the sacrifice-a-creature
+// activation cost via `sacrificeFilter`; CR 608.2h the toughness is last-known
+// information, read off the cost snapshot by the `sacrificed` value's
+// `read: "toughness"` — the creature is in the graveyard before the ability
+// is on the stack.)
+// compiler-gap: "{T}, Sacrifice a creature: You gain life equal to the sacrificed creature's toughness." (#2693)
+export const diamondValley: CardDefinition = {
+    id: "e85f6f21-15a0-4a36-be95-5a0299cd01a5",
+    rarity: "rare",
+    name: "Diamond Valley",
+    oracleText:
+        "{T}, Sacrifice a creature: You gain life equal to the sacrificed creature's toughness.",
+    types: ["Land"],
+    activatedAbilities: [
+        {
+            id: "diamond-valley-gain-life",
+            oracleText:
+                "{T}, Sacrifice a creature: You gain life equal to the sacrificed creature's toughness.",
+            cost: { tap: true, sacrificeFilter: { types: "Creature" } },
+            useStack: true,
+            effects: [
+                {
+                    op: "gainLife",
+                    player: "controller",
+                    amount: { sacrificed: { read: "toughness" } },
+                },
+            ],
+        },
+    ],
+};
+
+// Sandals of Abdallah — "{2}, {T}: Target creature gains islandwalk until end
+// of turn. When that creature dies this turn, destroy this artifact." (CR
+// 702.14c islandwalk granted until end of turn, CR 611.2a; CR 603.7a the
+// delayed "when that creature dies this turn" watch is the `dies` timing —
+// CR 700.4 put into a graveyard from the battlefield, so a bounce or exile
+// of the creature never fires it; CR 603.7c the captured artifact is only
+// destroyed if it is still that same object on the battlefield.)
+// compiler-gap: "{2}, {T}: Target creature gains islandwalk until end of turn. When that creature dies this turn, destroy this artifact." (#2693)
+export const sandalsOfAbdallah: CardDefinition = {
+    id: "8f99a520-b8a9-40b0-9854-48aac297c5ee",
+    rarity: "uncommon",
+    name: "Sandals of Abdallah",
+    oracleText:
+        "{2}, {T}: Target creature gains islandwalk until end of turn. When that creature dies this turn, destroy this artifact. (A creature with islandwalk can't be blocked as long as defending player controls an Island.)",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "sandals-of-abdallah-islandwalk",
+            oracleText:
+                "{2}, {T}: Target creature gains islandwalk until end of turn. When that creature dies this turn, destroy this artifact.",
+            cost: { mana: { X: 2 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "islandwalk",
+                    target: { target: 0 },
+                    duration: { phase: "end-of-turn" },
+                },
+                {
+                    op: "delayedTrigger",
+                    timing: "dies",
+                    oracleText:
+                        "When that creature dies this turn, destroy this artifact.",
+                    watch: { target: 0 },
+                    capture: { $sandals: { ref: "$source" } },
+                    effects: [{ op: "destroy", target: { ref: "$sandals" } }],
+                },
+            ],
+        },
+    ],
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Deferred to later batches (tracked-by: #1215) — need engine work beyond existing primitives:
+// Deferred (tracked-by: #2130) — Sindbad, the one ARN card still blocked:
 //
-//   • Hurr Jackal — "{T}: Target creature can't be regenerated this turn" is
-//     NOT blocked: the `preventRegeneration` Op writes
-//     `CardInstanceState.cantBeRegeneratedThisTurn`, purged at CLEANUP, and
-//     Gravebind (ice/black.ts) ships the identical clause. Deferred to its
-//     tranche for authoring only — owned by #2124.
 //   • Sindbad — "{T}: Draw a card and reveal it. If it isn't a land card,
 //     discard it" needs the `draw` Op to NAME what it drew: `bind` ships on a
 //     dozen sibling Ops but not on `draw`, so no later Op can refer to the
 //     drawn card. `revealTopAndRoute` is not a substitute — it neither draws
 //     nor discards. tracked-by: #2130.
-//   • Diamond Valley — "{T}, Sacrifice a creature:" is a choose-another-to-
-//     sacrifice activation cost, not yet modelled for activated abilities.
-//   • Merchant Ship — "attacks and isn't blocked, gain 2 life" needs an
-//     unblocked-attacker trigger event.
-//   • Sandals of Abdallah — the "when that creature dies this turn, destroy
-//     this artifact" rider needs a per-target death watch.
 //
 // Out of scope — ante / subgames depend on game modes the engine does not model
 // (ADR 0010): Jeweled Bird, Ring of Ma'rûf, Shahrazad. City in a Bottle (#190)

@@ -3209,6 +3209,50 @@ describe("validateEffectScript — delayedTrigger Op (CR 603.7, ADR 0048)", () =
             )
         ).toBe(true);
     });
+
+    // CR 603.7a / 700.4 — the dies-watch is the FOURTH instance-scoped timing
+    // (Sandals of Abdallah): same required `watch`, firing on CREATURE_DIED.
+    it("accepts the dies timing with a watch and requires the watch", () => {
+        const ok = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "delayedTrigger",
+                        timing: "dies",
+                        oracleText:
+                            "When that creature dies this turn, destroy this artifact.",
+                        watch: { target: 0 },
+                        capture: { $c: { target: 0 } },
+                        effects: [
+                            {
+                                op: "gainLife",
+                                player: "controller",
+                                amount: { ref: "$c.toughness" },
+                            },
+                        ],
+                    },
+                ],
+            })
+        );
+        expect(ok).toEqual([]);
+        const missing = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "delayedTrigger",
+                        timing: "dies",
+                        oracleText: "x",
+                        effects: [
+                            { op: "gainLife", player: "controller", amount: 1 },
+                        ],
+                    },
+                ],
+            })
+        );
+        expect(missing.some((e) => /"dies" is instance-scoped/.test(e))).toBe(
+            true
+        );
+    });
 });
 
 // --- delayedTrigger LIST-valued capture (ADR 0049, issue #866) --------------

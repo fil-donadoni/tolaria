@@ -11,7 +11,11 @@ import type { GameState, CardInstanceState, PlayerState } from "./state";
 import { getPlayer, removePermanentTo } from "./state";
 import type { PermanentFilter } from "../cards/filters";
 import { matchesPermanentFilter } from "../cards/filters";
-import { STATIC_EFFECT_CTX, getEffectivePower } from "./layers";
+import {
+    STATIC_EFFECT_CTX,
+    getEffectivePower,
+    getEffectiveToughness,
+} from "./layers";
 // CR 202.3 — the single mana-value authority (hybrid + Phyrexian pips, CR 202.3f).
 import { manaValue } from "./constants";
 import { tryGetDefinition } from "../cards/index";
@@ -86,6 +90,9 @@ export type SacrificeResult = {
     /** CR 613 layer 7c / 608.2h — effective power captured before the creature
      *  left play (Freyalise Supplicant reads it at resolve). Creatures only. */
     power?: number;
+    /** CR 613 layer 7c / 608.2h — effective toughness captured before the
+     *  creature left play (Diamond Valley reads it at resolve). Creatures only. */
+    toughness?: number;
     snapshot: boolean;
 };
 
@@ -348,14 +355,17 @@ export function applySacrificeSelection(
             victim.subtypes && victim.subtypes.length > 0
                 ? [...victim.subtypes]
                 : undefined;
-        const power = victim.types.includes("Creature")
-            ? getEffectivePower(state, victim)
+        const isCreature = victim.types.includes("Creature");
+        const power = isCreature ? getEffectivePower(state, victim) : undefined;
+        const toughness = isCreature
+            ? getEffectiveToughness(state, victim)
             : undefined;
         results.push({
             id,
             mv: manaValueOf(victim),
             ...(subtypes ? { subtypes } : {}),
             ...(power !== undefined ? { power } : {}),
+            ...(toughness !== undefined ? { toughness } : {}),
             snapshot,
         });
         if (isReturn) {

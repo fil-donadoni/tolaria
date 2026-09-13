@@ -16,7 +16,11 @@ import {
     applyPendingChoiceSubmit,
     applyRandomRevealAck,
 } from "../../../../gre/pendingChoiceSubmit";
-import { advancePhase, applyAllCombatDamage } from "../../../../gre/phases";
+import {
+    advancePhase,
+    applyAllCombatDamage,
+    finalizeCleanup,
+} from "../../../../gre/phases";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import {
     canPayDiscardLastDrawn,
@@ -25,6 +29,9 @@ import {
     type GameState,
     getPlayer,
     payDiscardLastDrawn,
+    type PendingActivation,
+    processPendingActionTriggers,
+    removePermanentTo,
     resolveTopOfStack,
     type StackItem,
 } from "../../../../gre/state";
@@ -37,6 +44,7 @@ import {
     LOSE_SEED,
 } from "./helpers";
 import { getDefinition } from "../../../index";
+import { tryAutoCommitPendingActivation } from "../../../../gre/activation";
 
 const aladdinsLamp = getDefinition("8fecc5d2-5298-4d47-b085-f160603f220e");
 const aladdinsRing = getDefinition("bb2b74a2-cb74-4b54-b9c6-78c63f14cf5b");
@@ -64,6 +72,7 @@ const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
 const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
 const prodigalSorcerer = getDefinition("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a");
 const stoneRain = getDefinition("57ff74cb-a2ed-4123-ac42-f72f9820049e");
+const yotianSoldier = getDefinition("27cf53e3-76f6-4831-800e-1259394d779d");
 
 describe("ARN keyword creatures (CR 702 — staticAbilities)", () => {
     it("War Elephant has trample and banding", () => {
@@ -1043,5 +1052,141 @@ describe("Bazaar of Baghdad ({T}: Draw two cards, then discard three cards)", ()
         expect(state.players[0].graveyard).toHaveLength(2);
         expect(state.players[0].library).toHaveLength(1);
         expect(state.stack).toHaveLength(0);
+    });
+});
+
+// Sandals of Abdallah — the `dies` delayed-trigger timing (CR 603.7a / 700.4).
+// The watch fires only when the targeted creature is put into a graveyard from
+// the battlefield; a bounce is a leave-the-battlefield that is NOT a death, so
+// it must leave the artifact alone and let CLEANUP expire the watch (CR 514.2).
+describe("Sandals of Abdallah (instance dies-watch, CR 603.7a / 700.4)", () => {
+    const sandals = getDefinition("8f99a520-b8a9-40b0-9854-48aac297c5ee");
+
+    function activateSandals(): GameState {
+        const source = makeInstance(sandals.id, {
+            id: "sandals1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [source, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...source,
+            id: "ability1",
+            zone: "stack",
+            castById: "p1",
+            abilityId: "sandals-of-abdallah-islandwalk",
+            triggerSourceId: "sandals1",
+            targets: [{ type: "permanent", id: "bear1" }],
+        });
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    const onBattlefield = (state: GameState, id: string) =>
+        state.players[0].battlefield.some((c) => c.id === id);
+
+    it("schedules a dies watch keyed to the target, capturing the artifact", () => {
+        const state = activateSandals();
+        const watch = state.delayedTriggers?.find((t) => t.timing === "dies");
+        expect(watch?.watchInstanceId).toBe("bear1");
+        expect(watch?.payload.sandals).toBe("sandals1");
+    });
+
+    it("destroys the artifact when the creature dies", () => {
+        const state = activateSandals();
+        removePermanentTo(state, "bear1", "graveyard");
+        processPendingActionTriggers(state);
+        expect(state.stack.some((s) => s.delayedTriggerId !== undefined)).toBe(
+            true
+        );
+        resolveTopOfStack(state);
+        expect(onBattlefield(state, "sandals1")).toBe(false);
+        expect(
+            state.players[0].graveyard.some((c) => c.id === "sandals1")
+        ).toBe(true);
+        expect(state.delayedTriggers).toBeUndefined();
+    });
+
+    it("does NOT fire when the creature leaves without dying, and expires at CLEANUP", () => {
+        const state = activateSandals();
+        removePermanentTo(state, "bear1", "hand");
+        processPendingActionTriggers(state);
+        expect(state.stack).toHaveLength(0);
+        expect(state.delayedTriggers?.some((t) => t.timing === "dies")).toBe(
+            true
+        );
+        finalizeCleanup(state);
+        expect(state.delayedTriggers).toBeUndefined();
+        expect(onBattlefield(state, "sandals1")).toBe(true);
+    });
+});
+
+// Diamond Valley — the `sacrificed` value's `read: "toughness"` through the REAL
+// activation commit (`tryAutoCommitPendingActivation` → the cost snapshot).
+// CR 608.2h: the creature is in the graveyard before the ability resolves, so
+// the life gained is its last-known toughness.
+describe("Diamond Valley ({T}, Sacrifice a creature: gain life = its toughness, CR 608.2h)", () => {
+    const diamondValley = getDefinition("e85f6f21-15a0-4a36-be95-5a0299cd01a5");
+
+    it("gains life equal to the sacrificed creature's toughness", () => {
+        const valley = makeInstance(diamondValley.id, {
+            id: "valley",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // Yotian Soldier: mana value 3, 1/4 — only the toughness column gives 24.
+        const soldier = makeInstance(yotianSoldier.id, {
+            id: "soldier",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [valley, soldier] }),
+                makePlayer("p2"),
+            ],
+            priorityPlayerId: "p1",
+        });
+        const pa: PendingActivation = {
+            playerId: "p1",
+            cardInstanceId: "valley",
+            abilityId: "diamond-valley-gain-life",
+            manaCost: {},
+            tappedLandIds: [],
+            tapSource: true,
+            sacrificeSource: false,
+            sacrificeSelection: {
+                playerId: "p1",
+                reason: "Diamond Valley",
+                requirements: [
+                    {
+                        filter: { types: "Creature" },
+                        count: 1,
+                        snapshot: true,
+                    },
+                ],
+                picked: ["soldier"],
+            },
+            targets: [],
+        };
+        state.pendingActivation = pa;
+        expect(tryAutoCommitPendingActivation(state, "p1")).not.toBeNull();
+        expect(state.players[0].graveyard.some((c) => c.id === "soldier")).toBe(
+            true
+        );
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(24);
+        // Wire format: the life total the client renders survives projection.
+        expect(projectPublicState(state, 1, "p1").players[0].life).toBe(24);
     });
 });
