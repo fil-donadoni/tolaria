@@ -30,6 +30,7 @@
 // Instance ids never appear: each build allocates its own.
 
 import { tryGetDefinition } from "../../../cards";
+import { triggerEventFingerprint } from "../../triggerEventVocabulary";
 import type { BladeSeat } from "../blade/types";
 import type { CardInstanceState, GameState, StackItem } from "../../state";
 import type { TargetSelection } from "../../../cards/types";
@@ -44,12 +45,34 @@ export type SeatOf = (playerId: string) => BladeSeat | null;
 export function stackFingerprint(state: GameState, seatOf: SeatOf): string[] {
     return state.stack.map((item: StackItem) => {
         const seat = seatOf(item.castById) ?? "?";
+        // CR 603.2 (issue #3516) — a TRIGGER is fingerprinted by more than the
+        // word: its ability id, the SOURCE it is pinned to (CR 113.7a — which
+        // of two same-named copies is watching), and the EVENT it fired on,
+        // every id in it rendered as what can be observed about the object it
+        // names. Without the event this check would pass on a rebuild that
+        // declared the trigger and lost the fact its resolution reads.
         const kind =
             item.abilityId !== undefined
                 ? `ability:${item.abilityId}`
-                : item.triggerSourceId !== undefined
-                  ? "trigger"
-                  : "spell";
+                : item.triggeredAbilityId !== undefined
+                  ? `trigger:${item.triggeredAbilityId} source=${
+                        item.triggerSourceId === undefined
+                            ? "?"
+                            : objectLabel(state, item.triggerSourceId, seatOf)
+                    } event=${
+                        item.triggerEvent
+                            ? triggerEventFingerprint(item.triggerEvent, {
+                                  object: (id) =>
+                                      objectLabel(state, id, seatOf),
+                                  player: (id) => seatOf(id) ?? "?",
+                                  target: (target) =>
+                                      targetLabel(state, target, seatOf),
+                              })
+                            : "(none)"
+                    }`
+                  : item.triggerSourceId !== undefined
+                    ? "trigger"
+                    : "spell";
         const targets = (item.targets ?? [])
             .map((target) => targetLabel(state, target, seatOf))
             .join(", ");
@@ -116,6 +139,33 @@ function targetLabel(
         case "hand-card":
             return "hand-card";
     }
+}
+
+/** CR 400.1 (issue #3516) — ONE object an event or a trigger's source pin
+ *  names, rendered as what can be OBSERVED about it: its zone, its seat, its
+ *  name, and — on the battlefield — the per-instance facts two same-named
+ *  copies differ by. Never `nth`, for the reason the header gives: the
+ *  lowering writes it, so a check that read it would be circular. `(gone)`
+ *  for an object in no zone at all (a token that ceased to exist, CR 111.7),
+ *  which the lowering refuses rather than declares. */
+function objectLabel(
+    state: GameState,
+    instanceId: string,
+    seatOf: SeatOf
+): string {
+    for (const player of state.players) {
+        const seat = seatOf(player.id) ?? "?";
+        const battlefield = player.battlefield.find((c) => c.id === instanceId);
+        if (battlefield) {
+            return `bf:${seat} ${nameOf(battlefield)}${facts(state, battlefield)}`;
+        }
+        for (const zone of ["graveyard", "exile", "hand"] as const) {
+            const card = player[zone].find((c) => c.id === instanceId);
+            if (card) return `${zone}:${seat} ${nameOf(card)}`;
+        }
+    }
+    const index = state.stack.findIndex((s) => s.id === instanceId);
+    return index === -1 ? "(gone)" : `stack#${index}`;
 }
 
 /** The per-instance facts two same-named permanents can differ by. Empty for a

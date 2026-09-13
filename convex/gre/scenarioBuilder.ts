@@ -63,6 +63,8 @@ import {
     type ScenarioSpec,
     type ScenarioStackItem,
     type ScenarioStackTarget,
+    type ScenarioObjectRef,
+    type ScenarioTriggerEvent,
 } from "../debugScenarioSpec";
 import {
     type CardInstanceState,
@@ -97,6 +99,11 @@ import { turnFaceDown } from "./faceDown";
 import { finalizeMulligan } from "./mulligan";
 import { computeExpectedInput } from "./expectedInput";
 import { buildActivatedAbilityStackItem } from "./activationCommit";
+import { buildTriggerItem } from "./triggers";
+import {
+    lowerTriggerEvent,
+    rebuildTriggerEvent,
+} from "./triggerEventVocabulary";
 import { isPlaneswalker, PLACEHOLDER_CARD_ID } from "./constants";
 import { MANA_COLORS } from "./manaColors";
 import {
@@ -1863,72 +1870,115 @@ function seedDeclaredStack(state: GameState, spec: ScenarioSpec): void {
         return found;
     };
 
+    /** CR 400.1 (issue #3516) — ONE object a declared event names, resolved
+     *  against the board just placed. A miss THROWS for the same reason
+     *  `pick` does: an event naming an object the rebuild never seeded fires
+     *  its trigger on a different board. */
+    const resolveObjectRef = (
+        ref: ScenarioObjectRef,
+        index: number
+    ): string => {
+        if (ref.zone === "stack") {
+            const referenced = state.stack[ref.index];
+            if (!referenced) {
+                throw new Error(
+                    `buildStateFromScenario: the event of stack index ${index} names stack index ${ref.index}, which the rebuild never seeded.`
+                );
+            }
+            // The object's OWN id — an event names the spell that was cast,
+            // never the CR 113.7a source pairing a TARGET records.
+            return referenced.id;
+        }
+        const seat = seatPlayer(ref.seat);
+        const pool =
+            ref.zone === "battlefield"
+                ? seat.battlefield
+                : ref.zone === "graveyard"
+                  ? seat.graveyard
+                  : ref.zone === "exile"
+                    ? seat.exile
+                    : seat.hand;
+        return pick(
+            pool,
+            ref.name,
+            ref.nth ?? 0,
+            `the ${ref.zone} object named by the event of stack index ${index}`
+        ).id;
+    };
+
+    /** CR 601.2c — ONE announced target, resolved against the items ALREADY
+     *  seeded, which is why a `stack` reference may only point lower: the
+     *  object it names has to exist by the time this one is announced. Shared
+     *  with the event rebuild, whose `TargetSelection`-valued fields
+     *  (`DAMAGE_DEALT.target`, `BECAME_TARGET.target`) take the same four
+     *  shapes. */
+    const resolveTarget = (
+        target: ScenarioStackTarget,
+        index: number
+    ): TargetSelection => {
+        switch (target.kind) {
+            case "permanent": {
+                const seat = seatPlayer(target.seat);
+                const card = pick(
+                    seat.battlefield,
+                    target.name,
+                    target.nth ?? 0,
+                    `the target of stack index ${index}`
+                );
+                return { type: "permanent" as const, id: card.id };
+            }
+            case "player":
+                return {
+                    type: "player" as const,
+                    id: seatPlayer(target.seat).id,
+                };
+            case "graveyard-card": {
+                const seat = seatPlayer(target.seat);
+                const card = pick(
+                    seat.graveyard,
+                    target.name,
+                    target.nth ?? 0,
+                    `the graveyard target of stack index ${index}`
+                );
+                return {
+                    type: "graveyard-card" as const,
+                    id: card.id,
+                    playerId: seat.id,
+                };
+            }
+            case "stack": {
+                if (target.index >= index) {
+                    throw new Error(
+                        `buildStateFromScenario: stack index ${index} targets index ${target.index}, which is not already on the stack — a reference points LOWER than its own index (CR 405.1).`
+                    );
+                }
+                const referenced = state.stack[target.index];
+                if (!referenced) {
+                    throw new Error(
+                        `buildStateFromScenario: stack index ${index} targets index ${target.index}, which the rebuild never seeded.`
+                    );
+                }
+                // CR 113.7a (issue #1562) — the engine's OWN rule for
+                // what a spell target records as its source: an
+                // activated ability's stack item borrows its source
+                // permanent's battlefield id, a trigger's is fresh with
+                // the real permanent kept separately. Writing the rule
+                // rather than `referenced.id` is what keeps
+                // Tishana's-Tidebinder-class effects correct, and
+                // silently wrong if it were guessed.
+                return {
+                    type: "spell" as const,
+                    id: referenced.id,
+                    stackSourceId: referenced.triggerSourceId ?? referenced.id,
+                };
+            }
+        }
+    };
+
     items.forEach((entry, index) => {
         const casterId = seatPlayer(entry.controller).id;
-        // CR 601.2c — resolved against the items ALREADY seeded, which is why
-        // a `stack` reference may only point lower (enforced below): the
-        // object it names has to exist by the time this one is announced.
         const targets: TargetSelection[] | undefined = entry.targets?.map(
-            (target) => {
-                switch (target.kind) {
-                    case "permanent": {
-                        const seat = seatPlayer(target.seat);
-                        const card = pick(
-                            seat.battlefield,
-                            target.name,
-                            target.nth ?? 0,
-                            `the target of stack index ${index}`
-                        );
-                        return { type: "permanent" as const, id: card.id };
-                    }
-                    case "player":
-                        return {
-                            type: "player" as const,
-                            id: seatPlayer(target.seat).id,
-                        };
-                    case "graveyard-card": {
-                        const seat = seatPlayer(target.seat);
-                        const card = pick(
-                            seat.graveyard,
-                            target.name,
-                            target.nth ?? 0,
-                            `the graveyard target of stack index ${index}`
-                        );
-                        return {
-                            type: "graveyard-card" as const,
-                            id: card.id,
-                            playerId: seat.id,
-                        };
-                    }
-                    case "stack": {
-                        if (target.index >= index) {
-                            throw new Error(
-                                `buildStateFromScenario: stack index ${index} targets index ${target.index}, which is not already on the stack — a reference points LOWER than its own index (CR 405.1).`
-                            );
-                        }
-                        const referenced = state.stack[target.index];
-                        if (!referenced) {
-                            throw new Error(
-                                `buildStateFromScenario: stack index ${index} targets index ${target.index}, which the rebuild never seeded.`
-                            );
-                        }
-                        // CR 113.7a (issue #1562) — the engine's OWN rule for
-                        // what a spell target records as its source: an
-                        // activated ability's stack item borrows its source
-                        // permanent's battlefield id, a trigger's is fresh with
-                        // the real permanent kept separately. Writing the rule
-                        // rather than `referenced.id` is what keeps
-                        // Tishana's-Tidebinder-class effects correct, and
-                        // silently wrong if it were guessed.
-                        return {
-                            type: "spell" as const,
-                            id: referenced.id,
-                            stackSourceId:
-                                referenced.triggerSourceId ?? referenced.id,
-                        };
-                    }
-                }
-            }
+            (target) => resolveTarget(target, index)
         );
 
         if (entry.kind === "ability") {
@@ -1957,6 +2007,47 @@ function seedDeclaredStack(state: GameState, spec: ScenarioSpec): void {
                 ...(entry.castOffSorceryTiming
                     ? { castOffSorceryTiming: true }
                     : {}),
+            });
+            return;
+        }
+
+        if (entry.kind === "trigger") {
+            if (!entry.abilityId || !entry.event) {
+                throw new Error(
+                    `buildStateFromScenario: stack index ${index} is a "trigger" with no ${entry.abilityId ? "event" : "abilityId"}.`
+                );
+            }
+            const sourceSeat = seatPlayer(entry.sourceSeat ?? entry.controller);
+            const source = pick(
+                sourceSeat.battlefield,
+                entry.name,
+                entry.sourceNth ?? 0,
+                `the source of stack index ${index}`
+            );
+            // CR 603.2 — the event is rebuilt BEFORE the item, because the
+            // item carries it: an id in it is resolved against the board and
+            // the stack as they now stand.
+            const event = rebuildTriggerEvent(entry.event, {
+                object: (ref) => resolveObjectRef(ref, index),
+                player: (seat) => seatPlayer(seat).id,
+                target: (target) => resolveTarget(target, index),
+            });
+            // The engine's own trigger primitive, never a hand-built item —
+            // the same argument the activated branch makes above: CR 113.7a's
+            // fresh id with `triggerSourceId` pinned to the source, the
+            // CR 603.3c/d stale-spread strips, and the CR 701.27f transform
+            // stamp all come from `buildTriggerItem` rather than a literal
+            // here that drifts from it.
+            state.stack.push({
+                ...buildTriggerItem(state, source, entry.abilityId, [event]),
+                // CR 603.3a — the ability's controller. Equal to the source's
+                // controller in every shipped case, and declared rather than
+                // re-derived for the same reason a spell's `controller` is.
+                castById: casterId,
+                // CR 603.3d — announced as the ability went on the stack, so
+                // they are written AFTER the primitive strips the source's.
+                ...(targets !== undefined ? { targets } : {}),
+                ...(entry.x !== undefined ? { chosenX: entry.x } : {}),
             });
             return;
         }
@@ -3402,6 +3493,25 @@ const STACK_ITEM_ALLOWLIST = new Set<string>([
 const STACK_ABILITY_CLONE_KEYS = CARD_STATE_ALLOWLIST;
 
 /**
+ * CR 603.2 (issue #3516) — the three keys a TRIGGER item carries that no other
+ * kind does, and that the `trigger` entry lowers: the ability's id, its source
+ * permanent (CR 113.7a — a trigger's item id is fresh, so the source rides
+ * separately, unlike an activated ability's), and the EVENT it fired on.
+ *
+ * `triggerEventBatch` (CR 603.3b, a `oncePerEventBatch` ability that fired on
+ * several events at once) is deliberately NOT here: one entry carries one
+ * event, so a batch is residue and refuses the stack, exactly as it did before
+ * this slice. The same goes for `sourceLki` — a source that left the
+ * battlefield AFTER its trigger went on the stack (CR 608.2h) is an object the
+ * spec has no second entry for.
+ */
+const STACK_TRIGGER_ALLOWLIST = new Set<string>([
+    "triggeredAbilityId",
+    "triggerSourceId",
+    "triggerEvent",
+]);
+
+/**
  * The one key excluded from that comparison, with its reason.
  *
  * `buildActivatedAbilityStackItem` clones the source BEFORE `recordActivation`
@@ -3512,6 +3622,62 @@ function lowerStackTarget(
 }
 
 /**
+ * CR 400.1 (issue #3516) — ONE object a firing event names, lowered into the
+ * spec's zone-name-and-seat vocabulary. Wider than `lowerStackTarget` because
+ * an event names objects an announcement never can: the creature that just
+ * died (its owner's graveyard), the card just discarded, the spell being cast
+ * (the stack).
+ *
+ * `undefined` — a refusal at the call site — for the three things the spec
+ * cannot name: an object in NO zone it describes (a token that has ceased to
+ * exist, CR 111.7; a card in a library, which `libraryCount` fills with
+ * basics), a FACE-DOWN object (CR 708.2 — it presents the sentinel, which
+ * `getCardByName` cannot resolve), and an opaque hidden-hand placeholder
+ * (issue #3452), which has no definition to name at all.
+ */
+function lowerEventObjectRef(
+    state: GameState,
+    instanceId: string,
+    seatOf: (playerId: string) => "me" | "opp"
+): ScenarioObjectRef | undefined {
+    for (const player of state.players) {
+        for (const zone of [
+            "battlefield",
+            "graveyard",
+            "exile",
+            "hand",
+        ] as const) {
+            const pool =
+                zone === "hand" ? player.hand : zoneCards(player, zone);
+            const card = pool.find((c) => c.id === instanceId);
+            if (!card) continue;
+            if (card.faceDown) return undefined;
+            if ((card.card as { id?: string }).id === PLACEHOLDER_CARD_ID) {
+                return undefined;
+            }
+            // CR 111.7 — a token in a graveyard, hand or exile has already
+            // ceased to exist; it lingers in the pile only until the next
+            // CR 704.5d sweep, and a rebuild that placed one there would
+            // sweep it away before the trigger ever resolved. So the object a
+            // death trigger on a TOKEN names is one the spec cannot carry —
+            // refused rather than declared into a board that loses it.
+            if (card.isToken && zone !== "battlefield") return undefined;
+            const nth = nthAmongSameNamed(pool, instanceId);
+            return {
+                zone,
+                name: presentedName(card),
+                seat: seatOf(player.id),
+                ...(nth > 0 ? { nth } : {}),
+            };
+        }
+    }
+    // CR 405.1 — an object still in flight: the spell whose SPELL_CAST fired
+    // this trigger is on the stack under it.
+    const index = state.stack.findIndex((s) => s.id === instanceId);
+    return index === -1 ? undefined : { zone: "stack", index };
+}
+
+/**
  * CR 405.1 / 601.2 / 602.2a (issue #3513, PRD #3397) — lower the objects in
  * flight onto `spec.stack`, reporting what the spec cannot carry.
  *
@@ -3550,6 +3716,12 @@ function lowerStack(
 
     state.stack.forEach((item, index) => {
         const isAbility = item.abilityId !== undefined;
+        // CR 603.2 (issue #3516) — a trigger item is, like an activated
+        // ability's, a spread of its SOURCE, so it is excused the same clone
+        // keys; what it adds on top is the ability id, the source pin and the
+        // firing event.
+        const isTrigger = item.triggeredAbilityId !== undefined;
+        const isClone = isAbility || isTrigger;
         // CR 708.2 — same refusal as a face-down TARGET below, one line
         // earlier: a face-down object presents the sentinel, which
         // `getCardByName` cannot resolve, so `presentedName` would name
@@ -3566,14 +3738,19 @@ function lowerStack(
         // The label every note about this item carries — what it is and where,
         // so a sweep can group the residue by ITEM as well as by field.
         const label = `${seatOf(item.castById)} ${name} ${
-            isAbility ? `ability:${item.abilityId}` : "spell"
+            isAbility
+                ? `ability:${item.abilityId}`
+                : isTrigger
+                  ? `trigger:${item.triggeredAbilityId}`
+                  : "spell"
         }`;
 
         for (const key of Object.keys(item)
             .filter(
                 (k) =>
                     !STACK_ITEM_ALLOWLIST.has(k) &&
-                    !(isAbility && STACK_ABILITY_CLONE_KEYS.has(k)) &&
+                    !(isClone && STACK_ABILITY_CLONE_KEYS.has(k)) &&
+                    !(isTrigger && STACK_TRIGGER_ALLOWLIST.has(k)) &&
                     (item as Record<string, unknown>)[k] !== undefined
             )
             .sort()) {
@@ -3583,14 +3760,18 @@ function lowerStack(
         let source: CardInstanceState | undefined;
         let sourceBattlefield: CardInstanceState[] | undefined;
         let sourceSeat: "me" | "opp" | undefined;
-        if (isAbility) {
+        if (isClone) {
             // CR 113.7a — an activated ability's stack item borrows its source
             // permanent's own battlefield id, which is what makes the source
-            // findable at all. A source that has LEFT (a sacrifice cost, a
-            // removal in response) leaves nothing to clone from, and the spec
-            // describes an ability BY its source.
+            // findable at all. A TRIGGER's item id is fresh instead, and the
+            // source rides in `triggerSourceId` — the engine's own rule, read
+            // here rather than guessed. A source that has LEFT (a sacrifice
+            // cost, a removal in response; a dies-trigger whose source is
+            // already in a graveyard, CR 603.10) leaves nothing to clone from,
+            // and the spec describes both kinds BY their source.
+            const sourceId = isAbility ? item.id : item.triggerSourceId;
             for (const player of state.players) {
-                const found = player.battlefield.find((c) => c.id === item.id);
+                const found = player.battlefield.find((c) => c.id === sourceId);
                 if (!found) continue;
                 source = found;
                 sourceBattlefield = player.battlefield;
@@ -3601,8 +3782,12 @@ function lowerStack(
                 refuse(
                     index,
                     label,
-                    "source-left-battlefield",
-                    "its source permanent is no longer on the battlefield (CR 608.2h) — the spec describes an ability by its source, and there is none to name"
+                    isTrigger
+                        ? "trigger-source-not-on-battlefield"
+                        : "source-left-battlefield",
+                    isTrigger
+                        ? "its source is not on the battlefield (CR 603.10) — a dies / leaves-the-battlefield trigger is sourced from the object's last known information, and the spec describes a trigger by a source it can place"
+                        : "its source permanent is no longer on the battlefield (CR 608.2h) — the spec describes an ability by its source, and there is none to name"
                 );
             } else {
                 const snapshot = source;
@@ -3629,6 +3814,11 @@ function lowerStack(
                         (k) =>
                             !STACK_ITEM_ALLOWLIST.has(k) &&
                             !STACK_CLONE_DIVERGENCE_IGNORED.has(k) &&
+                            // The trigger's own three keys are what the
+                            // `trigger` entry CARRIES; the source permanent
+                            // has none of them, so comparing them against it
+                            // would report every trigger as drift.
+                            !(isTrigger && STACK_TRIGGER_ALLOWLIST.has(k)) &&
                             JSON.stringify(
                                 (item as Record<string, unknown>)[k]
                             ) !==
@@ -3667,14 +3857,56 @@ function lowerStack(
             targets.push(loweredTarget);
         }
 
+        // CR 603.2 (issue #3516) — the event the ability triggered on. Its
+        // resolution READS it (the intervening-if re-check, an imperative
+        // `resolve(ctx, event)`, every `$event.<field>` ref), so a trigger
+        // whose event this vocabulary cannot name is refused per FIELD rather
+        // than declared without it.
+        let event: ScenarioTriggerEvent | undefined;
+        if (isTrigger) {
+            if (!item.triggerEvent) {
+                refuse(
+                    index,
+                    label,
+                    "triggerEvent",
+                    "it is a triggered ability with no firing event — nothing the spec can declare resolves the way this item would (CR 603.2)"
+                );
+            } else {
+                const lowered = lowerTriggerEvent(item.triggerEvent, {
+                    object: (id) => lowerEventObjectRef(state, id, seatOf),
+                    player: (id) =>
+                        state.players.some((p) => p.id === id)
+                            ? seatOf(id)
+                            : undefined,
+                    target: (target) =>
+                        lowerStackTarget(state, item, target, seatOf),
+                });
+                if (lowered.ok) {
+                    event = lowered.event;
+                } else {
+                    for (const field of lowered.fields) {
+                        refuse(
+                            index,
+                            label,
+                            `triggerEvent:${field}`,
+                            `its firing ${item.triggerEvent.type} event names something the spec cannot: "${field}" is in no zone the spec describes, or is a shape this vocabulary does not carry (CR 603.2)`
+                        );
+                    }
+                }
+            }
+        }
+
         const controller = seatOf(item.castById);
         entries.push({
-            kind: isAbility ? "ability" : "spell",
+            kind: isAbility ? "ability" : isTrigger ? "trigger" : "spell",
             name,
             controller,
-            ...(isAbility && source && sourceBattlefield && sourceSeat
+            ...(event !== undefined ? { event } : {}),
+            ...(isClone && source && sourceBattlefield && sourceSeat
                 ? {
-                      abilityId: item.abilityId,
+                      abilityId: isAbility
+                          ? item.abilityId
+                          : item.triggeredAbilityId,
                       ...(sourceSeat !== controller ? { sourceSeat } : {}),
                       ...(nthAmongSameNamed(sourceBattlefield, source.id) > 0
                           ? {

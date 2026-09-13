@@ -457,6 +457,81 @@ export const scenarioStackTargetValidator = v.union(
 );
 
 /**
+ * CR 400.1 (issue #3516, PRD #3397) — ONE object an event names, in the spec's
+ * own vocabulary. The wider cousin of `scenarioStackTargetValidator`: an
+ * announced TARGET can only be a permanent, a player, a graveyard card or
+ * another object on the stack, but a firing EVENT names objects in every zone
+ * the spec places cards in — the creature that just died (its owner's
+ * graveyard), the card that was discarded, the spell that was cast (the
+ * stack).
+ *
+ * `nth` reads exactly as a target's does: the 0-based position among the
+ * same-named cards in that zone, in the order `cards` places them. Omitted
+ * means 0.
+ *
+ * A LIBRARY is deliberately not a zone here: the spec places no library card
+ * by name (`libraryCount` fills it with basics), so an event naming one cannot
+ * be rebuilt and is refused instead.
+ */
+export const scenarioObjectRefValidator = v.union(
+    v.object({
+        zone: v.union(
+            v.literal("battlefield"),
+            v.literal("graveyard"),
+            v.literal("exile"),
+            v.literal("hand")
+        ),
+        name: v.string(),
+        seat: v.union(v.literal("me"), v.literal("opp")),
+        nth: v.optional(v.number()),
+    }),
+    // CR 405.1 — an object on the declared stack, by its index in `stack`.
+    v.object({ zone: v.literal("stack"), index: v.number() })
+);
+
+/** CR 603.2 (issue #3516) — ONE field of a firing event. The tag says how the
+ *  value travels: `scalar` has no identity in it and is copied verbatim,
+ *  everything else is an id the rebuild must reassign. Which tag a given field
+ *  takes is fixed by `EVENT_FIELD_KINDS` (`gre/triggerEventVocabulary.ts`),
+ *  never by the writer. */
+export const scenarioEventValueValidator = v.union(
+    v.object({ kind: v.literal("scalar"), value: v.any() }),
+    v.object({
+        kind: v.literal("player"),
+        seat: v.union(v.literal("me"), v.literal("opp")),
+    }),
+    v.object({ kind: v.literal("object"), ref: scenarioObjectRefValidator }),
+    v.object({
+        kind: v.literal("objects"),
+        refs: v.array(scenarioObjectRefValidator),
+    }),
+    v.object({
+        kind: v.literal("target"),
+        target: scenarioStackTargetValidator,
+    })
+);
+
+/**
+ * CR 603.2 / 603.4 (issue #3516) — the EVENT a declared trigger fired on.
+ *
+ * Not decoration: the resolution branch for a triggered ability is guarded on
+ * the item carrying one at all, the CR 603.4 intervening-if is re-checked
+ * against it, an imperative `resolve(ctx, event)` reads it directly, and every
+ * `$event.<field>` ref in an Effect Script flattens one of its fields
+ * (ADR 0049). A trigger rebuilt without its event resolves to a different
+ * board — which is why a trigger whose event this vocabulary cannot name is
+ * refused rather than declared approximately.
+ */
+export const scenarioTriggerEventValidator = v.object({
+    /** The `GameEvent["type"]` literal. Vouched by `EVENT_FIELD_KINDS`, which
+     *  is exhaustive over the union. */
+    type: v.string(),
+    /** Every field the event carried, by its own name. Omitted for an event
+     *  with no fields at all (`STATE_CHECK`, CR 603.8). */
+    fields: v.optional(v.record(v.string(), scenarioEventValueValidator)),
+});
+
+/**
  * CR 405.1 (issue #3513, PRD #3397) — ONE object on the declared stack.
  *
  * A top-level array rather than a `zone: "stack"` on `ScenarioCard`, because an
@@ -466,26 +541,40 @@ export const scenarioStackTargetValidator = v.union(
  * ARRAY ORDER is the LIFO semantics — index 0 is the bottom, the last entry
  * resolves first (CR 608.1).
  *
- * Two kinds ship here. A `trigger` is not among them: its `triggerEvent`
- * payload needs a `GameEvent` vocabulary the spec does not have, and because
- * `placeTriggersOnStack` ALWAYS writes that field, the residue rule refuses a
- * trigger without needing a special case for it.
+ * Three kinds ship here (issue #3516 added `trigger`). A TRIGGER is described
+ * the way an `ability` is — by its SOURCE plus the ability's id — and carries
+ * one thing neither of the others does: the `event` it fired on (CR 603.2),
+ * which its resolution reads. The engine's own rule for the two ids
+ * (CR 113.7a) is written by the rebuild, never declared: an activated
+ * ability's item borrows its source permanent's id, a trigger's is fresh with
+ * the source kept in `triggerSourceId`.
  */
 export const scenarioStackItemValidator = v.object({
-    kind: v.union(v.literal("spell"), v.literal("ability")),
-    /** The SPELL's card name, or — for an `ability` — the presented name of the
-     *  SOURCE permanent whose ability was activated. */
+    kind: v.union(
+        v.literal("spell"),
+        v.literal("ability"),
+        v.literal("trigger")
+    ),
+    /** The SPELL's card name, or — for an `ability` or a `trigger` — the
+     *  presented name of the SOURCE permanent whose ability it is. */
     name: v.string(),
     /** CR 601.2 / 602.1 — the caster / activator (`StackItem.castById`). Not
      *  necessarily the source's controller: "any player may activate"
      *  (CR 113.3c). */
     controller: v.union(v.literal("me"), v.literal("opp")),
-    /** `kind: "ability"` only — whose battlefield holds the SOURCE permanent.
-     *  Omitted means `controller`, the ordinary case. */
+    /** `kind: "ability"` / `"trigger"` only — whose battlefield holds the
+     *  SOURCE permanent. Omitted means `controller`, the ordinary case; for a
+     *  trigger the two differ whenever an opponent's permanent watches YOUR
+     *  board (CR 603.2 — the ability's controller is its source's). */
     sourceSeat: v.optional(v.union(v.literal("me"), v.literal("opp"))),
-    /** `kind: "ability"` only, and REQUIRED there — the activated ability's id
-     *  on the source's definition (`StackItem.abilityId`). */
+    /** REQUIRED for `kind: "ability"` and for `kind: "trigger"`, and rejected
+     *  for a `spell` — the ability's id on the source's definition
+     *  (`StackItem.abilityId` / `StackItem.triggeredAbilityId`). */
     abilityId: v.optional(v.string()),
+    /** `kind: "trigger"` only, and REQUIRED there — the event the ability
+     *  triggered on (CR 603.2), which its resolution reads. See
+     *  `scenarioTriggerEventValidator`. */
+    event: v.optional(scenarioTriggerEventValidator),
     /** CR 601.2c — the announced targets, in ANNOUNCEMENT ORDER. The index is
      *  load-bearing (`illegalTargetSlots`, `{ target: N }` in an Effect
      *  Script), so this is a full list and never the journal's "at most one". */
@@ -1021,14 +1110,42 @@ export type ScenarioStackTarget =
           nth?: number;
       };
 
-/** CR 405.1 (issue #3513) — one object on the declared stack. See
+/** CR 400.1 (issue #3516) — one object an event names, in any zone the spec
+ *  places cards in. See `scenarioObjectRefValidator`. */
+export type ScenarioObjectRef =
+    | {
+          zone: "battlefield" | "graveyard" | "exile" | "hand";
+          name: string;
+          seat: "me" | "opp";
+          nth?: number;
+      }
+    | { zone: "stack"; index: number };
+
+/** CR 603.2 (issue #3516) — one field of a firing event. See
+ *  `scenarioEventValueValidator`. */
+export type ScenarioEventValue =
+    | { kind: "scalar"; value: unknown }
+    | { kind: "player"; seat: "me" | "opp" }
+    | { kind: "object"; ref: ScenarioObjectRef }
+    | { kind: "objects"; refs: ScenarioObjectRef[] }
+    | { kind: "target"; target: ScenarioStackTarget };
+
+/** CR 603.2 (issue #3516) — the event a declared trigger fired on. See
+ *  `scenarioTriggerEventValidator`. */
+export type ScenarioTriggerEvent = {
+    type: string;
+    fields?: Record<string, ScenarioEventValue>;
+};
+
+/** CR 405.1 (issue #3513, #3516) — one object on the declared stack. See
  *  `scenarioStackItemValidator` for the shape's rationale. */
 export type ScenarioStackItem = {
-    kind: "spell" | "ability";
+    kind: "spell" | "ability" | "trigger";
     name: string;
     controller: "me" | "opp";
     sourceSeat?: "me" | "opp";
     abilityId?: string;
+    event?: ScenarioTriggerEvent;
     targets?: ScenarioStackTarget[];
     x?: number;
     castOffSorceryTiming?: boolean;
@@ -1744,25 +1861,114 @@ function normalizeStackTarget(raw: unknown): ScenarioStackTarget | undefined {
     }
 }
 
+/** CR 400.1 (issue #3516) — one object reference an event carries, read off a
+ *  raw stored row. `undefined` drops the whole stack at the call site: an
+ *  event one field short is a different event. */
+function normalizeObjectRef(raw: unknown): ScenarioObjectRef | undefined {
+    if (!isRecord(raw)) return undefined;
+    if (raw.zone === "stack") {
+        const index = pickNumber(raw.index);
+        return index !== undefined ? { zone: "stack", index } : undefined;
+    }
+    if (
+        raw.zone !== "battlefield" &&
+        raw.zone !== "graveyard" &&
+        raw.zone !== "exile" &&
+        raw.zone !== "hand"
+    ) {
+        return undefined;
+    }
+    const name = pickString(raw.name);
+    const seat = pickSeat(raw.seat);
+    if (name === undefined || seat === undefined) return undefined;
+    const nth = pickNumber(raw.nth);
+    return {
+        zone: raw.zone,
+        name,
+        seat,
+        ...(nth !== undefined ? { nth } : {}),
+    };
+}
+
+/** CR 603.2 (issue #3516) — one field of a declared event, read off a raw
+ *  stored row. */
+function normalizeEventValue(raw: unknown): ScenarioEventValue | undefined {
+    if (!isRecord(raw)) return undefined;
+    switch (raw.kind) {
+        case "scalar":
+            // A scalar is whatever the event carried — a number, a boolean, a
+            // phase, a type line. It has no identity in it (that is what makes
+            // it a scalar), so there is nothing to validate beyond presence.
+            return raw.value === undefined
+                ? undefined
+                : { kind: "scalar", value: raw.value };
+        case "player": {
+            const seat = pickSeat(raw.seat);
+            return seat ? { kind: "player", seat } : undefined;
+        }
+        case "object": {
+            const ref = normalizeObjectRef(raw.ref);
+            return ref ? { kind: "object", ref } : undefined;
+        }
+        case "objects": {
+            if (!Array.isArray(raw.refs)) return undefined;
+            const refs = raw.refs.map((entry) => normalizeObjectRef(entry));
+            if (refs.some((ref) => ref === undefined)) return undefined;
+            return { kind: "objects", refs: refs as ScenarioObjectRef[] };
+        }
+        case "target": {
+            const target = normalizeStackTarget(raw.target);
+            return target ? { kind: "target", target } : undefined;
+        }
+        default:
+            return undefined;
+    }
+}
+
+/** CR 603.2 (issue #3516) — a declared firing event, read off a raw stored
+ *  row. */
+function normalizeTriggerEvent(raw: unknown): ScenarioTriggerEvent | undefined {
+    if (!isRecord(raw)) return undefined;
+    const type = pickString(raw.type);
+    if (type === undefined) return undefined;
+    if (raw.fields === undefined) return { type };
+    if (!isRecord(raw.fields)) return undefined;
+    const fields: Record<string, ScenarioEventValue> = {};
+    for (const [key, value] of Object.entries(raw.fields)) {
+        const lowered = normalizeEventValue(value);
+        if (!lowered) return undefined;
+        fields[key] = lowered;
+    }
+    return { type, fields };
+}
+
 /** CR 405.1 (issue #3513) — one declared stack object, read off a raw stored
  *  row. `undefined` drops the whole array, for the reason the call site
  *  states. */
 function normalizeStackItem(raw: unknown): ScenarioStackItem | undefined {
     if (!isRecord(raw)) return undefined;
     const kind =
-        raw.kind === "spell" || raw.kind === "ability" ? raw.kind : undefined;
+        raw.kind === "spell" || raw.kind === "ability" || raw.kind === "trigger"
+            ? raw.kind
+            : undefined;
     const name = pickString(raw.name);
     const controller = pickSeat(raw.controller);
     if (kind === undefined || name === undefined || controller === undefined) {
         return undefined;
     }
     const abilityId = pickString(raw.abilityId);
-    // CR 602.2a — an `ability` is named BY its ability id; a `spell` has none
-    // to name. The builder throws on either mismatch, so a row carrying one is
-    // dropped here rather than saved and blown up at load (ADR 0044).
-    if (
-        kind === "ability" ? abilityId === undefined : abilityId !== undefined
-    ) {
+    // CR 602.2a / 603.2 — an `ability` and a `trigger` are both named BY an
+    // ability id on their source's definition; a `spell` has none to name. The
+    // builder throws on either mismatch, so a row carrying one is dropped here
+    // rather than saved and blown up at load (ADR 0044).
+    if (kind === "spell" ? abilityId !== undefined : abilityId === undefined) {
+        return undefined;
+    }
+    // CR 603.2 (issue #3516) — a trigger is its event: the resolution reads
+    // it, so a row without one describes an object that cannot resolve. The
+    // other two kinds have no event to carry.
+    const event = normalizeTriggerEvent(raw.event);
+    if (kind === "trigger" ? event === undefined : raw.event !== undefined) {
         return undefined;
     }
     let targets: ScenarioStackTarget[] | undefined;
@@ -1773,6 +1979,7 @@ function normalizeStackItem(raw: unknown): ScenarioStackItem | undefined {
     }
     const item: ScenarioStackItem = { kind, name, controller };
     set(item, "abilityId", abilityId);
+    set(item, "event", event);
     set(item, "sourceSeat", pickSeat(raw.sourceSeat));
     set(item, "sourceNth", pickNumber(raw.sourceNth));
     set(item, "targets", targets);
@@ -2256,6 +2463,30 @@ export function collectUnresolvedCardNames(
             if (!resolves(item.name)) unresolved.add(item.name);
         } else if (!resolves(item.name) && !resolvesToken(item.name)) {
             unresolved.add(item.name);
+        }
+        // CR 603.2 (issue #3516) — every name the firing event references,
+        // vouched for the same reason: `seedDeclaredStack` rebuilds the event
+        // by looking each one up, and throws on a name it cannot find. A
+        // battlefield reference may be a token (a Wasp that triggered a death
+        // watcher); one in a graveyard, exile or hand is a real card
+        // (CR 111.7 — a token in any of those ceases to exist).
+        for (const value of Object.values(item.event?.fields ?? {})) {
+            const refs =
+                value.kind === "object"
+                    ? [value.ref]
+                    : value.kind === "objects"
+                      ? value.refs
+                      : [];
+            for (const ref of refs) {
+                if (ref.zone === "stack") continue;
+                const tokenOk = ref.zone === "battlefield";
+                if (
+                    !resolves(ref.name) &&
+                    !(tokenOk && resolvesToken(ref.name))
+                ) {
+                    unresolved.add(ref.name);
+                }
+            }
         }
         for (const target of item.targets ?? []) {
             if (target.kind === "permanent") {
