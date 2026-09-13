@@ -2164,7 +2164,7 @@ function coloredCostLeftover(
          *  full game state, threaded down from `canPotentiallyPayCost`'s own
          *  optional `state` param. Commit 10b27d7a made every one of
          *  `canPotentiallyPayCost`'s ten call sites (hand-cast, flashback,
-         *  escape, madness, graveyard-permission, permanent-permission,
+         *  escape, madness, graveyard-permission,
          *  graveyard-grant, free-exile, alternative-cost, intrinsic-graveyard)
          *  pass `state`; issue #1751 finding 1 closed the one remaining gap,
          *  the Phyrexian branch (`solvePhyrexianSplit`), which now forwards

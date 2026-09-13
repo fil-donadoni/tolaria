@@ -18,6 +18,8 @@
 
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
+import { withTemporaryDefinition } from "../../cards/registry";
+import type { CardDefinition } from "../../cards/types";
 import { applyMoveForSearch } from "../applyMove";
 import { applyMoveInSearch } from "../search";
 import { enumerateMoves } from "../moves";
@@ -109,6 +111,39 @@ describe("alternate-zone land plays reach the search leaves (CR 305.9)", () => {
             });
         });
     }
+
+    // ADR 0093 (issue #2244) — a once-per-turn `play-land` graveyard play
+    // permission is SPENT by both search leaves, as by the real play path.
+    // Without it the bot prices a line where the same permission plays a land
+    // from the graveyard every turn-step for free. No shipped card carries a
+    // once-per-turn land permission yet (Serra Paragon, issue #1239, will), so
+    // the source is synthetic.
+    it("both search leaves spend a once-per-turn graveyard play-land permission", () => {
+        const source: CardDefinition = {
+            ...getCardByName("Crucible of Worlds"),
+            id: "test-once-per-turn-land-permission",
+            graveyardPlayPermission: {
+                actions: ["play-land"],
+                oncePerTurn: true,
+            },
+        };
+        withTemporaryDefinition(source, () => {
+            const move = {
+                kind: "play-land" as const,
+                cardInstanceId: "alt-land",
+            };
+            const board = altZoneBoard(source.id, "graveyard");
+            expect(enumerateMoves(board, "p1")).toContainEqual(move);
+            const viaApplyMove = applyMoveForSearch(board, "p1", move);
+            const inSearch = altZoneBoard(source.id, "graveyard");
+            applyMoveInSearch(inSearch, "p1", move);
+            for (const after of [viaApplyMove, inSearch]) {
+                expect(after.graveyardPlayPermissionUsesThisTurn).toEqual([
+                    { playerId: "p1", sourceId: "source" },
+                ]);
+            }
+        });
+    });
 
     // issue #1980 — the exile and graveyard origins now SUSPEND on the CR
     // 614.12 pay-choice for a shock land, exactly like hand and library-top.

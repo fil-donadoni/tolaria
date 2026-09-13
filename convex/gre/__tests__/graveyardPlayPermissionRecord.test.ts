@@ -18,7 +18,11 @@ import type {
 import { CASTABLE_PERMANENT_TYPES } from "../../cards/types";
 import { withTemporaryDefinition } from "../../cards/registry";
 import { getPlayer, type CardInstanceState } from "../state";
-import { applyPlayLandFromGraveyard, finalizeLandEntry } from "../playLand";
+import {
+    applyPlayLandFromAnyZone,
+    applyPlayLandFromGraveyard,
+    finalizeLandEntry,
+} from "../playLand";
 import {
     canCastFromGraveyardByPermission,
     canPlayLandsFromGraveyard,
@@ -168,7 +172,7 @@ describe("graveyard play permission record (ADR 0093, CR 601.3)", () => {
                 const p1 = getPlayer(state, "p1");
                 expect(canPlayLandsFromGraveyard(state, p1)).toBe(true);
                 expect(
-                    applyPlayLandFromGraveyard(state, p1, "gy-mountain")
+                    applyPlayLandFromAnyZone(state, p1, "gy-mountain")
                 ).not.toBeNull();
                 expect(state.graveyardPlayPermissionUsesThisTurn).toEqual([
                     { playerId: "p1", sourceId: "source-a" },
@@ -204,7 +208,7 @@ describe("graveyard play permission record (ADR 0093, CR 601.3)", () => {
         );
     });
 
-    it("a graveyard land play parked on its CR 614.12 pay-choice spends the use at finalize, not before", () => {
+    it("a graveyard land play parked on its CR 614.12 pay-choice has spent the use when the play was taken, exactly once", () => {
         withTemporaryDefinition(
             permissionSource({ actions: ["play-land"], oncePerTurn: true }),
             () => {
@@ -217,15 +221,17 @@ describe("graveyard play permission record (ADR 0093, CR 601.3)", () => {
                 );
                 const p1 = getPlayer(state, "p1");
                 expect(
-                    applyPlayLandFromGraveyard(state, p1, "gy-grave")
+                    applyPlayLandFromAnyZone(state, p1, "gy-grave")
                 ).toBeNull();
                 const choice = state.pendingChoices?.find(
                     (c) => c.kind === "land-entry-tapped"
                 );
                 expect(choice).toBeDefined();
-                expect(state.graveyardPlayPermissionUsesThisTurn).toBe(
-                    undefined
-                );
+                // The special action is taken; the choice only decides how the
+                // land enters.
+                expect(state.graveyardPlayPermissionUsesThisTurn).toEqual([
+                    { playerId: "p1", sourceId: "source-a" },
+                ]);
 
                 finalizeLandEntry(
                     state,
@@ -242,6 +248,28 @@ describe("graveyard play permission record (ADR 0093, CR 601.3)", () => {
                     { playerId: "p1", sourceId: "source-a" },
                 ]);
                 expect(canPlayLandsFromGraveyard(state, p1)).toBe(false);
+            }
+        );
+    });
+
+    it("a graveyard land play an EFFECT licenses (not the permission) spends nothing", () => {
+        withTemporaryDefinition(
+            permissionSource({ actions: ["play-land"], oncePerTurn: true }),
+            () => {
+                const state = board(
+                    ["source-a"],
+                    [[mountain.id, "gy-mountain"]]
+                );
+                const p1 = getPlayer(state, "p1");
+                // `playLandForPlayer` (a resolving effect's own licence) goes
+                // straight to the zone settle, never through the dispatcher.
+                expect(
+                    applyPlayLandFromGraveyard(state, p1, "gy-mountain")
+                ).not.toBeNull();
+                expect(state.graveyardPlayPermissionUsesThisTurn).toBe(
+                    undefined
+                );
+                expect(canPlayLandsFromGraveyard(state, p1)).toBe(true);
             }
         );
     });

@@ -420,10 +420,6 @@ export function applyPlayLandFromGraveyard(
         return null;
     }
 
-    // CR 305.1-analog (ADR 0093) — spend the graveyard play permission this
-    // land play used (a no-op unless it is once-per-turn), after the
-    // pay-choice suspension above so a parked play has spent nothing yet.
-    spendGraveyardPlayPermission(state, player, "play-land", graveyardCard);
     // CR 712.12 — the chosen face is stamped before anything reads it.
     stampChosenFace(state, graveyardCard, face);
     // CR 614.1c — tapped-on-entry is decided from the PRE-move board, exactly
@@ -562,13 +558,33 @@ export function applyPlayLandFromAnyZone(
                 cardInstanceId,
                 face
             );
-        case "graveyard":
+        case "graveyard": {
+            // CR 305.1-analog (ADR 0093) — a graveyard source resolves here
+            // ONLY under a graveyard play permission, so this is the one place
+            // a land play spends one (a no-op unless once-per-turn). Spent as
+            // the special action is taken, before any CR 614.12 pay-choice
+            // parks the entry: that choice decides how the land enters, never
+            // whether it was played. An effect that itself licenses the play
+            // (`playLandForPlayer`) calls `applyPlayLandFromGraveyard`
+            // directly and spends nothing.
+            const graveyardCard = player.graveyard.find(
+                (c) => c.id === cardInstanceId
+            );
+            if (graveyardCard) {
+                spendGraveyardPlayPermission(
+                    state,
+                    player,
+                    "play-land",
+                    graveyardCard
+                );
+            }
             return applyPlayLandFromGraveyard(
                 state,
                 player,
                 cardInstanceId,
                 face
             );
+        }
         case "exile":
             return applyPlayLandFromExile(state, player, cardInstanceId, face);
         case null:
@@ -877,17 +893,6 @@ export function finalizeLandEntry(
         // the far side of the window and still before the zone move. Same
         // ordering as the unsuspended paths: `shouldEnterTapped` below asks
         // about the LAND that is entering.
-        // CR 305.1-analog (ADR 0093) — the delayed graveyard play spends its
-        // graveyard play permission here, exactly like the immediate path in
-        // `applyPlayLandFromGraveyard` (a no-op unless once-per-turn).
-        if (playSource.zone === "graveyard") {
-            spendGraveyardPlayPermission(
-                state,
-                player,
-                "play-land",
-                playSource.card
-            );
-        }
         stampChosenFace(state, playSource.card, face);
         const forcedTapped = shouldEnterTapped(state, playSource.card);
         const willEnterTapped = forcedTapped || !accept;

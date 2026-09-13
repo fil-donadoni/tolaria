@@ -937,6 +937,17 @@ export function applyMoveInSearch(
             if (move.face === "back" && sourceCard) {
                 stampModalBackFaceForPlay(state, sourceCard);
             }
+            // CR 305.1-analog (ADR 0093) — a graveyard source is reachable only
+            // under a graveyard play permission; spend it exactly as the real
+            // play path does, or the leaf replays a once-per-turn permission.
+            if (sourceZone === "graveyard" && sourceCard) {
+                spendGraveyardPlayPermission(
+                    state,
+                    player,
+                    "play-land",
+                    sourceCard
+                );
+            }
             const card = moveCard(
                 player,
                 move.cardInstanceId,
