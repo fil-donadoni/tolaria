@@ -202,8 +202,14 @@ export function lowerDecision(
     // shows up there as sorcery-speed moves the live list never had.
 
     // A decision taken with something ON THE STACK — the Bot holding priority
-    // over its own spell, or answering the opponent's. A `ScenarioSpec` has no
-    // stack, so the board that is lowered is the QUIET one the journal kept
+    // over its own spell, or answering the opponent's.
+    //
+    // `ScenarioSpec` HAS a declared stack as of issue #3513 / ADR 0125, and
+    // `specFromState` lowers one. This path does not read it yet: moving the
+    // verdict lowering onto the declared stack and deleting the journal is
+    // issue #3514, kept a separate slice so the spec vocabulary lands and is
+    // exercised before the verdict path changes shape. Until then the board
+    // that is lowered is still the QUIET one the journal kept
     // (`verdicts/journal.ts`) and the walk back to here travels as `setup`,
     // exactly as a blade entry's does. Lowering the LIVE board instead would
     // rebuild the same position with the spell simply gone, which can leave

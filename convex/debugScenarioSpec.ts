@@ -411,9 +411,12 @@ export const scenarioContinuousEffectValidator = v.union(
  * by consuming the first unconsumed instance, and two same-named permanents —
  * one damaged, one not — would silently point the spell at the wrong one, on a
  * board whose candidate list is identical either way. `resolveCombatants`'s
- * consuming convention cannot be borrowed as-is for a second reason: CR 608.2b
- * lets ONE spell name the SAME object in two slots (the Plague Spores ruling),
- * which a consuming resolver cannot express at all. Omitted means 0.
+ * consuming convention cannot be borrowed as-is for a second reason: CR 601.2c
+ * lets ONE spell name the SAME object in two slots ("if the spell uses the word
+ * 'target' in multiple places, the same object or player can be chosen once for
+ * each instance" — the Plague Spores case, whose CR 608.2b example is about the
+ * resolution-time LEGALITY of those two slots, not the permission to pick
+ * them), which a consuming resolver cannot express at all. Omitted means 0.
  */
 export const scenarioStackTargetValidator = v.union(
     v.object({
@@ -1673,6 +1676,85 @@ function normalizeCard(raw: unknown): ScenarioCard | null {
  *  to, who controls it, what it does — is DROPPED rather than thrown on or
  *  half-built. A half-built entry would rebuild a board nobody captured, which
  *  is the one failure a lowering exists to prevent. */
+/** A seat literal, or undefined — the tolerant read of every `"me" | "opp"`
+ *  field in the spec. */
+function pickSeat(value: unknown): "me" | "opp" | undefined {
+    return value === "me" || value === "opp" ? value : undefined;
+}
+
+/**
+ * CR 601.2c (issue #3513) — one announced target of a declared stack object,
+ * read off a raw stored row. `undefined` means "not a target this vocabulary
+ * can express", which drops the whole stack at the call site rather than the
+ * slot: a target's INDEX is load-bearing (`illegalTargetSlots`,
+ * `{ target: N }`), so a list one entry short is a different announcement.
+ */
+function normalizeStackTarget(raw: unknown): ScenarioStackTarget | undefined {
+    if (!isRecord(raw)) return undefined;
+    const nth = pickNumber(raw.nth);
+    switch (raw.kind) {
+        case "player": {
+            const seat = pickSeat(raw.seat);
+            return seat ? { kind: "player", seat } : undefined;
+        }
+        case "permanent":
+        case "graveyard-card": {
+            const name = pickString(raw.name);
+            const seat = pickSeat(raw.seat);
+            if (name === undefined || seat === undefined) return undefined;
+            return {
+                kind: raw.kind,
+                name,
+                seat,
+                ...(nth !== undefined ? { nth } : {}),
+            };
+        }
+        case "stack": {
+            const index = pickNumber(raw.index);
+            return index !== undefined ? { kind: "stack", index } : undefined;
+        }
+        default:
+            return undefined;
+    }
+}
+
+/** CR 405.1 (issue #3513) — one declared stack object, read off a raw stored
+ *  row. `undefined` drops the whole array, for the reason the call site
+ *  states. */
+function normalizeStackItem(raw: unknown): ScenarioStackItem | undefined {
+    if (!isRecord(raw)) return undefined;
+    const kind =
+        raw.kind === "spell" || raw.kind === "ability" ? raw.kind : undefined;
+    const name = pickString(raw.name);
+    const controller = pickSeat(raw.controller);
+    if (kind === undefined || name === undefined || controller === undefined) {
+        return undefined;
+    }
+    const abilityId = pickString(raw.abilityId);
+    // CR 602.2a — an `ability` is named BY its ability id; a `spell` has none
+    // to name. The builder throws on either mismatch, so a row carrying one is
+    // dropped here rather than saved and blown up at load (ADR 0044).
+    if (
+        kind === "ability" ? abilityId === undefined : abilityId !== undefined
+    ) {
+        return undefined;
+    }
+    let targets: ScenarioStackTarget[] | undefined;
+    if (Array.isArray(raw.targets)) {
+        const lowered = raw.targets.map((entry) => normalizeStackTarget(entry));
+        if (lowered.some((entry) => entry === undefined)) return undefined;
+        if (lowered.length > 0) targets = lowered as ScenarioStackTarget[];
+    }
+    const item: ScenarioStackItem = { kind, name, controller };
+    set(item, "abilityId", abilityId);
+    set(item, "sourceSeat", pickSeat(raw.sourceSeat));
+    set(item, "sourceNth", pickNumber(raw.sourceNth));
+    set(item, "targets", targets);
+    set(item, "x", pickNumber(raw.x));
+    set(item, "castOffSorceryTiming", pickBoolean(raw.castOffSorceryTiming));
+    return item;
+}
+
 function normalizeContinuousEffect(
     raw: unknown
 ): ScenarioContinuousEffect | null {
@@ -2025,6 +2107,21 @@ export function normalizeScenarioSpec(raw: unknown): ScenarioSpec {
             .map((entry) => normalizeContinuousEffect(entry))
             .filter((entry): entry is ScenarioContinuousEffect => !!entry);
         if (entries.length > 0) spec.continuousEffects = entries;
+    }
+    // CR 405.1 / 601.2c (issue #3513) — the declared stack. Tolerant like every
+    // branch above, and FAIL-CLOSED as a whole like the lowering that produces
+    // it: a malformed entry drops the WHOLE array rather than a position one
+    // object short, because the order is the LIFO semantics and a
+    // `{ kind: "stack" }` reference is an INDEX into it — dropping one entry
+    // would renumber the rest and silently re-point every reference above it.
+    if (Array.isArray(raw.stack)) {
+        const entries = raw.stack.map((entry) => normalizeStackItem(entry));
+        if (
+            entries.length > 0 &&
+            entries.every((entry) => entry !== undefined)
+        ) {
+            spec.stack = entries as ScenarioStackItem[];
+        }
     }
     if (isRecord(raw.companion)) {
         const name = pickString(raw.companion.name);

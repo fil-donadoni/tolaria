@@ -25,6 +25,7 @@ import { counterspell } from "../../cards/sets/lea/blue";
 import { grizzlyBears } from "../../cards/sets/lea/green";
 import { lightningBolt } from "../../cards/sets/lea/red";
 import { prodigalSorcerer } from "../../cards/sets/lea/blue";
+import { gristTheHungerTide } from "../../cards/sets/mh2/multicolor";
 import type { BladeSetupStep } from "../ai/blade/types";
 import type { GameState, StackItem } from "../state";
 import type { ScenarioSpec } from "../../debugScenarioSpec";
@@ -506,5 +507,227 @@ describe("the builder refuses an incoherent declared stack (issue #3513)", () =>
                 ],
             })
         ).toThrow(/nth 3/);
+    });
+});
+
+describe("the vocabulary's remaining shapes (issue #3513 review)", () => {
+    it("rebuilds a stack spell with its CR 113.6c off-battlefield characteristics", () => {
+        // Grist, the Hunger Tide is a 1/1 Insect CREATURE everywhere except
+        // the battlefield — the stack included. A live cast carries that
+        // because the card was already materialised in hand; the rebuild
+        // builds from the printed definition, and
+        // `refreshOffBattlefieldCharacteristics` walks the four PLAYER zones
+        // and never the stack. Without `applyZoneCharacteristics` the rebuilt
+        // Grist is a bare Planeswalker with no P/T, so a
+        // counter-target-creature-spell answer the live position offered
+        // simply is not in the rebuilt candidate list — and `types` /
+        // `subtypes` / `power` / `toughness` are all allowlisted, so nothing
+        // would have reported it.
+        const rebuilt = buildStateFromScenario(buildBladeBaseState(), {
+            ...BOARD,
+            stack: [
+                {
+                    kind: "spell",
+                    name: gristTheHungerTide.name,
+                    controller: "opp",
+                },
+            ],
+        });
+        const grist = rebuilt.stack[0];
+        expect(grist.types).toContain("Creature");
+        expect(grist.subtypes).toContain("Insect");
+        expect(grist.power).toBe(1);
+        expect(grist.toughness).toBe(1);
+    });
+
+    it("carries `sourceSeat` when the ACTIVATOR is not the source's controller (CR 113.3c)", () => {
+        const rebuilt = buildStateFromScenario(buildBladeBaseState(), {
+            ...BOARD,
+            stack: [
+                {
+                    kind: "ability",
+                    name: prodigalSorcerer.name,
+                    controller: "opp",
+                    sourceSeat: "me",
+                    abilityId: prodigalSorcerer.activatedAbilities![0].id,
+                    targets: [{ kind: "player", seat: "me" }],
+                },
+            ],
+        });
+        const item = rebuilt.stack[0];
+        // CR 602.1 — `castById` is the ACTIVATOR; the clone keeps the source's
+        // own controller, which is the other seat.
+        expect(item.castById).toBe(rebuilt.players[1].id);
+        expect(item.controllerId).toBe(rebuilt.players[0].id);
+        expect(
+            rebuilt.players[0].battlefield.some((c) => c.id === item.id)
+        ).toBe(true);
+    });
+
+    it("round-trips a graveyard target and an X value", () => {
+        const spec: ScenarioSpec = {
+            ...BOARD,
+            cards: [
+                ...BOARD.cards,
+                { name: lightningBolt.name, owner: "opp", zone: "graveyard" },
+            ],
+            stack: [
+                {
+                    kind: "spell",
+                    name: counterspell.name,
+                    controller: "me",
+                    x: 3,
+                    targets: [
+                        {
+                            kind: "graveyard-card",
+                            name: lightningBolt.name,
+                            seat: "opp",
+                        },
+                    ],
+                },
+            ],
+        };
+        const rebuilt = buildStateFromScenario(buildBladeBaseState(), spec);
+        const item = rebuilt.stack[0];
+        expect(item.chosenX).toBe(3);
+        expect(item.targets?.[0]).toEqual({
+            type: "graveyard-card",
+            id: rebuilt.players[1].graveyard[0].id,
+            playerId: rebuilt.players[1].id,
+        });
+
+        const { spec: lowered, dropped } = specFromState(rebuilt, {
+            mySeatId: rebuilt.players[0].id,
+        });
+        expect(
+            dropped.filter((d) => d.startsWith(STACK_DROPPED_PREFIX))
+        ).toEqual([]);
+        expect(lowered.stack).toEqual(spec.stack);
+    });
+
+    it("resolves `nth` against NON-ADJACENT same-named permanents", () => {
+        // The invariant `nth` rests on: `specFromState` emits one `cards` entry
+        // per live battlefield card, in live order, and the placement loop
+        // pushes them in that order. A future `lowerCard` that grouped
+        // identical entries into `count` would silently re-point every `nth`,
+        // and nothing else would go red.
+        const rebuilt = buildStateFromScenario(buildBladeBaseState(), {
+            ...BOARD,
+            cards: [
+                { name: grizzlyBears.name, owner: "me" },
+                { name: prodigalSorcerer.name, owner: "me" },
+                { name: grizzlyBears.name, owner: "me", damageMarked: 1 },
+            ],
+            stack: [
+                {
+                    kind: "spell",
+                    name: lightningBolt.name,
+                    controller: "opp",
+                    targets: [
+                        {
+                            kind: "permanent",
+                            name: grizzlyBears.name,
+                            seat: "me",
+                            nth: 1,
+                        },
+                    ],
+                },
+            ],
+        });
+        const targetId = rebuilt.stack[0].targets?.[0].id;
+        const targeted = rebuilt.players[0].battlefield.find(
+            (c) => c.id === targetId
+        );
+        expect(targeted?.damageMarked).toBe(1);
+
+        const { spec: lowered } = specFromState(rebuilt, {
+            mySeatId: rebuilt.players[0].id,
+        });
+        expect(lowered.stack?.[0].targets).toEqual([
+            { kind: "permanent", name: grizzlyBears.name, seat: "me", nth: 1 },
+        ]);
+    });
+
+    it("withholds an EARLIER item when a LATER one is refused", () => {
+        // Fail-closed as a whole: a partial stack is a position that looks
+        // complete and is not. Every other refusal test uses a one-item stack,
+        // so this is the one that exercises the cross-item invariant.
+        const live = buildStateFromScenario(buildBladeBaseState(), {
+            ...BOARD,
+            stack: [
+                {
+                    kind: "spell",
+                    name: lightningBolt.name,
+                    controller: "opp",
+                    targets: [
+                        {
+                            kind: "permanent",
+                            name: grizzlyBears.name,
+                            seat: "me",
+                        },
+                    ],
+                },
+                {
+                    kind: "spell",
+                    name: counterspell.name,
+                    controller: "me",
+                    targets: [{ kind: "stack", index: 0 }],
+                },
+            ],
+        });
+        // CR 707.10 — only the SECOND object is unlowerable.
+        live.stack[1].isCopy = true;
+
+        const { spec: lowered, dropped } = specFromState(live, {
+            mySeatId: live.players[0].id,
+        });
+        expect(lowered.stack).toBeUndefined();
+        const notes = dropped.filter((d) => d.startsWith(STACK_DROPPED_PREFIX));
+        expect(notes).toHaveLength(1);
+        expect(notes[0]).toContain("index 1");
+    });
+
+    it("REFUSES a face-down object and a face-down target (CR 708.2)", () => {
+        // A face-down permanent presents the sentinel definition, which is
+        // registered by id only — so `getCardByName` throws on the name a
+        // reference would carry. Refused rather than named, which keeps a Bolt
+        // on a morph a counted refusal instead of a `rebuild-threw` far from
+        // the cause.
+        const live = buildStateFromScenario(buildBladeBaseState(), {
+            ...BOARD,
+            cards: [
+                ...BOARD.cards,
+                {
+                    name: grizzlyBears.name,
+                    owner: "opp",
+                    faceDown: true,
+                },
+            ],
+            stack: [
+                {
+                    kind: "spell",
+                    name: lightningBolt.name,
+                    controller: "opp",
+                    targets: [
+                        {
+                            kind: "permanent",
+                            name: grizzlyBears.name,
+                            seat: "me",
+                        },
+                    ],
+                },
+            ],
+        });
+        const morph = live.players[1].battlefield.find((c) => c.faceDown);
+        expect(morph).toBeDefined();
+        live.stack[0].targets = [{ type: "permanent", id: morph!.id }];
+
+        const { spec: lowered, dropped } = specFromState(live, {
+            mySeatId: live.players[0].id,
+        });
+        expect(lowered.stack).toBeUndefined();
+        expect(
+            dropped.filter((d) => d.startsWith(STACK_DROPPED_PREFIX))
+        ).toHaveLength(1);
     });
 });

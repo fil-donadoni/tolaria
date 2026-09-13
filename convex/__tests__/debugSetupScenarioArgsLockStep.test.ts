@@ -28,6 +28,7 @@ import { debugSetupScenario } from "../game";
 import {
     normalizeScenarioSpec,
     scenarioSpecValidator,
+    type ScenarioSpec,
 } from "../debugScenarioSpec";
 import {
     validatorJsonOf,
@@ -105,5 +106,88 @@ describe("debugSetupScenario args validator declares `life` (issue #2147, sixth 
             .sort();
         const specKeys = Object.keys(specFields).sort();
         expect(argsKeys).toEqual(specKeys);
+    });
+
+    // Guard C (issue #3513 review): the SEVENTH site. `normalizeScenarioSpec`
+    // is the tolerant READ path — `debugScenarios.spec` is stored `v.any()` on
+    // purpose — and it copies known fields only, building a fresh object. A
+    // field added to the validator and forgotten here is accepted at WRITE and
+    // silently STRIPPED on every read: the admin form reopens the row without
+    // it and saves it back over the golden row, and the two live loaders hand
+    // the mutation a spec the field never reached. Nothing else would fail.
+    //
+    // `Required<ScenarioSpec>` is what makes a newly added field a COMPILE
+    // error here, the same mechanism `scenario-spec-preservation.test.tsx`
+    // uses on the form side.
+    it("carries every spec field through the tolerant read path (drift guard)", () => {
+        const EVERY_FIELD: Required<ScenarioSpec> = {
+            cards: [{ name: "Plains", owner: "me", zone: "battlefield" }],
+            phase: "PRECOMBAT_MAIN",
+            landCount: 1,
+            libraryCount: 2,
+            hiddenHand: { me: 1 },
+            turn: 3,
+            markLastDrawn: true,
+            rngSeed: 7,
+            poison: { me: 1 },
+            life: { me: 4, opp: 17 },
+            experience: { me: 1 },
+            landsPlayed: { me: 1 },
+            spellsCastThisTurn: { me: 1 },
+            spellsCastThisGame: { me: 1 },
+            stormCount: 1,
+            damageDealtToPlayerThisTurn: { me: 1 },
+            artifactDamageToPlayerThisTurn: { me: 1 },
+            lifeGainedThisTurn: { me: 1 },
+            deathsThisTurn: 1,
+            creatureAttackedThisTurn: true,
+            qualifyingActionThisTurn: { me: true },
+            qualifyingActionLastTurn: { me: true },
+            turnsTaken: { me: 2 },
+            revolt: { me: true },
+            activePlayer: "me",
+            priority: "me",
+            passCount: 1,
+            combat: { attackers: ["Plains"], confirmed: true },
+            manaPool: { me: { R: 1 } },
+            restrictedMana: { me: [{ amount: 1, color: "R" }] },
+            continuousEffects: [
+                {
+                    layer: 7,
+                    sublayer: "7c",
+                    affected: { me: ["Plains"] },
+                    controller: "me",
+                    payload: { kind: "pt-modify", power: 1, toughness: 1 },
+                },
+            ],
+            stack: [
+                {
+                    kind: "spell",
+                    name: "Lightning Bolt",
+                    controller: "opp",
+                    targets: [
+                        { kind: "permanent", name: "Plains", seat: "me" },
+                    ],
+                    castOffSorceryTiming: true,
+                },
+            ],
+            companion: { name: "Lurrus of the Dream-Den", owner: "me" },
+        };
+        const normalized = normalizeScenarioSpec(
+            JSON.parse(JSON.stringify(EVERY_FIELD))
+        );
+        for (const key of Object.keys(specFields)) {
+            expect({
+                key,
+                present: normalized[key as keyof ScenarioSpec],
+            }).toHaveProperty("present");
+            expect(
+                normalized[key as keyof ScenarioSpec],
+                `normalizeScenarioSpec dropped "${key}"`
+            ).not.toBeUndefined();
+        }
+        // And the declared stack specifically, in full: a shallow presence
+        // check would pass on a branch that kept `kind` and lost the targets.
+        expect(normalized.stack).toEqual(EVERY_FIELD.stack);
     });
 });

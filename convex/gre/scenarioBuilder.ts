@@ -86,7 +86,10 @@ import type {
 } from "./continuousEffects";
 import { getKeywordCounterGrant } from "../cards/mechanicsRegistry";
 import { applyCopy } from "./copy";
-import { refreshOffBattlefieldCharacteristics } from "./zoneCharacteristics";
+import {
+    applyZoneCharacteristics,
+    refreshOffBattlefieldCharacteristics,
+} from "./zoneCharacteristics";
 import { resolveEntersWithCounters } from "../cards/entersWith";
 import { turnFaceDown } from "./faceDown";
 import { finalizeMulligan } from "./mulligan";
@@ -1611,6 +1614,56 @@ function seedDeclaredCombat(state: GameState, spec: ScenarioSpec): void {
  * label, and the verdict quiz would report it as an unexplained
  * `different-decision` far from the cause.
  */
+function seedContinuousEffects(state: GameState, spec: ScenarioSpec): void {
+    const entries = spec.continuousEffects;
+    if (!entries?.length) return;
+    const [p1, p2] = state.players;
+    let seededLayer6 = false;
+    for (const entry of entries) {
+        const affected: CardInstanceState[] = [
+            ...resolveCombatants(
+                [p1.battlefield],
+                entry.affected.me ?? [],
+                "a continuous effect's affected permanent (me)"
+            ),
+            ...resolveCombatants(
+                [p2.battlefield],
+                entry.affected.opp ?? [],
+                "a continuous effect's affected permanent (opp)"
+            ),
+        ];
+        if (affected.length === 0) continue;
+        const controllerId = entry.controller === "me" ? p1.id : p2.id;
+        if (entry.layer === 6) {
+            // CR 613.1f — capture the pre-layer-6 keyword base BEFORE the
+            // entry exists, exactly as every live producer does: after the
+            // push, `staticAbilities` is a COMPOSED multiset and a base
+            // captured from it would freeze this grant into the base.
+            for (const card of affected) ensureLayer6Base(card);
+            seededLayer6 = true;
+        }
+        const slot =
+            entry.layer === 7
+                ? ({ layer: 7, sublayer: entry.sublayer } as const)
+                : ({ layer: entry.layer } as const);
+        pushContinuousEffect(state, {
+            ...slot,
+            affected: {
+                kind: "instances",
+                instanceIds: affected.map((card) => card.id),
+            },
+            expiry: scenarioExpiry(state, entry, controllerId),
+            payload: entry.payload,
+            characteristicDefining: entry.characteristicDefining ?? false,
+        });
+    }
+    // CR 613.1f — `staticAbilities` is the composed multiset ~90 consult sites
+    // read, and it is written by the derivation, not by the push. Without this
+    // a seeded until-end-of-turn flying grant would sit in the registry and be
+    // invisible to combat until the next stable transition recomputed it.
+    if (seededLayer6) syncLayer6(state);
+}
+
 /**
  * CR 405.1 / 601.2 / 602.2a (issue #3513, PRD #3397) — seed the objects the
  * spec declares IN FLIGHT, bottom-up.
@@ -1779,7 +1832,7 @@ function seedDeclaredStack(state: GameState, spec: ScenarioSpec): void {
         // in `cards` is therefore a SECOND object — the opponent holding a
         // second Lightning Bolt while the first is in flight, which is an
         // ordinary position and one `specFromState` produces verbatim.
-        state.stack.push({
+        const spell: StackItem = {
             id: allocInstanceId(state),
             card: { id: def.id },
             types: def.types,
@@ -1798,58 +1851,22 @@ function seedDeclaredStack(state: GameState, spec: ScenarioSpec): void {
             ...(entry.castOffSorceryTiming
                 ? { castOffSorceryTiming: true }
                 : {}),
-        });
+        };
+        // CR 113.6c (issue #3278) — a card that declares off-battlefield
+        // characteristics IS them everywhere except the battlefield, the stack
+        // included (Grist, the Hunger Tide is a 1/1 Insect creature spell).
+        // The live cast gets them for free: the card was already materialised
+        // in hand and `removeFromZone` spreads it. This one is built from the
+        // printed definition, and `refreshOffBattlefieldCharacteristics` walks
+        // the four PLAYER zones, never the stack — so without this line a Grist
+        // on the stack rebuilds as a bare Planeswalker with no P/T, and the
+        // counter-target-creature-spell answer the live position offered is
+        // simply not in the rebuilt candidate list. `types` / `subtypes` /
+        // `power` / `toughness` are all allowlisted, so nothing would have
+        // reported it.
+        applyZoneCharacteristics(spell);
+        state.stack.push(spell);
     });
-}
-
-function seedContinuousEffects(state: GameState, spec: ScenarioSpec): void {
-    const entries = spec.continuousEffects;
-    if (!entries?.length) return;
-    const [p1, p2] = state.players;
-    let seededLayer6 = false;
-    for (const entry of entries) {
-        const affected: CardInstanceState[] = [
-            ...resolveCombatants(
-                [p1.battlefield],
-                entry.affected.me ?? [],
-                "a continuous effect's affected permanent (me)"
-            ),
-            ...resolveCombatants(
-                [p2.battlefield],
-                entry.affected.opp ?? [],
-                "a continuous effect's affected permanent (opp)"
-            ),
-        ];
-        if (affected.length === 0) continue;
-        const controllerId = entry.controller === "me" ? p1.id : p2.id;
-        if (entry.layer === 6) {
-            // CR 613.1f — capture the pre-layer-6 keyword base BEFORE the
-            // entry exists, exactly as every live producer does: after the
-            // push, `staticAbilities` is a COMPOSED multiset and a base
-            // captured from it would freeze this grant into the base.
-            for (const card of affected) ensureLayer6Base(card);
-            seededLayer6 = true;
-        }
-        const slot =
-            entry.layer === 7
-                ? ({ layer: 7, sublayer: entry.sublayer } as const)
-                : ({ layer: entry.layer } as const);
-        pushContinuousEffect(state, {
-            ...slot,
-            affected: {
-                kind: "instances",
-                instanceIds: affected.map((card) => card.id),
-            },
-            expiry: scenarioExpiry(state, entry, controllerId),
-            payload: entry.payload,
-            characteristicDefining: entry.characteristicDefining ?? false,
-        });
-    }
-    // CR 613.1f — `staticAbilities` is the composed multiset ~90 consult sites
-    // read, and it is written by the derivation, not by the push. Without this
-    // a seeded until-end-of-turn flying grant would sit in the registry and be
-    // invisible to combat until the next stable transition recomputed it.
-    if (seededLayer6) syncLayer6(state);
 }
 
 /** CR 611.2a — the expiry one lowered entry rebuilds with. An absent
@@ -3039,6 +3056,12 @@ function lowerCombat(
  *  those carry no name, so they are counted into the spec's `hiddenHand`
  *  rather than named in `cards`. The difference between this list and the
  *  hand is the count. */
+function visibleHand(player: PlayerState): CardInstanceState[] {
+    return player.hand.filter(
+        (card) => (card.card as { id?: string }).id !== PLACEHOLDER_CARD_ID
+    );
+}
+
 /**
  * The prefix every stack loss `lowerStack` reports carries — the same contract
  * `COMBAT_DROPPED_PREFIX` is, and for the same reason: a caller that judges a
@@ -3092,6 +3115,14 @@ const STACK_ITEM_ALLOWLIST = new Set<string>([
     "toughness",
     "staticAbilities",
     "controllerId",
+    // CR 400.3 / 601.2 — the rebuild writes the CASTER into both, because the
+    // spec has one `controller` field. Safe only while the two cannot disagree
+    // in this engine: `removeFromZone` stamps `controllerId` with the caster,
+    // and the one path that casts another player's card (Word of Command,
+    // `gre/state.ts`) sets `actingPlayerId`, which is NOT allowlisted and is
+    // therefore refused as residue. A future cross-owner cast that does not set
+    // it would rebuild the spell into the wrong owner's graveyard with nothing
+    // reporting it — give the spec an `owner` field then, do not widen here.
     "ownerId",
     "zone",
     "isTapped",
@@ -3143,21 +3174,10 @@ const STACK_ABILITY_CLONE_KEYS = CARD_STATE_ALLOWLIST;
  */
 const STACK_CLONE_DIVERGENCE_IGNORED = new Set<string>(["activationsThisTurn"]);
 
-/**
- * CR 405.1 / 601.2 / 602.2a (issue #3513, PRD #3397) — lower the objects in
- * flight onto `spec.stack`, reporting what the spec cannot carry.
- *
- * FAIL-CLOSED AS A WHOLE: one unlowerable item withholds the ENTIRE stack. A
- * partial stack is not a smaller loss than none — it is a position that looks
- * complete and is not, and the candidate list it rebuilds can match the live
- * one move for move while the board differs (the argument `COMBAT_DROPPED_PREFIX`
- * already makes). The `dropped[]` notes still name every item and every field
- * individually, because "which field blocked us, how often" is the number that
- * decides which capability to build next.
- */
-/** The 0-based position of `instanceId` among the permanents in `pool` that
- *  present the SAME definition id — the `nth` a spec reference carries, read
- *  back. `-1` is impossible for a card that is in the pool. */
+/** The 0-based position of `instanceId` among the cards in `pool` — one
+ *  seat's battlefield or graveyard — that present the SAME definition id: the
+ *  `nth` a spec reference carries, read back. Falls back to 0 for a card that
+ *  is not in the pool, which the callers have already established it is. */
 function nthAmongSameNamed(
     pool: CardInstanceState[],
     instanceId: string
@@ -3169,10 +3189,6 @@ function nthAmongSameNamed(
         .filter((card) => (card.card as { id?: string }).id === defId)
         .findIndex((card) => card.id === instanceId);
 }
-
-/** The 0-based position of `instanceId` among the same-named cards in a
- *  non-battlefield zone, read exactly as above. */
-const nthInZone = nthAmongSameNamed;
 
 /**
  * CR 601.2c — one announced target, lowered into the spec's name-and-seat
@@ -3198,6 +3214,17 @@ function lowerStackTarget(
             for (const player of state.players) {
                 const card = player.battlefield.find((c) => c.id === target.id);
                 if (!card) continue;
+                // CR 708.2 — a FACE-DOWN permanent has no name, and the two
+                // halves of the spec disagree about it on purpose: `lowerCard`
+                // places it under its face-UP identity plus `faceDown: true`
+                // (`entryIdentity`), while a reference resolves on the
+                // PRESENTED definition id, which is the face-down sentinel. So
+                // neither name can find it — the face-up one matches no
+                // presented id and the sentinel is registered by id only, so
+                // `getCardByName` throws on it. Refused rather than named,
+                // which is what keeps a Bolt on a morph a counted refusal
+                // instead of a `rebuild-threw` far from the cause.
+                if (card.faceDown) return undefined;
                 const nth = nthAmongSameNamed(player.battlefield, card.id);
                 return {
                     kind: "permanent",
@@ -3212,7 +3239,7 @@ function lowerStackTarget(
             const player = state.players.find((p) => p.id === target.playerId);
             const card = player?.graveyard.find((c) => c.id === target.id);
             if (!player || !card) return undefined;
-            const nth = nthInZone(player.graveyard, card.id);
+            const nth = nthAmongSameNamed(player.graveyard, card.id);
             return {
                 kind: "graveyard-card",
                 name: presentedName(card),
@@ -3273,6 +3300,17 @@ function lowerStack(
 
     state.stack.forEach((item, index) => {
         const isAbility = item.abilityId !== undefined;
+        // CR 708.2 — same refusal as a face-down TARGET below, one line
+        // earlier: a face-down object presents the sentinel, which
+        // `getCardByName` cannot resolve, so `presentedName` would name
+        // something the builder throws on.
+        if (item.faceDown) {
+            refused = true;
+            dropped.push(
+                `${STACK_DROPPED_PREFIX} index ${index}: the object is FACE DOWN (CR 708.2) and has no name the spec can reference`
+            );
+            return;
+        }
         const name = presentedName(item);
         // The label every note about this item carries — what it is and where,
         // so a sweep can group the residue by ITEM as well as by field.
@@ -3315,6 +3353,19 @@ function lowerStack(
                 );
             } else {
                 const snapshot = source;
+                // The allowlist members are excluded from the comparison
+                // as well as from the residue scan, which suppresses exactly
+                // two of them: `isTapped` and `controllerId`. Both are inert on
+                // a stack item — nothing reads an ability item's tap state or
+                // controller, the ACTIVATOR being `castById` — so a source
+                // tapped in response to its own non-{T} ability rebuilds with a
+                // clone one tap ahead and changes nothing the position can be
+                // asked. Everything that does mutate and does matter
+                // (`counters`, `damageMarked`, `attachedTo`, `isAttacking`) is
+                // outside the allowlist and therefore compared; `power` /
+                // `types` are safe because this engine keeps pumps and type
+                // changes in the LAYER system rather than mutating the
+                // instance.
                 for (const key of [
                     ...new Set([
                         ...Object.keys(item),
@@ -3387,12 +3438,6 @@ function lowerStack(
     });
 
     if (!refused) spec.stack = entries;
-}
-
-function visibleHand(player: PlayerState): CardInstanceState[] {
-    return player.hand.filter(
-        (card) => (card.card as { id?: string }).id !== PLACEHOLDER_CARD_ID
-    );
 }
 
 function zoneCards(

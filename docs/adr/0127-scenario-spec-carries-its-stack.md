@@ -67,7 +67,11 @@ journal established is not contradicted; it is sidestepped.
    the same-named ones in that zone. `resolveCombatants`' consuming convention
    (a repeated name names a second instance) is deliberately NOT borrowed here,
    for two reasons: it cannot express one spell naming the SAME object in two
-   slots (CR 608.2b's Plague Spores ruling), and with two same-named permanents
+   slots, which CR 601.2c expressly allows ("if the spell uses the word 'target'
+   in multiple places, the same object or player can be chosen once for each
+   instance" — the Plague Spores case, whose CR 608.2b example is about those
+   slots' resolution-time LEGALITY, not the permission to pick them), and with
+   two same-named permanents
    — one damaged, one not — it resolves to whichever is unconsumed, which is a
    different board with an identical candidate list.
 
