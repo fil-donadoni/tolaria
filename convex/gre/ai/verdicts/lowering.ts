@@ -166,13 +166,21 @@ export type LoweringOutcome =
       };
 
 /**
- * The payments still mid-flight that put an object on the stack once they
- * finish (CR 601.2 / 602.2) — refused as `stack-not-lowerable`, because the
- * object they are announcing is exactly what the declared stack cannot name
- * yet. Reported in the blocker vocabulary so the sweep counts them beside the
- * item fields.
+ * The objects that are ON THEIR WAY to the stack but not on it — refused as
+ * `stack-not-lowerable`, because each one is exactly what the declared stack
+ * cannot name yet, and a rebuild without it is a position with the spell,
+ * ability or trigger simply gone. Reported in the blocker vocabulary so the
+ * sweep counts them beside the item fields.
+ *
+ * Two shapes: a payment still mid-flight that puts an object on the stack once
+ * it finishes (CR 601.2 / 602.2), and — since issue #3516 — a batch of
+ * simultaneous triggers parked off-stack while their controller orders them
+ * (CR 603.3b, `placeTriggersOnStack`). The batch is deliberately a REFUSAL and
+ * not a `dropped` note: the spec declares a stack, never a pending ordering,
+ * so a note would let the rebuild come back with those triggers missing while
+ * the candidate list looked unchanged.
  */
-export function midFlightPaymentBlockers(position: GameState): StackBlocker[] {
+export function offStackObjectBlockers(position: GameState): StackBlocker[] {
     const out: StackBlocker[] = [];
     if (position.pendingCast) {
         out.push({ item: "a spell being cast", field: "pendingCast" });
@@ -181,6 +189,15 @@ export function midFlightPaymentBlockers(position: GameState): StackBlocker[] {
         out.push({
             item: "an ability being activated",
             field: "pendingActivation",
+        });
+    }
+    if (
+        position.pendingTriggerBatch &&
+        position.pendingTriggerBatch.length > 0
+    ) {
+        out.push({
+            item: `${position.pendingTriggerBatch.length} trigger(s) awaiting CR 603.3b ordering`,
+            field: "pendingTriggerBatch",
         });
     }
     return out;
@@ -284,7 +301,7 @@ export function lowerDecision(
     // creature never happened. So it is a refusal, and it names every item and
     // field that blocked it: which field costs the most verdicts is what
     // decides the next slice (#3516 is the trigger one).
-    const blockers = [...stackBlockers, ...midFlightPaymentBlockers(position)];
+    const blockers = [...stackBlockers, ...offStackObjectBlockers(position)];
     if (blockers.length > 0) {
         return {
             ok: false,

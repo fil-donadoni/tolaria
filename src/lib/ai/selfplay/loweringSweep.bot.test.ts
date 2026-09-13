@@ -234,7 +234,15 @@ describe("lowering sweep: stack composition (issue #3456)", () => {
             ],
         });
         const observation = observeDecision(state, "p1", "Pass priority");
-        expect(observation.stackBlockers).toContain("triggerEvent");
+        // Since issue #3516 a trigger is DECLARABLE, so what blocks this
+        // hand-built one is the two things about it no spec could carry: a
+        // source id naming no permanent on any battlefield, and a `"CAST"`
+        // payload that is not a `GameEvent` member at all. Both still count
+        // as trigger blockers, which is what the share below measures.
+        expect(observation.stackBlockers).toContain(
+            "trigger-source-not-on-battlefield"
+        );
+        expect(observation.stackBlockers).toContain("triggerEvent:type");
         expect(observation.stackBlockers.some(isTriggerBlocker)).toBe(true);
         // A field the spec DOES declare never blocks.
         expect(observation.stackBlockers).not.toContain("castById");
@@ -251,7 +259,7 @@ describe("lowering sweep: stack composition (issue #3456)", () => {
         });
         expect(report.stackTriggerBlocked).toBe(1);
         expect(report.stackBlockers).toContainEqual({
-            label: "triggerEvent",
+            label: "triggerEvent:type",
             decisions: 1,
         });
         expect(report.stackBlockers).toContainEqual({

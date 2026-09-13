@@ -419,6 +419,21 @@ describe("a trigger the spec cannot declare is refused by field (issue #3516)", 
         );
     });
 
+    /** CR 603.3b — simultaneous triggers parked off-stack while their
+     *  controller orders them. Not on the stack, and not a note either: a
+     *  rebuild without them is a board those triggers never fired on. */
+    it("names triggers awaiting CR 603.3b ordering — `pendingTriggerBatch`", () => {
+        const { state, botId } = powderKegPosition();
+        (state as unknown as Record<string, unknown>).pendingTriggerBatch = [
+            state.stack[0],
+        ];
+        const outcome = lowerDecision(state, botId, "pass");
+        expect(outcome.ok).toBe(false);
+        if (outcome.ok) return;
+        expect(outcome.kind).toBe("stack-not-lowerable");
+        expect(outcome.error).toContain("pendingTriggerBatch");
+    });
+
     /** Tarpan's own death trigger ("when this creature dies, you gain 1
      *  life"): the source is in a graveyard, and the spec describes a trigger
      *  by a source it can PLACE. CR 603.10 — the item is a clone of the last
