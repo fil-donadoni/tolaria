@@ -78,6 +78,9 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     lookDistribute: true,
     mayPay: true,
     nameCard: true,
+    // CR 107.3f (issue #1701) — raises the `number-pick` nomination through
+    // `ctx.requestNumberChoice` and returns "suspend", exactly like `mayPay`.
+    payVariableMana: true,
     optionChoice: true,
     putBack: true,
     rangedTopdeck: true,

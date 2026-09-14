@@ -1206,6 +1206,7 @@ export function applyMoveForSearch(
         case "land-entry":
         case "draw-replacement":
         case "name-card":
+        case "number-choice":
         case "random-reveal-ack":
         case "submit-target":
             // issue #2283 — a raised target submission is likewise not a 1-ply

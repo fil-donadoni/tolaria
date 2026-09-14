@@ -612,25 +612,98 @@ export const enervate: CardDefinition = {
     ],
 };
 // DEFERRED — re-verified against the current engine for issue #728 (2026-07).
-// Errant Minion's upkeep trigger lets the enchanted creature's controller "pay
-// any amount of mana", then deals 2 damage to them and prevents X of it, X =
-// the amount paid. `mayPay` is a boolean gate over a FIXED cost and `addMana`
-// is a fixed produced amount — neither expresses a VARIABLE-amount payment
-// whose paid total feeds a later prevention value. There is no "pay any amount
-// of mana" choice primitive that captures the amount. Papering this with a
-// resolve() that caps the pay at {2} (paying more is pointless) would
-// misrepresent "any amount" and hard-code the interaction — a card-shaped
-// gap-paper, disallowed. Blocked on a variable-amount mana-payment value
-// primitive: tracked-by: #1701
-// export const errantMinion: CardDefinition = {
-//     id: "61648ddb-6efb-43d0-b2b1-418cc957854c",
-//     name: "Errant Minion",
-//     rarity: "common",
-//     oracleText: "Enchant creature\nAt the beginning of the upkeep of enchanted creature's controller, that player may pay any amount of mana. This Aura deals 2 damage to that player. Prevent X of that damage, where X is the amount of mana that player paid this way.",
-//     manaCost: { X: 2, U: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Errant Minion — "Enchant creature. At the beginning of the upkeep of
+// enchanted creature's controller, that player may pay any amount of mana. This
+// Aura deals 2 damage to that player. Prevent X of that damage, where X is the
+// amount of mana that player paid this way." (CR 303.4 aura, 603.6a phase
+// trigger, 107.3f the undefined X the payer chooses as the ability resolves,
+// 615.1 prevention.) The same shape as Power Leak (`sets/lea/blue.ts`), one
+// point of damage further.
+//
+// compiler-gap: "Enchant creature" (#2693)
+// compiler-gap: "At the beginning of the upkeep of enchanted creature's controller, that player may pay any amount of mana. This Aura deals 2 damage to that player. Prevent X of that damage, where X is the amount of mana that player paid this way." (#2693)
+export const errantMinion: CardDefinition = {
+    id: "61648ddb-6efb-43d0-b2b1-418cc957854c",
+    name: "Errant Minion",
+    rarity: "common",
+    oracleText:
+        "Enchant creature\nAt the beginning of the upkeep of enchanted creature's controller, that player may pay any amount of mana. This Aura deals 2 damage to that player. Prevent X of that damage, where X is the amount of mana that player paid this way.",
+    manaCost: { X: 2, U: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "errant-minion-upkeep",
+            oracleText:
+                "At the beginning of the upkeep of enchanted creature's controller, that player may pay any amount of mana. This Aura deals 2 damage to that player. Prevent X of that damage, where X is the amount of mana that player paid this way.",
+            phase: "UPKEEP",
+            scope: "host-controller",
+            // CR 303.4 / 603.6a — "that player" is the enchanted creature's
+            // CURRENT controller, read at RESOLVE time: `$host` is the implicit
+            // attachment-host snapshot every ability-site script gets (issue
+            // #1341), bound by `runEffectScript` on its FRESH entry from the
+            // live `ctx.getAttachedToId()` link, which is the moment CR 608.2
+            // fixes the ability's subject.
+            //
+            // CR 107.3f nomination, then CR 615.1 prevention, then the damage —
+            // the shield is installed BEFORE the damage because "prevent X of
+            // that damage" is a shield the damage event walks into, not an
+            // arithmetic reduction of the amount (CR 615.12 makes the
+            // difference observable).
+            effects: [
+                {
+                    op: "payVariableMana",
+                    player: { ref: "$host.controller" },
+                    prompt: "Pay any amount of mana — each {1} prevents 1 damage from Errant Minion",
+                    bind: "$paid",
+                },
+                // CR 615.1 — "prevent X of THAT damage": the shield covers
+                // the Aura's own 2-damage event and nothing else. A nomination
+                // ABOVE 2 is legal (the text caps nothing), but the surplus
+                // prevents nothing, so the shield is clamped to the damage this
+                // Aura deals. Without the clamp an overpayment banks the
+                // remainder as generic, until-CLEANUP prevention against ANY
+                // source — free protection the card does not grant, and a
+                // positive eval signal the bot can learn to overpay for
+                // (PR #3568 review). Expressed with the frozen `if` construct
+                // over the numeric binding rather than a new `min` value
+                // member: the two branches are the whole rule.
+                {
+                    op: "if",
+                    predicate: {
+                        left: { ref: "$paid" },
+                        op: "ge",
+                        right: 2,
+                    },
+                    then: [
+                        {
+                            op: "preventDamage",
+                            mode: "next-n",
+                            to: { player: { ref: "$host.controller" } },
+                            amount: 2,
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                    else: [
+                        {
+                            op: "preventDamage",
+                            mode: "next-n",
+                            to: { player: { ref: "$host.controller" } },
+                            amount: { ref: "$paid" },
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+                {
+                    op: "dealDamage",
+                    amount: 2,
+                    to: { player: { ref: "$host.controller" } },
+                },
+            ],
+        }),
+    ],
+};
 // Essence Flare — Aura: static +2/+0 (layer 7c) plus an upkeep trigger on the
 // enchanted creature's controller that puts a -0/-1 counter on the host
 // (CR 603.6a phase trigger, CR 122 counters, layer 7d). The host wastes away one

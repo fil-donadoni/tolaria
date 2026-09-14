@@ -19,6 +19,7 @@ import {
     mayPayHandLegCount,
     mayPayHandSelectionLegal,
     normalizeMayPayCost,
+    numberChoiceRange,
     grantKnowledge,
     emitLibrarySearchedEvent,
     enqueueFailToFindNotice,
@@ -28,6 +29,7 @@ import {
     type PendingChoice,
 } from "./state";
 import { handCardMatchesFilter } from "./alternativeCost";
+import { writeTaggedNumber } from "./numberBinding";
 import { hasName as isChooseableName } from "../cards/cardNames";
 import type { CardDefinition, EffectCardFilter } from "../cards/types";
 import { finalizeAsEnters } from "./asEnters";
@@ -548,6 +550,101 @@ export function applyNameCardSubmit(
     stackItem.collectedChoices = {
         ...(stackItem.collectedChoices ?? {}),
         [key]: [canonical],
+    };
+
+    queue.shift();
+    state.pendingChoices = queue.length > 0 ? queue : undefined;
+
+    if ((state.pendingChoices?.length ?? 0) === 0) {
+        resolveTopOfStack(state);
+        if ((state.pendingChoices?.length ?? 0) > 0) {
+            state.priorityPlayerId = state.pendingChoices![0].playerId;
+        } else if (state.pendingTarget) {
+            state.priorityPlayerId = state.pendingTarget.playerId;
+        } else {
+            state.priorityPlayerId = state.activePlayerId;
+            state.passCount = 0;
+            drainAutoPasses(state);
+        }
+        checkStateBasedActions(state);
+    } else {
+        state.priorityPlayerId = state.pendingChoices![0].playerId;
+    }
+}
+
+export type SubmitNumberChoiceArgs = {
+    playerId: string;
+    /** The nominated amount (CR 107.1b / 107.3f). Non-negative integer,
+     *  re-validated here against the choice's LIVE range — never trusted. */
+    amount: number;
+};
+
+/** Validates and applies a `number-pick` submission (CR 107.1b / 107.3f, issue
+ *  #1701) against the current head pending choice. The amount must be a
+ *  non-negative integer inside {@link numberChoiceRange} — for a `paysMana`
+ *  nomination that ceiling is the payer's LIVE spendable pool, recomputed here
+ *  rather than read off the entry, because the chooser may have activated mana
+ *  abilities while the prompt was open (CR 605.3a).
+ *
+ *  When the choice pays, the amount is spent as a GENERIC mana leg through the
+ *  same `canPayMayPayCost` / `payMayPayCost` path every other may-pay leg uses
+ *  (same `ManaRestriction` handling, same "lands must already be tapped" rule)
+ *  — one payment authority, not a second one for this family. Amount 0 pays
+ *  nothing and IS the decline (CR 107.3f — paying {X} with X = 0 and declining
+ *  are game-observably identical), so it is always legal and needs no separate
+ *  flag.
+ *
+ *  On success the amount is committed into the stack item's `collectedChoices`
+ *  as a TAGGED numeric binding so the resolve step reads it back via
+ *  `requestNumberChoice` and a later Op reads it as an `EffectValue` `ref`.
+ *  Mutates `state` in place. Throws on identity mismatch, a non-`number-pick`
+ *  head, or an out-of-range / unpayable amount. Mirrors `applyMayPaySubmit` so
+ *  the mutation and the bot's headless resolution path drive the SAME
+ *  primitive. */
+export function applyNumberChoiceSubmit(
+    state: GameState,
+    args: SubmitNumberChoiceArgs
+): void {
+    const queue = state.pendingChoices ?? [];
+    if (queue.length === 0) throw new Error("No pending choice");
+    const head = queue[0];
+    if (head.kind !== "number-pick") {
+        throw new Error("Pending choice is not a number pick");
+    }
+    if (head.playerId !== args.playerId) {
+        throw new Error("Not your pending choice");
+    }
+    if (!Number.isInteger(args.amount) || args.amount < 0) {
+        throw new Error("Choose a non-negative whole number");
+    }
+    const payer = state.players.find((p) => p.id === args.playerId);
+    const range = numberChoiceRange(head, payer);
+    if (args.amount < range.min || args.amount > range.max) {
+        throw new Error(
+            `Choose a number between ${range.min} and ${range.max}`
+        );
+    }
+    if (head.paysMana && args.amount > 0) {
+        // CR 107.3f / 118.4 — the nomination is paid as GENERIC mana through
+        // the shared may-pay payment path. The range check above already
+        // bounds it by the spendable pool; this is the same all-or-nothing
+        // gate every may-pay leg passes, so the two can never disagree about
+        // what "affordable" means (substitutions, CR 106.6 restricted mana).
+        const cost = { mana: { generic: args.amount } };
+        if (
+            !canPayMayPayCost(state, args.playerId, cost, head.manaRestriction)
+        ) {
+            throw new Error("Cannot pay the mana cost from your mana pool");
+        }
+        payMayPayCost(state, args.playerId, cost, head.manaRestriction);
+    }
+
+    const stackItem = state.stack.find((s) => s.id === head.stackItemId);
+    if (!stackItem) throw new Error("Stack item not found");
+    const key = `${head.step}:${head.choiceId}`;
+    stackItem.collectedChoices = {
+        ...(stackItem.collectedChoices ?? {}),
+        [key]: writeTaggedNumber(args.amount),
     };
 
     queue.shift();

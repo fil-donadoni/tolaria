@@ -228,6 +228,7 @@ export type MoveMutations = {
     submitMadnessDecline: (a: GP) => Promise<unknown>;
     submitReboundDecline: (a: GP) => Promise<unknown>;
     submitNameCard: (a: GP & { cardName: string }) => Promise<unknown>;
+    submitNumberChoice: (a: GP & { amount: number }) => Promise<unknown>;
     submitRandomRevealAck: (
         a: GP & { stackItemId: string; choiceId: string }
     ) => Promise<unknown>;
@@ -387,6 +388,17 @@ export async function executeMove(
             await mutations.submitNameCard({
                 ...base,
                 cardName: move.cardName,
+            });
+            return;
+
+        case "number-choice":
+            // CR 107.1b / 107.3f (issue #1701) — a SEPARATE entry point
+            // (submitNumberChoice); only the nominated amount travels on the
+            // Move, and the server re-validates it against the choice's live
+            // range before spending anything.
+            await mutations.submitNumberChoice({
+                ...base,
+                amount: move.amount,
             });
             return;
 

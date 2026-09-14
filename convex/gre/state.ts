@@ -204,6 +204,7 @@ import {
     recordControlChangeThisTurn,
 } from "./controlContinuity";
 import type { Phase, Zone, PhaseReturnCondition } from "./types";
+import { readTaggedNumber } from "./numberBinding";
 import type { KickerPayments } from "./kicker";
 import {
     additionalCostPaidCount,
@@ -3312,6 +3313,7 @@ import type {
     OrderChoiceKind,
     OptionChoiceKind,
     NameCardChoiceKind,
+    NumberChoiceKind,
     RandomRevealKind,
     DividePilesKind,
     RandomKind,
@@ -3329,6 +3331,7 @@ export type {
     OrderChoiceKind,
     OptionChoiceKind,
     NameCardChoiceKind,
+    NumberChoiceKind,
     RandomRevealKind,
     DividePilesKind,
     RandomKind,
@@ -3958,7 +3961,116 @@ export type PendingChoice = {
      *  against these two labels. */
     pileA?: string[];
     pileB?: string[];
+
+    // --- numeric-nomination family (CR 107.1b / 107.3f, issue #1701) ---
+    /** For `kind: "number-pick"` only — the FLOOR of the nominal range. Absent
+     *  means 0, which is every shipped nomination: "pay any amount of mana"
+     *  and "you may pay {X}" both admit X = 0 (CR 107.3f), and 0 IS the
+     *  decline. */
+    numberMin?: number;
+    /** For `kind: "number-pick"` only — the AUTHORED ceiling of the nominal
+     *  range, when the ability's own text caps it. Absent for a `paysMana`
+     *  nomination whose only bound is the payer's pool: never read directly,
+     *  always through {@link numberChoiceRange}, which is the one place that
+     *  decides between an authored cap and the live pool. */
+    numberMax?: number;
+    /** For `kind: "number-pick"` only — the nominated amount is also PAID, as
+     *  generic mana out of the payer's pool (CR 107.3f "you may pay {X}" /
+     *  "may pay any amount of mana", issue #1701). The payment rides the
+     *  existing may-pay payment path (`canPayMayPayCost` / `payMayPayCost`
+     *  with a `{ mana: { generic: amount } }` leg), honouring
+     *  `manaRestriction` exactly as every other may-pay leg does. Absent for a
+     *  bare nomination that spends nothing. */
+    paysMana?: true;
 };
+
+/** CR 608.2g — is `choice` a MANA-PAYMENT window owed to `playerId`? "If an
+ *  effect gives a player the option to pay mana, they may activate mana
+ *  abilities before taking that action", so priority being frozen mid-
+ *  resolution (CR 608.2) does not bar the payer from tapping lands to make the
+ *  mana the question is asking for.
+ *
+ *  ONE predicate, because the window has two members and every consumer must
+ *  agree on both: the yes/no `may-pay` and (issue #1701) the `number-pick`
+ *  nomination that PAYS. The paying nomination needs it at least as badly —
+ *  an upkeep trigger's "may pay any amount of mana" is asked while the pool is
+ *  empty (CR 500.4 drains it at every step boundary), so a nomination that
+ *  could not be preceded by a land tap would have a ceiling of zero in every
+ *  real game and the card would be unplayable while every test passed on
+ *  pre-floated mana. A `number-pick` that pays NOTHING (issue #1421's bare
+ *  nomination) opens no window: there is no mana to make.
+ *
+ *  Read by `assertNoPendingChoices` (gre/activation.ts) and
+ *  `assertExpectedInput` (gre/expectedInput.ts) — the two gates every
+ *  tap/untap and mana-ability mutation passes. */
+export function isManaPaymentChoiceWindow(
+    choice: Pick<PendingChoice, "kind" | "playerId" | "paysMana"> | undefined,
+    playerId: string
+): boolean {
+    if (!choice || choice.playerId !== playerId) return false;
+    if (choice.kind === "may-pay") return true;
+    return choice.kind === "number-pick" && choice.paysMana === true;
+}
+
+/** Total mana `player` may spend on a may-pay-family GENERIC leg right now
+ *  (CR 106.6): the fungible pool plus every restricted unit eligible under
+ *  `restriction`. Exported because the CEILING of a `paysMana` numeric
+ *  nomination is exactly this number and three consumers need it — the submit
+ *  validator, the client's bounded stepper and the bot's candidate
+ *  enumeration; a second copy of the rule in any of them is a prompt that
+ *  offers an amount the server then refuses.
+ *
+ *  Sound as a ceiling for a GENERIC leg specifically: generic mana is payable
+ *  with mana of any type (CR 107.4), so every unit in the spendable pool can
+ *  pay exactly one generic. A COLOURED leg would need
+ *  `isManaCostCovered`, not a sum — which is why this is deliberately not a
+ *  general affordability helper. */
+export function spendableManaTotal(
+    player: Pick<PlayerState, "manaPool" | "restrictedMana">,
+    restriction?: ManaRestriction
+): number {
+    let total = 0;
+    for (const amount of Object.values(player.manaPool)) total += amount;
+    for (const r of player.restrictedMana ?? []) {
+        if (mayPayUnitIsEligible(r, restriction)) total += r.amount;
+    }
+    return total;
+}
+
+/** THE range a `number-pick` nomination may be answered with (CR 107.1b /
+ *  107.3f, issue #1701) — the single authority read by the submit validator
+ *  (`applyNumberChoiceSubmit`), the client's stepper and the bot's candidate
+ *  generator, so the offered set and the accepted set cannot drift.
+ *
+ *  For a `paysMana` nomination the ceiling is the payer's LIVE spendable pool,
+ *  never a value frozen onto the entry when it was raised: a may-pay window
+ *  lets the chooser go on activating mana abilities (CR 605.3a), so a snapshot
+ *  taken at enqueue time would cap the stepper below what the player can
+ *  actually pay the moment they tap another land. An authored `numberMax`
+ *  still applies on top (the lower of the two wins) for a capped nomination.
+ *  `payer` is `undefined` when the player has left the game — the range then
+ *  collapses to the floor, and nothing above the decline is offered. */
+export function numberChoiceRange(
+    choice: Pick<
+        PendingChoice,
+        "numberMin" | "numberMax" | "paysMana" | "manaRestriction"
+    >,
+    payer: Pick<PlayerState, "manaPool" | "restrictedMana"> | undefined
+): { min: number; max: number } {
+    const min = Math.max(0, choice.numberMin ?? 0);
+    let max = choice.numberMax ?? Number.POSITIVE_INFINITY;
+    if (choice.paysMana) {
+        max = Math.min(
+            max,
+            payer ? spendableManaTotal(payer, choice.manaRestriction) : 0
+        );
+    }
+    // A nomination with neither an authored cap nor a pool ceiling would be
+    // unbounded, which no shipped shape is and no client could render; the
+    // floor is the honest degenerate answer.
+    if (!Number.isFinite(max)) max = min;
+    return { min, max: Math.max(min, max) };
+}
 
 /** Reads the upper bound out of a `PendingChoice.count`, regardless of
  *  whether it's the fixed-N shape or the `{ min, max }` range shape. The
@@ -20212,6 +20324,46 @@ export function buildSpellContext(
                     routed.playerId,
                     req.cost
                 );
+            }
+            state.pendingChoices = [...(state.pendingChoices ?? []), entry];
+            return undefined;
+        },
+        requestNumberChoice(req): number | undefined {
+            // CR 107.1b / 107.3f (issue #1701) — a NUMERIC nomination. Mirrors
+            // `requestMayPay`'s suspend/replay contract exactly: the first call
+            // enqueues and returns undefined (the step returns early to
+            // suspend), the replay after `submitNumberChoice` reads the stored
+            // amount back. The stored payload is the TAGGED numeric binding
+            // (see `NUMBER_BINDING_TAG`, gre/pendingChoiceSubmit.ts) so an
+            // `EffectValue` `ref` reading it can never mistake a yes/no or a
+            // named card — both single-element payloads — for a number.
+            const step = item.resolutionStep ?? 0;
+            const key = `${step}:${req.choiceId}`;
+            const stored = item.collectedChoices?.[key];
+            if (stored) return readTaggedNumber(stored);
+            // ADR 0037 (#580) — a nomination made during a controlled cast's
+            // resolution routes to the ACTING player, exactly as a may-pay
+            // does: `routeActingPlayer` puts them on `playerId` and the
+            // controlled player on `actingPlayerId`, and the submit spends the
+            // answering player's pool (`applyMayPaySubmit` behaves the same).
+            const routed = routeActingPlayer(req.playerId);
+            const entry: PendingChoice = {
+                stackItemId: item.id,
+                step,
+                choiceId: req.choiceId,
+                playerId: routed.playerId,
+                kind: "number-pick",
+                count: 1,
+                prompt: req.prompt,
+            };
+            if (req.min !== undefined) entry.numberMin = req.min;
+            if (req.max !== undefined) entry.numberMax = req.max;
+            if (req.payMana) entry.paysMana = true;
+            if (req.manaRestriction) {
+                entry.manaRestriction = req.manaRestriction;
+            }
+            if (routed.actingPlayerId) {
+                entry.actingPlayerId = routed.actingPlayerId;
             }
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];
             return undefined;

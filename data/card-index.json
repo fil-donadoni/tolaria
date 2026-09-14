@@ -8166,6 +8166,14 @@
         "firstPrintSet": "nph"
     },
     {
+        "name": "Decree of Justice",
+        "scryfallId": "5e8a7e5c-f252-4de8-94d7-e7327210bf26",
+        "oracleId": "67a98359-6f02-4556-ad47-c01b643686d6",
+        "firstSet": "scg",
+        "firstPrintId": "5e8a7e5c-f252-4de8-94d7-e7327210bf26",
+        "firstPrintSet": "scg"
+    },
+    {
         "name": "Decree of Silence",
         "scryfallId": "f2fc46e2-5e19-4999-a4cd-1e84697066c1",
         "oracleId": "920684d0-aef3-4408-a66b-a0c9394c58f4",
@@ -10734,6 +10742,14 @@
         "firstPrintSet": "tsp",
         "rarity": "common",
         "source": "compiled"
+    },
+    {
+        "name": "Errant Minion",
+        "scryfallId": "61648ddb-6efb-43d0-b2b1-418cc957854c",
+        "oracleId": "80459049-bd89-4736-82f8-03c603644033",
+        "firstSet": "ice",
+        "firstPrintId": "61648ddb-6efb-43d0-b2b1-418cc957854c",
+        "firstPrintSet": "ice"
     },
     {
         "name": "Errantry",

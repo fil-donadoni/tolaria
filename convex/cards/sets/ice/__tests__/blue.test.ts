@@ -23,6 +23,7 @@ import {
     restrictionAllowsAbility,
     isManaCostCovered,
     putReanimatedSetOnBattlefield,
+    numberChoiceRange,
 } from "../../../../gre/state";
 import {
     getEffectivePower,
@@ -47,6 +48,7 @@ import { validateAttackerEligibility } from "../../../../gre/combat";
 import {
     applyPendingChoiceSubmit,
     applyMayPaySubmit,
+    applyNumberChoiceSubmit,
 } from "../../../../gre/pendingChoiceSubmit";
 import {
     makeInstance,
@@ -3574,5 +3576,130 @@ describe("Icy Prison (ETB exile + upkeep tax + return on leave, CR 701.13 / 603.
             p.battlefield.some((c) => c.id === "victim")
         );
         expect(onAnyBoard).toBe(false);
+    });
+});
+
+// Errant Minion (CR 303.4 aura, 603.6a upkeep trigger, 107.3f the undefined X
+// the payer chooses AS THE ABILITY RESOLVES, 615.1 prevention). The card was a
+// commented, art-mapped stub until issue #1701 shipped `payVariableMana`; the
+// interesting half is that ONE prompt carries the whole decision, and that the
+// amount nominated is what the prevention shield reads.
+const ERRANT_MINION_ID = "61648ddb-6efb-43d0-b2b1-418cc957854c";
+const GRIZZLY_BEARS_ID = "ce2d603a-3231-4a8c-bf39-1617586ea870";
+
+describe("Errant Minion (CR 107.3f / 615.1, issue #1701)", () => {
+    /** The aura on p2's creature, advanced to p2's upkeep with `mana` floated.
+     *  The mana is floated AFTER the phase change: CR 500.4 empties every pool
+     *  at each step boundary, so a payer taps their lands DURING the upkeep,
+     *  while the nomination window is open (CR 605.3a). */
+    function upkeepWithMana(mana: Record<string, number>): GameState {
+        // Through the REGISTRY seam (`getDefinition(id)`, ADR 0046), never
+        // `getCardByName`: the name reader resolves a module-load `const` the
+        // gold harness's definition swap never writes, so a test on it passes
+        // against the hand-written definition no matter what is registered
+        // (`scripts/__tests__/card-test-seam-boundary.test.ts`).
+        const victim = makeInstance(getDefinition(GRIZZLY_BEARS_ID).id, {
+            id: "victim",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const aura = makeInstance(getDefinition(ERRANT_MINION_ID).id, {
+            id: "minion",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "victim",
+        });
+        const state = makeState({
+            turn: 2,
+            phase: "UNTAP",
+            activePlayerId: "p2",
+            priorityPlayerId: "p2",
+            players: [
+                makePlayer("p1", { battlefield: [aura] }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        advancePhase(state);
+        state.players[1].manaPool = { ...mana };
+        return state;
+    }
+
+    it("offers ONE paying nomination to the HOST's controller, bounded by their pool", () => {
+        const state = upkeepWithMana({ U: 3 });
+        expect(state.phase).toBe("UPKEEP");
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe("errant-minion-upkeep");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        // The aura is p1's; the prompt belongs to the ENCHANTED creature's
+        // controller, which is the whole point of the `$host.controller` ref.
+        expect(head.playerId).toBe("p2");
+        expect(head.kind).toBe("number-pick");
+        expect(head.paysMana).toBe(true);
+        expect(numberChoiceRange(head, state.players[1])).toEqual({
+            min: 0,
+            max: 3,
+        });
+    });
+
+    it("prevents exactly the amount paid, and nominating 0 takes all 2", () => {
+        const declined = upkeepWithMana({ U: 3 });
+        const declinedBefore = declined.players[1].life;
+        resolveTopOfStack(declined);
+        applyNumberChoiceSubmit(declined, { playerId: "p2", amount: 0 });
+        expect(declined.players[1].life).toBe(declinedBefore - 2);
+        expect(declined.players[1].manaPool.U).toBe(3);
+
+        const partial = upkeepWithMana({ U: 3 });
+        const partialBefore = partial.players[1].life;
+        resolveTopOfStack(partial);
+        applyNumberChoiceSubmit(partial, { playerId: "p2", amount: 1 });
+        expect(partial.players[1].life).toBe(partialBefore - 1);
+        expect(partial.players[1].manaPool.U).toBe(2);
+
+        const full = upkeepWithMana({ U: 3 });
+        const fullBefore = full.players[1].life;
+        resolveTopOfStack(full);
+        applyNumberChoiceSubmit(full, { playerId: "p2", amount: 2 });
+        expect(full.players[1].life).toBe(fullBefore);
+        expect(full.players[1].manaPool.U).toBe(1);
+    });
+
+    it("an OVERPAYMENT banks no residual shield — CR 615.1 covers only THAT damage", () => {
+        // The text caps nothing, so nominating above 2 is legal; what it must
+        // NOT do is leave the surplus sitting on the player as generic,
+        // until-CLEANUP prevention against any source. PR #3568 review measured
+        // exactly that before the clamp: nominate 7, take 0, and carry 5 points
+        // of free prevention for the rest of the turn.
+        const state = upkeepWithMana({ U: 7 });
+        const before = state.players[1].life;
+        resolveTopOfStack(state);
+        applyNumberChoiceSubmit(state, { playerId: "p2", amount: 7 });
+
+        expect(state.players[1].life).toBe(before); // all 2 prevented
+        expect(state.players[1].manaPool.U ?? 0).toBe(0); // all 7 really paid
+        // The shield is SPENT, not banked: no prevention capacity survives to
+        // absorb the next source's damage. (A spent entry may linger until
+        // CLEANUP — what must be zero is what it can still absorb.)
+        const banked = (state.targetPreventionShields ?? []).reduce(
+            (sum, s) => sum + (s.remaining ?? 0),
+            0
+        );
+        expect(banked).toBe(0);
+    });
+
+    it("wire format: the nomination and its bounds reach the client", () => {
+        const state = upkeepWithMana({ U: 2 });
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p2");
+        const head = projected.pendingChoices![0];
+        expect(head.kind).toBe("number-pick");
+        expect(head.paysMana).toBe(true);
+        expect(
+            numberChoiceRange(
+                head,
+                projected.players.find((p) => p.id === "p2")
+            )
+        ).toEqual({ min: 0, max: 2 });
     });
 });

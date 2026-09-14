@@ -342,6 +342,14 @@ export type OwedChoice = {
      *  answer — never a stand-in the server would reject, because the `choice`
      *  escalation ladder has no rung below this submission. */
     nameCardDefault?: string;
+    /** `number-pick` only (CR 107.1b / 107.3f, issue #1701): the choice's LIVE
+     *  nomination floor — the minimal-legal answer, which for every shipped
+     *  shape is 0 (nominating nothing IS the decline). Carried rather than
+     *  assumed, because the floor is the choice's to declare and the fallback
+     *  must submit a value the server will accept: `numberChoiceRange` is what
+     *  computes it, on the same state the submit re-checks against. Undefined
+     *  for every other choice kind. */
+    numberFloor?: number;
     /** `look-distribute` (issue #1364, Atraxa) / `choose-categorized` (issue
      *  #1945) — the CATEGORIZED pick's buckets. When present, `max` alone
      *  does NOT describe a legal submission (three creatures under a max of
@@ -405,6 +413,7 @@ export type BotAction =
     | { kind: "land-entry"; accept: boolean }
     | { kind: "draw-replacement"; accept: boolean }
     | { kind: "name-card"; cardName: string }
+    | { kind: "number-choice"; amount: number }
     | { kind: "random-reveal-ack" }
     | { kind: "madness-decline" }
     | { kind: "rebound-decline" }
@@ -636,6 +645,7 @@ export function botActionRealisation(
         case "land-entry":
         case "draw-replacement":
         case "name-card":
+        case "number-choice":
         case "random-reveal-ack":
         case "madness-decline":
         case "rebound-decline":
@@ -1176,6 +1186,10 @@ export function chooseResolution(choice: OwedChoice): string[] {
         // `madness-cast` (CR 702.35a) and `rebound-cast` (CR 702.88a) are
         // in-tree search nodes with a decline FALLBACK in `decideBotAction`
         // (issue #2983): never resolved here either way.
+        // `number-pick` (CR 107.1b / 107.3f, issue #1701) joins them: a numeric
+        // nomination answers with a SCALAR through its own
+        // `submitNumberChoice` mutation, never with instance ids, and it too is
+        // an in-tree search node with a nominate-nothing fallback.
         case "may-pay":
         case "land-entry-tapped":
         case "draw-replacement":
@@ -1184,6 +1198,7 @@ export function chooseResolution(choice: OwedChoice): string[] {
         case "name-card":
         case "madness-cast":
         case "rebound-cast":
+        case "number-pick":
             throw new Error(
                 `chooseResolution: "${kind}" is not resolved here (use the dedicated path)`
             );
@@ -1408,6 +1423,18 @@ export function chooseOwedChoiceAction(choice: OwedChoice): BotAction {
         // state) instead of looping on a string the server throws on.
         if (!choice.nameCardDefault) return NONE;
         return { kind: "name-card", cardName: choice.nameCardDefault };
+    }
+    if (choice.kind === "number-pick") {
+        // CR 107.1b / 107.3f (issue #1701) — the FALLBACK, not the policy: the
+        // kind carries a candidate generator, so `OwedChoice.searchable` is
+        // true and the search normally answers it. This is what runs when the
+        // search cannot (no worker, a bail), and it nominates the FLOOR — the
+        // decline. Minimal-legal in the ADR 0016 sense and legal by
+        // construction: the floor comes from `numberChoiceRange`, the same
+        // authority `applyNumberChoiceSubmit` validates against, and it is
+        // inside the range by definition, so this submission can never be the
+        // rejected-and-retried shape that freezes a window (ADR 0047).
+        return { kind: "number-choice", amount: choice.numberFloor ?? 0 };
     }
     if (choice.kind === "madness-cast") {
         // CR 702.35a — the reflexive Madness cast-choice. This is now the

@@ -296,6 +296,18 @@ export type Move =
           cardName: string;
       }
     | {
+          /** Answer a `number-pick` pending choice with the nominated amount
+           *  (CR 107.1b / 107.3f, issue #1701), realised through the dedicated
+           *  `submitNumberChoice` mutation. Like `name-card` only the scalar
+           *  travels; the choice identity is read from the active pending
+           *  choice, and the server re-validates the amount against the
+           *  choice's live range (for a paying nomination, the payer's
+           *  spendable pool). Amount 0 IS the decline — there is no separate
+           *  accept flag. */
+          kind: "number-choice";
+          amount: number;
+      }
+    | {
           /** Acknowledge a suspended `random-reveal` flip (CR 705.2, ADR 0023).
            *  Carries no choice data — the engine drew and persisted the
            *  outcome; this only means "resume". Realised through the

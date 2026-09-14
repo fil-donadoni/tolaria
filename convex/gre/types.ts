@@ -404,6 +404,31 @@ export type ReboundCastChoiceKind = "rebound-cast";
  *  this family covers only the turn-based draw. */
 export type DrawReplacementChoiceKind = "draw-replacement";
 
+/** Numeric-nomination family (CR 107.1b / 107.3f, issue #1701). The chooser
+ *  answers with a NUMBER, not a set of instance ids: "choose a number", and —
+ *  with `paysMana` set — "pay any amount of mana" / "you may pay {X}", where
+ *  the value of X is not defined by the ability's text and the controller
+ *  chooses it AS THE ABILITY RESOLVES (CR 107.3f). The nominated amount is
+ *  committed into the stack item's `collectedChoices` as a NUMERIC binding a
+ *  later Op reads back as an `EffectValue` (`{ ref: "$paid" }`).
+ *
+ *  ONE family, deliberately, for both the bare nomination and the paying one
+ *  (issue #1701 / #1421): the submission shape, the mutation, the client
+ *  affordance and the bot's bounded enumeration are identical, and only
+ *  `paysMana` decides whether the answer also spends mana. The range the
+ *  chooser picks from is never re-derived per consumer — `numberChoiceRange`
+ *  (gre/state.ts) is its single authority, because for a paying nomination the
+ *  ceiling is the payer's LIVE spendable pool (the chooser may still activate
+ *  mana abilities while the prompt is open) rather than anything frozen onto
+ *  the entry.
+ *
+ *  Amount 0 IS the decline (paying {X} with X = 0 and declining are
+ *  game-observably identical), so there is no separate accept/decline flag and
+ *  no second prompt — one prompt per decision (Arena parity, issue #2244).
+ *  Flows through its own `submitNumberChoice` mutation, like `name-card` →
+ *  `submitNameCard`: the submission is a scalar, not a list of ids. */
+export type NumberChoiceKind = "number-pick";
+
 export type PendingChoiceKind =
     | ZonePickKind
     | YesNoChoiceKind
@@ -416,4 +441,5 @@ export type PendingChoiceKind =
     | DividePilesKind
     | MadnessCastChoiceKind
     | ReboundCastChoiceKind
+    | NumberChoiceKind
     | DrawReplacementChoiceKind;

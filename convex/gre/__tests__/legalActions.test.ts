@@ -673,6 +673,69 @@ describe("legalActions — name-card choice (CR 201.2 / 202.3)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// number-pick nomination (CR 107.1b / 107.3f, issue #1701)
+// ---------------------------------------------------------------------------
+
+describe("legalActions — number-pick nomination (CR 107.1b / 107.3f)", () => {
+    it("holds gate parity and offers one open action carrying the LIVE bounds", () => {
+        const choice: PendingChoice = {
+            stackItemId: "s1",
+            step: 0,
+            choiceId: "$paid",
+            playerId: "p2",
+            kind: "number-pick",
+            count: 1,
+            paysMana: true,
+            prompt: "Pay any amount of mana",
+        };
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { manaPool: { U: 2, G: 1 } }),
+            ],
+            pendingChoices: [choice],
+        });
+
+        const actions = assertGateParity(state);
+        // The payload domain is a RANGE, so one open action stands for the
+        // whole family — and it carries the bounds the submit re-checks
+        // against, read through `numberChoiceRange` rather than re-derived.
+        expect(actions).toEqual([
+            {
+                expect: "choice",
+                playerId: "p2",
+                action: { kind: "submit-number-choice", min: 0, max: 3 },
+            },
+        ]);
+    });
+
+    it("still offers the action with an EMPTY pool — nominating 0 is legal, so the window can never freeze", () => {
+        const choice: PendingChoice = {
+            stackItemId: "s1",
+            step: 0,
+            choiceId: "$paid",
+            playerId: "p2",
+            kind: "number-pick",
+            count: 1,
+            paysMana: true,
+            prompt: "Pay any amount of mana",
+        };
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+            pendingChoices: [choice],
+        });
+
+        expect(assertGateParity(state)).toEqual([
+            {
+                expect: "choice",
+                playerId: "p2",
+                action: { kind: "submit-number-choice", min: 0, max: 0 },
+            },
+        ]);
+    });
+});
+
+// ---------------------------------------------------------------------------
 // random-reveal acknowledgement (CR 705.2, ADR 0023)
 // ---------------------------------------------------------------------------
 

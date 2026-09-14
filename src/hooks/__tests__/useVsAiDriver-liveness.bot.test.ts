@@ -91,6 +91,7 @@ vi.mock("@convex/_generated/api", () => {
         "submitMadnessDecline",
         "submitReboundDecline",
         "submitNameCard",
+        "submitNumberChoice",
         "submitRandomRevealAck",
         "autoTapForAttackTax",
         "cancelAttackTax",

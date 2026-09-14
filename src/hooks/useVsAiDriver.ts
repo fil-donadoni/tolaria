@@ -405,6 +405,7 @@ export function useVsAiDriver(
         submitMadnessDecline: useMutation(api.game.submitMadnessDecline),
         submitReboundDecline: useMutation(api.game.submitReboundDecline),
         submitNameCard: useMutation(api.game.submitNameCard),
+        submitNumberChoice: useMutation(api.game.submitNumberChoice),
         submitRandomRevealAck: useMutation(api.game.submitRandomRevealAck),
         passPriority: useMutation(api.game.passPriority),
     };

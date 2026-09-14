@@ -658,6 +658,19 @@ const mayPay: Valuer<"mayPay"> = () => {
     return ZERO_OP_VALUE;
 };
 
+const payVariableMana: Valuer<"payVariableMana"> = () => {
+    // CR 107.3f (issue #1701) — the amount is the PLAYER's to nominate, and its
+    // floor is 0 (nominating 0 is the decline). A context-free walker has no
+    // position to read, so the only magnitude it can honestly state is that
+    // floor: whatever the payment buys is priced by the sibling Op that reads
+    // the `$paid` binding (a `createToken` count, a `preventDamage` amount),
+    // and whatever it costs is mana already in the pool, which no term on the
+    // feature basis prices. An explicit ZERO entry, not the `?? ZERO_OP_VALUE`
+    // fallback: the fallback is what a FORGOTTEN Op looks like, and this one is
+    // a decision on the record.
+    return ZERO_OP_VALUE;
+};
+
 const sacrifice: Valuer<"sacrifice"> = (op, ctx, scope) => {
     if (op.permanents) {
         // Issue #3292 — a picks-set sacrifice signs by WHO CHOSE the picks,
@@ -1871,6 +1884,7 @@ export const OP_VALUERS: {
     counter,
     moveSpellFromStack,
     mayPay,
+    payVariableMana,
     sacrifice,
     moveZone,
     createToken,
@@ -2284,6 +2298,13 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // some of its kinds bind a COERCED pick, which is a sign — see
     // `opBeneficence` below.
     mayPay: "neutral",
+    // CR 107.3f (issue #1701) — same shape as `mayPay` above, one step further:
+    // it binds a NUMBER, and its consequence is entirely the sibling Op that
+    // reads the binding back (`bind` is required for exactly that reason). What
+    // it does to the `player` it names is hand them an OPTION whose floor is
+    // "pay nothing" — there is no stake a redirect could move, because the
+    // recipient decides the magnitude themselves and 0 is always available.
+    payVariableMana: "neutral",
     // CR 701.20a — binds the chosen NAME; the material is whatever later Op
     // reads the binding back, which is why `bind` is a required field.
     nameCard: "neutral",

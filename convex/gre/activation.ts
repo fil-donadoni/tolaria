@@ -140,6 +140,7 @@ import {
     type PendingCast,
     type PlayerState,
     type StackItem,
+    isManaPaymentChoiceWindow,
 } from "./state";
 import type { ManaRiders, SpellManaRiders } from "./state";
 import { canPayTapOtherCost } from "./tapOtherCost";
@@ -168,7 +169,10 @@ export function assertNoPendingChoices(
     if (queue.length === 0) return;
     const head = queue[0];
     const allow = opts.allowManaForMayPay;
-    if (allow && head.kind === "may-pay" && head.playerId === allow.playerId) {
+    // CR 608.2g — `isManaPaymentChoiceWindow` is the ONE authority on which
+    // choice kinds open a mana window (the yes/no may-pay and the PAYING
+    // numeric nomination, issue #1701), shared with `assertExpectedInput`.
+    if (allow && isManaPaymentChoiceWindow(head, allow.playerId)) {
         return;
     }
     throw new Error(

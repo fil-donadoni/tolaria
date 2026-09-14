@@ -757,6 +757,15 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // exhaustiveness; execution coverage is the Op's interpreter tests.
             req.skip ??= `Op "lookHand" changes card visibility (knownTo) — not a state change the canned generator asserts`;
             return;
+        case "payVariableMana":
+            // CR 107.3f (issue #1701) — a `payVariableMana` Op suspends
+            // resolution for a live amount nomination, which a canned scenario
+            // cannot submit any more than it can answer a Pay/Skip prompt
+            // below. Explicit skip; execution coverage is the Op's own
+            // interpreter tests, which drive the nominate → pay → bound-value
+            // round trip and the amount-0 decline.
+            req.skip ??= `Op "payVariableMana" suspends for a variable mana-payment nomination — covered by the Op's interpreter tests`;
+            return;
         case "mayPay":
             // A `mayPay` Op suspends resolution for a live Pay/Skip decision
             // (issue #806) — a canned scenario cannot submit an answer, so the
@@ -2097,6 +2106,13 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // prompt). The entry keeps the registry ⇄ assertor guard 1:1; execution
     // coverage is the card's own suspension/resume tests.
     mayPay() {
+        return null;
+    },
+    // `payVariableMana` (issue #1701) — never reached: `analyseOp` skips every
+    // script containing it (a canned scenario cannot nominate an amount). The
+    // entry keeps the registry <-> assertor guard 1:1; execution coverage is
+    // the Op's own interpreter tests.
+    payVariableMana() {
         return null;
     },
     // `if` (issue #806) — never reached: `analyseOp` skips every script with an

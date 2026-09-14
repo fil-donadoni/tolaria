@@ -17,6 +17,7 @@ import {
     getCostModifiers,
     applyCostModifiers,
     getActingPlayer,
+    applyControlChange,
     type CardInstanceState,
     type GameState,
 } from "../../../../gre/state";
@@ -1062,6 +1063,26 @@ describe("Cursed Land (Aura on Land — 1 dmg to host's controller at upkeep)", 
         const state = setup("p2");
         advancePhase(state);
         expect(state.stack).toHaveLength(0);
+    });
+
+    // CR 608.2 / 603.10 — "that player" is the host's controller read when the
+    // ability RESOLVES, not when it fired. The `{ ref: "$host.controller" }`
+    // player ref (issue #1701) reads the `$host` snapshot `runEffectScript`
+    // binds on its fresh entry from the live attachment link, so a control
+    // change of the HOST between the two moments redirects the damage. A
+    // trigger-time read would burn the old controller; a plain `"controller"`
+    // ref would burn the AURA's controller, which is the opposite seat.
+    it("damages whoever controls the HOST at resolution, not at trigger time", () => {
+        const state = setup("p1");
+        advancePhase(state);
+        expect(state.stack).toHaveLength(1);
+        // p2 takes the host over while the trigger is on the stack.
+        applyControlChange(state, "host-land", "p2", "curse");
+        const p1Before = state.players[0].life;
+        const p2Before = state.players[1].life;
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(p1Before);
+        expect(state.players[1].life).toBe(p2Before - 1);
     });
 });
 

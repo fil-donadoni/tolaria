@@ -6780,6 +6780,64 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Issue #3545's sharpest cardinality case, kept as the record of what the generator alone cannot reach. The generator half is guarded deterministically instead — `choose-permanents-choice-node.bot.test.ts` asserts the size-1 branch is emitted for this pool shape.",
     },
     {
+        // NUMERIC-NOMINATION reachability (CR 107.3f / 615.1, issue #1701).
+        // `opp` has Errant Minion on the bot's Grizzly Bears; at the bot's
+        // upkeep the Aura asks THEM to "pay any amount of mana" and then deals
+        // 2, preventing X. The bot is at 2 life, so the 2 damage is lethal and
+        // the two floating mana buy the game — nominating anything below 2 is
+        // losing on the spot.
+        //
+        // The claim is REACHABILITY, not preference: before the `number-pick`
+        // generator the kind was no search node at all, so `brain.ts`'s
+        // minimal-legal fallback answered the FLOOR — zero — and the bot died
+        // to a card it had the mana to survive, with every suite green.
+        label: "variable mana payment: pays to prevent lethal from Errant Minion",
+        spec: {
+            cards: [
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Errant Minion",
+                    owner: "opp",
+                    zone: "battlefield",
+                    attachedTo: "Grizzly Bears",
+                },
+            ],
+            phase: "UPKEEP",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+            // Floating, not untapped lands: while a pending choice is the head
+            // the only moves enumerated are its own answers, so the mana the
+            // nomination spends has to be in the pool already. (A human gets
+            // the CR 608.2g window to tap for it; that seam has its own
+            // full-path test.)
+            manaPool: { me: { U: 2 } },
+            life: { me: 2, opp: 20 },
+        },
+        setup: [{ kind: "phase-trigger" }, { kind: "resolve-top" }],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            // A `predicate`, not a `moves` matcher: the claim is a THRESHOLD
+            // ("enough to live"), and it is a reachability claim, so it must not
+            // vote on the weight fit (ADR 0124 §5 — see the depletion-land entry
+            // above for the regression that rule exists for).
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "number-choice" &&
+                move.amount >= 2,
+            describe: "nominates at least 2, preventing both points of damage",
+        },
+        note: "CR 107.3f numeric-nomination reachability (issue #1701). Also the end-to-end cover for the `number-pick` entry in CHOICE_CANDIDATE_GENERATORS: unregister it and the brain's minimal-legal fallback nominates 0, which is lethal here. The generator half is guarded deterministically too — `numberPickCandidates.bot.test.ts` asserts the emitted set spans both ends of the live range.",
+    },
+    {
         label: "sacrifice sign NEGATIVE CONTROL: still casts a genuine edict",
         spec: {
             cards: [

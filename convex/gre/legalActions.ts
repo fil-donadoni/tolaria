@@ -30,6 +30,7 @@ import type {
 } from "./state";
 import {
     canPayMayPayCost,
+    numberChoiceRange,
     getPendingChoiceMax,
     getPendingChoiceMin,
     getPlayer,
@@ -123,6 +124,14 @@ export type ChoiceAction =
      *  the entire card registry, so it is carried OPEN — one action stands for
      *  the whole family and the caller supplies the name. */
     | { kind: "submit-name-card" }
+    /** Nominate an amount (`submitNumberChoice`, CR 107.1b / 107.3f, issue
+     *  #1701). Carried OPEN like `submit-name-card`: the payload domain is a
+     *  RANGE, so one action stands for the whole family and the caller supplies
+     *  the amount. `min` / `max` are the choice's live bounds — for a paying
+     *  nomination the ceiling is the payer's spendable pool, read through
+     *  `numberChoiceRange` so this offer and the submit's own check are the
+     *  same rule. */
+    | { kind: "submit-number-choice"; min: number; max: number }
     /** Acknowledge a suspended random reveal (`submitRandomRevealAck`,
      *  CR 705.2, ADR 0023) — a no-decision resume. */
     | {
@@ -299,6 +308,16 @@ function choiceActions(
     // single open-payload action represents the family.
     if (head.kind === "name-card") {
         return [wrap({ kind: "submit-name-card" })];
+    }
+
+    // CR 107.1b / 107.3f (issue #1701) — a numeric nomination: the domain is a
+    // range, so a single open-payload action carrying the live bounds
+    // represents the family. Amount 0 is always inside it (it IS the decline),
+    // so this action is never empty and the window can never freeze.
+    if (head.kind === "number-pick") {
+        const payer = state.players.find((p) => p.id === playerId);
+        const { min, max } = numberChoiceRange(head, payer);
+        return [wrap({ kind: "submit-number-choice", min, max })];
     }
 
     // CR 705.2 (ADR 0023) — random reveal: a no-decision acknowledgement.

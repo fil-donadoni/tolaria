@@ -94,6 +94,7 @@ function engineMutations(state: GameState): MoveMutations {
         submitLandEntryChoice: async ({ playerId, accept }) => {
             applyLandEntrySubmit(state, { playerId, accept });
         },
+        submitNumberChoice: reject,
         submitNameCard: async ({ playerId, cardName }) => {
             applyNameCardSubmit(state, { playerId, cardName });
         },

@@ -1235,12 +1235,21 @@ export const wanderlust: CardDefinition = {
                 "At the beginning of the upkeep of enchanted creature's controller, this Aura deals 1 damage to that player.",
             phase: "UPKEEP",
             scope: "host-controller",
-            // NOT DSL-migratable (ADR 0045, issue #831): the damaged player is
-            // the enchanted creature's controller (host-controller scope), which
-            // no EffectPlayerRef expresses. Blocked on: host-controller player ref.
-            resolve: (ctx, _event, hostController) => {
-                ctx.dealDamage({ type: "player", id: hostController }, 1);
-            },
+            // CR 303.4 / 603.6a — "that player" is the enchanted permanent's
+            // CURRENT controller, read at RESOLVE time: `$host` is the implicit
+            // attachment-host snapshot every ability-site script gets
+            // (issue #1341), bound by `runEffectScript` on its FRESH entry from
+            // the live `ctx.getAttachedToId()` link, which is the moment CR 608.2
+            // fixes the ability's subject. `.controller` reads that snapshot's
+            // controller slot, so a control change between the trigger firing
+            // and its resolution is honoured and a later one is not.
+            effects: [
+                {
+                    op: "dealDamage",
+                    amount: 1,
+                    to: { player: { ref: "$host.controller" } },
+                },
+            ],
         }),
     ],
 };

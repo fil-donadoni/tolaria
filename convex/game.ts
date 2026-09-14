@@ -39,6 +39,7 @@ import {
     type PlayerState,
     type StackItem,
     getPlayer,
+    isManaPaymentChoiceWindow,
     getOpponentId,
     drawCard as drawCardFromLibrary,
     emitCardDrawn,
@@ -471,6 +472,7 @@ import {
     applyMayPaySubmit,
     applyLandEntrySubmit,
     applyNameCardSubmit,
+    applyNumberChoiceSubmit,
     applyRandomRevealAck,
 } from "./gre/pendingChoiceSubmit";
 import {
@@ -13353,6 +13355,44 @@ export const submitNameCard = mutation({
     },
 });
 
+/** Submits the nominated amount to a pending `number-pick` choice (CR 107.1b /
+ *  107.3f, issue #1701). The amount is re-validated server-side against the
+ *  choice's LIVE range — a non-negative integer no greater than the payer's
+ *  spendable pool for a paying nomination — and, when the choice pays, spent
+ *  as a generic mana leg through the shared may-pay payment path. Amount 0 is
+ *  the decline and always legal. Used by Decree of Justice's cycling trigger,
+ *  Errant Minion and Power Leak. */
+export const submitNumberChoice = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        amount: v.number(),
+    },
+    handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "choice",
+        });
+
+        applyNumberChoiceSubmit(state, {
+            playerId: args.playerId,
+            amount: args.amount,
+        });
+
+        const nextSeq = gameState.seq + 1;
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
+        await finalizeGameOver(ctx, args.gameId, nextSeq, state);
+    },
+});
+
 /** Acknowledges a suspended `random-reveal` flip (CR 705.2, ADR 0023). Carries
  *  NO choice data — only "the animation finished, resume". The outcome was
  *  drawn once and persisted on the suspended step; this mutation validates the
@@ -13769,10 +13809,10 @@ export const tapUntap = mutation({
         // may activate mana abilities to make the mana the cost requires.
         // Other pending-choice kinds (keep-permanents, etc.) still freeze
         // priority and reject mana ability activation.
-        const mayPayHead = state.pendingChoices?.[0];
-        const isMayPayPaymentWindow =
-            mayPayHead?.kind === "may-pay" &&
-            mayPayHead.playerId === args.playerId;
+        const isMayPayPaymentWindow = isManaPaymentChoiceWindow(
+            state.pendingChoices?.[0],
+            args.playerId
+        );
         assertNoPendingChoices(state, {
             allowManaForMayPay: { playerId: args.playerId },
         });
@@ -14625,10 +14665,10 @@ export const activateManaAbility = mutation({
 
         // CR 608.2g / 605.3a — answering a may-pay choice opens a mana-payment
         // window; otherwise other pending choices freeze priority.
-        const mayPayHead = state.pendingChoices?.[0];
-        const isMayPayPaymentWindow =
-            mayPayHead?.kind === "may-pay" &&
-            mayPayHead.playerId === args.playerId;
+        const isMayPayPaymentWindow = isManaPaymentChoiceWindow(
+            state.pendingChoices?.[0],
+            args.playerId
+        );
         assertNoPendingChoices(state, {
             allowManaForMayPay: { playerId: args.playerId },
         });
@@ -14881,11 +14921,9 @@ export const activatePlayerAbility = mutation({
             expect: "priority",
             allowManaForMayPay: isManaAbility,
         });
-        const mayPayHead = state.pendingChoices?.[0];
         const isMayPayPaymentWindow =
             isManaAbility &&
-            mayPayHead?.kind === "may-pay" &&
-            mayPayHead.playerId === args.playerId;
+            isManaPaymentChoiceWindow(state.pendingChoices?.[0], args.playerId);
         assertNoPendingChoices(
             state,
             isManaAbility

@@ -325,6 +325,17 @@ export function heuristicChoicePrior(
         return signedMaterialPrior(candidate);
     }
 
+    // CR 107.1b / 107.3f (issue #1701) — a numeric nomination gets NO branch
+    // here, deliberately, and so falls through to the flat `NEUTRAL_PRIOR`
+    // below (`acceptOf` returns undefined for it). A cheap-first bias was
+    // written and removed at review: `0.6 - paid / 12` put a 12x prior gap
+    // against the MAX on a monotone consequence — Decree of Justice with ten
+    // spare mana wants every Soldier it can buy, and the bias is not just an
+    // expansion order, it is how PUCT allocates visits. The shipped families
+    // pull in opposite directions (monotone wants the max, capped wants a
+    // small value), so there is no direction to bias without evidence, and
+    // `.claude/rules/bot-development.md` asks for a discriminating blade pair
+    // before a preference ships. Flat is the honest prior until one exists.
     const accept = acceptOf(candidate.move);
     if (accept === undefined) return NEUTRAL_PRIOR;
 

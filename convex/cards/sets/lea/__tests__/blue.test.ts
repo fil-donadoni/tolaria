@@ -11,12 +11,16 @@ import {
     processPendingActionTriggers,
     beginApplyingStaticEffects,
     stopApplyingStaticEffects,
+    numberChoiceRange,
     type CardInstanceState,
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import {
+    applyPendingChoiceSubmit,
+    applyNumberChoiceSubmit,
+} from "../../../../gre/pendingChoiceSubmit";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -2334,7 +2338,7 @@ describe("Psychic Venom (Aura on Land — 2 damage to host's controller on tap)"
     });
 });
 
-describe("Power Leak (Aura on Enchantment — host's controller pays {U} or loses 1 life at upkeep)", () => {
+describe("Power Leak (Aura on Enchantment — host's controller may pay any amount of mana, CR 107.3f)", () => {
     function setup(activePlayerId: string) {
         const hostEnchant = makeInstance(badMoon.id, {
             id: "host-ench",
@@ -2359,30 +2363,34 @@ describe("Power Leak (Aura on Enchantment — host's controller pays {U} or lose
         });
     }
 
-    // Answer the next enqueued may-pay ("yes"/"no") and resume resolution.
-    function answerMayPay(state: ReturnType<typeof setup>, accept: boolean) {
-        const head = state.pendingChoices?.[0];
-        expect(head).toBeDefined();
-        expect(head?.kind).toBe("may-pay");
-        const item = state.stack.find((s) => s.id === head!.stackItemId)!;
-        item.collectedChoices = {
-            ...(item.collectedChoices ?? {}),
-            [`${head!.step}:${head!.choiceId}`]: [accept ? "yes" : "no"],
-        };
-        state.pendingChoices = undefined;
-        resolveTopOfStack(state);
-    }
-
-    it("queues at host's controller's upkeep and offers the first prevention may-pay", () => {
+    /** Advances to the host controller's upkeep and floats `mana` for them —
+     *  AFTER the phase change, because CR 500.4 empties every pool at each step
+     *  boundary: a payer taps their lands DURING the upkeep, while the
+     *  nomination window is open (CR 605.3a). */
+    function upkeepWithMana(mana: Record<string, number>) {
         const state = setup("p1");
         advancePhase(state);
+        state.players[0].manaPool = { ...mana };
+        return state;
+    }
+
+    it("queues at host's controller's upkeep and offers ONE paying nomination", () => {
+        const state = upkeepWithMana({ U: 3 });
         expect(state.phase).toBe("UPKEEP");
         expect(state.stack).toHaveLength(1);
         expect(state.stack[0].triggeredAbilityId).toBe("power-leak-upkeep");
-        // First call enqueues the first prevent-1 may-pay choice for p1.
+        // CR 107.3f — one prompt, offered to the HOST's controller, whose
+        // ceiling is their spendable pool (Arena parity, issue #2244: the
+        // decline is amount 0 on this same prompt, never a second question).
         resolveTopOfStack(state);
-        expect(state.pendingChoices?.[0]?.playerId).toBe("p1");
-        expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
+        const head = state.pendingChoices![0];
+        expect(head.playerId).toBe("p1");
+        expect(head.kind).toBe("number-pick");
+        expect(head.paysMana).toBe(true);
+        expect(numberChoiceRange(head, state.players[0])).toEqual({
+            min: 0,
+            max: 3,
+        });
     });
 
     it("does NOT fire on a non-host-controller's upkeep", () => {
@@ -2391,34 +2399,40 @@ describe("Power Leak (Aura on Enchantment — host's controller pays {U} or lose
         expect(state.stack).toHaveLength(0);
     });
 
-    it("paying nothing takes the full 2 damage", () => {
-        const state = setup("p1");
-        advancePhase(state);
+    it("nominating 0 takes the full 2 damage", () => {
+        const state = upkeepWithMana({ U: 3 });
         const before = state.players[0].life;
-        resolveTopOfStack(state); // enqueue prevent-1
-        answerMayPay(state, false); // decline → enqueue prevent-2
-        answerMayPay(state, false); // decline → deal 2
+        resolveTopOfStack(state);
+        applyNumberChoiceSubmit(state, { playerId: "p1", amount: 0 });
         expect(state.players[0].life).toBe(before - 2);
+        expect(state.players[0].manaPool.U).toBe(3);
     });
 
-    it("paying {1} once prevents 1 of the 2 damage", () => {
-        const state = setup("p1");
-        advancePhase(state);
+    it("paying 1 prevents 1 of the 2 damage (CR 615.1)", () => {
+        const state = upkeepWithMana({ U: 3 });
         const before = state.players[0].life;
-        resolveTopOfStack(state); // enqueue prevent-1
-        answerMayPay(state, true); // pay 1 → prevent 1, enqueue prevent-2
-        answerMayPay(state, false); // decline → deal 1
+        resolveTopOfStack(state);
+        applyNumberChoiceSubmit(state, { playerId: "p1", amount: 1 });
         expect(state.players[0].life).toBe(before - 1);
+        expect(state.players[0].manaPool.U).toBe(2);
     });
 
-    it("paying {1} twice prevents all damage", () => {
-        const state = setup("p1");
-        advancePhase(state);
+    it("paying 2 prevents all of it", () => {
+        const state = upkeepWithMana({ U: 3 });
         const before = state.players[0].life;
-        resolveTopOfStack(state); // enqueue prevent-1
-        answerMayPay(state, true); // pay 1 → prevent 1
-        answerMayPay(state, true); // pay 1 → prevent 1, all 2 prevented
+        resolveTopOfStack(state);
+        applyNumberChoiceSubmit(state, { playerId: "p1", amount: 2 });
         expect(state.players[0].life).toBe(before);
+        expect(state.players[0].manaPool.U).toBe(1);
+    });
+
+    it("the nomination is refused above the payer's pool — the ceiling is real, not advisory", () => {
+        const state = upkeepWithMana({ U: 1 });
+        resolveTopOfStack(state);
+        expect(() =>
+            applyNumberChoiceSubmit(state, { playerId: "p1", amount: 2 })
+        ).toThrow(/between 0 and 1/);
+        expect(state.pendingChoices).toHaveLength(1);
     });
 });
 

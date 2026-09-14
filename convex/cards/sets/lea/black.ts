@@ -166,15 +166,21 @@ export const cursedLand: CardDefinition = {
                 "At the beginning of the upkeep of enchanted land's controller, Cursed Land deals 1 damage to that player.",
             phase: "UPKEEP",
             scope: "host-controller",
-            // NOT DSL-migratable (ADR 0045): a `host-controller`-scoped
-            // trigger's target player (the enchanted land's current
-            // controller, re-fetched at resolve time) has no `EffectPlayerRef`
-            // selector — `"controller"` names the AURA's controller, not the
-            // host's (same gap as Paralyze's upkeep trigger, this file).
-            // Blocked on: a host-controller player selector.
-            resolve: (ctx, _event, hostController) => {
-                ctx.dealDamage({ type: "player", id: hostController }, 1);
-            },
+            // CR 303.4 / 603.6a — "that player" is the enchanted permanent's
+            // CURRENT controller, read at RESOLVE time: `$host` is the implicit
+            // attachment-host snapshot every ability-site script gets
+            // (issue #1341), bound by `runEffectScript` on its FRESH entry from
+            // the live `ctx.getAttachedToId()` link, which is the moment CR 608.2
+            // fixes the ability's subject. `.controller` reads that snapshot's
+            // controller slot, so a control change between the trigger firing
+            // and its resolution is honoured and a later one is not.
+            effects: [
+                {
+                    op: "dealDamage",
+                    amount: 1,
+                    to: { player: { ref: "$host.controller" } },
+                },
+            ],
         }),
     ],
 };
@@ -1489,14 +1495,17 @@ export const warpArtifact: CardDefinition = {
                 "At the beginning of the upkeep of enchanted artifact's controller, Warp Artifact deals 1 damage to that player.",
             phase: "UPKEEP",
             scope: "host-controller",
-            // NOT DSL-migratable (ADR 0045): same gap as Cursed Land above —
-            // a `host-controller`-scoped trigger's target player has no
-            // `EffectPlayerRef` selector (`"controller"` names the AURA's
-            // controller, not the host's).
-            // Blocked on: a host-controller player selector.
-            resolve: (ctx, _event, hostController) => {
-                ctx.dealDamage({ type: "player", id: hostController }, 1);
-            },
+            // CR 303.4 / 603.6a — "that player" is the enchanted artifact's
+            // current controller, read through the implicit `$host` snapshot
+            // exactly as Cursed Land above; see that card for the bind-timing
+            // note.
+            effects: [
+                {
+                    op: "dealDamage",
+                    amount: 1,
+                    to: { player: { ref: "$host.controller" } },
+                },
+            ],
         }),
     ],
 };
