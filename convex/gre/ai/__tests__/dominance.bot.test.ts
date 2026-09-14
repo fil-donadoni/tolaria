@@ -1020,6 +1020,48 @@ describe("isDominatedNoOpMove — self-sacrifice activations (CR 608.2b, issue #
         );
     });
 
+    it("proves it by PAYING the sacrifice, not by resolving the ability", () => {
+        // The discriminating board for the probe's cost payment. A 3/3 Mogg
+        // Fanatic (two +1/+1 counters) aimed at itself:
+        //
+        //   * paying the cost first — what the engine does, CR 601.2h — puts
+        //     the Fanatic in the graveyard, leaves the ability with no legal
+        //     target and counters it (CR 608.2b). Pure cost: dominated.
+        //   * NOT paying it leaves the Fanatic on the battlefield, so the
+        //     ability resolves and deals it 1 damage, which a 3/3 shrugs off.
+        //     The probe then ends with the source still on the battlefield and
+        //     nothing in the graveyard to account for — unprovable, not pruned.
+        //
+        // So this case is `true` only while `applyProbeActivation` really pays
+        // the sacrifice; with the payment removed it goes `false`, which is
+        // what a 1/1 Fanatic cannot show (damage kills it and both routes end
+        // in the graveyard).
+        const state = build({
+            cards: [
+                {
+                    name: "Mogg Fanatic",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    summoningSick: false,
+                    counters: { "+1/+1": 2 },
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        });
+        const atSelf = aimedAt(
+            state,
+            activationsOf(state, "Mogg Fanatic", false),
+            "Mogg Fanatic"
+        );
+        expect(atSelf).toBeDefined();
+        expect(isDominatedNoOpMove(state, me(state), atSelf as Move)).toBe(
+            true
+        );
+    });
+
     it("NEGATIVE CONTROL: the payoff that IS the payment survives — a death trigger", () => {
         // Enduring Renewal — "Whenever a creature is put into your graveyard
         // from the battlefield, return it to your hand." The self-targeted
