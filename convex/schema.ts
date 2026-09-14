@@ -78,8 +78,11 @@ export default defineSchema({
         seq: v.number(),
         state: v.any(),
         // Game-mode flags MIRRORED from the owning `games` row, stamped once
-        // when this row is inserted (`saveGameState`, `convex/game.ts`) and
-        // immutable thereafter — a Game never changes mode after creation.
+        // when this row is inserted (`saveGameState`, `convex/game.ts`).
+        // Immutable thereafter with ONE exception: `debugLoadBladeScenario`
+        // (admin-only, issue #3443) converts a solo game to vs-AI permanently
+        // and re-stamps both flags here, because a row that already exists is
+        // never revisited by the insert-time mirror above.
         //
         // They live here purely as a read-bandwidth fix (PRD #1776 follow-up).
         // `getPublicState` needs exactly these two booleans off the `games`

@@ -487,12 +487,12 @@ import {
     allSeatsReady,
     applySideboard,
     assertNotEventBotSeat,
+    bladeLoadBotSeatId,
     botIsChooser,
     botSeatId,
     buildNextGameSeats,
     findActiveMatchForUser,
     forfeitMatch as computeForfeitMatch,
-    isBotSeat,
     matchBelongsToUser,
     nextGameActivePlayerId,
     pickCoinTossWinner,
@@ -819,6 +819,9 @@ async function saveGameState(
         // read for them — once per game, at insert — so that `getPublicState`
         // never has to. Both are written explicitly, `false` included, so the
         // reader can tell "not solo" from "row predates the field".
+        // The one later writer is `debugLoadBladeScenario`'s solo → vs-AI
+        // conversion (issue #3443), which re-stamps them on an EXISTING row
+        // precisely because this branch never runs again.
         const game = await ctx.db.get(gameId);
         await ctx.db.insert("gameStates", {
             gameId,
@@ -15871,29 +15874,17 @@ export const debugLoadBladeScenario = mutation({
         // had just moved.
         const game = await ctx.db.get(args.gameId);
         if (!game) throw new Error("Game not found");
-        if (game.solo !== true) {
-            throw new Error(
-                "A blade scenario is a question about the Bot, and this is a " +
-                    "two-player game — loading one would hand the position to " +
-                    "another person's seat. Start a solo or vs-AI game instead."
-            );
-        }
-        const botPlayerId = game.players.find((p) => isBotSeat(p.id))?.id;
-        if (!botPlayerId) {
-            throw new Error(
-                "This game has no bot seat (ADR 0001: `${userId}-p2`), so a " +
-                    "blade scenario has nothing to ask."
-            );
-        }
+        const botPlayerId = bladeLoadBotSeatId(game);
 
         // Label lookup + state build both live in `resolveBladeLoadState`
         // (`gre/ai/blade/runner.ts`) — this handler is a thin wrapper around
         // it (ctx / admin gate / fetch / persist only), so the pure-function
         // test suite in `convex/__tests__/debugLoadBladeScenario.test.ts`
         // exercises the exact code this mutation runs (issue #1432 review
-        // round 2, finding #1). It throws — and this whole mutation rolls
-        // back, conversion included — when the built position owes the bot
-        // seat nothing.
+        // round 2, finding #1). It throws when the built position owes the
+        // bot seat nothing — before this handler has written anything, and in
+        // any case a Convex mutation that throws applies none of its writes,
+        // so a refusal can never leave a converted game behind.
         const state = resolveBladeLoadState(
             gameState.state as GameState,
             args.label,
@@ -15923,7 +15914,14 @@ export const debugLoadBladeScenario = mutation({
             // owes input: the human's view would jump to the bot's seat on
             // every beat. Written here, BEFORE the save, so the very first
             // snapshot the client reads after this mutation already carries it.
-            await ctx.db.patch(gameState._id, { vsAi: true });
+            // BOTH flags, not just the one that changed: a row written before
+            // the mirror existed carries NEITHER, and that pair — not `false` —
+            // is the legacy marker `getPublicState` falls back on and
+            // `backfillGameStateMode` looks for. Writing `vsAi` alone would
+            // leave `solo: undefined` beside a defined `vsAi` forever, a shape
+            // neither reader has a case for. `solo` is known true here: the
+            // game-kind check above refused anything else.
+            await ctx.db.patch(gameState._id, { solo: true, vsAi: true });
         }
 
         await saveGameState(

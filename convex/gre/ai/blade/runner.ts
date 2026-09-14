@@ -19,6 +19,8 @@
  * Pure and synchronous: no Convex `ctx`, no DB, no network.
  */
 
+import { ConvexError } from "convex/values";
+
 import { getCardByName } from "../../../cards";
 import {
     assertLiveGameCanContinue,
@@ -95,8 +97,13 @@ export class BladeDeciderError extends Error {
  *  seat is not one of its seats, or the built position owes that seat nothing,
  *  so loading it would leave a developer staring at a board where nothing is
  *  ever going to move. Refusing is the whole point: before this, a mismatched
- *  position was saved and the board simply stopped. */
-export class BladeLoadError extends Error {
+ *  position was saved and the board simply stopped.
+ *
+ *  `ConvexError`, not `Error`, for the same reason `assertExpectedInput`
+ *  (`gre/expectedInput.ts`) uses one: a production deployment strips a plain
+ *  `Error`'s message before it reaches the client, and this message IS the
+ *  feedback — the panel renders it and nothing else happened. */
+export class BladeLoadError extends ConvexError<string> {
     constructor(message: string) {
         super(message);
         this.name = "BladeLoadError";
@@ -189,6 +196,16 @@ export function buildBladeLoadState(
     // entries declaring `bot: "me"` the whole position arrived reversed, the
     // human holding the cards and the decision the entry exists to ask the
     // Bot about.
+    //
+    // Consequence worth stating: the LIVE state that gets persisted therefore
+    // has the Bot as `players[0]` after a `bot: "me"` load, and
+    // `buildStateFromScenario`'s `"me"` is `players[0]` for every later build
+    // on that state — so a DB-backed Debug scenario loaded into the same game
+    // afterwards lands on the Bot's seat too. That is the sibling loader's
+    // own positional convention, not a new mechanism; giving
+    // `buildStateFromScenario` an explicit `mySeatId` (the way `specFromState`
+    // already takes one) is what would decouple the two, and it is out of
+    // this issue's scope.
     //
     // The choice is made HERE, at construction, and not by mirroring the spec
     // afterwards, because `ScenarioSpec` has no field for the turn holder:

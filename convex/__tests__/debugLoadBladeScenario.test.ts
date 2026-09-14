@@ -31,7 +31,9 @@
 // `findBladeScenario` in isolation.
 
 import { describe, it, expect } from "vitest";
+import { ConvexError } from "convex/values";
 import { isAdminUser } from "../auth";
+import { bladeLoadBotSeatId } from "../matches";
 import type { Doc } from "../_generated/dataModel";
 import type { GameState } from "../gre/state";
 import { STARTING_LIFE } from "../gre/setup";
@@ -41,6 +43,7 @@ import { BLADE_SCENARIOS, findBladeScenario } from "../gre/ai/blade/registry";
 import {
     assertBotOwesInput,
     BladeLoadError,
+    buildBladeLoadState,
     buildBladeState,
     resolveBladeLoadState,
 } from "../gre/ai/blade/runner";
@@ -339,10 +342,11 @@ describe("debugLoadBladeScenario — loaded position matches the harness's built
  * for it. The block below drives the exact function `debugLoadBladeScenario`
  * calls, under seat ids that are deliberately NOT `p1`/`p2`.
  */
-describe("debugLoadBladeScenario — a `setup`-carrying entry loads its engine-built stack (issue #1487)", () => {
-    const CHARTER_LABEL =
-        "charter: Stifles its own Phyrexian Dreadnought trigger";
+/** Pinned by two blocks below — the `setup` one and the orientation one. A
+ *  Charter Scenario, so it is the last entry the registry would quietly drop. */
+const CHARTER_LABEL = "charter: Stifles its own Phyrexian Dreadnought trigger";
 
+describe("debugLoadBladeScenario — a `setup`-carrying entry loads its engine-built stack (issue #1487)", () => {
     it("loads the charter entry with its ETB trigger on the stack under non-p1/p2 seat ids", () => {
         const base = arbitraryCurrentGameBaseState();
         // Guards the premise of this whole block: if the base state ever
@@ -412,16 +416,20 @@ describe("debugLoadBladeScenario — mutation body throws on an unknown label (i
  */
 describe("debugLoadBladeScenario — the seat under test lands on the live Bot (issue #3443)", () => {
     it('mirrors a `bot: "me"` entry: cards, active player and priority all on the Bot\'s seat', () => {
-        const scenario = BLADE_SCENARIOS.find((s) => s.bot === "me");
-        expect(scenario).toBeDefined();
+        // A PINNED entry, not `.find(...)`: the battlefield loop below goes
+        // vacuous on an entry whose `"me"` battlefield happens to be empty,
+        // and which entry `find` returns is whatever the registry lists first.
+        const scenario = findBladeScenario(CHARTER_LABEL);
+        expect(scenario?.bot).toBe("me");
         const loaded = runMutationBody(
             arbitraryCurrentGameBaseState(),
-            scenario!.label
+            CHARTER_LABEL
         );
 
         expect(loaded.players[0].id).toBe(BOT_SEAT);
         expect(loaded.activePlayerId).toBe(BOT_SEAT);
         expect(loaded.priorityPlayerId).toBe(BOT_SEAT);
+        expect(loaded.players[0].battlefield.length).toBeGreaterThan(0);
         // The spec's own `"me"` battlefield belongs to the Bot, controller id
         // included — the orientation is chosen at CONSTRUCTION, so every
         // card's `controllerId`/`ownerId` is the Bot's from the first card
@@ -453,9 +461,15 @@ describe("debugLoadBladeScenario — the seat under test lands on the live Bot (
     // property the developer is relying on when they click the row.
     for (const scenario of BLADE_SCENARIOS) {
         it(`"${scenario.label}" (bot: ${scenario.bot}) — the built load state owes input to the live Bot's seat`, () => {
-            const loaded = runMutationBody(
+            // `buildBladeLoadState` DIRECTLY, not through
+            // `resolveBladeLoadState`: the latter already runs
+            // `assertBotOwesInput` on this very fact, so an assertion after it
+            // could never fail — the test would be carried by the throw and
+            // state nothing of its own.
+            const loaded = buildBladeLoadState(
                 arbitraryCurrentGameBaseState(),
-                scenario.label
+                scenario,
+                BOT_SEAT
             );
             expect(computeOwedPlayerIds(loaded)).toContain(BOT_SEAT);
         });
@@ -515,5 +529,47 @@ describe("debugLoadBladeScenario — refuses a position the Bot does not owe inp
                 "someone-else-p2"
             )
         ).toThrow(BladeLoadError);
+    });
+});
+
+/**
+ * WHICH GAME can hold a blade position (issue #3443) — the mutation's own
+ * game-kind branch, as the pure decision `bladeLoadBotSeatId`
+ * (`convex/matches.ts`) rather than an inline block, so it is testable without
+ * the Convex runtime this project has no harness for. Same split the file
+ * header describes for `isAdminUser` and `resolveBladeLoadState`.
+ */
+describe("debugLoadBladeScenario — the game kind decides whether an entry can land (issue #3443)", () => {
+    const seats = (...ids: string[]) => ids.map((id) => ({ id }));
+
+    it("names the `-p2` seat for solo and vs-AI alike", () => {
+        // Deliberately blind to `vsAi`: a vs-AI game IS a solo game whose
+        // second seat has a Brain on it (ADR 0001), and the seat is the same
+        // either way — which is what makes the conversion the CALLER's job
+        // and leaves nothing here to branch on.
+        expect(
+            bladeLoadBotSeatId({
+                solo: true,
+                players: seats(HUMAN_SEAT, BOT_SEAT),
+            })
+        ).toBe(BOT_SEAT);
+    });
+
+    it("refuses a two-player game rather than orienting onto someone else's seat", () => {
+        expect(() =>
+            bladeLoadBotSeatId({ players: seats("user_a", "user_b") })
+        ).toThrow(ConvexError);
+        expect(() =>
+            bladeLoadBotSeatId({ players: seats("user_a", "user_b") })
+        ).toThrow(/two-player game/);
+    });
+
+    it("refuses a solo game with no `-p2` seat", () => {
+        expect(() =>
+            bladeLoadBotSeatId({
+                solo: true,
+                players: seats("user_abc123-p1", "user_abc123-p3"),
+            })
+        ).toThrow(/no bot seat/);
     });
 });
