@@ -3665,6 +3665,29 @@ describe("Errant Minion (CR 107.3f / 615.1, issue #1701)", () => {
         expect(full.players[1].manaPool.U).toBe(1);
     });
 
+    it("an OVERPAYMENT banks no residual shield — CR 615.1 covers only THAT damage", () => {
+        // The text caps nothing, so nominating above 2 is legal; what it must
+        // NOT do is leave the surplus sitting on the player as generic,
+        // until-CLEANUP prevention against any source. PR #3568 review measured
+        // exactly that before the clamp: nominate 7, take 0, and carry 5 points
+        // of free prevention for the rest of the turn.
+        const state = upkeepWithMana({ U: 7 });
+        const before = state.players[1].life;
+        resolveTopOfStack(state);
+        applyNumberChoiceSubmit(state, { playerId: "p2", amount: 7 });
+
+        expect(state.players[1].life).toBe(before); // all 2 prevented
+        expect(state.players[1].manaPool.U ?? 0).toBe(0); // all 7 really paid
+        // The shield is SPENT, not banked: no prevention capacity survives to
+        // absorb the next source's damage. (A spent entry may linger until
+        // CLEANUP — what must be zero is what it can still absorb.)
+        const banked = (state.targetPreventionShields ?? []).reduce(
+            (sum, s) => sum + (s.remaining ?? 0),
+            0
+        );
+        expect(banked).toBe(0);
+    });
+
     it("wire format: the nomination and its bounds reach the client", () => {
         const state = upkeepWithMana({ U: 2 });
         resolveTopOfStack(state);

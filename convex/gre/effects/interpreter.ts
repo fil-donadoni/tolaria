@@ -6187,6 +6187,24 @@ function scopedContext(
             ctx.recallChoice(scope(choiceId)) ?? ctx.recallChoice(choiceId),
         requestChoice: (req) =>
             ctx.requestChoice({ ...req, choiceId: scope(req.choiceId) }),
+        // CR 107.3f (issue #1701) — the numeric nomination is scoped for the
+        // same reason `requestChoice` is: its stored answer is keyed by
+        // `choiceId`, and inside a `forEach` body every iteration asks the
+        // SAME author binding name. Unscoped, the enqueue still prompts once
+        // per iteration (the key folds `resolutionStep`, which is the Op's
+        // per-iteration position), but the READ falls back to the unscoped
+        // name and `recallChoice` returns the FIRST key whose suffix matches —
+        // so iteration 2 pays its own amount and then reads iteration 1's.
+        // Measured on a players-set forEach before this line existed: p1
+        // nominates 3 and p2 nominates 1, and p2 gains 3.
+        //
+        // `requestMayPay` is NOT scoped here and carries the identical defect
+        // for its boolean binding, on ~10 shipped card sites. That is a
+        // pre-existing bug with its own blast radius, not this Op's to change
+        // under an unrelated issue — drafted in
+        // `docs/findings/1701-maypay-binding-unscoped-inside-foreach.md`.
+        requestNumberChoice: (req) =>
+            ctx.requestNumberChoice({ ...req, choiceId: scope(req.choiceId) }),
     };
 }
 

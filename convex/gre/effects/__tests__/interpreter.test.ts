@@ -14157,6 +14157,54 @@ describe("Effect Script Op: payVariableMana (CR 107.3f, issue #1701)", () => {
         expect(state.players[0].life).toBe(22);
     });
 
+    it("inside a forEach body, each player's nomination is their OWN — the binding is per-iteration", () => {
+        // The construct combination `/new-op` step 6 demands (bind/ref/if/
+        // forEach). Every iteration asks the SAME author binding name, so the
+        // stored answer must be scoped per iteration or the second player pays
+        // their own amount and then reads the first player's: measured exactly
+        // that before `scopedContext` scoped `requestNumberChoice` — p1
+        // nominates 3, p2 nominates 1, and p2 gains 3.
+        const id = registerScript("test-op-payvariable-foreach", [
+            {
+                op: "forEach",
+                select: { set: "players" },
+                effects: [
+                    {
+                        op: "payVariableMana",
+                        player: { ref: "$each" },
+                        prompt: "Pay any amount of mana",
+                        bind: "$paid",
+                    },
+                    {
+                        op: "gainLife",
+                        player: { ref: "$each" },
+                        amount: { ref: "$paid" },
+                    },
+                ],
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { manaPool: { W: 5 } }),
+                makePlayer("p2", { manaPool: { U: 5 } }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+
+        // CR 101.4 APNAP — the active player nominates first.
+        expect(state.pendingChoices![0].playerId).toBe("p1");
+        applyNumberChoiceSubmit(state, { playerId: "p1", amount: 3 });
+        expect(state.pendingChoices![0].playerId).toBe("p2");
+        applyNumberChoiceSubmit(state, { playerId: "p2", amount: 1 });
+
+        expect(state.players[0].life).toBe(23); // p1 paid 3, gained 3
+        expect(state.players[1].life).toBe(21); // p2 paid 1, gained 1
+        expect(state.players[0].manaPool.W).toBe(2);
+        expect(state.players[1].manaPool.U).toBe(4);
+        expect(state.stack).toHaveLength(0);
+    });
+
     it("survives the wire projection with its bounds intact, to BOTH seats, leaking nothing hidden", () => {
         const id = registerScript("test-op-payvariable-wire", [
             {

@@ -658,12 +658,42 @@ export const errantMinion: CardDefinition = {
                     prompt: "Pay any amount of mana — each {1} prevents 1 damage from Errant Minion",
                     bind: "$paid",
                 },
+                // CR 615.1 — "prevent X of THAT damage": the shield covers
+                // the Aura's own 2-damage event and nothing else. A nomination
+                // ABOVE 2 is legal (the text caps nothing), but the surplus
+                // prevents nothing, so the shield is clamped to the damage this
+                // Aura deals. Without the clamp an overpayment banks the
+                // remainder as generic, until-CLEANUP prevention against ANY
+                // source — free protection the card does not grant, and a
+                // positive eval signal the bot can learn to overpay for
+                // (PR #3568 review). Expressed with the frozen `if` construct
+                // over the numeric binding rather than a new `min` value
+                // member: the two branches are the whole rule.
                 {
-                    op: "preventDamage",
-                    mode: "next-n",
-                    to: { player: { ref: "$host.controller" } },
-                    amount: { ref: "$paid" },
-                    duration: { phase: "end-of-turn" },
+                    op: "if",
+                    predicate: {
+                        left: { ref: "$paid" },
+                        op: "ge",
+                        right: 2,
+                    },
+                    then: [
+                        {
+                            op: "preventDamage",
+                            mode: "next-n",
+                            to: { player: { ref: "$host.controller" } },
+                            amount: 2,
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                    else: [
+                        {
+                            op: "preventDamage",
+                            mode: "next-n",
+                            to: { player: { ref: "$host.controller" } },
+                            amount: { ref: "$paid" },
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
                 },
                 {
                     op: "dealDamage",
