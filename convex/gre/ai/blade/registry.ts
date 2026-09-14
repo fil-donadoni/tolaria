@@ -6955,6 +6955,68 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: 'Issue #2716 — the Landstill list\'s only win condition (CR 107.3f / 702.29c), the valuation half. Proven red by breaking the CARD: `count: { ref: "$paid" }` → a literal 0 makes the payment buy nothing and the bot stops paying for it.',
     },
     {
+        // DECK KEY LINE, EMPTY-POOL TWIN (issue #3569, PRD #2693).
+        //
+        // The entry above is the same Landstill line with the mana already
+        // floating, and it says in its own note what that costs it: the
+        // nomination's ceiling was `spendableManaTotal` — the POOL — and the
+        // search had no move for the CR 608.2g window the live engine opens
+        // through `isManaPaymentChoiceWindow`. Measured at `a10dde972` with
+        // three untapped lands and an empty pool, `enumerateMoves` offered
+        // `number-choice:0` and nothing else.
+        //
+        // This is the position a real game is ALWAYS in. CR 500.5 empties the
+        // pool at the end of every step and phase, so by the time the cycled
+        // trigger resolves the only mana the seat has is still in the ground.
+        // Both entries stay: the one above is the VALUATION claim (given the
+        // mana, the bot spends it on bodies) and this one is the REACHABILITY
+        // claim (the mana is gettable at all), and either can red without the
+        // other.
+        //
+        // The pool holds EXACTLY the cycling cost and not a mana more. That
+        // is not decoration: the `activate` setup step commits costs, it does
+        // not decide them, so a cycling cost paid by tapping lands parks at
+        // `pendingActivation` and the step throws — the {2}{W} has to float,
+        // and anything left over would fund the nomination from the pool and
+        // silently restore the entry above.
+        label: "landstill key line: taps for {X} on the cycled Decree (empty pool)",
+        spec: {
+            cards: [{ name: "Decree of Justice", owner: "me", zone: "hand" }],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            // The nomination's whole range comes from HERE — three untapped
+            // basics, which CR 608.2g lets the payer tap while the question
+            // is the head choice.
+            landCount: 3,
+            libraryCount: 20,
+            manaPool: { me: { W: 3 } },
+        },
+        setup: [
+            { kind: "activate", card: "Decree of Justice", zone: "hand" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            // A `predicate` for the same two reasons the twin above carries
+            // one: `MoveMatcher` has no numeric field, and the claim is a
+            // THRESHOLD. The threshold here is the WEAKEST one that means
+            // anything — "more than the decline" — because what this entry
+            // pins is that the window is walkable at all; the ceiling claim
+            // is the twin's.
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "number-choice" &&
+                move.amount > 0 &&
+                (move.tapPlan?.length ?? 0) > 0,
+            describe:
+                "nominates more than nothing, funded by tapping its own lands",
+        },
+        note: "Issue #3569 — CR 608.2g reachability for a paying numeric nomination. Proven red by reverting the generator's widened ceiling (`manaWindowPayerView` → the bare `payer` in `numberPickCandidates`, `gre/ai/choiceCandidates.ts`): the range collapses to the empty pool and the only move is `number-choice:0`, on every seed.",
+    },
+    {
         // DECK KEY LINE (issue #2715, PRD #2693).
         //
         // Parallax Replenish's whole deck is this one card: Attunement and

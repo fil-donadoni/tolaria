@@ -24,7 +24,7 @@ import {
     makePlayer,
     makeState,
 } from "../../../cards/__tests__/setup";
-import { registerTokenDefinition } from "../../../cards";
+import { getCardByName, registerTokenDefinition } from "../../../cards";
 import { pushSpell } from "../../../cards/__tests__/setup";
 import { resolveTopOfStack } from "../../state";
 
@@ -270,5 +270,123 @@ describe("number-pick candidates for a BARE nomination (CR 107.1c, issue #1421)"
         expect(state.players[0].manaPool.R).toBe(3); // a bare nomination pays nothing
         expect(state.players[0].life).toBe(24);
         expect(state.stack).toHaveLength(0);
+    });
+});
+
+// --- the CR 608.2g mana window (issue #3569) -------------------------------
+//
+// "If an effect gives a player the option to pay mana, they may activate mana
+// abilities before taking that action." The live engine honours it
+// (`isManaPaymentChoiceWindow`, `gre/state.ts`) and the Bot could not walk
+// through the door: while a pending choice is the head, `enumerateMoves` emits
+// that choice's own answers and nothing else, and the search has no standalone
+// tap-for-mana move at all.
+//
+// The silent failure that hides behind a green suite is the whole reason this
+// block exists. CR 500.5 / 106.4 empty the pool at the end of every step and
+// phase, so at the moment a cycled trigger or an upkeep trigger asks the
+// question the pool is empty BY RULE: a ceiling read off the pool alone makes
+// 0 the only legal nomination in every position a real game reaches, while
+// every test written on a PRE-FLOATED pool passes.
+
+const MOUNTAIN_ID = getCardByName("Mountain")!.id;
+
+/** A paying nomination owed by a seat with untapped lands and an EMPTY pool —
+ *  the position a real game is always in (CR 500.5). Built through the engine
+ *  like `suspendedNomination`, so the `PendingChoice` is the engine's own. */
+function suspendedNominationOffLands(
+    lands: number,
+    pool: Record<string, number> = {}
+): GameState {
+    const p1 = makePlayer("p1", { manaPool: pool });
+    p1.battlefield = Array.from({ length: lands }, () =>
+        makeInstance(MOUNTAIN_ID, { controllerId: "p1" })
+    );
+    const state = makeState({ players: [p1, makePlayer("p2")] });
+    pushSpell(state, NOMINATOR_ID, "p1");
+    resolveTopOfStack(state);
+    return state;
+}
+
+describe("number-pick candidates inside the CR 608.2g mana window (issue #3569)", () => {
+    it("reaches past an EMPTY pool to what the untapped sources could still make", () => {
+        const state = suspendedNominationOffLands(3);
+        const choice = state.pendingChoices![0];
+        // The pool-only range — what the submit validator would accept with no
+        // taps — is the decline and nothing else. That is the bug.
+        expect(numberChoiceRange(choice, state.players[0]).max).toBe(0);
+        const amounts = amountsOf(state, choice);
+        expect(amounts).toContain(3);
+        expect(Math.max(...amounts)).toBe(3);
+    });
+
+    it("every candidate above the pool carries the tap plan that funds it", () => {
+        const state = suspendedNominationOffLands(3);
+        for (const candidate of generate(state, state.pendingChoices![0])) {
+            expect(candidate.move.kind).toBe("number-choice");
+            if (candidate.move.kind !== "number-choice") continue;
+            const taps = candidate.move.tapPlan ?? [];
+            // One source, one mana: a Mountain taps for exactly {R}, so the
+            // plan's length IS the amount whenever the pool holds nothing.
+            expect(taps).toHaveLength(candidate.move.amount);
+            // …and it names real, distinct, untapped permanents of the payer.
+            const ids = new Set(taps.map((t) => t.cardInstanceId));
+            expect(ids.size).toBe(taps.length);
+            for (const id of ids) {
+                expect(
+                    state.players[0].battlefield.some((c) => c.id === id)
+                ).toBe(true);
+            }
+        }
+    });
+
+    it("carries NO tap plan for what the pool already covers — the pre-floated answer is unchanged", () => {
+        const state = suspendedNominationOffLands(3, { R: 2 });
+        const byAmount = new Map(
+            generate(state, state.pendingChoices![0]).map((c) => [
+                c.move.kind === "number-choice" ? c.move.amount : -1,
+                c.move,
+            ])
+        );
+        // Pool 2 + three untapped Mountains: the ceiling is 5, the first two
+        // are free and only the rest plan taps.
+        expect(byAmount.get(2)).toEqual({ kind: "number-choice", amount: 2 });
+        expect(Math.max(...byAmount.keys())).toBe(5);
+        const top = byAmount.get(5)!;
+        expect(top.kind === "number-choice" && top.tapPlan).toHaveLength(3);
+    });
+
+    it("the search TAPS then submits — the sources are really tapped and the pool ends where it began", () => {
+        const state = suspendedNominationOffLands(3);
+        const top = generate(state, state.pendingChoices![0]).find(
+            (c) => c.move.kind === "number-choice" && c.move.amount === 3
+        )!;
+        applyMoveInSearch(state, "p1", top.move);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        // The payment really happened: three Mountains tapped, three life
+        // gained by the script's `gainLife` on `$paid`…
+        expect(
+            state.players[0].battlefield.filter((c) => c.isTapped)
+        ).toHaveLength(3);
+        expect(state.players[0].life).toBe(23);
+        // …and nothing leaked into the leaf position for a later move to spend
+        // a second time: the credit is the shortfall, the submit takes it all.
+        expect(
+            Object.values(state.players[0].manaPool).reduce((s, n) => s + n, 0)
+        ).toBe(0);
+    });
+
+    it("a BARE nomination opens no window — it spends nothing, so there is nothing to tap for", () => {
+        const state = suspendedBareNomination((p1) => {
+            p1.battlefield = [
+                makeInstance(MOUNTAIN_ID, { controllerId: "p1" }),
+                makeInstance(MV4_ID, { controllerId: "p1" }),
+            ];
+        });
+        for (const candidate of generate(state, state.pendingChoices![0])) {
+            expect(candidate.move.kind).toBe("number-choice");
+            if (candidate.move.kind !== "number-choice") continue;
+            expect(candidate.move.tapPlan).toBeUndefined();
+        }
     });
 });
