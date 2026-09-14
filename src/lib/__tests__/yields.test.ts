@@ -10,6 +10,8 @@
 import { describe, it, expect } from "vitest";
 import { makeInstance, makeState } from "@convex/cards/__tests__/setup";
 import { getCardByName } from "@convex/cards";
+import { turnFaceDown } from "@convex/gre/faceDown";
+import { NO_BOARD_LAYER_VIEW } from "@convex/gre/layers";
 import { projectPublicState } from "@convex/gameProjections";
 import type {
     GameState,
@@ -151,6 +153,49 @@ describe("Yield key identity — the ABILITY, not the object (issue #3556 §2)",
             yieldCardIdentityForDefinition(NOBLE.id)
         );
         expect(after.p1).toEqual([yieldKeyForStackItem(ignoble)]);
+    });
+});
+
+describe("A face-down spell has no Yield identity (CR 708.2a)", () => {
+    // `turnFaceDown` swaps the stack item's own `card.id` to the shared
+    // FACE_DOWN_CARD_ID sentinel for EVERY viewer, caster included — so keying
+    // on it would put every face-down cast of every card in ONE bucket, and a
+    // yield set on a face-down Serra Angel would auto-pass the next face-down
+    // anything. CR 708.2a gives such a spell no name: it gets no key, and
+    // therefore no toggle.
+    function projectFaceDownSpell(
+        viewerId: "p1" | "p2",
+        defId: string = NOBLE.id
+    ): StackItem {
+        const spell = makeInstance(defId, {
+            id: "fd-spell",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "stack",
+        });
+        turnFaceDown(NO_BOARD_LAYER_VIEW, spell as never, "morph");
+        const state: GameState = makeState({
+            stack: [{ ...spell, castById: "p1" } as EngineStackItem],
+        } as Partial<GameState>);
+        return projectPublicState(state, 1, viewerId)
+            .stack[0] as unknown as StackItem;
+    }
+
+    it("mints no key, for the caster or the opponent", () => {
+        expect(yieldKeyForStackItem(projectFaceDownSpell("p1"))).toBeNull();
+        expect(yieldKeyForStackItem(projectFaceDownSpell("p2"))).toBeNull();
+    });
+
+    it("does not carry a yield from one face-down cast to an unrelated one", () => {
+        // Whatever key the FIRST face-down spell would mint, the SECOND — a
+        // different card entirely — must not be covered by it.
+        const first = projectFaceDownSpell("p1", NOBLE.id);
+        const second = projectFaceDownSpell("p1", IGNOBLE.id);
+        const mintedFromFirst = yieldKeyForStackItem(first);
+        const held: YieldState = {
+            p1: mintedFromFirst ? [mintedFromFirst] : [],
+        };
+        expect(shouldAutoPassYield(ctxFor([second]), held, true)).toBe(false);
     });
 });
 

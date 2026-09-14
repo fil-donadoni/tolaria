@@ -1,5 +1,6 @@
 import type { StackItem } from "~/types/game";
 import { stackAbilityKindOf } from "~/lib/card-utils";
+import { isFaceDownCard } from "~/lib/face-down";
 import {
     computeAutoPassBlockedCore,
     type AutoPassCoreCtx,
@@ -30,9 +31,18 @@ export type YieldState = Record<string, YieldKey[]>;
  *  the toggle and the row would disagree about what is being yielded.
  *
  *  A designation trigger (CR 725 — the Monarch's end-step draw) has no card at
- *  all (`card.id` is `""`); its designation id is the identity instead. */
+ *  all (`card.id` is `""`); its designation id is the identity instead.
+ *
+ *  A FACE-DOWN spell has NO identity to key on, for anyone: CR 708.2a leaves it
+ *  nameless, and `turnFaceDown` swaps its `card.id` to the shared
+ *  `FACE_DOWN_CARD_ID` sentinel on the stack item itself, so every face-down
+ *  cast of every card would collapse into ONE key — yielding a face-down
+ *  Ambush Viper would silently auto-pass the next face-down anything. It gets
+ *  no key and therefore no toggle: a **Yield** names a card, and a face-down
+ *  spell is exactly the object that has no card to name. */
 function yieldCardIdentity(item: StackItem): string | null {
     if (item.designationId) return `designation:${item.designationId}`;
+    if (isFaceDownCard(item)) return null;
     return item.card.id ? `card:${item.card.id}` : null;
 }
 
