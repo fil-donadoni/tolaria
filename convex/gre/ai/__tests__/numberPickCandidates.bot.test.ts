@@ -1,5 +1,5 @@
-// Bot reachability for the numeric nomination (CR 107.1b / 107.3f, issue
-// #1701): can the search ANSWER a `number-pick`, and is its candidate set
+// Bot reachability for the numeric nomination (CR 107.1c / 107.3f, issues
+// #1701 / #1421): can the search ANSWER a `number-pick`, and is its candidate set
 // finite, legal and self-pruning?
 //
 // The failure this guards is the silent one. Without a generator the kind is

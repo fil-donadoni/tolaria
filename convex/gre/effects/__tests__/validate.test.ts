@@ -6666,7 +6666,7 @@ describe("validateEffectScript — chooseNumber bounds (CR 107.1c, issue #1421)"
         expect(errors[0]).toMatch(/"min" \(4\) is greater than "max" \(2\)/);
     });
 
-    it("rejects a negative literal bound (CR 107.1b — a non-negative integer)", () => {
+    it("rejects a negative literal bound — CR 107.1b bars choosing a negative number", () => {
         const errors = validateEffectScript(
             host({
                 effects: [

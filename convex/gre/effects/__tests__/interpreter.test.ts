@@ -14259,7 +14259,7 @@ describe("Effect Script Op: payVariableMana (CR 107.3f, issue #1701)", () => {
 // --- chooseNumber (CR 107.1c, issue #1421) -----------------------------------
 //
 // The Op's PERMANENT test (per-Op regime, PRD #795): the nominate ->
-// bound-value round trip with NOTHING paid, the open-ended range CR 107.1b
+// bound-value round trip with NOTHING paid, the open range CR 107.1c
 // describes, `min` / `max` as `EffectValue`s resolved at execution time, the
 // forEach construct combination, and the wire-format assertion through
 // `projectPublicState`. Every later card reusing the Op inherits this.
@@ -14274,7 +14274,7 @@ describe("Effect Script Op: chooseNumber (CR 107.1c, issue #1421)", () => {
                 bind: "$n",
             },
             // The consequence reads the NUMBER: the Op's whole purpose
-            // (CR 107.1b — the chosen value is what a later instruction uses).
+            // (CR 107.1c — the chosen value is what a later instruction uses).
             {
                 op: "gainLife",
                 player: "controller",
@@ -14308,7 +14308,7 @@ describe("Effect Script Op: chooseNumber (CR 107.1c, issue #1421)", () => {
         expect(state.stack).toHaveLength(0);
     });
 
-    it("is OPEN-ENDED with no authored bounds (CR 107.1b), refusing only a negative answer", () => {
+    it("is OPEN-ENDED with no authored bounds (CR 107.1c), refusing a negative answer and capping the rest", () => {
         const id = registerScript("test-op-choosenumber-openended", [
             {
                 op: "chooseNumber",
@@ -14324,9 +14324,9 @@ describe("Effect Script Op: chooseNumber (CR 107.1c, issue #1421)", () => {
         const head = state.pendingChoices![0];
         expect(head.numberMin).toBeUndefined();
         expect(head.numberMax).toBeUndefined();
-        // CR 107.1b's "any number" really is unbounded above: the range says
-        // so rather than collapsing to the floor, which is what would silently
-        // pin the answer to 0.
+        // CR 107.1c's "any number" does not collapse to the floor — that is
+        // what would silently pin every answer to 0 — but it is not infinite
+        // either: `MAX_CHOSEN_NUMBER` is the declared engine deviation.
         expect(numberChoiceRange(head, state.players[0]).max).toBe(
             MAX_CHOSEN_NUMBER
         );
