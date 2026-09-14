@@ -40,6 +40,7 @@ import {
     policyProbeState,
 } from "../../search";
 import { DEFAULT_EVAL_WEIGHTS, type EvalWeights } from "../evalWeights";
+import { makeInterchangeableKeyer } from "../interchangeable";
 import { seatPlayerId } from "../blade/matcher";
 import {
     featuresOfSettled,
@@ -89,7 +90,15 @@ export type VerdictPairs = {
     features: FeatureVector[];
     /** Non-empty when the verdict yielded no pairs. A REBUILT position that no
      *  longer offers the judged candidates is a finding (the verdict has gone
-     *  stale against the engine), never something to paper over. */
+     *  stale against the engine), never something to paper over.
+     *
+     *  ONE of its values is not staleness: "every disallowed candidate is
+     *  interchangeable with the allowed one" (issue #3593) says the verdict
+     *  expresses no constraint at all — it was always vacuous, and the engine
+     *  has not moved under it. `coverage.ts` counts every error in its `stale`
+     *  column, so such a verdict is mislabelled there; it wants a column of its
+     *  own. Zero verdicts in the corpus reach it today
+     *  (`docs/findings/3593-vacuous-verdict-reads-as-stale.md`). */
     error?: string;
 };
 
@@ -148,13 +157,42 @@ export function evalPairsOf(
         );
     }
 
+    const enumerated = candidateMoves(state, botId);
     const byKey = new Map<string, Move>();
-    for (const move of candidateMoves(state, botId))
-        byKey.set(moveKey(move), move);
+    for (const move of enumerated) byKey.set(moveKey(move), move);
+
+    // The interchangeability collapse (issue #3593) means a candidate set no
+    // longer holds every copy of a card: a verdict RECORDED BEFORE IT may name
+    // the copy that was collapsed away, and its `moveKey` then resolves
+    // against nothing. That would report the whole verdict stale and drop
+    // every one of its pairs — judgements that are perfectly good, thrown away
+    // over which of two identical Brushlands the judge happened to click. So a
+    // key that misses is re-read as a MOVE and matched by interchangeability,
+    // which lands on the representative by construction.
+    const collapseKeyOf = makeInterchangeableKeyer(state);
+    const byCollapseKey = new Map<string, Move>();
+    for (const move of enumerated) {
+        const key = collapseKeyOf(move);
+        if (!byCollapseKey.has(key)) byCollapseKey.set(key, move);
+    }
+    const resolveCandidate = (key: string): Move | undefined => {
+        const exact = byKey.get(key);
+        if (exact) return exact;
+        let stored: Move;
+        try {
+            stored = JSON.parse(key) as Move;
+        } catch {
+            return undefined;
+        }
+        // Only a key naming cards the rebuilt position still holds can be
+        // matched this way — `makeInterchangeableKeyer` maps an unresolvable
+        // id to itself, so a genuinely stale key stays stale.
+        return byCollapseKey.get(collapseKeyOf(stored));
+    };
 
     const moves: Move[] = [];
     for (const candidate of verdict.candidates) {
-        const move = byKey.get(candidate.key);
+        const move = resolveCandidate(candidate.key);
         if (!move) {
             return fail(
                 `candidate no longer enumerated on the rebuilt position: ${candidate.description}`
@@ -225,6 +263,31 @@ export function evalPairsOf(
     const best = allowed.reduce((a, b) =>
         features[b].policyValue > features[a].policyValue ? b : a
     );
-    const pairs = disallowed.map((i) => pairOf(verdict.answer.kind, best, i));
+    // A pair whose two sides resolve to the SAME move is not a constraint: it
+    // says a move must outrank itself, which every weight vector satisfies at
+    // delta 0 and which the census then counts as BLIND, inflating the blind
+    // column and the denominator alike. It arises exactly where issue #3593
+    // says it does — a verdict recorded before the interchangeability
+    // collapse, naming one copy of a card as right and its twin as wrong — and
+    // was 8 of the 47 blind pairs measured in issue #3588. The verdict's other
+    // pairs are untouched.
+    //
+    // A zero-basis pair carries constant loss and NO gradient, so dropping it
+    // leaves the weight fit's optimum exactly where it was; what it changes is
+    // what the census reports. Two DISTINCT disallowed candidates that resolve
+    // to the same move are deliberately NOT deduplicated here: that would drop
+    // pairs the fit actually weighs, and `weightFit.bot.test.ts` would then
+    // demand a refit the fit's own guard refuses to bless ("the fitted vector
+    // orders FEWER verdicts than the committed one"). The double-counting is a
+    // census question, not this slice's.
+    const rightKey = moveKey(moves[best]);
+    const pairs = disallowed
+        .filter((i) => moveKey(moves[i]) !== rightKey)
+        .map((i) => pairOf(verdict.answer.kind, best, i));
+    if (pairs.length === 0) {
+        return fail(
+            "every disallowed candidate is interchangeable with the allowed one — no constraint to express"
+        );
+    }
     return { verdict, pairs, features };
 }

@@ -29,6 +29,10 @@ export function greedySelectMove(
 ): Move | null {
     const moves = enumerateMoves(state, playerId, {
         pruneDominatedNoOps: true,
+        // Issue #3593 — every candidate is scored below, so two copies the
+        // engine cannot tell apart are a wasted `evaluate` and a coin-flip in
+        // the `rand` tie-break between two identical worlds.
+        collapseInterchangeable: true,
     });
     if (moves.length === 0) return null;
 

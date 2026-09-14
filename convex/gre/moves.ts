@@ -164,6 +164,7 @@ import { choiceCandidates } from "./ai/choiceCandidates";
 // Dominance pruning (issue #1887) — the generic "this move is provably
 // dominated by `pass`" seam. Opt-in per caller (see `EnumerateMovesOptions`).
 import { isDominatedNoOpMove, isProbeEligibleMove } from "./ai/dominance";
+import { collapseInterchangeableMoves } from "./ai/interchangeable";
 
 /** One land tap the executor must perform to fund a cast/activation.
  *
@@ -3968,6 +3969,23 @@ export type EnumerateMovesOptions = {
      *  re-probing — `searchWithTrace` turns it into the deny-set that keeps the
      *  dominated move out of the tree's root layer too. */
     onPruned?: (move: Move) => void;
+    /** Collapse candidates the engine cannot tell apart to ONE representative
+     *  (issue #3593) — two copies of a land in hand are one `play-land`, three
+     *  identical Treetop Villages are one animation. BOT paths only, exactly
+     *  like `pruneDominatedNoOps` above and for the same reason: a
+     *  collapsed-away copy is perfectly LEGAL, so `legalActions` and scripted
+     *  setup realisation must keep seeing the whole set.
+     *
+     *  COST: one stable stringify per move, one walk of the state, and one
+     *  stringify per referenced CARD — the last only inside a group of moves
+     *  that already share a shape, so a hand of singletons never leaves the
+     *  first pass. Paid ONCE PER DECISION, never per tree node:
+     *  `keyedMovesFor` (search.ts) deliberately does not collapse, and the
+     *  root's verdict reaches the tree's root layer as a deny-set instead. */
+    collapseInterchangeable?: boolean;
+    /** Called with each candidate `collapseInterchangeable` dropped and the
+     *  representative it collapsed onto, in enumeration order. */
+    onCollapsed?: (move: Move, representative: Move) => void;
 };
 
 /** The complete set of legal macro-moves for `playerId` at the current decision
@@ -3981,14 +3999,27 @@ export function enumerateMoves(
     const player = state.players.find((p) => p.id === playerId);
     if (!player) return [];
 
+    // Every window's exit runs through here, because this enumerator answers
+    // FIVE decision windows before the ordinary priority one and each of them
+    // returns early (PR #3599 review finding 2: the flag was accepted and
+    // silently ignored by all five — three identical Grizzly Bears stayed
+    // EIGHT attack candidates where there are four decisions, which is the
+    // largest branching case issue #3593 names).
+    const collapsed = (list: Move[]): Move[] =>
+        options?.collapseInterchangeable
+            ? collapseInterchangeableMoves(state, list, options.onCollapsed)
+            : list;
+
     // Pre-game mulligan declaration window (CR 103.5).
     if (state.phase === "MULLIGAN") {
         const m = state.mulligan;
         if (m && !m.bottoming && m.declaringPlayerId === playerId) {
-            return [
+            // Routed through `collapsed` for uniformity; a mulligan
+            // declaration names no card, so it can never be touched.
+            return collapsed([
                 { kind: "mulligan", decision: "keep" },
                 { kind: "mulligan", decision: "mull" },
-            ];
+            ]);
         }
         return [];
     }
@@ -4003,7 +4034,7 @@ export function enumerateMoves(
         !combat.confirmed &&
         state.activePlayerId === playerId
     ) {
-        return enumerateAttackerMoves(state, player);
+        return collapsed(enumerateAttackerMoves(state, player));
     }
     if (
         state.phase === "DECLARE_BLOCKERS" &&
@@ -4012,7 +4043,7 @@ export function enumerateMoves(
         !combat.blockersConfirmed &&
         state.activePlayerId !== playerId
     ) {
-        return enumerateBlockerMoves(state, player);
+        return collapsed(enumerateBlockerMoves(state, player));
     }
 
     // A live mid-resolution CHOICE is a first-class decision node (PRD #1423,
@@ -4035,7 +4066,9 @@ export function enumerateMoves(
         ) {
             return [];
         }
-        return choiceCandidates(state, headChoice).map((c) => c.move);
+        return collapsed(
+            choiceCandidates(state, headChoice).map((c) => c.move)
+        );
     }
 
     // CR 603.3d / 115.7 / 707.10b (issue #2283) — an ENGINE-RAISED target
@@ -4052,7 +4085,7 @@ export function enumerateMoves(
         state.pendingTarget &&
         pendingTargetOrigin(state.pendingTarget.kind) === "raised"
     ) {
-        return enumerateRaisedTargetMoves(state, playerId);
+        return collapsed(enumerateRaisedTargetMoves(state, playerId));
     }
 
     // Ordinary priority window. A mid-flight pending cast/target/activation is a
@@ -4322,11 +4355,17 @@ export function enumerateMoves(
     // player's own grants are scanned (mirroring the graveyard loop's
     // "your own graveyard" scoping).
     moves.push(...enumerateGrantedAbilityMoves(state, player));
-    // Dominance pruning (issue #1887). `pass` is `moves[0]` and is never a
+    // Interchangeable-candidate collapse (issue #3593), BEFORE dominance: the
+    // dominance probe is per-move and its verdict is identical for two moves
+    // the engine cannot tell apart, so collapsing first pays for the proof
+    // once instead of once per copy. `pass` names no card, so it can never be
+    // collapsed and the floor stays non-empty.
+    const candidates = collapsed(moves);
+    // Dominance pruning (issue #1887). `pass` is `candidates[0]` and is never a
     // probe candidate, so the floor can never be emptied — the filter can only
     // ever remove strictly-dominated alternatives.
-    if (!options?.pruneDominatedNoOps) return moves;
-    return moves.filter((m) => {
+    if (!options?.pruneDominatedNoOps) return candidates;
+    return candidates.filter((m) => {
         if (!isProbeEligibleMove(state, playerId, m)) return true;
         if (!isDominatedNoOpMove(state, playerId, m)) return true;
         options.onPruned?.(m);

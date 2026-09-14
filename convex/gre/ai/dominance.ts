@@ -18,7 +18,7 @@
 // compare, ~6× the cost of the enumeration it filters. So it is paid ONCE per
 // decision — `searchWithTrace` proves the root move set, then reuses the
 // verdict as a deny-set for the tree's root layer on every iteration
-// (`iterate`'s `prunedRootKeys`). In-tree enumeration (`keyedMovesFor`) does
+// (`iterate`'s `deniedRootKeys`). In-tree enumeration (`keyedMovesFor`) does
 // NOT probe. Probing there measured 42.6% of a 300-iteration search's wall
 // clock (1682 probed enumerations) — and since the budget is ITERATION-based
 // that is not "freed iterations deepen every other line", it is a straight
@@ -592,7 +592,7 @@ export function isNoOpChoiceAnswer(
 // the exact #1905 review-finding-3 shape this module's header forbids ("In-tree
 // enumeration does NOT probe … 42.6% of a 300-iteration search's wall clock").
 //
-// The fix is the same shape as `searchWithTrace`'s `prunedRootKeys` deny-set:
+// The fix is the same shape as `searchWithTrace`'s `deniedRootKeys` deny-set:
 // prove it ONCE per decision and reuse the verdict for the whole search. The
 // memo lives for exactly one `searchWithTrace` call (`beginDominanceDecision` /
 // `endDominanceDecision`, called in a `finally`), so a verdict never outlives
