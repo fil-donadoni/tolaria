@@ -3,7 +3,7 @@ import { Banner } from "@/components/ui/banner";
 
 /**
  * Global "you've lost the connection" strip (issue #2592, PRD #2405 D51).
- * Mounted once at the router root (`router.tsx`, alongside `BugReportButton`)
+ * Mounted once at the router root (`router.tsx`, alongside `BugReportHost`)
  * — every route shares one Convex client (`main.tsx`), so one subscription
  * covers the whole app rather than a per-surface one.
  *

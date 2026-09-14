@@ -1,7 +1,7 @@
 // "Report anomaly" — the decision a tester is reporting, from the box to the
 // bug-report dialog (issue #3405, PRD #3397).
 //
-// The dialog is mounted ONCE at the router root (`BugReportButton`) and owns
+// The dialog is mounted ONCE at the router root (`BugReportHost`) and owns
 // its own open flag; the decision box lives inside the debug sheet, in a
 // different subtree entirely. There is no context between them and no reason to
 // invent one for a single hand-off, so this is the same idiom the traces

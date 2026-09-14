@@ -18,6 +18,7 @@ import ControllerStripCommandStack from "./controller-strip-command-stack";
 import ControllerPhasePanel from "./controller-phase-panel";
 import AttackAllConfirmDialog from "./attack-all-confirm-dialog";
 import GameStack from "./game-stack";
+import BugReportButton from "../bug-report/bug-report-button";
 
 /** Landscape-compact controller (#335 seam, #1758/#1769): a THIN control strip
  *  docked to the board's right edge, replacing the desktop pod on a phone held
@@ -204,6 +205,15 @@ export default function ControllerLandscapeStrip({
                     >
                         <Menu className="h-4 w-4" aria-hidden />
                     </button>
+                </div>
+
+                {/* Bug-report trigger (issue #3419), right under the game-menu
+                    button and in its exact register: a 44px round control.
+                    Its own row, because the row above is already the strip's
+                    full 96px (phase tab + menu) — a third control there would
+                    crush the phase tab or widen the strip. */}
+                <div className="flex justify-end">
+                    <BugReportButton className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border-strong bg-surface-base/85 text-text-muted shadow-lg backdrop-blur-md transition-colors hover:text-text" />
                 </div>
 
                 {/* Stack toggle (issue #2589) — mounted only while the stack

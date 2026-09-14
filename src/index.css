@@ -1413,7 +1413,7 @@
            dev overlay sitting on top of an open phase sheet ate taps meant
            for the sheet's own controls (mobile UX audit, #1758). A shared
            numeric rung (rather than reusing `z-sheet`) makes this true
-           regardless of DOM mount order: `BugReportButton` mounts at the
+           regardless of DOM mount order: `BugReportFloatingButton` mounts at the
            router root, AFTER the board (and therefore after the phase
            sheet) in document order, so an equal z-index would still win
            ties and paint on top. */

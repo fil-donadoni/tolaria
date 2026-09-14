@@ -7,6 +7,7 @@ import { GameContext } from "~/hooks/useGameContext";
 import GameDialog from "~/components/ui/game-dialog";
 import { Button } from "~/components/ui/button";
 import { clearSession } from "~/lib/session";
+import { requestBugReport } from "~/lib/bug-report-requests";
 import ClearYieldsButton from "./clear-yields-button";
 import { lobbyHrefForMatch } from "~/lib/matchNavigation";
 
@@ -171,6 +172,20 @@ export default function PauseMenuDialog({
                     stays reachable when the **Stack** panel is collapsed.
                     Renders nothing while the viewing seat holds no yields. */}
                 <ClearYieldsButton variant="menu" />
+                {/* Issue #3419 — the bug report's in-game home on the portrait
+                    bar, whose four tabs are already at their touch-target
+                    budget. The menu closes first: the dialog belongs to the
+                    router-root host, not to this menu. */}
+                <Button
+                    variant="secondary"
+                    className="w-full"
+                    onClick={() => {
+                        handleOpenChange(false);
+                        requestBugReport();
+                    }}
+                >
+                    Report a bug
+                </Button>
                 <Button
                     variant="destructive"
                     className="w-full"

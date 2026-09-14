@@ -44,7 +44,7 @@ import { clearAnomalyReport } from "~/lib/ai/anomaly-report";
 import { collectAiDiagnostics } from "~/lib/ai/diagnostics";
 import { describeClientDiagnostics } from "~/lib/diagnostics/client-diagnostics";
 import AiDecisionTrace from "../ai-decision-trace";
-import BugReportButton from "~/components/bug-report/bug-report-button";
+import BugReportHost from "~/components/bug-report/bug-report-host";
 
 const ZERO_TERMS: EvalTerms = {
     life: 0,
@@ -147,7 +147,7 @@ describe("Report anomaly, from the decision box (issue #3405)", () => {
         pushAiTrace(TRACE, "worker");
         render(
             <>
-                <BugReportButton />
+                <BugReportHost />
                 <AiDecisionTrace />
             </>
         );
@@ -165,14 +165,14 @@ describe("Report anomaly, from the decision box (issue #3405)", () => {
         // filed from somewhere else entirely.
         const view = render(
             <>
-                <BugReportButton />
+                <BugReportHost />
                 <AiDecisionTrace />
             </>
         );
         pushAiTrace(TRACE, "worker");
         view.rerender(
             <>
-                <BugReportButton />
+                <BugReportHost />
                 <AiDecisionTrace />
             </>
         );
@@ -187,7 +187,7 @@ describe("Report anomaly, from the decision box (issue #3405)", () => {
         pushAiTrace(TRACE, "worker");
         render(
             <>
-                <BugReportButton />
+                <BugReportHost />
                 <AiDecisionTrace />
             </>
         );

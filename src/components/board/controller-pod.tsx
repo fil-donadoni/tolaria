@@ -10,6 +10,7 @@ import ControllerPhasePanel from "./controller-phase-panel";
 import HotkeysLegend from "./hotkeys-legend";
 import PauseMenuButton from "./pause-menu-button";
 import AttackAllConfirmDialog from "./attack-all-confirm-dialog";
+import BugReportButton from "../bug-report/bug-report-button";
 
 /** Collapsed controller pod (#331, variant H). Replaces the old left phase
  *  rail + bottom-right action bar with ONE surface docked to the board's right
@@ -123,7 +124,15 @@ export default function ControllerPod({
                 </div>
             )}
 
-            <div className="flex items-center justify-end gap-2">
+            {/* Trailing control row. The bug-report trigger is its third
+                control (issue #3419) in the hotkeys legend's own treatment —
+                same 34px box, same hairline — instead of a free-floating
+                button over the board. */}
+            <div
+                data-controller-pod-controls
+                className="flex items-center justify-end gap-2"
+            >
+                <BugReportButton className="inline-flex cursor-pointer items-center justify-center rounded-sm border border-border-strong bg-surface-elevated p-2 text-text-muted shadow-lg transition-colors hover:text-text" />
                 <HotkeysLegend />
                 <PauseMenuButton onOpen={onOpenMenu} />
             </div>

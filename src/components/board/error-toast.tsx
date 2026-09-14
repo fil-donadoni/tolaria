@@ -48,7 +48,7 @@ export default function ErrorToast({
         // content-hugging, as it was before #1819 (review fixup: an
         // unprefixed cap turned desktop from content-hugging into a fixed
         // 384px box). Anchored via {@link ABOVE_CONTROLLER_BAR} — the SAME
-        // measured-seam pattern `bug-report-button.tsx` uses — so it clears
+        // measured-seam pattern `debug-sheet.tsx` tab uses — so it clears
         // the portrait bottom bar whatever height it currently measures
         // (a wrapped, two-line DECLARE_ATTACKERS bar is taller than the old
         // hardcoded `bottom-24`/96px this replaces). `md:bottom-24` keeps

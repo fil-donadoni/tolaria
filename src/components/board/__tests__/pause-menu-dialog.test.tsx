@@ -12,6 +12,7 @@ import type { PublicMatch } from "@convex/matches";
 import type { Id } from "@convex/_generated/dataModel";
 import { GameContext } from "~/hooks/useGameContext";
 import PauseMenuDialog from "../pause-menu-dialog";
+import { subscribeBugReportRequests } from "~/lib/bug-report-requests";
 
 const concede = vi.fn(() => Promise.resolve(undefined));
 const forfeitMatch = vi.fn(() => Promise.resolve(undefined));
@@ -187,5 +188,29 @@ describe("PauseMenuDialog in a Manual Game (issue #2353)", () => {
         fireEvent.click(getByRole("button", { name: "No" }));
         expect(getByRole("button", { name: "Concede" })).toBeTruthy();
         expect(manualConcedeMatch).not.toHaveBeenCalled();
+    });
+});
+
+// Issue #3419: the portrait bar has no room for a bug-report control, so the
+// pause menu carries the entry. It closes the menu and asks the router-root
+// host — the dialog must outlive the menu it was opened from.
+describe("PauseMenuDialog bug-report entry (issue #3419)", () => {
+    it("closes the menu and asks the router-root host to open the bug report", () => {
+        const onOpenChange = vi.fn();
+        const requested = vi.fn();
+        const unsubscribe = subscribeBugReportRequests(requested);
+        const { getByRole } = render(
+            <PauseMenuDialog
+                open
+                onOpenChange={onOpenChange}
+                gameId={gameId}
+                playerId="me"
+                match={bo(1)}
+            />
+        );
+        fireEvent.click(getByRole("button", { name: "Report a bug" }));
+        unsubscribe();
+        expect(onOpenChange).toHaveBeenCalledWith(false);
+        expect(requested).toHaveBeenCalledTimes(1);
     });
 });

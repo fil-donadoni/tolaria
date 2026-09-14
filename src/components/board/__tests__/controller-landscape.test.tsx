@@ -674,3 +674,33 @@ describe("Landscape stack panel (issue #2589, ADR 0101 §8)", () => {
         expect(widthUtilities).toEqual([expectedWidthClass]);
     });
 });
+
+// Issue #3419: in landscape-compact the bug-report trigger joins the strip's
+// control group — its own row directly under the round game-menu button, in
+// that button's 44px register — and the strip keeps its fixed width.
+describe("Landscape strip bug-report trigger (issue #3419)", () => {
+    it("hosts a 44px round trigger under the game-menu button without widening the strip", () => {
+        const { container } = renderController();
+        const strip = container.querySelector(
+            SURFACES["landscape-compact"]
+        ) as HTMLElement;
+        const trigger = strip.querySelector(
+            'button[aria-label="Report a bug"]'
+        ) as HTMLElement;
+        const menu = strip.querySelector(
+            'button[aria-label="Open game menu"]'
+        ) as HTMLElement;
+        expect(trigger).not.toBeNull();
+        expect(trigger.parentElement?.previousElementSibling).toBe(
+            menu.parentElement
+        );
+        expect(trigger.className.split(/\s+/)).toEqual(
+            expect.arrayContaining(["h-11", "w-11", "rounded-full"])
+        );
+        expect(trigger.className).not.toMatch(/\bfixed\b/);
+        const widths = strip.className
+            .split(/\s+/)
+            .filter((c) => /^w-/.test(c));
+        expect(widths).toEqual(["w-24"]);
+    });
+});
