@@ -477,6 +477,19 @@ export type BladeScenario = {
      *  search starts (issue #1487, ADR 0070 §4). Each step runs through the
      *  real engine and THROWS if it finds no purchase. */
     setup?: BladeSetupStep[];
+    /** A loop the bot's seat has ALREADY walked from the position `setup`
+     *  leaves (issue #3590). The runner fingerprints that position, applies
+     *  these steps through the real engine (the `setup` vocabulary), records
+     *  every move the bot's seat made along the way against the position it
+     *  made it from, and THROWS unless the walk ends in the very position it
+     *  started from — a revisit that is not a loop is an authoring mistake.
+     *  The search then runs with that decision history, exactly as a live Bot
+     *  that has just been round the loop once does.
+     *
+     *  Lap ONE usually belongs in `setup`, not here: the first lap turns the
+     *  built card into a new object (summoning sick, revealed), so it is the
+     *  SECOND lap that returns to a position already occupied. */
+    revisit?: BladeSetupStep[];
     /** Seat the bot plays. Must be the seat that holds priority in the built
      *  state, or the search returns `null` (nothing owed). */
     bot: BladeSeat;

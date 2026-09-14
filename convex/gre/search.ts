@@ -41,6 +41,11 @@
 // that keeps the most material — so a free chump attack never ties "no attacks"
 // on rollout noise.
 
+import {
+    repeatedMoveKeys,
+    repetitionMoveKey,
+    type RepetitionHistory,
+} from "./ai/repetition";
 import type {
     CardInstanceState,
     GameState,
@@ -5136,7 +5141,11 @@ export function searchWithTrace(
     playerId: string,
     budget: SearchBudget,
     seed: number,
-    deckKnowledge?: DeckKnowledgeBySeat
+    deckKnowledge?: DeckKnowledgeBySeat,
+    // Issue #3590 — the seat's own decision history this turn: the positions
+    // it has already stood in and what it chose there (`ai/repetition.ts`).
+    // Omitted, nothing is denied and the search is byte-identical to before.
+    repetition?: RepetitionHistory
 ): { move: Move | null; trace: DecisionTrace | null } {
     // The DECISION scope for `dominance.ts`' choice-level probe (PR #1914
     // review finding 1). The cast-level probe is already once-per-decision by
@@ -5147,7 +5156,14 @@ export function searchWithTrace(
     // was proved against.
     beginDominanceDecision();
     try {
-        return runSearchWithTrace(state, playerId, budget, seed, deckKnowledge);
+        return runSearchWithTrace(
+            state,
+            playerId,
+            budget,
+            seed,
+            deckKnowledge,
+            repetition
+        );
     } finally {
         endDominanceDecision();
     }
@@ -5158,7 +5174,8 @@ function runSearchWithTrace(
     playerId: string,
     budget: SearchBudget,
     seed: number,
-    deckKnowledge?: DeckKnowledgeBySeat
+    deckKnowledge?: DeckKnowledgeBySeat,
+    repetition?: RepetitionHistory
 ): { move: Move | null; trace: DecisionTrace | null } {
     const decider = decidingPlayer(rootState);
     if (decider !== playerId) return { move: null, trace: null };
@@ -5221,7 +5238,7 @@ function runSearchWithTrace(
     // The dropped moves become a deny-set for the tree's root layer, so the
     // proof is paid for once and honoured everywhere it matters.
     const deniedAtRoot: Move[] = [];
-    const moves = enumerateMoves(state, playerId, {
+    let moves = enumerateMoves(state, playerId, {
         pruneDominatedNoOps: true,
         onPruned: (m) => deniedAtRoot.push(m),
         // Issue #3593 — two copies of a card the engine cannot tell apart are
@@ -5234,6 +5251,26 @@ function runSearchWithTrace(
         onCollapsed: (m) => deniedAtRoot.push(m),
     });
     if (moves.length === 0) return { move: null, trace: null };
+    // Issue #3590 — an optional loop (CR 104.4b / 732.5: nothing but the player
+    // ever stops one). If this seat has already stood in THIS position this
+    // turn, every move it chose here before is what brought the game back, so
+    // it is denied — the same deny-set shape as the dominance and collapse
+    // verdicts above, and for the same reason it reaches the tree's root layer
+    // through `deniedAtRoot`. Not an `evaluate` term and not a root rule: two
+    // visits of one position share every feature by construction, so no weight
+    // could tell them apart — the history is not in the state. `pass` is never
+    // denied and the list is never emptied, so each revisit strictly shrinks a
+    // finite set and the loop ends.
+    const repeated = repeatedMoveKeys(repetition, state);
+    if (repeated.size > 0) {
+        const kept = moves.filter(
+            (m) => m.kind === "pass" || !repeated.has(repetitionMoveKey(m))
+        );
+        if (kept.length > 0 && kept.length < moves.length) {
+            for (const m of moves) if (!kept.includes(m)) deniedAtRoot.push(m);
+            moves = kept;
+        }
+    }
     // No real decision (e.g. a forced mulligan window) — return immediately
     // without paying for search (and with no trace to explain).
     if (moves.length === 1 || state.phase === "MULLIGAN") {
@@ -5431,7 +5468,15 @@ export function search(
     playerId: string,
     budget: SearchBudget,
     seed: number,
-    deckKnowledge?: DeckKnowledgeBySeat
+    deckKnowledge?: DeckKnowledgeBySeat,
+    repetition?: RepetitionHistory
 ): Move | null {
-    return searchWithTrace(state, playerId, budget, seed, deckKnowledge).move;
+    return searchWithTrace(
+        state,
+        playerId,
+        budget,
+        seed,
+        deckKnowledge,
+        repetition
+    ).move;
 }

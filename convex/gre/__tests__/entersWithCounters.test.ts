@@ -617,6 +617,7 @@ describe("entry site: BLINK / flicker return (CR 603.7a, issue #1693)", () => {
             exileWithAttachments(state, "beast", {
                 sourceId: "coffin",
                 returnTapped: false,
+                noteCounters: true,
             })
         ).not.toBeNull();
         returnExiledForSource(state, "coffin");

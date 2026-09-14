@@ -99,6 +99,30 @@ describe("Parallax Wave (Fading 5 + remove-fade-counter: exile target creature; 
         expect(wave.counters).toEqual({ fade: 5 });
     });
 
+    it("exiling ITSELF returns it with exactly Fading's five counters, not its leftovers plus five (CR 122.2, issue #3590)", () => {
+        const wave = makeInstance(parallaxWave.id, {
+            id: "wave",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { fade: 4 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wave] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, wave, "parallax-wave-exile", [
+            { type: "permanent", id: "wave" },
+        ]);
+        expect(state.players[0].exile.some((c) => c.id === "wave")).toBe(true);
+        const exiled = state.players[0].exile.find((c) => c.id === "wave")!;
+        resolveTrigger(state, exiled, "parallax-wave-return", LEFT("wave"));
+        const back = state.players[0].battlefield.find((c) => c.id === "wave");
+        expect(back).toBeDefined();
+        expect(back!.counters).toEqual({ fade: 5 });
+    });
+
     it("exiles the target creature keyed to itself, then returns it to its owner when it leaves (CR 603.7a)", () => {
         const wave = makeInstance(parallaxWave.id, {
             id: "wave",

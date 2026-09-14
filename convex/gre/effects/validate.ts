@@ -3488,7 +3488,13 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // resolving source, set by the interpreter, not the author.
     exileWithAttachments: {
         required: { target: isObjectSelector },
-        optional: { returnTapped: isBoolean, includeAttachments: isBoolean },
+        // `noteCounters` (issue #3590, CR 122.2) — carry the host's counters
+        // back; absent means the returning object has none.
+        optional: {
+            returnTapped: isBoolean,
+            includeAttachments: isBoolean,
+            noteCounters: isBoolean,
+        },
     },
     // CR 603.7a / ADR 0028 — return every exile-and-return bundle held by
     // `$source`. No parameters — the source is always the resolving ability's own.

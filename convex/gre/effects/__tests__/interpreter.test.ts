@@ -25737,6 +25737,63 @@ describe("Effect Script Op: exileWithAttachments / returnExiledForSource (CR 603
         expect(bundle!.sourceId).toBe(item.id);
     });
 
+    // CR 122.2 / 400.7 (issue #3590) — the returning host is a new object:
+    // its counters do not come back unless the Op notes them.
+    function exileAndReturnCounteredBear(noteCounters: boolean | undefined) {
+        const id = registerScript(
+            `test-op-ewa-counters-${String(noteCounters)}`,
+            [
+                {
+                    op: "exileWithAttachments",
+                    target: { target: 0 },
+                    ...(noteCounters === undefined ? {} : { noteCounters }),
+                },
+                { op: "returnExiledForSource" },
+            ]
+        );
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "ewaCounterBear",
+            counters: { "+1/+1": 2 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "ewaCounterBear" },
+        ]);
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    it("the returned host has NO counters by default (CR 122.2)", () => {
+        const state = exileAndReturnCounteredBear(undefined);
+        const back = state.players[1].battlefield.find(
+            (c) => c.id === "ewaCounterBear"
+        );
+        expect(back).toBeDefined();
+        expect(back!.counters ?? {}).toEqual({});
+    });
+
+    it("noteCounters: the returned host carries the counters it was exiled with", () => {
+        const state = exileAndReturnCounteredBear(true);
+        const back = state.players[1].battlefield.find(
+            (c) => c.id === "ewaCounterBear"
+        );
+        expect(back).toBeDefined();
+        expect(back!.counters).toEqual({ "+1/+1": 2 });
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.players[1].battlefield.find(
+                (c) => c.id === "ewaCounterBear"
+            )?.counters
+        ).toEqual({ "+1/+1": 2 });
+    });
+
     it("wire format: the exiled target no longer appears on the projected battlefield", () => {
         const id = registerScript("test-op-ewa-wire", [
             { op: "exileWithAttachments", target: { target: 0 } },

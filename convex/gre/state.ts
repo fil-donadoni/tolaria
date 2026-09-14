@@ -11446,7 +11446,8 @@ function phaseInBundlesForSource(state: GameState, sourceId: string): void {
 }
 
 /** CR 603.7a / ADR 0028 — exile `targetId` and every permanent attached to it
- *  (Auras), noting the host's counters, and record an `ExileReturnBundle` keyed
+ *  (Auras), noting the host's counters when `noteCounters` asks (CR 122.2),
+ *  and record an `ExileReturnBundle` keyed
  *  to `sourceId`. Unlike phasing, this is a real zone change: the attachments
  *  are exiled FIRST (so the orphan-aura SBA, CR 704.5n, never sees them once
  *  the host leaves), then the host — each via `removePermanentTo`, so
@@ -11480,6 +11481,15 @@ export function exileWithAttachments(
          *  false on purpose: its specified event is a monarch change, so the
          *  exile survives the Jailer's own death (CR 720). */
         requireSourceOnBattlefield?: boolean;
+        /** CR 122.2 / 400.7 — counters on an object cease to exist when it
+         *  changes zones, so the returning host is a new object with NONE of
+         *  them (only whatever its own entry adds, CR 121.6). The counters
+         *  come back only when the effect itself says to "note the number and
+         *  kind of counters" (Tawnos's Coffin) — default `false`. Before issue
+         *  #3590 every bundle noted them, so a Parallax Wave that exiled
+         *  itself came back with its leftover fade counters PLUS Fading's
+         *  fresh five, and the loop grew forever. */
+        noteCounters?: boolean;
     }
 ): string | null {
     const found = findOnBattlefield(state, targetId);
@@ -11523,8 +11533,10 @@ export function exileWithAttachments(
     }
     const host = found.card;
     const hostOwnerId = host.ownerId;
-    // CR 122 — note the counters that were on the creature.
-    const counters: Record<string, number> = { ...(host.counters ?? {}) };
+    // CR 122.2 — the counters are noted only when the effect says so.
+    const counters: Record<string, number> = opts.noteCounters
+        ? { ...(host.counters ?? {}) }
+        : {};
     const includeAttachments = opts.includeAttachments ?? true;
     // Collect attachments (Auras) across all battlefields, in a stable order.
     // Host-only exile (Banishing Light) skips this: nothing is bundled, so the

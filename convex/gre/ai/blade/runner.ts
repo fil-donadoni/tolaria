@@ -51,7 +51,7 @@ import {
     type SearchVariant,
 } from "../searchVariant";
 import { findBladeScenario } from "./registry";
-import { applyBladeSetup } from "./setup";
+import { applyBladeRevisit, applyBladeSetup } from "./setup";
 import type { BeyondBudget, BladeScenario } from "./types";
 
 /** Thrown when a blade entry's declared `bot` seat does not hold the
@@ -455,6 +455,11 @@ function runBladeScenarioInner(
         // state, but rebuilding keeps each seed's run provably independent.
         const state = buildBladeState(scenario);
         const botId = seatPlayerId(state, scenario.bot);
+        // Issue #3590 — walk the loop the bot has already been round, and carry
+        // what it chose into the search as its decision history.
+        const repetition = scenario.revisit
+            ? applyBladeRevisit(state, scenario, botId)
+            : undefined;
         // AUTHORING CHECK (issue #1522): the declared `bot` seat must be the
         // one `searchWithTrace` would actually run for — the exact window
         // `decidingPlayer` defines (priority, an open declare-blockers/
@@ -480,7 +485,8 @@ function runBladeScenarioInner(
                       botId,
                       { iterations: scenario.budget.iterations },
                       seed,
-                      bladeDeckKnowledge(state, scenario)
+                      bladeDeckKnowledge(state, scenario),
+                      repetition
                   ).move;
         const reason = checkExpectation(scenario, state, move);
         seeds.push({
