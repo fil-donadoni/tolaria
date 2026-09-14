@@ -884,6 +884,238 @@ describe("the probe applies CAST MODES (CR 601.2b, issue #3215)", () => {
     });
 });
 
+// ---------------------------------------------------------------------------
+
+/** Every `activate-ability` move of `ability` on `name`, from the raw or the
+ *  pruned enumeration. */
+function activationsOf(
+    state: GameState,
+    name: string,
+    pruned: boolean
+): Move[] {
+    return enumerateMoves(
+        state,
+        me(state),
+        pruned ? { pruneDominatedNoOps: true } : undefined
+    ).filter(
+        (m) =>
+            m.kind === "activate-ability" &&
+            cardName(state, m.cardInstanceId) === name
+    );
+}
+
+/** The one variant of `moves` whose single target is `targetName`. */
+function aimedAt(
+    state: GameState,
+    moves: Move[],
+    targetName: string
+): Move | undefined {
+    return moves.find(
+        (m) =>
+            m.kind === "activate-ability" &&
+            m.targets.length === 1 &&
+            cardName(state, m.targets[0].id ?? "") === targetName
+    );
+}
+
+describe("isDominatedNoOpMove — self-sacrifice activations (CR 608.2b, issue #3424)", () => {
+    // The bot gave up a permanent to a targeted-removal ability whose only
+    // legal target was the ability's OWN SOURCE: targets are chosen at
+    // announcement (CR 601.2c via 602.2b) and costs are paid after
+    // (CR 601.2h), so the source is already in the graveyard when the ability
+    // tries to resolve and it is countered for having no legal target
+    // (CR 608.2b). The engine half is correct and is pinned as such in
+    // `gre/__tests__/sacrifice-cost-activation.test.ts`; what was missing was
+    // any seam that refused the MOVE.
+    const selfTargetOnly = {
+        // Seal of Cleansing — "Sacrifice this enchantment: Destroy target
+        // artifact or enchantment." The opponent controls neither, and the
+        // mover controls no other artifact or enchantment, so the Seal itself
+        // is the only legal target the announcement has.
+        cards: [
+            {
+                name: "Seal of Cleansing",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        turn: 5,
+        landCount: 4,
+        libraryCount: 20,
+    };
+
+    it("proves the self-targeted activation dominated by pass", () => {
+        const state = build(selfTargetOnly);
+        const moves = activationsOf(state, "Seal of Cleansing", false);
+        expect(moves).toHaveLength(1);
+        expect(isDominatedNoOpMove(state, me(state), moves[0])).toBe(true);
+    });
+
+    it("drops it from the pruned enumeration, leaving only pass", () => {
+        const state = build(selfTargetOnly);
+        const pruned = enumerateMoves(state, me(state), {
+            pruneDominatedNoOps: true,
+        });
+        expect(activationsOf(state, "Seal of Cleansing", true)).toHaveLength(0);
+        expect(pruned.every((m) => m.kind === "pass")).toBe(true);
+    });
+
+    it("NEGATIVE CONTROL: a legal opponent-side target keeps it, and the own-source variant still goes", () => {
+        const state = build({
+            ...selfTargetOnly,
+            cards: [
+                ...selfTargetOnly.cards,
+                {
+                    name: "Jayemdae Tome",
+                    owner: "opp" as const,
+                    zone: "battlefield" as const,
+                },
+            ],
+        });
+        const raw = activationsOf(state, "Seal of Cleansing", false);
+        const atTome = aimedAt(state, raw, "Jayemdae Tome");
+        const atSelf = aimedAt(state, raw, "Seal of Cleansing");
+        expect(atTome).toBeDefined();
+        expect(atSelf).toBeDefined();
+        expect(isDominatedNoOpMove(state, me(state), atTome as Move)).toBe(
+            false
+        );
+        expect(isDominatedNoOpMove(state, me(state), atSelf as Move)).toBe(
+            true
+        );
+        const pruned = activationsOf(state, "Seal of Cleansing", true);
+        expect(aimedAt(state, pruned, "Jayemdae Tome")).toBeDefined();
+        expect(aimedAt(state, pruned, "Seal of Cleansing")).toBeUndefined();
+    });
+
+    it("proves a CREATURE source's self-targeted activation dominated too", () => {
+        // Mogg Fanatic — "Sacrifice this creature: It deals 1 damage to any
+        // target." Aimed at itself the same CR 608.2b counter applies, and the
+        // departure ALSO bumps `deathsThisTurn` and stamps `lastKnownCopiable`
+        // — the two echoes of the cost the compare has to forgive alongside the
+        // zone move itself, or no creature source could ever be proved.
+        const state = build({
+            cards: [
+                {
+                    name: "Mogg Fanatic",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    summoningSick: false,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        });
+        const atSelf = aimedAt(
+            state,
+            activationsOf(state, "Mogg Fanatic", false),
+            "Mogg Fanatic"
+        );
+        expect(atSelf).toBeDefined();
+        expect(isDominatedNoOpMove(state, me(state), atSelf as Move)).toBe(
+            true
+        );
+    });
+
+    it("NEGATIVE CONTROL: the payoff that IS the payment survives — a death trigger", () => {
+        // Enduring Renewal — "Whenever a creature is put into your graveyard
+        // from the battlefield, return it to your hand." The self-targeted
+        // Mogg Fanatic still resolves to nothing, but PAYING the cost now
+        // returns the Fanatic to hand, so the announcement is no longer a pure
+        // loss. This is the exemption the old cost-shape refusal existed to
+        // protect, and it is now protected by the PROBE paying the sacrifice
+        // for real rather than by refusing to look.
+        const state = build({
+            cards: [
+                {
+                    name: "Mogg Fanatic",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    summoningSick: false,
+                },
+                {
+                    name: "Enduring Renewal",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 4,
+            libraryCount: 20,
+        });
+        const atSelf = aimedAt(
+            state,
+            activationsOf(state, "Mogg Fanatic", false),
+            "Mogg Fanatic"
+        );
+        expect(atSelf).toBeDefined();
+        expect(isDominatedNoOpMove(state, me(state), atSelf as Move)).toBe(
+            false
+        );
+    });
+});
+
+describe("the last deferral window, end to end (issue #3424)", () => {
+    // The prune is what this pair measures, at the one window where the bot
+    // actively WANTS to spend a deferred activation rather than hold it: the
+    // opponent's end step (`last-window-fire`, `search.ts`). Both boards are
+    // the same Seal of Cleansing in the same window; the only difference is
+    // whether the opponent controls anything the Seal can legally hit.
+    const window = {
+        phase: "END_STEP",
+        activePlayer: "opp" as const,
+        priority: "me" as const,
+        turn: 5,
+        landCount: 4,
+        libraryCount: 20,
+    };
+    const seal = {
+        name: "Seal of Cleansing",
+        owner: "me" as const,
+        zone: "battlefield" as const,
+    };
+    const tome = {
+        name: "Jayemdae Tome",
+        owner: "opp" as const,
+        zone: "battlefield" as const,
+    };
+
+    it("with no legal opponent-side target the bot passes, on every seed", () => {
+        const state = build({ ...window, cards: [seal] });
+        for (const seed of [0, 1, 2]) {
+            const picked = searchWithTrace(
+                build({ ...window, cards: [seal] }),
+                me(state),
+                { iterations: 200 },
+                seed
+            );
+            expect(picked.move.kind).toBe("pass");
+        }
+    });
+
+    it("with one legal opponent-side target it fires, aimed at the opponent", () => {
+        const state = build({ ...window, cards: [seal, tome] });
+        const tomeId = state.players[1].battlefield[0].id;
+        for (const seed of [0, 1, 2]) {
+            const picked = searchWithTrace(
+                build({ ...window, cards: [seal, tome] }),
+                me(state),
+                { iterations: 200 },
+                seed
+            );
+            expect(picked.move.kind).toBe("activate-ability");
+            expect(
+                picked.move.kind === "activate-ability" &&
+                    picked.move.targets.map((t) => t.id)
+            ).toEqual([tomeId]);
+        }
+    }, 60000);
+});
+
 describe("deepEqual (issue #1887)", () => {
     it("treats an absent key and an explicit undefined as equal", () => {
         expect(deepEqual({ a: 1 }, { a: 1, b: undefined })).toBe(true);

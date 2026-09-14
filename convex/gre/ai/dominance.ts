@@ -103,13 +103,15 @@ import type {
 } from "../state";
 import {
     emitSpellCastEvent,
+    getStaticAdditionalSacrifices,
     processPendingActionTriggers,
     removeFromZone,
+    removePermanentTo,
     resolveTopOfStack,
 } from "../state";
 import { checkStateBasedActions } from "../sba";
 import { cloneGameState } from "../clone";
-import { PERMANENT_TYPES } from "../constants";
+import { isCreature, PERMANENT_TYPES } from "../constants";
 import { tryGetDefinition } from "../../cards";
 import { spellHasDelve } from "../payWith";
 // CR 307.1 / 117.1a / 601.3a (issue #2473) — the shared cast-timing snapshot
@@ -189,6 +191,48 @@ export function resetDominanceProbeStats(): void {
 // Public seam
 // ---------------------------------------------------------------------------
 
+/** What the ANNOUNCEMENT ITSELF spent, and which the compare therefore reads as
+ *  a COST PAID rather than as a state delta — the same distinction the tap
+ *  forgiveness already draws ("tapping is a cost, untapping is a delta").
+ *
+ *  Two members, because the bot announces at two sites and they spend different
+ *  things (CR 601.2h / 602.2b):
+ *
+ *   * `cardId` — a CAST spell's card: the mover's hand on the baseline, their
+ *     graveyard or exile on the probe.
+ *   * `permanentId` — a self-sacrifice ACTIVATION cost's source
+ *     (CR 118.1 / 701.21 — "Sacrifice this permanent:"): the mover's
+ *     battlefield on the baseline, their graveyard on the probe. Issue #3424.
+ *
+ *  `wasCreature` records the one echo that departure leaves behind beyond the
+ *  zone move itself (`deathsThisTurn`), dropped for the reason
+ *  {@link ECHOED_BOOKKEEPING_KEYS} gives: it is written one line from the zone
+ *  move this already forgives, and every PRIMARY change it could be masking —
+ *  another creature dying — is still compared as a zone difference. */
+type SpentCost = {
+    cardId?: string;
+    permanentId?: string;
+    wasCreature?: boolean;
+};
+
+/** What `move` spends as a COST, for {@link SpentCost}. A cast spends its card;
+ *  an activation spends nothing the compare must forgive UNLESS its cost
+ *  sacrifices its own source. Anything else — a victim named by a
+ *  `sacrificeFilter`, a discard, a life payment — is refused outright by
+ *  {@link isProbeEligibleMove} and never reaches here. */
+function spentCostOf(state: GameState, pid: string, move: Move): SpentCost {
+    if (move.kind === "cast-spell") return { cardId: move.cardInstanceId };
+    if (move.kind !== "activate-ability") return {};
+    const source = findPermanent(state, move.cardInstanceId);
+    if (!source) return {};
+    const ability = abilityOf(source, move.abilityId);
+    if (!ability?.cost.sacrifice) return {};
+    return {
+        permanentId: source.id,
+        ...(isCreature(source) ? { wasCreature: true } : {}),
+    };
+}
+
 /** True when `move` is PROVABLY dominated by `pass` for `pid`: applying and
  *  fully resolving it changes nothing but the mover's own cost. Pure — `state`
  *  is never mutated. Conservative: any doubt returns `false`. */
@@ -227,15 +271,14 @@ export function isDominatedNoOpMove(
     try {
         const baseline = state;
         const probe = cloneGameState(state);
-        const spentCardId =
-            move.kind === "cast-spell" ? move.cardInstanceId : undefined;
+        const spent = spentCostOf(state, pid, move);
         const applied =
             move.kind === "cast-spell"
                 ? applyProbeCast(probe, pid, move)
                 : applyProbeActivation(probe, pid, move);
         if (!applied) return false;
         branchWorkLeft = MAX_CHOICE_BRANCH_WORK;
-        return branchesAllNoOp(probe, baseline, pid, spentCardId, 0);
+        return branchesAllNoOp(probe, baseline, pid, spent, 0);
     } catch {
         // A probe that throws proves nothing. Never let it change legality.
         return false;
@@ -301,8 +344,7 @@ export function isSelfConfinedFutileMove(
     try {
         const baseline = state;
         const probe = cloneGameState(state);
-        const spentCardId =
-            move.kind === "cast-spell" ? move.cardInstanceId : undefined;
+        const spent = spentCostOf(state, pid, move);
         const applied =
             move.kind === "cast-spell"
                 ? applyProbeCast(probe, pid, move)
@@ -314,7 +356,7 @@ export function isSelfConfinedFutileMove(
             probe,
             baseline,
             pid,
-            spentCardId,
+            spent,
             0,
             seen
         );
@@ -334,7 +376,7 @@ function branchesTouchOnlyMover(
     probe: GameState,
     baseline: GameState,
     moverId: string,
-    spentCardId: string | undefined,
+    spent: SpentCost,
     depth: number,
     seen: { sawNoOpBranch: boolean }
 ): boolean {
@@ -373,7 +415,7 @@ function branchesTouchOnlyMover(
                     branch,
                     baseline,
                     moverId,
-                    spentCardId,
+                    spent,
                     depth + 1,
                     seen
                 )
@@ -399,11 +441,11 @@ function branchesTouchOnlyMover(
     }
     if ((probe.pendingChoices?.length ?? 0) > 0) return false;
     if (probe.stack.length !== baseline.stack.length) return false;
-    if (isNoOpDelta(baseline, probe, moverId, spentCardId)) {
+    if (isNoOpDelta(baseline, probe, moverId, spent)) {
         seen.sawNoOpBranch = true;
         return true;
     }
-    return touchesOnlyMoverDelta(baseline, probe, moverId, spentCardId);
+    return touchesOnlyMoverDelta(baseline, probe, moverId, spent);
 }
 
 /** State-level bookkeeping a resolution ECHOES rather than causes (issue
@@ -464,10 +506,10 @@ function touchesOnlyMoverDelta(
     baseline: GameState,
     probe: GameState,
     moverId: string,
-    spentCardId: string | undefined
+    spent: SpentCost
 ): boolean {
-    const a = normalize(cloneGameState(baseline), moverId, spentCardId, "base");
-    const b = normalize(cloneGameState(probe), moverId, spentCardId, "probe");
+    const a = normalize(cloneGameState(baseline), moverId, spent, "base");
+    const b = normalize(cloneGameState(probe), moverId, spent, "probe");
     if (!a || !b) return false;
     for (const bag of [a, b] as unknown as Record<string, unknown>[]) {
         for (const key of ECHOED_BOOKKEEPING_KEYS) delete bag[key];
@@ -645,8 +687,8 @@ function probeNoOpChoiceAnswer(
  *  already length-checked by the caller) plus the module's standard bookkeeping
  *  ignore lists. Fail-closed by the same construction as `isNoOpDelta`. */
 function isNoOpChoiceDelta(baseline: GameState, probe: GameState): boolean {
-    const a = normalize(cloneGameState(baseline), "", undefined, "base");
-    const b = normalize(cloneGameState(probe), "", undefined, "probe");
+    const a = normalize(cloneGameState(baseline), "", {}, "base");
+    const b = normalize(cloneGameState(probe), "", {}, "probe");
     if (!a || !b) return false;
     for (const side of [a, b] as unknown as Record<string, unknown>[]) {
         delete side.stack;
@@ -765,8 +807,10 @@ export function applyProbeCast(
 }
 
 /** Put the activated ability on the probe's stack (CR 602.2). Costs are paid
- *  coarsely (tap plan + the {T} on the source); `isPrunableActivation` already
- *  refused every cost shape whose payment could itself be the payoff. */
+ *  coarsely (tap plan + the {T} on the source) EXCEPT the self-sacrifice leg,
+ *  which is paid exactly (CR 118.1 / 601.2h / 701.21, issue #3424);
+ *  `isProbeEligibleMove` already refused every other cost shape whose payment
+ *  could itself be the payoff. */
 function applyProbeActivation(
     probe: GameState,
     pid: string,
@@ -795,6 +839,19 @@ function applyProbeActivation(
         ...(move.chosenX !== undefined ? { chosenX: move.chosenX } : {}),
     };
     probe.stack.push(stackItem);
+    // CR 602.2a → 601.2h (issue #3424) — the ability is on the stack FIRST, then
+    // its costs are paid, so a leave-the-battlefield / death trigger the payment
+    // raises goes on the stack ABOVE the ability and resolves before it. Paid
+    // through the engine's own choke point, so the departure fires every event
+    // and stamps every echo the real payment does: a payoff that lives in the
+    // PAYMENT rather than in the resolution (a death trigger, a graveyard
+    // filler) therefore shows up as a real delta and BLOCKS the prune. That is
+    // the whole reason the eligibility gate can now state its refusal over the
+    // payoff instead of over the cost shape.
+    if (ability.cost.sacrifice) {
+        removePermanentTo(probe, move.cardInstanceId, "graveyard", "sacrifice");
+        processPendingActionTriggers(probe);
+    }
     checkStateBasedActions(probe);
     return true;
 }
@@ -827,7 +884,7 @@ function branchesAllNoOp(
     probe: GameState,
     baseline: GameState,
     moverId: string,
-    spentCardId: string | undefined,
+    spent: SpentCost,
     depth: number
 ): boolean {
     let steps = 0;
@@ -863,15 +920,7 @@ function branchesAllNoOp(
             const branch = cloneGameState(probe);
             if (!applyProbeChoice(branch, moverId, candidate.move))
                 return false;
-            if (
-                !branchesAllNoOp(
-                    branch,
-                    baseline,
-                    moverId,
-                    spentCardId,
-                    depth + 1
-                )
-            ) {
+            if (!branchesAllNoOp(branch, baseline, moverId, spent, depth + 1)) {
                 return false;
             }
         }
@@ -880,7 +929,7 @@ function branchesAllNoOp(
 
     if (probe.gameOver) return false;
     if (probe.stack.length !== baseline.stack.length) return false;
-    return isNoOpDelta(baseline, probe, moverId, spentCardId);
+    return isNoOpDelta(baseline, probe, moverId, spent);
 }
 
 /** Answer a mid-resolution choice through the SAME pure resolvers the real
@@ -1012,10 +1061,10 @@ function isNoOpDelta(
     baseline: GameState,
     probe: GameState,
     moverId: string,
-    spentCardId: string | undefined
+    spent: SpentCost
 ): boolean {
-    const a = normalize(cloneGameState(baseline), moverId, spentCardId, "base");
-    const b = normalize(cloneGameState(probe), moverId, spentCardId, "probe");
+    const a = normalize(cloneGameState(baseline), moverId, spent, "base");
+    const b = normalize(cloneGameState(probe), moverId, spent, "probe");
     if (!a || !b) return false;
     // Tapping is a COST, untapping is a DELTA: forgive only untapped → tapped
     // on the mover's own permanents, and only against the matching baseline
@@ -1031,14 +1080,16 @@ function isNoOpDelta(
     return deepEqual(a, b);
 }
 
-/** Strip the ignore lists in place and remove the spent card from the zone it
- *  occupies on each side (hand on the baseline; graveyard/exile on the probe),
- *  so "the card was spent" is not itself read as a delta. Returns the state, or
- *  `null` when the spent card can't be accounted for on the probe side. */
+/** Strip the ignore lists in place and remove whatever the announcement SPENT
+ *  from the zone it occupies on each side (a cast card: hand on the baseline,
+ *  graveyard/exile on the probe; a sacrificed source: the mover's battlefield on
+ *  the baseline, their graveyard on the probe), so "this was paid" is not itself
+ *  read as a delta. Returns the state, or `null` when what was spent can't be
+ *  accounted for on the probe side. */
 function normalize(
     state: GameState,
     moverId: string,
-    spentCardId: string | undefined,
+    spent: SpentCost,
     side: "base" | "probe"
 ): GameState | null {
     const bag = state as unknown as Record<string, unknown>;
@@ -1067,9 +1118,60 @@ function normalize(
         for (const key of IGNORED_INSTANCE_KEYS) delete ibag[key];
     }
 
-    if (spentCardId === undefined) return state;
+    const { cardId: spentCardId, permanentId: spentPermanentId } = spent;
+    if (spentCardId === undefined && spentPermanentId === undefined) {
+        return state;
+    }
     const mover = state.players.find((p) => p.id === moverId);
     if (!mover) return null;
+    if (spentPermanentId !== undefined) {
+        // CR 118.1 / 601.2h / 701.21 (issue #3424) — the self-sacrifice
+        // activation cost. Symmetric with the cast card below: the source sits
+        // on the mover's battlefield before the announcement and in their
+        // graveyard after paying, so removing it from BOTH sides leaves exactly
+        // what the RESOLUTION did. Anywhere else on the probe (exiled instead,
+        // regenerated back, still on the battlefield because a replacement
+        // effect took it) is not the plain cost this forgives: `null`, and the
+        // move is left searchable.
+        const from = side === "base" ? mover.battlefield : mover.graveyard;
+        const i = from.findIndex((c) => c.id === spentPermanentId);
+        if (i === -1) return null;
+        from.splice(i, 1);
+        // The two echoes that departure writes, dropped for exactly the reason
+        // `ECHOED_BOOKKEEPING_KEYS` gives one level up: each sits one line from
+        // the zone move just forgiven, and the PRIMARY change either could mask
+        // — some OTHER permanent leaving the battlefield — is still compared in
+        // full as a zone difference on both sides.
+        delete state.lastKnownCopiable?.[spentPermanentId];
+        // A map the departure CREATES when it is the turn's first: an empty
+        // `{}` on the probe against an absent key on the baseline is the same
+        // "the engine has been here" artefact `IGNORED_INSTANCE_KEYS` solves
+        // for the layer memos, so drop the key once its last entry is gone.
+        if (
+            state.lastKnownCopiable &&
+            Object.keys(state.lastKnownCopiable).length === 0
+        ) {
+            delete state.lastKnownCopiable;
+        }
+        // CR 700.4 — "a permanent you controlled left the battlefield this
+        // turn", set on the CONTROLLER by the same departure. The mover's own
+        // permanent leaving IS the cost, so the flag it raises is the cost's
+        // echo; the OPPONENT's copy of the flag is untouched and still
+        // compared, so a resolution that reached their board cannot hide here.
+        const owner = state.players.find((p) => p.id === moverId);
+        if (owner) {
+            delete (owner as unknown as Record<string, unknown>)
+                .permanentYouControlledLeftThisTurn;
+        }
+        // `deathsThisTurn` is a single global tally, so it cannot be un-bumped
+        // for one instance: drop it on both sides, and only when the spent
+        // permanent was the creature whose death bumped it (CR 700.4). Inert
+        // for a non-creature source, which never moves it at all.
+        if (spent.wasCreature) {
+            delete (state as unknown as Record<string, unknown>).deathsThisTurn;
+        }
+    }
+    if (spentCardId === undefined) return state;
     if (side === "base") {
         const i = mover.hand.findIndex((c) => c.id === spentCardId);
         if (i === -1) return null;
@@ -1214,10 +1316,49 @@ export function isProbeEligibleMove(
         // Mana abilities never use the stack, and the pool is an ignored term.
         if (!ability.useStack) return false;
         const cost = ability.cost;
-        // Any cost whose PAYMENT can be the payoff (a death trigger, a
+        // CR 118.1 / 601.2h / 701.21 (issue #3424) — "Sacrifice this permanent:"
+        // USED to be refused here alongside every other give-up-a-permanent
+        // shape, on the argument that paying the cost can BE the payoff. That
+        // argument is about the payoff and the refusal was about the COST
+        // SHAPE, so it also exempted an activation whose settled outcome is
+        // nothing at all: the bot gave up the source, the ability was countered
+        // on resolution for having no legal target (CR 608.2b), and no seam
+        // refused the move.
+        //
+        // The refusal is now a statement about the payoff, and it is the PROBE
+        // that makes it: `applyProbeActivation` pays this one leg EXACTLY —
+        // through `removePermanentTo`, with its events, its triggers and its
+        // echoes — so a death trigger, a graveyard filler or a
+        // sacrifice-in-response payoff all register as real deltas and block
+        // the prune on their own. Only an activation that spends its source and
+        // settles to nothing is provable, which is the shape that is never
+        // worth making.
+        //
+        // What the probe still cannot pay is a victim it would have to CHOOSE
+        // or a tax it does not know about, so the self-sacrifice leg is
+        // admitted only when it is the WHOLE give-up-a-permanent cost:
+        //   * `sacrificeFilter` names a separate victim (refused below anyway);
+        //   * `returnUnblockedAttacker` is Ninjutsu's return leg (CR 702.49a),
+        //     a second permanent the probe never gives back;
+        //   * a static additional-sacrifice tax (Drought, CR 118.3) taxes the
+        //     activation from ANOTHER permanent's static effect, which the
+        //     probe never pays — leaving the probe richer than the real
+        //     payment, exactly the direction that would "prove" a no-op.
+        if (
+            cost.sacrifice &&
+            (cost.returnUnblockedAttacker ||
+                getStaticAdditionalSacrifices(
+                    state,
+                    cost.mana,
+                    source,
+                    "ability"
+                ).length > 0)
+        ) {
+            return false;
+        }
+        // Any OTHER cost whose PAYMENT can be the payoff (a death trigger, a
         // graveyard filler, a loyalty tick) is out of scope for the probe.
         return !(
-            cost.sacrifice ||
             cost.sacrificeFilter ||
             cost.tapOtherFilter ||
             cost.discardFilter ||
