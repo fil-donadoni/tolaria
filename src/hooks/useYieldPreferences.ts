@@ -3,7 +3,6 @@ import {
     useCallback,
     useContext,
     useMemo,
-    useRef,
     useState,
 } from "react";
 import { GameContext } from "~/hooks/useGameContext";
@@ -41,9 +40,9 @@ export function useYieldPrefsState(gameId: string): YieldPrefsStore {
     // Reset DURING render on a game change rather than in an effect: an effect
     // would let one render — the one the new game's first stack arrives in —
     // read the previous game's yields and auto-pass on them.
-    const lastGameId = useRef(gameId);
-    if (lastGameId.current !== gameId) {
-        lastGameId.current = gameId;
+    const [lastGameId, setLastGameId] = useState(gameId);
+    if (lastGameId !== gameId) {
+        setLastGameId(gameId);
         if (Object.keys(yields).length > 0) setYields({});
     }
 
