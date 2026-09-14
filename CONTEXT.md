@@ -1009,12 +1009,20 @@ The bound on the SUM of every non-base term of a **Pick**'s score, which GROWS w
 _Avoid_: Weight, clamp (it caps the sum of terms, not each term); penalty (a term that only ever subtracts is dead under the non-negative clamp — express it as the bonus its complement earns)
 
 **Archetype**:
-A named strategy a **Pool** can be built toward within one **Pack Source** scope (`reanimator`, `artifacts`, `jeskai-tempo`). A card declares the Archetypes it belongs to; a **Seat**'s accumulated **Pool** therefore has a measurable commitment per Archetype, which biases later **Picks**. Coarse-grained on purpose — it steers colours and plan, not card-to-card fit (that is **Capability**).
+A named strategy a **Pool** can be built toward within one **Pack Source** scope (`reanimator`, `artifacts`, `jeskai-tempo`). A card declares the Archetypes it belongs to; a **Seat**'s accumulated **Pool** therefore has a measurable commitment per Archetype, which biases later **Picks**. Coarse-grained on purpose — it steers colours and plan, not card-to-card fit (that is **Capability**). On a constructed deck an Archetype is only a hint: the play Bot reasons from the deck's **Plan**, never from the label.
 _Avoid_: Deck type, strategy, colour pair (an Archetype is not its colours)
 
 **Capability**:
-A named property from a small closed vocabulary that a card either **provides** or **requires** (`value-on-death`, `reanimatable`, `value-on-attack`). Fit between two cards is **computed**, never enumerated: a card requiring `value-on-death` (Flash) is served by any card providing it (Worldspine Wurm) and by no other. Absence of a match is itself the veto — Animate Dead requires `reanimatable`, which Worldspine Wurm does not provide, so the pair scores nothing despite sharing an **Archetype**. Authoring cost is one declaration per card, not one per pair.
+A named property from a small closed vocabulary that a card either **provides** or **requires** (`value-on-death`, `reanimatable`, `value-on-attack`). Fit between two cards is **computed**, never enumerated: a card requiring `value-on-death` (Flash) is served by any card providing it (Worldspine Wurm) and by no other. Absence of a match is itself the veto — Animate Dead requires `reanimatable`, which Worldspine Wurm does not provide, so the pair scores nothing despite sharing an **Archetype**. Authoring cost is one declaration per card, not one per pair — and most Capabilities are not authored at all but read off what the card does, so a declaration is kept for the cases that need a judgement.
 _Avoid_: Tag (too vague — an **Archetype** is also a tag), synergy edge, keyword (that is CR 702)
+
+**Plan**:
+What a deck is trying to do, expressed as the **Needs** its cards carry: every **Capability** a card requires, and how much of each is satisfied right now. Read from the deck, never declared about it — a deck nobody has seen before still has a Plan. It changes value as the game moves: supplying a Need raises the worth of the card that needed it, on the very move that supplies it.
+_Avoid_: Game plan (too vague), strategy, archetype (that is a label; the Plan is what the cards require)
+
+**Need**:
+One **Capability** a card in the deck requires, together with how well it is met: fully when the card providing it is already where it is needed, partly when that card is still in hand, not at all when nothing provides it. A Need is met once — two providers do not meet it twice.
+_Avoid_: Requirement (reserved for the card-level declaration), dependency, missing piece
 
 **Combo Edge**:
 An explicit, signed, directed link between two specific cards, used only for the closed two-card loop no **Capability** vocabulary can express (Painter's Servant + Grindstone). Deliberately capped in number — the escape hatch, not the model. Everything expressible as **Capability** must be a Capability.
