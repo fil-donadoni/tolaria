@@ -37,6 +37,7 @@ export default function DebugButton({
     disabled = false,
     className,
     title,
+    ariaExpanded,
 }: {
     onClick: () => void;
     children: React.ReactNode;
@@ -46,12 +47,15 @@ export default function DebugButton({
     disabled?: boolean;
     className?: string;
     title?: string;
+    /** Set on a disclosure toggle (issue #3512's card-row "More"). */
+    ariaExpanded?: boolean;
 }) {
     return (
         <Button
             variant={DEBUG_TONE[variant]}
             size={size}
             title={title}
+            aria-expanded={ariaExpanded}
             onClick={onClick}
             disabled={disabled}
             className={cn("font-sans tracking-normal", className)}

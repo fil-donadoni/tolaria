@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -20,7 +20,10 @@ import {
     emptySpecDraft,
     specToDraft,
 } from "./scenario-draft";
-import { assembleScenarioSpec } from "./scenario-spec-ownership";
+import {
+    assembleScenarioSpec,
+    SCENARIO_SPEC_SECTION_TITLE,
+} from "./scenario-spec-ownership";
 
 /** An existing row opened for editing. `spec` is the raw stored value (typed
  *  `unknown`); it's tolerantly normalized before inflating the form. */
@@ -85,6 +88,7 @@ export default function DebugSaveScenario({
     const [specDraft, setSpecDraft] = useState<SpecDraft>(() =>
         specToDraft(initial)
     );
+    const cardsHeadingId = useId();
     const [showJson, setShowJson] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
@@ -202,7 +206,13 @@ export default function DebugSaveScenario({
                 )}
             </div>
 
-            <div className="flex flex-col gap-1">
+            <section
+                aria-labelledby={cardsHeadingId}
+                className="flex flex-col gap-1.5"
+            >
+                <h3 id={cardsHeadingId} className="text-label">
+                    {SCENARIO_SPEC_SECTION_TITLE.cards}
+                </h3>
                 {cards.map((card, i) => (
                     <DebugScenarioCardFields
                         key={i}
@@ -212,14 +222,12 @@ export default function DebugSaveScenario({
                         onRemove={() => removeCard(i)}
                     />
                 ))}
-                <button
-                    type="button"
-                    onClick={addCard}
-                    className="self-start rounded-sm py-1 text-xs text-text-muted underline hover:text-parchment"
-                >
+                {/* A real secondary button (issue #3512), not an underlined
+                    link. */}
+                <DebugButton onClick={addCard} className="self-start">
                     + card
-                </button>
-            </div>
+                </DebugButton>
+            </section>
 
             {/* Spec-level knobs — one input per `form-owned` field (#3463),
                 split frequent / "Other options" (#3494) */}

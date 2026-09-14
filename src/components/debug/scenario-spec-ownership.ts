@@ -213,10 +213,50 @@ export const FORM_OWNED_SCENARIO_SPEC_KEYS = (
  */
 export type ScenarioSpecFieldGroup = "frequent" | "other";
 
-/** Every input shape carries its group — the axis is not optional. */
-type WithGroup<T> = T & { group: ScenarioSpecFieldGroup };
+/**
+ * WHICH HEADING a form-owned field renders under (issue #3512) — the second
+ * placement axis, orthogonal to `group`. ~28 knobs with no headings ran turn
+ * state, player resources and this-turn history together; a section is the
+ * semantic answer to "where is `revolt`", and a group is only "how often".
+ *
+ * A section may span both groups: `passCount` is a turn-and-priority knob that
+ * is rarely set, so it renders under "Turn & priority" inside "Other options"
+ * while `phase` renders under the same heading above it.
+ *
+ * Required on every row by the same `satisfies` that requires `group`, so a
+ * newly classified field cannot render under no heading; the renderer iterates
+ * {@link SCENARIO_SPEC_SECTIONS} and never lists a field itself.
+ */
+export type ScenarioSpecFieldSection =
+    | "cards"
+    | "turn"
+    | "players"
+    | "setup"
+    | "this-turn"
+    | "history";
 
-export type ScenarioSpecFieldInput = WithGroup<
+/** Each section's heading, in RENDER order — the key order IS the order. */
+export const SCENARIO_SPEC_SECTION_TITLE = {
+    cards: "Cards",
+    turn: "Turn & priority",
+    players: "Players",
+    setup: "Zones & setup",
+    "this-turn": "This turn",
+    history: "Turn history",
+} as const satisfies Record<ScenarioSpecFieldSection, string>;
+
+export const SCENARIO_SPEC_SECTIONS = Object.keys(
+    SCENARIO_SPEC_SECTION_TITLE
+) as ScenarioSpecFieldSection[];
+
+/** Every input shape carries its group AND its section — neither axis is
+ *  optional. */
+type WithPlacement<T> = T & {
+    group: ScenarioSpecFieldGroup;
+    section: ScenarioSpecFieldSection;
+};
+
+export type ScenarioSpecFieldInput = WithPlacement<
     | { kind: "cards" }
     | { kind: "number"; label: string; min?: number }
     | { kind: "phase"; label: string }
@@ -235,110 +275,190 @@ export type ScenarioSpecFieldInput = WithGroup<
 >;
 
 export const SCENARIO_SPEC_FIELD_INPUT = {
-    cards: { kind: "cards", group: "frequent" },
-    phase: { kind: "phase", label: "phase", group: "frequent" },
-    landCount: { kind: "number", label: "lands", min: 0, group: "frequent" },
-    libraryCount: {
-        kind: "number",
-        label: "library",
-        min: 0,
+    cards: { kind: "cards", group: "frequent", section: "cards" },
+
+    phase: {
+        kind: "phase",
+        label: "phase",
         group: "frequent",
+        section: "turn",
+    },
+    turn: {
+        kind: "number",
+        label: "turn",
+        min: 1,
+        group: "frequent",
+        section: "turn",
+    },
+    activePlayer: {
+        kind: "seat",
+        label: "active player",
+        group: "frequent",
+        section: "turn",
+    },
+    priority: {
+        kind: "seat",
+        label: "priority",
+        group: "frequent",
+        section: "turn",
+    },
+    passCount: {
+        kind: "number",
+        label: "passes",
+        min: 0,
+        group: "other",
+        section: "turn",
+    },
+
+    life: {
+        kind: "per-seat",
+        label: "life",
+        group: "frequent",
+        section: "players",
     },
     hiddenHand: {
         kind: "per-seat",
         label: "hidden hand",
         min: 0,
         group: "frequent",
+        section: "players",
     },
-    turn: { kind: "number", label: "turn", min: 1, group: "frequent" },
-    markLastDrawn: {
-        kind: "boolean",
-        label: "mark last drawn",
+    poison: {
+        kind: "per-seat",
+        label: "poison",
+        min: 0,
         group: "other",
+        section: "players",
     },
-    rngSeed: { kind: "number", label: "rng seed", group: "other" },
-    poison: { kind: "per-seat", label: "poison", min: 0, group: "other" },
-    life: { kind: "per-seat", label: "life", group: "frequent" },
     experience: {
         kind: "per-seat",
         label: "experience",
         min: 0,
         group: "other",
+        section: "players",
     },
+
+    landCount: {
+        kind: "number",
+        label: "lands",
+        min: 0,
+        group: "frequent",
+        section: "setup",
+    },
+    libraryCount: {
+        kind: "number",
+        label: "library",
+        min: 0,
+        group: "frequent",
+        section: "setup",
+    },
+    rngSeed: {
+        kind: "number",
+        label: "rng seed",
+        group: "other",
+        section: "setup",
+    },
+    markLastDrawn: {
+        kind: "boolean",
+        label: "mark last drawn",
+        group: "other",
+        section: "setup",
+    },
+    companion: {
+        kind: "companion",
+        label: "companion",
+        group: "other",
+        section: "setup",
+    },
+
     landsPlayed: {
         kind: "per-seat",
         label: "lands played",
         min: 0,
         group: "other",
+        section: "this-turn",
     },
     spellsCastThisTurn: {
         kind: "per-seat",
         label: "spells cast this turn",
         min: 0,
         group: "other",
-    },
-    spellsCastThisGame: {
-        kind: "per-seat",
-        label: "spells cast this game",
-        min: 0,
-        group: "other",
+        section: "this-turn",
     },
     stormCount: {
         kind: "number",
         label: "storm count",
         min: 0,
         group: "other",
+        section: "this-turn",
     },
     damageDealtToPlayerThisTurn: {
         kind: "per-seat",
         label: "damage taken this turn",
         min: 0,
         group: "other",
+        section: "this-turn",
     },
     artifactDamageToPlayerThisTurn: {
         kind: "per-seat",
         label: "artifact damage taken this turn",
         min: 0,
         group: "other",
+        section: "this-turn",
     },
     lifeGainedThisTurn: {
         kind: "per-seat",
         label: "life gained this turn",
         min: 0,
         group: "other",
+        section: "this-turn",
     },
     deathsThisTurn: {
         kind: "number",
         label: "creatures died",
         min: 0,
         group: "other",
+        section: "this-turn",
     },
     creatureAttackedThisTurn: {
         kind: "boolean",
         label: "a creature attacked this turn",
         group: "other",
+        section: "this-turn",
+    },
+
+    spellsCastThisGame: {
+        kind: "per-seat",
+        label: "spells cast this game",
+        min: 0,
+        group: "other",
+        section: "history",
     },
     qualifyingActionThisTurn: {
         kind: "per-seat-flag",
         label: "qualifying action this turn",
         group: "other",
+        section: "history",
     },
     qualifyingActionLastTurn: {
         kind: "per-seat-flag",
         label: "qualifying action last turn",
         group: "other",
+        section: "history",
     },
     turnsTaken: {
         kind: "per-seat",
         label: "turns taken",
         min: 0,
         group: "other",
+        section: "history",
     },
-    revolt: { kind: "per-seat-flag", label: "revolt", group: "other" },
-    activePlayer: { kind: "seat", label: "active player", group: "frequent" },
-    priority: { kind: "seat", label: "priority", group: "frequent" },
-    passCount: { kind: "number", label: "passes", min: 0, group: "other" },
-    companion: { kind: "companion", label: "companion", group: "other" },
+    revolt: {
+        kind: "per-seat-flag",
+        label: "revolt",
+        group: "other",
+        section: "history",
+    },
 } as const satisfies {
     [K in FormOwnedScenarioSpecKey]: ScenarioSpecFieldInputFor<K>;
 };
@@ -353,6 +473,13 @@ export function scenarioSpecFieldGroup(
     return SCENARIO_SPEC_FIELD_INPUT[key].group;
 }
 
+/** Widened read of a field's section — see {@link scenarioSpecFieldGroup}. */
+export function scenarioSpecFieldSection(
+    key: FormOwnedScenarioSpecKey
+): ScenarioSpecFieldSection {
+    return SCENARIO_SPEC_FIELD_INPUT[key].section;
+}
+
 /** The form-owned keys in one group, in declaration order — what the renderer
  *  loops over, so "which fields are frequent" is answered by the table and
  *  never by the component (issue #3494). */
@@ -364,6 +491,43 @@ export function formOwnedKeysInGroup(
     );
 }
 
+/** Whether a field's row is a me/opp pair — the rows a section's `me` / `opp`
+ *  column header stands for (issue #3512). */
+export function isPerSeatSpecField(key: FormOwnedScenarioSpecKey): boolean {
+    const kind = SCENARIO_SPEC_FIELD_INPUT[key].kind;
+    return kind === "per-seat" || kind === "per-seat-flag";
+}
+
+/** One section as a group renders it: its heading and its spec-level rows. */
+export type SpecFieldSectionRows = {
+    section: ScenarioSpecFieldSection;
+    title: string;
+    keys: FormOwnedScenarioSpecKey[];
+};
+
+/**
+ * The sections one group renders, each with its spec-level rows in the table's
+ * declaration order (issue #3512). A section with no row in this group is
+ * omitted, so a heading never stands over nothing — `cards` in particular
+ * never appears here, because the card repeater is not a spec-level row.
+ */
+export function specFieldSectionsInGroup(
+    group: ScenarioSpecFieldGroup
+): SpecFieldSectionRows[] {
+    const keys = (
+        Object.keys(SCENARIO_SPEC_FIELD_INPUT) as FormOwnedScenarioSpecKey[]
+    ).filter(
+        (key) =>
+            scenarioSpecFieldGroup(key) === group &&
+            SCENARIO_SPEC_FIELD_INPUT[key].kind !== "cards"
+    );
+    return SCENARIO_SPEC_SECTIONS.map((section) => ({
+        section,
+        title: SCENARIO_SPEC_SECTION_TITLE[section],
+        keys: keys.filter((key) => scenarioSpecFieldSection(key) === section),
+    })).filter((rows) => rows.keys.length > 0);
+}
+
 /**
  * The kind a field's row MAY declare, derived from the type of its `SpecDraft`
  * field. Without this the table and the draft are two hand-kept mirrors, and a
@@ -371,11 +535,12 @@ export function formOwnedKeysInGroup(
  * rendered a single input against a `{ me, opp }` object — the rendering loop
  * narrows on `kind` and reads the draft field on the strength of it.
  */
-type ScenarioSpecFieldInputFor<K extends FormOwnedScenarioSpecKey> = WithGroup<
-    K extends keyof SpecDraft
-        ? ScenarioSpecFieldInputForValue<SpecDraft[K]>
-        : { kind: "cards" }
->;
+type ScenarioSpecFieldInputFor<K extends FormOwnedScenarioSpecKey> =
+    WithPlacement<
+        K extends keyof SpecDraft
+            ? ScenarioSpecFieldInputForValue<SpecDraft[K]>
+            : { kind: "cards" }
+    >;
 
 type ScenarioSpecFieldInputForValue<V> = V extends SeatPairDraft
     ? { kind: "per-seat"; label: string; min?: number }

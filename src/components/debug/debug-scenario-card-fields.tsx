@@ -1,9 +1,19 @@
 import { useState } from "react";
 import type { CardDraft, CounterDraft } from "./scenario-draft";
-import { DEBUG_INPUT_CLASS } from "./debug-form-styles";
+import {
+    DEBUG_CHECKBOX_CLASS,
+    DEBUG_INPUT_CLASS,
+    DEBUG_NUMBER_INPUT_CLASS,
+    DEBUG_SEAT_SELECT_CLASS,
+} from "./debug-form-styles";
+import DebugButton from "./debug-button";
 import DebugCardNameField from "./debug-card-name-field";
 
 const ZONES = ["battlefield", "hand", "library", "graveyard", "exile"] as const;
+
+/** A checkbox (or small input) with its visible word, at the form's body size
+ *  and full contrast — the spec fields' label treatment (issue #3512). */
+const CHECK_LABEL_CLASS = "flex items-center gap-1.5 text-xs text-text";
 
 /** One card row in the scenario save form's repeater. Fields are laid out in
  *  descending order of use-probability: name + owner always visible, then the
@@ -44,10 +54,10 @@ export default function DebugScenarioCardFields({
         onPatch({ counters: draft.counters.filter((_, j) => j !== i) });
 
     return (
-        <div className="flex flex-col gap-1 rounded-sm border border-border-subtle bg-surface-elevated/30 p-1.5">
+        <div className="flex flex-col gap-1.5 rounded-sm border border-border-subtle bg-surface-elevated/30 p-1.5">
             {/* Primary: name + owner + remove */}
             <div className="flex items-center gap-1">
-                <span className="w-4 shrink-0 text-[10px] text-text-disabled">
+                <span className="w-5 shrink-0 text-center text-xs tabular-nums text-text-muted">
                     {index + 1}
                 </span>
                 <DebugCardNameField
@@ -63,7 +73,7 @@ export default function DebugScenarioCardFields({
                         onPatch({ owner: e.target.value as CardDraft["owner"] })
                     }
                     aria-label={`Card ${index + 1} owner`}
-                    className={DEBUG_INPUT_CLASS}
+                    className={DEBUG_SEAT_SELECT_CLASS}
                 >
                     <option value="me">me</option>
                     <option value="opp">opp</option>
@@ -78,76 +88,94 @@ export default function DebugScenarioCardFields({
                 </button>
             </div>
 
-            {/* Common placement knobs */}
-            <div className="flex flex-wrap items-center gap-2 pl-5">
-                {/* CR 111 / 707.2 — a token row names a shape in the token
-                    catalogue instead of a card, and (CR 111.7) can only be
-                    placed on the battlefield, so the zone picker is locked. */}
-                <label className="flex items-center gap-1 text-text-muted">
-                    <input
-                        type="checkbox"
-                        checked={draft.token}
+            {/* Common placement knobs (issue #3512) — two FIXED lines, not a
+                `flex-wrap` run, which put these five in a different order at
+                each viewport: zone + count, then the three flags + More.
+                Each line is its own grid, because one grid shared by both
+                sized the zone select's track by the flag labels below it and
+                crushed it to 27px at the phone sheet width (PR review). */}
+            <div data-card-placement className="flex flex-col gap-1.5 pl-6">
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2">
+                    <select
+                        value={draft.zone}
+                        disabled={draft.token}
                         onChange={(e) =>
                             onPatch({
-                                token: e.target.checked,
-                                name: "",
-                                zone: "battlefield",
+                                zone: e.target.value as CardDraft["zone"],
                             })
                         }
-                        aria-label={`Card ${index + 1} is token`}
-                    />
-                    token
-                </label>
-                <select
-                    value={draft.zone}
-                    disabled={draft.token}
-                    onChange={(e) =>
-                        onPatch({ zone: e.target.value as CardDraft["zone"] })
-                    }
-                    aria-label={`Card ${index + 1} zone`}
-                    className={`${DEBUG_INPUT_CLASS} disabled:opacity-50`}
-                >
-                    {ZONES.map((z) => (
-                        <option key={z} value={z}>
-                            {z}
-                        </option>
-                    ))}
-                </select>
-                <label className="flex items-center gap-1 text-text-muted">
-                    count
-                    <input
-                        type="number"
-                        min={1}
-                        value={draft.count}
-                        onChange={(e) => onPatch({ count: e.target.value })}
-                        className={`${DEBUG_INPUT_CLASS} w-14`}
-                    />
-                </label>
-                <label className="flex items-center gap-1 text-text-muted">
-                    <input
-                        type="checkbox"
-                        checked={draft.tapped}
-                        onChange={(e) => onPatch({ tapped: e.target.checked })}
-                    />
-                    tapped
-                </label>
-                <label className="flex items-center gap-1 text-text-muted">
-                    <input
-                        type="checkbox"
-                        checked={draft.summoningSick}
-                        onChange={(e) =>
-                            onPatch({ summoningSick: e.target.checked })
-                        }
-                    />
-                    sick
-                </label>
-                <button
-                    type="button"
-                    onClick={() => setShowMore((v) => !v)}
-                    className="text-[10px] text-text-disabled underline hover:text-parchment"
-                >
-                    {showMore ? "less" : "more…"}
-                </button>
+                        aria-label={`Card ${index + 1} zone`}
+                        className={`${DEBUG_INPUT_CLASS} w-full min-w-0 disabled:opacity-50`}
+                    >
+                        {ZONES.map((z) => (
+                            <option key={z} value={z}>
+                                {z}
+                            </option>
+                        ))}
+                    </select>
+                    <label className={CHECK_LABEL_CLASS}>
+                        count
+                        <input
+                            type="number"
+                            min={1}
+                            value={draft.count}
+                            onChange={(e) => onPatch({ count: e.target.value })}
+                            className={DEBUG_NUMBER_INPUT_CLASS}
+                        />
+                    </label>
+                </div>
+                <div className="grid grid-cols-[auto_auto_auto_minmax(0,1fr)] items-center gap-x-3">
+                    {/* CR 111 / 707.2 — a token row names a shape in the token
+                    catalogue instead of a card, and (CR 111.7) can only be
+                    placed on the battlefield, so the zone picker is locked. */}
+                    <label className={CHECK_LABEL_CLASS}>
+                        <input
+                            type="checkbox"
+                            checked={draft.token}
+                            onChange={(e) =>
+                                onPatch({
+                                    token: e.target.checked,
+                                    name: "",
+                                    zone: "battlefield",
+                                })
+                            }
+                            aria-label={`Card ${index + 1} is token`}
+                            className={DEBUG_CHECKBOX_CLASS}
+                        />
+                        token
+                    </label>
+                    <label className={CHECK_LABEL_CLASS}>
+                        <input
+                            type="checkbox"
+                            checked={draft.tapped}
+                            onChange={(e) =>
+                                onPatch({ tapped: e.target.checked })
+                            }
+                            className={DEBUG_CHECKBOX_CLASS}
+                        />
+                        tapped
+                    </label>
+                    <label className={CHECK_LABEL_CLASS}>
+                        <input
+                            type="checkbox"
+                            checked={draft.summoningSick}
+                            onChange={(e) =>
+                                onPatch({ summoningSick: e.target.checked })
+                            }
+                            className={DEBUG_CHECKBOX_CLASS}
+                        />
+                        sick
+                    </label>
+                    {/* A real secondary button at the form's body size (issue
+                    #3512), not 10px disabled-contrast underlined text. */}
+                    <DebugButton
+                        onClick={() => setShowMore((v) => !v)}
+                        ariaExpanded={showMore}
+                        className="justify-self-end"
+                    >
+                        {showMore ? "Less" : "More"}
+                    </DebugButton>
+                </div>
             </div>
 
             {/* Rarer fields */}
@@ -198,7 +226,7 @@ export default function DebugScenarioCardFields({
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
-                        <label className="flex items-center gap-1 text-text-muted">
+                        <label className={CHECK_LABEL_CLASS}>
                             dmg
                             <input
                                 type="number"
@@ -209,7 +237,7 @@ export default function DebugScenarioCardFields({
                                 className={`${DEBUG_INPUT_CLASS} w-14`}
                             />
                         </label>
-                        <label className="flex items-center gap-1 text-text-muted">
+                        <label className={CHECK_LABEL_CLASS}>
                             pos
                             <input
                                 type="number"
@@ -222,7 +250,7 @@ export default function DebugScenarioCardFields({
                         </label>
                     </div>
 
-                    <label className="flex items-center gap-1 text-text-muted">
+                    <label className={CHECK_LABEL_CLASS}>
                         attach→
                         <DebugCardNameField
                             value={draft.attachedTo}
@@ -231,7 +259,7 @@ export default function DebugScenarioCardFields({
                             ariaLabel={`Card ${index + 1} attached to`}
                         />
                     </label>
-                    <label className="flex items-center gap-1 text-text-muted">
+                    <label className={CHECK_LABEL_CLASS}>
                         copyOf
                         <DebugCardNameField
                             value={draft.copyOf}
@@ -242,27 +270,29 @@ export default function DebugScenarioCardFields({
                     </label>
 
                     <div className="flex flex-wrap items-center gap-2">
-                        <label className="flex items-center gap-1 text-text-muted">
+                        <label className={CHECK_LABEL_CLASS}>
                             <input
                                 type="checkbox"
                                 checked={draft.faceDown}
                                 onChange={(e) =>
                                     onPatch({ faceDown: e.target.checked })
                                 }
+                                className={DEBUG_CHECKBOX_CLASS}
                             />
                             faceDown
                         </label>
-                        <label className="flex items-center gap-1 text-text-muted">
+                        <label className={CHECK_LABEL_CLASS}>
                             <input
                                 type="checkbox"
                                 checked={draft.faceDownExile}
                                 onChange={(e) =>
                                     onPatch({ faceDownExile: e.target.checked })
                                 }
+                                className={DEBUG_CHECKBOX_CLASS}
                             />
                             fdExile
                         </label>
-                        <label className="flex items-center gap-1 text-text-muted">
+                        <label className={CHECK_LABEL_CLASS}>
                             <input
                                 type="checkbox"
                                 checked={draft.castableFromExile}
@@ -271,6 +301,7 @@ export default function DebugScenarioCardFields({
                                         castableFromExile: e.target.checked,
                                     })
                                 }
+                                className={DEBUG_CHECKBOX_CLASS}
                             />
                             castExile
                         </label>
@@ -280,7 +311,7 @@ export default function DebugScenarioCardFields({
                             (Ice Cauldron) so this panel can stage BOTH the
                             legal land-play case and the no-action-at-all
                             case. */}
-                        <label className="flex items-center gap-1 text-text-muted">
+                        <label className={CHECK_LABEL_CLASS}>
                             <input
                                 type="checkbox"
                                 checked={draft.castableFromExileIncludesLand}
@@ -290,10 +321,11 @@ export default function DebugScenarioCardFields({
                                             e.target.checked,
                                     })
                                 }
+                                className={DEBUG_CHECKBOX_CLASS}
                             />
                             +land
                         </label>
-                        <label className="flex items-center gap-1 text-text-muted">
+                        <label className={CHECK_LABEL_CLASS}>
                             <input
                                 type="checkbox"
                                 checked={draft.attackedLastTurn}
@@ -302,6 +334,7 @@ export default function DebugScenarioCardFields({
                                         attackedLastTurn: e.target.checked,
                                     })
                                 }
+                                className={DEBUG_CHECKBOX_CLASS}
                             />
                             attacked
                         </label>
@@ -311,7 +344,7 @@ export default function DebugScenarioCardFields({
                             untap-to-refund toggle refuse a source whose mana
                             is already spent, or whose tap put a triggered
                             ability on the stack (City of Brass). */}
-                        <label className="flex items-center gap-1 text-text-muted">
+                        <label className={CHECK_LABEL_CLASS}>
                             <input
                                 type="checkbox"
                                 checked={draft.manaCommitted}
@@ -320,10 +353,11 @@ export default function DebugScenarioCardFields({
                                         manaCommitted: e.target.checked,
                                     })
                                 }
+                                className={DEBUG_CHECKBOX_CLASS}
                             />
                             mana spent
                         </label>
-                        <label className="flex items-center gap-1 text-text-muted">
+                        <label className={CHECK_LABEL_CLASS}>
                             <input
                                 type="checkbox"
                                 checked={draft.tapTriggerCommitted}
@@ -332,6 +366,7 @@ export default function DebugScenarioCardFields({
                                         tapTriggerCommitted: e.target.checked,
                                     })
                                 }
+                                className={DEBUG_CHECKBOX_CLASS}
                             />
                             tap trigger
                         </label>
@@ -340,7 +375,7 @@ export default function DebugScenarioCardFields({
                             reads (Rasputin Dreamweaver). Independent of
                             `tapped`: the permanent may have been tapped or
                             untapped since the step. */}
-                        <label className="flex items-center gap-1 text-text-muted">
+                        <label className={CHECK_LABEL_CLASS}>
                             <input
                                 type="checkbox"
                                 checked={draft.startedTurnUntapped}
@@ -349,6 +384,7 @@ export default function DebugScenarioCardFields({
                                         startedTurnUntapped: e.target.checked,
                                     })
                                 }
+                                className={DEBUG_CHECKBOX_CLASS}
                             />
                             started untapped
                         </label>
