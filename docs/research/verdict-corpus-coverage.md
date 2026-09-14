@@ -126,6 +126,18 @@ missing term — they are the candidate list failing to collapse moves that are
 the same move. Seven are land drops, five are activations. They inflate `blind`
 and the denominator alike, and the tester sees the duplicates in the quiz too.
 
+> **Closed by issue #3593, and the count was slightly off.** The collapse
+> landed and the census was re-run on this same corpus with only the collapse
+> toggled: pairs 495 → 444, **blind 47 → 39**, stale 0 either way. Eight of the
+> twelve were vacuous as described. The other four are **not**: they are
+> Treetop Village animations whose tap plan includes the Village being
+> animated, so the copy that funds its own animation ends up tapped and its
+> twin does not. Two different boards, and blind for the ordinary reason — the
+> evaluation has no term that reads them apart — which is a collection target
+> for this class, not a bookkeeping artifact. The remaining duplication the
+> collapse did remove was quieter than the finding says: 51 pairs, most of them
+> `satisfied`, were the SAME constraint counted twice.
+
 ## The decision rule, registered before the numbers were seen
 
 > **Step 0 (this document)**: census by class. No conclusion about a class with

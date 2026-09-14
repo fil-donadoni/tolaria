@@ -255,16 +255,26 @@ export function evalPairsOf(
     const best = allowed.reduce((a, b) =>
         features[b].policyValue > features[a].policyValue ? b : a
     );
-    // A pair whose two sides resolve to the SAME move is not a constraint: it
-    // says a move must outrank itself, which every weight vector satisfies at
-    // delta 0 and which the census then counts as BLIND, inflating both the
-    // blind column and the denominator. It arises exactly where issue #3593
-    // says it does — a pre-collapse verdict naming one copy as right and its
-    // twin as wrong — and 12 of the 47 blind pairs measured in issue #3588
-    // were this. The verdict's other pairs are untouched.
-    const pairs = disallowed
-        .filter((i) => moveKey(moves[i]) !== moveKey(moves[best]))
-        .map((i) => pairOf(verdict.answer.kind, best, i));
+    // TWO vacuities, both of them the same thing seen twice, and both of them
+    // counted as BLIND by the census — inflating the blind column and the
+    // denominator alike (issue #3588, finding 4: 12 of 47).
+    //
+    //  - a pair whose two sides resolve to the SAME move says a move must
+    //    outrank itself, which every weight vector satisfies at delta 0;
+    //  - two disallowed candidates that resolve to the same move produce the
+    //    same constraint twice, which double-weights it in the fit.
+    //
+    // Both arise where issue #3593 says they do: a verdict recorded before the
+    // interchangeability collapse, naming one copy of a card as right and its
+    // twin as wrong. The verdict's other pairs are untouched.
+    const seen = new Set([moveKey(moves[best])]);
+    const pairs: EvalPair[] = [];
+    for (const i of disallowed) {
+        const key = moveKey(moves[i]);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        pairs.push(pairOf(verdict.answer.kind, best, i));
+    }
     if (pairs.length === 0) {
         return fail(
             "every disallowed candidate is interchangeable with the allowed one — no constraint to express"
