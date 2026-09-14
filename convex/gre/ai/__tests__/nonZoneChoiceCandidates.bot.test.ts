@@ -77,7 +77,7 @@ describe("nonZoneChoiceCandidateIds", () => {
         for (const kind of [
             "choose-graveyard-card",
             "discard-hand",
-            "sacrifice",
+            "sacrifice-permanents",
         ] as const) {
             expect(
                 nonZoneChoiceCandidateIds(
