@@ -3584,18 +3584,26 @@ describe("Icy Prison (ETB exile + upkeep tax + return on leave, CR 701.13 / 603.
 // commented, art-mapped stub until issue #1701 shipped `payVariableMana`; the
 // interesting half is that ONE prompt carries the whole decision, and that the
 // amount nominated is what the prevention shield reads.
+const ERRANT_MINION_ID = "61648ddb-6efb-43d0-b2b1-418cc957854c";
+const GRIZZLY_BEARS_ID = "ce2d603a-3231-4a8c-bf39-1617586ea870";
+
 describe("Errant Minion (CR 107.3f / 615.1, issue #1701)", () => {
     /** The aura on p2's creature, advanced to p2's upkeep with `mana` floated.
      *  The mana is floated AFTER the phase change: CR 500.4 empties every pool
      *  at each step boundary, so a payer taps their lands DURING the upkeep,
      *  while the nomination window is open (CR 605.3a). */
     function upkeepWithMana(mana: Record<string, number>): GameState {
-        const victim = makeInstance(getCardByName("Grizzly Bears").id, {
+        // Through the REGISTRY seam (`getDefinition(id)`, ADR 0046), never
+        // `getCardByName`: the name reader resolves a module-load `const` the
+        // gold harness's definition swap never writes, so a test on it passes
+        // against the hand-written definition no matter what is registered
+        // (`scripts/__tests__/card-test-seam-boundary.test.ts`).
+        const victim = makeInstance(getDefinition(GRIZZLY_BEARS_ID).id, {
             id: "victim",
             controllerId: "p2",
             ownerId: "p2",
         });
-        const aura = makeInstance(getCardByName("Errant Minion").id, {
+        const aura = makeInstance(getDefinition(ERRANT_MINION_ID).id, {
             id: "minion",
             controllerId: "p1",
             ownerId: "p1",
