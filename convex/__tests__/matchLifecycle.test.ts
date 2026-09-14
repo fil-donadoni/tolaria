@@ -154,7 +154,12 @@ describe("recordDrawnGame — a drawn Game settles its Match (CR 104.4a, issue #
             ...match(3, [player("a"), player("b")]),
             playDrawChooserId: "b",
         };
-        expect(recordDrawnGame(m).playDrawChooserId).toBeUndefined();
+        const patch = recordDrawnGame(m);
+        // The key is ABSENT, not set to undefined: `ctx.db.patch` leaves a
+        // field it is not handed alone, which is what "chooses again" means
+        // for the seat that chose last.
+        expect("playDrawChooserId" in patch).toBe(false);
+        expect(patch.playDrawChooserId).toBeUndefined();
     });
 
     it("Bo3 whose LAST Game is drawn: the Match finishes with no winner", () => {

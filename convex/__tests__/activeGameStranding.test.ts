@@ -141,6 +141,81 @@ describe("a drawn Game settles its Match (CR 104.4a, issue #3336)", () => {
     });
 });
 
+describe("a drawn Limited pairing lands in the standings (issue #3336 review)", () => {
+    it("records the drawn Match as a played 0-0 pairing", async () => {
+        // Settling the Match on a draw makes `recordLimitedPairingResult`
+        // REACHABLE for a winner-less game over — before this fix
+        // `finalizeGameOver` returned before it, so a drawn pairing was
+        // silently never recorded and its round could never complete.
+        const db = makeInMemoryDb(
+            {
+                users: [{ _id: USER, name: "Tester" }],
+                limitedEvents: [
+                    {
+                        _id: "event1",
+                        status: "playing",
+                        currentRound: 1,
+                        seats: [],
+                        rounds: [
+                            {
+                                roundNumber: 1,
+                                startedAt: 0,
+                                pairings: [
+                                    { seatA: 0, seatB: 1, matchId: "match1" },
+                                ],
+                            },
+                        ],
+                        updatedAt: 0,
+                    },
+                ],
+                matches: [
+                    {
+                        _id: "match1",
+                        bestOf: 1,
+                        status: "playing",
+                        players: [seat(SEAT_A), seat(SEAT_B)],
+                        currentGameNumber: 1,
+                        currentGameId: "game1",
+                        limitedEventId: "event1",
+                        limitedPairing: { round: 1, seatA: 0, seatB: 1 },
+                        createdAt: 0,
+                        updatedAt: 0,
+                    },
+                ],
+                games: [
+                    {
+                        _id: "game1",
+                        name: "Pairing game",
+                        status: "playing",
+                        matchId: "match1",
+                        players: [seat(SEAT_A), seat(SEAT_B)],
+                        createdAt: 0,
+                        updatedAt: 0,
+                    },
+                ],
+            },
+            { identitySubject: `${USER}|session1` }
+        );
+
+        await finalizeGameOver(db.ctx, "game1" as Id<"games">, 1, DRAWN);
+
+        const pairing = (
+            db.tables.limitedEvents[0].rounds as {
+                pairings: {
+                    result?: { winsA: number; winsB: number; source: string };
+                }[];
+            }[]
+        )[0].pairings[0];
+        // `limited/standings.ts` scores an equal-wins "played" result as a
+        // draw — 1 point each — which is the right outcome for a drawn Game.
+        expect(pairing.result).toEqual({
+            winsA: 0,
+            winsB: 0,
+            source: "played",
+        });
+    });
+});
+
 describe("the banner's offered action is one the server accepts (issue #3336)", () => {
     it("projects the MATCH status alongside the Game's, so `finished` is not read as `waiting`", async () => {
         const db = world("sideboarding", "finished");
