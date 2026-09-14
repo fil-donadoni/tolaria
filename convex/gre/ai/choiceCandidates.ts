@@ -37,6 +37,7 @@ import { effectivePermanentView } from "../permanentView";
 import type {
     CardInstanceState,
     GameState,
+    ManaRestriction,
     PendingChoice,
     PlayerState,
 } from "../state";
@@ -76,7 +77,13 @@ import {
 import { exileCastPermission } from "../castCost";
 import { getLegalActions } from "../rules";
 import { eligibleZonePickCards } from "../zonePickEligibility";
-import { targetKey, numberChoiceRange, spendableManaTotal } from "../state";
+import {
+    targetKey,
+    numberChoiceRange,
+    spendableManaTotal,
+    mayPayUnitIsEligible,
+} from "../state";
+import { getEffectiveActivatedAbilities } from "../activatedAbilities";
 import { boardCensusFor } from "../manaAvailability";
 import type { Color } from "../../cards/types";
 import {
@@ -410,11 +417,13 @@ function openNominationSearchCeiling(state: GameState): number {
  *  The extra units are banked as COLOURLESS because the payment is a generic
  *  leg — CR 107.4b: "generic mana in costs can be paid with any type of
  *  mana" — which is the same reason `spendableManaTotal` may sum the pool at
- *  all; and
- *  `boardCensusFor` is the pool-free half of the census, so nothing is counted
- *  twice. Every candidate is still individually planned below, so a ceiling
- *  this view over-states (a source whose colours cannot in fact be spent here)
- *  loses its candidate to a `null` plan rather than reaching the submit. */
+ *  all; and `boardCensusFor` is the pool-free half of the census, so nothing
+ *  is counted twice.
+ *
+ *  The per-candidate plan below is NOT a sufficient backstop for an
+ *  over-stated ceiling, which is why {@link manaWindowSources} narrows the
+ *  board first: `planManaPayment` is as blind to CR 106.6 restriction as this
+ *  census is, so the two AGREE on a payment the submit validator refuses. */
 function manaWindowPayerView(
     state: GameState,
     payer: PlayerState
@@ -429,13 +438,92 @@ function manaWindowPayerView(
     };
 }
 
+/** CR 106.6 (issue #3569 review) — does any mana `card` can make land in the
+ *  PARALLEL restricted pool under a restriction this nomination may not spend?
+ *
+ *  Read off the EFFECTIVE abilities rather than the printed ones, so a granted
+ *  restricted mana ability is seen too, and answered by the same authority the
+ *  submit validator's own ceiling uses (`mayPayUnitIsEligible`, `gre/state.ts`
+ *  — the one `spendableManaTotal` calls for each floating unit). */
+function makesIneligibleRestrictedMana(
+    card: CardInstanceState,
+    restriction: ManaRestriction | undefined
+): boolean {
+    for (const entry of getEffectiveActivatedAbilities(card)) {
+        const declared = entry.ability.manaRestriction;
+        if (
+            declared !== undefined &&
+            !mayPayUnitIsEligible(
+                { color: "C", amount: 1, restriction: declared },
+                restriction
+            )
+        ) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/** CR 106.6 / 608.2g (issue #3569 review) — `state` and `payer` narrowed to
+ *  the sources this window may actually spend, for BOTH the ceiling above and
+ *  the per-candidate plan below, so the two cannot disagree.
+ *
+ *  Mishra's Workshop is the shipped shape that forces it: its `{T}: Add
+ *  {C}{C}{C}` declares `manaRestriction: "artifact-spell"`, so the mana it
+ *  makes floats in `restrictedMana` and `spendableManaTotal` — the authority
+ *  `applyNumberChoiceSubmit` re-derives the range from — does not count it for
+ *  a nomination with no matching restriction. Neither `boardManaCensus` nor
+ *  `planManaPayment` models a restriction, so left alone they agree on a
+ *  three-mana nomination the server then refuses: measured, the live Bot taps
+ *  the Workshop for nothing and eats an error out of the window, while inside
+ *  the search it "pays" three and over-values the whole line.
+ *
+ *  Excluded WHOLE-PERMANENT and fail-closed: a source with both an eligible
+ *  and an ineligible realisation (Delighted Halfling's plain `{T}: Add {C}`
+ *  beside its legendary-spell mana) is dropped with them, costing at most one
+ *  unit of ceiling. The other direction — crediting a unit the submit refuses
+ *  — is the one that freezes a window (ADR 0047), and choosing per-realisation
+ *  would mean a second copy of the census's own option folding here. */
+function manaWindowSources(
+    state: GameState,
+    payer: PlayerState,
+    restriction: ManaRestriction | undefined
+): { state: GameState; payer: PlayerState } {
+    const usable = payer.battlefield.filter(
+        (c) => !makesIneligibleRestrictedMana(c, restriction)
+    );
+    if (usable.length === payer.battlefield.length) return { state, payer };
+    const narrowed: PlayerState = { ...payer, battlefield: usable };
+    return {
+        // SHALLOW: only the payer's entry is replaced, so every board-dependent
+        // `canActivate` the census and the planner run still sees the real
+        // opponent board (`manaGateBattlefields`).
+        state: {
+            ...state,
+            players: state.players.map((p) =>
+                p.id === payer.id ? narrowed : p
+            ),
+        },
+        payer: narrowed,
+    };
+}
+
 const numberPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
-    const payer = state.players.find((p) => p.id === choice.playerId);
-    // CR 608.2g (issue #3569) — a PAYING nomination may be preceded by mana
-    // abilities, so its ceiling is the pool plus what the untapped sources
-    // could still make. A bare nomination spends nothing and opens no window.
+    const truePayer = state.players.find((p) => p.id === choice.playerId);
+    // CR 608.2g / 106.6 (issue #3569) — a PAYING nomination may be preceded by
+    // mana abilities, so its ceiling is the pool plus what the untapped
+    // sources ELIGIBLE for this payment could still make. One narrowing, used
+    // by both the ceiling and every plan below. A bare nomination spends
+    // nothing and opens no window.
+    const window =
+        truePayer && choice.paysMana
+            ? manaWindowSources(state, truePayer, choice.manaRestriction)
+            : { state, payer: truePayer };
+    const payer = window.payer;
     const rangePayer =
-        payer && choice.paysMana ? manaWindowPayerView(state, payer) : payer;
+        payer && choice.paysMana
+            ? manaWindowPayerView(window.state, payer)
+            : payer;
     const { min, max: legalMax } = numberChoiceRange(choice, rangePayer);
     // CR 107.1c (issue #1421) — an OPEN nomination (no authored ceiling, no
     // payment) is legal up to the engine cap and searchable only to a
@@ -468,7 +556,9 @@ const numberPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
         // — the submit would refuse it and the window would freeze (ADR 0047).
         let tapPlan: ManaTap[] = [];
         if (amount > fromPool) {
-            const planned = planManaPayment(state, payer!, { X: amount });
+            const planned = planManaPayment(window.state, payer!, {
+                X: amount,
+            });
             if (planned === null) continue;
             tapPlan = planned;
         }

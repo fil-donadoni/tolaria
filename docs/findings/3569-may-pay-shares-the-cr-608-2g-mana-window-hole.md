@@ -43,3 +43,13 @@ and larger half of one bug class, and it is defensible without the card that
 surfaced it. But it is the kind of change that wants its own discriminating
 blade pair (a cost the lands cover, and one they do not), so it should be
 scoped as work rather than appended to a landed slice.
+
+**A third, smaller member of the same family.** `planManaPayment` models the
+pool as zero-tap sources but folds in only `unrestrictedFloatingMana`, while
+`spendableManaTotal` — and therefore the nomination's ceiling — counts every
+restricted unit ELIGIBLE under the choice's own `manaRestriction` (CR 106.6).
+A nomination fundable as "eligible restricted mana plus taps" therefore loses
+its top candidate to a `null` plan, and where a plan does exist the Bot
+over-taps, because the submit spends the restricted mana first
+(`payManaCostForRestriction`) and leaves the extra land mana floating. Latent
+today: no shipped card puts a `manaRestriction` on a `payVariableMana` head.

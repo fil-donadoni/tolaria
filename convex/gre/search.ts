@@ -695,7 +695,27 @@ function applyTapPlan(
  *
  *  Banked as COLOURLESS because the payment is a generic leg — CR 107.4b:
  *  "generic mana in costs can be paid with any type of mana" — which is the
- *  same reason `spendableManaTotal` may sum the pool at all. */
+ *  same reason `spendableManaTotal` may sum the pool at all.
+ *
+ *  TWO PROPERTIES IT DOES NOT HAVE, both measured at review and both kept
+ *  deliberately, because the alternatives are worse than what they replace:
+ *
+ *  It does not VERIFY the taps. `applyTapPlan` silently skips a source that is
+ *  missing or already tapped, and this credit does not depend on it having
+ *  acted — hand a 3-tap plan to a state whose lands are already down and 3
+ *  mana is minted from nothing. The invariant that makes it sound is that the
+ *  plan is always derived from the state it is applied to: the generator plans
+ *  against the node's own world, and `iterate` re-derives this world's move
+ *  for the selected key rather than replaying a stored one. Refusing the
+ *  credit on a stale plan would not be safer — `applyNumberChoiceSubmit`
+ *  THROWS on an amount above the live range, so a half-funded nomination would
+ *  take the whole playout down instead of over-valuing one leaf.
+ *
+ *  And it under-states a MULTI-MANA source: a plan that taps Sol Ring for a
+ *  nomination of 1 credits 1, while the live pool keeps the second {C}
+ *  floating. Same direction and same cause as the coarse model's own
+ *  omission (`docs/findings/3569-search-applytapplan-never-debits-the-floating-pool.md`)
+ *  — the leaf sees FEWER resources than the seat has, never more. */
 function floatPlannedNominationMana(
     state: GameState,
     playerId: string,

@@ -409,6 +409,14 @@ export async function executeMove(
             // them: CR 500.5 empties the pool at every step boundary, so
             // without them the server's live range caps this nomination at 0
             // on every board a real game reaches.
+            //
+            // `tapUntap` is a TOGGLE, so a plan naming an ALREADY-TAPPED
+            // source would untap it and refund its mana rather than erroring
+            // — a quieter failure than the cast path's `tapForPayment`. What
+            // keeps it out of reach is that `planManaPayment` only ever names
+            // untapped permanents, the plan is built from the same live state
+            // this dispatch reads, and `inFlight` (useVsAiDriver) makes the
+            // tap-then-submit sequence atomic against another consult.
             if (move.tapPlan && move.tapPlan.length > 0) {
                 await runTapPlan(
                     move.tapPlan,

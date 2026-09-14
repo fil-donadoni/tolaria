@@ -376,6 +376,60 @@ describe("number-pick candidates inside the CR 608.2g mana window (issue #3569)"
         ).toBe(0);
     });
 
+    it("does NOT credit mana the payment could not spend — CR 106.6 restricted sources are not ceiling", () => {
+        // Mishra's Workshop's "{T}: Add {C}{C}{C}" declares
+        // `manaRestriction: "artifact-spell"`, so its mana lands in the
+        // PARALLEL restricted pool and `spendableManaTotal` — the authority
+        // the submit re-derives the range from — does not count it for a
+        // nomination that carries no matching restriction. Neither
+        // `boardManaCensus` nor `planManaPayment` models a restriction, so
+        // without the narrowing the two AGREE on a three-mana answer the
+        // server refuses: the live Bot taps the Workshop for nothing and eats
+        // an error out of the window, and the search over-values the line.
+        const p1 = makePlayer("p1");
+        p1.battlefield = [
+            makeInstance(getCardByName("Mishra's Workshop")!.id, {
+                controllerId: "p1",
+            }),
+        ];
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+        pushSpell(state, NOMINATOR_ID, "p1");
+        resolveTopOfStack(state);
+        const candidates = generate(state, state.pendingChoices![0]);
+        expect(candidates).toHaveLength(1);
+        expect(candidates[0].move).toEqual({
+            kind: "number-choice",
+            amount: 0,
+        });
+    });
+
+    it("still reaches the UNRESTRICTED sources standing beside a restricted one", () => {
+        const p1 = makePlayer("p1");
+        p1.battlefield = [
+            makeInstance(getCardByName("Mishra's Workshop")!.id, {
+                controllerId: "p1",
+            }),
+            makeInstance(MOUNTAIN_ID, { controllerId: "p1" }),
+            makeInstance(MOUNTAIN_ID, { controllerId: "p1" }),
+        ];
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+        pushSpell(state, NOMINATOR_ID, "p1");
+        resolveTopOfStack(state);
+        const choice = state.pendingChoices![0];
+        const amounts = amountsOf(state, choice);
+        // Two Mountains, not five: the Workshop's three are excluded, and the
+        // narrowing does not take the rest of the board down with them.
+        expect(Math.max(...amounts)).toBe(2);
+        // …and no plan names the excluded source.
+        const workshopId = p1.battlefield[0].id;
+        for (const candidate of generate(state, choice)) {
+            if (candidate.move.kind !== "number-choice") continue;
+            for (const tap of candidate.move.tapPlan ?? []) {
+                expect(tap.cardInstanceId).not.toBe(workshopId);
+            }
+        }
+    });
+
     it("a BARE nomination opens no window — it spends nothing, so there is nothing to tap for", () => {
         const state = suspendedBareNomination((p1) => {
             p1.battlefield = [
