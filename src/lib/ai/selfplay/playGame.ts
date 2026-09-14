@@ -51,6 +51,7 @@ import {
     computeExpectedInput,
     type ExpectedInputKind,
 } from "@convex/gre/expectedInput";
+import { nonZoneChoiceCandidateIds } from "@convex/gre/ai/nonZoneChoiceCandidates";
 import { manaValue } from "@convex/gre/constants";
 import { effectivePermanentView } from "@convex/gre/permanentView";
 import { getCardColorIdentity, getColorsFromCost } from "@convex/cards/colors";
@@ -227,12 +228,11 @@ export function listCandidates(
     }
     if (head.kind === "trigger-order") {
         // CR 603.3b — `candidateIds` here are STACK ITEM ids (a permutation
-        // to order), never permanent instance ids; `resolvePending` reads
-        // `head.candidateIds` directly for its submission and never consults
-        // this function's return for this kind (the mapped `candidates` list
-        // built from it is discarded). Filtering against the battlefield
-        // would misfire the untagged-zone diagnostic below on every such
-        // choice, so this kind is out of scope for it by construction.
+        // to order), never permanent instance ids; the submission comes from
+        // `nonZoneChoiceCandidateIds` instead, which reads `candidateIds`
+        // directly. Filtering against the battlefield would misfire the
+        // untagged-zone diagnostic below on every such choice, so this kind is
+        // out of scope for it by construction.
         return [];
     }
     // No zone (e.g. `choose-damage-target`, whose every construction sets
@@ -345,39 +345,35 @@ function resolvePending(state: GameState): boolean {
             colors: getColorsFromCost(def?.manaCost),
         };
     });
+    // The candidates that are in no zone — a player, an option, a trigger mode,
+    // a PILE label, a trigger order — appended exactly as the live bot appends
+    // them (`buildOwedChoice`, `src/lib/ai/bot-view.ts`), from the one shared
+    // table. This is what makes the harness's policy the LIVE policy rather
+    // than a parallel one: `chooseResolution` already has a case for each of
+    // these kinds, and it could never reach them here because the zone read
+    // returned nothing and the per-kind defaults that stood in its place were a
+    // second, drifting copy — `pick-pile` was in the live list and in no
+    // headless one, so every self-play game containing Fact or Fiction died on
+    // "Select at least 1 card" (issue #2719).
+    for (const id of nonZoneChoiceCandidateIds(head)) {
+        candidates.push({
+            id,
+            value: 0,
+            isLand: false,
+            manaValue: 0,
+            colors: [],
+        });
+    }
 
     let ids: string[];
     if (head.kind === "mulligan-bottom") {
         // Bottom the `min` lowest-value cards (keep the best) — the live bottom
-        // heuristic also sheds worst-first.
+        // heuristic also sheds worst-first. Its own branch because the live
+        // path resolves the mulligan before `chooseResolution` ever sees it.
         ids = [...candidates]
             .sort((a, b) => a.value - b.value)
             .slice(0, min)
             .map((c) => c.id);
-    } else if (
-        head.kind === "choose-damage-target" &&
-        candidates.length === 0
-    ) {
-        // Players aren't zone cards: ping the first legal player (minimal).
-        const pid = head.candidatePlayerIds?.[0];
-        ids = pid ? [pid] : [];
-    } else if (head.kind === "choose-player") {
-        // Trigger-time "up to one target player" (CR 115.1a, Endurance) —
-        // minimal-legal default (ADR 0016): decline (min is 0).
-        ids = [];
-    } else if (head.kind === "option-pick" || head.kind === "trigger-mode") {
-        // CR 614.12 — body-on-entry options aren't zone cards. Minimal-legal
-        // default (ADR 0016): pick the first author-listed option. CR 603.3c
-        // (issue #2461) — a modal trigger's announced mode is the same shape,
-        // and `options` already holds only the CHOOSABLE modes, so the first is
-        // always a legal announcement.
-        const optId = head.options?.[0]?.id;
-        ids = optId ? [optId] : [];
-    } else if (head.kind === "trigger-order") {
-        // CR 603.3b (ADR 0058) — order the bot's simultaneous-trigger slice. The
-        // candidates aren't zone cards; collection order (`candidateIds`) is a
-        // legal canonical permutation, and self-ordering is immaterial (ADR 0058).
-        ids = head.candidateIds ?? [];
     } else {
         const owed: OwedChoice = {
             kind: head.kind,

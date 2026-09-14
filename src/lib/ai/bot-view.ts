@@ -13,6 +13,7 @@ import type {
     PublicPlayer,
     SlimCardInstance,
 } from "@convex/gameProjections";
+import { nonZoneChoiceCandidateIds } from "@convex/gre/ai/nonZoneChoiceCandidates";
 import type { Move, PendingChoice } from "@convex/gre";
 import {
     getPendingChoiceMin,
@@ -685,52 +686,20 @@ function buildOwedChoice(
         return undefined;
     }
     const candidates = readChoiceZone(state, head, botId).map(toCandidate);
-    // CR 115.4 — a `choose-damage-target` choice (Cuombajj Witches) admits
-    // players as targets too. Players aren't in any zone, so append them from
-    // the choice's `candidatePlayerIds` allow-list. Each player gets a neutral
-    // value so the bot's worst-first default treats them like a low-value pick
-    // (the bot is the opponent choosing; a minimal-legal pick suffices, ADR 0016).
-    // `choose-player` (CR 115.1a — Endurance) is likewise a player pick with no
-    // zone members, so its candidates come entirely from `candidatePlayerIds`.
-    if (
-        (head.kind === "choose-damage-target" ||
-            head.kind === "choose-player") &&
-        head.candidatePlayerIds
-    ) {
-        for (const pid of head.candidatePlayerIds) {
-            candidates.push({ id: pid, value: 0 });
-        }
-    }
-    // CR 614.12 — an `option-pick` choice (Primal Clay / Shapeshifter) picks
-    // an abstract option id, not a zone member. The options aren't in any zone,
-    // so append them from the choice's `options` list with a neutral value;
-    // the bot's minimal-legal default (ADR 0016) takes the first.
-    // CR 603.3c (issue #2461) — a `trigger-mode` announcement is the same
-    // shape: the choosable modes ride on `options`, not in any zone.
-    if (
-        (head.kind === "option-pick" || head.kind === "trigger-mode") &&
-        head.options
-    ) {
-        for (const opt of head.options) {
-            candidates.push({ id: opt.id, value: 0 });
-        }
-    }
-    // ADR 0053 (pile division) — a `pick-pile` choice (step 2 of the
-    // divide-then-choose family) picks the abstract label "A" or "B", not a
-    // zone member. Append them as neutral-value synthetic candidates, like
-    // `option-pick`'s options above.
-    if (head.kind === "pick-pile") {
-        candidates.push({ id: "A", value: 0 }, { id: "B", value: 0 });
-    }
-    // CR 603.3b (ADR 0058) — a `trigger-order` choice orders this bot's slice of
-    // the off-stack trigger batch. The candidates aren't zone members; append
-    // them from `candidateIds` (neutral value). The default policy emits the
-    // slice in collection order — the bot's self-ordering is tactically
-    // immaterial, so any legal permutation suffices (ADR 0058).
-    if (head.kind === "trigger-order" && head.candidateIds) {
-        for (const id of head.candidateIds) {
-            candidates.push({ id, value: 0 });
-        }
+    // A handful of kinds pick something that is in no zone — a PLAYER (CR
+    // 115.4 Cuombajj Witches / CR 115.1a Endurance), an abstract OPTION or
+    // trigger MODE (CR 614.12 / CR 603.3c), a PILE label (ADR 0053), a trigger
+    // ORDER over stack items (CR 603.3b). They are APPENDED to the zone pool
+    // rather than replacing it (`choose-damage-target` admits creatures AND
+    // players), each with a neutral value so the worst-first default treats it
+    // as a low-value pick — a minimal-legal answer is all these owe (ADR 0016).
+    //
+    // The table is shared with the headless self-play harness
+    // (`convex/gre/ai/nonZoneChoiceCandidates.ts`): four inline blocks here and
+    // a separate set of per-kind defaults there is how `pick-pile` came to be
+    // answerable in live play and not in self-play (issue #2719).
+    for (const id of nonZoneChoiceCandidateIds(head)) {
+        candidates.push({ id, value: 0 });
     }
     // CR 118 — for a threshold-mode may-pay sacrifice (Phyrexian Dreadnought),
     // drop the ability's own source from the pool the bot reasons over so the
