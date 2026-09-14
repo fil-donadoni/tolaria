@@ -634,6 +634,10 @@ _Avoid_: A/B test, control pair
 The vocabulary a position is written in: cards by NAME and seat, never by instance id, which every rebuild reassigns. Describes a board **and its Stack**, whose objects are named rather than derived by replaying the moves that put them there. What a **Verdict**, a **Blade Scenario** and a preset scenario all carry, so one position means the same thing to the quiz, the suite and the Debug panel.
 _Avoid_: Serialized state, save file, board dump, snapshot
 
+**Scenario Seat**:
+A **Scenario Spec**'s `"me"` / `"opp"`: a point of view, never a position at the table. `"me"` is the seat the position is written FROM — in a **Blade Scenario** the seat under test, whose decision the entry asserts. Loading one into a live game therefore ORIENTS it: the seat under test is built as whichever live seat the **Brain** drives, and the other seat follows. Reading the two as an order — first seat, second seat — is what put a **Blade Scenario**'s question on the human's side of the board.
+_Avoid_: Player 1, first seat, home/away, seat index
+
 **Lowering**:
 The pass from a live position to the **Scenario Spec** that describes it, always reporting what it could not carry. Not a serialisation: a translation with DECLARED loss, and the loss is what decides whether a position is judgeable at all.
 _Avoid_: Export, serialization, conversion, capture

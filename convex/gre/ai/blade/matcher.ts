@@ -13,7 +13,7 @@
 import { getCardByName, tryGetDefinition } from "../../../cards";
 import type { GameState, CardInstanceState } from "../../state";
 import type { Move } from "../../moves";
-import type { BladeSeat, MoveMatcher } from "./types";
+import type { BladeExpectation, BladeSeat, MoveMatcher } from "./types";
 
 /** Every zone a scenario can place a card in. `library` is included so a
  *  matcher can name a card the bot digs up mid-resolution; `stack` is included
@@ -238,6 +238,26 @@ export function matchesMove(
     }
 
     return true;
+}
+
+/** One-line rendering of an entry's whole EXPECTATION — what the seat under
+ *  test is asserted to do — in the same vocabulary as `describeMatcher`.
+ *
+ *  Separate from `checkExpectation`'s failure line (`runner.ts`), which renders
+ *  the expectation BESIDE the move actually chosen and so reads "chose [x] —
+ *  expected one of [y]". This one states the demand alone, with no run behind
+ *  it: it is what the Debug panel shows a developer BEFORE they load the
+ *  position (issue #3443), so they can tell a bot that failed to make the play
+ *  from a bot that was never asked for it.
+ *
+ *  Pure and state-free — a `predicate` entry is a closure that cannot describe
+ *  itself, which is exactly what its mandatory `describe` field is for. */
+export function describeExpectation(expect: BladeExpectation): string {
+    if (expect.moves)
+        return `one of: ${expect.moves.map(describeMatcher).join(" | ")}`;
+    if (expect.forbidden)
+        return `never: ${expect.forbidden.map(describeMatcher).join(" | ")}`;
+    return expect.describe;
 }
 
 /** One-line, stable, human-readable rendering of a matcher — used in failure

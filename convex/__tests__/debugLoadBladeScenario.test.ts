@@ -38,12 +38,28 @@ import { STARTING_LIFE } from "../gre/setup";
 import { makePlayer, makeState } from "../cards/__tests__/setup";
 import { getCardByName } from "../cards";
 import { BLADE_SCENARIOS, findBladeScenario } from "../gre/ai/blade/registry";
-import { buildBladeState, resolveBladeLoadState } from "../gre/ai/blade/runner";
+import {
+    assertBotOwesInput,
+    BladeLoadError,
+    buildBladeState,
+    resolveBladeLoadState,
+} from "../gre/ai/blade/runner";
+import { computeOwedPlayerIds } from "../gre/expectedInput";
+
+/** The live game's BOT seat, in `arbitraryCurrentGameBaseState()` below.
+ *  `${userId}-p2` is the bot seat by construction in every solo/vs-AI game
+ *  (ADR 0001, `isBotSeat` in `convex/matches.ts`), and the mutation reads it
+ *  off the immutable `games` row before calling the function under test. */
+const BOT_SEAT = "user_abc123-p2";
+/** The other one. */
+const HUMAN_SEAT = "user_abc123-p1";
 
 /** Thin alias so the tests below read as "run the mutation's body" — this
  *  IS `resolveBladeLoadState`, the same function `convex/game.ts` imports
- *  and calls; not a copy. */
-const runMutationBody = resolveBladeLoadState;
+ *  and calls; not a copy. The bot seat is the third argument the mutation
+ *  passes (issue #3443). */
+const runMutationBody = (base: GameState, label: string) =>
+    resolveBladeLoadState(base, label, BOT_SEAT);
 
 function user(isAdmin?: boolean): Doc<"users"> {
     return {
@@ -332,10 +348,7 @@ describe("debugLoadBladeScenario — a `setup`-carrying entry loads its engine-b
         // Guards the premise of this whole block: if the base state ever
         // reverts to `p1`/`p2`, the identity half of the assertion below
         // becomes vacuous and the suite-path test WOULD stand in for it.
-        expect(base.players.map((p) => p.id)).toEqual([
-            "user_abc123-p1",
-            "user_abc123-p2",
-        ]);
+        expect(base.players.map((p) => p.id)).toEqual([HUMAN_SEAT, BOT_SEAT]);
         expect(findBladeScenario(CHARTER_LABEL)?.setup).toBeDefined();
 
         const loaded = runMutationBody(base, CHARTER_LABEL);
@@ -348,8 +361,13 @@ describe("debugLoadBladeScenario — a `setup`-carrying entry loads its engine-b
         // …and the engine-produced stack item belongs to the LIVE game's seat,
         // not the harness's discarded `p1`. This is the half `buildBladeState`
         // cannot prove, because it never builds any seat but `p1`/`p2`.
-        expect(loaded.stack[0].controllerId).toBe("user_abc123-p1");
-        expect(loaded.stack[0].ownerId).toBe("user_abc123-p1");
+        // The BOT's seat, not the human's (issue #3443): this entry declares
+        // `bot: "me"`, and the seat under test is oriented onto the live Bot.
+        // Before that fix these two read `user_abc123-p1` — the human — which
+        // is the whole bug: the Dreadnought trigger the entry exists to ask
+        // the Bot about belonged to the developer.
+        expect(loaded.stack[0].controllerId).toBe(BOT_SEAT);
+        expect(loaded.stack[0].ownerId).toBe(BOT_SEAT);
         // (`card` is already slim here — `{ id }` only, as it is on the wire —
         // so cards are identified by definition id, not by name.)
         const dreadnought = loaded.players[0].battlefield.find(
@@ -376,5 +394,126 @@ describe("debugLoadBladeScenario — mutation body throws on an unknown label (i
         expect(() =>
             runMutationBody(arbitraryCurrentGameBaseState(), "no such scenario")
         ).toThrow("Unknown blade scenario: no such scenario");
+    });
+});
+
+/**
+ * ORIENTATION (issue #3443). A blade entry's `bot` seat is a POINT OF VIEW —
+ * `"me"` is the seat under test, the one whose decision the entry asserts —
+ * and `ScenarioSpec`'s `"me"` is `players[0]` by convention. The loader used
+ * to copy the live game's seats POSITIONALLY, so the seat under test landed on
+ * the live FIRST seat, which in a vs-AI game is the HUMAN's: for the 128 of
+ * 149 entries declaring `bot: "me"` the whole position arrived reversed.
+ *
+ * Why the block above cannot see that: `canonicalizeIdentity` renames the live
+ * ids to `seat-0`/`seat-1` BY POSITION, which is exactly the frame the bug
+ * preserves. Both states come out identical whichever live identity was built
+ * first. Every assertion here therefore names a LIVE seat id.
+ */
+describe("debugLoadBladeScenario — the seat under test lands on the live Bot (issue #3443)", () => {
+    it('mirrors a `bot: "me"` entry: cards, active player and priority all on the Bot\'s seat', () => {
+        const scenario = BLADE_SCENARIOS.find((s) => s.bot === "me");
+        expect(scenario).toBeDefined();
+        const loaded = runMutationBody(
+            arbitraryCurrentGameBaseState(),
+            scenario!.label
+        );
+
+        expect(loaded.players[0].id).toBe(BOT_SEAT);
+        expect(loaded.activePlayerId).toBe(BOT_SEAT);
+        expect(loaded.priorityPlayerId).toBe(BOT_SEAT);
+        // The spec's own `"me"` battlefield belongs to the Bot, controller id
+        // included — the orientation is chosen at CONSTRUCTION, so every
+        // card's `controllerId`/`ownerId` is the Bot's from the first card
+        // dealt, never patched afterwards.
+        for (const card of loaded.players[0].battlefield) {
+            expect(card.controllerId).toBe(BOT_SEAT);
+        }
+    });
+
+    it('leaves a `bot: "opp"` entry unmirrored: the seat under test is still the second seat', () => {
+        const scenario = BLADE_SCENARIOS.find((s) => s.bot === "opp");
+        expect(scenario).toBeDefined();
+        const loaded = runMutationBody(
+            arbitraryCurrentGameBaseState(),
+            scenario!.label
+        );
+
+        // `"opp"` IS the Bot for such an entry, and `"opp"` is `players[1]`:
+        // the live human keeps the first seat, so the turn stays with them —
+        // which is the position the entry was written against.
+        expect(loaded.players[0].id).toBe(HUMAN_SEAT);
+        expect(loaded.players[1].id).toBe(BOT_SEAT);
+        expect(loaded.activePlayerId).toBe(HUMAN_SEAT);
+    });
+
+    // The acceptance sweep: EVERY entry, `must` and `stretch` alike. A single
+    // hand-picked entry proves the mirror flips; only the sweep proves the
+    // loaded position is one the live Bot will actually act on — which is the
+    // property the developer is relying on when they click the row.
+    for (const scenario of BLADE_SCENARIOS) {
+        it(`"${scenario.label}" (bot: ${scenario.bot}) — the built load state owes input to the live Bot's seat`, () => {
+            const loaded = runMutationBody(
+                arbitraryCurrentGameBaseState(),
+                scenario.label
+            );
+            expect(computeOwedPlayerIds(loaded)).toContain(BOT_SEAT);
+        });
+    }
+});
+
+/**
+ * The refusal (issue #3443). The in-process runner already throws when an
+ * entry's declared seat does not hold the decision at search start
+ * (`BladeDeciderError`); this path had no equivalent, so a position the Bot
+ * would never act on was persisted silently and the board simply stopped.
+ *
+ * `assertBotOwesInput` runs BEFORE `saveGameState` in the mutation, and a
+ * Convex mutation that throws rolls back every write it made — conversion
+ * included — which is how "nothing is persisted" is enforced. That half is
+ * Convex-runtime behaviour this project has no harness for (see the file
+ * header); what is testable here is that the loader refuses at all, and on
+ * which fact.
+ */
+describe("debugLoadBladeScenario — refuses a position the Bot does not owe input on (issue #3443)", () => {
+    /** A settled board on the HUMAN's turn with priority theirs: somebody can
+     *  act, so `assertLiveGameCanContinue` is satisfied — and it is not the
+     *  Bot, which is the case this guard exists for. */
+    function humanOwesInput(): GameState {
+        return makeState({
+            players: [makePlayer(HUMAN_SEAT), makePlayer(BOT_SEAT)],
+            activePlayerId: HUMAN_SEAT,
+            priorityPlayerId: HUMAN_SEAT,
+        });
+    }
+
+    it("throws, naming the seat that actually owes input", () => {
+        const state = humanOwesInput();
+        expect(computeOwedPlayerIds(state)).toEqual([HUMAN_SEAT]);
+        expect(() =>
+            assertBotOwesInput(state, "some entry", "me", BOT_SEAT)
+        ).toThrow(BladeLoadError);
+        expect(() =>
+            assertBotOwesInput(state, "some entry", "me", BOT_SEAT)
+        ).toThrow(/owes input to \[user_abc123-p1\]/);
+    });
+
+    it("passes when the Bot is the seat that owes input", () => {
+        const state = humanOwesInput();
+        state.activePlayerId = BOT_SEAT;
+        state.priorityPlayerId = BOT_SEAT;
+        expect(() =>
+            assertBotOwesInput(state, "some entry", "me", BOT_SEAT)
+        ).not.toThrow();
+    });
+
+    it("refuses a bot seat that is not one of this game's two seats", () => {
+        expect(() =>
+            resolveBladeLoadState(
+                arbitraryCurrentGameBaseState(),
+                BLADE_SCENARIOS[0].label,
+                "someone-else-p2"
+            )
+        ).toThrow(BladeLoadError);
     });
 });
