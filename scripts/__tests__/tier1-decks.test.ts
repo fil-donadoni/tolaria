@@ -1,16 +1,22 @@
 /**
- * The Premodern Tier 1 deck report (issue #2696, PRD #2693 user story 8).
+ * The Premodern Tier 1 deck report (issue #2696, PRD #2693 user story 8) and
+ * M1's acceptance assertion over it (issue #2719).
  *
  * Two jobs in one file, deliberately:
  *
  *  - the FAIL-CLOSED unit tests, on fixtures, because every one of them is
  *    about what happens when the canonical data is wrong, and the committed
  *    data is right;
- *  - the PROGRESS SNAPSHOT, on the real lists and the real lockfile, which
- *    asserts nothing about the numbers. It records them. M1's acceptance
- *    (issue #2719) is the ticket that turns this into `expect(playable).toBe(
- *    total)`; until then its only job is to put "goblin went 16/28 -> 19/28"
- *    in the diff of any PR that moves the grammar.
+ *  - the M1 ACCEPTANCE assertion, on the real lists and the real lockfile:
+ *    every card of every canonical list is playable today.
+ *
+ * That second block used to be a non-asserting SNAPSHOT (issue #2696 acceptance
+ * criterion 3): it recorded "goblin went 16/28 -> 19/28" in the diff of any PR
+ * that moved the grammar, and asserted nothing, because at the time no list was
+ * finished and a red would have been permanent. #2713-#2718 finished all six,
+ * so the snapshot has done its job and this is the flip it was written to wait
+ * for — `expect(playable).toBe(total)`, per deck, with the blocked cards NAMED
+ * in the failure rather than a snapshot diff to read.
  */
 
 import { describe, it, expect } from "vitest";
@@ -25,6 +31,8 @@ import {
     readTier1Decks,
     summaryLines,
     tier1Reports,
+    PLAYABLE_STATES,
+    type DeckReport,
     type Tier1Deck,
 } from "../lib/tier1-decks";
 
@@ -282,25 +290,54 @@ describe("the committed Tier 1 lists", () => {
     });
 });
 
-describe("M1 progress", () => {
+describe("M1 acceptance — every Tier 1 list is playable today (issue #2719)", () => {
     /**
-     * NON-ASSERTING (issue #2696 acceptance criterion 3). The snapshot is a
-     * record, not a requirement: it goes red only when a number MOVES, which is
-     * exactly when a human should look at it. Issue #2719 replaces it with the
-     * real assertion — every deck N/N.
+     * The real lists, the real lockfile, the real pool. This is PRD #2693's M1
+     * acceptance criterion for the report layer: every card of every canonical
+     * list is playable — shipped by hand (`ours`) or compiled and served from
+     * the pool (`ready`) — so "M1 done" is a checklist a machine reads rather
+     * than a number a human compares to last week's.
+     *
+     * Companion assertion, in `convex/__tests__/formats.test.ts`: the same
+     * lists resolved through the card REGISTRY seam and validated legal in
+     * Premodern. Two layers, deliberately separate — a card can be `ready` in
+     * the lockfile and still not resolve by name (a compiled row excluded from
+     * the artifact), and a list can resolve fully and still be illegal.
      */
-    it("records the per-deck summary so the diff shows progress", () => {
-        const lock = parseLockfile(
+    const reports: DeckReport[] = tier1Reports(
+        readTier1Decks(ROOT),
+        parseLockfile(
             readFileSync(join(ROOT, "data", "oracle-compiled.json"), "utf8")
-        );
-        const index = JSON.parse(
-            readFileSync(join(ROOT, "data", "card-index.json"), "utf8")
-        ) as { oracleId?: string; source?: string }[];
-        const reports = tier1Reports(
-            readTier1Decks(ROOT),
-            lock,
-            poolOracleIdsFromIndex(index)
-        );
-        expect(summaryLines(reports).join("\n")).toMatchSnapshot();
+        ),
+        poolOracleIdsFromIndex(
+            JSON.parse(
+                readFileSync(join(ROOT, "data", "card-index.json"), "utf8")
+            ) as { oracleId?: string; source?: string }[]
+        )
+    );
+
+    it.each(reports.map((r) => [r.slug, r] as const))(
+        "%s — every card is `ours` or `ready`",
+        (_slug, report) => {
+            // The BLOCKED cards, not the count: a bare `28 !== 27` sends the
+            // reader back to the CLI to find out which card regressed, and the
+            // blocker is already on the row.
+            const blocked = report.cards
+                .filter((c) => !PLAYABLE_STATES.includes(c.state))
+                .map(
+                    (c) =>
+                        `${c.name} [${c.state}]${c.blocker ? ` — ${c.blocker}` : ""}`
+                );
+            expect(blocked).toEqual([]);
+            expect(report.playable).toBe(report.total);
+        }
+    );
+
+    it("every summary line the CLI prints reads N/N", () => {
+        // `bun run oracle:report --decks` renders these exact lines, so the
+        // assertion and the thing a human quotes cannot drift.
+        expect(
+            summaryLines(reports).filter((l) => !/(\d+)\/\1 ready/.test(l))
+        ).toEqual([]);
     });
 });

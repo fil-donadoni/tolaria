@@ -40,6 +40,7 @@
         "health:fix": "bun scripts/health-fix.ts",
         "health:status": "bun scripts/health-main.ts --status",
         "ladder": "bun scripts/ladder.ts",
+        "smoke:tier1": "bun scripts/tier1-smoke.ts",
         "land": "bun scripts/land.ts",
         "release": "bun scripts/release.ts",
         "lint": "eslint .",
