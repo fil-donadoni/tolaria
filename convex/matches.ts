@@ -178,6 +178,41 @@ export function recordGameResult<P extends StoredMatchPlayer>(
 }
 
 /**
+ * Record a DRAWN Game (CR 104.4a — no winner, no loser) into its Match. The
+ * twin of {@link recordGameResult}, which needs a winning seat and so has
+ * nothing to say about a draw: a draw moves nobody's score, which leaves one
+ * question — does this Match still have a Game to play?
+ *
+ * - The drawn Game was the Match's last one (`currentGameNumber >= bestOf`,
+ *   always true for a Bo1) → `status: "finished"` with NO `winner`. That is
+ *   how a drawn Match is recorded; `limited/standings.ts` already scores an
+ *   equal-wins `"played"` pairing as a draw.
+ * - Otherwise (a Bo3 with a Game left) → the ordinary between-Games gate,
+ *   `status: "sideboarding"`, both `ready` flags reset. `playDrawChooserId` is
+ *   left UNTOUCHED: the play/draw choice belongs to the previous Game's loser
+ *   and a draw has none, so whoever chose last chooses again.
+ *
+ * Why it exists (issue #3336): before it, `finalizeGameOver` returned early on
+ * a winner-less game over, leaving the Match `playing` with `currentGameId`
+ * pointing at a FINISHED Game. That orphan is what the lobby then surfaced as
+ * an active game whose every offered button the server refused, with
+ * `lobbyActionGate` disabling every other action — an account with no in-app
+ * way out.
+ *
+ * Never `null`, unlike `recordGameResult`: a draw needs no seat lookup, so
+ * there is no "nothing to do" case to report.
+ */
+export function recordDrawnGame<P extends StoredMatchPlayer>(
+    match: Omit<MatchCore, "players"> & { players: P[] }
+): Partial<Omit<MatchCore, "players">> & { players?: P[] } {
+    if (match.currentGameNumber >= match.bestOf) return { status: "finished" };
+    return {
+        players: match.players.map((p) => ({ ...p, ready: false })),
+        status: "sideboarding",
+    };
+}
+
+/**
  * Forfeit the whole Match (PRD #387 user story 30 / issue #396). The forfeiting
  * player gives up the entire Match in one action; the opponent is awarded the
  * Games they still need to win (their score jumps to `gamesToWin(bestOf)`), the

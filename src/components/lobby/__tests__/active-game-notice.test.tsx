@@ -49,10 +49,89 @@ const MANUAL_2P_GAME: ActiveGame = {
     matchId: "m0" as Id<"matches">,
     name: "Tabletop table",
     status: "playing",
+    matchStatus: "playing",
     solo: false,
     vsAi: false,
     mode: "manual",
 };
+
+/** A Bo3 sitting between Games: the current GAME row is finished, the MATCH is
+ *  still active. Issue #3336's stranded state — reachable in production, and
+ *  the one the banner used to offer `leaveGame` for. */
+const BETWEEN_GAMES: ActiveGame = {
+    gameId: "g1" as Id<"games">,
+    matchId: "m1" as Id<"matches">,
+    name: "Bo3 table",
+    status: "finished",
+    matchStatus: "sideboarding",
+    solo: false,
+    vsAi: false,
+    mode: null,
+};
+
+describe("ActiveGameNotice — a finished Game under a live Match (issue #3336)", () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        forfeitMatch.mockResolvedValue(undefined);
+        leaveGame.mockResolvedValue(undefined);
+    });
+
+    it("offers Concede Match, never Leave — `leaveGame` refuses a finished Game", () => {
+        render(
+            <ActiveGameNotice activeGame={BETWEEN_GAMES} userId={USER_ID} />
+        );
+
+        expect(screen.queryByText("Leave")).toBeNull();
+        expect(screen.getByText("Concede Match")).toBeTruthy();
+    });
+
+    it("the offered button reaches a mutation the server accepts", async () => {
+        render(
+            <ActiveGameNotice activeGame={BETWEEN_GAMES} userId={USER_ID} />
+        );
+
+        fireEvent.click(screen.getByText("Concede Match"));
+        await waitFor(() =>
+            expect(screen.getByText("Concede match?")).toBeTruthy()
+        );
+        fireEvent.click(screen.getAllByText("Concede Match")[1]);
+
+        await waitFor(() =>
+            expect(forfeitMatch).toHaveBeenCalledWith({
+                matchId: "m1",
+                playerId: "user-1",
+            })
+        );
+        // The whole stranding in one assertion: `leaveGame` throws
+        // "Cannot leave a finished game" for this state, so the banner must
+        // never call it.
+        expect(leaveGame).not.toHaveBeenCalled();
+    });
+
+    it("does not describe a finished Game as waiting for an opponent", () => {
+        render(
+            <ActiveGameNotice activeGame={BETWEEN_GAMES} userId={USER_ID} />
+        );
+
+        expect(screen.queryByText(/waiting for an opponent/)).toBeNull();
+        expect(screen.getByText(/between games/)).toBeTruthy();
+    });
+
+    it("still offers Leave for a waiting room, which `leaveGame` does accept", async () => {
+        const waitingRoom: ActiveGame = {
+            ...BETWEEN_GAMES,
+            status: "waiting",
+            matchStatus: "waiting",
+        };
+        render(<ActiveGameNotice activeGame={waitingRoom} userId={USER_ID} />);
+
+        fireEvent.click(screen.getByText("Leave"));
+        await waitFor(() =>
+            expect(leaveGame).toHaveBeenCalledWith({ gameId: "g1" })
+        );
+        expect(screen.queryByText("Concede Match")).toBeNull();
+    });
+});
 
 describe("ActiveGameNotice concede seat derivation (issue #2400, review round 2)", () => {
     beforeEach(() => {

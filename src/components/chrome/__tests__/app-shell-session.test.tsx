@@ -116,6 +116,7 @@ const RUNNING_GAME: ActiveGame = {
     matchId: "m1" as Id<"matches">,
     name: "Solo game",
     status: "playing",
+    matchStatus: "playing",
     solo: true,
     vsAi: true,
     mode: null,

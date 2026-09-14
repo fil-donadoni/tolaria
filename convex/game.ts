@@ -496,6 +496,7 @@ import {
     matchBelongsToUser,
     nextGameActivePlayerId,
     pickCoinTossWinner,
+    recordDrawnGame,
     recordGameResult,
     snapshotDeck,
     toNextGamePlayers,
@@ -1037,14 +1038,22 @@ export async function finalizeGameOver(
         updatedAt: now,
     });
 
-    // CR 104.2a: a player who wins a Game wins it for the Match's tally. A draw
-    // (no winnerId) leaves the Match score untouched in this slice.
+    // CR 104.2a: a player who wins a Game wins it for the Match's tally. A
+    // DRAWN Game (CR 104.4a) has no winner to give it to — `winnerId` is the
+    // empty string by construction, both for `SpellContext.drawGame` (Divine
+    // Intervention) and for `checkGameOverSBA`'s simultaneous-loss branch — but
+    // it must still SETTLE the Match (`recordDrawnGame`), which is what this
+    // path used to skip: returning here left the Match `playing` with
+    // `currentGameId` pointing at a finished Game, the orphan that stranded the
+    // lobby in issue #3336.
     const winnerId = state.gameOver.winnerId;
-    if (!game?.matchId || !winnerId) return;
+    if (!game?.matchId) return;
     const match = await ctx.db.get(game.matchId);
     if (!match || match.status === "finished") return;
 
-    const patch = recordGameResult(match, winnerId);
+    const patch = winnerId
+        ? recordGameResult(match, winnerId)
+        : recordDrawnGame(match);
     if (!patch) return;
     await ctx.db.patch(game.matchId, { ...patch, updatedAt: now });
     // Limited Event round pairing (issue #1645): a normal win and a concede
@@ -4398,7 +4407,12 @@ export const joinGameByCode = mutation({
  *  lobby uses this to surface an existing match instead of letting the user
  *  attempt a (rejected) second creation. Derived from the active Match so the
  *  Match is the single source of truth, but the wire shape is unchanged for the
- *  lobby (gameId + status flags) with the Match id added. */
+ *  lobby (gameId + status flags) with the Match id added.
+ *
+ *  `matchStatus` rides along (issue #3336) because the GAME status alone is
+ *  not enough to describe the banner's situation: a `finished` Game under a
+ *  `sideboarding` Match is a Bo3 between Games, while the same Game under a
+ *  `playing` Match is an orphan. The two read identically on `game.status`. */
 export const myActiveGame = query({
     handler: async (ctx) => {
         const userId = await auth.getUserId(ctx);
@@ -4415,6 +4429,7 @@ export const myActiveGame = query({
             matchId: match._id,
             name: game.name,
             status: game.status,
+            matchStatus: match.status,
             solo,
             vsAi,
             mode: game.mode ?? null,
@@ -4437,8 +4452,19 @@ export const leaveGame = mutation({
         // "pregame" (G1 coin-toss gate) has no gameStates row and no moves
         // played, so it abandons like a waiting room; "playing" must be
         // conceded instead.
+        //
+        // The refusal names the Game's ACTUAL status (issue #3336): a
+        // `finished` Game whose Match is still active — a Bo3 between Games —
+        // is not "in progress", and telling the user it is sent them looking
+        // for a Concede button the lobby was hiding precisely because the Game
+        // was not `playing`. `~/lib/activeGameExit` is the client-side twin of
+        // this refusal, so the banner offers the verb this mutation accepts.
         if (game.status !== "waiting" && game.status !== "pregame")
-            throw new Error("Cannot leave a game in progress; concede instead");
+            throw new Error(
+                game.status === "finished"
+                    ? "Cannot leave a finished game; concede the match instead"
+                    : "Cannot leave a game in progress; concede instead"
+            );
         // Delete any state snapshots first, then the orphan waiting room and its
         // owning waiting Match (ADR 0029) so the user is free to start another.
         const states = await ctx.db
