@@ -220,7 +220,7 @@ type SpentCost = {
  *  sacrifices its own source. Anything else — a victim named by a
  *  `sacrificeFilter`, a discard, a life payment — is refused outright by
  *  {@link isProbeEligibleMove} and never reaches here. */
-function spentCostOf(state: GameState, pid: string, move: Move): SpentCost {
+function spentCostOf(state: GameState, move: Move): SpentCost {
     if (move.kind === "cast-spell") return { cardId: move.cardInstanceId };
     if (move.kind !== "activate-ability") return {};
     const source = findPermanent(state, move.cardInstanceId);
@@ -271,7 +271,7 @@ export function isDominatedNoOpMove(
     try {
         const baseline = state;
         const probe = cloneGameState(state);
-        const spent = spentCostOf(state, pid, move);
+        const spent = spentCostOf(state, move);
         const applied =
             move.kind === "cast-spell"
                 ? applyProbeCast(probe, pid, move)
@@ -344,7 +344,7 @@ export function isSelfConfinedFutileMove(
     try {
         const baseline = state;
         const probe = cloneGameState(state);
-        const spent = spentCostOf(state, pid, move);
+        const spent = spentCostOf(state, move);
         const applied =
             move.kind === "cast-spell"
                 ? applyProbeCast(probe, pid, move)

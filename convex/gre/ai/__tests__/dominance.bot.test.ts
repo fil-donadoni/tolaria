@@ -1135,7 +1135,7 @@ describe("the last deferral window, end to end (issue #3424)", () => {
                 { iterations: 200 },
                 seed
             );
-            expect(picked.move.kind).toBe("pass");
+            expect(picked.move?.kind).toBe("pass");
         }
     });
 
@@ -1149,10 +1149,11 @@ describe("the last deferral window, end to end (issue #3424)", () => {
                 { iterations: 200 },
                 seed
             );
-            expect(picked.move.kind).toBe("activate-ability");
+            const move = picked.move;
+            expect(move?.kind).toBe("activate-ability");
             expect(
-                picked.move.kind === "activate-ability" &&
-                    picked.move.targets.map((t) => t.id)
+                move?.kind === "activate-ability" &&
+                    move.targets.map((t) => t.id)
             ).toEqual([tomeId]);
         }
     }, 60000);
