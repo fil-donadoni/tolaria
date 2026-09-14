@@ -3984,6 +3984,34 @@ export type PendingChoice = {
     paysMana?: true;
 };
 
+/** CR 608.2g — is `choice` a MANA-PAYMENT window owed to `playerId`? "If an
+ *  effect gives a player the option to pay mana, they may activate mana
+ *  abilities before taking that action", so priority being frozen mid-
+ *  resolution (CR 608.2) does not bar the payer from tapping lands to make the
+ *  mana the question is asking for.
+ *
+ *  ONE predicate, because the window has two members and every consumer must
+ *  agree on both: the yes/no `may-pay` and (issue #1701) the `number-pick`
+ *  nomination that PAYS. The paying nomination needs it at least as badly —
+ *  an upkeep trigger's "may pay any amount of mana" is asked while the pool is
+ *  empty (CR 500.4 drains it at every step boundary), so a nomination that
+ *  could not be preceded by a land tap would have a ceiling of zero in every
+ *  real game and the card would be unplayable while every test passed on
+ *  pre-floated mana. A `number-pick` that pays NOTHING (issue #1421's bare
+ *  nomination) opens no window: there is no mana to make.
+ *
+ *  Read by `assertNoPendingChoices` (gre/activation.ts) and
+ *  `assertExpectedInput` (gre/expectedInput.ts) — the two gates every
+ *  tap/untap and mana-ability mutation passes. */
+export function isManaPaymentChoiceWindow(
+    choice: Pick<PendingChoice, "kind" | "playerId" | "paysMana"> | undefined,
+    playerId: string
+): boolean {
+    if (!choice || choice.playerId !== playerId) return false;
+    if (choice.kind === "may-pay") return true;
+    return choice.kind === "number-pick" && choice.paysMana === true;
+}
+
 /** Total mana `player` may spend on a may-pay-family GENERIC leg right now
  *  (CR 106.6): the fungible pool plus every restricted unit eligible under
  *  `restriction`. Exported because the CEILING of a `paysMana` numeric

@@ -39,6 +39,7 @@ import {
     type PlayerState,
     type StackItem,
     getPlayer,
+    isManaPaymentChoiceWindow,
     getOpponentId,
     drawCard as drawCardFromLibrary,
     emitCardDrawn,
@@ -13808,10 +13809,10 @@ export const tapUntap = mutation({
         // may activate mana abilities to make the mana the cost requires.
         // Other pending-choice kinds (keep-permanents, etc.) still freeze
         // priority and reject mana ability activation.
-        const mayPayHead = state.pendingChoices?.[0];
-        const isMayPayPaymentWindow =
-            mayPayHead?.kind === "may-pay" &&
-            mayPayHead.playerId === args.playerId;
+        const isMayPayPaymentWindow = isManaPaymentChoiceWindow(
+            state.pendingChoices?.[0],
+            args.playerId
+        );
         assertNoPendingChoices(state, {
             allowManaForMayPay: { playerId: args.playerId },
         });
@@ -14664,10 +14665,10 @@ export const activateManaAbility = mutation({
 
         // CR 608.2g / 605.3a — answering a may-pay choice opens a mana-payment
         // window; otherwise other pending choices freeze priority.
-        const mayPayHead = state.pendingChoices?.[0];
-        const isMayPayPaymentWindow =
-            mayPayHead?.kind === "may-pay" &&
-            mayPayHead.playerId === args.playerId;
+        const isMayPayPaymentWindow = isManaPaymentChoiceWindow(
+            state.pendingChoices?.[0],
+            args.playerId
+        );
         assertNoPendingChoices(state, {
             allowManaForMayPay: { playerId: args.playerId },
         });
@@ -14920,11 +14921,9 @@ export const activatePlayerAbility = mutation({
             expect: "priority",
             allowManaForMayPay: isManaAbility,
         });
-        const mayPayHead = state.pendingChoices?.[0];
         const isMayPayPaymentWindow =
             isManaAbility &&
-            mayPayHead?.kind === "may-pay" &&
-            mayPayHead.playerId === args.playerId;
+            isManaPaymentChoiceWindow(state.pendingChoices?.[0], args.playerId);
         assertNoPendingChoices(
             state,
             isManaAbility

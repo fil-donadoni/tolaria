@@ -19,12 +19,13 @@
 // prove nothing about what the client actually receives.
 
 import { describe, it, expect } from "vitest";
-import { activateAbilityOnState, submitNumberChoice } from "../game";
+import { activateAbilityOnState, submitNumberChoice, tapUntap } from "../game";
 import { decreeOfJustice } from "../cards/sets/scg/white";
 import { resolveTopOfStack, numberChoiceRange } from "../gre/state";
 import type { GameState } from "../gre/state";
 import { projectPublicState } from "../gameProjections";
 import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
+import { getCardByName } from "../cards";
 import type { Id } from "../_generated/dataModel";
 import {
     makeMutationCtx,
@@ -40,6 +41,22 @@ type NumberChoiceArgs = {
     playerId: string;
     amount: number;
 };
+
+type TapUntapArgs = {
+    gameId: Id<"games">;
+    playerId: string;
+    cardInstanceId: string;
+};
+
+const runTapUntap = (
+    ctx: Parameters<typeof runMutation>[1],
+    args: Omit<TapUntapArgs, "gameId">
+) =>
+    runMutation<TapUntapArgs, void>(
+        tapUntap as unknown as Handler<TapUntapArgs, void>,
+        ctx,
+        { gameId: GAME_ID, ...args }
+    );
 
 const runSubmitNumberChoice = (
     ctx: Parameters<typeof runMutation>[1],
@@ -190,5 +207,49 @@ describe("Decree of Justice's cycled {X} (CR 107.3f / 702.29c, issue #1701)", ()
             runSubmitNumberChoice(stub.ctx, { playerId: "p2", amount: 3 })
         ).rejects.toThrow();
         expect(soldiers(stub.state())).toHaveLength(0);
+    });
+});
+
+// CR 608.2g — "If an effect gives a player the option to pay mana, they may
+// activate mana abilities before taking that action." Without this the feature
+// is unplayable rather than merely awkward: an upkeep trigger asks its question
+// with the pool already emptied by the step boundary (CR 500.4), so a
+// nomination that could not be preceded by a land tap has a ceiling of zero in
+// every real game — while every test written on pre-floated mana passes.
+describe("the paying nomination opens a mana window (CR 608.2g, issue #1701)", () => {
+    it("lets the payer tap a land WHILE the nomination is the head choice, raising the ceiling", async () => {
+        const state = boardWithDecree({ W: 4, C: 2 });
+        // An untapped Plains the payer has NOT spent yet.
+        state.players[0].battlefield.push(
+            makeInstance(getCardByName("Plains").id, {
+                id: "plains",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "battlefield",
+            })
+        );
+        cycleAndSuspend(state);
+        expect(state.pendingChoices?.[0]?.kind).toBe("number-pick");
+        expect(
+            numberChoiceRange(state.pendingChoices![0], state.players[0])
+        ).toEqual({ min: 0, max: 3 });
+
+        const stub = makeMutationCtx("p1", [gameStateSeed(state)]);
+        await runTapUntap(stub.ctx, {
+            playerId: "p1",
+            cardInstanceId: "plains",
+        });
+
+        const tapped = stub.state();
+        // The choice is still the head — tapping did not answer it …
+        expect(tapped.pendingChoices?.[0]?.kind).toBe("number-pick");
+        // … and the ceiling grew with the pool, which is why the range is
+        // recomputed at submit rather than frozen onto the entry.
+        expect(
+            numberChoiceRange(tapped.pendingChoices![0], tapped.players[0])
+        ).toEqual({ min: 0, max: 4 });
+
+        await runSubmitNumberChoice(stub.ctx, { playerId: "p1", amount: 4 });
+        expect(soldiers(stub.state())).toHaveLength(4);
     });
 });

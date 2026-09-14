@@ -17,7 +17,7 @@
 
 import { ConvexError } from "convex/values";
 import type { ExpectedInput, GameState } from "./state";
-import { getOpponentId } from "./state";
+import { getOpponentId, isManaPaymentChoiceWindow } from "./state";
 import { isSacrificeSelectionComplete } from "./sacrificeChoice";
 
 /** Pure, total derivation of the Expected Input from a settled GameState
@@ -274,8 +274,7 @@ export function assertExpectedInput(
     if (
         request.allowManaForMayPay &&
         current?.kind === "choice" &&
-        current.choiceKind === "may-pay" &&
-        current.playerId === request.playerId
+        isManaPaymentChoiceWindow(state.pendingChoices?.[0], request.playerId)
     ) {
         return;
     }
