@@ -6617,3 +6617,100 @@ describe("validateEffectScript — choice allControllers", () => {
         expect(errors.length).toBeGreaterThan(0);
     });
 });
+
+describe("validateEffectScript — chooseNumber bounds (CR 107.1c, issue #1421)", () => {
+    it("accepts the open-ended nomination and a non-negative literal range", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "chooseNumber",
+                            player: "controller",
+                            prompt: "Choose a number",
+                            bind: "$n",
+                        },
+                        {
+                            op: "chooseNumber",
+                            player: "controller",
+                            prompt: "Choose another",
+                            min: 0,
+                            max: 3,
+                            bind: "$m",
+                        },
+                    ],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("rejects an inverted LITERAL range — the nominal range would be empty", () => {
+        // A computed bound is whatever the board says and `numberChoiceRange`
+        // clamps it; a literal inversion is an authoring slip with a silent
+        // runtime shape (one answer offered, card looks like it worked).
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "chooseNumber",
+                        player: "controller",
+                        prompt: "Choose a number",
+                        min: 4,
+                        max: 2,
+                        bind: "$n",
+                    },
+                ],
+            })
+        );
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toMatch(/"min" \(4\) is greater than "max" \(2\)/);
+    });
+
+    it("rejects a negative literal bound — CR 107.1b bars choosing a negative number", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "chooseNumber",
+                        player: "controller",
+                        prompt: "Choose a number",
+                        min: -1,
+                        bind: "$n",
+                    } as unknown as EffectOp,
+                ],
+            })
+        );
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toMatch(/min/);
+    });
+
+    it("reads the bound binding as a NUMBER family — a boolean bind in a bare numeric position is refused", () => {
+        // The binding-family check is what stops a `mayPay` bind being read as
+        // an amount; `chooseNumber` joins `payVariableMana` on the number side
+        // of it.
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "mayPay",
+                        player: "controller",
+                        prompt: "Pay {1}?",
+                        cost: { mana: { generic: 1 } },
+                        bind: "$b",
+                    },
+                    {
+                        op: "chooseNumber",
+                        player: "controller",
+                        prompt: "Choose a number",
+                        max: { ref: "$b" },
+                        bind: "$n",
+                    },
+                ],
+            })
+        );
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toMatch(
+            /only a chooseNumber \/ payVariableMana Op's bind is a number binding/
+        );
+    });
+});

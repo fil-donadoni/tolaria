@@ -189,6 +189,24 @@ export const LAND_DROPS_PER_TURN = 1;
  *  to "unlimited"). */
 export const MAX_HAND_SIZE = 7;
 
+/** Engine ceiling on a number a player NOMINATES mid-resolution (issue #1421).
+ *
+ *  CR 107.1c — "If a rule or ability instructs a player to choose 'any
+ *  number,' that player may choose any positive number or zero" — so the
+ *  rules-legal range is unbounded above, and this constant is a DELIBERATE
+ *  deviation, declared rather than hidden. The nominated value is committed
+ *  into a binding that later Ops consume as a COUNT (`createToken`'s `count`,
+ *  `draw`, `addCounters`), and those iterate: an uncapped nomination is an
+ *  unbounded loop inside a Convex mutation, reachable by any player at any
+ *  numeric prompt.
+ *
+ *  Game-irrelevant at this height: the highest mana value in the catalogue is
+ *  in the teens, and every printed "choose a number" compares the answer
+ *  against a mana value or a similar small count, so no reachable line of play
+ *  distinguishes 999 from infinity. It lives in `numberChoiceRange` alone, so
+ *  the offered range and the accepted range stay the same rule. */
+export const MAX_CHOSEN_NUMBER = 999;
+
 /** Mana value of a cost (CR 202.3). Numeric `X` counts as its value; string `X` counts as 0 (unpaid). */
 export function manaValue(cost?: ManaCost): number {
     if (!cost) return 0;

@@ -171,3 +171,77 @@ describe("number-pick wiring (issue #1701)", () => {
         ).toEqual({ min: 0, max: 1 });
     });
 });
+
+// --- the BARE (non-paying) nomination (CR 107.1c, issue #1421) -------------
+//
+// "Choose a number" reaches the client already bounded — `numberChoiceRange`
+// applies the engine cap — so the stepper shape is unchanged. What IS
+// different is the semantics of the answer: a mid-resolution choice cannot be
+// declined (CR 608.2), and 0 is a substantive nomination (Void naming 0
+// destroys every mana-value-0 artifact and creature), so the confirm button
+// must not read "Decline".
+describe("NumberAmountInput — bare nomination (issue #1421)", () => {
+    const bare = (onSubmit: (n: number) => void, max = 999) =>
+        render(
+            <NumberAmountInput
+                min={0}
+                max={max}
+                paysMana={false}
+                disabled={false}
+                onSubmit={onSubmit}
+            />
+        );
+
+    it("labels 0 as a CHOICE, never a decline — only a paying nomination declines", () => {
+        const onSubmit = vi.fn();
+        const { getByText, queryByText } = bare(onSubmit);
+        expect(queryByText("Decline")).toBeNull();
+        fireEvent.click(getByText("Choose 0"));
+        expect(onSubmit).toHaveBeenCalledWith(0);
+    });
+
+    it("accepts a typed amount far above any mana the chooser has", () => {
+        const onSubmit = vi.fn();
+        const { getByLabelText, getByText } = bare(onSubmit);
+        fireEvent.change(getByLabelText("Amount"), {
+            target: { value: "137" },
+        });
+        fireEvent.click(getByText("Choose 137"));
+        expect(onSubmit).toHaveBeenCalledWith(137);
+    });
+
+    it("truncates a fractional entry — CR 107.1 admits integers only", () => {
+        // The mutation refuses a fractional amount outright, so a value that
+        // renders as "2.5" would round-trip through a server error.
+        const onSubmit = vi.fn();
+        const { getByLabelText, getByText } = bare(onSubmit);
+        const field = getByLabelText("Amount") as HTMLInputElement;
+        fireEvent.change(field, { target: { value: "2.5" } });
+        expect(field.value).toBe("2");
+        fireEvent.click(getByText("Choose 2"));
+        expect(onSubmit).toHaveBeenCalledWith(2);
+    });
+
+    it("still holds the FLOOR and the cap — the bounds the server re-checks", () => {
+        const onSubmit = vi.fn();
+        const { getByLabelText, getByText } = bare(onSubmit, 4);
+        const minus = getByLabelText("Decrease amount") as HTMLButtonElement;
+        expect(minus.disabled).toBe(true);
+        fireEvent.change(getByLabelText("Amount"), { target: { value: "-4" } });
+        fireEvent.click(getByText("Choose 0"));
+        expect(onSubmit).toHaveBeenCalledWith(0);
+        fireEvent.change(getByLabelText("Amount"), { target: { value: "9" } });
+        expect((getByLabelText("Amount") as HTMLInputElement).value).toBe("4");
+    });
+
+    it("a bare nomination routes to the CENTERED prompt — it has nothing on the board to tap", () => {
+        // The paying sibling is the exception (CR 608.2g — the payer must
+        // reach their lands); a nomination that spends nothing is not.
+        expect(
+            pendingChoiceRequiresBoardTap({
+                kind: "number-pick",
+            } as Parameters<typeof pendingChoiceRequiresBoardTap>[0])
+        ).toBe(false);
+        expect(pendingChoiceLabel("number-pick")).toBe("Choose an amount");
+    });
+});

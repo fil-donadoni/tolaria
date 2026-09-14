@@ -619,7 +619,14 @@ export function applyNumberChoiceSubmit(
     }
     const payer = state.players.find((p) => p.id === args.playerId);
     const range = numberChoiceRange(head, payer);
-    if (args.amount < range.min || args.amount > range.max) {
+    // A below-floor answer is reported as a FLOOR violation (issue #1421): an
+    // open-ended nomination's ceiling is the engine cap `MAX_CHOSEN_NUMBER`,
+    // and naming it in a message about a minimum would send the author looking
+    // at the wrong end of a range CR 107.1c does not really have.
+    if (args.amount < range.min) {
+        throw new Error(`Choose a number of at least ${range.min}`);
+    }
+    if (args.amount > range.max) {
         throw new Error(
             `Choose a number between ${range.min} and ${range.max}`
         );

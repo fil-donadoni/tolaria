@@ -55,6 +55,7 @@ import {
     normalizeMayPayCost,
 } from "../state";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
+import { instanceManaValue } from "../paymentPicks";
 import { tryGetDefinition } from "../../cards";
 import type { LibraryDestination, PendingChoiceKind } from "../types";
 // VALUE import from `moves.ts`, which imports `choiceCandidates` back (issue
@@ -318,8 +319,9 @@ const mayPayCandidates: ChoiceCandidateGenerator = (state, choice) => {
     return out;
 };
 
-/** `number-pick` (CR 107.1b / 107.3f, issue #1701): a NUMERIC nomination —
- *  "pay any amount of mana", "you may pay {X}". The answer space is the whole
+/** `number-pick` (CR 107.1c / 107.3f, issues #1701 / #1421): a NUMERIC
+ *  nomination — "pay any amount of mana", "you may pay {X}", "choose a
+ *  number". The answer space is the whole
  *  live range, which for a paying nomination is `0 … spendable pool` and can
  *  be a dozen values on a real board, so the generator is self-pruning by
  *  construction: it emits the two ENDS (nominate nothing — which IS the
@@ -338,10 +340,61 @@ const mayPayCandidates: ChoiceCandidateGenerator = (state, choice) => {
  *
  *  `numberChoiceRange` is the single authority on the bounds — the same one
  *  `applyNumberChoiceSubmit` validates against and the client's stepper
- *  renders — so every candidate is legal by construction, never by luck. */
+ *  renders — so every candidate is legal by construction, never by luck. The
+ *  one thing it does NOT supply is a searchable ceiling for the OPEN bare
+ *  nomination (issue #1421), whose legal range runs to the engine cap;
+ *  {@link openNominationSearchCeiling} bounds the SEARCH there without
+ *  narrowing what the player may legally answer. */
+/** The ceiling the SEARCH uses for an OPEN-ENDED nomination (CR 107.1c, issue
+ *  #1421). `numberChoiceRange` bounds such a nomination only by the engine cap
+ *  `MAX_CHOSEN_NUMBER` — a range no generator should enumerate or bisect, and
+ *  whose midpoint is a branch no line of play distinguishes.
+ *
+ *  The bound is read off the BOARD instead: the shipped shape of an open
+ *  nomination compares the answer against a mana value (Void's "destroy all
+ *  artifacts and creatures with mana value equal to that number… discards all
+ *  nonland cards with mana value equal to the number"), so the highest mana
+ *  value anywhere the number can bite is the largest answer that changes
+ *  anything. Above it every nomination is game-observably identical, and the
+ *  bound moves with the position rather than being a second magic constant.
+ *
+ *  EVERY player's battlefield and EVERY player's hand, not just the chooser's.
+ *  The hidden-information rule inside ISMCTS is not "what does this seat know"
+ *  — the state handed to a generator is the DETERMINIZED one, a sampled member
+ *  of the information set, and reading it is the whole design (the same reason
+ *  the opponent's battlefield is fair game). Narrowing to the chooser's own
+ *  hand would make the search blind to exactly the half of Void that names a
+ *  target player.
+ *
+ *  Never applied to an AUTHORED or PAYING ceiling: a paying nomination's bound
+ *  is its pool and an authored `max` is the card's own text — both are real
+ *  bounds the search must respect as given. */
+function openNominationSearchCeiling(state: GameState): number {
+    let highest = 0;
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            highest = Math.max(highest, instanceManaValue(card));
+        }
+        for (const card of player.hand) {
+            highest = Math.max(highest, instanceManaValue(card));
+        }
+    }
+    return highest;
+}
+
 const numberPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
     const payer = state.players.find((p) => p.id === choice.playerId);
-    const { min, max } = numberChoiceRange(choice, payer);
+    const { min, max: legalMax } = numberChoiceRange(choice, payer);
+    // CR 107.1c (issue #1421) — an OPEN nomination (no authored ceiling, no
+    // payment) is legal up to the engine cap and searchable only to a
+    // board-derived one. `Math.min` with the legal max is what keeps every
+    // candidate inside the LEGAL range by construction, which is the property
+    // that matters: a generator that emitted an illegal amount would have the
+    // submit refuse it and freeze the window (ADR 0047).
+    const isOpen = choice.numberMax === undefined && !choice.paysMana;
+    const max = isOpen
+        ? Math.min(legalMax, Math.max(min, openNominationSearchCeiling(state)))
+        : legalMax;
     const wanted = [min, min + 1, min + 2, Math.floor((min + max) / 2), max];
     const out: Omit<ChoiceCandidate, "prior">[] = [];
     const seen = new Set<number>();

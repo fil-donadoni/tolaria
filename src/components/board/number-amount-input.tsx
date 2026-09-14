@@ -2,22 +2,30 @@ import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 
-/** Bounded amount picker for a `number-pick` pending choice (CR 107.1b /
- *  107.3f, issue #1701) — "choose a number", and with a mana cost attached
+/** Amount picker for a `number-pick` pending choice (CR 107.1b / 107.3f,
+ *  issues #1701 / #1421) — "choose a number", and with a mana cost attached
  *  "pay any amount of mana" / "you may pay {X}", where the controller chooses
  *  the value AS THE ABILITY RESOLVES.
  *
- *  Bounded, never free-form: `max` is the choice's live ceiling (for a paying
- *  nomination, what the chooser's pool can actually cover), computed by the
- *  parent from `numberChoiceRange` — the SAME authority the submit mutation
- *  re-validates against, so the stepper can never offer an amount the server
- *  refuses. Typed input is clamped into the range on the way out for the same
- *  reason.
+ *  `max` is the choice's live ceiling (for a paying nomination, what the
+ *  chooser's pool can actually cover), computed by the parent from
+ *  `numberChoiceRange` — the SAME authority the submit mutation re-validates
+ *  against, so the stepper can never offer an amount the server refuses.
+ *  Typed input is clamped into the range on the way out for the same reason.
  *
- *  The value starts at `min`, which for every shipped shape is 0 — and 0 IS the
- *  decline (CR 107.3f: paying {X} with X = 0 and declining are
- *  game-observably identical). So declining is ONE action, the confirm button,
- *  with no second prompt to dismiss (Arena parity, issue #2244).
+ *  An OPEN-ENDED bare nomination (CR 107.1c "any number", issue #1421) arrives
+ *  here already bounded: `numberChoiceRange` applies the engine cap, so `max`
+ *  is always a real number and the stepper always renders a true range. The
+ *  client never invents a bound of its own — that is the drift
+ *  `numberChoiceRange` exists to prevent.
+ *
+ *  The value starts at `min`. For a PAYING nomination 0 is the decline
+ *  (CR 107.3f: paying {X} with X = 0 and declining are game-observably
+ *  identical), so declining is ONE action, the confirm button, with no second
+ *  prompt to dismiss (Arena parity, issue #2244). For a BARE one it is not a
+ *  decline at all: a mid-resolution choice cannot be refused (CR 608.2) and 0
+ *  is a substantive answer — Void naming 0 destroys every mana-value-0
+ *  artifact and creature. Hence the label consults `paysMana`.
  *
  *  Stateless w.r.t. the game — the parent owns the submit mutation and the
  *  in-flight `disabled` gate (project-wide: buttons firing a Convex mutation
@@ -35,7 +43,12 @@ export default function NumberAmountInput({
     disabled: boolean;
     onSubmit: (amount: number) => void;
 }) {
-    const clamp = (next: number) => Math.min(Math.max(next, min), max);
+    // CR 107.1 — the game uses only integers, and `applyNumberChoiceSubmit`
+    // refuses a fractional amount outright. A typed "2.5" must therefore never
+    // reach the mutation: truncating here is what keeps the field's own value
+    // legal rather than round-tripping through a server error.
+    const clamp = (next: number) =>
+        Math.trunc(Math.min(Math.max(next, min), max));
     const [nominated, setNominated] = useState(min);
     // The displayed amount is CLAMPED AT RENDER, not stored clamped. The
     // ceiling moves while the prompt is open — the payer may go on tapping
@@ -108,11 +121,11 @@ export default function NumberAmountInput({
                 disabled={disabled}
                 onClick={submit}
             >
-                {amount === min && min === 0
-                    ? "Decline"
-                    : paysMana
-                      ? `Pay ${amount}`
-                      : `Choose ${amount}`}
+                {paysMana
+                    ? amount === 0
+                        ? "Decline"
+                        : `Pay ${amount}`
+                    : `Choose ${amount}`}
             </Button>
         </div>
     );

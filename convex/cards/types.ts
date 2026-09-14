@@ -16489,6 +16489,63 @@ export type EffectOp =
            *  actually paid. */
           bind: string;
       }
+    /** CR 107.1c (issue #1421) — a BARE numeric nomination: "choose a number",
+     *  answered with a non-negative integer that costs nothing and is then
+     *  READ by a later Op. CR 107.1c: "If a rule or ability instructs a player
+     *  to choose 'any number,' that player may choose any positive number or
+     *  zero" — Void's "Choose a number. Destroy all artifacts and creatures
+     *  with mana value equal to that number." The neighbouring constraints are
+     *  separate rules, enforced at the submit boundary: CR 107.1 ("the only
+     *  numbers the Magic game uses are integers") and CR 107.1b ("you can't
+     *  choose a negative number").
+     *
+     *  The paying sibling is `payVariableMana` (CR 107.3f, issue #1701) and
+     *  the two deliberately stay distinct Ops over ONE Pending Choice family:
+     *  nominating and nominating-then-paying are different decisions with
+     *  different bot valuations (a payment is priced by what the pool gives
+     *  up; a bare nomination gives up nothing), while the submission shape,
+     *  the client affordance and the bot's candidate enumeration are one
+     *  mechanism — `number-pick`, `numberChoiceRange`, `submitNumberChoice`.
+     *  Skins `SpellContext.requestNumberChoice` WITHOUT `payMana`, so it opens
+     *  no CR 608.2g mana window: there is no mana to make.
+     *
+     *  `min` / `max` are optional `EffectValue`s, resolved at execution time so
+     *  a bound can be read off the board as the ability resolves. Both omitted
+     *  is the OPEN-ENDED nomination (CR 107.1c "any number"): the range is
+     *  then every integer from the floor up to the engine cap
+     *  `MAX_CHOSEN_NUMBER`, which `numberChoiceRange` alone applies (a
+     *  declared deviation — the nominated value is consumed as an iteration
+     *  count downstream), and which the bot narrows further for SEARCH only.
+     *  Omitting `min` means 0.
+     *
+     *  `bind` (REQUIRED) names a NUMERIC binding — the nominated amount — read
+     *  by a later Op as an `EffectValue` (`manaValueEquals: { ref: "$n" }`).
+     *  Required for the same reason `mayPay`'s boolean bind and
+     *  `payVariableMana`'s numeric one are: a choice nothing reads back is
+     *  meaningless.
+     *
+     *  What it deliberately does NOT do: nominate for a player who is not the
+     *  one the later Ops act on beyond what `player` already expresses, and
+     *  bound the nomination by anything other than a numeric range — a
+     *  "choose a number you haven't chosen this game" style restriction has no
+     *  shipped consumer, so the axis of variation is not yet shown (ADR 0045
+     *  "generalize, don't add"). */
+    | {
+          op: "chooseNumber";
+          /** Who nominates (CR 107.1c — the player the effect instructs to
+           *  choose, usually the controller). */
+          player: EffectPlayerRef;
+          prompt: string;
+          /** Floor of the nominal range, resolved at execution time. Omitted
+           *  means 0 — CR 107.1b bars a negative choice. */
+          min?: EffectValue;
+          /** Authored ceiling, resolved at execution time, when the ability's
+           *  own text caps the nomination. Omitted means open-ended. */
+          max?: EffectValue;
+          /** REQUIRED — the NUMERIC binding name (`"$n"`), the nominated
+           *  amount. */
+          bind: string;
+      }
     /** CR 701.6a — counter the announced target spell (remove it from the
      *  stack, put it into its owner's graveyard). Routes through
      *  `SpellContext.counter`; skipped when the target already left the stack

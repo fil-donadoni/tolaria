@@ -5493,6 +5493,44 @@ export const OP_EXECUTORS: {
         });
         if (paid === undefined) return "suspend"; // enqueued — wait
     },
+    // CR 107.1c (issue #1421) — a BARE numeric nomination ("choose a number").
+    // The same suspend/replay contract as `payVariableMana` above and the same
+    // `number-pick` family, minus `payMana`: nothing is spent, so no CR 608.2g
+    // mana window opens and the answer is bounded only by the authored range.
+    //
+    // `min` / `max` are `EffectValue`s resolved HERE, as the ability resolves
+    // (CR 608.2), and passed onto the Pending Choice as plain integers — the
+    // entry is what the submit validator, the client stepper and the bot
+    // candidate generator all read, and none of them can evaluate a value
+    // grammar. Either bound resolving to `undefined` (an uncaptured binding,
+    // CR 608.2b) is DROPPED rather than treated as 0. Both directions widen,
+    // which is the honest failure: dropping `max` restores the CR 107.1c
+    // default, and a silent 0 CEILING would instead pin the answer to the
+    // floor and look like the card working. Dropping `min` widens downwards to
+    // the CR 107.1c floor of zero — weaker than an authored "at least N", but
+    // still a legal answer the reading Op can act on, where a silent floor of
+    // the card's own choosing would be an invented rule.
+    chooseNumber(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return; // CR 608.2b — chooser gone, skip
+        const req: Parameters<SpellContext["requestNumberChoice"]>[0] = {
+            // The binding name doubles as the choiceId, exactly as it does for
+            // `mayPay` / `payVariableMana`.
+            choiceId: op.bind,
+            playerId,
+            prompt: op.prompt,
+        };
+        if (op.min !== undefined) {
+            const min = resolveValue(ctx, op.min);
+            if (min !== undefined) req.min = Math.max(0, Math.trunc(min));
+        }
+        if (op.max !== undefined) {
+            const max = resolveValue(ctx, op.max);
+            if (max !== undefined) req.max = Math.max(0, Math.trunc(max));
+        }
+        const chosen = ctx.requestNumberChoice(req);
+        if (chosen === undefined) return "suspend"; // enqueued — wait
+    },
     // CR 701.6a — counter the announced target spell. A silent no-op when the
     // target already left the stack (CR 608.2b — the spell does as much as it
     // can). The consequence half of the counter/punisher pattern. `destination`
