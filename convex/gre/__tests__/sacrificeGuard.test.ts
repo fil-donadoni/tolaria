@@ -38,6 +38,12 @@ const ALLOW = new Set<string>([
     // (lowest-mv pick), NOT the authoritative game action (game.ts routes the
     // real player choice through the unified layer). Out of scope for 701.21a.
     "gre/applyMove.ts",
+    // Same slice, other seam (issue #3424): the dominance probe pays a
+    // "Sacrifice this permanent" ACTIVATION COST on a `cloneGameState` clone to
+    // decide whether the bot should announce the ability at all. A fixed victim
+    // — the ability's own source, never a filtered choice — and never the
+    // authoritative game action: the probe mutates nothing the players can see.
+    "gre/ai/dominance.ts",
 ]);
 
 // Tolerate entries that vanish mid-walk. A parallel test worker
