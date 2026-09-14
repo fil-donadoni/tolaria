@@ -39,11 +39,12 @@ Three vectors, one corpus, scored on the ordering a human reads rather than on
 the fit's loss:
 
 ```
-== the same corpus, three vectors — ordering, not loss (issue #3406)
-  vector               verdicts ordered   pairs satisfied   contradictory   blind
-  prior (FIT_BASE)     79/174 (45.4%)     328/492 (66.7%)  552            47
-  committed (DEFAULT)  83/174 (47.7%)     330/492 (67.1%)  526            47
-  fitted (this run)    78/174 (44.8%)     326/492 (66.3%)  553            45
+== the same corpus, 3 vectors — ordering, not loss (issue #3406)
+  vector                verdicts ordered   pairs satisfied   contradictory   blind
+  prior (FIT_BASE)      79/174 (45.4%)     328/492 (66.7%)   552             47
+  committed (DEFAULT)   83/174 (47.7%)     330/492 (67.1%)   526             47
+  fitted (this run)     78/174 (44.8%)     326/492 (66.3%)   553             45
+== the fitted vector, as the DEFAULT_EVAL_WEIGHTS literal
 ```
 
 The fit does what it was asked to: **loss 2.4173 → 2.3293**. It gets there by
