@@ -154,7 +154,7 @@ import {
     hasInstantSpeed,
 } from "./constants";
 import { tryGetDefinition } from "../cards";
-import { getManaSubstitutions } from "./state";
+import { getManaSubstitutions, spendableManaTotal } from "./state";
 import { buildAutoTapSources, solveSmartAutoTap } from "./autoTap";
 import { COMPANION_SUMMON_COST } from "./companion";
 // Choice-node spine (PRD #1423, issue #1425).
@@ -671,6 +671,45 @@ function applyTapPlan(
     }
 }
 
+/** CR 608.2g / 106.4 (issue #3569) — credit the pool with the mana the
+ *  nomination's tap plan just made, so the authoritative resolver below can
+ *  actually spend it.
+ *
+ *  `applyTapPlan` above is the search's COARSE mana model: it marks the planned
+ *  sources tapped (and sacrifices / decrements the ones whose payment does
+ *  that) but deliberately never touches the pool, because the moves it has
+ *  served until now — a cast, an activation — never debit the pool either, so
+ *  the two omissions cancel. A numeric nomination is the first move where they
+ *  do not: `applyNumberChoiceSubmit` re-derives the ceiling from
+ *  `spendableManaTotal` and REALLY spends what it accepts, so taps that left
+ *  the pool empty would have it refuse everything but the decline — the exact
+ *  bug this issue closes, reproduced one layer down.
+ *
+ *  The credit is the SHORTFALL, read through `spendableManaTotal` — the same
+ *  authority the ceiling comes from, never a second copy of its rule — and it
+ *  is exact rather than generous by construction: the plan was built by
+ *  `planManaPayment` for the generic cost `{ X: amount }`, so the mana it
+ *  makes is precisely what the submit is about to take. The pool is therefore
+ *  the same before and after the pair, and nothing leaks into the leaf
+ *  position for a later move to spend twice.
+ *
+ *  Banked as COLOURLESS because the payment is a generic leg (CR 107.4 —
+ *  generic mana is payable with mana of any type), which is the same reason
+ *  `spendableManaTotal` may sum the pool at all. */
+function floatPlannedNominationMana(
+    state: GameState,
+    playerId: string,
+    amount: number
+): void {
+    const player = state.players.find((p) => p.id === playerId);
+    if (!player) return;
+    const restriction = state.pendingChoices?.[0]?.manaRestriction;
+    const shortfall = amount - spendableManaTotal(player, restriction);
+    if (shortfall > 0) {
+        player.manaPool.C = (player.manaPool.C ?? 0) + shortfall;
+    }
+}
+
 /** Mirror the `passPriority` mutation: advance the pass cycle, resolving the
  *  stack or advancing the phase when both players have passed, then drain
  *  auto-passes and apply SBA. `passerId` is the player passing now. */
@@ -777,6 +816,16 @@ export function applyMoveInSearch(
         }
 
         case "number-choice": {
+            // CR 608.2g (issue #3569) — "if an effect gives a player the
+            // option to pay mana, they may activate mana abilities before
+            // taking that action". The taps come FIRST, exactly as the live
+            // executor sends them before `submitNumberChoice`, or the
+            // authoritative resolver below re-derives the ceiling from an
+            // empty pool and refuses everything but the decline.
+            if (move.tapPlan && move.tapPlan.length > 0) {
+                applyTapPlan(state, playerId, move.tapPlan);
+                floatPlannedNominationMana(state, playerId, move.amount);
+            }
             // CR 107.1b / 107.3f (issue #1701) — a numeric nomination. Applied
             // through the SAME validated resolver the `submitNumberChoice`
             // mutation drives, so the search cannot diverge from the

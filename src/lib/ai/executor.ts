@@ -229,6 +229,16 @@ export type MoveMutations = {
     submitReboundDecline: (a: GP) => Promise<unknown>;
     submitNameCard: (a: GP & { cardName: string }) => Promise<unknown>;
     submitNumberChoice: (a: GP & { amount: number }) => Promise<unknown>;
+    /** CR 608.2g (issue #3569) — the ORDINARY tap-for-mana mutation, used to
+     *  fund a paying numeric nomination. Not `tapForPayment`: that one is the
+     *  `pendingCast` window's entry point, and a nomination is asked
+     *  mid-resolution with no pending cast at all — the server routes this
+     *  seat's taps through `tapUntap`, whose `assertNoPendingChoices` already
+     *  opens for a mana-payment choice window. One card per call, as the
+     *  mutation is shaped. */
+    tapUntap: (
+        a: GP & { cardInstanceId: string; manaChoiceIndex?: number }
+    ) => Promise<unknown>;
     submitRandomRevealAck: (
         a: GP & { stackItemId: string; choiceId: string }
     ) => Promise<unknown>;
@@ -392,6 +402,26 @@ export async function executeMove(
             return;
 
         case "number-choice":
+            // CR 608.2g (issue #3569) — "if an effect gives a player the
+            // option to pay mana, they may activate mana abilities before
+            // taking that action". The taps come FIRST and through the REAL
+            // mana-ability mutations, exactly as a human's clicks would make
+            // them: CR 500.5 empties the pool at every step boundary, so
+            // without them the server's live range caps this nomination at 0
+            // on every board a real game reaches.
+            if (move.tapPlan && move.tapPlan.length > 0) {
+                await runTapPlan(
+                    move.tapPlan,
+                    async (batch) => {
+                        // `tapUntap` is one card per call — there is no batched
+                        // twin outside the `pendingCast` window.
+                        for (const tap of batch) {
+                            await mutations.tapUntap({ ...base, ...tap });
+                        }
+                    },
+                    (tap) => mutations.activateManaAbility({ ...base, ...tap })
+                );
+            }
             // CR 107.1b / 107.3f (issue #1701) — a SEPARATE entry point
             // (submitNumberChoice); only the nominated amount travels on the
             // Move, and the server re-validates it against the choice's live

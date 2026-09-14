@@ -21,6 +21,7 @@ function fakeMutations() {
         selectTargets: vi.fn().mockResolvedValue(null),
         confirmTargets: vi.fn().mockResolvedValue(null),
         tapForPayment: vi.fn().mockResolvedValue(null),
+        tapUntap: vi.fn().mockResolvedValue(null),
         activateManaAbility: vi.fn().mockResolvedValue(null),
         activateAbility: vi.fn().mockResolvedValue(null),
         activatePlayerAbility: vi.fn().mockResolvedValue(null),

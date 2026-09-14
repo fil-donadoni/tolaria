@@ -67,11 +67,17 @@ import type { LibraryDestination, PendingChoiceKind } from "../types";
 // `castRawManaCost` authority) every other cast in the tree comes from. The
 // alternative was a THIRD hand-rolled reimplementation of "build a cast from a
 // zone", and the codebase already carries two (issue #2473).
-import { enumerateCastMoves, type Move } from "../moves";
+import {
+    enumerateCastMoves,
+    planManaPayment,
+    type ManaTap,
+    type Move,
+} from "../moves";
 import { exileCastPermission } from "../castCost";
 import { getLegalActions } from "../rules";
 import { eligibleZonePickCards } from "../zonePickEligibility";
-import { targetKey, numberChoiceRange } from "../state";
+import { targetKey, numberChoiceRange, spendableManaTotal } from "../state";
+import { boardCensusFor } from "../manaAvailability";
 import type { Color } from "../../cards/types";
 import {
     getChoicePriorGeneration,
@@ -382,9 +388,54 @@ function openNominationSearchCeiling(state: GameState): number {
     return highest;
 }
 
+/** CR 608.2g (issue #3569) — the payer view a PAYING nomination's ceiling is
+ *  read against: the live pool PLUS the mana the payer's untapped sources
+ *  could still make. "If an effect gives a player the option to pay mana, they
+ *  may activate mana abilities before taking that action", and the live engine
+ *  opens exactly that window (`isManaPaymentChoiceWindow`, `gre/state.ts`), so
+ *  the pool alone is not the ceiling — it is only the part already banked.
+ *
+ *  It matters because CR 500.5 / 106.4 empty the pool at the end of every step
+ *  and phase: at the moment a cycled trigger or an upkeep trigger asks the
+ *  question the pool is empty BY RULE, so a ceiling of `spendableManaTotal`
+ *  alone makes 0 the Bot's only legal answer on every board, forever.
+ *
+ *  Expressed as a PAYER VIEW rather than as an arithmetic ceiling on purpose:
+ *  `numberChoiceRange` stays the single authority that decides between an
+ *  authored `numberMax`, the payer's resources and the engine cap, and this
+ *  function only widens what "the payer's resources" means inside the window.
+ *  A second copy of `spendableManaTotal`'s rule here is exactly the drift that
+ *  would offer an amount the submit then refuses.
+ *
+ *  The extra units are banked as COLOURLESS because the payment is a generic
+ *  leg (CR 107.4 — generic mana is payable with mana of any type), which is
+ *  the same reason `spendableManaTotal` may sum the pool at all; and
+ *  `boardCensusFor` is the pool-free half of the census, so nothing is counted
+ *  twice. Every candidate is still individually planned below, so a ceiling
+ *  this view over-states (a source whose colours cannot in fact be spent here)
+ *  loses its candidate to a `null` plan rather than reaching the submit. */
+function manaWindowPayerView(
+    state: GameState,
+    payer: PlayerState
+): Pick<PlayerState, "manaPool" | "restrictedMana"> {
+    const potential = boardCensusFor(state, payer).now.length;
+    if (potential === 0) return payer;
+    return {
+        manaPool: { ...payer.manaPool, C: (payer.manaPool.C ?? 0) + potential },
+        ...(payer.restrictedMana
+            ? { restrictedMana: payer.restrictedMana }
+            : {}),
+    };
+}
+
 const numberPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
     const payer = state.players.find((p) => p.id === choice.playerId);
-    const { min, max: legalMax } = numberChoiceRange(choice, payer);
+    // CR 608.2g (issue #3569) — a PAYING nomination may be preceded by mana
+    // abilities, so its ceiling is the pool plus what the untapped sources
+    // could still make. A bare nomination spends nothing and opens no window.
+    const rangePayer =
+        payer && choice.paysMana ? manaWindowPayerView(state, payer) : payer;
+    const { min, max: legalMax } = numberChoiceRange(choice, rangePayer);
     // CR 107.1c (issue #1421) — an OPEN nomination (no authored ceiling, no
     // payment) is legal up to the engine cap and searchable only to a
     // board-derived one. `Math.min` with the legal max is what keeps every
@@ -398,12 +449,35 @@ const numberPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
     const wanted = [min, min + 1, min + 2, Math.floor((min + max) / 2), max];
     const out: Omit<ChoiceCandidate, "prior">[] = [];
     const seen = new Set<number>();
+    // CR 106.6 — what the pool alone already covers, by the SAME authority the
+    // submit validator's ceiling is built from. An amount at or below it needs
+    // no taps at all, so the move is emitted in its pre-issue-#3569 shape and
+    // every pre-existing (pre-floated) position keeps a byte-identical answer.
+    const fromPool =
+        payer && choice.paysMana
+            ? spendableManaTotal(payer, choice.manaRestriction)
+            : Number.POSITIVE_INFINITY;
     for (const amount of wanted) {
         if (amount < min || amount > max || seen.has(amount)) continue;
         seen.add(amount);
+        // CR 608.2g — the taps that fund the shortfall, planned by the SAME
+        // planner every other mana payment in the tree rides on. `null` is a
+        // shortfall this board cannot actually make (a ceiling the payer view
+        // above over-stated), and the candidate is dropped rather than offered
+        // — the submit would refuse it and the window would freeze (ADR 0047).
+        let tapPlan: ManaTap[] = [];
+        if (amount > fromPool) {
+            const planned = planManaPayment(state, payer!, { X: amount });
+            if (planned === null) continue;
+            tapPlan = planned;
+        }
         out.push({
             key: `number-pick:${amount}`,
-            move: { kind: "number-choice", amount },
+            move: {
+                kind: "number-choice",
+                amount,
+                ...(tapPlan.length > 0 ? { tapPlan } : {}),
+            },
             // No `hint`: the shared prior seam reads material and life, and a
             // nomination pays neither. A `manaPaid` hint plus a cheap-first
             // prior was written and removed at review — the two shipped
