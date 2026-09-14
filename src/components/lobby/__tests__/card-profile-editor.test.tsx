@@ -419,3 +419,156 @@ describe("CardProfileEditor — shaped for the review pass (issue #3597)", () =>
         ).toBeNull();
     });
 });
+
+describe("CardProfileEditor — review findings (issue #3597)", () => {
+    it("re-seeds a reopened row from the stored profile, never from abandoned edits", () => {
+        // The row no longer unmounts when it closes (the editor owns `open`),
+        // so without an explicit re-seed the local picker state survived
+        // being navigated away from — and "Mark reviewed & next" then wrote
+        // those abandoned values and flagged the row reviewed.
+        render(
+            <CardProfileEditor
+                cards={cubeRows()}
+                onSave={vi.fn()}
+                onClear={vi.fn()}
+            />
+        );
+        fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+        const control = screen.getByLabelText(
+            "Archetype control for Griselbrand"
+        ) as HTMLInputElement;
+        expect(control.checked).toBe(false);
+        fireEvent.click(control);
+        expect(
+            (
+                screen.getByLabelText(
+                    "Archetype control for Griselbrand"
+                ) as HTMLInputElement
+            ).checked
+        ).toBe(true);
+
+        // Navigate away (opening another row closes this one), then back.
+        fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+        // Griselbrand is name-first, so it is still the FIRST collapsed row.
+        fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+        expect(
+            (
+                screen.getByLabelText(
+                    "Archetype control for Griselbrand"
+                ) as HTMLInputElement
+            ).checked
+        ).toBe(false);
+    });
+
+    it("shows a STORED archetype the registry does not have, and lets it be removed", async () => {
+        // Closing a vocabulary that was open for a release cannot assume the
+        // stored rows obey it: a profile written through the old free-text
+        // field carries a name this registry lacks. Rendered nowhere, it
+        // would still be submitted — and rejected server-side — naming a
+        // string the reviewer could neither see nor untick.
+        const legacy = buildCardProfileRow(
+            CUBE_SOURCE_KEY,
+            cardId("Griselbrand"),
+            {
+                archetypes: ["cheat-into-play"],
+                provides: ["reanimatable"],
+                requires: [],
+                reviewed: false,
+            }
+        );
+        const onSave = vi.fn().mockResolvedValue(null);
+        render(
+            <CardProfileEditor
+                cards={cubeRows(buildDbProfileLookup([legacy]))}
+                onSave={onSave}
+                onClear={vi.fn()}
+            />
+        );
+        fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+        const stray = screen.getByLabelText(
+            "Unregistered archetype cheat-into-play for Griselbrand"
+        ) as HTMLInputElement;
+        expect(stray.checked).toBe(true);
+
+        fireEvent.click(stray);
+        fireEvent.click(screen.getByRole("button", { name: "Save" }));
+        await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+        expect(onSave.mock.calls[0][1].archetypes).toEqual([]);
+    });
+
+    it("hands focus back to the toggle when a row closes, and wires aria-controls", () => {
+        render(
+            <CardProfileEditor
+                cards={cubeRows()}
+                onSave={vi.fn()}
+                onClear={vi.fn()}
+            />
+        );
+        const toggle = screen.getAllByRole("button", { name: "Edit" })[0];
+        const toggleId = toggle.id;
+        expect(toggleId).not.toBe("");
+        const panelId = toggle.getAttribute("aria-controls");
+        expect(panelId).toBeTruthy();
+
+        fireEvent.click(toggle);
+        const panel = screen.getByRole("group", {
+            name: "Profile for Griselbrand",
+        });
+        expect(panel.id).toBe(panelId);
+        expect(document.activeElement).toBe(panel);
+
+        fireEvent.click(screen.getByRole("button", { name: "Close" }));
+        // Not `<body>`: a keyboard reviewer mid-pass must not be returned to
+        // the top of the document on the next Tab.
+        expect((document.activeElement as HTMLElement | null)?.id).toBe(
+            toggleId
+        );
+    });
+
+    it("advances correctly with 'Only unreviewed' on, including after the saved row leaves the list", async () => {
+        const onSave = vi.fn().mockResolvedValue(null);
+        const { rerender } = render(
+            <CardProfileEditor
+                cards={cubeRows()}
+                onSave={onSave}
+                onClear={vi.fn()}
+            />
+        );
+        fireEvent.click(screen.getByLabelText("Only unreviewed"));
+        fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+        fireEvent.click(
+            screen.getByRole("button", { name: "Mark reviewed & next" })
+        );
+        await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+        await waitFor(() =>
+            expect(
+                screen.getByRole("group", {
+                    name: "Profile for Lightning Bolt",
+                })
+            ).toBeTruthy()
+        );
+
+        // The reactive query now lands the saved row as reviewed, and the
+        // filter drops it — the successor must stay open through that.
+        const saved = buildCardProfileRow(
+            CUBE_SOURCE_KEY,
+            cardId("Griselbrand"),
+            {
+                archetypes: ["reanimator"],
+                provides: ["reanimatable"],
+                requires: [],
+                reviewed: true,
+            }
+        );
+        rerender(
+            <CardProfileEditor
+                cards={cubeRows(buildDbProfileLookup([saved]))}
+                onSave={onSave}
+                onClear={vi.fn()}
+            />
+        );
+        expect(
+            screen.getByRole("group", { name: "Profile for Lightning Bolt" })
+        ).toBeTruthy();
+    });
+});
