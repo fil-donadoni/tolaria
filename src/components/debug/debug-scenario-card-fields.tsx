@@ -88,85 +88,94 @@ export default function DebugScenarioCardFields({
                 </button>
             </div>
 
-            {/* Common placement knobs (issue #3512) — a FIXED 3-column grid,
-                not a `flex-wrap` run: token / zone / count on the first line,
-                tapped / sick / More on the second, at every width. A wrapping
-                run put these five in a different order at each viewport, so the
-                same knob was never in the same place twice. */}
-            <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 pl-6">
-                {/* CR 111 / 707.2 — a token row names a shape in the token
-                    catalogue instead of a card, and (CR 111.7) can only be
-                    placed on the battlefield, so the zone picker is locked. */}
-                <label className={CHECK_LABEL_CLASS}>
-                    <input
-                        type="checkbox"
-                        checked={draft.token}
+            {/* Common placement knobs (issue #3512) — two FIXED lines, not a
+                `flex-wrap` run, which put these five in a different order at
+                each viewport: zone + count, then the three flags + More.
+                Each line is its own grid, because one grid shared by both
+                sized the zone select's track by the flag labels below it and
+                crushed it to 27px at the phone sheet width (PR review). */}
+            <div data-card-placement className="flex flex-col gap-1.5 pl-6">
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2">
+                    <select
+                        value={draft.zone}
+                        disabled={draft.token}
                         onChange={(e) =>
                             onPatch({
-                                token: e.target.checked,
-                                name: "",
-                                zone: "battlefield",
+                                zone: e.target.value as CardDraft["zone"],
                             })
                         }
-                        aria-label={`Card ${index + 1} is token`}
-                        className={DEBUG_CHECKBOX_CLASS}
-                    />
-                    token
-                </label>
-                <select
-                    value={draft.zone}
-                    disabled={draft.token}
-                    onChange={(e) =>
-                        onPatch({ zone: e.target.value as CardDraft["zone"] })
-                    }
-                    aria-label={`Card ${index + 1} zone`}
-                    className={`${DEBUG_INPUT_CLASS} w-full min-w-0 disabled:opacity-50`}
-                >
-                    {ZONES.map((z) => (
-                        <option key={z} value={z}>
-                            {z}
-                        </option>
-                    ))}
-                </select>
-                <label className={CHECK_LABEL_CLASS}>
-                    count
-                    <input
-                        type="number"
-                        min={1}
-                        value={draft.count}
-                        onChange={(e) => onPatch({ count: e.target.value })}
-                        className={DEBUG_NUMBER_INPUT_CLASS}
-                    />
-                </label>
-                <label className={CHECK_LABEL_CLASS}>
-                    <input
-                        type="checkbox"
-                        checked={draft.tapped}
-                        onChange={(e) => onPatch({ tapped: e.target.checked })}
-                        className={DEBUG_CHECKBOX_CLASS}
-                    />
-                    tapped
-                </label>
-                <label className={CHECK_LABEL_CLASS}>
-                    <input
-                        type="checkbox"
-                        checked={draft.summoningSick}
-                        onChange={(e) =>
-                            onPatch({ summoningSick: e.target.checked })
-                        }
-                        className={DEBUG_CHECKBOX_CLASS}
-                    />
-                    sick
-                </label>
-                {/* A real secondary button at the form's body size (issue
+                        aria-label={`Card ${index + 1} zone`}
+                        className={`${DEBUG_INPUT_CLASS} w-full min-w-0 disabled:opacity-50`}
+                    >
+                        {ZONES.map((z) => (
+                            <option key={z} value={z}>
+                                {z}
+                            </option>
+                        ))}
+                    </select>
+                    <label className={CHECK_LABEL_CLASS}>
+                        count
+                        <input
+                            type="number"
+                            min={1}
+                            value={draft.count}
+                            onChange={(e) => onPatch({ count: e.target.value })}
+                            className={DEBUG_NUMBER_INPUT_CLASS}
+                        />
+                    </label>
+                </div>
+                <div className="grid grid-cols-[auto_auto_auto_minmax(0,1fr)] items-center gap-x-3">
+                    {/* CR 111 / 707.2 — a token row names a shape in the token
+                    catalogue instead of a card, and (CR 111.7) can only be
+                    placed on the battlefield, so the zone picker is locked. */}
+                    <label className={CHECK_LABEL_CLASS}>
+                        <input
+                            type="checkbox"
+                            checked={draft.token}
+                            onChange={(e) =>
+                                onPatch({
+                                    token: e.target.checked,
+                                    name: "",
+                                    zone: "battlefield",
+                                })
+                            }
+                            aria-label={`Card ${index + 1} is token`}
+                            className={DEBUG_CHECKBOX_CLASS}
+                        />
+                        token
+                    </label>
+                    <label className={CHECK_LABEL_CLASS}>
+                        <input
+                            type="checkbox"
+                            checked={draft.tapped}
+                            onChange={(e) =>
+                                onPatch({ tapped: e.target.checked })
+                            }
+                            className={DEBUG_CHECKBOX_CLASS}
+                        />
+                        tapped
+                    </label>
+                    <label className={CHECK_LABEL_CLASS}>
+                        <input
+                            type="checkbox"
+                            checked={draft.summoningSick}
+                            onChange={(e) =>
+                                onPatch({ summoningSick: e.target.checked })
+                            }
+                            className={DEBUG_CHECKBOX_CLASS}
+                        />
+                        sick
+                    </label>
+                    {/* A real secondary button at the form's body size (issue
                     #3512), not 10px disabled-contrast underlined text. */}
-                <DebugButton
-                    onClick={() => setShowMore((v) => !v)}
-                    ariaExpanded={showMore}
-                    className="justify-self-start"
-                >
-                    {showMore ? "Less" : "More"}
-                </DebugButton>
+                    <DebugButton
+                        onClick={() => setShowMore((v) => !v)}
+                        ariaExpanded={showMore}
+                        className="justify-self-end"
+                    >
+                        {showMore ? "Less" : "More"}
+                    </DebugButton>
+                </div>
             </div>
 
             {/* Rarer fields */}

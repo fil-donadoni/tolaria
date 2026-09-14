@@ -2085,6 +2085,23 @@ export const SURFACES: readonly Surface[] = [
                             }
                         }
                     }
+                    // The card row's placement lines (PR review): one grid
+                    // shared by both lines crushed the zone select to 27px at
+                    // the phone sheet — no page overflow, so nothing else here
+                    // saw it. A line must fit its box and the select stay usable.
+                    for (const block of document.querySelectorAll("[data-card-placement]")) {
+                        for (const line of block.children) {
+                            if (line.scrollWidth > line.clientWidth + 1) {
+                                problems.push("card placement line overflows: " + line.scrollWidth + " > " + line.clientWidth);
+                            }
+                        }
+                        const zone = block.querySelector("select[aria-label$=' zone']");
+                        const width = zone ? zone.getBoundingClientRect().width : 0;
+                        if (width < 80) {
+                            problems.push("card zone select " + Math.round(width) + "px wide, want >= 80");
+                        }
+                        measured++;
+                    }
                     return { problems, measured };
                 })()`
             )) as { problems: string[]; measured: number };

@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { SCENARIO_PHASES } from "@convex/debugScenarioSpec";
 import {
     DEBUG_CHECKBOX_CLASS,
@@ -86,6 +87,12 @@ export default function DebugScenarioSpecField({
     // an absent optional.
     const input: ScenarioSpecFieldInput = SCENARIO_SPEC_FIELD_INPUT[fieldKey];
     const labels = scenarioSpecFieldLabels(fieldKey);
+    // The label and its control are SIBLING grid cells now, so a wrapping
+    // `<label>` is gone; `htmlFor` keeps the visible text a click target for
+    // every single-value kind (PR review — clicking "mark last drawn" had
+    // stopped toggling it). Per-seat rows have two controls, so their label
+    // stays text and each input keeps its own `aria-label`.
+    const id = useId();
 
     switch (input.kind) {
         // The card repeater owns `cards` and carries its own per-row labels —
@@ -96,8 +103,11 @@ export default function DebugScenarioSpecField({
             const field = fieldKey as TextDraftKey;
             return (
                 <>
-                    <span className={LABEL_CLASS}>{input.label}</span>
+                    <label htmlFor={id} className={LABEL_CLASS}>
+                        {input.label}
+                    </label>
                     <input
+                        id={id}
                         type="number"
                         min={input.min}
                         value={draft[field]}
@@ -124,8 +134,11 @@ export default function DebugScenarioSpecField({
                     : [draft.phase, ...SCENARIO_PHASES];
             return (
                 <>
-                    <span className={LABEL_CLASS}>{input.label}</span>
+                    <label htmlFor={id} className={LABEL_CLASS}>
+                        {input.label}
+                    </label>
                     <select
+                        id={id}
                         value={draft.phase}
                         aria-label={labels[0]}
                         onChange={(e) => onPatch({ phase: e.target.value })}
@@ -145,8 +158,11 @@ export default function DebugScenarioSpecField({
             const field = fieldKey as SeatDraftKey;
             return (
                 <>
-                    <span className={LABEL_CLASS}>{input.label}</span>
+                    <label htmlFor={id} className={LABEL_CLASS}>
+                        {input.label}
+                    </label>
                     <select
+                        id={id}
                         value={draft[field]}
                         aria-label={labels[0]}
                         onChange={(e) =>
@@ -174,8 +190,11 @@ export default function DebugScenarioSpecField({
             const field = fieldKey as BooleanDraftKey;
             return (
                 <>
-                    <span className={LABEL_CLASS}>{input.label}</span>
+                    <label htmlFor={id} className={LABEL_CLASS}>
+                        {input.label}
+                    </label>
                     <input
+                        id={id}
                         type="checkbox"
                         checked={draft[field]}
                         aria-label={labels[0]}

@@ -417,6 +417,30 @@ describe("the scenario form renders every form-owned spec field", () => {
         }
     });
 
+    it("keeps a single-value field's visible label pointed at its control", () => {
+        // PR review of issue #3512: moving label and control into sibling grid
+        // cells dropped the wrapping `<label>`, so clicking "mark last drawn"
+        // stopped toggling it. Per-seat rows have two controls and no single
+        // target, so they are excluded by kind.
+        render(<DebugSaveScenario />);
+        expandOther();
+        const single = LABELLED_KEYS.filter((key) =>
+            ["number", "phase", "seat", "boolean"].includes(
+                SCENARIO_SPEC_FIELD_INPUT[key].kind
+            )
+        );
+        expect(single.length).toBeGreaterThan(8);
+        for (const key of single) {
+            const [label] = scenarioSpecFieldLabels(key);
+            const control = screen.getByLabelText(label);
+            const visible = [
+                ...document.querySelectorAll<HTMLLabelElement>("label[for]"),
+            ].find((el) => el.textContent === label);
+            expect(visible?.htmlFor).toBe(control.id);
+            expect(control.id).not.toBe("");
+        }
+    });
+
     it("pins the save CTA at the top of the form, not under every knob", () => {
         // Issue #3494: the Save button used to be the LAST element, under the
         // card rows and all ~28 spec inputs.
