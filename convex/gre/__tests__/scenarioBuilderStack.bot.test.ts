@@ -397,10 +397,12 @@ describe("a stack the spec cannot carry is REFUSED whole (issue #3513)", () => {
         expect(notes[0]).toContain('"isCopy"');
     });
 
-    it("refuses a trigger, with no special case for it", () => {
-        // `placeTriggersOnStack` always writes `triggerEvent`, which is not on
-        // the allowlist — so the trigger slice is a widening of the allowlist,
-        // never a hole that had to be plugged.
+    it("refuses a trigger whose SOURCE is not on the battlefield (issue #3516)", () => {
+        // The trigger kind ships (issue #3516), so `triggerEvent` /
+        // `triggeredAbilityId` are no longer residue — what this item still
+        // cannot be declared BY is its source: the spec describes a trigger by
+        // a permanent it can place, and CR 603.10 last known information is
+        // not one (a dies / leaves-the-battlefield trigger).
         const live = buildBladeState({
             label: "trigger fixture",
             spec: OPP_TURN,
@@ -422,15 +424,25 @@ describe("a stack the spec cannot carry is REFUSED whole (issue #3513)", () => {
             type: "SPELL_CAST",
         } as StackItem["triggerEvent"];
 
-        const { spec: lowered, dropped } = specFromState(live, {
+        const {
+            spec: lowered,
+            dropped,
+            stackBlockers: blockers,
+        } = specFromState(live, {
             mySeatId: live.players[0].id,
         });
         expect(lowered.stack).toBeUndefined();
         const fields = dropped
             .filter((d) => d.startsWith(STACK_DROPPED_PREFIX))
             .join(" ");
-        expect(fields).toContain('"triggerEvent"');
-        expect(fields).toContain('"triggeredAbilityId"');
+        expect(fields).toContain("its source is not on the battlefield");
+        // The two keys that used to be residue now RIDE the entry.
+        expect(fields).not.toContain('"triggerEvent"');
+        expect(fields).not.toContain('"triggeredAbilityId"');
+        expect(blockers).toContainEqual({
+            item: `opp ${lightningBolt.name} trigger:some-trigger`,
+            field: "trigger-source-not-on-battlefield",
+        });
     });
 });
 

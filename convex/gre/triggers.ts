@@ -157,8 +157,14 @@ export function buildMonarchDrawStackItem(
  *  rides `triggerEvent` for the singular-event paths, and — for a
  *  `oncePerEventBatch` ability that fired on several events at once — the whole
  *  set rides `triggerEventBatch` so a batch-aware resolver can enumerate every
- *  member (CR 603.3b, issue #2954). */
-function buildTriggerItem(
+ *  member (CR 603.3b, issue #2954).
+ *
+ *  Exported for the scenario REBUILD (issue #3516): a declared `trigger` entry
+ *  is put on the stack through this same primitive, never a hand-built item,
+ *  so the CR 113.7a id pairing, the CR 603.3c/d stale-spread strips and the
+ *  CR 701.27f transform stamp are the engine's own rather than a literal that
+ *  drifts from it. */
+export function buildTriggerItem(
     state: GameState,
     self: CardInstanceState,
     triggeredAbilityId: string,

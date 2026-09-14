@@ -4705,3 +4705,37 @@ describe("a declared stack loads into a live game (issue #3515)", () => {
         }
     });
 });
+
+describe("scenario spec — a permanent that has SPENT its entry counters (issue #3516)", () => {
+    /** CR 121.6 / 614.1c — the builder PLACES a permanent, so it applies the
+     *  entry-counters replacement itself when the spec says nothing (issue
+     *  #1693). A Triskelion that has already pinged three times has none left,
+     *  and an omitted `counters` would hand them back — a rebuild strictly
+     *  stronger than the board it claims to be. */
+    it("lowers an explicit empty map, and the rebuild keeps it empty", () => {
+        const live = buildStateFromScenario(makeState(), {
+            cards: [{ name: "Triskelion", owner: "me" }],
+            phase: "PRECOMBAT_MAIN",
+        });
+        const triskelion = live.players[0].battlefield[0];
+        expect(triskelion.counters?.["+1/+1"]).toBe(3);
+
+        // Spend them, the way the card's own ability does.
+        triskelion.counters = {};
+        const { spec } = specFromState(live, {
+            mySeatId: live.players[0].id,
+        });
+        expect(spec.cards[0].counters).toEqual({});
+
+        const rebuilt = buildStateFromScenario(makeState(), spec);
+        expect(rebuilt.players[0].battlefield[0].counters ?? {}).toEqual({});
+    });
+
+    it("still defaults the entry counters for a spec that says nothing", () => {
+        const rebuilt = buildStateFromScenario(makeState(), {
+            cards: [{ name: "Triskelion", owner: "me" }],
+            phase: "PRECOMBAT_MAIN",
+        });
+        expect(rebuilt.players[0].battlefield[0].counters?.["+1/+1"]).toBe(3);
+    });
+});

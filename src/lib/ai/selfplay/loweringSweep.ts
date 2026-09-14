@@ -40,7 +40,7 @@ import {
 } from "@convex/gre/scenarioBuilder";
 import {
     lowerDecision,
-    midFlightPaymentBlockers,
+    offStackObjectBlockers,
     VERDICT_REFUSAL_KINDS,
     type VerdictRefusalKind,
 } from "@convex/gre/ai/verdicts/lowering";
@@ -329,7 +329,7 @@ export function observeDecision(
     // reason — they are PRESENT on a decision whatever refused it first.
     const droppedClasses = new Set<string>();
     const stackBlockers = new Set<string>();
-    for (const blocker of midFlightPaymentBlockers(state)) {
+    for (const blocker of offStackObjectBlockers(state)) {
         stackBlockers.add(blocker.field);
     }
     try {

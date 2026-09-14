@@ -17,10 +17,16 @@ import {
     type SeatOf,
 } from "../verdicts/stackFingerprint";
 import { applyMoveInSearch } from "../../search";
+import { getCardByName } from "../../../cards";
+import { resolveTopOfStack } from "../../state";
+import { getEffectivePower, getEffectiveToughness } from "../../layers";
 import { describeMove } from "../../describeMove";
 import type { BladeSetupStep } from "../blade/types";
 import type { GameState, StackItem } from "../../state";
-import type { ScenarioSpec } from "../../../debugScenarioSpec";
+import type {
+    ScenarioSpec,
+    ScenarioTriggerEvent,
+} from "../../../debugScenarioSpec";
 
 function engineBuilt(spec: ScenarioSpec, setup: BladeSetupStep[]): GameState {
     return buildBladeState({
@@ -248,5 +254,485 @@ describe("a stack the spec cannot declare is refused by item and field (issue #3
         if (outcome.ok) return;
         expect(outcome.kind).toBe("stack-not-lowerable");
         expect(outcome.error).toContain("pendingActivation");
+    });
+});
+
+// ---- A triggered ability on the stack (issue #3516, PRD #3397) ----
+//
+// The position #3513 deliberately left out: `placeTriggersOnStack` always
+// stamps `triggerEvent`, and until this slice the residue rule refused every
+// trigger because the spec had no vocabulary for a `GameEvent`.
+
+/** Enduring Courage watches the Bot's own board ("whenever ANOTHER creature
+ *  you control enters, IT gets +2/+0 and gains haste"), and the clause names
+ *  the entering permanent through `$event.instanceId` — so the trigger's
+ *  resolution reads the event, and a rebuild that loses it or binds the wrong
+ *  same-named copy resolves onto a different board. A SECOND Grizzly Bears is
+ *  already on the battlefield precisely so "the one that entered" is a
+ *  question with a wrong answer. */
+function enteredTriggerPosition(): { state: GameState; botId: string } {
+    const state = engineBuilt(
+        {
+            cards: [
+                { name: "Enduring Courage", owner: "me" },
+                { name: "Grizzly Bears", owner: "me" },
+                { name: "Forest", owner: "me", count: 2 },
+                { name: "Mountain", owner: "me" },
+                { name: "Grizzly Bears", owner: "me", zone: "hand" },
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+                { name: "Mountain", owner: "opp" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            activePlayer: "me",
+            landCount: 1,
+            libraryCount: 20,
+        },
+        [
+            { kind: "cast", card: "Grizzly Bears", by: "me" },
+            { kind: "resolve-top" },
+        ]
+    );
+    return { state, botId: state.players[0].id };
+}
+
+/** The board as names plus what a resolution can CHANGE about them: effective
+ *  P/T (CR 613.4 — where the pump lands), tap state, graveyards and life.
+ *  Instance ids never appear; each build allocates its own. */
+function boardShape(state: GameState): string[] {
+    return state.players.flatMap((player, seat) => [
+        ...player.battlefield.map(
+            (card) =>
+                `p${seat} ${(card.card as { id?: string }).id} ${getEffectivePower(
+                    state,
+                    card
+                )}/${getEffectiveToughness(state, card)}${
+                    card.isTapped ? " tapped" : ""
+                }`
+        ),
+        ...player.graveyard.map(
+            (card) => `p${seat} gy ${(card.card as { id?: string }).id}`
+        ),
+        `p${seat} life=${player.life}`,
+    ]);
+}
+
+describe("the verdict lowering declares a TRIGGER on the stack (issue #3516)", () => {
+    it("judges a decision taken with the Bot's own entry trigger in flight", () => {
+        const { state, botId } = enteredTriggerPosition();
+        expect(state.stack).toHaveLength(1);
+        // The definition id is read from the catalogue, never pasted: a
+        // re-key would otherwise red this test for no reason of its own.
+        const bearsId = getCardByName("Grizzly Bears").id;
+        expect(stackFingerprint(state, seatsOf(state, botId))).toEqual([
+            `me Enduring Courage trigger:enduring-courage-pump source=bf:me Enduring Courage event=PERMANENT_ENTERED(cardId="${bearsId}" controllerId=me instanceId=bf:me Grizzly Bears {sick} power=2 toughness=2 types=["Creature"] wasCast=true) targets[] x=-`,
+        ]);
+        expectJudgeable(state, botId);
+    });
+
+    it("declares the event by NAME and SEAT, never by instance id", () => {
+        const { state, botId } = enteredTriggerPosition();
+        const outcome = lower(state, botId);
+        if (!outcome.ok) throw new Error(`refused ${outcome.kind}`);
+        const [entry] = outcome.lowered.spec.stack ?? [];
+        expect(entry).toMatchObject({
+            kind: "trigger",
+            name: "Enduring Courage",
+            controller: "me",
+            abilityId: "enduring-courage-pump",
+        });
+        // The entering creature is the SECOND Grizzly Bears on that
+        // battlefield — `nth`, read exactly as an announced target reads it.
+        expect(entry.event?.fields?.instanceId).toEqual({
+            kind: "object",
+            ref: {
+                zone: "battlefield",
+                name: "Grizzly Bears",
+                seat: "me",
+                nth: 1,
+            },
+        });
+        expect(entry.event?.fields?.controllerId).toEqual({
+            kind: "player",
+            seat: "me",
+        });
+        expect(entry.event?.fields?.wasCast).toEqual({
+            kind: "scalar",
+            value: true,
+        });
+    });
+
+    it("RESOLVES to the board it resolved to in play — the pump lands on the creature that entered", () => {
+        const { state, botId } = enteredTriggerPosition();
+        const outcome = lower(state, botId);
+        if (!outcome.ok) throw new Error(`refused ${outcome.kind}`);
+        const rebuilt = buildVerdictPosition(outcome.lowered.spec);
+        expect(rebuilt.stack).toHaveLength(1);
+
+        // Through the resolution, not through field equality (the acceptance
+        // criterion): the engine's own `resolveTopOfStack` on both boards.
+        resolveTopOfStack(state);
+        resolveTopOfStack(rebuilt);
+        expect(state.stack).toHaveLength(0);
+        expect(rebuilt.stack).toHaveLength(0);
+
+        // The pump is +2/+0 until end of turn (CR 613.4c) on the entering
+        // copy alone — so exactly one of the two Bears is a 4/2, and the
+        // rebuilt board says the same thing the live one does.
+        const pumped = state.players[0].battlefield.filter(
+            (card) => getEffectivePower(state, card) === 4
+        );
+        expect(pumped).toHaveLength(1);
+        expect(boardShape(rebuilt)).toEqual(boardShape(state));
+    });
+});
+
+describe("a spell targeting a TRIGGER on the declared stack (issue #3516)", () => {
+    /** CR 113.7a — the pairing the issue names: a stack item targeting a
+     *  trigger resolves to `triggerSourceId ?? item.id`. An activated
+     *  ability's item borrows its source's battlefield id, a trigger's is
+     *  fresh with the source kept separately, and `seedDeclaredStack` writes
+     *  the ENGINE's rule rather than `referenced.id`. Until this slice no
+     *  declared stack could hold a trigger, so that line had no position to
+     *  be wrong in. */
+    it("rebuilds the CR 113.7a source pairing, and Stifle counters the same trigger", () => {
+        const state = engineBuilt(
+            {
+                cards: [
+                    { name: "Enduring Courage", owner: "me" },
+                    { name: "Forest", owner: "me", count: 2 },
+                    { name: "Mountain", owner: "me" },
+                    { name: "Grizzly Bears", owner: "me", zone: "hand" },
+                    { name: "Lightning Bolt", owner: "me", zone: "hand" },
+                    { name: "Island", owner: "opp" },
+                    { name: "Mountain", owner: "opp" },
+                    { name: "Stifle", owner: "opp", zone: "hand" },
+                    { name: "Lightning Bolt", owner: "opp", zone: "hand" },
+                ],
+                phase: "PRECOMBAT_MAIN",
+                turn: 5,
+                activePlayer: "me",
+                landCount: 1,
+                libraryCount: 20,
+            },
+            [
+                { kind: "cast", card: "Grizzly Bears", by: "me" },
+                { kind: "resolve-top" },
+                // CR 117.3b — priority restarts with the ACTIVE player after
+                // the trigger is placed, so the opponent has to be passed to
+                // before they can answer it.
+                { kind: "pass", seat: "me" },
+                {
+                    kind: "cast",
+                    card: "Stifle",
+                    by: "opp",
+                    target: "Enduring Courage",
+                },
+            ]
+        );
+        const botId = state.players[0].id;
+        expect(state.stack).toHaveLength(2);
+        const [trigger, stifle] = state.stack;
+        expect(stifle.targets?.[0]).toMatchObject({
+            type: "spell",
+            id: trigger.id,
+            stackSourceId: trigger.triggerSourceId,
+        });
+
+        const outcome = lower(state, botId);
+        if (!outcome.ok) throw new Error(`refused ${outcome.kind}`);
+        expect(outcome.lowered.spec.stack?.[1].targets).toEqual([
+            { kind: "stack", index: 0 },
+        ]);
+        const rebuilt = buildVerdictPosition(outcome.lowered.spec);
+        const [rebuiltTrigger, rebuiltStifle] = rebuilt.stack;
+        // The pairing, read back: the item's own id, and the SOURCE permanent
+        // it is pinned to — never the fresh item id in both slots.
+        expect(rebuiltStifle.targets?.[0]).toMatchObject({
+            type: "spell",
+            id: rebuiltTrigger.id,
+            stackSourceId: rebuiltTrigger.triggerSourceId,
+        });
+        expect(rebuiltTrigger.triggerSourceId).not.toBe(rebuiltTrigger.id);
+
+        // Through the resolution: Stifle counters the trigger, so the entering
+        // Bears is NOT pumped — on both boards.
+        resolveTopOfStack(state);
+        resolveTopOfStack(rebuilt);
+        expect(state.stack).toHaveLength(0);
+        expect(rebuilt.stack).toHaveLength(0);
+        expect(
+            state.players[0].battlefield.filter(
+                (card) => getEffectivePower(state, card) === 4
+            )
+        ).toHaveLength(0);
+        expect(boardShape(rebuilt)).toEqual(boardShape(state));
+    });
+});
+
+describe("an event that names an object in another zone (issue #3516)", () => {
+    /** Standstill watches every cast, and its firing `SPELL_CAST` names the
+     *  spell that is STILL ON THE STACK under the trigger — the one event
+     *  reference that is a stack INDEX rather than a zone and a name. Its
+     *  resolution reads the event too (`$event.caster`, a player ref). */
+    it("declares a spell on the stack by INDEX, and the trigger resolves the same way", () => {
+        const state = engineBuilt(
+            {
+                cards: [
+                    { name: "Standstill", owner: "me" },
+                    { name: "Island", owner: "me" },
+                    { name: "Mountain", owner: "opp" },
+                    { name: "Lightning Bolt", owner: "opp", zone: "hand" },
+                    { name: "Grizzly Bears", owner: "me" },
+                    { name: "Mountain", owner: "me" },
+                    { name: "Lightning Bolt", owner: "me", zone: "hand" },
+                ],
+                phase: "PRECOMBAT_MAIN",
+                turn: 5,
+                activePlayer: "opp",
+                landCount: 0,
+                libraryCount: 20,
+            },
+            [
+                {
+                    kind: "cast",
+                    card: "Lightning Bolt",
+                    by: "opp",
+                    target: "Grizzly Bears",
+                },
+            ]
+        );
+        const botId = state.players[0].id;
+        expect(state.stack).toHaveLength(2);
+        const outcome = lower(state, botId);
+        if (!outcome.ok) throw new Error(`refused ${outcome.kind}`);
+        const [, trigger] = outcome.lowered.spec.stack ?? [];
+        expect(trigger.kind).toBe("trigger");
+        expect(trigger.event?.fields?.spellInstanceId).toEqual({
+            kind: "object",
+            ref: { zone: "stack", index: 0 },
+        });
+        expect(trigger.event?.fields?.casterId).toEqual({
+            kind: "player",
+            seat: "opp",
+        });
+
+        const rebuilt = buildVerdictPosition(outcome.lowered.spec);
+        resolveTopOfStack(state);
+        resolveTopOfStack(rebuilt);
+        // Standstill sacrificed itself and the CASTER's opponents drew three
+        // (CR 603.2) — the seat the event named, on both boards.
+        expect(boardShape(rebuilt)).toEqual(boardShape(state));
+        expect(state.players[0].hand.length).toBe(
+            rebuilt.players[0].hand.length
+        );
+    });
+
+    /** Soul Net's death trigger on a real card: `CREATURE_DIED` names the dead
+     *  creature in a GRAVEYARD and carries `damagedBySources` — the one
+     *  `objectList` field a shipped position reaches, whose members are the
+     *  Bolt that killed it, now in a graveyard of its own. */
+    it("declares a graveyard object and an object LIST", () => {
+        const state = engineBuilt(
+            {
+                cards: [
+                    { name: "Soul Net", owner: "me" },
+                    { name: "Mountain", owner: "me", count: 3 },
+                    { name: "Lightning Bolt", owner: "me", zone: "hand" },
+                    { name: "Incinerate", owner: "me", zone: "hand" },
+                    { name: "Grizzly Bears", owner: "opp" },
+                    { name: "Mountain", owner: "opp" },
+                ],
+                phase: "PRECOMBAT_MAIN",
+                turn: 5,
+                activePlayer: "me",
+                landCount: 1,
+                libraryCount: 20,
+            },
+            [
+                {
+                    kind: "cast",
+                    card: "Lightning Bolt",
+                    by: "me",
+                    target: "Grizzly Bears",
+                },
+                { kind: "resolve-top" },
+            ]
+        );
+        const botId = state.players[0].id;
+        expect(state.stack).toHaveLength(1);
+        const outcome = lower(state, botId);
+        if (!outcome.ok) throw new Error(`refused ${outcome.kind}`);
+        const [entry] = outcome.lowered.spec.stack ?? [];
+        expect(entry.event?.fields?.creatureInstanceId).toEqual({
+            kind: "object",
+            ref: { zone: "graveyard", name: "Grizzly Bears", seat: "opp" },
+        });
+        expect(entry.event?.fields?.damagedBySources).toEqual({
+            kind: "objects",
+            refs: [{ zone: "graveyard", name: "Lightning Bolt", seat: "me" }],
+        });
+        const rebuilt = buildVerdictPosition(outcome.lowered.spec);
+        expect(
+            stackFingerprint(rebuilt, seatsOf(rebuilt, rebuilt.players[0].id))
+        ).toEqual(stackFingerprint(state, seatsOf(state, botId)));
+    });
+});
+
+describe("a trigger the spec cannot declare is refused by field (issue #3516)", () => {
+    /** Soul Net watches every death ("whenever a creature dies"); the creature
+     *  that died is an opponent's GOBLIN TOKEN, which ceased to exist the
+     *  moment it left the battlefield (CR 111.7). The event names an object
+     *  that is in no zone at all. */
+    it("names the event field — `me Soul Net trigger:soul-net-life: triggerEvent:creatureInstanceId`", () => {
+        const state = engineBuilt(
+            {
+                cards: [
+                    { name: "Soul Net", owner: "me" },
+                    { name: "Mountain", owner: "me", count: 2 },
+                    { name: "Earthquake", owner: "me", zone: "hand" },
+                    { name: "Goblin", owner: "opp", token: true },
+                    { name: "Mountain", owner: "opp" },
+                ],
+                phase: "PRECOMBAT_MAIN",
+                turn: 5,
+                activePlayer: "me",
+                landCount: 1,
+                libraryCount: 20,
+            },
+            [
+                // Earthquake for 1, never a targeted Bolt: the blade matcher
+                // names cards, and a TOKEN has no card name to name it by.
+                { kind: "cast", card: "Earthquake", by: "me", x: 1 },
+                { kind: "resolve-top" },
+            ]
+        );
+        const botId = state.players[0].id;
+        expect(state.stack).toHaveLength(1);
+        const outcome = lower(state, botId);
+        expect(outcome.ok).toBe(false);
+        if (outcome.ok) return;
+        expect(outcome.kind).toBe("stack-not-lowerable");
+        expect(outcome.error).toContain(
+            "trigger:soul-net-life: triggerEvent:creatureInstanceId"
+        );
+    });
+
+    /** CR 603.3b — simultaneous triggers parked off-stack while their
+     *  controller orders them. Not on the stack, and not a note either: a
+     *  rebuild without them is a board those triggers never fired on. */
+    it("names triggers awaiting CR 603.3b ordering — `pendingTriggerBatch`", () => {
+        const { state, botId } = powderKegPosition();
+        state.pendingTriggerBatch = [state.stack[0]];
+        const outcome = lowerDecision(state, botId, "pass");
+        expect(outcome.ok).toBe(false);
+        if (outcome.ok) return;
+        expect(outcome.kind).toBe("stack-not-lowerable");
+        expect(outcome.error).toContain("pendingTriggerBatch");
+    });
+
+    /** CR 603.3b — a `oncePerEventBatch` ability that fired on several events
+     *  at once carries the whole set in `triggerEventBatch`. One entry carries
+     *  ONE event, so the batch is residue, and the ADR names it as a
+     *  deliberate exclusion rather than an oversight. Stamped on an
+     *  engine-built trigger so the refusal is about exactly this field. */
+    it("names `triggerEventBatch` as residue", () => {
+        const { state, botId } = enteredTriggerPosition();
+        state.stack[0].triggerEventBatch = [
+            state.stack[0].triggerEvent!,
+            state.stack[0].triggerEvent!,
+        ];
+        const outcome = lower(state, botId);
+        expect(outcome.ok).toBe(false);
+        if (outcome.ok) return;
+        expect(outcome.kind).toBe("stack-not-lowerable");
+        expect(outcome.error).toContain("triggerEventBatch");
+    });
+
+    /** Tarpan's own death trigger ("when this creature dies, you gain 1
+     *  life"): the source is in a graveyard, and the spec describes a trigger
+     *  by a source it can PLACE. CR 603.10 — the item is a clone of the last
+     *  known information, which the one `cards` entry for the card cannot
+     *  also be. */
+    it("names a source that is not on the battlefield", () => {
+        const state = engineBuilt(
+            {
+                cards: [
+                    { name: "Tarpan", owner: "opp" },
+                    { name: "Mountain", owner: "me" },
+                    { name: "Lightning Bolt", owner: "me", zone: "hand" },
+                    { name: "Mountain", owner: "opp" },
+                ],
+                phase: "PRECOMBAT_MAIN",
+                turn: 5,
+                activePlayer: "me",
+                landCount: 1,
+                libraryCount: 20,
+            },
+            [
+                {
+                    kind: "cast",
+                    card: "Lightning Bolt",
+                    by: "me",
+                    target: "Tarpan",
+                },
+                { kind: "resolve-top" },
+            ]
+        );
+        const botId = state.players[0].id;
+        expect(state.stack).toHaveLength(1);
+        const outcome = lower(state, botId);
+        expect(outcome.ok).toBe(false);
+        if (outcome.ok) return;
+        expect(outcome.kind).toBe("stack-not-lowerable");
+        expect(outcome.error).toContain("trigger-source-not-on-battlefield");
+    });
+});
+
+describe("an AUTHORED trigger event is checked against the vocabulary (issue #3516)", () => {
+    /** A declared stack is hand-edited as often as it is lowered (ADR 0044 —
+     *  the DB is the source of truth for preset scenarios), and
+     *  `resolveTopOfStack` gates the trigger branch on the item carrying an
+     *  event AT ALL, never on its shape. So an event naming no member of the
+     *  union would resolve with every read `undefined`: a different board,
+     *  silently. The rebuild throws instead, the way every other unresolvable
+     *  name in a declared stack throws. */
+    const authored = (event: ScenarioTriggerEvent): ScenarioSpec => ({
+        cards: [
+            { name: "Enduring Courage", owner: "me" },
+            { name: "Grizzly Bears", owner: "me" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        turn: 5,
+        stack: [
+            {
+                kind: "trigger",
+                name: "Enduring Courage",
+                controller: "me",
+                abilityId: "enduring-courage-pump",
+                event,
+            },
+        ],
+    });
+
+    it("throws on an event type that is no `GameEvent` member", () => {
+        expect(() =>
+            buildVerdictPosition(authored({ type: "PERMANENT_ENTER" }))
+        ).toThrow(/not a GameEvent type/);
+    });
+
+    it("throws when a field is declared as the wrong kind", () => {
+        expect(() =>
+            buildVerdictPosition(
+                authored({
+                    type: "PERMANENT_ENTERED",
+                    fields: {
+                        // A player id declared as a scalar would rebuild as a
+                        // stale id from the game it was captured in.
+                        controllerId: { kind: "scalar", value: "p1" },
+                    },
+                })
+            )
+        ).toThrow(/declared as "scalar"/);
     });
 });

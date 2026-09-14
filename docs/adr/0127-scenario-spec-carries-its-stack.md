@@ -57,7 +57,8 @@ journal established is not contradicted; it is sidestepped.
 2. **Two kinds ship: `spell` and `ability`.** A `trigger` needs a `GameEvent`
    vocabulary the spec does not have, and is a later slice. It needs no special
    case to stay out: `placeTriggersOnStack` always writes `triggerEvent`, which
-   the residue rule below refuses.
+   the residue rule below refuses. (Amended by issue #3516 — see the amendment
+   at the end: a third kind, `trigger`, ships with that vocabulary.)
 
 3. **Targets are a full list, and the index is load-bearing** (CR 608.2b,
    `illegalTargetSlots`, `{ target: N }` in an Effect Script). Four shapes:
@@ -156,3 +157,50 @@ journal established is not contradicted; it is sidestepped.
 - **Invert to the pre-cast board and replay forward.** Impossible, for the
   reasons `verdicts/journal.ts` records: no event log, and `manaCommitted` is a
   bare boolean.
+
+## Amendment: the third kind, and what a `GameEvent` costs to name (2026-09-13)
+
+Issue #3516 added `trigger`, the kind decision §2 deferred. What it needed was
+the EVENT vocabulary, and the measurement that justified building one: on the
+issue #3480 protocol (robots vs erhnamgeddon, six games, seeds 1..6, 60
+iterations), trigger fields blocked **111 of 423** decisions with a stack —
+26.2%, the largest single share in the blocker table.
+
+Three decisions, all following the ones above rather than extending them.
+
+1. **The event is lowered WHOLE, or the trigger is refused.** A trigger's
+   resolution reads its event at four sites — the CR 603.4 intervening-if
+   re-check, `resolve(ctx, event)`, `$event.<field>` refs through
+   `EVENT_FIELD_REGISTRY` (ADR 0049), and the branch guard in `resolveTopOfStack`
+   that requires an event at all. "How much of the event does a trigger read"
+   therefore has no safe partial answer: a subset is a board nobody played.
+
+2. **Every field of every `GameEvent` member is classified**
+   (`gre/triggerEventVocabulary.ts`): `scalar` (no identity in it — an amount,
+   a phase, a type line, a card definition id), `player`, `object`,
+   `objectList`, `target`, or `residue`. The table is a mapped type over the
+   union with `-?` on each member's keys, so a new event member needs a row, a
+   new FIELD on a member needs a cell, and `tsc` reds on either — the same
+   "structurally impossible to drift" shape `PERSISTED_OPTIONAL_KEYS` has.
+
+3. **An object an event names travels by ZONE, name, seat and `nth`** — wider
+   than an announced target's four shapes, because an event names objects an
+   announcement never can: the creature that just died (a graveyard), the card
+   just discarded, the spell being cast (the stack). Three things are refused
+   rather than approximated: an object in no zone the spec describes (a TOKEN
+   that has ceased to exist, CR 111.7 — including one still lingering in a
+   graveyard before the CR 704.5d sweep, which a rebuild would sweep away), a
+   face-down object (CR 708.2), and an opaque hidden-hand placeholder.
+
+What stays out, and is now counted rather than assumed: a trigger whose SOURCE
+is not on the battlefield (a dies / leaves-the-battlefield trigger, sourced
+from last known information — the spec has one `cards` entry per card, not one
+per object CR 603.10 remembers), a `triggerEventBatch` (CR 603.3b), and
+`sourceLki`. Each is a named blocker field in the sweep.
+
+One fail-open closed in the same pass: `pendingTriggerBatch` — simultaneous
+triggers parked off-stack while their controller orders them (CR 603.3b) — was
+a `dropped` note, so those positions rebuilt with the triggers simply gone. It
+is now a `stack-not-lowerable` blocker beside `pendingCast` /
+`pendingActivation`, which is what `midFlightPaymentBlockers` becoming
+`offStackObjectBlockers` records.
