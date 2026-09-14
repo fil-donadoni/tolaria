@@ -3,6 +3,7 @@ import type {
     GameOver,
     PendingActivation,
     PendingCast,
+    PendingChoice,
     PendingTarget,
 } from "~/types/game";
 
@@ -46,10 +47,24 @@ function blockDeclarerIsLocal(ctx: HasPriorityCtx): boolean {
         : ctx.playerId !== ctx.activePlayerId;
 }
 
-export type AutoPassBlockedCtx = HasPriorityCtx & {
-    stackCount: number;
+/** Everything an auto-pass decision needs EXCEPT the stack itself. The two
+ *  client auto-pass paths — **Phase Stop** (`shouldAutoPass`) and **Yield**
+ *  (`shouldAutoPassYield`, issue #3556) — disagree on exactly one input: a
+ *  **Phase Stop** never passes past a non-empty **Stack**, while a **Yield**
+ *  is *only* ever the non-empty-**Stack** case. Everything else they must
+ *  agree on, so the shared half is this type plus
+ *  {@link computeAutoPassBlockedCore} and the stack read is the caller's. */
+export type AutoPassCoreCtx = HasPriorityCtx & {
     autoPassPlayers?: string[];
     gameOver?: GameOver;
+    /** Choices the engine is waiting on (CR 601.2 / ADR 0007). A seat that
+     *  owes one is mid-resolution, not in a priority window: auto-passing
+     *  there would answer nothing and is refused by both paths. */
+    pendingChoices?: PendingChoice[];
+};
+
+export type AutoPassBlockedCtx = AutoPassCoreCtx & {
+    stackCount: number;
 };
 
 export function isSelectingAttackers(ctx: HasPriorityCtx): boolean {
@@ -202,10 +217,26 @@ export function computePriorityState(ctx: PriorityStateCtx): PriorityState {
     return ctx.priorityPlayerId === ctx.playerId ? "mine" : "opponent";
 }
 
-export function computeAutoPassBlocked(ctx: AutoPassBlockedCtx): boolean {
+/** The stack-blind half of the auto-pass refusal: game over, a standing
+ *  server-side **Pass Turn** for this seat (which owns the passing already),
+ *  an owed **Pending Choice**, or simply not holding **Priority** —
+ *  `computeHasPriority` is itself where the mid-announcement (`pendingCast` /
+ *  `pendingActivation` / `pendingTarget`), turn-based combat (CR 508/509/510)
+ *  and non-priority-phase (CR 502/514) refusals live.
+ *
+ *  Shared verbatim by **Phase Stop** and **Yield** so a guard can never be
+ *  added to one path and silently missed by the other. */
+export function computeAutoPassBlockedCore(ctx: AutoPassCoreCtx): boolean {
     if (ctx.gameOver) return true;
     if (ctx.autoPassPlayers?.includes(ctx.playerId)) return true;
+    if (ctx.pendingChoices?.some((c) => c.playerId === ctx.playerId))
+        return true;
     if (!computeHasPriority(ctx)) return true;
+    return false;
+}
+
+export function computeAutoPassBlocked(ctx: AutoPassBlockedCtx): boolean {
+    if (computeAutoPassBlockedCore(ctx)) return true;
     if (ctx.stackCount > 0) return true;
     return false;
 }

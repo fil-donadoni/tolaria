@@ -1252,6 +1252,10 @@ _Avoid_: Auto-pass, auto-skip, phase skip
 The engine-side loop that applies consecutive passes after a **Priority** change without round-trips to the client. Honours both **Pass Turn** and **Phase Stop**, each with its own semantics — the permissive one may resolve the **Stack**, the strict one never may.
 _Avoid_: Auto-pass chain, cascade
 
+**Yield**:
+A **Player**'s standing intent not to be handed **Priority** while one specific ABILITY is on top of the **Stack**. Its identity is _(card, which ability)_ — never a stack object and never a permanent instance — so it covers every future firing of that ability of that card, on any copy of it and after any **Zone** change, and covers neither a different ability of the same card nor the identically-worded ability of a different card. Client-side and per seat, cleared in bulk from the **Stack** panel or the in-game menu and per card from the permanent's own menu. Strict like a **Phase Stop**: it never fires while any input is owed. Lives only inside one **Game** — never stored beside the per-user settings.
+_Avoid_: Auto-yield (as the domain term — the user-facing per-card menu label IS "auto-yield"), auto-pass, skip, mute
+
 ### Manual Play
 
 **Manual Game**:

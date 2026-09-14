@@ -22,6 +22,7 @@ import { SLOT_SPRING } from "~/lib/board-motion";
 import { V4_EYEBROW_FAINT } from "~/lib/board-chrome-v4";
 import { stackTargetNames } from "~/lib/stack-target-line";
 import ArrivalGlow from "./arrival-glow";
+import StackYieldToggle from "./stack-yield-toggle";
 import ColorOverlayCardImage from "../cards/color-overlay-card-image";
 import TokenPlaceholder from "../cards/token-placeholder";
 
@@ -316,6 +317,12 @@ export default function StackRow({
                     )}
                 </span>
             </button>
+            {/* Issue #3556 — a SIBLING of the row button, not a child: the row
+                itself is a button (spell targeting), and nesting a control in
+                a control is invalid HTML / an axe `nested-interactive` red.
+                The wrapper is already `relative`, so the toggle anchors to the
+                row's own box. */}
+            <StackYieldToggle item={item} />
             <ArrivalGlow show={arrived} />
         </div>
     );
