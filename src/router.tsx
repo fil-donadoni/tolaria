@@ -9,7 +9,8 @@ import {
     type LimitedEventStatusChip,
 } from "~/lib/limitedEventStatus";
 import { AuthGate } from "./components/auth/auth-gate";
-import BugReportButton from "./components/bug-report/bug-report-button";
+import BugReportHost from "./components/bug-report/bug-report-host";
+import BugReportFloatingButton from "./components/bug-report/bug-report-floating-button";
 import LobbyRoute from "./routes/lobby.route";
 import DeckBuilderRoute from "./routes/deck-builder.route";
 import DeckDetailRoute from "./routes/deck-detail.route";
@@ -53,7 +54,11 @@ const rootRoute = createRootRoute({
             <CatalogueGate>
                 <UserPreferencesEffect />
                 <AppShell />
-                <BugReportButton />
+                {/* Issue #3419: the dialog's owner is always mounted; its
+                    floating trigger stands down on the board, where the
+                    controller surface hosts the trigger instead. */}
+                <BugReportHost />
+                <BugReportFloatingButton />
                 <OfflineBanner />
             </CatalogueGate>
         </AuthGate>

@@ -810,3 +810,18 @@ describe("Portrait phase sheet — same stop-toggle path", () => {
         expect(toggle).toHaveBeenCalledWith("PRECOMBAT_MAIN", "opponent");
     });
 });
+
+// Issue #3419: the bar's four cells are at their touch-target budget, so the
+// bug-report trigger goes into the pause menu (see `pause-menu-dialog.test`),
+// never onto the bar as a fifth control.
+describe("Bottom bar and the bug-report trigger (issue #3419)", () => {
+    it("renders no bug-report control on the portrait controller", () => {
+        const { container } = renderController();
+        expect(
+            container.querySelector("[data-controller-bottom-bar]")
+        ).not.toBeNull();
+        expect(container.querySelector('[aria-label="Report a bug"]')).toBe(
+            null
+        );
+    });
+});

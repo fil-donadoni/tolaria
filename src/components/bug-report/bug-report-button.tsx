@@ -1,78 +1,23 @@
-import { useState } from "react";
 import { Bug } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-    ABOVE_CONTROLLER_BAR,
-    BESIDE_CONTROLLER_STRIP,
-} from "~/lib/controller-bar-metrics";
-import { useAnomalyReportRequests } from "~/hooks/useAnomalyReport";
-import { clearAnomalyReport } from "~/lib/ai/anomaly-report";
-import BugReportDialog from "./bug-report-dialog";
+import { requestBugReport } from "~/lib/bug-report-requests";
 
 /**
- * Global floating entry point for the bug-report flow. Mounted once at the
- * router root so it is available on every route (lobby, deck builder, in-game).
- * Owns the dialog's open state; the form itself lives in `BugReportDialog`.
+ * The bug-report trigger (issue #3419). It owns no dialog and no position: it
+ * asks the router-root `BugReportHost` to open, and its placement is entirely
+ * the caller's `className` — the same trigger renders floating at the router
+ * root (`BugReportFloatingButton`) and inline inside the desktop pod and the
+ * landscape strip, each in that host's own control register.
  */
-export default function BugReportButton() {
-    const [open, setOpen] = useState(false);
-
-    // "Report anomaly", from a decision in the AI box (issue #3405). The debug
-    // sheet is in another subtree and this component owns the only open flag,
-    // so the ask arrives through the anomaly store.
-    useAnomalyReportRequests(() => setOpen(true));
-
-    // Closing the dialog drops the decision with it — the payload is assembled
-    // at submit time, and a decision left behind would attach itself to the
-    // NEXT report, filed from somewhere else entirely.
-    const handleOpenChange = (next: boolean) => {
-        setOpen(next);
-        if (!next) clearAnomalyReport();
-    };
-
+export default function BugReportButton({ className }: { className: string }) {
     return (
-        <>
-            <Button
-                type="button"
-                variant="secondary"
-                size="icon"
-                aria-label="Report a bug"
-                title="Report a bug"
-                onClick={() => setOpen(true)}
-                // Bottom-RIGHT. Below md, anchored to the portrait bottom
-                // bar's MEASURED height ({@link ABOVE_CONTROLLER_BAR},
-                // #1759/#1764) instead of the old fixed `bottom-32` — that
-                // inset was correct only for the bar's one-line state, and
-                // the grown (two-line, DECLARE_ATTACKERS) bar covered this
-                // button. `z-dev-overlay` (not `z-sheet`) keeps it strictly
-                // below any open bottom sheet or modal: this button mounts at
-                // the router root AFTER the board, so an equal z-index still
-                // wins DOM-order ties and painted over the phase sheet,
-                // eating taps meant for the sheet's own controls (#1764).
-                //
-                // Horizontally it anchors {@link BESIDE_CONTROLLER_STRIP}
-                // rather than a flat `right-3`: that constant's own `0px`
-                // fallback evaluates to the SAME 12px `right-3` used when no
-                // strip is mounted (portrait, desktop, lobby), but slides
-                // clear of the landscape-compact control strip (#1769) when
-                // it IS mounted — ungated, this button used to float under
-                // the strip's own Pass Turn button (#1770 follow-up from
-                // #1802's review).
-                //
-                // The `md:` variant must spell the SAME strip-aware anchor,
-                // not a flat `md:right-4`: landscape-compact has no width
-                // bound, so every landscape phone >=768px hits `md:` too, and
-                // Tailwind emits breakpoint utilities after base ones — a
-                // flat `md:right-4` would always beat the unprefixed
-                // `BESIDE_CONTROLLER_STRIP` at that width and reintroduce the
-                // dead anchor (#1770 review). `+1rem` (not the base's
-                // `+0.75rem`) keeps the `0px` no-strip fallback equal to the
-                // old `right-4` desktop inset.
-                className={`fixed ${ABOVE_CONTROLLER_BAR} ${BESIDE_CONTROLLER_STRIP} z-dev-overlay rounded-full shadow-md md:bottom-4 md:right-[calc(var(--controller-strip-w,0px)+1rem)]`}
-            >
-                <Bug />
-            </Button>
-            <BugReportDialog open={open} onOpenChange={handleOpenChange} />
-        </>
+        <button
+            type="button"
+            aria-label="Report a bug"
+            title="Report a bug"
+            onClick={requestBugReport}
+            className={className}
+        >
+            <Bug className="h-4 w-4" aria-hidden />
+        </button>
     );
 }

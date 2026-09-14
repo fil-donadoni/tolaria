@@ -430,3 +430,29 @@ describe("ControllerPod render beats", () => {
         expect(calls.map((c) => c.ref)).toContain("cancelAutoPass");
     });
 });
+
+// Issue #3419: the bug-report trigger stopped floating over the board and is
+// the pod's third trailing control, beside the hotkeys legend and the
+// game-menu button, in their register (34px box: `p-2` around a 16px icon).
+describe("ControllerPod bug-report trigger (issue #3419)", () => {
+    it("hosts the trigger on the trailing row, beside the game-menu button", () => {
+        const { container } = renderPod();
+        const row = container.querySelector(
+            "[data-controller-pod-controls]"
+        ) as HTMLElement;
+        const trigger = row.querySelector(
+            'button[aria-label="Report a bug"]'
+        ) as HTMLElement;
+        expect(trigger).not.toBeNull();
+        expect(trigger.parentElement).toBe(row);
+        // Legend and menu button are mocked; the row still holds all three.
+        expect(row.children.length).toBe(3);
+        expect(trigger.className.split(/\s+/)).toEqual(
+            expect.arrayContaining(["p-2", "border", "rounded-sm"])
+        );
+        expect(trigger.className).not.toMatch(/\bfixed\b/);
+        expect(trigger.querySelector("svg")?.getAttribute("class")).toContain(
+            "h-4 w-4"
+        );
+    });
+});
