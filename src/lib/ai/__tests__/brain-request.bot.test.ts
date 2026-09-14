@@ -87,10 +87,9 @@ describe("handleBrainRequest (issue #2470)", () => {
         expect(search.mock.calls[0][5]).toBe(prior);
         // Recorded against the very state the search ran on (its first
         // argument), so the next consult's fingerprint is comparable.
-        const recorded = Object.values(res.repetition?.chosen ?? {}).map(
-            (entry) => entry.moves
-        );
-        expect(recorded).toEqual([[JSON.stringify(chosen)]]);
+        const recorded = Object.keys(res.repetition?.chosen ?? {});
+        expect(recorded).toHaveLength(1);
+        expect(recorded[0].endsWith(JSON.stringify(chosen))).toBe(true);
         expect(prior.chosen).toEqual({});
     });
 

@@ -295,8 +295,8 @@ export function useVsAiDriver(
     // enforces the seat rule server-side regardless of which shape is chosen.
     // Issue #3590 — the bot seat's decision history this turn, carried from one
     // Brain consult to the next (the Worker itself is stateless). Reset with
-    // the game or the seat: a position fingerprint from another game can never
-    // match, and must not be held onto either.
+    // the game or the seat: a history keyed on phase and move ids must never
+    // be carried into another game.
     const repetition = useRef<RepetitionHistory | undefined>(undefined);
     useEffect(() => {
         repetition.current = undefined;

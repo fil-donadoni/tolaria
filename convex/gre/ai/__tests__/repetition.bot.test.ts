@@ -185,7 +185,7 @@ describe("recordRepetition / repeatedMoveKeys (issue #3590)", () => {
     });
 });
 
-describe("no progress, judged from the seat's own side (issue #3590)", () => {
+describe("no progress within one step (issue #3590)", () => {
     it("still denies when only the OPPONENT's side moved and the seat is no better off — a lap that tutors for them", () => {
         const state = buildPositionFromSpec(HARPY_POSITION);
         const me = state.players[0].id;
@@ -217,7 +217,52 @@ describe("no progress, judged from the seat's own side (issue #3590)", () => {
         expect(repeatedMoveKeys(history, drained, me).size).toBe(0);
     });
 
-    it("keys on the seat's own side: a change to the seat's own board is a different position", () => {
+    it("a different step is a different key — the same move in the next phase is not a repeat", () => {
+        const state = buildPositionFromSpec(HARPY_POSITION);
+        const me = state.players[0].id;
+        const history = recordRepetition(
+            undefined,
+            state,
+            me,
+            harpyCast(state)
+        );
+        const later = cloneGameState(state);
+        later.phase = "POSTCOMBAT_MAIN";
+        expect(repeatedMoveKeys(history, later, me).size).toBe(0);
+    });
+
+    it("more spells is progress while a storm card could read them (CR 702.40), and only then", () => {
+        const plain = buildPositionFromSpec(HARPY_POSITION);
+        const me = plain.players[0].id;
+        const plainHistory = recordRepetition(
+            undefined,
+            plain,
+            me,
+            harpyCast(plain)
+        );
+        const plainLap = cloneGameState(plain);
+        plainLap.players[0].spellsCastThisTurn = 1;
+        expect(repeatedMoveKeys(plainHistory, plainLap, me).size).toBe(1);
+
+        const storm = buildPositionFromSpec({
+            ...HARPY_POSITION,
+            cards: [
+                ...HARPY_POSITION.cards,
+                { name: "Brain Freeze", owner: "me", zone: "hand" },
+            ],
+        });
+        const stormHistory = recordRepetition(
+            undefined,
+            storm,
+            me,
+            harpyCast(storm)
+        );
+        const stormLap = cloneGameState(storm);
+        stormLap.players[0].spellsCastThisTurn = 1;
+        expect(repeatedMoveKeys(stormHistory, stormLap, me).size).toBe(0);
+    });
+
+    it("an improvement of the seat's own margin is progress", () => {
         const state = buildPositionFromSpec(HARPY_POSITION);
         const me = state.players[0].id;
         const history = recordRepetition(

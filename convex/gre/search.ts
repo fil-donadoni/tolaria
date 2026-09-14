@@ -5252,15 +5252,14 @@ function runSearchWithTrace(
     });
     if (moves.length === 0) return { move: null, trace: null };
     // Issue #3590 — an optional loop (CR 104.4b / 732.5: nothing but the player
-    // ever stops one). If this seat has already stood in THIS position this
-    // turn, every move it chose here before is what brought the game back, so
-    // it is denied — the same deny-set shape as the dominance and collapse
+    // ever stops one). A move this seat already took in this step, with no
+    // progress since (`ai/repetition.ts`), would only run the lap again, so it
+    // is denied — the same deny-set shape as the dominance and collapse
     // verdicts above, and for the same reason it reaches the tree's root layer
-    // through `deniedAtRoot`. Not an `evaluate` term and not a root rule: two
-    // visits of one position share every feature by construction, so no weight
-    // could tell them apart — the history is not in the state. `pass` is never
-    // denied and the list is never emptied, so each revisit strictly shrinks a
-    // finite set and the loop ends.
+    // through `deniedAtRoot`. Not an `evaluate` term and not a root rule: the
+    // history is not in the state, so no weight could see it. `pass` is never
+    // denied and the list is never emptied, so each no-progress repeat
+    // strictly shrinks a finite set and the loop ends.
     const repeated = repeatedMoveKeys(repetition, state, playerId);
     // Only at a PRIORITY node, where `pass` is the floor: a mandatory choice
     // offers no way out of a loop, and forcing a different answer there would

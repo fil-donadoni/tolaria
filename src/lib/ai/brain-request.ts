@@ -115,9 +115,9 @@ export function handleBrainRequest(
             id,
             move,
             trace,
-            // Recorded against `root`, never against a second projection: a
-            // position fingerprint is only comparable with one taken from the
-            // same adapter output (issue #3590).
+            // Recorded against `root`, never against a second projection: the
+            // progress it notes must be measured on the state the search ran
+            // on (issue #3590).
             ...(move
                 ? {
                       repetition: recordRepetition(

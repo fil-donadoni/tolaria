@@ -426,7 +426,7 @@ export function runHeadlessGame(
     let reason: GameEndReason = "max-plies";
     // Issue #3590 — each seat's own decision history, the memory a live Bot
     // carries between consults, so an optional loop through identical
-    // positions is denied its repeat (`@convex/gre/ai/repetition`).
+    // no-progress repeats is denied its next lap (`@convex/gre/ai/repetition`).
     const histories = new Map<string, RepetitionHistory>();
     // issue #2284 — set alongside every guard reason so a headless stall names
     // the Expected Input kind that was not handled.

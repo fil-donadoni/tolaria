@@ -12,31 +12,33 @@
  * ever separate "loop again" from "loop for the first time"; the axis is the
  * decision history, and it has to be handed in.
  *
- * THE RULE. The history maps the seat's POSITION KEY (below) to the material
- * margin it had there and the moves it chose. When the seat decides again, at
- * a priority node, under a key it has already recorded and with a margin no
- * better than the recorded one, every move it chose there before is denied at
- * the root — that move is what led back here, and the lap bought nothing
- * (`searchWithTrace`). A strictly better margin is PROGRESS and clears the
- * memory for that key: a loop that drains the opponent a point per lap is a
- * loop toward a win, and it is allowed to finish. `pass` is never denied and
- * the deny-set never empties the move list, so each no-progress revisit
- * strictly shrinks a finite set.
+ * THE RULE. A loop is the SAME action, taken again in the same step, that
+ * bought nothing since the last time. So the history maps (phase, move) — one
+ * turn at a time — to the seat's PROGRESS when it took that move: its
+ * `materialMargin`, plus the spell count while a storm card could read it
+ * (CR 702.40). When the seat decides again at a priority node in that step, a
+ * move it already took there is denied unless it has made progress since —
+ * a strictly better margin, or more spells for a storm payoff
+ * (`searchWithTrace`). A loop that drains the opponent a point per lap is a loop
+ * toward a win, and it is allowed to finish. `pass` is never denied and the
+ * deny-set never empties the move list, so each no-progress repeat strictly
+ * shrinks a finite set.
  *
- * WHY THE KEY IS ONE SIDE OF THE BOARD. A loop can return the seat to where it
- * stood while the OPPONENT's side moves every lap — a Parallax Wave that
- * exiles an opposing creature with an enters trigger, then exiles itself, hands
- * the opponent that trigger again on each lap (a tutor, a token). The whole
- * position never repeats, yet the seat is exactly where it was and no better
- * off. So the key is the seat's own side — its player record, its
- * permanents, the stack, the turn structure, held exiles — and everything the
- * opponent's side does is judged by the margin instead: a lap that helped the
- * opponent reads as no progress and is denied; a lap that hurt them is progress.
+ * WHY NOT "THE SAME POSITION". An exact position repeat was the first design,
+ * and the Tier 1 smoke outgrew it twice. A Parallax Wave exiling opposing
+ * Goblins with enters triggers, then itself, hands the opponent a tutor or a
+ * token on every lap, so the whole position never repeats. The same loop run
+ * in response to those triggers grows the STACK every lap, so even the seat's
+ * own side never repeats. In both the seat takes the identical action again,
+ * in the same step, no better off — and that is what is keyed. Everything the
+ * opponent's side or the stack does is judged through the margin: a lap that
+ * helped the opponent reads as no progress; a lap that hurt them is progress.
  *
  * Nothing here names a card: the Parallax Wave refill under Opalescence and an
  * Aluren creature bounce are the same shape to this module.
  *
- * WHAT A POSITION IS. The `GameState`, canonically serialised, minus:
+ * WHAT A POSITION IS — `positionFingerprint`, what a blade `revisit` walk must
+ * return to. The `GameState`, canonically serialised, minus:
  *   * the bookkeeping `dominance.ts` already treats as "changed nothing"
  *     (allocator cursors, lazy layer memos, the rng cursor, per-turn
  *     activation and trigger tallies);
@@ -290,35 +292,23 @@ export function positionFingerprint(state: GameState): string {
     return fingerprintOf(state);
 }
 
-/** The key the history is indexed by: the position as seen from `seatId`'s
- *  own side (see "WHY THE KEY IS ONE SIDE OF THE BOARD"). The opponent's
- *  player record — hand, library, graveyard, life, battlefield — is left out;
- *  its effect on the seat is read through the margin. Stack items lose their
- *  `id`, which a trigger draws fresh from an allocator on every lap. */
-export function seatPositionKey(state: GameState, seatId: string): string {
-    return fingerprintOf({
-        ...state,
-        players: state.players.filter((p) => p.id === seatId),
-        stack: state.stack.map((item) => ({ ...item, id: undefined })),
-    } as unknown as GameState);
-}
-
 /** A margin strictly better than the recorded one by more than this is
  *  progress. Floating-point slack only: every real change moves the margin by
  *  a whole weight. */
 const PROGRESS_EPS = 1e-9;
 
-/** What the seat did at one position key. */
+/** The seat's progress at the moment it took a move in a step. */
 export type RepetitionEntry = {
-    /** The seat's `materialMargin` when it first stood here without progress. */
+    /** The seat's `materialMargin`. */
     margin: number;
-    /** Move keys it chose here. */
-    moves: string[];
+    /** The seat's spell count this turn while a storm card could read it
+     *  (CR 702.40); 0 otherwise. */
+    spells: number;
 };
 
-/** The Bot's decision history for one seat: position key → entry. Plain data
- *  so it crosses `postMessage`. Scoped to one turn — a key embeds its turn
- *  number, so an entry from an earlier turn can never match again and is
+/** The Bot's decision history for one seat: step-and-move key → the progress
+ *  it had when it last took that move there. Plain data so it crosses
+ *  `postMessage`. Scoped to one turn — an entry from an earlier turn is
  *  dropped rather than carried. */
 export type RepetitionHistory = {
     turn: number;
@@ -336,10 +326,30 @@ export function repetitionMoveKey(move: Move): string {
     return JSON.stringify(move);
 }
 
-/** Record that `seatId` chose `move` at `state`. Returns the updated history
- *  (a new object — the caller's value is never mutated). A margin better than
- *  the one recorded under this key starts the entry afresh (progress); `pass`
- *  is never remembered as a move, since it is never denied. */
+/** Separates the step from the move key; never part of a JSON move. */
+const STEP_SEPARATOR = "\u0000";
+
+function stepPrefix(state: GameState): string {
+    return `${state.phase}${STEP_SEPARATOR}`;
+}
+
+function progressOf(state: GameState, seatId: string): RepetitionEntry {
+    const seat = state.players.find((p) => p.id === seatId);
+    return {
+        margin: materialMargin(state, seatId),
+        spells: spellCountIsRead(state) ? (seat?.spellsCastThisTurn ?? 0) : 0,
+    };
+}
+
+function madeProgress(now: RepetitionEntry, then: RepetitionEntry): boolean {
+    return now.margin > then.margin + PROGRESS_EPS || now.spells > then.spells;
+}
+
+/** Record that `seatId` took `move` at `state`. Returns the updated history (a
+ *  new object — the caller's value is never mutated). An entry is written the
+ *  first time the move is taken in this step, and rewritten whenever it is
+ *  taken again after progress; `pass` is never remembered, since it is never
+ *  denied. */
 export function recordRepetition(
     history: RepetitionHistory | undefined,
     state: GameState,
@@ -351,34 +361,31 @@ export function recordRepetition(
             ? history
             : { turn: state.turn, chosen: {} };
     if (move.kind === "pass") return base;
-    const key = seatPositionKey(state, seatId);
-    const margin = materialMargin(state, seatId);
+    const key = stepPrefix(state) + repetitionMoveKey(move);
+    const now = progressOf(state, seatId);
     const prior = base.chosen[key];
-    const fresh = !prior || margin > prior.margin + PROGRESS_EPS;
-    const moveId = repetitionMoveKey(move);
-    if (!fresh && prior.moves.includes(moveId)) return base;
-    const entry: RepetitionEntry = fresh
-        ? { margin, moves: [moveId] }
-        : { margin: prior.margin, moves: [...prior.moves, moveId] };
-    return { turn: base.turn, chosen: { ...base.chosen, [key]: entry } };
+    if (prior && !madeProgress(now, prior)) return base;
+    return { turn: base.turn, chosen: { ...base.chosen, [key]: now } };
 }
 
-/** The move keys `seatId` already chose at `state`'s position key with no
- *  progress since — the moves that led the game back here. Empty when the key
- *  is new, when the margin has improved since, or when the history is from
- *  another turn. */
+/** The move keys `seatId` already took in `state`'s step with no progress
+ *  since — the moves that would only repeat the lap. Empty for a new step, a
+ *  history from another turn, or once the seat has made progress. */
 export function repeatedMoveKeys(
     history: RepetitionHistory | undefined,
     state: GameState,
     seatId: string
 ): ReadonlySet<string> {
     if (!history || history.turn !== state.turn) return EMPTY;
-    const entry = history.chosen[seatPositionKey(state, seatId)];
-    if (!entry) return EMPTY;
-    if (materialMargin(state, seatId) > entry.margin + PROGRESS_EPS) {
-        return EMPTY;
+    const prefix = stepPrefix(state);
+    let now: RepetitionEntry | undefined;
+    const out = new Set<string>();
+    for (const [key, entry] of Object.entries(history.chosen)) {
+        if (!key.startsWith(prefix)) continue;
+        now ??= progressOf(state, seatId);
+        if (!madeProgress(now, entry)) out.add(key.slice(prefix.length));
     }
-    return new Set(entry.moves);
+    return out.size > 0 ? out : EMPTY;
 }
 
 const EMPTY: ReadonlySet<string> = new Set();
