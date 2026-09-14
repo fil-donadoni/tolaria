@@ -94,6 +94,24 @@
 // list: they move on every cast, so counting them would make nothing prunable.
 // A cast whose ONLY value is raising the storm count is therefore prunable —
 // accepted, and the storm payoff itself (a cast trigger) is not affected.
+//
+// The self-sacrifice ACTIVATION cost (issue #3424) buys two narrowings of the
+// same shape, and they are narrowings rather than echoes: both are real, small
+// payoffs, forgiven because the cost raises them on EVERY member of the class,
+// so comparing either would make nothing in the class provable.
+//   * The sacrificed source lands in the mover's GRAVEYARD, and `normalize`
+//     strips it from both sides. So an activation whose only value is putting
+//     that card in the graveyard — reanimator fuel, threshold, delve, a
+//     Tarmogoyf-shaped board — is prunable. Exactly the storm-count trade one
+//     paragraph up. What is NOT affected is any payoff the departure TRIGGERS:
+//     the probe pays through `removePermanentTo`, so a death trigger resolves
+//     inside the probe and blocks the prune on its own.
+//   * The departure sets `permanentYouControlledLeftThisTurn` on the mover,
+//     which is CR 702.116a REVOLT (Fatal Push). Also stripped, so sacrificing
+//     purely to turn revolt on is prunable too.
+// Both are accepted, and both are worth exactly one card's worth of value in
+// positions the search can reach a turn later anyway; the alternative is a
+// prune that never fires.
 
 import type {
     CardInstanceState,
@@ -204,11 +222,10 @@ export function resetDominanceProbeStats(): void {
  *     (CR 118.1 / 701.21 — "Sacrifice this permanent:"): the mover's
  *     battlefield on the baseline, their graveyard on the probe. Issue #3424.
  *
- *  `wasCreature` records the one echo that departure leaves behind beyond the
- *  zone move itself (`deathsThisTurn`), dropped for the reason
- *  {@link ECHOED_BOOKKEEPING_KEYS} gives: it is written one line from the zone
- *  move this already forgives, and every PRIMARY change it could be masking —
- *  another creature dying — is still compared as a zone difference. */
+ *  `wasCreature` records whether that departure ALSO bumped `deathsThisTurn` —
+ *  the one of its three side effects that only a creature raises. All three are
+ *  dropped in {@link normalize}; the reasons, and the two that are narrowings
+ *  rather than echoes, are in the module header. */
 type SpentCost = {
     cardId?: string;
     permanentId?: string;
@@ -822,10 +839,30 @@ function applyProbeActivation(
     if (!ability) return false;
     applyTapPlan(probe, pid, move.tapPlan);
     if (ability.cost.tap) located.isTapped = true;
-    // The stack item is a virtual COPY of the source (the permanent stays on
-    // the battlefield). Take it from a second clone so no nested array is
-    // shared with the live permanent.
-    const copySource = findPermanent(
+    // CR 601.2h / 701.21 (issue #3424) — pay the self-sacrifice leg through the
+    // engine's own choke point, so the departure fires every event, queues every
+    // leave-the-battlefield / death trigger and rewrites the card object exactly
+    // as the real payment does. A payoff that lives in the PAYMENT rather than
+    // in the resolution — a death trigger, a sacrifice made in response to a
+    // gain-control effect — therefore settles inside the probe as a real delta
+    // and BLOCKS the prune on its own. That is what lets the eligibility gate
+    // state its refusal over the payoff instead of over the cost shape.
+    //
+    // BEFORE the stack item is built, because both real paths do
+    // (`gre/activation.ts` and the targeted-activation branch of `game.ts` both
+    // pay, then clone the departed card): `removePermanentTo` deletes
+    // `counters`, writes `countersAtLeave` and reverts a copy / face-down /
+    // transformed body, so an item cloned earlier would resolve against a
+    // RICHER object than the real one (Icatian Moneychanger reads its own
+    // credit counters at resolve, CR 608.2g).
+    if (ability.cost.sacrifice) {
+        removePermanentTo(probe, move.cardInstanceId, "graveyard", "sacrifice");
+    }
+    // The stack item is a virtual COPY of the source. Take it from a second
+    // clone so no nested array is shared with the card the probe still holds —
+    // on the battlefield for an unsacrificed source, in the graveyard for a
+    // sacrificed one.
+    const copySource = findCardAnywhere(
         cloneGameState(probe),
         move.cardInstanceId
     );
@@ -839,21 +876,35 @@ function applyProbeActivation(
         ...(move.chosenX !== undefined ? { chosenX: move.chosenX } : {}),
     };
     probe.stack.push(stackItem);
-    // CR 602.2a → 601.2h (issue #3424) — the ability is on the stack FIRST, then
-    // its costs are paid, so a leave-the-battlefield / death trigger the payment
-    // raises goes on the stack ABOVE the ability and resolves before it. Paid
-    // through the engine's own choke point, so the departure fires every event
-    // and stamps every echo the real payment does: a payoff that lives in the
-    // PAYMENT rather than in the resolution (a death trigger, a graveyard
-    // filler) therefore shows up as a real delta and BLOCKS the prune. That is
-    // the whole reason the eligibility gate can now state its refusal over the
-    // payoff instead of over the cost shape.
-    if (ability.cost.sacrifice) {
-        removePermanentTo(probe, move.cardInstanceId, "graveyard", "sacrifice");
-        processPendingActionTriggers(probe);
-    }
+    // CR 603.3b — the payment's triggers are put on the stack the next time a
+    // player would receive priority, which is AFTER the ability is on it, so
+    // they sit above the ability and resolve first. Flushing here rather than
+    // before the push is what gets that order right.
+    if (ability.cost.sacrifice) processPendingActionTriggers(probe);
     checkStateBasedActions(probe);
     return true;
+}
+
+/** The instance with `instanceId` in ANY zone of any player — the battlefield
+ *  lookup {@link findPermanent} makes, widened for the one case that needs it:
+ *  a source already paid away as its own activation cost. */
+function findCardAnywhere(
+    state: GameState,
+    instanceId: string
+): CardInstanceState | undefined {
+    for (const p of state.players) {
+        for (const zone of [
+            p.battlefield,
+            p.graveyard,
+            p.exile,
+            p.hand,
+            p.library,
+        ]) {
+            const found = zone.find((c) => c.id === instanceId);
+            if (found) return found;
+        }
+    }
+    return undefined;
 }
 
 function findPermanent(
@@ -1137,11 +1188,13 @@ function normalize(
         const i = from.findIndex((c) => c.id === spentPermanentId);
         if (i === -1) return null;
         from.splice(i, 1);
-        // The two echoes that departure writes, dropped for exactly the reason
+        // The three side effects that departure writes, dropped for the reason
         // `ECHOED_BOOKKEEPING_KEYS` gives one level up: each sits one line from
-        // the zone move just forgiven, and the PRIMARY change either could mask
-        // — some OTHER permanent leaving the battlefield — is still compared in
-        // full as a zone difference on both sides.
+        // the zone move just forgiven, and the PRIMARY change any of them could
+        // mask — some OTHER permanent leaving the battlefield — is still
+        // compared in full as a zone difference on both sides. Two of the three
+        // are more than bookkeeping, and are priced as accepted narrowings in
+        // the module header rather than as costless echoes.
         delete state.lastKnownCopiable?.[spentPermanentId];
         // A map the departure CREATES when it is the turn's first: an empty
         // `{}` on the probe against an absent key on the baseline is the same
@@ -1153,16 +1206,16 @@ function normalize(
         ) {
             delete state.lastKnownCopiable;
         }
-        // CR 700.4 — "a permanent you controlled left the battlefield this
-        // turn", set on the CONTROLLER by the same departure. The mover's own
-        // permanent leaving IS the cost, so the flag it raises is the cost's
-        // echo; the OPPONENT's copy of the flag is untouched and still
-        // compared, so a resolution that reached their board cannot hide here.
-        const owner = state.players.find((p) => p.id === moverId);
-        if (owner) {
-            delete (owner as unknown as Record<string, unknown>)
-                .permanentYouControlledLeftThisTurn;
-        }
+        // CR 702.116a — "a permanent you controlled left the battlefield this
+        // turn", set on the CONTROLLER by the same departure. Turning REVOLT on
+        // is a small real payoff, not pure bookkeeping (see the module header's
+        // narrowings); it is dropped because the flag is unreachable otherwise
+        // — the cost raises it on every self-sacrifice, so comparing it would
+        // make nothing in this class provable. The OPPONENT's copy is untouched
+        // and still compared, so a resolution that reached their board cannot
+        // hide here.
+        delete (mover as unknown as Record<string, unknown>)
+            .permanentYouControlledLeftThisTurn;
         // `deathsThisTurn` is a single global tally, so it cannot be un-bumped
         // for one instance: drop it on both sides, and only when the spent
         // permanent was the creature whose death bumped it (CR 700.4). Inert
@@ -1340,19 +1393,18 @@ export function isProbeEligibleMove(
         //   * `sacrificeFilter` names a separate victim (refused below anyway);
         //   * `returnUnblockedAttacker` is Ninjutsu's return leg (CR 702.49a),
         //     a second permanent the probe never gives back;
-        //   * a static additional-sacrifice tax (Drought, CR 118.3) taxes the
-        //     activation from ANOTHER permanent's static effect, which the
-        //     probe never pays — leaving the probe richer than the real
-        //     payment, exactly the direction that would "prove" a no-op.
+        if (cost.sacrifice && cost.returnUnblockedAttacker) return false;
+        // A static additional-sacrifice tax (Drought, CR 118.3) is refused for
+        // EVERY activation, not only a self-sacrificing one: the tax comes from
+        // another permanent's static effect and keys off the activation's MANA
+        // cost — Drought taxes any ability with a {B} pip, `sacrifice` leg or
+        // not — so scoping the check to `cost.sacrifice` would leave a plain
+        // `{B}, {T}:` ability probed with its Swamp never given up, and the
+        // probe's world richer than the real payment. That is the one direction
+        // that wrongly "proves" a no-op.
         if (
-            cost.sacrifice &&
-            (cost.returnUnblockedAttacker ||
-                getStaticAdditionalSacrifices(
-                    state,
-                    cost.mana,
-                    source,
-                    "ability"
-                ).length > 0)
+            getStaticAdditionalSacrifices(state, cost.mana, source, "ability")
+                .length > 0
         ) {
             return false;
         }

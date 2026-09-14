@@ -925,7 +925,7 @@ describe("isDominatedNoOpMove — self-sacrifice activations (CR 608.2b, issue #
     // (CR 601.2h), so the source is already in the graveyard when the ability
     // tries to resolve and it is countered for having no legal target
     // (CR 608.2b). The engine half is correct and is pinned as such in
-    // `gre/__tests__/sacrifice-cost-activation.test.ts`; what was missing was
+    // `gre/__tests__/self-sacrifice-cost-fizzle.test.ts`; what was missing was
     // any seam that refused the MOVE.
     const selfTargetOnly = {
         // Seal of Cleansing — "Sacrifice this enchantment: Destroy target
@@ -1129,12 +1129,18 @@ describe("the last deferral window, end to end (issue #3424)", () => {
     it("with no legal opponent-side target the bot passes, on every seed", () => {
         const state = build({ ...window, cards: [seal] });
         for (const seed of [0, 1, 2]) {
+            resetDominanceProbeStats();
             const picked = searchWithTrace(
                 build({ ...window, cards: [seal] }),
                 me(state),
                 { iterations: 200 },
                 seed
             );
+            // The verdict alone cannot tell "the prune removed the only
+            // activation" from "the search happened to prefer pass" — the same
+            // blind spot `stats.choiceBranches` exists to close one level down.
+            // Assert the probe RAN at the root as well as the outcome.
+            expect(dominanceProbeStats().probes).toBeGreaterThan(0);
             expect(picked.move?.kind).toBe("pass");
         }
     });
