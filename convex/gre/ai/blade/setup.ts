@@ -920,7 +920,7 @@ export function applyBladeRevisit(
         { label: scenario.label, setup: steps },
         (playerId, move, before) => {
             if (playerId === botId) {
-                history = recordRepetition(history, before, move);
+                history = recordRepetition(history, before, playerId, move);
             }
         }
     );

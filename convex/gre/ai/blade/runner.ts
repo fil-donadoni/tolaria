@@ -219,10 +219,19 @@ export function buildBladeLoadState(
     // load the SAME position the suite measures, pending decision included
     // (issue #1487). A setup step that finds no purchase throws here too; the
     // mutation lets it propagate rather than loading a different board.
-    return applyBladeSetup(
+    const loaded = applyBladeSetup(
         buildStateFromScenario(normalized, scenario.spec),
         scenario
     );
+    // Issue #3590 — an entry that declares a `revisit` loop measures the
+    // position AFTER it, so the Debug load walks it too. (The decision history
+    // itself is not persisted: a live Bot starts remembering from here.)
+    return scenario.revisit
+        ? applyBladeSetup(loaded, {
+              label: scenario.label,
+              setup: scenario.revisit,
+          })
+        : loaded;
 }
 
 /**

@@ -19,6 +19,7 @@ import { enumerateMoves } from "../../moves";
 import { moveKey, searchWithTrace } from "../../search";
 import { cloneGameState } from "../../clone";
 import type { Move } from "../../moves";
+import type { GameState } from "../../state";
 import type { ScenarioSpec } from "../../../debugScenarioSpec";
 
 const HARPY_POSITION: ScenarioSpec = {
@@ -95,31 +96,83 @@ describe("positionFingerprint (issue #3590)", () => {
     });
 });
 
+describe("positionFingerprint — live play and readers of an ignored tally (issue #3590 review)", () => {
+    it("ignores the projection's save counter `seq` — every save bumps it, the position does not move", () => {
+        const state = buildPositionFromSpec(HARPY_POSITION);
+        const saved = { ...state, seq: 41 } as GameState;
+        const resaved = { ...state, seq: 42 } as GameState;
+        expect(positionFingerprint(resaved)).toBe(positionFingerprint(saved));
+    });
+
+    it("keeps the spell count while a storm card could read it (CR 702.40)", () => {
+        const plain = buildPositionFromSpec(HARPY_POSITION);
+        const plainLap = cloneGameState(plain);
+        plainLap.spellsCastThisTurn = 1;
+        plainLap.players[0].spellsCastThisTurn = 1;
+        expect(positionFingerprint(plainLap)).toBe(positionFingerprint(plain));
+
+        const storm = buildPositionFromSpec({
+            ...HARPY_POSITION,
+            cards: [
+                ...HARPY_POSITION.cards,
+                { name: "Brain Freeze", owner: "me", zone: "hand" },
+            ],
+        });
+        const stormLap = cloneGameState(storm);
+        stormLap.spellsCastThisTurn = 1;
+        stormLap.players[0].spellsCastThisTurn = 1;
+        expect(positionFingerprint(stormLap)).not.toBe(
+            positionFingerprint(storm)
+        );
+    });
+});
+
 describe("recordRepetition / repeatedMoveKeys (issue #3590)", () => {
     it("remembers a move against the position it was chosen from", () => {
         const state = buildPositionFromSpec(HARPY_POSITION);
         const cast = harpyCast(state);
-        const history = recordRepetition(undefined, state, cast);
-        expect([...repeatedMoveKeys(history, state)]).toEqual([
-            repetitionMoveKey(cast),
-        ]);
+        const history = recordRepetition(
+            undefined,
+            state,
+            state.players[0].id,
+            cast
+        );
+        expect([
+            ...repeatedMoveKeys(history, state, state.players[0].id),
+        ]).toEqual([repetitionMoveKey(cast)]);
         // The search's own root key — the deny-set compares the two.
         expect(repetitionMoveKey(cast)).toBe(moveKey(cast));
     });
 
     it("never records pass — the floor is never denied", () => {
         const state = buildPositionFromSpec(HARPY_POSITION);
-        const history = recordRepetition(undefined, state, { kind: "pass" });
-        expect(repeatedMoveKeys(history, state).size).toBe(0);
+        const history = recordRepetition(
+            undefined,
+            state,
+            state.players[0].id,
+            { kind: "pass" }
+        );
+        expect(repeatedMoveKeys(history, state, state.players[0].id).size).toBe(
+            0
+        );
     });
 
     it("is scoped to one turn: a new turn starts an empty history", () => {
         const state = buildPositionFromSpec(HARPY_POSITION);
-        const history = recordRepetition(undefined, state, harpyCast(state));
+        const history = recordRepetition(
+            undefined,
+            state,
+            state.players[0].id,
+            harpyCast(state)
+        );
         const later = cloneGameState(state);
         later.turn += 1;
-        expect(repeatedMoveKeys(history, later).size).toBe(0);
-        const next = recordRepetition(history, later, { kind: "pass" });
+        expect(repeatedMoveKeys(history, later, later.players[0].id).size).toBe(
+            0
+        );
+        const next = recordRepetition(history, later, later.players[0].id, {
+            kind: "pass",
+        });
         expect(next.turn).toBe(later.turn);
         expect(Object.keys(next.chosen)).toEqual([]);
     });
@@ -127,15 +180,67 @@ describe("recordRepetition / repeatedMoveKeys (issue #3590)", () => {
     it("does not mutate the history it was given", () => {
         const state = buildPositionFromSpec(HARPY_POSITION);
         const empty = emptyRepetitionHistory();
-        recordRepetition(empty, state, harpyCast(state));
+        recordRepetition(empty, state, state.players[0].id, harpyCast(state));
         expect(empty.chosen).toEqual({});
+    });
+});
+
+describe("no progress, judged from the seat's own side (issue #3590)", () => {
+    it("still denies when only the OPPONENT's side moved and the seat is no better off — a lap that tutors for them", () => {
+        const state = buildPositionFromSpec(HARPY_POSITION);
+        const me = state.players[0].id;
+        const history = recordRepetition(
+            undefined,
+            state,
+            me,
+            harpyCast(state)
+        );
+        const lapped = cloneGameState(state);
+        lapped.players[1].hand.push(lapped.players[1].library.pop()!);
+        expect(positionFingerprint(lapped)).not.toBe(
+            positionFingerprint(state)
+        );
+        expect(repeatedMoveKeys(history, lapped, me).size).toBe(1);
+    });
+
+    it("allows the move again once the lap made progress — the opponent lost life", () => {
+        const state = buildPositionFromSpec(HARPY_POSITION);
+        const me = state.players[0].id;
+        const history = recordRepetition(
+            undefined,
+            state,
+            me,
+            harpyCast(state)
+        );
+        const drained = cloneGameState(state);
+        drained.players[1].life -= 1;
+        expect(repeatedMoveKeys(history, drained, me).size).toBe(0);
+    });
+
+    it("keys on the seat's own side: a change to the seat's own board is a different position", () => {
+        const state = buildPositionFromSpec(HARPY_POSITION);
+        const me = state.players[0].id;
+        const history = recordRepetition(
+            undefined,
+            state,
+            me,
+            harpyCast(state)
+        );
+        const developed = cloneGameState(state);
+        developed.players[0].life += 2;
+        expect(repeatedMoveKeys(history, developed, me).size).toBe(0);
     });
 });
 
 describe("searchWithTrace with a decision history (issue #3590)", () => {
     it("denies the move already chosen at this position, leaving pass", () => {
         const state = buildPositionFromSpec(HARPY_POSITION);
-        const history = recordRepetition(undefined, state, harpyCast(state));
+        const history = recordRepetition(
+            undefined,
+            state,
+            state.players[0].id,
+            harpyCast(state)
+        );
         const { move } = searchWithTrace(
             state,
             state.players[0].id,
@@ -150,13 +255,17 @@ describe("searchWithTrace with a decision history (issue #3590)", () => {
     it("denies nothing at a position the seat has not occupied", () => {
         const state = buildPositionFromSpec(HARPY_POSITION);
         const elsewhere = cloneGameState(state);
-        elsewhere.players[1].life -= 3;
+        // The seat's OWN side differs — the key is one side of the board.
+        elsewhere.players[0].life -= 3;
         const history = recordRepetition(
             undefined,
             elsewhere,
+            elsewhere.players[0].id,
             harpyCast(elsewhere)
         );
-        expect(repeatedMoveKeys(history, state).size).toBe(0);
+        expect(repeatedMoveKeys(history, state, state.players[0].id).size).toBe(
+            0
+        );
         // Byte-identical to a search with no history at all.
         const a = searchWithTrace(
             state,

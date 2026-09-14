@@ -67,7 +67,16 @@ export function playLadderGame(
     const marginSamples: { turn: number; margin: number }[] = [];
     let lastSampledTurn = -1;
 
-    const variantAwareSearch: typeof search = (st, pid, b, sd) => {
+    const variantAwareSearch: typeof search = (
+        st,
+        pid,
+        b,
+        sd,
+        knowledge,
+        // Issue #3590 — the harness's decision history, forwarded so a ladder
+        // game plays with the same loop memory production does.
+        repetition
+    ) => {
         // First search-decided node of a new turn → one calibration sample
         // (issue #1929). Always from S0's perspective so a game's samples
         // share one sign convention with its outcome label.
@@ -86,7 +95,7 @@ export function playLadderGame(
         const mask = isCandidate ? candidate?.searchSeedMask : undefined;
         const seed = mask === undefined ? sd : (sd ^ mask) >>> 0;
         try {
-            return search(st, pid, b, seed);
+            return search(st, pid, b, seed, knowledge, repetition);
         } finally {
             setSearchVariant(null);
         }

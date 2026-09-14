@@ -517,14 +517,16 @@ export function runLoweringSweep(
             playerId,
             budget,
             searchSeed,
-            knowledge
+            knowledge,
+            repetition
         ) => {
             const move = search(
                 position,
                 playerId,
                 budget,
                 searchSeed,
-                knowledge
+                knowledge,
+                repetition
             );
             if (move) {
                 tally.add(

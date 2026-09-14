@@ -462,7 +462,7 @@ export function runHeadlessGame(
             if (move) {
                 histories.set(
                     pid,
-                    recordRepetition(histories.get(pid), state, move)
+                    recordRepetition(histories.get(pid), state, pid, move)
                 );
                 // Mulligan keep/mull is a NO-OP in `applyMoveInSearch` (the
                 // search resolves it only at its own root, never mid-rollout);

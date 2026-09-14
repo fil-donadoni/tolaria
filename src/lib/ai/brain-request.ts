@@ -119,7 +119,14 @@ export function handleBrainRequest(
             // position fingerprint is only comparable with one taken from the
             // same adapter output (issue #3590).
             ...(move
-                ? { repetition: recordRepetition(repetition, root, move) }
+                ? {
+                      repetition: recordRepetition(
+                          repetition,
+                          root,
+                          botId,
+                          move
+                      ),
+                  }
                 : {}),
         };
     } catch (e) {

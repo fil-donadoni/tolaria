@@ -12,28 +12,55 @@
  * ever separate "loop again" from "loop for the first time"; the axis is the
  * decision history, and it has to be handed in.
  *
- * THE RULE. When the Bot decides at a position whose fingerprint it has
- * already recorded, every move it chose there before is denied at the root —
- * that move is what led back here. `pass` is never denied (it is the floor
- * that always makes progress), and the deny-set never empties the move list.
- * Each revisit denies at least one more move from a finite list, so any loop
- * through identical positions ends.
+ * THE RULE. The history maps the seat's POSITION KEY (below) to the material
+ * margin it had there and the moves it chose. When the seat decides again, at
+ * a priority node, under a key it has already recorded and with a margin no
+ * better than the recorded one, every move it chose there before is denied at
+ * the root — that move is what led back here, and the lap bought nothing
+ * (`searchWithTrace`). A strictly better margin is PROGRESS and clears the
+ * memory for that key: a loop that drains the opponent a point per lap is a
+ * loop toward a win, and it is allowed to finish. `pass` is never denied and
+ * the deny-set never empties the move list, so each no-progress revisit
+ * strictly shrinks a finite set.
+ *
+ * WHY THE KEY IS ONE SIDE OF THE BOARD. A loop can return the seat to where it
+ * stood while the OPPONENT's side moves every lap — a Parallax Wave that
+ * exiles an opposing creature with an enters trigger, then exiles itself, hands
+ * the opponent that trigger again on each lap (a tutor, a token). The whole
+ * position never repeats, yet the seat is exactly where it was and no better
+ * off. So the key is the seat's own side — its player record, its
+ * permanents, the stack, the turn structure, held exiles — and everything the
+ * opponent's side does is judged by the margin instead: a lap that helped the
+ * opponent reads as no progress and is denied; a lap that hurt them is progress.
  *
  * Nothing here names a card: the Parallax Wave refill under Opalescence and an
  * Aluren creature bounce are the same shape to this module.
  *
- * WHAT A POSITION IS. The whole `GameState`, canonically serialised, minus the
- * bookkeeping that moves on every action without changing the game — the SAME
- * ignore lists `dominance.ts` uses to decide a move "changed nothing"
- * (allocator cursors, lazy layer memos, rng cursor, per-turn activation and
- * trigger tallies), plus the per-turn/per-game TALLIES a loop bumps on every
- * lap (`spellsCastThisTurn`, `lifeGainedThisTurn`, …). Everything else is
- * compared, so a new `GameState` field is part of the position by default: the
- * worst an unlisted field can do is hide a repetition (the loop survives, as
- * it did before this module), never deny a move that made progress.
- * `priorityPlayerId` / `passCount` are deliberately KEPT, unlike in
- * `dominance.ts`: a pass with one pass banked resolves the stack, a pass with
- * none hands priority over, so they are different positions.
+ * WHAT A POSITION IS. The `GameState`, canonically serialised, minus:
+ *   * the bookkeeping `dominance.ts` already treats as "changed nothing"
+ *     (allocator cursors, lazy layer memos, the rng cursor, per-turn
+ *     activation and trigger tallies);
+ *   * wire bookkeeping a projected state carries (`seq`, bumped by every save
+ *     — live play fingerprints the projection, and a history keyed on `seq`
+ *     would never match a second time);
+ *   * the per-turn TALLIES a loop lap bumps (`lifeGainedThisTurn`,
+ *     `deathsThisTurn`, `drawnThisTurn`, …) and exile-bundle ids.
+ * Battlefield, hand and exile are compared as sets; everything else in order.
+ * `priorityPlayerId` / `passCount` are KEPT, unlike in `dominance.ts`: a pass
+ * with one pass banked resolves the stack, a pass with none hands priority
+ * over.
+ *
+ * THE TRADE, stated rather than hidden. An UNLISTED field is compared, so a new
+ * `GameState` field can only hide a repetition (the loop survives, as it did
+ * before this module). An IGNORED tally is the other direction: a lap whose
+ * ONLY change is that tally reads as a repeat, and its move is denied. That is
+ * the point for an Aluren bounce, whose lap changes nothing but the spell
+ * count — and it would be wrong wherever something READS the tally. The one
+ * such reader this engine has for the spell count is storm (CR 702.40), so
+ * while any storm card is in a hand, on the battlefield or on the stack the
+ * spell counts are part of the position again. The other tallies have no loop
+ * that pays off through them today; a card that makes one pay off belongs on
+ * the same footing as storm here.
  *
  * Determinism: a pure function of the state and the history the caller hands
  * in. The history is plain data (strings and arrays), so it survives the
@@ -41,6 +68,7 @@
  */
 
 import type { GameState } from "../state";
+import { materialMargin } from "../evaluate";
 import type { Move } from "../moves";
 import {
     IGNORED_INSTANCE_KEYS,
@@ -55,6 +83,10 @@ const KEPT_PRIORITY_KEYS: ReadonlySet<string> = new Set([
     "priorityPlayerId",
     "passCount",
 ]);
+
+/** Fields a PROJECTED state carries that the engine's own state does not, and
+ *  which move on every save without the game moving. */
+const WIRE_STATE_KEYS = ["seq"] as const;
 
 /** Game-level tallies a loop lap bumps without changing the board. */
 const TALLY_STATE_KEYS = [
@@ -79,15 +111,39 @@ const TALLY_PLAYER_KEYS = [
     "lastDrawnCardId",
 ] as const;
 
-const IGNORED_STATE: ReadonlySet<string> = new Set(
-    [...IGNORED_STATE_KEYS, ...TALLY_STATE_KEYS].filter(
-        (k) => !KEPT_PRIORITY_KEYS.has(k)
-    )
-);
-const IGNORED_PLAYER: ReadonlySet<string> = new Set([
-    ...IGNORED_MOVER_PLAYER_KEYS,
-    ...TALLY_PLAYER_KEYS,
-]);
+/** The spell-count tally, restored to the position while a storm card could
+ *  read it (see the module header). Same name at game and player level. */
+const SPELL_COUNT_KEY = "spellsCastThisTurn";
+
+/** The storm keyword id (CR 702.40), as the Mechanics Registry names it. */
+const STORM_KEYWORD = "storm";
+
+type IgnoreSets = {
+    state: ReadonlySet<string>;
+    player: ReadonlySet<string>;
+};
+
+function ignoreSets(keepSpellCount: boolean): IgnoreSets {
+    const drop = (k: string) =>
+        KEPT_PRIORITY_KEYS.has(k) || (keepSpellCount && k === SPELL_COUNT_KEY);
+    return {
+        state: new Set(
+            [
+                ...IGNORED_STATE_KEYS,
+                ...WIRE_STATE_KEYS,
+                ...TALLY_STATE_KEYS,
+            ].filter((k) => !drop(k))
+        ),
+        player: new Set(
+            [...IGNORED_MOVER_PLAYER_KEYS, ...TALLY_PLAYER_KEYS].filter(
+                (k) => !drop(k)
+            )
+        ),
+    };
+}
+
+const IGNORE_DEFAULT = ignoreSets(false);
+const IGNORE_WITH_SPELL_COUNT = ignoreSets(true);
 const IGNORED_INSTANCE: ReadonlySet<string> = new Set(IGNORED_INSTANCE_KEYS);
 
 /** Zones with no meaningful order (CR 403.1 battlefield, 402.1 hand, 406.1
@@ -100,12 +156,28 @@ const UNORDERED_ZONE_KEYS: ReadonlySet<string> = new Set([
     "exile",
 ]);
 
-/** Canonical JSON: sorted keys, `undefined` dropped, a card DEFINITION (the
- *  `card` field every instance and stack item shares by reference) lowered to
- *  its id. `ignore` strips keys at the object it is applied to. */
+function hasStorm(item: unknown): boolean {
+    const abilities = (item as { staticAbilities?: unknown }).staticAbilities;
+    return Array.isArray(abilities) && abilities.includes(STORM_KEYWORD);
+}
+
+/** Is anything in a position to read the spell count (CR 702.40)? */
+function spellCountIsRead(state: GameState): boolean {
+    for (const player of state.players) {
+        if (player.hand.some(hasStorm) || player.battlefield.some(hasStorm)) {
+            return true;
+        }
+    }
+    return state.stack.some(hasStorm);
+}
+
+/** Canonical JSON: sorted keys, `undefined` dropped, a card DEFINITION
+ *  reference (the `card` field) lowered to its id. `ignore` strips keys at the
+ *  object it is applied to, and rides down into arrays of the same records. */
 function canonical(
     value: unknown,
     ignore: ReadonlySet<string> | null,
+    sets: IgnoreSets,
     out: string[]
 ): void {
     if (value === null || typeof value !== "object") {
@@ -120,10 +192,7 @@ function canonical(
         out.push("[");
         value.forEach((v, i) => {
             if (i > 0) out.push(",");
-            // An array's elements are the same kind of record as the array
-            // itself describes (players, or card instances), so the ignore
-            // list rides down unchanged.
-            canonical(v, ignore, out);
+            canonical(v, ignore, sets, out);
         });
         out.push("]");
         return;
@@ -140,22 +209,20 @@ function canonical(
         out.push(JSON.stringify(key), ":");
         if (key === "card" && v !== null && typeof v === "object") {
             out.push(JSON.stringify((v as { id?: unknown }).id ?? null));
-        } else if (key === "players") {
-            canonical(v, IGNORED_PLAYER, out);
         } else if (UNORDERED_ZONE_KEYS.has(key) && Array.isArray(v)) {
             // A zone whose order is no part of the game: an object that
             // leaves and returns is appended at the END, so the same set of
             // permanents in another order is the same position.
             const items = v.map((item) => {
                 const part: string[] = [];
-                canonical(item, IGNORED_INSTANCE, part);
+                canonical(item, IGNORED_INSTANCE, sets, part);
                 return part.join("");
             });
             out.push("[", items.sort().join(","), "]");
         } else {
             // Every nested object may be a card instance (zones, stack items,
             // attachments), so the instance ignore list rides down the tree.
-            canonical(v, IGNORED_INSTANCE, out);
+            canonical(v, IGNORED_INSTANCE, sets, out);
         }
     }
     out.push("}");
@@ -190,22 +257,24 @@ function withoutBundleIds(held: unknown): unknown {
     );
 }
 
-/** The position key of `state`: equal for two states that differ only in
- *  bookkeeping (see the module header), different otherwise. */
-export function positionFingerprint(state: GameState): string {
+function fingerprintOf(state: GameState): string {
+    const sets = spellCountIsRead(state)
+        ? IGNORE_WITH_SPELL_COUNT
+        : IGNORE_DEFAULT;
     const out: string[] = [];
     const top = state as unknown as Record<string, unknown>;
     out.push("{");
     let first = true;
     for (const key of Object.keys(top).sort()) {
         const v = top[key];
-        if (v === undefined || IGNORED_STATE.has(key)) continue;
+        if (v === undefined || sets.state.has(key)) continue;
         if (!first) out.push(",");
         first = false;
         out.push(JSON.stringify(key), ":");
         canonical(
             key === "exileHeld" ? withoutBundleIds(v) : v,
-            key === "players" ? IGNORED_PLAYER : IGNORED_INSTANCE,
+            key === "players" ? sets.player : IGNORED_INSTANCE,
+            sets,
             out
         );
     }
@@ -214,13 +283,46 @@ export function positionFingerprint(state: GameState): string {
     return `${cyrb53(text, 1)}-${cyrb53(text, 2)}`;
 }
 
-/** The Bot's decision history for one seat: position fingerprint → the move
- *  keys it chose there. Plain data so it crosses `postMessage`. Scoped to one
- *  turn — a position embeds its turn number, so an entry from an earlier turn
- *  can never match again and is dropped rather than carried. */
+/** The WHOLE position key of `state`: equal for two states that differ only in
+ *  bookkeeping (see the module header), different otherwise. What a blade
+ *  `revisit` walk must return to. */
+export function positionFingerprint(state: GameState): string {
+    return fingerprintOf(state);
+}
+
+/** The key the history is indexed by: the position as seen from `seatId`'s
+ *  own side (see "WHY THE KEY IS ONE SIDE OF THE BOARD"). The opponent's
+ *  player record — hand, library, graveyard, life, battlefield — is left out;
+ *  its effect on the seat is read through the margin. Stack items lose their
+ *  `id`, which a trigger draws fresh from an allocator on every lap. */
+export function seatPositionKey(state: GameState, seatId: string): string {
+    return fingerprintOf({
+        ...state,
+        players: state.players.filter((p) => p.id === seatId),
+        stack: state.stack.map((item) => ({ ...item, id: undefined })),
+    } as unknown as GameState);
+}
+
+/** A margin strictly better than the recorded one by more than this is
+ *  progress. Floating-point slack only: every real change moves the margin by
+ *  a whole weight. */
+const PROGRESS_EPS = 1e-9;
+
+/** What the seat did at one position key. */
+export type RepetitionEntry = {
+    /** The seat's `materialMargin` when it first stood here without progress. */
+    margin: number;
+    /** Move keys it chose here. */
+    moves: string[];
+};
+
+/** The Bot's decision history for one seat: position key → entry. Plain data
+ *  so it crosses `postMessage`. Scoped to one turn — a key embeds its turn
+ *  number, so an entry from an earlier turn can never match again and is
+ *  dropped rather than carried. */
 export type RepetitionHistory = {
     turn: number;
-    chosen: Record<string, string[]>;
+    chosen: Record<string, RepetitionEntry>;
 };
 
 export function emptyRepetitionHistory(): RepetitionHistory {
@@ -234,12 +336,14 @@ export function repetitionMoveKey(move: Move): string {
     return JSON.stringify(move);
 }
 
-/** Record that the seat chose `move` at `state`. Returns the updated history
- *  (a new object — the caller's value is never mutated). `pass` is not
- *  recorded: it is never denied, so remembering it buys nothing. */
+/** Record that `seatId` chose `move` at `state`. Returns the updated history
+ *  (a new object — the caller's value is never mutated). A margin better than
+ *  the one recorded under this key starts the entry afresh (progress); `pass`
+ *  is never remembered as a move, since it is never denied. */
 export function recordRepetition(
     history: RepetitionHistory | undefined,
     state: GameState,
+    seatId: string,
     move: Move
 ): RepetitionHistory {
     const base =
@@ -247,26 +351,34 @@ export function recordRepetition(
             ? history
             : { turn: state.turn, chosen: {} };
     if (move.kind === "pass") return base;
-    const fp = positionFingerprint(state);
-    const key = repetitionMoveKey(move);
-    const prior = base.chosen[fp] ?? [];
-    if (prior.includes(key)) return base;
-    return {
-        turn: base.turn,
-        chosen: { ...base.chosen, [fp]: [...prior, key] },
-    };
+    const key = seatPositionKey(state, seatId);
+    const margin = materialMargin(state, seatId);
+    const prior = base.chosen[key];
+    const fresh = !prior || margin > prior.margin + PROGRESS_EPS;
+    const moveId = repetitionMoveKey(move);
+    if (!fresh && prior.moves.includes(moveId)) return base;
+    const entry: RepetitionEntry = fresh
+        ? { margin, moves: [moveId] }
+        : { margin: prior.margin, moves: [...prior.moves, moveId] };
+    return { turn: base.turn, chosen: { ...base.chosen, [key]: entry } };
 }
 
-/** The move keys already chosen at `state`'s position — the moves that led the
- *  game back here. Empty when the position is new (or the history is from
- *  another turn). */
+/** The move keys `seatId` already chose at `state`'s position key with no
+ *  progress since — the moves that led the game back here. Empty when the key
+ *  is new, when the margin has improved since, or when the history is from
+ *  another turn. */
 export function repeatedMoveKeys(
     history: RepetitionHistory | undefined,
-    state: GameState
+    state: GameState,
+    seatId: string
 ): ReadonlySet<string> {
     if (!history || history.turn !== state.turn) return EMPTY;
-    const keys = history.chosen[positionFingerprint(state)];
-    return keys ? new Set(keys) : EMPTY;
+    const entry = history.chosen[seatPositionKey(state, seatId)];
+    if (!entry) return EMPTY;
+    if (materialMargin(state, seatId) > entry.margin + PROGRESS_EPS) {
+        return EMPTY;
+    }
+    return new Set(entry.moves);
 }
 
 const EMPTY: ReadonlySet<string> = new Set();

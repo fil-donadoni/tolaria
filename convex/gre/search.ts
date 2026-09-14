@@ -5261,8 +5261,11 @@ function runSearchWithTrace(
     // could tell them apart — the history is not in the state. `pass` is never
     // denied and the list is never emptied, so each revisit strictly shrinks a
     // finite set and the loop ends.
-    const repeated = repeatedMoveKeys(repetition, state);
-    if (repeated.size > 0) {
+    const repeated = repeatedMoveKeys(repetition, state, playerId);
+    // Only at a PRIORITY node, where `pass` is the floor: a mandatory choice
+    // offers no way out of a loop, and forcing a different answer there would
+    // trade a correct answer for a worse one without stopping anything.
+    if (repeated.size > 0 && moves.some((m) => m.kind === "pass")) {
         const kept = moves.filter(
             (m) => m.kind === "pass" || !repeated.has(repetitionMoveKey(m))
         );
