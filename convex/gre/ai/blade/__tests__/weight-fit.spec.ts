@@ -34,6 +34,7 @@ import {
     formatVerdictReport,
     formatWeightFitReport,
     improvesOnIncumbent,
+    pasteInstruction,
     scoreVerdictReport,
     verdictCorpus,
     verdictsFromRegistry,
@@ -212,15 +213,7 @@ describe.runIf(RUN)("weight fit (runner)", () => {
             "== the fitted vector, as the DEFAULT_EVAL_WEIGHTS literal",
             formatFittedWeights(result),
             "",
-            upToDate
-                ? "== the committed DEFAULT_EVAL_WEIGHTS is up to date"
-                : better
-                  ? "== the committed DEFAULT_EVAL_WEIGHTS is STALE — paste the block above"
-                  : "== DO NOT PASTE — the fitted vector orders FEWER verdicts than the\n" +
-                    "   committed one on this very corpus. A lower fit loss with a worse\n" +
-                    "   ordering is the margin (δ) trading a satisfied pair for separation\n" +
-                    "   elsewhere; the corpus is asking for a missing TERM, not a refit\n" +
-                    "   (issue #3406).",
+            pasteInstruction(upToDate, better),
         ].join("\n");
         console.log(`\n${text}`);
 
