@@ -351,6 +351,9 @@ export function useVsAiDriver(
         selectTargets: useMutation(api.game.selectTargets),
         confirmTargets: useMutation(api.game.confirmTargets),
         tapForPayment: useMutation(api.game.tapForPayment),
+        // CR 608.2g (issue #3569) — the tap-for-mana leg of a paying numeric
+        // nomination, which is asked outside any `pendingCast` window.
+        tapUntap: useMutation(api.game.tapUntap),
         // CR 605.1a / 605.3c (issue #2420) — funds a NON-tap mana ability
         // (Urza, Lord High Artificer's `tapOtherFilter` leg; Farrelite
         // Priest's pure `cost.mana`) inside a `tapPlan`. Dispatched by

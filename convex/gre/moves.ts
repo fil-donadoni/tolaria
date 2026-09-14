@@ -306,6 +306,23 @@ export type Move =
            *  accept flag. */
           kind: "number-choice";
           amount: number;
+          /** CR 608.2g (issue #3569) — the mana abilities activated BEFORE the
+           *  nomination is submitted: "if an effect gives a player the option
+           *  to pay mana, they may activate mana abilities before taking that
+           *  action". Planned by `planManaPayment` for the generic cost
+           *  `{ X: amount }`, so it carries exactly the shortfall between the
+           *  live pool and what this answer pays, in the same shape every
+           *  other mana payment in the tree uses.
+           *
+           *  Without it a paying nomination's ceiling is whatever is already
+           *  floating, and CR 500.5 / 106.4 empty the pool at every step and
+           *  phase boundary — so at the moment a cycled trigger or an upkeep
+           *  trigger asks the question the pool is empty BY RULE and the only
+           *  legal answer the Bot could ever give was 0.
+           *
+           *  ABSENT / empty means "the pool already covers it", which is every
+           *  pre-existing producer and every non-paying nomination. */
+          tapPlan?: ManaTap[];
       }
     | {
           /** Acknowledge a suspended `random-reveal` flip (CR 705.2, ADR 0023).

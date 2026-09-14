@@ -125,9 +125,18 @@ export function describeMove(move: Move, state: GameState): string {
         case "number-choice":
             // CR 107.3f (issue #1701) — amount 0 IS the decline, so it is
             // described as one rather than as "nominate 0".
+            // CR 608.2g (issue #3569) — the taps that fund it are part of the
+            // decision, so the trace names them: two nominations of the same
+            // amount, one from the pool and one off three lands, are different
+            // moves and a trace that reads them identically hides which one
+            // the search took.
             return move.amount === 0
                 ? "nominate nothing (decline)"
-                : `nominate ${move.amount}`;
+                : `nominate ${move.amount}${
+                      move.tapPlan && move.tapPlan.length > 0
+                          ? ` (tapping ${move.tapPlan.length})`
+                          : ""
+                  }`;
         case "random-reveal-ack":
             return "acknowledge coin flip";
         case "madness-decline":

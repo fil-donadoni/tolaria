@@ -407,6 +407,26 @@ function poolUnits(player: PlayerState): Set<Color>[] {
     return units;
 }
 
+/** `player`'s BATTLEFIELD censuses — the pool deliberately NOT included, which
+ *  is the half {@link manaCensusFor} wraps and the half a CR 608.2g mana
+ *  window needs on its own (issue #3569): "how much could this seat still MAKE
+ *  by tapping?" is a different question from "how much can it spend?", and
+ *  adding the two is only sound while neither already contains the other.
+ *
+ *  `now` is every untapped source's units, `base` the whole base ignoring tap
+ *  state. See {@link manaCensusFor} for why `state` is threaded. */
+export function boardCensusFor(
+    state: GameState | undefined,
+    player: PlayerState
+): { now: Set<Color>[]; base: Set<Color>[] } {
+    const battlefields = state ? manaGateBattlefields(state) : undefined;
+    return boardManaCensus(player.battlefield, {
+        converters: state ? manaConverterColors(state, player) : undefined,
+        controllerId: battlefields ? player.id : undefined,
+        battlefields,
+    });
+}
+
 /** Both of `player`'s mana censuses, pool included, from one battlefield walk
  *  (issue #3531): `now` is what they can pay with this instant — the
  *  colour-aware replacement for the scalar `availableManaFor` proxy — and
@@ -430,12 +450,7 @@ export function manaCensusFor(
     state: GameState | undefined,
     player: PlayerState
 ): { now: Set<Color>[]; base: Set<Color>[] } {
-    const battlefields = state ? manaGateBattlefields(state) : undefined;
-    const census = boardManaCensus(player.battlefield, {
-        converters: state ? manaConverterColors(state, player) : undefined,
-        controllerId: battlefields ? player.id : undefined,
-        battlefields,
-    });
+    const census = boardCensusFor(state, player);
     for (const unit of poolUnits(player)) {
         census.now.push(unit);
         census.base.push(new Set(unit));
