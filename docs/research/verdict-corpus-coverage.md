@@ -126,17 +126,24 @@ missing term — they are the candidate list failing to collapse moves that are
 the same move. Seven are land drops, five are activations. They inflate `blind`
 and the denominator alike, and the tester sees the duplicates in the quiz too.
 
-> **Closed by issue #3593, and the count was slightly off.** The collapse
-> landed and the census was re-run on this same corpus with only the collapse
-> toggled: pairs 495 → 444, **blind 47 → 39**, stale 0 either way. Eight of the
-> twelve were vacuous as described. The other four are **not**: they are
-> Treetop Village animations whose tap plan includes the Village being
-> animated, so the copy that funds its own animation ends up tapped and its
-> twin does not. Two different boards, and blind for the ordinary reason — the
-> evaluation has no term that reads them apart — which is a collection target
-> for this class, not a bookkeeping artifact. The remaining duplication the
-> collapse did remove was quieter than the finding says: 51 pairs, most of them
-> `satisfied`, were the SAME constraint counted twice.
+> **Closed by issue #3593, and the count was off in both directions.** The
+> collapse landed and the census was re-run on this same corpus with only the
+> collapse toggled: **pairs 492 → 467, blind 47 → 40**, `contradictory`,
+> `addressable` and `stale` all unmoved. Seven of the twelve were vacuous as
+> described — six land drops and, unlisted here, one `cast`. The other five are
+> not:
+>
+> - Four are Treetop Village animations whose tap plan includes the Village
+>   being animated, so the copy that funds its own animation ends up TAPPED and
+>   its twin does not. Two different boards; blind for the ordinary reason, and
+>   a collection target for the class rather than a bookkeeping artifact.
+> - One is a Brushland pair in which one copy was DRAWN this turn, so the
+>   position names it in `drawnThisTurn` / `lastDrawnCardId`. The collapse is
+>   fail-closed against anything else in the state naming a card, and declines
+>   it — cheaply wrong in the direction that costs a collapse, never an option.
+>
+> The refit the changed corpus obliged is a wash on the columns that decide a
+> vector: 66/103 verdicts ordered and 131/184 pairs satisfied, before and after.
 
 ## The decision rule, registered before the numbers were seen
 

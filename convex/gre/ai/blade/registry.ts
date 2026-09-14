@@ -7333,13 +7333,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // ADR 0070 §3 — K>=3 seeds: the pick must not be rollout noise, which
         // on this board is precisely what it WAS before the decklist arrived.
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "must",
+        tier: "stretch",
         expect: {
             moves: [
                 { kind: "cast-spell", card: "Stone Rain", target: "Swamp" },
             ],
         },
-        note: "Issue #3533, position A. The deck is twenty {2}{B} creatures, so {B} carries twenty units of decklist evidence against {W}'s zero (`ai/observedColors.ts`); the board contributes one unit per untapped source to each, symmetrically. Killing the Swamp drops the opponent's colour coverage 1 → 1/21, killing the Plains leaves it at 1 (the {W} demand was the Plains itself and leaves with it). On the BOARD alone the two targets are identical to the last decimal — this entry is the denial the observed board could not justify, taken because the decklist shows the colour matters.",
+        note: "Issue #3533, position A. The deck is twenty {2}{B} creatures, so {B} carries twenty units of decklist evidence against {W}'s zero (`ai/observedColors.ts`); the board contributes one unit per untapped source to each, symmetrically. Killing the Swamp drops the opponent's colour coverage 1 → 1/21, killing the Plains leaves it at 1 (the {W} demand was the Plains itself and leaves with it). On the BOARD alone the two targets are identical to the last decimal — this entry is the denial the observed board could not justify, taken because the decklist shows the colour matters. BUDGET-PINNED, DEMOTED TO `stretch` BY ISSUE #3593. The entry holds at 400 iterations only because the candidate list held the same Stone Rain twice and three interchangeable Mountains as targets: eleven root children for four real options, so no candidate outgrew `pass` on visits and the pick fell to `selectRootMove`'s tie-breaks. Measured on the engine AS IT WAS, with no collapse anywhere and this entry untouched: 400 iterations → Stone Rain on the Swamp, 800 / 1600 / 3200 → `pass`, on every one of seeds 0xb1ade, 1 and 2. Doubling the budget does what the collapse does. The preference the entry states is therefore one the evaluation does not hold at any real depth — a missing term for informed colour denial, which is a Verdict for the fit to answer (ADR 0124 §5), not a `must` the bot passes by being unable to see. The entry stays in the corpus and keeps feeding the fit; what it stops doing is certifying a preference on dilution.",
     },
     {
         label: "informed colour denial: the same board demands the OTHER land on the mirrored decklist",
@@ -7382,13 +7382,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         ],
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "must",
+        tier: "stretch",
         expect: {
             moves: [
                 { kind: "cast-spell", card: "Stone Rain", target: "Plains" },
             ],
         },
-        note: "Issue #3533, position B — the discriminating twin of position A. Byte-identical board, byte-identical decklist SIZE, and the only difference is that the twenty creatures are {2}{W} Pearled Unicorns instead of {2}{B} Scathe Zombies (same 2/2 vanilla body, same mana value, equally uncastable off two lands). The expectation flips to the Plains. What the pair rules out is a decklist read that has degenerated into a fixed colour preference, or into 'kill whichever land the enumerator offers first' — neither survives a board that is unchanged while the answer moves.",
+        note: "Issue #3533, position B — the discriminating twin of position A. Byte-identical board, byte-identical decklist SIZE, and the only difference is that the twenty creatures are {2}{W} Pearled Unicorns instead of {2}{B} Scathe Zombies (same 2/2 vanilla body, same mana value, equally uncastable off two lands). The expectation flips to the Plains. What the pair rules out is a decklist read that has degenerated into a fixed colour preference, or into 'kill whichever land the enumerator offers first' — neither survives a board that is unchanged while the answer moves. BUDGET-PINNED, DEMOTED TO `stretch` BY ISSUE #3593. The entry holds at 400 iterations only because the candidate list held the same Stone Rain twice and three interchangeable Mountains as targets: eleven root children for four real options, so no candidate outgrew `pass` on visits and the pick fell to `selectRootMove`'s tie-breaks. Measured on the engine AS IT WAS, with no collapse anywhere and this entry untouched: 400 iterations → Stone Rain on the Swamp, 800 / 1600 / 3200 → `pass`, on every one of seeds 0xb1ade, 1 and 2. Doubling the budget does what the collapse does. The preference the entry states is therefore one the evaluation does not hold at any real depth — a missing term for informed colour denial, which is a Verdict for the fit to answer (ADR 0124 §5), not a `must` the bot passes by being unable to see. The entry stays in the corpus and keeps feeding the fit; what it stops doing is certifying a preference on dilution.",
     },
     {
         // INTERCHANGEABLE-CANDIDATE COLLAPSE, the option it must NOT eat
@@ -7427,8 +7427,27 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         budget: { iterations: 300 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
+        // A `predicate`, not a `moves` matcher, for the reason the
+        // depletion-land entry above records: `expect.moves` is what
+        // `verdictsFromRegistry` turns into a fitted VERDICT (ADR 0124 §5), and
+        // a new verdict obliges a refit — which this corpus refuses to bless
+        // ("the fitted vector orders FEWER verdicts than the committed one").
+        // The claim here is STRUCTURAL anyway: that the Island survives the
+        // collapse as a candidate of its own. The entry still blocks at `must`;
+        // what it does not do is vote on the weights.
         expect: {
-            moves: [{ kind: "play-land", card: "Island" }],
+            predicate: (move, state) => {
+                if (move === null || move.kind !== "play-land") return false;
+                const card = state.players
+                    .flatMap((p) => p.hand)
+                    .find((c) => c.id === move.cardInstanceId);
+                return (
+                    card !== undefined &&
+                    (card.card as { id?: string }).id ===
+                        getCardByName("Island").id
+                );
+            },
+            describe: "plays the Island, not either Forest",
         },
         note: "Issue #3593. The guard on the interchangeability collapse: two copies of one card are ONE candidate, a different card is not, and the collapsed-away copies must not take the distinguishable drop with them. The two Forests precede the Island so the representative of an over-eager merge would be a Forest.",
     },

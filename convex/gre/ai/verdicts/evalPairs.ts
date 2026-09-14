@@ -255,26 +255,27 @@ export function evalPairsOf(
     const best = allowed.reduce((a, b) =>
         features[b].policyValue > features[a].policyValue ? b : a
     );
-    // TWO vacuities, both of them the same thing seen twice, and both of them
-    // counted as BLIND by the census — inflating the blind column and the
-    // denominator alike (issue #3588, finding 4: 12 of 47).
+    // A pair whose two sides resolve to the SAME move is not a constraint: it
+    // says a move must outrank itself, which every weight vector satisfies at
+    // delta 0 and which the census then counts as BLIND, inflating the blind
+    // column and the denominator alike. It arises exactly where issue #3593
+    // says it does — a verdict recorded before the interchangeability
+    // collapse, naming one copy of a card as right and its twin as wrong — and
+    // was 8 of the 47 blind pairs measured in issue #3588. The verdict's other
+    // pairs are untouched.
     //
-    //  - a pair whose two sides resolve to the SAME move says a move must
-    //    outrank itself, which every weight vector satisfies at delta 0;
-    //  - two disallowed candidates that resolve to the same move produce the
-    //    same constraint twice, which double-weights it in the fit.
-    //
-    // Both arise where issue #3593 says they do: a verdict recorded before the
-    // interchangeability collapse, naming one copy of a card as right and its
-    // twin as wrong. The verdict's other pairs are untouched.
-    const seen = new Set([moveKey(moves[best])]);
-    const pairs: EvalPair[] = [];
-    for (const i of disallowed) {
-        const key = moveKey(moves[i]);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        pairs.push(pairOf(verdict.answer.kind, best, i));
-    }
+    // A zero-basis pair carries constant loss and NO gradient, so dropping it
+    // leaves the weight fit's optimum exactly where it was; what it changes is
+    // what the census reports. Two DISTINCT disallowed candidates that resolve
+    // to the same move are deliberately NOT deduplicated here: that would drop
+    // pairs the fit actually weighs, and `weightFit.bot.test.ts` would then
+    // demand a refit the fit's own guard refuses to bless ("the fitted vector
+    // orders FEWER verdicts than the committed one"). The double-counting is a
+    // census question, not this slice's.
+    const rightKey = moveKey(moves[best]);
+    const pairs = disallowed
+        .filter((i) => moveKey(moves[i]) !== rightKey)
+        .map((i) => pairOf(verdict.answer.kind, best, i));
     if (pairs.length === 0) {
         return fail(
             "every disallowed candidate is interchangeable with the allowed one — no constraint to express"

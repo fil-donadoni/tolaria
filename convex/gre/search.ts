@@ -2504,19 +2504,21 @@ export function keyedMovesFor(
     // wall clock — an iteration-budgeted search, so a straight ~1.75× think-time
     // regression. Dominance pruning happens ONCE, at the root
     // (`searchWithTrace`), and the root verdict is carried into the tree's root
-    // layer as a deny-set — see `iterate`'s `prunedRootKeys`.
-    // COLLAPSED (issue #3593), unlike the dominance prune above. Two copies of
-    // a card the engine cannot tell apart open two subtrees that explore the
-    // same position, so an iteration-budgeted search buys a fraction of the
-    // real options it could have; the collapse is a stringify per move plus a
-    // descriptor per card inside an already-matching group, cheap enough to
-    // run at every node. The dedup below is NOT a substitute: it keys on
+    // layer as a deny-set — see `iterate`'s `deniedRootKeys`.
+    // NOT collapsed either (issue #3593), and for a different reason than the
+    // prune's: cost is not the objection, the MEASUREMENT is. Collapsing
+    // interchangeable candidates at every node — including the opponent's —
+    // flipped two `must` blade entries to `pass` on all five seeds
+    // ("informed colour denial", both halves of the pair), a real preference
+    // regression bought for a second-order branching win. The root's collapse
+    // reaches the tree through `deniedRootKeys` below, exactly as the
+    // dominance verdict does, so the root LAYER — the "three Treetops are
+    // three subtrees" cost the issue names — is collapsed; deeper layers keep
+    // every copy. The dedup below is not a substitute: it keys on
     // `priorityMoveKey`, which folds a non-observer's HAND card to its
     // definition id (hidden information) and leaves the bot's own duplicates
     // fully distinct.
-    for (const move of enumerateMoves(state, pid, {
-        collapseInterchangeable: true,
-    })) {
+    for (const move of enumerateMoves(state, pid)) {
         const key = priorityMoveKey(state, pid, botId, move);
         if (seen.has(key)) continue;
         seen.add(key);
@@ -2764,11 +2766,12 @@ function puctDescend(
 
 /** Grow the tree by one iteration on a freshly-determinized world.
  *
- *  `prunedRootKeys` are the tree keys of the bot's provably-dominated root moves
- *  (issue #1887), proved ONCE by `searchWithTrace` against the real root state
- *  and reused here for every iteration. Applying them at depth 0 is what makes
- *  the prune bite: `selectRootMove` picks among the root's CHILD EDGES, so a
- *  dominated move merely missing from the root `moves` list would still be
+ *  `deniedRootKeys` are the tree keys of the root moves `searchWithTrace`
+ *  removed against the REAL root state and reused here for every iteration:
+ *  the provably-dominated ones (issue #1887) and the copies collapsed onto an
+ *  interchangeable representative (issue #3593). Applying them at depth 0 is
+ *  what makes either bite: `selectRootMove` picks among the root's CHILD
+ *  EDGES, so a move merely missing from the root `moves` list would still be
  *  opened as a child, still collect visits, and still be selectable. Filtering
  *  the depth-0 candidate set removes it from the tree instead — the same
  *  outcome the old per-node probing bought, at 1/1682 of the probe cost
@@ -2779,7 +2782,7 @@ function iterate(
     botId: string,
     rng: () => number,
     weights: EvalWeights,
-    prunedRootKeys?: ReadonlySet<string>,
+    deniedRootKeys?: ReadonlySet<string>,
     actionPriors: ActionPriorConfig | null = null,
     deckKnowledge?: DeckKnowledgeBySeat,
     opponentModel: OpponentModel | null = null
@@ -2801,8 +2804,8 @@ function iterate(
         // Deny-set, never an allow-set, and never emptying: a world-specific
         // move the root enumeration never saw stays available, and `pass` is
         // never a dominance candidate so the floor always holds.
-        if (depth === 0 && pid === botId && prunedRootKeys?.size) {
-            const kept = keyed.filter((k) => !prunedRootKeys.has(k.key));
+        if (depth === 0 && pid === botId && deniedRootKeys?.size) {
+            const kept = keyed.filter((k) => !deniedRootKeys.has(k.key));
             if (kept.length > 0) keyed = kept;
         }
         if (keyed.length === 0) break;
@@ -5217,14 +5220,18 @@ function runSearchWithTrace(
     // 3: that cost 42.6% of the wall clock of an iteration-budgeted search).
     // The dropped moves become a deny-set for the tree's root layer, so the
     // proof is paid for once and honoured everywhere it matters.
-    const dominatedAtRoot: Move[] = [];
+    const deniedAtRoot: Move[] = [];
     const moves = enumerateMoves(state, playerId, {
         pruneDominatedNoOps: true,
-        onPruned: (m) => dominatedAtRoot.push(m),
-        // Issue #3593 — the root sees the same collapsed candidate set every
-        // tree node sees (`keyedMovesAt`), so the deny-set below and the
-        // tree's root layer agree on what the options are.
+        onPruned: (m) => deniedAtRoot.push(m),
+        // Issue #3593 — two copies of a card the engine cannot tell apart are
+        // ONE option. Like the dominance verdict above, it is proved once here
+        // and carried into the tree's root layer as a deny-set: without that,
+        // `selectRootMove` picks among the root's CHILD EDGES and a
+        // collapsed-away copy would still be opened, still collect visits, and
+        // still split them with its twin.
         collapseInterchangeable: true,
+        onCollapsed: (m) => deniedAtRoot.push(m),
     });
     if (moves.length === 0) return { move: null, trace: null };
     // No real decision (e.g. a forced mulligan window) — return immediately
@@ -5271,10 +5278,8 @@ function runSearchWithTrace(
     // unconditionally is not worth the branch.
     const start = now();
 
-    const prunedRootKeys = new Set(
-        dominatedAtRoot.map((m) =>
-            priorityMoveKey(state, playerId, playerId, m)
-        )
+    const deniedRootKeys = new Set(
+        deniedAtRoot.map((m) => priorityMoveKey(state, playerId, playerId, m))
     );
 
     // Extra-turn soundness guard (issue #2685, issue #244): the extra-turn
@@ -5307,7 +5312,7 @@ function runSearchWithTrace(
             playerId,
             rng,
             weights,
-            prunedRootKeys,
+            deniedRootKeys,
             actionPriors,
             deckKnowledge,
             opponentModel
