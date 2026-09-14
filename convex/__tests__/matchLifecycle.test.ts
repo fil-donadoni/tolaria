@@ -15,6 +15,7 @@ import {
     nextGameActivePlayerId,
     pickCoinTossWinner,
     projectMatch,
+    recordDrawnGame,
     recordGameResult,
     snapshotDeck,
     toNextGamePlayers,
@@ -127,6 +128,62 @@ describe("recordGameResult — Bo3 transitions (PRD #387)", () => {
         expect(patch!.status).toBe("finished");
         expect(patch!.winner).toBe("a");
         expect(patch!.players!.find((p) => p.id === "a")!.score).toBe(2);
+    });
+});
+
+describe("recordDrawnGame — a drawn Game settles its Match (CR 104.4a, issue #3336)", () => {
+    it("Bo1: a drawn Game finishes the Match with no winner", () => {
+        const m = match(1, [player("a"), player("b")]);
+        const patch = recordDrawnGame(m);
+        expect(patch.status).toBe("finished");
+        expect(patch.winner).toBeUndefined();
+    });
+
+    it("Bo3 with a Game left: routes to sideboarding, nobody's score moves", () => {
+        const m = { ...match(3, [player("a", 1), player("b", 0, true)]) };
+        const patch = recordDrawnGame(m);
+        expect(patch.status).toBe("sideboarding");
+        expect(patch.players!.find((p) => p.id === "a")!.score).toBe(1);
+        expect(patch.players!.find((p) => p.id === "b")!.score).toBe(0);
+        // both ready flags reset between Games, exactly as a decided Game does
+        expect(patch.players!.every((p) => p.ready === false)).toBe(true);
+    });
+
+    it("Bo3: the play/draw chooser is left untouched — a draw has no loser", () => {
+        const m = {
+            ...match(3, [player("a"), player("b")]),
+            playDrawChooserId: "b",
+        };
+        expect(recordDrawnGame(m).playDrawChooserId).toBeUndefined();
+    });
+
+    it("Bo3 whose LAST Game is drawn: the Match finishes with no winner", () => {
+        const m = {
+            ...match(3, [player("a", 1), player("b", 1)]),
+            currentGameNumber: 3,
+        };
+        const patch = recordDrawnGame(m);
+        expect(patch.status).toBe("finished");
+        expect(patch.winner).toBeUndefined();
+    });
+
+    it("never leaves the Match in an ACTIVE status pointing at a finished Game", () => {
+        // The stranding class (issue #3336): every outcome is either terminal
+        // or the between-Games gate — never `playing`, which is what the
+        // early-return it replaced used to leave behind.
+        for (const bestOf of [1, 3] as const) {
+            for (const gameNumber of [1, 2, 3]) {
+                const patch = recordDrawnGame({
+                    ...match(bestOf, [player("a"), player("b")]),
+                    currentGameNumber: gameNumber,
+                });
+                expect([bestOf, gameNumber, patch.status]).toEqual([
+                    bestOf,
+                    gameNumber,
+                    gameNumber >= bestOf ? "finished" : "sideboarding",
+                ]);
+            }
+        }
     });
 });
 

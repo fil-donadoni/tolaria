@@ -22,6 +22,7 @@ import { normalizeScenarioSpec } from "@convex/debugScenarioSpec";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
 import { deckPayload, toPresetLobbyDeck } from "@/lib/deckTypes";
 import { getStoredDeckPresetId, storeSession } from "@/lib/session";
+import { activeGameExit } from "@/lib/activeGameExit";
 
 /** The user's active game as reported by `myActiveGame` — the exact shape a
  *  blocked `test()` reads to decide whether (and how) to offer a concede. */
@@ -187,32 +188,19 @@ export function useScenarioTestGame(): ScenarioTestGame {
         setResolvingActiveGame(true);
         void (async () => {
             try {
-                if (
-                    blocked.status === "waiting" ||
-                    blocked.status === "pregame"
-                ) {
+                if (activeGameExit(blocked.status) === "leave") {
                     // A `waiting` room (nobody joined) or a `pregame`
-                    // coin-toss gate has no real opponent/Game to concede —
-                    // mirrors `ActiveGameNotice`'s non-`playing` branch,
-                    // which abandons via `leaveGame` regardless of mode.
+                    // coin-toss gate has no real opponent/Game to concede, so
+                    // it abandons via `leaveGame` regardless of mode.
                     //
-                    // Gate on the EXACT statuses `leaveGame` accepts, not
-                    // `status !== "playing"` (#2400 review round 2, blocking,
-                    // round 3): `myActiveGame` reports the GAME row's status
-                    // (`waiting | pregame | playing | finished`), and
-                    // `finished` is reachable while the Match is still
-                    // active — a Bo3 whose G1 just ended has a `finished`
-                    // Game row but a Match sitting in `sideboarding` (an
-                    // ACTIVE_MATCH_STATUS), with `currentGameId` still
-                    // pointing at the finished Game. `leaveGame` only
-                    // accepts `waiting`/`pregame` and throws otherwise
-                    // ("Cannot leave a game in progress; concede instead"),
-                    // so a wide `!== "playing"` check would route a
-                    // `finished`-but-still-in-Match block into a throw that
-                    // never frees the user. Everything else (including
-                    // `finished`) falls through to the concede/forfeit
-                    // branches below, which is what round 1 did
-                    // unconditionally and is correct here too.
+                    // WHICH statuses those are is `~/lib/activeGameExit`'s
+                    // call, not this hook's (issue #3336): the rule — the
+                    // EXACT statuses `leaveGame` accepts, never the wider
+                    // `status !== "playing"` that routes a
+                    // `finished`-but-still-in-Match Game into a throw freeing
+                    // nothing — was derived here by #2400's review round 3 and
+                    // NOT in `ActiveGameNotice`, which kept the wide test and
+                    // stranded the lobby. One authority, two consumers.
                     await leaveGame({ gameId: blocked.gameId });
                 } else if (blocked.mode === "manual") {
                     // ADR 0080 S12 twin of `forfeitMatch`: manual games run

@@ -3,7 +3,13 @@ import { useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
+import type { MatchStatus } from "@convex/matches";
 import { storeSession } from "~/lib/session";
+import {
+    activeGameBannerMessage,
+    activeGameExit,
+    type ActiveGameStatus,
+} from "~/lib/activeGameExit";
 import { Banner } from "~/components/ui/banner";
 import { Button } from "~/components/ui/button";
 import GameDialog from "~/components/ui/game-dialog";
@@ -13,7 +19,10 @@ export type ActiveGame = {
     gameId: Id<"games">;
     matchId: Id<"matches">;
     name: string;
-    status: "waiting" | "pregame" | "playing" | "finished";
+    status: ActiveGameStatus;
+    /** The owning MATCH's status (issue #3336) — `status` alone cannot tell a
+     *  Bo3 between Games from a Match that outlived its Game. */
+    matchStatus: MatchStatus;
     solo: boolean;
     vsAi: boolean;
     mode: "manual" | null;
@@ -30,8 +39,9 @@ type Props = {
  * game at a time, so when one exists the lobby shows this prominent banner and
  * disables creating/joining (the server rejects a second creation anyway).
  * Resume rejoins it; a waiting room with no opponent can be abandoned (Leave);
- * an in-progress Match is abandoned by forfeiting it (#396) — leaving mid-Match
- * maps to a Forfeit so no orphaned active Match is left behind. (Conceding a
+ * every other state — an in-progress Match, and equally a Bo3 sitting between
+ * Games with a FINISHED current Game — is abandoned by forfeiting it (#396,
+ * issue #3336) so no orphaned active Match is left behind. (Conceding a
  * single Game from here would only end one Game of a Bo3 and keep the Match
  * active; Forfeit ends the whole Match, awarding the opponent.)
  *
@@ -49,7 +59,15 @@ export default function ActiveGameNotice({ activeGame, userId }: Props) {
     const [confirmForfeit, setConfirmForfeit] = useState(false);
 
     const isManual = activeGame.mode === "manual";
-    const inProgress = activeGame.status === "playing";
+    // Derived from what the SERVER accepts, never from a single `playing`
+    // boolean (issue #3336): a `finished` Game under a still-active Match used
+    // to be offered `leaveGame`, which refuses it — leaving a banner whose
+    // every button failed and a lobby that disabled everything else.
+    const exit = activeGameExit(activeGame.status);
+    const message = activeGameBannerMessage(
+        activeGame.status,
+        activeGame.matchStatus
+    );
 
     // Solo / vs-AI seats are `${userId}-p1`; a 2-player seat is the bare id.
     // For manual games the default seat is P1; the user picks the other seat
@@ -106,13 +124,7 @@ export default function ActiveGameNotice({ activeGame, userId }: Props) {
         <>
             <Banner tone="prominent">
                 <div className="flex w-full flex-wrap items-center justify-between gap-3">
-                    <span>
-                        You have an active game
-                        {inProgress
-                            ? " in progress."
-                            : " waiting for an opponent."}{" "}
-                        Finish or leave it before starting another.
-                    </span>
+                    <span>{message}</span>
                     <div className="flex shrink-0 gap-2">
                         {isManual ? (
                             <>
@@ -143,7 +155,7 @@ export default function ActiveGameNotice({ activeGame, userId }: Props) {
                                 Resume
                             </Button>
                         )}
-                        {inProgress ? (
+                        {exit === "forfeit" ? (
                             <Button
                                 variant="destructive"
                                 size="sm"
