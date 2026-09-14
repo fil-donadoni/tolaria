@@ -15,6 +15,10 @@
 import type { PublicGameState } from "@convex/gameProjections";
 import type { Move, SearchBudget, DecisionTrace } from "@convex/gre";
 import { searchWithTrace, DEFAULT_BUDGET } from "@convex/gre";
+import {
+    recordRepetition,
+    type RepetitionHistory,
+} from "@convex/gre/ai/repetition";
 import { projectedToGameState } from "./state-adapter";
 import type { DeckKnowledgeBySeat } from "./state-adapter";
 
@@ -35,6 +39,11 @@ export type BrainRequest = {
      *  test can pin the search; omitted, the handler draws one itself (the
      *  bot must still vary between equally-good lines across decisions). */
     seed?: number;
+    /** The bot seat's decision history this turn (issue #3590) — what it chose
+     *  at the positions it has already occupied, so an optional loop is not
+     *  repeated. Plain data, so it survives `postMessage`. Omitted, nothing is
+     *  remembered and the search is exactly what it was before. */
+    repetition?: RepetitionHistory;
 };
 
 /** A search failure, lowered to plain data for the `postMessage` hop. */
@@ -46,6 +55,10 @@ export type BrainResponse = {
     /** What the Brain weighed for this move — surfaced in the Debug panel.
      *  Null when there was no real decision, and always null on `error`. */
     trace: DecisionTrace | null;
+    /** The request's `repetition` with THIS decision recorded (issue #3590),
+     *  fingerprinted on the very state the search ran on — the caller keeps it
+     *  and hands it back on the next consult. Absent when no move was chosen. */
+    repetition?: RepetitionHistory;
     /** Present when the search THREW (issue #2470). Before this the throw
      *  escaped to the Worker's `onerror`, which resolved every in-flight
      *  consult to a bare "no move" and dropped the error on the floor — the
@@ -78,14 +91,15 @@ export function handleBrainRequest(
     req: BrainRequest,
     search: typeof searchWithTrace = searchWithTrace
 ): BrainResponse {
-    const { id, state, botId, budget, deckKnowledge } = req;
+    const { id, state, botId, budget, deckKnowledge, repetition } = req;
     const seed = req.seed ?? (Math.random() * 0x100000000) | 0;
     try {
+        // `botId` is the seat this projection was made for, so the wire's
+        // `library.known[]` can be restored as `knownTo` and survive
+        // determinization (issue #1524).
+        const root = projectedToGameState(state, deckKnowledge, botId);
         const { move, trace } = search(
-            // `botId` is the seat this projection was made for, so the
-            // wire's `library.known[]` can be restored as `knownTo` and
-            // survive determinization (issue #1524).
-            projectedToGameState(state, deckKnowledge, botId),
+            root,
             botId,
             budget ?? DEFAULT_BUDGET,
             seed,
@@ -94,9 +108,20 @@ export function handleBrainRequest(
             // an informed OPPONENT's hidden zones from their decklist. Handing
             // it to one and not the other is how the two would drift into
             // disagreeing about which seat the search is allowed to know.
-            deckKnowledge
+            deckKnowledge,
+            repetition
         );
-        return { id, move, trace };
+        return {
+            id,
+            move,
+            trace,
+            // Recorded against `root`, never against a second projection: a
+            // position fingerprint is only comparable with one taken from the
+            // same adapter output (issue #3590).
+            ...(move
+                ? { repetition: recordRepetition(repetition, root, move) }
+                : {}),
+        };
     } catch (e) {
         return { id, move: null, trace: null, error: toBrainError(e) };
     }

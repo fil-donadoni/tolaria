@@ -120,7 +120,10 @@ function canonical(
         out.push("[");
         value.forEach((v, i) => {
             if (i > 0) out.push(",");
-            canonical(v, ignore === IGNORED_INSTANCE ? ignore : null, out);
+            // An array's elements are the same kind of record as the array
+            // itself describes (players, or card instances), so the ignore
+            // list rides down unchanged.
+            canonical(v, ignore, out);
         });
         out.push("]");
         return;
@@ -175,6 +178,18 @@ function cyrb53(str: string, seed: number): string {
     return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
 }
 
+/** An exile-and-return bundle's own `id` comes from the instance allocator
+ *  (`allocInstanceId`), whose cursor is already bookkeeping: the same card
+ *  exiled by the same source on a later lap is the same held exile under a
+ *  fresh number. Everything else about the bundle — source, host, owner,
+ *  attachments, noted counters — stays part of the position. */
+function withoutBundleIds(held: unknown): unknown {
+    if (!Array.isArray(held)) return held;
+    return held.map((b) =>
+        b !== null && typeof b === "object" ? { ...b, id: undefined } : b
+    );
+}
+
 /** The position key of `state`: equal for two states that differ only in
  *  bookkeeping (see the module header), different otherwise. */
 export function positionFingerprint(state: GameState): string {
@@ -189,7 +204,7 @@ export function positionFingerprint(state: GameState): string {
         first = false;
         out.push(JSON.stringify(key), ":");
         canonical(
-            v,
+            key === "exileHeld" ? withoutBundleIds(v) : v,
             key === "players" ? IGNORED_PLAYER : IGNORED_INSTANCE,
             out
         );

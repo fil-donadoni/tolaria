@@ -116,6 +116,7 @@ import {
     type RealisationContext,
 } from "~/lib/ai/realise";
 import { projectedToGameState } from "~/lib/ai/state-adapter";
+import type { RepetitionHistory } from "@convex/gre/ai/repetition";
 import { getStoredDifficulty } from "~/lib/session";
 
 /** A small visible "thinking" beat before the bot acts, so the game does not
@@ -292,6 +293,15 @@ export function useVsAiDriver(
     //
     // `getSeatDeck`'s ownership gate (`seatBelongsToUser`, `convex/game.ts`)
     // enforces the seat rule server-side regardless of which shape is chosen.
+    // Issue #3590 — the bot seat's decision history this turn, carried from one
+    // Brain consult to the next (the Worker itself is stateless). Reset with
+    // the game or the seat: a position fingerprint from another game can never
+    // match, and must not be held onto either.
+    const repetition = useRef<RepetitionHistory | undefined>(undefined);
+    useEffect(() => {
+        repetition.current = undefined;
+    }, [gameId, botId]);
+
     const deckKnowledge = useMemo(() => {
         // `null` when the seat has no decklist row (or the caller does not own
         // the seat) — deckKnowledge stays undefined and the search falls back
@@ -965,8 +975,25 @@ export function useVsAiDriver(
             dispatch(
                 signature,
                 () =>
-                    consultBrain(botState, botId, budget, knowledge).then(
-                        ({ move, trace, outcome, via, message }) => {
+                    consultBrain(
+                        botState,
+                        botId,
+                        budget,
+                        knowledge,
+                        repetition.current
+                    ).then(
+                        ({
+                            move,
+                            trace,
+                            outcome,
+                            via,
+                            message,
+                            repetition: remembered,
+                        }) => {
+                            // Issue #3590 — keep the seat's decision history
+                            // for the next consult, so an optional loop is not
+                            // walked twice through the same position.
+                            if (remembered) repetition.current = remembered;
                             // Surface the reasoning to the Debug panel
                             // (client-only). `via` travels with it: a trace the
                             // Worker did not produce came from the degraded
