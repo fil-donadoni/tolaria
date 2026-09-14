@@ -171,3 +171,70 @@ describe("number-pick wiring (issue #1701)", () => {
         ).toEqual({ min: 0, max: 1 });
     });
 });
+
+// --- the OPEN-ENDED bare nomination (CR 107.1b, issue #1421) ----------------
+//
+// "Choose a number" has no ceiling: the range's `max` is
+// `Number.POSITIVE_INFINITY`, and a stepper that clamped to it would render
+// "0 – Infinity available", cap the typed value at `NaN`, or (worse) silently
+// refuse an amount the server accepts. Free entry is the shape.
+describe("NumberAmountInput — open-ended nomination (issue #1421)", () => {
+    const openEnded = (onSubmit: (n: number) => void) =>
+        render(
+            <NumberAmountInput
+                min={0}
+                max={Number.POSITIVE_INFINITY}
+                paysMana={false}
+                disabled={false}
+                onSubmit={onSubmit}
+            />
+        );
+
+    it("never runs out of ceiling: increment stays live and the typed value is not capped", () => {
+        const onSubmit = vi.fn();
+        const { getByLabelText, getByText } = openEnded(onSubmit);
+        const plus = getByLabelText("Increase amount") as HTMLButtonElement;
+        const field = getByLabelText("Amount") as HTMLInputElement;
+
+        fireEvent.click(plus);
+        fireEvent.click(plus);
+        expect(plus.disabled).toBe(false);
+        // No `max` attribute at all — the browser's own spinner must not cap
+        // it either.
+        expect(field.getAttribute("max")).toBeNull();
+
+        fireEvent.change(field, { target: { value: "137" } });
+        expect(field.value).toBe("137");
+        fireEvent.click(getByText("Choose 137"));
+        expect(onSubmit).toHaveBeenCalledWith(137);
+    });
+
+    it("still holds the FLOOR — the one bound CR 107.1b does impose", () => {
+        const onSubmit = vi.fn();
+        const { getByLabelText, getByText } = openEnded(onSubmit);
+        const minus = getByLabelText("Decrease amount") as HTMLButtonElement;
+        expect(minus.disabled).toBe(true);
+        fireEvent.change(getByLabelText("Amount"), {
+            target: { value: "-4" },
+        });
+        fireEvent.click(getByText("Decline"));
+        expect(onSubmit).toHaveBeenCalledWith(0);
+    });
+
+    it("names only the floor in the hint — never an Infinity ceiling", () => {
+        const { getByText, queryByText } = openEnded(vi.fn());
+        expect(getByText("0 or more")).toBeTruthy();
+        expect(queryByText(/Infinity/)).toBeNull();
+    });
+
+    it("a bare nomination routes to the CENTERED prompt — it has nothing on the board to tap", () => {
+        // The paying sibling is the exception (CR 608.2g — the payer must
+        // reach their lands); a nomination that spends nothing is not.
+        expect(
+            pendingChoiceRequiresBoardTap({
+                kind: "number-pick",
+            } as Parameters<typeof pendingChoiceRequiresBoardTap>[0])
+        ).toBe(false);
+        expect(pendingChoiceLabel("number-pick")).toBe("Choose an amount");
+    });
+});

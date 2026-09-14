@@ -18,7 +18,11 @@ import {
 import { applyMoveInSearch } from "../../search";
 import { numberChoiceRange } from "../../state";
 import type { GameState, PendingChoice } from "../../state";
-import { makePlayer, makeState } from "../../../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../../cards/__tests__/setup";
 import { registerTokenDefinition } from "../../../cards";
 import { pushSpell } from "../../../cards/__tests__/setup";
 import { resolveTopOfStack } from "../../state";
@@ -113,6 +117,142 @@ describe("number-pick candidate generator (CR 107.3f, issue #1701)", () => {
         expect(state.pendingChoices ?? []).toHaveLength(0);
         expect(state.players[0].manaPool.R).toBe(2);
         expect(state.players[0].life).toBe(23);
+        expect(state.stack).toHaveLength(0);
+    });
+});
+
+// --- the BARE nomination (CR 107.1b, issue #1421) ---------------------------
+//
+// `numberChoiceRange` reports an INFINITE legal range for "choose a number",
+// which is correct and unenumerable. The generator therefore derives its own
+// searchable ceiling off the board. Two silent failures live here: a ceiling
+// of `Infinity` (the midpoint is `Infinity`, `max` is `Infinity`, and the
+// search opens a branch whose move the submit then refuses — a frozen window,
+// ADR 0047), and a ceiling collapsed to the floor (every candidate is 0, so
+// the bot answers Void by destroying nothing, and no suite reds).
+
+const BARE_NOMINATOR_ID = "test-bot-choosenumber-nominator";
+registerTokenDefinition({
+    id: BARE_NOMINATOR_ID,
+    name: BARE_NOMINATOR_ID,
+    rarity: "common",
+    manaCost: { R: 1 },
+    types: ["Sorcery"],
+    effects: [
+        {
+            op: "chooseNumber",
+            player: "controller",
+            prompt: "Choose a number",
+            bind: "$n",
+        },
+        { op: "gainLife", player: "controller", amount: { ref: "$n" } },
+    ],
+});
+
+/** Synthetic permanents/cards whose only interesting property is their mana
+ *  value — the axis the board-derived ceiling reads (CR 202.3). */
+function registerCostedCard(id: string, generic: number): string {
+    registerTokenDefinition({
+        id,
+        name: id,
+        rarity: "common",
+        manaCost: { generic },
+        types: ["Creature"],
+        subtypes: ["Golem"],
+        power: 1,
+        toughness: 1,
+    });
+    return id;
+}
+
+const MV4_ID = registerCostedCard("test-bot-choosenumber-mv4", 4);
+const MV6_ID = registerCostedCard("test-bot-choosenumber-mv6", 6);
+const MV2_ID = registerCostedCard("test-bot-choosenumber-mv2", 2);
+
+function suspendedBareNomination(
+    build: (p1: ReturnType<typeof makePlayer>) => void = () => {}
+): GameState {
+    const p1 = makePlayer("p1");
+    build(p1);
+    const state = makeState({ players: [p1, makePlayer("p2")] });
+    pushSpell(state, BARE_NOMINATOR_ID, "p1");
+    resolveTopOfStack(state);
+    return state;
+}
+
+const amountsOf = (state: GameState, choice: PendingChoice) =>
+    generate(state, choice).map((c) =>
+        c.move.kind === "number-choice" ? c.move.amount : -1
+    );
+
+describe("number-pick candidates for a BARE nomination (CR 107.1b, issue #1421)", () => {
+    it("bounds an INFINITE legal range by the board's highest mana value", () => {
+        const state = suspendedBareNomination((p1) => {
+            p1.battlefield = [
+                makeInstance(MV4_ID, { controllerId: "p1" }),
+                makeInstance(MV2_ID, { controllerId: "p1" }),
+            ];
+        });
+        const choice = state.pendingChoices![0];
+        // The LEGAL range is unbounded — that is the CR 107.1b contract the
+        // generator must not narrow for the human.
+        expect(numberChoiceRange(choice, state.players[0]).max).toBe(
+            Number.POSITIVE_INFINITY
+        );
+        const amounts = amountsOf(state, choice);
+        // …and the SEARCHED set is finite, ends at the highest mana value on
+        // the board, and spans both ends.
+        expect(amounts.every((n) => Number.isFinite(n))).toBe(true);
+        expect(amounts.length).toBeLessThanOrEqual(5);
+        expect(amounts).toContain(0);
+        expect(amounts).toContain(4);
+        expect(Math.max(...amounts)).toBe(4);
+    });
+
+    it("reads the OPPONENT's battlefield too — their permanents are what the number is usually about", () => {
+        const state = suspendedBareNomination();
+        state.players[1].battlefield = [
+            makeInstance(MV6_ID, { controllerId: "p2", ownerId: "p2" }),
+        ];
+        const amounts = amountsOf(state, state.pendingChoices![0]);
+        expect(Math.max(...amounts)).toBe(6);
+    });
+
+    it("reads the CHOOSER's own hand, and not the opponent's", () => {
+        const state = suspendedBareNomination();
+        state.players[0].hand = [
+            makeInstance(MV4_ID, { controllerId: "p1", zone: "hand" }),
+        ];
+        state.players[1].hand = [
+            makeInstance(MV6_ID, {
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "hand",
+            }),
+        ];
+        const amounts = amountsOf(state, state.pendingChoices![0]);
+        expect(Math.max(...amounts)).toBe(4);
+    });
+
+    it("collapses to the decline alone on an empty board — never an empty set, never Infinity", () => {
+        const state = suspendedBareNomination();
+        const candidates = generate(state, state.pendingChoices![0]);
+        expect(candidates).toHaveLength(1);
+        expect(candidates[0].move).toEqual({
+            kind: "number-choice",
+            amount: 0,
+        });
+    });
+
+    it("the search APPLIES a bare answer through the authoritative resolver, spending nothing", () => {
+        const state = suspendedBareNomination((p1) => {
+            p1.manaPool = { W: 0, U: 0, B: 0, R: 3, G: 0, C: 0 };
+            p1.battlefield = [makeInstance(MV4_ID, { controllerId: "p1" })];
+        });
+        applyMoveInSearch(state, "p1", { kind: "number-choice", amount: 4 });
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].manaPool.R).toBe(3); // a bare nomination pays nothing
+        expect(state.players[0].life).toBe(24);
         expect(state.stack).toHaveLength(0);
     });
 });
