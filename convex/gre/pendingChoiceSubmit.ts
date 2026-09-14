@@ -619,7 +619,14 @@ export function applyNumberChoiceSubmit(
     }
     const payer = state.players.find((p) => p.id === args.playerId);
     const range = numberChoiceRange(head, payer);
-    if (args.amount < range.min || args.amount > range.max) {
+    // CR 107.1b (issue #1421) — an OPEN-ENDED bare nomination has an infinite
+    // ceiling, so only the floor is checkable and the message must not name a
+    // bound that does not exist ("between 0 and Infinity"). The non-negative
+    // integer gate above is the whole of CR 107.1b's own restriction.
+    if (args.amount < range.min) {
+        throw new Error(`Choose a number of at least ${range.min}`);
+    }
+    if (Number.isFinite(range.max) && args.amount > range.max) {
         throw new Error(
             `Choose a number between ${range.min} and ${range.max}`
         );

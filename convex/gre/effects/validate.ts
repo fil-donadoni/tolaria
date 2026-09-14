@@ -207,7 +207,7 @@ function isSnapshotNameRef(value: unknown): boolean {
  *  legal are all decided by the ordered ref pass (`checkRefUses`).
  *
  *  The bare form is the NUMERIC binding read (CR 107.1b / 107.3f, issue #1701):
- *  `count: { ref: "$paid" }` reads the amount a `payVariableMana` nomination
+ *  `count: { ref: "$paid" }` reads the amount a numeric nomination
  *  paid. Admitting it here is a shape widening only — `checkRefUse`'s bare
  *  numeric branch still rejects a bare ref naming any other family, so a
  *  `{ ref: "$snapshot" }` in a numeric position is refused exactly as it was
@@ -955,6 +955,22 @@ function isEffectCardBackFace(value: unknown): boolean {
 function isTokenPTValue(value: unknown): boolean {
     if (Number.isInteger(value)) return true;
     return typeof value !== "number" && isEffectValue(value);
+}
+
+/** CR 107.1b (issue #1421) — a `chooseNumber` Op's `min` / `max`: a
+ *  NON-NEGATIVE integer literal, or any non-literal `EffectValue` (a ref /
+ *  count / … resolved as the ability resolves, sizing the bound off the
+ *  board).
+ *
+ *  Not plain `isEffectValue`, for the same reason `isTokenPTValue` isn't: that
+ *  one's literal leg is `isPositiveInt`, which rejects `0` — and `min: 0` is
+ *  the CR 107.1b floor every open nomination has, while `max: 0` is a
+ *  degenerate-but-legal cap a computed bound can equal anyway. Negative
+ *  literals stay rejected: CR 107.1b's "any number" is a non-negative
+ *  integer. */
+function isNominationBound(value: unknown): boolean {
+    if (typeof value === "number") return isNonNegativeInt(value);
+    return isEffectValue(value);
 }
 
 function isEffectTokenSpec(value: unknown): boolean {
@@ -4979,6 +4995,41 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             bind: isBindingName,
         },
     },
+    // CR 107.1b (issue #1421) — a BARE numeric nomination ("choose a number").
+    // No cost field of any kind and no `payMana`: the amount is nominated, not
+    // paid. `bind` is REQUIRED for the same grammar reason the two siblings
+    // carry it — a choice nothing reads back is meaningless. `min` / `max` are
+    // optional `EffectValue`s (a bound computed as the ability resolves);
+    // omitting both is the open-ended nomination.
+    chooseNumber: {
+        required: {
+            player: isPlayerRef,
+            prompt: isNonEmptyString,
+            bind: isBindingName,
+        },
+        optional: {
+            min: isNominationBound,
+            max: isNominationBound,
+        },
+        check: (entry) => {
+            // A LITERAL inverted range is an authoring slip with a silent
+            // runtime shape: `numberChoiceRange` clamps `max` up to `min`, so
+            // the prompt would offer exactly one answer and the card would
+            // look like it worked. Only literals are checkable here — a
+            // computed bound is whatever the board says at resolution time,
+            // and the clamp is the honest degenerate answer for it.
+            if (
+                typeof entry.min === "number" &&
+                typeof entry.max === "number" &&
+                entry.min > entry.max
+            ) {
+                return [
+                    `"min" (${entry.min}) is greater than "max" (${entry.max}) — the nominal range is empty`,
+                ];
+            }
+            return [];
+        },
+    },
     // if — the `if` structural construct (ADR 0045, issue #806). `predicate`
     // shape is checked here; branch Op validity and predicate binding
     // references are checked by the recursive branch / ordered ref passes.
@@ -5576,8 +5627,9 @@ function parseRef(ref: string): { binding: string; property: string } | null {
 // divideIntoPiles list capture are the identical `string[]` runtime storage,
 // distinguished only by provenance — the family check on `s.set === "bound"`
 // (below, in `checkOpListRefs`) accepts either.
-// A NUMBER binding (CR 107.1b / 107.3f, issue #1701) stores the amount a
-// `payVariableMana` nomination paid, as a TAGGED single value. It is read ONLY
+// A NUMBER binding (CR 107.1b / 107.3f, issues #1701 / #1421) stores the
+// amount a numeric nomination settled on — paid (`payVariableMana`) or merely
+// chosen (`chooseNumber`) — as a TAGGED single value. It is read ONLY
 // by a bare ref in a NUMERIC value position (`count: { ref: "$paid" }`) — a
 // position that had no bare-ref reader at all before this family existed, so
 // nothing else can claim it and nothing it displaces.
@@ -5595,6 +5647,10 @@ function bindingKindOf(op: unknown): BindingKind {
     if (op === "mayPay") return "boolean";
     // issue #1701 — the amount paid, read back in a numeric value position.
     if (op === "payVariableMana") return "number";
+    // issue #1421 — the amount nominated, same numeric read position, no
+    // payment. The two Ops are one binding family: a reader cannot and need
+    // not tell whether the number it reads back was paid for.
+    if (op === "chooseNumber") return "number";
     // issue #1085 — `nameCard` stores the chosen name as a single-element
     // string array, the identical runtime shape a `choice` Op's picks use,
     // so a later `EffectCardFilter.name` bare ref reads it through the SAME
@@ -5922,7 +5978,7 @@ function checkRefUse(
         return;
     }
     // Numeric position, BARE shape (CR 107.1b / 107.3f, issue #1701): the
-    // amount a `payVariableMana` nomination paid, read as an `EffectValue`
+    // amount a numeric nomination settled on, read as an `EffectValue`
     // (`count: { ref: "$paid" }`). Before this family a bare ref here was
     // always malformed — every numeric read needed a `.power` / `.toughness` /
     // `.manaValue` property — so accepting it costs no earlier shape. The
@@ -5933,13 +5989,13 @@ function checkRefUse(
         const family = declared.get(use.ref);
         if (family === undefined) {
             errors.push(
-                `${at}: ref "${use.ref}" references undefined binding "${use.ref}" — no earlier Op binds it (a bare numeric ref reads a payVariableMana Op's bind)`
+                `${at}: ref "${use.ref}" references undefined binding "${use.ref}" — no earlier Op binds it (a bare numeric ref reads a chooseNumber / payVariableMana Op's bind)`
             );
             return;
         }
         if (family !== "number") {
             errors.push(
-                `${at}: ref "${use.ref}" names a ${family} binding in a bare numeric position — only a payVariableMana Op's bind is a number binding; power/toughness/manaValue refs read a snapshot with a property path`
+                `${at}: ref "${use.ref}" names a ${family} binding in a bare numeric position — only a chooseNumber / payVariableMana Op's bind is a number binding; power/toughness/manaValue refs read a snapshot with a property path`
             );
         }
         return;

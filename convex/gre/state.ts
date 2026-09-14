@@ -4049,7 +4049,19 @@ export function spendableManaTotal(
  *  actually pay the moment they tap another land. An authored `numberMax`
  *  still applies on top (the lower of the two wins) for a capped nomination.
  *  `payer` is `undefined` when the player has left the game — the range then
- *  collapses to the floor, and nothing above the decline is offered. */
+ *  collapses to the floor, and nothing above the decline is offered.
+ *
+ *  A BARE nomination (`chooseNumber`, CR 107.1b, issue #1421) with no authored
+ *  `numberMax` is OPEN-ENDED, and `max` is then `Number.POSITIVE_INFINITY` —
+ *  not a clamp to the floor. CR 107.1b's "choose a number" admits every
+ *  non-negative integer and nothing about the board caps it, so a finite
+ *  ceiling here would be the engine refusing a legal answer. The three
+ *  consumers each honour it in their own register and none of them is allowed
+ *  to invent a cap of its own: the submit validator checks only the floor, the
+ *  client renders free entry instead of a stepper, and the bot searches a
+ *  BOUNDED candidate set it derives itself (the legal range is infinite; the
+ *  searched one never is). Callers that render or enumerate MUST therefore
+ *  test `Number.isFinite(max)` rather than assume a number they can count to. */
 export function numberChoiceRange(
     choice: Pick<
         PendingChoice,
@@ -4065,10 +4077,10 @@ export function numberChoiceRange(
             payer ? spendableManaTotal(payer, choice.manaRestriction) : 0
         );
     }
-    // A nomination with neither an authored cap nor a pool ceiling would be
-    // unbounded, which no shipped shape is and no client could render; the
-    // floor is the honest degenerate answer.
-    if (!Number.isFinite(max)) max = min;
+    // An infinite `max` survives deliberately (issue #1421): it is the bare
+    // open-ended nomination, and every consumer is documented to handle it.
+    // It can only arise WITHOUT `paysMana` — a paying nomination always has
+    // the pool as its ceiling, and an absent payer makes that 0.
     return { min, max: Math.max(min, max) };
 }
 

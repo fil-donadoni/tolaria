@@ -766,6 +766,15 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // round trip and the amount-0 decline.
             req.skip ??= `Op "payVariableMana" suspends for a variable mana-payment nomination — covered by the Op's interpreter tests`;
             return;
+        case "chooseNumber":
+            // CR 107.1b (issue #1421) — the bare nomination suspends for the
+            // same reason its paying sibling above does: the canned generator
+            // has no way to answer a live "choose a number" prompt. Explicit
+            // skip; execution coverage is the Op's own interpreter tests,
+            // which drive the nominate → bound-value round trip, the
+            // authored-range clamp and the open-ended shape.
+            req.skip ??= `Op "chooseNumber" suspends for a numeric nomination — covered by the Op's interpreter tests`;
+            return;
         case "mayPay":
             // A `mayPay` Op suspends resolution for a live Pay/Skip decision
             // (issue #806) — a canned scenario cannot submit an answer, so the
@@ -2113,6 +2122,13 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // entry keeps the registry <-> assertor guard 1:1; execution coverage is
     // the Op's own interpreter tests.
     payVariableMana() {
+        return null;
+    },
+    // `chooseNumber` (issue #1421) — never reached: `analyseOp` skips every
+    // script containing it (a canned scenario cannot nominate a number). The
+    // entry keeps the registry <-> assertor guard 1:1; execution coverage is
+    // the Op's own interpreter tests.
+    chooseNumber() {
         return null;
     },
     // `if` (issue #806) — never reached: `analyseOp` skips every script with an

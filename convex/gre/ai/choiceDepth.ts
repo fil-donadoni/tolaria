@@ -81,6 +81,9 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     // CR 107.3f (issue #1701) — raises the `number-pick` nomination through
     // `ctx.requestNumberChoice` and returns "suspend", exactly like `mayPay`.
     payVariableMana: true,
+    // CR 107.1b (issue #1421) — the bare nomination raises the SAME
+    // `number-pick` choice, minus the payment, and suspends identically.
+    chooseNumber: true,
     optionChoice: true,
     putBack: true,
     rangedTopdeck: true,

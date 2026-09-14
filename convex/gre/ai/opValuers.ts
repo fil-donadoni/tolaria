@@ -671,6 +671,19 @@ const payVariableMana: Valuer<"payVariableMana"> = () => {
     return ZERO_OP_VALUE;
 };
 
+const chooseNumber: Valuer<"chooseNumber"> = () => {
+    // CR 107.1b (issue #1421) — a bare nomination moves nothing on its own:
+    // it spends no resource and changes no zone, and its entire consequence is
+    // the sibling Op that reads the `$n` binding back (a `destroy` filtered on
+    // `manaValueEquals`, a `draw` count). A context-free walker cannot price
+    // that — the magnitude belongs to the reader, which has its own valuer and
+    // is walked in the same script. An explicit ZERO entry rather than the
+    // `?? ZERO_OP_VALUE` fallback, for the reason the sibling above states:
+    // the fallback is what a FORGOTTEN Op looks like, and this is a decision
+    // on the record.
+    return ZERO_OP_VALUE;
+};
+
 const sacrifice: Valuer<"sacrifice"> = (op, ctx, scope) => {
     if (op.permanents) {
         // Issue #3292 — a picks-set sacrifice signs by WHO CHOSE the picks,
@@ -1885,6 +1898,7 @@ export const OP_VALUERS: {
     moveSpellFromStack,
     mayPay,
     payVariableMana,
+    chooseNumber,
     sacrifice,
     moveZone,
     createToken,
@@ -2305,6 +2319,13 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // "pay nothing" — there is no stake a redirect could move, because the
     // recipient decides the magnitude themselves and 0 is always available.
     payVariableMana: "neutral",
+    // CR 107.1b (issue #1421) — a bare nomination hands the `player` it names
+    // a free choice over a number and takes nothing from them: there is no
+    // resource spent, no object moved and no life or card at stake, so there
+    // is nothing a redirect of the recipient could move. The CONSEQUENCE has a
+    // recipient and a sign, but it belongs to the Op that reads the binding,
+    // which carries its own row.
+    chooseNumber: "neutral",
     // CR 701.20a — binds the chosen NAME; the material is whatever later Op
     // reads the binding back, which is why `bind` is a required field.
     nameCard: "neutral",

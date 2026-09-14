@@ -130,7 +130,10 @@ export type ChoiceAction =
      *  the amount. `min` / `max` are the choice's live bounds — for a paying
      *  nomination the ceiling is the payer's spendable pool, read through
      *  `numberChoiceRange` so this offer and the submit's own check are the
-     *  same rule. */
+     *  same rule. `max` is `Number.POSITIVE_INFINITY` for an OPEN-ENDED bare
+     *  nomination (CR 107.1b, issue #1421) — the legal range really is
+     *  unbounded above, and a consumer that counts must test
+     *  `Number.isFinite` rather than assume otherwise. */
     | { kind: "submit-number-choice"; min: number; max: number }
     /** Acknowledge a suspended random reveal (`submitRandomRevealAck`,
      *  CR 705.2, ADR 0023) — a no-decision resume. */

@@ -2,17 +2,23 @@ import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 
-/** Bounded amount picker for a `number-pick` pending choice (CR 107.1b /
- *  107.3f, issue #1701) — "choose a number", and with a mana cost attached
+/** Amount picker for a `number-pick` pending choice (CR 107.1b / 107.3f,
+ *  issues #1701 / #1421) — "choose a number", and with a mana cost attached
  *  "pay any amount of mana" / "you may pay {X}", where the controller chooses
  *  the value AS THE ABILITY RESOLVES.
  *
- *  Bounded, never free-form: `max` is the choice's live ceiling (for a paying
- *  nomination, what the chooser's pool can actually cover), computed by the
- *  parent from `numberChoiceRange` — the SAME authority the submit mutation
- *  re-validates against, so the stepper can never offer an amount the server
- *  refuses. Typed input is clamped into the range on the way out for the same
- *  reason.
+ *  `max` is the choice's live ceiling (for a paying nomination, what the
+ *  chooser's pool can actually cover), computed by the parent from
+ *  `numberChoiceRange` — the SAME authority the submit mutation re-validates
+ *  against, so the stepper can never offer an amount the server refuses.
+ *  Typed input is clamped into the range on the way out for the same reason.
+ *
+ *  A non-finite `max` is the OPEN-ENDED bare nomination (CR 107.1b "choose a
+ *  number", issue #1421): there is no ceiling to clamp to and none to render,
+ *  so the field becomes FREE ENTRY — no `max` attribute, an increment button
+ *  that never runs out, and a hint that names only the floor. Clamping to some
+ *  invented cap would be the client refusing an answer the server accepts,
+ *  which is the exact drift `numberChoiceRange` exists to prevent.
  *
  *  The value starts at `min`, which for every shipped shape is 0 — and 0 IS the
  *  decline (CR 107.3f: paying {X} with X = 0 and declining are
@@ -35,7 +41,9 @@ export default function NumberAmountInput({
     disabled: boolean;
     onSubmit: (amount: number) => void;
 }) {
-    const clamp = (next: number) => Math.min(Math.max(next, min), max);
+    const bounded = Number.isFinite(max);
+    const clamp = (next: number) =>
+        bounded ? Math.min(Math.max(next, min), max) : Math.max(next, min);
     const [nominated, setNominated] = useState(min);
     // The displayed amount is CLAMPED AT RENDER, not stored clamped. The
     // ceiling moves while the prompt is open — the payer may go on tapping
@@ -69,7 +77,7 @@ export default function NumberAmountInput({
                     type="number"
                     inputMode="numeric"
                     min={min}
-                    max={max}
+                    max={bounded ? max : undefined}
                     value={String(amount)}
                     disabled={disabled}
                     aria-label="Amount"
@@ -92,14 +100,14 @@ export default function NumberAmountInput({
                     variant="ghost"
                     size="sm"
                     aria-label="Increase amount"
-                    disabled={disabled || amount >= max}
+                    disabled={disabled || (bounded && amount >= max)}
                     onClick={() => setAmount(clamp(amount + 1))}
                 >
                     +
                 </Button>
             </div>
             <p className="text-text-disabled text-xs">
-                {min} – {max} available
+                {bounded ? `${min} – ${max} available` : `${min} or more`}
             </p>
             <Button
                 type="button"
