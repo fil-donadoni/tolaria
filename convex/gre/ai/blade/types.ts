@@ -214,13 +214,29 @@ export type BladeSetupStep =
      *  `selectTarget` clicks would, without re-implementing the target-commit
      *  flow by hand. Throws when no legal activation targets `target`, and
      *  — rather than guess — when more than one still matches (narrow with
-     *  `ability`). */
+     *  `ability`).
+     *
+     *  `zone: "hand"` (issue #2716) addresses a HAND-source ability instead —
+     *  CR 113.6 / 702.29a, the `activateFromHand` opt-in Cycling and Ninjutsu
+     *  declare. It is the exact twin of the enumerator's own zone gate
+     *  (`enumerateAbilityMoves`, `gre/moves.ts`, issue #2390): without it the
+     *  ONLY position a cycled trigger (CR 702.29c) could be reached from was a
+     *  hand-built one, which ADR 0070 §4 forbids — so Landstill's key line,
+     *  Decree of Justice's cycled "you may pay {X}", had no expressible blade
+     *  position at all. The hand branch routes through the same production
+     *  seam `target` does (`enumerateMoves` + `applyMoveInSearch`) rather than
+     *  the raw `activateAbilityOnState`, because a cycling cost is a MANA cost
+     *  plus a discard-this leg: the raw path stops at the payment, while the
+     *  enumerated move carries the real `tapPlan` and `costPicks`. Throws when
+     *  the seat's hand holds no card of that name and when the engine offers
+     *  no legal activation of it (priority, mana, timing). */
     | {
           kind: "activate";
           card: string;
           ability?: string;
           controller?: BladeSeat;
           target?: BladeSeat | string;
+          zone?: "battlefield" | "hand";
       }
     /** Cast the named card from a seat's hand through the REAL move pipeline
      *  (issue #1490, ADR 0070 §4), leaving the spell on the stack UNRESOLVED —

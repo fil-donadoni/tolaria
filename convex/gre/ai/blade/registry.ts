@@ -6864,6 +6864,87 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Issue #3292 negative control, the other side of the same Op. The Edict's sacrifice reads the identical bare picks ref, but its `choice` names `player: \"opponent\"` — the OPPONENT picks, so it is real removal and must keep the edict value. Guards the fix against over-reaching: an attribution that answered \"controller\" for anything but the literal chooser would sign this (and Innocent Blood's `$each`, and Liliana of the Veil's announced target player) as the caster's own cost and stop the bot ever casting an edict.",
     },
     {
+        // DECK KEY LINE (issue #2716, PRD #2693).
+        //
+        // Landstill wins with Decree of Justice, and never by casting it: the
+        // list holds no way to reach {X}{X}{2}{W}{W} for a relevant X, so the
+        // card is a CYCLED one — {2}{W}, discard it, draw, and the cycled
+        // trigger (CR 702.29c) offers "you may pay {X}. If you do, create X
+        // 1/1 white Soldier creature tokens." The list reached 28/28 `ready`
+        // through engine slices (#1701's `payVariableMana` last of all) and
+        // not one of them asserted the deck's payoff is one the Bot takes.
+        //
+        // The ROOT half of that line — "cycles it rather than passing" — is
+        // deliberately NOT an entry here: it was measured and the bot passes
+        // on 3 of 5 seeds, and that is not a blunder to pin. The cycling
+        // window survives every later priority in the same turn (CR 702.29a is
+        // instant-speed), so a `pass` root forfeits nothing, and a `must`
+        // encoding the opposite play would red the moment the search learned
+        // to hold the card for the opponent's end step, which is the RIGHT
+        // play. What IS unambiguous is this position: the cycled trigger is
+        // RESOLVING and its `payVariableMana` (CR 107.3f, issue #1701) holds
+        // the head choice, so the bot's move IS the nomination. Reached through the
+        // real engine — `setup` cycles the card from hand through
+        // `enumerateMoves` + `applyMoveInSearch` (the `zone: "hand"` branch
+        // this entry is the reason for) and resolves the trigger the discard
+        // put on the stack; nothing here is hand-built (ADR 0070 §4).
+        //
+        // DISCRIMINATING BY CONSTRUCTION: the bot is at 2 life with an empty
+        // board and the opponent unloads three untapped 2/2s next turn. Six
+        // power against two life is lethal; three 1/1 Soldiers are three
+        // chump blocks and the game continues. Nominating 0 — the floor the
+        // brain's minimal-legal fallback answers with, and the value a
+        // `count` that stopped reading `$paid` would produce anyway — loses on
+        // the spot.
+        //
+        // Floating mana, not untapped lands, for both legs: while a pending
+        // choice is the head the only moves enumerated are its own answers
+        // (the Errant Minion entry above carries the full derivation), and
+        // with no land on the battlefield the cycling cost cannot be paid from
+        // anywhere but the pool either, so exactly {W}{W}{W} survives the
+        // activation and the nomination's live range is 0..3.
+        label: "landstill key line: pays {X} on the cycled Decree for lethal-stopping Soldiers",
+        spec: {
+            cards: [
+                { name: "Decree of Justice", owner: "me", zone: "hand" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                    count: 3,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            manaPool: { me: { W: 6 } },
+            life: { me: 2, opp: 20 },
+        },
+        setup: [
+            { kind: "activate", card: "Decree of Justice", zone: "hand" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            // A `predicate` for the same reason the Errant Minion entry uses
+            // one: the claim is a THRESHOLD ("enough bodies to survive the
+            // crack-back"), and a reachability claim must not vote on the
+            // weight fit (ADR 0124 §5).
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "number-choice" &&
+                move.amount >= 1,
+            describe:
+                "nominates at least 1, turning the cycled trigger into Soldiers",
+        },
+        note: 'Issue #2716 — the Landstill list\'s only win condition (CR 107.3f / 702.29c). Proven red by breaking the CARD: `count: { ref: "$paid" }` → a literal 0 makes every nomination worthless and the bot nominates the floor.',
+    },
+    {
         // DECK KEY LINE (issue #2715, PRD #2693).
         //
         // Parallax Replenish's whole deck is this one card: Attunement and

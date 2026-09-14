@@ -314,6 +314,15 @@ function applyActivate(
     label: string,
     step: Extract<BladeSetupStep, { kind: "activate" }>
 ): void {
+    // CR 113.6 / 702.29a (issue #2716) — a HAND-source ability (Cycling's
+    // `activateFromHand`) lives in no battlefield, so the lookup below would
+    // reject it out of hand. The hand branch is the exact twin of the
+    // enumerator's own zone gate (`enumerateAbilityMoves`, issue #2390), and
+    // it is what makes a cycled trigger (CR 702.29c) an expressible position.
+    if (step.zone === "hand") {
+        applyHandActivate(state, label, step);
+        return;
+    }
     const matches = battlefieldMatches(state, step.card, step.controller);
     if (matches.length === 0) {
         throw new BladeSetupError(
@@ -481,6 +490,94 @@ function applyTargetedActivate(
             label,
             step,
             `activating "${step.card}" put nothing on the stack (it may have resolved immediately or been countered by a replacement).`
+        );
+    }
+}
+
+/** The `zone: "hand"` half of `applyActivate` (issue #2716) — CR 113.6 /
+ *  702.29a, an ability that functions only from its owner's hand.
+ *
+ *  It routes through the production seam `applyTargetedActivate` uses
+ *  (`enumerateMoves` + `applyMoveInSearch`), never the raw
+ *  `activateAbilityOnState` the battlefield branch reuses, and for the same
+ *  reason the targeted branch does: a cycling cost is `{2}{W}` PLUS a
+ *  discard-this leg, so the raw path stops at the payment
+ *  (`pendingActivation`) and puts nothing on the stack, while the enumerated
+ *  move carries the real `tapPlan` and `costPicks` the search itself replays.
+ *  The legality gate is therefore the engine's own: an activation the bot
+ *  could not make is simply ABSENT from the list, and the throw below is
+ *  honest rather than a re-implemented cost check. */
+function applyHandActivate(
+    state: GameState,
+    label: string,
+    step: Extract<BladeSetupStep, { kind: "activate" }>
+): void {
+    const seat = step.controller ?? "me";
+    const playerId = seatPlayerId(state, seat);
+    const player = state.players.find((p) => p.id === playerId);
+    if (!player) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `no "${seat}" seat in the state.`
+        );
+    }
+    const def = getCardByName(step.card); // throws on an unknown name
+    const handIds = new Set(
+        player.hand
+            .filter(
+                (c) => (c.card as { id?: string } | undefined)?.id === def.id
+            )
+            .map((c) => c.id)
+    );
+    if (handIds.size === 0) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `no card named "${step.card}" in the "${seat}" hand.`
+        );
+    }
+
+    const isActivate = (
+        m: Move
+    ): m is Extract<Move, { kind: "activate-ability" }> =>
+        m.kind === "activate-ability";
+    let candidates = enumerateMoves(state, playerId)
+        .filter(isActivate)
+        .filter((m) => handIds.has(m.cardInstanceId));
+    if (step.ability !== undefined) {
+        candidates = candidates.filter((m) => m.abilityId === step.ability);
+    }
+    if (step.target !== undefined) {
+        const wanted = castTargetIds(state, step.target);
+        candidates = candidates.filter((m) =>
+            m.targets.some((t) => wanted.has(t.id))
+        );
+    }
+    if (candidates.length === 0) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `no legal activation of "${step.card}" from the "${seat}" hand — the engine offered none (check priority, mana, timing, the \`activateFromHand\` opt-in, or the \`ability\`/\`target\` narrowing).`
+        );
+    }
+    if (candidates.length > 1) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `${candidates.length} legal hand activations of "${step.card}" match — narrow the step with \`ability\` (offered: ${[
+                ...new Set(candidates.map((m) => m.abilityId)),
+            ].join(", ")}).`
+        );
+    }
+
+    const before = state.stack.length;
+    applyMoveInSearch(state, playerId, candidates[0]);
+    if (state.stack.length <= before) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `activating "${step.card}" from hand put nothing on the stack (it may have resolved immediately or been replaced).`
         );
     }
 }
