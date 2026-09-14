@@ -7,6 +7,7 @@ import { GameContext } from "~/hooks/useGameContext";
 import GameDialog from "~/components/ui/game-dialog";
 import { Button } from "~/components/ui/button";
 import { clearSession } from "~/lib/session";
+import ClearYieldsButton from "./clear-yields-button";
 import { lobbyHrefForMatch } from "~/lib/matchNavigation";
 
 type Step = "menu" | "confirm-concede" | "confirm-forfeit";
@@ -166,6 +167,10 @@ export default function PauseMenuDialog({
             dismissable
         >
             <div className="flex flex-col gap-3 mt-2">
+                {/* Issue #3556 §5 — the **Yield** reset's second home, so it
+                    stays reachable when the **Stack** panel is collapsed.
+                    Renders nothing while the viewing seat holds no yields. */}
+                <ClearYieldsButton variant="menu" />
                 <Button
                     variant="destructive"
                     className="w-full"

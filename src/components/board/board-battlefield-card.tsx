@@ -31,6 +31,7 @@ import TokenBadge from "./token-badge";
 import AttachedCardsCluster from "./attached-cards-cluster";
 import ExileCastButton from "./exile-cast-button";
 import ActivatableAbilityMenu from "./activatable-ability-menu";
+import { useCardYieldMenuItems } from "~/hooks/useCardYieldMenuItems";
 import { useAbilityCardClick } from "~/hooks/useAbilityCardClick";
 
 /** Clockwise screen rotation a tapped permanent's presentational layer carries
@@ -151,6 +152,11 @@ export default function BoardBattlefieldCard({
 }: BoardBattlefieldCardProps) {
     const { allPlayers, emblems, playerId, continuousEffects } =
         useGameContext();
+    // Issue #3556 (owner comment) — "Turn off auto-yield for <card>", offered
+    // only while the viewing seat holds a **Yield** on one of this CARD's
+    // abilities. Empty otherwise, and `ActivatableAbilityMenu` then falls back
+    // to rendering the card untouched exactly as before.
+    const yieldMenuItems = useCardYieldMenuItems(card);
     const creature = isCreature(card);
 
     // CR 601.2d — divide-as-you-choose: a legal target of an active divide spell
@@ -565,6 +571,7 @@ export default function BoardBattlefieldCard({
             onActivate={activate}
             sheetOpen={ability.sheetOpen}
             onSheetClose={ability.onSheetClose}
+            extraItems={yieldMenuItems}
         >
             {cardContent}
         </ActivatableAbilityMenu>

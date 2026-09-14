@@ -15,6 +15,7 @@ import {
 } from "~/lib/controller-bar-metrics";
 import DragHandle from "./drag-handle";
 import StackRow from "./stack-row";
+import ClearYieldsButton from "./clear-yields-button";
 
 /** Portrait's clearance-bound bottom edge — the SAME literal Tailwind class
  *  the viewer battlefield band itself uses for this edge
@@ -327,6 +328,13 @@ export default function GameStack({
                         label={`Stack (${stack.length})`}
                         handlers={dragHandlers}
                     />
+                    {/* Issue #3556 §5 — the panel-header half of the **Yield**
+                        reset. Renders itself away while the viewing seat holds
+                        none; the Game Menu carries the same control so it
+                        stays reachable with the panel collapsed. */}
+                    <div className="px-2 pt-2 empty:hidden">
+                        <ClearYieldsButton />
+                    </div>
                     <div
                         className={`flex ${
                             narrow ? "min-h-0 flex-1" : "max-h-[70vh]"
