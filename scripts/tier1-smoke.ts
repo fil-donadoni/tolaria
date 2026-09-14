@@ -18,6 +18,13 @@
  * whole pool, not a per-diff check — the same posture `ladder` takes. `land`
  * asks for nothing here; the PR's receipt is the enforcement.
  *
+ * STANDING RED, and it is meant to stay red until it is fixed: three of the
+ * fifteen games do not terminate because the Bot never leaves an optional loop
+ * (issue #3590 — Parallax Wave under Opalescence, Aluren). That is a real
+ * finding this matrix exists to surface, not a tolerance to encode: nothing
+ * here allowlists those three, and the run exits non-zero until they end as
+ * MTG.
+ *
  * Determinism: the plan, the seeds and the iteration budget are all fixed
  * (`SMOKE_ITERATIONS` / `SMOKE_BASE_SEED`), so the same command prints the same
  * outcomes on any machine. `--iterations` exists for a dev shakeout; a receipt
