@@ -6870,64 +6870,67 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // list holds no way to reach {X}{X}{2}{W}{W} for a relevant X, so the
         // card is a CYCLED one — {2}{W}, discard it, draw, and the cycled
         // trigger (CR 702.29c) offers "you may pay {X}. If you do, create X
-        // 1/1 white Soldier creature tokens." The list reached 28/28 `ready`
-        // through engine slices (#1701's `payVariableMana` last of all) and
-        // not one of them asserted the deck's payoff is one the Bot takes.
+        // 1/1 white Soldier creature tokens" (CR 107.3f). The list reached
+        // 28/28 `ready` through engine slices (#1701's `payVariableMana` last
+        // of all) and not one of them asserted the deck's payoff is one the
+        // Bot takes.
         //
         // The ROOT half of that line — "cycles it rather than passing" — is
-        // deliberately NOT an entry here: it was measured and the bot passes
-        // on 3 of 5 seeds, and that is not a blunder to pin. The cycling
-        // window survives every later priority in the same turn (CR 702.29a is
-        // instant-speed), so a `pass` root forfeits nothing, and a `must`
-        // encoding the opposite play would red the moment the search learned
-        // to hold the card for the opponent's end step, which is the RIGHT
-        // play. What IS unambiguous is this position: the cycled trigger is
-        // RESOLVING and its `payVariableMana` (CR 107.3f, issue #1701) holds
-        // the head choice, so the bot's move IS the nomination. Reached through the
-        // real engine — `setup` cycles the card from hand through
-        // `enumerateMoves` + `applyMoveInSearch` (the `zone: "hand"` branch
-        // this entry is the reason for) and resolves the trigger the discard
-        // put on the stack; nothing here is hand-built (ADR 0070 §4).
+        // deliberately NOT an entry: it was written, measured, and the bot
+        // passes on 3 of 5 seeds, which is not a blunder to pin. An activated
+        // ability may be activated at any priority (CR 117.1b), so the cycling
+        // window survives every later one in the same turn and a `pass` root
+        // forfeits nothing; a `must` encoding the opposite play would red the
+        // moment the search learned to hold the card for the opponent's end
+        // step, which is the RIGHT play.
         //
-        // DISCRIMINATING BY CONSTRUCTION: the bot is at 2 life with an empty
-        // board and the opponent unloads three untapped 2/2s next turn. Six
-        // power against two life is lethal; three 1/1 Soldiers are three
-        // chump blocks and the game continues. Nominating 0 — the floor the
-        // brain's minimal-legal fallback answers with, and the value a
-        // `count` that stopped reading `$paid` would produce anyway — loses on
-        // the spot.
+        // What IS unambiguous is this position: the cycled trigger is
+        // RESOLVING and its `payVariableMana` holds the head choice, so the
+        // bot's move IS the nomination. Reached through the real engine —
+        // `setup` cycles the card from hand through the same
+        // `activateAbilityOnState` the mutation calls (the `zone: "hand"`
+        // branch this entry is the reason for) and resolves the trigger the
+        // discard put on the stack; nothing here is hand-built (ADR 0070 §4).
         //
-        // Floating mana, not untapped lands, and the entry is honest about
-        // what that costs it: while a pending choice is the head the only
-        // moves enumerated are its own answers, so the nomination's ceiling is
-        // `spendableManaTotal` — the POOL — and the bot has no way to tap for
-        // it (the CR 608.2g window the live engine opens through
-        // `isManaPaymentChoiceWindow` has no move in the search). Measured on
-        // this very board: with three untapped Plains and an empty pool
-        // `enumerateMoves` offers `number-choice:0` and nothing else, so the
-        // Soldiers are unreachable in any position a real game reaches — CR
-        // 500.5 empties the pool at every step boundary. That hole is issue
-        // #3569, and it is why this entry pre-floats: what it pins is the
-        // VALUATION half of the line (given the mana, the bot spends it on
-        // bodies), and #3569 owes the empty-pool twin of this entry.
-        label: "landstill key line: pays {X} on the cycled Decree for lethal-stopping Soldiers",
+        // The claim is REACHABILITY at the CEILING, and the board is
+        // deliberately bare: three attackers and a lethal life total were
+        // written first and MEASURED to change nothing (the bot nominates the
+        // same amount with an empty board at 20 life), so the narrative was
+        // cut rather than kept as decoration. What actually drives the answer
+        // is the shape `numberPickCandidates` is written for — a count-scaled
+        // consequence is monotone, so the MAX is the only interesting answer —
+        // plus CR 500.5: the pool empties at the end of the step, so mana not
+        // spent here is mana lost. Nominating anything below the ceiling
+        // leaves a free 1/1 on the table, and nominating 0 is the floor the
+        // brain's minimal-legal fallback answers with when no candidate
+        // generator claims the kind.
+        //
+        // PRE-FLOATED mana, and the entry is honest about what that costs it.
+        // Two independent reasons, one of them a real hole:
+        //   - the step commits costs, it does not decide them: a cycling cost
+        //     paid by TAPPING lands parks at `pendingActivation` and the step
+        //     throws, exactly as the battlefield branch throws for a deferred
+        //     cost;
+        //   - the nomination's ceiling is `spendableManaTotal` — the POOL —
+        //     and the search has no move for the CR 608.2g window the live
+        //     engine opens through `isManaPaymentChoiceWindow`. Measured: with
+        //     three untapped Plains and an empty pool `enumerateMoves` offers
+        //     `number-choice:0` and nothing else, so in every position a real
+        //     game reaches (CR 500.5 again) the Soldiers are unreachable. That
+        //     is issue #3569, and it owes the empty-pool twin of this entry.
+        // So what ships here is the VALUATION half of the line: given the
+        // mana, the bot spends all of it on bodies.
+        label: "landstill key line: pays {X} on the cycled Decree for Soldiers",
         spec: {
-            cards: [
-                { name: "Decree of Justice", owner: "me", zone: "hand" },
-                {
-                    name: "Grizzly Bears",
-                    owner: "opp",
-                    zone: "battlefield",
-                    summoningSick: false,
-                    count: 3,
-                },
-            ],
+            cards: [{ name: "Decree of Justice", owner: "me", zone: "hand" }],
             phase: "PRECOMBAT_MAIN",
             turn: 5,
             landCount: 0,
             libraryCount: 20,
+            // Six: {2}{W} commits to the cycling, and the {W}{W}{W} left is
+            // the nomination's whole live range (measured: the choice offers
+            // 0, 1, 2, 3).
             manaPool: { me: { W: 6 } },
-            life: { me: 2, opp: 20 },
         },
         setup: [
             { kind: "activate", card: "Decree of Justice", zone: "hand" },
@@ -6938,18 +6941,18 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
-            // A `predicate` for the same reason the Errant Minion entry uses
-            // one: the claim is a THRESHOLD ("enough bodies to survive the
-            // crack-back"), and a reachability claim must not vote on the
-            // weight fit (ADR 0124 §5).
+            // A `predicate` because `MoveMatcher` has no numeric field: a bare
+            // `{ kind: "number-choice" }` would match the FLOOR and assert
+            // nothing. The threshold sits at the ceiling for the same reason
+            // the Errant Minion entry's does — a threshold below it is a
+            // claim the position cannot make sharp.
             predicate: (move) =>
                 move !== null &&
                 move.kind === "number-choice" &&
-                move.amount >= 1,
-            describe:
-                "nominates at least 1, turning the cycled trigger into Soldiers",
+                move.amount >= 3,
+            describe: "nominates the whole spendable pool, three Soldiers",
         },
-        note: 'Issue #2716 — the Landstill list\'s only win condition (CR 107.3f / 702.29c). Proven red by breaking the CARD: `count: { ref: "$paid" }` → a literal 0 makes every nomination worthless and the bot nominates the floor.',
+        note: 'Issue #2716 — the Landstill list\'s only win condition (CR 107.3f / 702.29c), the valuation half. Proven red by breaking the CARD: `count: { ref: "$paid" }` → a literal 0 makes the payment buy nothing and the bot stops paying for it.',
     },
     {
         // DECK KEY LINE (issue #2715, PRD #2693).

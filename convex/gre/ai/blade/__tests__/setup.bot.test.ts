@@ -395,10 +395,10 @@ describe("blade setup — `activate` runs the real activation path (ADR 0070 §4
 describe('blade setup — `activate`\'s `zone: "hand"` reaches a hand-source ability (issue #2716)', () => {
     const DECREE = "Decree of Justice";
 
-    /** CR 702.29a — the cycling cost is {2}{W} and a discard-this leg. No land
-     *  on the battlefield, so the mana can only come from the pool, which is
-     *  what makes the surviving {W}{W}{W} below a fact about the payment
-     *  rather than about the mana planner's taste. */
+    /** CR 702.29a — the cycling cost is {2}{W} plus a discard-this leg. The
+     *  mana is PRE-FLOATED because the step commits costs rather than deciding
+     *  them: paid by tapping lands it would park at `pendingActivation`, which
+     *  the last test in this block pins. */
     function decreeInHand(): GameState {
         return build({
             cards: [{ name: DECREE, owner: "me", zone: "hand" }],
@@ -410,7 +410,7 @@ describe('blade setup — `activate`\'s `zone: "hand"` reaches a hand-source abi
         });
     }
 
-    it("pays the REAL cycling cost (CR 702.29a) and puts the ability on the stack", () => {
+    it("pays the REAL cycling cost (CR 702.29a) and puts BOTH the ability and its cycled trigger on the stack", () => {
         const state = decreeInHand();
         expect(state.players[0].hand).toHaveLength(1);
 
@@ -419,17 +419,17 @@ describe('blade setup — `activate`\'s `zone: "hand"` reaches a hand-source abi
             setup: [{ kind: "activate", card: DECREE, zone: "hand" }],
         });
 
-        // Every leg really happened: the card left the hand for the graveyard
-        // as the discard cost, and the ability is on the stack — CR 702.29a,
-        // and CR 702.29c's trigger with it. The POOL is deliberately not
-        // asserted: `applyMoveInSearch` pays a mana cost by applying the
-        // move's `tapPlan` (`applyTapPlan`, gre/search.ts), which taps sources
-        // and never debits mana already floating, so what the pool holds after
-        // a pool-funded activation is a property of the search sandbox, not of
-        // this step.
+        // Every leg really happened: three of the six mana left the pool, and
+        // the card left the hand for the graveyard as the discard cost.
+        expect(state.players[0].manaPool?.W).toBe(3);
         expect(state.players[0].hand).toHaveLength(0);
         expect(state.players[0].graveyard).toHaveLength(1);
-        expect(state.stack.length).toBeGreaterThanOrEqual(1);
+        // CR 702.29c — the cycled trigger is the whole reason this branch
+        // exists, and it is ON the stack above the cycling ability.
+        expect(state.stack).toHaveLength(2);
+        expect(state.stack[1].triggeredAbilityId).toBe(
+            "decree-of-justice-cycled"
+        );
     });
 
     it("resolving the cycled trigger opens the numeric nomination the entry decides on (CR 107.3f)", () => {
@@ -444,6 +444,8 @@ describe('blade setup — `activate`\'s `zone: "hand"` reaches a hand-source abi
         const choice = state.pendingChoices?.[0];
         expect(choice?.kind).toBe("number-pick");
         expect(choice?.playerId).toBe(state.players[0].id);
+        // The nomination's ceiling is the pool the cycling did not spend.
+        expect(state.players[0].manaPool?.W).toBe(3);
     });
 
     it("THROWS when the seat's hand holds no card of that name", () => {
@@ -458,12 +460,74 @@ describe('blade setup — `activate`\'s `zone: "hand"` reaches a hand-source abi
                 label: "t",
                 setup: [{ kind: "activate", card: DECREE, zone: "hand" }],
             })
-        ).toThrow(BladeSetupError);
+        ).toThrow(/no card named "Decree of Justice" in any hand/);
     });
 
-    it("THROWS — not falls back — when the engine offers no legal activation (cost unpayable)", () => {
+    it("THROWS on an ambiguous hand rather than picking a copy", () => {
         const state = build({
-            cards: [{ name: DECREE, owner: "me", zone: "hand" }],
+            cards: [
+                { name: DECREE, owner: "me", zone: "hand" },
+                { name: DECREE, owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            manaPool: { me: { W: 6 } },
+        });
+        expect(() =>
+            applyBladeSetup(state, {
+                label: "t",
+                setup: [{ kind: "activate", card: DECREE, zone: "hand" }],
+            })
+        ).toThrow(/2 copies .* are in hand — the step is ambiguous/);
+    });
+
+    it("THROWS on an unknown ability id, naming the ones the card offers", () => {
+        const state = decreeInHand();
+        expect(() =>
+            applyBladeSetup(state, {
+                label: "t",
+                setup: [
+                    {
+                        kind: "activate",
+                        card: DECREE,
+                        zone: "hand",
+                        ability: "nope",
+                    },
+                ],
+            })
+        ).toThrow(/no hand-source ability with id "nope" \(has: cycling\)/);
+    });
+
+    it("THROWS on a card whose abilities do not function from the hand (CR 113.6b)", () => {
+        const state = build({
+            cards: [{ name: "Prodigal Sorcerer", owner: "me", zone: "hand" }],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            manaPool: { me: { W: 6 } },
+        });
+        expect(() =>
+            applyBladeSetup(state, {
+                label: "t",
+                setup: [
+                    {
+                        kind: "activate",
+                        card: "Prodigal Sorcerer",
+                        zone: "hand",
+                    },
+                ],
+            })
+        ).toThrow(/no stack-using ability that functions from the hand/);
+    });
+
+    it("THROWS — not falls back — when the cost must be TAPPED rather than committed", () => {
+        // The same cycling, funded by three untapped Plains and an empty pool:
+        // `activateAbilityOnState` parks at `pendingActivation` and puts
+        // nothing on the stack, which is a decision, not a position.
+        const state = build({
+            cards: [
+                { name: DECREE, owner: "me", zone: "hand" },
+                { name: "Plains", owner: "me", zone: "battlefield", count: 3 },
+            ],
             phase: "PRECOMBAT_MAIN",
             turn: 5,
             landCount: 0,
@@ -474,7 +538,24 @@ describe('blade setup — `activate`\'s `zone: "hand"` reaches a hand-source abi
                 label: "t",
                 setup: [{ kind: "activate", card: DECREE, zone: "hand" }],
             })
-        ).toThrow(/no legal activation/);
+        ).toThrow(/stopped at a payment decision \(pendingActivation\)/);
+    });
+
+    it("REJECTS `target`, which the hand branch does not support", () => {
+        const state = decreeInHand();
+        expect(() =>
+            applyBladeSetup(state, {
+                label: "t",
+                setup: [
+                    {
+                        kind: "activate",
+                        card: DECREE,
+                        zone: "hand",
+                        target: "opp",
+                    },
+                ],
+            })
+        ).toThrow(/`target` is not supported/);
     });
 
     it("the battlefield branch is untouched: a hand card is still not a permanent", () => {

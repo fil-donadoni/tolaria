@@ -217,19 +217,22 @@ export type BladeSetupStep =
      *  `ability`).
      *
      *  `zone: "hand"` (issue #2716) addresses a HAND-source ability instead —
-     *  CR 113.6 / 702.29a, the `activateFromHand` opt-in Cycling and Ninjutsu
+     *  CR 113.6b / 702.29a, the `activateFromHand` opt-in Cycling and Ninjutsu
      *  declare. It is the exact twin of the enumerator's own zone gate
      *  (`enumerateAbilityMoves`, `gre/moves.ts`, issue #2390): without it the
      *  ONLY position a cycled trigger (CR 702.29c) could be reached from was a
      *  hand-built one, which ADR 0070 §4 forbids — so Landstill's key line,
      *  Decree of Justice's cycled "you may pay {X}", had no expressible blade
-     *  position at all. The hand branch routes through the same production
-     *  seam `target` does (`enumerateMoves` + `applyMoveInSearch`) rather than
-     *  the raw `activateAbilityOnState`, because a cycling cost is a MANA cost
-     *  plus a discard-this leg: the raw path stops at the payment, while the
-     *  enumerated move carries the real `tapPlan` and `costPicks`. Throws when
-     *  the seat's hand holds no card of that name and when the engine offers
-     *  no legal activation of it (priority, mana, timing). */
+     *  position at all. The hand branch runs the SAME `activateAbilityOnState`
+     *  the battlefield branch does, never the `enumerateMoves` +
+     *  `applyMoveInSearch` seam `target` uses: that seam pays a mana cost by
+     *  applying the move's `tapPlan`, and pool mana is never a tap, so a
+     *  pool-funded activation would reach the stack with its cost unpaid.
+     *  Throws when the seat's hand holds no (or more than one) card of that
+     *  name, when the ability does not function from the hand, and — as on the
+     *  battlefield — when the activation stops at a payment decision instead
+     *  of the stack, which for a hand ability means its mana had to be TAPPED:
+     *  pre-float it in the spec's `manaPool`. `target` is rejected here. */
     | {
           kind: "activate";
           card: string;

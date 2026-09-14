@@ -494,92 +494,143 @@ function applyTargetedActivate(
     }
 }
 
-/** The `zone: "hand"` half of `applyActivate` (issue #2716) — CR 113.6 /
+/** The `zone: "hand"` half of `applyActivate` (issue #2716) — CR 113.6b /
  *  702.29a, an ability that functions only from its owner's hand.
  *
- *  It routes through the production seam `applyTargetedActivate` uses
- *  (`enumerateMoves` + `applyMoveInSearch`), never the raw
- *  `activateAbilityOnState` the battlefield branch reuses, and for the same
- *  reason the targeted branch does: a cycling cost is `{2}{W}` PLUS a
- *  discard-this leg, so the raw path stops at the payment
- *  (`pendingActivation`) and puts nothing on the stack, while the enumerated
- *  move carries the real `tapPlan` and `costPicks` the search itself replays.
- *  The legality gate is therefore the engine's own: an activation the bot
- *  could not make is simply ABSENT from the list, and the throw below is
- *  honest rather than a re-implemented cost check. */
+ *  The EXACT twin of the battlefield branch, and deliberately so: it locates
+ *  the instance, resolves the ability off it and hands the same
+ *  `activateAbilityOnState` the `activateAbility` mutation calls, so the mana
+ *  leg, the discard-this leg and the cycled trigger (CR 702.29c) are all the
+ *  real ones. It does NOT route through `enumerateMoves` +
+ *  `applyMoveInSearch` the way the `target` branch does — that seam pays a
+ *  mana cost by applying the move's `tapPlan` only, and pool mana is never a
+ *  tap (`planManaPayment`'s "consumed by the server at commit, never a tap"),
+ *  so a pool-funded activation would reach the stack with its cost UNPAID and
+ *  the position under test would be one the engine could never produce
+ *  (ADR 0070 §4).
+ *
+ *  Consequently a hand ability whose mana must be TAPPED from lands stops at
+ *  `pendingActivation` and this step throws, exactly as the battlefield branch
+ *  throws for a deferred cost: pre-float the mana in the spec's `manaPool`.
+ *  `target` is not supported here — no shipped `activateFromHand` ability
+ *  targets, and the enumerate seam that would be needed for one is the very
+ *  seam this branch exists to avoid. */
 function applyHandActivate(
     state: GameState,
     label: string,
     step: Extract<BladeSetupStep, { kind: "activate" }>
 ): void {
-    const seat = step.controller ?? "me";
-    const playerId = seatPlayerId(state, seat);
-    const player = state.players.find((p) => p.id === playerId);
-    if (!player) {
-        throw new BladeSetupError(
-            label,
-            step,
-            `no "${seat}" seat in the state.`
-        );
-    }
-    const def = getCardByName(step.card); // throws on an unknown name
-    const handIds = new Set(
-        player.hand
-            .filter(
-                (c) => (c.card as { id?: string } | undefined)?.id === def.id
-            )
-            .map((c) => c.id)
-    );
-    if (handIds.size === 0) {
-        throw new BladeSetupError(
-            label,
-            step,
-            `no card named "${step.card}" in the "${seat}" hand.`
-        );
-    }
-
-    const isActivate = (
-        m: Move
-    ): m is Extract<Move, { kind: "activate-ability" }> =>
-        m.kind === "activate-ability";
-    let candidates = enumerateMoves(state, playerId)
-        .filter(isActivate)
-        .filter((m) => handIds.has(m.cardInstanceId));
-    if (step.ability !== undefined) {
-        candidates = candidates.filter((m) => m.abilityId === step.ability);
-    }
     if (step.target !== undefined) {
-        const wanted = castTargetIds(state, step.target);
-        candidates = candidates.filter((m) =>
-            m.targets.some((t) => wanted.has(t.id))
-        );
-    }
-    if (candidates.length === 0) {
         throw new BladeSetupError(
             label,
             step,
-            `no legal activation of "${step.card}" from the "${seat}" hand — the engine offered none (check priority, mana, timing, the \`activateFromHand\` opt-in, or the \`ability\`/\`target\` narrowing).`
+            `\`target\` is not supported with \`zone: "hand"\` — no shipped hand-source ability targets.`
         );
     }
-    if (candidates.length > 1) {
+    const matches = handMatches(state, step.card, step.controller);
+    if (matches.length === 0) {
         throw new BladeSetupError(
             label,
             step,
-            `${candidates.length} legal hand activations of "${step.card}" match — narrow the step with \`ability\` (offered: ${[
-                ...new Set(candidates.map((m) => m.abilityId)),
-            ].join(", ")}).`
+            `no card named "${step.card}"${
+                step.controller
+                    ? ` in the "${step.controller}" hand`
+                    : " in any hand"
+            } in the built state.`
         );
+    }
+    if (matches.length > 1) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `${matches.length} copies of "${step.card}" are in hand — the step is ambiguous. Place one, or narrow it with \`controller\`.`
+        );
+    }
+    const { card, ownerId } = matches[0];
+
+    // CR 113.6b — only an ability that opts into the hand functions there, and
+    // a mana ability never uses the stack (CR 605.1a), so it can never be the
+    // pending decision this step exists to reach. Same two filters the
+    // enumerator applies to its own hand scan (`enumerateAbilityMoves`).
+    const abilities = getEffectiveActivatedAbilities(card)
+        .map((r) => r.ability)
+        .filter((a) => a.activateFromHand === true && a.useStack !== false);
+    if (abilities.length === 0) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `"${step.card}" has no stack-using ability that functions from the hand (CR 113.6b — an \`activateFromHand\` opt-in).`
+        );
+    }
+    let abilityId: string;
+    if (step.ability !== undefined) {
+        const found = abilities.find((a) => a.id === step.ability);
+        if (!found) {
+            throw new BladeSetupError(
+                label,
+                step,
+                `"${step.card}" has no hand-source ability with id "${step.ability}" (has: ${abilities.map((a) => a.id).join(", ")}).`
+            );
+        }
+        abilityId = found.id;
+    } else {
+        if (abilities.length > 1) {
+            throw new BladeSetupError(
+                label,
+                step,
+                `"${step.card}" has ${abilities.length} hand-source abilities — name one with \`ability\` (${abilities.map((a) => a.id).join(", ")}).`
+            );
+        }
+        abilityId = abilities[0].id;
     }
 
     const before = state.stack.length;
-    applyMoveInSearch(state, playerId, candidates[0]);
+    try {
+        activateAbilityOnState(state, {
+            // CR 702.29a — "from YOUR hand": the owner is the activator, and
+            // the real path re-checks exactly that.
+            playerId: ownerId,
+            cardInstanceId: card.id,
+            abilityId,
+        });
+    } catch (err) {
+        throw new BladeSetupError(
+            label,
+            step,
+            `the real activation path rejected it — ${err instanceof Error ? err.message : String(err)}`
+        );
+    }
     if (state.stack.length <= before) {
         throw new BladeSetupError(
             label,
             step,
-            `activating "${step.card}" from hand put nothing on the stack (it may have resolved immediately or been replaced).`
+            `activating "${abilityId}" from hand put nothing on the stack — it stopped at a payment decision (${state.pendingActivation ? "pendingActivation" : "no pending decision"}). Pre-float the mana in \`manaPool\`: a cost paid by TAPPING is a decision, not a commit.`
         );
     }
+}
+
+/** Hand instances of `name`, with the seat that owns each — the hand-zone twin
+ *  of {@link battlefieldMatches}, sharing its name authority
+ *  (`definitionIdForName`) and its "scan both seats unless `controller` says
+ *  otherwise" rule. */
+function handMatches(
+    state: GameState,
+    name: string,
+    controller: BladeSeat | undefined
+): { card: CardInstanceState; ownerId: string }[] {
+    const defId = definitionIdForName(name);
+    const wantedId =
+        controller === undefined ? undefined : seatPlayerId(state, controller);
+    const out: { card: CardInstanceState; ownerId: string }[] = [];
+    for (const player of state.players) {
+        if (wantedId !== undefined && player.id !== wantedId) continue;
+        for (const card of player.hand) {
+            if ((card.card as { id?: string } | undefined)?.id === defId) {
+                out.push({ card, ownerId: player.id });
+            }
+        }
+    }
+    return out;
 }
 
 /** The set of ids a `cast` step's `target` may denote: a player id for a seat
