@@ -112,6 +112,14 @@ export const EVAL_TERM_LABELS: Record<keyof EvalTerms, EvalTermLabel> = {
         gain: "gains a mana source",
         loss: "loses a mana source",
     },
+    finiteManaUses: {
+        short: "Mf",
+        name: "Finite mana charges (uses left on counter-paid sources)",
+        // Half a charge of a finite source.
+        floor: W.finiteManaUseWeight / 2,
+        gain: "banks a use of a finite mana source",
+        loss: "spends a use of a finite mana source",
+    },
     manaDevelopment: {
         short: "Md",
         name: "Mana development (lands the hand's curve still wants)",

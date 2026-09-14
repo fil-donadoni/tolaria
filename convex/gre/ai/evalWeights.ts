@@ -98,6 +98,19 @@ export type EvalWeights = {
      *  The land-drop invariant (issue #149) is untouched: a land ENTERS
      *  untapped and so is still scored at the full `manaWeight`. */
     tappedManaWeight: number;
+    /** Per REMAINING USE of a finite mana source — one whose mana ability pays
+     *  by removing counters from itself (CR 118.3 / 122.1, issue #3530). The
+     *  `finiteManaUses` term is this weight times the charges left, so it is
+     *  what spending one costs and what destroying the source takes away.
+     *
+     *  The PRIOR is `manaWeight − tappedManaWeight` — the premium this vector
+     *  already puts on a source being usable RIGHT NOW, which is precisely what
+     *  one activation is worth. It must also be strictly above that premium, or
+     *  paying with one finite source instead of two renewable ones still reads
+     *  as a gain (the +1.000000 issue #3530 measured); at the prior's own
+     *  numbers the two are equal and the fit is what separates them, against the
+     *  depletion-land verdict in the corpus. */
+    finiteManaUseWeight: number;
     /** Per on-curve land, the mana-development term (`W_MANA_DEV`, issue
      *  #2686): a land contributes this ON TOP of `permanentWeight` +
      *  `manaWeight` while the player's land count is still below the total
@@ -287,6 +300,22 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     permanentWeight: 5,
     manaWeight: 12,
     tappedManaWeight: 9,
+    // 4 (issue #3530), bounded on BOTH sides, because the `finiteManaUses`
+    // term REPLACES `manaWeight` for the source it prices rather than topping
+    // it up:
+    //  - ABOVE twice the usable-now premium (`manaWeight − tappedManaWeight`),
+    //    or paying a two-mana cost with one charge beats tapping two renewable
+    //    sources and the whole issue is unfixed. The fitted vector compresses
+    //    that premium to ~1, so the binding number is small;
+    //  - and TWICE it must stay UNDER `manaWeight`, or a two-use land is worth
+    //    more than a Forest that unlaps every turn forever — measured at the
+    //    additive shape this replaced: a full Woodlot scored 61.0 against a
+    //    Forest's 48.9, ~1.7x, which is an inversion on exactly the decks the
+    //    term exists for (PR #3566 review finding 1).
+    // 4 sits in the middle of that window at both the prior and the fitted
+    // vector; no verdict pins it from above, which is what the regularisation
+    // toward this prior is for.
+    finiteManaUseWeight: 4,
     manaDevWeight: 12,
     colorCoverageWeight: 24,
     flexWeight: 6,
@@ -361,28 +390,29 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
 export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     ...FIT_BASE_EVAL_WEIGHTS,
     lifeWeight: 8,
-    permanentWeight: 5.132232,
-    manaWeight: 11.390998,
-    tappedManaWeight: 10.390998,
-    manaDevWeight: 10.594123,
-    colorCoverageWeight: 29.640823,
-    flexWeight: 5.857484,
+    permanentWeight: 5.144765,
+    manaWeight: 11.384338,
+    tappedManaWeight: 10.384338,
+    finiteManaUseWeight: 4.015446,
+    manaDevWeight: 10.606143,
+    colorCoverageWeight: 29.590775,
+    flexWeight: 5.858634,
     deckingWeight: 1.5,
-    graveyardEngineWeight: 65.663582,
-    graveyardReachFraction: 0.194651,
+    graveyardEngineWeight: 65.616583,
+    graveyardReachFraction: 0.194243,
     latent: Object.freeze({
-        damage: 20.990747,
-        cardAdvantage: 38.903108,
-        lifeSwing: 7.710794,
-        boardRemoval: 116.159324,
-        ramp: 11.596423,
+        damage: 21.000336,
+        cardAdvantage: 38.961757,
+        lifeSwing: 7.713607,
+        boardRemoval: 116.517753,
+        ramp: 11.600241,
         evasion: 40,
         tempo: 55,
-        disruption: 95.90382,
+        disruption: 96.191631,
         recursion: 140,
-        tokens: 0.515558,
-        pump: 8.027321,
-        protection: 57.03391,
+        tokens: 0.518111,
+        pump: 8.036377,
+        protection: 57.062636,
     }),
 });
 

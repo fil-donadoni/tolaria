@@ -497,6 +497,111 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "CR 605.1a depletion-land reachability. Also the end-to-end cover for `removeCounter` in `TAP_YIELD_CREDITABLE_COST_LEGS` (moves.ts) and for the scenario builder defaulting a battlefield land's entry counters from `resolveEntersWithCounters` — a land placed with zero counters is not a mana source at all, so this entry fails on either half.",
     },
     {
+        // FINITE MANA SOURCE — the SPARE half of the discriminating pair
+        // (CR 118.3 / 122.1 / 605.1a, issue #3530). The bot's main phase,
+        // Hickory Woodlot at full charge beside two Forests, and a Grizzly
+        // Bears ({1}{G}) in hand. Both payments cover the cost exactly: two
+        // Forests, or ONE tap of the Woodlot — which spends a charge the land
+        // can never get back and brings it one activation from sacrificing
+        // itself (CR 701.21).
+        //
+        // Until issue #3530 the position held ONE cast candidate, because
+        // `planManaPayment` returned one plan and settled the payment inside
+        // itself; this entry is only writable at all because the two payments
+        // are now two Moves. And the evaluation, measured on this exact board,
+        // scored the Woodlot payment +1.000000 ABOVE the Forests one — one
+        // source tapped instead of two, with nothing counting what the tap
+        // spent. Both halves are needed: the term without the candidates is
+        // unfittable, the candidates without the term hand the search a choice
+        // it evaluates backwards.
+        label: "depletion land: pays the two-drop with the basics, sparing the land's charge",
+        spec: {
+            cards: [
+                { name: "Hickory Woodlot", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Grizzly Bears",
+                    // EXACT, and the whole entry: the two candidates differ in
+                    // nothing else, so a partial matcher would accept both and
+                    // state no preference at all.
+                    taps: ["Forest", "Forest"],
+                },
+            ],
+        },
+        note: "Issue #3530, the SPARE half. Read with its twin below: neither alone separates a Brain that reads scarcity from one that never spends a finite source, or always does. Guards the `finiteManaUses` evaluation term AND the second tap plan `castTapPlans` (moves.ts) emits — deleting either leaves this entry with one candidate or with the wrong one on top.",
+    },
+    {
+        // FINITE MANA SOURCE — the SPEND half (CR 118.3 / 701.21, issue
+        // #3530). Sandstone Needle on its LAST charge beside two Mountains,
+        // Fireball ({X}{R}) in hand, the opponent at 3. Four mana on the board
+        // and no other way to reach them: X=3 is lethal and it is payable only
+        // by tapping the Needle, which removes its last depletion counter and
+        // sacrifices the land (CR 701.21).
+        //
+        // The pair is the point. A Brain that simply never spends a finite
+        // source passes the entry above and fails this one by casting a
+        // smaller Fireball; a Brain that always spends fails the entry above.
+        // Only one that PRICES the charge — and lets a win dominate it, as
+        // `evaluate`'s terminal band does — answers both.
+        label: "depletion land: spends the last charge because it is the only lethal",
+        spec: {
+            cards: [
+                {
+                    name: "Sandstone Needle",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: { depletion: 1 },
+                },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Fireball", owner: "me", zone: "hand" },
+            ],
+            life: { opp: 3 },
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        tier: "must",
+        // A `predicate`, like the reachability entry above and for a reason
+        // MEASURED on this position: `expect.moves` is what
+        // `verdictsFromRegistry` turns into a fitted verdict (ADR 0124 §5), and
+        // the claim here is a TERMINAL one. A win's magnitude is scaled by no
+        // fittable weight, so the Eval Pair "X=3 over X=2" carries an all-zero
+        // feature basis — it landed in the fit's own CONTRADICTORY bucket
+        // ("identical feature vectors, opposite order") beside every other
+        // win-decided pair, contributing noise to the vector rather than a
+        // preference. The entry still blocks at `must`; what it does not do is
+        // vote on the weights. The entry ABOVE is the half that carries the
+        // preference into the corpus.
+        expect: {
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                // X=3 is the lethal one, and only it needs all three sources —
+                // the third being the Needle's last charge.
+                move.chosenX === 3 &&
+                move.tapPlan.length === 3,
+            describe:
+                "casts Fireball for X=3 off all three sources, spending Sandstone Needle's last charge",
+        },
+        note: "Issue #3530, the SPEND half of the pair opened above. Also the guard that the scarcity weight stays under a win: a fit that priced a charge above the terminal band would take the smaller Fireball and this entry reds.",
+    },
+    {
         // FLOATING-MANA reachability (CR 106.6, issue #3235). `me` has NO
         // permanents at all and one {1}{R} creature in hand; the only mana on
         // the board is two red floating in the TAGGED `restrictedMana` list —

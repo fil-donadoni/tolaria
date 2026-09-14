@@ -80,6 +80,21 @@ export type MoveMatcher = {
      *  `second: []` is meaningful and asserts the opposite: nothing was sent
      *  away (the keep-everything answer). */
     second?: string[];
+    /** CR 118.3 / 601.2g (issue #3530) — the card NAMES a `cast-spell` /
+     *  `activate-ability` move's TAP PLAN pays with, as an EXACT multiset:
+     *  every planned source must be named and every name must be used, so
+     *  `taps: ["Forest", "Forest"]` accepts the payment off two Forests and
+     *  refuses the one off the depletion land beside them.
+     *
+     *  Exact rather than partial — the `second` field's rationale, and for a
+     *  sharper reason. Since issue #3530 a cast whose payment involves a finite
+     *  mana source enumerates TWO candidates differing only in this field, so a
+     *  partial match would accept both and the entry would state no preference
+     *  at all: the matcher would be vacuous on exactly the decision it was
+     *  written to pin. A converter entry (`abilityId`, CR 602.1) names the
+     *  permanent whose ability is activated, which is the card the plan reads
+     *  as tapping. */
+    taps?: string[];
 };
 
 /**

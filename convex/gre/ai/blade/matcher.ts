@@ -171,6 +171,9 @@ export function matchesMove(
     const secondIds = matcher.second?.map((name) =>
         instanceIdsForName(state, name)
     );
+    const tapsIds = matcher.taps?.map((name) =>
+        instanceIdsForName(state, name)
+    );
     const targetIds =
         matcher.target !== undefined
             ? targetCandidateIds(state, matcher.target)
@@ -218,6 +221,22 @@ export function matchesMove(
         }
     }
 
+    // Issue #3530 — the TAP PLAN, as an exact multiset of card names. Each
+    // planned source is claimed by one declared name and every name must find
+    // one, so two Forests are two entries and a plan that reached for a third
+    // source is refused.
+    if (tapsIds) {
+        const plan = (move as { tapPlan?: { cardInstanceId: string }[] })
+            .tapPlan;
+        if (!plan || plan.length !== tapsIds.length) return false;
+        const unclaimed = plan.map((tap) => tap.cardInstanceId);
+        for (const ids of tapsIds) {
+            const at = unclaimed.findIndex((id) => ids.has(id));
+            if (at === -1) return false;
+            unclaimed.splice(at, 1);
+        }
+    }
+
     return true;
 }
 
@@ -228,6 +247,7 @@ export function describeMatcher(matcher: MoveMatcher): string {
     if (matcher.card) parts.push(`card=${matcher.card}`);
     if (matcher.cards) parts.push(`cards=[${matcher.cards.join(", ")}]`);
     if (matcher.second) parts.push(`second=[${matcher.second.join(", ")}]`);
+    if (matcher.taps) parts.push(`taps=[${matcher.taps.join(", ")}]`);
     if (matcher.target) parts.push(`target=${matcher.target}`);
     if (matcher.accept !== undefined) parts.push(`accept=${matcher.accept}`);
     if (matcher.option) parts.push(`option=${matcher.option}`);
@@ -259,6 +279,16 @@ export function describeChosenMove(
     if (targets.length) parts.push(`targets=[${targets.join(", ")}]`);
     const accept = moveAccept(move);
     if (accept !== undefined) parts.push(`accept=${accept}`);
+    // Issue #3530 — the same reason #2996 prints the binned half below: since a
+    // cast involving a finite mana source enumerates two candidates differing
+    // ONLY in their tap plan, a failure diff that omitted the plan would print
+    // the two answers identically.
+    const plan = (move as { tapPlan?: { cardInstanceId: string }[] }).tapPlan;
+    if (plan?.length) {
+        parts.push(
+            `taps=[${plan.map((tap) => nameOf(tap.cardInstanceId)).join(", ")}]`
+        );
+    }
     // issue #2996 — without this an ordered-top failure printed only the kept
     // half, so "kept both" and "kept both, binned neither" (the two answers the
     // pair discriminates) rendered identically in the diff.

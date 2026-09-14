@@ -120,8 +120,12 @@ import {
     declaresAsEntersMode,
     isPlaneswalker,
     isTapLockedBySummoningSickness,
+    finiteManaCounterLeg,
+    finiteManaUsesRemaining,
     manaGateBattlefields,
+    manaTapSpendsFiniteUse,
     mayHaveNonTapManaAbility,
+    mayRemoveCountersForMana,
     pureGenericManaSubCost,
 } from "./constants";
 import {
@@ -748,7 +752,24 @@ type PlanSource = {
     /** undefined = mana already in the pool (no tap needed). */
     cardInstanceId?: string;
     options: Map<Color, PlanOption>;
+    /** CR 118.3 (issue #3530) — at least one of this source's realisations
+     *  spends a FINITE mana source's charge. Only ever set when the caller
+     *  passed a `finiteSourcePolicy`, so an ordinary plan carries no flag and
+     *  no lookup was paid to decide it. */
+    finite?: boolean;
 };
+
+/** What a plan does about a FINITE mana source — one whose mana ability pays by
+ *  removing counters from itself, so every activation spends a charge it can
+ *  never get back (CR 118.3 / 122.1, issue #3530).
+ *
+ *  `spare` refuses those realisations outright; `spend` takes them ahead of
+ *  everything else. Both exist so `castTapPlans` can offer the Bot the payment
+ *  the greedy plan did NOT make — the choice used to be settled inside this
+ *  planner, before the search ever saw a second candidate, which is why "pay
+ *  with the basics, not the depletion land" could not be written as a Verdict.
+ *  Omitted (the default) = today's single greedy plan, byte-identical. */
+export type FiniteSourcePolicy = "spare" | "spend";
 
 /** True when `source`'s resolved option for `color` is a PLAIN tap (a {T}
  *  ability, a basic-land-subtype `{T}: Add C`, or pool mana). Used exclusively
@@ -857,7 +878,11 @@ export function planManaPayment(
      *  agreeing filters. The permanent stays available to fund a DIFFERENT
      *  ability or a spell, exactly as before; only THIS plan cannot have it.
      *  Cast, bestow, morph and dash pass nothing and are unchanged. */
-    barredSourceId?: string
+    barredSourceId?: string,
+    /** CR 118.3 (issue #3530) — how this plan treats FINITE mana sources. See
+     *  `FiniteSourcePolicy`. Undefined on every pre-existing call site, and
+     *  then nothing below it runs: the plan is the same greedy plan it was. */
+    finiteSourcePolicy?: FiniteSourcePolicy
 ): ManaTap[] | null {
     const totalRequired =
         (cost.X ?? 0) + MANA_COLORS.reduce((s, c) => s + (cost[c] ?? 0), 0);
@@ -876,6 +901,8 @@ export function planManaPayment(
     // board-dependent source (Fellwar Stone) that funds a larger X is visible
     // to the ceiling exactly like it is to this planner.
     const boardBattlefields = manaGateBattlefields(state);
+    /** Issue #3530 — the `spend` half of the policy, read once. */
+    const preferFinite = finiteSourcePolicy === "spend";
 
     const sources: PlanSource[] = [];
     /** Upper bound on the mana this board can produce — one activation per
@@ -970,6 +997,13 @@ export function planManaPayment(
         // skipped entirely and summoning sickness gates the whole permanent
         // exactly as it did before this issue.
         const mayBeNonTap = nonTapFlags[permIndex];
+        // Issue #3530 — only when a policy asked the question, and behind the
+        // same cheap printed-definition prefilter the search's own counter
+        // model uses: an ordinary board answers false per permanent and every
+        // finite branch below is dead.
+        const mayBeFinite =
+            finiteSourcePolicy !== undefined && mayRemoveCountersForMana(perm);
+        let sourceIsFinite = false;
         const options = new Map<Color, PlanOption>();
         /** The largest yield of any ONE realisation stored on this permanent —
          *  its whole contribution to `capacity`, since only one activation per
@@ -1006,6 +1040,25 @@ export function planManaPayment(
                 // (Farrelite Priest) stays — it taps nothing of its own, so
                 // summoning sickness never applied to it (CR 302.6).
                 if (sick && (!ability || ability.cost.tap)) continue;
+                // CR 118.3 (issue #3530) — is THIS realisation a finite
+                // source's charge? Resolved off the ability's own fixed
+                // `cost.removeCounter` leg, never a card name or a counter
+                // type. `spare` drops the option, so a plan built under it
+                // simply cannot reach the charge; `spend` marks the source so
+                // the selection below takes it first.
+                if (mayBeFinite && src.kind === "activated") {
+                    const resolvedFinite = (
+                        abilities ??
+                        (permAbilities ??= getEffectiveActivatedAbilities(perm))
+                    ).find(({ ability: a }) => a.id === src.abilityId)?.ability;
+                    if (
+                        resolvedFinite &&
+                        finiteManaCounterLeg(resolvedFinite) !== null
+                    ) {
+                        if (finiteSourcePolicy === "spare") continue;
+                        sourceIsFinite = true;
+                    }
+                }
                 const manaChoiceIndex = view.needIndex ? index : undefined;
                 // Issue #3027 — the QUANTITY this one activation makes, which
                 // the planner used to discard (it read `opt.mana[c] > 0` and
@@ -1101,7 +1154,11 @@ export function planManaPayment(
             }
         }
         if (options.size === 0) continue;
-        sources.push({ cardInstanceId: perm.id, options });
+        sources.push({
+            cardInstanceId: perm.id,
+            options,
+            ...(sourceIsFinite ? { finite: true } : {}),
+        });
         // Issue #3027 — the cheap early reject must count what the board can
         // actually MAKE, not how many permanents it has: `sources.length` is
         // the yield-blind count that rejected a Black Lotus paying {U}{U}
@@ -1140,7 +1197,14 @@ export function planManaPayment(
                 options.set(sub.to as Color, via);
             }
         }
-        return { cardInstanceId: s.cardInstanceId, options };
+        // Issue #3530 — the finite flag travels with the working copy, or the
+        // `spend` policy's selection key below would read undefined on every
+        // source and prefer nothing.
+        return {
+            cardInstanceId: s.cardInstanceId,
+            options,
+            ...(s.finite ? { finite: true } : {}),
+        };
     });
     const taps: ManaTap[] = [];
 
@@ -1395,11 +1459,18 @@ export function planManaPayment(
                 let bestSize = Infinity;
                 let bestRank = Infinity;
                 let bestYield = Infinity;
+                let bestPref = Infinity;
                 for (let i = 0; i < remaining.length; i++) {
                     const s = remaining[i];
                     if (excluded.has(s)) continue;
                     const opt = s.options.get(c);
                     if (!opt) continue;
+                    // Issue #3530 — under `spend` a finite source outranks
+                    // every other key, because the whole point of that plan is
+                    // to be the one that spends the charge. 1 for every source
+                    // under every other policy, so the lexicographic key below
+                    // decides exactly as it did before.
+                    const pref = preferFinite && s.finite ? 0 : 1;
                     const rank = planOptionRank(s, c);
                     // Lexicographic (rank, colour-count, YIELD). The yield key
                     // is last and only ever separates sources the first two
@@ -1410,16 +1481,19 @@ export function planManaPayment(
                     // already covers.
                     const yieldTotal = optionYieldTotal(opt);
                     if (
-                        rank < bestRank ||
-                        (rank === bestRank &&
-                            (s.options.size < bestSize ||
-                                (s.options.size === bestSize &&
-                                    yieldTotal < bestYield)))
+                        pref < bestPref ||
+                        (pref === bestPref &&
+                            (rank < bestRank ||
+                                (rank === bestRank &&
+                                    (s.options.size < bestSize ||
+                                        (s.options.size === bestSize &&
+                                            yieldTotal < bestYield)))))
                     ) {
                         bestIdx = i;
                         bestSize = s.options.size;
                         bestRank = rank;
                         bestYield = yieldTotal;
+                        bestPref = pref;
                     }
                 }
                 return bestIdx === -1 ? null : { idx: bestIdx, color: c };
@@ -1447,9 +1521,20 @@ export function planManaPayment(
         }
         if (remaining.length === 0) return null;
         const ok = consumeBest((excluded) => {
-            let idx = remaining.findIndex(
-                (s) => !s.cardInstanceId && !excluded.has(s)
-            );
+            // Issue #3530 (PR #3566 review finding 6) — under `spend` a finite
+            // source outranks pool mana too, or the plan whose whole purpose is
+            // to spend the charge silently pays from the pool instead, the two
+            // plans come back identical and the second candidate is dropped.
+            // `preferFinite` is false on every other call, and then this is the
+            // pre-existing pool-first short-circuit, unchanged.
+            const holdForFinite =
+                preferFinite &&
+                remaining.some((s) => s.finite && !excluded.has(s));
+            let idx = holdForFinite
+                ? -1
+                : remaining.findIndex(
+                      (s) => !s.cardInstanceId && !excluded.has(s)
+                  );
             if (idx !== -1) {
                 const color = remaining[idx].options.keys().next().value as
                     | Color
@@ -1464,11 +1549,14 @@ export function planManaPayment(
             let bestSize = Infinity;
             let bestRank = Infinity;
             let bestYield = Infinity;
+            let bestPref = Infinity;
             let bestColor: Color | undefined;
             idx = -1;
             for (let i = 0; i < remaining.length; i++) {
                 const s = remaining[i];
                 if (excluded.has(s)) continue;
+                // Same finite-first key as the coloured loop (issue #3530).
+                const pref = preferFinite && s.finite ? 0 : 1;
                 let rank = Infinity;
                 let color: Color | undefined;
                 for (const c of s.options.keys()) {
@@ -1483,15 +1571,18 @@ export function planManaPayment(
                 // the coloured loop — see there (issue #3027).
                 const yieldTotal = optionYieldTotal(s.options.get(color)!);
                 if (
-                    rank < bestRank ||
-                    (rank === bestRank &&
-                        (s.options.size < bestSize ||
-                            (s.options.size === bestSize &&
-                                yieldTotal < bestYield)))
+                    pref < bestPref ||
+                    (pref === bestPref &&
+                        (rank < bestRank ||
+                            (rank === bestRank &&
+                                (s.options.size < bestSize ||
+                                    (s.options.size === bestSize &&
+                                        yieldTotal < bestYield)))))
                 ) {
                     bestSize = s.options.size;
                     bestRank = rank;
                     bestYield = yieldTotal;
+                    bestPref = pref;
                     bestColor = color;
                     idx = i;
                 }
@@ -1506,6 +1597,106 @@ export function planManaPayment(
     }
 
     return taps;
+}
+
+/** Does `tapPlan` spend a FINITE mana source's charge (CR 118.3, issue #3530)?
+ *  Asked of the SAME option list `applyTapPlan` resolves the removal against,
+ *  so "this plan spends a use" is what the search's own model will do with it. */
+function planSpendsFiniteUse(
+    state: GameState,
+    player: PlayerState,
+    tapPlan: ManaTap[]
+): boolean {
+    let battlefields: ReturnType<typeof manaGateBattlefields> | undefined;
+    for (const tap of tapPlan) {
+        // A converter entry activates ANOTHER permanent's ability and taps no
+        // charge of its own (CR 602.1). Keyed on `abilityId` because that is
+        // exactly how `applyTapPlan` (search.ts / applyMove.ts) decides which
+        // entries can remove counters at all: this predicate must answer "did
+        // the model spend a charge", so it reads the plan the same way the
+        // model does, not a second way that could disagree with it.
+        if (tap.abilityId) continue;
+        const src = player.battlefield.find((c) => c.id === tap.cardInstanceId);
+        if (!src || !mayRemoveCountersForMana(src)) continue;
+        // Built at most once per plan, like `planManaPayment`'s own copy
+        // (PR #3566 review finding 8), and only on a board that has a
+        // counter-paying source at all.
+        battlefields ??= manaGateBattlefields(state);
+        if (
+            manaTapSpendsFiniteUse(
+                src,
+                player.id,
+                battlefields,
+                tap.manaChoiceIndex
+            )
+        ) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/** The tap plans a cast may be offered with — ONE on every ordinary board, TWO
+ *  when the choice is about a FINITE mana source (CR 118.3 / 122.1, issue
+ *  #3530).
+ *
+ *  WHY A SECOND PLAN EXISTS AT ALL. `planManaPayment` returns one greedy plan,
+ *  so the Bot's candidate set for a cast held a single `cast-spell` Move and
+ *  the payment was settled inside the planner, before the search saw it. A
+ *  Verdict is the position plus every candidate the Bot could legally make
+ *  there; with one candidate there is no Eval Pair, so "pay with the two basics
+ *  rather than the depletion land" was unrepresentable in the corpus and no
+ *  weight fit could reach it — which is exactly half of what issue #3530 fixes,
+ *  the other half being the `finiteManaUses` term that prices the charge.
+ *
+ *  THE SECOND PLAN IS THE OTHER ANSWER TO THE FINITE QUESTION, whichever one
+ *  the greedy did not give. The issue's own board — a two-use land at full
+ *  charge, two basics, a two-drop in hand — is answered by the greedy with the
+ *  BASICS, because the smallest-yield tie-break (issue #3027) prefers a
+ *  one-mana source for a one-mana pip; there the alternative is the plan that
+ *  spends the land. On a board where the greedy does reach for the charge, the
+ *  alternative is the plan that spares it. Both directions or neither: a rule
+ *  that only widened the spending greedy would emit nothing at all on the very
+ *  position the issue measures.
+ *
+ *  THE BRANCHING-FACTOR BUDGET. This runs on `enumerateCastMoves`, i.e. every
+ *  ISMCTS rollout, so a board with no finite source must cost nothing and must
+ *  yield byte-identical moves: the untapped-permanent prefilter is the first
+ *  thing asked, and it is one cached definition lookup per permanent. Past it,
+ *  a second plan is emitted ONLY when it exists AND it answers the finite
+ *  question the other way — never for a second plan that merely reorders two
+ *  renewable sources. */
+export function castTapPlans(
+    state: GameState,
+    player: PlayerState,
+    cost: Record<string, number>,
+    cast?: {
+        cardInstanceId: string;
+        cardDef: CardDefinition | null | undefined;
+        chosenX?: number;
+    }
+): ManaTap[][] {
+    const greedy = planManaPayment(state, player, cost, cast);
+    if (greedy === null) return [];
+    const boardHasFiniteSource = player.battlefield.some(
+        (perm) => !perm.isTapped && finiteManaUsesRemaining(perm) > 0
+    );
+    if (!boardHasFiniteSource) return [greedy];
+    const greedySpends = planSpendsFiniteUse(state, player, greedy);
+    const alternative = planManaPayment(
+        state,
+        player,
+        cost,
+        cast,
+        undefined,
+        undefined,
+        greedySpends ? "spare" : "spend"
+    );
+    if (alternative === null) return [greedy];
+    if (planSpendsFiniteUse(state, player, alternative) === greedySpends) {
+        return [greedy];
+    }
+    return [greedy, alternative];
 }
 
 // ---------------------------------------------------------------------------
@@ -2538,40 +2729,55 @@ function enumerateCastMovesFromZone(
             // closed rather than emit a move the executor announces and cannot
             // pay.
             if (castCostPicks === null) continue;
-            const tapPlan = planManaPayment(state, player, normCost, {
+            // Issue #3530 — one plan on every ordinary board, two when the
+            // payment choice is about a finite mana source's charge.
+            const tapPlans = castTapPlans(state, player, normCost, {
                 cardInstanceId: card.id,
                 cardDef: def,
                 chosenX: x,
             });
-            if (tapPlan === null) continue;
-            for (const { targets, lastGroupSize } of enumerateTargetGroupTuples(
-                state,
-                player,
-                card,
-                groups,
-                x
-            )) {
-                moves.push({
-                    kind: "cast-spell",
-                    cardInstanceId: card.id,
-                    chosenModeId: modeId,
-                    ...(additionalCostLegId ? { additionalCostLegId } : {}),
-                    ...(kickerPayments ? { kickerPayments } : {}),
-                    ...(buybackPaid ? { buybackPaid } : {}),
-                    chosenX: x,
+            if (tapPlans.length === 0) continue;
+            // The plan loop is OUTSIDE the target loop (PR #3566 review
+            // finding 5): both are capped by `MAX_COMBINATIONS`, so pushing two
+            // moves per tuple would have halved the TARGETS and X values a
+            // depletion-land board ever enumerates. This way the cap truncates
+            // the alternative PAYMENT first and the move set degrades to
+            // exactly the pre-issue one. The generator is re-run per plan
+            // rather than materialised, so the single-plan case allocates
+            // nothing new.
+            for (const tapPlan of tapPlans) {
+                for (const {
                     targets,
-                    // Only the LAST group can be variable (guarded above), so
-                    // it alone decides whether the cast needs a confirm.
-                    confirmTargets: announcedTargetsNeedConfirm(
-                        lastReq,
-                        lastGroupSize,
-                        x
-                    ),
-                    tapPlan,
-                    ...(payLife > 0 ? { payLife } : {}),
-                    ...(castCostPicks ? { castCostPicks } : {}),
-                });
-                if (moves.length >= MAX_COMBINATIONS) return moves;
+                    lastGroupSize,
+                } of enumerateTargetGroupTuples(
+                    state,
+                    player,
+                    card,
+                    groups,
+                    x
+                )) {
+                    moves.push({
+                        kind: "cast-spell",
+                        cardInstanceId: card.id,
+                        chosenModeId: modeId,
+                        ...(additionalCostLegId ? { additionalCostLegId } : {}),
+                        ...(kickerPayments ? { kickerPayments } : {}),
+                        ...(buybackPaid ? { buybackPaid } : {}),
+                        chosenX: x,
+                        targets,
+                        // Only the LAST group can be variable (guarded above), so
+                        // it alone decides whether the cast needs a confirm.
+                        confirmTargets: announcedTargetsNeedConfirm(
+                            lastReq,
+                            lastGroupSize,
+                            x
+                        ),
+                        tapPlan,
+                        ...(payLife > 0 ? { payLife } : {}),
+                        ...(castCostPicks ? { castCostPicks } : {}),
+                    });
+                    if (moves.length >= MAX_COMBINATIONS) return moves;
+                }
             }
         }
     }
@@ -2609,37 +2815,43 @@ function enumerateCastMovesFromZone(
         // branch folds; a bestow cost is a mana cost like any other.
         const bestowModifiers = getCostModifiers(state, card, "spell");
         applyCostModifiers(bestowCost, bestowModifiers);
-        const bestowTapPlan = planManaPayment(state, player, bestowCost, {
+        const bestowTapPlans = castTapPlans(state, player, bestowCost, {
             cardInstanceId: card.id,
             cardDef: def,
         });
-        if (bestowTapPlan !== null) {
-            for (const { targets, lastGroupSize } of enumerateTargetGroupTuples(
-                state,
-                player,
-                card,
-                [BESTOW_TARGET_REQUIREMENT],
-                undefined
-            )) {
-                moves.push({
-                    kind: "cast-spell",
-                    cardInstanceId: card.id,
-                    alternativeCostId: def.bestow.id,
+        if (bestowTapPlans.length > 0) {
+            // Plan loop outside the target loop (PR #3566 review finding 5).
+            for (const bestowTapPlan of bestowTapPlans) {
+                for (const {
                     targets,
-                    // CR 601.2c — the gained "enchant creature" is a
-                    // fixed-count single group, so it auto-finalizes on the
-                    // last pick and owes no trailing confirm. Read through the
-                    // shared predicate rather than hardcoded, so a future
-                    // bestow-shaped requirement cannot silently keep the wrong
-                    // literal.
-                    confirmTargets: announcedTargetsNeedConfirm(
-                        BESTOW_TARGET_REQUIREMENT,
-                        lastGroupSize,
-                        undefined
-                    ),
-                    tapPlan: bestowTapPlan,
-                });
-                if (moves.length >= MAX_COMBINATIONS) return moves;
+                    lastGroupSize,
+                } of enumerateTargetGroupTuples(
+                    state,
+                    player,
+                    card,
+                    [BESTOW_TARGET_REQUIREMENT],
+                    undefined
+                )) {
+                    moves.push({
+                        kind: "cast-spell",
+                        cardInstanceId: card.id,
+                        alternativeCostId: def.bestow.id,
+                        targets,
+                        // CR 601.2c — the gained "enchant creature" is a
+                        // fixed-count single group, so it auto-finalizes on the
+                        // last pick and owes no trailing confirm. Read through the
+                        // shared predicate rather than hardcoded, so a future
+                        // bestow-shaped requirement cannot silently keep the wrong
+                        // literal.
+                        confirmTargets: announcedTargetsNeedConfirm(
+                            BESTOW_TARGET_REQUIREMENT,
+                            lastGroupSize,
+                            undefined
+                        ),
+                        tapPlan: bestowTapPlan,
+                    });
+                    if (moves.length >= MAX_COMBINATIONS) return moves;
+                }
             }
         }
     }
@@ -2686,8 +2898,7 @@ function enumerateCastMovesFromZone(
             "spell"
         );
         applyCostModifiers(morphCost, morphModifiers);
-        const morphTapPlan = planManaPayment(state, player, morphCost);
-        if (morphTapPlan !== null) {
+        for (const morphTapPlan of castTapPlans(state, player, morphCost)) {
             moves.push({
                 kind: "cast-spell",
                 cardInstanceId: card.id,
@@ -2696,6 +2907,7 @@ function enumerateCastMovesFromZone(
                 confirmTargets: false,
                 tapPlan: morphTapPlan,
             });
+            if (moves.length >= MAX_COMBINATIONS) return moves;
         }
     }
 
@@ -2746,11 +2958,10 @@ function enumerateCastMovesFromZone(
             // branch folds.
             const altModifiers = getCostModifiers(state, card, "spell");
             applyCostModifiers(altCost, altModifiers);
-            const altTapPlan = planManaPayment(state, player, altCost, {
+            for (const altTapPlan of castTapPlans(state, player, altCost, {
                 cardInstanceId: card.id,
                 cardDef: def,
-            });
-            if (altTapPlan !== null) {
+            })) {
                 moves.push({
                     kind: "cast-spell",
                     cardInstanceId: card.id,
@@ -2759,6 +2970,7 @@ function enumerateCastMovesFromZone(
                     confirmTargets: false,
                     tapPlan: altTapPlan,
                 });
+                if (moves.length >= MAX_COMBINATIONS) return moves;
             }
         }
     }
@@ -2793,11 +3005,12 @@ function enumerateCastMovesFromZone(
         // one.
         const overloadModifiers = getCostModifiers(state, card, "spell");
         applyCostModifiers(overloadCost, overloadModifiers);
-        const overloadTapPlan = planManaPayment(state, player, overloadCost, {
-            cardInstanceId: card.id,
-            cardDef: def,
-        });
-        if (overloadTapPlan !== null) {
+        for (const overloadTapPlan of castTapPlans(
+            state,
+            player,
+            overloadCost,
+            { cardInstanceId: card.id, cardDef: def }
+        )) {
             moves.push({
                 kind: "cast-spell",
                 cardInstanceId: card.id,
@@ -2806,6 +3019,7 @@ function enumerateCastMovesFromZone(
                 confirmTargets: false,
                 tapPlan: overloadTapPlan,
             });
+            if (moves.length >= MAX_COMBINATIONS) return moves;
         }
     }
 
@@ -2867,11 +3081,13 @@ function enumerateCastMovesFromZone(
         // ordinary alternative-cost rules, so the battlefield cost
         // modifiers every other cast branch folds apply to the HALF's cost.
         applyCostModifiers(altCost, getCostModifiers(state, subject, "spell"));
-        const altTapPlan = planManaPayment(state, player, altCost, {
+        const altTapPlans = castTapPlans(state, player, altCost, {
             cardInstanceId: card.id,
             cardDef: subjectDef,
         });
-        if (altTapPlan === null) continue;
+        if (altTapPlans.length === 0) continue;
+        // Plan loop outside the target loop, for the reason the printed-cost
+        // branch gives (PR #3566 review finding 5).
         // CR 119.4 / 709.3b — the life a cost-replacing library-top permission
         // (Bolas's Citadel) charges for THIS half, read from the same single
         // authority the gate and all three commit sites read. 0 for every other
@@ -2883,26 +3099,29 @@ function enumerateCastMovesFromZone(
                 : libraryTopCastLifeCost(state, player, card, alt.id);
         if (altPayLife > player.life) continue;
         const altReq = subjectDef?.targetRequirement;
-        for (const { targets, lastGroupSize } of enumerateTargetGroupTuples(
-            state,
-            player,
-            subject,
-            [altReq],
-            undefined
-        )) {
-            moves.push({
-                kind: "cast-spell",
-                cardInstanceId: card.id,
-                alternativeCostId: alt.id,
-                targets,
-                confirmTargets: announcedTargetsNeedConfirm(
-                    altReq,
-                    lastGroupSize,
-                    undefined
-                ),
-                tapPlan: altTapPlan,
-                ...(altPayLife > 0 ? { payLife: altPayLife } : {}),
-            });
+        for (const altTapPlan of altTapPlans) {
+            for (const { targets, lastGroupSize } of enumerateTargetGroupTuples(
+                state,
+                player,
+                subject,
+                [altReq],
+                undefined
+            )) {
+                moves.push({
+                    kind: "cast-spell",
+                    cardInstanceId: card.id,
+                    alternativeCostId: alt.id,
+                    targets,
+                    confirmTargets: announcedTargetsNeedConfirm(
+                        altReq,
+                        lastGroupSize,
+                        undefined
+                    ),
+                    tapPlan: altTapPlan,
+                    ...(altPayLife > 0 ? { payLife: altPayLife } : {}),
+                });
+                if (moves.length >= MAX_COMBINATIONS) return moves;
+            }
         }
     }
     return moves;

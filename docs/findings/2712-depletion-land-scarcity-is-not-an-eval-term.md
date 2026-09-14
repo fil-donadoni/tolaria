@@ -1,7 +1,8 @@
 ---
 title: Spending a depletion land's counter scores +1 for the bot, and the tradeoff cannot be written as a Verdict
 discoveredBy: 2712
-status: draft
+status: triaged
+issue: 3530
 confidence: high
 ---
 

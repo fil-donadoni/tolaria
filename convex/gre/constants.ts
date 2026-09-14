@@ -1605,6 +1605,115 @@ export function manaTapCounterCost(
     return null;
 }
 
+/** CR 605.1a / 118.3 / 122.1 (issue #3530) — the FIXED counter-removal leg that
+ *  makes a mana ability FINITE: the ability pays by removing counters from its
+ *  own source, so the counters on the source are the only fuel it has and every
+ *  activation spends one charge of it. Returns the leg, or null when the
+ *  ability is not a mana ability or its mana is renewable.
+ *
+ *  Derived from the COST, never from a card name or a counter type: any mana
+ *  ability with a fixed `cost.removeCounter` is finite, whatever the counter is
+ *  called. The SCALING `manaChoiceRemovesCounters` shape (the Mana Batteries)
+ *  is deliberately NOT finite — its zero-counter option still makes mana, so
+ *  the source is renewable and the counters are a bonus rather than a fuel
+ *  gauge.
+ *
+ *  The single authority both readers share: the evaluation prices what is left
+ *  (`finiteManaUsesRemaining` below, `evaluate.ts`' `finiteManaUses` term) and
+ *  the payment planner decides whether a plan spends one (`moves.ts`). */
+export function finiteManaCounterLeg(
+    ability: ActivatedAbility
+): { type: string; count: number } | null {
+    if (ability.useStack) return null;
+    // The same mana-output declaration `getActivatedManaAbility` reads, so a
+    // descriptor-only ability counts here exactly as it counts there.
+    if (
+        !(
+            ability.manaProduced ||
+            ability.manaChoices ||
+            ability.manaColorSource
+        )
+    ) {
+        return null;
+    }
+    const leg = ability.cost.removeCounter;
+    if (!leg || leg.count <= 0) return null;
+    // The SAME admission the payment planner uses (PR #3566 review finding 3):
+    // a counter leg with no {T} to hang it on is one the planner may not pay on
+    // its own (`COST_LEG_CLAIMS.removeCounter.autoPayable: false`), so its
+    // charges are unreachable to the search and pricing them would move
+    // positions the Bot cannot act on. It also settles the RENEWABLE cases the
+    // cost alone cannot tell apart: Iceberg spends ice counters but puts them
+    // back for {3}, and Rasputin Dreamweaver's dream counters fuel two non-mana
+    // abilities besides — neither is a source with a fixed number of
+    // activations in it, and neither carries a {T}.
+    if (!isAutoPayableManaAbilityCost(ability.cost)) return null;
+    return leg;
+}
+
+/** How many more times this permanent's FINITE mana abilities can be activated
+ *  — its remaining CHARGES (CR 118.3 / 122.1, issue #3530). Zero for every
+ *  renewable source, which is every permanent on an ordinary board.
+ *
+ *  The maximum over the permanent's finite abilities rather than their sum: one
+ *  activation spends one ability's leg, and two abilities reading the same
+ *  counter pool are two ways to spend the SAME charges, never twice as many.
+ *
+ *  Behind the `mayRemoveCountersForMana` prefilter, so a board of lands and
+ *  `{T}` rocks pays one cached definition lookup per permanent and nothing
+ *  else. */
+export function finiteManaUsesRemaining(card: CardInstanceState): number {
+    if (abilitiesSuppressed(card)) return 0;
+    if (!mayRemoveCountersForMana(card)) return 0;
+    let uses = 0;
+    for (const { ability } of getEffectiveActivatedAbilities(card)) {
+        const leg = finiteManaCounterLeg(ability);
+        if (!leg) continue;
+        const held = card.counters?.[leg.type] ?? 0;
+        uses = Math.max(uses, Math.floor(held / leg.count));
+    }
+    return uses;
+}
+
+/** CR 118.3 (issue #3530) — does this tap plan entry spend a FINITE mana
+ *  source's charge? The counter-cost twin of `manaTapSacrificesSource`,
+ *  resolving the SAME unified option list the tap mutations read, so "this plan
+ *  spends a use" means exactly what `applyTapPlan` will do with it.
+ *
+ *  Narrower than `manaTapCounterCost`, deliberately: that function reports
+ *  EVERY counter a tap removes, the scaling Mana-Battery shape included, while
+ *  this one asks the question the evaluation prices — was a finite source's
+ *  fuel spent.
+ *
+ *  Guarded by `mayRemoveCountersForMana` at its call site, like its siblings. */
+export function manaTapSpendsFiniteUse(
+    card: CardInstanceState,
+    controllerId: string | undefined,
+    battlefields:
+        | ReadonlyArray<{
+              playerId: string;
+              battlefield: readonly CardInstanceState[];
+          }>
+        | undefined,
+    manaChoiceIndex: number | undefined
+): boolean {
+    const detailed = getManaTapOptionsDetailed(
+        card,
+        controllerId,
+        battlefields,
+        {
+            requireTap: true,
+        }
+    );
+    const opt = detailed[manaChoiceIndex ?? 0];
+    if (!opt || opt.source.kind !== "activated") return false;
+    for (const { ability } of getEffectiveActivatedAbilities(card)) {
+        if (ability.id !== opt.source.abilityId) continue;
+        return finiteManaCounterLeg(ability) !== null;
+    }
+    return false;
+}
+
 /** Does the mana ability this tap plan entry activates sacrifice its source?
  *  Resolves the SAME unified option list the tap mutations read
  *  (`getManaTapOptionsDetailed(..., { requireTap: true })`), so the search's
