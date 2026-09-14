@@ -180,11 +180,11 @@ describe("a verdict's class is the class of what the judge NAMED", () => {
                         stack: [
                             {
                                 kind: "spell",
-                                card: "Lightning Bolt",
+                                name: "Lightning Bolt",
                                 controller: "opp",
                             },
                         ],
-                    } as Verdict["spec"],
+                    },
                 })
             )
         ).toBe(true);
