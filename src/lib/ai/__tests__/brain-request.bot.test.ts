@@ -61,8 +61,35 @@ describe("handleBrainRequest (issue #2470)", () => {
             id: 7,
             move: { kind: "pass" },
             trace: { candidates: [] },
+            // Issue #3590 — a pass is never remembered, but the history still
+            // comes back scoped to the position's turn.
+            repetition: expect.objectContaining({ chosen: {} }),
         });
         expect(res.error).toBeUndefined();
+    });
+
+    it("forwards the seat's decision history to the search and returns it with the move recorded (issue #3590)", () => {
+        const chosen = {
+            kind: "play-land",
+            cardInstanceId: "l1",
+        } as const;
+        const search = vi.fn().mockReturnValue({
+            move: chosen,
+            trace: null,
+        });
+        const prior = { turn: -1, chosen: {} };
+        const res = handleBrainRequest(
+            { ...REQ, repetition: prior },
+            search as never
+        );
+
+        // Sixth argument: the history the search denies repeated moves from.
+        expect(search.mock.calls[0][5]).toBe(prior);
+        // Recorded against the very state the search ran on (its first
+        // argument), so the next consult's fingerprint is comparable.
+        const recorded = Object.values(res.repetition?.chosen ?? {});
+        expect(recorded).toEqual([[JSON.stringify(chosen)]]);
+        expect(prior.chosen).toEqual({});
     });
 
     it("reports a thrown search as an error INSTEAD of throwing", () => {
