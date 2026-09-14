@@ -1208,6 +1208,10 @@ _Avoid_: ETB choice (that reads as a **Triggered Ability**, which resolves once 
 A **Permanent** held outside every **Zone** while its **As-Enters Choices** are answered. Being in no **Zone** is the point: no **SBA**, no layer, no **Target** and no projection can reach it, and the entry completes only once every choice has been submitted. The entry-time sibling of the **Payment Park**.
 _Avoid_: Staging, limbo, pending entry, **Payment Park** (that one is announcement-time)
 
+**Numeric Nomination**:
+A **Pending Choice** whose answer is a NUMBER rather than a set of cards or a yes/no: "choose a number", and — when it also pays — "pay any amount of mana" / "you may pay {X}" (CR 107.3f, where X is not defined by the ability's text and the controller chooses it _as the ability resolves_, never at announcement). One prompt carries the whole decision: nominating **zero** IS the decline, so there is no follow-up accept/decline question. The nominated amount becomes a value a later step of the same **Effect Script** reads back. Its ceiling is the payer's live spendable mana, recomputed when the answer arrives rather than frozen when the prompt opened — a paying nomination holds the same mana window a may-pay does, so the payer may keep tapping lands while it is open. Used by Errant Minion, Power Leak, and Decree of Justice's cycling trigger.
+_Avoid_: X prompt (the announced **Cast**-time {X} is a different decision, CR 107.3a), amount dialog, pay-or-decline
+
 **Random Reveal**:
 A special **Pending Choice** where the engine — not a **Player** — produces the value: it draws a random outcome from the seeded PRNG, persists it, and suspends the resolving step **before the consequence is applied**, so both clients can animate the outcome first. The chooser's client auto-acknowledges when the animation ends; the engine then resumes and applies the effect. Generalizes over **Coin Flips** and future die rolls.
 _Avoid_: Random prompt, RNG dialog
