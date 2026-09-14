@@ -185,8 +185,15 @@ if (args.game !== undefined) {
     const index = Number(args.game);
     const pair = plan.find((p) => p.index === index);
     if (!pair) fail(`no game with index ${index}`);
-    process.stdout.write(JSON.stringify(playOne(pair)) + "\n");
-    process.exit(0);
+    // Exit only once the line has actually reached the pipe. `process.exit`
+    // straight after a `write` can truncate a piped stdout, and a truncated
+    // line reaches the parent as unparseable JSON — reported as `crash`, a
+    // FALSE freeze in the one artifact this command exists to produce. That
+    // direction is the safe one (it over-reports, never under-reports), but
+    // the receipt IS the deliverable, so it should not need the caveat.
+    process.stdout.write(JSON.stringify(playOne(pair)) + "\n", () => {
+        process.exit(0);
+    });
 }
 
 // ── gate mutex ──────────────────────────────────────────────────────────────
