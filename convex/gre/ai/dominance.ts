@@ -107,8 +107,9 @@
 //     the probe pays through `removePermanentTo`, so a death trigger resolves
 //     inside the probe and blocks the prune on its own.
 //   * The departure sets `permanentYouControlledLeftThisTurn` on the mover,
-//     which is CR 702.116a REVOLT (Fatal Push). Also stripped, so sacrificing
-//     purely to turn revolt on is prunable too.
+//     which is what revolt reads — an ability word with no rules entry of its
+//     own (CR 207.2c), Fatal Push's gate. Also stripped, so sacrificing purely
+//     to turn revolt on is prunable too.
 // Both are accepted, and both are worth exactly one card's worth of value in
 // positions the search can reach a turn later anyway; the alternative is a
 // prune that never fires.
@@ -1206,8 +1207,9 @@ function normalize(
         ) {
             delete state.lastKnownCopiable;
         }
-        // CR 702.116a — "a permanent you controlled left the battlefield this
-        // turn", set on the CONTROLLER by the same departure. Turning REVOLT on
+        // "A permanent you controlled left the battlefield this turn", set on
+        // the CONTROLLER by the same departure — what revolt reads (an ability
+        // word with no rules entry of its own, CR 207.2c). Turning revolt on
         // is a small real payoff, not pure bookkeeping (see the module header's
         // narrowings); it is dropped because the flag is unreachable otherwise
         // — the cost raises it on every self-sacrifice, so comparing it would
