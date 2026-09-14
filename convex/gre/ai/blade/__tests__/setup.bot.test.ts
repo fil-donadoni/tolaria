@@ -392,6 +392,102 @@ describe("blade setup — `activate` runs the real activation path (ADR 0070 §4
  * issue #2306's blade entries assert on) does not exist until the ability
  * is on the stack.
  */
+describe('blade setup — `activate`\'s `zone: "hand"` reaches a hand-source ability (issue #2716)', () => {
+    const DECREE = "Decree of Justice";
+
+    /** CR 702.29a — the cycling cost is {2}{W} and a discard-this leg. No land
+     *  on the battlefield, so the mana can only come from the pool, which is
+     *  what makes the surviving {W}{W}{W} below a fact about the payment
+     *  rather than about the mana planner's taste. */
+    function decreeInHand(): GameState {
+        return build({
+            cards: [{ name: DECREE, owner: "me", zone: "hand" }],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            manaPool: { me: { W: 6 } },
+        });
+    }
+
+    it("pays the REAL cycling cost (CR 702.29a) and puts the ability on the stack", () => {
+        const state = decreeInHand();
+        expect(state.players[0].hand).toHaveLength(1);
+
+        applyBladeSetup(state, {
+            label: "t",
+            setup: [{ kind: "activate", card: DECREE, zone: "hand" }],
+        });
+
+        // Every leg really happened: the card left the hand for the graveyard
+        // as the discard cost, and the ability is on the stack — CR 702.29a,
+        // and CR 702.29c's trigger with it. The POOL is deliberately not
+        // asserted: `applyMoveInSearch` pays a mana cost by applying the
+        // move's `tapPlan` (`applyTapPlan`, gre/search.ts), which taps sources
+        // and never debits mana already floating, so what the pool holds after
+        // a pool-funded activation is a property of the search sandbox, not of
+        // this step.
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.players[0].graveyard).toHaveLength(1);
+        expect(state.stack.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("resolving the cycled trigger opens the numeric nomination the entry decides on (CR 107.3f)", () => {
+        const state = decreeInHand();
+        applyBladeSetup(state, {
+            label: "t",
+            setup: [
+                { kind: "activate", card: DECREE, zone: "hand" },
+                { kind: "resolve-top" },
+            ],
+        });
+        const choice = state.pendingChoices?.[0];
+        expect(choice?.kind).toBe("number-pick");
+        expect(choice?.playerId).toBe(state.players[0].id);
+    });
+
+    it("THROWS when the seat's hand holds no card of that name", () => {
+        const state = build({
+            cards: [{ name: DECREE, owner: "me", zone: "graveyard" }],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            manaPool: { me: { W: 6 } },
+        });
+        expect(() =>
+            applyBladeSetup(state, {
+                label: "t",
+                setup: [{ kind: "activate", card: DECREE, zone: "hand" }],
+            })
+        ).toThrow(BladeSetupError);
+    });
+
+    it("THROWS — not falls back — when the engine offers no legal activation (cost unpayable)", () => {
+        const state = build({
+            cards: [{ name: DECREE, owner: "me", zone: "hand" }],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+        });
+        expect(() =>
+            applyBladeSetup(state, {
+                label: "t",
+                setup: [{ kind: "activate", card: DECREE, zone: "hand" }],
+            })
+        ).toThrow(/no legal activation/);
+    });
+
+    it("the battlefield branch is untouched: a hand card is still not a permanent", () => {
+        const state = decreeInHand();
+        expect(() =>
+            applyBladeSetup(state, {
+                label: "t",
+                setup: [{ kind: "activate", card: DECREE }],
+            })
+        ).toThrow(/no battlefield permanent/);
+    });
+});
+
 describe("blade setup — `activate`'s `target` field reaches a targeted ability's stack (issue #2306)", () => {
     function motherBoard(extra: ScenarioSpec["cards"] = []): GameState {
         return build({

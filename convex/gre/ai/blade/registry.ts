@@ -6897,12 +6897,19 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // `count` that stopped reading `$paid` would produce anyway — loses on
         // the spot.
         //
-        // Floating mana, not untapped lands, for both legs: while a pending
-        // choice is the head the only moves enumerated are its own answers
-        // (the Errant Minion entry above carries the full derivation), and
-        // with no land on the battlefield the cycling cost cannot be paid from
-        // anywhere but the pool either, so exactly {W}{W}{W} survives the
-        // activation and the nomination's live range is 0..3.
+        // Floating mana, not untapped lands, and the entry is honest about
+        // what that costs it: while a pending choice is the head the only
+        // moves enumerated are its own answers, so the nomination's ceiling is
+        // `spendableManaTotal` — the POOL — and the bot has no way to tap for
+        // it (the CR 608.2g window the live engine opens through
+        // `isManaPaymentChoiceWindow` has no move in the search). Measured on
+        // this very board: with three untapped Plains and an empty pool
+        // `enumerateMoves` offers `number-choice:0` and nothing else, so the
+        // Soldiers are unreachable in any position a real game reaches — CR
+        // 500.5 empties the pool at every step boundary. That hole is issue
+        // #3569, and it is why this entry pre-floats: what it pins is the
+        // VALUATION half of the line (given the mana, the bot spends it on
+        // bodies), and #3569 owes the empty-pool twin of this entry.
         label: "landstill key line: pays {X} on the cycled Decree for lethal-stopping Soldiers",
         spec: {
             cards: [
