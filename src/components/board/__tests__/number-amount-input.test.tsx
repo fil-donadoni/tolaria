@@ -8,7 +8,10 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, fireEvent, cleanup } from "@testing-library/react";
 import NumberAmountInput from "~/components/board/number-amount-input";
-import { pendingChoiceLabel } from "~/lib/pending-choice-labels";
+import {
+    pendingChoiceLabel,
+    pendingChoiceRequiresBoardTap,
+} from "~/lib/pending-choice-labels";
 import { numberChoiceRange } from "@convex/gre/state";
 
 afterEach(cleanup);
@@ -94,6 +97,31 @@ describe("NumberAmountInput (number-pick UI, issue #1701)", () => {
 describe("number-pick wiring (issue #1701)", () => {
     it("has a prompt label — an unlabelled kind renders a blank banner title", () => {
         expect(pendingChoiceLabel("number-pick")).toBe("Choose an amount");
+    });
+
+    it("pins the banner for a PAYING nomination — the payer must reach the board to raise the ceiling", () => {
+        // CR 608.2g — the only way to lift a paying nomination's ceiling is to
+        // tap lands with the prompt open, so a centered banner would cover the
+        // permanents the decision depends on. A nomination that pays nothing
+        // has nothing on the mid-board to reach.
+        const base = {
+            stackItemId: "s1",
+            step: 0,
+            choiceId: "$paid",
+            playerId: "p1",
+            count: 1,
+            prompt: "Pay any amount of mana",
+        } as const;
+        expect(
+            pendingChoiceRequiresBoardTap({
+                ...base,
+                kind: "number-pick",
+                paysMana: true,
+            })
+        ).toBe(true);
+        expect(
+            pendingChoiceRequiresBoardTap({ ...base, kind: "number-pick" })
+        ).toBe(false);
     });
 
     it("the client reads the SAME range authority the server validates with", () => {

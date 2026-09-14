@@ -181,7 +181,17 @@ export function pendingChoiceRoutesToBattlefield(
 export function pendingChoiceRequiresBoardTap(choice: PendingChoice): boolean {
     return (
         pendingChoiceRoutesToBattlefield(choice) ||
-        (choice.kind === "may-pay" && mayPayCostHasPayableManaLeg(choice.cost))
+        (choice.kind === "may-pay" &&
+            mayPayCostHasPayableManaLeg(choice.cost)) ||
+        // CR 107.3f (issue #1701) — a PAYING numeric nomination is the same
+        // situation as the mana-leg may-pay above, and more so: its ceiling is
+        // literally the pool, so a player who has not tapped yet is offered a
+        // stepper that stops at zero, and the only way to raise it is to tap
+        // lands with the prompt still open (CR 608.2g). A centered banner would
+        // sit over exactly the permanents they must click. A nomination that
+        // pays NOTHING (issue #1421's bare `chooseNumber`) has nothing on the
+        // mid-board to reach, so it centers like any other prompt.
+        (choice.kind === "number-pick" && choice.paysMana === true)
     );
 }
 
