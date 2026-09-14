@@ -2588,9 +2588,11 @@ function isPredicate(value: unknown): boolean {
         );
     }
     // picksNonEmpty form (issue #1287) — a single key holding a bare picks
-    // ref (`isRefValue` accepts only a `.property` ref, so check the shape
-    // directly: a lone `ref` key whose value is a `$binding` string with no
-    // dot). Binding EXISTENCE and family (must be "picks") are checked by
+    // ref, checked directly here rather than through `isRefValue`: that
+    // predicate admits the BARE shape too since issue #1701 widened it for the
+    // numeric binding, so it would accept a `.property` ref in this position,
+    // which a picks ref never is (a lone `ref` key whose value is a `$binding`
+    // string with no dot). Binding EXISTENCE and family (must be "picks") are checked by
     // the ordered ref pass, like every other predicate form.
     if (keys.length === 1 && keys[0] === "picksNonEmpty") {
         const p = obj.picksNonEmpty;

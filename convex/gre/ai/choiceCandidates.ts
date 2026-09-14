@@ -351,11 +351,12 @@ const numberPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
         out.push({
             key: `number-pick:${amount}`,
             move: { kind: "number-choice", amount },
-            // The mana leg is the whole cost of a paying nomination, and it is
-            // neither material nor life — the two costs the shared prior seam
-            // reads. Carried so `numberPickPrior` can rank cheap before dear
-            // without a second board scan.
-            hint: { manaPaid: choice.paysMana ? amount : 0 },
+            // No `hint`: the shared prior seam reads material and life, and a
+            // nomination pays neither. A `manaPaid` hint plus a cheap-first
+            // prior was written and removed at review — the two shipped
+            // families want opposite ends of the range, so there is no
+            // direction to bias without a discriminating blade pair
+            // (`.claude/rules/bot-development.md`). The candidates open flat.
         });
     }
     return out;

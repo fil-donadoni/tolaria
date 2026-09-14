@@ -142,5 +142,32 @@ describe("number-pick wiring (issue #1701)", () => {
                 restrictedMana: undefined,
             })
         ).toEqual({ min: 0, max: 0 });
+        // The restricted bucket, which is the whole reason this is a shared
+        // function and not a client-side sum of `manaPool`: a cumulative-upkeep
+        // unit counts for a nomination carrying that restriction …
+        expect(
+            numberChoiceRange(
+                { paysMana: true, manaRestriction: "cumulative-upkeep" },
+                {
+                    manaPool: { W: 1 },
+                    restrictedMana: [
+                        {
+                            color: "G",
+                            amount: 2,
+                            restriction: "cumulative-upkeep",
+                        },
+                    ],
+                }
+            )
+        ).toEqual({ min: 0, max: 3 });
+        // … and not for one carrying none (CR 106.6 — exact match, ADR 0022).
+        expect(
+            numberChoiceRange(choice, {
+                manaPool: { W: 1 },
+                restrictedMana: [
+                    { color: "G", amount: 2, restriction: "cumulative-upkeep" },
+                ],
+            })
+        ).toEqual({ min: 0, max: 1 });
     });
 });

@@ -20342,8 +20342,10 @@ export function buildSpellContext(
             const stored = item.collectedChoices?.[key];
             if (stored) return readTaggedNumber(stored);
             // ADR 0037 (#580) — a nomination made during a controlled cast's
-            // resolution is the acting player's decision; the mana still comes
-            // from the controlled player's pool, exactly as for a may-pay.
+            // resolution routes to the ACTING player, exactly as a may-pay
+            // does: `routeActingPlayer` puts them on `playerId` and the
+            // controlled player on `actingPlayerId`, and the submit spends the
+            // answering player's pool (`applyMayPaySubmit` behaves the same).
             const routed = routeActingPlayer(req.playerId);
             const entry: PendingChoice = {
                 stackItemId: item.id,
