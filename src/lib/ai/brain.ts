@@ -1186,6 +1186,10 @@ export function chooseResolution(choice: OwedChoice): string[] {
         // `madness-cast` (CR 702.35a) and `rebound-cast` (CR 702.88a) are
         // in-tree search nodes with a decline FALLBACK in `decideBotAction`
         // (issue #2983): never resolved here either way.
+        // `number-pick` (CR 107.1b / 107.3f, issue #1701) joins them: a numeric
+        // nomination answers with a SCALAR through its own
+        // `submitNumberChoice` mutation, never with instance ids, and it too is
+        // an in-tree search node with a nominate-nothing fallback.
         case "may-pay":
         case "land-entry-tapped":
         case "draw-replacement":
@@ -1194,10 +1198,6 @@ export function chooseResolution(choice: OwedChoice): string[] {
         case "name-card":
         case "madness-cast":
         case "rebound-cast":
-        // CR 107.1b / 107.3f (issue #1701) — a numeric nomination answers with
-        // a scalar through its own `submitNumberChoice` mutation, never with
-        // instance ids, so it is never resolved here either: it is an in-tree
-        // search node with a nominate-nothing FALLBACK in `decideBotAction`.
         case "number-pick":
             throw new Error(
                 `chooseResolution: "${kind}" is not resolved here (use the dedicated path)`

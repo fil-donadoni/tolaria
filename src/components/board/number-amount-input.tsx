@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 
@@ -35,21 +35,21 @@ export default function NumberAmountInput({
     disabled: boolean;
     onSubmit: (amount: number) => void;
 }) {
-    const [amount, setAmount] = useState(min);
-    // The ceiling MOVES while the prompt is open: a may-pay window lets the
-    // chooser go on tapping lands (CR 605.3a), and each tap re-projects a
-    // bigger pool. Re-clamping on every bound change is what lets the stepper
-    // grow with the pool instead of freezing at the amount that was affordable
-    // when the prompt opened — and it pulls a stale value back down if mana
-    // drains out from under it.
-    useEffect(() => {
-        setAmount((current) => Math.min(Math.max(current, min), max));
-    }, [min, max]);
-
     const clamp = (next: number) => Math.min(Math.max(next, min), max);
+    const [nominated, setNominated] = useState(min);
+    // The displayed amount is CLAMPED AT RENDER, not stored clamped. The
+    // ceiling moves while the prompt is open — the payer may go on tapping
+    // lands (CR 608.2g), and each tap re-projects a bigger pool — so deriving
+    // the shown value from the live bounds is what lets the stepper grow with
+    // the pool, and pulls a stale value back down if mana drains out from under
+    // it. (An effect that re-clamped stored state did the same thing with a
+    // cascading render, which `react-hooks/set-state-in-effect` rightly
+    // refuses.)
+    const amount = clamp(nominated);
+    const setAmount = (next: number) => setNominated(clamp(next));
     const submit = () => {
         if (disabled) return;
-        onSubmit(clamp(amount));
+        onSubmit(amount);
     };
 
     return (
