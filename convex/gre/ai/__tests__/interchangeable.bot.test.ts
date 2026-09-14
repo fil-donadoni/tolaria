@@ -238,6 +238,119 @@ describe("negative controls — one axis a rule can read keeps two options", () 
     });
 });
 
+describe("the windows that return before the priority one (PR #3599 review)", () => {
+    it("collapses three identical attackers into one candidate per COUNT", () => {
+        // `enumerateMoves` answers five decision windows with an early return,
+        // and `collapseInterchangeable` reached none of them: three identical
+        // Grizzly Bears offered eight attack candidates — the powerset — where
+        // there are only four distinct decisions (swing with 0, 1, 2 or 3).
+        // The largest branching case issue #3593 names.
+        const state = build({
+            cards: [
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 20,
+        });
+        expect(movesOf(state, "declare-attackers", false)).toHaveLength(8);
+        expect(movesOf(state, "declare-attackers", true)).toHaveLength(4);
+    });
+
+    it("keeps a damaged attacker its own candidate", () => {
+        const state = build({
+            cards: [
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                    damageMarked: 1,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 20,
+        });
+        // Four: neither, either one, both — the damaged Bear is a different
+        // attacker, so "swing with one" is two decisions, not one.
+        expect(movesOf(state, "declare-attackers", true)).toHaveLength(4);
+    });
+});
+
+describe("the reference count is re-read, never memoised on the state", () => {
+    it("sees a reference the engine writes AFTER the first collapse", () => {
+        // `GameState` is mutated in place (`applyMoveInSearch`, and
+        // `runHeadlessGame` plays a whole game on one object), so an
+        // identity-keyed cache would answer every later decision with the
+        // OPENING position's references and merge candidates this check exists
+        // to keep apart (PR #3599 review finding 1).
+        const state = build({
+            cards: [
+                { name: "Brushland", owner: "me", zone: "hand" },
+                { name: "Brushland", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        });
+        const drops = movesOf(state, "play-land", false);
+        expect(drops).toHaveLength(2);
+        expect(collapseInterchangeableMoves(state, drops)).toHaveLength(1);
+
+        // What a draw writes, on the very object the next decision reads.
+        state.players[0].drawnThisTurn = [moveCardRefs(drops[0])[0]];
+        expect(collapseInterchangeableMoves(state, drops)).toHaveLength(2);
+    });
+
+    it("counts an id that appears only as a Record KEY", () => {
+        const state = build({
+            cards: [
+                { name: "Brushland", owner: "me", zone: "hand" },
+                { name: "Brushland", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        });
+        const drops = movesOf(state, "play-land", false);
+        expect(collapseInterchangeableMoves(state, drops)).toHaveLength(1);
+        // `lastKnownCopiable` and the combat assignment maps are keyed BY card
+        // id, with the id nowhere in value position.
+        state.lastKnownCopiable = {
+            [moveCardRefs(drops[1])[0]]: { id: "x" },
+        } as never;
+        expect(collapseInterchangeableMoves(state, drops)).toHaveLength(2);
+    });
+});
+
 describe("aliasing — one card named twice is not two cards", () => {
     it("keeps a move naming ONE copy twice apart from one naming both", () => {
         const state = twoDragons();

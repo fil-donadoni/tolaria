@@ -308,10 +308,19 @@ function moveShape(move: Move): string {
  *
  *  Over-approximate on purpose: a string that merely LOOKS like an instance id
  *  (a mode id, an ability id) counts as a reference, which costs a collapse
- *  that was available and never makes an unavailable one legal. */
+ *  that was available and never makes an unavailable one legal.
+ *
+ *  DELIBERATELY NOT MEMOISED on the state object. `GameState` is mutated IN
+ *  PLACE — `applyMoveInSearch` does it, and `runHeadlessGame` plays a whole
+ *  game on ONE object — so an identity-keyed cache would answer every later
+ *  decision with the OPENING position's references: a reference written after
+ *  the first walk (a draw filling `drawnThisTurn`, an Aura attaching, a
+ *  creature entering combat) would be invisible and the collapse would merge
+ *  candidates this check exists to keep apart. Measured over 150 blade
+ *  scenarios × 3 seeds × 30 plies, a cached count diverged from a fresh one at
+ *  24 of 1813 nodes, every one of them over-collapsing (PR #3599 review
+ *  finding 1). One walk per collapse call, and a call is once per decision. */
 function cardReferenceCounts(state: GameState): Map<string, number> {
-    const cached = referenceCountCache.get(state);
-    if (cached) return cached;
     const counts = new Map<string, number>();
     for (const player of state.players) {
         for (const zone of [
@@ -340,16 +349,20 @@ function cardReferenceCounts(state: GameState): Map<string, number> {
             for (const entry of value) walk(entry);
             return;
         }
-        for (const entry of Object.values(value as Record<string, unknown>)) {
+        // KEYS as well as values: a card id can name a `Record` entry and
+        // appear nowhere in value position — `state.lastKnownCopiable`,
+        // `combat.blockerAssignments`, `combat.damageAssignments` are all keyed
+        // by card id (PR #3599 review finding 3).
+        for (const [key, entry] of Object.entries(
+            value as Record<string, unknown>
+        )) {
+            walk(key);
             walk(entry);
         }
     };
     walk(state);
-    referenceCountCache.set(state, counts);
     return counts;
 }
-
-const referenceCountCache = new WeakMap<GameState, Map<string, number>>();
 
 function findCardAnywhere(
     state: GameState,
