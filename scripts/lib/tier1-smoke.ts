@@ -44,6 +44,26 @@ export const SMOKE_ITERATIONS = 60;
 export const SMOKE_BASE_SEED = 27190;
 
 /**
+ * Wall-clock ceiling for ONE game, and the only wall-clock quantity here.
+ *
+ * `MAX_PLIES` (`src/lib/ai/selfplay/playGame.ts`) bounds a game in PLIES, which
+ * is what keeps an outcome deterministic — but its own header records why that
+ * is not a time bound: "a stalled board makes each ply's search far more
+ * expensive than the median, so the cap's wall-clock cost is superlinear in its
+ * value". The first run of this matrix proved it, with one game still searching
+ * after thirty-two minutes while fourteen others had finished. A matrix that
+ * can fail to terminate is not an instrument.
+ *
+ * So a game that outlives this is KILLED and reported as its own freeze reason.
+ * The verdict stays honest about what that means: a `timeout` row says this
+ * machine did not finish the game in this budget, which is a finding either way
+ * (the game is degenerate, or the budget is wrong) and never a pass. Every
+ * other row remains bit-reproducible — the kill is in the parent, not in the
+ * game.
+ */
+export const SMOKE_TIMEOUT_SECONDS = 900;
+
+/**
  * Why a game ended, as ONE exhaustive table rather than a list of the bad ones.
  *
  * `Record<GameEndReason, …>` is the point: `GameEndReason` is the harness's
@@ -76,10 +96,18 @@ export const REASON_IS_FREEZE: Record<GameEndReason, boolean> = {
  */
 export const CRASH_REASON = "crash";
 
-export type SmokeReason = GameEndReason | typeof CRASH_REASON;
+/** A game killed by {@link SMOKE_TIMEOUT_SECONDS}. Not a `GameEndReason` for
+ *  the same reason `crash` is not: the game never ended. */
+export const TIMEOUT_REASON = "timeout";
+
+export type SmokeReason =
+    | GameEndReason
+    | typeof CRASH_REASON
+    | typeof TIMEOUT_REASON;
 
 export function isFreeze(reason: SmokeReason): boolean {
-    return reason === CRASH_REASON || REASON_IS_FREEZE[reason];
+    if (reason === CRASH_REASON || reason === TIMEOUT_REASON) return true;
+    return REASON_IS_FREEZE[reason];
 }
 
 export interface SmokePair {

@@ -21,6 +21,7 @@ import {
     smokeSeed,
     smokeVerdict,
     summarize,
+    TIMEOUT_REASON,
     type SmokeResult,
 } from "../lib/tier1-smoke";
 
@@ -130,6 +131,14 @@ describe("freeze classification", () => {
         expect(isFreeze("life")).toBe(false);
         expect(isFreeze("stall")).toBe(true);
     });
+
+    it("a game killed on the wall clock is a freeze, never a quiet skip", () => {
+        // The ply cap is not a time bound (its wall-clock cost is superlinear
+        // in a stalled position), so the matrix needs one — and a game that
+        // outlives it must count AGAINST the verdict, or a run could pass by
+        // killing everything it could not finish.
+        expect(isFreeze(TIMEOUT_REASON)).toBe(true);
+    });
 });
 
 describe("the receipt", () => {
@@ -161,11 +170,13 @@ describe("the receipt", () => {
             result(),
             result({ index: 1, reason: "stall" }),
             result({ index: 2, reason: CRASH_REASON }),
+            result({ index: 3, reason: TIMEOUT_REASON }),
         ]);
-        expect(dirty.freezes).toBe(2);
+        expect(dirty.freezes).toBe(3);
         const verdict = smokeVerdict(dirty, 60, 27190);
-        expect(verdict).toContain("FAIL — 2/3 games ended on a harness guard");
+        expect(verdict).toContain("FAIL — 3/4 games ended on a harness guard");
         expect(verdict).toContain("crash=1");
+        expect(verdict).toContain("timeout=1");
         expect(verdict).toContain("stall=1");
         expect(verdict).toContain("iterations=60, baseSeed=27190");
     });

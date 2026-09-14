@@ -28,6 +28,7 @@
  *   bun run smoke:tier1 --workers 4          # default: min(ncpu - 1, 4)
  *   bun run smoke:tier1 --decks goblin,aluren   # only pairs naming these
  *   bun run smoke:tier1 --iterations 20         # dev shakeout, not a receipt
+ *   bun run smoke:tier1 --timeout 300           # per-game wall-clock kill
  *
  * Parallelism is one OS PROCESS per game — never same-process concurrency. The
  * engine carries module-level cells the search installs and clears around a
@@ -60,6 +61,8 @@ import {
     summarize,
     SMOKE_BASE_SEED,
     SMOKE_ITERATIONS,
+    SMOKE_TIMEOUT_SECONDS,
+    TIMEOUT_REASON,
     type SmokePair,
     type SmokeResult,
 } from "./lib/tier1-smoke";
@@ -86,9 +89,12 @@ function parseArgs(argv: string[]): Record<string, string> {
 const args = parseArgs(process.argv.slice(2));
 const iterations = Number(args.iterations ?? SMOKE_ITERATIONS);
 const baseSeed = Number(args.baseSeed ?? SMOKE_BASE_SEED);
+const timeoutSeconds = Number(args.timeout ?? SMOKE_TIMEOUT_SECONDS);
 if (!Number.isInteger(iterations) || iterations < 1)
     fail("--iterations must be a positive integer");
 if (!Number.isInteger(baseSeed)) fail("--baseSeed must be an integer");
+if (!Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0)
+    fail("--timeout must be a positive number of seconds");
 
 // ── the canonical lists, resolved through the registry seam ─────────────────
 // The SAME builder the seeder uses (`buildPresetPayload`): names resolve
@@ -220,7 +226,8 @@ const workers = Math.max(
 
 console.log(
     `smoke:tier1 — ${selected.length} games over ${file.decks.length} lists, ` +
-        `iterations=${iterations}, baseSeed=${baseSeed}, workers=${workers}\n`
+        `iterations=${iterations}, baseSeed=${baseSeed}, workers=${workers}, ` +
+        `timeout=${timeoutSeconds}s\n`
 );
 
 function runChild(pair: SmokePair): Promise<SmokeResult> {
@@ -240,9 +247,32 @@ function runChild(pair: SmokePair): Promise<SmokeResult> {
         );
         let out = "";
         let err = "";
+        let timedOut = false;
+        const started = Date.now();
+        // The parent's kill, never the game's own clock — see
+        // `SMOKE_TIMEOUT_SECONDS`. `SIGKILL` rather than a polite signal: the
+        // child is inside a synchronous ISMCTS search and would not observe a
+        // handler until it returned, which is the thing that is not happening.
+        const killer = setTimeout(() => {
+            timedOut = true;
+            child.kill("SIGKILL");
+        }, timeoutSeconds * 1000);
         child.stdout.on("data", (d) => (out += String(d)));
         child.stderr.on("data", (d) => (err += String(d)));
         child.on("close", (code) => {
+            clearTimeout(killer);
+            if (timedOut) {
+                resolve({
+                    ...pair,
+                    reason: TIMEOUT_REASON,
+                    turns: 0,
+                    plies: 0,
+                    winner: null,
+                    error: `no result in ${timeoutSeconds}s`,
+                    seconds: (Date.now() - started) / 1000,
+                });
+                return;
+            }
             const line = out.trim().split("\n").pop() ?? "";
             try {
                 resolve(JSON.parse(line) as SmokeResult);
