@@ -1521,9 +1521,20 @@ export function planManaPayment(
         }
         if (remaining.length === 0) return null;
         const ok = consumeBest((excluded) => {
-            let idx = remaining.findIndex(
-                (s) => !s.cardInstanceId && !excluded.has(s)
-            );
+            // Issue #3530 (PR #3566 review finding 6) — under `spend` a finite
+            // source outranks pool mana too, or the plan whose whole purpose is
+            // to spend the charge silently pays from the pool instead, the two
+            // plans come back identical and the second candidate is dropped.
+            // `preferFinite` is false on every other call, and then this is the
+            // pre-existing pool-first short-circuit, unchanged.
+            const holdForFinite =
+                preferFinite &&
+                remaining.some((s) => s.finite && !excluded.has(s));
+            let idx = holdForFinite
+                ? -1
+                : remaining.findIndex(
+                      (s) => !s.cardInstanceId && !excluded.has(s)
+                  );
             if (idx !== -1) {
                 const color = remaining[idx].options.keys().next().value as
                     | Color
@@ -1596,17 +1607,26 @@ function planSpendsFiniteUse(
     player: PlayerState,
     tapPlan: ManaTap[]
 ): boolean {
+    let battlefields: ReturnType<typeof manaGateBattlefields> | undefined;
     for (const tap of tapPlan) {
         // A converter entry activates ANOTHER permanent's ability and taps no
-        // charge of its own (CR 602.1) — the `applyTapPlan` reading.
+        // charge of its own (CR 602.1). Keyed on `abilityId` because that is
+        // exactly how `applyTapPlan` (search.ts / applyMove.ts) decides which
+        // entries can remove counters at all: this predicate must answer "did
+        // the model spend a charge", so it reads the plan the same way the
+        // model does, not a second way that could disagree with it.
         if (tap.abilityId) continue;
         const src = player.battlefield.find((c) => c.id === tap.cardInstanceId);
         if (!src || !mayRemoveCountersForMana(src)) continue;
+        // Built at most once per plan, like `planManaPayment`'s own copy
+        // (PR #3566 review finding 8), and only on a board that has a
+        // counter-paying source at all.
+        battlefields ??= manaGateBattlefields(state);
         if (
             manaTapSpendsFiniteUse(
                 src,
                 player.id,
-                manaGateBattlefields(state),
+                battlefields,
                 tap.manaChoiceIndex
             )
         ) {
@@ -2717,14 +2737,25 @@ function enumerateCastMovesFromZone(
                 chosenX: x,
             });
             if (tapPlans.length === 0) continue;
-            for (const { targets, lastGroupSize } of enumerateTargetGroupTuples(
-                state,
-                player,
-                card,
-                groups,
-                x
-            )) {
-                for (const tapPlan of tapPlans) {
+            // The plan loop is OUTSIDE the target loop (PR #3566 review
+            // finding 5): both are capped by `MAX_COMBINATIONS`, so pushing two
+            // moves per tuple would have halved the TARGETS and X values a
+            // depletion-land board ever enumerates. This way the cap truncates
+            // the alternative PAYMENT first and the move set degrades to
+            // exactly the pre-issue one. The generator is re-run per plan
+            // rather than materialised, so the single-plan case allocates
+            // nothing new.
+            for (const tapPlan of tapPlans) {
+                for (const {
+                    targets,
+                    lastGroupSize,
+                } of enumerateTargetGroupTuples(
+                    state,
+                    player,
+                    card,
+                    groups,
+                    x
+                )) {
                     moves.push({
                         kind: "cast-spell",
                         cardInstanceId: card.id,
@@ -2789,14 +2820,18 @@ function enumerateCastMovesFromZone(
             cardDef: def,
         });
         if (bestowTapPlans.length > 0) {
-            for (const { targets, lastGroupSize } of enumerateTargetGroupTuples(
-                state,
-                player,
-                card,
-                [BESTOW_TARGET_REQUIREMENT],
-                undefined
-            )) {
-                for (const bestowTapPlan of bestowTapPlans) {
+            // Plan loop outside the target loop (PR #3566 review finding 5).
+            for (const bestowTapPlan of bestowTapPlans) {
+                for (const {
+                    targets,
+                    lastGroupSize,
+                } of enumerateTargetGroupTuples(
+                    state,
+                    player,
+                    card,
+                    [BESTOW_TARGET_REQUIREMENT],
+                    undefined
+                )) {
                     moves.push({
                         kind: "cast-spell",
                         cardInstanceId: card.id,
@@ -3051,6 +3086,8 @@ function enumerateCastMovesFromZone(
             cardDef: subjectDef,
         });
         if (altTapPlans.length === 0) continue;
+        // Plan loop outside the target loop, for the reason the printed-cost
+        // branch gives (PR #3566 review finding 5).
         // CR 119.4 / 709.3b — the life a cost-replacing library-top permission
         // (Bolas's Citadel) charges for THIS half, read from the same single
         // authority the gate and all three commit sites read. 0 for every other
@@ -3062,14 +3099,14 @@ function enumerateCastMovesFromZone(
                 : libraryTopCastLifeCost(state, player, card, alt.id);
         if (altPayLife > player.life) continue;
         const altReq = subjectDef?.targetRequirement;
-        for (const { targets, lastGroupSize } of enumerateTargetGroupTuples(
-            state,
-            player,
-            subject,
-            [altReq],
-            undefined
-        )) {
-            for (const altTapPlan of altTapPlans) {
+        for (const altTapPlan of altTapPlans) {
+            for (const { targets, lastGroupSize } of enumerateTargetGroupTuples(
+                state,
+                player,
+                subject,
+                [altReq],
+                undefined
+            )) {
                 moves.push({
                     kind: "cast-spell",
                     cardInstanceId: card.id,

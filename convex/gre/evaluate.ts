@@ -403,6 +403,14 @@ function manaSourceTermFor(player: PlayerState, weights: EvalWeights): number {
     let total = 0;
     for (const perm of player.battlefield) {
         if (!hasManaAbility(perm, undefined, player.battlefield)) continue;
+        // CR 118.3 (issue #3530) — a FINITE source is priced by its remaining
+        // charges instead, in `finiteManaUses`. Not as WELL as: this weight is
+        // the price of a source that comes back every untap step, and a
+        // depletion land does not. Topping one up with the other made a
+        // two-use land worth ~1.7x a Forest — measured — and would have the Bot
+        // spend its land drop on the depletion land every time (PR #3566 review
+        // finding 1). The flat `permanentWeight` stays: the permanent IS there.
+        if (finiteManaUsesRemaining(perm) > 0) continue;
         total += perm.isTapped ? weights.tappedManaWeight : weights.manaWeight;
     }
     return total;
@@ -424,12 +432,15 @@ function manaSourceTermFor(player: PlayerState, weights: EvalWeights): number {
  *  priced free, free, then catastrophic, when it should be half-priced twice.
  *
  *  So each remaining use is worth `finiteManaUseWeight` and spending one costs
- *  exactly that, at every charge level. The term is ADDITIVE to `mana`, never a
- *  replacement for it: a finite source is still a source, and a renewable one
- *  contributes zero here — `finiteManaUsesRemaining` reads the ability's own
- *  fixed `cost.removeCounter` leg, so nothing about this is card-shaped or
- *  counter-name-shaped, and an ordinary board pays one cached definition lookup
- *  per permanent.
+ *  exactly that, at every charge level. This term REPLACES `mana`'s reading of
+ *  such a source rather than topping it up (`manaSourceTermFor` skips it): that
+ *  weight is the price of a source that comes back every untap step, and a
+ *  depletion land does not come back — added on top, a two-use land priced at
+ *  ~1.7x a Forest and the Bot would have spent its land drop on it every time.
+ *  A renewable source contributes zero here, and `finiteManaUsesRemaining`
+ *  reads the ability's own fixed `cost.removeCounter` leg, so nothing about
+ *  this is card-shaped or counter-name-shaped; an ordinary board pays one
+ *  cached definition lookup per permanent.
  *
  *  Tapped or untapped makes no difference here, for the reason issue #3377
  *  gives about `mana`: a tapped source untaps (CR 502.3), and what this term
@@ -1139,14 +1150,21 @@ export function permanentRealisedValue(
         total += nonCreatureBodyValue(state, perm, weights);
     }
     const controller = state.players.find((p) => p.id === perm.controllerId);
-    if (controller && hasManaAbility(perm, undefined, controller.battlefield)) {
+    // CR 118.3 (issue #3530) — what a FINITE source's removal costs is its
+    // remaining CHARGES, not a renewable source's price: destroying a depletion
+    // land at full charge takes two activations away. The same substitution
+    // `manaSourceTermFor` makes, so the lens and the position term price one
+    // permanent identically. Zero for every renewable source, so this is a
+    // no-op on the boards the lens was calibrated against.
+    const charges = finiteManaUsesRemaining(perm);
+    if (charges > 0) {
+        total += charges * weights.finiteManaUseWeight;
+    } else if (
+        controller &&
+        hasManaAbility(perm, undefined, controller.battlefield)
+    ) {
         total += perm.isTapped ? weights.tappedManaWeight : weights.manaWeight;
     }
-    // CR 118.3 (issue #3530) — and the CHARGES that die with it: destroying a
-    // depletion land at full charge takes two activations away, not one
-    // permanent's worth of nothing. Zero for every renewable source, so this
-    // line is a no-op on the boards the lens was calibrated against.
-    total += finiteManaUsesRemaining(perm) * weights.finiteManaUseWeight;
     return total;
 }
 

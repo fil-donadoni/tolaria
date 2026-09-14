@@ -300,14 +300,22 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     permanentWeight: 5,
     manaWeight: 12,
     tappedManaWeight: 9,
-    // 6 = half a mana source (issue #3530). A charge is worth MORE than the
-    // premium this vector puts on a source being usable right now
-    // (`manaWeight − tappedManaWeight` = 3), because spending one also brings
-    // the source one activation closer to sacrificing itself — and a two-use
-    // land's charges together are then worth one renewable source, which is
-    // what it is. At exactly that premium the "pay with the basics" pair sits
-    // at Δ 0.0, a tie decided by rollout noise; measured.
-    finiteManaUseWeight: 6,
+    // 4 (issue #3530), bounded on BOTH sides, because the `finiteManaUses`
+    // term REPLACES `manaWeight` for the source it prices rather than topping
+    // it up:
+    //  - ABOVE twice the usable-now premium (`manaWeight − tappedManaWeight`),
+    //    or paying a two-mana cost with one charge beats tapping two renewable
+    //    sources and the whole issue is unfixed. The fitted vector compresses
+    //    that premium to ~1, so the binding number is small;
+    //  - and TWICE it must stay UNDER `manaWeight`, or a two-use land is worth
+    //    more than a Forest that unlaps every turn forever — measured at the
+    //    additive shape this replaced: a full Woodlot scored 61.0 against a
+    //    Forest's 48.9, ~1.7x, which is an inversion on exactly the decks the
+    //    term exists for (PR #3566 review finding 1).
+    // 4 sits in the middle of that window at both the prior and the fitted
+    // vector; no verdict pins it from above, which is what the regularisation
+    // toward this prior is for.
+    finiteManaUseWeight: 4,
     manaDevWeight: 12,
     colorCoverageWeight: 24,
     flexWeight: 6,
@@ -385,7 +393,7 @@ export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     permanentWeight: 5.144765,
     manaWeight: 11.384338,
     tappedManaWeight: 10.384338,
-    finiteManaUseWeight: 6.033683,
+    finiteManaUseWeight: 4.015446,
     manaDevWeight: 10.606143,
     colorCoverageWeight: 29.590775,
     flexWeight: 5.858634,

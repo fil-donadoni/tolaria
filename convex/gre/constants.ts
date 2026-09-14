@@ -1638,6 +1638,16 @@ export function finiteManaCounterLeg(
     }
     const leg = ability.cost.removeCounter;
     if (!leg || leg.count <= 0) return null;
+    // The SAME admission the payment planner uses (PR #3566 review finding 3):
+    // a counter leg with no {T} to hang it on is one the planner may not pay on
+    // its own (`COST_LEG_CLAIMS.removeCounter.autoPayable: false`), so its
+    // charges are unreachable to the search and pricing them would move
+    // positions the Bot cannot act on. It also settles the RENEWABLE cases the
+    // cost alone cannot tell apart: Iceberg spends ice counters but puts them
+    // back for {3}, and Rasputin Dreamweaver's dream counters fuel two non-mana
+    // abilities besides — neither is a source with a fixed number of
+    // activations in it, and neither carries a {T}.
+    if (!isAutoPayableManaAbilityCost(ability.cost)) return null;
     return leg;
 }
 

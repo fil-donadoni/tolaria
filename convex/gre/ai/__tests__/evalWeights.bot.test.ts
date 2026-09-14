@@ -75,13 +75,12 @@ describe("DEFAULT_EVAL_WEIGHTS (issue #2683)", () => {
             permanentWeight: 5,
             manaWeight: 12,
             tappedManaWeight: 9,
-            // Issue #3530 — per REMAINING CHARGE of a finite mana source, the
-            // prior at half a mana source: a charge is worth more than the
-            // usable-now premium (`manaWeight − tappedManaWeight` = 3), since
-            // spending one also brings the source closer to sacrificing
-            // itself, and a two-use land's charges together are then one
-            // renewable source. Exactly zero on a board without such a source.
-            finiteManaUseWeight: 6,
+            // Issue #3530 — per REMAINING CHARGE of a finite mana source. The
+            // term REPLACES `manaWeight` for that source, so this is bounded
+            // above (two charges under one renewable source) as well as below
+            // (a charge above twice the usable-now premium) — see the weight's
+            // own doc. Exactly zero on a board without such a source.
+            finiteManaUseWeight: 4,
             manaDevWeight: 12,
             // Issue #3532 — the colour-coverage term's whole swing, prior at
             // two mana sources: the term is a fraction in [0, 1] times this,

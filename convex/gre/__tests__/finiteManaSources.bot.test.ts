@@ -122,6 +122,28 @@ describe("finite mana sources: the evaluation prices the charges (issue #3530)",
         expect(basics).toBeGreaterThan(land);
     });
 
+    it("keeps a FULL finite source under a renewable one — the charges REPLACE the source's price", () => {
+        // PR #3566 review finding 1. While the term was ADDITIVE to `mana` a
+        // Hickory Woodlot at full charge scored 61.0 against a Forest's 48.9 —
+        // ~1.7x — so the Bot preferred a two-use land to a land that untaps
+        // every turn forever, in every position that held one. The weight is
+        // bounded above for exactly this (`evalWeights.ts`), and the ordering
+        // is the claim, not the numbers.
+        const woodlot = evaluate(
+            position([
+                permanent(WOODLOT, "woodlot", {
+                    counters: { depletion: 2 },
+                }),
+            ]),
+            "p1"
+        );
+        const forest = evaluate(
+            position([permanent(FOREST, "forest-0")]),
+            "p1"
+        );
+        expect(woodlot).toBeLessThan(forest);
+    });
+
     it("prices a charge, not merely the death: two charges beat one", () => {
         const full = evaluate(paidWithBasics(2), "p1");
         const half = evaluate(paidWithBasics(1), "p1");
@@ -187,6 +209,28 @@ describe("finite mana sources: the payment is a CHOICE the search sees (issue #3
                 { cardInstanceId: "bears", cardDef: null }
             )
         );
+    });
+
+    it("prices only the charges the planner can actually spend", () => {
+        // PR #3566 review finding 3: a counter-removal mana ability with no
+        // {T} to hang the leg on is one `isAutoPayableManaAbilityCost` refuses,
+        // so the search can never spend those charges — and Iceberg's ice
+        // counters are not a fuel gauge at all ("{3}: Put an ice counter on
+        // this enchantment"). Pricing them moved positions the Bot cannot act
+        // on.
+        // Five ice counters against one: both are a live mana source (the leg
+        // is payable either way), so a term that priced these charges would
+        // separate them. It must not.
+        const iceberg = getCardByName("Iceberg").id;
+        const five = evaluate(
+            position([permanent(iceberg, "iceberg", { counters: { ice: 5 } })]),
+            "p1"
+        );
+        const one = evaluate(
+            position([permanent(iceberg, "iceberg", { counters: { ice: 1 } })]),
+            "p1"
+        );
+        expect(five).toBe(one);
     });
 
     it("offers the same choice for a finite source with a DIFFERENT counter type", () => {
