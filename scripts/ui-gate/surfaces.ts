@@ -1558,6 +1558,77 @@ export const SURFACES: readonly Surface[] = [
         },
     },
     {
+        id: "admin-card-profiles",
+        label: "Card Profile review pass (/admin/card-profiles \u2192 Vintage Cube \u2192 first row)",
+        async walk(page, ctx) {
+            // The human review pass over the LLM-seeded Card Profile census
+            // (issue #3597). Walked because NO other surface mounts these
+            // components: a regression in the editor's layout is invisible to
+            // every other row in this file, and the pass it exists for is
+            // hundreds of rows long — a clipped picker or an art slot with no
+            // height is exactly the defect this lane was built to catch.
+            //
+            // Deterministic despite being an admin page over live data: the
+            // scope is chosen EXPLICITLY rather than defaulted (the default is
+            // whichever Booster Config sorts first, which is a function of
+            // what is checked in), and the Vintage Cube is code-guaranteed to
+            // be offered — `listDraftableSets` appends it unconditionally,
+            // never subject to the per-sheet Draftability gate
+            // (`convex/limited/registry.ts`). Its rows come from the
+            // checked-in census, not from this deployment's database.
+            await goto(page, ctx, "/admin/card-profiles");
+            if (
+                !(await visible(page, "h1:has-text('Card Profiles')", 10_000))
+            ) {
+                throw new Unreachable(
+                    "/admin/card-profiles did not render the page heading — is this account still an admin?"
+                );
+            }
+            const cube = page
+                .getByRole("radiogroup", { name: "Profile Scope" })
+                .getByRole("radio", { name: "Vintage Cube" });
+            try {
+                await cube.waitFor({ state: "visible", timeout: STEP_TIMEOUT });
+            } catch {
+                throw new Unreachable(
+                    "the Profile Scope picker offered no `Vintage Cube` scope"
+                );
+            }
+            await cube.click({ timeout: STEP_TIMEOUT });
+            if (
+                !(await visible(
+                    page,
+                    "[role=progressbar][aria-label='Card Profiles reviewed']",
+                    STEP_TIMEOUT
+                ))
+            ) {
+                throw new Unreachable(
+                    "the Vintage Cube scope rendered no review-progress bar"
+                );
+            }
+            // The COLLAPSED list is half the surface; the other half is one
+            // expanded row — the card's rules text plus three
+            // closed-vocabulary pickers, which is where this editor's height
+            // and its wrapping actually live.
+            const edit = page.getByRole("button", { name: "Edit" }).first();
+            try {
+                await edit.waitFor({ state: "visible", timeout: STEP_TIMEOUT });
+            } catch {
+                throw new Unreachable(
+                    "the Vintage Cube scope listed no editable Card Profile rows"
+                );
+            }
+            await edit.scrollIntoViewIfNeeded({ timeout: STEP_TIMEOUT });
+            await edit.click({ timeout: STEP_TIMEOUT });
+            if (!(await visible(page, "[role=group]", STEP_TIMEOUT))) {
+                throw new Unreachable(
+                    "`Edit` did not expand a Card Profile editing panel within 8s"
+                );
+            }
+            await settle(page);
+        },
+    },
+    {
         id: "limited-list",
         // Issue #2822: the list is walked FILTERED to the seeded fixture
         // (`?label=ui-gate/`). Unfiltered, this row measured however many

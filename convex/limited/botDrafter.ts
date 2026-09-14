@@ -1203,8 +1203,8 @@ function comboEdgeTerm(
             if (!poolByCardId.has(edge.cardId)) continue;
             // Guard against an authored edge weight that is NaN/Infinity
             // (issue #1614 ships the Admin write surface that will let one
-            // in — `validateCardProfileFile` today only checks capabilities/
-            // cardIds, not this number). The sibling Pick Rating seam
+            // in — `validateCardProfileFile` checks capabilities, archetypes
+            // (closed since issue #3597) and cardIds, but never this number). The sibling Pick Rating seam
             // (`pickRatings.ts`'s `isValidRating`) rejects a non-finite
             // rating at the SAME layer; a non-finite edge here has no write
             // gate yet, so the READ path must not let it through — an

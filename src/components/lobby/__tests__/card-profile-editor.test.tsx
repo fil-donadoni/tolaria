@@ -1,5 +1,5 @@
-// Card Profile Admin editor surface (PRD #1607, ADR 0072, issue #1614).
-// Drives the editor through the REAL query-projection pure functions
+// Card Profile Admin editor surface (PRD #1607, ADR 0072, issues #1614 and
+// #3597). Drives the editor through the REAL query-projection pure functions
 // (`listScopeCards` + `buildScopeCardProfiles` over the real checked-in
 // census) rather than a hand-built `ScopeCardProfile` stub — the same
 // discipline `pick-rating-editor.test.tsx` states: a synthetic view can't
@@ -15,6 +15,7 @@ import {
 import { listScopeCards } from "@convex/limited/cardRatingsCore";
 import { CUBE_SOURCE_KEY } from "@convex/limited/cube";
 import { CAPABILITY_REGISTRY } from "@convex/limited/capabilityRegistry";
+import { ARCHETYPE_REGISTRY } from "@convex/limited/archetypeRegistry";
 import { tryGetCardByName } from "@convex/cards";
 import CardProfileEditor from "../card-profile-editor";
 import type { ScopeCardProfile } from "~/hooks/useCardProfiles";
@@ -154,15 +155,17 @@ describe("CardProfileEditor (issue #1614)", () => {
         );
         // Rows are name-sorted; Griselbrand is the first of the four.
         fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
-        fireEvent.change(screen.getByLabelText("Archetypes for Griselbrand"), {
-            target: { value: "reanimator, control" },
-        });
+        fireEvent.click(
+            screen.getByLabelText("Archetype control for Griselbrand")
+        );
         fireEvent.click(screen.getByLabelText("Requires value-on-etb"));
         fireEvent.click(screen.getByLabelText("Reviewed for Griselbrand"));
         fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
         await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
         expect(onSave).toHaveBeenCalledWith(cardId("Griselbrand"), {
+            // The census seeds Griselbrand `["reanimator"]`; the click adds
+            // `control` to it rather than replacing a typed string.
             archetypes: ["reanimator", "control"],
             provides: ["reanimatable"],
             requires: ["value-on-etb"],
@@ -208,5 +211,364 @@ describe("CardProfileEditor (issue #1614)", () => {
                 .getByRole("button", { name: "Clear" })
                 .hasAttribute("disabled")
         ).toBe(false);
+    });
+});
+
+describe("CardProfileEditor — shaped for the review pass (issue #3597)", () => {
+    it("only offers Archetype names from the closed registry — no free-text field", () => {
+        render(
+            <CardProfileEditor
+                cards={cubeRows()}
+                onSave={vi.fn()}
+                onClear={vi.fn()}
+            />
+        );
+        fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+        for (const row of ARCHETYPE_REGISTRY) {
+            expect(
+                screen.getByLabelText(`Archetype ${row.id} for Griselbrand`),
+                row.id
+            ).toBeTruthy();
+        }
+        // The comma-separated text field this editor shipped with is the one
+        // control that could mint vocabulary by typing. It must be gone, not
+        // merely supplemented.
+        expect(
+            screen.queryByLabelText("Archetypes for Griselbrand")
+        ).toBeNull();
+    });
+
+    it("shows progress against the scope, counting the WHOLE scope, not the filtered view", () => {
+        const reviewedRow = buildCardProfileRow(
+            CUBE_SOURCE_KEY,
+            cardId("Griselbrand"),
+            {
+                archetypes: ["reanimator"],
+                provides: ["reanimatable"],
+                requires: [],
+                reviewed: true,
+            }
+        );
+        render(
+            <CardProfileEditor
+                cards={cubeRows(buildDbProfileLookup([reviewedRow]))}
+                onSave={vi.fn()}
+                onClear={vi.fn()}
+            />
+        );
+        const bar = screen.getByRole("progressbar", {
+            name: "Card Profiles reviewed",
+        });
+        expect(bar.getAttribute("aria-valuenow")).toBe("1");
+        expect(bar.getAttribute("aria-valuemax")).toBe(String(SAMPLE.length));
+        expect(screen.getByText(/1 of 4 reviewed/)).toBeTruthy();
+
+        // Hiding the done rows must not move the denominator — that is the
+        // whole point of measuring the scope rather than the list.
+        fireEvent.click(screen.getByLabelText("Only unreviewed"));
+        expect(
+            screen
+                .getByRole("progressbar", { name: "Card Profiles reviewed" })
+                .getAttribute("aria-valuemax")
+        ).toBe(String(SAMPLE.length));
+        expect(screen.getByText(/1 of 4 reviewed/)).toBeTruthy();
+    });
+
+    it("shows each card's art, and its rules text once the row is open", () => {
+        const { container } = render(
+            <CardProfileEditor
+                cards={cubeRows()}
+                onSave={vi.fn()}
+                onClear={vi.fn()}
+            />
+        );
+        // One art slot per row, addressed by cardId — happy-dom has no layout
+        // so the `<img>` inside is not asserted here; `bun run check:ui` is
+        // what measures whether it actually paints.
+        expect(
+            container.querySelectorAll("[data-card-profile-art]").length
+        ).toBe(SAMPLE.length);
+        expect(
+            container.querySelector(
+                `[data-card-profile-art="${cardId("Griselbrand")}"]`
+            )
+        ).toBeTruthy();
+
+        // Rules text is behind the expansion, where the judgement is made.
+        expect(screen.queryByText(/Pay 7 life/)).toBeNull();
+        fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+        expect(screen.getByText(/Pay 7 life/)).toBeTruthy();
+    });
+
+    it("states the provides/requires distinction, and that an empty Requires is normal", () => {
+        render(
+            <CardProfileEditor
+                cards={cubeRows()}
+                onSave={vi.fn()}
+                onClear={vi.fn()}
+            />
+        );
+        expect(
+            screen.getByText(/what this card OFFERS a partner/)
+        ).toBeTruthy();
+        expect(screen.getByText(/what it NEEDS from one/)).toBeTruthy();
+        expect(screen.getByText(/An empty Requires is the norm/)).toBeTruthy();
+    });
+
+    it("'Mark reviewed & next' saves the row reviewed and opens the following card", async () => {
+        const onSave = vi.fn().mockResolvedValue(null);
+        render(
+            <CardProfileEditor
+                cards={cubeRows()}
+                onSave={onSave}
+                onClear={vi.fn()}
+            />
+        );
+        fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+        expect(
+            screen.getByRole("group", { name: "Profile for Griselbrand" })
+        ).toBeTruthy();
+
+        fireEvent.click(
+            screen.getByRole("button", { name: "Mark reviewed & next" })
+        );
+        await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+        expect(onSave.mock.calls[0][0]).toBe(cardId("Griselbrand"));
+        expect(onSave.mock.calls[0][1].reviewed).toBe(true);
+
+        // Name-sorted queue: Lightning Bolt is next, and it is now the open
+        // row — the pass never has to point at anything.
+        await waitFor(() =>
+            expect(
+                screen.getByRole("group", {
+                    name: "Profile for Lightning Bolt",
+                })
+            ).toBeTruthy()
+        );
+        expect(
+            screen.queryByRole("group", { name: "Profile for Griselbrand" })
+        ).toBeNull();
+    });
+
+    it("⌘/Ctrl+Enter inside an open row does the same thing from the keyboard", async () => {
+        const onSave = vi.fn().mockResolvedValue(null);
+        render(
+            <CardProfileEditor
+                cards={cubeRows()}
+                onSave={onSave}
+                onClear={vi.fn()}
+            />
+        );
+        fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+        fireEvent.keyDown(
+            screen.getByRole("group", { name: "Profile for Griselbrand" }),
+            { key: "Enter", metaKey: true }
+        );
+        await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+        expect(onSave.mock.calls[0][1].reviewed).toBe(true);
+        await waitFor(() =>
+            expect(
+                screen.getByRole("group", {
+                    name: "Profile for Lightning Bolt",
+                })
+            ).toBeTruthy()
+        );
+    });
+
+    it("a REJECTED save leaves the reviewer on the card, with the error", async () => {
+        const onSave = vi.fn().mockRejectedValue(new Error("nope"));
+        render(
+            <CardProfileEditor
+                cards={cubeRows()}
+                onSave={onSave}
+                onClear={vi.fn()}
+            />
+        );
+        fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+        fireEvent.click(
+            screen.getByRole("button", { name: "Mark reviewed & next" })
+        );
+        await waitFor(() => expect(screen.getByText("nope")).toBeTruthy());
+        expect(
+            screen.getByRole("group", { name: "Profile for Griselbrand" })
+        ).toBeTruthy();
+        expect(
+            screen.queryByRole("group", { name: "Profile for Lightning Bolt" })
+        ).toBeNull();
+    });
+
+    it("is a single-open accordion — opening one row closes the other", () => {
+        render(
+            <CardProfileEditor
+                cards={cubeRows()}
+                onSave={vi.fn()}
+                onClear={vi.fn()}
+            />
+        );
+        const editButtons = screen.getAllByRole("button", { name: "Edit" });
+        fireEvent.click(editButtons[0]);
+        expect(
+            screen.getByRole("group", { name: "Profile for Griselbrand" })
+        ).toBeTruthy();
+        fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+        expect(
+            screen.getByRole("group", { name: "Profile for Lightning Bolt" })
+        ).toBeTruthy();
+        expect(
+            screen.queryByRole("group", { name: "Profile for Griselbrand" })
+        ).toBeNull();
+    });
+});
+
+describe("CardProfileEditor — review findings (issue #3597)", () => {
+    it("re-seeds a reopened row from the stored profile, never from abandoned edits", () => {
+        // The row no longer unmounts when it closes (the editor owns `open`),
+        // so without an explicit re-seed the local picker state survived
+        // being navigated away from — and "Mark reviewed & next" then wrote
+        // those abandoned values and flagged the row reviewed.
+        render(
+            <CardProfileEditor
+                cards={cubeRows()}
+                onSave={vi.fn()}
+                onClear={vi.fn()}
+            />
+        );
+        fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+        const control = screen.getByLabelText(
+            "Archetype control for Griselbrand"
+        ) as HTMLInputElement;
+        expect(control.checked).toBe(false);
+        fireEvent.click(control);
+        expect(
+            (
+                screen.getByLabelText(
+                    "Archetype control for Griselbrand"
+                ) as HTMLInputElement
+            ).checked
+        ).toBe(true);
+
+        // Navigate away (opening another row closes this one), then back.
+        fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+        // Griselbrand is name-first, so it is still the FIRST collapsed row.
+        fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+        expect(
+            (
+                screen.getByLabelText(
+                    "Archetype control for Griselbrand"
+                ) as HTMLInputElement
+            ).checked
+        ).toBe(false);
+    });
+
+    it("shows a STORED archetype the registry does not have, and lets it be removed", async () => {
+        // Closing a vocabulary that was open for a release cannot assume the
+        // stored rows obey it: a profile written through the old free-text
+        // field carries a name this registry lacks. Rendered nowhere, it
+        // would still be submitted — and rejected server-side — naming a
+        // string the reviewer could neither see nor untick.
+        const legacy = buildCardProfileRow(
+            CUBE_SOURCE_KEY,
+            cardId("Griselbrand"),
+            {
+                archetypes: ["cheat-into-play"],
+                provides: ["reanimatable"],
+                requires: [],
+                reviewed: false,
+            }
+        );
+        const onSave = vi.fn().mockResolvedValue(null);
+        render(
+            <CardProfileEditor
+                cards={cubeRows(buildDbProfileLookup([legacy]))}
+                onSave={onSave}
+                onClear={vi.fn()}
+            />
+        );
+        fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+        const stray = screen.getByLabelText(
+            "Unregistered archetype cheat-into-play for Griselbrand"
+        ) as HTMLInputElement;
+        expect(stray.checked).toBe(true);
+
+        fireEvent.click(stray);
+        fireEvent.click(screen.getByRole("button", { name: "Save" }));
+        await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+        expect(onSave.mock.calls[0][1].archetypes).toEqual([]);
+    });
+
+    it("hands focus back to the toggle when a row closes, and wires aria-controls", () => {
+        render(
+            <CardProfileEditor
+                cards={cubeRows()}
+                onSave={vi.fn()}
+                onClear={vi.fn()}
+            />
+        );
+        const toggle = screen.getAllByRole("button", { name: "Edit" })[0];
+        const toggleId = toggle.id;
+        expect(toggleId).not.toBe("");
+        const panelId = toggle.getAttribute("aria-controls");
+        expect(panelId).toBeTruthy();
+
+        fireEvent.click(toggle);
+        const panel = screen.getByRole("group", {
+            name: "Profile for Griselbrand",
+        });
+        expect(panel.id).toBe(panelId);
+        expect(document.activeElement).toBe(panel);
+
+        fireEvent.click(screen.getByRole("button", { name: "Close" }));
+        // Not `<body>`: a keyboard reviewer mid-pass must not be returned to
+        // the top of the document on the next Tab.
+        expect((document.activeElement as HTMLElement | null)?.id).toBe(
+            toggleId
+        );
+    });
+
+    it("advances correctly with 'Only unreviewed' on, including after the saved row leaves the list", async () => {
+        const onSave = vi.fn().mockResolvedValue(null);
+        const { rerender } = render(
+            <CardProfileEditor
+                cards={cubeRows()}
+                onSave={onSave}
+                onClear={vi.fn()}
+            />
+        );
+        fireEvent.click(screen.getByLabelText("Only unreviewed"));
+        fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+        fireEvent.click(
+            screen.getByRole("button", { name: "Mark reviewed & next" })
+        );
+        await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+        await waitFor(() =>
+            expect(
+                screen.getByRole("group", {
+                    name: "Profile for Lightning Bolt",
+                })
+            ).toBeTruthy()
+        );
+
+        // The reactive query now lands the saved row as reviewed, and the
+        // filter drops it — the successor must stay open through that.
+        const saved = buildCardProfileRow(
+            CUBE_SOURCE_KEY,
+            cardId("Griselbrand"),
+            {
+                archetypes: ["reanimator"],
+                provides: ["reanimatable"],
+                requires: [],
+                reviewed: true,
+            }
+        );
+        rerender(
+            <CardProfileEditor
+                cards={cubeRows(buildDbProfileLookup([saved]))}
+                onSave={onSave}
+                onClear={vi.fn()}
+            />
+        );
+        expect(
+            screen.getByRole("group", { name: "Profile for Lightning Bolt" })
+        ).toBeTruthy();
     });
 });

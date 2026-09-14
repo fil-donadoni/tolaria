@@ -133,10 +133,11 @@ const comboEdgesValidator = v.optional(
  *  `assertIsAdmin` runs FIRST — the same "gate before anything else"
  *  convention as `setCardRating`/`clearCardRating` and every admin mutation
  *  in `convex/decks.ts`/`convex/cubes.ts`. Rejects any `provides`/`requires`
- *  string outside `CAPABILITY_REGISTRY` and any `cardId` that doesn't
- *  resolve to a real card (`cardProfileWriteErrors`), so the database layer
- *  is held to EXACTLY the vocabulary bound the checked-in seed layer's guard
- *  test enforces — an Admin cannot type a Capability name into existence any
+ *  string outside `CAPABILITY_REGISTRY`, any `archetypes` entry outside
+ *  `ARCHETYPE_REGISTRY` (closed since issue #3597) and any `cardId` that
+ *  doesn't resolve to a real card (`cardProfileWriteErrors`), so the database
+ *  layer is held to EXACTLY the vocabulary bound the checked-in seed layer's
+ *  guard test enforces — an Admin cannot type a name into existence any
  *  more than a seed file can. `reviewed` is an explicit argument, not
  *  inferred: flipping an LLM-seeded row to reviewed IS the human review act
  *  (ADR 0072), so it is always a deliberate write. Patches the existing row
