@@ -6618,7 +6618,7 @@ describe("validateEffectScript — choice allControllers", () => {
     });
 });
 
-describe("validateEffectScript — chooseNumber bounds (CR 107.1b, issue #1421)", () => {
+describe("validateEffectScript — chooseNumber bounds (CR 107.1c, issue #1421)", () => {
     it("accepts the open-ended nomination and a non-negative literal range", () => {
         expect(
             validateEffectScript(

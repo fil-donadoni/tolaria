@@ -1,9 +1,12 @@
-// Full-path integration for the BARE numeric nomination (CR 107.1b, issue
+// Full-path integration for the BARE numeric nomination (CR 107.1c, issue
 // #1421): GRE -> game.ts -> wire projection.
 //
-//   107.1b  Most of the time, the Magic game uses only integers... If a player
-//           is asked to choose a number, they must choose a non-negative
-//           integer unless the effect says otherwise.
+//   107.1c  If a rule or ability instructs a player to choose "any number,"
+//           that player may choose any positive number or zero.
+//
+// The two neighbouring constraints belong to other rules and are enforced at
+// the submit boundary: CR 107.1 ("the only numbers the Magic game uses are
+// integers") and CR 107.1b ("you can't choose a negative number").
 //
 // The Op has no shipping card yet — Void waits on issue #2150's hand-zone
 // access, and a half card is never shipped (PRD #1063). So the subject is a
@@ -20,6 +23,7 @@
 import { describe, it, expect } from "vitest";
 import { submitNumberChoice } from "../game";
 import { resolveTopOfStack, numberChoiceRange } from "../gre/state";
+import { MAX_CHOSEN_NUMBER } from "../gre/constants";
 import type { GameState } from "../gre/state";
 import { projectPublicState } from "../gameProjections";
 import { makePlayer, makeState, pushSpell } from "../cards/__tests__/setup";
@@ -107,18 +111,18 @@ function suspended(defId: string, pool: Record<string, number>): GameState {
     return state;
 }
 
-describe("chooseNumber through the real mutation (CR 107.1b, issue #1421)", () => {
+describe("chooseNumber through the real mutation (CR 107.1c, issue #1421)", () => {
     it("suspends OPEN-ENDED and accepts an amount far above the pool, spending nothing", async () => {
         const state = suspended(OPEN_ID, { W: 2 });
         const head = state.pendingChoices![0];
         expect(head.kind).toBe("number-pick");
         expect(head.playerId).toBe("p1");
         expect(head.paysMana).toBeUndefined();
-        // CR 107.1b — "any number" is unbounded above; the pool is not a
-        // ceiling for a nomination that pays nothing.
+        // CR 107.1c — the pool is not a ceiling for a nomination that pays
+        // nothing; the only bound is the declared engine cap.
         expect(numberChoiceRange(head, state.players[0])).toEqual({
             min: 0,
-            max: Number.POSITIVE_INFINITY,
+            max: MAX_CHOSEN_NUMBER,
         });
 
         const stub = makeMutationCtx("p1", [gameStateSeed(state)]);
@@ -152,13 +156,19 @@ describe("chooseNumber through the real mutation (CR 107.1b, issue #1421)", () =
                     head,
                     view.players.find((p) => p.id === "p1")
                 )
-            ).toEqual({ min: 2, max: Number.POSITIVE_INFINITY });
+            ).toEqual({ min: 2, max: MAX_CHOSEN_NUMBER });
         }
-        // Nothing nominated yet, so nothing committed for the opponent to read
-        // out of the resolving item (issues #1977 / #1982).
-        expect(
-            projectPublicState(state, 1, "p2").stack[0].collectedChoices ?? {}
-        ).toEqual({});
+        // And the ANSWER reaches both seats through the reducer. Asserted
+        // AFTER the submit on purpose: before it, the resolving item carries
+        // no answer in anyone's view, so the same assertion would pass on a
+        // projection that dropped everything.
+        const stub = makeMutationCtx("p1", [gameStateSeed(state)]);
+        await runSubmitNumberChoice(stub.ctx, { playerId: "p1", amount: 5 });
+        for (const seat of ["p1", "p2"] as const) {
+            const after = projectPublicState(stub.state(), 1, seat);
+            expect(after.pendingChoices ?? []).toHaveLength(0);
+            expect(after.players[0].life).toBe(25);
+        }
     });
 
     it("the mutation enforces the authored FLOOR, and the window stays answerable", async () => {
@@ -171,6 +181,23 @@ describe("chooseNumber through the real mutation (CR 107.1b, issue #1421)", () =
         expect(stub.state().pendingChoices).toHaveLength(1);
         await runSubmitNumberChoice(stub.ctx, { playerId: "p1", amount: 2 });
         expect(stub.state().players[0].life).toBe(22);
+    });
+
+    it("enforces the engine cap — an unbounded answer is an unbounded loop downstream", async () => {
+        const state = suspended(OPEN_ID, {});
+        const stub = makeMutationCtx("p1", [gameStateSeed(state)]);
+        await expect(
+            runSubmitNumberChoice(stub.ctx, {
+                playerId: "p1",
+                amount: MAX_CHOSEN_NUMBER + 1,
+            })
+        ).rejects.toThrow(/between 0 and 999/);
+        expect(stub.state().pendingChoices).toHaveLength(1);
+        await runSubmitNumberChoice(stub.ctx, {
+            playerId: "p1",
+            amount: MAX_CHOSEN_NUMBER,
+        });
+        expect(stub.state().players[0].life).toBe(20 + MAX_CHOSEN_NUMBER);
     });
 
     it("refuses the nomination from the seat that does not own the choice", async () => {

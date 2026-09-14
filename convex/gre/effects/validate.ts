@@ -957,17 +957,17 @@ function isTokenPTValue(value: unknown): boolean {
     return typeof value !== "number" && isEffectValue(value);
 }
 
-/** CR 107.1b (issue #1421) — a `chooseNumber` Op's `min` / `max`: a
+/** CR 107.1c (issue #1421) — a `chooseNumber` Op's `min` / `max`: a
  *  NON-NEGATIVE integer literal, or any non-literal `EffectValue` (a ref /
  *  count / … resolved as the ability resolves, sizing the bound off the
  *  board).
  *
  *  Not plain `isEffectValue`, for the same reason `isTokenPTValue` isn't: that
  *  one's literal leg is `isPositiveInt`, which rejects `0` — and `min: 0` is
- *  the CR 107.1b floor every open nomination has, while `max: 0` is a
- *  degenerate-but-legal cap a computed bound can equal anyway. Negative
- *  literals stay rejected: CR 107.1b's "any number" is a non-negative
- *  integer. */
+ *  the floor every open nomination has (CR 107.1c admits zero), while
+ *  `max: 0` is a degenerate-but-legal cap a computed bound can equal anyway.
+ *  Negative literals stay rejected — CR 107.1b: "You can't choose a negative
+ *  number". */
 function isNominationBound(value: unknown): boolean {
     if (typeof value === "number") return isNonNegativeInt(value);
     return isEffectValue(value);
@@ -4995,7 +4995,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             bind: isBindingName,
         },
     },
-    // CR 107.1b (issue #1421) — a BARE numeric nomination ("choose a number").
+    // CR 107.1c (issue #1421) — a BARE numeric nomination ("choose a number").
     // No cost field of any kind and no `payMana`: the amount is nominated, not
     // paid. `bind` is REQUIRED for the same grammar reason the two siblings
     // carry it — a choice nothing reads back is meaningless. `min` / `max` are
@@ -5627,7 +5627,7 @@ function parseRef(ref: string): { binding: string; property: string } | null {
 // divideIntoPiles list capture are the identical `string[]` runtime storage,
 // distinguished only by provenance — the family check on `s.set === "bound"`
 // (below, in `checkOpListRefs`) accepts either.
-// A NUMBER binding (CR 107.1b / 107.3f, issues #1701 / #1421) stores the
+// A NUMBER binding (CR 107.1c / 107.3f, issues #1701 / #1421) stores the
 // amount a numeric nomination settled on — paid (`payVariableMana`) or merely
 // chosen (`chooseNumber`) — as a TAGGED single value. It is read ONLY
 // by a bare ref in a NUMERIC value position (`count: { ref: "$paid" }`) — a

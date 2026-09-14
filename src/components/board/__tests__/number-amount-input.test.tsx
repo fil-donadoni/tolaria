@@ -172,59 +172,66 @@ describe("number-pick wiring (issue #1701)", () => {
     });
 });
 
-// --- the OPEN-ENDED bare nomination (CR 107.1b, issue #1421) ----------------
+// --- the BARE (non-paying) nomination (CR 107.1c, issue #1421) -------------
 //
-// "Choose a number" has no ceiling: the range's `max` is
-// `Number.POSITIVE_INFINITY`, and a stepper that clamped to it would render
-// "0 – Infinity available", cap the typed value at `NaN`, or (worse) silently
-// refuse an amount the server accepts. Free entry is the shape.
-describe("NumberAmountInput — open-ended nomination (issue #1421)", () => {
-    const openEnded = (onSubmit: (n: number) => void) =>
+// "Choose a number" reaches the client already bounded — `numberChoiceRange`
+// applies the engine cap — so the stepper shape is unchanged. What IS
+// different is the semantics of the answer: a mid-resolution choice cannot be
+// declined (CR 608.2), and 0 is a substantive nomination (Void naming 0
+// destroys every mana-value-0 artifact and creature), so the confirm button
+// must not read "Decline".
+describe("NumberAmountInput — bare nomination (issue #1421)", () => {
+    const bare = (onSubmit: (n: number) => void, max = 999) =>
         render(
             <NumberAmountInput
                 min={0}
-                max={Number.POSITIVE_INFINITY}
+                max={max}
                 paysMana={false}
                 disabled={false}
                 onSubmit={onSubmit}
             />
         );
 
-    it("never runs out of ceiling: increment stays live and the typed value is not capped", () => {
+    it("labels 0 as a CHOICE, never a decline — only a paying nomination declines", () => {
         const onSubmit = vi.fn();
-        const { getByLabelText, getByText } = openEnded(onSubmit);
-        const plus = getByLabelText("Increase amount") as HTMLButtonElement;
-        const field = getByLabelText("Amount") as HTMLInputElement;
+        const { getByText, queryByText } = bare(onSubmit);
+        expect(queryByText("Decline")).toBeNull();
+        fireEvent.click(getByText("Choose 0"));
+        expect(onSubmit).toHaveBeenCalledWith(0);
+    });
 
-        fireEvent.click(plus);
-        fireEvent.click(plus);
-        expect(plus.disabled).toBe(false);
-        // No `max` attribute at all — the browser's own spinner must not cap
-        // it either.
-        expect(field.getAttribute("max")).toBeNull();
-
-        fireEvent.change(field, { target: { value: "137" } });
-        expect(field.value).toBe("137");
+    it("accepts a typed amount far above any mana the chooser has", () => {
+        const onSubmit = vi.fn();
+        const { getByLabelText, getByText } = bare(onSubmit);
+        fireEvent.change(getByLabelText("Amount"), {
+            target: { value: "137" },
+        });
         fireEvent.click(getByText("Choose 137"));
         expect(onSubmit).toHaveBeenCalledWith(137);
     });
 
-    it("still holds the FLOOR — the one bound CR 107.1b does impose", () => {
+    it("truncates a fractional entry — CR 107.1 admits integers only", () => {
+        // The mutation refuses a fractional amount outright, so a value that
+        // renders as "2.5" would round-trip through a server error.
         const onSubmit = vi.fn();
-        const { getByLabelText, getByText } = openEnded(onSubmit);
-        const minus = getByLabelText("Decrease amount") as HTMLButtonElement;
-        expect(minus.disabled).toBe(true);
-        fireEvent.change(getByLabelText("Amount"), {
-            target: { value: "-4" },
-        });
-        fireEvent.click(getByText("Decline"));
-        expect(onSubmit).toHaveBeenCalledWith(0);
+        const { getByLabelText, getByText } = bare(onSubmit);
+        const field = getByLabelText("Amount") as HTMLInputElement;
+        fireEvent.change(field, { target: { value: "2.5" } });
+        expect(field.value).toBe("2");
+        fireEvent.click(getByText("Choose 2"));
+        expect(onSubmit).toHaveBeenCalledWith(2);
     });
 
-    it("names only the floor in the hint — never an Infinity ceiling", () => {
-        const { getByText, queryByText } = openEnded(vi.fn());
-        expect(getByText("0 or more")).toBeTruthy();
-        expect(queryByText(/Infinity/)).toBeNull();
+    it("still holds the FLOOR and the cap — the bounds the server re-checks", () => {
+        const onSubmit = vi.fn();
+        const { getByLabelText, getByText } = bare(onSubmit, 4);
+        const minus = getByLabelText("Decrease amount") as HTMLButtonElement;
+        expect(minus.disabled).toBe(true);
+        fireEvent.change(getByLabelText("Amount"), { target: { value: "-4" } });
+        fireEvent.click(getByText("Choose 0"));
+        expect(onSubmit).toHaveBeenCalledWith(0);
+        fireEvent.change(getByLabelText("Amount"), { target: { value: "9" } });
+        expect((getByLabelText("Amount") as HTMLInputElement).value).toBe("4");
     });
 
     it("a bare nomination routes to the CENTERED prompt — it has nothing on the board to tap", () => {

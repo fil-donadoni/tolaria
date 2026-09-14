@@ -16489,13 +16489,15 @@ export type EffectOp =
            *  actually paid. */
           bind: string;
       }
-    /** CR 107.1b (issue #1421) — a BARE numeric nomination: "choose a number",
+    /** CR 107.1c (issue #1421) — a BARE numeric nomination: "choose a number",
      *  answered with a non-negative integer that costs nothing and is then
-     *  READ by a later Op. CR 107.1b: "If anything needs to know the value of
-     *  a number that isn't defined, it's 0" and a player asked to choose a
-     *  number chooses a non-negative integer unless the effect says otherwise
-     *  — Void's "Choose a number. Destroy all artifacts and creatures with
-     *  mana value equal to that number."
+     *  READ by a later Op. CR 107.1c: "If a rule or ability instructs a player
+     *  to choose 'any number,' that player may choose any positive number or
+     *  zero" — Void's "Choose a number. Destroy all artifacts and creatures
+     *  with mana value equal to that number." The neighbouring constraints are
+     *  separate rules, enforced at the submit boundary: CR 107.1 ("the only
+     *  numbers the Magic game uses are integers") and CR 107.1b ("you can't
+     *  choose a negative number").
      *
      *  The paying sibling is `payVariableMana` (CR 107.3f, issue #1701) and
      *  the two deliberately stay distinct Ops over ONE Pending Choice family:
@@ -16509,10 +16511,12 @@ export type EffectOp =
      *
      *  `min` / `max` are optional `EffectValue`s, resolved at execution time so
      *  a bound can be read off the board as the ability resolves. Both omitted
-     *  is the OPEN-ENDED nomination (CR 107.1b "any number"): the legal range
-     *  is then every integer from the floor up, the client renders free entry
-     *  rather than a stepper, and the bot searches a bounded candidate set
-     *  (never an infinite one). Omitting `min` means 0.
+     *  is the OPEN-ENDED nomination (CR 107.1c "any number"): the range is
+     *  then every integer from the floor up to the engine cap
+     *  `MAX_CHOSEN_NUMBER`, which `numberChoiceRange` alone applies (a
+     *  declared deviation — the nominated value is consumed as an iteration
+     *  count downstream), and which the bot narrows further for SEARCH only.
+     *  Omitting `min` means 0.
      *
      *  `bind` (REQUIRED) names a NUMERIC binding — the nominated amount — read
      *  by a later Op as an `EffectValue` (`manaValueEquals: { ref: "$n" }`).
@@ -16528,12 +16532,12 @@ export type EffectOp =
      *  "generalize, don't add"). */
     | {
           op: "chooseNumber";
-          /** Who nominates (CR 107.1b — the player the effect instructs to
+          /** Who nominates (CR 107.1c — the player the effect instructs to
            *  choose, usually the controller). */
           player: EffectPlayerRef;
           prompt: string;
           /** Floor of the nominal range, resolved at execution time. Omitted
-           *  means 0 — CR 107.1b's non-negative integer. */
+           *  means 0 — CR 107.1b bars a negative choice. */
           min?: EffectValue;
           /** Authored ceiling, resolved at execution time, when the ability's
            *  own text caps the nomination. Omitted means open-ended. */

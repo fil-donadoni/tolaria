@@ -5493,7 +5493,7 @@ export const OP_EXECUTORS: {
         });
         if (paid === undefined) return "suspend"; // enqueued — wait
     },
-    // CR 107.1b (issue #1421) — a BARE numeric nomination ("choose a number").
+    // CR 107.1c (issue #1421) — a BARE numeric nomination ("choose a number").
     // The same suspend/replay contract as `payVariableMana` above and the same
     // `number-pick` family, minus `payMana`: nothing is spent, so no CR 608.2g
     // mana window opens and the answer is bounded only by the authored range.
@@ -5502,11 +5502,14 @@ export const OP_EXECUTORS: {
     // (CR 608.2), and passed onto the Pending Choice as plain integers — the
     // entry is what the submit validator, the client stepper and the bot
     // candidate generator all read, and none of them can evaluate a value
-    // grammar. A bound that resolves to `undefined` (an uncaptured binding,
-    // CR 608.2b) is DROPPED rather than treated as 0: dropping `max` widens
-    // the nomination to open-ended, which is the CR 107.1b default, whereas a
-    // silent 0 ceiling would pin the answer to the floor and look like the
-    // card working.
+    // grammar. Either bound resolving to `undefined` (an uncaptured binding,
+    // CR 608.2b) is DROPPED rather than treated as 0. Both directions widen,
+    // which is the honest failure: dropping `max` restores the CR 107.1c
+    // default, and a silent 0 CEILING would instead pin the answer to the
+    // floor and look like the card working. Dropping `min` widens downwards to
+    // the CR 107.1c floor of zero — weaker than an authored "at least N", but
+    // still a legal answer the reading Op can act on, where a silent floor of
+    // the card's own choosing would be an invented rule.
     chooseNumber(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return; // CR 608.2b — chooser gone, skip

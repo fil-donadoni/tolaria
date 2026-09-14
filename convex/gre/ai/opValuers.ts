@@ -672,7 +672,7 @@ const payVariableMana: Valuer<"payVariableMana"> = () => {
 };
 
 const chooseNumber: Valuer<"chooseNumber"> = () => {
-    // CR 107.1b (issue #1421) — a bare nomination moves nothing on its own:
+    // CR 107.1c (issue #1421) — a bare nomination moves nothing on its own:
     // it spends no resource and changes no zone, and its entire consequence is
     // the sibling Op that reads the `$n` binding back (a `destroy` filtered on
     // `manaValueEquals`, a `draw` count). A context-free walker cannot price
@@ -2319,7 +2319,7 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // "pay nothing" — there is no stake a redirect could move, because the
     // recipient decides the magnitude themselves and 0 is always available.
     payVariableMana: "neutral",
-    // CR 107.1b (issue #1421) — a bare nomination hands the `player` it names
+    // CR 107.1c (issue #1421) — a bare nomination hands the `player` it names
     // a free choice over a number and takes nothing from them: there is no
     // resource spent, no object moved and no life or card at stake, so there
     // is nothing a redirect of the recipient could move. The CONSEQUENCE has a

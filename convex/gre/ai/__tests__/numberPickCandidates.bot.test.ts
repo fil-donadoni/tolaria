@@ -17,6 +17,7 @@ import {
 } from "../choiceCandidates";
 import { applyMoveInSearch } from "../../search";
 import { numberChoiceRange } from "../../state";
+import { MAX_CHOSEN_NUMBER } from "../../constants";
 import type { GameState, PendingChoice } from "../../state";
 import {
     makeInstance,
@@ -121,15 +122,16 @@ describe("number-pick candidate generator (CR 107.3f, issue #1701)", () => {
     });
 });
 
-// --- the BARE nomination (CR 107.1b, issue #1421) ---------------------------
+// --- the BARE nomination (CR 107.1c, issue #1421) ---------------------------
 //
-// `numberChoiceRange` reports an INFINITE legal range for "choose a number",
-// which is correct and unenumerable. The generator therefore derives its own
-// searchable ceiling off the board. Two silent failures live here: a ceiling
-// of `Infinity` (the midpoint is `Infinity`, `max` is `Infinity`, and the
-// search opens a branch whose move the submit then refuses — a frozen window,
-// ADR 0047), and a ceiling collapsed to the floor (every candidate is 0, so
-// the bot answers Void by destroying nothing, and no suite reds).
+// `numberChoiceRange` bounds "choose a number" only by the engine cap
+// (`MAX_CHOSEN_NUMBER`) — a range no generator should bisect, since its
+// midpoint is a branch no line of play distinguishes. The generator therefore
+// derives its own searchable ceiling off the board. Two silent failures live
+// here: a ceiling left at the cap (999 and 499 become branches, and the four
+// answers that matter share the remaining slots), and a ceiling collapsed to
+// the floor (every candidate is 0, so the bot answers Void by destroying
+// nothing, and no suite reds).
 
 const BARE_NOMINATOR_ID = "test-bot-choosenumber-nominator";
 registerTokenDefinition({
@@ -185,8 +187,8 @@ const amountsOf = (state: GameState, choice: PendingChoice) =>
         c.move.kind === "number-choice" ? c.move.amount : -1
     );
 
-describe("number-pick candidates for a BARE nomination (CR 107.1b, issue #1421)", () => {
-    it("bounds an INFINITE legal range by the board's highest mana value", () => {
+describe("number-pick candidates for a BARE nomination (CR 107.1c, issue #1421)", () => {
+    it("bounds the capped legal range down to the board's highest mana value", () => {
         const state = suspendedBareNomination((p1) => {
             p1.battlefield = [
                 makeInstance(MV4_ID, { controllerId: "p1" }),
@@ -194,10 +196,10 @@ describe("number-pick candidates for a BARE nomination (CR 107.1b, issue #1421)"
             ];
         });
         const choice = state.pendingChoices![0];
-        // The LEGAL range is unbounded — that is the CR 107.1b contract the
-        // generator must not narrow for the human.
+        // The LEGAL range runs to the engine cap — the generator must not
+        // narrow what a human may answer.
         expect(numberChoiceRange(choice, state.players[0]).max).toBe(
-            Number.POSITIVE_INFINITY
+            MAX_CHOSEN_NUMBER
         );
         const amounts = amountsOf(state, choice);
         // …and the SEARCHED set is finite, ends at the highest mana value on
@@ -218,7 +220,12 @@ describe("number-pick candidates for a BARE nomination (CR 107.1b, issue #1421)"
         expect(Math.max(...amounts)).toBe(6);
     });
 
-    it("reads the CHOOSER's own hand, and not the opponent's", () => {
+    it("reads EVERY hand, the opponent's included — Void's discard half names a target player", () => {
+        // Not a hidden-information leak: inside ISMCTS the state handed to a
+        // generator is the DETERMINIZED one, a sampled member of the
+        // information set, which is the same reason reading the opponent's
+        // battlefield is fair. Narrowing to the chooser's own hand would make
+        // the search blind to the half of Void that hits someone else's.
         const state = suspendedBareNomination();
         state.players[0].hand = [
             makeInstance(MV4_ID, { controllerId: "p1", zone: "hand" }),
@@ -231,7 +238,16 @@ describe("number-pick candidates for a BARE nomination (CR 107.1b, issue #1421)"
             }),
         ];
         const amounts = amountsOf(state, state.pendingChoices![0]);
-        expect(Math.max(...amounts)).toBe(4);
+        expect(Math.max(...amounts)).toBe(6);
+    });
+
+    it("never bisects the engine cap — 499 and 999 are not branches", () => {
+        const state = suspendedBareNomination((p1) => {
+            p1.battlefield = [makeInstance(MV2_ID, { controllerId: "p1" })];
+        });
+        const amounts = amountsOf(state, state.pendingChoices![0]);
+        expect(amounts).not.toContain(MAX_CHOSEN_NUMBER);
+        expect(amounts.every((n) => n <= 2)).toBe(true);
     });
 
     it("collapses to the decline alone on an empty board — never an empty set, never Infinity", () => {

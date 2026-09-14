@@ -767,7 +767,7 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             req.skip ??= `Op "payVariableMana" suspends for a variable mana-payment nomination — covered by the Op's interpreter tests`;
             return;
         case "chooseNumber":
-            // CR 107.1b (issue #1421) — the bare nomination suspends for the
+            // CR 107.1c (issue #1421) — the bare nomination suspends for the
             // same reason its paying sibling above does: the canned generator
             // has no way to answer a live "choose a number" prompt. Explicit
             // skip; execution coverage is the Op's own interpreter tests,

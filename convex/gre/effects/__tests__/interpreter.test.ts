@@ -83,6 +83,7 @@ import { enteredTrigger } from "../../../cards/abilities/triggers/enteredTrigger
 import { INLINE_DELAYED_TRIGGER_ID, runEffectScript } from "../interpreter";
 import { validateEffectScript } from "../validate";
 import { getEffectivePower, getEffectiveToughness } from "../../layers";
+import { MAX_CHOSEN_NUMBER } from "../../constants";
 import { getEffectiveActivatedAbilities } from "../../activatedAbilities";
 import { effectiveTriggeredAbilities } from "../../copy";
 import { hasSupertypeLive } from "../../../cards/snowReads";
@@ -14255,7 +14256,7 @@ describe("Effect Script Op: payVariableMana (CR 107.3f, issue #1701)", () => {
     });
 });
 
-// --- chooseNumber (CR 107.1b, issue #1421) -----------------------------------
+// --- chooseNumber (CR 107.1c, issue #1421) -----------------------------------
 //
 // The Op's PERMANENT test (per-Op regime, PRD #795): the nominate ->
 // bound-value round trip with NOTHING paid, the open-ended range CR 107.1b
@@ -14263,7 +14264,7 @@ describe("Effect Script Op: payVariableMana (CR 107.3f, issue #1701)", () => {
 // forEach construct combination, and the wire-format assertion through
 // `projectPublicState`. Every later card reusing the Op inherits this.
 
-describe("Effect Script Op: chooseNumber (CR 107.1b, issue #1421)", () => {
+describe("Effect Script Op: chooseNumber (CR 107.1c, issue #1421)", () => {
     it("suspends with a non-paying number-pick, binds the nominated number, and spends nothing", () => {
         const id = registerScript("test-op-choosenumber-roundtrip", [
             {
@@ -14327,11 +14328,19 @@ describe("Effect Script Op: chooseNumber (CR 107.1b, issue #1421)", () => {
         // so rather than collapsing to the floor, which is what would silently
         // pin the answer to 0.
         expect(numberChoiceRange(head, state.players[0]).max).toBe(
-            Number.POSITIVE_INFINITY
+            MAX_CHOSEN_NUMBER
         );
         expect(() =>
             applyNumberChoiceSubmit(state, { playerId: "p1", amount: -1 })
         ).toThrow(/non-negative/);
+        // The engine cap is real and enforced, not decorative: an unbounded
+        // answer is an unbounded loop in whatever Op reads the binding.
+        expect(() =>
+            applyNumberChoiceSubmit(state, {
+                playerId: "p1",
+                amount: MAX_CHOSEN_NUMBER + 1,
+            })
+        ).toThrow(/between 0 and 999/);
         // The refusal consumed neither the choice nor the game (ADR 0047).
         expect(state.pendingChoices).toHaveLength(1);
         applyNumberChoiceSubmit(state, { playerId: "p1", amount: 137 });
@@ -14383,26 +14392,48 @@ describe("Effect Script Op: chooseNumber (CR 107.1b, issue #1421)", () => {
     it("drops a `max` whose EffectValue is uncaptured rather than reading it as 0 (CR 608.2b)", () => {
         // An uncaptured binding is the standard skip contract — but applied to
         // a CEILING it would pin every answer to the floor and look like the
-        // card working. Widening to open-ended is the honest failure.
-        const id = registerScript("test-op-choosenumber-uncaptured-bound", [
+        // card working. Widening back to the CR 107.1c default is the honest
+        // failure.
+        //
+        // The binding is uncaptured the way a real card's is: the `destroy`
+        // above it names an OPTIONAL target slot (CR 601.2c) that this cast
+        // announced nothing for, so the Op skips and never writes `$d`. The
+        // script is one `validateEffectScript` accepts — a fixture the
+        // validator would reject proves nothing about a shippable card.
+        const id = registerScript(
+            "test-op-choosenumber-uncaptured-bound",
+            [
+                { op: "destroy", target: { target: 0 }, bind: "$d" },
+                {
+                    op: "chooseNumber",
+                    player: "controller",
+                    prompt: "Choose a number",
+                    max: { ref: "$d.manaValue" },
+                    bind: "$n",
+                },
+                { op: "gainLife", player: "controller", amount: { ref: "$n" } },
+            ],
             {
-                op: "chooseNumber",
-                player: "controller",
-                prompt: "Choose a number",
-                // `$missing` is bound by the `if` branch that never runs, so
-                // the ref reads nothing at execution time.
-                max: { ref: "$missing" },
-                bind: "$n",
-            },
-            { op: "gainLife", player: "controller", amount: { ref: "$n" } },
-        ]);
+                // "up to one target creature" (CR 601.2c) — the slot may
+                // legitimately go unfilled, which is what leaves `$d`
+                // uncaptured without the script being ill-formed.
+                targetRequirement: {
+                    type: ["Creature"],
+                    count: { min: 0, max: 1 },
+                },
+            }
+        );
+        expect(
+            validateEffectScript(getDefinition(id) as CardDefinition)
+        ).toEqual([]);
+
         const state = makeState();
-        pushSpell(state, id, "p1");
+        pushSpell(state, id, "p1"); // no target announced — `$d` stays unwritten
         resolveTopOfStack(state);
         const head = state.pendingChoices![0];
         expect(head.numberMax).toBeUndefined();
         expect(numberChoiceRange(head, state.players[0]).max).toBe(
-            Number.POSITIVE_INFINITY
+            MAX_CHOSEN_NUMBER
         );
         applyNumberChoiceSubmit(state, { playerId: "p1", amount: 5 });
         expect(state.players[0].life).toBe(25);
@@ -14483,17 +14514,28 @@ describe("Effect Script Op: chooseNumber (CR 107.1b, issue #1421)", () => {
                 chooserHead,
                 chooserView.players.find((p) => p.id === "p1")
             )
-        ).toEqual({ min: 2, max: Number.POSITIVE_INFINITY });
+        ).toEqual({ min: 2, max: MAX_CHOSEN_NUMBER });
 
-        // The OPPONENT's view: the same public prompt (CR 406.3), and no
-        // answer to leak — nothing has been nominated yet (issues #1977 /
-        // #1982).
+        // The OPPONENT's view: the same public prompt, with the same floor —
+        // a nomination is made openly, so this is not hidden information and
+        // the opponent seeing the question is correct (issues #1977 / #1982
+        // are about a prompt STRING carrying private data, which this one does
+        // not).
         const oppView = projectPublicState(state, 1, "p2");
         const oppHead = oppView.pendingChoices![0];
         expect(oppHead.kind).toBe("number-pick");
         expect(oppHead.prompt).toBe("Choose a number");
         expect(oppHead.numberMin).toBe(2);
-        expect(oppView.stack[0].collectedChoices ?? {}).toEqual({});
+
+        // And the ANSWER reaches both seats through the reducer: an assertion
+        // taken before the nomination would pass on any projection, since
+        // nothing has been committed yet.
+        applyNumberChoiceSubmit(state, { playerId: "p1", amount: 4 });
+        for (const seat of ["p1", "p2"] as const) {
+            const after = projectPublicState(state, 1, seat);
+            expect(after.pendingChoices ?? []).toHaveLength(0);
+            expect(after.players[0].life).toBe(24);
+        }
     });
 });
 

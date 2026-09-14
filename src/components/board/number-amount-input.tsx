@@ -13,17 +13,19 @@ import { Input } from "~/components/ui/input";
  *  against, so the stepper can never offer an amount the server refuses.
  *  Typed input is clamped into the range on the way out for the same reason.
  *
- *  A non-finite `max` is the OPEN-ENDED bare nomination (CR 107.1b "choose a
- *  number", issue #1421): there is no ceiling to clamp to and none to render,
- *  so the field becomes FREE ENTRY — no `max` attribute, an increment button
- *  that never runs out, and a hint that names only the floor. Clamping to some
- *  invented cap would be the client refusing an answer the server accepts,
- *  which is the exact drift `numberChoiceRange` exists to prevent.
+ *  An OPEN-ENDED bare nomination (CR 107.1c "any number", issue #1421) arrives
+ *  here already bounded: `numberChoiceRange` applies the engine cap, so `max`
+ *  is always a real number and the stepper always renders a true range. The
+ *  client never invents a bound of its own — that is the drift
+ *  `numberChoiceRange` exists to prevent.
  *
- *  The value starts at `min`, which for every shipped shape is 0 — and 0 IS the
- *  decline (CR 107.3f: paying {X} with X = 0 and declining are
- *  game-observably identical). So declining is ONE action, the confirm button,
- *  with no second prompt to dismiss (Arena parity, issue #2244).
+ *  The value starts at `min`. For a PAYING nomination 0 is the decline
+ *  (CR 107.3f: paying {X} with X = 0 and declining are game-observably
+ *  identical), so declining is ONE action, the confirm button, with no second
+ *  prompt to dismiss (Arena parity, issue #2244). For a BARE one it is not a
+ *  decline at all: a mid-resolution choice cannot be refused (CR 608.2) and 0
+ *  is a substantive answer — Void naming 0 destroys every mana-value-0
+ *  artifact and creature. Hence the label consults `paysMana`.
  *
  *  Stateless w.r.t. the game — the parent owns the submit mutation and the
  *  in-flight `disabled` gate (project-wide: buttons firing a Convex mutation
@@ -41,9 +43,12 @@ export default function NumberAmountInput({
     disabled: boolean;
     onSubmit: (amount: number) => void;
 }) {
-    const bounded = Number.isFinite(max);
+    // CR 107.1 — the game uses only integers, and `applyNumberChoiceSubmit`
+    // refuses a fractional amount outright. A typed "2.5" must therefore never
+    // reach the mutation: truncating here is what keeps the field's own value
+    // legal rather than round-tripping through a server error.
     const clamp = (next: number) =>
-        bounded ? Math.min(Math.max(next, min), max) : Math.max(next, min);
+        Math.trunc(Math.min(Math.max(next, min), max));
     const [nominated, setNominated] = useState(min);
     // The displayed amount is CLAMPED AT RENDER, not stored clamped. The
     // ceiling moves while the prompt is open — the payer may go on tapping
@@ -77,7 +82,7 @@ export default function NumberAmountInput({
                     type="number"
                     inputMode="numeric"
                     min={min}
-                    max={bounded ? max : undefined}
+                    max={max}
                     value={String(amount)}
                     disabled={disabled}
                     aria-label="Amount"
@@ -100,14 +105,14 @@ export default function NumberAmountInput({
                     variant="ghost"
                     size="sm"
                     aria-label="Increase amount"
-                    disabled={disabled || (bounded && amount >= max)}
+                    disabled={disabled || amount >= max}
                     onClick={() => setAmount(clamp(amount + 1))}
                 >
                     +
                 </Button>
             </div>
             <p className="text-text-disabled text-xs">
-                {bounded ? `${min} – ${max} available` : `${min} or more`}
+                {min} – {max} available
             </p>
             <Button
                 type="button"
@@ -116,11 +121,11 @@ export default function NumberAmountInput({
                 disabled={disabled}
                 onClick={submit}
             >
-                {amount === min && min === 0
-                    ? "Decline"
-                    : paysMana
-                      ? `Pay ${amount}`
-                      : `Choose ${amount}`}
+                {paysMana
+                    ? amount === 0
+                        ? "Decline"
+                        : `Pay ${amount}`
+                    : `Choose ${amount}`}
             </Button>
         </div>
     );

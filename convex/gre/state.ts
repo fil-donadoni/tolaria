@@ -226,6 +226,7 @@ import {
     isPlaneswalker,
     isSpellStackItem,
     LAND_DROPS_PER_TURN,
+    MAX_CHOSEN_NUMBER,
     manaGateBattlefields,
     manaValue,
     MANA_COLORS,
@@ -4037,10 +4038,10 @@ export function spendableManaTotal(
     return total;
 }
 
-/** THE range a `number-pick` nomination may be answered with (CR 107.1b /
- *  107.3f, issue #1701) — the single authority read by the submit validator
- *  (`applyNumberChoiceSubmit`), the client's stepper and the bot's candidate
- *  generator, so the offered set and the accepted set cannot drift.
+/** THE range a `number-pick` nomination may be answered with (CR 107.1c /
+ *  107.3f, issues #1701 / #1421) — the single authority read by the submit
+ *  validator (`applyNumberChoiceSubmit`), the client's stepper and the bot's
+ *  candidate generator, so the offered set and the accepted set cannot drift.
  *
  *  For a `paysMana` nomination the ceiling is the payer's LIVE spendable pool,
  *  never a value frozen onto the entry when it was raised: a may-pay window
@@ -4051,17 +4052,19 @@ export function spendableManaTotal(
  *  `payer` is `undefined` when the player has left the game — the range then
  *  collapses to the floor, and nothing above the decline is offered.
  *
- *  A BARE nomination (`chooseNumber`, CR 107.1b, issue #1421) with no authored
- *  `numberMax` is OPEN-ENDED, and `max` is then `Number.POSITIVE_INFINITY` —
- *  not a clamp to the floor. CR 107.1b's "choose a number" admits every
- *  non-negative integer and nothing about the board caps it, so a finite
- *  ceiling here would be the engine refusing a legal answer. The three
- *  consumers each honour it in their own register and none of them is allowed
- *  to invent a cap of its own: the submit validator checks only the floor, the
- *  client renders free entry instead of a stepper, and the bot searches a
- *  BOUNDED candidate set it derives itself (the legal range is infinite; the
- *  searched one never is). Callers that render or enumerate MUST therefore
- *  test `Number.isFinite(max)` rather than assume a number they can count to. */
+ *  A BARE nomination (`chooseNumber`, issue #1421) with no authored
+ *  `numberMax` is OPEN-ENDED — CR 107.1c: "If a rule or ability instructs a
+ *  player to choose 'any number,' that player may choose any positive number
+ *  or zero", so nothing about the board caps it and a ceiling derived from the
+ *  position would be the engine refusing a legal answer. What DOES cap it is
+ *  `MAX_CHOSEN_NUMBER` (gre/constants.ts), a declared deviation from CR 107.1c
+ *  applied HERE and nowhere else: the nominated value is consumed by later Ops
+ *  as an iteration count, so an unbounded answer is an unbounded loop inside a
+ *  mutation. Keeping the cap in this one function is what makes the offered
+ *  range and the accepted range the same rule — a consumer that invented its
+ *  own bound would offer an amount the submit then refuses. The returned `max`
+ *  is therefore ALWAYS finite; the bot narrows it further for SEARCH purposes,
+ *  which is a different question (see `openNominationSearchCeiling`). */
 export function numberChoiceRange(
     choice: Pick<
         PendingChoice,
@@ -4077,10 +4080,13 @@ export function numberChoiceRange(
             payer ? spendableManaTotal(payer, choice.manaRestriction) : 0
         );
     }
-    // An infinite `max` survives deliberately (issue #1421): it is the bare
-    // open-ended nomination, and every consumer is documented to handle it.
-    // It can only arise WITHOUT `paysMana` — a paying nomination always has
-    // the pool as its ceiling, and an absent payer makes that 0.
+    // The open-ended nomination (issue #1421) lands here with no ceiling of
+    // its own: CR 107.1c admits every non-negative integer, and the engine
+    // deviation that bounds it is declared on `MAX_CHOSEN_NUMBER`. Applied
+    // last, so it also trims an authored or pool ceiling that somehow exceeds
+    // it, and applied BEFORE the floor clamp, so a floor above the cap still
+    // yields a non-empty range.
+    if (max > MAX_CHOSEN_NUMBER) max = MAX_CHOSEN_NUMBER;
     return { min, max: Math.max(min, max) };
 }
 
