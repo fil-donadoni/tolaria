@@ -3,7 +3,10 @@
 ## Status
 
 accepted (2026-09-14, "formato verdicts" grill session, plan-and-archetype
-branch; extends ADR 0072 and ADR 0124 §4, bounded by ADR 0102)
+branch; extends ADR 0072 and ADR 0124 §4, bounded by ADR 0102). Amended the
+same day: §9 and §11 first said the static Plan was persisted and carried the
+library multiset; the `deckColorKnowledge` precedent makes it transient and
+small by construction.
 
 ## Context
 
@@ -86,23 +89,31 @@ Psychatog). And all 285 profiles are LLM-seeded and unreviewed.
    the missing piece changes no value on the move that fetches it, and stays
    blind.
 9. **The Plan is split by what changes.** The static half — what the deck's
-   cards require — is computed once per game and carried on the game state,
-   serialised like any other optional field, because the evaluation does not
-   receive the decklist and must not grow a new argument for it. The dynamic
-   half — what is satisfied now — is read at every evaluation, and must stay a
-   scan of zones, not a recomputation.
+   cards require — is a SEARCH-ONLY field stamped onto each determinized world,
+   listed with the transient keys and never persisted, exactly as
+   `deckColorKnowledge` already is (issue #3533): the evaluation is called with
+   a signature the whole engine uses, and riding on the world the leaf already
+   holds keeps one home for the quantity. It is small by construction, because
+   the search deep-copies the state at every node — a handful of counts per
+   seat, never a decklist. Its absence is the gate: every server path and every
+   test that stamps nothing behaves as before. The dynamic half — what is
+   satisfied now — is read at every evaluation, and must stay a scan of zones,
+   not a recomputation.
 10. **The opponent's Plan comes from exactly what the difficulty level
-    grants.** Informed: the opponent's decklist, which the search already
-    samples from (PRD #2787). Blind: only cards observed in public zones, as
+    grants.** Informed — the one difficulty that knows the opponent's list
+    today — the opponent's decklist, which the search already samples from
+    (PRD #2787). Blind: only cards observed in public zones, as
     `colorCoverage` already does for the seat whose hand may never be read.
     The Plan never reads information the level does not concede.
 11. **Deck-composition needs dissolve into two generic readings**, not a new
     construct. Oath of Druids' "controls more creatures" is already a target
     requirement — a condition on the current board. What its reveal finds and
     mills depends on the deck, and the `revealUntilMatch` valuer states that it
-    cannot price that "without knowing the deck". The static Plan carries the
-    own-library multiset, so valuers of revealing and drawing effects can take
-    an expectation over it. The deck-BUILDING constraint ("few creatures") is a
+    cannot price that "without knowing the deck". The static Plan carries a
+    compact summary of each library the search is granted — a few counts per
+    seat (how many cards of each type and Capability remain), never the
+    multiset, for the same per-node copying reason as §9 — so valuers of
+    revealing and drawing effects can take an expectation over it. The deck-BUILDING constraint ("few creatures") is a
     construction concern and not the play Bot's.
 12. **An Archetype on a constructed deck is a hint, never a source.** A preset
     may declare one, and the derivation may be checked against it. The engine
