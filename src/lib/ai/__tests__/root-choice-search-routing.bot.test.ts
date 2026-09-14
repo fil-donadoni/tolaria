@@ -354,6 +354,20 @@ const FIXTURES: Partial<Record<PendingChoiceKind, () => GameState>> = {
                 ),
             }
         ),
+    // CR 107.1b / 107.3f (issue #1701) — a PAYING numeric nomination with a
+    // real range: three mana floating, so the answer space is 0..3 and the
+    // decision is a genuine one rather than a forced zero. Without a fixture
+    // here the kind could be registered and still never reach the search from
+    // the driver, which is the exact shape of "the bot ignores the card".
+    "number-pick": () =>
+        stateWithBotChoice(
+            {
+                kind: "number-pick",
+                paysMana: true,
+                prompt: "Pay any amount of mana.",
+            },
+            { manaPool: { G: 3 } }
+        ),
     "land-entry-tapped": () =>
         stateWithBotChoice(
             {
