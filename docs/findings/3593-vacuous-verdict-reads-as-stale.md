@@ -1,7 +1,12 @@
-# A wholly vacuous Verdict is counted in the census's `stale` column
+---
+title: A wholly vacuous Verdict is counted in the census's `stale` column
+discoveredBy: 3593
+status: draft
+confidence: high
+---
 
-Noticed reviewing PR #3599 (issue #3593). Not fixed there — zero verdicts in
-the corpus reach it, and the fix changes a census column.
+**What is wrong.** Noticed reviewing PR #3599. Not fixed there — zero verdicts
+in the corpus reach it, and the fix changes a census column.
 
 `evalPairsOf` now drops a pair whose two sides resolve to the same move, and a
 verdict whose EVERY disallowed candidate is interchangeable with the allowed one
