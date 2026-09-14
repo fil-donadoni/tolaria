@@ -2923,6 +2923,27 @@ function lowerCard(
         if (card.damageMarked) entry.damageMarked = card.damageMarked;
         if (card.counters && Object.keys(card.counters).length > 0) {
             entry.counters = { ...card.counters };
+        } else if (!card.isToken && !card.faceDown) {
+            // CR 121.6 / 614.1c (issue #3516) — the builder PLACES a permanent
+            // rather than entering it, so it runs the entry-counters
+            // replacement itself whenever the spec says nothing (issue #1693,
+            // the Clockwork Beast that rebuilt as a 0/4). A permanent that has
+            // SPENT those counters — a Triskelion that has pinged three times,
+            // a fading permanent partway through — therefore rebuilt carrying
+            // them again, on a board whose spec was entirely faithful. So the
+            // lowering says NONE explicitly: an entry counters map that is
+            // present and empty is authoritative, exactly as a non-empty one
+            // is, while an OMITTED one keeps meaning "give it the default" for
+            // every hand-authored spec.
+            const printed = tryGetDefinition(
+                (card.card as { id?: string }).id ?? ""
+            );
+            const defaults = printed
+                ? resolveEntersWithCounters(printed, { manaSpentToCast: {} })
+                : undefined;
+            if (defaults && Object.keys(defaults).length > 0) {
+                entry.counters = {};
+            }
         }
         if (card.attackedDuringLastTurn) entry.attackedLastTurn = true;
         if (card.isSummoningSick) entry.summoningSick = true;
