@@ -654,6 +654,14 @@ _Avoid_: Bucket, upload folder, database, dataset
 The committed list naming exactly which **Verdicts** a **Weight Fit** was run over — the only part of the training data that lives beside the code. It is what makes a set of weights re-derivable by anyone: fit the verdicts it names and the committed numbers come back, to the bit. A judgement the lock does not name is invisible to the fit however long it has sat in the **Verdict Store**, so widening the lock and moving the weights are one reviewed change, never two.
 _Avoid_: Manifest, index, allowlist, approved list
 
+**Decision Class**:
+What KIND of decision a **Verdict** holds, in the words a player would use: a land drop, a cast, an activation, declaring attackers, declaring blockers, a targeting choice, a resolution choice, a mulligan. Derived from the engine's own move vocabulary rather than named separately, so a decision the engine gains cannot quietly go uncounted. The unit coverage is measured in: a corpus with three blocking judgements says nothing about blocking, however large it is overall.
+_Avoid_: Move type, action kind, category
+
+**Verdict Proposal**:
+A decision telemetry noticed and queued for the player to rule on later — the play they made differed from what the **Evaluation** would have picked, by more than a margin worth recording. It is a question, never an answer: confirmed, it becomes a **Verdict**; unconfirmed, it stays a position nobody has judged. The distinction is the whole point — a move a player chose in the middle of a game is not a move they would defend.
+_Avoid_: Implicit verdict, auto-label, inferred judgement
+
 **Eval Pair**:
 Two positions ordered by a **Verdict** — the board after the right move against the board after any other candidate — checked against the **Evaluation** alone: no search, microseconds. The **Evaluation**'s own correctness metric, as the **Blade Scenario** is the search's: a blade proves a forced play is not missed, an eval pair proves the value function orders two boards the way a player would.
 _Avoid_: Eval test, weight test, position test
