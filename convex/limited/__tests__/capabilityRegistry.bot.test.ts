@@ -100,7 +100,10 @@ describe("Guard test — unregistered Capability name fails validation (issue #1
             scope: "vintage-cube",
             profiles: {
                 [BLACK_LOTUS_ID]: {
-                    archetypes: ["fast-mana"],
+                    // A registry row (issue #3597 closed the Archetype
+                    // vocabulary), so this fixture carries exactly ONE
+                    // defect — the unregistered Capability it is about.
+                    archetypes: ["artifacts"],
                     provides: ["not-a-real-capability"],
                     requires: [],
                     reviewed: false,

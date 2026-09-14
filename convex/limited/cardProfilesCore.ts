@@ -33,6 +33,7 @@
 // row-shape/validation logic belongs HERE, only the `ctx.db`/`assertIsAdmin`
 // shells live in the sibling file.
 import { isRegisteredCapability } from "./capabilityRegistry";
+import { isRegisteredArchetype } from "./archetypeRegistry";
 import { tryGetDefinition } from "../cards";
 import { CUBE_SOURCE_KEY } from "./cubeSource";
 import type { ScopeCard } from "./cardRatingsCore";
@@ -42,13 +43,16 @@ import vintageCubeProfilesJson from "../../data/card-profiles/vintage-cube.json"
  *  table (`convex/schema.ts`) and any checked-in seed file share. `provides`/
  *  `requires` entries MUST be rows of `CAPABILITY_REGISTRY`
  *  (`capabilityRegistry.ts`) — enforced by `validateCardProfileFile` below
- *  for the seed layer, and by the same check at the (future) Admin write
- *  boundary for the database layer. `archetypes` is free text (a named
- *  strategy like `reanimator`/`artifacts`/`jeskai-tempo`, ADR 0072) —
- *  deliberately NOT gated by a closed registry: archetypes are a coarse,
- *  ergonomic label the scorer groups picks by, not a matching vocabulary
- *  that needs the same "silently forks into three spellings" guard a
- *  Capability match does. */
+ *  for the seed layer, and by the same check at the Admin write boundary
+ *  (`cardProfileWriteErrors`) for the database layer. `archetypes` entries
+ *  MUST likewise be rows of `ARCHETYPE_REGISTRY` (`archetypeRegistry.ts`),
+ *  normalized (trimmed + lowercased) — closed since issue #3597. It used to
+ *  be free text, on the reasoning that a coarse ergonomic label needs no
+ *  vocabulary guard; `archetypeFitTerm` groups picks by EXACT STRING
+ *  EQUALITY, so `reanimator`/`reanimate`/`graveyard-reanimator` are three
+ *  plans to the scorer and one to a human, and a several-hundred-row human
+ *  review pass is exactly the occasion that mints all three. Case-folding
+ *  alone (`normalizeArchetypes`) never covered that. */
 export interface CardProfile {
     archetypes: string[];
     provides: string[];
@@ -240,6 +244,17 @@ export function validateCardProfileFile(
                 );
             }
         }
+        // Checked EXACTLY as written, never normalized first (issue #3597):
+        // a seed file is hand/LLM-authored data whose strings are what
+        // `archetypeFitTerm` will group on verbatim, so ` Control ` must
+        // fail the guard rather than be quietly accepted as `control`.
+        for (const archetype of profile.archetypes) {
+            if (!isRegisteredArchetype(archetype)) {
+                errors.push(
+                    `${file.scope}: "${cardId}" declares unregistered Archetype "${archetype}"`
+                );
+            }
+        }
     }
 
     return { valid: errors.length === 0, errors };
@@ -292,16 +307,21 @@ export function buildDbProfileLookup(
 // `buildCardRatingRow`/`buildScopeCardRatings`.
 // ─────────────────────────────────────────────────────────────────────────
 
-/** Normalizes a free-text Archetype list: trimmed, lowercased, empties
- *  dropped, duplicates removed, input order preserved. Archetypes are NOT
- *  gated by a closed registry (see `CardProfile`'s doc comment) — but they
- *  ARE grouped by exact string equality in `botDrafter.ts`'s Archetype Fit
- *  term, so `Reanimator` and `reanimator` would silently be two different
- *  plans. Case-folding here is the cheapest possible guard against that fork
- *  WITHOUT introducing a registry: the same reasoning `scope` normalization
- *  already applies (user-facing/data-driven text normalizes; internal engine
- *  vocabulary — a Capability id — stays case-SENSITIVE, see
- *  `isRegisteredCapability`). Pure. */
+/** Normalizes an Archetype list: trimmed, lowercased, empties dropped,
+ *  duplicates removed, input order preserved. Archetypes ARE grouped by exact
+ *  string equality in `botDrafter.ts`'s Archetype Fit term, so `Reanimator`
+ *  and `reanimator` would silently be two different plans — the same
+ *  reasoning `scope` normalization already applies (user-facing/data-driven
+ *  text normalizes; internal engine vocabulary — a Capability id — stays
+ *  case-SENSITIVE, see `isRegisteredCapability`).
+ *
+ *  Case-folding was once the ONLY guard against that fork; since issue #3597
+ *  it is the first of two, and the smaller one. It cannot see the fork that
+ *  actually happens in a review pass — `reanimator` vs `reanimate` vs
+ *  `graveyard-reanimator`, three legal lowercase strings — which is
+ *  `archetypeRegistry.ts`'s job. This function is the NORMALIZER; the
+ *  registry is the VOCABULARY, and the write boundary runs this first so the
+ *  registry check reads exactly what will be stored. Pure. */
 export function normalizeArchetypes(archetypes: readonly string[]): string[] {
     const seen = new Set<string>();
     const out: string[] = [];
@@ -337,6 +357,17 @@ export function cardProfileWriteErrors(
     for (const capability of profile.requires) {
         if (!isRegisteredCapability(capability)) {
             errors.push(`unregistered Capability required: "${capability}"`);
+        }
+    }
+    // Validated on the NORMALIZED form, because that is what
+    // `buildCardProfileRow` is about to store — the editor's picker only ever
+    // sends registry ids, but a direct mutation call typing `Control` must
+    // land as `control` or be rejected, never stored as a third spelling
+    // (issue #3597). The seed-layer twin above checks the raw string instead;
+    // the two differ deliberately — nobody normalizes a checked-in file.
+    for (const archetype of normalizeArchetypes(profile.archetypes)) {
+        if (!isRegisteredArchetype(archetype)) {
+            errors.push(`unregistered Archetype: "${archetype}"`);
         }
     }
     for (const edge of profile.comboEdges ?? []) {
