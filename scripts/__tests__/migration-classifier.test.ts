@@ -1846,9 +1846,21 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // outside FREE/AFK-ready), so only the total and Op-blocked move. Net:
         // total 473->472, Op-blocked 140->139, FREE and AFK-ready unchanged.
         // Partition: 318+15+139=472.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(472);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(318);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(309);
+        // Issue #1701 retires SIX `resolve()` bodies and adds none. Four are
+        // the aura-host-CONTROLLER player-ref sweep (Cursed Land, Warp
+        // Artifact, Wanderlust, Farmstead — every one of them blocked on a
+        // premise `$host.controller` refuted), plus the two the issue named
+        // outright: Feedback (same refuted premise, no new Op needed) and
+        // Power Leak, whose two-sequential-may-pay simulation the new
+        // `payVariableMana` Op replaces with the single CR 107.3f nomination
+        // the card actually prints. Errant Minion and Decree of Justice ship
+        // as DSL cards, so they add no closure. Re-measured directly (`bun
+        // scripts/migration-classifier.mjs`), not hand-picked: total
+        // 472->466, FREE 318->312, AFK-ready 309->303; X-only unchanged at
+        // 15, Op-blocked unchanged at 139. Partition: 312+15+139=466.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(466);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(312);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(303);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(15);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(139);
     });
