@@ -360,3 +360,136 @@ export function formatVerdictReport(
     }
     return out.join("\n");
 }
+
+/** The ordering a HUMAN reads off a report, as a comparable tuple. */
+export type ReportScore = {
+    verdictsOk: number;
+    verdicts: number;
+    satisfied: number;
+    pairs: number;
+    contradictions: number;
+    blind: number;
+};
+
+/** Score a report on the ordering, NOT on the fit's loss.
+ *
+ *  `fitWeights` minimises a hinge with a MARGIN (`δ`, 100 by default), so it
+ *  will happily flip a pair sitting just past zero in order to push a dozen
+ *  others further past `δ`: a strictly lower loss that orders FEWER verdicts.
+ *  Measured on the first whole-corpus refit (issue #3406, 174 verdicts / 492
+ *  pairs): loss 2.4173 → 2.3293 while pairs satisfied went 328 → 326 and
+ *  verdicts fully ordered 79 → 78. What a Verdict corpus is FOR is the
+ *  ordering, so that is what an incumbent vector is defended on. */
+export function scoreVerdictReport(report: VerdictReport): ReportScore {
+    return {
+        verdictsOk: report.rows.filter((r) => r.ok).length,
+        verdicts: report.rows.length,
+        satisfied: report.satisfied.length,
+        pairs: report.pairs.length,
+        contradictions: report.contradictions.length,
+        blind: report.blind.length,
+    };
+}
+
+/** Is `candidate` an improvement on `incumbent` over the SAME corpus?
+ *
+ *  Verdicts fully ordered leads, pairs satisfied breaks its tie — but a win on
+ *  the first key still may not LOSE on the second: +1 verdict bought with a
+ *  collapse in satisfied pairs is a regression wearing the headline number.
+ *  A tie on both is not an improvement either; a vector nobody can show is
+ *  better is churn, and every refit costs a blade run to re-prove.
+ *
+ *  Throws when the two scores do not share a corpus. The runner builds both
+ *  from one `verdicts` array so the denominators are equal by construction,
+ *  but this is exported from the barrel where that guarantee does not travel,
+ *  and comparing two different corpora silently is the one way to get a
+ *  confident wrong answer out of it. */
+export function improvesOnIncumbent(
+    candidate: ReportScore,
+    incumbent: ReportScore
+): boolean {
+    if (
+        candidate.verdicts !== incumbent.verdicts ||
+        candidate.pairs !== incumbent.pairs
+    ) {
+        throw new Error(
+            `two vectors scored on DIFFERENT corpora cannot be compared — ` +
+                `candidate ${candidate.verdictsOk}/${candidate.verdicts} verdicts, ` +
+                `${candidate.satisfied}/${candidate.pairs} pairs against ` +
+                `incumbent ${incumbent.verdictsOk}/${incumbent.verdicts}, ` +
+                `${incumbent.satisfied}/${incumbent.pairs}`
+        );
+    }
+    if (candidate.verdictsOk !== incumbent.verdictsOk) {
+        return (
+            candidate.verdictsOk > incumbent.verdictsOk &&
+            candidate.satisfied >= incumbent.satisfied
+        );
+    }
+    return candidate.satisfied > incumbent.satisfied;
+}
+
+/** What the runner should tell a human to do with the block it just printed.
+ *
+ *  Three outcomes, and the middle one is the whole point: before issue #3406
+ *  ANY difference from the committed vector printed the paste instruction,
+ *  having compared the fit only against the hand-picked prior it linearises
+ *  at — so a measured regression read as "STALE". */
+export function pasteInstruction(upToDate: boolean, better: boolean): string {
+    if (upToDate) return "== the committed DEFAULT_EVAL_WEIGHTS is up to date";
+    if (better) {
+        return (
+            "== the committed DEFAULT_EVAL_WEIGHTS is STALE — paste the block above,\n" +
+            "   then run `bun run test:blade`: the ordering is all this compares, and a\n" +
+            "   `predicate` blade entry yields no verdict at all, so a vector can improve\n" +
+            "   here and still red the must tier (issue #3406)."
+        );
+    }
+    return (
+        "== DO NOT PASTE — the fitted vector orders FEWER verdicts than the\n" +
+        "   committed one on this very corpus. A lower fit loss with a worse\n" +
+        "   ordering is the margin (δ) trading a satisfied pair for separation\n" +
+        "   elsewhere; the corpus is asking for a missing TERM, not a refit.\n" +
+        "   Fewer BLIND pairs alone does not buy the paste either — it names the\n" +
+        "   missing term, it does not order a single verdict (issue #3406)."
+    );
+}
+
+const SCORE_COLUMNS = [
+    "verdicts ordered",
+    "pairs satisfied",
+    "contradictory",
+    "blind",
+] as const;
+
+/** The one table that answers "should this vector land?" — every row scored on
+ *  the SAME corpus, so the columns are comparable by construction. */
+export function formatScoreComparison(
+    rows: { label: string; score: ReportScore }[]
+): string {
+    if (rows.length === 0) return "== no vector scored";
+    const cells = rows.map(({ label, score }) => [
+        label,
+        `${score.verdictsOk}/${score.verdicts} (${pct(score.verdictsOk, score.verdicts)})`,
+        `${score.satisfied}/${score.pairs} (${pct(score.satisfied, score.pairs)})`,
+        String(score.contradictions),
+        String(score.blind),
+    ]);
+    const header = ["vector", ...SCORE_COLUMNS];
+    // Widths from the header AND every value, so a longer label or a corpus
+    // past 999 verdicts widens the column instead of shunting the next one
+    // right (`padEnd` never truncates).
+    const width = header.map((h, i) =>
+        Math.max(h.length, ...cells.map((row) => row[i].length))
+    );
+    const line = (row: readonly string[]) =>
+        `  ${row
+            .map((cell, i) => cell.padEnd(width[i]))
+            .join("   ")
+            .trimEnd()}`;
+    return [
+        `== the same corpus, ${rows.length} vectors — ordering, not loss (issue #3406)`,
+        line(header),
+        ...cells.map(line),
+    ].join("\n");
+}

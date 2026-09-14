@@ -30,8 +30,12 @@ import {
     fitWeights,
     fittableWeightsEqual,
     formatFittedWeights,
+    formatScoreComparison,
     formatVerdictReport,
     formatWeightFitReport,
+    improvesOnIncumbent,
+    pasteInstruction,
+    scoreVerdictReport,
     verdictCorpus,
     verdictsFromRegistry,
     VERDICT_DIR,
@@ -168,21 +172,48 @@ describe.runIf(RUN)("weight fit (runner)", () => {
             weights: result.weights,
         });
 
+        // The INCUMBENT, on the same corpus. `before` is the hand-picked
+        // prior the fit linearises at — NOT what the engine is running — so
+        // without this row the report invites pasting a vector that beats the
+        // prior and loses to the weights already in `evalWeights.ts`. That is
+        // not hypothetical: issue #3406's whole-corpus refit does exactly
+        // that, at every (margin, trust, λ) in the sweep.
+        const upToDate = fittableWeightsEqual(
+            result.weights,
+            DEFAULT_EVAL_WEIGHTS
+        );
+        const incumbent = upToDate
+            ? after
+            : collectVerdictReport(verdicts, {
+                  gaps,
+                  weights: DEFAULT_EVAL_WEIGHTS,
+              });
+        const fittedScore = scoreVerdictReport(after);
+        const incumbentScore = scoreVerdictReport(incumbent);
+        const better = improvesOnIncumbent(fittedScore, incumbentScore);
+
         const text = [
             formatWeightFitReport(result, before.pairs.length),
             "",
-            "== BEFORE (committed weights)",
+            "== BEFORE (the hand-picked prior the fit starts from)",
             formatVerdictReport(before, 0),
             "",
             "== AFTER (fitted weights, re-derived through the engine)",
             formatVerdictReport(after, performance.now() - t0),
             "",
+            formatScoreComparison([
+                {
+                    label: "prior (FIT_BASE)",
+                    score: scoreVerdictReport(before),
+                },
+                { label: "committed (DEFAULT)", score: incumbentScore },
+                { label: "fitted (this run)", score: fittedScore },
+            ]),
+            "",
             "== the fitted vector, as the DEFAULT_EVAL_WEIGHTS literal",
             formatFittedWeights(result),
             "",
-            fittableWeightsEqual(result.weights, DEFAULT_EVAL_WEIGHTS)
-                ? "== the committed DEFAULT_EVAL_WEIGHTS is up to date"
-                : "== the committed DEFAULT_EVAL_WEIGHTS is STALE — paste the block above",
+            pasteInstruction(upToDate, better),
         ].join("\n");
         console.log(`\n${text}`);
 
@@ -216,6 +247,9 @@ describe.runIf(RUN)("weight fit (runner)", () => {
                             contradictions: result.contradictions.length,
                             blindBefore: before.blind.length,
                             blindAfter: after.blind.length,
+                            incumbent: incumbentScore,
+                            fitted: fittedScore,
+                            improvesOnIncumbent: better,
                         },
                         stillViolated: result.violated.map((v) => ({
                             verdictId: v.pair.verdictId,
