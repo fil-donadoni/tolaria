@@ -105,9 +105,15 @@ journal established is not contradicted; it is sidestepped.
    continues from exactly as it continues from a response window it reached by
    play. `assertLoadableIntoLiveGame` now refuses only `hiddenHand`; a second
    assertion over the BUILT position (`assertLiveGameCanContinue`) refuses a
-   board nobody can act in — a stack at `MULLIGAN` (CR 103.5) or over an
-   unconfirmed attack declaration (CR 508.1), where `passPriority` is closed
-   and the confirming mutation is out of reach of whoever holds priority.
+   board nobody can ACT in. It asks `computeExpectedInput` — the engine's own
+   authority on who is owed a decision (ADR 0047) — rather than listing phases:
+   the `MULLIGAN` phase grants no priority at all (CR 117.3a), and a combat
+   whose turn-based action is unconfirmed is refused exactly when the mutation
+   that would confirm it is closed to everybody (CR 508.1 — the attack
+   declaration needs the ACTIVE player holding priority; CR 509.1 — the block
+   declaration needs to BE the expected input, which an attacker-less combat
+   never makes it). A position a seat can confirm out of is strange, not
+   frozen, and loads.
 
 ## Consequences
 
