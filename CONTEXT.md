@@ -646,6 +646,14 @@ _Avoid_: Error, failure, skip, dropped
 A player's answer to one decision the **Brain** faced: the position — written in the **Scenario Spec** — every candidate move the **Brain** could legally make there, and which one is right (the **Brain**'s own move being one possible answer). The unit of training data for the **Evaluation**: kept as the position and the answer, never as numbers, so it stays valid when the **Evaluation** gains a new term. Collected in play, from a quiz, or from the **Blade Scenario** registry, whose expected moves are verdicts already.
 _Avoid_: Label, rating, feedback, thumbs up
 
+**Verdict Store**:
+Where every **Verdict** lands and is read back from — one shared place for judgements given anywhere: in play against production, in a quiz, or written by hand. Each is named by its own CONTENT, so the same judgement recorded twice is one entry, and an altered one is a different entry that no **Verdict Lock** names. It holds everything ever submitted, validated or not: being in the store is not being trusted.
+_Avoid_: Bucket, upload folder, database, dataset
+
+**Verdict Lock**:
+The committed list naming exactly which **Verdicts** a **Weight Fit** was run over — the only part of the training data that lives beside the code. It is what makes a set of weights re-derivable by anyone: fit the verdicts it names and the committed numbers come back, to the bit. A judgement the lock does not name is invisible to the fit however long it has sat in the **Verdict Store**, so widening the lock and moving the weights are one reviewed change, never two.
+_Avoid_: Manifest, index, allowlist, approved list
+
 **Eval Pair**:
 Two positions ordered by a **Verdict** — the board after the right move against the board after any other candidate — checked against the **Evaluation** alone: no search, microseconds. The **Evaluation**'s own correctness metric, as the **Blade Scenario** is the search's: a blade proves a forced play is not missed, an eval pair proves the value function orders two boards the way a player would.
 _Avoid_: Eval test, weight test, position test
