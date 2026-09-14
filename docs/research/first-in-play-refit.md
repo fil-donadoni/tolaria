@@ -84,7 +84,7 @@ it and preferred something that orders less.
 | suite                       | committed                     | fitted (whole corpus) |
 | --------------------------- | ----------------------------- | --------------------- |
 | `bun run test:blade` (must) | green                         | **1 red**             |
-| greedy 1-ply, must tier     | 98/138 entries, 442/608 seeds | 97/138, 436/608       |
+| greedy 1-ply, must tier     | 99/139 entries, 447/613 seeds | 98/139, 441/613       |
 
 The red is `depletion land: pays the two-drop with the basics, sparing the
 land's charge`. Its discriminating pair is worth reading, because it is the
