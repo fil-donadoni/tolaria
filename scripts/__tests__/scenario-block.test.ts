@@ -165,6 +165,57 @@ describe("validateScenarioCandidate", () => {
         expect(candidate!.spec.phase).toBe("PRECOMBAT_MAIN");
     });
 
+    it("carries a declared STACK through to the seeded spec (issue #3515)", () => {
+        // A preset scenario may now describe a RESPONSE position, so the
+        // seeding path has to carry the one field that cross-references the
+        // card list (CR 405.1): `normalizeScenarioSpec` is tolerant by design
+        // and drops what it cannot read, which would have turned a stack
+        // scenario into a quiet board with the same label.
+        const { candidate, problems } = validateScenarioCandidate({
+            label: "Bolt answered",
+            spec: {
+                cards: [
+                    { name: "Grizzly Bears", owner: "me" },
+                    { name: "Prodigal Sorcerer", owner: "me" },
+                ],
+                priority: "opp",
+                stack: [
+                    {
+                        kind: "spell",
+                        name: "Lightning Bolt",
+                        controller: "opp",
+                        targets: [
+                            {
+                                kind: "permanent",
+                                seat: "me",
+                                name: "Grizzly Bears",
+                            },
+                        ],
+                    },
+                    {
+                        kind: "ability",
+                        name: "Prodigal Sorcerer",
+                        controller: "me",
+                        abilityId: "prodigal-sorcerer-zap",
+                        targets: [{ kind: "player", seat: "opp" }],
+                    },
+                ],
+            },
+        });
+        expect(problems).toEqual([]);
+        expect(candidate!.spec.stack).toHaveLength(2);
+        expect(candidate!.spec.stack![0]).toEqual({
+            kind: "spell",
+            name: "Lightning Bolt",
+            controller: "opp",
+            targets: [{ kind: "permanent", seat: "me", name: "Grizzly Bears" }],
+        });
+        expect(candidate!.spec.stack![1].abilityId).toBe(
+            "prodigal-sorcerer-zap"
+        );
+        expect(candidate!.spec.priority).toBe("opp");
+    });
+
     it('REJECTS owner: "p1" — normalizeCard maps it to "me" and the board is silently one-sided', () => {
         const { candidate, problems } = validateScenarioCandidate({
             ...good,

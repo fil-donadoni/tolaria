@@ -871,10 +871,12 @@ export const scenarioSpecValidator = v.object({
     // `manaCommitted`. What is lowered here is the LIVE board, mana already
     // spent and card already out of hand, with the objects in flight NAMED.
     //
-    // A spec carrying one is NOT loadable into a live game
-    // (`assertLoadableIntoLiveGame`), exactly as `hiddenHand` is not: the
-    // verdict and blade paths only EVALUATE the rebuilt position, and playing
-    // one forward is a different contract.
+    // LOADABLE INTO A LIVE GAME since issue #3515, unlike `hiddenHand`: what
+    // stands behind an announcement — the payment, the target window, the cast
+    // triggers — is already spent once the objects are in flight, so the
+    // position plays forward as any response window does. The live loaders
+    // refuse only a BUILT board nobody can act in
+    // (`assertLiveGameCanContinue`).
     stack: v.optional(v.array(scenarioStackItemValidator)),
     // CR 702.139c / ADR 0064 (issue #1392) — directly declare a companion
     // into a slot, bypassing the sideboard/maindeck auto-declare a
@@ -1195,8 +1197,9 @@ export type ScenarioSpec = {
      *  BOTTOM-UP: index 0 is the bottom of the stack and the last entry is the
      *  one that resolves first (CR 608.1). Omitted means an empty stack, which
      *  is what every spec written before this field meant. Declared, never
-     *  replayed (ADR 0127); a spec carrying one is refused by
-     *  `assertLoadableIntoLiveGame`. */
+     *  replayed (ADR 0127), and loadable into a LIVE game since issue #3515 —
+     *  the loaders refuse only a built board nobody can act in
+     *  (`assertLiveGameCanContinue`). */
     stack?: ScenarioStackItem[];
     companion?: { name: string; owner?: "me" | "opp"; used?: boolean };
 };

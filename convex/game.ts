@@ -12,6 +12,7 @@ import { getAllCardNames, getDefinition, tryGetDefinition } from "./cards";
 import { isExileCostEligible } from "./cards/exileCostEligibility";
 
 import {
+    assertLiveGameCanContinue,
     assertLoadableIntoLiveGame,
     buildStateFromScenario,
 } from "./gre/scenarioBuilder";
@@ -15675,10 +15676,12 @@ export const debugSetupScenario = mutation({
          *  Declared here to keep the two validators in lock step (a field on
          *  `scenarioSpecValidator` and absent from these args throws
          *  `ArgumentValidationError` at the Convex boundary before the handler
-         *  runs), and REFUSED by this mutation's handler
-         *  (`assertLoadableIntoLiveGame`) exactly as `hiddenHand` above is: a
-         *  position with a stack is one the verdict and blade paths EVALUATE,
-         *  never one a live game is set up into. */
+         *  runs). ACCEPTED here since issue #3515: the payment, the target
+         *  window and the cast triggers an announcement stands on are already
+         *  SPENT by the time the objects are in flight, so a live game plays a
+         *  declared stack forward exactly as it plays an ordinary response
+         *  window. What the handler still refuses is a built position nobody
+         *  can act in (`assertLiveGameCanContinue`). */
         stack: v.optional(v.array(scenarioStackItemValidator)),
         companion: v.optional(
             v.object({
@@ -15712,6 +15715,12 @@ export const debugSetupScenario = mutation({
             gameState.state as GameState,
             args
         );
+        // CR 117.3 / 508.1 (issue #3515) — and a second refusal over the BUILT
+        // position: a spec carrying a stack is loadable, but a board whose
+        // priority holder has no legal action is not a game, it is a frozen
+        // client. Read after the build because the facts are the phase, the
+        // priority holder and the combat object together.
+        assertLiveGameCanContinue(state);
 
         await saveGameState(
             ctx,

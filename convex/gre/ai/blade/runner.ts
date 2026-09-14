@@ -21,6 +21,7 @@
 
 import { getCardByName } from "../../../cards";
 import {
+    assertLiveGameCanContinue,
     assertLoadableIntoLiveGame,
     buildStateFromScenario,
 } from "../../scenarioBuilder";
@@ -197,7 +198,13 @@ export function resolveBladeLoadState(
     // game, unlike `buildBladeState` above, which only evaluates. A hidden
     // hand is refused on this path for the reasons the assertion names.
     assertLoadableIntoLiveGame(scenario.spec);
-    return buildBladeLoadState(base, scenario);
+    const state = buildBladeLoadState(base, scenario);
+    // CR 117.3 / 508.1 (issue #3515) — the same second refusal
+    // `debugSetupScenario` makes: this loader PERSISTS too, so an entry whose
+    // declared stack leaves nobody able to act would freeze the developer's own
+    // game rather than show them the position.
+    assertLiveGameCanContinue(state);
+    return state;
 }
 
 /** Result of running ONE seed of one blade scenario. */

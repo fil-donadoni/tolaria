@@ -11,6 +11,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+    assertLiveGameCanContinue,
     assertLoadableIntoLiveGame,
     buildStateFromScenario,
     RESTRICTED_MANA_KEY_DISPOSITION,
@@ -24,7 +25,12 @@ import {
 } from "../../cards/__tests__/setup";
 import { giantGrowth, grizzlyBears } from "../../cards/sets/lea/green";
 import { gaeasTouch } from "../../cards/sets/drk/green";
-import { hillGiant, shivanDragon } from "../../cards/sets/lea/red";
+import {
+    hillGiant,
+    lightningBolt,
+    shivanDragon,
+} from "../../cards/sets/lea/red";
+import { prodigalSorcerer } from "../../cards/sets/lea/blue";
 import { arboria } from "../../cards/sets/leg/green";
 import { rasputinDreamweaver } from "../../cards/sets/leg/multicolor";
 import { cityOfBrass } from "../../cards/sets/arn/colorless";
@@ -4472,5 +4478,230 @@ describe("scenario spec — the Continuous Effects Registry (issue #3488)", () =
         expect(
             specFromState(solo, { mySeatId: solo.players[0].id }).dropped
         ).not.toContainEqual(expect.stringContaining("CR 613.7"));
+    });
+});
+
+// CR 405.1 / 117.3 / 508.1 / 103.5 (issue #3515, PRD #3397) — a spec carrying a
+// declared stack loads into a LIVE game, and is PLAYED FORWARD from there.
+//
+// ADR 0127 §8 refused it: the objects were never announced, so nothing stands
+// behind them. What stands behind an announcement is a payment, a target window
+// and the cast triggers it fired — all of them already SPENT by the time the
+// objects are in flight — so the position a declared stack describes is the
+// board AFTER them, which the engine continues from exactly as it continues
+// from a response window it reached by play. What is refused instead is a built
+// board nobody can act in.
+describe("a declared stack loads into a live game (issue #3515)", () => {
+    /** A response window: the opponent's Bolt is in flight at my creature, and
+     *  my own Tim ability is on top of it aimed at their face. */
+    const responseWindow = (): ScenarioSpec => ({
+        cards: [
+            { name: grizzlyBears.name, owner: "me" },
+            { name: prodigalSorcerer.name, owner: "me" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        activePlayer: "me",
+        priority: "opp",
+        passCount: 1,
+        stack: [
+            {
+                kind: "spell",
+                name: lightningBolt.name,
+                controller: "opp",
+                targets: [
+                    {
+                        kind: "permanent",
+                        seat: "me",
+                        name: grizzlyBears.name,
+                    },
+                ],
+            },
+            {
+                kind: "ability",
+                name: prodigalSorcerer.name,
+                controller: "me",
+                abilityId: "prodigal-sorcerer-zap",
+                targets: [{ kind: "player", seat: "opp" }],
+            },
+        ],
+    });
+
+    it("builds the declared objects, their targets, priority and passCount", () => {
+        const spec = responseWindow();
+        expect(() => assertLoadableIntoLiveGame(spec)).not.toThrow();
+        const state = buildStateFromScenario(makeState(), spec);
+        expect(() => assertLiveGameCanContinue(state)).not.toThrow();
+
+        const [p1, p2] = state.players;
+        const bears = p1.battlefield.find(
+            (c) => (c.card as { id?: string }).id === grizzlyBears.id
+        )!;
+        // BOTTOM-UP (CR 608.1): the Bolt was cast first, the ability answers it.
+        expect(state.stack).toHaveLength(2);
+        const [bolt, zap] = state.stack;
+        expect((bolt.card as { id?: string }).id).toBe(lightningBolt.id);
+        expect(bolt.castById).toBe(p2.id);
+        expect(bolt.abilityId).toBeUndefined();
+        expect(bolt.targets).toEqual([{ type: "permanent", id: bears.id }]);
+        expect(zap.abilityId).toBe("prodigal-sorcerer-zap");
+        expect(zap.castById).toBe(p1.id);
+        expect(zap.targets).toEqual([{ type: "player", id: p2.id }]);
+
+        expect(state.priorityPlayerId).toBe(p2.id);
+        expect(state.passCount).toBe(1);
+        expect(state.activePlayerId).toBe(p1.id);
+    });
+
+    it("plays forward: each object resolves through the engine at its declared targets", () => {
+        const state = buildStateFromScenario(makeState(), responseWindow());
+        const [p1, p2] = state.players;
+
+        // Top first (CR 608.1): the ability, at the opponent's face.
+        resolveTopOfStack(state);
+        expect(p2.life).toBe(19);
+        expect(state.stack).toHaveLength(1);
+
+        // Then the Bolt, at the creature the spec named: 3 damage is lethal to
+        // a 2/2 (CR 704.5g), and the corpse in MY graveyard is what proves the
+        // declared target survived the rebuild as a real instance.
+        const bears = p1.battlefield.find(
+            (c) => (c.card as { id?: string }).id === grizzlyBears.id
+        )!;
+        resolveTopOfStack(state);
+        expect(p1.battlefield.some((c) => c.id === bears.id)).toBe(false);
+        expect(
+            p1.graveyard.some(
+                (c) => (c.card as { id?: string }).id === grizzlyBears.id
+            )
+        ).toBe(true);
+        expect(state.stack).toHaveLength(0);
+        expect(
+            p2.graveyard.some(
+                (c) => (c.card as { id?: string }).id === lightningBolt.id
+            )
+        ).toBe(true);
+    });
+
+    it("refuses the MULLIGAN phase, which grants no priority at all (CR 117.3a)", () => {
+        // Unconditional, unlike the combat refusals below: the builder has
+        // already finalized the mulligan, so the board is frozen with or
+        // without a stack — passing is refused by phase and no mulligan
+        // mutation is open either. Nothing legitimate reaches it: `MULLIGAN` is
+        // not in `SCENARIO_PHASES`.
+        const spec = { ...responseWindow(), phase: "MULLIGAN" };
+        const state = buildStateFromScenario(makeState(), spec);
+        expect(() => assertLiveGameCanContinue(state)).toThrow(/CR 117.3a/);
+
+        const quiet = buildStateFromScenario(makeState(), {
+            ...spec,
+            stack: undefined,
+        });
+        expect(() => assertLiveGameCanContinue(quiet)).toThrow(/CR 117.3a/);
+    });
+
+    it("refuses a stack over an unconfirmed attack declaration only when nobody can confirm it (CR 508.1)", () => {
+        // `phase: "DECLARE_ATTACKERS"` seeds an EMPTY, unconfirmed combat: the
+        // declaration is a turn-based action nobody has taken, so `passPriority`
+        // refuses to pass and `confirmAttackers` takes only the ACTIVE player
+        // holding priority. `responseWindow` parks priority on the responder,
+        // so neither mutation is open.
+        const spec = { ...responseWindow(), phase: "DECLARE_ATTACKERS" };
+        const state = buildStateFromScenario(makeState(), spec);
+        expect(() => assertLiveGameCanContinue(state)).toThrow(/CR 508.1/);
+
+        // The ACTIVE player holding priority can confirm out of it, and that
+        // board is live-reachable: nothing gates a cast or an activation on the
+        // declaration, only the pass does.
+        const activeHoldsPriority = buildStateFromScenario(makeState(), {
+            ...spec,
+            priority: "me",
+        });
+        expect(() =>
+            assertLiveGameCanContinue(activeHoldsPriority)
+        ).not.toThrow();
+
+        // Confirmed, the same board plays forward whoever holds priority.
+        const confirmed = buildStateFromScenario(makeState(), {
+            ...spec,
+            combat: { confirmed: true },
+        });
+        expect(() => assertLiveGameCanContinue(confirmed)).not.toThrow();
+
+        // And an empty stack is untouched by any of it.
+        const quiet = buildStateFromScenario(makeState(), {
+            ...spec,
+            stack: undefined,
+        });
+        expect(() => assertLiveGameCanContinue(quiet)).not.toThrow();
+    });
+
+    it("refuses a stack over an ATTACKER-LESS unconfirmed block declaration (CR 509.1)", () => {
+        // The case a phase-name rule gets wrong in the other direction:
+        // `computeExpectedInput` reports the blocker declaration only while the
+        // combat HAS attackers, so a declared combat with none leaves
+        // `confirmBlockers` closed (it needs that expected input) while
+        // `passPriority` still refuses the pass.
+        const spec = {
+            ...responseWindow(),
+            phase: "DECLARE_BLOCKERS",
+            combat: { attackers: [] },
+        };
+        const state = buildStateFromScenario(makeState(), spec);
+        expect(() => assertLiveGameCanContinue(state)).toThrow(/CR 509.1/);
+
+        // With a real attacker the declarer is owed the decision and confirms
+        // out of it — a strange board, not a frozen one.
+        const withAttacker = buildStateFromScenario(makeState(), {
+            ...spec,
+            combat: { attackers: [grizzlyBears.name] },
+        });
+        expect(() => assertLiveGameCanContinue(withAttacker)).not.toThrow();
+    });
+
+    it("clears the base game's mid-flight decisions, which name objects it just destroyed", () => {
+        // Loading a response position INTO a game that is itself mid-response
+        // is the ordinary case now. Every field below either outranks priority
+        // in `computeExpectedInput` while naming a stack item or instance the
+        // placement loop threw away, or — the auto-pass trio — is a decision
+        // about a turn that no longer exists: `drainAutoPasses` would cascade
+        // through the loaded response window and resolve the declared stack
+        // without ever presenting it.
+        //
+        // Driven off the LIST, so a clear added to the builder without a
+        // matching entry here is the only way to lose coverage (the first cut
+        // of this test asserted five of eleven).
+        const CLEARED: Record<string, unknown> = {
+            pendingCast: { playerId: "p1", cardInstanceId: "gone" },
+            pendingActivation: { playerId: "p1", cardInstanceId: "gone" },
+            pendingCompanionPay: { playerId: "p1" },
+            pendingTarget: {
+                playerId: "p1",
+                cardInstanceId: "gone",
+                targetType: "creature",
+            },
+            pendingChoices: [
+                { playerId: "p1", stackItemId: "gone", choiceId: "c1" },
+            ],
+            pendingTriggerBatch: [],
+            pendingReflexiveTriggers: [],
+            pendingReveals: [],
+            pendingUntapStep: { playerId: "p1" },
+            pendingCleanupDiscard: { playerId: "p1" },
+            pendingExtraCleanupStep: true,
+            madnessCastWindow: { cardId: "gone", ownerId: "p1" },
+            reboundCastWindow: { cardId: "gone", ownerId: "p1" },
+            autoPassPlayers: ["p1"],
+            singleShotAutoPass: "p1",
+            queuedEndTurn: ["p1"],
+        };
+
+        const base = makeState(CLEARED as Partial<GameState>);
+        const state = buildStateFromScenario(
+            base,
+            responseWindow()
+        ) as unknown as Record<string, unknown>;
+        for (const key of Object.keys(CLEARED)) {
+            expect([key, state[key]]).toEqual([key, undefined]);
+        }
     });
 });
