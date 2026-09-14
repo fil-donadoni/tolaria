@@ -90,7 +90,15 @@ export type VerdictPairs = {
     features: FeatureVector[];
     /** Non-empty when the verdict yielded no pairs. A REBUILT position that no
      *  longer offers the judged candidates is a finding (the verdict has gone
-     *  stale against the engine), never something to paper over. */
+     *  stale against the engine), never something to paper over.
+     *
+     *  ONE of its values is not staleness: "every disallowed candidate is
+     *  interchangeable with the allowed one" (issue #3593) says the verdict
+     *  expresses no constraint at all — it was always vacuous, and the engine
+     *  has not moved under it. `coverage.ts` counts every error in its `stale`
+     *  column, so such a verdict is mislabelled there; it wants a column of its
+     *  own. Zero verdicts in the corpus reach it today
+     *  (`docs/findings/3593-vacuous-verdict-reads-as-stale.md`). */
     error?: string;
 };
 

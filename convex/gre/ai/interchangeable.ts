@@ -36,8 +36,19 @@
 
 import type { ManaTap, Move } from "../moves";
 
-/** A set-valued reference group: its members' ORDER carries no meaning, so
- *  the key renders them sorted. `tap` is the mana payment plan. */
+/** A set-valued reference group: the key renders its members SORTED rather
+ *  than positionally, so two plans that are permutations of each other are one
+ *  option. `tap` is the mana payment plan, whose order is the planner's, not a
+ *  decision — the same sources are tapped and the same cost is paid either way.
+ *
+ *  It is the one deliberate weakening here, and it was measured rather than
+ *  assumed: over 1138 decision nodes of the blade corpus it collapsed 210
+ *  candidates in 101 groups with ZERO cases where the two moves reached
+ *  different boards (PR #3599 review). Note that `ManaTap`'s own doc treats the
+ *  order of a `mana-cost` leg as meaningful; what protects that here is
+ *  `moveShape`, which still compares each entry's `manaChoiceIndex`,
+ *  `abilityId` and `tapOtherIds` SHAPE positionally, so only the card
+ *  references inside a plan are order-free. */
 type RefGroup = "tap";
 import type { CardInstanceState, GameState } from "../state";
 
