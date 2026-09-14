@@ -40,6 +40,7 @@ import {
     policyProbeState,
 } from "../../search";
 import { DEFAULT_EVAL_WEIGHTS, type EvalWeights } from "../evalWeights";
+import { makeInterchangeableKeyer } from "../interchangeable";
 import { seatPlayerId } from "../blade/matcher";
 import {
     featuresOfSettled,
@@ -148,13 +149,42 @@ export function evalPairsOf(
         );
     }
 
+    const enumerated = candidateMoves(state, botId);
     const byKey = new Map<string, Move>();
-    for (const move of candidateMoves(state, botId))
-        byKey.set(moveKey(move), move);
+    for (const move of enumerated) byKey.set(moveKey(move), move);
+
+    // The interchangeability collapse (issue #3593) means a candidate set no
+    // longer holds every copy of a card: a verdict RECORDED BEFORE IT may name
+    // the copy that was collapsed away, and its `moveKey` then resolves
+    // against nothing. That would report the whole verdict stale and drop
+    // every one of its pairs — judgements that are perfectly good, thrown away
+    // over which of two identical Brushlands the judge happened to click. So a
+    // key that misses is re-read as a MOVE and matched by interchangeability,
+    // which lands on the representative by construction.
+    const collapseKeyOf = makeInterchangeableKeyer(state);
+    const byCollapseKey = new Map<string, Move>();
+    for (const move of enumerated) {
+        const key = collapseKeyOf(move);
+        if (!byCollapseKey.has(key)) byCollapseKey.set(key, move);
+    }
+    const resolveCandidate = (key: string): Move | undefined => {
+        const exact = byKey.get(key);
+        if (exact) return exact;
+        let stored: Move;
+        try {
+            stored = JSON.parse(key) as Move;
+        } catch {
+            return undefined;
+        }
+        // Only a key naming cards the rebuilt position still holds can be
+        // matched this way — `makeInterchangeableKeyer` maps an unresolvable
+        // id to itself, so a genuinely stale key stays stale.
+        return byCollapseKey.get(collapseKeyOf(stored));
+    };
 
     const moves: Move[] = [];
     for (const candidate of verdict.candidates) {
-        const move = byKey.get(candidate.key);
+        const move = resolveCandidate(candidate.key);
         if (!move) {
             return fail(
                 `candidate no longer enumerated on the rebuilt position: ${candidate.description}`
@@ -225,6 +255,20 @@ export function evalPairsOf(
     const best = allowed.reduce((a, b) =>
         features[b].policyValue > features[a].policyValue ? b : a
     );
-    const pairs = disallowed.map((i) => pairOf(verdict.answer.kind, best, i));
+    // A pair whose two sides resolve to the SAME move is not a constraint: it
+    // says a move must outrank itself, which every weight vector satisfies at
+    // delta 0 and which the census then counts as BLIND, inflating both the
+    // blind column and the denominator. It arises exactly where issue #3593
+    // says it does — a pre-collapse verdict naming one copy as right and its
+    // twin as wrong — and 12 of the 47 blind pairs measured in issue #3588
+    // were this. The verdict's other pairs are untouched.
+    const pairs = disallowed
+        .filter((i) => moveKey(moves[i]) !== moveKey(moves[best]))
+        .map((i) => pairOf(verdict.answer.kind, best, i));
+    if (pairs.length === 0) {
+        return fail(
+            "every disallowed candidate is interchangeable with the allowed one — no constraint to express"
+        );
+    }
     return { verdict, pairs, features };
 }

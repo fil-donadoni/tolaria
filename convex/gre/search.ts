@@ -2505,7 +2505,18 @@ export function keyedMovesFor(
     // regression. Dominance pruning happens ONCE, at the root
     // (`searchWithTrace`), and the root verdict is carried into the tree's root
     // layer as a deny-set — see `iterate`'s `prunedRootKeys`.
-    for (const move of enumerateMoves(state, pid)) {
+    // COLLAPSED (issue #3593), unlike the dominance prune above. Two copies of
+    // a card the engine cannot tell apart open two subtrees that explore the
+    // same position, so an iteration-budgeted search buys a fraction of the
+    // real options it could have; the collapse is a stringify per move plus a
+    // descriptor per card inside an already-matching group, cheap enough to
+    // run at every node. The dedup below is NOT a substitute: it keys on
+    // `priorityMoveKey`, which folds a non-observer's HAND card to its
+    // definition id (hidden information) and leaves the bot's own duplicates
+    // fully distinct.
+    for (const move of enumerateMoves(state, pid, {
+        collapseInterchangeable: true,
+    })) {
         const key = priorityMoveKey(state, pid, botId, move);
         if (seen.has(key)) continue;
         seen.add(key);
@@ -5210,6 +5221,10 @@ function runSearchWithTrace(
     const moves = enumerateMoves(state, playerId, {
         pruneDominatedNoOps: true,
         onPruned: (m) => dominatedAtRoot.push(m),
+        // Issue #3593 — the root sees the same collapsed candidate set every
+        // tree node sees (`keyedMovesAt`), so the deny-set below and the
+        // tree's root layer agree on what the options are.
+        collapseInterchangeable: true,
     });
     if (moves.length === 0) return { move: null, trace: null };
     // No real decision (e.g. a forced mulligan window) — return immediately
@@ -5385,6 +5400,7 @@ export function greedyRootPick(
     try {
         const moves = enumerateMoves(state, playerId, {
             pruneDominatedNoOps: true,
+            collapseInterchangeable: true,
         });
         if (moves.length === 0) return null;
         if (moves.length === 1 || state.phase === "MULLIGAN") return moves[0];

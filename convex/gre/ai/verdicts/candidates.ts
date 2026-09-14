@@ -26,13 +26,23 @@ import type { BladeSetupStep } from "../blade/types";
 import type { ScenarioSpec } from "../../../debugScenarioSpec";
 
 /** The candidate set a verdict is judged over: EXACTLY the one the deciders
- *  see (`greedyRootPick` / `search` — dominance-pruned `enumerateMoves`), so a
- *  verdict can never name a move the Bot was never offered, and a pair can
- *  never be built against one. */
+ *  see (`greedyRootPick` / `search` — dominance-pruned, interchangeability-
+ *  collapsed `enumerateMoves`), so a verdict can never name a move the Bot was
+ *  never offered, and a pair can never be built against one.
+ *
+ *  The collapse (issue #3593) is what stops the quiz asking which of three
+ *  identical Treetop Village activations is right, and what stops the corpus
+ *  storing "this copy beats that copy" — 12 of the 47 blind pairs measured in
+ *  issue #3588 were exactly that. A verdict recorded BEFORE the collapse may
+ *  name a copy this set no longer offers; `evalPairsOf` resolves such a key to
+ *  the representative rather than letting the whole verdict go stale. */
 export function candidateMoves(state: GameState, playerId: string): Move[] {
     beginDominanceDecision();
     try {
-        return enumerateMoves(state, playerId, { pruneDominatedNoOps: true });
+        return enumerateMoves(state, playerId, {
+            pruneDominatedNoOps: true,
+            collapseInterchangeable: true,
+        });
     } finally {
         endDominanceDecision();
     }

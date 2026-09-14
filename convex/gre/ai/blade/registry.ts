@@ -7390,6 +7390,48 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Issue #3533, position B — the discriminating twin of position A. Byte-identical board, byte-identical decklist SIZE, and the only difference is that the twenty creatures are {2}{W} Pearled Unicorns instead of {2}{B} Scathe Zombies (same 2/2 vanilla body, same mana value, equally uncastable off two lands). The expectation flips to the Plains. What the pair rules out is a decklist read that has degenerated into a fixed colour preference, or into 'kill whichever land the enumerator offers first' — neither survives a board that is unchanged while the answer moves.",
     },
+    {
+        // INTERCHANGEABLE-CANDIDATE COLLAPSE, the option it must NOT eat
+        // (CR 305.1 / 601.2, issue #3593). Turn one, no lands out, and a hand
+        // of three land drops: two Forests — which the collapse merges into
+        // ONE candidate, because nothing in the engine can tell them apart —
+        // and an Island, which is the only source of the {U} that casts the
+        // Merfolk of the Pearl Trident sitting beside them.
+        //
+        // This is the discriminating half of the collapse. The way it goes
+        // wrong is never "it merged too little": it is merging two candidates
+        // that DIFFER, which costs the bot the better line with no suite going
+        // red. The Forests are listed FIRST so one of them holds the lowest
+        // instance id and would be the representative of an over-eager merge,
+        // and the answer is the Island. Reachability is not the claim — all
+        // three drops were always enumerated — keeping the Island its own move
+        // is.
+        label: "interchangeable collapse: two Forests are one option, the Island is not",
+        spec: {
+            cards: [
+                { name: "Forest", owner: "me", zone: "hand" },
+                { name: "Forest", owner: "me", zone: "hand" },
+                { name: "Island", owner: "me", zone: "hand" },
+                {
+                    name: "Merfolk of the Pearl Trident",
+                    owner: "me",
+                    zone: "hand",
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 1,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 300 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "play-land", card: "Island" }],
+        },
+        note: "Issue #3593. The guard on the interchangeability collapse: two copies of one card are ONE candidate, a different card is not, and the collapsed-away copies must not take the distinguishable drop with them. The two Forests precede the Island so the representative of an over-eager merge would be a Forest.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the

@@ -164,6 +164,7 @@ import { choiceCandidates } from "./ai/choiceCandidates";
 // Dominance pruning (issue #1887) — the generic "this move is provably
 // dominated by `pass`" seam. Opt-in per caller (see `EnumerateMovesOptions`).
 import { isDominatedNoOpMove, isProbeEligibleMove } from "./ai/dominance";
+import { collapseInterchangeableMoves } from "./ai/interchangeable";
 
 /** One land tap the executor must perform to fund a cast/activation.
  *
@@ -3968,6 +3969,22 @@ export type EnumerateMovesOptions = {
      *  re-probing — `searchWithTrace` turns it into the deny-set that keeps the
      *  dominated move out of the tree's root layer too. */
     onPruned?: (move: Move) => void;
+    /** Collapse candidates the engine cannot tell apart to ONE representative
+     *  (issue #3593) — two copies of a land in hand are one `play-land`, three
+     *  identical Treetop Villages are one animation. BOT paths only, exactly
+     *  like `pruneDominatedNoOps` above and for the same reason: a
+     *  collapsed-away copy is perfectly LEGAL, so `legalActions` and scripted
+     *  setup realisation must keep seeing the whole set.
+     *
+     *  COST: one stable stringify per move, plus one per referenced CARD but
+     *  only inside a group of moves that already share a shape — a hand of
+     *  singletons never leaves the first pass. Cheap enough to run at every
+     *  tree node, which is where the branching-factor win is
+     *  (`keyedMovesAt`, search.ts), unlike the dominance probe above. */
+    collapseInterchangeable?: boolean;
+    /** Called with each candidate `collapseInterchangeable` dropped and the
+     *  representative it collapsed onto, in enumeration order. */
+    onCollapsed?: (move: Move, representative: Move) => void;
 };
 
 /** The complete set of legal macro-moves for `playerId` at the current decision
@@ -4322,11 +4339,19 @@ export function enumerateMoves(
     // player's own grants are scanned (mirroring the graveyard loop's
     // "your own graveyard" scoping).
     moves.push(...enumerateGrantedAbilityMoves(state, player));
-    // Dominance pruning (issue #1887). `pass` is `moves[0]` and is never a
+    // Interchangeable-candidate collapse (issue #3593), BEFORE dominance: the
+    // dominance probe is per-move and its verdict is identical for two moves
+    // the engine cannot tell apart, so collapsing first pays for the proof
+    // once instead of once per copy. `pass` names no card, so it can never be
+    // collapsed and the floor stays non-empty.
+    const collapsed = options?.collapseInterchangeable
+        ? collapseInterchangeableMoves(state, moves, options.onCollapsed)
+        : moves;
+    // Dominance pruning (issue #1887). `pass` is `collapsed[0]` and is never a
     // probe candidate, so the floor can never be emptied — the filter can only
     // ever remove strictly-dominated alternatives.
-    if (!options?.pruneDominatedNoOps) return moves;
-    return moves.filter((m) => {
+    if (!options?.pruneDominatedNoOps) return collapsed;
+    return collapsed.filter((m) => {
         if (!isProbeEligibleMove(state, playerId, m)) return true;
         if (!isDominatedNoOpMove(state, playerId, m)) return true;
         options.onPruned?.(m);
