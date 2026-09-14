@@ -1,0 +1,531 @@
+{
+    "id": "in-play:ph7am91f003z6snz2qwy99js3h8ear76",
+    "spec": {
+        "activePlayer": "me",
+        "artifactDamageToPlayerThisTurn": {
+            "me": 0,
+            "opp": 0
+        },
+        "cards": [
+            {
+                "manaCommitted": true,
+                "name": "Mountain",
+                "owner": "me",
+                "tapped": true
+            },
+            {
+                "name": "Sulfurous Springs",
+                "owner": "me"
+            },
+            {
+                "attackedLastTurn": true,
+                "name": "Goblin Tinkerer",
+                "owner": "me"
+            },
+            {
+                "name": "Shadowblood Ridge",
+                "owner": "me"
+            },
+            {
+                "name": "Sulfurous Springs",
+                "owner": "me"
+            },
+            {
+                "attackedLastTurn": true,
+                "name": "Goblin Ringleader",
+                "owner": "me"
+            },
+            {
+                "manaCommitted": true,
+                "name": "Mountain",
+                "owner": "me",
+                "tapped": true
+            },
+            {
+                "activations": {
+                    "siege-gang-commander-fling": 1
+                },
+                "name": "Siege-Gang Commander",
+                "owner": "me",
+                "startedTurnUntapped": true
+            },
+            {
+                "abilityResolutions": {
+                    "goblin-sharpshooter-untap-on-death": 5
+                },
+                "activations": {
+                    "goblin-sharpshooter-ping": 3
+                },
+                "name": "Goblin Sharpshooter",
+                "owner": "me",
+                "startedTurnUntapped": true
+            },
+            {
+                "name": "Goblin",
+                "owner": "me",
+                "startedTurnUntapped": true,
+                "token": true
+            },
+            {
+                "name": "Goblin",
+                "owner": "me",
+                "startedTurnUntapped": true,
+                "token": true
+            },
+            {
+                "name": "Goblin",
+                "owner": "me",
+                "startedTurnUntapped": true,
+                "token": true
+            },
+            {
+                "name": "Goblin Warchief",
+                "owner": "me",
+                "summoningSick": true
+            },
+            {
+                "name": "Aluren",
+                "owner": "opp",
+                "startedTurnUntapped": true
+            },
+            {
+                "abilityResolutions": {
+                    "soul-warden-trigger": 1
+                },
+                "name": "Soul Warden",
+                "owner": "opp",
+                "startedTurnUntapped": true
+            },
+            {
+                "manaCommitted": true,
+                "name": "Island",
+                "owner": "opp",
+                "startedTurnUntapped": true,
+                "tapped": true
+            },
+            {
+                "name": "Man-o'-War",
+                "owner": "opp"
+            },
+            {
+                "attackedLastTurn": true,
+                "manaCommitted": true,
+                "name": "Raven Familiar",
+                "owner": "opp",
+                "tapped": true
+            },
+            {
+                "manaCommitted": true,
+                "name": "Island",
+                "owner": "opp",
+                "startedTurnUntapped": true,
+                "tapped": true
+            },
+            {
+                "name": "Goblin Matron",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Goblin Tinkerer",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Chain of Vapor",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Hickory Woodlot",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Impulse",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Hickory Woodlot",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Man-o'-War",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Cloud of Faeries",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Cloud of Faeries",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Flash of Insight",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "abilityResolutions": {
+                    "soul-warden-trigger": 1
+                },
+                "name": "Soul Warden",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Cavern Harpy",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Rishadan Port",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Bloodstained Mire",
+                "owner": "me",
+                "zone": "hand"
+            }
+        ],
+        "creatureAttackedThisTurn": false,
+        "damageDealtToPlayerThisTurn": {
+            "me": 0,
+            "opp": 0
+        },
+        "deathsThisTurn": 5,
+        "life": {
+            "me": 9,
+            "opp": 57
+        },
+        "lifeGainedThisTurn": {
+            "me": 0,
+            "opp": 2
+        },
+        "passCount": 0,
+        "phase": "PRECOMBAT_MAIN",
+        "priority": "me",
+        "qualifyingActionLastTurn": {
+            "me": true
+        },
+        "qualifyingActionThisTurn": {
+            "me": true,
+            "opp": true
+        },
+        "revolt": {
+            "me": true,
+            "opp": true
+        },
+        "rngSeed": -1042326478,
+        "spellsCastThisGame": {
+            "me": 8,
+            "opp": 26
+        },
+        "spellsCastThisTurn": {
+            "me": 1,
+            "opp": 1
+        },
+        "stormCount": 2,
+        "turn": 12,
+        "turnsTaken": {
+            "me": 6,
+            "opp": 6
+        }
+    },
+    "seat": "me",
+    "candidates": [
+        {
+            "key": "{\"kind\":\"pass\"}",
+            "description": "pass"
+        },
+        {
+            "key": "{\"kind\":\"play-land\",\"cardInstanceId\":\"149\"}",
+            "description": "play Rishadan Port"
+        },
+        {
+            "key": "{\"kind\":\"play-land\",\"cardInstanceId\":\"150\"}",
+            "description": "play Bloodstained Mire"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"123\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"token-1\"]}}",
+            "description": "activate Siege-Gang Commander → Goblin Tinkerer"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"123\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"123\"]}}",
+            "description": "activate Siege-Gang Commander → Goblin Tinkerer"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"123\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"129\"]}}",
+            "description": "activate Siege-Gang Commander → Goblin Tinkerer"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"123\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"130\"]}}",
+            "description": "activate Siege-Gang Commander → Goblin Tinkerer"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"126\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"token-1\"]}}",
+            "description": "activate Siege-Gang Commander → Goblin Ringleader"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"126\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"123\"]}}",
+            "description": "activate Siege-Gang Commander → Goblin Ringleader"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"126\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"129\"]}}",
+            "description": "activate Siege-Gang Commander → Goblin Ringleader"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"126\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"130\"]}}",
+            "description": "activate Siege-Gang Commander → Goblin Ringleader"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"128\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"token-1\"]}}",
+            "description": "activate Siege-Gang Commander → Siege-Gang Commander"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"128\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"123\"]}}",
+            "description": "activate Siege-Gang Commander → Siege-Gang Commander"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"128\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"129\"]}}",
+            "description": "activate Siege-Gang Commander → Siege-Gang Commander"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"128\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"130\"]}}",
+            "description": "activate Siege-Gang Commander → Siege-Gang Commander"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"129\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"token-1\"]}}",
+            "description": "activate Siege-Gang Commander → Goblin Sharpshooter"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"129\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"123\"]}}",
+            "description": "activate Siege-Gang Commander → Goblin Sharpshooter"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"129\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"129\"]}}",
+            "description": "activate Siege-Gang Commander → Goblin Sharpshooter"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"129\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"130\"]}}",
+            "description": "activate Siege-Gang Commander → Goblin Sharpshooter"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"token-1\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"token-1\"]}}",
+            "description": "activate Siege-Gang Commander → Goblin"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"token-1\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"123\"]}}",
+            "description": "activate Siege-Gang Commander → Goblin"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"token-1\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"129\"]}}",
+            "description": "activate Siege-Gang Commander → Goblin"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"token-1\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"130\"]}}",
+            "description": "activate Siege-Gang Commander → Goblin"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"token-2\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"token-1\"]}}",
+            "description": "activate Siege-Gang Commander → Goblin"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"token-2\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"123\"]}}",
+            "description": "activate Siege-Gang Commander → Goblin"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"token-2\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"129\"]}}",
+            "description": "activate Siege-Gang Commander → Goblin"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"token-2\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"130\"]}}",
+            "description": "activate Siege-Gang Commander → Goblin"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"token-3\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"token-1\"]}}",
+            "description": "activate Siege-Gang Commander → Goblin"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"token-3\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"123\"]}}",
+            "description": "activate Siege-Gang Commander → Goblin"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"token-3\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"129\"]}}",
+            "description": "activate Siege-Gang Commander → Goblin"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"token-3\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"130\"]}}",
+            "description": "activate Siege-Gang Commander → Goblin"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"130\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"token-1\"]}}",
+            "description": "activate Siege-Gang Commander → Goblin Warchief"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"130\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"123\"]}}",
+            "description": "activate Siege-Gang Commander → Goblin Warchief"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"130\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"129\"]}}",
+            "description": "activate Siege-Gang Commander → Goblin Warchief"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"130\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"130\"]}}",
+            "description": "activate Siege-Gang Commander → Goblin Warchief"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"132\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"token-1\"]}}",
+            "description": "activate Siege-Gang Commander → Soul Warden"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"132\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"123\"]}}",
+            "description": "activate Siege-Gang Commander → Soul Warden"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"132\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"129\"]}}",
+            "description": "activate Siege-Gang Commander → Soul Warden"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"132\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"130\"]}}",
+            "description": "activate Siege-Gang Commander → Soul Warden"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"134\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"token-1\"]}}",
+            "description": "activate Siege-Gang Commander → Man-o'-War"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"134\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"123\"]}}",
+            "description": "activate Siege-Gang Commander → Man-o'-War"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"134\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"129\"]}}",
+            "description": "activate Siege-Gang Commander → Man-o'-War"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"134\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"130\"]}}",
+            "description": "activate Siege-Gang Commander → Man-o'-War"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"135\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"token-1\"]}}",
+            "description": "activate Siege-Gang Commander → Raven Familiar"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"135\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"123\"]}}",
+            "description": "activate Siege-Gang Commander → Raven Familiar"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"135\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"129\"]}}",
+            "description": "activate Siege-Gang Commander → Raven Familiar"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"permanent\",\"id\":\"135\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"130\"]}}",
+            "description": "activate Siege-Gang Commander → Raven Familiar"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"player\",\"id\":\"p1\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"token-1\"]}}",
+            "description": "activate Siege-Gang Commander → the Bot"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"player\",\"id\":\"p1\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"123\"]}}",
+            "description": "activate Siege-Gang Commander → the Bot"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"player\",\"id\":\"p1\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"129\"]}}",
+            "description": "activate Siege-Gang Commander → the Bot"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"player\",\"id\":\"p1\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"130\"]}}",
+            "description": "activate Siege-Gang Commander → the Bot"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"player\",\"id\":\"p2\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"token-1\"]}}",
+            "description": "activate Siege-Gang Commander → the opponent"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"player\",\"id\":\"p2\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"123\"]}}",
+            "description": "activate Siege-Gang Commander → the opponent"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"player\",\"id\":\"p2\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"129\"]}}",
+            "description": "activate Siege-Gang Commander → the opponent"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"128\",\"abilityId\":\"siege-gang-commander-fling\",\"targets\":[{\"type\":\"player\",\"id\":\"p2\"}],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"124\"},{\"cardInstanceId\":\"122\",\"manaChoiceIndex\":0}],\"costPicks\":{\"sacrificeIds\":[\"130\"]}}",
+            "description": "activate Siege-Gang Commander → the opponent"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"129\",\"abilityId\":\"goblin-sharpshooter-ping\",\"targets\":[{\"type\":\"permanent\",\"id\":\"123\"}],\"confirmTargets\":false,\"tapPlan\":[]}",
+            "description": "activate Goblin Sharpshooter → Goblin Tinkerer"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"129\",\"abilityId\":\"goblin-sharpshooter-ping\",\"targets\":[{\"type\":\"permanent\",\"id\":\"126\"}],\"confirmTargets\":false,\"tapPlan\":[]}",
+            "description": "activate Goblin Sharpshooter → Goblin Ringleader"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"129\",\"abilityId\":\"goblin-sharpshooter-ping\",\"targets\":[{\"type\":\"permanent\",\"id\":\"128\"}],\"confirmTargets\":false,\"tapPlan\":[]}",
+            "description": "activate Goblin Sharpshooter → Siege-Gang Commander"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"129\",\"abilityId\":\"goblin-sharpshooter-ping\",\"targets\":[{\"type\":\"permanent\",\"id\":\"129\"}],\"confirmTargets\":false,\"tapPlan\":[]}",
+            "description": "activate Goblin Sharpshooter → Goblin Sharpshooter"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"129\",\"abilityId\":\"goblin-sharpshooter-ping\",\"targets\":[{\"type\":\"permanent\",\"id\":\"token-1\"}],\"confirmTargets\":false,\"tapPlan\":[]}",
+            "description": "activate Goblin Sharpshooter → Goblin"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"129\",\"abilityId\":\"goblin-sharpshooter-ping\",\"targets\":[{\"type\":\"permanent\",\"id\":\"token-2\"}],\"confirmTargets\":false,\"tapPlan\":[]}",
+            "description": "activate Goblin Sharpshooter → Goblin"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"129\",\"abilityId\":\"goblin-sharpshooter-ping\",\"targets\":[{\"type\":\"permanent\",\"id\":\"token-3\"}],\"confirmTargets\":false,\"tapPlan\":[]}",
+            "description": "activate Goblin Sharpshooter → Goblin"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"129\",\"abilityId\":\"goblin-sharpshooter-ping\",\"targets\":[{\"type\":\"permanent\",\"id\":\"130\"}],\"confirmTargets\":false,\"tapPlan\":[]}",
+            "description": "activate Goblin Sharpshooter → Goblin Warchief"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"129\",\"abilityId\":\"goblin-sharpshooter-ping\",\"targets\":[{\"type\":\"permanent\",\"id\":\"132\"}],\"confirmTargets\":false,\"tapPlan\":[]}",
+            "description": "activate Goblin Sharpshooter → Soul Warden"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"129\",\"abilityId\":\"goblin-sharpshooter-ping\",\"targets\":[{\"type\":\"permanent\",\"id\":\"134\"}],\"confirmTargets\":false,\"tapPlan\":[]}",
+            "description": "activate Goblin Sharpshooter → Man-o'-War"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"129\",\"abilityId\":\"goblin-sharpshooter-ping\",\"targets\":[{\"type\":\"permanent\",\"id\":\"135\"}],\"confirmTargets\":false,\"tapPlan\":[]}",
+            "description": "activate Goblin Sharpshooter → Raven Familiar"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"129\",\"abilityId\":\"goblin-sharpshooter-ping\",\"targets\":[{\"type\":\"player\",\"id\":\"p1\"}],\"confirmTargets\":false,\"tapPlan\":[]}",
+            "description": "activate Goblin Sharpshooter → the Bot"
+        },
+        {
+            "key": "{\"kind\":\"activate-ability\",\"cardInstanceId\":\"129\",\"abilityId\":\"goblin-sharpshooter-ping\",\"targets\":[{\"type\":\"player\",\"id\":\"p2\"}],\"confirmTargets\":false,\"tapPlan\":[]}",
+            "description": "activate Goblin Sharpshooter → the opponent"
+        }
+    ],
+    "answer": {
+        "kind": "right",
+        "rightIndexes": [
+            63
+        ]
+    },
+    "botPickIndex": 0,
+    "author": "Mr bambury",
+    "createdAt": "2026-09-13T17:27:31.148Z",
+    "source": "in-play",
+    "origin": {
+        "gameId": "jn71qwwjbta83ewxdtzwyrw1bx8ebgnx",
+        "seq": 445
+    }
+}

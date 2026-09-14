@@ -1,0 +1,230 @@
+{
+    "id": "in-play:ph728ff7cvnw0akmwsttxkxt7n8ebz8v",
+    "spec": {
+        "activePlayer": "me",
+        "artifactDamageToPlayerThisTurn": {
+            "me": 0,
+            "opp": 0
+        },
+        "cards": [
+            {
+                "name": "Island",
+                "owner": "me",
+                "startedTurnUntapped": true
+            },
+            {
+                "manaCommitted": true,
+                "name": "Raucous Theater",
+                "owner": "me",
+                "tapped": true
+            },
+            {
+                "name": "Stomping Ground",
+                "owner": "me"
+            },
+            {
+                "activations": {
+                    "blazing-rootwalla-pump": 1
+                },
+                "manaCommitted": true,
+                "name": "Blazing Rootwalla",
+                "owner": "me",
+                "startedTurnUntapped": true,
+                "tapped": true
+            },
+            {
+                "name": "Undercity Sewers",
+                "owner": "opp"
+            },
+            {
+                "name": "Meticulous Archive",
+                "owner": "opp"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp"
+            },
+            {
+                "name": "Sanguine Evangelist",
+                "owner": "opp",
+                "startedTurnUntapped": true
+            },
+            {
+                "attackedLastTurn": true,
+                "manaCommitted": true,
+                "name": "Bat",
+                "owner": "opp",
+                "startedTurnUntapped": true,
+                "tapped": true,
+                "token": true
+            },
+            {
+                "manaCommitted": true,
+                "name": "Celestial Colonnade",
+                "owner": "opp",
+                "summoningSick": true,
+                "tapped": true
+            },
+            {
+                "name": "Gitaxian Probe",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "activations": {
+                    "arid-mesa-fetch": 1
+                },
+                "name": "Arid Mesa",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "activations": {
+                    "flooded-strand-fetch": 1
+                },
+                "name": "Flooded Strand",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Sheoldred, the Apocalypse",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Teferi, Time Raveler",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Mountain",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Master of Death",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Steam Vents",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Snapcaster Mage",
+                "owner": "me",
+                "zone": "hand"
+            }
+        ],
+        "combat": {
+            "attackedThisTurn": {
+                "me": [
+                    "Blazing Rootwalla"
+                ]
+            }
+        },
+        "continuousEffects": [
+            {
+                "affected": {
+                    "me": [
+                        "Blazing Rootwalla"
+                    ]
+                },
+                "controller": "me",
+                "duration": {
+                    "phase": "end-of-turn"
+                },
+                "layer": 7,
+                "payload": {
+                    "kind": "pt-modify",
+                    "power": 2,
+                    "toughness": 0
+                },
+                "sublayer": "7c"
+            }
+        ],
+        "creatureAttackedThisTurn": true,
+        "damageDealtToPlayerThisTurn": {
+            "me": 0,
+            "opp": 3
+        },
+        "deathsThisTurn": 0,
+        "hiddenHand": {
+            "opp": 5
+        },
+        "life": {
+            "me": 19,
+            "opp": 13
+        },
+        "lifeGainedThisTurn": {
+            "me": 0,
+            "opp": 0
+        },
+        "markLastDrawn": true,
+        "passCount": 0,
+        "phase": "POSTCOMBAT_MAIN",
+        "priority": "me",
+        "qualifyingActionLastTurn": {
+            "me": true,
+            "opp": true
+        },
+        "rngSeed": 358748918,
+        "spellsCastThisGame": {
+            "me": 1,
+            "opp": 2
+        },
+        "spellsCastThisTurn": {
+            "me": 0,
+            "opp": 0
+        },
+        "stormCount": 0,
+        "turn": 8,
+        "turnsTaken": {
+            "me": 4,
+            "opp": 4
+        }
+    },
+    "seat": "me",
+    "candidates": [
+        {
+            "key": "{\"kind\":\"pass\"}",
+            "description": "pass"
+        },
+        {
+            "key": "{\"kind\":\"play-land\",\"cardInstanceId\":\"139\"}",
+            "description": "play Island"
+        },
+        {
+            "key": "{\"kind\":\"play-land\",\"cardInstanceId\":\"141\"}",
+            "description": "play Mountain"
+        },
+        {
+            "key": "{\"kind\":\"play-land\",\"cardInstanceId\":\"143\"}",
+            "description": "play Steam Vents"
+        },
+        {
+            "key": "{\"kind\":\"cast-spell\",\"cardInstanceId\":\"144\",\"targets\":[],\"confirmTargets\":false,\"tapPlan\":[{\"cardInstanceId\":\"126\"},{\"cardInstanceId\":\"128\",\"manaChoiceIndex\":0}]}",
+            "description": "cast Snapcaster Mage"
+        }
+    ],
+    "answer": {
+        "kind": "right",
+        "rightIndexes": [
+            3
+        ]
+    },
+    "botPickIndex": 1,
+    "author": "Mr bambury",
+    "createdAt": "2026-09-13T19:45:04.585Z",
+    "source": "in-play",
+    "origin": {
+        "gameId": "jn70xhgekq84tzvehqcm2s0d998ea0sa",
+        "seq": 142
+    }
+}

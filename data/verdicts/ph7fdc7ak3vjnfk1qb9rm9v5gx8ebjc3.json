@@ -1,0 +1,144 @@
+{
+    "id": "in-play:ph7fdc7ak3vjnfk1qb9rm9v5gx8ebjc3",
+    "spec": {
+        "activePlayer": "me",
+        "artifactDamageToPlayerThisTurn": {
+            "me": 0,
+            "opp": 0
+        },
+        "cards": [
+            {
+                "manaCommitted": true,
+                "name": "Undercity Sewers",
+                "owner": "opp",
+                "summoningSick": true,
+                "tapped": true
+            },
+            {
+                "name": "Gitaxian Probe",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Sheoldred, the Apocalypse",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Stomping Ground",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Teferi, Time Raveler",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Mountain",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Raucous Theater",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Master of Death",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "hand"
+            }
+        ],
+        "creatureAttackedThisTurn": false,
+        "damageDealtToPlayerThisTurn": {
+            "me": 0,
+            "opp": 0
+        },
+        "deathsThisTurn": 0,
+        "hiddenHand": {
+            "opp": 6
+        },
+        "life": {
+            "me": 20,
+            "opp": 18
+        },
+        "lifeGainedThisTurn": {
+            "me": 0,
+            "opp": 0
+        },
+        "markLastDrawn": true,
+        "passCount": 0,
+        "phase": "PRECOMBAT_MAIN",
+        "priority": "me",
+        "qualifyingActionLastTurn": {
+            "opp": true
+        },
+        "rngSeed": 358748918,
+        "spellsCastThisGame": {
+            "me": 0,
+            "opp": 1
+        },
+        "spellsCastThisTurn": {
+            "me": 0,
+            "opp": 0
+        },
+        "stormCount": 0,
+        "turn": 2,
+        "turnsTaken": {
+            "me": 1,
+            "opp": 1
+        }
+    },
+    "seat": "me",
+    "candidates": [
+        {
+            "key": "{\"kind\":\"pass\"}",
+            "description": "pass"
+        },
+        {
+            "key": "{\"kind\":\"play-land\",\"cardInstanceId\":\"130\"}",
+            "description": "play Island"
+        },
+        {
+            "key": "{\"kind\":\"play-land\",\"cardInstanceId\":\"131\"}",
+            "description": "play Stomping Ground"
+        },
+        {
+            "key": "{\"kind\":\"play-land\",\"cardInstanceId\":\"133\"}",
+            "description": "play Mountain"
+        },
+        {
+            "key": "{\"kind\":\"play-land\",\"cardInstanceId\":\"134\"}",
+            "description": "play Raucous Theater"
+        },
+        {
+            "key": "{\"kind\":\"play-land\",\"cardInstanceId\":\"136\"}",
+            "description": "play Island"
+        }
+    ],
+    "answer": {
+        "kind": "right",
+        "rightIndexes": [
+            4
+        ]
+    },
+    "botPickIndex": 1,
+    "author": "Mr bambury",
+    "createdAt": "2026-09-13T19:41:34.292Z",
+    "source": "in-play",
+    "origin": {
+        "gameId": "jn70xhgekq84tzvehqcm2s0d998ea0sa",
+        "seq": 23
+    }
+}
