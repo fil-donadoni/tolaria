@@ -6,13 +6,16 @@
 // rather than the bridge's (PRD #3397 testing decisions).
 import { describe, expect, it } from "vitest";
 import { BLADE_SCENARIOS } from "../blade/registry";
-import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
+import { DEFAULT_EVAL_WEIGHTS, FIT_BASE_EVAL_WEIGHTS } from "../evalWeights";
 import {
     FITTABLE_WEIGHT_KEYS,
     basisDirectionKey,
     collectVerdictReport,
     evalPairsOf,
+    formatScoreComparison,
+    improvesOnIncumbent,
     scoreBasis,
+    scoreVerdictReport,
     verdictFromScenario,
     verdictsFromRegistry,
     withWeight,
@@ -307,5 +310,64 @@ describe("the violation / contradiction report", () => {
         expect(rows["authored:passing-is-right"].ok).toBe(true);
         expect(rows["authored:casting-is-right"].ok).toBe(false);
         expect(rows["authored:casting-is-right"].violated).toBe(1);
+    });
+});
+
+describe("the incumbent is defended on the ORDERING, not the loss (issue #3406)", () => {
+    /** The registry corpus scored at two vectors. `DEFAULT_EVAL_WEIGHTS` IS
+     *  the fit of exactly these verdicts (the lockfile guard in
+     *  `weightFit.bot.test.ts`), so it has to beat the prior it was fitted
+     *  from — on the ordering a human reads, which is the point: the fit's
+     *  own loss carries a margin and will trade an ordered pair for
+     *  separation elsewhere. */
+    function scoresOfTheRegistryCorpus() {
+        const { verdicts, gaps } = verdictsFromRegistry();
+        const at = (weights: typeof DEFAULT_EVAL_WEIGHTS) =>
+            scoreVerdictReport(
+                collectVerdictReport(verdicts, { gaps, weights })
+            );
+        return {
+            committed: at(DEFAULT_EVAL_WEIGHTS),
+            prior: at(FIT_BASE_EVAL_WEIGHTS),
+        };
+    }
+
+    it("prefers the vector that orders more verdicts of the same corpus", () => {
+        const { committed, prior } = scoresOfTheRegistryCorpus();
+        // Same corpus on both sides — otherwise the comparison is meaningless.
+        expect(committed.verdicts).toBe(prior.verdicts);
+        expect(committed.pairs).toBe(prior.pairs);
+        expect(committed.verdictsOk).toBeGreaterThan(prior.verdictsOk);
+        expect(improvesOnIncumbent(committed, prior)).toBe(true);
+        expect(improvesOnIncumbent(prior, committed)).toBe(false);
+    });
+
+    it("a TIE on both keys is not an improvement — churn is not progress", () => {
+        const { committed } = scoresOfTheRegistryCorpus();
+        expect(improvesOnIncumbent(committed, committed)).toBe(false);
+    });
+
+    it("pairs satisfied only breaks a tie on verdicts ordered", () => {
+        const { committed } = scoresOfTheRegistryCorpus();
+        const morePairs = { ...committed, satisfied: committed.satisfied + 1 };
+        const fewerVerdicts = {
+            ...morePairs,
+            verdictsOk: committed.verdictsOk - 1,
+        };
+        expect(improvesOnIncumbent(morePairs, committed)).toBe(true);
+        // More pairs, fewer verdicts fully ordered: the first key wins.
+        expect(improvesOnIncumbent(fewerVerdicts, committed)).toBe(false);
+    });
+
+    it("renders one comparable table row per vector", () => {
+        const { committed, prior } = scoresOfTheRegistryCorpus();
+        const text = formatScoreComparison([
+            { label: "prior (FIT_BASE)", score: prior },
+            { label: "committed (DEFAULT)", score: committed },
+        ]);
+        expect(text).toContain("prior (FIT_BASE)");
+        expect(text).toContain("committed (DEFAULT)");
+        expect(text).toContain(`${committed.verdictsOk}/${committed.verdicts}`);
+        expect(text).toContain(`${prior.satisfied}/${prior.pairs}`);
     });
 });

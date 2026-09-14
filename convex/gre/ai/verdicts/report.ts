@@ -360,3 +360,67 @@ export function formatVerdictReport(
     }
     return out.join("\n");
 }
+
+/** The ordering a HUMAN reads off a report, as a comparable tuple.
+ *
+ *  Deliberately NOT the fit's loss. `fitWeights` minimises a hinge with a
+ *  MARGIN (`δ`, 100 by default), so it will happily flip a pair sitting just
+ *  past zero in order to push a dozen others further past `δ`: a strictly
+ *  lower loss that orders FEWER verdicts. Measured on the first whole-corpus
+ *  refit (issue #3406, 174 verdicts / 492 pairs): loss 2.4173 → 2.3293 while
+ *  pairs satisfied went 328 → 326 and verdicts fully ordered 79 → 78. What a
+ *  Verdict corpus is FOR is the ordering, so that is what an incumbent vector
+ *  is defended on. */
+export type ReportScore = {
+    verdictsOk: number;
+    verdicts: number;
+    satisfied: number;
+    pairs: number;
+    contradictions: number;
+    blind: number;
+};
+
+export function scoreVerdictReport(report: VerdictReport): ReportScore {
+    return {
+        verdictsOk: report.rows.filter((r) => r.ok).length,
+        verdicts: report.rows.length,
+        satisfied: report.satisfied.length,
+        pairs: report.pairs.length,
+        contradictions: report.contradictions.length,
+        blind: report.blind.length,
+    };
+}
+
+/** Is `candidate` an improvement on `incumbent` over the SAME corpus?
+ *
+ *  Lexicographic: verdicts fully ordered first, pairs satisfied as the
+ *  tie-break. A TIE on both is not an improvement — a vector nobody can show
+ *  is better is churn, and every refit costs a blade run to re-prove. */
+export function improvesOnIncumbent(
+    candidate: ReportScore,
+    incumbent: ReportScore
+): boolean {
+    if (candidate.verdictsOk !== incumbent.verdictsOk)
+        return candidate.verdictsOk > incumbent.verdictsOk;
+    return candidate.satisfied > incumbent.satisfied;
+}
+
+/** The one table that answers "should this vector land?" — every row scored on
+ *  the SAME corpus, so the columns are comparable by construction. */
+export function formatScoreComparison(
+    rows: { label: string; score: ReportScore }[]
+): string {
+    const width = Math.max(...rows.map((r) => r.label.length));
+    const out = [
+        `== the same corpus, three vectors — ordering, not loss (issue #3406)`,
+        `  ${"vector".padEnd(width)}  verdicts ordered   pairs satisfied   contradictory   blind`,
+    ];
+    for (const { label, score } of rows) {
+        const ordered = `${score.verdictsOk}/${score.verdicts} (${pct(score.verdictsOk, score.verdicts)})`;
+        const satisfied = `${score.satisfied}/${score.pairs} (${pct(score.satisfied, score.pairs)})`;
+        out.push(
+            `  ${label.padEnd(width)}  ${ordered.padEnd(17)}  ${satisfied.padEnd(15)}  ${String(score.contradictions).padEnd(13)}  ${score.blind}`
+        );
+    }
+    return out.join("\n");
+}
