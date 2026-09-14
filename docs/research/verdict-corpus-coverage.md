@@ -17,6 +17,17 @@ before the measurement (below), that is the stop condition for the model-class
 experiment: the bottleneck is the corpus and the feature space, not the
 linearity of the scorer.
 
+> **Correction, same day.** The first version of this document explained the
+> 14 blind `resolution-choice` pairs as library searches the evaluation cannot
+> tell apart. That was stated without inspecting the pairs, and it is wrong: the
+> corpus holds **no library-search judgement at all**, and the 14 are
+> protection-colour choices (12) and library ordering (2) — finding 3 below.
+> Inspecting the blind pairs also turned up a second thing the census counts
+> but should not: **12 of the 47 blind pairs are vacuous**, two copies of the
+> same card that differ only by instance id (finding 4). Neither correction
+> moves the conclusion: addressable is still 50, and excluding the vacuous
+> pairs from the denominator puts it at 50 / 480 = **10.4%**, still on the line.
+
 ## The census
 
 Measured at `667645162`, over the whole corpus (the blade registry plus
@@ -55,6 +66,10 @@ BLADE_COVERAGE=1 BLADE_COVERAGE_OUT=<path>.json \
 The ceiling the whole exercise is bounded by: 330 satisfied + 50 addressable =
 **77.2%**. The remaining 22.8% is not a scorer's failure.
 
+Excluding the 12 vacuous pairs (finding 4), which are not decisions at all: 480
+pairs, 68.8% satisfied, ceiling **79.2%**, 35 genuinely blind pairs — 9 in
+land-drop and 5 in activate rather than the 16 and 10 the table shows.
+
 ## What this says
 
 **1. The corpus cannot speak about most of a game of Magic.** Four classes
@@ -81,12 +96,35 @@ and neither can the fit: both arrive as "unsatisfiable". Distinguishing them is
 what the contradiction-quarantine of ADR 0128 §6 exists for, and it is the
 strongest argument in this document for building it.
 
-**3. The class with the most blind pairs is `resolution-choice` (14 of 39).**
-Picking one card out of a library is a decision the 1-ply feature vector barely
-sees: the settled states differ by which card moved zones, and the evaluation's
-terms do not price a card in hand by what it is. That is a missing-term finding,
-and it is the shape of decision a `search` judgement always produces — worth
-knowing before the corpus fills with them.
+**3. The class with the most blind pairs is `resolution-choice` (14 of 39), and
+none of them is a library search.** Twelve come from three blade entries about
+choosing a protection COLOUR (Mother of Runes, Thornscape Master, and their
+negative control), four pairs each; the other two are library ordering (a scry
+and an explore). Both shapes are blind for the same reason: the choice changes
+nothing on the board a 1-ply evaluation reads. Protection from a colour is worth
+exactly what the opponent's colours threaten to do next; a card's position in
+the library is worth exactly what the next draw needs. Neither is material the
+settled state carries — both are GOALS, read from what the opponent is showing
+and what the player is missing.
+
+That is the shape a quantitative fit cannot learn from more examples of the
+same decision: identical feature vectors stay identical however many are
+collected. It needs a term that states the objective — which colours threaten
+me, what my hand lacks — and until that term exists, collecting more of these
+decisions adds blind pairs, not evidence.
+
+The corpus contains **no library-search (tutor) judgement at all**. The ids that
+mention a search are a storm count and two fetchland activations. The
+fifty-option tutor decision is not under-represented; it is absent.
+
+**4. Twelve blind pairs are vacuous: two copies of the same card.** In the
+in-play verdicts, a hand holding two Brushlands offers two `play-land` candidates
+that differ only by `cardInstanceId`, and three Treetop Villages offer three
+identical animations. The judge picks one copy; the pair then asserts that copy
+beats the other, which no evaluation could or should believe. These are not a
+missing term — they are the candidate list failing to collapse moves that are
+the same move. Seven are land drops, five are activations. They inflate `blind`
+and the denominator alike, and the tester sees the duplicates in the quiz too.
 
 ## The decision rule, registered before the numbers were seen
 
@@ -125,10 +163,14 @@ In priority order, by what the corpus cannot currently say anything about:
 3. **Targeting — 0 pairs.** Which of two creatures to burn is exactly the
    "same number, different value in context" judgement the whole non-linearity
    question is about.
-4. **Resolution choice — 39 pairs, 14 of them blind.** Collect with the blind
-   fraction in mind: more of the same decisions will produce more blind pairs,
-   not more evidence, until a term prices what is being searched for.
-5. **Mulligan — 0 pairs.**
+4. **Library search — 0 pairs.** Absent, not thin (finding 3). Worth authoring,
+   but with the same caveat as the colour and ordering choices: the value of a
+   tutored card is a goal (what the hand is missing), so these positions will
+   come in blind until a term states that goal.
+5. **Resolution choice (colour, ordering) — 39 pairs, 14 of them blind.** Do
+   not collect more of these until an objective term exists; they would add
+   blind pairs, not evidence.
+6. **Mulligan — 0 pairs.**
 
 **These positions should be AUTHORED, not waited for.** A scenario spec
 describes a board and its stack, and `seed:scenario` loads it into a live game;
