@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import {
     assertDeckLegal,
     checkAlpha40CopyCaps,
@@ -1033,68 +1035,109 @@ describe("validateDeck — Premodern legality by Scryfall, REAL registry (issue 
     });
 });
 
-// --- Tier 1 archetype spot-check (issue #2695 AC: "nine Tier 1 lists") ----
+// --- The canonical Premodern Tier 1 lists (issue #2719) -------------------
 //
-// The literal nine Tier 1 decklists (the six PRD #2693 supplied lists —
-// Goblin, Psychatog, Parallax Replenish, Landstill, Oath Ponza, Aluren — plus
-// the three already-shipped Premodern presets) are #2696's OWN deliverable
-// (`data/premodern-tier1-decks.json`, "Tier 1 deck report", target file of
-// that ticket) and do not exist in this tree yet: several archetype-defining
-// cards each list needs (Goblin Piledriver, Psychatog, Exalted Angel, Oath of
-// Druids, Aluren itself, …) are not yet built — exactly the PRD's "49 missing
-// cards" gap #2693/#2696 track. Building a literal nine-deck fixture here
-// would either fabricate an inaccurate decklist or duplicate #2696's own
-// target file ahead of it landing (and risk a merge collision with whoever
-// picks it up).
-//
-// What THIS ticket owes instead, and what this block proves: the mechanism
-// works against real cards already spanning four of the six archetypes —
-// Goblin (burn-adjacent), Psychatog (control pieces), Parallax
-// Replenish/Landstill (enchantment/control shells) and general Premodern
-// staples — using only cards genuinely in the catalogue today. Once #2696's
+// This block replaces the ARCHETYPE SPOT-CHECK that stood here while the lists
+// did not exist. That spot-check said so in its own comment — "once #2696's
 // canonical lists land, they can replace this spot-check with the literal
-// nine; this proves the VALIDATOR is sound in the meantime.
-describe("validateDeck — Premodern Tier 1 archetype spot-check (issue #2695)", () => {
-    // One card from each of several Tier 1 archetypes, all ALREADY built
-    // (`data/card-index.json`) and Premodern-legal per Scryfall.
-    const TIER1_SAMPLE: [name: string, cardId: string][] = [
-        ["Mogg Fanatic", "ca2ecfd4-c874-4468-8601-87aa110d5a00"], // Goblin
-        ["Fact or Fiction", "7fd4d018-dcf3-4439-8445-02d66e44f7d3"], // Psychatog control
-        ["Counterspell", "0df55e3f-14de-46ef-b6b1-616618724d9e"], // Psychatog control
-        ["Replenish", "7fd2fe13-bbc0-42b7-bc42-3b51910ce118"], // Parallax Replenish
-        ["Parallax Wave", "cef789e8-e4cc-4f61-bc15-debc2487777f"], // Parallax Replenish
-        ["Opalescence", "3c0071fb-afa5-47b5-b266-2b10a4f5a98a"], // Parallax Replenish
-        ["Wrath of God", "a2788d69-6a3a-42f0-8736-cc6b57755ecd"], // Landstill
-        ["Duress", "ca367f49-0f4a-4b7f-8104-851893fbcd8a"], // Landstill
-        ["Swords to Plowshares", "386ea9eb-abc1-4862-aa2d-8fb808d79490"], // Landstill
-        ["Stone Rain", "57ff74cb-a2ed-4123-ac42-f72f9820049e"], // Oath Ponza
-        ["Cavern Harpy", "adfb0804-50d6-4bca-8733-72e01030a543"], // Aluren
-        ["Lightning Bolt", "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"], // format staple
-        ["Wasteland", "99ff731b-8399-40c8-b539-ba6ba5783771"], // format staple
-    ];
-    const MOUNTAIN = "eace2c85-976c-425e-9800-5a6ccbd91b56";
+// nine" — and picked one already-built staple per archetype instead, because
+// several archetype-defining cards (Goblin Piledriver, Psychatog, Oath of
+// Druids, Aluren itself) were among PRD #2693's 49 missing cards. Issues
+// #2713-#2718 built them, so the substitute has served its purpose and the
+// real lists are asserted here.
+//
+// "Nine" is the PRD's arithmetic — three already-shipped Premodern presets
+// plus the six supplied lists — and only the six are assertable HERE. The
+// three shipped presets are rows in the `presetDecks` table, deliberately
+// carried in `data/premodern-tier1-decks.json` as a SLUG and nothing else
+// (`ShippedPreset`): copying their 75 cards into the repo would create a
+// second source of truth that drifts the first time an Admin edits the preset,
+// and a `presetDecks` row is deployment-local (#770/#1455) and can never be an
+// offline gate assertion in the first place. Their cards are hand-written by
+// construction, which is what made them shippable.
+//
+// Two assertions, and they are not the same claim. A name that resolves is not
+// a legal deck (wrong copy counts, a banned card, a 59-card list), and a legal
+// deck is not one the engine can build (a name the registry does not carry
+// cannot be seated at all). The compiler-state half — every card `ready` or
+// `ours` — lives in `scripts/__tests__/tier1-decks.test.ts`, which reads the
+// Oracle lockfile this project does not.
+describe("validateDeck — the canonical Premodern Tier 1 lists (issue #2719)", () => {
+    const REPO_ROOT = join(
+        dirname(new URL(import.meta.url).pathname),
+        "..",
+        ".."
+    );
+    const tier1 = JSON.parse(
+        readFileSync(
+            join(REPO_ROOT, "data", "premodern-tier1-decks.json"),
+            "utf8"
+        )
+    ) as {
+        shippedPresets: { slug: string; name: string }[];
+        decks: {
+            slug: string;
+            name: string;
+            main: { count: number; name: string }[];
+            sideboard: { count: number; name: string }[];
+        }[];
+    };
+    const cases = tier1.decks.map((d) => [d.slug, d] as const);
 
-    it("resolves and lists every sampled staple as Premodern-legal by name", () => {
-        for (const [name, cardId] of TIER1_SAMPLE) {
-            const meta = resolveDeckCardMeta(cardId);
-            expect(meta?.name).toBe(name);
-            expect(PREMODERN_LEGAL_NAMES.has(name.toLowerCase())).toBe(true);
+    /** The 75 as `DeckCard`s, one entry per copy, resolved by NAME through the
+     *  real registry — the same seam `scripts/lib/preset-deck-seed.ts` uses to
+     *  build the Preset Deck row, so a list that validates here is a list the
+     *  seeder can publish. */
+    function expand(rows: { count: number; name: string }[]): DeckCard[] {
+        return rows.flatMap((row) => {
+            const def = tryGetCardByName(row.name);
+            if (!def) return [];
+            return Array.from({ length: row.count }, () =>
+                card(def.id, def.name)
+            );
+        });
+    }
+
+    it.each(cases)(
+        "%s — every card resolves through the registry seam",
+        (_slug, deck) => {
+            // Named, not counted: "3 unresolved" sends the reader back to the
+            // file, and the name IS the fix (a typo in the list, or a card
+            // nobody has built).
+            const unresolved = [...deck.main, ...deck.sideboard]
+                .map((r) => r.name)
+                .filter((name) => tryGetCardByName(name) === null);
+            expect(unresolved).toEqual([]);
         }
-    });
+    );
 
-    it("a 60-card deck of Tier 1 staples across four archetypes validates as legal", () => {
-        const padding = 60 - TIER1_SAMPLE.length;
-        const deck: ValidatableDeck = {
-            cards: [
-                ...TIER1_SAMPLE.map(([name, id]) => card(id, name)),
-                ...Array.from({ length: padding }, () =>
-                    card(MOUNTAIN, "Mountain")
-                ),
-            ],
+    it.each(cases)("%s — validates legal in Premodern", (_slug, deck) => {
+        const built: ValidatableDeck = {
+            cards: expand(deck.main),
+            sideboard: expand(deck.sideboard),
         };
-        const { isLegal, reasons } = validateDeck(deck, "premodern");
+        // Sizes first: `expand` drops an unresolved name, so a 60 + 15 built
+        // list is also the proof that nothing silently fell out of it and the
+        // legality verdict below is about the whole deck.
+        expect(built.cards).toHaveLength(60);
+        expect(built.sideboard).toHaveLength(15);
+        const { isLegal, reasons } = validateDeck(built, "premodern");
         expect(reasons).toEqual([]);
         expect(isLegal).toBe(true);
+    });
+
+    it("names the three already-shipped presets by slug only", () => {
+        // The join key to the `presetDecks` table, and the reason the block
+        // above asserts six lists rather than nine. A card list appearing here
+        // would be the drift the `ShippedPreset` type exists to prevent.
+        expect(tier1.shippedPresets.map((p) => p.slug)).toEqual([
+            "deck-1",
+            "burn",
+            "enchantress",
+        ]);
+        for (const preset of tier1.shippedPresets) {
+            expect(Object.keys(preset).sort()).toEqual(["name", "slug"]);
+        }
     });
 });
 
