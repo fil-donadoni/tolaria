@@ -693,9 +693,9 @@ function applyTapPlan(
  *  the same before and after the pair, and nothing leaks into the leaf
  *  position for a later move to spend twice.
  *
- *  Banked as COLOURLESS because the payment is a generic leg (CR 107.4 —
- *  generic mana is payable with mana of any type), which is the same reason
- *  `spendableManaTotal` may sum the pool at all. */
+ *  Banked as COLOURLESS because the payment is a generic leg — CR 107.4b:
+ *  "generic mana in costs can be paid with any type of mana" — which is the
+ *  same reason `spendableManaTotal` may sum the pool at all. */
 function floatPlannedNominationMana(
     state: GameState,
     playerId: string,

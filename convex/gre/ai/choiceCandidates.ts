@@ -408,8 +408,9 @@ function openNominationSearchCeiling(state: GameState): number {
  *  would offer an amount the submit then refuses.
  *
  *  The extra units are banked as COLOURLESS because the payment is a generic
- *  leg (CR 107.4 — generic mana is payable with mana of any type), which is
- *  the same reason `spendableManaTotal` may sum the pool at all; and
+ *  leg — CR 107.4b: "generic mana in costs can be paid with any type of
+ *  mana" — which is the same reason `spendableManaTotal` may sum the pool at
+ *  all; and
  *  `boardCensusFor` is the pool-free half of the census, so nothing is counted
  *  twice. Every candidate is still individually planned below, so a ceiling
  *  this view over-states (a source whose colours cannot in fact be spent here)

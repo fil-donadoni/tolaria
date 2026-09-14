@@ -27,8 +27,8 @@ through it by clicking a land, which is why nothing reds.
 genuinely different shape, which is what that issue asked to be checked before
 widening. The nomination's cost is a pure GENERIC leg, so the whole fix rides
 on one scalar: `planManaPayment(state, payer, { X: amount })` plans it, and the
-search credits the shortfall as colourless because CR 107.4 makes any mana pay
-a generic pip. A `may-pay` cost is AUTHOR-FIXED and may carry coloured pips, so
+search credits the shortfall as colourless because CR 107.4b makes any type
+of mana pay a generic pip. A `may-pay` cost is AUTHOR-FIXED and may carry coloured pips, so
 neither half transfers: the ceiling question is "is this exact cost coverable",
 not "how much", and the search's coarse mana model would have to know which
 COLOURS each planned tap makes to float them before `canPayMayPayCost` re-reads
