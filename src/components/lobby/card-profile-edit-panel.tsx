@@ -121,7 +121,7 @@ export default function CardProfileEditPanel({
             tabIndex={-1}
             role="group"
             aria-label={`Profile for ${card.name}`}
-            className="flex flex-col gap-2 border-t border-border-subtle/30 pt-2 outline-none"
+            className="flex flex-col gap-2 border-t border-border-subtle/30 pt-2"
             onKeyDown={(e) => {
                 // ⌘/Ctrl+Enter — the pass's whole keyboard loop. Not a bare
                 // Enter: this panel is full of checkboxes and text controls
