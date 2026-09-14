@@ -19,6 +19,8 @@
  * Pure and synchronous: no Convex `ctx`, no DB, no network.
  */
 
+import { ConvexError } from "convex/values";
+
 import { getCardByName } from "../../../cards";
 import {
     assertLiveGameCanContinue,
@@ -29,10 +31,11 @@ import {
 // builder in `./build` (issue #3479): the verdict quiz builds the same position
 // in the browser and must not drag the registry and the harness in with it.
 // Both re-exported here so every existing caller keeps its import.
-import { buildBladeBaseState } from "./baseState";
+import { buildBladeBaseState, type SeatIdentity } from "./baseState";
 export { buildBladeBaseState } from "./baseState";
 export type { SeatIdentity } from "./baseState";
 import { decidingPlayer, greedyRootPick, searchWithTrace } from "../../search";
+import { computeOwedPlayerIds } from "../../expectedInput";
 import type { DeckKnowledgeBySeat } from "../../deckKnowledge";
 import type { GameState } from "../../state";
 import type { Move } from "../../moves";
@@ -82,6 +85,28 @@ export class BladeDeciderError extends Error {
                 `check the entry's \`bot\` seat or its \`setup\` sequence.`
         );
         this.name = "BladeDeciderError";
+    }
+}
+
+/** Thrown when a blade entry cannot be loaded into a LIVE game (issue #3443)
+ *  — the loader's own refusal class, distinct from `BladeDeciderError` above
+ *  because the two answer different questions on different paths.
+ *  `BladeDeciderError` is the in-process harness saying the ENTRY is
+ *  mis-authored (its declared seat holds no decision); this one is the Debug
+ *  panel saying the entry cannot be persisted into THIS game — the live Bot's
+ *  seat is not one of its seats, or the built position owes that seat nothing,
+ *  so loading it would leave a developer staring at a board where nothing is
+ *  ever going to move. Refusing is the whole point: before this, a mismatched
+ *  position was saved and the board simply stopped.
+ *
+ *  `ConvexError`, not `Error`, for the same reason `assertExpectedInput`
+ *  (`gre/expectedInput.ts`) uses one: a production deployment strips a plain
+ *  `Error`'s message before it reaches the client, and this message IS the
+ *  feedback — the panel renders it and nothing else happened. */
+export class BladeLoadError extends ConvexError<string> {
+    constructor(message: string) {
+        super(message);
+        this.name = "BladeLoadError";
     }
 }
 
@@ -146,20 +171,50 @@ import { buildBladeState } from "./build";
  */
 export function buildBladeLoadState(
     base: GameState,
-    scenario: BladeScenario
+    scenario: BladeScenario,
+    botPlayerId: string
 ): GameState {
-    const normalized = buildBladeBaseState([
-        {
-            id: base.players[0].id,
-            name: base.players[0].name,
-            bgColor: base.players[0].bgColor,
-        },
-        {
-            id: base.players[1].id,
-            name: base.players[1].name,
-            bgColor: base.players[1].bgColor,
-        },
-    ]);
+    const identity = (player: GameState["players"][number]): SeatIdentity => ({
+        id: player.id,
+        name: player.name,
+        bgColor: player.bgColor,
+    });
+    const bot = base.players.find((p) => p.id === botPlayerId);
+    const human = base.players.find((p) => p.id !== botPlayerId);
+    if (!bot || !human) {
+        throw new BladeLoadError(
+            `Blade scenario "${scenario.label}": "${botPlayerId}" is not one of ` +
+                `this game's two seats (${base.players.map((p) => p.id).join(", ")}).`
+        );
+    }
+    // ORIENTATION (issue #3443). A blade entry's `bot` seat is a POINT OF
+    // VIEW, not a position: `"me"` is the seat under test, and the spec's
+    // `"me"` is `players[0]` by the `ScenarioSpec` convention
+    // (`gre/ai/blade/types.ts`, `seatPlayerId`). Copying the live seats
+    // POSITIONALLY — which is what this did before — put the seat under test
+    // on the live FIRST seat, which in a vs-AI game is the human's: for the
+    // entries declaring `bot: "me"` the whole position arrived reversed, the
+    // human holding the cards and the decision the entry exists to ask the
+    // Bot about.
+    //
+    // Consequence worth stating: the LIVE state that gets persisted therefore
+    // has the Bot as `players[0]` after a `bot: "me"` load, and
+    // `buildStateFromScenario`'s `"me"` is `players[0]` for every later build
+    // on that state — so a DB-backed Debug scenario loaded into the same game
+    // afterwards lands on the Bot's seat too. That is the sibling loader's
+    // own positional convention, not a new mechanism; giving
+    // `buildStateFromScenario` an explicit `mySeatId` (the way `specFromState`
+    // already takes one) is what would decouple the two, and it is out of
+    // this issue's scope.
+    //
+    // The choice is made HERE, at construction, and not by mirroring the spec
+    // afterwards, because `ScenarioSpec` has no field for the turn holder:
+    // `createInitialGameState` makes `players[0]` active and gives it
+    // priority, so which live identity is built FIRST is the only thing that
+    // decides who holds the turn. Mirroring a built state would move the
+    // cards and leave the turn behind.
+    const [first, second] = scenario.bot === "me" ? [bot, human] : [human, bot];
+    const normalized = buildBladeBaseState([identity(first), identity(second)]);
     // Same two-stage build the in-process runner uses — the Debug panel must
     // load the SAME position the suite measures, pending decision included
     // (issue #1487). A setup step that finds no purchase throws here too; the
@@ -188,7 +243,8 @@ export function buildBladeLoadState(
  */
 export function resolveBladeLoadState(
     base: GameState,
-    label: string
+    label: string,
+    botPlayerId: string
 ): GameState {
     const scenario = findBladeScenario(label);
     if (!scenario) {
@@ -198,13 +254,56 @@ export function resolveBladeLoadState(
     // game, unlike `buildBladeState` above, which only evaluates. A hidden
     // hand is refused on this path for the reasons the assertion names.
     assertLoadableIntoLiveGame(scenario.spec);
-    const state = buildBladeLoadState(base, scenario);
+    const state = buildBladeLoadState(base, scenario, botPlayerId);
     // CR 117.3 / 508.1 (issue #3515) — the same second refusal
     // `debugSetupScenario` makes: this loader PERSISTS too, so an entry whose
     // declared stack leaves nobody able to act would freeze the developer's own
     // game rather than show them the position.
     assertLiveGameCanContinue(state);
+    // ...and a third (issue #3443): SOMEBODY can act, but is it the Bot? The
+    // in-process runner already refuses a position whose declared seat under
+    // test does not hold the decision at search start (`BladeDeciderError`);
+    // this path had no such check, so an entry the orientation above cannot
+    // satisfy would be persisted silently and the board would just stop.
+    //
+    // Owed-ness is read from `computeOwedPlayerIds` — the SAME expected-input
+    // computation that feeds the `gameTicks` row the client driver wakes on
+    // (`saveGameState`, `convex/game.ts`), never the search module's own
+    // parallel `decidingPlayer` derivation (ADR 0047: owed-ness has one
+    // source). A guard reading the other one could pass while the driver the
+    // developer is actually waiting on never fires.
+    assertBotOwesInput(state, label, scenario.bot, botPlayerId);
     return state;
+}
+
+/**
+ * Refuse a built position the live Bot will not act on (issue #3443).
+ *
+ * Its own exported function, not an inline block, because it is the assertion
+ * the registry-wide load sweep makes entry by entry — and a guard that can
+ * only be reached through the whole resolve path is one a test has to
+ * construct a scenario for rather than state directly.
+ *
+ * Owed-ness comes from `computeOwedPlayerIds` and from nowhere else: it is the
+ * SAME expected-input computation that fills the `gameTicks` row the client
+ * driver wakes on (`saveGameState`, `convex/game.ts`), and ADR 0047 makes that
+ * the single source. The search module's own `decidingPlayer` is a parallel
+ * derivation of the same question — a guard reading it could pass while the
+ * driver the developer is actually waiting on never fires.
+ */
+export function assertBotOwesInput(
+    state: GameState,
+    label: string,
+    declaredBot: BladeScenario["bot"],
+    botPlayerId: string
+): void {
+    const owed = computeOwedPlayerIds(state);
+    if (owed.includes(botPlayerId)) return;
+    throw new BladeLoadError(
+        `Blade scenario "${label}": declares bot "${declaredBot}", but the ` +
+            `built position owes input to [${owed.join(", ") || "no one"}], ` +
+            `not to this game's Bot seat "${botPlayerId}" — nothing was loaded.`
+    );
 }
 
 /** Result of running ONE seed of one blade scenario. */

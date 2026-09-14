@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import type { GenericMutationCtx, GenericQueryCtx } from "convex/server";
 import type { DataModel, Doc, Id } from "./_generated/dataModel";
 import { auth } from "./auth";
@@ -442,6 +442,48 @@ export type PlayDrawChoice = "play" | "draw";
  *  `createSoloGame` (ADR 0001). The human always holds `-p1`. */
 export function isBotSeat(seatId: string): boolean {
     return seatId.endsWith("-p2");
+}
+
+/**
+ * Which seat the Brain drives in the Game a Blade Scenario is being loaded
+ * into — and the refusal when there is no such seat (issue #3443).
+ *
+ * A blade entry is a question about the Brain, so three game kinds answer it
+ * differently and only two of them can hold one at all:
+ *   - vs-AI    — the Brain is already driving `-p2`; load.
+ *   - solo     — the same two seats with nobody driving the second. The
+ *                CALLER converts it (Game + Match) rather than measuring
+ *                nothing; this function only names the seat.
+ *   - 2-player — refuse. The second seat is another person's, and orienting a
+ *                position onto it would hand them the entry's board.
+ *
+ * A pure decision over the `games` row's own fields, beside `isBotSeat` rather
+ * than inline in the mutation, because it is the half of
+ * `debugLoadBladeScenario` that is testable without a Convex runtime — the
+ * same split `resolveBladeLoadState` and `isAdminUser` already make there.
+ *
+ * `ConvexError`, not `Error`: the message is what the Debug panel renders, and
+ * a production deployment strips a plain `Error`'s.
+ */
+export function bladeLoadBotSeatId(game: {
+    solo?: boolean;
+    players: { id: string }[];
+}): string {
+    if (game.solo !== true) {
+        throw new ConvexError(
+            "A blade scenario is a question about the Bot, and this is a " +
+                "two-player game — loading one would hand the position to " +
+                "another person's seat. Start a solo or vs-AI game instead."
+        );
+    }
+    const botPlayerId = game.players.find((p) => isBotSeat(p.id))?.id;
+    if (!botPlayerId) {
+        throw new ConvexError(
+            "This game has no bot seat (ADR 0001: the second seat, `-p2`), " +
+                "so a blade scenario has nothing to ask."
+        );
+    }
+    return botPlayerId;
 }
 
 /** True when the recorded play/draw chooser is the AI bot, so the choice must
