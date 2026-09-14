@@ -1,18 +1,24 @@
 import { useState } from "react";
-import DebugScenarioSpecField from "./debug-scenario-spec-field";
+import DebugScenarioSpecSection from "./debug-scenario-spec-section";
 import type { SpecDraft } from "./scenario-draft";
-import { formOwnedKeysInGroup } from "./scenario-spec-ownership";
+import {
+    formOwnedKeysInGroup,
+    specFieldSectionsInGroup,
+} from "./scenario-spec-ownership";
 
-/** Which fields are which is the TABLE's answer, not this file's (issue
- *  #3494): `scenario-spec-ownership.ts` carries a `group` on every row and
- *  `tsc` demands it, so a newly classified field cannot land in no group — the
- *  failure a hardcoded "common ones" list here would have allowed. */
-const FREQUENT_KEYS = formOwnedKeysInGroup("frequent");
-const OTHER_KEYS = formOwnedKeysInGroup("other");
+/** Which fields are which — group AND section — is the TABLE's answer, not this
+ *  file's (issues #3494, #3512): `scenario-spec-ownership.ts` carries both on
+ *  every row and `tsc` demands them, so a newly classified field cannot land in
+ *  no group or under no heading — the failure a hardcoded list here would have
+ *  allowed. */
+const FREQUENT_SECTIONS = specFieldSectionsInGroup("frequent");
+const OTHER_SECTIONS = specFieldSectionsInGroup("other");
+const OTHER_COUNT = formOwnedKeysInGroup("other").length;
 
 /**
  * The SPEC-LEVEL knobs of the scenario save form — one input per `form-owned`
- * field of `ScenarioSpec` (issue #3463), in TWO groups since issue #3494.
+ * field of `ScenarioSpec` (issue #3463), in TWO groups since issue #3494 and
+ * under semantic section headings as aligned grids since issue #3512.
  *
  * It renders by ITERATING the classification table rather than by spelling out
  * a fixed list of JSX rows: the table (`scenario-spec-ownership.ts`) is then
@@ -38,17 +44,15 @@ export default function DebugScenarioSpecFields({
     const [showOther, setShowOther] = useState(false);
 
     return (
-        <div className="flex flex-col gap-2">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                {FREQUENT_KEYS.map((key) => (
-                    <DebugScenarioSpecField
-                        key={key}
-                        fieldKey={key}
-                        draft={draft}
-                        onPatch={onPatch}
-                    />
-                ))}
-            </div>
+        <div className="flex flex-col gap-3">
+            {FREQUENT_SECTIONS.map((rows) => (
+                <DebugScenarioSpecSection
+                    key={rows.section}
+                    rows={rows}
+                    draft={draft}
+                    onPatch={onPatch}
+                />
+            ))}
 
             <button
                 type="button"
@@ -61,7 +65,7 @@ export default function DebugScenarioSpecFields({
                 </span>
                 Other options
                 <span className="tabular-nums text-text-disabled">
-                    ({OTHER_KEYS.length})
+                    ({OTHER_COUNT})
                 </span>
             </button>
 
@@ -70,11 +74,11 @@ export default function DebugScenarioSpecFields({
                 input for this field" would keep passing while the disclosure
                 was broken shut. */}
             {showOther && (
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-sm border border-border-subtle/60 bg-surface-base/40 p-2">
-                    {OTHER_KEYS.map((key) => (
-                        <DebugScenarioSpecField
-                            key={key}
-                            fieldKey={key}
+                <div className="flex flex-col gap-3 rounded-sm border border-border-subtle/60 bg-surface-base/40 p-2">
+                    {OTHER_SECTIONS.map((rows) => (
+                        <DebugScenarioSpecSection
+                            key={rows.section}
+                            rows={rows}
                             draft={draft}
                             onPatch={onPatch}
                         />

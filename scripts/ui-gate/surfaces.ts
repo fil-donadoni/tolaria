@@ -2055,6 +2055,50 @@ export const SURFACES: readonly Surface[] = [
                     "the save form rendered no `Other options` disclosure — the rare spec knobs would then be unreachable, not merely collapsed (issue #3494)"
                 );
             }
+            // 3. The aligned grid (issue #3512), measured with "Other options"
+            //    open so every per-seat section is on the page: within a
+            //    section every `me` input shares one left x, so does every
+            //    `opp` input, and `me` / `opp` is printed once as a column
+            //    header. happy-dom has no layout, so this is the only place
+            //    the alignment the issue exists for can be proven.
+            const grid = (await page.evaluate(
+                `(() => {
+                    const problems = [];
+                    let measured = 0;
+                    for (const section of document.querySelectorAll("[data-spec-section]")) {
+                        const name = section.getAttribute("data-spec-section");
+                        const inputs = section.querySelectorAll("[data-seat]");
+                        const headers = section.querySelectorAll("[data-seat-header]").length;
+                        if (inputs.length > 0 && headers !== 2) {
+                            problems.push(name + ": " + headers + " seat column headers, want 2");
+                        }
+                        const lefts = { me: new Set(), opp: new Set() };
+                        for (const el of inputs) {
+                            lefts[el.getAttribute("data-seat")].add(
+                                Math.round(el.getBoundingClientRect().left)
+                            );
+                            measured++;
+                        }
+                        for (const seat of ["me", "opp"]) {
+                            if (lefts[seat].size > 1) {
+                                problems.push(name + " " + seat + " inputs at x=" + [...lefts[seat]].join("/"));
+                            }
+                        }
+                    }
+                    return { problems, measured };
+                })()`
+            )) as { problems: string[]; measured: number };
+            if (grid.measured === 0) {
+                throw new Unreachable(
+                    "the expanded save form rendered no per-seat input to measure — the alignment check below would pass vacuously (issue #3512)"
+                );
+            }
+            if (grid.problems.length > 0) {
+                throw new Error(
+                    `the scenario form's per-seat columns do not align (issue #3512): ${grid.problems.join("; ")}`
+                );
+            }
+
             // The pinned head is the other half: scroll the form's port to the
             // bottom and the title/label/CTA must still be inside it.
             // A STRING body, the idiom the rest of this file uses for

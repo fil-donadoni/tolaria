@@ -24,12 +24,18 @@ import {
 
 import {
     FORM_OWNED_SCENARIO_SPEC_KEYS,
+    SCENARIO_SEATS,
     SCENARIO_SPEC_FIELD_OWNER,
     SCENARIO_SPEC_FIELD_INPUT,
+    SCENARIO_SPEC_SECTIONS,
+    SCENARIO_SPEC_SECTION_TITLE,
     formOwnedKeysInGroup,
     scenarioSpecFieldGroup,
     scenarioSpecFieldLabels,
+    scenarioSpecFieldSection,
+    specFieldSectionsInGroup,
 } from "../scenario-spec-ownership";
+import { DEBUG_CHECKBOX_CLASS } from "../debug-form-styles";
 
 const mutationCalls: { ref: unknown; args: unknown }[] = [];
 
@@ -301,6 +307,114 @@ describe("the scenario form renders every form-owned spec field", () => {
         ].sort();
         expect(both).toEqual([...FORM_OWNED_SCENARIO_SPEC_KEYS].sort());
         expect(new Set(both).size).toBe(both.length);
+    });
+
+    it("renders every spec-level field in exactly one section", () => {
+        // Issue #3512: the section is READ from the table, like the group. The
+        // rows the two groups render must partition the labelled fields — a
+        // field in no section would render under no heading, a field in two
+        // would render twice.
+        for (const key of FORM_OWNED_SCENARIO_SPEC_KEYS) {
+            expect(SCENARIO_SPEC_SECTIONS).toContain(
+                scenarioSpecFieldSection(key)
+            );
+        }
+        const rendered = [
+            ...specFieldSectionsInGroup("frequent"),
+            ...specFieldSectionsInGroup("other"),
+        ]
+            .flatMap((rows) => rows.keys)
+            .sort();
+        expect(rendered).toEqual([...LABELLED_KEYS].sort());
+        expect(new Set(rendered).size).toBe(rendered.length);
+    });
+
+    it.each(LABELLED_KEYS)(
+        "renders `%s` under its section's heading",
+        (key) => {
+            render(<DebugSaveScenario />);
+            revealField(key);
+            const title =
+                SCENARIO_SPEC_SECTION_TITLE[scenarioSpecFieldSection(key)];
+            for (const label of scenarioSpecFieldLabels(key)) {
+                const section = screen.getByLabelText(label).closest("section");
+                expect(section).toBeTruthy();
+                const headingId =
+                    section?.getAttribute("aria-labelledby") ?? "";
+                expect(document.getElementById(headingId)?.textContent).toBe(
+                    title
+                );
+            }
+        }
+    );
+
+    it("prints me / opp once per per-seat section, as column headers", () => {
+        // Issue #3512: the seat sub-label used to repeat inside every pair,
+        // lengthening each row by a different amount — half of the zigzag.
+        render(<DebugSaveScenario />);
+        expandOther();
+        const sections = [
+            ...document.querySelectorAll<HTMLElement>("[data-spec-section]"),
+        ];
+        const perSeat = sections.filter(
+            (section) => section.querySelector("[data-seat]") !== null
+        );
+        expect(perSeat.length).toBeGreaterThan(2);
+        for (const section of sections) {
+            const headers = [
+                ...section.querySelectorAll("[data-seat-header]"),
+            ].map((el) => el.textContent);
+            expect(headers).toEqual(
+                perSeat.includes(section) ? [...SCENARIO_SEATS] : []
+            );
+            // …and no seat word inside a row: every other `me` / `opp` text in
+            // the section is a `<select>` option, never a label.
+            const seatWords = [
+                ...section.querySelectorAll("span, label"),
+            ].filter(
+                (el) =>
+                    !el.hasAttribute("data-seat-header") &&
+                    (SCENARIO_SEATS as readonly string[]).includes(
+                        el.textContent?.trim() ?? ""
+                    )
+            );
+            expect(seatWords).toEqual([]);
+        }
+    });
+
+    it("draws spec-field and card-row checkboxes with ONE class", () => {
+        render(<DebugSaveScenario />);
+        expandOther();
+        fireEvent.click(screen.getByRole("button", { name: "More" }));
+        const boxes = [
+            ...document.querySelectorAll<HTMLInputElement>(
+                "input[type=checkbox]"
+            ),
+        ];
+        // Spec flags AND card-row flags are both in the sample.
+        expect(screen.getByLabelText("revolt me").className).toBe(
+            DEBUG_CHECKBOX_CLASS
+        );
+        expect(screen.getByLabelText("Card 1 is token").className).toBe(
+            DEBUG_CHECKBOX_CLASS
+        );
+        expect(boxes.length).toBeGreaterThan(10);
+        for (const box of boxes) {
+            expect(box.className).toBe(DEBUG_CHECKBOX_CLASS);
+        }
+    });
+
+    it("makes the card row's More and + card real secondary buttons", () => {
+        // Issue #3512: both were underlined text, "more…" at 10px in the
+        // disabled contrast.
+        render(<DebugSaveScenario />);
+        for (const name of ["More", "+ card"]) {
+            const button = screen.getByRole("button", { name });
+            expect(button.tagName).toBe("BUTTON");
+            expect(button.className).toContain("btn-tone-secondary");
+            expect(button.className).toContain("text-xs");
+            expect(button.className).not.toMatch(/underline|text-\[10px\]/);
+        }
     });
 
     it("pins the save CTA at the top of the form, not under every knob", () => {

@@ -1,5 +1,11 @@
 import { SCENARIO_PHASES } from "@convex/debugScenarioSpec";
-import { DEBUG_INPUT_CLASS } from "./debug-form-styles";
+import {
+    DEBUG_CHECKBOX_CLASS,
+    DEBUG_INPUT_CLASS,
+    DEBUG_NUMBER_INPUT_CLASS,
+    DEBUG_SEAT_SELECT_CLASS,
+    DEBUG_WIDE_VALUE_CLASS,
+} from "./debug-form-styles";
 import DebugCardNameField from "./debug-card-name-field";
 import type {
     SeatFlagPairDraft,
@@ -43,20 +49,25 @@ type SeatFlagPairDraftKey = {
     [K in keyof SpecDraft]: SpecDraft[K] extends SeatFlagPairDraft ? K : never;
 }[keyof SpecDraft];
 
-/** The chrome every knob shares: the field's own name, at the form's readable
- *  size and full-contrast (issue #3494 — every label in here was
- *  `text-text-muted` at 10-11px, so a label and a disabled value read the
- *  same). */
-const FIELD_CLASS = "flex items-center gap-1.5 text-xs text-text";
-/** The me/opp sub-label inside a per-seat pair — one contrast step down from
- *  the field name, never two. */
-const SEAT_CLASS = "flex items-center gap-1 text-xs text-text-muted";
+/** The label cell: the field's own name at the form's readable size and
+ *  full contrast (issue #3494). `col-start-1` is what makes every field START a
+ *  grid row — a single-value field fills only the `me` column, and without it
+ *  the next field's label would auto-place into the empty `opp` cell. */
+const LABEL_CLASS = "col-start-1 min-w-0 text-xs break-words text-text";
 
 /**
- * ONE spec-level knob of the scenario save form (issue #3494, extracted from
- * `debug-scenario-spec-fields.tsx` when that file grew a second group).
+ * ONE spec-level knob of the scenario save form, as one row of its section's
+ * label/value grid (issue #3512; extracted from `debug-scenario-spec-fields.tsx`
+ * by issue #3494).
  *
- * Which knobs exist, what each renders and which group it renders in are all
+ * It returns the row's grid CELLS — a label, then its values — rather than a
+ * wrapper, so every value lands in the section grid's own columns: a per-seat
+ * pair's `me` input in the `me` column, its `opp` input in the `opp` column,
+ * and a single value (number, seat, boolean) in the first value column. That
+ * is the whole alignment; a wrapper element would give each row its own
+ * columns again.
+ *
+ * Which knobs exist, what each renders and which section it renders in are all
  * read from the classification table (`scenario-spec-ownership.ts`) — this
  * component only knows how to draw a `kind`. Pure/controlled: the form owns
  * the draft.
@@ -84,17 +95,17 @@ export default function DebugScenarioSpecField({
         case "number": {
             const field = fieldKey as TextDraftKey;
             return (
-                <label className={FIELD_CLASS}>
-                    {input.label}
+                <>
+                    <span className={LABEL_CLASS}>{input.label}</span>
                     <input
                         type="number"
                         min={input.min}
                         value={draft[field]}
                         aria-label={labels[0]}
                         onChange={(e) => onPatch({ [field]: e.target.value })}
-                        className={`${DEBUG_INPUT_CLASS} w-16`}
+                        className={DEBUG_NUMBER_INPUT_CLASS}
                     />
-                </label>
+                </>
             );
         }
         case "phase": {
@@ -112,13 +123,13 @@ export default function DebugScenarioSpecField({
                     ? SCENARIO_PHASES
                     : [draft.phase, ...SCENARIO_PHASES];
             return (
-                <label className={FIELD_CLASS}>
-                    {input.label}
+                <>
+                    <span className={LABEL_CLASS}>{input.label}</span>
                     <select
                         value={draft.phase}
                         aria-label={labels[0]}
                         onChange={(e) => onPatch({ phase: e.target.value })}
-                        className={DEBUG_INPUT_CLASS}
+                        className={`${DEBUG_INPUT_CLASS} ${DEBUG_WIDE_VALUE_CLASS}`}
                     >
                         <option value="">—</option>
                         {phaseOptions.map((p) => (
@@ -127,14 +138,14 @@ export default function DebugScenarioSpecField({
                             </option>
                         ))}
                     </select>
-                </label>
+                </>
             );
         }
         case "seat": {
             const field = fieldKey as SeatDraftKey;
             return (
-                <label className={FIELD_CLASS}>
-                    {input.label}
+                <>
+                    <span className={LABEL_CLASS}>{input.label}</span>
                     <select
                         value={draft[field]}
                         aria-label={labels[0]}
@@ -144,7 +155,7 @@ export default function DebugScenarioSpecField({
                                     .value as SpecDraft[SeatDraftKey],
                             })
                         }
-                        className={DEBUG_INPUT_CLASS}
+                        className={DEBUG_SEAT_SELECT_CLASS}
                     >
                         {/* "—" is the spec's own absent, which the builder
                             reads as "leave the base state's turn holder
@@ -156,51 +167,50 @@ export default function DebugScenarioSpecField({
                             </option>
                         ))}
                     </select>
-                </label>
+                </>
             );
         }
         case "boolean": {
             const field = fieldKey as BooleanDraftKey;
             return (
-                <label className={FIELD_CLASS}>
+                <>
+                    <span className={LABEL_CLASS}>{input.label}</span>
                     <input
                         type="checkbox"
                         checked={draft[field]}
                         aria-label={labels[0]}
                         onChange={(e) => onPatch({ [field]: e.target.checked })}
-                        className="size-4"
+                        className={DEBUG_CHECKBOX_CLASS}
                     />
-                    {input.label}
-                </label>
+                </>
             );
         }
         case "per-seat": {
             const field = fieldKey as SeatPairDraftKey;
             const pair = draft[field];
             return (
-                <span className={FIELD_CLASS}>
-                    {input.label}
+                <>
+                    <span className={LABEL_CLASS}>{input.label}</span>
                     {SCENARIO_SEATS.map((seat, i) => (
-                        <label key={seat} className={SEAT_CLASS}>
-                            {seat}
-                            <input
-                                type="number"
-                                min={input.min}
-                                value={pair[seat]}
-                                aria-label={labels[i]}
-                                onChange={(e) =>
-                                    onPatch({
-                                        [field]: {
-                                            ...pair,
-                                            [seat]: e.target.value,
-                                        },
-                                    })
-                                }
-                                className={`${DEBUG_INPUT_CLASS} w-14`}
-                            />
-                        </label>
+                        <input
+                            key={seat}
+                            type="number"
+                            min={input.min}
+                            value={pair[seat]}
+                            aria-label={labels[i]}
+                            data-seat={seat}
+                            onChange={(e) =>
+                                onPatch({
+                                    [field]: {
+                                        ...pair,
+                                        [seat]: e.target.value,
+                                    },
+                                })
+                            }
+                            className={DEBUG_NUMBER_INPUT_CLASS}
+                        />
                     ))}
-                </span>
+                </>
             );
         }
         case "per-seat-flag": {
@@ -211,48 +221,50 @@ export default function DebugScenarioSpecField({
             const field = fieldKey as SeatFlagPairDraftKey;
             const pair = draft[field];
             return (
-                <span className={FIELD_CLASS}>
-                    {input.label}
+                <>
+                    <span className={LABEL_CLASS}>{input.label}</span>
                     {SCENARIO_SEATS.map((seat, i) => (
-                        <label key={seat} className={SEAT_CLASS}>
-                            {seat}
-                            <input
-                                type="checkbox"
-                                checked={pair[seat]}
-                                aria-label={labels[i]}
-                                onChange={(e) =>
-                                    onPatch({
-                                        [field]: {
-                                            ...pair,
-                                            [seat]: e.target.checked,
-                                        },
-                                    })
-                                }
-                                className="size-4"
-                            />
-                        </label>
+                        <input
+                            key={seat}
+                            type="checkbox"
+                            checked={pair[seat]}
+                            aria-label={labels[i]}
+                            data-seat={seat}
+                            onChange={(e) =>
+                                onPatch({
+                                    [field]: {
+                                        ...pair,
+                                        [seat]: e.target.checked,
+                                    },
+                                })
+                            }
+                            className={DEBUG_CHECKBOX_CLASS}
+                        />
                     ))}
-                </span>
+                </>
             );
         }
         case "companion":
             // CR 702.139c / ADR 0064 — a companion is a CARD name, so it gets
-            // the same catalogue autocomplete a card row does; the slot's seat
-            // and the "already used" state sit beside it.
+            // the same catalogue autocomplete a card row does. Two grid rows:
+            // the name spans both value columns, and the slot's seat and the
+            // "already used" state sit under it in the value columns.
             return (
-                <span className={FIELD_CLASS}>
-                    {input.label}
-                    <DebugCardNameField
-                        value={draft.companion.name}
-                        onChange={(name) =>
-                            onPatch({
-                                companion: { ...draft.companion, name },
-                            })
-                        }
-                        ariaLabel={labels[0]}
-                        source="cards"
-                        placeholder="Companion…"
-                    />
+                <>
+                    <span className={LABEL_CLASS}>{input.label}</span>
+                    <div className={`${DEBUG_WIDE_VALUE_CLASS} flex`}>
+                        <DebugCardNameField
+                            value={draft.companion.name}
+                            onChange={(name) =>
+                                onPatch({
+                                    companion: { ...draft.companion, name },
+                                })
+                            }
+                            ariaLabel={labels[0]}
+                            source="cards"
+                            placeholder="Companion…"
+                        />
+                    </div>
                     <select
                         value={draft.companion.owner}
                         aria-label={labels[1]}
@@ -265,7 +277,7 @@ export default function DebugScenarioSpecField({
                                 },
                             })
                         }
-                        className={DEBUG_INPUT_CLASS}
+                        className={`${DEBUG_SEAT_SELECT_CLASS} col-start-2`}
                     >
                         {SCENARIO_SEATS.map((seat) => (
                             <option key={seat} value={seat}>
@@ -273,7 +285,7 @@ export default function DebugScenarioSpecField({
                             </option>
                         ))}
                     </select>
-                    <label className={SEAT_CLASS}>
+                    <label className="flex items-center gap-1.5 text-xs text-text">
                         <input
                             type="checkbox"
                             checked={draft.companion.used}
@@ -286,11 +298,11 @@ export default function DebugScenarioSpecField({
                                     },
                                 })
                             }
-                            className="size-4"
+                            className={DEBUG_CHECKBOX_CLASS}
                         />
                         used
                     </label>
-                </span>
+                </>
             );
     }
 }
