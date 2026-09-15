@@ -29,6 +29,9 @@ import DebugButton from "./debug-button";
 import AiDecisionQuizCandidate from "./ai-decision-quiz-candidate";
 import AiDecisionQuizRefusal from "./ai-decision-quiz-refusal";
 import AiDecisionDroppedNotes from "./ai-decision-dropped-notes";
+import AiDecisionQuizHandReveal from "./ai-decision-quiz-hand-reveal";
+import ScenarioSpecBoard from "./scenario-spec-board";
+import { OWN_HAND_REMINDER, quizSeatLabels } from "./ai-decision-quiz-copy";
 
 type QuizState =
     | { status: "loading" }
@@ -61,6 +64,9 @@ export default function AiDecisionVerdictQuiz({
               }
     );
     const [selected, setSelected] = useState<number | null>(null);
+    // Hidden on every opening: the reveal is consented to per judgement, never
+    // remembered into the next one (ADR 0128 §12).
+    const [handRevealed, setHandRevealed] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -161,6 +167,25 @@ export default function AiDecisionVerdictQuiz({
     return (
         <div className="flex flex-col gap-1.5 rounded-sm border border-border-accent/30 p-1.5">
             <span className="text-label">Which move was right here?</span>
+
+            {/* The position being judged, from the spec that is submitted —
+                the same reading every scenario surface uses (issue #3577).
+                Only the deciding seat's hand can be revealed; the opponent's
+                is a count, which is what the spec carries and what the Bot
+                knew. */}
+            <ScenarioSpecBoard
+                spec={quiz.spec}
+                revealedHands={handRevealed ? [QUIZ_SEAT] : []}
+                seatLabels={quizSeatLabels(QUIZ_SEAT)}
+            />
+            <AiDecisionQuizHandReveal
+                revealed={handRevealed}
+                disabled={submitting}
+                onChange={setHandRevealed}
+            />
+            <p className="break-words text-[10px] text-text-muted">
+                {OWN_HAND_REMINDER}
+            </p>
 
             <DebugButton
                 onClick={() => void submit(botPickIndex)}

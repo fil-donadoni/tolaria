@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import {
@@ -6,6 +6,19 @@ import {
     type ScenarioSpec,
 } from "@convex/debugScenarioSpec";
 import DebugButton from "./debug-button";
+import ScenarioSpecBoard from "./scenario-spec-board";
+
+/** Both hands as cards: an admin staging a scenario is authoring every card. */
+const PREVIEW_REVEALED_HANDS = ["me", "opp"] as const;
+
+/** The edited JSON as a spec, or `null` while it does not parse. */
+function parsePreview(text: string): ScenarioSpec | null {
+    try {
+        return normalizeScenarioSpec(JSON.parse(text));
+    } catch {
+        return null;
+    }
+}
 
 /**
  * Preview / edit / save step for a generated OR regenerated scenario (issue
@@ -40,6 +53,7 @@ export default function DebugScenarioPreview({
     );
     const [error, setError] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
+    const previewSpec = useMemo(() => parsePreview(previewText), [previewText]);
 
     const handleSave = async () => {
         if (saving) return;
@@ -82,6 +96,20 @@ export default function DebugScenarioPreview({
                 placeholder="Label…"
                 className="input-field w-full px-2 py-1 text-xs"
             />
+            {/* The board the JSON below describes — the one spec renderer the
+                verdict quiz shares (issue #3577). Closed by default: the sheet
+                is 293px and the JSON is what is being edited. */}
+            {previewSpec && (
+                <details>
+                    <summary className="cursor-pointer text-[10px] text-text-disabled">
+                        Board
+                    </summary>
+                    <ScenarioSpecBoard
+                        spec={previewSpec}
+                        revealedHands={PREVIEW_REVEALED_HANDS}
+                    />
+                </details>
+            )}
             <textarea
                 value={previewText}
                 onChange={(e) => setPreviewText(e.target.value)}
