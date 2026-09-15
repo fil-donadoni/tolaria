@@ -253,7 +253,8 @@ describe("buildPreviewBody — isManualGame discriminator (issue #2346)", () => 
 describe("buildPreviewBody — owner line gated on owner-vs-controller (issue #2933)", () => {
     function battlefieldInstance(
         controllerId: string,
-        ownerId: string
+        ownerId: string,
+        zone: CardInstance["zone"] = "battlefield"
     ): CardInstance {
         return {
             id: "perm-1",
@@ -263,7 +264,7 @@ describe("buildPreviewBody — owner line gated on owner-vs-controller (issue #2
             staticAbilities: SERRA.staticAbilities ?? [],
             controllerId,
             ownerId,
-            zone: "battlefield",
+            zone,
             isTapped: false,
             isSummoningSick: false,
         } as unknown as CardInstance;
@@ -320,6 +321,15 @@ describe("buildPreviewBody — owner line gated on owner-vs-controller (issue #2
             { allPlayers, playerId: "p1" }
         );
         expect(controlledByOpponent.ownerName).toBeNull();
+    });
+
+    it("shows no owner off the battlefield, even when owner and controller differ", () => {
+        const body = buildPreviewBody(
+            SERRA.id,
+            battlefieldInstance("p1", "p2", "graveyard"),
+            { allPlayers, playerId: "p1" }
+        );
+        expect(body.ownerName).toBeNull();
     });
 });
 
