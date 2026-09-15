@@ -20,6 +20,7 @@ import {
     verdictIdOf,
     verdictsFromLock,
     LOCK_VERDICT_AUTHOR,
+    LOCK_VERDICT_TIMESTAMP,
     VERDICT_BASE_SCHEMA_VERSION,
     VERDICT_LOCK_PATH,
     VERDICT_SCHEMA_VERSION,
@@ -141,7 +142,7 @@ describe("the lock selects (issue #3578)", () => {
             setup: [{ kind: "pass" }],
             deckKnowledge: [{ seat: "opp", cards: ["Mountain"] }],
             author: LOCK_VERDICT_AUTHOR,
-            createdAt: expect.any(String),
+            createdAt: LOCK_VERDICT_TIMESTAMP,
             source: "store",
         });
     });
@@ -230,35 +231,39 @@ describe("schemaVersion (issue #3578)", () => {
 });
 
 describe("the upcaster chain (issue #3578)", () => {
-    // A three-version history, injected: version 1 named a single right
-    // candidate `rightIndex`, version 2 made it a list, version 3 reworded the
-    // descriptions. The reader understands only version 3.
+    // A three-version history, injected: version 1 called a candidate's
+    // sentence `label`, version 2 renamed it `description`, version 3
+    // reworded it. Neither change touches what the verdict id covers — an
+    // upcast never renames. The reader understands only version 3.
+    type Candidate = { key: string; label?: string; description?: string };
     const THREE: VerdictSchema = {
         current: 3,
         upcasters: {
-            1: (older) => {
-                const { rightIndex, ...rest } = older.answer as {
-                    rightIndex: number;
-                };
-                return {
-                    ...older,
-                    answer: { ...rest, rightIndexes: [rightIndex] },
-                };
-            },
+            1: (older) => ({
+                ...older,
+                candidates: (older.candidates as Candidate[]).map(
+                    ({ label, ...rest }) => ({ ...rest, description: label })
+                ),
+            }),
             2: (older) => ({
                 ...older,
-                candidates: (
-                    older.candidates as { key: string; description: string }[]
-                ).map((c) => ({ ...c, description: `${c.description} (v3)` })),
+                candidates: (older.candidates as Candidate[]).map((c) => ({
+                    ...c,
+                    description: `${c.description} (v3)`,
+                })),
             }),
         },
     };
     const v1 = stored({
         ...JUDGEMENT,
-        answer: { kind: "right", rightIndex: 2 },
+        candidates: JUDGEMENT.candidates.map(({ key, description }) => ({
+            key,
+            label: description,
+        })),
         schemaVersion: 1,
     });
-    const v2 = stored({ ...JUDGEMENT, schemaVersion: 2 });
+    // A different answer, so a different verdict: v1 and v2 are two ids.
+    const v2 = stored({ ...judgementAnswering(1), schemaVersion: 2 });
 
     it("lifts each payload from its own version to the current one, in order", () => {
         const [fromV1, fromV2] = verdictsFromLock(
@@ -266,18 +271,49 @@ describe("the upcaster chain (issue #3578)", () => {
             [v1, v2],
             THREE
         );
-        expect(fromV1.answer).toEqual({ kind: "right", rightIndexes: [2] });
         expect(fromV1.candidates[2].description).toBe("cast Shock (v3)");
-        // Version 2 skipped the first link: run on a payload that already has
-        // `rightIndexes` it would have produced `[undefined]` and been refused.
-        expect(fromV2.answer).toEqual(JUDGEMENT.answer);
+        // Version 2 skipped the first link: run on a payload with no `label`
+        // it would have left every description undefined, and been refused.
         expect(fromV2.candidates[2].description).toBe("cast Shock (v3)");
+        expect(fromV2.answer).toEqual({ kind: "right", rightIndexes: [1] });
     });
 
-    it("keeps the id the payload was stored under — an upcast never renames", () => {
+    it("keeps the id the payload was stored under — the lifted judgement still hashes to it", () => {
         const [fromV1] = verdictsFromLock(lockOf([v1.verdictId]), [v1], THREE);
         expect(fromV1.id).toBe(v1.verdictId);
-        expect(verdictIdOf(fromV1)).not.toBe(v1.verdictId);
+        expect(verdictIdOf(fromV1)).toBe(v1.verdictId);
+    });
+
+    it("refuses an upcaster that changes the judgement, naming the id", () => {
+        // An old spelling the id's projection cannot see (`rightIndex`) hashes
+        // as no answer at all; lifting it into `rightIndexes` changes what the
+        // id covers, which is a new judgement, not a new format.
+        const legacy = stored({
+            ...JUDGEMENT,
+            answer: { kind: "right", rightIndex: 2 },
+            schemaVersion: 1,
+        });
+        const meaningful: VerdictSchema = {
+            current: 2,
+            upcasters: {
+                1: (older) => ({
+                    ...older,
+                    answer: {
+                        kind: "right",
+                        rightIndexes: [
+                            (older.answer as { rightIndex: number }).rightIndex,
+                        ],
+                    },
+                }),
+            },
+        };
+        expect(() =>
+            verdictsFromLock(lockOf([legacy.verdictId]), [legacy], meaningful)
+        ).toThrow(
+            new RegExp(
+                `${legacy.verdictId}: content hashes to v1-[0-9a-f]{64} after the upcast from "schemaVersion" 1, not to the id the lock names`
+            )
+        );
     });
 
     it("a missing link in the chain throws, naming the id and the version", () => {

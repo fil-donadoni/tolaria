@@ -13,9 +13,16 @@
 //
 // THE NAME IS THE CONTENT. Every selected payload is re-hashed and must come
 // to the id the lock names; anything else is corruption or tampering and
-// throws. The hash is taken over the payload AS STORED — before any upcast —
-// because the id was computed over those bytes and an upcast never moves it
-// (`upcasters.ts`): a format change is read differently, never renamed.
+// throws. The hash is taken over the judgement AS IT REACHES THE FIT — after
+// the upcast and the parse — not over the stored bytes, for two reasons. The
+// verdict id's projection (`identity.ts`) reads today's field names, so over
+// an older payload it would be blind to a field that version spelled
+// differently, and two payloads differing only there would share a name.
+// And an upcast must never rename (ADR 0128 §8): an upcaster that changes
+// anything the id covers is changing the judgement, not its format, and is
+// refused here by the same comparison. What is left outside the check is
+// what is outside the id — a candidate's `description` — which the fit never
+// reads.
 //
 // ORDER IS THE LOCK'S. The corpus comes out in lock order, whatever order the
 // payloads were supplied in (a pack's lines, a directory listing, a store
@@ -32,11 +39,7 @@
 
 import { verdictsFromRegistry, type RegistryVerdicts } from "./registrySource";
 import type { BladeScenario } from "../blade/types";
-import {
-    VERDICT_HASH_PATTERN,
-    verdictIdOf,
-    type VerdictJudgement,
-} from "./identity";
+import { VERDICT_HASH_PATTERN, verdictIdOf } from "./identity";
 import { isJsonObject, parseVerdictJudgement } from "./judgement";
 import {
     VERDICT_BASE_SCHEMA_VERSION,
@@ -189,20 +192,8 @@ function verdictFromPayload(
     schema: VerdictSchema
 ): Verdict {
     if (!isJsonObject(payload)) bad(id, "payload must be a JSON object");
-    let version = schemaVersionOf(id, payload, schema.current);
-
-    let actual: string;
-    try {
-        actual = verdictIdOf(payload as unknown as VerdictJudgement);
-    } catch (error) {
-        bad(
-            id,
-            `payload cannot be hashed (${error instanceof Error ? error.message : `${error}`})`
-        );
-    }
-    if (actual !== id) {
-        bad(id, `content hashes to ${actual}, not to the id the lock names`);
-    }
+    const stored = schemaVersionOf(id, payload, schema.current);
+    let version = stored;
 
     let lifted: Record<string, unknown> = payload;
     for (; version < schema.current; version++) {
@@ -231,9 +222,30 @@ function verdictFromPayload(
         lifted = next;
     }
 
+    const judgement = parseVerdictJudgement(id, lifted);
+    let actual: string;
+    try {
+        actual = verdictIdOf(judgement);
+    } catch (error) {
+        bad(
+            id,
+            `payload cannot be hashed (${error instanceof Error ? error.message : `${error}`})`
+        );
+    }
+    if (actual !== id) {
+        const upcast =
+            stored < schema.current
+                ? ` after the upcast from "schemaVersion" ${stored}`
+                : "";
+        bad(
+            id,
+            `content hashes to ${actual}${upcast}, not to the id the lock names`
+        );
+    }
+
     return {
         id,
-        ...parseVerdictJudgement(id, lifted),
+        ...judgement,
         author: LOCK_VERDICT_AUTHOR,
         createdAt: LOCK_VERDICT_TIMESTAMP,
         source: "store",
@@ -245,13 +257,14 @@ function verdictFromPayload(
  *
  * Throws, naming the verdict, when the lock names an id nobody supplied, when
  * a payload does not hash to the id it is supplied under, when its
- * `schemaVersion` is unknown, or when it does not parse. A payload the lock
- * does not name is skipped UNREAD — not validated, not hashed — because
- * nothing about it can reach the fit.
+ * `schemaVersion` is unknown, or when it does not parse. The CONTENT of a
+ * payload the lock does not name is never read — not validated, not hashed —
+ * because nothing about it can reach the fit.
  *
- * The same id supplied twice throws even when unselected: whatever produced
- * the payloads (a pack, a listing) is broken, and which copy wins would be
- * an accident of order.
+ * Its ID is read, though: the same id supplied twice throws even when
+ * unselected, identical bytes included. Whatever produced the payloads (a
+ * pack, a listing) is broken, and the pack reader (issue #3581) is where
+ * that must surface, not in a corpus that happens not to select the line.
  */
 export function verdictsFromLock(
     lock: VerdictLock,

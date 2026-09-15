@@ -16,6 +16,13 @@
 // starts stamping it renames nothing — and the canonical objects written
 // before any writer stamped it stay readable without a rewrite.
 //
+// AN UPCAST NEVER RENAMES. The reader re-hashes the LIFTED judgement and
+// demands the id the payload was stored under, so an upcaster may change only
+// what the verdict id does not cover (a candidate's `description`, fields
+// outside the judgement) or re-spell what it covers into the SAME canonical
+// value. A change to the judgement itself is not a format change: it is a new
+// object, or a new canonicalisation (`v2-`), never an upcast.
+//
 // AN UPCASTER IS A PURE FUNCTION OF THE OLDER PAYLOAD. No engine access (a
 // payload's meaning must not depend on which build reads it — that is the
 // failure the weight guard would report as a corpus change), no clock, no
