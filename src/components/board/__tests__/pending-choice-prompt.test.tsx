@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render } from "@testing-library/react";
+import { render, fireEvent, waitFor } from "@testing-library/react";
 import type { PendingChoice } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
 import {
@@ -9,9 +9,11 @@ import {
 import { MinimizedChoiceContext } from "~/hooks/useMinimizedChoice";
 import PendingChoicePrompt from "../pending-choice-prompt";
 
-// The prompt fires Convex mutations through useMutation — stub with no-ops.
+// The prompt fires Convex mutations through useMutation — stub with one shared
+// spy, so a test can assert the payload a submit sent (issue #3323).
+const { mutationSpy } = vi.hoisted(() => ({ mutationSpy: vi.fn() }));
 vi.mock("convex/react", () => ({
-    useMutation: () => vi.fn(),
+    useMutation: () => mutationSpy,
 }));
 
 // Drive the portrait/desktop seam explicitly so jsdom's flaky matchMedia
@@ -310,6 +312,43 @@ describe("PendingChoicePrompt — longest prompt renders without broken wrapping
         const outer = widthProbe.firstElementChild as HTMLElement;
         const inner = outer.firstElementChild as HTMLElement;
         expect(inner.className).toContain("max-w-[22rem]");
+    });
+});
+
+// Issue #3323 — an as-enters `{ kind: "subtypes" }` option-pick (CR 205.3m,
+// Conspiracy) renders the searchable combobox, and picking a filtered option
+// submits the SAME `submitResolutionChoice` payload the button grid sends.
+describe("PendingChoicePrompt — subtype option-pick combobox (issue #3323)", () => {
+    const subtypeChoice: PendingChoice = {
+        stackItemId: "stk-conspiracy",
+        step: 2,
+        choiceId: "as-enters-c9",
+        playerId: "me",
+        kind: "option-pick",
+        count: 1,
+        prompt: "Choose 1 as Conspiracy enters.",
+        options: ["Elf", "Goblin", "Sorcerer"].map((s) => ({
+            id: s,
+            label: s,
+            subtype: s,
+        })),
+    } as PendingChoice;
+
+    it("submits the chosen filtered subtype through submitResolutionChoice", async () => {
+        mutationSpy.mockClear();
+        const { getByRole } = renderPrompt(subtypeChoice);
+        const input = getByRole("combobox");
+        fireEvent.change(input, { target: { value: "gob" } });
+        fireEvent.keyDown(input, { key: "Enter" });
+        await waitFor(() => expect(mutationSpy).toHaveBeenCalledTimes(1));
+        expect(mutationSpy).toHaveBeenCalledWith({
+            gameId: "game-id",
+            playerId: "me",
+            stackItemId: "stk-conspiracy",
+            step: 2,
+            choiceId: "as-enters-c9",
+            cardInstanceIds: ["Goblin"],
+        });
     });
 });
 

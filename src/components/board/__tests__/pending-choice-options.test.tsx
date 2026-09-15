@@ -98,6 +98,90 @@ describe("PendingChoiceOptions (option-pick UI, #289)", () => {
     });
 });
 
+// Issue #3323 — an as-enters `{ kind: "subtypes" }` choice (Conspiracy's
+// creature type, CR 205.3m) offers ~280 options; the engine tags each with
+// `subtype`. That list renders a searchable combobox, not the button grid.
+describe("PendingChoiceOptions — subtype choice combobox (issue #3323)", () => {
+    const SUBTYPE_OPTIONS = ["Elf", "Goblin", "Orc", "Sorcerer", "Zombie"].map(
+        (s) => ({ id: s, label: s, subtype: s })
+    );
+
+    function visibleOptions(container: HTMLElement): string[] {
+        return [...container.querySelectorAll('[role="option"]')].map(
+            (el) => el.textContent ?? ""
+        );
+    }
+
+    function renderSubtypes(onPick = vi.fn(), disabled = false) {
+        const utils = render(
+            <PendingChoiceOptions
+                options={SUBTYPE_OPTIONS}
+                disabled={disabled}
+                onPick={onPick}
+            />
+        );
+        const input = utils.getByRole("combobox") as HTMLInputElement;
+        return { ...utils, input, onPick };
+    }
+
+    it("renders a search input and no button grid", () => {
+        const { container, input } = renderSubtypes();
+        expect(input.tagName).toBe("INPUT");
+        expect(container.querySelector("button")).toBeNull();
+        expect(visibleOptions(container)).toEqual(
+            SUBTYPE_OPTIONS.map((o) => o.label)
+        );
+    });
+
+    it("filters by case-insensitive substring of the label", () => {
+        const { container, input } = renderSubtypes();
+        fireEvent.change(input, { target: { value: "ORC" } });
+        // "Sorcerer" contains "orc" — substring, not prefix.
+        expect(visibleOptions(container)).toEqual(["Orc", "Sorcerer"]);
+    });
+
+    it("does not fuzzy-match a subsequence", () => {
+        const { container, input } = renderSubtypes();
+        // cmdk's default scorer matches "gb" against G-o-B-lin.
+        fireEvent.change(input, { target: { value: "gb" } });
+        expect(visibleOptions(container)).toEqual([]);
+    });
+
+    it("fires onPick with the option id on click", () => {
+        const { getByText, onPick } = renderSubtypes();
+        fireEvent.click(getByText("Goblin"));
+        expect(onPick).toHaveBeenCalledWith("Goblin");
+    });
+
+    it("confirms the highlighted option with Enter, moved by arrow keys", () => {
+        const { input, onPick } = renderSubtypes();
+        fireEvent.change(input, { target: { value: "orc" } });
+        fireEvent.keyDown(input, { key: "ArrowDown" });
+        fireEvent.keyDown(input, { key: "Enter" });
+        expect(onPick).toHaveBeenCalledTimes(1);
+        expect(onPick).toHaveBeenCalledWith("Sorcerer");
+    });
+
+    it("does not fire onPick while disabled", () => {
+        const { input, getByText, onPick } = renderSubtypes(vi.fn(), true);
+        fireEvent.click(getByText("Goblin"));
+        fireEvent.keyDown(input, { key: "Enter" });
+        expect(onPick).not.toHaveBeenCalled();
+    });
+
+    it("keeps the button grid for an option list without subtypes", () => {
+        const { queryByRole, getByText } = render(
+            <PendingChoiceOptions
+                options={PRIMAL_CLAY_OPTIONS}
+                disabled={false}
+                onPick={() => {}}
+            />
+        );
+        expect(queryByRole("combobox")).toBeNull();
+        expect(getByText("3/3").closest("button")).toBeTruthy();
+    });
+});
+
 describe("pendingChoiceLabel for option-pick (#289)", () => {
     it("returns a non-empty source tag", () => {
         expect(pendingChoiceLabel("option-pick")).toBe("Choose");

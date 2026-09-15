@@ -1,0 +1,65 @@
+import type { PendingChoice } from "~/types/game";
+import {
+    Command,
+    CommandEmpty,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from "~/components/ui/command";
+
+/** Case-insensitive SUBSTRING match on the option label (issue #3323) — not
+ *  cmdk's default fuzzy score, which would let "gb" match "Goblin" and bury
+ *  the type the chooser actually typed under subsequence noise. */
+export function subtypeOptionFilter(value: string, search: string): number {
+    return value.toLowerCase().includes(search.trim().toLowerCase()) ? 1 : 0;
+}
+
+/** Searchable single-pick list for an as-enters `{ kind: "subtypes" }` choice
+ *  (CR 205.3m's creature types for Conspiracy / Engineered Plague, CR 205.3i's
+ *  basic land types). The creature-type table is ~280 entries — as a button
+ *  grid it was unscannable — so the chooser types to filter, moves the
+ *  highlight with the arrow keys and confirms with Enter or a click (all
+ *  native to cmdk). Picking an item fires the SAME `onPick(id)` the button
+ *  grid fires, so the submit path and payload are unchanged. Stateless w.r.t.
+ *  the game — the parent owns the submit + pending state. */
+export default function SubtypeOptionCombobox({
+    options,
+    disabled,
+    onPick,
+}: {
+    options: NonNullable<PendingChoice["options"]>;
+    disabled: boolean;
+    onPick: (id: string) => void;
+}) {
+    return (
+        <Command
+            filter={subtypeOptionFilter}
+            className="mt-1 h-auto w-64 max-w-full rounded-sm! border border-border-subtle/40 bg-surface"
+        >
+            <CommandInput
+                autoFocus
+                disabled={disabled}
+                placeholder="Search a type…"
+                aria-label="Search types"
+            />
+            <CommandList className="max-h-48">
+                <CommandEmpty className="py-3 text-xs text-text-muted">
+                    No matching type
+                </CommandEmpty>
+                {options.map((opt) => (
+                    <CommandItem
+                        key={opt.id}
+                        value={opt.label}
+                        disabled={disabled}
+                        onSelect={() => {
+                            if (!disabled) onPick(opt.id);
+                        }}
+                        className="text-xs tracking-wide"
+                    >
+                        {opt.label}
+                    </CommandItem>
+                ))}
+            </CommandList>
+        </Command>
+    );
+}
