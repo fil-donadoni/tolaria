@@ -32,9 +32,13 @@ import { type InMemoryRow, makeInMemoryDb } from "./fixtures/inMemoryDb";
 import { validatorJsonOf, validationErrors } from "./fixtures/validatorWalk";
 import { buildEmptySeats, assignFreeSeat } from "../limited/eventLogic";
 import {
-    UI_GATE_LABEL_PREFIX,
-    UI_GATE_OPEN_LABEL,
+    uiGateOpenLabel,
+    uiGateRunLabelPrefix,
 } from "../limited/uiGateFixtureLabels";
+
+/** Any run id — the label shape, not the value, is what the list relies on. */
+const FIXTURE_RUN_ID = "0123456789ab";
+const UI_GATE_OPEN_LABEL = uiGateOpenLabel(FIXTURE_RUN_ID);
 import type { LimitedRound } from "../limited/eventTypes";
 
 const summaryValidatorJson = validatorJsonOf(limitedEventSummaryValidator);
@@ -323,10 +327,12 @@ describe("projectEventSummary round-trips viewerMatchRecord through the REAL lim
             "user1"
         );
         expect(summary.label).toBe(UI_GATE_OPEN_LABEL);
-        // The prefix filter `/limited?label=ui-gate/` narrows on exactly this
-        // projected string, so assert the property the page's `startsWith`
-        // relies on rather than only the equality above.
-        expect(summary.label?.startsWith(UI_GATE_LABEL_PREFIX)).toBe(true);
+        // The prefix filter `/limited?label=ui-gate/<runId>/` narrows on
+        // exactly this projected string, so assert the property the page's
+        // `startsWith` relies on rather than only the equality above.
+        expect(
+            summary.label?.startsWith(uiGateRunLabelPrefix(FIXTURE_RUN_ID))
+        ).toBe(true);
         expect(validationErrors(summary, summaryValidatorJson)).toEqual([]);
     });
 

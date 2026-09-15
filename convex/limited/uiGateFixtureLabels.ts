@@ -22,10 +22,18 @@
 // consumer — the seeding mutation included — imports from HERE rather than
 // from the function module.
 
-/** Every fixture label starts with this. The lane's list walks navigate to
- *  `/limited?label=ui-gate/`, which the page filters by PREFIX — so the two
- *  list surfaces measure exactly the fixture rows and nothing else. */
+/** Every fixture label starts with this. */
 export const UI_GATE_LABEL_PREFIX = "ui-gate/";
+
+/** One RUN's fixture labels all start with this (issue #3626). The lane's list
+ *  walks navigate to `/limited?label=ui-gate/<runId>/`, which the page filters
+ *  by PREFIX — so the two list surfaces measure exactly their own run's rows,
+ *  and a concurrent run's seeding can neither drop nor add to them. The run id
+ *  is not validated here (this module imports nothing); the seeder validates
+ *  it before writing a row. */
+export function uiGateRunLabelPrefix(runId: string): string {
+    return `${UI_GATE_LABEL_PREFIX}${runId}/`;
+}
 
 /** Seating still open, viewer at seat 0, no pools. The one event state whose
  *  detail page neither redirects into the Draft Room
@@ -33,9 +41,13 @@ export const UI_GATE_LABEL_PREFIX = "ui-gate/";
  *  builder (`useAutoOpenLimitedBuilder` needs a final pool) — which is what
  *  makes `limited-antechamber` land on the antechamber every single time
  *  instead of once per tab. */
-export const UI_GATE_OPEN_LABEL = "ui-gate/open";
+export function uiGateOpenLabel(runId: string): string {
+    return `${uiGateRunLabelPrefix(runId)}open`;
+}
 
 /** Mid-draft: viewer at seat 0 with a live pack AND a non-empty pool, so one
  *  fixture serves `draft-pick`, `draft-pool-stop`, `draft-pool-peek` and
  *  (via `/limited/<id>/build`, which needs only a dealt pool) `limited-build`. */
-export const UI_GATE_DRAFT_LABEL = "ui-gate/draft";
+export function uiGateDraftLabel(runId: string): string {
+    return `${uiGateRunLabelPrefix(runId)}draft`;
+}

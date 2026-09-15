@@ -1,9 +1,8 @@
 import { cronJobs } from "convex/server";
 import { internal } from "./_generated/api";
 import { internalMutation } from "./_generated/server";
-import { deleteMatchCascade } from "./matches";
+import { deleteGameCascade, deleteMatchCascade } from "./matches";
 import { deleteSeats } from "./limitedSeatStore";
-import { deleteGameDecks } from "./deckStore";
 
 const FINISHED_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -34,21 +33,7 @@ export const sweepFinishedGames = internalMutation({
         for (const game of finishedGames) {
             if (game.matchId) continue; // owned — handled by Match sweep
             if (game.updatedAt > cutoff) continue;
-            const snapshots = await ctx.db
-                .query("gameStates")
-                .withIndex("by_gameId", (q) => q.eq("gameId", game._id))
-                .collect();
-            for (const s of snapshots) await ctx.db.delete(s._id);
-            // Tick row companion (PRD #1776 T3, issue #1778) — same orphan
-            // risk as `gameStates` for a match-less legacy game row.
-            const ticks = await ctx.db
-                .query("gameTicks")
-                .withIndex("by_gameId", (q) => q.eq("gameId", game._id))
-                .collect();
-            for (const t of ticks) await ctx.db.delete(t._id);
-            // Decklist companion (issue #2506) — same orphan risk.
-            await deleteGameDecks(ctx, game._id);
-            await ctx.db.delete(game._id);
+            await deleteGameCascade(ctx, game._id);
         }
     },
 });

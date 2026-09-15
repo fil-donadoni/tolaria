@@ -70,6 +70,10 @@ export function makeInMemoryDb(
     const gets: string[] = [];
 
     const db = {
+        // Issue #3626: real Convex validates the id's table; here an id is
+        // valid for a table exactly when that table holds a row with it.
+        normalizeId: (table: string, id: string) =>
+            (tables[table] ?? []).some((r) => r._id === id) ? id : null,
         get: async (id: string) => {
             gets.push(id);
             for (const rows of Object.values(tables)) {
@@ -110,10 +114,38 @@ export function makeInMemoryDb(
                     collect: async () => run(),
                     first: async () => run()[0] ?? null,
                     take: async (n: number) => run().slice(0, n),
+                    // Issue #3626: a scan too wide for one read (the lane
+                    // teardown over `games`/`matches`). The cursor is the
+                    // stringified offset into the matching rows — opaque to
+                    // the caller, exactly like a real Convex cursor.
+                    paginate: async (opts: {
+                        numItems: number;
+                        cursor: string | null;
+                    }) => {
+                        const all = run();
+                        const start = opts.cursor ? Number(opts.cursor) : 0;
+                        const end = start + opts.numItems;
+                        return {
+                            page: all.slice(start, end),
+                            isDone: end >= all.length,
+                            continueCursor: String(Math.min(end, all.length)),
+                        };
+                    },
                 };
             };
             const allRows = () =>
                 (tables[table] ?? []).map((r) => structuredClone(r));
+            type Op = "eq" | "gt" | "gte" | "lt" | "lte";
+            const compare = (op: Op, have: unknown, want: unknown) => {
+                if (op === "eq") return have === want;
+                if (have === undefined || have === null) return false;
+                const a = have as string | number;
+                const b = want as string | number;
+                if (op === "gt") return a > b;
+                if (op === "gte") return a >= b;
+                if (op === "lt") return a < b;
+                return a <= b;
+            };
             return {
                 ...terminal(allRows, () => []),
                 withIndex: (
@@ -122,20 +154,29 @@ export function makeInMemoryDb(
                         eq: (field: string, value: unknown) => unknown;
                     }) => unknown
                 ) => {
-                    const filters: [string, unknown][] = [];
+                    const filters: [string, unknown, Op][] = [];
                     if (build) {
+                        // Range operators (issue #3626) compare with JS `<`/`>`,
+                        // which matches Convex's ordering for the strings and
+                        // numbers this suite indexes by.
                         const q = {
-                            eq(field: string, value: unknown) {
-                                filters.push([field, value]);
-                                return q;
-                            },
+                            eq: (field: string, value: unknown) =>
+                                (filters.push([field, value, "eq"]), q),
+                            gt: (field: string, value: unknown) =>
+                                (filters.push([field, value, "gt"]), q),
+                            gte: (field: string, value: unknown) =>
+                                (filters.push([field, value, "gte"]), q),
+                            lt: (field: string, value: unknown) =>
+                                (filters.push([field, value, "lt"]), q),
+                            lte: (field: string, value: unknown) =>
+                                (filters.push([field, value, "lte"]), q),
                         };
                         build(q);
                     }
                     const matching = () =>
                         allRows().filter((row) =>
-                            filters.every(
-                                ([field, value]) => row[field] === value
+                            filters.every(([field, value, op]) =>
+                                compare(op, row[field], value)
                             )
                         );
                     return terminal(matching, () =>

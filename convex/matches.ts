@@ -716,25 +716,45 @@ export async function deleteMatchCascade(
         .query("games")
         .withIndex("by_match", (q) => q.eq("matchId", matchId))
         .collect();
-    for (const game of games) {
-        const snapshots = await ctx.db
-            .query("gameStates")
-            .withIndex("by_gameId", (q) => q.eq("gameId", game._id))
-            .collect();
-        for (const s of snapshots) await ctx.db.delete(s._id);
-        // Tick row companion (PRD #1776 T3, issue #1778) — deleted alongside
-        // its `gameStates` row so a finished game leaves no orphan.
-        const ticks = await ctx.db
-            .query("gameTicks")
-            .withIndex("by_gameId", (q) => q.eq("gameId", game._id))
-            .collect();
-        for (const t of ticks) await ctx.db.delete(t._id);
-        // Decklist companion (issue #2506) — same orphan risk as `gameStates`.
-        await deleteGameDecks(ctx, game._id);
-        await ctx.db.delete(game._id);
-    }
+    for (const game of games) await deleteGameCascade(ctx, game._id);
     await deleteMatchDecks(ctx, matchId);
     await ctx.db.delete(matchId);
+}
+
+/** Delete one Game and every companion row keyed by its id. The ONE list of
+ *  those tables, shared by the Match cascade above, the cron's match-less
+ *  legacy sweep and the `check:ui` lane teardown (issue #3626) — three inline
+ *  copies is how the Manual Mode rows below were missed by all of them. */
+export async function deleteGameCascade(
+    ctx: GenericMutationCtx<DataModel>,
+    gameId: Id<"games">
+): Promise<void> {
+    const snapshots = await ctx.db
+        .query("gameStates")
+        .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
+        .collect();
+    for (const s of snapshots) await ctx.db.delete(s._id);
+    // Tick row companion (PRD #1776 T3, issue #1778) — deleted alongside
+    // its `gameStates` row so a finished game leaves no orphan.
+    const ticks = await ctx.db
+        .query("gameTicks")
+        .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
+        .collect();
+    for (const t of ticks) await ctx.db.delete(t._id);
+    // Manual Mode snapshot + action log — same orphan risk, same key.
+    const manualStates = await ctx.db
+        .query("manualStates")
+        .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
+        .collect();
+    for (const m of manualStates) await ctx.db.delete(m._id);
+    const manualLog = await ctx.db
+        .query("manualLog")
+        .withIndex("by_gameId", (q) => q.eq("gameId", gameId))
+        .collect();
+    for (const m of manualLog) await ctx.db.delete(m._id);
+    // Decklist companion (issue #2506) — same orphan risk as `gameStates`.
+    await deleteGameDecks(ctx, gameId);
+    await ctx.db.delete(gameId);
 }
 
 // ---------------------------------------------------------------------------
