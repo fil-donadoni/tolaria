@@ -138,7 +138,9 @@ function cmdConfirm(args: string[]): number {
         return 1;
     }
     if (raw.includes(SUPPRESS)) {
-        console.error(`${rel}:${n} carries \`${SUPPRESS}\` — a suppressed line needs no entry.`);
+        console.error(
+            `${rel}:${n} carries \`${SUPPRESS}\` — a suppressed line needs no entry.`
+        );
         return 1;
     }
     // Scan exactly this line, as the tree scan would see it.
@@ -165,9 +167,13 @@ function cmdConfirm(args: string[]): number {
     );
     writeLedger(pruned);
     for (const e of confirmed)
-        console.log(`confirmed CR ${e.id} (${e.ruleHash})  ${e.line.slice(0, 120)}`);
+        console.log(
+            `confirmed CR ${e.id} (${e.ruleHash})  ${e.line.slice(0, 120)}`
+        );
     if (dropped.length)
-        console.log(`pruned ${dropped.length} stale entr${dropped.length === 1 ? "y" : "ies"}`);
+        console.log(
+            `pruned ${dropped.length} stale entr${dropped.length === 1 ? "y" : "ies"}`
+        );
     return 0;
 }
 
@@ -177,7 +183,9 @@ function cmdPrune(): number {
     console.log(
         pruned.length
             ? `pruned ${pruned.length} stale entr${pruned.length === 1 ? "y" : "ies"}:\n` +
-                  pruned.map((e) => `  CR ${e.id}  ${e.line.slice(0, 120)}`).join("\n")
+                  pruned
+                      .map((e) => `  CR ${e.id}  ${e.line.slice(0, 120)}`)
+                      .join("\n")
             : "nothing stale"
     );
     return 0;

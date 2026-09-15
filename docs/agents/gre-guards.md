@@ -170,15 +170,17 @@ line that mentions `CR `, which is why a bare id in a slash-list is covered:
 two of the 44 ids, at 10 sites, hid in exactly that shape and survived the
 first correction pass.
 
-**Its three blind spots**, all of which the one-line habit avoids:
+**Its two remaining blind spots**, both of which the one-line habit avoids:
 
 1. A citation **wrapped across two comment lines** — the prefix is split from
    its id.
 2. An id on a line mentioning `CR ` **nowhere**: 1,795 today, 597 of them in
    `mechanicsRegistry.ts` alone. Deliberate boundary — reaching them reds the
    gate on 16 ids that are mostly not citations at all.
-3. A **resolvable but wrong** id, since the scan only asks whether an id
-   exists.
+
+A third — a **resolvable but wrong** id, since the scan only asks whether an
+id exists — stood as a standing hole until the citation ledger (below,
+ADR 0133) bounded it.
 
 **The second scan (`scripts/cr-keyword-citations.ts`)** closes blind spot 3
 for keywords. For every `CR 701.N`/`702.N` citation it reads the section TITLE
@@ -203,5 +205,25 @@ really about. They share one skeleton (`scripts/lib/cr-misattribution.ts`:
 file walk, needle prefilter, line scan, `cr-cite-ok`), so the next shape is a
 rule row, an `EXEMPT` list, a CLI report and a regression test. A general
 claim-vs-text checker is out of scope — the gate is offline and deterministic.
+
+**The citation ledger (`data/cr/citations-ledger.json`, ADR 0133, issue
+#3674)** closes blind spot 3 for every citation made after it and bounds it
+for every one before. One entry per citation — id, the normalized text of the
+citing line (never a position), a status — with two statuses that mean exactly
+one thing each: `confirmed` (a reader printed the rule and the line says what
+it says; carries the hash of the printed text) and `baseline` (predates the
+ledger, never checked). The fourth scan under `cr:lint` reds on a citation
+with no entry, a confirmed entry whose rule text changed (a `cr:sync`
+reopens every confirmed citation of a rule it rewrites), a `baseline` entry
+the merge-base's ledger does not have (the set only shrinks — the recording
+command never writes it), and a stale entry. The report prints the rule under
+the line and names the one command that records a check,
+`bun run cr:ledger confirm <file>:<line>` — one line per call, no bulk form.
+The tokenizer is the existence scan's own (`scanCitations`), the hashed text
+is what `bun run cr <id>` prints (`scripts/lib/cr-rules.ts`), and the
+regression test (`scripts/__tests__/cr-citation-ledger.test.ts`) drives the
+same pure report over a fixture document. **41,276 baseline entries** were
+recorded on 2026-09-15, after issue #3013 corrected the ten 616.1c/d sites;
+burning them down is issue #3675.
 
 Wizards republishes roughly per set at <https://magic.wizards.com/en/rules>.

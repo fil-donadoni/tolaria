@@ -325,7 +325,9 @@ function ledgerScan(citations: Citation[], showFiles: boolean): number {
         `\n${report.recorded} CR citations recorded in ${LEDGER_PATH} (${tier})`
     );
     if (reportIsClean(report)) {
-        console.log("every citation has a ledger entry that still matches its rule");
+        console.log(
+            "every citation has a ledger entry that still matches its rule"
+        );
         return 0;
     }
     console.log(formatReport(report, showFiles));

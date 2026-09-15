@@ -143,7 +143,12 @@ export function treeCitations(
         const key = entryKey(c.id, line);
         const seen = out.get(key);
         if (seen) seen.sites.push({ file: c.file, line: c.line });
-        else out.set(key, { id: c.id, line, sites: [{ file: c.file, line: c.line }] });
+        else
+            out.set(key, {
+                id: c.id,
+                line,
+                sites: [{ file: c.file, line: c.line }],
+            });
     }
     return out;
 }
@@ -188,7 +193,8 @@ export function parseLedger(text: string): Ledger {
                 `${where}: a baseline entry carries no \`ruleHash\` — nothing was checked`
             );
         const key = entryKey(e.id, e.line);
-        if (keys.has(key)) throw new Error(`${where}: duplicate of an earlier entry`);
+        if (keys.has(key))
+            throw new Error(`${where}: duplicate of an earlier entry`);
         keys.add(key);
     });
     return {
@@ -281,7 +287,11 @@ export function ledgerReport(input: {
         if (entry.status === "confirmed") {
             const text = printed(cit.id);
             if (text === null || ruleHash(text) !== entry.ruleHash) {
-                report.drifted.push({ ...cit, reason: "drifted", printed: text });
+                report.drifted.push({
+                    ...cit,
+                    reason: "drifted",
+                    printed: text,
+                });
                 continue;
             }
         }
@@ -413,26 +423,34 @@ export const CONFIRM_ADVICE =
     `\`bun run cr:ledger\` lists every open citation with its rule; \`bun run cr:ledger prune\` drops stale entries.`;
 
 /** The gate's report — every problem class, capped, with the advice. */
-export function formatReport(
-    report: LedgerReport,
-    showFiles: boolean
-): string {
-    const cap = <T>(items: T[]): T[] => (showFiles ? items : items.slice(0, 25));
+export function formatReport(report: LedgerReport, showFiles: boolean): string {
+    const cap = <T>(items: T[]): T[] =>
+        showFiles ? items : items.slice(0, 25);
     const more = (n: number) =>
-        !showFiles && n > 25 ? `  … ${n - 25} more (re-run with --files)\n` : "";
+        !showFiles && n > 25
+            ? `  … ${n - 25} more (re-run with --files)\n`
+            : "";
     const out: string[] = [];
     if (report.unrecorded.length) {
         out.push(
             `\n${report.unrecorded.length} CR citation(s) have no ledger entry (ADR 0133 — a citation is confirmed against the printed rule, never assumed):\n`
         );
-        out.push(cap(report.unrecorded).map((o) => formatOpen(o)).join("\n"));
+        out.push(
+            cap(report.unrecorded)
+                .map((o) => formatOpen(o))
+                .join("\n")
+        );
         out.push(more(report.unrecorded.length));
     }
     if (report.drifted.length) {
         out.push(
             `\n${report.drifted.length} confirmed citation(s) cite a rule whose text changed since confirmation (re-read, then re-confirm):\n`
         );
-        out.push(cap(report.drifted).map((o) => formatOpen(o)).join("\n"));
+        out.push(
+            cap(report.drifted)
+                .map((o) => formatOpen(o))
+                .join("\n")
+        );
         out.push(more(report.drifted.length));
     }
     if (report.grown.length) {

@@ -1,6 +1,8 @@
 # ADR 0098 — The Comprehensive Rules are vendored from the official Wizards document and sliced locally
 
-**Status:** Accepted (2026-08-10)
+**Status:** Accepted (2026-08-10). Amended by ADR 0133 (2026-09-15): every
+CR citation carries a committed ledger entry, `confirmed` against the printed
+rule or `baseline`, and `cr:lint` enforces it.
 
 ## Context
 

@@ -68,6 +68,12 @@
  *     it is not re-derivable from the tree at all (its generator needs the
  *     network, and the gate is offline by contract), and it moves only in a
  *     deliberate re-pin PR, never as a side effect of unrelated work.
+ *   - `data/cr/citations-ledger.json` — IMMUNE BY SHAPE (ADR 0133). The CR
+ *     citation ledger: per-row, sorted by rule id then line, no header hash,
+ *     no tally. Two branches confirming two different citations touch
+ *     disjoint lines. Written only by `cr:ledger`, which never regenerates
+ *     the whole file — it upserts one line's entries and prunes stale ones —
+ *     so there is nothing for a merge driver to re-derive.
  *   - `data/oracle-retirements.json` — hand-authored INPUT, not a generated
  *     artifact. A conflict there is a real judgement call and must reach a
  *     human.

@@ -90,11 +90,7 @@ import {
     type Lockfile,
 } from "./lib/oracle-lockfile";
 import { ORIGIN_BASE } from "./lib/branches";
-import {
-    baseArtifact,
-    gitRunner,
-    type GitRunner,
-} from "./lib/base-artifact";
+import { baseArtifact, gitRunner, type GitRunner } from "./lib/base-artifact";
 import { enterGuardCache, type GuardInputs } from "./lib/guard-cache";
 import {
     emptyRegressionLedger,

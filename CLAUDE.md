@@ -362,10 +362,15 @@ section title (Wizards renumbers the 701 block alphabetically every few
 revisions, so keyword citations rot silently).
 
 **Keep the citation, its `CR ` prefix and its keyword word on ONE line** —
-that single habit covers every blind spot the scanner has. What it cannot
-catch at all is a **resolvable but wrong** id outside 701/702: the scan only
-asks whether an id exists, so the correction must come from `bun run cr <id>`
-printing text that matches the claim.
+that single habit covers every blind spot the scanner has.
+
+**Every citation you add or edit owes a ledger entry** (ADR 0133): `cr:lint`
+reds on a `CR` line with no entry in `data/cr/citations-ledger.json`, prints
+the rule under the line, and names the command — print the rule, check the
+line says what it says, then `bun run cr:ledger confirm <file>:<line>`, ONE
+line per call. A **resolvable but wrong** id is exactly what that check
+exists for; a wrong citation is fixed on its line, then confirmed under the
+right id. `bun run cr:ledger` lists what is open; `prune` drops stale entries.
 
 `bun run cr:check` says whether a newer document exists, `bun run cr:sync`
 takes it; `cr:check` is deliberately outside `check:all` — the gate is offline
