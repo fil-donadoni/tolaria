@@ -45,7 +45,18 @@ export default function ManaPileView({
     }
 
     return (
-        <div className="overflow-x-auto whitespace-nowrap">
+        // A horizontal scroller needs its own tab stop, or a keyboard user
+        // cannot reach the piles past the fold (axe
+        // `scrollable-region-focusable`, WCAG 2.1.1) — the piles hold no
+        // focusable child to inherit one from. Measured on `deck-detail` at
+        // 390x844x3 (issue #3645). `role="region"` + a name, the shape
+        // `board-hand-portrait.tsx` and `board-piles.tsx` use for this rule.
+        <div
+            tabIndex={0}
+            role="region"
+            aria-label="Deck by mana value (scrollable)"
+            className="overflow-x-auto whitespace-nowrap"
+        >
             {piles.map((pile, i) => (
                 <div
                     key={pile.id}

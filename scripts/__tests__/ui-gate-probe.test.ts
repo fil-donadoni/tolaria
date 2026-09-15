@@ -489,6 +489,50 @@ describe("check:ui probe — occ vs reachable across a scroll port's edge", () =
 });
 
 /**
+ * The `zero` Floor counts a box-less element that is ON the page, never one the
+ * responsive CSS took out of layout (issue #3645). Symmetric: an undisplayed
+ * control reads zero, a displayed 0x0 control still reads one — a probe that
+ * stopped counting `zero` at all would pass the first case alone.
+ */
+describe("check:ui probe — zero counts displayed box-less elements only", () => {
+    const zeroRect = { left: 0, top: 0, width: 0, height: 0 };
+    const zeroOf = (html: string, ids: string[]) =>
+        (
+            probeCtrls({
+                vw: 1440,
+                vh: 900,
+                html,
+                rects: Object.fromEntries(ids.map((id) => [id, zeroRect])),
+                hit: () => null,
+            }) as unknown as { zero: number }
+        ).zero;
+
+    it("does not count a control hidden by display:none on an ancestor or itself", () => {
+        // `SaveDeckBar`'s short-viewport twins at a roomy viewport: a
+        // `hidden short-viewport:inline-flex` wrapper around a popover
+        // trigger, and a `Button` carrying the same classes itself.
+        expect(
+            zeroOf(
+                `<form>
+                    <span style="display:none"><button id="wrapped">Stats</button></span>
+                    <button id="own" style="display:none">← Back to Event</button>
+                </form>`,
+                ["wrapped", "own"]
+            )
+        ).toBe(0);
+    });
+
+    it("still counts a displayed control with no box", () => {
+        expect(
+            zeroOf(
+                `<form><span><button id="collapsed">Done</button></span></form>`,
+                ["collapsed"]
+            )
+        ).toBe(1);
+    });
+});
+
+/**
  * The square-corner check (`cardsSquareN`, ADR 0103 §7 / issue #2724).
  *
  * A card that has lost its `--card-radius` shows page background inside its own
