@@ -46,16 +46,43 @@ bun run check:ui -- --headed                  # watch it walk
 
 It owns the whole lifecycle: it checks the Convex deployment answers, starts
 its **own** Vite on `127.0.0.1` and a free port (your `bun run dev` is left
-alone), signs in, walks each surface in `scripts/ui-gate/surfaces.ts` at each
-of the five viewports, injects `scripts/ui-gate/probe.js` and `axe-core`, and
-compares the result against `scripts/ui-gate/budgets.json`. Screenshots land
-in `.claude/telemetry/ui-gate/` (gitignored).
+alone), registers the run's own throwaway account and signs in as it, walks
+each surface in `scripts/ui-gate/surfaces.ts` at each of the five viewports,
+injects `scripts/ui-gate/probe.js` and `axe-core`, and compares the result
+against `scripts/ui-gate/budgets.json`. Screenshots land in
+`.claude/telemetry/ui-gate/<runId>/` (gitignored; run directories older than a
+day are pruned).
 
-**Requirements.** A running Convex backend (`bunx convex dev` — the lane never
-starts one), the Chromium binary (`bunx playwright install chromium`; a
-missing one fails with that exact line), and dev-account credentials in
-`TOLARIA_UI_EMAIL` / `TOLARIA_UI_PASSWORD` — read from the environment or from
-the gitignored `.env.local`. The credentials are deliberately not in the repo.
+**Requirements.** A running **local** Convex backend (`bunx convex dev` — the
+lane never starts one, and its account functions refuse any other deployment)
+whose functions include `convex/uiGateAccounts.ts`, and the Chromium binary
+(`bunx playwright install chromium`; a missing one fails with that exact line).
+No credentials: the lane never signs in as the shared dev account.
+
+**The run's account** (issue #3626). Every run owns one:
+
+1. It sweeps lane accounts older than two hours — runs killed with no chance
+   to clean up.
+2. It registers `ui-gate+<runId>@ui-gate.invalid` with a random password,
+   through the same `auth:signIn` sign-up flow the auth form uses.
+3. It grants that account admin and tester, and seeds its Limited fixtures
+   under `ui-gate/<runId>/…` labels.
+4. When the run ends — pass, fail, Ctrl+C or SIGTERM — it destroys the account
+   and every row it owns: auth rows, decks, matches and games with their state
+   rows, Limited events, verdicts.
+
+So two sessions can run the lane at the same time and never see each other's
+games, decks or fixtures, and a game left open on your own dev account has no
+effect on a run. `bun run check:ui -- --keep-user` skips the teardown and
+prints the account's email and password, so you can sign in as it and look at
+what a failed walk left; the next run's sweep collects it.
+
+All of it runs through `bunx convex run` from the **primary checkout**, where
+the local deployment's CLI config lives — so the backend must already carry
+this module. A worktree whose branch adds or changes those functions has to
+push them first. The account functions refuse any address outside the lane
+pattern, and the role grant, the teardown and the sweep refuse a non-local
+deployment.
 
 **What a red means.** Two different things, and the lane never confuses them:
 
@@ -94,8 +121,9 @@ and its output is the receipt.
 
 **Non-destructive by construction.** The lane resumes a pre-existing match
 read-only and never concedes one it did not create, and it only loads a debug
-scenario into a game it created itself. That is why an active game makes it
-red (UNWALKED on the board surfaces) rather than making it lie.
+scenario into a game it created itself. On a fresh per-run account the only
+game that can exist is one this run dealt, so an active game making a board
+surface UNWALKED now points at the run itself, never at another session.
 
 ## The tool: chrome-devtools-mcp, not the Claude extension
 
@@ -218,7 +246,7 @@ PASS     lobby           820x1180x2   …
 PASS     lobby           1180x820x2   …
 coverage: 5/8 surfaces measured, 3 declared unwalked
 console errors: none
-screenshots: .claude/telemetry/ui-gate/
+screenshots: .claude/telemetry/ui-gate/3f9c0a1b2d4e/
 ```
 
 Paste only a `RECEIPT`-labelled run — a `DIAGNOSTIC` (a `--surface=` subset)

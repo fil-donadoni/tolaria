@@ -82,7 +82,10 @@ export function fixtureLabelsFor(runId: string): FixtureLabels {
 
 /** One `convex run` against the local deployment; returns the parsed result,
  *  throws `LaneAccountError` carrying the function's own message. */
-export type ConvexRunner = (fn: string, args: Record<string, unknown>) => unknown;
+export type ConvexRunner = (
+    fn: string,
+    args: Record<string, unknown>
+) => unknown;
 
 export class LaneAccountError extends Error {}
 
@@ -93,7 +96,9 @@ export function convexRunArgv(
     return ["convex", "run", fn, JSON.stringify(args)];
 }
 
-export function localConvexRunner(cwd: string = primaryCheckout()): ConvexRunner {
+export function localConvexRunner(
+    cwd: string = primaryCheckout()
+): ConvexRunner {
     return (fn, args) => {
         const res = spawnSync("bunx", convexRunArgv(fn, args), {
             cwd,
@@ -105,9 +110,7 @@ export function localConvexRunner(cwd: string = primaryCheckout()): ConvexRunner
         }
         if (res.status !== 0) {
             const out = `${res.stderr ?? ""}${res.stdout ?? ""}`.trim();
-            throw new LaneAccountError(
-                `${fn} — ${convexRunErrorMessage(out)}`
-            );
+            throw new LaneAccountError(`${fn} — ${convexRunErrorMessage(out)}`);
         }
         const text = (res.stdout ?? "").trim();
         try {
@@ -180,7 +183,9 @@ export function createLaneLifecycle(deps: LaneLifecycleDeps): LaneLifecycle {
                 email: account.email,
                 runId: account.runId,
             });
-            log(`ui-gate: run ${account.runId} — lane account ${account.email}`);
+            log(
+                `ui-gate: run ${account.runId} — lane account ${account.email}`
+            );
         },
 
         teardown() {
@@ -264,7 +269,8 @@ export function runScreenshotDir(
 ): string {
     fs.mkdirSync(root, { recursive: true });
     for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
-        if (!entry.isDirectory() || !/^[0-9a-f]{12}$/.test(entry.name)) continue;
+        if (!entry.isDirectory() || !/^[0-9a-f]{12}$/.test(entry.name))
+            continue;
         const dir = path.join(root, entry.name);
         if (now - fs.statSync(dir).mtimeMs > SCREENSHOT_RETENTION_MS) {
             fs.rmSync(dir, { recursive: true, force: true });

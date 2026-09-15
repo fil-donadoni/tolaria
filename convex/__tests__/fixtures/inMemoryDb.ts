@@ -160,16 +160,26 @@ export function makeInMemoryDb(
                         // which matches Convex's ordering for the strings and
                         // numbers this suite indexes by.
                         const q = {
-                            eq: (field: string, value: unknown) =>
-                                (filters.push([field, value, "eq"]), q),
-                            gt: (field: string, value: unknown) =>
-                                (filters.push([field, value, "gt"]), q),
-                            gte: (field: string, value: unknown) =>
-                                (filters.push([field, value, "gte"]), q),
-                            lt: (field: string, value: unknown) =>
-                                (filters.push([field, value, "lt"]), q),
-                            lte: (field: string, value: unknown) =>
-                                (filters.push([field, value, "lte"]), q),
+                            eq: (field: string, value: unknown) => (
+                                filters.push([field, value, "eq"]),
+                                q
+                            ),
+                            gt: (field: string, value: unknown) => (
+                                filters.push([field, value, "gt"]),
+                                q
+                            ),
+                            gte: (field: string, value: unknown) => (
+                                filters.push([field, value, "gte"]),
+                                q
+                            ),
+                            lt: (field: string, value: unknown) => (
+                                filters.push([field, value, "lt"]),
+                                q
+                            ),
+                            lte: (field: string, value: unknown) => (
+                                filters.push([field, value, "lte"]),
+                                q
+                            ),
                         };
                         build(q);
                     }

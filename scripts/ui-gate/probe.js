@@ -220,8 +220,9 @@ window.__tolariaProbe = () => {
     // event in flight. Its one `Button` is `size="xs"` — 101x22 at
     // 1440x900x2 — so it lands in this scan at every viewport, and it does so
     // as a function of DEPLOYMENT STATE rather than of the tree: whether the
-    // `TOLARIA_UI_EMAIL` account happens to have a match open when the lane
-    // runs. That is the same "a ceiling that moves with account data is a
+    // signed-in account has a match or event open at that moment (since issue
+    // #3626 the run's own lane account, whose Limited fixtures are always in
+    // flight). That is the same "a ceiling that moves with account data is a
     // ceiling nobody can hold" defect the block above records for the deck
     // shelf, arriving through the shell instead of through a scroller.
     //

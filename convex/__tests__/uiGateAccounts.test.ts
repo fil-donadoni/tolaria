@@ -337,9 +337,10 @@ describe("sweepStaleLaneAccounts (issue #3626)", () => {
             ],
         });
 
-        const result = (await handlerOf(
-            uiGateAccounts.sweepStaleLaneAccounts
-        )(actionCtxFor(db), {})) as { swept: string[] };
+        const result = (await handlerOf(uiGateAccounts.sweepStaleLaneAccounts)(
+            actionCtxFor(db),
+            {}
+        )) as { swept: string[] };
 
         expect(result.swept).toEqual([stale]);
         expect(db.tables.users.map((u) => u._id).sort()).toEqual([

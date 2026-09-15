@@ -35,8 +35,8 @@
 // mutations delete them (each re-checking ownership), and one last mutation
 // deletes everything reachable by an index on the user id, ending with the
 // user row itself.
+import { makeFunctionReference } from "convex/server";
 import { v } from "convex/values";
-import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
     internalAction,
@@ -327,16 +327,51 @@ const teardownResultValidator = v.object({
 });
 type TeardownResult = typeof teardownResultValidator.type;
 
+type OwnedRowsPage = { ids: string[]; continueCursor: string; isDone: boolean };
+
+/**
+ * This module's own functions, referenced BY NAME rather than through
+ * `internal.uiGateAccounts.*`. `convex/_generated` is gitignored and copied
+ * from the primary checkout when a worktree is bootstrapped, so until the
+ * primary next runs codegen, `internal` has no `uiGateAccounts` key — and
+ * every worktree cut in that window would fail `check:ts` on this file for a
+ * reason none of its diff caused.
+ */
+const refs = {
+    laneUserIdByEmail: makeFunctionReference<
+        "query",
+        { email: string },
+        Id<"users"> | null
+    >("uiGateAccounts:laneUserIdByEmail"),
+    ownedRowsPage: makeFunctionReference<
+        "query",
+        { table: ScanTable; userId: Id<"users">; cursor: string | null },
+        OwnedRowsPage
+    >("uiGateAccounts:ownedRowsPage"),
+    deleteOwnedRows: makeFunctionReference<
+        "mutation",
+        { table: ScanTable; userId: Id<"users">; ids: string[] },
+        number
+    >("uiGateAccounts:deleteOwnedRows"),
+    deleteLaneAccountRows: makeFunctionReference<
+        "mutation",
+        { email: string },
+        Record<string, number>
+    >("uiGateAccounts:deleteLaneAccountRows"),
+    staleLaneAccountEmails: makeFunctionReference<
+        "query",
+        { createdBefore: number },
+        string[]
+    >("uiGateAccounts:staleLaneAccountEmails"),
+};
+
 async function destroyLaneAccountVia(
     ctx: ActionCtx,
     email: string
 ): Promise<TeardownResult> {
     assertLaneEmail(email, "destroy");
     assertLocalDeployment("destroy a lane account");
-    const userId = await ctx.runQuery(
-        internal.uiGateAccounts.laneUserIdByEmail,
-        { email }
-    );
+    const userId = await ctx.runQuery(refs.laneUserIdByEmail, { email });
     if (!userId) return { destroyed: false, counts: {} };
 
     const counts: Record<string, number> = {};
@@ -344,29 +379,28 @@ async function destroyLaneAccountVia(
         const owned: string[] = [];
         let cursor: string | null = null;
         for (;;) {
-            const page: { ids: string[]; continueCursor: string; isDone: boolean } =
-                await ctx.runQuery(internal.uiGateAccounts.ownedRowsPage, {
-                    table,
-                    userId,
-                    cursor,
-                });
+            const page: OwnedRowsPage = await ctx.runQuery(refs.ownedRowsPage, {
+                table,
+                userId,
+                cursor,
+            });
             owned.push(...page.ids);
             if (page.isDone) break;
             cursor = page.continueCursor;
         }
         for (let i = 0; i < owned.length; i += DELETE_BATCH_SIZE) {
-            const deleted: number = await ctx.runMutation(
-                internal.uiGateAccounts.deleteOwnedRows,
-                { table, userId, ids: owned.slice(i, i + DELETE_BATCH_SIZE) }
-            );
+            const deleted = await ctx.runMutation(refs.deleteOwnedRows, {
+                table,
+                userId,
+                ids: owned.slice(i, i + DELETE_BATCH_SIZE),
+            });
             if (deleted > 0) counts[table] = (counts[table] ?? 0) + deleted;
         }
     }
 
-    const indexed: Record<string, number> = await ctx.runMutation(
-        internal.uiGateAccounts.deleteLaneAccountRows,
-        { email }
-    );
+    const indexed = await ctx.runMutation(refs.deleteLaneAccountRows, {
+        email,
+    });
     for (const [table, n] of Object.entries(indexed)) {
         counts[table] = (counts[table] ?? 0) + n;
     }
@@ -411,10 +445,9 @@ export const sweepStaleLaneAccounts = internalAction({
     returns: v.object({ swept: v.array(v.string()) }),
     handler: async (ctx) => {
         assertLocalDeployment("sweep lane accounts");
-        const stale: string[] = await ctx.runQuery(
-            internal.uiGateAccounts.staleLaneAccountEmails,
-            { createdBefore: Date.now() - LANE_ACCOUNT_MAX_AGE_MS }
-        );
+        const stale = await ctx.runQuery(refs.staleLaneAccountEmails, {
+            createdBefore: Date.now() - LANE_ACCOUNT_MAX_AGE_MS,
+        });
         for (const email of stale) await destroyLaneAccountVia(ctx, email);
         return { swept: stale };
     },
