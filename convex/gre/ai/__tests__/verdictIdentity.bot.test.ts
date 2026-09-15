@@ -127,6 +127,11 @@ describe("verdict id and position key (issue #3575)", () => {
         const zero = { ...BASE, spec: { ...BASE.spec, turn: 0 } };
         const negativeZero = { ...BASE, spec: { ...BASE.spec, turn: -0 } };
         expect(ids(negativeZero)).toEqual(ids(zero));
+
+        // An `undefined` member is an absent one, as in any JSON rendering.
+        expect(
+            ids({ ...BASE, spec: { ...BASE.spec, landCount: undefined } })
+        ).toEqual(base);
     });
 
     it("do not move with author, note, createdAt, gameId, botPickIndex — or any other provenance", () => {
