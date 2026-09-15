@@ -398,6 +398,8 @@ import {
     getDynamicManaProduced,
     getEffectiveManaChoices,
     getManaTapOptionsDetailed,
+    isAppendedSacrificeManaTapOption,
+    primaryManaTapOptions,
     hasFilteredGiveUpCost,
     getFixedManaAmount,
     getFixedSacrificeManaAbility,
@@ -1713,12 +1715,18 @@ function manaTapNeedsChoice(
      *  board-conditional `manaAmount` (`gre/constants.ts`'s `manaLayerView`). */
     continuousEffects?: readonly ContinuousEffect[]
 ): boolean {
-    const options = getManaTapOptionsDetailed(
-        card,
-        controllerId,
-        battlefields,
-        undefined,
-        continuousEffects
+    // CR 605.3a (issue #3630) — only the PRIMARY options decide whether a tap
+    // needs a choice. A destructive alternative appended behind them is reached
+    // by naming its index (`manaTapTakesChoiceBranch`), never demanded of an
+    // index-free tap, which a plain click and the auto-tap planner both send.
+    const options = primaryManaTapOptions(
+        getManaTapOptionsDetailed(
+            card,
+            controllerId,
+            battlefields,
+            undefined,
+            continuousEffects
+        )
     );
     if (options.length === 0) return false;
     return (
@@ -1727,6 +1735,51 @@ function manaTapNeedsChoice(
             ability?.manaChoices ||
             ability?.getManaChoices ||
             ability?.manaColorSource
+        )
+    );
+}
+
+/** CR 605.3a (issue #3630) — does this tap resolve through the CHOICE branch?
+ *  Every source {@link manaTapNeedsChoice} says must choose, plus a source whose
+ *  submitted index names a destructive alternative appended behind its primary
+ *  options (a sacrifice land's "{T}, Sacrifice this land: Add {G}{G}"). The
+ *  choice branch resolves the index to its ability and pays its
+ *  `cost.sacrifice`; the fixed branch would tap for the primary output and
+ *  ignore the index. Shared by all three tap entry points, so none of them can
+ *  route the same index differently. */
+function manaTapTakesChoiceBranch(
+    card: CardInstanceState,
+    controllerId: string,
+    battlefields: ReadonlyArray<{
+        playerId: string;
+        battlefield: readonly CardInstanceState[];
+    }>,
+    ability: ActivatedAbility | null,
+    manaChoiceIndex: number | undefined,
+    continuousEffects?: readonly ContinuousEffect[]
+): boolean {
+    if (
+        manaTapNeedsChoice(
+            card,
+            controllerId,
+            battlefields,
+            ability,
+            continuousEffects
+        )
+    ) {
+        return true;
+    }
+    return (
+        manaChoiceIndex !== undefined &&
+        isAppendedSacrificeManaTapOption(
+            getManaTapOptionsDetailed(
+                card,
+                controllerId,
+                battlefields,
+                undefined,
+                continuousEffects
+            ),
+            manaChoiceIndex
         )
     );
 }
@@ -2086,13 +2139,15 @@ export function tapSourceIntoPayment(
     // CR 605.1a / 305.6 — a source with 2+ mana-tap options (its own ability
     // AND/OR one per distinct basic land subtype it has, e.g. any land under
     // Urborg) requires the activator to pick which ability to activate. A single
-    // choice-based ability (Fellwar Stone) also routes here.
+    // choice-based ability (Fellwar Stone) also routes here, and so does an
+    // index naming a sacrifice alternative (CR 605.3a, issue #3630).
     if (
-        manaTapNeedsChoice(
+        manaTapTakesChoiceBranch(
             card,
             player.id,
             manaTapBattlefields(state),
             ability,
+            manaChoiceIndex,
             state.continuousEffects
         )
     ) {
@@ -2666,11 +2721,12 @@ function filterCostManaAbilityForTap(
             : null;
     const first = getActivatedManaAbility(card, state);
     if (
-        manaTapNeedsChoice(
+        manaTapTakesChoiceBranch(
             card,
             player.id,
             manaTapBattlefields(state),
             first,
+            manaChoiceIndex,
             state.continuousEffects
         )
     ) {
@@ -14018,13 +14074,19 @@ export const tapUntap = mutation({
         // trigger) read this so they fire only for the ability that was used.
         let tapAbility: ActivatedAbility | null = ability;
 
-        // Determine mana to add/remove
+        // Determine mana to add/remove. CR 106.4 (issue #3630 review) — the
+        // submitted index routes only a FRESH tap: an untap reverses the
+        // activation the source already made, so its branch must be the one
+        // the card alone decides. Routing an untap by a client-chosen index let
+        // a land tapped on the fixed branch (no `chosenMana`) untap through the
+        // choice branch, refund nothing, and keep its mana — repeatably.
         if (
-            manaTapNeedsChoice(
+            manaTapTakesChoiceBranch(
                 card,
                 player.id,
                 manaTapBattlefields(state),
                 ability,
+                wasTapped ? undefined : args.manaChoiceIndex,
                 state.continuousEffects
             )
         ) {

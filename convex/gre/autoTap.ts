@@ -9,6 +9,7 @@ import {
     manaTapOptionCarriesSoughtRider,
     manaTapOptionSpendsUnplannedResource,
     MANA_COLORS,
+    primaryManaTapOptions,
     normalizedHybridPips,
 } from "./constants";
 import type { ManaTapPlanContext } from "./constants";
@@ -231,8 +232,11 @@ export function buildAutoTapSources(
         // `game.ts`; keep the two conditions identical (issue #2240 review) —
         // a board-dependent chooser resolving to a single-entry list still
         // needs an index, since its list is choice-based, not fixed-output.
+        // CR 605.3a (issue #3630) — counted over the PRIMARY options, exactly as
+        // `manaTapNeedsChoice` counts them: a sacrifice alternative appended
+        // behind a plain `{T}` ability does not make that ability need an index.
         const needsIndex =
-            options.length >= 2 ||
+            primaryManaTapOptions(options).length >= 2 ||
             !!(
                 ability?.manaChoices ||
                 ability?.getManaChoices ||
@@ -276,10 +280,16 @@ export function buildAutoTapSources(
         // from unconditional into a statement about THIS plan: paying for a
         // creature spell, Arena of Glory's exert option is the one the plan is
         // reaching for, so it is admitted with its own mana leg attached.
+        // CR 605.3a (issue #3630) — the per-OPTION twin of the per-source
+        // `cost.sacrifice` skip above: a source whose FIRST mana ability is a
+        // plain `{T}` passes that skip, but the manual list now also carries its
+        // "{T}, Sacrifice this land: Add {G}{G}" behind it, and a solver that
+        // minimizes tap count would otherwise sacrifice the land to save a tap.
         const usable = options
             .map((opt, index) => ({ opt, index }))
             .filter(
                 ({ opt }) =>
+                    !opt.sacrificesSource &&
                     getManaTapOptionRestriction(card, opt.source) === null &&
                     getManaChoiceCounterCost(card, opt.source) === null &&
                     !manaTapOptionSpendsUnplannedResource(

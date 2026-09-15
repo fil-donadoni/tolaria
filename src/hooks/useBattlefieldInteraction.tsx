@@ -17,6 +17,7 @@ import {
     isCreature,
     isPlaneswalker,
     getManaChoices,
+    getManaChoiceSacrificeFlags,
     getNonTapManaChoices,
     getActivatedManaMenuEntry,
     getEffectiveClientAbilities,
@@ -1143,6 +1144,19 @@ export function useBattlefieldInteraction(player: Player) {
         );
     }
 
+    // CR 605.3a (issue #3630) — which picker rows sacrifice the source, so a
+    // sacrifice land's {G}{G} row does not read like a free second amount. A
+    // NON-tap chooser's rows come from a different list, so it gets none.
+    const manaChoiceSource =
+        manaChoiceState && !manaChoiceState.nonTapAbilityId
+            ? allPlayers
+                  .flatMap((p) => p.battlefield)
+                  .find((c) => c.id === manaChoiceState.cardId)
+            : undefined;
+    const manaChoiceSacrificeFlags = manaChoiceSource
+        ? getManaChoiceSacrificeFlags(manaChoiceSource, allPlayers)
+        : undefined;
+
     // --- Overlays (mana-choice picker + validation toast) ---
     // Bundled as one node so each board mounts the interaction surfaces where
     // its layout needs them (classic: battlefield root; spatial: board root).
@@ -1161,6 +1175,7 @@ export function useBattlefieldInteraction(player: Player) {
                 <ManaChoicePicker
                     choices={manaChoiceState.choices}
                     position={manaChoiceState.position}
+                    sacrificeFlags={manaChoiceSacrificeFlags}
                     onSelect={(index) => {
                         // CR 605.1a / 605.3c (issue #1179) — a NON-tap choice-
                         // based mana ability (Vivi Ornitier) submits its pick

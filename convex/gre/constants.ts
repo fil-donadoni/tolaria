@@ -1207,8 +1207,16 @@ export type ManaTapOptionSource =
     | { kind: "basic"; subtype: string };
 
 /** One selectable mana-tap option: the `ManaCost` produced by activating one of
- *  a permanent's mana abilities once, plus its provenance. */
-export type ManaTapOption = { mana: ManaCost; source: ManaTapOptionSource };
+ *  a permanent's mana abilities once, plus its provenance. `sacrificesSource`
+ *  marks an option whose ability's cost sacrifices the source itself
+ *  (`cost.sacrifice`): a destructive alternative the automatic planner never
+ *  commits while a non-destructive option exists, and which the manual list
+ *  offers only BEHIND every non-destructive one (CR 605.3a, issue #3630). */
+export type ManaTapOption = {
+    mana: ManaCost;
+    source: ManaTapOptionSource;
+    sacrificesSource?: true;
+};
 
 /** Canonical dedup key for a `ManaCost` (sorted colour:amount pairs). */
 function manaCostKey(mana: ManaCost): string {
@@ -1906,6 +1914,9 @@ export function getManaTapOptionsDetailed(
                 }
             }
             const target = ability.cost.sacrifice ? sacrifice : nonSacrifice;
+            const sacrificeMark = ability.cost.sacrifice
+                ? ({ sacrificesSource: true } as const)
+                : {};
             // A choice ability (dual land, Talisman, Fellwar Stone, storage
             // land): each option is one entry, tagged with its ability-local
             // choice index so the counter-removal rider (Mana Battery / storage
@@ -1941,6 +1952,7 @@ export function getManaTapOptionsDetailed(
                             abilityId: ability.id,
                             choiceIndex: index,
                         },
+                        ...sacrificeMark,
                     });
                 });
                 continue;
@@ -1969,6 +1981,7 @@ export function getManaTapOptionsDetailed(
                 target.push({
                     mana,
                     source: { kind: "activated", abilityId: ability.id },
+                    ...sacrificeMark,
                 });
             }
         }
@@ -1991,18 +2004,61 @@ export function getManaTapOptionsDetailed(
 
     // Prefer non-destructive options; fall back to sacrifice abilities only when
     // there is no other way to tap this source for mana (Lotus Petal).
-    const combined = nonSacrifice.length > 0 ? nonSacrifice : sacrifice;
+    const primary = nonSacrifice.length > 0 ? nonSacrifice : sacrifice;
+    const out = dedupByProducedMana(primary);
+    // CR 605.3a (issue #3630) — that preference belongs to the AUTOMATIC
+    // planner (`requireTap`), which must never commit a sacrifice while a
+    // non-destructive option exists. A PLAYER may activate any mana ability, so
+    // the manual list keeps the destructive alternatives (a sacrifice land's
+    // "{T}, Sacrifice this land: Add {G}{G}" beside its "{T}: Add {G}"),
+    // APPENDED: every primary option sits at the same index in both lists, so a
+    // planner-built `manaChoiceIndex` names the same ability to the tap
+    // mutations. Dropping them here left no mutation able to name the ability.
+    if (!requireTap && primary !== sacrifice) {
+        out.push(...dedupByProducedMana(sacrifice));
+    }
+    return out;
+}
 
-    // Dedup by produced `ManaCost`, keeping the first occurrence's provenance.
+/** Dedup by produced `ManaCost`, keeping the first occurrence's provenance. */
+function dedupByProducedMana(
+    options: readonly ManaTapOption[]
+): ManaTapOption[] {
     const out: ManaTapOption[] = [];
     const seen = new Set<string>();
-    for (const opt of combined) {
+    for (const opt of options) {
         const key = manaCostKey(opt.mana);
         if (seen.has(key)) continue;
         seen.add(key);
         out.push(opt);
     }
     return out;
+}
+
+/** CR 605.3a (issue #3630) — the PRIMARY options of a manual mana-tap list: the
+ *  non-destructive ones, or every option when the source has nothing but
+ *  sacrifice abilities (Lotus Petal). They decide whether a tap needs a choice
+ *  at all, and they are what an index-free tap resolves against — the
+ *  destructive alternatives appended behind them are reached only by naming
+ *  their index ({@link isAppendedSacrificeManaTapOption}). */
+export function primaryManaTapOptions(
+    options: readonly ManaTapOption[]
+): readonly ManaTapOption[] {
+    const nonDestructive = options.filter((o) => !o.sacrificesSource);
+    return nonDestructive.length > 0 ? nonDestructive : options;
+}
+
+/** CR 605.3a (issue #3630) — does `manaChoiceIndex` name a destructive
+ *  alternative appended behind a source's non-destructive options? Only such an
+ *  index turns a source that otherwise taps with no choice into a choice. */
+export function isAppendedSacrificeManaTapOption(
+    options: readonly ManaTapOption[],
+    manaChoiceIndex: number
+): boolean {
+    return (
+        options[manaChoiceIndex]?.sacrificesSource === true &&
+        options.some((o) => !o.sacrificesSource)
+    );
 }
 
 /** The mana-cost list a player picks from when tapping a source for mana —
