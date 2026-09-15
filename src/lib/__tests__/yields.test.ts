@@ -19,6 +19,14 @@ import type {
 } from "@convex/gre/state";
 import type { StackItem } from "~/types/game";
 import {
+    clearSeatCardYieldPrefs,
+    clearSeatYieldPrefs,
+    confirmTriggerOrder,
+    countRememberedTriggerOrders,
+    rememberedTriggerOrderFor,
+    seatTriggerOrderMemory,
+    triggerOrderKeys,
+    type YieldPrefsState,
     clearSeatCardYields,
     clearSeatYields,
     countYields,
@@ -412,5 +420,176 @@ describe("A Yield cannot deadlock a board (issue #3556 §8)", () => {
         // the loop and handed priority back.
         expect(stack.map((i) => i.id)).toEqual(["spell-1"]);
         expect(steps).toBeLessThan(20);
+    });
+});
+
+describe("Auto-order memory — keyed by ability identity, reset with yields (issue #3617)", () => {
+    const ignobleExalted = (instance: string): Entry => ({
+        kind: "trigger",
+        defId: IGNOBLE.id,
+        abilityId: EXALTED,
+        instance,
+    });
+    const byId = (items: StackItem[]) =>
+        new Map(items.map((item) => [item.id, item]));
+
+    function projectFaceDownTrigger(instance: string): StackItem {
+        const source = makeInstance(IGNOBLE.id, {
+            id: instance,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "stack",
+        });
+        turnFaceDown(NO_BOARD_LAYER_VIEW, source as never, "morph");
+        const state: GameState = makeState({
+            stack: [
+                {
+                    ...source,
+                    castById: "p1",
+                    triggeredAbilityId: EXALTED,
+                    triggerSourceId: "src",
+                } as EngineStackItem,
+            ],
+        } as Partial<GameState>);
+        return projectPublicState(state, 1, "p1")
+            .stack[0] as unknown as StackItem;
+    }
+
+    it("maps a remembered order onto new instances, copies keeping their collection order", () => {
+        const first = projectStack([
+            nobleExalted("n1a"),
+            ignobleExalted("i1"),
+            nobleExalted("n1b"),
+        ]);
+        const order = triggerOrderKeys(["n1a", "i1", "n1b"], byId(first));
+        const memory = seatTriggerOrderMemory(
+            confirmTriggerOrder({}, "p1", true, order),
+            "p1"
+        );
+
+        const next = projectStack([
+            ignobleExalted("i2"),
+            nobleExalted("n2a"),
+            nobleExalted("n2b"),
+        ]);
+        const ids = ["i2", "n2a", "n2b"];
+        expect(
+            rememberedTriggerOrderFor(
+                memory,
+                ids,
+                triggerOrderKeys(ids, byId(next))
+            )
+        ).toEqual(["n2a", "i2", "n2b"]);
+    });
+
+    it("matches nothing for a different multiset, or with the toggle off", () => {
+        const first = projectStack([nobleExalted("n1"), ignobleExalted("i1")]);
+        const state = confirmTriggerOrder(
+            {},
+            "p1",
+            true,
+            triggerOrderKeys(["n1", "i1"], byId(first))
+        );
+        const next = projectStack([nobleExalted("n2a"), nobleExalted("n2b")]);
+        const ids = ["n2a", "n2b"];
+        const keys = triggerOrderKeys(ids, byId(next));
+        expect(
+            rememberedTriggerOrderFor(
+                seatTriggerOrderMemory(state, "p1"),
+                ids,
+                keys
+            )
+        ).toBeNull();
+
+        const same = projectStack([nobleExalted("n3"), ignobleExalted("i3")]);
+        const sameIds = ["n3", "i3"];
+        const off = confirmTriggerOrder(state, "p1", false, null);
+        expect(
+            rememberedTriggerOrderFor(
+                seatTriggerOrderMemory(off, "p1"),
+                sameIds,
+                triggerOrderKeys(sameIds, byId(same))
+            )
+        ).toBeNull();
+    });
+
+    it("keeps one order per multiset — re-confirming the same set replaces it", () => {
+        const items = projectStack([nobleExalted("n1"), ignobleExalted("i1")]);
+        const once = confirmTriggerOrder(
+            {},
+            "p1",
+            true,
+            triggerOrderKeys(["n1", "i1"], byId(items))
+        );
+        const twice = confirmTriggerOrder(
+            once,
+            "p1",
+            true,
+            triggerOrderKeys(["i1", "n1"], byId(items))
+        );
+        expect(countRememberedTriggerOrders(twice, "p1")).toBe(1);
+        expect(
+            rememberedTriggerOrderFor(
+                seatTriggerOrderMemory(twice, "p1"),
+                ["n1", "i1"],
+                triggerOrderKeys(["n1", "i1"], byId(items))
+            )
+        ).toEqual(["i1", "n1"]);
+    });
+
+    it("gives a set with a face-down member no keys (CR 708.2a), so it is never remembered", () => {
+        const noble = projectStack([nobleExalted("n1")])[0];
+        const faceDown = projectFaceDownTrigger("fd1");
+        expect(
+            triggerOrderKeys(["n1", "fd1"], byId([noble, faceDown]))
+        ).toBeNull();
+        expect(
+            countRememberedTriggerOrders(
+                confirmTriggerOrder({}, "p1", true, null),
+                "p1"
+            )
+        ).toBe(0);
+    });
+
+    const [noble] = projectStack([nobleExalted("n1")]);
+    const [ignoble] = projectStack([ignobleExalted("i1")]);
+    const nobleKey = yieldKeyForStackItem(noble)!;
+    const ignobleKey = yieldKeyForStackItem(ignoble)!;
+    const withOrder = (yields: YieldState): YieldPrefsState => ({
+        yields,
+        triggerOrders: {
+            p1: { enabled: true, orders: [[nobleKey, ignobleKey]] },
+            p2: { enabled: true, orders: [[nobleKey]] },
+        },
+    });
+
+    it("Clear all yields forgets the seat's orders and turns Auto-order off, even with zero yields", () => {
+        const cleared = clearSeatYieldPrefs(withOrder({}), "p1");
+        expect(seatTriggerOrderMemory(cleared.triggerOrders, "p1")).toEqual({
+            enabled: false,
+            orders: [],
+        });
+        expect(countRememberedTriggerOrders(cleared.triggerOrders, "p2")).toBe(
+            1
+        );
+    });
+
+    it("the per-card reset forgets them only when it removes the seat's LAST yield", () => {
+        const one = clearSeatCardYieldPrefs(
+            withOrder({ p1: [nobleKey] }),
+            "p1",
+            yieldCardIdentityForDefinition(NOBLE.id)
+        );
+        expect(countRememberedTriggerOrders(one.triggerOrders, "p1")).toBe(0);
+        expect(seatTriggerOrderMemory(one.triggerOrders, "p1").enabled).toBe(
+            false
+        );
+
+        const two = clearSeatCardYieldPrefs(
+            withOrder({ p1: [nobleKey, ignobleKey] }),
+            "p1",
+            yieldCardIdentityForDefinition(NOBLE.id)
+        );
+        expect(countRememberedTriggerOrders(two.triggerOrders, "p1")).toBe(1);
     });
 });

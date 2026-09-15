@@ -8,6 +8,9 @@ import { displayCardId, getStackAbilityOracleText } from "~/lib/card-utils";
 import { isEditableTarget } from "~/lib/editable-target";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
+import { useSeatYields } from "~/hooks/useYieldPreferences";
+import { rememberedTriggerOrderFor, triggerOrderKeys } from "~/lib/yields";
+import { Checkbox } from "~/components/ui/checkbox";
 import { useViewportWidth } from "~/hooks/useViewportWidth";
 import { fitTileWidth, modalChromePaddingX } from "~/lib/reorder-strip-width";
 import { SLOT_SPRING } from "~/lib/board-motion";
@@ -32,7 +35,15 @@ import StackAbilityTile from "./stack-ability-tile";
  *  first) as `cardInstanceIds`, exactly what `applyPendingChoiceSubmit` expects.
  *  Each candidate's `triggeredAbilityId` / `grantedTriggeredAbilities` come from
  *  the projected off-stack `pendingTriggerBatch` (CR 603.3b — the triggers are
- *  public). */
+ *  public).
+ *
+ *  **Auto-order** (issue #3617): confirming with the toggle on remembers the
+ *  order for this multiset of ability identities (the **Yield** key). When the
+ *  seat later owes an ordering decision for the same multiset, the remembered
+ *  order is submitted through the same mutation — the server re-validates it —
+ *  and the picker never renders. Only the chooser's own client mounts this
+ *  (vs-AI pins the viewer to the human seat), so the Bot's seat never
+ *  auto-orders. */
 
 /** Natural (desktop) tile width. Shrunk responsively (issue #1765, shared
  *  `fitTileWidth`) to fit a narrow phone viewport, floored at MIN_TILE_W.
@@ -89,6 +100,58 @@ export default function TriggerOrderPrompt({
         () => choice.candidateIds ?? [],
         [choice.candidateIds]
     );
+
+    const seat = useSeatYields();
+    const choiceKey = `${choice.stackItemId}:${choice.step}:${choice.choiceId}`;
+    const rememberedOrder = useMemo(
+        () =>
+            rememberedTriggerOrderFor(
+                seat.autoOrder,
+                candidateIds,
+                triggerOrderKeys(candidateIds, batchById)
+            ),
+        [seat.autoOrder, candidateIds, batchById]
+    );
+    const [autoOrder, setAutoOrder] = useState(seat.autoOrder.enabled);
+    // The choice this client already answered by hand. Confirming with the
+    // toggle on records the order BEFORE the choice leaves the state, so the
+    // still-mounted picker would otherwise match its own fresh memory and
+    // submit a second time.
+    const [confirmedKey, setConfirmedKey] = useState<string | null>(null);
+    // A remembered order the server refused falls back to the picker rather
+    // than leaving the seat stuck on an invisible choice.
+    const [autoFailedKey, setAutoFailedKey] = useState<string | null>(null);
+    const autoSubmittedKey = useRef<string | null>(null);
+    const autoOrdering =
+        rememberedOrder !== null &&
+        confirmedKey !== choiceKey &&
+        autoFailedKey !== choiceKey;
+
+    useEffect(() => {
+        if (!autoOrdering || !rememberedOrder) return;
+        if (autoSubmittedKey.current === choiceKey) return;
+        autoSubmittedKey.current = choiceKey;
+        // Rightmost = topmost, so reverse the left→right order — the same
+        // wire shape `handleConfirm` sends.
+        submitResolutionChoice({
+            gameId,
+            playerId: choice.playerId,
+            stackItemId: choice.stackItemId,
+            step: choice.step,
+            choiceId: choice.choiceId,
+            cardInstanceIds: [...rememberedOrder].reverse(),
+        }).catch(() => setAutoFailedKey(choiceKey));
+    }, [
+        autoOrdering,
+        rememberedOrder,
+        choiceKey,
+        submitResolutionChoice,
+        gameId,
+        choice.playerId,
+        choice.stackItemId,
+        choice.step,
+        choice.choiceId,
+    ]);
 
     // Committed order, LEFT→RIGHT; rightmost = TOP OF STACK = resolves first.
     const [order, setOrder] = useState<string[]>(() => [...candidateIds]);
@@ -249,6 +312,11 @@ export default function TriggerOrderPrompt({
     const handleConfirm = useCallback(async () => {
         if (submitting) return;
         setSubmitting(true);
+        setConfirmedKey(choiceKey);
+        seat.confirmTriggerOrder(
+            autoOrder,
+            autoOrder ? triggerOrderKeys(order, batchById) : null
+        );
         try {
             // Rightmost = topmost, so reverse the left→right `order` array.
             await submitResolutionChoice({
@@ -264,6 +332,10 @@ export default function TriggerOrderPrompt({
         }
     }, [
         submitting,
+        choiceKey,
+        seat,
+        autoOrder,
+        batchById,
         submitResolutionChoice,
         gameId,
         choice.playerId,
@@ -281,17 +353,25 @@ export default function TriggerOrderPrompt({
     // stopPropagation puts this ahead of that bubble listener, exactly like
     // `reveal-notification-overlay.tsx` does for the same reason.
     useEffect(() => {
-        if (isMinimized) return;
+        if (isMinimized || autoOrdering) return;
         function onKeyDown(e: KeyboardEvent) {
             if (e.code !== "Space" || e.repeat) return;
             if (isEditableTarget(e.target)) return;
+            // Space on the focused Auto-order toggle toggles it.
+            if (
+                e.target instanceof Element &&
+                e.target.closest("[data-auto-order-toggle]")
+            )
+                return;
             e.preventDefault();
             e.stopPropagation();
             void handleConfirm();
         }
         window.addEventListener("keydown", onKeyDown, true);
         return () => window.removeEventListener("keydown", onKeyDown, true);
-    }, [isMinimized, handleConfirm]);
+    }, [isMinimized, autoOrdering, handleConfirm]);
+
+    if (autoOrdering) return null;
 
     return (
         <div
@@ -399,7 +479,21 @@ export default function TriggerOrderPrompt({
                     TOP OF STACK →
                 </div>
 
-                <div className="flex justify-center">
+                <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+                    {/* The label is the hit area: `--control-h` tall, so the
+                        16px box still meets the touch-target floor. */}
+                    <label
+                        data-auto-order-toggle
+                        title="Remember this order for these abilities and apply it automatically next time. Clear all yields resets it."
+                        className="flex min-h-[var(--control-h)] cursor-pointer items-center gap-2 px-2 text-sm text-text-muted"
+                    >
+                        <Checkbox
+                            checked={autoOrder}
+                            disabled={submitting}
+                            onCheckedChange={(checked) => setAutoOrder(checked)}
+                        />
+                        Auto-order
+                    </label>
                     <button
                         type="button"
                         disabled={submitting}

@@ -177,3 +177,166 @@ export function shouldAutoPassYield(
     if (!key) return false;
     return hasYield(state, ctx.playerId, key);
 }
+
+// ---- Auto-order (issue #3617) ---------------------------------------------
+//
+// The simultaneous-trigger ordering picker (CR 603.3b, ADR 0058) can remember
+// the order a seat confirmed for a set of abilities and apply it the next time
+// that same set triggers. It keys on the **Yield** key — the ability identity
+// {@link yieldKeyForStackItem} mints — and it lives and dies with the seat's
+// **Yields**: every reset of those forgets it too.
+
+/** One remembered ordering decision: the **Yield** keys LEFT→RIGHT as the
+ *  picker lays them out, bottom-first — the last key is put on the stack last
+ *  and resolves first (CR 405.1). */
+export type RememberedTriggerOrder = YieldKey[];
+
+/** A seat's **Auto-order** memory: the toggle, plus at most one remembered
+ *  order per multiset of ability identities. */
+export type SeatTriggerOrderMemory = {
+    enabled: boolean;
+    orders: RememberedTriggerOrder[];
+};
+
+/** Every seat's **Auto-order** memory, seat id → memory. Per seat for the same
+ *  reason {@link YieldState} is: solo mode gives one user both seats. */
+export type TriggerOrderMemoryState = Record<string, SeatTriggerOrderMemory>;
+
+const NO_TRIGGER_ORDER_MEMORY: SeatTriggerOrderMemory = {
+    enabled: false,
+    orders: [],
+};
+
+export function seatTriggerOrderMemory(
+    state: TriggerOrderMemoryState,
+    seatId: string
+): SeatTriggerOrderMemory {
+    return state[seatId] ?? NO_TRIGGER_ORDER_MEMORY;
+}
+
+function sameKeyMultiset(a: readonly YieldKey[], b: readonly YieldKey[]) {
+    if (a.length !== b.length) return false;
+    const sortedA = [...a].sort();
+    const sortedB = [...b].sort();
+    return sortedA.every((key, i) => key === sortedB[i]);
+}
+
+/** The **Yield** keys of `ids`, in the order given, or `null` when any of them
+ *  has none — a face-down trigger (CR 708.2a) or an id missing from the batch.
+ *  A set with a nameless member is never remembered and never matched: there
+ *  is no identity to say it is "the same set" as anything. */
+export function triggerOrderKeys(
+    ids: readonly string[],
+    itemsById: ReadonlyMap<string, StackItem>
+): YieldKey[] | null {
+    const keys: YieldKey[] = [];
+    for (const id of ids) {
+        const item = itemsById.get(id);
+        const key = item ? yieldKeyForStackItem(item) : null;
+        if (!key) return null;
+        keys.push(key);
+    }
+    return keys;
+}
+
+/** Record a confirmed ordering decision. `enabled` is the toggle as confirmed;
+ *  with it on, `order` (LEFT→RIGHT keys, `null` when unkeyable) replaces any
+ *  order remembered for the same multiset. */
+export function confirmTriggerOrder(
+    state: TriggerOrderMemoryState,
+    seatId: string,
+    enabled: boolean,
+    order: RememberedTriggerOrder | null
+): TriggerOrderMemoryState {
+    const current = seatTriggerOrderMemory(state, seatId);
+    if (!enabled || !order) {
+        if (current.enabled === enabled) return state;
+        return { ...state, [seatId]: { ...current, enabled } };
+    }
+    const orders = [
+        ...current.orders.filter((o) => !sameKeyMultiset(o, order)),
+        [...order],
+    ];
+    return { ...state, [seatId]: { enabled, orders } };
+}
+
+/** The candidate ids LEFT→RIGHT in the seat's remembered order for this exact
+ *  multiset, or `null` when the picker must open (toggle off, a nameless
+ *  candidate, or no remembered order for this set).
+ *
+ *  `candidateIds` is the choice's collection order and `candidateKeys` their
+ *  keys in that same order. Each remembered position takes the NEXT unused
+ *  candidate with its key, so copies sharing an identity keep their collection
+ *  order. */
+export function rememberedTriggerOrderFor(
+    memory: SeatTriggerOrderMemory,
+    candidateIds: readonly string[],
+    candidateKeys: readonly YieldKey[] | null
+): string[] | null {
+    if (!memory.enabled || !candidateKeys) return null;
+    if (candidateKeys.length !== candidateIds.length) return null;
+    const order = memory.orders.find((o) => sameKeyMultiset(o, candidateKeys));
+    if (!order) return null;
+    const idsByKey = new Map<YieldKey, string[]>();
+    candidateKeys.forEach((key, i) => {
+        const ids = idsByKey.get(key) ?? [];
+        ids.push(candidateIds[i]);
+        idsByKey.set(key, ids);
+    });
+    return order.map((key) => idsByKey.get(key)!.shift()!);
+}
+
+export function countRememberedTriggerOrders(
+    state: TriggerOrderMemoryState,
+    seatId: string
+): number {
+    return seatTriggerOrderMemory(state, seatId).orders.length;
+}
+
+/** Forget the seat's **Auto-order** memory and turn the toggle off. */
+export function clearSeatTriggerOrders(
+    state: TriggerOrderMemoryState,
+    seatId: string
+): TriggerOrderMemoryState {
+    const current = seatTriggerOrderMemory(state, seatId);
+    if (!current.enabled && current.orders.length === 0) return state;
+    return { ...state, [seatId]: NO_TRIGGER_ORDER_MEMORY };
+}
+
+/** Everything the board-wide **Yield** store holds: the **Yields** and the
+ *  **Auto-order** memory that shares their reset lifecycle. */
+export type YieldPrefsState = {
+    yields: YieldState;
+    triggerOrders: TriggerOrderMemoryState;
+};
+
+/** "Clear all yields": drop every **Yield** the seat holds AND its
+ *  **Auto-order** memory — even when it holds no **Yield** at all, which is the
+ *  case the reset control must stay reachable for (issue #3617 §7). */
+export function clearSeatYieldPrefs(
+    state: YieldPrefsState,
+    seatId: string
+): YieldPrefsState {
+    const yields = clearSeatYields(state.yields, seatId);
+    const triggerOrders = clearSeatTriggerOrders(state.triggerOrders, seatId);
+    if (yields === state.yields && triggerOrders === state.triggerOrders)
+        return state;
+    return { yields, triggerOrders };
+}
+
+/** The per-card reset. Forgets the **Auto-order** memory only when it removes
+ *  the seat's LAST **Yield** — a reset that leaves other **Yields** standing
+ *  has not reset the seat. */
+export function clearSeatCardYieldPrefs(
+    state: YieldPrefsState,
+    seatId: string,
+    cardIdentity: string
+): YieldPrefsState {
+    const yields = clearSeatCardYields(state.yields, seatId, cardIdentity);
+    if (yields === state.yields) return state;
+    const triggerOrders =
+        countYields(yields, seatId) === 0
+            ? clearSeatTriggerOrders(state.triggerOrders, seatId)
+            : state.triggerOrders;
+    return { yields, triggerOrders };
+}
