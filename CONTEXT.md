@@ -1288,6 +1288,38 @@ _Avoid_: Cockatrice deck, free deck
 The five emulated viewports every UI-affecting change is measured at: phone portrait 390×844×3 touch, phone landscape 844×390×3 touch, tablet portrait 820×1180×2 touch, tablet landscape 1180×820×2 touch, desktop 1440×900×2. Semantic breakpoints align to it; the headless probe reports occlusion / zero-size / stranded per viewport. ADR 0101.
 _Avoid_: Three viewports (the retired rule), responsive check (too vague)
 
+**Walked Surface**:
+One screen state the headless browser lane can reach by a fixed click sequence and measure at every viewport of the **Viewport Matrix** — a route plus whatever the walk opens on it (a dialog, a sheet, a pile). Named by a stable id; the unit the lane reports on and the unit a diff is scoped to.
+_Avoid_: Page (a surface may be an overlay on one), screen (ambiguous with the device), route (several surfaces share one)
+
+**Floor**:
+A count the lane holds at zero on every **Walked Surface**, at every viewport, with no per-surface exception: zero-size cards or controls, cards or controls stranded outside any scroll port, serious or critical axe violations, horizontal overflow. A nonzero reading is a regression, never carried debt — the fix is in the tree, not in a budget.
+_Avoid_: Budget, ceiling, threshold (a floor has no number to record — it is zero by definition), known debt
+
+**Shape Reading**:
+A count the lane measures and prints but never gates: how many cards overlap (a fanned hand, a stacked pile), how many controls sit under an open sheet, how many tap targets fall under 44px, how many scroll ports are taller than their box. It describes the screen as designed and moves with the position on it; it is diagnostic output for the reader of a receipt.
+_Avoid_: Budget cell, ceiling, `cardsOcc` as a floor (it was one before the invariant gate)
+
+**Named Assertion**:
+A promise a **Walked Surface** declares about one named element on it — that a control is reachable (visible, stable, the element that answers a pointer at its own centre, so neither covered nor stranded), that something is visible, or that a subtree passes contrast — checked at every viewport and printed on the receipt by its label. Every surface declares at least one; a surface with none is a coverage hole the offline guard refuses. The positive half of the lane, beside the **Floors**.
+_Avoid_: Precondition (a walk step that decides whether the surface was reached — it fails as UNWALKED, not as a broken promise), smoke check, expectation
+
+**Infra Verdict**:
+The third outcome of a **Walked Surface** at a viewport, beside pass and fail: the walk was cut short by the machine, not by the tree — a backend function past its execution limit, a server error, a navigation that never answered — recognised by its signature in the console and named on the receipt with that signature and the machine load. The lane retries the surface, waiting for the load to drop, before it stands; when it stands the surface is unproven, never failed, and never green.
+_Avoid_: UNWALKED for a load red (UNWALKED is the walk's own inability to reach the surface on a quiet machine), flaky, timeout (one signature of several)
+
+**Settled Screen**:
+The state a **Walked Surface** must reach before anything on it is measured: its own ready marker is up (the component says its data has arrived), and for a short quiet window nothing animates, nothing is in flight to the backend, and no measured box has moved. A screen that never settles is an **Infra Verdict**, not a reading; a reading taken before settling is what a flap is.
+_Avoid_: Fixed sleep, `networkidle` (blind to the realtime socket), loaded (the data can be in and the screen still moving)
+
+**Verdict Block**:
+The part of a browser-lane receipt the merge gate re-derives and enforces: one line per **Walked Surface** and viewport carrying its outcome (pass, fail, **Infra Verdict**, unwalked), any **Floor** it broke and every **Named Assertion** by label. Deterministic by construction, so it can be compared byte for byte against what the diff's scope owes.
+_Avoid_: Receipt (the whole printout, diagnostic block included), census
+
+**Diagnostic Block**:
+The rest of the same receipt, printed for the reader and ignored by the merge gate: the **Shape Readings**, the machine load at start and end, the signature behind each **Infra Verdict**, wall time. It may differ between two runs of one tree without meaning anything.
+_Avoid_: Known debt, budget notes
+
 **Shell Mode**:
 Which chrome a route wears. **Browse** (lobby, decks, limited list, profile): top bar on desktop/tablet, bottom nav on phone. **Immersive** (board, **Draft Room**, deckbuilder): no persistent nav, a contextual bar with an explicit Exit and an overflow menu. One `AppShell` decides from the route. ADR 0101.
 _Avoid_: Fullscreen (that is a browser state), header-less
