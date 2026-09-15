@@ -12975,13 +12975,7 @@ export type EffectLifeGainedThisTurnValue = {
  *  The card's own "if you've drawn more than one card this turn" gate is a
  *  CR 603.4 intervening-if reading `TriggerStateView`'s per-player
  *  `drawnThisTurn`, not this value: an intervening-if is not an effect and
- *  never reaches the interpreter.
- *
- *  Known skew (issue #1714, out of scope here): the opening hand and any
- *  scenario-loaded hand are dealt through the draw path, so `drawnThisTurn`
- *  over-reports on turn 1 and in loaded scenarios. Every reader of the tally
- *  inherits it — `lastDrawnCardId` and Sylvan Library already do — and fixing
- *  it is a change to the DEALING path, not to this reader. */
+ *  never reaches the interpreter. */
 export type EffectCardsDrawnThisTurnValue = {
     cardsDrawnThisTurn: { of: EffectPlayerRef };
 };

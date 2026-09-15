@@ -89,12 +89,6 @@ export const forensicGadgeteer: CardDefinition = {
 // trigger goes on the stack (CR 603.3d) and re-checked at resolution
 // (CR 608.2b); X is bound at resolution, not announcement (CR 608.2h).
 //
-// Known skew, issue #1714 (NOT a divergence this card introduces): the opening
-// hand and every scenario-loaded hand are dealt through the draw path, so
-// `drawnThisTurn` over-reports on turn 1 and in loaded scenarios. Every reader
-// of the tally has always inherited it (Sylvan Library, Jandor's Ring); the
-// fix belongs to the DEALING path and does not gate this card.
-//
 // compiler-gap: "At the beginning of combat on your turn, if you've drawn more than one card this turn, put X +1/+1 counters on target creature you control, where X is the number of cards you've drawn this turn minus one." (#2693)
 export const proftsEideticMemory: CardDefinition = {
     id: "af5b29b3-974c-4200-8df8-b072c11e1600",
