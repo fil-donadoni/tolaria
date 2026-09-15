@@ -240,7 +240,13 @@ export const submit = mutation({
  * judge is not the caller: the admin running a migration is not the person
  * who gave the judgement. It must still have the `${deployment}:${userId}`
  * shape, so an email or a nickname is refused at the door. What the store is
- * written with is still only this deployment's credential, through the drain.
+ * written with is still only this deployment's credential, through the drain:
+ * the caller follows this with `verdictsDrain:drainNow`, which returns the
+ * report of what was stored and what was left pending.
+ *
+ * `deployment` is the deployment the row ENTERED the outbox on — the one
+ * running the migration — even when `attestationAuthor` names another. The
+ * author half says who judged; this says where the upload came from.
  */
 export const enqueueBulk = mutation({
     args: {
@@ -314,7 +320,9 @@ export const enqueueBulk = mutation({
                 })
             );
         }
-        if (ids.length > 0) await scheduleDrain(ctx);
+        // No drain is scheduled: the caller runs `verdictsDrain:drainNow` for
+        // the report, and a scheduled drain racing it would upload every row
+        // twice. The hourly cron covers a caller who never does.
         return ids;
     },
 });

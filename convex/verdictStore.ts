@@ -360,6 +360,32 @@ export function decodeAttestationObject(
     ) {
         throw new VerdictStoreIntegrityError(name, "has no source axis");
     }
+    // Canonical bytes say nothing about TYPES: `"createdAt":"x"` is canonical.
+    const mistyped = (
+        [
+            ["createdAt", "number"],
+            ["note", "string"],
+            ["deployment", "string"],
+            ["botPickIndex", "number"],
+            ["gameId", "string"],
+            ["seq", "number"],
+        ] as const
+    ).find(
+        ([field, type]) =>
+            attestation[field] !== undefined &&
+            typeof attestation[field] !== type
+    );
+    if (
+        mistyped !== undefined ||
+        (attestation.deploymentKind !== undefined &&
+            attestation.deploymentKind !== "cloud" &&
+            attestation.deploymentKind !== "local")
+    ) {
+        throw new VerdictStoreIntegrityError(
+            name,
+            `field ${mistyped?.[0] ?? "deploymentKind"} has the wrong type`
+        );
+    }
     if (!sameBytes(canonical, bytes)) {
         throw new VerdictStoreIntegrityError(
             name,

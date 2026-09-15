@@ -272,6 +272,14 @@ describe("verdicts.enqueueBulk — the migration's door (issue #3580)", () => {
         expect(row.verdictHash).toMatch(/^v1-[0-9a-f]{64}$/);
         expect("authorId" in row).toBe(false);
     });
+
+    it("schedules no drain of its own — drainNow is the caller's, and the cron the fallback", async () => {
+        const { ctx } = makeMutationCtx("u-admin", ALL_USERS);
+        const runAfter = vi.fn(async () => undefined);
+        (ctx as unknown as { scheduler: unknown }).scheduler = { runAfter };
+        await runMutation(enqueueBulk, ctx, { verdicts: [ENTRY] });
+        expect(runAfter).not.toHaveBeenCalled();
+    });
 });
 
 describe("verdicts.list — admin only (issue #3402)", () => {

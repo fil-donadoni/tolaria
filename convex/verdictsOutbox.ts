@@ -77,7 +77,7 @@ export function verdictDeploymentOf(
         );
     }
     const name = isLocalDeploymentUrl(url)
-        ? `local-${parsed.port || "80"}`
+        ? `local-${parsed.port || (parsed.protocol === "https:" ? "443" : "80")}`
         : parsed.hostname.endsWith(CONVEX_CLOUD_HOST_SUFFIX)
           ? parsed.hostname.slice(0, -CONVEX_CLOUD_HOST_SUFFIX.length)
           : parsed.hostname;
@@ -379,15 +379,27 @@ export async function drainOutbox(
                 report.alreadySlim += 1;
                 continue;
             }
-            const marked = await ports.markStored({
-                rowId: result.rowId,
-                verdictHash: result.verdictHash,
-                positionKey: result.positionKey,
-                attestationAuthor: result.attestationAuthor,
-                deployment: result.deployment,
-                deploymentKind: result.deploymentKind,
-                storedAt: ports.now(),
-            });
+            // A row `markStored` refuses (deleted, re-stamped by a racing
+            // drain) stays as it is and is reported — one bad row must not
+            // cost the report for every row after it.
+            let marked: "slimmed" | "already-slim";
+            try {
+                marked = await ports.markStored({
+                    rowId: result.rowId,
+                    verdictHash: result.verdictHash,
+                    positionKey: result.positionKey,
+                    attestationAuthor: result.attestationAuthor,
+                    deployment: result.deployment,
+                    deploymentKind: result.deploymentKind,
+                    storedAt: ports.now(),
+                });
+            } catch (error) {
+                report.pending.push({
+                    rowId: result.rowId,
+                    reason: `slimming failed: ${messageOf(error)}`,
+                });
+                continue;
+            }
             if (marked === "slimmed") report.stored += 1;
             else report.alreadySlim += 1;
         }
