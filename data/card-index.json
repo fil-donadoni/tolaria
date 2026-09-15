@@ -12528,6 +12528,14 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Forensic Gadgeteer",
+        "scryfallId": "97d08a15-e61c-4421-a541-c68a4f87cb74",
+        "oracleId": "9d5917d5-4fb3-4f37-9278-e08c1f73aae5",
+        "firstSet": "mkm",
+        "firstPrintId": "97d08a15-e61c-4421-a541-c68a4f87cb74",
+        "firstPrintSet": "mkm"
+    },
+    {
         "name": "Forest",
         "scryfallId": "6f1c8cb0-38eb-408b-94e8-16db83999b3b",
         "oracleId": "b34bb2dc-c1af-4d77-b0b3-a0fb342a5fc6",
@@ -40478,6 +40486,14 @@
         "firstSet": "snc",
         "firstPrintId": "75fdce80-e338-4a50-bdc6-786511feaeef",
         "firstPrintSet": "snc"
+    },
+    {
+        "name": "Zirda, the Dawnwaker",
+        "scryfallId": "1bd8e61c-2ee8-4243-a848-7008810db8a0",
+        "oracleId": "7b515c56-7b1e-42a8-82b0-1b30201fb162",
+        "firstSet": "iko",
+        "firstPrintId": "1bd8e61c-2ee8-4243-a848-7008810db8a0",
+        "firstPrintSet": "iko"
     },
     {
         "name": "Zombie Goliath",
