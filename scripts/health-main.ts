@@ -39,7 +39,11 @@
  */
 import { spawnSync } from "node:child_process";
 import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "./lib/branches";
-import { runHealthStep, type HealthStep } from "./lib/health-step";
+import {
+    healthGateEnv,
+    runHealthStep,
+    type HealthStep,
+} from "./lib/health-step";
 import {
     existsSync,
     mkdirSync,
@@ -190,11 +194,8 @@ async function main(): Promise<void> {
 
     const wt = join(root, "..", `tolaria-health-${process.pid}`);
     const logPath = join(dir, `${tip.slice(0, 12)}.log`);
-    // The health gate must queue on the machine mutex like any other heavy
-    // gate — scrub the hold `land`'s locked shell exported.
-    const env = { ...process.env };
-    delete env.TOLARIA_GATE_HELD;
-    delete env.TOLARIA_ALLOW_FULL_SUITE;
+    // Queues on the machine mutex, and bypasses the guard cache (issue #3646).
+    const env = healthGateEnv(process.env);
 
     // In series, stopping at the first red: `name` is what the RED verdict
     // records as `failedStep`.

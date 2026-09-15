@@ -91,6 +91,7 @@ import {
     type Lockfile,
 } from "./lib/oracle-lockfile";
 import { ORIGIN_BASE } from "./lib/branches";
+import { enterGuardCache, type GuardInputs } from "./lib/guard-cache";
 import {
     emptyRegressionLedger,
     parseRegressionLedger,
@@ -662,6 +663,36 @@ function main(): void {
     checkLegality();
 }
 
+/**
+ * What every tier above reads (issue #3646): the registry and compiler sources
+ * (`convex/**`, `scripts/**`), every committed artefact and ledger (`data/**`),
+ * the gitignored corpus cache tier 3 regenerates from, and — for
+ * `checkStateRegressions` — the merge-base commit its baseline is read at,
+ * which no file in the tree records.
+ */
+function oracleGuardInputs(): GuardInputs {
+    const mergeBase = runGit(["merge-base", "HEAD", ORIGIN_BASE]);
+    return {
+        guard: "check:oracle",
+        globs: [
+            "convex/**",
+            "data/**",
+            "scripts/**",
+            "tolaria.config.json",
+            "package.json",
+            "bun.lock*",
+            "tsconfig*.json",
+        ],
+        ignoredFiles: ["data/oracle-corpus.json.gz"],
+        keys: [
+            mergeBase.ok
+                ? `merge-base:${mergeBase.out.trim()}`
+                : `no-merge-base:${mergeBase.error}`,
+        ],
+    };
+}
+
 if (import.meta.main) {
+    enterGuardCache(oracleGuardInputs(), ROOT);
     main();
 }

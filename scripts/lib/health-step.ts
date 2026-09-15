@@ -53,6 +53,22 @@ export interface StepResult {
 const PREFIX = "health-main:";
 export const DEFAULT_LIVENESS_MS = 60_000;
 
+/**
+ * The environment every health step runs under. The health gate must queue on
+ * the machine mutex like any other heavy gate — so the hold `land`'s locked
+ * shell exported is scrubbed — and it must prove every pure drift guard from
+ * scratch rather than trust a cached PASS recorded by some earlier run
+ * (issue #3646): that is what makes `release` the full gate. The literal is
+ * `GUARD_CACHE_BYPASS_ENV` in `guard-cache.ts`, restated because this module
+ * imports builtins only; `guard-cache.test.ts` pins the two together.
+ */
+export function healthGateEnv(parent: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+    const env: NodeJS.ProcessEnv = { ...parent, TOLARIA_GUARD_CACHE: "off" };
+    delete env.TOLARIA_GATE_HELD;
+    delete env.TOLARIA_ALLOW_FULL_SUITE;
+    return env;
+}
+
 /** `4m12s`, `37s`, `1h02m` — same shape as `gate.ts`'s holder lines. */
 export function fmtElapsed(ms: number): string {
     const s = Math.max(0, Math.floor(ms / 1000));

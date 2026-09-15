@@ -50,8 +50,15 @@
  */
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { getAllCards } from "../convex/cards/index";
 import { isPollutionEntry } from "./lib/card-index-pollution";
+import { CARD_REGISTRY_GLOBS, enterGuardCache } from "./lib/guard-cache";
+
+// Before the registry import below: a cached PASS never pays for loading it.
+enterGuardCache({
+    guard: "check:index",
+    globs: [...CARD_REGISTRY_GLOBS, "scripts/check-card-index.ts"],
+});
+const { getAllCards } = await import("../convex/cards/index");
 
 type Entry = {
     name: string;
