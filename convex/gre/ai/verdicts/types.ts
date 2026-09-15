@@ -23,8 +23,11 @@ import type { BladeSeat, BladeSetupStep } from "../blade/types";
 /** Where a Verdict came from. `registry` verdicts are DERIVED (from the blade
  *  registry, at fit time — never stored); `in-play` ones come from a tester
  *  judging a real Bot decision; `authored` ones are written by hand, which is
- *  what a test fixture and a hand-cut counter-example are. */
-export type VerdictSource = "registry" | "in-play" | "authored";
+ *  what a test fixture and a hand-cut counter-example are. `store` ones were
+ *  read from the Verdict Store through the Verdict Lock (issue #3578): the
+ *  stored object carries only the judgement, so whether it was given in play
+ *  or by hand is its attestations' to say (ADR 0128 §4), not the corpus's. */
+export type VerdictSource = "registry" | "in-play" | "authored" | "store";
 
 /** One move the Bot's enumerator offered at the decision under judgement. */
 export type VerdictCandidate = {
