@@ -29,6 +29,30 @@ import type { BladeSeat, BladeSetupStep } from "../blade/types";
  *  or by hand is its attestations' to say (ADR 0128 §4), not the corpus's. */
 export type VerdictSource = "registry" | "in-play" | "authored" | "store";
 
+/** The second axis of where a judgement came from (ADR 0128 §11,
+ *  issue #3579). `explicit`: a person GAVE it — "this move is right" — in play, in a
+ *  quiz, by hand, or by confirming a Verdict Proposal. `implicit`: it was
+ *  read off play — "this move was chosen" — which is a weaker claim, since two
+ *  good moves in one position are normal. Only explicit judgements can
+ *  contradict each other; implicit ones need aggregation and a reduced trust
+ *  weight instead, and no producer writes one yet. Recorded on the
+ *  attestation, not the judgement, because the Verdict Store object is the
+ *  judgement alone (ADR 0128 §4). */
+export type VerdictSourceAxis = "explicit" | "implicit";
+
+/** One author's word for a stored verdict — the shape of the Verdict Store's
+ *  `attestations/<verdictId>/<author>` object. It carries what contradiction
+ *  detection reads today; the provenance the outbox stores beside it (when,
+ *  note, originating deployment — issue #3580) is added to THIS type, not to a
+ *  second one. */
+export type VerdictAttestation = {
+    /** The verdict id (`identity.ts`) of the judgement attested. */
+    verdictId: string;
+    /** `${deployment}:${userId}` — never an email (ADR 0128 §4). */
+    author: string;
+    sourceAxis: VerdictSourceAxis;
+};
+
 /** One move the Bot's enumerator offered at the decision under judgement. */
 export type VerdictCandidate = {
     /** The structural move key (`search.ts`'s `moveKey`) — how the candidate

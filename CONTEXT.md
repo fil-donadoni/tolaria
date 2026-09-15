@@ -658,6 +658,10 @@ _Avoid_: Bucket, upload folder, database, dataset
 The committed list naming exactly which **Verdicts** a **Weight Fit** was run over — the only part of the training data that lives beside the code. It is what makes a set of weights re-derivable by anyone: fit the verdicts it names and the committed numbers come back, to the bit. A judgement the lock does not name is invisible to the fit however long it has sat in the **Verdict Store**, so widening the lock and moving the weights are one reviewed change, never two.
 _Avoid_: Manifest, index, allowlist, approved list
 
+**Contested Position**:
+A decision about which people who GAVE a judgement disagree: two or more **Verdicts** on the same position with different answers. Every one of them is quarantined — kept out of the **Verdict Lock** until a human looks at the board and resolves it — because averaging them would teach the **Evaluation** a preference no player holds, and fitting both would make the **Weight Fit** report the disagreement as a missing term. Testers who agree are one **Verdict**, counted, never contested. Only judgements a person gave can contest; a move merely chosen in play cannot. Counted per corpus and per tester: a rising count says the question is asked badly, not that testers are careless.
+_Avoid_: Conflict, disagreement, disputed verdict, quarantine (that word alone is the **Oracle Compiler**'s)
+
 **Decision Class**:
 What KIND of decision a **Verdict** holds, in the words a player would use: a land drop, a cast, an activation, declaring attackers, declaring blockers, a targeting choice, a resolution choice, a mulligan. Derived from the engine's own move vocabulary rather than named separately, so a decision the engine gains cannot quietly go uncounted. The unit coverage is measured in: a corpus with three blocking judgements says nothing about blocking, however large it is overall.
 _Avoid_: Move type, action kind, category
