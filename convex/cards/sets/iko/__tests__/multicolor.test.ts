@@ -279,7 +279,7 @@ describe("Zirda, the Dawnwaker (Companion, activated-ability cost reduction excl
         ).toEqual({ X: 2 });
     });
 
-    describe("scoped to the ACTIVATOR, not the source's controller (CR 602.2b, activatableByAnyPlayer)", () => {
+    describe("scoped to the ACTIVATOR, not the source's controller (CR 602.1a, activatableByAnyPlayer)", () => {
         /** p1 controls Zirda + `clockController`'s Armageddon Clock; the
          *  ability is activated by `activator`. */
         function boardWithClock(
@@ -319,7 +319,7 @@ describe("Zirda, the Dawnwaker (Companion, activated-ability cost reduction excl
 
         it("reduces it when Zirda's controller is the one activating, even a Clock they don't control", () => {
             // p2 controls the Clock; p1 (Zirda's controller) activates it
-            // under `activatableByAnyPlayer` — CR 602.2b makes p1 the "you".
+            // under `activatableByAnyPlayer` — CR 602.1a makes p1 the "you".
             const { cost } = boardWithClock("p2", "p1");
             expect(cost()).toEqual({ X: 2 });
         });

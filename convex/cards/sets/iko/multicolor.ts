@@ -186,7 +186,7 @@ export const lurrus: CardDefinition = {
 // activate. This effect can't reduce the mana in that cost to less than one
 // mana." (CR 601.2f cost reduction, 118.7 floor, CR 605.1a mana ability —
 // `useStack: false`.) Scoped to the ACTIVATOR, not the source's controller
-// (`activatorId === effectSource.controllerId`) — CR 602.2b makes "you" the
+// (`activatorId === effectSource.controllerId`) — CR 602.1a makes "you" the
 // player ACTIVATING, which is not the source's controller for an
 // `activatableByAnyPlayer` / `activatableByOpponentsOnly` /
 // `activatableByEnchantedController` ability (Armageddon Clock, Merseine,

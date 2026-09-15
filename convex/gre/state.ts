@@ -25393,7 +25393,7 @@ export function getCostModifiers(
                 // `appliesToAbility` takes fourth/fifth `ability`/`activatorId`
                 // arguments `appliesToSpell` doesn't have (Zirda, the
                 // Dawnwaker's "aren't mana abilities" clause needs the ability;
-                // its "abilities YOU ACTIVATE" needs the activator, CR 602.2b,
+                // its "abilities YOU ACTIVATE" needs the activator, CR 602.1a,
                 // same fallback the self-reduction arm below uses) — a
                 // union-typed `pred` would reject those extra arguments at the
                 // call site.

@@ -12,7 +12,7 @@ import { investigateOp } from "../../abilities/tokens/clueToken";
 // "Whenever you cast an artifact spell, investigate. Activated abilities of
 // artifacts you control cost {1} less to activate. This effect can't reduce
 // the mana in that cost to less than one mana." (CR 603.2 SPELL_CAST trigger,
-// CR 701.21 Investigate, CR 601.2f cost reduction, CR 118.7 floor.)
+// CR 701.16 Investigate, CR 601.2f cost reduction, CR 118.7 floor.)
 //
 // TRIAGED 2026-08-25 (#1841 audit) — the marker used to read "needs a new
 // engine capability" with no gap named. The first clause is free: `investigate`

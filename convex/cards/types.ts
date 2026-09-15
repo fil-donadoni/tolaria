@@ -8664,7 +8664,7 @@ export interface StaticCostModifier {
      *  abilities are `useStack: false`, CR 605.1a) to exclude them, something
      *  no source-level property carries.
      *
-     *  The optional fifth argument is the ACTIVATOR's player id (CR 602.2b —
+     *  The optional fifth argument is the ACTIVATOR's player id (CR 602.1a —
      *  who "you" is in the reduction's own text is whoever is ACTIVATING,
      *  not necessarily the source's controller: `activatableByAnyPlayer` /
      *  `activatableByOpponentsOnly` / `activatableByEnchantedController` are
