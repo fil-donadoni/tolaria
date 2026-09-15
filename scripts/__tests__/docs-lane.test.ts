@@ -1,11 +1,13 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 import { spawnSync } from "child_process";
 import {
     isDocPath,
     classifyChanges,
     parsePorcelainPaths,
+    workingTreePaths,
     slugify,
     DOC_GATE_TESTS,
     DOC_GATE_TESTS_EXCLUDED,
@@ -90,6 +92,45 @@ describe("docs-lane — what the lane will carry", () => {
             "docs/new.md",
             "docs/with space.md",
         ]);
+    });
+
+    it("classifies each file inside a NEW untracked directory, never the directory", () => {
+        // The shipped bug (issue #3668): plain `git status --porcelain`
+        // collapses an all-untracked directory to `?? .out-of-scope/`, which
+        // is not a doc path, so a lone new markdown file was refused.
+        const repo = fs.mkdtempSync(path.join(os.tmpdir(), "docs-lane-"));
+        try {
+            expect(spawnSync("git", ["init", "-q"], { cwd: repo }).status).toBe(
+                0
+            );
+            const write = (rel: string) => {
+                fs.mkdirSync(path.dirname(path.join(repo, rel)), {
+                    recursive: true,
+                });
+                fs.writeFileSync(path.join(repo, rel), "x\n");
+            };
+            write(".out-of-scope/lenis-smooth-scroll.md");
+            write(".claude/skills/new-skill/SKILL.md");
+            write(".claude/skills/new-skill/run.sh");
+
+            const paths = workingTreePaths(repo).sort();
+            expect(paths).toEqual([
+                ".claude/skills/new-skill/SKILL.md",
+                ".claude/skills/new-skill/run.sh",
+                ".out-of-scope/lenis-smooth-scroll.md",
+            ]);
+            // The program inside a new directory is refused on its own path,
+            // not waved through (or refused) with its prose sibling.
+            expect(classifyChanges(paths)).toEqual({
+                docs: [
+                    ".claude/skills/new-skill/SKILL.md",
+                    ".out-of-scope/lenis-smooth-scroll.md",
+                ],
+                foreign: [".claude/skills/new-skill/run.sh"],
+            });
+        } finally {
+            fs.rmSync(repo, { recursive: true, force: true });
+        }
     });
 
     it("reduces a slug to something a branch name can hold", () => {

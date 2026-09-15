@@ -166,6 +166,23 @@ export function parsePorcelainPaths(raw: string): string[] {
     return out;
 }
 
+/**
+ * Every uncommitted path in `cwd`, one entry per FILE.
+ *
+ * `--untracked-files=all` is load-bearing (issue #3668). Git's default
+ * (`normal`) reports a directory whose contents are all untracked as the
+ * directory itself, so a lone new `.out-of-scope/lenis-smooth-scroll.md`
+ * surfaced as `.out-of-scope/` — no `.md`, not under `docs/` — and the lane
+ * refused a pure-prose change. The collapse is unsound the other way too:
+ * `docs/new-dir/` passes on its prefix and `git add -- docs/new-dir/` then
+ * stages whatever is inside, none of it seen by `classifyChanges`.
+ */
+export function workingTreePaths(cwd = process.cwd()): string[] {
+    return parsePorcelainPaths(
+        git(["status", "--porcelain", "--untracked-files=all"], cwd, false)
+    );
+}
+
 function run(cmd: string, args: string[], cwd = process.cwd()): boolean {
     return (
         spawnSync(cmd, args, { stdio: "inherit", cwd, env: NET_ENV }).status ===
@@ -335,7 +352,7 @@ function cmdShip(argv: string[]): void {
         ...git(["diff", "--name-only", `${ORIGIN_BASE}...HEAD`], cwd).split(
             "\n"
         ),
-        ...parsePorcelainPaths(git(["status", "--porcelain"], cwd, false)),
+        ...workingTreePaths(cwd),
     ].filter((p) => p !== "");
 
     const { docs, foreign } = classifyChanges([...new Set(changed)]);
