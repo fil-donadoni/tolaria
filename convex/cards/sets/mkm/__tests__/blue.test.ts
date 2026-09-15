@@ -16,6 +16,14 @@ import { effectiveMaxHandSize } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { getDefinition } from "../../..";
+import { tapUntap } from "../../../../game";
+import type { Id } from "../../../../_generated/dataModel";
+import {
+    makeMutationCtx,
+    runMutation,
+    gameStateSeed,
+    type Handler,
+} from "../../../../__tests__/gameMutationHarness";
 
 // The registry seam (ADR 0046): the card is reached by ID through
 // `makeInstance`, never by importing its definition out of the set module.
@@ -33,6 +41,20 @@ const DRAGON_ENGINE_ID = "07793a71-1106-4303-b620-e403bd378020";
  *  would show up as a smaller number, not hide behind the floor the way a
  *  colored-pip-only or already-at-floor cost would. */
 const ANCIENT_KAVU_ID = "c8ccb5d0-735b-443f-addd-8b70f5f2c60d";
+/** Celestial Prism (lea/colorless.ts) — Artifact, "{2}, {T}: Add one mana of
+ *  any color" — a MANA ability (`useStack: false`) with mana in its own
+ *  cost, and no static `manaProduced` (it uses `manaChoices` instead). Proves
+ *  the reduction reaches the mana-ability PAYMENT chokepoint
+ *  (`applyManaAbilityManaCost`, game.ts) and not just the affordability
+ *  probes — issue #1339 found the two disagreeing on this exact shape. */
+const CELESTIAL_PRISM_ID = "a47417cb-1ea7-4f65-ba06-e27a99373114";
+const GAME_ID = "game-1" as Id<"games">;
+type TapUntapArgs = {
+    gameId: Id<"games">;
+    playerId: string;
+    cardInstanceId: string;
+    manaChoiceIndex?: number;
+};
 
 function resolveTrigger(
     state: GameState,
@@ -289,5 +311,57 @@ describe("Forensic Gadgeteer (activated-ability cost reduction scoped to artifac
                 "dragon-engine-pump"
             )
         ).toEqual({ X: 1 });
+    });
+
+    // The reduction must reach the ACTUAL mana-ability payment
+    // (`applyManaAbilityManaCost`, game.ts), not just the affordability
+    // probes above — before this fix that chokepoint read `ability.cost.mana`
+    // raw, so the auto-tap Demand builder (already reduced) and the real
+    // charge disagreed on Celestial Prism's cost the moment Forensic
+    // Gadgeteer made the reduction board-wide.
+    it("Celestial Prism's mana ability is CHARGED the reduced {1}, not the printed {2}, through the real tapUntap mutation", async () => {
+        const prism = makeInstance(CELESTIAL_PRISM_ID, {
+            id: "prism",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const gadgeteer = makeInstance(FORENSIC_GADGETEER_ID, {
+            id: "gadgeteer",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [prism, gadgeteer],
+                    // Exactly enough for the REDUCED {1} — not the printed
+                    // {2}. Pre-fix this activation threw "Not enough mana".
+                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 1 },
+                }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+        const stub = makeMutationCtx("p1", [gameStateSeed(state)]);
+
+        await runMutation<TapUntapArgs, void>(
+            tapUntap as unknown as Handler<TapUntapArgs, void>,
+            stub.ctx,
+            {
+                gameId: GAME_ID,
+                playerId: "p1",
+                cardInstanceId: "prism",
+                manaChoiceIndex: 0, // {W}
+            }
+        );
+
+        const player = stub.state().players[0];
+        expect(player.manaPool.W).toBe(1);
+        // The reduced {1} was paid entirely out of the floating {C}.
+        expect(player.manaPool.C ?? 0).toBe(0);
+        const card = player.battlefield.find((c) => c.id === "prism")!;
+        expect(card.isTapped).toBe(true);
+        expect(card.manaPaidThisTap).toEqual({ C: 1 });
     });
 });

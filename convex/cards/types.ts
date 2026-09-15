@@ -8662,12 +8662,22 @@ export interface StaticCostModifier {
      *  not just its source permanent: Zirda, the Dawnwaker's "abilities you
      *  activate that AREN'T mana abilities" reads `ability.useStack` (mana
      *  abilities are `useStack: false`, CR 605.1a) to exclude them, something
-     *  no source-level property carries. */
+     *  no source-level property carries.
+     *
+     *  The optional fifth argument is the ACTIVATOR's player id (CR 602.2b —
+     *  who "you" is in the reduction's own text is whoever is ACTIVATING,
+     *  not necessarily the source's controller: `activatableByAnyPlayer` /
+     *  `activatableByOpponentsOnly` / `activatableByEnchantedController` are
+     *  all shipped flags where the two diverge). "Abilities YOU activate"
+     *  (Zirda) reads this field; "abilities of artifacts YOU CONTROL"
+     *  (Forensic Gadgeteer) stays on the source's own `controllerId` — the
+     *  Oracle text names a different "you" for each. */
     appliesToAbility?: (
         source: PermanentView,
         ctx: StaticEffectContext,
         effectSource?: PermanentView,
-        ability?: ActivatedAbility
+        ability?: ActivatedAbility,
+        activatorId?: string
     ) => boolean;
     /** Mana added to the base cost (CR 601.2f). Defaults to nothing. */
     costIncrease?: ManaCost;

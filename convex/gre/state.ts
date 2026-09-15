@@ -25390,10 +25390,13 @@ export function getCostModifiers(
             for (const effect of effects) {
                 if (effect.kind !== "cost-modifier") continue;
                 // Two separate calls (not one shared `pred` reference) because
-                // `appliesToAbility` takes a fourth `ability` argument
-                // `appliesToSpell` doesn't have (Zirda, the Dawnwaker's "aren't
-                // mana abilities" clause) — a union-typed `pred` would reject
-                // that extra argument at the call site.
+                // `appliesToAbility` takes fourth/fifth `ability`/`activatorId`
+                // arguments `appliesToSpell` doesn't have (Zirda, the
+                // Dawnwaker's "aren't mana abilities" clause needs the ability;
+                // its "abilities YOU ACTIVATE" needs the activator, CR 602.2b,
+                // same fallback the self-reduction arm below uses) — a
+                // union-typed `pred` would reject those extra arguments at the
+                // call site.
                 const applies =
                     kind === "spell"
                         ? effect.appliesToSpell?.(
@@ -25405,7 +25408,8 @@ export function getCostModifiers(
                               card,
                               STATIC_EFFECT_CTX,
                               source,
-                              ability
+                              ability,
+                              activatorId ?? card.controllerId
                           );
                 if (!applies) continue;
                 if (effect.costIncrease) {

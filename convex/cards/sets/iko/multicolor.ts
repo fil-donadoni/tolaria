@@ -185,12 +185,20 @@ export const lurrus: CardDefinition = {
 // "Abilities you activate that aren't mana abilities cost {2} less to
 // activate. This effect can't reduce the mana in that cost to less than one
 // mana." (CR 601.2f cost reduction, 118.7 floor, CR 605.1a mana ability —
-// `useStack: false`.) Scoped to the CONTROLLER's own abilities
-// (`source.controllerId === effectSource.controllerId`, the same "you
-// control" shape Stone Calendar's spell-side reduction uses,
-// drk/colorless.ts) rather than to a single attached host (Power Artifact's
-// Aura scopes via `attachedTo`) — Zirda has no host, it reduces every
-// non-mana ability its controller activates, board-wide.
+// `useStack: false`.) Scoped to the ACTIVATOR, not the source's controller
+// (`activatorId === effectSource.controllerId`) — CR 602.2b makes "you" the
+// player ACTIVATING, which is not the source's controller for an
+// `activatableByAnyPlayer` / `activatableByOpponentsOnly` /
+// `activatableByEnchantedController` ability (Armageddon Clock, Merseine,
+// Clergy of the Holy Nimbus). `getCostModifiers`'s `activatorId` parameter
+// exists exactly for this (`gre/state.ts`'s own doc comment on it); Zirda is
+// the first caller to actually need it threaded into `appliesToAbility`
+// rather than only into the ability's own `cost.selfReduction` arm. No host
+// (Power Artifact's Aura scopes via `attachedTo`) — Zirda reduces every
+// non-mana ability ITS CONTROLLER activates, board-wide, wherever that
+// controller is the one paying. `ability?.useStack === true` fails CLOSED on
+// a caller that omits the `ability` argument (rather than `!== false`, which
+// would fail open and reduce a mana ability by default).
 //
 // Its companion condition is `permanentHasActivatedAbility`
 // (`gre/companion.ts`, built on the shared `everyPermanent` combinator) — the
@@ -237,10 +245,16 @@ export const zirda: CardDefinition = {
     staticEffects: [
         {
             kind: "cost-modifier",
-            appliesToAbility: (source, _ctx, effectSource, ability) =>
+            appliesToAbility: (
+                _source,
+                _ctx,
+                effectSource,
+                ability,
+                activatorId
+            ) =>
                 !!effectSource &&
-                source.controllerId === effectSource.controllerId &&
-                ability?.useStack !== false,
+                activatorId === effectSource.controllerId &&
+                ability?.useStack === true,
             costReduction: { X: 2 },
             minTotalMana: 1,
         },

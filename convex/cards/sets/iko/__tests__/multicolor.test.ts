@@ -43,6 +43,12 @@ const dragonEngine = getDefinition("07793a71-1106-4303-b620-e403bd378020");
 // the one shape that proves Zirda's "aren't mana abilities" exclusion (a
 // mana-less mana ability, like a basic land's, would pass vacuously).
 const celestialPrism = getDefinition("a47417cb-1ea7-4f65-ba06-e27a99373114");
+// Armageddon Clock (atq/colorless.ts) — "{4}: Remove a doom counter... Any
+// player may activate this ability" (`activatableByAnyPlayer: true`, CR
+// 113.3c). The one shipped ability where the ACTIVATOR can differ from the
+// source's controller — exactly the axis Zirda's "abilities YOU ACTIVATE"
+// must key off instead of the source's `controllerId`.
+const armageddonClock = getDefinition("44a31889-6a8d-450c-a73d-381a7ff28bf9");
 
 describe("Lutri, the Spellchaser (Companion, Flash, CR 603.6a copy-on-cast ETB)", () => {
     it("when CAST, copies a target instant/sorcery spell it controls (CR 707.10)", () => {
@@ -196,11 +202,16 @@ describe("Zirda, the Dawnwaker (Companion, activated-ability cost reduction excl
     /** Mirror game.ts's `activateAbility` cost calculation: normalize the
      *  ability's printed mana cost, then fold in the battlefield cost
      *  modifiers (same helper shape as Power Artifact's own test,
-     *  atq/__tests__/blue.test.ts). */
+     *  atq/__tests__/blue.test.ts). `activatorId` mirrors the real
+     *  `activateAbility` mutation's `player.id` argument — omitted, it
+     *  defaults to the host's own controller (the ordinary case; every
+     *  ability below except Armageddon Clock's can only ever be activated by
+     *  its own controller). */
     function effectiveAbilityCost(
         state: GameState,
         host: CardInstanceState,
-        abilityId: string
+        abilityId: string,
+        activatorId?: string
     ): Record<string, number> {
         const def = getDefinition((host.card as { id: string }).id);
         const ability = def.activatedAbilities!.find(
@@ -211,7 +222,7 @@ describe("Zirda, the Dawnwaker (Companion, activated-ability cost reduction excl
             : {};
         applyCostModifiers(
             cost,
-            getCostModifiers(state, host, "ability", ability)
+            getCostModifiers(state, host, "ability", ability, activatorId)
         );
         return cost;
     }
@@ -268,7 +279,66 @@ describe("Zirda, the Dawnwaker (Companion, activated-ability cost reduction excl
         ).toEqual({ X: 2 });
     });
 
-    it("wire format: the controller-scoped reduction survives projectPublicState", () => {
+    describe("scoped to the ACTIVATOR, not the source's controller (CR 602.2b, activatableByAnyPlayer)", () => {
+        /** p1 controls Zirda + `clockController`'s Armageddon Clock; the
+         *  ability is activated by `activator`. */
+        function boardWithClock(
+            clockController: "p1" | "p2",
+            activator: "p1" | "p2"
+        ) {
+            const clock = makeInstance(armageddonClock.id, {
+                id: "clock",
+                controllerId: clockController,
+                ownerId: clockController,
+            });
+            const z = makeInstance(zirda.id, {
+                id: "zirda",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const p1Battlefield = clockController === "p1" ? [clock, z] : [z];
+            const p2Battlefield = clockController === "p2" ? [clock] : [];
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { battlefield: p1Battlefield }),
+                    makePlayer("p2", { battlefield: p2Battlefield }),
+                ],
+            });
+            return {
+                state,
+                clock,
+                cost: () =>
+                    effectiveAbilityCost(
+                        state,
+                        clock,
+                        "armageddon-clock-remove-doom",
+                        activator
+                    ),
+            };
+        }
+
+        it("reduces it when Zirda's controller is the one activating, even a Clock they don't control", () => {
+            // p2 controls the Clock; p1 (Zirda's controller) activates it
+            // under `activatableByAnyPlayer` — CR 602.2b makes p1 the "you".
+            const { cost } = boardWithClock("p2", "p1");
+            expect(cost()).toEqual({ X: 2 });
+        });
+
+        it("does NOT reduce it when someone else activates a Clock Zirda's controller DOES control", () => {
+            // p1 controls both the Clock and Zirda, but p2 is the activator —
+            // p2 is not p1's Zirda's "you", so the Clock's controller owning
+            // it is irrelevant.
+            const { cost } = boardWithClock("p1", "p2");
+            expect(cost()).toEqual({ X: 4 });
+        });
+
+        it("reduces the ordinary same-player case (activator === controller === Zirda's controller)", () => {
+            const { cost } = boardWithClock("p1", "p1");
+            expect(cost()).toEqual({ X: 2 });
+        });
+    });
+
+    it("wire format: the reduction survives projectPublicState", () => {
         const { state, engine } = boardWithZirda("p1");
         const projected = projectPublicState(state as GameState, 1, "p1");
         const slimEngine = projected.players[0].battlefield.find(
