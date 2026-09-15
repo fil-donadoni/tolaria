@@ -284,6 +284,53 @@ would start every issue a release behind.
 `format:check`, not `format`. #1807: a gate that repairs what it checks can
 never fail. On drift, run `bun run format` and re-run.
 
+## The guard cache — a pure guard does not re-prove an unchanged input set (issue #3646)
+
+Four drift guards are pure functions of files in the tree: `check:index`,
+`check:stubs`, `check:oracle` and `cr:lint`. All four run inside every `check:pr`
+(`check:oracle` is not in any lane plan; `cr:lint` is in both, `check:index` /
+`check:stubs` in `engine`), and each was re-proving a tree it had already
+proved an hour earlier. So each one now **declares its inputs** as globs
+(`GuardInputs`, `scripts/lib/guard-cache.ts`) and, before doing any work,
+hashes them and prints one line:
+
+```
+✓ cr:lint: cached PASS (3f9c0a1b2c4d) — inputs unchanged since a green run
+▶ cr:lint: ran (3f9c0a1b2c4d) — no green record for these inputs
+```
+
+- **The hash** is the git index blob sha of every tracked input plus the
+  content of every input the index cannot vouch for (modified, deleted,
+  untracked-not-ignored), plus any gitignored file a guard consults
+  (`check:oracle`'s corpus cache) and any non-file key (`check:oracle`'s
+  merge-base with the base branch). `guard-cache.ts` itself is an input of
+  every guard. Hashing through the index measured 70–190ms; re-reading the
+  ~5,000 files `cr:lint` scans measured 350–500ms.
+- **Only a green exit is recorded.** A red, a miss or an unhashable tree (no
+  git) runs the guard. Records are one file per green hash under the gitignored
+  `.claude/telemetry/guard-cache/<guard>/`, 64 kept per guard.
+- **The declaration is the risk.** An input a guard reads but does not declare
+  is a stale PASS that nobody sees, so declarations are deliberately wide
+  (`convex/**`, `data/**`, `scripts/lib/**` for anything that loads the card
+  registry). A new input to one of these guards — a new data file, a new
+  imported module outside the globs — owes its glob in the same change.
+- **The bypass.** `TOLARIA_GUARD_CACHE=off` reads no record (it still records a
+  green run). `health-main.ts` sets it through `healthGateEnv`, so
+  `bun run release` and `bun run health` prove every guard from scratch on the
+  tip they gate; the lane gates are what the cache speeds up. Set it by hand to
+  force a run.
+
+`format` and `format:check` pass prettier's own `--cache --cache-strategy
+content`, which keys each file by content and prettier's resolved options. The
+cache lives in `node_modules/.cache/prettier/`, so it is per worktree: a fresh
+worktree pays the first run cold. Measured on this machine (2026-09-15):
+`format:check` 76.9s cold (load 23.8) → 14.9s warm (load 25.9). The four
+guards measured 0.19s (`check:index`), 0.20s (`check:stubs`), 0.51s
+(`check:oracle`) and 2.86s (`cr:lint`) uncached at load 68.7 — the prettier
+cache is the larger saving, and it lands only where the whole-tree
+`format:check` runs (`check:pr`, `check:all`, `check:docs`); the lanes'
+diff-scoped `format(diff)` was already small.
+
 ## Why the suites are three separate invocations
 
 `bun run test` = `test:app` (everything not `*.bot.test.ts`, ~580 files) →

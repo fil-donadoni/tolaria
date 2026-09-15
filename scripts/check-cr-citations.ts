@@ -55,6 +55,7 @@ import {
     formatLifePaymentHit,
     scanLifePaymentMiscitations,
 } from "./cr-118-4-life-payment.ts";
+import { enterGuardCache } from "./lib/guard-cache.ts";
 
 // `import.meta.dir` is Bun-only; the regression guard imports this module under
 // vitest/node, where it is undefined.
@@ -275,7 +276,29 @@ function main(): number {
     return 1;
 }
 
+/**
+ * What the scan reads (issue #3646): every tracked `SCANNED` file, the vendored
+ * CR, and — covered by the same `.ts` glob — this script and the two scans it
+ * imports. Untracked files are declared too; they are not scanned, so they
+ * only ever cost a cache miss.
+ */
+export const CR_LINT_INPUTS = {
+    guard: "cr:lint",
+    globs: [
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.mts",
+        "**/*.mjs",
+        "**/*.js",
+        "**/*.md",
+        "data/cr/**",
+    ],
+} as const;
+
 // CLI only. The regression guard (`scripts/__tests__/cr-citations.test.ts`)
 // imports the exported scan functions; without this gate the import would tear
 // the test runner down with `process.exit`.
-if (import.meta.main) process.exit(main());
+if (import.meta.main) {
+    enterGuardCache(CR_LINT_INPUTS, ROOT);
+    process.exit(main());
+}
