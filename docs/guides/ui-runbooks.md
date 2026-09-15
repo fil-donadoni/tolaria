@@ -518,7 +518,7 @@ UNWALKED and the run is red. That guard now covers **both** branches: the
 phone branch asserts the pool pane after it confirms `data-stop="pool"`, not
 just the stop (until PR #2652 round 3 it returned on the stop alone, so a Pick
 #1 seat measured an empty pane at 390×844 and passed green — `probe.js` has no
-card-count floor and `budgets.ts` no minimum-`n` rule, so nothing else would
+card-count floor and `floors.ts` no minimum-`n` rule, so nothing else would
 have caught it). Make a few picks in the room first (select a tile,
 `[data-editing-action="Pick"]`); the lane itself never picks, because a pick
 is not reversible and this lane is non-destructive by construction.

@@ -24,15 +24,22 @@
  *   4. for each of the five Viewport Matrix viewports (ADR 0101), walks every
  *      surface in `surfaces.ts`, runs the occlusion probe (`probe.js`, the
  *      same file the manual runbook points at) and axe-core;
- *   5. compares against `budgets.json` and exits non-zero on a regression OR
- *      on a coverage hole.
+ *   5. holds every Floor at zero (`floors.ts`, ADR 0132) and exits non-zero on
+ *      a broken Floor OR on a coverage hole. Shape Readings are printed, never
+ *      compared.
  *
  * COVERAGE IS AN ASSERTION, NOT A BEST EFFORT. A surface that could not be
  * reached — the scenario row is missing, an active game blocks the route,
- * login failed — prints UNWALKED and fails the run. A surface with no budget
- * entry is refused rather than measured. The one thing that never happens is a
- * silent green. The three shapes and their handling are documented on
- * `evaluateRun` in `budgets.ts`.
+ * login failed — prints UNWALKED and fails the run. The only surface skipped is
+ * one `UNWALKED_SURFACES` declares, in code, with its issue. The one thing that
+ * never happens is a silent green. The shapes and their handling are
+ * documented in `receipt.ts`.
+ *
+ * THE RECEIPT HAS TWO BLOCKS (ADR 0132 §6): the verdict block — banner, one
+ * line per surface × viewport, coverage line — which `land` re-derives from the
+ * diff's scope, then `DIAGNOSTIC_SEPARATOR` and the diagnostic block — Shape
+ * Readings, infra signatures, load, console errors, wall time — which it never
+ * reads.
  *
  * THE MACHINE IS NOT THE TREE (issue #3644). A walk cut short by the machine —
  * a backend function past its execution limit, a Convex server error, a
@@ -41,8 +48,8 @@
  * recreating the lane's game when the surface plays in one. A cell that still
  * fails on a busy machine stands as `INFRA — <signature>, load <n>`: unproven,
  * never green, never a UI failure. Nothing is measured before it is a Settled
- * Screen (`settle.ts`), and the receipt prints the machine load at the start
- * and end of the run under the coverage line.
+ * Screen (`settle.ts`), and the diagnostic block prints the machine load at the
+ * start and end of the run.
  *
  * NOT PART OF `check:all`. The full gate is offline by contract and already
  * mutex-held; booting a browser inside it would tax every session that never
@@ -52,12 +59,7 @@
  * Usage:
  *   bun run check:ui
  *   bun run check:ui -- --surface=lobby,deck-builder     # subset, same rules
- *   bun run check:ui -- --record                         # record NEW keys only
- *                                                        # (see recordBudgets)
- *   bun run check:ui -- --record --accept=lobby.1440x900x2.cardsOcc
- *                                                        # + accept one named
- *                                                        # regression/tightening
- *   bun run check:ui -- --keep-user                      # leave the run's
+ *   bun run check:ui -- --keep-user                     # leave the run's
  *                                                        # account in place and
  *                                                        # print its credentials
  *   bun run check:ui -- --scope-only                     # print the diff's
@@ -90,24 +92,24 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Browser, BrowserContext, Page } from "playwright";
 import {
-    coverageLine,
-    evaluateRun,
-    formatResultRow,
-    loadBudgets as loadBudgetsFromDisk,
-    metricsOf,
-    planRecord,
-    receiptKindLine,
+    readingsOf,
+    UNWALKED_SURFACES,
     type AxeCount,
-    type BudgetFile,
-    type Measurement,
     type ProbeResult,
     type SquareExample,
     type SoftExample,
-    type RecordChange,
+} from "./floors.ts";
+import {
+    DIAGNOSTIC_SEPARATOR,
+    diagnosticLines,
+    evaluateRun,
+    verdictBlockLines,
+    type Evaluation,
+    type Measurement,
     type SurfaceWalk,
     type DiffScope,
     type InfraCell,
-} from "./budgets.ts";
+} from "./receipt.ts";
 import { landingDiffScope } from "./verify-receipt.ts";
 import {
     SURFACES,
@@ -117,7 +119,7 @@ import {
     type Surface,
     type WalkContext,
 } from "./surfaces.ts";
-import { VIEWPORTS } from "./viewports.ts";
+import { VIEWPORTS, VIEWPORT_IDS } from "./viewports.ts";
 import {
     createLaneLifecycle,
     installSignalTeardown,
@@ -146,7 +148,6 @@ import { runSettleSelfCheck } from "./settle-selfcheck.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..");
-const BUDGETS_PATH = path.join(HERE, "budgets.json");
 const PROBE_PATH = path.join(HERE, "probe.js");
 const AXE_PATH = path.join(REPO_ROOT, "node_modules", "axe-core", "axe.min.js");
 /** Each run writes under `<root>/<runId>/` (issue #3626). */
@@ -174,11 +175,51 @@ function loadAverage(): number {
     return os.loadavg()[0];
 }
 
-/** Printed under the coverage line, outside the region `verify-receipt.ts`
- *  re-renders: the load is what a reader needs to judge an INFRA cell, and it
- *  differs between two runs of one tree without meaning anything. */
+/** Printed in the diagnostic block, which `land` never reads: the load is what
+ *  a reader needs to judge an INFRA cell, and it differs between two runs of
+ *  one tree without meaning anything. */
 function machineLoadLine(start: number, end: number): string {
     return `machine load: start ${start.toFixed(1)}, end ${end.toFixed(1)} (1-minute average, ${os.cpus().length} cpus, retry threshold ${RETRY_POLICY.loadThreshold})`;
+}
+
+/** The run's evaluation against the real surface table, viewport matrix and
+ *  declared-unwalked list. */
+function evaluate(
+    knownIds: readonly string[],
+    walks: readonly SurfaceWalk[],
+    diffScope: DiffScope | null
+): Evaluation {
+    return evaluateRun({
+        knownSurfaceIds: knownIds,
+        walks,
+        definedSurfaceIds: SURFACE_IDS,
+        viewportIds: VIEWPORT_IDS,
+        unwalked: UNWALKED_SURFACES,
+        diffScope,
+    });
+}
+
+/**
+ * Print the receipt — the verdict block, the separator, the diagnostic block
+ * closed by this run's own facts — then the summary. Returns the exit code.
+ */
+function printReceipt(
+    ev: Evaluation,
+    runFacts: readonly string[],
+    passed: string
+): number {
+    log("\n─── check:ui ───────────────────────────────────────────────────");
+    for (const line of verdictBlockLines(ev)) log(line);
+    log(DIAGNOSTIC_SEPARATOR);
+    for (const line of diagnosticLines(ev)) log(line);
+    for (const line of runFacts) log(line);
+    if (ev.failures.length > 0) {
+        log("\n✗ check:ui FAILED");
+        for (const f of ev.failures) log(`  · ${f}`);
+        return 1;
+    }
+    log(`\n✓ check:ui passed${passed}`);
+    return 0;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -356,21 +397,21 @@ async function ensureSignedIn(
 // Measurement
 // ─────────────────────────────────────────────────────────────────────────────
 
-// `ProbeCounts`/`ProbeResult`/`AxeCount`/`metricsOf` live in `budgets.ts`
-// (issue #2658) so the `small: probe.smallN` mapping is unit-testable without
-// a browser — see `metricsOf`'s doc comment there.
+// `ProbeCounts`/`ProbeResult`/`AxeCount`/`readingsOf` live in `floors.ts`
+// (issue #2658) so the probe → Readings mapping is unit-testable without a
+// browser — see `readingsOf`'s doc comment there.
 
 /**
  * THE ONE AXE EXEMPTION, AND IT IS AN ATTRIBUTE, NOT A NUMBER (issue #2593).
  *
- * The hard floor is `axeSerious`/`axeCritical` 0 on every walked surface. One
+ * The Floor is `axeSerious`/`axeCritical` 0 on every walked surface. One
  * surface cannot honour it as written: `/admin/design-system` is the reference
  * page, and part of what it documents is what a FAILING token looks like — the
  * retired `#6f6244` disabled label beside its replacement, the retired
  * danger-as-text hex beside `danger-strong`, the board's raw counter fills
  * whose own Specimen note reads "white text ≤3:1". Deleting those deletes the
- * comparison; carrying a nonzero budget row instead makes the surface's floor a
- * standing lie that a REAL regression could then hide behind.
+ * comparison; a per-surface exception to the count instead makes the surface's
+ * Floor a standing lie that a REAL regression could then hide behind.
  *
  * So the exemption is expressed where the violation is: `data-axe-exempt="<why>"`
  * on the smallest element containing the specimen. It names the exact node, it
@@ -402,7 +443,7 @@ async function runAxe(page: Page): Promise<AxeCount> {
                 violations: r.violations.map((v) => ({
                     id: v.id,
                     impact: v.impact,
-                    // Kept for the operator, not for the budget: a red line
+                    // Kept for the operator, not for the Floor: a red line
                     // that only names a rule id sends the reader back to a
                     // browser to find the node.
                     node: (v.nodes[0] && v.nodes[0].html || "").slice(0, 120),
@@ -430,11 +471,6 @@ async function runAxe(page: Page): Promise<AxeCount> {
 interface Options {
     surfaces: string[] | null;
     headed: boolean;
-    record: boolean;
-    /** `${surface}.${viewport}.${key}` tokens naming exactly which
-     *  regression/tightening this run is allowed to record (issue #2673) —
-     *  see `recordBudgets`. Empty unless `--accept=` is passed. */
-    accept: Set<string>;
     /** Skip the lane account's teardown and print its credentials. */
     keepUser: boolean;
     /** Print the diff's scope and exit, before any browser or deployment. */
@@ -450,16 +486,15 @@ function parseArgs(argv: string[]): Options {
     const opts: Options = {
         surfaces: null,
         headed: false,
-        record: false,
-        accept: new Set(),
         keepUser: false,
         scopeOnly: false,
         all: false,
         base: ORIGIN_BASE,
     };
     for (const arg of argv) {
+        // `--record` and `--accept=` died with the budget file (ADR 0132): a
+        // Floor has no number to record, so they fall through to `unknown flag`.
         if (arg === "--headed") opts.headed = true;
-        else if (arg === "--record") opts.record = true;
         else if (arg === "--keep-user") opts.keepUser = true;
         else if (arg === "--scope-only") opts.scopeOnly = true;
         else if (arg === "--all") opts.all = true;
@@ -471,101 +506,11 @@ function parseArgs(argv: string[]): Options {
                 .split(",")
                 .map((s) => s.trim())
                 .filter(Boolean);
-        } else if (arg.startsWith("--accept=")) {
-            for (const token of arg
-                .slice("--accept=".length)
-                .split(",")
-                .map((s) => s.trim())
-                .filter(Boolean)) {
-                opts.accept.add(token);
-            }
         } else if (arg.startsWith("--")) {
             throw new FatalError(`unknown flag ${arg}`);
         }
     }
     return opts;
-}
-
-// The actual load moved to `budgets.ts` (issue #2760 review, finding 1) so
-// `verify-receipt.ts` can read the same file without importing this module —
-// which has no `import.meta.main` guard and boots the whole CLI (Vite,
-// Playwright) on import. Wrapped here only to keep this CLI's existing
-// `FatalError` presentation (a friendly one-liner, not a raw stack trace).
-function loadBudgets(): BudgetFile {
-    try {
-        return loadBudgetsFromDisk(BUDGETS_PATH);
-    } catch (err) {
-        throw new FatalError((err as Error).message);
-    }
-}
-
-function fmtChange(c: RecordChange): string {
-    const loc = `${c.surface.padEnd(20)} ${c.viewport.padEnd(12)} ${c.key}`;
-    if (c.kind === "new") return `NEW         ${loc}: (absent) → ${c.measured}`;
-    const arrow = `${c.prior} → ${c.measured}`;
-    if (c.accepted) {
-        return `${c.kind.toUpperCase().padEnd(11)} ${loc}: ${arrow}  [recorded — accepted]`;
-    }
-    const token = `${c.surface}.${c.viewport}.${c.key}`;
-    return `${c.kind.toUpperCase().padEnd(11)} ${loc}: ${arrow}  [NOT recorded — pass --accept=${token} to accept]`;
-}
-
-/**
- * `--record`: fold this run's measurements back into the budget file.
- * Mutates `budgets` in place (including when nothing is written to disk) so
- * the `evaluateRun` call right after this one sees the SAME ceilings a
- * written file would have — a refused regression therefore still fails the
- * run, exactly as it should: the point of refusing is that the gate keeps
- * catching it, not that `--record` quietly no-ops on it.
- *
- * Three cases, per surface × viewport × `BudgetKey` (issue #2673 — see
- * `planRecord`'s doc comment for the full rationale):
- *   - absent from the prior row → always recorded (the flag's actual job,
- *     #2658's `small` rollout)
- *   - measured worse than the prior ceiling (regression) → refused unless
- *     its exact token is named in `--accept=`
- *   - measured better than the prior ceiling (tightening) → refused unless
- *     named in `--accept=` — it must never ride along in a run recorded for
- *     an unrelated reason (PR #2660)
- *
- * Every difference this run observed is printed, recorded or not — "review
- * before committing" is worthless against a diff nobody named. A `knownDebt`
- * note whose ceiling moved is dropped, never carried forward stale. The file
- * is written, and `recordedOn` bumped, ONLY when something actually changed.
- */
-function recordBudgets(
-    budgets: BudgetFile,
-    walks: SurfaceWalk[],
-    accept: ReadonlySet<string>
-): void {
-    const plan = planRecord(
-        budgets,
-        walks,
-        accept,
-        (id) => SURFACES.find((s) => s.id === id)?.label
-    );
-
-    budgets.surfaces = plan.surfaces;
-
-    if (plan.changes.length > 0) {
-        log("\n─── check:ui --record ──────────────────────────────────────");
-        for (const c of plan.changes) log(`  ${fmtChange(c)}`);
-    }
-    if (plan.droppedKnownDebt.length > 0) {
-        log("\ndropped stale knownDebt (the ceiling it describes moved):");
-        for (const d of plan.droppedKnownDebt) log(`  · ${d}`);
-    }
-
-    if (!plan.changed) {
-        log("\nno changes to record — budgets.json left untouched");
-        return;
-    }
-
-    budgets.recordedOn = new Date().toISOString().slice(0, 10);
-    fs.writeFileSync(BUDGETS_PATH, `${JSON.stringify(budgets, null, 4)}\n`);
-    log(
-        `\nwrote measured values to ${path.relative(REPO_ROOT, BUDGETS_PATH)} — review before committing`
-    );
 }
 
 function git(args: string[]): string {
@@ -620,7 +565,6 @@ async function main(): Promise<number> {
     const scope = computeRunScope(opts);
     log(renderUiScope(scope, opts.base));
     if (opts.scopeOnly) return 0;
-    const budgets = loadBudgets();
 
     // A run the diff scoped walks exactly its scope and prints SCOPED; a
     // hand-picked `--surface=` subset never carries a diff scope, so it stays
@@ -640,24 +584,17 @@ async function main(): Promise<number> {
         );
     }
     const knownIds = selected.map((s) => s.id);
+    const unwalkedIds = new Set(UNWALKED_SURFACES.map((u) => u.surface));
+    const walkable = selected.filter((s) => !unwalkedIds.has(s.id));
 
-    if (selected.length === 0) {
-        // An empty scope owes no browser time: the receipt says so, and the
-        // budget file's stale-entry guard still runs.
-        const ev = evaluateRun(budgets, [], [], SURFACE_IDS, diffScope);
-        log(
-            "\n─── check:ui ───────────────────────────────────────────────────"
+    if (walkable.length === 0) {
+        // Nothing to walk — an empty scope, or one made only of declared
+        // unwalked surfaces — owes no browser time: the receipt says so.
+        return printReceipt(
+            evaluate(knownIds, [], diffScope),
+            [machineLoadLine(loadAtStart, loadAverage())],
+            " — nothing to walk"
         );
-        log(receiptKindLine(ev));
-        log(coverageLine(ev));
-        log(machineLoadLine(loadAtStart, loadAverage()));
-        if (ev.failures.length > 0) {
-            log("\n✗ check:ui FAILED");
-            for (const f of ev.failures) log(`  · ${f}`);
-            return 1;
-        }
-        log("\n✓ check:ui passed — nothing to walk");
-        return 0;
     }
 
     const env = { ...readEnvLocal(), ...process.env } as Record<string, string>;
@@ -763,10 +700,9 @@ async function main(): Promise<number> {
                 const infra = new Map<string, InfraCell[]>();
                 const consoleErrors: string[] = [];
                 /** Every walk on which the SHELL RETURN BAND was mounted, and how many
-                 *  controls `probe.js` culled for it (issue #3337). Reported after the
-                 *  coverage line — deliberately OUTSIDE the region `verify-receipt.ts`
-                 *  re-renders (banner..rows..coverage), so a new line here can never
-                 *  invalidate a pasted receipt. */
+                 *  controls `probe.js` culled for it (issue #3337). Reported in the
+                 *  diagnostic block, which `land` never reads, so a new line here can
+                 *  never invalidate a pasted receipt. */
                 const bandWalks: { where: string; excluded: number }[] = [];
 
                 for (const viewport of VIEWPORTS) {
@@ -939,11 +875,9 @@ async function main(): Promise<number> {
                      * Extracted so the `preAuth` surfaces can run through exactly the
                      * same measurement before `ensureSignedIn` — a second copy of this
                      * block is how one of the two groups would quietly stop being
-                     * probed, screenshotted or budget-checked.
+                     * probed, screenshotted or held to the Floors.
                      */
                     const measure = async (surface: Surface): Promise<void> => {
-                        const budget = budgets.surfaces[surface.id];
-                        if (budget?.status === "unwalked") return;
                         if (unreachable.has(surface.id)) return;
 
                         let walked = await walkToSettled(surface);
@@ -992,7 +926,7 @@ async function main(): Promise<number> {
 
                         if (walked && measured) {
                             const { probe, axe } = measured;
-                            const metrics = metricsOf(probe, axe);
+                            const readings = readingsOf(probe, axe);
                             if (probe.shellBand.mounted) {
                                 bandWalks.push({
                                     where: `${surface.id} @ ${viewport.id}`,
@@ -1052,9 +986,7 @@ async function main(): Promise<number> {
                             const list = perSurface.get(surface.id) ?? [];
                             list.push({
                                 viewport: viewport.id,
-                                metrics,
-                                screenshot: path.relative(REPO_ROOT, shot),
-                                detail,
+                                readings,
                             });
                             perSurface.set(surface.id, list);
                         }
@@ -1086,7 +1018,7 @@ async function main(): Promise<number> {
                     // Signed-out surfaces FIRST: `<AuthGate>` makes them unreachable
                     // once a session exists, and `ensureSignedIn` navigates back to
                     // the app root itself, so this costs the signed-in walks nothing.
-                    for (const surface of selected.filter((s) => s.preAuth)) {
+                    for (const surface of walkable.filter((s) => s.preAuth)) {
                         await measure(surface);
                     }
 
@@ -1100,7 +1032,7 @@ async function main(): Promise<number> {
                         `ui-gate: ${viewport.id} (${viewport.label}) — signed in`
                     );
 
-                    for (const surface of selected.filter((s) => !s.preAuth)) {
+                    for (const surface of walkable.filter((s) => !s.preAuth)) {
                         await measure(surface);
                     }
 
@@ -1126,65 +1058,30 @@ async function main(): Promise<number> {
                     }
                 }
 
-                if (opts.record) recordBudgets(budgets, walks, opts.accept);
-
-                const ev = evaluateRun(
-                    budgets,
-                    knownIds,
-                    walks,
-                    SURFACE_IDS,
-                    diffScope
-                );
-
-                log(
-                    "\n─── check:ui ───────────────────────────────────────────────────"
-                );
-                log(receiptKindLine(ev));
-                for (const row of ev.rows) {
-                    log(formatResultRow(row));
-                }
-                log(coverageLine(ev));
-                log(machineLoadLine(loadAtStart, loadAverage()));
                 // The shell return band's attribution (issue #3337). `probe.js` culls
                 // it out of every control count because its presence is a function of
                 // the gate ACCOUNT's state — a game or Limited event in flight — and
                 // not of the tree; the point of the line is that the exclusion is
                 // never silent, so it prints on both branches.
-                if (bandWalks.length === 0) {
-                    log(
-                        "shell return band: absent on every walk — no controls excluded"
-                    );
-                } else {
-                    const excluded = bandWalks.reduce(
-                        (n, w) => n + w.excluded,
-                        0
-                    );
-                    log(
-                        `shell return band: MOUNTED on ${bandWalks.length} walk(s) — ${excluded} control(s) excluded from those counts (the run's lane account has a game or event in flight; issue #3337)`
-                    );
-                }
-                log(
-                    `console errors: ${consoleErrors.length === 0 ? "none" : consoleErrors.length}`
+                const excluded = bandWalks.reduce((n, w) => n + w.excluded, 0);
+                const bandLine =
+                    bandWalks.length === 0
+                        ? "shell return band: absent on every walk — no controls excluded"
+                        : `shell return band: MOUNTED on ${bandWalks.length} walk(s) — ${excluded} control(s) excluded from those counts (the run's lane account has a game or event in flight; issue #3337)`;
+                return printReceipt(
+                    evaluate(knownIds, walks, diffScope),
+                    [
+                        machineLoadLine(loadAtStart, loadAverage()),
+                        bandLine,
+                        `console errors: ${consoleErrors.length === 0 ? "none" : consoleErrors.length}`,
+                        ...consoleErrors
+                            .slice(0, 10)
+                            .map((line) => `  ${line}`),
+                        `screenshots: ${path.relative(REPO_ROOT, shotDir)}/`,
+                        `wall time: ${Math.round((Date.now() - startedAt) / 1000)}s`,
+                    ],
+                    ""
                 );
-                for (const line of consoleErrors.slice(0, 10)) log(`  ${line}`);
-                if (ev.knownDebt.length > 0) {
-                    log(
-                        "\nknown debt carried by the budgets (a later slice owns these):"
-                    );
-                    for (const d of ev.knownDebt) log(`  · ${d}`);
-                }
-                log(`screenshots: ${path.relative(REPO_ROOT, shotDir)}/`);
-                log(
-                    `wall time: ${Math.round((Date.now() - startedAt) / 1000)}s`
-                );
-
-                if (ev.failures.length > 0) {
-                    log("\n✗ check:ui FAILED");
-                    for (const f of ev.failures) log(`  · ${f}`);
-                    return 1;
-                }
-                log("\n✓ check:ui passed");
-                return 0;
             } finally {
                 // Closed BEFORE the account is torn down, so no page is still
                 // subscribed to rows the teardown is deleting.

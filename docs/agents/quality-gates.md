@@ -396,9 +396,9 @@ otherwise it is a report nobody blocks on.
 
 `bun run check:ui` (issue #2580, base slice #2512) is the only check in this
 repo that looks at pixels. It starts its own Vite on `127.0.0.1`, signs in
-with the dev account, walks the runbook surfaces at the five ADR 0101
-viewports, runs the occlusion probe plus axe-core, and compares the result
-against `scripts/ui-gate/budgets.json`.
+as the run's own throwaway account, walks the runbook surfaces at the five ADR
+0101 viewports, runs the occlusion probe plus axe-core, and holds nine Floors
+at zero (`scripts/ui-gate/floors.ts`, ADR 0132).
 
 **It is deliberately NOT in `check:all` or `check:pr`.** Three reasons, in
 order of weight:
@@ -419,22 +419,36 @@ reach the DOM" line is not done. What changed is that the receipt is now
 mechanical, reproducible, and available to a headless agent, which the manual
 CDP procedure never was.
 
-**Coverage is asserted, not assumed.** The lane exits non-zero for two
-different reasons and never conflates them: `FAIL` (a number over its
-budgeted ceiling) and `UNWALKED` (it could not measure the surface at all —
-no budget entry, an absent debug-scenario row, a route blocked by an active
-game). The pure comparison lives in `scripts/ui-gate/budgets.ts` and is unit
-tested in `scripts/__tests__/ui-gate-budgets.test.ts`, because "a screen we
-could not reach reported as green" is precisely the failure this lane exists
-to make impossible. A surface may be skipped only by declaring it
-`{"status": "unwalked", "reason": …}` in the budget file — which still prints,
-and still shows in the coverage line.
+**An invariant gate, not a budget (ADR 0132).** Nine **Floors** —
+`cardsZero`, `cardsStranded`, `cardsSquare`, `cardsSoft`, `ctrlsZero`,
+`ctrlsStranded`, `axeSerious`, `axeCritical`, `hOverflow` — are constants in
+the lane, held at zero on every walked surface and viewport with no
+per-surface exception. Four **Shape Readings** — `cardsOcc`, `ctrlsOcc`,
+`small`, `starved` — describe the screen as designed, so they are printed and
+compared against nothing. There is no number to record: the budget file,
+`--record` and `--accept=` were retired in issue #3648, after a 27-day census
+found over 20 false reds and churn incidents on them and no regression they
+stopped (ADR 0132 § Context).
 
-**The budget file is the contract later slices tighten.** Ceilings start at
-what each surface measures TODAY. Where today's number violates a hard floor
-(zero occluded card tiles, zero stranded controls, no axe serious/critical)
-the entry carries a `knownDebt` note naming the defect, printed under every
-run — never a silently loosened floor.
+**Coverage is asserted, not assumed.** The lane exits non-zero for three
+different reasons and never conflates them: `FAIL` (a Floor above zero),
+`INFRA` (the machine cut the walk short, issue #3644) and `UNWALKED` (it could
+not measure the surface at all — an absent debug-scenario row, a route blocked
+by an active game). The pure evaluation lives in `scripts/ui-gate/receipt.ts`
+and is unit tested in `scripts/__tests__/ui-gate-floors.test.ts`, because "a
+screen we could not reach reported as green" is precisely the failure this
+lane exists to make impossible. A surface may be skipped only by declaring it
+in `UNWALKED_SURFACES` (`floors.ts`) with a reason and an open issue — it is
+named on the coverage line of every receipt whose scope contains it.
+
+**The receipt has two blocks.** The **verdict block** — banner, one
+`PASS|FAIL|INFRA|UNWALKED` line per surface × viewport, coverage line — is a
+function of the tree and the scope, so `land` re-derives it
+(`scripts/ui-gate/verify-receipt.ts`: the all-`PASS` block of the diff's scope,
+rendered by the real evaluator) and refuses on any mismatch or any line that is
+not `PASS`. The **diagnostic block**, after a fixed separator — shape readings,
+infra signatures with their load, console errors, wall time — differs between
+two runs of one tree and is never read.
 
 **A run walks only the surfaces its diff reaches — the one diff-derived lane
 content (issue #3628, ADR 0131).** ADR 0104 §2 forbids diff-derived lane

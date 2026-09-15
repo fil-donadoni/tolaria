@@ -113,7 +113,7 @@ describe("computeUiScope — full (fail-closed)", () => {
         ["index.html", "the HTML document"],
         ["public/img/logo.svg", "a public asset"],
         ["scripts/ui-gate/surfaces.ts", "the check:ui lane itself"],
-        ["scripts/ui-gate/budgets.json", "the check:ui lane itself"],
+        ["scripts/ui-gate/floors.ts", "the check:ui lane itself"],
         ["vite.config.ts", "the build configuration's closure"],
         ["scripts/lib/build-define.ts", "the build configuration's closure"],
     ])("%s selects full (%s)", (changed, reason) => {

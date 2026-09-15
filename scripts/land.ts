@@ -116,10 +116,7 @@ export function computeSkinReceiptInvalid(
     prBody: string,
     expected: ExpectedScope | null = null
 ): boolean {
-    return (
-        lane === "skin" &&
-        !verifyReceiptText(prBody, undefined, undefined, undefined, expected).ok
-    );
+    return lane === "skin" && !verifyReceiptText(prBody, expected).ok;
 }
 
 /**
@@ -380,7 +377,8 @@ export function refusalReason(facts: LandFacts): string | null {
     if (facts.skinReceiptInvalid) {
         return (
             "landing diff is `skin` and its pasted check:ui receipt failed verification " +
-            "— re-run `bun run verify:ui-receipt <PR#>` for the mismatch, and paste a real full-lane receipt"
+            "— every verdict line must be PASS and the verdict block must match the one re-derived from the diff's scope; " +
+            "`bun run verify:ui-receipt <PR#>` names the problem"
         );
     }
     if (facts.scenarioRefusal) {

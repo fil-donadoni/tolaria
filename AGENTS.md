@@ -177,7 +177,7 @@ spawns leaking to the inherited tier over 30 days):
 ## Browser verification
 
 **Mandatory for any diff that can change what a user sees**, at five viewports
-with a measured receipt (happy-dom has no layout): **`bun run check:ui`**, its
+with Floors at zero (happy-dom has no layout): **`bun run check:ui`**, its
 output pasted byte-exact, `bun run land` enforcing it — `SCOPED` to the diff's
 surfaces (ADR 0131). Engine/Convex/script work owes nothing here. Rule: `.claude/rules/chrome-debug.md` (resident);
 procedure and click sequences: `docs/guides/browser-verification.md`,
@@ -457,9 +457,9 @@ say so in one line and move on.
 
 **Run `bun run check:ui`** (#2580). It owns its own Vite + headless Chrome,
 signs in, walks the runbook surfaces at all five viewports (ADR 0101), probes
-and runs axe. **Its output IS the receipt — paste it byte-exact, banner +
-coverage line included** (#2760); `bun run land` re-derives them and refuses a
-`skin`-lane PR that does not match. A no-flag run walks the diff's surfaces and
+and runs axe; nine Floors at zero (ADR 0132). **Its output IS the receipt —
+paste it byte-exact** (#2760); `bun run land` re-derives its verdict block and
+refuses a mismatch or a non-`PASS` line. A no-flag run walks the diff's surfaces and
 prints `SCOPED` (ADR 0131), re-derived by `land`; `RECEIPT` covers any diff;
 never `DIAGNOSTIC`; never reflow a row.
 

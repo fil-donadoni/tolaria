@@ -1,44 +1,37 @@
 // An Infra Verdict on the receipt (issue #3644): `evaluateRun` renders a cell
-// the machine cut short as an INFRA row — never PASS, never FAIL, never a
-// whole-surface UNWALKED — and the PR-receipt verifier parses that row and
-// refuses it, because an unproven cell must never land as green.
+// the machine cut short as an INFRA line — never PASS, never FAIL, never a
+// whole-surface UNWALKED — carrying only its signature in the verdict block and
+// its load and reason in the diagnostic block; the PR-receipt verifier parses
+// that line and refuses it, because an unproven cell must never land as green.
 import { describe, expect, it } from "vitest";
 import {
-    BUDGET_KEYS,
-    coverageLine,
+    DIAGNOSTIC_SEPARATOR,
+    diagnosticLines,
     evaluateRun,
     formatResultRow,
-    receiptKindLine,
-    type BudgetFile,
-    type Ceilings,
+    verdictBlockLines,
+    zeroReadings,
     type Evaluation,
     type SurfaceWalk,
-} from "../ui-gate/budgets.ts";
+} from "../ui-gate/receipt.ts";
 import {
     parseResultRowLine,
     verifyReceiptText,
+    type ReceiptVocabulary,
 } from "../ui-gate/verify-receipt.ts";
 
-const ZERO = Object.fromEntries(BUDGET_KEYS.map((k) => [k, 0])) as Ceilings;
 const SURFACES = ["lobby"];
 const VIEWPORTS = ["390x844x3", "1440x900x2"];
-
-const BUDGETS: BudgetFile = {
-    version: 1,
-    recordedOn: "2026-09-15",
-    surfaces: {
-        lobby: {
-            label: "Lobby",
-            status: "budgeted",
-            viewports: { "390x844x3": ZERO, "1440x900x2": ZERO },
-        },
-    },
+const VOCAB: ReceiptVocabulary = {
+    surfaceIds: SURFACES,
+    viewportIds: VIEWPORTS,
+    unwalked: [],
 };
 
 const INFRA_WALK: SurfaceWalk = {
     surface: "lobby",
     status: "measured",
-    measurements: [{ viewport: "1440x900x2", metrics: ZERO }],
+    measurements: [{ viewport: "1440x900x2", readings: zeroReadings() }],
     infra: [
         {
             viewport: "390x844x3",
@@ -52,30 +45,49 @@ const INFRA_WALK: SurfaceWalk = {
 const CLEAN_WALK: SurfaceWalk = {
     surface: "lobby",
     status: "measured",
-    measurements: VIEWPORTS.map((viewport) => ({ viewport, metrics: ZERO })),
+    measurements: VIEWPORTS.map((viewport) => ({
+        viewport,
+        readings: zeroReadings(),
+    })),
 };
+
+function evaluate(walk: SurfaceWalk): Evaluation {
+    return evaluateRun({
+        knownSurfaceIds: SURFACES,
+        walks: [walk],
+        definedSurfaceIds: SURFACES,
+        viewportIds: VIEWPORTS,
+        unwalked: [],
+    });
+}
 
 function paste(ev: Evaluation): string {
     return [
         "## check:ui receipt",
         "```",
-        receiptKindLine(ev),
-        ...ev.rows.map(formatResultRow),
-        coverageLine(ev),
+        ...verdictBlockLines(ev),
+        DIAGNOSTIC_SEPARATOR,
+        ...diagnosticLines(ev),
         "```",
     ].join("\n");
 }
 
 describe("evaluateRun — an Infra Verdict cell", () => {
-    const ev = evaluateRun(BUDGETS, SURFACES, [INFRA_WALK], SURFACES);
+    const ev = evaluate(INFRA_WALK);
 
-    it("renders an INFRA row naming the signature, the load and the reason", () => {
+    it("renders an INFRA verdict line naming only the signature", () => {
         expect(ev.rows).toContainEqual({
             surface: "lobby",
             viewport: "390x844x3",
             verdict: "INFRA",
-            detail: "function-timeout, load 23.4 — the lobby offered neither Resume nor a selectable Deck Shelf tile",
+            detail: "function-timeout",
         });
+    });
+
+    it("carries the load and the reason into the diagnostic block", () => {
+        expect(diagnosticLines(ev)).toContain(
+            "infra    lobby                390x844x3    function-timeout, load 23.4 — the lobby offered neither Resume nor a selectable Deck Shelf tile"
+        );
     });
 
     it("still measures the viewports the machine did not cut short", () => {
@@ -92,14 +104,11 @@ describe("evaluateRun — an Infra Verdict cell", () => {
     });
 });
 
-describe("verify-receipt — an INFRA row is parsed, then refused", () => {
-    it("round-trips an INFRA row through formatResultRow", () => {
-        const row = evaluateRun(
-            BUDGETS,
-            SURFACES,
-            [INFRA_WALK],
-            SURFACES
-        ).rows.find((r) => r.verdict === "INFRA")!;
+describe("verify-receipt — an INFRA line is parsed, then refused", () => {
+    it("round-trips an INFRA line through formatResultRow", () => {
+        const row = evaluate(INFRA_WALK).rows.find(
+            (r) => r.verdict === "INFRA"
+        )!;
         expect(
             parseResultRowLine(formatResultRow(row), SURFACES, VIEWPORTS)
         ).toEqual(row);
@@ -107,25 +116,19 @@ describe("verify-receipt — an INFRA row is parsed, then refused", () => {
 
     it("refuses a faithful receipt that carries an INFRA cell", () => {
         const result = verifyReceiptText(
-            paste(evaluateRun(BUDGETS, SURFACES, [INFRA_WALK], SURFACES)),
-            SURFACES,
-            VIEWPORTS,
-            BUDGETS
+            paste(evaluate(INFRA_WALK)),
+            null,
+            VOCAB
         );
         expect(result.ok).toBe(false);
-        expect(result.problems).toEqual([
-            "the receipt carries 1 INFRA cell(s) (lobby @ 390x844x3) — the machine cut those walks short, so they are unproven: re-run check:ui once the load has dropped",
-        ]);
+        expect(result.problems[0]).toBe(
+            "the receipt carries 1 INFRA line(s) (lobby @ 390x844x3: function-timeout) — the machine cut those walks short, so they are unproven: re-run check:ui once the load has dropped"
+        );
     });
 
     it("accepts the same receipt once every cell was measured", () => {
         expect(
-            verifyReceiptText(
-                paste(evaluateRun(BUDGETS, SURFACES, [CLEAN_WALK], SURFACES)),
-                SURFACES,
-                VIEWPORTS,
-                BUDGETS
-            )
+            verifyReceiptText(paste(evaluate(CLEAN_WALK)), null, VOCAB)
         ).toEqual({ ok: true, problems: [] });
     });
 });

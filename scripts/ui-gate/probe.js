@@ -256,9 +256,9 @@ window.__tolariaProbe = () => {
     // ceiling with no note naming it, which is the outcome this cull exists to
     // make impossible.
     //
-    // Culled rather than budgeted, on `budgets.json`'s own axe-exemption
-    // precedent: "an exemption is a named node in a reviewable diff; a nonzero
-    // budget row is a number nobody can attribute". The band is that named
+    // Culled rather than counted, on the axe exemption's precedent (issue
+    // #2593): "an exemption is a named node in a reviewable diff; a nonzero
+    // count is a number nobody can attribute". The band is that named
     // node, `scripts/__tests__/ui-gate-probe.test.ts` pins the selector, and
     // every run PRINTS whether it was mounted and how many controls it took
     // out, so the exclusion is never silent. The band's own tap-target debt is

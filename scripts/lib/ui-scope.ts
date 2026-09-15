@@ -43,7 +43,7 @@ export const SHELL_ENTRY = "src/main.tsx";
 export const ROUTER_MODULE = "src/router.tsx";
 /** The build configuration; its closure shapes every route's bundle. */
 export const BUILD_CONFIG = "vite.config.ts";
-/** The lane's own walks, probe and budgets. */
+/** The lane's own walks, probe and floors. */
 const UI_GATE_DIR = "scripts/ui-gate/";
 
 /** A surface as the scoper sees it: an id and its declared route entry modules. */
@@ -115,7 +115,7 @@ export function computeUiScope({
         if (path.startsWith(UI_GATE_DIR)) {
             return {
                 kind: "full",
-                reason: `${path} is the check:ui lane itself (walks, probe, budgets)`,
+                reason: `${path} is the check:ui lane itself (walks, probe, floors)`,
             };
         }
         if (build.has(path)) {
