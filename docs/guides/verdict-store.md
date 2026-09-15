@@ -126,6 +126,37 @@ drain answers `skipped` and the rows stay fat, marked `deploymentKind: local`.
 every row left pending, with the reason. Both run on the deployment holding the
 write [key](#g-key); `drainNow` throws if it holds none.
 
+## Contested positions and their resolutions
+
+Two judgements about one position with different answers keep each other out
+of the Verdict Lock until an admin decides (issue #3582, ADR 0128 §6). The
+decision is a [resolution](#g-resolution), and it is resolved at
+`/admin/verdicts`:
+
+1. The page lists every contested position and every resolved one. On a
+   deployment holding the write [key](#g-key) it reads the whole
+   [bucket](#g-bucket) plus the rows its [outbox](#g-outbox) has not stored
+   yet; on a local backend it reads the [outbox](#g-outbox) alone and says so.
+2. Opening a position rebuilds the board from its spec with the deciding
+   seat's hand, lists the candidates, and shows the answers side by side with
+   everyone who gave each.
+3. **Record resolution** needs a choice — one answer is right, or none is —
+   and a reason for every answer not accepted. It is refused if the position
+   gained an answer since the page loaded: reload and decide again.
+4. The [resolution](#g-resolution) is written to the `verdictResolutions`
+   table and uploaded by the same drain as the verdicts, to
+   `resolutions/<positionKey>/<resolutionId>`, then read back before the row
+   is marked stored.
+
+Nothing is deleted. The rejected verdict and its
+[attestation](#g-attestation) stay in the [bucket](#g-bucket); a later answer
+at the same position reopens it, and changing your mind is a newer
+[resolution](#g-resolution), never an edit.
+
+The same page opens any single verdict by id to judge it cold. That judgement
+goes through `verdicts:submit` like a quiz answer: agreeing attests the
+verdict, disagreeing contests the position.
+
 ## Development machine
 
 Each machine gets its own reader [key](#g-key), stored outside every checkout
@@ -243,6 +274,13 @@ One run of `bun run verdicts:promote`: the verdicts in the
 [bucket](#g-bucket) that load, rebuild, are attested and are not contested
 enter the Verdict Lock, their [pack](#g-pack) is stored, and the committed
 weights are refitted — one change, reviewed as its delta.
+
+### <a id="g-resolution"></a>Resolution
+
+An admin's decision about a contested position, at
+`resolutions/<positionKey>/<resolutionId>`: the accepted verdict (or none), a
+reason for each rejected one, and who decided. Named by the decision itself,
+so it is immutable like every other object in the [bucket](#g-bucket).
 
 ### <a id="g-reader"></a>Reader account
 

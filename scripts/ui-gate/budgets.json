@@ -1646,6 +1646,87 @@
                     "axeCritical": 0
                 }
             }
+        },
+        "admin-verdicts": {
+            "label": "Verdict review (/admin/verdicts → the lane's contested position)",
+            "status": "budgeted",
+            "viewports": {
+                "1440x900x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "cardsSquare": 0,
+                    "cardsSoft": 0,
+                    "cardsSoftUnknown": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "small": 10,
+                    "axeSerious": 0,
+                    "axeCritical": 0
+                },
+                "390x844x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "cardsSquare": 0,
+                    "cardsSoft": 0,
+                    "cardsSoftUnknown": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "small": 3,
+                    "axeSerious": 0,
+                    "axeCritical": 0
+                },
+                "844x390x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "cardsSquare": 0,
+                    "cardsSoft": 0,
+                    "cardsSoftUnknown": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "small": 7,
+                    "axeSerious": 0,
+                    "axeCritical": 0
+                },
+                "820x1180x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "cardsSquare": 0,
+                    "cardsSoft": 0,
+                    "cardsSoftUnknown": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 1,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "small": 12,
+                    "axeSerious": 0,
+                    "axeCritical": 0
+                },
+                "1180x820x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "cardsSquare": 0,
+                    "cardsSoft": 0,
+                    "cardsSoftUnknown": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 0,
+                    "ctrlsStranded": 0,
+                    "starved": 1,
+                    "small": 8,
+                    "axeSerious": 0,
+                    "axeCritical": 0
+                }
+            }
         }
     }
 }
