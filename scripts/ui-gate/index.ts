@@ -946,11 +946,52 @@ async function main(): Promise<number> {
                         if (budget?.status === "unwalked") return;
                         if (unreachable.has(surface.id)) return;
 
-                        const walked = await walkToSettled(surface);
+                        let walked = await walkToSettled(surface);
 
-                        if (walked) {
-                            const probe = await runProbe(page);
-                            const axe = await runAxe(page);
+                        // The page can still navigate between the settle and
+                        // the last evaluate — the document the probe measured
+                        // is then gone before axe reads it, and the error used
+                        // to take the whole run down (measured on this branch,
+                        // `game-debug-sheet` @ 1440x900x2). Re-settle and
+                        // measure again; a page that will not hold still for
+                        // a measurement is a surface the lane could not
+                        // measure, said as such.
+                        let measured: {
+                            probe: ProbeResult;
+                            axe: AxeCount;
+                        } | null = null;
+                        for (let tries = 1; walked && !measured; tries++) {
+                            try {
+                                const probe = await runProbe(page);
+                                const axe = await runAxe(page);
+                                measured = { probe, axe };
+                            } catch (err) {
+                                const first = (err as Error).message.split(
+                                    "\n"
+                                )[0];
+                                const navigated =
+                                    /Execution context was destroyed|navigat/i.test(
+                                        first
+                                    );
+                                if (!navigated || tries >= 3) {
+                                    const reason = navigated
+                                        ? `the page navigated during the measurement ${tries} time(s) in a row: ${first}`
+                                        : `the measurement threw: ${first}`;
+                                    unreachable.set(surface.id, reason);
+                                    log(
+                                        `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} UNWALKED — ${reason}`
+                                    );
+                                    walked = false;
+                                    break;
+                                }
+                                await waitForSettledScreen(page, {
+                                    targets: surface.settleTargets,
+                                }).catch(() => {});
+                            }
+                        }
+
+                        if (walked && measured) {
+                            const { probe, axe } = measured;
                             const metrics = metricsOf(probe, axe);
                             if (probe.shellBand.mounted) {
                                 bandWalks.push({

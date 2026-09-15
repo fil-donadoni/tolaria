@@ -281,7 +281,9 @@ export function sampleSource(targets: readonly string[]): string {
         const net = window.__tolariaNet;
         const fonts = document.fonts && document.fonts.status === "loading" ? 1 : 0;
         const inflight = (net ? net.inflight() : 0) + fonts;
-        const parts = [Math.round(window.scrollX), Math.round(window.scrollY)];
+        // The URL first: a client-side navigation still resolving is a
+        // screen still moving, even before any box has changed.
+        const parts = [location.href, Math.round(window.scrollX), Math.round(window.scrollY)];
         for (const selector of ["main", "[role=dialog]", ...targets]) {
             const els = document.querySelectorAll(selector);
             parts.push(selector + "#" + els.length);
