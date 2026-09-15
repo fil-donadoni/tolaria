@@ -1280,6 +1280,35 @@ export default defineSchema({
         .index("by_createdAt", ["createdAt"])
         .index("by_storedAt", ["storedAt"]),
 
+    // The resolution outbox (issue #3582, ADR 0128 §6). An admin's decision
+    // about a Contested Position — which verdict is right, and the reason each
+    // other one is not — written here by `verdictResolutions.record`, uploaded
+    // to the Verdict Store by the same drain as the verdicts, and marked
+    // `storedAt` once read back. Small, so never slimmed; a local backend never
+    // drains, and the review surface reads its rows from here.
+    verdictResolutions: defineTable({
+        positionKey: v.string(),
+        // `v1-<sha256>` over the decision (`gre/ai/verdicts/resolution.ts`).
+        resolutionId: v.string(),
+        // `null`: none of the decided verdicts is right.
+        acceptedVerdictId: v.union(v.string(), v.null()),
+        rejected: v.array(
+            v.object({ verdictId: v.string(), reason: v.string() })
+        ),
+        // Stamped from `ctx.auth`, never from the client.
+        authorId: v.id("users"),
+        // The resolver's nickname at the time, for the surface.
+        author: v.string(),
+        // `${deployment}:${userId}` — the store object's author.
+        resolverAuthor: v.string(),
+        createdAt: v.number(),
+        note: v.optional(v.string()),
+        deployment: v.string(),
+        deploymentKind: v.union(v.literal("cloud"), v.literal("local")),
+        // When the drain confirmed the object by re-reading it.
+        storedAt: v.optional(v.number()),
+    }).index("by_storedAt", ["storedAt"]),
+
     // Per-user Settings (issue #2595, PRD #2405 slice 16/16, ADR 0101). The
     // v3 tokens (density/motion) and the phase-stop store were device-local
     // (`localStorage` / CSS attribute default) until this table; unlike the

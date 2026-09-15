@@ -219,6 +219,27 @@ describe("verdicts.submit — the outbox stamps (issue #3580)", () => {
     });
 });
 
+describe("verdicts.submit — a cold judgement keeps its position (issue #3582)", () => {
+    it("stores the decklists the search knew, so the row keys to the verdict it judges", async () => {
+        const deckKnowledge = [{ seat: "opp" as const, cards: ["Shock"] }];
+        const stub = makeMutationCtx("u-tester", ALL_USERS);
+        const id = await runMutation<unknown, Id<"verdicts">>(
+            submit,
+            stub.ctx,
+            { ...ARGS, deckKnowledge }
+        );
+        const stored = stub.doc(id);
+        expect(stored.deckKnowledge).toEqual(deckKnowledge);
+        const without = makeMutationCtx("u-tester", ALL_USERS);
+        const plainId = await runMutation<unknown, Id<"verdicts">>(
+            submit,
+            without.ctx,
+            ARGS
+        );
+        expect(stored.positionKey).not.toBe(without.doc(plainId).positionKey);
+    });
+});
+
 describe("verdicts.enqueueBulk — the migration's door (issue #3580)", () => {
     const ENTRY = {
         spec: ARGS.spec,
