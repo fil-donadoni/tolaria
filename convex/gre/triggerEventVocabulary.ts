@@ -288,6 +288,9 @@ export const EVENT_FIELD_KINDS: {
     // A nested array of object ids is a shape this vocabulary does not carry:
     // refused rather than approximated.
     CARDS_EXILED: { cards: "residue" },
+    // CR 400.3 — a batch of cards put into a library, each with its origin
+    // zone (issue #3242). Same nested shape as CARDS_EXILED, same refusal.
+    CARDS_PUT_INTO_LIBRARY: { cards: "residue" },
     LIBRARY_SEARCHED: { playerId: "player", libraryOwnerId: "player" },
 };
 

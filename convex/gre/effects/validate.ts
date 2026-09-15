@@ -29,6 +29,7 @@ import type {
     TokenTriggeredEventKind,
 } from "../../cards/types";
 import { PERMANENT_TYPES, PLAYER_COUNTER_KINDS } from "../../cards/types";
+import { TOKEN_STATIC_EFFECT_FACTORIES } from "../../cards/tokenStaticEffects";
 import {
     getEventFieldRow,
     isRegisteredEffectOp,
@@ -589,6 +590,13 @@ const TOKEN_SUPERTYPES = new Set([
 /** Valid `EffectTokenSpec.colors` members (CR 105.1, the five colors + C). */
 const TOKEN_COLORS = new Set(["W", "U", "B", "R", "G", "C"]);
 
+/** Valid `staticEffectKeys` on a `createToken` spec (issue #3242) — read off
+ *  the factory table itself, so a key the decoder cannot rebuild never
+ *  validates. */
+const TOKEN_STATIC_EFFECT_KEYS = new Set<string>(
+    Object.keys(TOKEN_STATIC_EFFECT_FACTORIES)
+);
+
 /** Valid colours in a source-scoped `preventDamage` shield's `match.colors`
  *  (issue #1955) — WUBRG only (CR 105.1). */
 const SHIELD_MATCH_COLORS = new Set(["W", "U", "B", "R", "G"]);
@@ -987,6 +995,7 @@ function isEffectTokenSpec(value: unknown): boolean {
         "toughness",
         "colors",
         "staticAbilities",
+        "staticEffectKeys",
         "imagePrintId",
         "activatedAbilities",
         "triggeredAbilities",
@@ -1016,6 +1025,13 @@ function isEffectTokenSpec(value: unknown): boolean {
     if ("toughness" in s && !isTokenPTValue(s.toughness)) return false;
     if ("colors" in s && !isStringArray(s.colors, TOKEN_COLORS)) return false;
     if ("staticAbilities" in s && !isStringArray(s.staticAbilities)) {
+        return false;
+    }
+    // issue #3242 — CR 611 static effects named by `TokenStaticEffectKey`.
+    if (
+        "staticEffectKeys" in s &&
+        !isStringArray(s.staticEffectKeys, TOKEN_STATIC_EFFECT_KEYS)
+    ) {
         return false;
     }
     if (
@@ -1571,6 +1587,34 @@ function isEffectValue(value: unknown): boolean {
     );
 }
 
+/** `{ ownerOf: { target: n } }` — the owner of a targeted permanent (issue
+ *  #3242, CR 108.3 "its owner"). */
+function isOwnerOfRef(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    return (
+        keys.length === 1 &&
+        keys[0] === "ownerOf" &&
+        isTargetRef((value as { ownerOf: unknown }).ownerOf)
+    );
+}
+
+/** A `moveZone` library position (issue #3242, `EffectLibraryPosition`): an
+ *  `EffectValue`, `"bottom"`, or `{ beneathTop: N }` — whose N may be a literal
+ *  0 (X = 0 is the top), which `isEffectValue`'s positive literal leg refuses. */
+function isLibraryPosition(value: unknown): boolean {
+    if (value === "bottom") return true;
+    if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+        const keys = Object.keys(value);
+        if (keys.length === 1 && keys[0] === "beneathTop") {
+            return isNominationBound(
+                (value as { beneathTop: unknown }).beneathTop
+            );
+        }
+    }
+    return isEffectValue(value);
+}
+
 /** `{ controllerOf: { target: n } }` — the controller of a targeted object
  *  (issue #806, "its controller"). */
 function isControllerOfRef(value: unknown): boolean {
@@ -1610,6 +1654,7 @@ function isPlayerRef(value: unknown): boolean {
         value === "opponent" ||
         isTargetRef(value) ||
         isControllerOfRef(value) ||
+        isOwnerOfRef(value) ||
         isOpponentOfRef(value) ||
         isRefValue(value) ||
         isBareRef(value)
@@ -3569,8 +3614,9 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             fromZones: isMovableZoneArray,
             filter: isCardFilter,
             // issue #1726 — battlefield → library at a 1-based position from
-            // the top (Teferi, Hero of Dominaria's −3 "third from the top").
-            position: isPositiveInt,
+            // the top (Teferi, Hero of Dominaria's −3 "third from the top");
+            // widened by issue #3242 to a value, "bottom" or `{ beneathTop }`.
+            position: isLibraryPosition,
             // issue #1947 — stamp `linkExileToSource` on every moved card
             // (the "cards" shape's own search-and-exile sweep), valid only
             // alongside `to: "exile"` (Skyship Weatherlight).

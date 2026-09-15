@@ -35,7 +35,11 @@ import {
     type StaticEffect,
     type TokenStaticEffectKey,
 } from "./types";
-import type { StaticKeywordGrant, StaticPTCDA } from "./types";
+import type {
+    StaticBlockRestriction,
+    StaticKeywordGrant,
+    StaticPTCDA,
+} from "./types";
 
 /** CR 604.3 — "This token gets +1/+1 for each artifact you control", the
  *  characteristic-defining ability on Urza's Saga's Construct (CR 714, mh2).
@@ -78,6 +82,39 @@ function vigilanceLandCreaturesYouControl(): StaticKeywordGrant {
     };
 }
 
+/** The oracle text both halves of the Spirit token's combat restriction reject
+ *  a block with (issue #3242). */
+const SPIRIT_ONLY_COMBAT_TEXT =
+    "This token can't block or be blocked by non-Spirit creatures.";
+
+/** CR 509.1b — the BLOCKER half of "This token can't block or be blocked by
+ *  non-Spirit creatures." (Wan Shi Tong, All-Knowing's Spirit token, issue
+ *  #3242): the token may block only an attacking Spirit. Read off the live
+ *  `subtypes` the layer system maintains, so a creature that has become a
+ *  Spirit counts. */
+function cantBlockNonSpiritSelf(): StaticBlockRestriction {
+    return {
+        kind: "block-restriction",
+        id: "cant-block-non-spirit-self",
+        side: "blocker",
+        predicate: (_self, attacker) => attacker.subtypes.includes("Spirit"),
+        oracleText: SPIRIT_ONLY_COMBAT_TEXT,
+    };
+}
+
+/** CR 509.1b — the ATTACKER half of the same sentence: only a Spirit may
+ *  block the token. Two keys, not one, because a `block-restriction` names one
+ *  side and each key's factory returns one effect. */
+function cantBeBlockedByNonSpiritSelf(): StaticBlockRestriction {
+    return {
+        kind: "block-restriction",
+        id: "cant-be-blocked-by-non-spirit-self",
+        side: "attacker",
+        predicate: (_self, blocker) => blocker.subtypes.includes("Spirit"),
+        oracleText: SPIRIT_ONLY_COMBAT_TEXT,
+    };
+}
+
 /** The single ENCODE/DECODE table. Exhaustive by construction — see the module
  *  header. Add a key to {@link TokenStaticEffectKey} and the compiler demands
  *  the factory here (and vice versa). */
@@ -89,6 +126,8 @@ export const TOKEN_STATIC_EFFECT_FACTORIES: Record<
     "cant-be-enchanted-self": cantBeEnchantedSelfGuard,
     "pt-cda-artifacts-you-control": ptCdaArtifactsYouControl,
     "vigilance-land-creatures-you-control": vigilanceLandCreaturesYouControl,
+    "cant-block-non-spirit-self": cantBlockNonSpiritSelf,
+    "cant-be-blocked-by-non-spirit-self": cantBeBlockedByNonSpiritSelf,
 };
 
 /** Legacy ids written before the keys existed encoded effect KINDS in the same

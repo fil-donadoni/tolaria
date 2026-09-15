@@ -2739,7 +2739,9 @@ export interface EffectCardBackFace {
 export type TokenStaticEffectKey =
     | "cant-be-enchanted-self"
     | "pt-cda-artifacts-you-control"
-    | "vigilance-land-creatures-you-control";
+    | "vigilance-land-creatures-you-control"
+    | "cant-block-non-spirit-self"
+    | "cant-be-blocked-by-non-spirit-self";
 
 /** Characteristics a card takes on in every zone OTHER than the battlefield
  *  (CR 113.6c — "an ability that states which zones it doesn't function in
@@ -3005,6 +3007,13 @@ export interface EffectTokenSpec {
     staticAbilities?: string[];
     /** Optional Scryfall id of a printed token card for real token art. */
     imagePrintId?: string;
+    /** CR 611 static effects the token enters with, NAMED by key (issue
+     *  #3242 — the Spirit token's "This token can't block or be blocked by
+     *  non-Spirit creatures."). A key is a plain string, so the spec stays
+     *  JSON-pure: the closure lives in `cards/tokenStaticEffects.ts`'s
+     *  factory table, the same one `TokenSpec.staticEffectKeys` already
+     *  decodes through. Passed straight to `SpellContext.createToken`. */
+    staticEffectKeys?: TokenStaticEffectKey[];
     /** Activated abilities the token enters with (CR 707.2, issue #1191 —
      *  Investigate's Clue: "{2}, Sacrifice this token: Draw a card."; extended
      *  #778 for Blood's "{1}, {T}, Discard a card, Sacrifice this token: Draw
@@ -4077,8 +4086,14 @@ export interface SpellContext {
      *  target has left the battlefield (CR 608.2b). */
     putIntoLibraryFromBattlefield: (
         target: TargetSelection,
-        positionFromTop: number
+        positionFromTop: number | "bottom"
     ) => void;
+    /** Runs `run` as ONE resolving instruction for the library-entry event
+     *  (issue #3242, CR 603.2c): every card put into a library inside it is
+     *  folded into a single `CARDS_PUT_INTO_LIBRARY` emission. Nests — an
+     *  inner call joins the outer batch. The interpreter wraps each Op in it,
+     *  so a multi-card `moveZone` is one event. */
+    withCardsPutIntoLibraryBatch: <T>(run: () => T) => T;
     /** Reanimation primitive: moves a card from `playerId`'s graveyard or
      *  exile onto `playerId`'s battlefield (CR 400.7 zone change). Used by
      *  Resurrection ("return target creature card from your graveyard to the
@@ -9712,6 +9727,7 @@ export type GameEventType =
     | "BECAME_TARGET"
     | "TOKENS_CREATED"
     | "CARDS_EXILED"
+    | "CARDS_PUT_INTO_LIBRARY"
     | "LIBRARY_SEARCHED"
     | "LEVEL_GAINED";
 
@@ -10672,6 +10688,43 @@ export interface CardsExiledEvent {
     }>;
 }
 
+/** Library-entry meta-trigger event (issue #3242) — "whenever one or more
+ *  cards are put into a library from anywhere" (Wan Shi Tong, All-Knowing).
+ *  The twin of `CardsExiledEvent`, and batched the same way: ONE event per
+ *  resolving instruction (CR 603.2c — one event, however many cards it moved),
+ *  never one per card. A multi-card instruction (a whole-zone shuffle-in, a
+ *  cascade bottom, a `moveZone` sweep) runs inside
+ *  `withCardsPutIntoLibraryBatch` (`gre/state.ts`), which folds every entry
+ *  into a single emission.
+ *
+ *  Fires only for a card that CHANGED ZONE into a library. A card that never
+ *  left its library — scry, surveil, a reorder, a card put on the bottom from
+ *  the top — is not "put into a library" (the official Wan Shi Tong ruling),
+ *  so `fromZone` never reads `"library"`. Game setup (the opening deal, a
+ *  mulligan's put-back, a scenario build) moves cards through raw zone arrays
+ *  that never reach an emitter, so the event cannot fire before the game
+ *  begins.
+ *
+ *  SHUFFLES COUNT (issue #3242, decided explicitly): "shuffle your graveyard
+ *  into your library" puts those cards into a library, so a shuffle-in emits
+ *  like any other route. The shuffle itself is a library-internal reorder and
+ *  adds nothing. */
+export interface CardsPutIntoLibraryEvent {
+    type: "CARDS_PUT_INTO_LIBRARY";
+    /** Cards put into a library by this single occurrence. Always >= 1 —
+     *  `emitCardsPutIntoLibrary` never emits an empty batch. */
+    cards: ReadonlyArray<{
+        /** Instance id of the card, now in a library. */
+        cardInstanceId: string;
+        /** Card definition id, so a type filter needs no library read. */
+        cardId?: string;
+        /** Zone the card came FROM (CR 400.1). Never `"library"`. */
+        fromZone: "graveyard" | "battlefield" | "hand" | "stack" | "exile";
+        /** Owner of the card — and, CR 400.3, of the library it entered. */
+        ownerId: string;
+    }>;
+}
+
 /** Library-search event (CR 701.23a "search a library", 603.2 trigger
  *  condition) — emitted ONCE per completed `search-library` PendingChoice
  *  commit (issue #788, residual of the trigger-condition trio started by
@@ -10746,6 +10799,7 @@ export type GameEvent =
     | BecameTargetEvent
     | TokensCreatedEvent
     | CardsExiledEvent
+    | CardsPutIntoLibraryEvent
     | LibrarySearchedEvent;
 
 /** Read-only window over the live `GameState` exposed to `matches()` for
@@ -11975,6 +12029,15 @@ export type EffectPlayerRef =
      *  "its controller pays" selector (Force Spike, issue #806). Skipped when
      *  the slot is missing at resolution (CR 608.2b). */
     | { controllerOf: EffectTargetRef }
+    /** The OWNER of the permanent in an announced target slot (CR 108.3 —
+     *  "its owner", issue #3242). The `controllerOf` twin for the clauses
+     *  where ownership, not control, names the acting player: "target nonland
+     *  permanent's owner puts it into their library" (Wan Shi Tong,
+     *  All-Knowing) — a stolen creature's choice belongs to the player it goes
+     *  home to. Resolves through `SpellContext.getOwnerId`, which reads the
+     *  battlefield, so it is skipped (CR 608.2b) when the slot is missing, is a
+     *  player, or the permanent has already left. */
+    | { ownerOf: EffectTargetRef }
     /** The controller-relative complement of an ARBITRARY resolved player ref
      *  (issue #1568) — "each player OTHER THAN <ref>", generalizing
      *  `"opponent"` (which only ever complements the resolving `"controller"`)
@@ -12069,6 +12132,27 @@ export type EffectMoveZone =
     | "graveyard"
     | "exile"
     | "battlefield";
+
+/** Where a battlefield permanent lands in its owner's library (the `target`
+ *  shape of `moveZone`, issue #1726, widened by issue #3242). Three readings
+ *  of the Oracle position phrase, each 1-based from the top once resolved:
+ *
+ *  - an `EffectValue` — "third from the top" (`3`, Teferi, Hero of
+ *    Dominaria's −3), or any computed value; a value below 1 reads as the top.
+ *  - `"bottom"` — "on the bottom of its owner's library". Not a large literal:
+ *    the bottom is a position the library's length decides at resolution.
+ *  - `{ beneathTop: EffectValue }` — "just beneath the top X cards" (Unexpectedly
+ *    Absent): N cards stay above it, so it resolves to position N + 1. Its own
+ *    member because `difference` is frozen without an `X` operand (issue
+ *    #2006) and the Oracle phrase counts the cards ABOVE, not the slot. X = 0
+ *    is the top (the official ruling).
+ *
+ *  Every reading clamps to the bottom when the library is shorter (the Teferi
+ *  and Unexpectedly Absent rulings). */
+export type EffectLibraryPosition =
+    | EffectValue
+    | "bottom"
+    | { beneathTop: EffectValue };
 
 // --- Structural constructs: ref + count (ADR 0045, issue #802) ---
 //
@@ -14163,8 +14247,10 @@ export type EffectOp =
            *  through the SpellContext primitive
            *  `putIntoLibraryFromBattlefield` (the same LTB funnel as a
            *  bounce); a library shorter than the position puts the card on
-           *  the bottom (the official Teferi ruling). */
-          position?: number;
+           *  the bottom (the official Teferi ruling). Widened by issue #3242
+           *  to `EffectLibraryPosition`: a computed value, `"bottom"`, or
+           *  `{ beneathTop }` — see that type. */
+          position?: EffectLibraryPosition;
           /** CR 400.7 / 607 (issue #1947, generalized #1323) — stamp
            *  `linkExileToSource` on the moved card, valid ONLY alongside
            *  `to: "exile"` (validator-enforced). The SINGLE-target twin of
