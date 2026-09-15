@@ -27,10 +27,12 @@ const FORENSIC_GADGETEER_ID = "97d08a15-e61c-4421-a541-c68a4f87cb74";
  *  (non-mana, useStack: true). Cross-set fixture, same pattern as Power
  *  Artifact's own test (atq/__tests__/blue.test.ts). */
 const DRAGON_ENGINE_ID = "07793a71-1106-4303-b620-e403bd378020";
-/** Frozen Shade (lea/black.ts) — a NON-artifact creature with its own {B}
- *  activated ability, to prove the reduction's "artifacts you control" scope
- *  actually excludes a non-artifact. */
-const FROZEN_SHADE_ID = "d0bd76c8-4cff-4c15-9686-7a299b589814";
+/** Ancient Kavu (inv/red.ts) — a NON-artifact creature, "{2}: This creature
+ *  becomes colorless until end of turn." GENERIC-only cost above the floor,
+ *  so a reduction that wrongly ignored the "artifacts you control" scope
+ *  would show up as a smaller number, not hide behind the floor the way a
+ *  colored-pip-only or already-at-floor cost would. */
+const ANCIENT_KAVU_ID = "c8ccb5d0-735b-443f-addd-8b70f5f2c60d";
 
 function resolveTrigger(
     state: GameState,
@@ -260,10 +262,11 @@ describe("Forensic Gadgeteer (activated-ability cost reduction scoped to artifac
     });
 
     it("does NOT reduce a non-artifact permanent's ability", () => {
-        const { state, host } = board(FROZEN_SHADE_ID, "p1");
-        expect(effectiveAbilityCost(state, host, "frozen-shade-pump")).toEqual({
-            B: 1,
-        });
+        const { state, host } = board(ANCIENT_KAVU_ID, "p1");
+        // Unreduced {2} — the artifact-type scope excludes this creature.
+        expect(
+            effectiveAbilityCost(state, host, "ancient-kavu-colorless")
+        ).toEqual({ X: 2 });
     });
 
     it("does NOT reduce an artifact ability its controller doesn't control ('artifacts YOU control')", () => {
