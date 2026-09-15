@@ -44,6 +44,8 @@ const BASE: Verdict = {
 };
 
 const SETUP = [{ kind: "pass" }] as unknown as Verdict["setup"];
+/** Same length as `SETUP`, different step — the content is hashed, not a count. */
+const SETUP_OTHER = [{ kind: "attack" }] as unknown as Verdict["setup"];
 
 const ids = (v: Verdict) => ({
     id: verdictIdOf(v),
@@ -148,6 +150,15 @@ describe("verdict id and position key (issue #3575)", () => {
             { ...BASE, source: "authored" },
             { ...BASE, origin: { gameId: "g42", seq: 99 } },
             { ...BASE, origin: undefined },
+            // The describer's sentence is a rendering, not the judgement: a
+            // reworded `describeMove` on another build must not rename it.
+            {
+                ...BASE,
+                candidates: BASE.candidates.map((c) => ({
+                    ...c,
+                    description: `${c.description} (reworded)`,
+                })),
+            },
         ];
         for (const variant of variants) {
             expect(ids(variant)).toEqual(base);
@@ -193,16 +204,10 @@ describe("verdict id and position key (issue #3575)", () => {
                     candidates: [pass, land, { ...shock, key: '{"kind":"x"}' }],
                 },
             ],
+            ["setup content", { ...BASE, setup: SETUP_OTHER }],
             [
-                "candidate description",
-                {
-                    ...BASE,
-                    candidates: [
-                        pass,
-                        land,
-                        { ...shock, description: "cast Bolt" },
-                    ],
-                },
+                "deckKnowledge content",
+                { ...BASE, deckKnowledge: [{ seat: "opp", cards: ["Bolt"] }] },
             ],
             ["candidate order", { ...BASE, candidates: [land, pass, shock] }],
             ["candidate removed", { ...BASE, candidates: [pass, land] }],
@@ -237,9 +242,9 @@ describe("verdict id and position key (issue #3575)", () => {
             canonicalJson({ b: [1, -0, "é"], a: { d: null, c: true } })
         ).toBe('{"a":{"c":true,"d":null},"b":[1,0,"é"]}');
         expect(ids(BASE)).toEqual({
-            id: "v1-77bb7b1a8f149615212400c04d8b4013a706910e36ceeb95df9e5ef522a4fdc5",
+            id: "v1-fa12142b11902d58b7e26c8860c09734f834ce4307711d5191252a2f2e380df6",
             position:
-                "v1-361a918b67de4081734fab8576623428d6f5cf6e01149a145dd220963c8b5b62",
+                "v1-bfff810e67689f0b54c2ca42c49e2eba99173fc83987d07c77e21b53acc9b0ff",
         });
     });
 
@@ -256,6 +261,11 @@ describe("verdict id and position key (issue #3575)", () => {
                 /canonical encoding/
             );
         }
+        const unknownKind = {
+            ...BASE,
+            answer: { kind: "maybe" },
+        } as unknown as Verdict;
+        expect(() => verdictIdOf(unknownKind)).toThrow(/canonical encoding/);
     });
 });
 
@@ -290,5 +300,10 @@ describe("dependency boundary (issue #3575)", () => {
         }
         expect(specifiers("sha256.ts")).toEqual([]);
         expect(specifiers("identity.ts")).toEqual(["./sha256", "./types"]);
+        // `./types` reaches the blade harness and the scenario builder; only a
+        // TYPE import of it is erased from every bundle.
+        expect(readFileSync(join(verdictsDir, "identity.ts"), "utf8")).toMatch(
+            /\nimport type \{[^}]*\} from "\.\/types";/
+        );
     });
 });

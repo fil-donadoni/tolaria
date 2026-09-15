@@ -25,7 +25,18 @@
 // every field added after today; the allow-list hashes only what a judgement
 // is. `spec` and `setup` are hashed whole, because they are the position and
 // they grow: a new optional scenario field is absent from every existing
-// verdict, and an absent key encodes as nothing.
+// verdict, and an absent key encodes as nothing. What is NOT normalised inside
+// them is a default spelled out (`passCount: 0` against no `passCount`): one
+// board is one name only because the capture path (`specFromState` and the
+// lowering) emits one spec for it, and a second producer must emit the same.
+//
+// A CANDIDATE IS ITS MOVE KEY. The `description` beside it is the move
+// describer's rendering, not the judgement: hashed, a rewording of
+// `describeMove` would rename a re-captured judgement on the next build, and —
+// worse, under §6 — give two contradicting judgements taken on two builds two
+// position keys, so the contradiction would never be quarantined. Keys are
+// unique within a verdict (`verdicts.submit`, `parseCandidates`), so the key
+// alone names the candidate.
 //
 // CANONICAL means: object keys sorted by UTF-16 code unit, no whitespace,
 // numbers in ECMAScript's shortest round-trip form (so `1.0`, `1e0` and `1`
@@ -35,7 +46,11 @@
 // (`applyBladeSetupSteps` iterates `setup ?? []`, `bladeDeckKnowledge` tests
 // `?.length`), and an answer's index list is a SET (`evalPairsOf` reads it
 // through `new Set`), so it is encoded sorted and deduplicated. Arrays are
-// otherwise kept in order — candidate order is what the indexes point into.
+// otherwise kept in order — candidate order is what the indexes point into, and
+// `evalPairsOf` breaks ties by it. `deckKnowledge` is kept in order too: it
+// lowers to the `DeckKnowledgeBySeat` the search determinizes from and
+// `deckColorsFor` reads first-match, so its order is not provably incidental,
+// and the cost of not sorting it is at most a missed deduplication.
 //
 // Pure and dependency-free (the digest is `sha256.ts`, beside this file), so
 // the Convex bundle, the browser engine and the scripts compute the same name —
@@ -48,7 +63,9 @@ import type { Verdict, VerdictAnswer } from "./types";
 export const VERDICT_CANONICALISATION = "v1";
 
 /** The shape of a verdict id or a position key under this canonicalisation. */
-export const VERDICT_HASH_PATTERN = /^v1-[0-9a-f]{64}$/;
+export const VERDICT_HASH_PATTERN = new RegExp(
+    `^${VERDICT_CANONICALISATION}-[0-9a-f]{64}$`
+);
 
 /** The fields of a Verdict that ARE the judgement. A full `Verdict` fits. */
 export type VerdictJudgement = Pick<
@@ -120,12 +137,18 @@ function indexSet(indexes: readonly number[]): number[] {
 }
 
 function answerOf(answer: VerdictAnswer): VerdictAnswer {
-    return answer.kind === "right"
-        ? { kind: "right", rightIndexes: indexSet(answer.rightIndexes) }
-        : {
-              kind: "forbidden",
-              forbiddenIndexes: indexSet(answer.forbiddenIndexes),
-          };
+    if (answer.kind === "right") {
+        return { kind: "right", rightIndexes: indexSet(answer.rightIndexes) };
+    }
+    if (answer.kind === "forbidden") {
+        return {
+            kind: "forbidden",
+            forbiddenIndexes: indexSet(answer.forbiddenIndexes),
+        };
+    }
+    throw new Error(
+        `answer.kind ${JSON.stringify((answer as { kind?: unknown }).kind)} has no canonical encoding`
+    );
 }
 
 function positionOf(verdict: VerdictJudgement) {
@@ -136,10 +159,7 @@ function positionOf(verdict: VerdictJudgement) {
         ...(verdict.deckKnowledge?.length
             ? { deckKnowledge: verdict.deckKnowledge }
             : {}),
-        candidates: verdict.candidates.map(({ key, description }) => ({
-            key,
-            description,
-        })),
+        candidates: verdict.candidates.map(({ key }) => key),
     };
 }
 
