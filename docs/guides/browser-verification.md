@@ -79,8 +79,23 @@ what a failed walk left; the next run's sweep collects it.
 
 All of it runs through `bunx convex run` from the **primary checkout**, where
 the local deployment's CLI config lives — so the backend must already carry
-this module. A worktree whose branch adds or changes those functions has to
-push them first. The account functions refuse any address outside the lane
+this module. A worktree whose branch adds or changes those functions has to push them
+first. Point the CLI at the local backend by URL and admin key (the key is
+`adminKey` in the primary checkout's `.convex/local/default/config.json`); the
+push rewrites `.env.local`'s `CONVEX_DEPLOYMENT` line, so restore it after:
+
+```bash
+bak=$(mktemp) && cp .env.local "$bak"
+CONVEX_DEPLOYMENT= CONVEX_SELF_HOSTED_URL=http://127.0.0.1:3210 \
+  CONVEX_SELF_HOSTED_ADMIN_KEY=<adminKey> bunx convex dev --once --typecheck disable
+cp "$bak" .env.local
+```
+
+The backend is shared by every session on the machine, so that push replaces
+the functions every other session runs against until the next push — do it
+only for a branch whose Convex changes are additive.
+
+The account functions refuse any address outside the lane
 pattern, and the role grant, the teardown and the sweep refuse a non-local
 deployment.
 
