@@ -94,7 +94,8 @@ derived from it. Training data that grows without bound is the second case.
    the pairs, the weights stop reproducing, the suite goes red.
 9. **Two renderings, like the catalogue's.** The per-verdict objects are the
    WRITE form — immutable, idempotent, deduplicating, writable from several
-   deployments without coordination. A pack, `packs/<lockSha>.jsonl.gz`
+   deployments without coordination. A pack, `packs/<packHash>.jsonl.gz` (the sha256 of its
+   uncompressed JSONL, which the lock carries as `packHash` — issue #3581),
    written at promotion, is the READ form: one GET instead of thousands. The
    pack is derived and unbelieved — it is unpacked, each verdict re-hashed and
    checked against the lock.

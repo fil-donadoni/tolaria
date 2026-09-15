@@ -9,6 +9,8 @@ export * from "./fileSource";
 export * from "./judgement";
 export * from "./upcasters";
 export * from "./lockSource";
+export * from "./lockedCorpus";
+export * from "./pack";
 export * from "./evalPairs";
 export * from "./report";
 export * from "./coverage";

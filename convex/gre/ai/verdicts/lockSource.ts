@@ -29,16 +29,18 @@
 // `list`): given one lock, one corpus, to the bit (ADR 0124 §3).
 //
 // WHAT IS NOT HERE. Fetching — the pack, the machine cache, the store — is the
-// caller's (issue #3581), which keeps this module pure: it stays in the Convex
-// bundle and the browser-importable engine, like every other module under
-// `gre/`. `packHash` is parsed and carried, not checked: verifying a pack
-// against it is that fetch's job. Provenance is not here either — author,
-// note and dates live in attestations (ADR 0128 §4), which the fit does not
-// read — so a locked verdict carries the constants below, the way a
-// registry-derived one does.
+// caller's (`scripts/lib/verdict-pack-cache.ts`, issue #3581), which keeps this
+// module pure: it stays in the Convex bundle and the browser-importable
+// engine, like every other module under `gre/`. `packHash` is parsed and
+// carried, not checked: verifying a pack against it is that fetch's job, and
+// the pack's format is `pack.ts`. Composing the locked verdicts with the blade
+// registry's is `lockedCorpus.ts`, kept out of this module so a script can
+// verify a pack without importing the registry — which drags the engine's
+// setup, and `lib.dom` with it, into the scripts type-check. Provenance is
+// not here either — author, note and dates live in attestations (ADR 0128
+// §4), which the fit does not read — so a locked verdict carries the
+// constants below, the way a registry-derived one does.
 
-import { verdictsFromRegistry, type RegistryVerdicts } from "./registrySource";
-import type { BladeScenario } from "../blade/types";
 import { VERDICT_HASH_PATTERN, verdictIdOf } from "./identity";
 import { isJsonObject, parseVerdictJudgement } from "./judgement";
 import {
@@ -60,13 +62,16 @@ export const LOCK_VERDICT_AUTHOR = "verdict-lock";
  *  the reason `REGISTRY_VERDICT_TIMESTAMP` is one; the date is ADR 0128's. */
 export const LOCK_VERDICT_TIMESTAMP = "2026-09-14T00:00:00.000Z";
 
-const PACK_HASH_PATTERN = /^[0-9a-f]{64}$/;
+/** A pack hash: a sha256 hex digest. The lock carries one; the pack's object
+ *  name is built from one (`pack.ts`). */
+export const PACK_HASH_PATTERN = /^[0-9a-f]{64}$/;
 
 /** The committed Verdict Lock. */
 export type VerdictLock = {
     /** The verdict ids the fit runs over, in corpus order. */
     verdictIds: string[];
-    /** The sha256 (hex) of the pack those verdicts were promoted into. */
+    /** The sha256 (hex) of the pack those verdicts were promoted into — over
+     *  its uncompressed text, never its gzip bytes (`pack.ts` says why). */
     packHash: string;
 };
 
@@ -288,27 +293,4 @@ export function verdictsFromLock(
         }
         return verdictFromPayload(id, byId.get(id), schema);
     });
-}
-
-/**
- * The whole corpus the lock decides: the blade registry's derived verdicts
- * first, then the locked verdicts in lock order, with the registry's gaps
- * carried through — the same shape, and the same reason for the order, as
- * `verdictCorpus` over files.
- *
- * `payloads` has NO DEFAULT, for the reason `verdictCorpus`'s `files` has
- * none: a caller that forgot to fetch would otherwise get a registry-only
- * corpus that looks like nobody judged anything. Here it would throw anyway
- * for any non-empty lock; an empty lock with `[]` is a real, empty corpus.
- */
-export function lockedVerdictCorpus(
-    lock: VerdictLock,
-    payloads: readonly StoredVerdictPayload[],
-    scenarios?: readonly BladeScenario[]
-): RegistryVerdicts {
-    const registry = verdictsFromRegistry(scenarios);
-    return {
-        verdicts: [...registry.verdicts, ...verdictsFromLock(lock, payloads)],
-        gaps: registry.gaps,
-    };
 }
