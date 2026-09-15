@@ -4508,7 +4508,7 @@ export type PendingTarget = {
      *  requires targets (CR 602.2b). When "ability", `abilityId` is set and
      *  costs are paid at finalization instead of at announcement. When
      *  "copy-retarget", target selection re-points the targets of a spell
-     *  COPY already on the stack (CR 707.10b — Fork's "you may choose new
+     *  COPY already on the stack (CR 707.10c — Fork's "you may choose new
      *  targets for the copy"); `cardInstanceId` holds the copy's stack id and
      *  finalization writes the chosen targets onto that stack item instead of
      *  casting anything. When "retarget", target selection re-points the targets
@@ -11929,7 +11929,7 @@ const STORM_TRIGGER_ID = "storm";
  *  belongs to the very spell being announced onto the stack. Invoked once per
  *  cast, from `emitSpellCastEvent`'s single choke point. Recognizes the
  *  keyword-synthesized CAST-COPY triggers and pushes each as a StackItem ABOVE
- *  `castSpell` so it resolves first (CR 603.3b — a new stack object goes on
+ *  `castSpell` so it resolves first (CR 405.2 — a new stack object goes on
  *  top). The mechanism is keyword-agnostic; the keywords differ only in where
  *  the Cast-Copy Count comes from:
  *   - Storm (CR 702.40a) — `event.priorSpellCount`;
@@ -15262,7 +15262,7 @@ function cloneSpellOntoStack(
     return copy.id;
 }
 
-/** CR 707.10b / 707.10c — offers `copy`'s controller a chance to choose new
+/** CR 707.10c — offers `copy`'s controller a chance to choose new
  *  targets, by populating `state.pendingTarget` (kind `"copy-retarget"`).
  *  Extracted so both `SpellContext.requestCopyRetarget` (Fork, Chain
  *  Lightning, Onslaught — always prompts) and the cast-copy loop
@@ -15342,7 +15342,7 @@ export function requestCopyRetargetOn(state: GameState, copy: StackItem): void {
                   : {}),
           }
         : undefined;
-    // CR 707.10b / 707.10c — the COPY's controller chooses new targets.
+    // CR 707.10c — the COPY's controller chooses new targets.
     // For Fork this equals the resolving spell's caster; for Chain
     // Lightning it's the player who paid {R}{R} (the copy's controller),
     // so key the chooser off the copy itself, not the resolving item's caster.
@@ -15381,7 +15381,7 @@ export function requestCopyRetargetOn(state: GameState, copy: StackItem): void {
     };
 }
 
-/** A cast-copy trigger's per-copy retarget offer (CR 707.10b; CR 702.40a
+/** A cast-copy trigger's per-copy retarget offer (CR 707.10c; CR 702.40a
  *  Storm and CR 702.56a Replicate both say "you may choose new targets for
  *  any of the copies", ADR 0052) — narrowed to the project's Arena-style
  *  zero-branch UX convention (auto-resolve a choice with no real branch):

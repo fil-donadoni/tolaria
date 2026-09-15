@@ -2842,6 +2842,49 @@ describe("backward compatibility", () => {
         }
     });
 
+    // Issue #2100 renamed the cast-copy trigger's compact keys
+    // (`stormSnapshot` → `castCopySnapshot`, `stormCopiesRemaining` →
+    // `castCopiesRemaining`). A game saved with a storm trigger on the stack
+    // before the rename must still create its copies (ADR 0052).
+    it("reads a cast-copy trigger saved under the pre-#2100 storm keys", () => {
+        const state = freshState();
+        const snapshot: StackItem = {
+            ...makeInstance(lightningBolt.id, {
+                id: "bolt-snapshot",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "stack",
+            }),
+            castById: "p1",
+        };
+        state.stack = [
+            {
+                ...makeInstance(lightningBolt.id, {
+                    id: "storm-trigger",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    zone: "stack",
+                }),
+                castById: "p1",
+                triggeredAbilityId: "storm",
+                castCopySnapshot: snapshot,
+                castCopiesRemaining: 2,
+            },
+        ];
+        const compact = compactState(state) as Record<string, unknown>;
+        const [item] = compact.stack as Array<Record<string, unknown>>;
+        expect(item.castCopySnapshot).toBeDefined();
+        item.stormSnapshot = item.castCopySnapshot;
+        item.stormCopiesRemaining = item.castCopiesRemaining;
+        delete item.castCopySnapshot;
+        delete item.castCopiesRemaining;
+
+        const expanded = expandState(compact);
+
+        expect(expanded.stack[0].castCopiesRemaining).toBe(2);
+        expect(expanded.stack[0].castCopySnapshot?.id).toBe("bolt-snapshot");
+    });
+
     it("expands a pre-tuple library where entries are compact-card objects (legacy v1: no `v` field, raw-string card.id)", () => {
         const state = freshState();
         const rawLib = state.players[0].library;

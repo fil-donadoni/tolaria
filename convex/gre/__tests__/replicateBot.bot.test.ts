@@ -12,7 +12,7 @@
 //     searching them, not by a new term.
 //
 // The choice surface raises nothing new: the count is part of the cast Move,
-// and each copy's CR 707.10b offer is the copy-retarget `pendingTarget` the
+// and each copy's CR 707.10c offer is the copy-retarget `pendingTarget` the
 // Bot already answers for Storm.
 import { describe, expect, it } from "vitest";
 import { enumerateMoves, type Move } from "../moves";

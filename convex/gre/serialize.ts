@@ -1892,17 +1892,23 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
     if (compact.warpTrigger) {
         item.warpTrigger = compact.warpTrigger as string;
     }
-    // Storm (CR 702.40, ADR 0052) — rehydrate the cast-trigger's detached
+    // Cast-Copy (ADR 0052) — rehydrate the cast-trigger's detached
     // snapshot (recursing through this same expander) and remaining-copies
     // counter.
-    if (compact.castCopySnapshot) {
+    // Read-back of the pre-#2100 compact keys (`stormSnapshot` /
+    // `stormCopiesRemaining`): a game saved with a storm trigger on the stack
+    // before the rename would otherwise lose its copies on load.
+    const castCopySnapshot = compact.castCopySnapshot ?? compact.stormSnapshot;
+    if (castCopySnapshot) {
         item.castCopySnapshot = expandStackItem(
-            compact.castCopySnapshot as CompactCard,
+            castCopySnapshot as CompactCard,
             ctx
         );
     }
-    if (compact.castCopiesRemaining !== undefined) {
-        item.castCopiesRemaining = compact.castCopiesRemaining as number;
+    const castCopiesRemaining =
+        compact.castCopiesRemaining ?? compact.stormCopiesRemaining;
+    if (castCopiesRemaining !== undefined) {
+        item.castCopiesRemaining = castCopiesRemaining as number;
     }
     if (compact.delayedTriggerId) {
         item.delayedTriggerId = compact.delayedTriggerId as string;

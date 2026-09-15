@@ -136,7 +136,7 @@ export const loseFocus: CardDefinition = {
     effects: [
         {
             op: "mayPay",
-            // CR 117.3a — the targeted spell's controller decides whether to pay.
+            // CR 118.12a — the targeted spell's controller decides whether to pay.
             player: { controllerOf: { target: 0 } },
             cost: { X: 2 },
             prompt: "Pay {2} to prevent your spell from being countered?",

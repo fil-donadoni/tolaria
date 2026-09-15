@@ -96,7 +96,7 @@ const copiesOnStack = (state: GameState) =>
     state.stack.filter((s) => s.isCopy === true && s.card.id === loseFocus.id);
 
 /** Resolves the replicate trigger to completion, KEEPING every copy's
- *  inherited target (each copy suspends for its CR 707.10b offer, because
+ *  inherited target (each copy suspends for its CR 707.10c offer, because
  *  the original Lose Focus is always an alternative spell target). */
 function resolveTriggerKeepingTargets(state: GameState): void {
     let guard = 0;
@@ -145,7 +145,7 @@ describe("Replicate — the cast-copy trigger (CR 702.56a)", () => {
         castLoseFocus(state, bolts[0].id, 3);
         const [trigger] = replicateTriggers(state);
         expect(trigger, "no replicate trigger was collected").toBeDefined();
-        // CR 603.3b — the trigger sits above the spell and resolves first.
+        // CR 405.2 — the trigger sits above the spell and resolves first.
         expect(state.stack[state.stack.length - 1].id).toBe(trigger.id);
         expect(trigger.castCopiesRemaining).toBe(3);
 
@@ -168,7 +168,7 @@ describe("Replicate — the cast-copy trigger (CR 702.56a)", () => {
         expect(copiesOnStack(state)).toHaveLength(2);
     });
 
-    it("lets the caster choose a new target for a copy (CR 707.10b)", () => {
+    it("lets the caster choose a new target for a copy (CR 707.10c)", () => {
         const { state, bolts } = board(2, 1);
         const [first, second] = bolts;
         castLoseFocus(state, first.id, 1);
