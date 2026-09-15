@@ -12,7 +12,7 @@ import {
 } from "~/lib/preview-body";
 import { modalBackFaceDefinitionId } from "@convex/cards/modalDfc";
 import { backFaceDefinitionIdOf } from "@convex/gre/transform";
-import type { CardInstance } from "~/types/game";
+import type { CardInstance, Player } from "~/types/game";
 import type { EmblemInstance } from "@convex/cards/types";
 
 const CLONE = getCardByName("Clone");
@@ -242,6 +242,94 @@ describe("buildPreviewBody — isManualGame discriminator (issue #2346)", () => 
         });
         expect(body.isManualGame).toBe(false);
         expect(body.displayName).toBe("no-such-definition-id");
+    });
+});
+
+// Issue #2933 — the owner line is keyed on owner-vs-controller, never on
+// viewer-vs-controller: it is redundant when the two players are the same
+// (an ordinary opponent-controlled permanent) and it is exactly the
+// information a control change (Control Magic and friends) adds, in both
+// directions.
+describe("buildPreviewBody — owner line gated on owner-vs-controller (issue #2933)", () => {
+    function battlefieldInstance(
+        controllerId: string,
+        ownerId: string,
+        zone: CardInstance["zone"] = "battlefield"
+    ): CardInstance {
+        return {
+            id: "perm-1",
+            card: { id: SERRA.id },
+            types: SERRA.types,
+            subtypes: SERRA.subtypes ?? [],
+            staticAbilities: SERRA.staticAbilities ?? [],
+            controllerId,
+            ownerId,
+            zone,
+            isTapped: false,
+            isSummoningSick: false,
+        } as unknown as CardInstance;
+    }
+
+    function testPlayer(id: string, name: string) {
+        return {
+            id,
+            name,
+            bgColor: "#000",
+            life: 20,
+            hand: [],
+            library: [],
+            graveyard: [],
+            exile: [],
+            battlefield: [],
+        } as unknown as Player;
+    }
+
+    const allPlayers = [
+        testPlayer("p1", "Viewer"),
+        testPlayer("p2", "Opponent"),
+    ];
+
+    it("shows the owner for a permanent the viewer controls but does not own", () => {
+        const body = buildPreviewBody(
+            SERRA.id,
+            battlefieldInstance("p1", "p2"),
+            { allPlayers, playerId: "p1" }
+        );
+        expect(body.ownerName).toBe("Opponent");
+    });
+
+    it("shows the owner for a permanent the opponent controls but does not own", () => {
+        const body = buildPreviewBody(
+            SERRA.id,
+            battlefieldInstance("p2", "p1"),
+            { allPlayers, playerId: "p1" }
+        );
+        expect(body.ownerName).toBe("Viewer");
+    });
+
+    it("shows no owner when owner and controller are the same player", () => {
+        const controlledByViewer = buildPreviewBody(
+            SERRA.id,
+            battlefieldInstance("p1", "p1"),
+            { allPlayers, playerId: "p1" }
+        );
+        expect(controlledByViewer.ownerName).toBeNull();
+
+        const controlledByOpponent = buildPreviewBody(
+            SERRA.id,
+            battlefieldInstance("p2", "p2"),
+            { allPlayers, playerId: "p1" }
+        );
+        expect(controlledByOpponent.ownerName).toBeNull();
+    });
+
+    it("shows no owner off the battlefield, even when owner and controller differ", () => {
+        const body = buildPreviewBody(
+            SERRA.id,
+            battlefieldInstance("p1", "p2", "graveyard"),
+            { allPlayers, playerId: "p1" }
+        );
+        expect(body.ownerName).toBeNull();
     });
 });
 

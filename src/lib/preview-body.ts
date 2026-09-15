@@ -477,7 +477,7 @@ export function buildPreviewBody(
         !!cardInstance &&
         !!gameCtx &&
         cardInstance.zone === "battlefield" &&
-        cardInstance.controllerId !== gameCtx.playerId;
+        cardInstance.ownerId !== cardInstance.controllerId;
     const ownerName = showOwner
         ? (gameCtx!.allPlayers.find((p) => p.id === cardInstance!.ownerId)
               ?.name ?? null)
