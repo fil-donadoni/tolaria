@@ -17,8 +17,10 @@ say so in one line and move on.
 signs in, walks the runbook surfaces at all five viewports (ADR 0101), probes
 and runs axe. **Its output IS the receipt — paste it byte-exact, banner +
 coverage line included** (#2760); `bun run land` re-derives them and refuses a
-`skin`-lane PR that does not match. Only a `RECEIPT` run, never `DIAGNOSTIC`;
-never reflow a row.
+`skin`-lane PR that does not match. A no-flag run walks only the surfaces the
+diff reaches and prints `SCOPED` (ADR 0131) — `land` re-derives that scope from
+the PR's diff; a full `RECEIPT` covers any diff; never `DIAGNOSTIC`; never
+reflow a row.
 
 **A surface it could not reach prints `UNWALKED` and reds the run** — that is a
 coverage failure, not a pass.
