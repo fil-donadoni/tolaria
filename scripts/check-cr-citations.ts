@@ -290,11 +290,18 @@ export function baseBaselineKeys(root = ROOT): Set<string> | null {
     const base = baseArtifact(gitRunner(root), LEDGER_PATH);
     if (base.kind === "broken") {
         throw new Error(
-            `the base-branch ledger could not be read — ${base.detail}`
+            `the base-branch ledger could not be read — ${base.detail}\n` +
+                `    This is NOT a skip: a guard that cannot read its baseline is a guard that is not there.`
         );
     }
     if (base.kind === "unavailable") return null;
-    return baselineKeys(parseLedger(base.text));
+    try {
+        return baselineKeys(parseLedger(base.text));
+    } catch (err) {
+        throw new Error(
+            `the base-branch ledger at ${base.at} does not parse: ${(err as Error).message}`
+        );
+    }
 }
 
 /**
@@ -307,17 +314,24 @@ export function ledgerReportForRepo(
     citations: Citation[],
     root = ROOT
 ): LedgerReport {
-    const ledgerPath = join(root, LEDGER_PATH);
     return ledgerReport({
         citations,
-        ledger: parseLedger(readFileSync(ledgerPath, "utf8")),
-        rules: loadRules(),
+        ledger: parseLedger(readFileSync(join(root, LEDGER_PATH), "utf8")),
+        rules: loadRules(join(root, "data/cr/comprehensive-rules.txt")),
         baseBaselineKeys: baseBaselineKeys(root),
     });
 }
 
 function ledgerScan(citations: Citation[], showFiles: boolean): number {
-    const report = ledgerReportForRepo(citations);
+    let report: LedgerReport;
+    try {
+        report = ledgerReportForRepo(citations);
+    } catch (err) {
+        // A ledger that cannot be read — ours or the base branch's — is the
+        // guard's own failure, reported as a red line rather than a stack.
+        console.log(`\n✗ CR citation ledger: ${(err as Error).message}`);
+        return 1;
+    }
     const tier = report.baselineChecked
         ? "baseline compared with the base branch"
         : "no base-branch ledger to compare the baseline with";

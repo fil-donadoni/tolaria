@@ -28,13 +28,14 @@
  * Everything here is offline: the vendored CR, the tracked tree, git.
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
     baseBaselineKeys,
     knownRuleIds,
     readSources,
     scanCitations,
+    scannedFiles,
 } from "./check-cr-citations.ts";
 import {
     confirmLine,
@@ -50,7 +51,6 @@ import {
     type Ledger,
 } from "./lib/cr-ledger.ts";
 import { loadRules } from "./lib/cr-rules.ts";
-import { SUPPRESS } from "./lib/cr-misattribution.ts";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const LEDGER_ABS = join(ROOT, LEDGER_PATH);
@@ -91,9 +91,11 @@ function cmdList(): number {
         console.log(
             `\nEach open citation, beside the rule it cites (\`bun run cr <id>\` prints it whole):\n`
         );
-        // The full rule text here — this listing IS the reading a confirmation
-        // asserts, so nothing is elided.
-        console.log(open.map((o) => formatOpen(o, Infinity)).join("\n\n"));
+        // The full rule text AND the full line here — this listing IS the
+        // reading a confirmation asserts, so nothing is elided.
+        console.log(
+            open.map((o) => formatOpen(o, Infinity, Infinity)).join("\n\n")
+        );
         console.log(
             `\nConfirm one line at a time: bun run cr:ledger confirm <file>:<line>`
         );
@@ -121,25 +123,30 @@ function cmdConfirm(args: string[]): number {
     }
     const [, file, lineNo] = args[0].match(SITE) as RegExpMatchArray;
     const rel = file.replace(/^\.\//, "");
+    if (isAbsolute(rel)) {
+        console.error(
+            `${rel}: paths are repo-relative (as \`cr:lint\` prints them).`
+        );
+        return 1;
+    }
     if (isExempt(rel)) {
         console.error(`${rel} is exempt from the ledger — nothing to confirm.`);
         return 1;
     }
-    const abs = join(ROOT, rel);
-    if (!existsSync(abs)) {
-        console.error(`${rel}: no such file.`);
-        return 1;
-    }
-    const lines = readFileSync(abs, "utf8").split("\n");
-    const n = Number(lineNo);
-    const raw = lines[n - 1];
-    if (raw === undefined) {
-        console.error(`${rel}:${n}: past the end of the file.`);
-        return 1;
-    }
-    if (raw.includes(SUPPRESS)) {
+    // The tree scan sees tracked `SCANNED` files only; a line anywhere else
+    // would be recorded and pruned again in the same write.
+    if (!scannedFiles(ROOT).includes(rel)) {
         console.error(
-            `${rel}:${n} carries \`${SUPPRESS}\` — a suppressed line needs no entry.`
+            `${rel} is not a tracked source the citation scan reads — commit it (and keep a scanned extension) first.`
+        );
+        return 1;
+    }
+    const lines = readFileSync(join(ROOT, rel), "utf8").split("\n");
+    const n = Number(lineNo);
+    const raw = n >= 1 ? lines[n - 1] : undefined;
+    if (raw === undefined) {
+        console.error(
+            `${rel}:${n}: no such line (lines are 1-based, as \`cr:lint\` prints them).`
         );
         return 1;
     }
@@ -159,16 +166,18 @@ function cmdConfirm(args: string[]): number {
         );
         return 1;
     }
-    const rules = loadRules();
-    const { ledger, confirmed } = confirmLine(readLedger(), citations, rules);
-    const { ledger: pruned, pruned: dropped } = pruneStale(
-        ledger,
-        treeCitationList()
+    const tree = treeCitationList();
+    const { ledger, confirmed } = confirmLine(
+        readLedger(),
+        citations,
+        loadRules(),
+        tree
     );
+    const { ledger: pruned, pruned: dropped } = pruneStale(ledger, tree);
     writeLedger(pruned);
     for (const e of confirmed)
         console.log(
-            `confirmed CR ${e.id} (${e.ruleHash})  ${e.line.slice(0, 120)}`
+            `confirmed CR ${e.id} (${e.ruleHash}, ${e.sites} site${e.sites === 1 ? "" : "s"})  ${e.line.slice(0, 120)}`
         );
     if (dropped.length)
         console.log(

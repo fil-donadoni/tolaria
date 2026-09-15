@@ -31,8 +31,11 @@ model reading every citation against its rule inside `check:all` is out.
 1. **A committed ledger beside the vendored CR** —
    `data/cr/citations-ledger.json`. One entry per citation: the cited `id`,
    the **normalized text of the line** citing it (whitespace collapsed; never
-   a file or a line number), a `status`, and for `confirmed` entries the
-   `ruleHash` of the printed rule at confirmation.
+   a file or a line number), the number of **`sites`** in the tree making that
+   exact citation, a `status`, and for `confirmed` entries the `ruleHash` of
+   the printed rule at confirmation. The site count is what keeps "moving a
+   line stays green" from also meaning "copying a recorded line is free": a
+   second site of a recorded line is unrecorded until confirmed.
 
 2. **Two statuses, and the semantics of each are exact.** `confirmed`: a
    reader printed the rule (`bun run cr <id>`) and the line says what the rule
@@ -40,13 +43,14 @@ model reading every citation against its rule inside `check:all` is out.
    There is no third status and no "trusted" flag.
 
 3. **`cr:lint` reds, offline, on four things**: a citation in the tree with
-   **no entry** (a new comment, or an edited line — editing the claim reopens
-   its citation on purpose); a `confirmed` entry whose **rule text no longer
-   hashes** to what was confirmed (a `cr:sync` that rewrites a rule reopens
-   every citation of it, which is how the next renumbering outside 701/702
-   gets caught); a **`baseline` entry the base branch's ledger does not have**;
-   and a **stale entry** matching no line in the tree. The failure output
-   names the line, prints the cited rule and gives the confirming command.
+   **no entry** (a new comment, an edited line — editing the claim reopens
+   its citation on purpose — or a new site of a recorded line); a `confirmed`
+   entry whose **rule text no longer hashes** to what was confirmed (a
+   `cr:sync` that rewrites a rule reopens every citation of it, which is how
+   the next renumbering outside 701/702 gets caught); a **`baseline` entry the
+   base branch's ledger does not have**; and a **stale entry** matching no line
+   in the tree, or more sites than the tree has. The failure output names the
+   line, prints the cited rule and gives the confirming command.
 
 4. **The baseline only shrinks.** The recording command never writes
    `baseline`; `cr:lint` compares the set with the merge-base's ledger through
@@ -67,17 +71,27 @@ model reading every citation against its rule inside `check:all` is out.
    walk (`scanCitations`: the prefixed pass plus bare ids on a `CR ` line);
    the ledger reuses its output, so the two scans cannot disagree on the set.
    What gets hashed is what `bun run cr <id>` prints, through the one parser
-   both share (`scripts/lib/cr-rules.ts`). `cr-cite-ok` and the exempt-file
-   convention (the guards' own sources and tests, the findings drawer, this
-   ADR and ADR 0098) apply unchanged.
+   both share (`scripts/lib/cr-rules.ts`). The exempt-file convention (the
+   guards' own sources and tests, the findings drawer, this ADR and ADR 0098)
+   applies, as an explicit list of files rather than an open prefix. The
+   **`cr-cite-ok` hatch is NOT honoured by the ledger** — a deviation from the
+   issue's letter, chosen at review: the targeted scans ask "is this claim
+   wrong", which a deliberate counter-example answers; the ledger asks "was
+   this line read", which it does not, and an unbounded one-word suppression
+   on a gate this heavy is a hatch every session would reach for. No
+   suppressed citation outside the exempt files existed when this was decided.
 
 7. **Shape.** One entry per line, sorted by id then line, fixed key order, no
    header hash and no tally — so two branches confirming two different
    citations touch disjoint lines and merge without a conflict
    (`scripts/lib/generated-artifacts.ts`' discriminator). Prettier-ignored,
-   regenerated through the command, never hand-edited: a hand-added
-   `baseline` entry is caught by §4, a hand-added `confirmed` entry by the
-   hash it would have to compute.
+   written only through the command. What the gate can prove about a
+   `confirmed` entry is exactly this: its hash matches the rule's text NOW.
+   The entry is a **recorded human claim** that the rule was read against the
+   line — the command asserts it on the reader's behalf, and a hand-written
+   entry with the right hash asserts the same thing with less ceremony. The
+   ledger makes the claim explicit, attributable in `git blame`, and
+   reopenable; it does not make it true.
 
 ## Consequences
 
@@ -98,6 +112,12 @@ model reading every citation against its rule inside `check:all` is out.
 - **Blind spot 3 is closed for every citation made after this ADR, and
   bounded for every one before it**: the ~41,000 baseline entries are a
   finite, shrinking, enumerable list rather than a standing hole.
+- **The burndown has a known tooling cost.** A `confirm` re-scans the tree
+  and rewrites the ledger (~1–2 s), one line per call by design; at 41,000
+  entries that is a day of pure tooling. Issue #3675 owns the burndown and
+  must solve this (a warm-process confirm loop, or a model-assisted pass that
+  proposes corrections and leaves the one-line confirmation to a reader) —
+  this ADR deliberately does not add a bulk path to the gate-side command.
 - Citations wrapped across two comment lines (issue #2514) and ids on a line
   with no `CR ` stay outside — the ledger inherits the existence scan's
   definition of a citation.

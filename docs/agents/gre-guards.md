@@ -209,21 +209,25 @@ claim-vs-text checker is out of scope — the gate is offline and deterministic.
 **The citation ledger (`data/cr/citations-ledger.json`, ADR 0133, issue
 #3674)** closes blind spot 3 for every citation made after it and bounds it
 for every one before. One entry per citation — id, the normalized text of the
-citing line (never a position), a status — with two statuses that mean exactly
-one thing each: `confirmed` (a reader printed the rule and the line says what
-it says; carries the hash of the printed text) and `baseline` (predates the
-ledger, never checked). The fourth scan under `cr:lint` reds on a citation
-with no entry, a confirmed entry whose rule text changed (a `cr:sync`
-reopens every confirmed citation of a rule it rewrites), a `baseline` entry
-the merge-base's ledger does not have (the set only shrinks — the recording
-command never writes it), and a stale entry. The report prints the rule under
-the line and names the one command that records a check,
-`bun run cr:ledger confirm <file>:<line>` — one line per call, no bulk form.
-The tokenizer is the existence scan's own (`scanCitations`), the hashed text
-is what `bun run cr <id>` prints (`scripts/lib/cr-rules.ts`), and the
-regression test (`scripts/__tests__/cr-citation-ledger.test.ts`) drives the
-same pure report over a fixture document. **41,276 baseline entries** were
-recorded on 2026-09-15, after issue #3013 corrected the ten 616.1c/d sites;
-burning them down is issue #3675.
+citing line (never a position), how many sites make it, a status — with two
+statuses that mean exactly one thing each: `confirmed` (a reader printed the
+rule and the line says what it says; carries the hash of the printed text)
+and `baseline` (predates the ledger, never checked). The fourth scan under
+`cr:lint` reds on a citation with no entry (a new line, an edited line, or a
+new site of a recorded line — copying a comment is not free), a confirmed
+entry whose rule text changed (a `cr:sync` reopens every confirmed citation
+of a rule it rewrites), a `baseline` entry the merge-base's ledger does not
+have (the set only shrinks — the recording command never writes it), and a
+stale entry. The report prints the rule under the line and names the one
+command that records a check, `bun run cr:ledger confirm <file>:<line>` — one
+line per call, no bulk form. `cr-cite-ok` does NOT exempt a line from the
+ledger (ADR 0133 §6: the ledger asks whether the line was read, not whether
+it is wrong); the exempt files are listed one by one. The tokenizer is the
+existence scan's own (`scanCitations`), the hashed text is what
+`bun run cr <id>` prints (`scripts/lib/cr-rules.ts`), and the regression test
+(`scripts/__tests__/cr-citation-ledger.test.ts`) drives the same pure report
+over a fixture document. **41,276 baseline entries** were recorded on
+2026-09-15, after issue #3013 corrected the ten 616.1c/d sites; burning them
+down is issue #3675.
 
 Wizards republishes roughly per set at <https://magic.wizards.com/en/rules>.

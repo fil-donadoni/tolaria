@@ -18,6 +18,12 @@
  *                 collapsed, trimmed). Never a file or a line number: moving
  *                 the comment keeps its entry, EDITING it reopens the citation
  *                 — on purpose, because the claim is what was checked;
+ *   - `sites`   — how many places in the tree make this exact citation. A
+ *                 line copied to one more file is one more site: it enters
+ *                 the tree as unrecorded until confirmed, so an existing entry
+ *                 cannot be used as cover for a new, unchecked site (review of
+ *                 PR #3694, finding 2). Fewer sites is a stale count `prune`
+ *                 re-syncs;
  *   - `status`  — `confirmed` (a reader printed the rule with `bun run cr <id>`
  *                 and the line says what the rule says) or `baseline` (the
  *                 citation predates the ledger and was never checked);
@@ -30,31 +36,35 @@
  * reds on four things, each a `LedgerReport` field:
  *
  *   - `unrecorded` — a citation in the tree with no entry (a new comment, or an
- *     edited line). The message names the line, prints the cited rule and says
- *     how to confirm;
+ *     edited line), or with more sites than its entry records. The message
+ *     names the line, prints the cited rule and says how to confirm;
  *   - `drifted`    — a `confirmed` entry whose rule text no longer hashes to
  *     what was confirmed;
  *   - `grown`      — a `baseline` entry the base branch's ledger does not have.
  *     The baseline may only SHRINK: nothing enters unchecked under that
  *     status, and the recording command never writes it;
- *   - `stale`      — an entry matching no line in the tree. The recording
- *     command prunes these on every write, so a committed ledger that carries
- *     one was edited by something else — a red, not noise, because a stale
- *     entry is exactly the shape a hand-added "confirmation" of a line that no
- *     longer exists would take.
+ *   - `stale`      — an entry matching no line in the tree, or recording more
+ *     sites than the tree has. The recording command prunes these on every
+ *     write, so a committed ledger that carries one was edited by something
+ *     else — a red, not noise, because a stale entry is exactly the shape a
+ *     hand-added "confirmation" of a line that no longer exists would take.
  *
  * What counts as a citation is the existence scan's own walk
  * (`scanCitations` in `check-cr-citations.ts`) — this module never tokenizes,
- * so the two scans cannot disagree on the set. Suppression follows the other
- * scans: a line carrying `cr-cite-ok`, and every file under `EXEMPT`, needs
- * no entry.
+ * so the two scans cannot disagree on the set. The `EXEMPT` files need no
+ * entry. The `cr-cite-ok` hatch of the targeted scans is deliberately NOT
+ * honoured here: those scans ask "is this claim wrong", and a deliberate
+ * counter-example answers it; the ledger asks "was this line read", to which
+ * a counter-example is still a line — and an unbounded suppression on a gate
+ * this heavy is a hatch every session would reach for (review of PR #3694,
+ * finding 1). No suppressed citation outside the exempt files existed when
+ * this was decided.
  *
  * Shape of the committed file: one entry per line, sorted by id then line,
  * fixed key order, no header hash or tally — so two branches confirming two
  * different citations touch disjoint lines and git merges them (the
  * `generated-artifacts.ts` discriminator: no whole-file state).
  */
-import { SUPPRESS } from "./cr-misattribution.ts";
 import { printedRule, ruleHash, type Rule } from "./cr-rules.ts";
 
 export const LEDGER_PATH = "data/cr/citations-ledger.json";
@@ -64,18 +74,29 @@ export const LEDGER_GENERATOR = "bun run cr:ledger";
  * Files whose CR citations need no ledger entry: the citation guards' own
  * sources and tests (their headers and fixtures quote wrong citations on
  * purpose), the findings drawer (it exists to describe defects, not commit
- * them), and the two ADRs that discuss mis-citations by example. Prefix match,
- * like every other scan's `EXEMPT`.
+ * them), and the two ADRs that discuss mis-citations by example. Listed one
+ * by one, never as an open prefix — a future guard that needs the exemption
+ * adds its row here, as a decision.
  */
 export const EXEMPT = [
     "docs/findings/",
-    "docs/adr/0098-",
-    "docs/adr/0133-",
+    "docs/adr/0098-vendored-official-comprehensive-rules.md",
+    "docs/adr/0133-cr-citations-carry-a-committed-ledger.md",
     "scripts/cr.ts",
-    "scripts/cr-",
+    "scripts/cr-ledger.ts",
+    "scripts/cr-keyword-citations.ts",
+    "scripts/cr-118-4-life-payment.ts",
+    "scripts/cr-616-1-subrule-citations.ts",
     "scripts/check-cr-citations.ts",
-    "scripts/lib/cr-",
-    "scripts/__tests__/cr-",
+    "scripts/lib/cr-ledger.ts",
+    "scripts/lib/cr-rules.ts",
+    "scripts/lib/cr-misattribution.ts",
+    "scripts/__tests__/cr-citations.test.ts",
+    "scripts/__tests__/cr-citation-ledger.test.ts",
+    "scripts/__tests__/cr-keyword-citations.test.ts",
+    "scripts/__tests__/cr-118-4-life-payment.test.ts",
+    "scripts/__tests__/cr-616-1-subrule-citations.test.ts",
+    "scripts/__tests__/cr-source.test.ts",
 ];
 
 export type LedgerStatus = "baseline" | "confirmed";
@@ -83,6 +104,7 @@ export type LedgerStatus = "baseline" | "confirmed";
 export type LedgerEntry = {
     id: string;
     line: string;
+    sites: number;
     status: LedgerStatus;
     ruleHash?: string;
 };
@@ -99,9 +121,11 @@ export type TreeCitation = { id: string; line: string; sites: Site[] };
 
 /** A citation the gate wants confirmed, with the rule text a reader checks. */
 export type OpenCitation = TreeCitation & {
-    reason: "unrecorded" | "drifted";
+    reason: "unrecorded" | "new-sites" | "drifted";
     /** What `bun run cr <id>` prints, or `null` if the id resolves to nothing. */
     printed: string | null;
+    /** `new-sites`: how many sites the entry records. */
+    recordedSites?: number;
 };
 
 export type LedgerReport = {
@@ -125,20 +149,22 @@ export function entryKey(id: string, line: string): string {
 }
 
 export function isExempt(file: string): boolean {
-    return EXEMPT.some((p) => file.startsWith(p));
+    return EXEMPT.some((p) =>
+        p.endsWith("/") ? file.startsWith(p) : file === p
+    );
 }
 
 /**
  * The citations the ledger is accountable for: the scan's list minus exempt
- * files and `cr-cite-ok` lines, keyed by (id, normalized line) with every
- * site that makes the citation.
+ * files, keyed by (id, normalized line) with every site that makes the
+ * citation.
  */
 export function treeCitations(
     citations: Iterable<Citation>
 ): Map<string, TreeCitation> {
     const out = new Map<string, TreeCitation>();
     for (const c of citations) {
-        if (isExempt(c.file) || c.text.includes(SUPPRESS)) continue;
+        if (isExempt(c.file)) continue;
         const line = normalizeLine(c.text);
         const key = entryKey(c.id, line);
         const seen = out.get(key);
@@ -180,6 +206,10 @@ export function parseLedger(text: string): Ledger {
             throw new Error(`${where}: \`id\` is not a CR rule id`);
         if (typeof e.line !== "string" || e.line !== normalizeLine(e.line))
             throw new Error(`${where}: \`line\` is not a normalized line`);
+        if (!Number.isInteger(e.sites) || (e.sites as number) < 1)
+            throw new Error(
+                `${where}: \`sites\` is the number of places making this citation, a positive integer`
+            );
         if (e.status !== "baseline" && e.status !== "confirmed")
             throw new Error(
                 `${where}: \`status\` must be "baseline" or "confirmed"`
@@ -218,6 +248,7 @@ export function serializeLedger(ledger: Ledger): string {
             JSON.stringify({
                 id: e.id,
                 line: e.line,
+                sites: e.sites,
                 status: e.status,
                 ...(e.ruleHash === undefined ? {} : { ruleHash: e.ruleHash }),
             })
@@ -284,6 +315,15 @@ export function ledgerReport(input: {
             });
             continue;
         }
+        if (cit.sites.length > entry.sites) {
+            report.unrecorded.push({
+                ...cit,
+                reason: "new-sites",
+                printed: printed(cit.id),
+                recordedSites: entry.sites,
+            });
+            continue;
+        }
         if (entry.status === "confirmed") {
             const text = printed(cit.id);
             if (text === null || ruleHash(text) !== entry.ruleHash) {
@@ -298,7 +338,8 @@ export function ledgerReport(input: {
         report.recorded++;
     }
     for (const [key, entry] of byKey) {
-        if (!tree.has(key)) report.stale.push(entry);
+        const cit = tree.get(key);
+        if (!cit || cit.sites.length < entry.sites) report.stale.push(entry);
         else if (
             entry.status === "baseline" &&
             input.baseBaselineKeys !== null &&
@@ -331,58 +372,80 @@ export function initialLedger(citations: Iterable<Citation>): Ledger {
         entries: [...treeCitations(citations).values()].map((c) => ({
             id: c.id,
             line: c.line,
+            sites: c.sites.length,
             status: "baseline",
         })),
     };
 }
 
 /**
- * Records the citations on ONE line as confirmed. `citations` is that line's
- * scan output — every id it cites, the rule text of each having been printed
- * to the reader by the caller. Upserts, so a re-confirmation after a rule
- * change replaces the stale hash. Throws on an id that resolves to nothing:
- * there is no rule text to have checked.
+ * Records the citations on ONE line as confirmed. `lineCitations` is that
+ * line's scan output — every id it cites, the rule text of each having been
+ * printed to the reader by the caller; `treeCitationList` is the whole tree's,
+ * from which the entry's site count is taken (the claim is the line text, so
+ * a confirmation covers every place that makes it). Upserts, so a
+ * re-confirmation after a rule change replaces the stale hash. Throws on an
+ * id that resolves to nothing: there is no rule text to have checked.
  */
 export function confirmLine(
     ledger: Ledger,
-    citations: Citation[],
-    rules: Rule[]
+    lineCitations: Citation[],
+    rules: Rule[],
+    treeCitationList: Iterable<Citation>
 ): { ledger: Ledger; confirmed: LedgerEntry[] } {
     const confirmed: LedgerEntry[] = [];
+    const tree = treeCitations(treeCitationList);
+    const byKey = new Map(
+        ledger.entries.map((e, i) => [entryKey(e.id, e.line), i] as const)
+    );
     const entries = [...ledger.entries];
-    for (const cit of treeCitations(citations).values()) {
+    for (const cit of treeCitations(lineCitations).values()) {
         const text = printedRule(rules, cit.id);
         if (text === null)
             throw new Error(
                 `CR ${cit.id} resolves to no rule in the vendored document — nothing to confirm against`
             );
+        const key = entryKey(cit.id, cit.line);
         const entry: LedgerEntry = {
             id: cit.id,
             line: cit.line,
+            sites: tree.get(key)?.sites.length ?? cit.sites.length,
             status: "confirmed",
             ruleHash: ruleHash(text),
         };
-        const key = entryKey(cit.id, cit.line);
-        const at = entries.findIndex((e) => entryKey(e.id, e.line) === key);
-        if (at >= 0) entries[at] = entry;
+        const at = byKey.get(key);
+        if (at !== undefined) entries[at] = entry;
         else entries.push(entry);
         confirmed.push(entry);
     }
     return { ledger: { ...ledger, entries }, confirmed };
 }
 
-/** Drops every entry no line in the tree makes any more. */
+/**
+ * Drops every entry no line in the tree makes any more, and lowers a site
+ * count the tree no longer reaches. Never raises one — a new site is
+ * confirmed, not pruned into.
+ */
 export function pruneStale(
     ledger: Ledger,
     citations: Iterable<Citation>
 ): { ledger: Ledger; pruned: LedgerEntry[] } {
     const tree = treeCitations(citations);
     const pruned: LedgerEntry[] = [];
-    const entries = ledger.entries.filter((e) => {
-        const live = tree.has(entryKey(e.id, e.line));
-        if (!live) pruned.push(e);
-        return live;
-    });
+    const entries: LedgerEntry[] = [];
+    for (const e of ledger.entries) {
+        const cit = tree.get(entryKey(e.id, e.line));
+        if (!cit) {
+            pruned.push(e);
+            continue;
+        }
+        if (cit.sites.length < e.sites) {
+            pruned.push(e);
+            entries.push({ ...e, sites: cit.sites.length });
+            continue;
+        }
+        entries.push(e);
+    }
     return { ledger: { ...ledger, entries }, pruned };
 }
 
@@ -398,15 +461,29 @@ function siteLabel(sites: Site[]): string {
     return sites.length > 1 ? `${first} (+${sites.length - 1} more)` : first;
 }
 
-/** One open citation, formatted for the gate and the recording command. */
-export function formatOpen(open: OpenCitation, ruleChars = 400): string {
+function clip(text: string, max: number): string {
+    return text.length > max ? `${text.slice(0, max)}…` : text;
+}
+
+/**
+ * One open citation, formatted for the gate and the recording command. The
+ * gate clips the line and the rule; the recording command's listing IS the
+ * reading a confirmation asserts, so it passes `Infinity` for both.
+ */
+export function formatOpen(
+    open: OpenCitation,
+    ruleChars = 400,
+    lineChars = 200
+): string {
     const why =
         open.reason === "unrecorded"
             ? "no ledger entry"
-            : "rule text changed since it was confirmed";
+            : open.reason === "new-sites"
+              ? `${open.sites.length - (open.recordedSites ?? 0)} new site(s) of a recorded line (${open.recordedSites} recorded)`
+              : "rule text changed since it was confirmed";
     return (
         `  ${siteLabel(open.sites)}  CR ${open.id} — ${why}\n` +
-        `      ${open.line.slice(0, 200)}\n` +
+        `      ${clip(open.line, lineChars)}\n` +
         `      ┃ ${excerpt(open.printed, ruleChars)}`
     );
 }
@@ -459,7 +536,7 @@ export function formatReport(report: LedgerReport, showFiles: boolean): string {
         );
         out.push(
             cap(report.grown)
-                .map((e) => `  CR ${e.id}  ${e.line.slice(0, 160)}`)
+                .map((e) => `  CR ${e.id}  ${clip(e.line, 160)}`)
                 .join("\n")
         );
         out.push(more(report.grown.length));
@@ -469,11 +546,11 @@ export function formatReport(report: LedgerReport, showFiles: boolean): string {
     }
     if (report.stale.length) {
         out.push(
-            `\n${report.stale.length} ledger entr${report.stale.length === 1 ? "y matches" : "ies match"} no line in the tree (the line was edited or removed without recording):\n`
+            `\n${report.stale.length} ledger entr${report.stale.length === 1 ? "y matches" : "ies match"} no line in the tree, or more sites than the tree has (edited or removed without recording):\n`
         );
         out.push(
             cap(report.stale)
-                .map((e) => `  CR ${e.id}  ${e.line.slice(0, 160)}`)
+                .map((e) => `  CR ${e.id}  ${clip(e.line, 160)}`)
                 .join("\n")
         );
         out.push(more(report.stale.length));

@@ -24,16 +24,16 @@ import { printedRule, ruleHash, rulesOf, type Rule } from "../lib/cr-rules.ts";
 /**
  * CR citation ledger (ADR 0133, issue #3674).
  *
- * `bun run cr:lint` reds on a citation with no ledger entry, a confirmed
- * entry whose rule text changed, a baseline entry the base branch does not
- * have, and a stale entry. This test drives the SAME pure report over a
- * fixture CR document — never the vendored one, so a `cr:sync` cannot move
- * these assertions — plus one whole-tree assertion so the committed ledger
- * cannot drift from the tree either way.
+ * `bun run cr:lint` reds on a citation with no ledger entry (or more sites
+ * than its entry records), a confirmed entry whose rule text changed, a
+ * baseline entry the base branch does not have, and a stale entry. This test
+ * drives the SAME pure report over a fixture CR document — never the vendored
+ * one, so a `cr:sync` cannot move these assertions — plus one whole-tree
+ * assertion so the committed ledger cannot drift from the tree either way.
  *
  * Fixture lines interpolate their ids: this file is a tracked `.ts`, so a
  * literal `CR <id>` here would be picked up by the existence scan and the
- * targeted scans. (The ledger itself exempts `scripts/__tests__/cr-`.)
+ * targeted scans. (The ledger itself exempts this file by name.)
  */
 
 const ONCE = "614.5";
@@ -76,6 +76,7 @@ function citationsOf(sources: { file: string; text: string }[]): Citation[] {
 }
 
 const FILE = "convex/gre/fixture.ts";
+const TWIN = "convex/gre/twin.ts";
 
 function report(
     citations: Citation[],
@@ -84,6 +85,11 @@ function report(
     baseBaselineKeys: Set<string> | null = new Set()
 ) {
     return ledgerReport({ citations, ledger, rules, baseBaselineKeys });
+}
+
+/** Confirms the one line of `citations` against `rules`, tree = that line. */
+function confirmed(citations: Citation[], rules: Rule[] = rulesV1): Ledger {
+    return confirmLine(emptyLedger(), citations, rules, citations).ledger;
 }
 
 describe("the committed ledger is exact against the tracked tree (issue #3674)", () => {
@@ -108,6 +114,7 @@ describe("a new citation is red until confirmed", () => {
         expect(r.unrecorded[0]).toMatchObject({
             id: BACK_FACE,
             line: normalizeLine(line),
+            reason: "unrecorded",
             sites: [{ file: FILE, line: 1 }],
         });
         const text = formatReport(r, false);
@@ -118,15 +125,17 @@ describe("a new citation is red until confirmed", () => {
     });
 
     it("is green once confirmed against the printed rule", () => {
-        const { ledger, confirmed } = confirmLine(
+        const { ledger, confirmed: entries } = confirmLine(
             emptyLedger(),
             citations,
-            rulesV1
+            rulesV1,
+            citations
         );
-        expect(confirmed).toEqual([
+        expect(entries).toEqual([
             {
                 id: BACK_FACE,
                 line: normalizeLine(line),
+                sites: 1,
                 status: "confirmed",
                 ruleHash: ruleHash(printedRule(rulesV1, BACK_FACE)!),
             },
@@ -136,16 +145,28 @@ describe("a new citation is red until confirmed", () => {
 
     it("refuses to confirm an id that resolves to nothing", () => {
         const bogus = citationsOf([{ file: FILE, text: cite("999.9z", "x") }]);
-        expect(() => confirmLine(emptyLedger(), bogus, rulesV1)).toThrow(
+        expect(() => confirmLine(emptyLedger(), bogus, rulesV1, bogus)).toThrow(
             /resolves to no rule/
         );
+    });
+
+    it("a `cr-cite-ok` line still needs an entry — the ledger asks whether the line was read, not whether it is wrong", () => {
+        const c = citationsOf([
+            {
+                file: FILE,
+                text: `${cite(BACK_FACE, "counter-example")} cr-cite-ok`,
+            },
+        ]);
+        expect(c).toHaveLength(1);
+        expect(report(c, emptyLedger()).unrecorded).toHaveLength(1);
+        expect(reportIsClean(report(c, confirmed(c)))).toBe(true);
     });
 });
 
 describe("a confirmed entry reopens when its rule's text changes", () => {
     const line = cite(ONCE, "a replacement applies once per event");
     const citations = citationsOf([{ file: FILE, text: line }]);
-    const { ledger } = confirmLine(emptyLedger(), citations, rulesV1);
+    const ledger = confirmed(citations);
 
     it("is green on the document it was confirmed against", () => {
         expect(reportIsClean(report(citations, ledger, rulesV1))).toBe(true);
@@ -160,7 +181,7 @@ describe("a confirmed entry reopens when its rule's text changes", () => {
             "text changed since confirmation"
         );
 
-        const again = confirmLine(ledger, citations, rulesV2).ledger;
+        const again = confirmLine(ledger, citations, rulesV2, citations).ledger;
         expect(reportIsClean(report(citations, again, rulesV2))).toBe(true);
     });
 
@@ -201,11 +222,7 @@ describe("the baseline only shrinks", () => {
 
 describe("editing a confirmed line reopens it; moving it does not", () => {
     const line = cite(BACK_FACE, "a card entering with its back face up");
-    const { ledger } = confirmLine(
-        emptyLedger(),
-        citationsOf([{ file: FILE, text: line }]),
-        rulesV1
-    );
+    const ledger = confirmed(citationsOf([{ file: FILE, text: line }]));
 
     it("an edited claim is a new citation (unrecorded) and leaves the old entry stale", () => {
         const edited = citationsOf([
@@ -227,25 +244,68 @@ describe("editing a confirmed line reopens it; moving it does not", () => {
         ]);
         expect(reportIsClean(report(moved, ledger))).toBe(true);
     });
+});
+
+describe("an entry counts its sites — a copy of a recorded line is a new, unchecked citation", () => {
+    const line = cite(SECTION, "the affected player chooses");
+    const one = citationsOf([{ file: FILE, text: line }]);
+    const two = citationsOf([
+        { file: FILE, text: line },
+        { file: TWIN, text: `\n${line}` },
+    ]);
 
     it("a line duplicated across files is one entry, every site listed", () => {
-        const twice = citationsOf([
-            { file: FILE, text: line },
-            { file: "convex/gre/twin.ts", text: `\n${line}` },
-        ]);
-        const r = report(twice, emptyLedger());
+        const r = report(two, emptyLedger());
         expect(r.unrecorded).toHaveLength(1);
         expect(r.unrecorded[0].sites).toEqual([
             { file: FILE, line: 1 },
-            { file: "convex/gre/twin.ts", line: 2 },
+            { file: TWIN, line: 2 },
         ]);
+    });
+
+    it("a second site of a line recorded once is red, naming the count, even under `baseline`", () => {
+        const baseline = initialLedger(one);
+        expect(baseline.entries[0].sites).toBe(1);
+        const key = entryKey(SECTION, normalizeLine(line));
+        const r = report(two, baseline, rulesV1, new Set([key]));
+        expect(r.unrecorded).toHaveLength(1);
+        expect(r.unrecorded[0]).toMatchObject({
+            reason: "new-sites",
+            recordedSites: 1,
+        });
+        expect(formatReport(r, false)).toContain("1 new site(s)");
+        expect(formatReport(r, false)).toContain("bun run cr:ledger confirm");
+    });
+
+    it("confirming the line records every site the tree makes, and is green", () => {
+        const { ledger, confirmed: entries } = confirmLine(
+            initialLedger(one),
+            one,
+            rulesV1,
+            two
+        );
+        expect(entries[0]).toMatchObject({ sites: 2, status: "confirmed" });
+        expect(reportIsClean(report(two, ledger))).toBe(true);
+    });
+
+    it("one site fewer is a stale count that prune lowers — never raises", () => {
+        const ledger = confirmLine(emptyLedger(), one, rulesV1, two).ledger;
+        const r = report(one, ledger);
+        expect(r.stale).toHaveLength(1);
+        expect(reportIsClean(r)).toBe(false);
+        const { ledger: pruned, pruned: touched } = pruneStale(ledger, one);
+        expect(touched).toHaveLength(1);
+        expect(pruned.entries[0].sites).toBe(1);
+        expect(reportIsClean(report(one, pruned))).toBe(true);
+        expect(pruneStale(pruned, two).pruned).toHaveLength(0);
+        expect(pruneStale(pruned, two).ledger.entries[0].sites).toBe(1);
     });
 });
 
 describe("stale entries are red, and prune drops them", () => {
     const line = cite(ONCE, "once per event");
     const citations = citationsOf([{ file: FILE, text: line }]);
-    const { ledger } = confirmLine(emptyLedger(), citations, rulesV1);
+    const ledger = confirmed(citations);
 
     it("an entry matching no line in the tree is red", () => {
         const r = report([], ledger);
@@ -261,31 +321,28 @@ describe("stale entries are red, and prune drops them", () => {
     });
 });
 
-describe("suppression and exemption", () => {
-    it("a `cr-cite-ok` line needs no entry", () => {
-        const c = citationsOf([
-            {
-                file: FILE,
-                text: `${cite(BACK_FACE, "counter-example")} cr-cite-ok`,
-            },
-        ]);
-        expect(c).toHaveLength(1);
-        expect(reportIsClean(report(c, emptyLedger()))).toBe(true);
-    });
-
-    it("an exempt file needs no entry", () => {
-        const c = citationsOf([
+describe("exemption", () => {
+    it("an exempt file needs no entry; a sibling with a similar name is not exempt", () => {
+        const exempt = citationsOf([
             {
                 file: "docs/findings/2026-09-15-x.md",
                 text: cite(ONCE, "wrong on purpose"),
             },
             {
-                file: "scripts/__tests__/cr-fixture.test.ts",
+                file: "scripts/__tests__/cr-citations.test.ts",
                 text: cite(ONCE, "fixture"),
             },
         ]);
-        expect(c).toHaveLength(2);
-        expect(reportIsClean(report(c, emptyLedger()))).toBe(true);
+        expect(exempt).toHaveLength(2);
+        expect(reportIsClean(report(exempt, emptyLedger()))).toBe(true);
+
+        const sibling = citationsOf([
+            {
+                file: "scripts/__tests__/cr-something-else.test.ts",
+                text: cite(ONCE, "not exempt"),
+            },
+        ]);
+        expect(report(sibling, emptyLedger()).unrecorded).toHaveLength(1);
     });
 });
 
@@ -298,24 +355,25 @@ describe("the ledger file", () => {
         const { ledger } = confirmLine(
             initialLedger(citations),
             citationsOf([{ file: FILE, text: a }]),
-            rulesV1
+            rulesV1,
+            citations
         );
         const text = serializeLedger(ledger);
         const rows = text.split("\n").filter((l) => l.startsWith("        {"));
         expect(rows).toHaveLength(2);
         expect(rows[0]).toContain(`"id":"${ONCE}"`);
-        expect(rows[0]).toContain('"status":"confirmed"');
+        expect(rows[0]).toContain('"sites":1,"status":"confirmed"');
         expect(rows[1]).toContain(`"id":"${BACK_FACE}"`);
-        expect(rows[1]).toContain('"status":"baseline"');
+        expect(rows[1]).toContain('"sites":1,"status":"baseline"');
         expect(rows[1]).not.toContain("ruleHash");
         expect(serializeLedger(parseLedger(text))).toBe(text);
     });
 
-    it("rejects a baseline entry carrying a hash, a confirmed entry without one, and a duplicate", () => {
+    it("rejects a baseline entry carrying a hash, a confirmed entry without one, a missing site count, and a duplicate", () => {
         const entry = (extra: object) =>
             JSON.stringify({
                 generator: "x",
-                entries: [{ id: ONCE, line: "// x", ...extra }],
+                entries: [{ id: ONCE, line: "// x", sites: 1, ...extra }],
             });
         expect(() =>
             parseLedger(
@@ -326,11 +384,24 @@ describe("the ledger file", () => {
             /16-hex/
         );
         expect(() =>
+            parseLedger(entry({ status: "baseline", sites: 0 }))
+        ).toThrow(/positive integer/);
+        expect(() =>
             parseLedger(
                 JSON.stringify({
                     entries: [
-                        { id: ONCE, line: "// x", status: "baseline" },
-                        { id: ONCE, line: "// x", status: "baseline" },
+                        {
+                            id: ONCE,
+                            line: "// x",
+                            sites: 1,
+                            status: "baseline",
+                        },
+                        {
+                            id: ONCE,
+                            line: "// x",
+                            sites: 1,
+                            status: "baseline",
+                        },
                     ],
                 })
             )
