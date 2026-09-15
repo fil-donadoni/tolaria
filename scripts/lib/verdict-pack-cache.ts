@@ -74,11 +74,17 @@ export function cachedVerdictPackPath(
     return join(cacheDir, verdictPackObjectName(packHash));
 }
 
-/** A pack's hash: sha256 over its uncompressed text (`pack.ts` says why not
- *  over the gzip). */
-export function verdictPackHash(text: string): string {
-    return createHash("sha256").update(text, "utf8").digest("hex");
+/** A pack's hash: sha256 over its uncompressed bytes — a string is hashed as
+ *  its UTF-8 (`pack.ts` says why not over the gzip). */
+export function verdictPackHash(content: string | Uint8Array): string {
+    return createHash("sha256").update(content).digest("hex");
 }
+
+/** The most a pack may gunzip to. Checked BEFORE the hash can be, so a
+ *  hostile object cannot exhaust memory on its way to being refused. 1 GiB is
+ *  ~17x the ~60 MB ADR 0128 expects at 10,000 verdicts, and stays under every
+ *  runtime's maximum Buffer length. */
+const MAX_PACK_BYTES = 1024 ** 3;
 
 /** The pack for `entries` as the store holds it — what a promotion uploads
  *  (issue #3583), and what a test plays the bucket with. */
@@ -117,20 +123,35 @@ function packText(
     lock: VerdictLock,
     bytes: Uint8Array
 ): { text: string } | { why: string } {
-    let text: string;
+    let raw: Buffer;
     try {
-        text = gunzipSync(bytes).toString("utf8");
+        raw = gunzipSync(bytes, { maxOutputLength: MAX_PACK_BYTES });
     } catch (error) {
         return {
             why: `not a gzip pack (${error instanceof Error ? error.message : String(error)})`,
         };
     }
-    const actual = verdictPackHash(text);
+    // The hash is over the BYTES, not the decoded string: decoding maps every
+    // invalid UTF-8 sequence to U+FFFD, so two different byte strings could
+    // decode to one hash, and "sha256 of the pack" would stop meaning that.
+    const actual = verdictPackHash(raw);
     return actual === lock.packHash
-        ? { text }
+        ? { text: raw.toString("utf8") }
         : {
               why: `content hashes to ${actual}, not to the packHash ${VERDICT_LOCK_PATH} names`,
           };
+}
+
+/** The cached file's bytes, or `null` for a miss — an unreadable file
+ *  (permissions, a directory in its place) is a miss too: the cache is this
+ *  machine's disk, and the store can always answer instead. */
+function readCachedPack(path: string): Uint8Array | null {
+    if (!existsSync(path)) return null;
+    try {
+        return readFileSync(path);
+    } catch {
+        return null;
+    }
 }
 
 function writeAtomically(path: string, bytes: Uint8Array): void {
@@ -154,8 +175,9 @@ export async function loadLockedVerdicts(
     source: VerdictPackSource
 ): Promise<LockedVerdicts> {
     const path = cachedVerdictPackPath(source.cacheDir, lock.packHash);
-    if (existsSync(path)) {
-        const cached = packText(lock, readFileSync(path));
+    const onDisk = readCachedPack(path);
+    if (onDisk !== null) {
+        const cached = packText(lock, onDisk);
         if ("text" in cached) {
             const entries = parseVerdictPack(lock, cached.text);
             return {

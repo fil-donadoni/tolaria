@@ -22,12 +22,13 @@ import {
     mkdtempSync,
     readdirSync,
     readFileSync,
+    rmSync,
     writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { gzipSync } from "node:zlib";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
     canonicalJson,
     verdictIdOf,
@@ -77,7 +78,12 @@ const stored = (judgement: VerdictJudgement): StoredVerdictPayload => ({
 
 const [A, B, C] = [0, 1, 2].map((i) => stored(judgementAnswering(i)));
 
-const tempDir = () => mkdtempSync(join(tmpdir(), "verdict-pack-"));
+const tempDirs: string[] = [];
+const tempDir = () => {
+    const dir = mkdtempSync(join(tmpdir(), "verdict-pack-"));
+    tempDirs.push(dir);
+    return dir;
+};
 
 /** A bucket holding `entries` promoted into one pack, and a lock naming
  *  `lockIds` (the pack's own ids unless a test says otherwise). */
@@ -119,7 +125,9 @@ const noStore = (): VerdictStoreReader => {
 };
 
 afterEach(() => {
-    vi.unstubAllGlobals();
+    for (const dir of tempDirs.splice(0)) {
+        rmSync(dir, { recursive: true, force: true });
+    }
 });
 
 describe("loadLockedVerdicts — one fetch per lock (issue #3581)", () => {
@@ -231,18 +239,30 @@ describe("the machine cache (issue #3581)", () => {
         const cacheDir = tempDir();
         await loadLockedVerdicts(lock, { cacheDir, store: () => bucket });
 
-        const network = vi.fn(async () => {
-            throw new Error("network call on a warm cache");
-        });
-        vi.stubGlobal("fetch", network);
+        // The store client is the loader's only way to the network, so a
+        // factory that throws when built proves no call was made.
         const out = await loadLockedVerdicts(lock, {
             cacheDir,
             store: noStore,
         });
 
         expect(out.fetched).toBe(false);
-        expect(network).not.toHaveBeenCalled();
         expect(out.verdicts).toEqual(verdictsFromLock(lock, [A, B]));
+    });
+
+    it("an empty lock is a real, empty corpus: one pack, fetched once, then warm", async () => {
+        const { bucket, lock } = await promoted([]);
+        const cacheDir = tempDir();
+        const cold = await loadLockedVerdicts(lock, {
+            cacheDir,
+            store: () => bucket,
+        });
+        expect(cold).toMatchObject({ verdicts: [], fetched: true });
+        const warm = await loadLockedVerdicts(lock, {
+            cacheDir,
+            store: noStore,
+        });
+        expect(warm).toMatchObject({ verdicts: [], fetched: false });
     });
 
     it("is keyed by content: two locks over one pack share a file, a new pack is a new file", async () => {

@@ -10,7 +10,8 @@
 // THE PACK IS DERIVED AND UNBELIEVED. Nothing in it is trusted because it is
 // in the bucket: the committed lock is the only authority. A pack is accepted
 // only when (a) its content hashes to the lock's `packHash` (the caller's
-// check — hashing and gzip need a runtime this module does not assume), (b) it
+// check: the hash is over the gunzipped BYTES, which only the caller has —
+// gunzip needs a runtime this module does not assume), (b) it
 // carries EXACTLY the ids the lock names, no more, no fewer, none twice (this
 // module), and (c) every payload re-hashes to the id it is carried under
 // (`verdictsFromLock`, which the caller runs over what this returns).
@@ -34,13 +35,16 @@
 
 import { canonicalJson, VERDICT_HASH_PATTERN } from "./identity";
 import { isJsonObject } from "./judgement";
-import type { StoredVerdictPayload, VerdictLock } from "./lockSource";
+import {
+    PACK_HASH_PATTERN,
+    type StoredVerdictPayload,
+    type VerdictLock,
+} from "./lockSource";
 
 /** Where packs live in the Verdict Store. */
 export const VERDICT_PACK_PREFIX = "packs/";
 
 const VERDICT_PACK_SUFFIX = ".jsonl.gz";
-const PACK_HASH_PATTERN = /^[0-9a-f]{64}$/;
 
 /** `packs/<packHash>.jsonl.gz` — the one object a lock's corpus is read from.
  *  Throws on anything that is not a sha256 hex digest, so no other string can

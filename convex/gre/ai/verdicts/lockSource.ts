@@ -37,10 +37,9 @@
 // registry's is `lockedCorpus.ts`, kept out of this module so a script can
 // verify a pack without importing the registry — which drags the engine's
 // setup, and `lib.dom` with it, into the scripts type-check. Provenance is
-// not here either — author,
-// note and dates live in attestations (ADR 0128 §4), which the fit does not
-// read — so a locked verdict carries the constants below, the way a
-// registry-derived one does.
+// not here either — author, note and dates live in attestations (ADR 0128
+// §4), which the fit does not read — so a locked verdict carries the
+// constants below, the way a registry-derived one does.
 
 import { VERDICT_HASH_PATTERN, verdictIdOf } from "./identity";
 import { isJsonObject, parseVerdictJudgement } from "./judgement";
@@ -63,7 +62,9 @@ export const LOCK_VERDICT_AUTHOR = "verdict-lock";
  *  the reason `REGISTRY_VERDICT_TIMESTAMP` is one; the date is ADR 0128's. */
 export const LOCK_VERDICT_TIMESTAMP = "2026-09-14T00:00:00.000Z";
 
-const PACK_HASH_PATTERN = /^[0-9a-f]{64}$/;
+/** A pack hash: a sha256 hex digest. The lock carries one; the pack's object
+ *  name is built from one (`pack.ts`). */
+export const PACK_HASH_PATTERN = /^[0-9a-f]{64}$/;
 
 /** The committed Verdict Lock. */
 export type VerdictLock = {
