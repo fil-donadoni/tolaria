@@ -27,7 +27,7 @@ resident indexes are `.claude/rules/frontend-components.md` and
 ## After changes
 
 - Run `bun run check:all` — format + lint + type-check must pass
-- **Run `bun run check:ui`** — headless Chrome at five viewports (desktop, phone portrait/landscape, tablet portrait/landscape), probe + axe, every Floor held at zero (`scripts/ui-gate/floors.ts`). Paste its output in the PR. The `dom` project runs on happy-dom, which has no layout: it cannot see a collapsed or occluded element. `.claude/rules/chrome-debug.md`
+- **Run `bun run check:ui`** — headless Chrome at five viewports (desktop, phone portrait/landscape, tablet portrait/landscape), probe + axe, Floors at zero. Paste its output in the PR. The `dom` project runs on happy-dom, which has no layout: it cannot see a collapsed or occluded element. `.claude/rules/chrome-debug.md`
 
 ## Browser verification
 
@@ -45,20 +45,15 @@ say so in one line and move on.
 
 **Run `bun run check:ui` first** (#2580). It owns its own Vite + headless
 Chrome, signs in, walks the runbook surfaces at all five viewports, probes and
-runs axe, and fails on any broken Floor — nine counts held at zero everywhere
-(`scripts/ui-gate/floors.ts`, ADR 0132); `cardsOcc`, `ctrlsOcc`, `small` and
-`starved` are Shape Readings, printed and never compared. Its output IS the
-receipt — paste it. A surface it could not reach prints `UNWALKED` and reds
+runs axe, and fails on any broken Floor (`scripts/ui-gate/floors.ts`, ADR
+0132). Its output IS the receipt — paste it. A surface it could not reach prints `UNWALKED` and reds
 the run; that is a coverage failure, not a pass. Drive CDP by hand only for
 what the lane does not cover, or to diagnose what it flagged.
 
-**Paste it byte-exact** (#2760). The receipt has two blocks: the **verdict
-block** (banner, one `PASS|FAIL|INFRA|UNWALKED` line per surface × viewport,
-coverage line), which `bun run land` re-derives from the diff's scope and
-refuses on any mismatch or any line that is not `PASS`; then the **diagnostic
-block** (shape readings, load, wall time), which it never reads
-(`bun run verify:ui-receipt <PR#>` checks by hand). A `RECEIPT` or the diff's
-`SCOPED` run, never `DIAGNOSTIC`; never reflow a line.
+**Paste it byte-exact** (#2760): `bun run land` re-derives the verdict block
+and refuses a mismatch or a non-`PASS` line; the diagnostic block is never read
+(`bun run verify:ui-receipt <PR#>` by hand). `RECEIPT` or `SCOPED`, never
+`DIAGNOSTIC`; never reflow a line.
 
 **Five viewports per surface touched** (ADR 0101), via `emulate`: desktop
 `1440x900x2`, phone `390x844x3,mobile,touch` and
