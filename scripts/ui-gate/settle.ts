@@ -146,17 +146,26 @@ export function settleState(
  * `Connect` (the reconnect handshake) resets the query-set versions, since the
  * client replays its whole query set from version 0. `TransitionChunk`s are
  * reassembled the way the client does before the version is read.
+ *
+ * A MUTATION IS NOT DONE AT ITS RESPONSE. The Convex client holds a successful
+ * mutation as `Completed` until a `Transition` whose `endVersion.ts` reaches
+ * the response's `ts` (`request_manager.ts` `removeCompleted`) — only then do
+ * the subscribed queries show the write. So a successful `MutationResponse`
+ * stores its `ts` and the request stays in flight until a Transition covers it
+ * (or one already had). Timestamps are base64 little-endian u64s, decoded to
+ * BigInt as the client's `u64ToLong` does. A failed mutation and an action are
+ * done at their response.
  */
 export const NETWORK_INSTRUMENT_SOURCE = `(() => {
     if (window.__tolariaNet) return;
-    const pending = new Set();
     const sockets = new Set();
     let fetches = 0;
     Object.defineProperty(window, "__tolariaNet", {
         value: {
             inflight() {
-                let n = pending.size + fetches;
+                let n = fetches;
                 for (const s of sockets) {
+                    n += s.pending.size;
                     if (s.ws.readyState === 0) n++;
                     else if (s.ws.readyState === 1 && s.answered < s.requested) n++;
                 }
@@ -168,22 +177,30 @@ export const NETWORK_INSTRUMENT_SOURCE = `(() => {
         if (typeof data !== "string") return null;
         try { return JSON.parse(data); } catch { return null; }
     };
+    const u64 = (encoded) => {
+        const bytes = atob(encoded);
+        let v = BigInt(0);
+        for (let i = bytes.length - 1; i >= 0; i--) {
+            v = (v << BigInt(8)) | BigInt(bytes.charCodeAt(i));
+        }
+        return v;
+    };
     const NativeWebSocket = window.WebSocket;
     if (NativeWebSocket) {
-        let seq = 0;
         const Instrumented = function (url, protocols) {
             const ws = protocols === undefined
                 ? new NativeWebSocket(url)
                 : new NativeWebSocket(url, protocols);
             if (!/\\/api\\/[^/]+\\/sync$/.test(String(url))) return ws;
-            const id = ++seq;
-            const s = { ws, requested: 0, answered: 0, chunks: [] };
+            // pending: requestId -> null (no response yet) or the ts a
+            // Transition must reach.
+            const s = { ws, requested: 0, answered: 0, chunks: [], observed: BigInt(-1), pending: new Map() };
             sockets.add(s);
             const send = ws.send.bind(ws);
             ws.send = (data) => {
                 const m = parse(data);
                 if (m && (m.type === "Mutation" || m.type === "Action")) {
-                    pending.add(id + "#" + m.requestId);
+                    s.pending.set(m.requestId, null);
                 } else if (m && m.type === "ModifyQuerySet") {
                     s.requested = m.newVersion;
                 } else if (m && m.type === "Connect") {
@@ -203,17 +220,25 @@ export const NETWORK_INSTRUMENT_SOURCE = `(() => {
                     s.chunks = [];
                     if (!m) return;
                 }
-                if (m.type === "MutationResponse" || m.type === "ActionResponse") {
-                    pending.delete(id + "#" + m.requestId);
+                if (m.type === "MutationResponse" && m.success && typeof m.ts === "string") {
+                    const ts = u64(m.ts);
+                    if (ts <= s.observed) s.pending.delete(m.requestId);
+                    else s.pending.set(m.requestId, ts);
+                } else if (m.type === "MutationResponse" || m.type === "ActionResponse") {
+                    s.pending.delete(m.requestId);
                 } else if (m.type === "Transition" && m.endVersion) {
                     s.answered = m.endVersion.querySet;
+                    if (typeof m.endVersion.ts === "string") {
+                        const ts = u64(m.endVersion.ts);
+                        if (ts > s.observed) s.observed = ts;
+                        for (const [requestId, due] of [...s.pending]) {
+                            if (due !== null && due <= s.observed) s.pending.delete(requestId);
+                        }
+                    }
                 }
             });
             ws.addEventListener("close", () => {
                 sockets.delete(s);
-                for (const key of [...pending]) {
-                    if (key.startsWith(id + "#")) pending.delete(key);
-                }
             });
             return ws;
         };
@@ -277,6 +302,34 @@ export interface SettleOptions {
     policy?: SettlePolicy;
 }
 
+/** HTTP requests in flight per page, counted from the Node side. */
+const REQUEST_TRACKERS = new WeakMap<Page, { inflight: number }>();
+
+/**
+ * Count the page's HTTP requests in flight from the Node side, so the settle
+ * wait sees what `window.fetch` cannot: card images, module imports,
+ * stylesheets (issue #3644 review — card art still loading is the known
+ * `cardsZero` false red). WebSockets never finish and are not requests here.
+ * Idempotent per page.
+ */
+export function trackPageRequests(page: Page): void {
+    if (REQUEST_TRACKERS.has(page)) return;
+    const tracker = { inflight: 0 };
+    REQUEST_TRACKERS.set(page, tracker);
+    const open = new WeakSet<object>();
+    page.on("request", (request) => {
+        open.add(request);
+        tracker.inflight++;
+    });
+    const done = (request: object) => {
+        if (!open.has(request)) return;
+        open.delete(request);
+        tracker.inflight--;
+    };
+    page.on("requestfinished", done);
+    page.on("requestfailed", done);
+}
+
 /**
  * Wait for a Settled Screen, or throw the `unsettled` Infra Verdict.
  * Returns the milliseconds it took.
@@ -287,18 +340,32 @@ export async function waitForSettledScreen(
 ): Promise<number> {
     const policy = options.policy ?? DEFAULT_SETTLE_POLICY;
     const source = sampleSource(options.targets ?? []);
+    const tracker = REQUEST_TRACKERS.get(page);
     const startedAt = Date.now();
     const samples: SettleSample[] = [];
     for (;;) {
         const raw = (await page.evaluate(source)) as Omit<SettleSample, "at">;
-        samples.push({ ...raw, at: Date.now() });
+        samples.push({
+            ...raw,
+            inflight: raw.inflight + (tracker?.inflight ?? 0),
+            at: Date.now(),
+        });
         // Only the trailing quiet run is ever read; keep the window bounded.
         if (samples.length > 400) samples.splice(0, samples.length - 400);
         const state = settleState(samples, startedAt, policy);
         if (state.kind === "settled") return state.at - startedAt;
         if (state.kind === "unsettled") {
+            // The URL: a screen with no marker is often not the screen the
+            // walk meant to be on (an admin gate rendering nothing, a
+            // redirect), and the path is what says so.
+            let where = "?";
+            try {
+                where = new URL(page.url()).pathname;
+            } catch {
+                // an unparsable URL keeps "?"
+            }
             throw new Error(
-                `${UNSETTLED_MESSAGE_PREFIX} within ${Math.round(policy.timeoutMs / 1000)}s — ${state.reason}`
+                `${UNSETTLED_MESSAGE_PREFIX} within ${Math.round(policy.timeoutMs / 1000)}s on ${where} — ${state.reason}`
             );
         }
         await new Promise((resolve) => setTimeout(resolve, policy.pollMs));

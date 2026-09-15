@@ -137,7 +137,11 @@ import {
     standingVerdict,
     type RetryPolicy,
 } from "./infra-verdict.ts";
-import { NETWORK_INSTRUMENT_SOURCE, waitForSettledScreen } from "./settle.ts";
+import {
+    NETWORK_INSTRUMENT_SOURCE,
+    trackPageRequests,
+    waitForSettledScreen,
+} from "./settle.ts";
 import { runSettleSelfCheck } from "./settle-selfcheck.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -779,6 +783,7 @@ async function main(): Promise<number> {
                     // requests in flight through this (`settle.ts`).
                     await context.addInitScript(NETWORK_INSTRUMENT_SOURCE);
                     const page = await context.newPage();
+                    trackPageRequests(page);
                     /** The console errors of the CURRENT walk attempt, untruncated —
                      *  what `classifyWalkFailure` reads a signature from. */
                     const attemptConsole: string[] = [];
@@ -802,12 +807,39 @@ async function main(): Promise<number> {
                     ): Promise<boolean> => {
                         const cell = `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)}`;
                         for (let attempts = 1; ; attempts++) {
+                            // Console events arrive asynchronously; a round trip
+                            // through the page flushes the ones the previous
+                            // attempt (or surface) logged before they are cleared,
+                            // so none can land in this attempt's signature.
+                            await page.evaluate("0").catch(() => {});
                             attemptConsole.length = 0;
                             try {
                                 await surface.walk(page, ctx);
                                 await waitForSettledScreen(page, {
                                     targets: surface.settleTargets,
                                 });
+                                // A backend function that timed out can still
+                                // leave a screen that settles — an error panel,
+                                // held data, an empty list — and measuring it
+                                // would report the machine as a UI failure. Only
+                                // this signature: a `Server Error` can be logged
+                                // harmlessly on a quiet machine.
+                                await page.evaluate("0").catch(() => {});
+                                const timedOut = attemptConsole.find((line) => {
+                                    const c = classifyWalkFailure({
+                                        message: "",
+                                        consoleErrors: [line],
+                                    });
+                                    return (
+                                        c.kind === "INFRA" &&
+                                        c.signature === "function-timeout"
+                                    );
+                                });
+                                if (timedOut) {
+                                    throw new Error(
+                                        `the screen settled, but a backend function timed out while it loaded: ${timedOut.split("\n").slice(-1)[0]}`
+                                    );
+                                }
                                 return true;
                             } catch (err) {
                                 const message = (err as Error).message;
@@ -876,6 +908,19 @@ async function main(): Promise<number> {
                                 log(
                                     `${cell} infra attempt ${attempts}/${RETRY_POLICY.maxAttempts} — ${said}; retrying at load ${(samples.at(-1) ?? failedAt).toFixed(1)}`
                                 );
+                                // Undo what the failed attempt created (the
+                                // `deck-builder` fixture's `userDecks` row, issue
+                                // #2671) before the retry overwrites the record of
+                                // it; `measure()` cleans up only after the last.
+                                if (surface.cleanup) {
+                                    try {
+                                        await surface.cleanup(page, ctx);
+                                    } catch (e) {
+                                        log(
+                                            `${cell} CLEANUP FAILED before the retry — ${(e as Error).message.split("\n")[0]}`
+                                        );
+                                    }
+                                }
                                 if (surface.needsGame) {
                                     await recreateLaneGame(page, ctx).catch(
                                         (e) =>

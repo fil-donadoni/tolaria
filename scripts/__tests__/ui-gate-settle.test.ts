@@ -158,6 +158,7 @@ function instrumentedWindow(
     const win: Record<string, unknown> = {
         WebSocket: FakeWebSocket,
         fetch: fetchImpl,
+        atob,
     };
     win.window = win;
     createContext(win);
@@ -167,8 +168,16 @@ function instrumentedWindow(
 
 const SYNC_URL = "ws://127.0.0.1:3210/api/1.31.2/sync";
 
+/** A Convex timestamp on the wire: a base64 little-endian u64. Values past
+ *  2^53 so a Number-based decode would lose them. */
+function wireTs(value: bigint): string {
+    return Buffer.from(BigUint64Array.of(value).buffer).toString("base64");
+}
+const T1 = (BigInt(1) << BigInt(60)) + BigInt(1);
+const T2 = T1 + BigInt(1);
+
 describe("NETWORK_INSTRUMENT_SOURCE — Convex requests in flight", () => {
-    it("counts a mutation and an action until each one's response", () => {
+    it("an action and a failed mutation are done at their response", () => {
         const win = instrumentedWindow(() => Promise.resolve());
         const ws = new win.WebSocket(SYNC_URL);
         ws.send(JSON.stringify({ type: "Mutation", requestId: 0 }));
@@ -177,13 +186,54 @@ describe("NETWORK_INSTRUMENT_SOURCE — Convex requests in flight", () => {
         ws.serverSends({
             type: "MutationResponse",
             requestId: 0,
-            success: true,
+            success: false,
+            result: "boom",
         });
         expect(win.__tolariaNet.inflight()).toBe(1);
         ws.serverSends({ type: "ActionResponse", requestId: 1, success: true });
         expect(win.__tolariaNet.inflight()).toBe(0);
         // The frames still reach the real socket.
         expect(ws.sent).toHaveLength(2);
+    });
+
+    it("a successful mutation stays in flight until a Transition reaches its ts — the client shows the write only then", () => {
+        const win = instrumentedWindow(() => Promise.resolve());
+        const ws = new win.WebSocket(SYNC_URL);
+        ws.send(JSON.stringify({ type: "Mutation", requestId: 0 }));
+        ws.serverSends({
+            type: "MutationResponse",
+            requestId: 0,
+            success: true,
+            ts: wireTs(T2),
+        });
+        expect(win.__tolariaNet.inflight()).toBe(1);
+        ws.serverSends({
+            type: "Transition",
+            endVersion: { querySet: 0, ts: wireTs(T1) },
+        });
+        expect(win.__tolariaNet.inflight()).toBe(1);
+        ws.serverSends({
+            type: "Transition",
+            endVersion: { querySet: 0, ts: wireTs(T2) },
+        });
+        expect(win.__tolariaNet.inflight()).toBe(0);
+    });
+
+    it("a successful mutation whose ts a Transition already reached is done at its response", () => {
+        const win = instrumentedWindow(() => Promise.resolve());
+        const ws = new win.WebSocket(SYNC_URL);
+        ws.send(JSON.stringify({ type: "Mutation", requestId: 3 }));
+        ws.serverSends({
+            type: "Transition",
+            endVersion: { querySet: 0, ts: wireTs(T2) },
+        });
+        ws.serverSends({
+            type: "MutationResponse",
+            requestId: 3,
+            success: true,
+            ts: wireTs(T1),
+        });
+        expect(win.__tolariaNet.inflight()).toBe(0);
     });
 
     it("counts a query-set change until a Transition reaches its version", () => {
