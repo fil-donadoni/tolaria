@@ -71,8 +71,11 @@ const drainReportValidator = v.object({
     alreadySlim: v.number(),
     pending: pendingValidator,
     skipped: v.optional(v.string()),
-    // The resolution outbox (issue #3582), drained after the verdicts so a
-    // resolution never reaches the store ahead of the verdicts it names.
+    // The resolution outbox (issue #3582), drained after the verdicts. A
+    // verdict row left pending does not hold its resolution back; a reader
+    // of the store alone then sees fewer verdicts than the resolution decided
+    // over, so the resolution does not match and the position stays
+    // contested — the safe direction.
     resolutions: v.optional(
         v.object({ stored: v.number(), pending: pendingValidator })
     ),

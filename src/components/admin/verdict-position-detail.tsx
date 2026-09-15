@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { ReviewPosition } from "@convex/verdictReview";
 import { Button } from "@/components/ui/button";
 import VerdictAnswerCard from "./verdict-answer-card";
@@ -7,8 +8,9 @@ import { authorLabel, dateLabel } from "./verdict-review-model";
 
 /**
  * One contested or resolved position (issue #3582): the board rebuilt from
- * its spec, the answers side by side with who gave each, and — while it is
- * contested — the form that settles it.
+ * its spec, the answers side by side with who gave each, and the form that
+ * settles it — open while it is contested, one press away once it is
+ * resolved, because changing one's mind is a newer resolution, never an edit.
  */
 export default function VerdictPositionDetail({
     position,
@@ -20,6 +22,7 @@ export default function VerdictPositionDetail({
     onResolved: () => void;
 }) {
     const { resolution, staleResolution } = position;
+    const [resolvingAgain, setResolvingAgain] = useState(false);
     const reasons = new Map(
         (resolution?.rejected ?? []).map((r) => [r.verdictId, r.reason])
     );
@@ -62,29 +65,40 @@ export default function VerdictPositionDetail({
                     />
                 ))}
             </div>
-            {resolution !== null ? (
-                <p className="break-words text-sm text-text-muted">
-                    Resolved by {authorLabel(resolution)}
-                    {dateLabel(resolution.createdAt) &&
-                        ` on ${dateLabel(resolution.createdAt)}`}
-                    {resolution.acceptedVerdictId === null &&
-                        " — none of the answers is right"}
-                    {resolution.note && ` — “${resolution.note}”`}
-                </p>
-            ) : (
-                <>
-                    {staleResolution !== null && (
-                        <p className="break-words text-sm text-text-muted">
-                            {authorLabel(staleResolution)} resolved this
-                            position before its latest answer arrived; a
-                            decision about fewer answers does not cover it.
-                        </p>
+            {resolution !== null && (
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="min-w-0 break-words text-sm text-text-muted">
+                        Resolved by {authorLabel(resolution)}
+                        {dateLabel(resolution.createdAt) &&
+                            ` on ${dateLabel(resolution.createdAt)}`}
+                        {resolution.acceptedVerdictId === null &&
+                            " — none of the answers is right"}
+                        {resolution.note && ` — “${resolution.note}”`}
+                    </p>
+                    {!resolvingAgain && (
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => setResolvingAgain(true)}
+                        >
+                            Resolve again
+                        </Button>
                     )}
-                    <VerdictResolutionForm
-                        position={position}
-                        onResolved={onResolved}
-                    />
-                </>
+                </div>
+            )}
+            {resolution === null && staleResolution !== null && (
+                <p className="break-words text-sm text-text-muted">
+                    {authorLabel(staleResolution)} resolved this position before
+                    its latest answer arrived; a decision about fewer answers
+                    does not cover it.
+                </p>
+            )}
+            {(resolution === null || resolvingAgain) && (
+                <VerdictResolutionForm
+                    position={position}
+                    onResolved={onResolved}
+                />
             )}
         </section>
     );

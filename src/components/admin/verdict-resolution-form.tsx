@@ -31,11 +31,14 @@ export default function VerdictResolutionForm({
     const [reasons, setReasons] = useState<Record<string, string>>({});
     const [note, setNote] = useState("");
     const [saving, setSaving] = useState(false);
+    // Stays set after a success: the list reload that follows reads the whole
+    // store, and a second press in that window would record the decision twice.
+    const [recorded, setRecorded] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const state = draftState(position, accepted, reasons);
 
     async function submit() {
-        if (!state.ready || saving) return;
+        if (!state.ready || saving || recorded) return;
         setSaving(true);
         setError(null);
         try {
@@ -43,6 +46,7 @@ export default function VerdictResolutionForm({
                 ...state.draft,
                 ...(note.trim() ? { note: note.trim() } : {}),
             });
+            setRecorded(true);
             onResolved();
         } catch (cause) {
             setError(
@@ -132,9 +136,13 @@ export default function VerdictResolutionForm({
                 <Button
                     type="submit"
                     size="sm"
-                    disabled={!state.ready || saving}
+                    disabled={!state.ready || saving || recorded}
                 >
-                    {saving ? "Resolving…" : "Record resolution"}
+                    {saving
+                        ? "Resolving…"
+                        : recorded
+                          ? "Resolution recorded"
+                          : "Record resolution"}
                 </Button>
             </div>
         </form>

@@ -205,16 +205,41 @@ describe("a resolved position (ADR 0128 §6)", () => {
 describe("a resolution's identity and validity", () => {
     const base = resolving(SHOCK, [[LAND, "lethal"]]);
 
-    it("is named by the decision, not by when it was given or the note", () => {
+    it("is named by the decision and when it was made, not by the note or the deployment", () => {
         expect(
             resolutionIdOf({
                 ...base,
-                createdAt: 99,
                 note: "checked twice",
                 deployment: "dev",
                 deploymentKind: "local",
             })
         ).toBe(resolutionIdOf(base));
+        expect(resolutionIdOf({ ...base, createdAt: 99 })).not.toBe(
+            resolutionIdOf(base)
+        );
+    });
+
+    it("returns to an earlier decision: A, then B, then A again leaves A in force, in every input order", () => {
+        const aFirst = resolving(SHOCK, [[LAND, "lethal"]], { createdAt: 1 });
+        const b = resolving(LAND, [[SHOCK, "they gain life"]], {
+            createdAt: 2,
+        });
+        const aAgain = resolving(SHOCK, [[LAND, "lethal"]], { createdAt: 3 });
+        const orders = [
+            [aFirst, b, aAgain],
+            [aAgain, b, aFirst],
+            [b, aAgain, aFirst],
+            [aFirst, aAgain, b],
+        ];
+        for (const resolutions of orders) {
+            const q = quarantineContestedPositions(
+                [SHOCK, LAND],
+                ATTESTATIONS,
+                resolutions
+            );
+            expect(ids(q.promotable)).toEqual([verdictIdOf(SHOCK)]);
+            expect(q.resolved[0].applied.resolution.createdAt).toBe(3);
+        }
     });
 
     it("moves with the accepted verdict, a reason or the resolver", () => {

@@ -89,12 +89,11 @@ describe("a resolution object", () => {
         );
     });
 
-    it("is never overwritten: the same decision again answers exists", async () => {
+    it("is never overwritten: the same decision at the same moment answers exists", async () => {
         const store = createMemoryVerdictStore();
         await putResolution(store, RESOLUTION);
         const again = await putResolution(store, {
             ...RESOLUTION,
-            createdAt: 9_999,
             note: "a later note",
         });
         expect(again.outcome).toBe("exists");

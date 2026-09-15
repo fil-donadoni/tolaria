@@ -638,13 +638,16 @@ async function readAll<T>(
 export async function readStoredCorpus(
     store: VerdictStoreReader
 ): Promise<StoredVerdictCorpus> {
-    const [verdictNames, attestationNames, resolutionNames] = await Promise.all(
-        [
-            store.list(VERDICT_OBJECT_PREFIX),
-            store.list(ATTESTATION_OBJECT_PREFIX),
-            store.list(RESOLUTION_OBJECT_PREFIX),
-        ]
-    );
+    // A listing is not a snapshot: another deployment's drain may store a
+    // verdict and then its attestation while this reads. So the listings run
+    // one after another, attestations FIRST — every attestation listed has a
+    // verdict that was stored before it and is therefore in the verdict
+    // listing that follows, and a verdict stored in between is at worst
+    // unattested, never an orphan's missing half. Resolutions come last: one
+    // naming a verdict this read missed simply does not match its position.
+    const attestationNames = await store.list(ATTESTATION_OBJECT_PREFIX);
+    const verdictNames = await store.list(VERDICT_OBJECT_PREFIX);
+    const resolutionNames = await store.list(RESOLUTION_OBJECT_PREFIX);
     const [verdicts, attestations, resolutions] = await Promise.all([
         readAll(store, verdictNames, decodeVerdictObject),
         readAll(store, attestationNames, decodeAttestationObject),

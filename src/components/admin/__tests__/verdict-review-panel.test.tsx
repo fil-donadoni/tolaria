@@ -187,6 +187,36 @@ describe("VerdictReviewPanel", () => {
         });
         // Resolving reloads the snapshot.
         await waitFor(() => expect(review).toHaveBeenCalledTimes(2));
+        // And the same decision cannot be sent twice while that reload runs.
+        expect(submit.disabled).toBe(true);
+        fireEvent.click(submit);
+        expect(resolve).toHaveBeenCalledTimes(1);
+    });
+
+    it("lets a resolved position be resolved again — a changed mind is a newer resolution", async () => {
+        review.mockResolvedValue({
+            ...REVIEW,
+            positions: [
+                {
+                    ...POSITION,
+                    status: "resolved",
+                    resolution: {
+                        resolutionId: "v1-" + "r".repeat(64),
+                        author: "dep:u-ada",
+                        acceptedVerdictId: ID_BOLT,
+                        rejected: [{ verdictId: ID_PASS, reason: "too slow" }],
+                    },
+                },
+            ],
+        });
+        await openPosition();
+        expect(
+            screen.queryByRole("button", { name: "Record resolution" })
+        ).toBeNull();
+        fireEvent.click(screen.getByRole("button", { name: "Resolve again" }));
+        expect(
+            screen.getByRole("button", { name: "Record resolution" })
+        ).toBeTruthy();
     });
 
     it("marks a resolved position's rejected answer with its reason, and offers no form", async () => {

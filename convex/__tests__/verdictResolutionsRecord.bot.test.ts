@@ -72,6 +72,8 @@ describe("verdictResolutions.record", () => {
             ARGS
         );
         const resolverAuthor = "jovial-guineapig-250:u-admin";
+        const [write] = stub.writes;
+        // The id covers the decision and the moment it was recorded.
         expect(resolutionId).toBe(
             resolutionIdOf({
                 positionKey: ARGS.positionKey,
@@ -80,9 +82,9 @@ describe("verdictResolutions.record", () => {
                     { verdictId: verdictIdOf(PASS), reason: "Bolt is lethal" },
                 ],
                 author: resolverAuthor,
+                createdAt: stub.doc(write.id).createdAt as number,
             })
         );
-        const [write] = stub.writes;
         expect(write.table).toBe("verdictResolutions");
         expect(stub.doc(write.id)).toMatchObject({
             resolutionId,

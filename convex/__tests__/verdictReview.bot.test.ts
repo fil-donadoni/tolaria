@@ -209,7 +209,7 @@ describe("a resolution checked against the position it decides", () => {
             here: HERE,
         });
         expect(resolutionAgainst(threeAnswers, draft)).toMatch(
-            /changed since it was opened/
+            /changed since the list was loaded/
         );
     });
 

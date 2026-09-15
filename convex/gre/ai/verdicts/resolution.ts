@@ -5,14 +5,16 @@
 // is DATA, stored beside the verdicts it decides over, and it removes nothing:
 // a rejected judgement stays in the store, named here with its reason.
 //
-// IDENTITY. A resolution is named by its decision — the position key, the
-// accepted id, the rejected ids with their reasons, and the resolver — and not
-// by when it was given or the note beside it, the same split an attestation
-// makes. Two admins recording one decision are two objects (both on record);
-// one admin re-saving the same decision is one. A DIFFERENT decision about the
-// same position is a different name, never an overwrite: the store is
-// append-only, and which of several resolutions applies is `quarantine.ts`'s
-// rule, decided by content.
+// IDENTITY. A resolution is named by its decision AND by when it was made —
+// the position key, the accepted id, the rejected ids with their reasons, the
+// resolver and `createdAt` — but not by the note beside it or where it was
+// entered. When belongs in the name because the store is append-only and the
+// NEWEST resolution applies (`quarantine.ts`): "accept A", then "accept B",
+// then "accept A" again must leave A in force, and it can only do that if the
+// third decision is a new object rather than the first one read back with its
+// old timestamp. Re-saving is therefore never an overwrite, and a duplicate
+// of a decision is harmless — the newest of two identical decisions is still
+// that decision.
 //
 // Pure and dependency-free beyond the identity module, like everything under
 // this directory — the Convex bundle, the `"use node"` review action and the
@@ -73,9 +75,9 @@ export function resolutionProblems(resolution: VerdictResolution): string[] {
     return problems;
 }
 
-/** The resolution id: `v1-<sha256>` over the decision, never its provenance.
- *  Rejected entries are sorted first, so the order a form listed them in
- *  does not move the name. */
+/** The resolution id: `v1-<sha256>` over the decision and when it was made,
+ *  never the note or the deployment. Rejected entries are sorted first, so
+ *  the order a form listed them in does not move the name. */
 export function resolutionIdOf(resolution: VerdictResolution): string {
     const encoding = canonicalJson({
         positionKey: resolution.positionKey,
@@ -84,6 +86,7 @@ export function resolutionIdOf(resolution: VerdictResolution): string {
             .map(({ verdictId, reason }) => ({ verdictId, reason }))
             .sort((a, b) => byString(a.verdictId, b.verdictId)),
         author: resolution.author,
+        createdAt: resolution.createdAt,
     });
     return `${VERDICT_CANONICALISATION}-${sha256Hex(encoding)}`;
 }

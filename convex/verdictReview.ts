@@ -318,7 +318,7 @@ export function resolutionAgainst(
     const held = position.verdicts.map((v) => v.verdictId).join("\n");
     const decided = decidedVerdictIds({ ...draft, author: "" }).join("\n");
     if (held !== decided) {
-        return "the position's verdicts changed since it was opened — reload it and decide again";
+        return "the position's verdicts changed since the list was loaded — go back, reload the list and decide again";
     }
     return null;
 }

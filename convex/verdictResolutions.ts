@@ -117,6 +117,9 @@ export const record = internalMutation({
                 reason: reason.trim(),
             })),
             author: resolverAuthor,
+            // Part of the id: returning to an earlier decision must be a new,
+            // newer object (`gre/ai/verdicts/resolution.ts`).
+            createdAt: Date.now(),
         };
         const problems = resolutionProblems(resolution);
         if (problems.length > 0) {
@@ -132,7 +135,9 @@ export const record = internalMutation({
             authorId: user._id,
             author: user.nickname ?? "admin",
             resolverAuthor,
-            createdAt: Date.now(),
+            // The instant the id was computed over — a second `Date.now()`
+            // here would store a row that no longer hashes to its own id.
+            createdAt: resolution.createdAt,
             ...(note ? { note } : {}),
             deployment: here.name,
             deploymentKind: here.kind,
@@ -239,6 +244,16 @@ export const seedUiGateContestedPosition = internalMutation({
         if (!isLocalDeploymentUrl(url)) {
             throw new Error(
                 `refusing to seed verdicts on ${url ?? "an unidentified deployment"}: lane fixtures exist only on a local deployment`
+            );
+        }
+        // Fixture rows are ordinary outbox rows: any drain on a deployment
+        // holding the write key would upload them into the shared bucket for
+        // good. A local backend never should hold it; if one does, refuse.
+        // (The name is `verdictStoreGcsWriter.ts`'s constant, spelled out
+        // because a non-node module cannot import a `"use node"` one.)
+        if (process.env.VERDICT_STORE_WRITE_KEY) {
+            throw new Error(
+                "refusing to seed verdicts on a deployment holding VERDICT_STORE_WRITE_KEY: they would be drained into the shared Verdict Store"
             );
         }
         const user = await ctx.db
