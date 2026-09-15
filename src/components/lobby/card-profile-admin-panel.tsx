@@ -1,5 +1,6 @@
 import { useCurrentUser } from "~/hooks/useCurrentUser";
 import { canEditPresets } from "~/lib/adminGating";
+import SurfaceReadyMarker from "~/components/ui/surface-ready-marker";
 import CardProfilePanel from "./card-profile-panel";
 
 /**
@@ -13,9 +14,17 @@ import CardProfilePanel from "./card-profile-panel";
  * constructed for a signed-in non-admin browsing the Lobby. Hiding it here
  * is cosmetic only: the query and both mutations re-gate via `assertIsAdmin`
  * server-side regardless.
+ *
+ * The ready marker (issue #3644) goes up with the panel: the user has loaded
+ * and the panel's own queries are what `check:ui`'s settle wait sees in flight.
  */
 export default function CardProfileAdminPanel() {
     const user = useCurrentUser();
     if (!canEditPresets(user)) return null;
-    return <CardProfilePanel />;
+    return (
+        <>
+            <SurfaceReadyMarker />
+            <CardProfilePanel />
+        </>
+    );
 }

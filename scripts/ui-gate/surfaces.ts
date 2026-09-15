@@ -25,6 +25,9 @@ import type { Page } from "playwright";
 // addressing a row that no longer exists (issue #2822 review), and the walks
 // receive them on `WalkContext` because they are per RUN now (issue #3626).
 import type { FixtureLabels } from "./lane-account.ts";
+// The one wait before a measurement (issue #3644): no fixed sleep remains in
+// this module, and `ui-gate-settle.test.ts` reds if a sleep comes back.
+import { waitForSettledScreen } from "./settle.ts";
 
 /** Thrown by a walk that could not reach its screen. Reason is user-facing. */
 export class Unreachable extends Error {
@@ -101,6 +104,19 @@ export interface Surface {
      * run nothing.
      */
     preAuth?: boolean;
+    /**
+     * The walk plays inside a game the lane creates (issue #3644). Before an
+     * Infra Verdict is retried, the lane ends that game (`recreateLaneGame`)
+     * so the retry deals a fresh one instead of resuming a board the machine
+     * left half-answered.
+     */
+    needsGame?: boolean;
+    /**
+     * Selectors whose boxes (and scroll offsets) must hold still, beside the
+     * main region and any open dialog, before the surface is a Settled Screen
+     * (`settle.ts`). The elements the surface exists to measure.
+     */
+    settleTargets?: readonly string[];
     walk(page: Page, ctx: WalkContext): Promise<void>;
     /**
      * Runs AFTER the probe/axe/screenshot for this surface+viewport pass, on
@@ -116,16 +132,24 @@ export interface Surface {
 const NAV_TIMEOUT = 20_000;
 const STEP_TIMEOUT = 8_000;
 
-/** Convex holds a websocket open, so `networkidle` never fires — settle on the
- *  app shell plus a short quiet period instead. */
-async function settle(page: Page): Promise<void> {
+/** The app shell, then a Settled Screen (`settle.ts`, issue #3644): the
+ *  surface's ready marker up and a quiet window with nothing animating, nothing
+ *  in flight to Convex and no measured box moving. Convex holds a websocket
+ *  open, so `networkidle` never fires; this replaced a fixed 1.2s sleep, and it
+ *  replaces every other sleep in this module too — a sleep measures early on a
+ *  loaded machine and waits for nothing on a quiet one. A screen that never
+ *  settles throws the `unsettled` Infra Verdict. */
+async function settle(
+    page: Page,
+    targets: readonly string[] = []
+): Promise<void> {
     await page.waitForLoadState("domcontentloaded");
     await page
         .locator("main, [data-app-shell], body > #root")
         .first()
         .waitFor({ timeout: NAV_TIMEOUT })
         .catch(() => {});
-    await page.waitForTimeout(1200);
+    await waitForSettledScreen(page, { targets });
 }
 
 async function goto(page: Page, ctx: WalkContext, path: string): Promise<void> {
@@ -499,7 +523,7 @@ async function reachDraftPoolStop(page: Page, ctx: WalkContext): Promise<void> {
                 "the phone Draft Room rendered a snap scroller but no pool strip drop target to swipe with"
             );
         }
-        await page.waitForTimeout(700);
+        await settle(page, [DRAFT_SNAP_SCROLLER]);
         const stop = await page
             .locator(DRAFT_SNAP_SCROLLER)
             .first()
@@ -597,7 +621,7 @@ async function reachDraftPoolStop(page: Page, ctx: WalkContext): Promise<void> {
             `the Draft Room's pool has ${stop.scrollers} overflowing scroller(s) and not one of them would move — this surface measures the pool AT its far extent, and it is not there`
         );
     }
-    await page.waitForTimeout(400);
+    await settle(page, [DRAFT_SNAP_SCROLLER, DRAFT_POOL]);
 }
 
 /**
@@ -824,7 +848,7 @@ async function ensureBoard(page: Page, ctx: WalkContext): Promise<void> {
                     "the lobby offered neither Resume nor a selectable Deck Shelf tile — is the deployment seeded with preset decks?"
                 );
             }
-            await page.waitForTimeout(400);
+            await settle(page);
         }
         // 2. A Mode Tile SELECTS; it never starts anything. "Solo game" is the
         //    one whose primary action creates a game outright — the default
@@ -862,7 +886,7 @@ async function ensureBoard(page: Page, ctx: WalkContext): Promise<void> {
     await clickIfVisible(page, "button:text-is('Play')", 6000);
     for (let seat = 0; seat < 2; seat++) {
         if (!(await clickIfVisible(page, MULLIGAN_KEEP, 6000))) break;
-        await page.waitForTimeout(800);
+        await settle(page);
     }
     await settle(page);
 
@@ -932,7 +956,7 @@ async function ensureScenarioBoard(
         );
     }
     await row.first().click({ timeout: STEP_TIMEOUT });
-    await page.waitForTimeout(2500);
+    await settle(page);
     // The sheet is SETUP here, not the subject: `game-stress` and
     // `game-card-preview` measure the board, and at `lg` an open sheet takes
     // 480px off it (issue #3493) while at phone width it paints over the very
@@ -1022,7 +1046,7 @@ async function openDebugSheet(page: Page): Promise<void> {
     // Only if it is CLOSED — the flag persists per device, so a blind click is
     // as likely to shut the sheet as to open it (issue #3492's idiom).
     await clickIfVisible(page, DEBUG_SHEET_TOGGLE_CLOSED, 2000);
-    await page.waitForTimeout(450);
+    await settle(page);
     if (!(await visible(page, DEBUG_SHEET, STEP_TIMEOUT))) {
         throw new Unreachable(
             "the debug sheet tab reports expanded but no `[data-debug-sheet]` mounted"
@@ -1043,7 +1067,7 @@ async function closeDebugSheet(page: Page): Promise<void> {
     if ((await toggle.count()) === 0) return;
     if ((await toggle.getAttribute("aria-expanded")) !== "true") return;
     await page.keyboard.press("Escape");
-    await page.waitForTimeout(450);
+    await settle(page);
     if (await visible(page, DEBUG_SHEET, 1500)) {
         throw new Unreachable(
             'Escape did not close the debug sheet — the board\'s `POPUP_SELECTORS` no longer lists `[data-slot="sheet-content"]`?'
@@ -1147,7 +1171,6 @@ async function concedeLaneGame(
         } else {
             trace.push(`pass${pass}: banner offered neither Concede nor Leave`);
         }
-        await page.waitForTimeout(2000);
         await settle(page);
         if (!(await visible(page, BANNER_RESUME, 3000))) {
             trace.push(`pass${pass}: banner gone`);
@@ -1156,6 +1179,27 @@ async function concedeLaneGame(
         trace.push(`pass${pass}: banner still standing`);
     }
     return false;
+}
+
+/**
+ * End the game this lane created, so the next walk deals a fresh one — what a
+ * `needsGame` surface needs before an Infra Verdict is retried (issue #3644).
+ * A game the lane did not create is never touched (the non-destructive rule at
+ * the top of this file); with none created there is nothing to do.
+ */
+export async function recreateLaneGame(
+    page: Page,
+    ctx: WalkContext
+): Promise<void> {
+    if (!ctx.createdGame && !ctx.createdVsAiGame) return;
+    const trace: string[] = [];
+    if (!(await concedeLaneGame(page, ctx, trace))) {
+        throw new Unreachable(
+            `could not end the lane's own game before a retry: ${trace.join("; ")}`
+        );
+    }
+    ctx.createdGame = false;
+    ctx.createdVsAiGame = false;
 }
 
 /** Create a vs-AI game from a lobby with no active game. Same three lobby
@@ -1174,7 +1218,7 @@ async function createVsAiGame(page: Page, ctx: WalkContext): Promise<void> {
                 "the lobby's `Preset decks` shelf offered no selectable tile \u2014 seed the deployment with `bun run seed:preset --all`"
             );
         }
-        await page.waitForTimeout(600);
+        await settle(page);
     }
     if (!(await clickIfVisible(page, LOBBY_PRIMARY, 6000))) {
         throw new Unreachable(
@@ -1259,17 +1303,13 @@ async function ensureVsAiBoard(page: Page, ctx: WalkContext): Promise<void> {
     // (measured, issue #3492).
     const promptsDeadline = Date.now() + 45_000;
     for (;;) {
-        if (await clickTransient(page, PREGAME_PLAY, 1200)) {
-            await page.waitForTimeout(600);
-            continue;
-        }
+        // No pause after an answer: the next pass's own waits (up to 1.2s
+        // per prompt, 0.8s for the dialog) pace the loop.
+        if (await clickTransient(page, PREGAME_PLAY, 1200)) continue;
         // The mulligan prompt is a draggable panel, not a dialog, so it never
         // blocks the toggle — but leaving it up leaves the board in a position
         // nobody chose, which is the flapping `game-board` was withdrawn for.
-        if (await clickTransient(page, MULLIGAN_KEEP, 1200)) {
-            await page.waitForTimeout(600);
-            continue;
-        }
+        if (await clickTransient(page, MULLIGAN_KEEP, 1200)) continue;
         if (!(await visible(page, "[role=dialog]", 800))) break;
         if (Date.now() > promptsDeadline) {
             const shown = (
@@ -1285,7 +1325,6 @@ async function ensureVsAiBoard(page: Page, ctx: WalkContext): Promise<void> {
                 `a modal dialog was still open on the board 45s after the game was created, and it offered no \`Play\` or \`Keep\` to answer it with — the pregame sequence is stuck on: "${shown}"`
             );
         }
-        await page.waitForTimeout(500);
     }
     await settle(page);
 
@@ -1397,7 +1436,7 @@ export const SURFACES: readonly Surface[] = [
                         "the lobby offered no selectable Deck Shelf tile \u2014 is the deployment seeded with preset decks?"
                     );
                 }
-                await page.waitForTimeout(400);
+                await settle(page);
             }
             if (!(await clickIfVisible(page, LOBBY_PRIMARY, 6000))) {
                 throw new Unreachable(
@@ -1424,7 +1463,7 @@ export const SURFACES: readonly Surface[] = [
                     "the vs-AI setup dialog opened without its AI Difficulty selector"
                 );
             }
-            await page.waitForTimeout(400);
+            await settle(page);
         },
     },
     {
@@ -1487,7 +1526,7 @@ export const SURFACES: readonly Surface[] = [
             await page.locator(DIALOG_CONFIRM).first().click({
                 timeout: STEP_TIMEOUT,
             });
-            await page.waitForTimeout(600);
+            await settle(page);
             // Issue #2671 review round 2 MUST-FIX: this capture used to sit
             // AFTER the "2/15" assertion below, so the one remaining throw
             // site in this walk (the sideboard check) left
@@ -1544,7 +1583,7 @@ export const SURFACES: readonly Surface[] = [
             if (!(await clickIfVisible(page, confirmDelete, STEP_TIMEOUT))) {
                 return;
             }
-            await page.waitForTimeout(400);
+            await settle(page);
         },
     },
     {
@@ -1634,7 +1673,7 @@ export const SURFACES: readonly Surface[] = [
                     "`Open live demo` did not open a dialog within 8s"
                 );
             }
-            await page.waitForTimeout(400);
+            await settle(page);
         },
     },
     {
@@ -1910,6 +1949,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "draft-pick",
+        settleTargets: [DRAFT_PICK_TILE],
         entries: [
             "src/routes/limited-events.route.tsx",
             "src/routes/limited-event-detail.route.tsx",
@@ -1926,6 +1966,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "draft-pool-stop",
+        settleTargets: [DRAFT_SNAP_SCROLLER, DRAFT_POOL],
         entries: [
             "src/routes/limited-events.route.tsx",
             "src/routes/limited-event-detail.route.tsx",
@@ -1938,6 +1979,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "draft-pool-peek",
+        settleTargets: [DRAFT_PEEK_PANEL],
         entries: [
             "src/routes/limited-events.route.tsx",
             "src/routes/limited-event-detail.route.tsx",
@@ -2000,7 +2042,7 @@ export const SURFACES: readonly Surface[] = [
                         `a Peek Panel is mounted but it is not the POOL's — no ${DRAFT_POOL_PEEK_CTA} in it, which means the pool tile's click did not take and this row would have measured \`draft-pick\`'s Booster panel under a different surface id`
                     );
                 }
-                await page.waitForTimeout(300);
+                await settle(page);
                 return;
             }
 
@@ -2022,11 +2064,12 @@ export const SURFACES: readonly Surface[] = [
                     "the desktop Pool menu opened, but a `[data-peek-panel]` ALSO mounted — issue #2861 retires that rail entirely on this regime"
                 );
             }
-            await page.waitForTimeout(300);
+            await settle(page);
         },
     },
     {
         id: "game-board",
+        needsGame: true,
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
         label: "Game board (/game)",
         async walk(page, ctx) {
@@ -2049,6 +2092,8 @@ export const SURFACES: readonly Surface[] = [
         // tree) at every viewport, which is what makes one budget row per
         // viewport comparable.
         id: "game-card-preview",
+        needsGame: true,
+        settleTargets: [HAND_CARD, PREVIEW_ANCHORED],
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
         label: "Card Preview overlay — Engine view (anchored pin)",
         async walk(page, ctx) {
@@ -2123,11 +2168,13 @@ export const SURFACES: readonly Surface[] = [
         // this row.
         async cleanup(page) {
             await page.keyboard.press("Escape");
-            await page.waitForTimeout(200);
+            await settle(page);
         },
     },
     {
         id: "game-stress",
+        needsGame: true,
+        settleTargets: [HAND_CARD],
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
         label: "Game board — UI stress scenario",
         async walk(page, ctx) {
@@ -2147,6 +2194,8 @@ export const SURFACES: readonly Surface[] = [
         // names the numbers, which reads as the regression it is rather than
         // as a fixture nobody built.
         id: "game-debug-sheet",
+        needsGame: true,
+        settleTargets: [DEBUG_SHEET, BOARD_AREA],
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
         label: "Debug sheet — scenario list + save form",
         async walk(page, ctx) {
@@ -2156,7 +2205,7 @@ export const SURFACES: readonly Surface[] = [
             //    leaves it that way — then open, on the SAME board.
             const closed = await boardAreaWidth(page);
             await openDebugSheet(page);
-            await page.waitForTimeout(400);
+            await settle(page);
             const opened = await boardAreaWidth(page);
             const given = closed - opened;
             const vw = page.viewportSize()?.width ?? 0;
@@ -2305,7 +2354,7 @@ export const SURFACES: readonly Surface[] = [
                     return el.scrollTop;
                 })()`
             )) as number;
-            await page.waitForTimeout(300);
+            await settle(page);
             // A port that did not move proves nothing about a pinned head —
             // the head would sit inside it whether `sticky` worked or not (PR
             // #3505 review). The walk expands "Other options" first precisely
@@ -2373,6 +2422,7 @@ export const SURFACES: readonly Surface[] = [
         // it ENDS the solo game it loaded its scenario into: that last row
         // refuses to start a vs-AI game over the lane's own standing solo game.
         id: "game-manage-yields",
+        needsGame: true,
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
         label: "Manage yields box — one yield held",
         async walk(page, ctx) {
@@ -2406,7 +2456,7 @@ export const SURFACES: readonly Surface[] = [
         },
         async cleanup(page, ctx) {
             await page.keyboard.press("Escape");
-            await page.waitForTimeout(200);
+            await settle(page);
             if (!ctx.createdGame) return;
             const trace: string[] = [];
             if (await concedeLaneGame(page, ctx, trace)) {
@@ -2435,6 +2485,8 @@ export const SURFACES: readonly Surface[] = [
         // the board rows means the solo game they need is still standing while
         // they need it.
         id: "game-debug-sheet-ai",
+        needsGame: true,
+        settleTargets: [DEBUG_SHEET],
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
         label: "Debug sheet — AI trace open (vs-AI game)",
         async walk(page, ctx) {
@@ -2489,7 +2541,7 @@ export const SURFACES: readonly Surface[] = [
                     .first()
                     .click({ timeout: STEP_TIMEOUT })
                     .catch(() => {});
-                await page.waitForTimeout(700);
+                await settle(page);
             }
             await settle(page);
         },

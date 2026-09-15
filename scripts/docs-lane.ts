@@ -94,6 +94,10 @@ export const DOC_GATE_TESTS_EXCLUDED: Record<string, string> = {
         "plans over GitHub issues; the .md mention is an issue-body fixture",
     "scripts/__tests__/check-lane.test.ts":
         "the docs/adr and *.md paths are synthetic changed-path fixtures fed to classifyPath() — the test asserts the lane classifier treats them as UNRECOGNISED (fail-closed ⇒ full gate); it reads no repo document",
+    "scripts/__tests__/ui-gate-infra-verdict.test.ts":
+        "the CONTEXT.md mention is a header comment citing the glossary term it implements; the test reads no repo document",
+    "scripts/__tests__/ui-gate-settle.test.ts":
+        "the CONTEXT.md mention is a header comment citing the glossary term it implements; the test reads scripts/ui-gate/surfaces.ts source, no repo document",
     "scripts/__tests__/ui-scope.test.ts":
         "the docs/guides/*.md path is a synthetic changed-path fixture fed to computeUiScope() — the test asserts a markdown path contributes no check:ui surface; it reads no repo document",
     "scripts/__tests__/land.test.ts":

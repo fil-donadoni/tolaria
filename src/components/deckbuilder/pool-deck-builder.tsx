@@ -3,6 +3,7 @@ import { arePoolsDealt } from "@convex/limited/eventStatus";
 import { useLimitedEvent } from "~/hooks/useLimitedEvent";
 import { useUserDecks } from "~/hooks/useUserDecks";
 import LoadingScreen from "~/components/ui/loading-screen";
+import SurfaceReadyMarker from "~/components/ui/surface-ready-marker";
 import EmptyState from "~/components/ui/empty-state";
 import ErrorState from "~/components/ui/error-state";
 import AmbientPageGround from "~/components/ui/ambient-page-ground";
@@ -17,6 +18,8 @@ import PoolDeckBuilderForm from "./pool-deck-builder-form";
  * so its working-deck state can be seeded via a plain lazy `useState`
  * initializer (mirrors `DeckBuilder`'s `initialDeck` prop) instead of an
  * effect-driven `setState`.
+ *
+ * Every branch past the loading one renders `SurfaceReadyMarker` (issue #3644).
  */
 export default function PoolDeckBuilder({
     eventId,
@@ -39,6 +42,7 @@ export default function PoolDeckBuilder({
     if (event === null) {
         return (
             <div className="relative flex min-h-full flex-col items-center justify-center bg-surface-base px-4 text-text">
+                <SurfaceReadyMarker />
                 <AmbientPageGround ring />
                 <Panel className="relative z-10 w-full max-w-md">
                     <ErrorState message="This event no longer exists." />
@@ -55,6 +59,7 @@ export default function PoolDeckBuilder({
     if (!viewerSeat || !arePoolsDealt(event.status) || !viewerSeat.pool) {
         return (
             <div className="relative flex min-h-full flex-col items-center justify-center bg-surface-base px-4 text-text">
+                <SurfaceReadyMarker />
                 <AmbientPageGround ring />
                 <Panel className="relative z-10 w-full max-w-md">
                     <EmptyState message="No Pool has been generated for your seat yet." />
@@ -71,22 +76,25 @@ export default function PoolDeckBuilder({
         ) ?? null;
 
     return (
-        <PoolDeckBuilderForm
-            eventId={eventId}
-            seatIndex={viewerSeat.seatIndex}
-            pool={viewerSeat.pool}
-            existingDeck={existingDeck}
-            // Continuous draft→build (ADR 0060, issue #1247): a DRAFT event
-            // seeds the working deck from its Pool Arrangement (the continuous
-            // main-by-default rule); a SEALED event has no draft phase, so it
-            // falls back to the pre-#1247 "everything starts in the Sideboard"
-            // default. `eventType` drives that seed choice.
-            eventType={event.type}
-            // The LIVE seat Pool Arrangement (issue #1575): the Maindeck⇄
-            // Sideboard seed AND the per-card manual column overrides, read
-            // reactively so a column drag persisted via setPoolArrangementEntry
-            // reflects back and survives reload. Empty for an unarranged seat.
-            poolArrangement={viewerSeat.poolArrangement ?? []}
-        />
+        <>
+            <SurfaceReadyMarker />
+            <PoolDeckBuilderForm
+                eventId={eventId}
+                seatIndex={viewerSeat.seatIndex}
+                pool={viewerSeat.pool}
+                existingDeck={existingDeck}
+                // Continuous draft→build (ADR 0060, issue #1247): a DRAFT event
+                // seeds the working deck from its Pool Arrangement (the continuous
+                // main-by-default rule); a SEALED event has no draft phase, so it
+                // falls back to the pre-#1247 "everything starts in the Sideboard"
+                // default. `eventType` drives that seed choice.
+                eventType={event.type}
+                // The LIVE seat Pool Arrangement (issue #1575): the Maindeck⇄
+                // Sideboard seed AND the per-card manual column overrides, read
+                // reactively so a column drag persisted via setPoolArrangementEntry
+                // reflects back and survives reload. Empty for an unarranged seat.
+                poolArrangement={viewerSeat.poolArrangement ?? []}
+            />
+        </>
     );
 }

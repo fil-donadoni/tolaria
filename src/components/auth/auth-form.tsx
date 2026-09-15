@@ -9,6 +9,7 @@ import {
 } from "~/components/ui/panel";
 import { Banner } from "~/components/ui/banner";
 import { Button } from "~/components/ui/button";
+import SurfaceReadyMarker from "~/components/ui/surface-ready-marker";
 import LobbyBackground from "~/components/lobby/lobby-background";
 import { useDocumentTitle } from "~/hooks/useDocumentTitle";
 import { friendlyAuthError } from "~/lib/auth-errors";
@@ -112,6 +113,7 @@ export function AuthForm() {
         // scroller above it to inherit — the container has to BE the scroll
         // port, or the overflow has none.
         <div className="relative flex h-svh justify-center overflow-x-hidden overflow-y-auto bg-surface-base p-6">
+            <SurfaceReadyMarker />
             <LobbyBackground />
             {mode === "forgotPassword" ? (
                 <ForgotPasswordForm onCancel={() => setMode("signIn")} />

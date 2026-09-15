@@ -28,6 +28,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { infraDetail, type InfraSignature } from "./infra-verdict.ts";
 
 const BUDGETS_PATH = join(
     dirname(fileURLToPath(import.meta.url)),
@@ -290,12 +291,37 @@ export interface Measurement {
     detail?: string;
 }
 
-/** What the browser half reports for one surface. */
+/** A cell (surface × viewport) the machine cut short, standing after the
+ *  lane's retries (`infra-verdict.ts`, issue #3644). */
+export interface InfraCell {
+    viewport: string;
+    signature: InfraSignature;
+    /** The 1-minute load average when the last attempt failed. */
+    load: number;
+    /** What the last attempt failed on. */
+    reason: string;
+}
+
+/** What the browser half reports for one surface. `infra` lists the viewports
+ *  that stood as an Infra Verdict instead of producing a measurement. */
 export type SurfaceWalk =
-    | { surface: string; status: "measured"; measurements: Measurement[] }
+    | {
+          surface: string;
+          status: "measured";
+          measurements: Measurement[];
+          infra?: InfraCell[];
+      }
     | { surface: string; status: "unreachable"; reason: string };
 
-export type Verdict = "PASS" | "FAIL" | "UNWALKED";
+/**
+ * `INFRA` (issue #3644) is the third outcome beside pass and fail: the walk was
+ * cut short by the machine — a backend function past its execution limit, a
+ * server error, a navigation that never answered, a screen that never settled
+ * — and stood after the retries. The cell is unproven: never green, never a UI
+ * failure. `UNWALKED` keeps its meaning, the walk could not reach the surface
+ * on a quiet machine.
+ */
+export type Verdict = "PASS" | "FAIL" | "INFRA" | "UNWALKED";
 
 /**
  * A full walk — the run's `--surface` set naming every surface the lane
@@ -560,6 +586,9 @@ export function evaluateRun(
         const measured = new Map(
             walk.measurements.map((m) => [m.viewport, m] as const)
         );
+        const infraCells = new Map(
+            (walk.infra ?? []).map((c) => [c.viewport, c] as const)
+        );
 
         // A measurement with no ceiling is the same hole as a surface with no
         // entry, one level down.
@@ -589,6 +618,23 @@ export function evaluateRun(
             const m = measured.get(viewport);
             if (!m) {
                 surfaceComplete = false;
+                // The machine cut this cell short and it stood after the
+                // lane's retries (issue #3644): unproven, never green, and
+                // never a UI failure either.
+                const infra = infraCells.get(viewport);
+                if (infra) {
+                    const said = infraDetail(infra.signature, infra.load);
+                    rows.push({
+                        surface,
+                        viewport,
+                        verdict: "INFRA",
+                        detail: `${said} — ${infra.reason}`,
+                    });
+                    failures.push(
+                        `${surface} @ ${viewport}: INFRA — ${said} — the machine cut the walk short, so this cell is unproven`
+                    );
+                    continue;
+                }
                 rows.push({
                     surface,
                     viewport,

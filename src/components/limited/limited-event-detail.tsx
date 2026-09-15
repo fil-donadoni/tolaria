@@ -12,6 +12,7 @@ import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import GameDialog from "~/components/ui/game-dialog";
 import LoadingScreen from "~/components/ui/loading-screen";
+import SurfaceReadyMarker from "~/components/ui/surface-ready-marker";
 import ErrorState from "~/components/ui/error-state";
 import ActionButton from "~/components/board/action-button";
 import LimitedTablePanel from "./limited-table-panel";
@@ -104,6 +105,7 @@ export default function LimitedEventDetail({
     if (event === null) {
         return (
             <LimitedEventPageFrame>
+                <SurfaceReadyMarker />
                 <PanelHeader title="Limited Event" />
                 <PanelBody>
                     <ErrorState
@@ -220,6 +222,7 @@ export default function LimitedEventDetail({
 
     return (
         <LimitedEventPageFrame>
+            <SurfaceReadyMarker />
             <PanelHeader title={limitedEventName(event)} />
             <PanelBody>
                 <LimitedEventToolbar event={event} onBack={handleBack} />

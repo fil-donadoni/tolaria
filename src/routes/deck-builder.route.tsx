@@ -7,6 +7,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import DeckBuilder from "~/components/lobby/deck-builder/deck-builder";
 import { Button } from "~/components/ui/button";
 import LoadingScreen from "~/components/ui/loading-screen";
+import SurfaceReadyMarker from "~/components/ui/surface-ready-marker";
 import ErrorState from "~/components/ui/error-state";
 import AmbientPageGround from "~/components/ui/ambient-page-ground";
 import { Panel } from "~/components/ui/panel";
@@ -118,6 +119,8 @@ export default function DeckBuilderRoute({
         )
     );
 
+    // Every branch below a `LoadingScreen` renders `SurfaceReadyMarker`: its
+    // data has arrived, so `check:ui` may measure it (issue #3644).
     if (mode === "edit") {
         if (kind === "preset") {
             if (editingPreset === undefined) {
@@ -126,6 +129,7 @@ export default function DeckBuilderRoute({
             if (editingPreset === null) {
                 return (
                     <div className="relative flex min-h-full flex-col items-center justify-center bg-surface-base px-4 text-text">
+                        <SurfaceReadyMarker />
                         <AmbientPageGround ring />
                         <Panel className="relative z-10 w-full max-w-md">
                             <ErrorState
@@ -147,15 +151,18 @@ export default function DeckBuilderRoute({
             }
             const presetDeck: LobbyDeck = toPresetLobbyDeck(editingPreset);
             return (
-                <DeckBuilder
-                    kind="preset"
-                    initialDeck={presetDeck}
-                    initialIdentity={editingPreset.presetId}
-                    initialDeckList={[]}
-                    sinks={sinks}
-                    fullCatalogue={fullCatalogue}
-                    onClose={() => void navigate({ to: "/" })}
-                />
+                <>
+                    <SurfaceReadyMarker />
+                    <DeckBuilder
+                        kind="preset"
+                        initialDeck={presetDeck}
+                        initialIdentity={editingPreset.presetId}
+                        initialDeckList={[]}
+                        sinks={sinks}
+                        fullCatalogue={fullCatalogue}
+                        onClose={() => void navigate({ to: "/" })}
+                    />
+                </>
             );
         }
 
@@ -165,6 +172,7 @@ export default function DeckBuilderRoute({
         if (editingUserDeck === null) {
             return (
                 <div className="relative flex min-h-full flex-col items-center justify-center bg-surface-base px-4 text-text">
+                    <SurfaceReadyMarker />
                     <AmbientPageGround ring />
                     <Panel className="relative z-10 w-full max-w-md">
                         <ErrorState
@@ -184,10 +192,70 @@ export default function DeckBuilderRoute({
         }
         const userDeck = toUserLobbyDeck(editingUserDeck);
         return (
+            <>
+                <SurfaceReadyMarker />
+                <DeckBuilder
+                    kind="user"
+                    initialDeck={userDeck}
+                    initialIdentity={userDeck.userDeckId}
+                    initialDeckList={userDecks}
+                    sinks={sinks}
+                    fullCatalogue={fullCatalogue}
+                    onClose={(savedId) => {
+                        if (savedId) {
+                            void navigate({
+                                to: "/decks/$slug",
+                                params: { slug: savedId },
+                            });
+                        } else {
+                            void navigate({ to: "/" });
+                        }
+                    }}
+                    onDelete={async () => {
+                        setDeleting(true);
+                        await remove({ id: slug as Id<"userDecks"> });
+                        void navigate({ to: "/" });
+                    }}
+                />
+            </>
+        );
+    }
+
+    // ---- Preset create mode (admin only; server-gated by assertIsAdmin) ----
+    // The new preset's slug is derived from its name server-side on first save.
+    // On close we return to the lobby, where the reactive `api.decks.list` query
+    // already shows the freshly created preset.
+    if (kind === "preset") {
+        return (
+            <>
+                <SurfaceReadyMarker />
+                <DeckBuilder
+                    kind="preset"
+                    mode="create"
+                    initialDeck={null}
+                    initialIdentity={null}
+                    initialDeckList={[]}
+                    sinks={sinks}
+                    fullCatalogue={fullCatalogue}
+                    onClose={() => void navigate({ to: "/" })}
+                />
+            </>
+        );
+    }
+
+    if (userDecks === undefined) {
+        return <LoadingScreen />;
+    }
+
+    return (
+        <>
+            <SurfaceReadyMarker />
             <DeckBuilder
                 kind="user"
-                initialDeck={userDeck}
-                initialIdentity={userDeck.userDeckId}
+                mode="create"
+                defaultFormat={defaultFormat}
+                initialDeck={null}
+                initialIdentity={null}
                 initialDeckList={userDecks}
                 sinks={sinks}
                 fullCatalogue={fullCatalogue}
@@ -201,58 +269,7 @@ export default function DeckBuilderRoute({
                         void navigate({ to: "/" });
                     }
                 }}
-                onDelete={async () => {
-                    setDeleting(true);
-                    await remove({ id: slug as Id<"userDecks"> });
-                    void navigate({ to: "/" });
-                }}
             />
-        );
-    }
-
-    // ---- Preset create mode (admin only; server-gated by assertIsAdmin) ----
-    // The new preset's slug is derived from its name server-side on first save.
-    // On close we return to the lobby, where the reactive `api.decks.list` query
-    // already shows the freshly created preset.
-    if (kind === "preset") {
-        return (
-            <DeckBuilder
-                kind="preset"
-                mode="create"
-                initialDeck={null}
-                initialIdentity={null}
-                initialDeckList={[]}
-                sinks={sinks}
-                fullCatalogue={fullCatalogue}
-                onClose={() => void navigate({ to: "/" })}
-            />
-        );
-    }
-
-    if (userDecks === undefined) {
-        return <LoadingScreen />;
-    }
-
-    return (
-        <DeckBuilder
-            kind="user"
-            mode="create"
-            defaultFormat={defaultFormat}
-            initialDeck={null}
-            initialIdentity={null}
-            initialDeckList={userDecks}
-            sinks={sinks}
-            fullCatalogue={fullCatalogue}
-            onClose={(savedId) => {
-                if (savedId) {
-                    void navigate({
-                        to: "/decks/$slug",
-                        params: { slug: savedId },
-                    });
-                } else {
-                    void navigate({ to: "/" });
-                }
-            }}
-        />
+        </>
     );
 }

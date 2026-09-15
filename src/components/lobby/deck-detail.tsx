@@ -10,6 +10,7 @@ import { Banner } from "../ui/banner";
 import GameDialog from "../ui/game-dialog";
 import DeckStatsCurveChart from "../deckbuilder/deck-stats-curve-chart";
 import ManaPileView from "./mana-pile-view";
+import SurfaceReadyMarker from "../ui/surface-ready-marker";
 
 // Issue #2056 defect 1: this was a bare, un-floored three-way CSS clamp —
 // the same shape that collapsed the deckbuilder's tiles below legibility on
@@ -58,6 +59,7 @@ export default function DeckDetail({
 
     return (
         <div className="flex w-full flex-col gap-4 p-6 text-text">
+            <SurfaceReadyMarker />
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
                 <div className="flex items-center gap-3">
                     <ActionButton

@@ -21,8 +21,8 @@ coverage line included** (#2760); `bun run land` re-derives them and refuses a
 prints `SCOPED` (ADR 0131), re-derived by `land`; `RECEIPT` covers any diff;
 never `DIAGNOSTIC`; never reflow a row.
 
-**A surface it could not reach prints `UNWALKED` and reds the run** — that is a
-coverage failure, not a pass.
+**Unreached prints `UNWALKED`; a walk the machine cut short, `INFRA` (#3644)** —
+both red the run: unproven, not a pass.
 
 **Measure, never eyeball.** A screenshot of a clipped row reads as "the cards
 are there" — that is how the bug above shipped. A UI PR with no receipt and no
