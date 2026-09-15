@@ -1375,6 +1375,20 @@ export function applyManaAbilityManaCost(
 ): void {
     if (!ability?.cost.mana) return;
     const cost = normalizeManaCost(ability.cost.mana);
+    // CR 601.2f / 605.1a (issue #1339, Forensic Gadgeteer) — a mana ability's
+    // OWN cost is reduced exactly like any other activated ability's; nothing
+    // in CR 605 carves mana abilities out of 601.2f. Folded in here, at the
+    // one chokepoint every mana-ability payment site shares, so this and
+    // `autoTapDemands.ts`'s `buildBoardAbilityDemands` — which already ran
+    // this same collector to size its Demand — can never disagree about the
+    // total (the disagreement this project's own convention calls a "gate and
+    // payment must agree" bug: game.ts's cast-cost comment, `~7726`).
+    if (card) {
+        applyCostModifiers(
+            cost,
+            getCostModifiers(state, card, "ability", ability, player.id)
+        );
+    }
     if (Object.keys(cost).length === 0) return;
     const substitutions = getAbilityManaSubstitutions(state, player.id, card);
     // CR 106.6 (issue #3354) — "This doesn't affect the mana's type": a
@@ -1452,6 +1466,15 @@ export function autoTapForManaAbilityCost(
 ): void {
     if (!ability?.cost.mana) return;
     const cost = normalizeManaCost(ability.cost.mana);
+    // CR 601.2f / 605.1a (issue #1339) — plan against the REDUCED cost, the
+    // same one `applyManaAbilityManaCost` (below) will actually charge; see
+    // its own comment. Without this the plan taps for the printed cost while
+    // the payment only takes the reduced one, over-tapping sources this mana
+    // ability's own controller might have wanted to keep untapped.
+    applyCostModifiers(
+        cost,
+        getCostModifiers(state, card, "ability", ability, player.id)
+    );
     if (Object.keys(cost).length === 0) return;
     // CR 602.1 / 609.4b (issue #2944) — the ability seam: `card` unlocks an
     // activation-scoped substitution static (Agatha's Soul Cauldron) for the

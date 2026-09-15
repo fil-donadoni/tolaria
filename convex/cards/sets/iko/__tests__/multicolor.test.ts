@@ -15,6 +15,10 @@ import {
 import {
     resolveTopOfStack,
     processPendingActionTriggers,
+    getCostModifiers,
+    applyCostModifiers,
+    normalizeManaCost,
+    type CardInstanceState,
 } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
 import type { GameState } from "../../../../gre/state";
@@ -29,6 +33,22 @@ const lurrus = getDefinition("5ad36fb2-c44e-4085-ba0d-54277841ad3a");
 const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 const savannahLions = getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0");
 const stoneRain = getDefinition("57ff74cb-a2ed-4123-ac42-f72f9820049e");
+const zirda = getDefinition("1bd8e61c-2ee8-4243-a848-7008810db8a0");
+// Dragon Engine (atq/colorless.ts) — Artifact Creature, "{2}: +1/+0" (non-mana,
+// useStack: true). Cross-set fixture, same pattern as Power Artifact's own
+// test (atq/__tests__/blue.test.ts).
+const dragonEngine = getDefinition("07793a71-1106-4303-b620-e403bd378020");
+// Celestial Prism (lea/colorless.ts) — Artifact, "{2}, {T}: Add one mana of
+// any color" — a MANA ability (useStack: false) WITH mana in its own cost,
+// the one shape that proves Zirda's "aren't mana abilities" exclusion (a
+// mana-less mana ability, like a basic land's, would pass vacuously).
+const celestialPrism = getDefinition("a47417cb-1ea7-4f65-ba06-e27a99373114");
+// Armageddon Clock (atq/colorless.ts) — "{4}: Remove a doom counter... Any
+// player may activate this ability" (`activatableByAnyPlayer: true`, CR
+// 113.3c). The one shipped ability where the ACTIVATOR can differ from the
+// source's controller — exactly the axis Zirda's "abilities YOU ACTIVATE"
+// must key off instead of the source's `controllerId`.
+const armageddonClock = getDefinition("44a31889-6a8d-450c-a73d-381a7ff28bf9");
 
 describe("Lutri, the Spellchaser (Companion, Flash, CR 603.6a copy-on-cast ETB)", () => {
     it("when CAST, copies a target instant/sorcery spell it controls (CR 707.10)", () => {
@@ -175,5 +195,161 @@ describe("Lurrus of the Dream-Den (Companion, Lifelink, static graveyard-permane
         const p1 = state.players[0];
         expect(canCastFromGraveyardByPermission(state, p1, gyLions)).toBe(true);
         expect(getLegalActions(state, p1, gyLions)).toContain("cast");
+    });
+});
+
+describe("Zirda, the Dawnwaker (Companion, activated-ability cost reduction excluding mana abilities, CR 601.2f / 118.7 / 605.1a, issue #1339)", () => {
+    /** Mirror game.ts's `activateAbility` cost calculation: normalize the
+     *  ability's printed mana cost, then fold in the battlefield cost
+     *  modifiers (same helper shape as Power Artifact's own test,
+     *  atq/__tests__/blue.test.ts). `activatorId` mirrors the real
+     *  `activateAbility` mutation's `player.id` argument — omitted, it
+     *  defaults to the host's own controller (the ordinary case; every
+     *  ability below except Armageddon Clock's can only ever be activated by
+     *  its own controller). */
+    function effectiveAbilityCost(
+        state: GameState,
+        host: CardInstanceState,
+        abilityId: string,
+        activatorId?: string
+    ): Record<string, number> {
+        const def = getDefinition((host.card as { id: string }).id);
+        const ability = def.activatedAbilities!.find(
+            (a) => a.id === abilityId
+        )!;
+        const cost = ability.cost.mana
+            ? normalizeManaCost(ability.cost.mana)
+            : {};
+        applyCostModifiers(
+            cost,
+            getCostModifiers(state, host, "ability", ability, activatorId)
+        );
+        return cost;
+    }
+
+    /** Dragon Engine + Celestial Prism on one board, controlled by
+     *  `hostController`; Zirda always controlled by p1. */
+    function boardWithZirda(hostController: "p1" | "p2") {
+        const engine = makeInstance(dragonEngine.id, {
+            id: "engine",
+            controllerId: hostController,
+            ownerId: hostController,
+        });
+        const prism = makeInstance(celestialPrism.id, {
+            id: "prism",
+            controllerId: hostController,
+            ownerId: hostController,
+        });
+        const z = makeInstance(zirda.id, {
+            id: "zirda",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p1Battlefield =
+            hostController === "p1" ? [engine, prism, z] : [z];
+        const p2Battlefield = hostController === "p2" ? [engine, prism] : [];
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: p1Battlefield }),
+                makePlayer("p2", { battlefield: p2Battlefield }),
+            ],
+        });
+        return { state, engine, prism, z };
+    }
+
+    it("reduces its controller's non-mana ability by {2}, floored at one mana (CR 118.7)", () => {
+        const { state, engine } = boardWithZirda("p1");
+        // Dragon Engine's {2} pump ability: {2} - {2} = {0}, floored to {1}.
+        expect(
+            effectiveAbilityCost(state, engine, "dragon-engine-pump")
+        ).toEqual({ X: 1 });
+    });
+
+    it("does NOT reduce an ability its controller doesn't control ('abilities YOU activate')", () => {
+        const { state, engine } = boardWithZirda("p2");
+        expect(
+            effectiveAbilityCost(state, engine, "dragon-engine-pump")
+        ).toEqual({ X: 2 });
+    });
+
+    it("does NOT reduce a mana ability, even with mana in its own cost (CR 605.1a, 'aren't mana abilities')", () => {
+        const { state, prism } = boardWithZirda("p1");
+        expect(
+            effectiveAbilityCost(state, prism, "celestial-prism-mana")
+        ).toEqual({ X: 2 });
+    });
+
+    describe("scoped to the ACTIVATOR, not the source's controller (CR 602.1a, activatableByAnyPlayer)", () => {
+        /** p1 controls Zirda + `clockController`'s Armageddon Clock; the
+         *  ability is activated by `activator`. */
+        function boardWithClock(
+            clockController: "p1" | "p2",
+            activator: "p1" | "p2"
+        ) {
+            const clock = makeInstance(armageddonClock.id, {
+                id: "clock",
+                controllerId: clockController,
+                ownerId: clockController,
+            });
+            const z = makeInstance(zirda.id, {
+                id: "zirda",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const p1Battlefield = clockController === "p1" ? [clock, z] : [z];
+            const p2Battlefield = clockController === "p2" ? [clock] : [];
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { battlefield: p1Battlefield }),
+                    makePlayer("p2", { battlefield: p2Battlefield }),
+                ],
+            });
+            return {
+                state,
+                clock,
+                cost: () =>
+                    effectiveAbilityCost(
+                        state,
+                        clock,
+                        "armageddon-clock-remove-doom",
+                        activator
+                    ),
+            };
+        }
+
+        it("reduces it when Zirda's controller is the one activating, even a Clock they don't control", () => {
+            // p2 controls the Clock; p1 (Zirda's controller) activates it
+            // under `activatableByAnyPlayer` — CR 602.1a makes p1 the "you".
+            const { cost } = boardWithClock("p2", "p1");
+            expect(cost()).toEqual({ X: 2 });
+        });
+
+        it("does NOT reduce it when someone else activates a Clock Zirda's controller DOES control", () => {
+            // p1 controls both the Clock and Zirda, but p2 is the activator —
+            // p2 is not p1's Zirda's "you", so the Clock's controller owning
+            // it is irrelevant.
+            const { cost } = boardWithClock("p1", "p2");
+            expect(cost()).toEqual({ X: 4 });
+        });
+
+        it("reduces the ordinary same-player case (activator === controller === Zirda's controller)", () => {
+            const { cost } = boardWithClock("p1", "p1");
+            expect(cost()).toEqual({ X: 2 });
+        });
+    });
+
+    it("wire format: the reduction survives projectPublicState", () => {
+        const { state } = boardWithZirda("p1");
+        const projected = projectPublicState(state as GameState, 1, "p1");
+        const slimEngine = projected.players[0].battlefield.find(
+            (c) => c.id === "engine"
+        )!;
+        expect(
+            effectiveAbilityCost(
+                projected as unknown as GameState,
+                slimEngine as unknown as CardInstanceState,
+                "dragon-engine-pump"
+            )
+        ).toEqual({ X: 1 });
     });
 });

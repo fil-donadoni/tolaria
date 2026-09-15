@@ -21,6 +21,7 @@ import { getManaSubstitutions, spendablePoolWithRiders } from "./state";
 import { isSorceryTiming } from "./phases";
 import { buildAutoTapSources, solveSmartAutoTap } from "./autoTap";
 import { manaGateBattlefields, manaValue } from "./constants";
+import { LAND_SUBTYPE_MANA } from "./manaColors";
 
 /** CR 702.139a — a companion's deck-construction condition: true when `deck`
  *  (the player's maindeck, resolved to full `CardDefinition`s) satisfies it.
@@ -52,8 +53,8 @@ export const singleton: CompanionCondition = (deck) => {
  *  cards typed as a CR 300.1 permanent type (`PERMANENT_TYPES`, incl. Land)
  *  are constrained, mirroring how `singleton` above exempts lands from its
  *  own uniqueness check. Factored out (rather than inlined once) since a
- *  second companion (Zirda, still a stub — "every permanent card has an
- *  activated ability") needs the exact same shape. */
+ *  second companion — Zirda, the Dawnwaker's "every permanent card has an
+ *  activated ability" — needs the exact same shape. */
 export function everyPermanent(
     pred: (def: CardDefinition) => boolean
 ): CompanionCondition {
@@ -74,6 +75,31 @@ export function everyPermanent(
 export const permanentManaValueAtMost2: CompanionCondition = everyPermanent(
     (def) => manaValue(def.manaCost) <= 2
 );
+
+/** Does `def` have an activated ability (CR 602.1), for Zirda, the
+ *  Dawnwaker's "every permanent card has an activated ability" condition?
+ *  Two sources, because not every activated ability is a literal
+ *  `activatedAbilities[]` entry: a BASIC land's mana ability is derived at
+ *  read time from its basic land subtype (`LAND_SUBTYPE_MANA`,
+ *  `getBasicLandMana` in `gre/constants.ts`) rather than declared on the
+ *  `CardDefinition` — Forest carries no `activatedAbilities` at all. Missing
+ *  that arm would fail every basic land against this condition, which is
+ *  wrong: a Forest's "{T}: Add {G}" is exactly the activated ability the
+ *  clause is asking about. */
+function hasActivatedAbility(def: CardDefinition): boolean {
+    if ((def.activatedAbilities?.length ?? 0) > 0) return true;
+    return (
+        def.types.includes("Land") &&
+        (def.subtypes?.some((subtype) => subtype in LAND_SUBTYPE_MANA) ?? false)
+    );
+}
+
+/** Zirda, the Dawnwaker's condition (CR 702.139a): "Each permanent card in
+ *  your starting deck has an activated ability." Built on `everyPermanent`
+ *  above — the same combinator Lurrus's condition uses, factored out for
+ *  exactly this second consumer (see its doc comment). */
+export const permanentHasActivatedAbility: CompanionCondition =
+    everyPermanent(hasActivatedAbility);
 
 /** Lutri, the Spellchaser's card id (IKO). NOT imported by the card
  *  definition (`convex/cards/sets/iko/multicolor.ts`) — that would form a
@@ -97,15 +123,23 @@ export const LUTRI_ID = "fb1189c9-7842-466e-8238-1e02677d8494";
  *  Mechanics Registry catalogue sweep. */
 export const LURRUS_ID = "5ad36fb2-c44e-4085-ba0d-54277841ad3a";
 
+/** Zirda, the Dawnwaker's card id (IKO). Same anti-cycle rationale as
+ *  `LUTRI_ID` above — NOT imported by the card definition
+ *  (`convex/cards/sets/iko/multicolor.ts`); the card file keeps its own
+ *  literal copy of this SAME id, cross-referenced and kept in sync by
+ *  `companion.test.ts`'s `selectCompanion` tests plus the Mechanics Registry
+ *  catalogue sweep. */
+export const ZIRDA_ID = "1bd8e61c-2ee8-4243-a848-7008810db8a0";
+
 /** Per-card companion condition lookup (CR 702.139a), keyed by
  *  `CardDefinition.id`. Kept separate from the Mechanics Registry — which
  *  only tracks the `companion` KEYWORD name (CR 702) — because the condition
  *  is card-specific deckbuild logic, not part of the keyword's own binding
- *  (ADR 0064). Grows by one entry per shipped companion (Zirda stays a stub
- *  pending activated-ability cost reduction). */
+ *  (ADR 0064). Grows by one entry per shipped companion. */
 const COMPANION_CONDITIONS: Record<string, CompanionCondition> = {
     [LUTRI_ID]: singleton,
     [LURRUS_ID]: permanentManaValueAtMost2,
+    [ZIRDA_ID]: permanentHasActivatedAbility,
 };
 
 /** CR 702.139c — the sideboard -> slot selector: scans `sideboardCardIds`
