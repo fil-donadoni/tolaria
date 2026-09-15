@@ -409,7 +409,6 @@ import {
     isPlaneswalker,
     isTapLockedBySummoningSickness,
     manaGateBattlefields,
-    manaValue,
     resolvePendingTargetKind,
 } from "./gre/constants";
 import type { ManaTapPlanContext } from "./gre/constants";
@@ -535,6 +534,7 @@ export {
     assertStaticAdditionalCostAffordable,
     buildPendingActivation,
     castZoneOwner,
+    deriveXFromTargetSpellMv,
     findPendingActivationSource,
     locateCastSource,
     payCastManaCost,
@@ -555,6 +555,7 @@ import {
     canPayExileFromGraveyard,
     castZoneOwner,
     depositTappedMana,
+    deriveXFromTargetSpellMv,
     findPendingActivationSource,
     graveyardCardMatchesExileCost,
     locateCastSource,
@@ -5737,25 +5738,11 @@ export function finalizeTargetSelection(
             ability.cost.mana?.X !== undefined &&
             typeof ability.cost.mana.X === "string";
         // CR 107.3 — Reflecting Mirror: X is twice the mana value of the
-        // targeted spell, derived from the chosen spell target rather than from
-        // a player-chosen value. Computed here, once the target is known.
-        let derivedX: number | undefined;
-        if (ability.cost.xFromTargetSpellMv) {
-            const spellTarget = targets.find((t) => t.type === "spell");
-            const spell = spellTarget
-                ? state.stack.find((s) => s.id === spellTarget.id)
-                : undefined;
-            if (!spell) {
-                throw new Error("Target spell is no longer on the stack");
-            }
-            const spellCardId = (spell.card as { id?: string }).id;
-            const spellDef = spellCardId
-                ? tryGetDefinition(spellCardId)
-                : undefined;
-            const spellMv =
-                manaValue(spellDef?.manaCost) + (spell.chosenX ?? 0);
-            derivedX = ability.cost.xFromTargetSpellMv.multiplier * spellMv;
-        }
+        // targeted spell, derived from the chosen spell target rather than
+        // from a player-chosen value. `deriveXFromTargetSpellMv` is the one
+        // site computing it (issue #3117) — the enumerator calls the same
+        // helper.
+        const derivedX = deriveXFromTargetSpellMv(state, ability, targets);
         const abilityChosenX = ability.cost.xFromTargetSpellMv
             ? derivedX
             : hasXInCost

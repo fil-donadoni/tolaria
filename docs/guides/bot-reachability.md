@@ -44,11 +44,15 @@ table's `autoPayable` field rather than hand-maintained beside it.
 is a completeness property over the TYPE: it proves a human adjudicated every
 leg. It proves **nothing about board-state reachability** — that
 `enumerateMoves` yields a legal, payable Move for that leg on a real position.
-Two of the twenty-one rows are `hole`s for exactly that reason, both found by a
-human reading the claim rather than by any check: `xFromTargetSpellMv` prices at
-zero in the enumerator while the mutation charges 2x the targeted spell's mana
-value (issue #3117), and the search-side cycling discard drops its
-`cause: "cycling"` so cycling triggers never fire in the tree (issue #3118).
+One of the twenty-one rows is a `hole` for exactly that reason, found by a
+human reading the claim rather than by any check: `exertThis` is paid on the
+search-side application but the enumerator gates nothing, because the only
+shipped carrier doesn't use the half of the Bot path that pays it (issue
+#3359). `xFromTargetSpellMv` was the same shape — the enumerator priced it at
+zero while the mutation charged 2x the targeted spell's mana value — until
+issue #3117 gave both callers one shared derivation
+(`deriveXFromTargetSpellMv`, `gre/activation.ts`), computed per target tuple
+since the price depends on which spell got targeted.
 
 So the question to ask is unchanged: does this card add an activation or cost
 shape the enumerator has not seen before? A new cost leg, a new activation zone,
