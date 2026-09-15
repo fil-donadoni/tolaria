@@ -7,27 +7,41 @@ import {
 } from "react";
 import { GameContext } from "~/hooks/useGameContext";
 import {
-    clearSeatCardYields,
-    clearSeatYields,
+    clearSeatCardYieldPrefs,
+    clearSeatYieldPrefs,
+    confirmTriggerOrder,
+    countRememberedTriggerOrders,
     countYields,
     hasYield,
+    seatTriggerOrderMemory,
     seatYields,
     toggleYield,
     yieldKeyCardIdentity,
+    type RememberedTriggerOrder,
+    type SeatTriggerOrderMemory,
+    type TriggerOrderMemoryState,
     type YieldKey,
+    type YieldPrefsState,
     type YieldState,
 } from "~/lib/yields";
 
-/** The board-wide **Yield** store: every seat's keys plus the three writes.
- *  In MEMORY only — a **Yield** belongs to the seat within one **Game**
+/** The board-wide **Yield** store: every seat's keys, every seat's
+ *  **Auto-order** memory (issue #3617 — same lifecycle, same resets) and the
+ *  writes. In MEMORY only — a **Yield** belongs to the seat within one **Game**
  *  (issue #3556 §6), so it is deliberately NOT in the `localStorage`-backed
  *  **Phase Stop** store (`useSkipPhasePreferences`) nor anywhere else that
  *  survives a reload. */
 export type YieldPrefsStore = {
     yields: YieldState;
+    triggerOrders: TriggerOrderMemoryState;
     toggle: (seatId: string, key: YieldKey) => void;
     clearSeat: (seatId: string) => void;
     clearSeatCard: (seatId: string, cardIdentity: string) => void;
+    confirmTriggerOrder: (
+        seatId: string,
+        enabled: boolean,
+        order: RememberedTriggerOrder | null
+    ) => void;
 };
 
 export const YieldPrefsContext = createContext<YieldPrefsStore | null>(null);
@@ -36,34 +50,68 @@ export const YieldPrefsContext = createContext<YieldPrefsStore | null>(null);
  *  **Game** starts with no yields, asserted here rather than left to the route
  *  remounting (§6). */
 export function useYieldPrefsState(gameId: string): YieldPrefsStore {
-    const [yields, setYields] = useState<YieldState>({});
+    // ONE state for both halves: the per-card reset decides whether to forget
+    // the Auto-order memory from the yields it just computed, which two
+    // separate `useState`s could only do by writing one from the other's
+    // updater.
+    const [prefs, setPrefs] = useState<YieldPrefsState>(EMPTY_PREFS);
     // Reset DURING render on a game change rather than in an effect: an effect
     // would let one render — the one the new game's first stack arrives in —
-    // read the previous game's yields and auto-pass on them.
+    // read the previous game's yields and auto-pass on them (or auto-order).
     const [lastGameId, setLastGameId] = useState(gameId);
     if (lastGameId !== gameId) {
         setLastGameId(gameId);
-        if (Object.keys(yields).length > 0) setYields({});
+        if (prefs !== EMPTY_PREFS) setPrefs(EMPTY_PREFS);
     }
 
     const toggle = useCallback((seatId: string, key: YieldKey) => {
-        setYields((prev) => toggleYield(prev, seatId, key));
+        setPrefs((prev) => ({
+            ...prev,
+            yields: toggleYield(prev.yields, seatId, key),
+        }));
     }, []);
     const clearSeat = useCallback((seatId: string) => {
-        setYields((prev) => clearSeatYields(prev, seatId));
+        setPrefs((prev) => clearSeatYieldPrefs(prev, seatId));
     }, []);
     const clearSeatCard = useCallback(
         (seatId: string, cardIdentity: string) => {
-            setYields((prev) =>
-                clearSeatCardYields(prev, seatId, cardIdentity)
+            setPrefs((prev) =>
+                clearSeatCardYieldPrefs(prev, seatId, cardIdentity)
             );
+        },
+        []
+    );
+    const confirmOrder = useCallback(
+        (
+            seatId: string,
+            enabled: boolean,
+            order: RememberedTriggerOrder | null
+        ) => {
+            setPrefs((prev) => {
+                const triggerOrders = confirmTriggerOrder(
+                    prev.triggerOrders,
+                    seatId,
+                    enabled,
+                    order
+                );
+                return triggerOrders === prev.triggerOrders
+                    ? prev
+                    : { ...prev, triggerOrders };
+            });
         },
         []
     );
 
     return useMemo(
-        () => ({ yields, toggle, clearSeat, clearSeatCard }),
-        [yields, toggle, clearSeat, clearSeatCard]
+        () => ({
+            yields: prefs.yields,
+            triggerOrders: prefs.triggerOrders,
+            toggle,
+            clearSeat,
+            clearSeatCard,
+            confirmTriggerOrder: confirmOrder,
+        }),
+        [prefs, toggle, clearSeat, clearSeatCard, confirmOrder]
     );
 }
 
@@ -95,6 +143,17 @@ export type SeatYields = {
      *  entry. */
     hasCardYield: (cardIdentity: string) => boolean;
     clearCard: (cardIdentity: string) => void;
+    /** How many trigger orders the viewing seat has remembered (issue #3617)
+     *  — counted by the reset control so it stays reachable with zero
+     *  yields. */
+    rememberedOrderCount: number;
+    /** The viewing seat's **Auto-order** toggle and remembered orders. */
+    autoOrder: SeatTriggerOrderMemory;
+    /** Record a confirmed trigger order — see `confirmTriggerOrder`. */
+    confirmTriggerOrder: (
+        enabled: boolean,
+        order: RememberedTriggerOrder | null
+    ) => void;
 };
 
 /** Display-side read. Falls back to an INERT store outside a provider so a
@@ -112,6 +171,7 @@ export function useSeatYields(): SeatYields {
     // real board that lost either provider still fails loudly.
     const playerId = useContext(GameContext)?.playerId ?? "";
     const state = store?.yields ?? EMPTY_YIELDS;
+    const triggerOrders = store?.triggerOrders ?? EMPTY_TRIGGER_ORDERS;
     return useMemo(
         () => ({
             count: countYields(state, playerId),
@@ -124,9 +184,20 @@ export function useSeatYields(): SeatYields {
                 ),
             clearCard: (cardIdentity: string) =>
                 store?.clearSeatCard(playerId, cardIdentity),
+            rememberedOrderCount: countRememberedTriggerOrders(
+                triggerOrders,
+                playerId
+            ),
+            autoOrder: seatTriggerOrderMemory(triggerOrders, playerId),
+            confirmTriggerOrder: (
+                enabled: boolean,
+                order: RememberedTriggerOrder | null
+            ) => store?.confirmTriggerOrder(playerId, enabled, order),
         }),
-        [state, playerId, store]
+        [state, triggerOrders, playerId, store]
     );
 }
 
 const EMPTY_YIELDS: YieldState = {};
+const EMPTY_TRIGGER_ORDERS: TriggerOrderMemoryState = {};
+const EMPTY_PREFS: YieldPrefsState = { yields: {}, triggerOrders: {} };
