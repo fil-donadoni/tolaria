@@ -10,3 +10,4 @@ export * from "./evalPairs";
 export * from "./report";
 export * from "./coverage";
 export * from "./fit";
+export * from "./identity";
