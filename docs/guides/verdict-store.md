@@ -4,8 +4,10 @@ How to provision the bucket the Verdict corpus lives in, and how a deployment
 and a development machine each get their credential. The decision record is
 ADR 0128; the code is `convex/verdictStore.ts` (the port and its decisions),
 `convex/verdictStoreGcs.ts` (the read transport),
-`convex/verdictStoreGcsWriter.ts` (the write transport, deployments only) and
-`scripts/lib/verdict-store.ts` (the machine reader).
+`convex/verdictStoreGcsWriter.ts` (the write transport, deployments only),
+`scripts/lib/verdict-store.ts` (the machine reader) and
+`scripts/lib/verdict-pack-cache.ts` (the [pack](#g-pack) and the
+[machine cache](#g-machine-cache)).
 
 ## What exists
 
@@ -115,6 +117,26 @@ chmod 600 ~/.config/tolaria/verdict-store-reader.json
 
 A missing file fails with the path it looked in and a pointer to this section.
 
+## Machine cache
+
+A fit reads the corpus the committed Verdict Lock names from ONE
+[pack](#g-pack), `packs/<packHash>.jsonl.gz`, kept in the
+[machine cache](#g-machine-cache) at
+`~/.cache/tolaria/verdicts/packs/<packHash>.jsonl.gz`.
+
+- A warm [machine cache](#g-machine-cache) makes no network call and needs no
+  reader [key](#g-key).
+- A cold one fetches the [pack](#g-pack) once with the reader [key](#g-key)
+  and keeps it only after verifying it: its text hashes to the lock's
+  `packHash`, it carries exactly the lock's verdict ids, and every verdict
+  re-hashes to its id.
+- About to lose connectivity? `bun run verdicts:sync` warms the
+  [machine cache](#g-machine-cache) for the checkout's lock. Re-running it is
+  a no-op.
+- There is nothing to clear, ever: a new corpus is a new `packHash`, so a new
+  file. Deleting the directory only costs the next run one download.
+- `bun run worktree:init` never warms it.
+
 ## Rotate or revoke
 
 `gcloud iam service-accounts keys list --iam-account=<account>` lists the
@@ -133,6 +155,19 @@ attestation and pack (ADR 0128 §1). Private, shared by every deployment.
 
 A service account's JSON key file: the credential the code signs its OAuth
 token request with. One per account per place, never shared between places.
+
+### <a id="g-machine-cache"></a>Machine cache
+
+`~/.cache/tolaria/verdicts/`: the [packs](#g-pack) this machine has fetched,
+each under its store name. Outside every checkout, so removing a worktree
+never re-buys a download.
+
+### <a id="g-pack"></a>Pack
+
+One object holding every verdict a Verdict Lock names, one JSON line each,
+gzipped and named by the sha256 of its uncompressed text. The read form of
+the corpus: one fetch instead of one per verdict. Never trusted for being in
+the [bucket](#g-bucket) — it is verified against the lock on every read.
 
 ### <a id="g-reader"></a>Reader account
 
