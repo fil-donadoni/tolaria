@@ -4206,7 +4206,7 @@ describe("shroud dynamic-grant backend gate (issue #959, CR 702.18)", () => {
     // `ths/__tests__/green.test.ts`, `leg/__tests__/blue.test.ts`) and this
     // one wasn't. It does survive: `slimCard` (`gameProjections.ts`) spreads
     // the whole `CardInstanceState` and only strips `card`/`knownTo`/
-    // `stormSnapshot`, so a dynamically-granted `"shroud"` string rides the
+    // `castCopySnapshot`, so a dynamically-granted `"shroud"` string rides the
     // wire unchanged — this is the confirming assertion, not a fix.
     it("the dynamic shroud grant survives projectPublicState (wire format)", () => {
         const { state } = makeBoard(["shroud"]);

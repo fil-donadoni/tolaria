@@ -7,7 +7,7 @@ import type { CardDefinition } from "../../types";
 // before it this turn. You may choose new targets for the copies.)" (CR
 // 702.40 Storm, ADR 0052 + PRD #1041 — the classic storm kill.)
 // `staticAbilities: ["storm"]` drives the copy mechanism
-// (`collectCastTriggers` / `resolveStormTrigger`, convex/gre/state.ts). The
+// (`collectCastTriggers` / `resolveCastCopyTrigger`, convex/gre/state.ts). The
 // card's own effect is the plain two-Op DSL sequence Stormscape Master's
 // drain ability already exercises (inv/multicolor.ts): `loseLife` on the
 // announced target player, then `gainLife` on the resolving controller — no

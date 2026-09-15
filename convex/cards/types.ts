@@ -249,8 +249,17 @@ export interface EscapeCost {
  *  and its "any number of times" clause is the SAME repeatability axis
  *  Multikicker uses — so it is a member whose row sets both `allowsMulti` and
  *  `requiresTrigger`, and whose payments are NOT kicked (CR 702.33d again
- *  defines "kicked" over kicker costs alone). */
-export type AdditionalCostKeyword = "kicker" | "offspring" | "squad";
+ *  defines "kicked" over kicker costs alone).
+ *
+ *  Replicate (CR 702.56a, issue #2100) is a member on the same terms as squad
+ *  — repeatable, never kicked, a twin trigger — except that its twin is the
+ *  engine's synthesized Cast-Copy trigger rather than one the card authors,
+ *  which its row states as `castCopyTrigger`. */
+export type AdditionalCostKeyword =
+    | "kicker"
+    | "offspring"
+    | "squad"
+    | "replicate";
 
 /** CR 702.33 — ONE Kicker: an OPTIONAL additional cost the caster may choose to
  *  pay as they cast the spell ("You may pay an additional [cost] as you cast

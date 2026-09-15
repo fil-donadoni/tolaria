@@ -156,7 +156,7 @@ describe("cast choke point — ISMCTS sandbox (applyMoveInSearch, issue #3026)",
         );
         expect(trigger).toBeDefined();
         // CR 702.40a — one copy per spell cast before it this turn: the Bolt.
-        expect(trigger?.stormCopiesRemaining).toBe(1);
+        expect(trigger?.castCopiesRemaining).toBe(1);
         expect(state.stack.indexOf(trigger!)).toBeGreaterThan(grapeshotIndex);
     });
 

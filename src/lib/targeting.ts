@@ -40,7 +40,7 @@ import { pendingSourceIsSpell } from "@convex/gre/constants";
 // `isTapped`, `attachedTo`, `types`, `subtypes`, `staticAbilities`), all
 // carried by a spread-projected `CardInstance` — `staticAbilities` included:
 // `projectPublicState`'s `slimCard` (`convex/gameProjections.ts`) forwards it
-// verbatim (it only strips `card`/`knownTo`/`stormSnapshot`), and it is a
+// verbatim (it only strips `card`/`knownTo`/`castCopySnapshot`), and it is a
 // first-class optional field on `CardInstance` itself
 // (`src/types/game.ts`). We cast to `CardInstanceState` at this boundary so
 // the pure guard signature is satisfied without forcing every optional

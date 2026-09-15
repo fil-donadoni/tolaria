@@ -91,29 +91,65 @@ export const subtlety: CardDefinition = {
     ],
 };
 
-// Lose Focus — {1}{U} Instant. "Replicate {U} (When you cast this spell,
-// copy it for each time you paid its replicate cost. You may choose new
+// Lose Focus — {1}{U} Instant (MH2). "Replicate {U} (When you cast this
+// spell, copy it for each time you paid its replicate cost. You may choose new
 // targets for the copies.) Counter target spell unless its controller pays
-// {2}." Blocked: Replicate (CR 702.56) is `status: "planned"` in
-// mechanicsRegistry.ts. Both HALVES of the keyword already exist under other
-// names — the repeatable optional additional cost is Multikicker
-// (`KickerCost.multi` + the derived `totalKickerCount`, gre/kicker.ts), and
-// the cast trigger that copies the spell N times with a per-copy retarget is
-// Storm (`collectCastTriggers` / `resolveStormTrigger`, gre/state.ts; the
-// detached snapshot is why copies survive the original being countered).
-// What's missing is the wiring: a keyword-agnostic cast-copy count sourced
-// from times-paid instead of `priorSpellCount`, plus a discriminator so a
-// replicate payment isn't reported as a kick. The counter-unless-pay half is
-// free (same shape as Force Spike, leg/blue.ts). Stop-and-issue per
-// gre-development.md; tracked stub.
-// tracked-by: #2100
-// export const loseFocus: CardDefinition = {
-//     id: "985bdb0c-ce6c-4506-8163-76f3b2fdf5fb",
-//     name: "Lose Focus",
-//     rarity: "common",
-//     manaCost: { X: 1, U: 1 },
-//     types: ["Instant"],
-// };
+// {2}." Modern Scryfall oracle text is authoritative (ADR 0004).
+//
+// REPLICATE (CR 702.56a, issue #2100) is two abilities, and neither is
+// authored here beyond the cost entry. The COST half is a `kickers[]` entry
+// (ADR 0079) with `multi: true` — "you may pay [cost] any number of times" —
+// and the ADR 0085 discriminator `keyword: "replicate"`, whose
+// ADDITIONAL_COST_KEYWORDS row (gre/kicker.ts) says `countsAsKicked: false`:
+// the payment lands in `StackItem.unkickedCostPayments`, so a replicated
+// spell never reads as kicked. The same row says `castCopyTrigger: true`,
+// which is the TRIGGER half: `collectCastTriggers` (gre/state.ts) puts one
+// cast-copy trigger on the stack when the cost was paid, counting this
+// entry's payments — the mechanism Storm uses with a different count
+// (ADR 0052), per-copy retarget and countered-original ruling included.
+//
+// The spell's own effect is Force Spike's shape (leg/blue.ts) with {2}: a
+// `mayPay` offered to the targeted spell's controller, then `counter` when it
+// went unpaid (CR 701.6a).
+//
+// compiler-gap: Replicate {U} (#2693)
+export const loseFocus: CardDefinition = {
+    id: "985bdb0c-ce6c-4506-8163-76f3b2fdf5fb",
+    name: "Lose Focus",
+    rarity: "common",
+    manaCost: { X: 1, U: 1 },
+    types: ["Instant"],
+    oracleText:
+        "Replicate {U} (When you cast this spell, copy it for each time you paid its replicate cost. You may choose new targets for the copies.)\nCounter target spell unless its controller pays {2}.",
+    kickers: [
+        {
+            id: "replicate",
+            keyword: "replicate",
+            // Rendered verbatim by the cast-cost dialog
+            // (`CastCostKickerField`), so it reads as the printed keyword line.
+            description: "Replicate {U}",
+            multi: true,
+            mana: { U: 1 },
+        },
+    ],
+    targetRequirement: { type: "spell", count: 1 },
+    effects: [
+        {
+            op: "mayPay",
+            // CR 117.3a — the targeted spell's controller decides whether to pay.
+            player: { controllerOf: { target: 0 } },
+            cost: { X: 2 },
+            prompt: "Pay {2} to prevent your spell from being countered?",
+            bind: "$paid",
+        },
+        {
+            // CR 701.6a — counter unless the payment was made.
+            op: "if",
+            predicate: { not: { binding: "$paid" } },
+            then: [{ op: "counter", target: { target: 0 } }],
+        },
+    ],
+};
 
 // Thought Monitor — {6}{U} Artifact Creature — Construct, 2/2 (MH2 71).
 // "Affinity for artifacts (This spell costs {1} less to cast for each artifact

@@ -207,6 +207,8 @@ import type { Phase, Zone, PhaseReturnCondition } from "./types";
 import { readTaggedNumber } from "./numberBinding";
 import type { KickerPayments } from "./kicker";
 import {
+    ADDITIONAL_COST_KEYWORDS,
+    additionalCostKeywordOf,
     additionalCostPaidCount,
     buildSpellKickedEvents,
     totalKickerCount,
@@ -2559,19 +2561,23 @@ export type StackItem = CardInstanceState & {
      *  up `cardDef.triggeredAbilities`) can't find them. Distinct from
      *  `triggerSourceId`, which carries the emblem's instance id for LKI. */
     emblemSourceId?: string;
-    /** Storm (CR 702.40, ADR 0052) — present ONLY on the synthesized storm
-     *  cast-trigger's own stack item (`triggeredAbilityId === "storm"`). A
-     *  detached snapshot of the spell being copied, captured at cast time —
-     *  NOT a live stack reference — so `resolveStormTrigger` still creates
-     *  copies from it even if the original spell has since left the stack
-     *  (countered). See `collectCastTriggers`. */
-    stormSnapshot?: StackItem;
-    /** Storm — copies still to create as this trigger resolves. Initialized
-     *  to `priorSpellCount` (CR 702.40a) at cast time; decremented by one per
-     *  copy created. The trigger stays on the stack (peek-and-pop) while this
-     *  is > 0 so a suspended per-copy retarget prompt resumes the loop for
-     *  the next copy rather than losing progress. */
-    stormCopiesRemaining?: number;
+    /** Cast-Copy (ADR 0052) — present ONLY on a synthesized cast-copy
+     *  trigger's own stack item: Storm's (CR 702.40, `triggeredAbilityId ===
+     *  "storm"`) or Replicate's (CR 702.56, `triggeredAbilityId ===
+     *  "replicate"`). The trigger id names which keyword supplied the count;
+     *  the mechanism below is identical for both. A detached snapshot of the
+     *  spell being copied, captured at cast time — NOT a live stack reference
+     *  — so `resolveCastCopyTrigger` still creates copies from it even if the
+     *  original spell has since left the stack (countered). See
+     *  `collectCastTriggers`. */
+    castCopySnapshot?: StackItem;
+    /** Cast-Copy Count — copies still to create as this trigger resolves.
+     *  Fixed at cast time by the keyword that supplies it (CR 702.40a Storm:
+     *  `priorSpellCount`; CR 702.56a Replicate: the times its cost was paid);
+     *  decremented by one per copy created. The trigger stays on the stack
+     *  (peek-and-pop) while this is > 0 so a suspended per-copy retarget
+     *  prompt resumes the loop for the next copy rather than losing progress. */
+    castCopiesRemaining?: number;
     /** If set, this stack item is a delayed triggered ability (CR 603.7a)
      *  queued by an earlier spell's resolution. The resolve function lives on
      *  `cardDef.delayedTriggers[triggerId]` and receives `delayedPayload` —
@@ -7282,16 +7288,17 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
     // back `collectedChoices`. The next `resolveTopOfStack` call replays
     // the resolve which now reads the stored answer and runs to completion.
 
-    // Storm cast-trigger resolution (CR 702.40, ADR 0052) — engine code, not
-    // a per-card `resolve()`. MUST be checked before the generic triggered-
-    // ability branch below: that branch looks up `cardDef.triggeredAbilities`
-    // for an ability matching `triggeredAbilityId`, and the storm trigger's
-    // card (the storm SPELL itself, e.g. Grapeshot) has no such entry — the
-    // generic branch would silently find nothing and pop the trigger with
-    // zero copies. Marked by `stormSnapshot`, unique to storm-produced stack
-    // items (`collectCastTriggers`).
-    if (top.triggeredAbilityId === STORM_TRIGGER_ID && top.stormSnapshot) {
-        return resolveStormTrigger(state, top);
+    // Cast-copy trigger resolution (CR 702.40 Storm / CR 702.56 Replicate,
+    // ADR 0052) — engine code, not a per-card `resolve()`. MUST be checked
+    // before the generic triggered-ability branch below: that branch looks up
+    // `cardDef.triggeredAbilities` for an ability matching
+    // `triggeredAbilityId`, and a cast-copy trigger's card (the SPELL itself,
+    // e.g. Grapeshot or Lose Focus) has no such entry — the generic branch
+    // would silently find nothing and pop the trigger with zero copies. Marked
+    // by `castCopySnapshot`, unique to the stack items `collectCastTriggers`
+    // synthesizes, whichever keyword supplied the count.
+    if (top.triggeredAbilityId && top.castCopySnapshot) {
+        return resolveCastCopyTrigger(state, top);
     }
 
     // Inline delayed triggered ability resolution (CR 603.7a, ADR 0048) —
@@ -7922,8 +7929,8 @@ export function emitEntersWithCounterEvents(
  *  counter). (2) Fields that
  *  exist ONLY on an ABILITY stack item (`abilityId`, `triggeredAbilityId`,
  *  `triggerSourceId`, `triggerEvent`, `abilityResolutionRecorded`,
- *  `madnessTrigger`, `reboundTrigger`, `emblemSourceId`, `stormSnapshot`,
- *  `stormCopiesRemaining`, `delayedTriggerId`, `delayedPayload`,
+ *  `madnessTrigger`, `reboundTrigger`, `emblemSourceId`, `castCopySnapshot`,
+ *  `castCopiesRemaining`, `delayedTriggerId`, `delayedPayload`,
  *  `delayedEffects`, `grantedSourceCardId`, `actingPlayerId`) — an ability
  *  vanishes instead of moving to a zone (CR 701.6a/113.7a), and every call
  *  site below is reached ONLY for a genuine spell: `counter()` and
@@ -8085,8 +8092,8 @@ function resetStackTransientState(item: StackItem): void {
     delete item.madnessTrigger;
     delete item.reboundTrigger;
     delete item.emblemSourceId;
-    delete item.stormSnapshot;
-    delete item.stormCopiesRemaining;
+    delete item.castCopySnapshot;
+    delete item.castCopiesRemaining;
     delete item.delayedTriggerId;
     delete item.delayedPayload;
     delete item.delayedEffects;
@@ -11912,19 +11919,27 @@ export function emitBecameTargetEvents(
 
 const STORM_KEYWORD = "storm";
 /** Stack-item marker id for the synthesized storm cast trigger. Matches the
- *  Mechanics Registry row id (`cards/mechanicsRegistry.ts`, CR 702.40). */
+ *  Mechanics Registry row id (`cards/mechanicsRegistry.ts`, CR 702.40). A
+ *  Replicate trigger's id is its keyword, `"replicate"`, for the same reason. */
 const STORM_TRIGGER_ID = "storm";
 
 /** Cast-trigger collection pass (CR 702.40, ADR 0052) — distinct from
  *  `collectTriggers` (triggers.ts), which only scans BATTLEFIELD (plus
  *  just-left graveyard/exile) sources and would never see a trigger that
  *  belongs to the very spell being announced onto the stack. Invoked once per
- *  cast, from `emitSpellCastEvent`'s single choke point. Recognizes
- *  keyword-synthesized cast triggers — today only `storm` — and pushes a
- *  StackItem ABOVE `castSpell` so it resolves first (CR 603.3b — a new stack
- *  object goes on top). Built for the class, not the single keyword:
- *  gravestorm (CR 702.69, still `planned` in the registry) attaches here
- *  later as another case, not a new mechanism.
+ *  cast, from `emitSpellCastEvent`'s single choke point. Recognizes the
+ *  keyword-synthesized CAST-COPY triggers and pushes each as a StackItem ABOVE
+ *  `castSpell` so it resolves first (CR 603.3b — a new stack object goes on
+ *  top). The mechanism is keyword-agnostic; the keywords differ only in where
+ *  the Cast-Copy Count comes from:
+ *   - Storm (CR 702.40a) — `event.priorSpellCount`;
+ *   - Replicate (CR 702.56a) — how many times ONE replicate cost entry was
+ *     paid, read through {@link additionalCostPaidCount}. Recognised by the
+ *     entry's `ADDITIONAL_COST_KEYWORDS` row (`castCopyTrigger`), never by a
+ *     keyword-name comparison, so conspire (CR 702.78) attaches as a table
+ *     row rather than a new branch.
+ *  Gravestorm (CR 702.69, still `planned` in the registry) attaches here later
+ *  as another count provider, not a new mechanism.
  *
  *  ALSO collects the cast card's OWN "when you cast this spell" triggers
  *  (CR 603.6e, issue #2319) — see `collectSelfCastTriggers` below. Same reason
@@ -11941,19 +11956,51 @@ function collectCastTriggers(
     const hasStorm = def?.staticAbilities?.some(
         (a) => a.toLowerCase() === STORM_KEYWORD
     );
-    if (!hasStorm) return;
-    // The storm trigger's resolve body is engine code (like flying's combat
-    // handling), exempt from the DSL-first card-authoring mandate — it is the
-    // keyword's implementation, not a card's effect. It carries a detached
-    // SNAPSHOT of the spell (not a live stack reference) so copies are
-    // created even if `castSpell` is later countered before this trigger
-    // resolves (the Grapeshot/Tendrils ruling) — see `resolveStormTrigger`.
-    const stormItem: StackItem = {
+    // CR 702.40a — storm has no intervening if: a zero count still puts the
+    // trigger on the stack, where it resolves creating nothing.
+    if (hasStorm) {
+        pushCastCopyTrigger(
+            state,
+            castSpell,
+            event,
+            STORM_TRIGGER_ID,
+            event.priorSpellCount ?? 0
+        );
+    }
+    for (const entry of def?.kickers ?? []) {
+        const keyword = additionalCostKeywordOf(entry);
+        if (!ADDITIONAL_COST_KEYWORDS[keyword].castCopyTrigger) continue;
+        // CR 702.56b — each instance "triggers based on the payments made for
+        // it", so the count is THIS entry's own, keyed by its id.
+        const times = additionalCostPaidCount(castSpell, entry.id);
+        // CR 702.56a — "if a replicate cost was paid for it" is an intervening
+        // if (CR 603.4): an unpaid entry puts no trigger on the stack at all.
+        if (times <= 0) continue;
+        pushCastCopyTrigger(state, castSpell, event, keyword, times);
+    }
+}
+
+/** Pushes ONE cast-copy trigger for `castSpell` (ADR 0052), whose count
+ *  `copies` the keyword named by `triggeredAbilityId` has already supplied. */
+function pushCastCopyTrigger(
+    state: GameState,
+    castSpell: StackItem,
+    event: SpellCastEvent,
+    triggeredAbilityId: string,
+    copies: number
+): void {
+    // The cast-copy trigger's resolve body is engine code (like flying's
+    // combat handling), exempt from the DSL-first card-authoring mandate — it
+    // is the keyword's implementation, not a card's effect. It carries a
+    // detached SNAPSHOT of the spell (not a live stack reference) so copies
+    // are created even if `castSpell` is later countered before this trigger
+    // resolves (the Grapeshot/Tendrils ruling) — see `resolveCastCopyTrigger`.
+    const triggerItem: StackItem = {
         ...castSpell,
         id: allocInstanceId(state),
         zone: "stack",
         castById: castSpell.castById,
-        triggeredAbilityId: STORM_TRIGGER_ID,
+        triggeredAbilityId,
         triggerSourceId: castSpell.id,
         triggerEvent: event,
         // CR 603.3d — a trigger's targets are chosen when it goes on the
@@ -11964,13 +12011,13 @@ function collectCastTriggers(
         // CR 702.96a (issue #3215) — and for the same reason, the trigger is
         // not the overloaded SPELL: inheriting the marker through the spread
         // would swap this item's own `ctx.targets` for the "each" sweep as it
-        // resolves. The `stormSnapshot` below keeps the spell's own marker,
+        // resolves. The `castCopySnapshot` below keeps the spell's own marker,
         // which is what the copies need.
         overloaded: undefined,
-        stormSnapshot: structuredClone(castSpell),
-        stormCopiesRemaining: event.priorSpellCount ?? 0,
+        castCopySnapshot: structuredClone(castSpell),
+        castCopiesRemaining: copies,
     };
-    state.stack.push(stormItem);
+    state.stack.push(triggerItem);
 }
 
 /** CR 603.6e (issue #2319) — collects the just-announced spell's OWN "when you
@@ -15218,15 +15265,15 @@ function cloneSpellOntoStack(
 /** CR 707.10b / 707.10c — offers `copy`'s controller a chance to choose new
  *  targets, by populating `state.pendingTarget` (kind `"copy-retarget"`).
  *  Extracted so both `SpellContext.requestCopyRetarget` (Fork, Chain
- *  Lightning, Onslaught — always prompts) and storm's engine-code copy loop
- *  (`resolveStormTrigger`, which wraps this with an auto-resolve zero-branch
+ *  Lightning, Onslaught — always prompts) and the cast-copy loop
+ *  (`resolveCastCopyTrigger`, which wraps this with an auto-resolve zero-branch
  *  check, ADR 0052) share one implementation instead of duplicating the
  *  target-requirement → PendingTarget filter translation. Exported (only)
  *  for the review-finding integration test on issue #2365
  *  (`variable-target-count-integration.test.ts`) to call this producer
  *  directly instead of hand-building the `PendingTarget` it would raise —
  *  every non-test caller still goes through `SpellContext.requestCopyRetarget`
- *  / `requestStormCopyRetarget` below. */
+ *  / `requestCastCopyRetarget` below. */
 export function requestCopyRetargetOn(state: GameState, copy: StackItem): void {
     const cardId = (copy.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
@@ -15334,14 +15381,15 @@ export function requestCopyRetargetOn(state: GameState, copy: StackItem): void {
     };
 }
 
-/** Storm's per-copy retarget offer (CR 707.10b "you may choose new targets
- *  for the copies", ADR 0052) — narrowed to the project's Arena-style
+/** A cast-copy trigger's per-copy retarget offer (CR 707.10b; CR 702.40a
+ *  Storm and CR 702.56a Replicate both say "you may choose new targets for
+ *  any of the copies", ADR 0052) — narrowed to the project's Arena-style
  *  zero-branch UX convention (auto-resolve a choice with no real branch):
  *  when the copy's inherited target is the ONLY legal target, there is no
  *  real choice to make, so the copy silently keeps it and no prompt is
  *  shown. Otherwise defers to `requestCopyRetargetOn`, the exact machinery
  *  Fork/Chain Lightning/Onslaught already use. */
-function requestStormCopyRetarget(state: GameState, copy: StackItem): void {
+function requestCastCopyRetarget(state: GameState, copy: StackItem): void {
     const cardId = (copy.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
     const req =
@@ -15368,8 +15416,10 @@ function requestStormCopyRetarget(state: GameState, copy: StackItem): void {
     requestCopyRetargetOn(state, copy);
 }
 
-/** Storm cast-trigger resolution (CR 702.40, ADR 0052). Loops
- *  `stormCopiesRemaining` times, creating ONE copy from the detached
+/** Cast-copy trigger resolution (CR 702.40 Storm / CR 702.56 Replicate,
+ *  ADR 0052) — keyword-agnostic: the count was fixed when the trigger was
+ *  built, so nothing here asks which keyword supplied it. Loops
+ *  `castCopiesRemaining` times, creating ONE copy from the detached
  *  snapshot and offering its optional retarget PER ITERATION — never all at
  *  once — because a copy-retarget is a single-slot `state.pendingTarget`
  *  prompt: creating every copy up front would silently overwrite all but the
@@ -15380,24 +15430,24 @@ function requestStormCopyRetarget(state: GameState, copy: StackItem): void {
  *  Untargeted copies (Empty the Warrens) or copies with no legal alternative
  *  target loop straight through without suspending, so an all-untargeted or
  *  all-zero-branch storm resolves in one pass like any other trigger. */
-function resolveStormTrigger(
+function resolveCastCopyTrigger(
     state: GameState,
     top: StackItem
 ): StackItem | null {
-    while ((top.stormCopiesRemaining ?? 0) > 0) {
-        top.stormCopiesRemaining = (top.stormCopiesRemaining ?? 0) - 1;
-        // CR 707.10/702.40 — cloned from the detached SNAPSHOT, not a live
+    while ((top.castCopiesRemaining ?? 0) > 0) {
+        top.castCopiesRemaining = (top.castCopiesRemaining ?? 0) - 1;
+        // CR 707.10 — cloned from the detached SNAPSHOT, not a live
         // stack lookup, so a copy is still produced even if the original
         // spell was countered before this trigger resolved.
-        const copyId = cloneSpellOntoStack(state, top.stormSnapshot!, top);
+        const copyId = cloneSpellOntoStack(state, top.castCopySnapshot!, top);
         if (copyId) {
             const copy = state.stack.find((s) => s.id === copyId);
-            if (copy) requestStormCopyRetarget(state, copy);
+            if (copy) requestCastCopyRetarget(state, copy);
             if (state.pendingTarget) return null; // suspend for this copy
         }
     }
-    delete top.stormSnapshot;
-    delete top.stormCopiesRemaining;
+    delete top.castCopySnapshot;
+    delete top.castCopiesRemaining;
     delete top.collectedChoices;
     state.stack.pop();
     return top;

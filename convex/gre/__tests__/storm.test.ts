@@ -159,7 +159,7 @@ describe("Storm — cast-trigger + copy resolution (CR 702.40, S1)", () => {
         emitSpellCastEvent(state, gs); // priorSpellCount = 0
         expect(state.stack).toHaveLength(2); // grapeshot + storm trigger
         expect(state.stack[1].triggeredAbilityId).toBe("storm");
-        expect(state.stack[1].stormCopiesRemaining).toBe(0);
+        expect(state.stack[1].castCopiesRemaining).toBe(0);
 
         resolveTopOfStack(state); // storm trigger resolves: 0 copies, pops
         expect(state.stack).toHaveLength(1);
@@ -188,7 +188,7 @@ describe("Storm — cast-trigger + copy resolution (CR 702.40, S1)", () => {
         emitSpellCastEvent(state, etw); // priorSpellCount = 2
         const trigger = state.stack[state.stack.length - 1];
         expect(trigger.triggeredAbilityId).toBe("storm");
-        expect(trigger.stormCopiesRemaining).toBe(2);
+        expect(trigger.castCopiesRemaining).toBe(2);
 
         // Non-targeted storm never raises a retarget prompt — the whole
         // 2-copy CREATION loop drains in a single resolveTopOfStack call
@@ -229,9 +229,7 @@ describe("Storm — cast-trigger + copy resolution (CR 702.40, S1)", () => {
 
         const etw = pushSpell(state, emptyTheWarrens.id, "p1", []);
         emitSpellCastEvent(state, etw); // priorSpellCount includes p2's bolt
-        expect(state.stack[state.stack.length - 1].stormCopiesRemaining).toBe(
-            1
-        );
+        expect(state.stack[state.stack.length - 1].castCopiesRemaining).toBe(1);
     });
 
     it("a spell cast AFTER the storm spell (before the trigger resolves) does not count", () => {
@@ -239,7 +237,7 @@ describe("Storm — cast-trigger + copy resolution (CR 702.40, S1)", () => {
         const etw = pushSpell(state, emptyTheWarrens.id, "p1", []);
         emitSpellCastEvent(state, etw); // priorSpellCount = 0, fixed now
         const trigger = state.stack[state.stack.length - 1];
-        expect(trigger.stormCopiesRemaining).toBe(0);
+        expect(trigger.castCopiesRemaining).toBe(0);
 
         // A second spell cast in response, before the storm trigger resolves.
         const bolt = pushSpell(state, lightningBolt.id, "p2", [
@@ -250,7 +248,7 @@ describe("Storm — cast-trigger + copy resolution (CR 702.40, S1)", () => {
 
         // The already-built trigger's copy count is UNCHANGED — it was
         // fixed at cast time (event.priorSpellCount), not re-read live.
-        expect(trigger.stormCopiesRemaining).toBe(0);
+        expect(trigger.castCopiesRemaining).toBe(0);
     });
 
     it("copies are still created even if the original storm spell is countered in response", () => {
@@ -442,7 +440,7 @@ describe("Storm — wire format (projectPublicState, S4)", () => {
             (s) => s.triggeredAbilityId === "storm"
         );
         expect(slimTrigger).toBeDefined();
-        expect(slimTrigger!.stormCopiesRemaining).toBe(1);
+        expect(slimTrigger!.castCopiesRemaining).toBe(1);
         expect(
             (slimTrigger!.triggerEvent as { priorSpellCount?: number })
                 ?.priorSpellCount
@@ -450,8 +448,8 @@ describe("Storm — wire format (projectPublicState, S4)", () => {
         // The internal detached snapshot is an engine artifact, not sent to
         // the client (see slimCard, gameProjections.ts).
         expect(
-            (slimTrigger as unknown as { stormSnapshot?: unknown })
-                .stormSnapshot
+            (slimTrigger as unknown as { castCopySnapshot?: unknown })
+                .castCopySnapshot
         ).toBeUndefined();
     });
 });
@@ -464,7 +462,7 @@ describe("Storm — serialize round-trip (S3)", () => {
         expect(round.spellsCastThisTurn).toBe(4);
     });
 
-    it("a mid-resolution storm trigger (stormSnapshot + stormCopiesRemaining) survives a save/load", () => {
+    it("a mid-resolution storm trigger (castCopySnapshot + castCopiesRemaining) survives a save/load", () => {
         const state = makeState();
         const bolt = pushSpell(state, lightningBolt.id, "p1", [
             { type: "player", id: "p2" },
@@ -482,9 +480,9 @@ describe("Storm — serialize round-trip (S3)", () => {
             (s) => s.triggeredAbilityId === "storm"
         );
         expect(trigger).toBeDefined();
-        expect(trigger!.stormCopiesRemaining).toBe(1);
-        expect(trigger!.stormSnapshot).toBeDefined();
-        expect((trigger!.stormSnapshot!.card as { id: string }).id).toBe(
+        expect(trigger!.castCopiesRemaining).toBe(1);
+        expect(trigger!.castCopySnapshot).toBeDefined();
+        expect((trigger!.castCopySnapshot!.card as { id: string }).id).toBe(
             grapeshot.id
         );
 

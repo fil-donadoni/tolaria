@@ -3468,7 +3468,7 @@ export const STACK_DROPPED_PREFIX = "stack:";
  * `triggerSourceId` / `triggerEvent` (a trigger is a later slice — and since
  * `placeTriggersOnStack` always writes `triggerEvent`, this line refuses one
  * with no special case for it), `isCopy`, `kickerPayments`, `chosenModeId`,
- * `targetAmounts`, `illegalTargetSlots`, `stormSnapshot`, `delayedEffects`,
+ * `targetAmounts`, `illegalTargetSlots`, `castCopySnapshot`, `delayedEffects`,
  * `sourceLki`, `resolutionStep` / `collectedChoices` (CR 608.3, already its own
  * refusal upstream in `lowerDecision`), and every other announcement field.
  */

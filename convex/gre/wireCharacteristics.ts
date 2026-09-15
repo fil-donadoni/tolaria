@@ -304,7 +304,7 @@ export function deriveWireCharacteristics(
  *
  *  Call it BEFORE `slimCard`, never after. `WireCharacteristics` is a
  *  `Partial<CardInstanceState>`, so a future field mapper could name `knownTo`,
- *  `sourceLki`, `capturedBindings` or `stormSnapshot` — the four fields
+ *  `sourceLki`, `capturedBindings` or `castCopySnapshot` — the four fields
  *  `slimCard` deletes — and reinstate one with no `tsc` error. Ordering the
  *  strip last makes that impossible instead of merely unlikely, which is the
  *  fail-closed default `slimCard`'s own header argues for (#1977/#1982).

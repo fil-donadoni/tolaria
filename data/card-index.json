@@ -20402,6 +20402,14 @@
         "source": "compiled"
     },
     {
+        "name": "Lose Focus",
+        "scryfallId": "985bdb0c-ce6c-4506-8163-76f3b2fdf5fb",
+        "oracleId": "1cea6439-7ae5-4887-8c33-7da9fb36e2d4",
+        "firstSet": "mh2",
+        "firstPrintId": "985bdb0c-ce6c-4506-8163-76f3b2fdf5fb",
+        "firstPrintSet": "mh2"
+    },
+    {
         "name": "Lost Leonin",
         "scryfallId": "8209fa5d-2c0e-4827-813b-fff123533f16",
         "oracleId": "c21b5c5b-9191-4748-b111-a51631e0bc5a",

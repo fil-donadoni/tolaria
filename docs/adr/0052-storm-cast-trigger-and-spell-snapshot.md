@@ -120,3 +120,38 @@ target types — no new Op, no new `TargetRequirement.type`.
   violating "before it".
 - **`copyStackItem(sourceId)` live, like Fork.** Rejected: produces zero copies
   when the original is countered, contradicting the Grapeshot/Tendrils rulings.
+
+## Amendment (issue #2100): the mechanism is Cast-Copy, not Storm
+
+Replicate (CR 702.56) arrived as the second keyword on this machinery, which
+made the axis of variation visible: the snapshot, the per-copy retarget, the
+copies-on-stack loop and the countered-original ruling are identical, and the
+keywords differ **only in the Cast-Copy Count** (`CONTEXT.md` § Cast-Copy).
+The machinery was renamed in place, without changing behaviour:
+
+- `stormSnapshot` → `castCopySnapshot`, `stormCopiesRemaining` →
+  `castCopiesRemaining` (on `StackItem`, the compact save form and the wire);
+- `resolveStormTrigger` → `resolveCastCopyTrigger`, `requestStormCopyRetarget`
+  → `requestCastCopyRetarget` (`gre/state.ts`).
+
+The count is now a parameter with two providers, both fixed as the spell is
+cast, and `collectCastTriggers` pushes the trigger through one shared builder:
+
+- **Storm** — `event.priorSpellCount`; no intervening if, so a zero count still
+  puts the trigger on the stack.
+- **Replicate** — how many times one replicate cost entry was paid
+  (`additionalCostPaidCount`). The entry is an Additional Cost Keyword
+  (ADR 0085) whose `ADDITIONAL_COST_KEYWORDS` row sets `castCopyTrigger`;
+  `collectCastTriggers` reads that flag rather than the keyword's name, one
+  trigger per paid entry (CR 702.56b), and none for an unpaid one (the
+  intervening if in CR 702.56a).
+
+The trigger id still names the keyword (`"storm"` / `"replicate"`), which is
+what the client labels the stack row by. Resolution dispatches on
+`castCopySnapshot` alone. Conspire (CR 702.78) and gravestorm (CR 702.69)
+attach as further count providers.
+
+Save compatibility: a game saved with a storm trigger still waiting on the
+stack under the old field names reloads without its snapshot and resolves with
+no copies. The window is a storm trigger that is mid-stack at save time; no
+migration was written for it.
