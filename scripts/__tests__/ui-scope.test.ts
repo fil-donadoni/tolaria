@@ -28,12 +28,16 @@ const FILES: Record<string, string> = {
         `import Game from "./routes/game.route";`,
         `import AppShell from "./components/chrome/app-shell";`,
     ].join("\n"),
-    "src/components/chrome/app-shell.tsx": `import { Button } from "~/components/ui/button";\nimport { NavLink } from "./nav-link";\n`,
+    "src/components/chrome/app-shell.tsx": `import { NavLink } from "./nav-link";\n`,
     "src/components/chrome/nav-link.tsx": `export const NavLink = 1;\n`,
+    // The primitive, the token source and the route-local stylesheet are
+    // imported by a ROUTE only, never by the shell — so each forces full
+    // through its own rule, and removing that rule would scope it to `lobby`.
     "src/components/ui/button.tsx": `export const Button = 1;\n`,
-    "src/routes/lobby.route.tsx": `import { Button } from "~/components/ui/button";\nimport { DeckShelf } from "~/components/deck-shelf";\nimport { Card } from "~/components/card";\n`,
+    "src/routes/lobby.route.tsx": `import { Button } from "~/components/ui/button";\nimport { TOKENS } from "~/lib/design-tokens";\nimport { DeckShelf } from "~/components/deck-shelf";\nimport { Card } from "~/components/card";\n`,
     "src/routes/game.route.tsx": `import { Card } from "~/components/card";\nconst quiz = () => import("~/components/debug/quiz");\n`,
-    "src/components/deck-shelf.tsx": `export const DeckShelf = 1;\n`,
+    "src/components/deck-shelf.tsx": `import "./deck-shelf.css";\nexport const DeckShelf = 1;\n`,
+    "src/components/deck-shelf.css": `.shelf{}`,
     "src/components/card.tsx": `export const Card = 1;\n`,
     "src/components/debug/quiz.tsx": `export default 1;\n`,
     "src/components/dead-code.tsx": `export const Dead = 1;\n`,
@@ -99,6 +103,7 @@ describe("computeUiScope — full (fail-closed)", () => {
     it.each([
         ["src/components/ui/button.tsx", "a shared UI primitive"],
         ["src/index.css", "a stylesheet"],
+        ["src/components/deck-shelf.css", "a stylesheet"],
         ["src/lib/design-tokens.ts", "a design-token source"],
         ["src/main.tsx", "the app shell"],
         ["src/app-router.tsx", "the app shell"],
