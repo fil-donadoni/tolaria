@@ -13,6 +13,7 @@ import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
 import { getCardByName } from "../cards";
 import { getManaTapOptionsDetailed } from "../gre/constants";
 import { getProducibleManaSourceView } from "../gre/rules";
+import { buildAutoTapSources } from "../gre/autoTap";
 import type { GameState, PendingCast, PlayerState } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
 import {
@@ -190,6 +191,21 @@ describe("tapSourceIntoPayment — the sacrifice alternative while paying (CR 60
 });
 
 describe("auto-tap never sacrifices the source (issue #3630)", () => {
+    it("the solver's sources carry no sacrifice option for a sacrifice land", () => {
+        // Asserted on the SOURCES, not only on the executed plan: a sacrifice
+        // option admitted here without an index would be planned as {G}{G} and
+        // then tapped for {G}, so the executed board alone cannot tell the
+        // planner filter apart from a plan/payment disagreement.
+        const { state, player } = boardWith(HAVENWOOD);
+        const sources = buildAutoTapSources(
+            player.battlefield,
+            battlefieldsOf(state)
+        );
+        expect(sources).toHaveLength(1);
+        expect(sources[0].options.map((o) => o.mana)).toEqual([{ G: 1 }]);
+        expect(sources[0].options[0].manaChoiceIndex).toBeUndefined();
+    });
+
     it("a {G}{G} cost with only a sacrifice land on board leaves the land on the battlefield", async () => {
         const spell = makeInstance(getCardByName("Grizzly Bears").id, {
             id: "spell",
