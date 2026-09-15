@@ -1,7 +1,9 @@
-import type { Color } from "@convex/cards/types";
+import type { PendingChoice } from "~/types/game";
 import { Button } from "~/components/ui/button";
 import ManaSymbol from "~/components/cards/mana-symbol";
+import SubtypeOptionCombobox from "~/components/board/subtype-option-combobox";
 import { formatOracleText } from "~/lib/oracle-text";
+import { isSubtypeOptionList } from "~/lib/subtype-option-list";
 
 /** Option buttons for an `option-pick` pending choice (CR 614.12 — "as it
  *  enters, choose …"). Each author-supplied option renders one button; the
@@ -15,17 +17,28 @@ import { formatOracleText } from "~/lib/oracle-text";
  *  choice reads visually, same as every other color affordance in the app.
  *  `label` also runs through `formatOracleText` (not raw text) so an option
  *  embedding a mana token in its own text (Burnt Offering's "0 {B}, 3 {R}"
- *  mana-split picker) renders the symbol instead of a literal "{R}". Stateless
- *  — the parent owns the submit + pending state. */
+ *  mana-split picker) renders the symbol instead of a literal "{R}". A
+ *  subtype list (Conspiracy's creature type, issue #3323) renders the
+ *  searchable `SubtypeOptionCombobox` instead, through the same `onPick`.
+ *  Stateless — the parent owns the submit + pending state. */
 export default function PendingChoiceOptions({
     options,
     disabled,
     onPick,
 }: {
-    options: { id: string; label: string; color?: Color }[];
+    options: NonNullable<PendingChoice["options"]>;
     disabled: boolean;
     onPick: (id: string) => void;
 }) {
+    if (isSubtypeOptionList(options)) {
+        return (
+            <SubtypeOptionCombobox
+                options={options}
+                disabled={disabled}
+                onPick={onPick}
+            />
+        );
+    }
     return (
         <div className="flex flex-wrap justify-center gap-2 mt-1">
             {options.map((opt) => (
