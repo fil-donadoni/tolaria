@@ -49,6 +49,19 @@ function renderDetail(overrides: Partial<Parameters<typeof DeckDetail>[0]>) {
     );
 }
 
+describe("DeckDetail pile list scroller (issue #3645)", () => {
+    it("is a named, keyboard-focusable region (axe scrollable-region-focusable)", () => {
+        // The piles hold no focusable child, so at 390x844 the horizontal
+        // overflow was unreachable without a pointer — axe `serious`.
+        renderDetail({});
+        const region = screen.getByRole("region", {
+            name: "Deck by mana value (scrollable)",
+        });
+        expect(region.tabIndex).toBe(0);
+        expect(region.className.split(/\s+/)).toContain("overflow-x-auto");
+    });
+});
+
 describe("DeckDetail mana curve (issue #2591)", () => {
     it("renders the Mana Curve chart with the deck's 1-drop count", () => {
         renderDetail({});

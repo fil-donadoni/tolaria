@@ -84,6 +84,28 @@ window.__tolariaProbe = () => {
         }
         return null;
     };
+    /**
+     * `true` when `e` generates no box at all: `display: none` on the element
+     * itself or on any ancestor (issue #3645).
+     *
+     * `zero` is a Floor (ADR 0132) because a control or card that IS on the
+     * page with no box is a defect — rendered, collapsed, untappable. An
+     * element the responsive CSS takes OUT of layout is the opposite: the
+     * screen as designed. Every `ctrlsZero` reading the lane carried when the
+     * floors were switched on was that shape — `SaveDeckBar`'s short-viewport
+     * twins (`hidden short-viewport:inline-flex`) at every roomy viewport, and
+     * `DeckBuilderHeader`'s bare band (`short-viewport:hidden`) at 844x390x3 —
+     * so the floor was red on idiomatic Tailwind, not on anything a user could
+     * see. The test is the computed `display` walk rather than
+     * `getClientRects().length === 0`, which would also pass a `display:
+     * contents` wrapper's own element and which happy-dom does not model.
+     */
+    const undisplayed = (e) => {
+        for (let p = e; p; p = p.parentElement) {
+            if (getComputedStyle(p).display === "none") return true;
+        }
+        return false;
+    };
     const probe = (list) => {
         const o = {
             n: list.length,
@@ -95,7 +117,7 @@ window.__tolariaProbe = () => {
         for (const e of list) {
             const r = e.getBoundingClientRect();
             if (r.width < 4 || r.height < 4) {
-                o.zero++;
+                if (!undisplayed(e)) o.zero++;
                 continue;
             }
             // Hit-test the centre of the element's VISIBLE INTERSECTION with
