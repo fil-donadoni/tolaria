@@ -28,6 +28,7 @@ import AdminLayoutRoute from "./routes/admin/admin-layout.route";
 import AdminIndexRoute from "./routes/admin/admin-index.route";
 import AdminScenariosRoute from "./routes/admin/admin-scenarios.route";
 import AdminTestersRoute from "./routes/admin/admin-testers.route";
+import AdminVerdictsRoute from "./routes/admin/admin-verdicts.route";
 import AdminBanlistsRoute from "./routes/admin/admin-banlists.route";
 import AdminPickRatingsRoute from "./routes/admin/admin-pick-ratings.route";
 import AdminCardProfilesRoute from "./routes/admin/admin-card-profiles.route";
@@ -295,6 +296,14 @@ const adminTestersRoute = createRoute({
     component: AdminTestersRoute,
 });
 
+// Verdict review (issue #3582, PRD #3574, ADR 0128 §6): contested positions
+// rebuilt from their spec and resolved, and any verdict judged cold.
+const adminVerdictsRoute = createRoute({
+    getParentRoute: () => adminRoute,
+    path: "verdicts",
+    component: AdminVerdictsRoute,
+});
+
 // Bug-report evidence (issue #2250, following PR #2243's public/private
 // split): reporter email, the full game state at the moment they filed, and
 // the attachment — previously reachable only via `bunx convex run
@@ -341,6 +350,7 @@ const routeTree = rootRoute.addChildren([
         adminIndexRoute,
         adminScenariosRoute,
         adminTestersRoute,
+        adminVerdictsRoute,
         adminBanlistsRoute,
         adminPickRatingsRoute,
         adminCardProfilesRoute,

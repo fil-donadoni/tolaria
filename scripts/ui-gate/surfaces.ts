@@ -1713,6 +1713,62 @@ export const SURFACES: readonly Surface[] = [
         },
     },
     {
+        id: "admin-verdicts",
+        entries: [
+            "src/routes/admin/admin-layout.route.tsx",
+            "src/routes/admin/admin-verdicts.route.tsx",
+        ],
+        label: "Verdict review (/admin/verdicts → the lane's contested position)",
+        async walk(page, ctx) {
+            // The surface where a contested position is rebuilt and resolved
+            // (issue #3582). Walked OPEN, because the list alone is the small
+            // half: the detail carries the board with the deciding seat's
+            // hand, the candidate list and the answers side by side, which is
+            // where this page's width and wrapping live.
+            //
+            // Deterministic over live data: the lane seeds its OWN contested
+            // position at bootstrap (`verdictResolutions:
+            // seedUiGateContestedPosition`) — two fat outbox rows a local
+            // backend never drains — and the walk opens the row naming that
+            // fixture's answer, not whichever position sorts first. The walk
+            // never resolves it: a resolution row would outlive the account.
+            await goto(page, ctx, "/admin/verdicts");
+            if (
+                !(await visible(page, "h1:has-text('Verdict Review')", 10_000))
+            ) {
+                throw new Unreachable(
+                    "/admin/verdicts did not render the page heading — is this account still an admin?"
+                );
+            }
+            const row = page
+                .getByTestId("verdict-position-row")
+                .filter({
+                    hasText: "Cast Lightning Bolt targeting Grizzly Bears",
+                })
+                .first();
+            try {
+                await row.waitFor({ state: "visible", timeout: STEP_TIMEOUT });
+            } catch {
+                throw new Unreachable(
+                    "the review listed no position carrying the lane's seeded answers — did `verdictResolutions:seedUiGateContestedPosition` run?"
+                );
+            }
+            await row.click({ timeout: STEP_TIMEOUT });
+            if (
+                !(await visible(
+                    page,
+                    "[data-testid=verdict-position-detail] [data-testid=scenario-board]",
+                    STEP_TIMEOUT
+                ))
+            ) {
+                throw new Unreachable(
+                    "opening the contested position rendered no board"
+                );
+            }
+            await settle(page);
+        },
+    },
+    {
         id: "limited-list",
         entries: ["src/routes/limited-events.route.tsx"],
         // Issue #2822: the list is walked FILTERED to the seeded fixture

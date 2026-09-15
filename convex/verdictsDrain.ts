@@ -93,8 +93,9 @@ async function runDrain(
         store,
         now: () => Date.now(),
         pendingResolutions: () => ctx.runQuery(refs.pendingResolutions, {}),
-        markResolutionStored: (args) =>
-            ctx.runMutation(refs.markResolutionStored, args),
+        markResolutionStored: async (args) => {
+            await ctx.runMutation(refs.markResolutionStored, args);
+        },
     });
     return { ...verdicts, resolutions };
 }

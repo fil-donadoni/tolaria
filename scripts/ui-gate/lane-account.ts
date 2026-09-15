@@ -190,6 +190,11 @@ export function createLaneLifecycle(deps: LaneLifecycleDeps): LaneLifecycle {
                 email: account.email,
                 runId: account.runId,
             });
+            // The contested position `admin-verdicts` opens (issue #3582):
+            // outbox rows owned by this account, removed with it.
+            run("verdictResolutions:seedUiGateContestedPosition", {
+                email: account.email,
+            });
             log(
                 `ui-gate: run ${account.runId} — lane account ${account.email}`
             );
