@@ -22,25 +22,41 @@ import VerdictPositionRow from "./verdict-position-row";
 export default function VerdictReviewPanel() {
     const loadReview = useAction(api.verdictReviewActions.review);
     const [review, setReview] = useState<VerdictReview | undefined>(undefined);
-    const [loading, setLoading] = useState(false);
+    // Loading from the first render: the snapshot is requested on mount.
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [openKey, setOpenKey] = useState<string | null>(null);
 
-    const reload = useCallback(async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            setReview((await loadReview({})) as VerdictReview);
-        } catch (cause) {
-            setError(cause instanceof Error ? cause.message : "Could not load");
-        } finally {
-            setLoading(false);
-        }
-    }, [loadReview]);
+    // State is set only in the request's callbacks, never synchronously in
+    // the effect that starts it.
+    const fetchReview = useCallback(
+        () =>
+            loadReview({})
+                .then(
+                    (result) => {
+                        setReview(result as VerdictReview);
+                        setError(null);
+                    },
+                    (cause: unknown) =>
+                        setError(
+                            cause instanceof Error
+                                ? cause.message
+                                : "Could not load"
+                        )
+                )
+                .finally(() => setLoading(false)),
+        [loadReview]
+    );
 
     useEffect(() => {
-        void reload();
-    }, [reload]);
+        void fetchReview();
+    }, [fetchReview]);
+
+    function reload() {
+        if (loading) return;
+        setLoading(true);
+        void fetchReview();
+    }
 
     const positions = review?.positions ?? [];
     const open = positions.find((p) => p.positionKey === openKey) ?? null;
@@ -67,7 +83,7 @@ export default function VerdictReviewPanel() {
                         key={open.positionKey}
                         position={open}
                         onBack={() => setOpenKey(null)}
-                        onResolved={() => void reload()}
+                        onResolved={reload}
                     />
                 ) : (
                     <>
@@ -83,7 +99,7 @@ export default function VerdictReviewPanel() {
                                 type="button"
                                 variant="secondary"
                                 size="sm"
-                                onClick={() => void reload()}
+                                onClick={reload}
                                 disabled={loading}
                             >
                                 {loading ? "Loading…" : "Reload"}
