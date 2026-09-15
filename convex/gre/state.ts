@@ -7257,7 +7257,10 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
             // under the wrong key.
             top.resolutionStep = i;
             const ctx = buildSpellContext(state, top);
-            cardDef.resolveSteps[i](ctx);
+            // issue #3242 (CR 603.2c) — a closure step is one instruction for
+            // the library-entry event, as an Effect Script Op is.
+            const resolveStep = cardDef.resolveSteps[i];
+            withCardsPutIntoLibraryBatch(state, () => resolveStep(ctx));
             if (resolutionSuspendedOnChoice(state, "checkpointed")) {
                 return null; // suspended — wait for selectResolutionChoice
             }
@@ -7347,7 +7350,10 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                     return null;
                 }
             } else {
-                trigger.resolve!(ctx, payload);
+                const resolveTrigger = trigger.resolve!;
+                withCardsPutIntoLibraryBatch(state, () =>
+                    resolveTrigger(ctx, payload)
+                );
                 if (resolutionSuspendedOnChoice(state, "completed")) {
                     return null;
                 }
@@ -7380,7 +7386,11 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                     return null;
             } else if (ability.resolve) {
                 const ctx = buildSpellContext(state, top);
-                ability.resolve(ctx, top.triggerEvent);
+                const resolveAbility = ability.resolve;
+                const triggerEvent = top.triggerEvent;
+                withCardsPutIntoLibraryBatch(state, () =>
+                    resolveAbility(ctx, triggerEvent)
+                );
                 if (resolutionSuspendedOnChoice(state, "completed"))
                     return null;
             }
@@ -7499,7 +7509,8 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                 for (let i = start; i < ability.resolveSteps.length; i++) {
                     top.resolutionStep = i;
                     const ctx = buildSpellContext(state, top);
-                    ability.resolveSteps[i](ctx);
+                    const resolveStep = ability.resolveSteps[i];
+                    withCardsPutIntoLibraryBatch(state, () => resolveStep(ctx));
                     if (resolutionSuspendedOnChoice(state, "checkpointed")) {
                         return null; // suspended — wait for the choice submit
                     }
@@ -7530,7 +7541,10 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                             return null;
                     } else if (mode.resolve) {
                         const ctx = buildSpellContext(state, top);
-                        mode.resolve(ctx);
+                        const resolveMode = mode.resolve;
+                        withCardsPutIntoLibraryBatch(state, () =>
+                            resolveMode(ctx)
+                        );
                         if (resolutionSuspendedOnChoice(state, "completed"))
                             return null;
                     }
@@ -7548,7 +7562,11 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                         return null;
                 } else if (ability.resolve) {
                     const ctx = buildSpellContext(state, top);
-                    ability.resolve(ctx, top.triggerEvent);
+                    const resolveAbility = ability.resolve;
+                    const triggerEvent = top.triggerEvent;
+                    withCardsPutIntoLibraryBatch(state, () =>
+                        resolveAbility(ctx, triggerEvent)
+                    );
                     if (resolutionSuspendedOnChoice(state, "completed"))
                         return null;
                 }
@@ -7585,7 +7603,8 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
             for (let i = start; i < ability.resolveSteps.length; i++) {
                 top.resolutionStep = i;
                 const ctx = buildSpellContext(state, top);
-                ability.resolveSteps[i](ctx);
+                const resolveStep = ability.resolveSteps[i];
+                withCardsPutIntoLibraryBatch(state, () => resolveStep(ctx));
                 if (resolutionSuspendedOnChoice(state, "checkpointed")) {
                     return null; // suspended — wait for selectResolutionChoice
                 }
@@ -7616,7 +7635,8 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                         return null;
                 } else if (body.resolve) {
                     const ctx = buildSpellContext(state, top);
-                    body.resolve(ctx);
+                    const resolveBody = body.resolve;
+                    withCardsPutIntoLibraryBatch(state, () => resolveBody(ctx));
                     if (resolutionSuspendedOnChoice(state, "completed"))
                         return null;
                 }
@@ -7647,7 +7667,8 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                         return null;
                 } else if (mode.resolve) {
                     const ctx = buildSpellContext(state, top);
-                    mode.resolve(ctx);
+                    const resolveMode = mode.resolve;
+                    withCardsPutIntoLibraryBatch(state, () => resolveMode(ctx));
                     if (resolutionSuspendedOnChoice(state, "completed"))
                         return null;
                 }
@@ -23549,6 +23570,14 @@ function emitLibraryEntryFromMover(
     from: Exclude<Zone, "stack">
 ): void {
     if (from === "library") return;
+    // A battlefield departure must go through `removePermanentTo` (LTB
+    // handling, and its own emission) — reaching here from the battlefield is
+    // a caller bug, not a card to report.
+    if (from === "battlefield") {
+        throw new Error(
+            "moveCardWithGraveyardReplacement: battlefield → library must use removePermanentTo"
+        );
+    }
     emitCardsPutIntoLibrary(state, [
         libraryEntry(moved, from as LibraryEntry["fromZone"]),
     ]);

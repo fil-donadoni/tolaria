@@ -34,6 +34,9 @@ const CREATURE_ID = "test-library-entry-creature";
 const SORCERY_ID = "test-library-entry-sorcery";
 const SWEEP_ID = "test-library-entry-sweep";
 const WAN_SHI_TONG_SPIRITS = "wan-shi-tong-all-knowing-library-spirits";
+// Time Spiral (USG 103) — a `resolveSteps` card: its first step calls
+// `ctx.moveZone` hand→library and graveyard→library for each player.
+const TIME_SPIRAL_ID = "f3d62dbd-63db-4ac9-950f-9852627f23f2";
 
 beforeAll(() => {
     registerTokenDefinition({
@@ -254,6 +257,39 @@ describe("CARDS_PUT_INTO_LIBRARY emission (issue #3242, CR 603.2c)", () => {
         flushPendingEvents(state);
         applyMulliganBottomChoice(state, [state.players[0].hand[0].id]);
         expect(libraryEvents(flushPendingEvents(state))).toHaveLength(0);
+    });
+
+    it("a resolveSteps closure step is one instruction too: Time Spiral's four zone moves trigger a library watcher ONCE", () => {
+        const watcher = makeInstance(wanShiTongAllKnowing.id, {
+            id: "watcher",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const deck = (owner: string) =>
+            Array.from({ length: 10 }, (_, i) =>
+                creature(`${owner}-lib-${i}`, owner, "library")
+            );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [watcher],
+                    hand: [creature("h1", "p1", "hand")],
+                    graveyard: [creature("g1", "p1", "graveyard")],
+                    library: deck("p1"),
+                }),
+                makePlayer("p2", {
+                    hand: [creature("h2", "p2", "hand")],
+                    graveyard: [creature("g2", "p2", "graveyard")],
+                    library: deck("p2"),
+                }),
+            ],
+        });
+        pushSpell(state, TIME_SPIRAL_ID, "p1");
+        resolveTopOfStack(state);
+        const triggers = state.stack.filter(
+            (item) => item.triggeredAbilityId === WAN_SHI_TONG_SPIRITS
+        );
+        expect(triggers).toHaveLength(1);
     });
 
     it("one Effect Script Op is one instruction: a three-card sweep triggers a library watcher ONCE", () => {

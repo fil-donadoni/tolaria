@@ -9,7 +9,12 @@
 // `convex/gre/__tests__/cardsPutIntoLibrary.test.ts`.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
     type CardInstanceState,
@@ -22,6 +27,7 @@ import { wanShiTongAllKnowing } from "../blue";
 
 const GRIZZLY_BEARS_ID = "ce2d603a-3231-4a8c-bf39-1617586ea870";
 const ETB_ID = "wan-shi-tong-all-knowing-etb-tuck";
+const UNEXPECTEDLY_ABSENT_ID = "6dff437b-ef68-48f7-afd3-3b72d3c56187";
 
 /** Wan Shi Tong under p1, a Grizzly Bears p1 STOLE from p2, and a two-card
  *  library for p2 — the ETB trigger, targeting the stolen Bears, on the stack. */
@@ -148,6 +154,27 @@ describe("Wan Shi Tong, All-Knowing (issue #3242)", () => {
             expect(spirit.power).toBe(1);
             expect(spirit.toughness).toBe(1);
         }
+    });
+
+    it("put into its own library, it still sees itself go (CR 603.10a look-back): two Spirits", () => {
+        const wanShiTong = makeInstance(wanShiTongAllKnowing.id, {
+            id: "wst",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wanShiTong] }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, UNEXPECTEDLY_ABSENT_ID, "p2", [
+            { type: "permanent", id: "wst" },
+        ]);
+        item.chosenX = 0;
+        while (state.stack.length > 0) resolveTopOfStack(state);
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["wst"]);
+        expect(spiritTokens(state)).toHaveLength(2);
     });
 
     it("the Spirit token can't block or be blocked by non-Spirit creatures, but Spirits fight Spirits (CR 509.1b)", () => {
