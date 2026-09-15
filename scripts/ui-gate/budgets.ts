@@ -312,11 +312,24 @@ export type Verdict = "PASS" | "FAIL" | "UNWALKED";
  * full-scope RECEIPT run can still show fewer `measuredSurfaces` than
  * `knownSurfaces` (`coverageLine`/`receiptKindLine` say how many).
  *
+ * `SCOPED` (issue #3628, ADR 0131) is the third kind: a run started with
+ * neither `--surface=` nor `--all` whose diff scope (`scripts/lib/ui-scope.ts`)
+ * is not full walks exactly the surfaces that diff can reach. It is a PR
+ * receipt for THAT diff only — `land` re-derives the scope from the PR's own
+ * diff and refuses a `SCOPED` receipt whose surface list differs.
+ *
  * Deliberately ORTHOGONAL to pass/fail: `UNWALKED` and `FAIL` keep their
  * exact current meanings and exit codes on a DIAGNOSTIC run — this label
  * only says how much of the app was in scope, never whether it was clean.
  */
-export type ReceiptKind = "RECEIPT" | "DIAGNOSTIC";
+export type ReceiptKind = "RECEIPT" | "SCOPED" | "DIAGNOSTIC";
+
+/** The diff scope a run was started under: the ref the diff was taken
+ *  against and the surfaces it selected, in surface-table order. */
+export interface DiffScope {
+    base: string;
+    surfaces: readonly string[];
+}
 
 export interface ReceiptKindResult {
     kind: ReceiptKind;
@@ -328,8 +341,14 @@ export interface ReceiptKindResult {
 /**
  * Pure function of the requested surface set against the full surface list
  * — no fs, no browser, no run result. `--surface=a,b,c` naming every
- * surface the lane defines IS a full walk (`RECEIPT`); anything less is a
- * `DIAGNOSTIC` naming exactly what it skipped.
+ * surface the lane defines IS a full walk (`RECEIPT`); a request equal to
+ * `diffScope`'s surfaces is `SCOPED`; anything else is a `DIAGNOSTIC` naming
+ * exactly what it skipped.
+ *
+ * `diffScope` is non-null only for a run the diff scoped — never for a
+ * hand-picked `--surface=` subset, which stays `DIAGNOSTIC` even when it
+ * happens to name the same surfaces. Its absence fails closed to
+ * `DIAGNOSTIC`, never to a receipt.
  *
  * An empty `definedSurfaceIds` is deliberately NOT a `RECEIPT` even though
  * the subset-diff against it is vacuously empty (issue #2742 review): a
@@ -338,17 +357,28 @@ export interface ReceiptKindResult {
  */
 export function receiptKindOf(
     requestedSurfaceIds: readonly string[],
-    definedSurfaceIds: readonly string[]
+    definedSurfaceIds: readonly string[],
+    diffScope: DiffScope | null = null
 ): ReceiptKindResult {
     const requested = new Set(requestedSurfaceIds);
     const unmeasuredSurfaces = definedSurfaceIds.filter(
         (id) => !requested.has(id)
     );
-    const kind: ReceiptKind =
-        definedSurfaceIds.length > 0 && unmeasuredSurfaces.length === 0
-            ? "RECEIPT"
-            : "DIAGNOSTIC";
-    return { kind, unmeasuredSurfaces };
+    if (definedSurfaceIds.length === 0) {
+        return { kind: "DIAGNOSTIC", unmeasuredSurfaces };
+    }
+    if (unmeasuredSurfaces.length === 0) {
+        return { kind: "RECEIPT", unmeasuredSurfaces };
+    }
+    const scoped = new Set(diffScope?.surfaces ?? []);
+    const matchesScope =
+        diffScope !== null &&
+        scoped.size === requested.size &&
+        [...requested].every((id) => scoped.has(id));
+    return {
+        kind: matchesScope ? "SCOPED" : "DIAGNOSTIC",
+        unmeasuredSurfaces,
+    };
 }
 
 export interface ResultRow {
@@ -394,9 +424,12 @@ export interface Evaluation {
      *  `receiptKindOf`. Orthogonal to `failures`: a DIAGNOSTIC run with a
      *  budget violation still has a non-empty `failures` and exits non-zero. */
     receiptKind: ReceiptKind;
-    /** Surfaces this run did not request, when `receiptKind` is DIAGNOSTIC.
-     *  Empty for a RECEIPT run. */
+    /** Surfaces this run did not request, when `receiptKind` is DIAGNOSTIC
+     *  or SCOPED. Empty for a RECEIPT run. */
     unmeasuredSurfaces: string[];
+    /** The diff scope the run was started under; null unless the diff
+     *  scoped it. The SCOPED banner names its base and surfaces. */
+    diffScope: DiffScope | null;
 }
 
 function fmtMetrics(m: Ceilings): string {
@@ -428,12 +461,17 @@ function fmtMetrics(m: Ceilings): string {
  * not the receipt label still must pass the real defined-surface list —
  * `SURFACE_IDS` in production, the surface's own known-id array in a test
  * that is not exercising the receipt label.
+ *
+ * `diffScope` is the scope a diff-scoped run was started under (see
+ * `receiptKindOf`); `knownSurfaceIds` is then that scope, so the census below
+ * checks only in-scope surfaces.
  */
 export function evaluateRun(
     budgets: BudgetFile,
     knownSurfaceIds: readonly string[],
     walks: readonly SurfaceWalk[],
-    definedSurfaceIds: readonly string[]
+    definedSurfaceIds: readonly string[],
+    diffScope: DiffScope | null = null
 ): Evaluation {
     const rows: ResultRow[] = [];
     const failures: string[] = [];
@@ -604,7 +642,8 @@ export function evaluateRun(
 
     const { kind: receiptKind, unmeasuredSurfaces } = receiptKindOf(
         knownSurfaceIds,
-        definedSurfaceIds
+        definedSurfaceIds,
+        diffScope
     );
 
     return {
@@ -616,6 +655,7 @@ export function evaluateRun(
         knownDebt,
         receiptKind,
         unmeasuredSurfaces,
+        diffScope,
     };
 }
 
@@ -642,11 +682,26 @@ export function coverageLine(ev: Evaluation): string {
  * `Evaluation` (`measuredSurfaces`/`knownSurfaces`/`declaredUnwalked`, the
  * same fields `coverageLine` reads) rather than restated, so the two lines
  * can never drift apart again.
+ *
+ * `SCOPED` names the diff base and every surface in scope, so the receipt
+ * says exactly what it proves — and `land` can re-render this line from the
+ * scope it re-derives and compare it byte for byte.
  */
 export function receiptKindLine(ev: Evaluation): string {
     if (ev.receiptKind === "RECEIPT") {
         return (
             `RECEIPT — full lane run, ${ev.knownSurfaces} surface(s) in scope ` +
+            `(${ev.measuredSurfaces} measured, ${ev.declaredUnwalked} declared unwalked)`
+        );
+    }
+    if (ev.receiptKind === "SCOPED") {
+        const base = ev.diffScope?.base ?? "?";
+        if (ev.knownSurfaces === 0) {
+            return `SCOPED — diff base ${base}, 0 surface(s) in scope: nothing in this diff reaches a walked route`;
+        }
+        return (
+            `SCOPED — diff base ${base}, ${ev.knownSurfaces} surface(s) in scope: ` +
+            `${(ev.diffScope?.surfaces ?? []).join(", ")} ` +
             `(${ev.measuredSurfaces} measured, ${ev.declaredUnwalked} declared unwalked)`
         );
     }

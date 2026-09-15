@@ -497,6 +497,97 @@ describe("evaluateRun wires receiptKind through, and it never softens a failure 
     });
 });
 
+describe("receiptKindOf — SCOPED is a run the diff scoped, never a hand-picked subset (issue #3628)", () => {
+    const defined = ["lobby", "game-board", "deck-builder"];
+    const diffScope = {
+        base: "origin/staging",
+        surfaces: ["lobby", "deck-builder"],
+    };
+
+    it("is SCOPED when the request equals the diff scope's surfaces, in any order", () => {
+        const result = receiptKindOf(
+            ["deck-builder", "lobby"],
+            defined,
+            diffScope
+        );
+        expect(result.kind).toBe("SCOPED");
+        expect(result.unmeasuredSurfaces).toEqual(["game-board"]);
+    });
+
+    it("is DIAGNOSTIC for the same surfaces with no diff scope — a --surface= subset that happens to name them", () => {
+        expect(receiptKindOf(["lobby", "deck-builder"], defined).kind).toBe(
+            "DIAGNOSTIC"
+        );
+    });
+
+    it("is DIAGNOSTIC when the request misses one scoped surface, or adds one", () => {
+        expect(receiptKindOf(["lobby"], defined, diffScope).kind).toBe(
+            "DIAGNOSTIC"
+        );
+        expect(
+            receiptKindOf(["lobby", "deck-builder", "x"], defined, diffScope)
+                .kind
+        ).toBe("DIAGNOSTIC");
+    });
+
+    it("is RECEIPT for a full request, diff scope or not — running more than owed is never a lesser receipt", () => {
+        expect(receiptKindOf(defined, defined, diffScope).kind).toBe("RECEIPT");
+    });
+
+    it("is SCOPED for an empty request under an empty diff scope, and DIAGNOSTIC when the lane defines nothing", () => {
+        const empty = { base: "origin/staging", surfaces: [] };
+        expect(receiptKindOf([], defined, empty).kind).toBe("SCOPED");
+        expect(receiptKindOf([], [], empty).kind).toBe("DIAGNOSTIC");
+    });
+});
+
+describe("evaluateRun under a diff scope checks only in-scope surfaces (issue #3628)", () => {
+    const budgets = budgetFile({
+        lobby: budgeted({ "390x844x3": metrics() }),
+        "deck-builder": budgeted({ "390x844x3": metrics() }),
+        "draft-pick": {
+            label: "Draft pick",
+            status: "unwalked",
+            reason: "no drafting event fixture yet",
+        },
+    });
+    const defined = ["lobby", "deck-builder", "draft-pick"];
+
+    it("a budgeted surface outside the scope is neither a row nor a failure; the banner names the base and the surfaces", () => {
+        const ev = evaluateRun(
+            budgets,
+            ["lobby"],
+            [measured("lobby", "390x844x3")],
+            defined,
+            { base: "origin/staging", surfaces: ["lobby"] }
+        );
+        expect(ev.rows.map((r) => r.surface)).toEqual(["lobby"]);
+        expect(ev.failures).toEqual([]);
+        expect(ev.receiptKind).toBe("SCOPED");
+        expect(receiptKindLine(ev)).toBe(
+            "SCOPED — diff base origin/staging, 1 surface(s) in scope: lobby (1 measured, 0 declared unwalked)"
+        );
+        expect(coverageLine(ev)).toBe(
+            "coverage: 1/1 surfaces measured, 0 declared unwalked"
+        );
+    });
+
+    it("an empty scope walks nothing and says so", () => {
+        const ev = evaluateRun(budgets, [], [], defined, {
+            base: "origin/staging",
+            surfaces: [],
+        });
+        expect(ev.rows).toEqual([]);
+        expect(ev.failures).toEqual([]);
+        expect(receiptKindLine(ev)).toBe(
+            "SCOPED — diff base origin/staging, 0 surface(s) in scope: nothing in this diff reaches a walked route"
+        );
+        expect(coverageLine(ev)).toBe(
+            "coverage: 0/0 surfaces measured, 0 declared unwalked"
+        );
+    });
+});
+
 describe("metricsOf — probe/axe → Ceilings mapping (issue #2658)", () => {
     /**
      * `index.ts` has no `import.meta.main` guard: importing it runs the whole

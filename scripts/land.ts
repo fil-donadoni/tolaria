@@ -92,7 +92,11 @@ import {
     scenarioRefusal,
 } from "./lib/scenario-block";
 import { changedPaths, classifyLane, type Lane } from "./check-lane";
-import { verifyReceiptText } from "./ui-gate/verify-receipt.ts";
+import {
+    landingDiffScope,
+    verifyReceiptText,
+    type ExpectedScope,
+} from "./ui-gate/verify-receipt.ts";
 import { changedRetiredRows, retirementRefusal } from "./lib/retirement-ack";
 import { REGENERATE_MARKER } from "./lib/generated-artifacts";
 
@@ -102,9 +106,37 @@ import { REGENERATE_MARKER } from "./lib/generated-artifacts";
  * plumbing stays thin and untested; every decision is testable directly) —
  * `main()` only supplies the two impure inputs (the classified lane, the PR
  * body text).
+ *
+ * `expected` is the scope re-derived from the landing diff (issue #3628): a
+ * `SCOPED` receipt is valid only against it, a full `RECEIPT` against any.
  */
-export function computeSkinReceiptInvalid(lane: Lane, prBody: string): boolean {
-    return lane === "skin" && !verifyReceiptText(prBody).ok;
+export function computeSkinReceiptInvalid(
+    lane: Lane,
+    prBody: string,
+    expected: ExpectedScope | null = null
+): boolean {
+    return (
+        lane === "skin" &&
+        !verifyReceiptText(prBody, undefined, undefined, undefined, expected).ok
+    );
+}
+
+/**
+ * The receipt decision for a landing diff given as paths, with `root` the
+ * tree those paths live in. The scope is derived only for a `skin` diff that
+ * owes a receipt — the import graph costs nothing on any other landing.
+ */
+export function skinReceiptInvalidForDiff(
+    paths: string[],
+    root: string,
+    prBody: string
+): boolean {
+    const lane = classifyLane(paths).lane;
+    if (lane !== "skin" || isTestOnlySrcDiff(paths)) return false;
+    return computeSkinReceiptInvalid(lane, prBody, {
+        base: ORIGIN_BASE,
+        scope: landingDiffScope(paths, root),
+    });
 }
 
 /**
@@ -143,9 +175,7 @@ export function isTestOnlySrcDiff(paths: string[]): boolean {
 export function safeSkinReceiptInvalid(cwd: string, prBody: string): boolean {
     try {
         const paths = changedPaths(ORIGIN_BASE, cwd, true);
-        const lane = classifyLane(paths).lane;
-        if (lane === "skin" && isTestOnlySrcDiff(paths)) return false;
-        return computeSkinReceiptInvalid(lane, prBody);
+        return skinReceiptInvalidForDiff(paths, cwd, prBody);
     } catch (err) {
         console.warn(
             `land: could not classify the landing diff to check the check:ui receipt (${(err as Error).message}) — proceeding as if it is not a skin diff`

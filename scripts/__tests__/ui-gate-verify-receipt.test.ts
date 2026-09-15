@@ -18,6 +18,7 @@ import {
     parseResultRowLine,
     rowCensusProblems,
     verifyReceiptText,
+    type ExpectedScope,
 } from "../ui-gate/verify-receipt.ts";
 
 /**
@@ -196,6 +197,148 @@ function wrapInBody(receiptText: string): string {
     ].join("\n");
 }
 
+describe("verify-receipt — a SCOPED receipt is checked against the landing diff's scope (issue #3628)", () => {
+    const BASE = "origin/staging";
+    const DEFINED = ["deck-builder", "lobby", "draft-room"];
+    const VIEWPORTS = ["1440x900x2"];
+    const budgets = budgetFile({
+        "deck-builder": budgeted({ "1440x900x2": ZERO }),
+        lobby: budgeted({ "1440x900x2": ZERO }),
+        "draft-room": budgeted({ "1440x900x2": ZERO }),
+    });
+
+    /** What `check:ui` prints for a run the diff scoped to `surfaces`
+     *  (`diffScope` non-null), or for a hand-picked subset (`null`). */
+    function render(
+        surfaces: string[],
+        diffScope: { base: string; surfaces: string[] } | null
+    ): string {
+        const ev = evaluateRun(
+            budgets,
+            surfaces,
+            surfaces.map((s) => measured(s, "1440x900x2")),
+            DEFINED,
+            diffScope
+        );
+        return [
+            receiptKindLine(ev),
+            ...ev.rows.map(formatResultRow),
+            coverageLine(ev),
+        ].join("\n");
+    }
+    const scopedRun = (surfaces: string[], base = BASE) =>
+        render(surfaces, { base, surfaces });
+    const scoped = (surfaces: string[]): ExpectedScope => ({
+        base: BASE,
+        scope: { kind: "scoped", surfaces },
+    });
+    const verify = (text: string, expected: ExpectedScope | null) =>
+        verifyReceiptText(
+            wrapInBody(text),
+            DEFINED,
+            VIEWPORTS,
+            budgets,
+            expected
+        );
+
+    it("accepts a SCOPED receipt whose surfaces equal the re-derived scope, with no census row asked for an out-of-scope surface", () => {
+        const text = scopedRun(["lobby"]);
+        expect(text.split("\n")[0]).toBe(
+            "SCOPED — diff base origin/staging, 1 surface(s) in scope: lobby (1 measured, 0 declared unwalked)"
+        );
+        // deck-builder and draft-room are budgeted and carry no row.
+        expect(verify(text, scoped(["lobby"]))).toEqual({
+            ok: true,
+            problems: [],
+        });
+    });
+
+    it("refuses a SCOPED receipt missing a surface the landing diff reaches", () => {
+        const result = verify(
+            scopedRun(["lobby"]),
+            scoped(["deck-builder", "lobby"])
+        );
+        expect(result.ok).toBe(false);
+        expect(result.problems.join("\n")).toContain(
+            "missing surface(s) the landing diff reaches: deck-builder"
+        );
+    });
+
+    it("refuses a SCOPED receipt listing a surface outside the landing diff's scope", () => {
+        const result = verify(
+            scopedRun(["deck-builder", "lobby"]),
+            scoped(["lobby"])
+        );
+        expect(result.ok).toBe(false);
+        expect(result.problems.join("\n")).toContain(
+            "outside the landing diff's scope: deck-builder"
+        );
+    });
+
+    it("refuses a SCOPED receipt taken against another base", () => {
+        const result = verify(
+            scopedRun(["lobby"], "origin/elsewhere"),
+            scoped(["lobby"])
+        );
+        expect(result.ok).toBe(false);
+        expect(result.problems.join("\n")).toMatch(/banner mismatch/);
+    });
+
+    it("refuses a SCOPED receipt when the landing diff forces the full run", () => {
+        const result = verify(scopedRun(["lobby"]), {
+            base: BASE,
+            scope: { kind: "full", reason: "src/index.css is a stylesheet" },
+        });
+        expect(result.ok).toBe(false);
+        expect(result.problems.join("\n")).toContain(
+            "forces the full run (src/index.css is a stylesheet)"
+        );
+    });
+
+    it("refuses a SCOPED receipt when no landing diff was given to re-derive its scope", () => {
+        const result = verify(scopedRun(["lobby"]), null);
+        expect(result.ok).toBe(false);
+        expect(result.problems.join("\n")).toContain("no landing diff");
+    });
+
+    it("accepts an empty SCOPED receipt only for an empty scope", () => {
+        const text = scopedRun([]);
+        expect(text).toBe(
+            [
+                "SCOPED — diff base origin/staging, 0 surface(s) in scope: nothing in this diff reaches a walked route",
+                "coverage: 0/0 surfaces measured, 0 declared unwalked",
+            ].join("\n")
+        );
+        expect(verify(text, scoped([])).ok).toBe(true);
+        expect(verify(text, scoped(["lobby"])).ok).toBe(false);
+    });
+
+    it("accepts a full RECEIPT for any landing diff", () => {
+        const text = render(DEFINED, null);
+        expect(text.startsWith("RECEIPT —")).toBe(true);
+        for (const expected of [
+            null,
+            scoped([]),
+            scoped(["lobby"]),
+            { base: BASE, scope: { kind: "full" as const, reason: "--all" } },
+        ]) {
+            expect(verify(text, expected)).toEqual({ ok: true, problems: [] });
+        }
+    });
+
+    it("refuses an honest DIAGNOSTIC, even one naming exactly the scoped surfaces", () => {
+        const text = render(["lobby"], null);
+        expect(text.startsWith("DIAGNOSTIC —")).toBe(true);
+        for (const expected of [null, scoped(["lobby"])]) {
+            const result = verify(text, expected);
+            expect(result.ok).toBe(false);
+            expect(result.problems.join("\n")).toContain(
+                "the rows recompute to a DIAGNOSTIC"
+            );
+        }
+    });
+});
+
 describe("verify-receipt — parseResultRowLine", () => {
     const surfaces = [
         "deck-builder",
@@ -322,7 +465,7 @@ describe("verify-receipt — rejects a receipt whose banner was removed or alter
         );
         expect(result.ok).toBe(false);
         expect(result.problems.join("\n")).toMatch(
-            /no RECEIPT\/DIAGNOSTIC banner/
+            /no RECEIPT\/SCOPED\/DIAGNOSTIC banner/
         );
     });
 
@@ -468,6 +611,7 @@ describe("verify-receipt — row census against budgets.json (issue #2760 review
             knownSurfaces: surfaceIds.length,
             knownDebt: [],
             receiptKind: "RECEIPT" as const,
+            diffScope: null,
             unmeasuredSurfaces: [],
         };
         const forgedText = [
@@ -510,6 +654,7 @@ describe("verify-receipt — row census against budgets.json (issue #2760 review
             knownSurfaces: surfaceIds.length,
             knownDebt: [],
             receiptKind: "RECEIPT" as const,
+            diffScope: null,
             unmeasuredSurfaces: [],
         };
         const forgedText = [

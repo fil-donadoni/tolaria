@@ -56,10 +56,15 @@
  *   bun run check:ui -- --scope-only --base=<ref>        # scope of the diff
  *                                                        # against another ref
  *
- * SCOPE (issue #3627). Every run starts by printing which surfaces the diff
- * against the base branch can reach (`scripts/lib/ui-scope.ts`), or FULL and
- * why. The walk itself does not narrow yet: a scoped receipt is PRD #3625's
- * next slice, so today the scope is information, not a filter.
+ * SCOPE (issues #3627, #3628; ADR 0131). Every run starts by printing which
+ * surfaces the diff against the base branch can reach
+ * (`scripts/lib/ui-scope.ts`), or FULL and why. A run started with neither
+ * `--surface=` nor `--all` walks exactly that scope: FULL prints `RECEIPT`, a
+ * narrower scope prints `SCOPED` naming the base and the surfaces, and an empty
+ * scope prints a `SCOPED` receipt that walked nothing — no deployment, no
+ * browser. `land` re-derives the scope from the PR's diff and refuses a
+ * `SCOPED` receipt that does not match it. A hand-picked `--surface=` subset
+ * is still a `DIAGNOSTIC`.
  *
  * Env:
  *   VITE_CONVEX_URL   the deployment to talk to (environment, else the
@@ -89,7 +94,9 @@ import {
     type SoftExample,
     type RecordChange,
     type SurfaceWalk,
+    type DiffScope,
 } from "./budgets.ts";
+import { landingDiffScope } from "./verify-receipt.ts";
 import {
     SURFACES,
     SURFACE_IDS,
@@ -109,12 +116,7 @@ import {
     withLaneAccount,
 } from "./lane-account.ts";
 import { ORIGIN_BASE } from "../lib/branches.ts";
-import { createImportGraph } from "../lib/import-graph.ts";
-import {
-    computeUiScope,
-    renderUiScope,
-    type UiScope,
-} from "../lib/ui-scope.ts";
+import { renderUiScope, type UiScope } from "../lib/ui-scope.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..");
@@ -536,9 +538,8 @@ function changedSinceBase(base: string): string[] {
 
 function computeRunScope(opts: Options): UiScope {
     if (opts.all) return { kind: "full", reason: "--all" };
-    // The scope is information in this slice, never a reason to walk nothing:
-    // an unfetched base ref or a shallow clone degrades to FULL, it does not
-    // abort a run that would otherwise have walked every surface.
+    // A scope that cannot be computed walks MORE, never less: an unfetched
+    // base ref or a shallow clone degrades to FULL, never to an empty scope.
     let changed: string[];
     try {
         changed = changedSinceBase(opts.base);
@@ -548,11 +549,8 @@ function computeRunScope(opts: Options): UiScope {
             reason: `scope unavailable: ${(err as Error).message}`,
         };
     }
-    return computeUiScope({
-        changed,
-        surfaces: SURFACES,
-        graph: createImportGraph({ root: REPO_ROOT }),
-    });
+    // The same derivation `land` re-runs on the PR's diff (issue #3628).
+    return landingDiffScope(changed, REPO_ROOT);
 }
 
 async function main(): Promise<number> {
@@ -562,19 +560,47 @@ async function main(): Promise<number> {
             "--all and --surface= contradict each other: one forces every surface, the other picks a subset"
         );
     }
-    log(renderUiScope(computeRunScope(opts), opts.base));
+    const scope = computeRunScope(opts);
+    log(renderUiScope(scope, opts.base));
     if (opts.scopeOnly) return 0;
     const budgets = loadBudgets();
 
+    // A run the diff scoped walks exactly its scope and prints SCOPED; a
+    // hand-picked `--surface=` subset never carries a diff scope, so it stays
+    // DIAGNOSTIC even when it names the same surfaces (issue #3628).
+    const diffScope: DiffScope | null =
+        !opts.surfaces && scope.kind === "scoped"
+            ? { base: opts.base, surfaces: scope.surfaces }
+            : null;
     const selected = opts.surfaces
         ? SURFACES.filter((s) => opts.surfaces!.includes(s.id))
-        : SURFACES;
-    if (selected.length === 0) {
+        : diffScope
+          ? SURFACES.filter((s) => diffScope.surfaces.includes(s.id))
+          : SURFACES;
+    if (opts.surfaces && selected.length === 0) {
         throw new FatalError(
             `--surface matched nothing. Known surfaces: ${SURFACE_IDS.join(", ")}`
         );
     }
     const knownIds = selected.map((s) => s.id);
+
+    if (selected.length === 0) {
+        // An empty scope owes no browser time: the receipt says so, and the
+        // budget file's stale-entry guard still runs.
+        const ev = evaluateRun(budgets, [], [], SURFACE_IDS, diffScope);
+        log(
+            "\n─── check:ui ───────────────────────────────────────────────────"
+        );
+        log(receiptKindLine(ev));
+        log(coverageLine(ev));
+        if (ev.failures.length > 0) {
+            log("\n✗ check:ui FAILED");
+            for (const f of ev.failures) log(`  · ${f}`);
+            return 1;
+        }
+        log("\n✓ check:ui passed — nothing to walk");
+        return 0;
+    }
 
     const env = { ...readEnvLocal(), ...process.env } as Record<string, string>;
     const convexUrl = env.VITE_CONVEX_URL;
@@ -856,7 +882,13 @@ async function main(): Promise<number> {
 
                 if (opts.record) recordBudgets(budgets, walks, opts.accept);
 
-                const ev = evaluateRun(budgets, knownIds, walks, SURFACE_IDS);
+                const ev = evaluateRun(
+                    budgets,
+                    knownIds,
+                    walks,
+                    SURFACE_IDS,
+                    diffScope
+                );
 
                 log(
                     "\n─── check:ui ───────────────────────────────────────────────────"
