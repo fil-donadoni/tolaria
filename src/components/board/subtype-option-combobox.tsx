@@ -51,9 +51,7 @@ export default function SubtypeOptionCombobox({
                         key={opt.id}
                         value={opt.label}
                         disabled={disabled}
-                        onSelect={() => {
-                            if (!disabled) onPick(opt.id);
-                        }}
+                        onSelect={() => onPick(opt.id)}
                         className="text-xs tracking-wide"
                     >
                         {opt.label}
