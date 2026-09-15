@@ -231,8 +231,10 @@ describe("the drain stores, re-reads, and only then slims (issue #3580)", () => 
         });
 
         const row = stub.doc(id);
-        const { _id, __table, ...fields } = row;
-        expect(Object.keys(fields).sort()).toEqual(
+        const fields = Object.keys(row).filter(
+            (key) => key !== "_id" && key !== "__table"
+        );
+        expect(fields.sort()).toEqual(
             [
                 "attestationAuthor",
                 "author",
@@ -431,14 +433,13 @@ describe("the attestation's author is ${deployment}:${userId} (issue #3580)", ()
 
     it("a row from before the outbox is attributed to this deployment and its author id", async () => {
         const store = createMemoryVerdictStore();
-        const {
-            verdictHash: _h,
-            positionKey: _p,
-            attestationAuthor: _a,
-            deployment: _d,
-            deploymentKind: _k,
-            ...legacy
-        } = fatRow("old-1", HERE, "u-old");
+        // Written before the outbox: no stamps, no attribution.
+        const legacy = fatRow("old-1", HERE, "u-old");
+        delete legacy.verdictHash;
+        delete legacy.positionKey;
+        delete legacy.attestationAuthor;
+        delete legacy.deployment;
+        delete legacy.deploymentKind;
 
         const result = await storeOutboxRow(store, legacy, HERE);
 

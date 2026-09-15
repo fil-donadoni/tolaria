@@ -344,7 +344,7 @@ export const pendingPage = internalQuery({
             .withIndex("by_storedAt", (q) => q.eq("storedAt", undefined))
             .paginate({ numItems: OUTBOX_PAGE_SIZE, cursor: args.cursor });
         return {
-            rows: page.page.map(({ _creationTime, ...row }) => row),
+            rows: page.page,
             cursor: page.continueCursor,
             isDone: page.isDone,
         };
