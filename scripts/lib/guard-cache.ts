@@ -16,7 +16,10 @@
  * them) plus the CONTENT of every input the index cannot vouch for
  * (`git ls-files -m -o`: modified, deleted, untracked-not-ignored). Reading all
  * ~5,000 files `cr:lint` scans measured 350–500ms, more than `check:index`
- * itself; the index form measured 70–190ms. Gitignored inputs a guard consults
+ * itself; the index form measured 70–190ms. Trusting `-m` is trusting git's
+ * stat cache, including its racy-git handling: an entry whose mtime is not
+ * older than the index is compared by content, not by stat, so a same-tick
+ * edit still reads as modified. Gitignored inputs a guard consults
  * when present (`ignoredFiles`) and non-file inputs (`keys`, e.g. the
  * merge-base a guard diffs against) are folded in explicitly — git cannot see
  * either. This module's own source is an input of every guard, so changing the
