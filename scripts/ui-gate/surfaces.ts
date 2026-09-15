@@ -887,11 +887,12 @@ async function ensureStressBoard(page: Page, ctx: WalkContext): Promise<void> {
         );
     }
     await search.fill(ctx.stressScenarioLabel);
-    await page.waitForTimeout(600);
-    const row = page.locator(
-        `button:has-text(${JSON.stringify(ctx.stressScenarioLabel)})`
-    );
-    if ((await row.count()) === 0) {
+    const rowSelector = `button:has-text(${JSON.stringify(ctx.stressScenarioLabel)})`;
+    const row = page.locator(rowSelector);
+    // Waits for the filtered row rather than sleeping 600ms and counting once:
+    // under load the list query answers later than that, and the lane reported
+    // a seeded scenario "absent" (issue #3626's runs, load 12-96).
+    if (!(await fixtureRowsRendered(page, rowSelector))) {
         throw new Unreachable(
             `debug scenario "${ctx.stressScenarioLabel}" is absent from this deployment — seed it with debugScenarios:seedScenarioDirect (see the PR receipt's scenario field)`
         );
