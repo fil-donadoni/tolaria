@@ -24,13 +24,16 @@
 //   - UPSERT BY LABEL: re-running replaces the labelled rows rather than
 //     accumulating duplicates;
 //   - the written rows are DEPLOYMENT-LOCAL by design — not in git, so they
-//     do not reproduce on a fresh clone. That is why a missing fixture makes
-//     the lane print UNWALKED with this seeding command, never fall back to
-//     walking some other event.
+//     do not reproduce on a fresh clone. A missing fixture makes the lane
+//     print UNWALKED, never fall back to walking some other event.
 //
-// Run it with:
-//
-//     bunx convex run limitedFixtures:seedUiGateFixtures '{"email":"<TOLARIA_UI_EMAIL>"}'
+// PER RUN (issue #3626). The lane seeds this itself at bootstrap, for its own
+// throwaway account, under labels carrying the run id
+// (`ui-gate/<runId>/open`, `ui-gate/<runId>/draft`). Two concurrent runs
+// therefore upsert DIFFERENT labels and never drop each other's rows, and the
+// rows go away with the account at teardown (`convex/uiGateAccounts.ts`).
+// Only a lane address is accepted: this writes events a real account would
+// see in its own list.
 //
 // The cards are PINNED BY NAME rather than dealt by `startDraft`: a seeded
 // deal is only as stable as the set's implemented card list, which grows every
@@ -54,14 +57,15 @@ import type {
     LimitedPoolCard,
 } from "./limited/eventTypes";
 import { SCORER_VERSION } from "./limited/scorerVersion";
-// The three labels live in a dependency-free leaf module, not here: this file
-// is a registered Convex function module, so a `scripts/`-side importer of
-// these constants would drag gitignored `convex/_generated` into `bun run
-// land`. See that file's header (issue #2822 review round 2).
+// The labels live in a dependency-free leaf module, not here: this file is a
+// registered Convex function module, so a `scripts/`-side importer of them
+// would drag gitignored `convex/_generated` into `bun run land`. See that
+// file's header (issue #2822 review round 2).
 import {
-    UI_GATE_DRAFT_LABEL,
-    UI_GATE_OPEN_LABEL,
+    uiGateDraftLabel,
+    uiGateOpenLabel,
 } from "./limited/uiGateFixtureLabels";
+import { isLaneAccountEmail, isRunId } from "./lib/uiGateLaneAccount";
 
 /** Alpha — a checked-in Booster Config (`convex/limited/registry.ts`) and the
  *  set every pinned card below is printed in. Only ever DISPLAYED here (the
@@ -155,7 +159,7 @@ function fixturePackCard(name: string, index: number): DraftPackCard {
     return { ...fixturePoolCard(name), pickId: `r0-p0-c${index}` };
 }
 
-/** Seat 0 is the `TOLARIA_UI_EMAIL` account, at a FIXED index — the seat the
+/** Seat 0 is the run's lane account, at a FIXED index — the seat the
  *  Draft Room walks measure. `assignFreeSeat` takes the first free index, so
  *  seating the viewer into freshly-built empty seats always yields 0; the
  *  randomisation `startLimitedEvent` performs (seat order IS pass order) is
@@ -216,10 +220,12 @@ async function insertFixtureEvent(
 
 export const seedUiGateFixtures = internalMutation({
     args: {
-        /** The `check:ui` account (`TOLARIA_UI_EMAIL` in `.env.local`) — the
+        /** The run's lane account (`ui-gate+<runId>@ui-gate.invalid`) — the
          *  user seated at seat 0 of both fixtures. Passed rather than derived
          *  because an internal mutation has no caller identity. */
         email: v.string(),
+        /** The run the labels are scoped to (issue #3626). */
+        runId: v.string(),
     },
     returns: v.object({
         openEventId: v.id("limitedEvents"),
@@ -229,25 +235,37 @@ export const seedUiGateFixtures = internalMutation({
         poolSize: v.number(),
     }),
     handler: async (ctx, args) => {
+        if (!isRunId(args.runId)) {
+            throw new Error(
+                `"${args.runId}" is not a lane run id — refusing to seed fixtures under it`
+            );
+        }
+        if (!isLaneAccountEmail(args.email)) {
+            throw new Error(
+                `"${args.email}" is not a check:ui lane account — fixtures are seeded only for the run's own throwaway account`
+            );
+        }
         const user = await ctx.db
             .query("users")
             .withIndex("email", (q) => q.eq("email", args.email))
             .unique();
         if (!user) {
             throw new Error(
-                `No user with email "${args.email}" on this deployment — sign in once with the check:ui account first.`
+                `No user with email "${args.email}" on this deployment — the lane registers it before seeding.`
             );
         }
 
+        const openLabel = uiGateOpenLabel(args.runId);
+        const draftLabel = uiGateDraftLabel(args.runId);
         const now = Date.now();
         const replaced =
-            (await dropFixture(ctx, UI_GATE_OPEN_LABEL)) +
-            (await dropFixture(ctx, UI_GATE_DRAFT_LABEL));
+            (await dropFixture(ctx, openLabel)) +
+            (await dropFixture(ctx, draftLabel));
 
         // ── Fixture 1: seating still open ────────────────────────────────
         const openEventId = await insertFixtureEvent(
             ctx,
-            UI_GATE_OPEN_LABEL,
+            openLabel,
             user._id,
             "draft",
             now
@@ -261,7 +279,7 @@ export const seedUiGateFixtures = internalMutation({
         const pool = FIXTURE_POOL_NAMES.map(fixturePoolCard);
         const draftEventId = await insertFixtureEvent(
             ctx,
-            UI_GATE_DRAFT_LABEL,
+            draftLabel,
             user._id,
             "draft",
             now

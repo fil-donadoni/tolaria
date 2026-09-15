@@ -20,19 +20,11 @@
  * than making it lie.
  */
 import type { Page } from "playwright";
-// The fixture's labels come from the leaf module the SEEDING mutation reads
-// them from — one definition, so renaming a label cannot leave the lane
-// addressing a row that no longer exists (issue #2822 review). It is that
-// leaf and never `convex/limitedFixtures.ts` itself: the seeder is a
-// registered Convex function module, and importing it here would pull
-// gitignored `convex/_generated` into `bun run land` (round 2). Aliased to
-// the shorter names the walks read with; see the block above
-// `FIXTURE_LIST_PATH` for what they address.
-import {
-    UI_GATE_DRAFT_LABEL as FIXTURE_DRAFT_LABEL,
-    UI_GATE_LABEL_PREFIX as FIXTURE_LABEL_PREFIX,
-    UI_GATE_OPEN_LABEL as FIXTURE_OPEN_LABEL,
-} from "../../convex/limited/uiGateFixtureLabels";
+// Type-only: `lane-account.ts` builds the run's labels from the leaf module the
+// SEEDING mutation reads them from, so renaming a label cannot leave the lane
+// addressing a row that no longer exists (issue #2822 review), and the walks
+// receive them on `WalkContext` because they are per RUN now (issue #3626).
+import type { FixtureLabels } from "./lane-account.ts";
 
 /** Thrown by a walk that could not reach its screen. Reason is user-facing. */
 export class Unreachable extends Error {
@@ -46,6 +38,10 @@ export interface WalkContext {
     baseUrl: string;
     /** The debug-scenario label the stress board surface loads. */
     stressScenarioLabel: string;
+    /** This run's Limited fixture labels (`ui-gate/<runId>/…`, issue #3626):
+     *  seeded at bootstrap for the run's own account, so a concurrent run's
+     *  seeding can never drop them and its rows never reach this run's list. */
+    fixtureLabels: FixtureLabels;
     /** Set once the lane has created the active game itself. */
     createdGame: boolean;
     /** Issue #2671 review H2. The `deck-builder` walk's fixture import trips
@@ -226,26 +222,51 @@ const EVENT_VIEW = "button:has-text('View'), a:has-text('View')";
  *
  * The rows are seeded by `convex/limitedFixtures.ts` and are DEPLOYMENT-LOCAL
  * (nothing in git, same tradeoff as a `debugScenarios` label). A missing
- * fixture is therefore an expected state, and it reports UNWALKED carrying
- * `SEED_FIXTURES_COMMAND` — never a fallback walk of some other event, which
- * is precisely what used to make a PASS mean less than it read.
+ * fixture reports UNWALKED carrying `FIXTURE_SEED_HINT` — never a fallback
+ * walk of some other event, which is precisely what used to make a PASS mean
+ * less than it read.
  *
- * `FIXTURE_LABEL_PREFIX` / `FIXTURE_OPEN_LABEL` / `FIXTURE_DRAFT_LABEL` are
- * imported at the top of this file from `convex/limitedFixtures.ts` — the
+ * Since issue #3626 the lane seeds them itself, at bootstrap, for the run's
+ * own account and under the run's own labels (`ctx.fixtureLabels`) — the
  * seeder owns the strings, this file only addresses them.
  */
-const SEED_FIXTURES_COMMAND = `bunx convex run limitedFixtures:seedUiGateFixtures '{"email":"<TOLARIA_UI_EMAIL>"}'`;
+const FIXTURE_SEED_HINT =
+    "the lane seeds its fixtures at bootstrap (limitedFixtures:seedUiGateFixtures) — read that run's bootstrap output";
 
-/** The list, narrowed to the fixture rows by the `?label=` prefix filter
+/** The list, narrowed to THIS RUN's fixture rows by the `?label=` prefix filter
  *  (`src/router.tsx`). This is what makes the two list surfaces' row count a
- *  function of the LANE (two seeded events) instead of the deployment. */
-const FIXTURE_LIST_PATH = `/limited?label=${FIXTURE_LABEL_PREFIX}`;
+ *  function of the LANE (two seeded events) instead of the deployment — or of
+ *  a concurrent run's fixtures. */
+function fixtureListPath(ctx: WalkContext): string {
+    return `/limited?label=${ctx.fixtureLabels.prefix}`;
+}
 
 /** The row handle `limited-event-list-item.tsx` renders for a labelled event.
  *  `key={event._id}` is a React key, not an attribute — before this there was
  *  nothing in the DOM to select one specific event with. */
 function fixtureRow(label: string): string {
     return `[data-limited-event-label="${label}"]`;
+}
+
+/**
+ * Has at least one row matching `selector` rendered? WAITS for it rather than
+ * counting once: under load the Limited list query answers seconds after the
+ * navigation, and an immediate `count()` read a seeded fixture as absent —
+ * measured on issue #3626's concurrent receipt at load ~60, where a run
+ * reported its own freshly seeded fixture "not on this deployment".
+ */
+async function fixtureRowsRendered(
+    page: Page,
+    selector: string
+): Promise<boolean> {
+    return await page
+        .locator(selector)
+        .first()
+        .waitFor({ state: "attached", timeout: NAV_TIMEOUT })
+        .then(
+            () => true,
+            () => false
+        );
 }
 
 /** A pack tile in the Draft Room. Two traps in one selector:
@@ -385,7 +406,7 @@ async function pinDraftSelection(page: Page): Promise<void> {
  * about what "the room" means OR what seat state they measure in.
  */
 async function reachDraftRoom(page: Page, ctx: WalkContext): Promise<void> {
-    const landed = await openFixtureEvent(page, ctx, FIXTURE_DRAFT_LABEL);
+    const landed = await openFixtureEvent(page, ctx, ctx.fixtureLabels.draft);
     if (landed === "event") {
         if (
             !(await clickIfVisible(
@@ -395,7 +416,7 @@ async function reachDraftRoom(page: Page, ctx: WalkContext): Promise<void> {
             ))
         ) {
             throw new Unreachable(
-                `the "${FIXTURE_DRAFT_LABEL}" fixture's event page offered no "Enter the Draft Room" — its seat has no live pack. Re-seed it: ${SEED_FIXTURES_COMMAND}`
+                `the "${ctx.fixtureLabels.draft}" fixture's event page offered no "Enter the Draft Room" — its seat has no live pack. ${FIXTURE_SEED_HINT}`
             );
         }
         await page
@@ -405,7 +426,7 @@ async function reachDraftRoom(page: Page, ctx: WalkContext): Promise<void> {
     }
     if (!page.url().endsWith("/draft")) {
         throw new Unreachable(
-            `the "${FIXTURE_DRAFT_LABEL}" fixture did not land in the Draft Room — the page is at ${page.url()}`
+            `the "${ctx.fixtureLabels.draft}" fixture did not land in the Draft Room — the page is at ${page.url()}`
         );
     }
     // The room renders for a Sealed seat too (reveal mode), so reaching the
@@ -413,7 +434,7 @@ async function reachDraftRoom(page: Page, ctx: WalkContext): Promise<void> {
     // its tiles are the proof.
     if (!(await visible(page, DRAFT_PICK_TILE, 4000))) {
         throw new Unreachable(
-            `the "${FIXTURE_DRAFT_LABEL}" fixture's Draft Room rendered no pack tile for this seat. Re-seed it: ${SEED_FIXTURES_COMMAND}`
+            `the "${ctx.fixtureLabels.draft}" fixture's Draft Room rendered no pack tile for this seat. ${FIXTURE_SEED_HINT}`
         );
     }
     await pinDraftSelection(page);
@@ -630,14 +651,18 @@ async function assertTwoSnapStops(page: Page): Promise<void> {
  * measure a row set the lane fixes.
  */
 async function reachFixtureList(page: Page, ctx: WalkContext): Promise<number> {
-    await goto(page, ctx, FIXTURE_LIST_PATH);
+    await goto(page, ctx, fixtureListPath(ctx));
     if (!(await visible(page, "main, [role=main]", 10_000))) {
         throw new Unreachable("/limited rendered no main region");
     }
+    const rendered = await fixtureRowsRendered(
+        page,
+        "[data-limited-event-label]"
+    );
     const rows = await page.locator("[data-limited-event-label]").count();
-    if (rows === 0) {
+    if (!rendered) {
         throw new Unreachable(
-            `no seeded Limited fixture on this deployment — seed it with: ${SEED_FIXTURES_COMMAND}`
+            `no seeded Limited fixture on this deployment — ${FIXTURE_SEED_HINT}`
         );
     }
     return rows;
@@ -664,9 +689,9 @@ async function openFixtureEvent(
 ): Promise<"event" | "draft" | null> {
     await goto(page, ctx, `/limited?label=${label}`);
     const row = page.locator(fixtureRow(label));
-    if ((await row.count()) === 0) {
+    if (!(await fixtureRowsRendered(page, fixtureRow(label)))) {
         throw new Unreachable(
-            `the seeded Limited fixture "${label}" is not on this deployment — seed it with: ${SEED_FIXTURES_COMMAND}`
+            `the seeded Limited fixture "${label}" is not on this deployment — ${FIXTURE_SEED_HINT}`
         );
     }
     await row.first().locator(EVENT_VIEW).first().click({
@@ -862,11 +887,12 @@ async function ensureStressBoard(page: Page, ctx: WalkContext): Promise<void> {
         );
     }
     await search.fill(ctx.stressScenarioLabel);
-    await page.waitForTimeout(600);
-    const row = page.locator(
-        `button:has-text(${JSON.stringify(ctx.stressScenarioLabel)})`
-    );
-    if ((await row.count()) === 0) {
+    const rowSelector = `button:has-text(${JSON.stringify(ctx.stressScenarioLabel)})`;
+    const row = page.locator(rowSelector);
+    // Waits for the filtered row rather than sleeping 600ms and counting once:
+    // under load the list query answers later than that, and the lane reported
+    // a seeded scenario "absent" (issue #3626's runs, load 12-96).
+    if (!(await fixtureRowsRendered(page, rowSelector))) {
         throw new Unreachable(
             `debug scenario "${ctx.stressScenarioLabel}" is absent from this deployment — seed it with debugScenarios:seedScenarioDirect (see the PR receipt's scenario field)`
         );
@@ -1658,7 +1684,7 @@ export const SURFACES: readonly Surface[] = [
             await goto(
                 page,
                 ctx,
-                `/limited/events?label=${FIXTURE_LABEL_PREFIX}`
+                `/limited/events?label=${ctx.fixtureLabels.prefix}`
             );
             // The redirect target's query string is `?mine=true`, not
             // `?mine=1` — `stringifySearch` serializes the boolean, it never
@@ -1681,10 +1707,10 @@ export const SURFACES: readonly Surface[] = [
                 );
             }
             if (
-                (await page.locator("[data-limited-event-label]").count()) === 0
+                !(await fixtureRowsRendered(page, "[data-limited-event-label]"))
             ) {
                 throw new Unreachable(
-                    `/limited/events redirected, but no seeded fixture row is on the list — either the redirect dropped ?label= or the fixture is missing. Seed it with: ${SEED_FIXTURES_COMMAND}`
+                    `/limited/events redirected, but no seeded fixture row is on the list — either the redirect dropped ?label= or the fixture is missing. ${FIXTURE_SEED_HINT}`
                 );
             }
         },
@@ -1708,11 +1734,11 @@ export const SURFACES: readonly Surface[] = [
             // measure the antechamber at some viewports and a different screen
             // at others.
             if (
-                (await openFixtureEvent(page, ctx, FIXTURE_OPEN_LABEL)) !==
+                (await openFixtureEvent(page, ctx, ctx.fixtureLabels.open)) !==
                 "event"
             ) {
                 throw new Unreachable(
-                    `the "${FIXTURE_OPEN_LABEL}" fixture did not land on its antechamber — it should still be OPEN (no pool, no pending pick). Re-seed it: ${SEED_FIXTURES_COMMAND}`
+                    `the "${ctx.fixtureLabels.open}" fixture did not land on its antechamber — it should still be OPEN (no pool, no pending pick). ${FIXTURE_SEED_HINT}`
                 );
             }
             if (!(await visible(page, "main, [role=main]", 10_000))) {
@@ -1736,7 +1762,7 @@ export const SURFACES: readonly Surface[] = [
             // Build Deck control on the event page (it appears once the pool
             // is FINAL), and the id comes from the fixture's own row, so this
             // is still label-addressed.
-            await openFixtureEvent(page, ctx, FIXTURE_DRAFT_LABEL);
+            await openFixtureEvent(page, ctx, ctx.fixtureLabels.draft);
             const eventId = currentEventId(page);
             await goto(page, ctx, `/limited/${eventId}/build`);
             // A CARD TILE, not the "Build Limited Deck" heading: on a short
@@ -1748,7 +1774,7 @@ export const SURFACES: readonly Surface[] = [
             // yet" empty state, which is the failure actually worth catching.
             if (!(await visible(page, "[data-card-tile]", 10_000))) {
                 throw new Unreachable(
-                    `/limited/${eventId}/build rendered no card tile — the fixture seat's pool may be empty. Re-seed it: ${SEED_FIXTURES_COMMAND}`
+                    `/limited/${eventId}/build rendered no card tile — the fixture seat's pool may be empty. ${FIXTURE_SEED_HINT}`
                 );
             }
         },

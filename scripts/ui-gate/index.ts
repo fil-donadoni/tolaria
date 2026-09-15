@@ -18,7 +18,9 @@
  *   1. checks the Convex deployment answers (fail fast, never hang);
  *   2. starts its OWN Vite on 127.0.0.1 and a free port, waits for readiness,
  *      and tears it down on exit — the repo's `dev` script is left alone;
- *   3. signs in once with the dev account and reuses the storage state;
+ *   3. registers the run's OWN throwaway account (`lane-account.ts`, issue
+ *      #3626), signs every viewport in as it, and destroys it — with every
+ *      row it owns — however the run ends;
  *   4. for each of the five Viewport Matrix viewports (ADR 0101), walks every
  *      surface in `surfaces.ts`, runs the occlusion probe (`probe.js`, the
  *      same file the manual runbook points at) and axe-core;
@@ -45,12 +47,15 @@
  *   bun run check:ui -- --record --accept=lobby.1440x900x2.cardsOcc
  *                                                        # + accept one named
  *                                                        # regression/tightening
+ *   bun run check:ui -- --keep-user                      # leave the run's
+ *                                                        # account in place and
+ *                                                        # print its credentials
  *
  * Env:
- *   TOLARIA_UI_EMAIL / TOLARIA_UI_PASSWORD   dev-account credentials. Read
- *       from the environment, else from the gitignored `.env.local`. Never
- *       committed, never printed.
- *   VITE_CONVEX_URL                          the deployment to talk to.
+ *   VITE_CONVEX_URL   the deployment to talk to (environment, else the
+ *       gitignored `.env.local`). It must be LOCAL: the lane account's role
+ *       grant and teardown refuse any other deployment. No credentials are
+ *       read — each run mints its own account.
  */
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { createServer } from "node:net";
@@ -83,13 +88,24 @@ import {
     type WalkContext,
 } from "./surfaces.ts";
 import { VIEWPORTS } from "./viewports.ts";
+import {
+    createLaneLifecycle,
+    installSignalTeardown,
+    LaneAccountError,
+    localConvexRunner,
+    newLaneAccount,
+    passwordSignUp,
+    runScreenshotDir,
+    withLaneAccount,
+} from "./lane-account.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..");
 const BUDGETS_PATH = path.join(HERE, "budgets.json");
 const PROBE_PATH = path.join(HERE, "probe.js");
 const AXE_PATH = path.join(REPO_ROOT, "node_modules", "axe-core", "axe.min.js");
-const SHOT_DIR = path.join(REPO_ROOT, ".claude", "telemetry", "ui-gate");
+/** Each run writes under `<root>/<runId>/` (issue #3626). */
+const SHOT_ROOT = path.join(REPO_ROOT, ".claude", "telemetry", "ui-gate");
 
 const STRESS_SCENARIO_LABEL = "UI stress — full board, full hand, deep piles";
 
@@ -253,8 +269,8 @@ async function ensureSignedIn(
                 .textContent()
                 .catch(() => null);
             throw new FatalError(
-                `sign-in failed for the dev account${banner ? ` — ${banner.trim()}` : ""}. ` +
-                    `Set TOLARIA_UI_EMAIL / TOLARIA_UI_PASSWORD (environment or .env.local).`
+                `sign-in failed for the run's lane account ${email}${banner ? ` — ${banner.trim()}` : ""}. ` +
+                    `Bootstrap registered it moments ago, so this is the auth backend, not credentials.`
             );
         }
     }
@@ -343,6 +359,8 @@ interface Options {
      *  regression/tightening this run is allowed to record (issue #2673) —
      *  see `recordBudgets`. Empty unless `--accept=` is passed. */
     accept: Set<string>;
+    /** Skip the lane account's teardown and print its credentials. */
+    keepUser: boolean;
 }
 
 function parseArgs(argv: string[]): Options {
@@ -351,10 +369,12 @@ function parseArgs(argv: string[]): Options {
         headed: false,
         record: false,
         accept: new Set(),
+        keepUser: false,
     };
     for (const arg of argv) {
         if (arg === "--headed") opts.headed = true;
         else if (arg === "--record") opts.record = true;
+        else if (arg === "--keep-user") opts.keepUser = true;
         else if (arg.startsWith("--surface=")) {
             opts.surfaces = arg
                 .slice("--surface=".length)
@@ -473,15 +493,6 @@ async function main(): Promise<number> {
     const knownIds = selected.map((s) => s.id);
 
     const env = { ...readEnvLocal(), ...process.env } as Record<string, string>;
-    const email = env.TOLARIA_UI_EMAIL;
-    const password = env.TOLARIA_UI_PASSWORD;
-    if (!email || !password) {
-        throw new FatalError(
-            "TOLARIA_UI_EMAIL / TOLARIA_UI_PASSWORD are unset. Put the dev-account " +
-                "credentials in the environment or in the gitignored .env.local " +
-                "(they are deliberately not in the repo)."
-        );
-    }
     const convexUrl = env.VITE_CONVEX_URL;
     if (!convexUrl) {
         throw new FatalError("VITE_CONVEX_URL is unset (.env.local)");
@@ -501,281 +512,331 @@ async function main(): Promise<number> {
 
     const port = await freePort();
     const baseUrl = `http://127.0.0.1:${port}`;
-    fs.mkdirSync(SHOT_DIR, { recursive: true });
 
-    let vite: ChildProcess | null = null;
+    // The run's own account (issue #3626). Teardown runs from `withLaneAccount`'s
+    // `finally` on every normal exit and from the signal handler on SIGINT /
+    // SIGTERM, which never reach a `finally`.
+    const lane = createLaneLifecycle({
+        account: newLaneAccount(),
+        run: localConvexRunner(),
+        signUp: passwordSignUp(convexUrl),
+        keepUser: opts.keepUser,
+        log,
+    });
+    const shotDir = runScreenshotDir(SHOT_ROOT, lane.account.runId);
+
+    // Not `let vite: ChildProcess | null = null`: it is assigned inside the
+    // `withLaneAccount` callback, and an annotated `null` initialiser narrows
+    // the outer `finally`'s read to `never`.
+    let vite = null as ChildProcess | null;
     let browser: Browser | null = null;
     const startedAt = Date.now();
+    const uninstallSignals = installSignalTeardown(
+        process,
+        () => {
+            lane.teardown();
+            vite?.kill("SIGTERM");
+        },
+        (code) => process.exit(code)
+    );
 
     try {
-        log(`ui-gate: starting vite on ${baseUrl}`);
-        vite = await startViteServer(port);
-        await waitForServer(baseUrl, 90_000);
+        return await withLaneAccount(lane, async () => {
+            try {
+                log(`ui-gate: starting vite on ${baseUrl}`);
+                vite = await startViteServer(port);
+                await waitForServer(baseUrl, 90_000);
 
-        browser = await launchBrowser(opts.headed);
+                browser = await launchBrowser(opts.headed);
 
-        // Compile the app once before anything is timed. `waitForServer` only
-        // proves the dev server answers for index.html; the first REAL
-        // navigation still pays Vite's cold transform of the whole module
-        // graph, and that used to land on `ensureSignedIn`'s 30s budget. With
-        // signed-out surfaces walked first it lands on a 20s `goto` instead,
-        // and the first surface of the run reported UNWALKED on a screen that
-        // renders fine. Warming here keeps which surface goes first from
-        // deciding whether the run is green.
-        {
-            const warm = await browser.newPage();
-            await warm
-                .goto(baseUrl, {
-                    waitUntil: "domcontentloaded",
-                    timeout: 90_000,
-                })
-                .catch(() => {});
-            await warm.waitForTimeout(1500);
-            await warm.close();
-        }
-
-        const ctx: WalkContext = {
-            baseUrl,
-            stressScenarioLabel: STRESS_SCENARIO_LABEL,
-            createdGame: false,
-            log: () => {},
-        };
-
-        const perSurface = new Map<string, Measurement[]>();
-        const unreachable = new Map<string, string>();
-        const consoleErrors: string[] = [];
-        /** Every walk on which the SHELL RETURN BAND was mounted, and how many
-         *  controls `probe.js` culled for it (issue #3337). Reported after the
-         *  coverage line — deliberately OUTSIDE the region `verify-receipt.ts`
-         *  re-renders (banner..rows..coverage), so a new line here can never
-         *  invalidate a pasted receipt. */
-        const bandWalks: { where: string; excluded: number }[] = [];
-
-        for (const viewport of VIEWPORTS) {
-            const context: BrowserContext = await browser.newContext({
-                viewport: { width: viewport.width, height: viewport.height },
-                deviceScaleFactor: viewport.dpr,
-                isMobile: viewport.mobile,
-                hasTouch: viewport.mobile,
-            });
-            const page = await context.newPage();
-            page.on("console", (msg) => {
-                if (msg.type() === "error") {
-                    consoleErrors.push(
-                        `${viewport.id}: ${msg.text().slice(0, 160)}`
-                    );
+                // Compile the app once before anything is timed. `waitForServer` only
+                // proves the dev server answers for index.html; the first REAL
+                // navigation still pays Vite's cold transform of the whole module
+                // graph, and that used to land on `ensureSignedIn`'s 30s budget. With
+                // signed-out surfaces walked first it lands on a 20s `goto` instead,
+                // and the first surface of the run reported UNWALKED on a screen that
+                // renders fine. Warming here keeps which surface goes first from
+                // deciding whether the run is green.
+                {
+                    const warm = await browser.newPage();
+                    await warm
+                        .goto(baseUrl, {
+                            waitUntil: "domcontentloaded",
+                            timeout: 90_000,
+                        })
+                        .catch(() => {});
+                    await warm.waitForTimeout(1500);
+                    await warm.close();
                 }
-            });
-            /**
-             * Walk + probe one surface on the CURRENT page.
-             *
-             * Extracted so the `preAuth` surfaces can run through exactly the
-             * same measurement before `ensureSignedIn` — a second copy of this
-             * block is how one of the two groups would quietly stop being
-             * probed, screenshotted or budget-checked.
-             */
-            const measure = async (surface: Surface): Promise<void> => {
-                const budget = budgets.surfaces[surface.id];
-                if (budget?.status === "unwalked") return;
-                if (unreachable.has(surface.id)) return;
 
-                let walked = true;
-                try {
-                    await surface.walk(page, ctx);
-                } catch (err) {
-                    walked = false;
-                    const reason =
-                        err instanceof Unreachable
-                            ? err.message
-                            : `walk threw: ${(err as Error).message.split("\n")[0]}`;
-                    unreachable.set(surface.id, reason);
+                const ctx: WalkContext = {
+                    baseUrl,
+                    stressScenarioLabel: STRESS_SCENARIO_LABEL,
+                    fixtureLabels: lane.labels,
+                    createdGame: false,
+                    log: () => {},
+                };
+
+                const perSurface = new Map<string, Measurement[]>();
+                const unreachable = new Map<string, string>();
+                const consoleErrors: string[] = [];
+                /** Every walk on which the SHELL RETURN BAND was mounted, and how many
+                 *  controls `probe.js` culled for it (issue #3337). Reported after the
+                 *  coverage line — deliberately OUTSIDE the region `verify-receipt.ts`
+                 *  re-renders (banner..rows..coverage), so a new line here can never
+                 *  invalidate a pasted receipt. */
+                const bandWalks: { where: string; excluded: number }[] = [];
+
+                for (const viewport of VIEWPORTS) {
+                    const context: BrowserContext = await browser.newContext({
+                        viewport: {
+                            width: viewport.width,
+                            height: viewport.height,
+                        },
+                        deviceScaleFactor: viewport.dpr,
+                        isMobile: viewport.mobile,
+                        hasTouch: viewport.mobile,
+                    });
+                    const page = await context.newPage();
+                    page.on("console", (msg) => {
+                        if (msg.type() === "error") {
+                            consoleErrors.push(
+                                `${viewport.id}: ${msg.text().slice(0, 160)}`
+                            );
+                        }
+                    });
+                    /**
+                     * Walk + probe one surface on the CURRENT page.
+                     *
+                     * Extracted so the `preAuth` surfaces can run through exactly the
+                     * same measurement before `ensureSignedIn` — a second copy of this
+                     * block is how one of the two groups would quietly stop being
+                     * probed, screenshotted or budget-checked.
+                     */
+                    const measure = async (surface: Surface): Promise<void> => {
+                        const budget = budgets.surfaces[surface.id];
+                        if (budget?.status === "unwalked") return;
+                        if (unreachable.has(surface.id)) return;
+
+                        let walked = true;
+                        try {
+                            await surface.walk(page, ctx);
+                        } catch (err) {
+                            walked = false;
+                            const reason =
+                                err instanceof Unreachable
+                                    ? err.message
+                                    : `walk threw: ${(err as Error).message.split("\n")[0]}`;
+                            unreachable.set(surface.id, reason);
+                            log(
+                                `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} UNWALKED — ${reason}`
+                            );
+                        }
+
+                        if (walked) {
+                            const probe = await runProbe(page);
+                            const axe = await runAxe(page);
+                            const metrics = metricsOf(probe, axe);
+                            if (probe.shellBand.mounted) {
+                                bandWalks.push({
+                                    where: `${surface.id} @ ${viewport.id}`,
+                                    excluded: probe.shellBand.excluded,
+                                });
+                            }
+                            const shot = path.join(
+                                shotDir,
+                                `${surface.id}__${viewport.id}.png`
+                            );
+                            await page.screenshot({ path: shot });
+
+                            // `cardsSquare` names its offenders inline (issue #2724):
+                            // "5 cards are square" is not actionable, and the whole
+                            // point of a shape check is that the reader cannot see the
+                            // shape from a count.
+                            // `cardsSoft` names its offenders inline for the same
+                            // reason `cardsSquare` does (issue #3553): "3 cards are
+                            // soft" tells a reader nothing they can act on, while
+                            // "Brainstorm 208px needs 416, has 146 (thumb)" names the
+                            // slot, the deficit and the rendition that lost.
+                            const softEx = probe.cardsSoftN
+                                ? ` soft${probe.cardsSoftN}[` +
+                                  (probe.cardsSoft as SoftExample[])
+                                      .map(
+                                          (c) =>
+                                              `${c.t} ${c.w}px dec${c.dec} needs${c.need} has${c.have} ${c.src}`
+                                      )
+                                      .join("; ") +
+                                  `]`
+                                : ` soft0`;
+                            const squareEx = probe.cardsSquareN
+                                ? ` square${probe.cardsSquareN}[` +
+                                  (probe.cardsSquare as SquareExample[])
+                                      .map(
+                                          (c) =>
+                                              `${c.t} ${c.w}x${c.h} r${c.r} "${c.cls}"`
+                                      )
+                                      .join("; ") +
+                                  `]`
+                                : ` square0`;
+                            const detail =
+                                `cards n${probe.cards.n} zero${probe.cards.zero} occ${probe.cards.occ} ` +
+                                `stranded${probe.cards.stranded} reach${probe.cards.reachable}` +
+                                `${squareEx}${softEx}` +
+                                `${probe.cardsSoftPending ? ` softPending${probe.cardsSoftPending}` : ""}` +
+                                `${probe.cardsSoftUnknown ? ` softUnknown${probe.cardsSoftUnknown}` : ""} | ` +
+                                `ctrls n${probe.ctrls.n} zero${probe.ctrls.zero} occ${probe.ctrls.occ} ` +
+                                `stranded${probe.ctrls.stranded} | starved${probe.starvedN} | ` +
+                                `axe s${axe.serious}/c${axe.critical}${axe.ids.length ? ` (${axe.ids.join(",")})` : ""}` +
+                                `${axe.exempt ? ` exempt${axe.exempt}` : ""} | ` +
+                                `small${probe.smallN} tiny${probe.tinyText} hOverflow${probe.hOverflow}`;
+                            log(
+                                `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} ${detail}`
+                            );
+
+                            const list = perSurface.get(surface.id) ?? [];
+                            list.push({
+                                viewport: viewport.id,
+                                metrics,
+                                screenshot: path.relative(REPO_ROOT, shot),
+                                detail,
+                            });
+                            perSurface.set(surface.id, list);
+                        }
+
+                        // Issue #2671 review round 2 MUST-FIX: this used to sit inside
+                        // the happy path above (and the original `catch` block above
+                        // `return`ed before ever reaching it), so a walk that threw
+                        // AFTER the fixture import — for `deck-builder` that is the
+                        // one `Unreachable` site past the Import confirm click, the
+                        // sideboard check — left the `userDecks` row it created
+                        // permanently on the deployment.
+                        // Runs on BOTH the happy path and the failure path now (on the
+                        // SAME page), undoing state the walk had to create for the
+                        // probe to see (the `deck-builder` fixture's real `userDecks`
+                        // row) without touching what was just measured. Best-effort:
+                        // a cleanup failure is hygiene debt, not a measurement defect,
+                        // so it is logged rather than failing the surface.
+                        if (surface.cleanup) {
+                            try {
+                                await surface.cleanup(page, ctx);
+                            } catch (err) {
+                                log(
+                                    `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} CLEANUP FAILED — ${(err as Error).message.split("\n")[0]}`
+                                );
+                            }
+                        }
+                    };
+
+                    // Signed-out surfaces FIRST: `<AuthGate>` makes them unreachable
+                    // once a session exists, and `ensureSignedIn` navigates back to
+                    // the app root itself, so this costs the signed-in walks nothing.
+                    for (const surface of selected.filter((s) => s.preAuth)) {
+                        await measure(surface);
+                    }
+
+                    await ensureSignedIn(
+                        page,
+                        baseUrl,
+                        lane.account.email,
+                        lane.account.password
+                    );
                     log(
-                        `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} UNWALKED — ${reason}`
+                        `ui-gate: ${viewport.id} (${viewport.label}) — signed in`
                     );
+
+                    for (const surface of selected.filter((s) => !s.preAuth)) {
+                        await measure(surface);
+                    }
+
+                    await context.close();
                 }
 
-                if (walked) {
-                    const probe = await runProbe(page);
-                    const axe = await runAxe(page);
-                    const metrics = metricsOf(probe, axe);
-                    if (probe.shellBand.mounted) {
-                        bandWalks.push({
-                            where: `${surface.id} @ ${viewport.id}`,
-                            excluded: probe.shellBand.excluded,
+                const walks: SurfaceWalk[] = [];
+                for (const id of knownIds) {
+                    const reason = unreachable.get(id);
+                    if (reason) {
+                        walks.push({
+                            surface: id,
+                            status: "unreachable",
+                            reason,
+                        });
+                    } else if (perSurface.has(id)) {
+                        walks.push({
+                            surface: id,
+                            status: "measured",
+                            measurements: perSurface.get(id)!,
                         });
                     }
-                    const shot = path.join(
-                        SHOT_DIR,
-                        `${surface.id}__${viewport.id}.png`
-                    );
-                    await page.screenshot({ path: shot });
+                }
 
-                    // `cardsSquare` names its offenders inline (issue #2724):
-                    // "5 cards are square" is not actionable, and the whole
-                    // point of a shape check is that the reader cannot see the
-                    // shape from a count.
-                    // `cardsSoft` names its offenders inline for the same
-                    // reason `cardsSquare` does (issue #3553): "3 cards are
-                    // soft" tells a reader nothing they can act on, while
-                    // "Brainstorm 208px needs 416, has 146 (thumb)" names the
-                    // slot, the deficit and the rendition that lost.
-                    const softEx = probe.cardsSoftN
-                        ? ` soft${probe.cardsSoftN}[` +
-                          (probe.cardsSoft as SoftExample[])
-                              .map(
-                                  (c) =>
-                                      `${c.t} ${c.w}px dec${c.dec} needs${c.need} has${c.have} ${c.src}`
-                              )
-                              .join("; ") +
-                          `]`
-                        : ` soft0`;
-                    const squareEx = probe.cardsSquareN
-                        ? ` square${probe.cardsSquareN}[` +
-                          (probe.cardsSquare as SquareExample[])
-                              .map(
-                                  (c) =>
-                                      `${c.t} ${c.w}x${c.h} r${c.r} "${c.cls}"`
-                              )
-                              .join("; ") +
-                          `]`
-                        : ` square0`;
-                    const detail =
-                        `cards n${probe.cards.n} zero${probe.cards.zero} occ${probe.cards.occ} ` +
-                        `stranded${probe.cards.stranded} reach${probe.cards.reachable}` +
-                        `${squareEx}${softEx}` +
-                        `${probe.cardsSoftPending ? ` softPending${probe.cardsSoftPending}` : ""}` +
-                        `${probe.cardsSoftUnknown ? ` softUnknown${probe.cardsSoftUnknown}` : ""} | ` +
-                        `ctrls n${probe.ctrls.n} zero${probe.ctrls.zero} occ${probe.ctrls.occ} ` +
-                        `stranded${probe.ctrls.stranded} | starved${probe.starvedN} | ` +
-                        `axe s${axe.serious}/c${axe.critical}${axe.ids.length ? ` (${axe.ids.join(",")})` : ""}` +
-                        `${axe.exempt ? ` exempt${axe.exempt}` : ""} | ` +
-                        `small${probe.smallN} tiny${probe.tinyText} hOverflow${probe.hOverflow}`;
+                if (opts.record) recordBudgets(budgets, walks, opts.accept);
+
+                const ev = evaluateRun(budgets, knownIds, walks, SURFACE_IDS);
+
+                log(
+                    "\n─── check:ui ───────────────────────────────────────────────────"
+                );
+                log(receiptKindLine(ev));
+                for (const row of ev.rows) {
+                    log(formatResultRow(row));
+                }
+                log(coverageLine(ev));
+                // The shell return band's attribution (issue #3337). `probe.js` culls
+                // it out of every control count because its presence is a function of
+                // the gate ACCOUNT's state — a game or Limited event in flight — and
+                // not of the tree; the point of the line is that the exclusion is
+                // never silent, so it prints on both branches.
+                if (bandWalks.length === 0) {
                     log(
-                        `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} ${detail}`
+                        "shell return band: absent on every walk — no controls excluded"
                     );
-
-                    const list = perSurface.get(surface.id) ?? [];
-                    list.push({
-                        viewport: viewport.id,
-                        metrics,
-                        screenshot: path.relative(REPO_ROOT, shot),
-                        detail,
-                    });
-                    perSurface.set(surface.id, list);
+                } else {
+                    const excluded = bandWalks.reduce(
+                        (n, w) => n + w.excluded,
+                        0
+                    );
+                    log(
+                        `shell return band: MOUNTED on ${bandWalks.length} walk(s) — ${excluded} control(s) excluded from those counts (the run's lane account has a game or event in flight; issue #3337)`
+                    );
                 }
-
-                // Issue #2671 review round 2 MUST-FIX: this used to sit inside
-                // the happy path above (and the original `catch` block above
-                // `return`ed before ever reaching it), so a walk that threw
-                // AFTER the fixture import — for `deck-builder` that is the
-                // one `Unreachable` site past the Import confirm click, the
-                // sideboard check — left the `userDecks` row it created
-                // permanently on the deployment.
-                // Runs on BOTH the happy path and the failure path now (on the
-                // SAME page), undoing state the walk had to create for the
-                // probe to see (the `deck-builder` fixture's real `userDecks`
-                // row) without touching what was just measured. Best-effort:
-                // a cleanup failure is hygiene debt, not a measurement defect,
-                // so it is logged rather than failing the surface.
-                if (surface.cleanup) {
-                    try {
-                        await surface.cleanup(page, ctx);
-                    } catch (err) {
-                        log(
-                            `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} CLEANUP FAILED — ${(err as Error).message.split("\n")[0]}`
-                        );
-                    }
+                log(
+                    `console errors: ${consoleErrors.length === 0 ? "none" : consoleErrors.length}`
+                );
+                for (const line of consoleErrors.slice(0, 10)) log(`  ${line}`);
+                if (ev.knownDebt.length > 0) {
+                    log(
+                        "\nknown debt carried by the budgets (a later slice owns these):"
+                    );
+                    for (const d of ev.knownDebt) log(`  · ${d}`);
                 }
-            };
+                log(`screenshots: ${path.relative(REPO_ROOT, shotDir)}/`);
+                log(
+                    `wall time: ${Math.round((Date.now() - startedAt) / 1000)}s`
+                );
 
-            // Signed-out surfaces FIRST: `<AuthGate>` makes them unreachable
-            // once a session exists, and `ensureSignedIn` navigates back to
-            // the app root itself, so this costs the signed-in walks nothing.
-            for (const surface of selected.filter((s) => s.preAuth)) {
-                await measure(surface);
+                if (ev.failures.length > 0) {
+                    log("\n✗ check:ui FAILED");
+                    for (const f of ev.failures) log(`  · ${f}`);
+                    return 1;
+                }
+                log("\n✓ check:ui passed");
+                return 0;
+            } finally {
+                // Closed BEFORE the account is torn down, so no page is still
+                // subscribed to rows the teardown is deleting.
+                if (browser) await browser.close().catch(() => {});
             }
-
-            await ensureSignedIn(page, baseUrl, email, password);
-            log(`ui-gate: ${viewport.id} (${viewport.label}) — signed in`);
-
-            for (const surface of selected.filter((s) => !s.preAuth)) {
-                await measure(surface);
-            }
-
-            await context.close();
-        }
-
-        const walks: SurfaceWalk[] = [];
-        for (const id of knownIds) {
-            const reason = unreachable.get(id);
-            if (reason) {
-                walks.push({ surface: id, status: "unreachable", reason });
-            } else if (perSurface.has(id)) {
-                walks.push({
-                    surface: id,
-                    status: "measured",
-                    measurements: perSurface.get(id)!,
-                });
-            }
-        }
-
-        if (opts.record) recordBudgets(budgets, walks, opts.accept);
-
-        const ev = evaluateRun(budgets, knownIds, walks, SURFACE_IDS);
-
-        log(
-            "\n─── check:ui ───────────────────────────────────────────────────"
-        );
-        log(receiptKindLine(ev));
-        for (const row of ev.rows) {
-            log(formatResultRow(row));
-        }
-        log(coverageLine(ev));
-        // The shell return band's attribution (issue #3337). `probe.js` culls
-        // it out of every control count because its presence is a function of
-        // the gate ACCOUNT's state — a game or Limited event in flight — and
-        // not of the tree; the point of the line is that the exclusion is
-        // never silent, so it prints on both branches.
-        if (bandWalks.length === 0) {
-            log(
-                "shell return band: absent on every walk — no controls excluded"
-            );
-        } else {
-            const excluded = bandWalks.reduce((n, w) => n + w.excluded, 0);
-            log(
-                `shell return band: MOUNTED on ${bandWalks.length} walk(s) — ${excluded} control(s) excluded from those counts (the gate account has a game or event in flight; issue #3337)`
-            );
-        }
-        log(
-            `console errors: ${consoleErrors.length === 0 ? "none" : consoleErrors.length}`
-        );
-        for (const line of consoleErrors.slice(0, 10)) log(`  ${line}`);
-        if (ev.knownDebt.length > 0) {
-            log(
-                "\nknown debt carried by the budgets (a later slice owns these):"
-            );
-            for (const d of ev.knownDebt) log(`  · ${d}`);
-        }
-        log(`screenshots: ${path.relative(REPO_ROOT, SHOT_DIR)}/`);
-        log(`wall time: ${Math.round((Date.now() - startedAt) / 1000)}s`);
-
-        if (ev.failures.length > 0) {
-            log("\n✗ check:ui FAILED");
-            for (const f of ev.failures) log(`  · ${f}`);
-            return 1;
-        }
-        log("\n✓ check:ui passed");
-        return 0;
+        });
     } finally {
-        if (browser) await browser.close().catch(() => {});
         if (vite) vite.kill("SIGTERM");
+        uninstallSignals();
     }
 }
 
 try {
     process.exit(await main());
 } catch (err) {
-    if (err instanceof FatalError) {
+    if (err instanceof FatalError || err instanceof LaneAccountError) {
         process.stderr.write(`\n✗ check:ui: ${err.message}\n`);
         process.exit(2);
     }

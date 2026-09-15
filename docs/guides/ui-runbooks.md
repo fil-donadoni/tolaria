@@ -203,8 +203,10 @@ flag persists per device in `tolaria:debugSheetOpen`, so check
 small19` at 1440x900x2.
 8. **Afterwards, end the game you created** — `Concede Match` on the lobby
    banner, then the confirm dialog's own `Concede Match`. An active game left
-   behind gates the vs-AI dialog shut for the next run and for every concurrent
-   session (see `lobby-vs-ai`'s entry in `budgets.json`).
+   behind gates the vs-AI dialog shut for that account's next walk. The lane
+   ends its own for the same reason, within the run: its later surfaces need
+   the dialog. It no longer affects other sessions, since each `check:ui` run
+   has its own account (issue #3626).
 
 ## Sign in from cold (2026-08-19)
 
@@ -218,9 +220,12 @@ sign-in Panel, not on the lobby.
 3. Click the submit button (`Sign In`). The email field detaching is the
    signal that the gate opened; the lobby renders behind it.
 
-Credentials are **not** in the repo. `bun run check:ui` reads them from
-`TOLARIA_UI_EMAIL` / `TOLARIA_UI_PASSWORD` (environment, else the gitignored
-`.env.local`); a human uses whatever dev account they created.
+Credentials are **not** in the repo. A human uses whatever dev account they
+created. `bun run check:ui` reads none: each run registers its own
+`ui-gate+<runId>@ui-gate.invalid` account and destroys it at the end
+(`docs/guides/browser-verification.md`, issue #3626). To sign in as a run's
+account by hand, start that run with `--keep-user`; it prints the email and
+password.
 
 **Do not carry a session between browser contexts.** Convex auth rotates its
 refresh token on use, so a Playwright `storageState` captured in one context
@@ -316,29 +321,29 @@ deployment to everyone, so both the row count of `/limited` and which seat the
 Draft Room walks measured used to be functions of the account's own data, and
 `budgets.json` rotted with no `src/` change.
 
-| Label           | Shape                                                                           | Serves                                                              |
-| --------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `ui-gate/open`  | Draft event, seating still OPEN, viewer at seat 0, no pools                     | `limited-antechamber`                                               |
-| `ui-gate/draft` | Draft event, `started`, viewer at seat 0 with a 15-card pack and a 24-card pool | `draft-pick`, `draft-pool-stop`, `draft-pool-peek`, `limited-build` |
+| Label                   | Shape                                                                           | Serves                                                              |
+| ----------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `ui-gate/<runId>/open`  | Draft event, seating still OPEN, viewer at seat 0, no pools                     | `limited-antechamber`                                               |
+| `ui-gate/<runId>/draft` | Draft event, `started`, viewer at seat 0 with a 15-card pack and a 24-card pool | `draft-pick`, `draft-pool-stop`, `draft-pool-peek`, `limited-build` |
 
-Seed (or re-seed — it is an upsert by label, and the rows are deployment-local,
-nothing in git):
-
-```bash
-bunx convex run limitedFixtures:seedUiGateFixtures '{"email":"<TOLARIA_UI_EMAIL>"}'
-```
+The lane seeds both itself at bootstrap, for the run's own account and under
+the run's own id (issue #3626), and they go away with that account at
+teardown — so two concurrent runs never drop each other's rows. The seeder
+(`limitedFixtures:seedUiGateFixtures`) refuses any account outside the lane
+pattern. To look at a run's fixtures by hand, start it with `--keep-user`
+and sign in as the account it prints; `<runId>` below is that run's id.
 
 Addressing it by hand:
 
-- `/limited?label=ui-gate/` — the list, narrowed by a **prefix** match on the
+- `/limited?label=ui-gate/<runId>/` — the list, narrowed by a **prefix** match on the
   event's `label` to exactly the fixture rows. No product control produces this
   URL; it exists so the two list surfaces measure a row set the lane fixes.
-  `/limited/events?label=ui-gate/` carries the same filter through the redirect.
-- `[data-limited-event-label="ui-gate/draft"]` — the row's own handle in the
+  `/limited/events?label=ui-gate/<runId>/` carries the same filter through the redirect.
+- `[data-limited-event-label="ui-gate/<runId>/draft"]` — the row's own handle in the
   DOM (`limited-event-list-item.tsx`); click the `View` button inside it.
   A player-created event has no `label` and therefore no attribute.
 
-`ui-gate/open` is OPEN specifically because that is the one event state whose
+`ui-gate/<runId>/open` is OPEN specifically because that is the one event state whose
 detail page neither redirects into the Draft Room (`useDraftRoomRedirect` needs
 a pending pick) nor auto-opens the deck builder (`useAutoOpenLimitedBuilder`
 needs a final pool). Both of those are **one-shot per tab**, so any fixture
@@ -357,8 +362,8 @@ Start / Cancel-or-Close, and the Share/Copy link. The full per-seat detail
 (pool counts, pack-passing direction) is no longer inline — it opens as the
 Table Ring dialog.
 
-1. `navigate_page` → `http://localhost:5173/limited?label=ui-gate/open`
-2. Click `View` inside `[data-limited-event-label="ui-gate/open"]`. The route
+1. `navigate_page` → `http://localhost:5173/limited?label=ui-gate/<runId>/open`
+2. Click `View` inside `[data-limited-event-label="ui-gate/<runId>/open"]`. The route
    becomes `/limited/<eventId>`. (Any event row works by hand; the LANE walks
    the fixture, for the reasons in the section above.)
 3. `snapshot`. The avatar row sits above a `View Table` button — click it to
@@ -376,8 +381,8 @@ open.
 The pool builder is where a Sealed/Draft pool becomes a deck, and it is the
 screen the mobile-occlusion bug lives on.
 
-1. `navigate_page` → `http://localhost:5173/limited?label=ui-gate/draft`
-2. Click `View` inside `[data-limited-event-label="ui-gate/draft"]`, and read
+1. `navigate_page` → `http://localhost:5173/limited?label=ui-gate/<runId>/draft`
+2. Click `View` inside `[data-limited-event-label="ui-gate/<runId>/draft"]`, and read
    the `<eventId>` off the URL.
 3. `navigate_page` → `http://localhost:5173/limited/<eventId>/build`.
 
@@ -401,8 +406,8 @@ yet.
 Since issue #2587 the pick screen is its OWN immersive route,
 `/limited/<eventId>/draft` — it is no longer part of the event detail page.
 
-1. `navigate_page` → `http://localhost:5173/limited?label=ui-gate/draft` and
-   click `View` inside `[data-limited-event-label="ui-gate/draft"]` (that is
+1. `navigate_page` → `http://localhost:5173/limited?label=ui-gate/<runId>/draft` and
+   click `View` inside `[data-limited-event-label="ui-gate/<runId>/draft"]` (that is
    what the lane does — see "The seeded Limited fixture the lane walks"), or go
    straight to `http://localhost:5173/limited/<eventId>`. While a Pick
    is pending, a seated player is redirected straight to
