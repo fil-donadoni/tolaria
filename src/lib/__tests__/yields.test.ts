@@ -23,6 +23,10 @@ import {
     clearSeatYieldPrefs,
     confirmTriggerOrder,
     countRememberedTriggerOrders,
+    countSeatYieldPrefs,
+    forgetSeatTriggerOrder,
+    removeSeatYield,
+    yieldKeyCardIdentity,
     rememberedTriggerOrderFor,
     seatTriggerOrderMemory,
     triggerOrderKeys,
@@ -591,5 +595,82 @@ describe("Auto-order memory — keyed by ability identity, reset with yields (is
             yieldCardIdentityForDefinition(NOBLE.id)
         );
         expect(countRememberedTriggerOrders(two.triggerOrders, "p1")).toBe(1);
+    });
+});
+
+describe("Manage yields — exact removal (issue #3629)", () => {
+    const [noble] = projectStack([nobleExalted("n1")]);
+    const [bolt] = projectStack([
+        { kind: "spell", defId: BOLT.id, instance: "b1" },
+    ]);
+    const [ignoble] = projectStack([
+        {
+            kind: "trigger",
+            defId: IGNOBLE.id,
+            abilityId: EXALTED,
+            instance: "i1",
+        },
+    ]);
+    const nobleKey = yieldKeyForStackItem(noble)!;
+    const boltKey = yieldKeyForStackItem(bolt)!;
+    const ignobleKey = yieldKeyForStackItem(ignoble)!;
+    const prefs: YieldPrefsState = {
+        yields: { p1: [nobleKey, boltKey], p2: [nobleKey] },
+        triggerOrders: {
+            p1: {
+                enabled: true,
+                orders: [[nobleKey, ignobleKey, nobleKey], [ignobleKey]],
+            },
+            p2: { enabled: true, orders: [[nobleKey, ignobleKey, nobleKey]] },
+        },
+    };
+
+    it("removing one Yield drops ONLY that key — never the orders or the toggle, even as the seat's last", () => {
+        const once = removeSeatYield(prefs.yields, "p1", nobleKey);
+        expect(once).toEqual({ p1: [boltKey], p2: [nobleKey] });
+        const last = removeSeatYield(once, "p1", boltKey);
+        expect(countYields(last, "p1")).toBe(0);
+        // The write takes no Auto-order state at all: the seat's memory is
+        // untouched by construction, and the count still sees it.
+        expect(
+            countSeatYieldPrefs(
+                { yields: last, triggerOrders: prefs.triggerOrders },
+                "p1"
+            )
+        ).toBe(2);
+        expect(removeSeatYield(last, "p1", nobleKey)).toBe(last);
+    });
+
+    it("forgetting one order matches its multiset, and leaves the other orders and the toggle", () => {
+        const forgot = forgetSeatTriggerOrder(prefs.triggerOrders, "p1", [
+            ignobleKey,
+            nobleKey,
+            nobleKey,
+        ]);
+        expect(seatTriggerOrderMemory(forgot, "p1")).toEqual({
+            enabled: true,
+            orders: [[ignobleKey]],
+        });
+        expect(forgot.p2).toBe(prefs.triggerOrders.p2);
+        // A multiset that differs by one copy is a different order.
+        expect(
+            forgetSeatTriggerOrder(prefs.triggerOrders, "p1", [
+                nobleKey,
+                ignobleKey,
+            ])
+        ).toBe(prefs.triggerOrders);
+    });
+
+    it("counts yields plus remembered orders — the rule both yield controls render", () => {
+        expect(countSeatYieldPrefs(prefs, "p1")).toBe(4);
+        expect(countSeatYieldPrefs(prefs, "p2")).toBe(2);
+        expect(countSeatYieldPrefs(prefs, "nobody")).toBe(0);
+    });
+
+    it("reads the card identity back through the parser the box uses", () => {
+        expect(yieldKeyCardIdentity(nobleKey)).toBe(
+            yieldCardIdentityForDefinition(NOBLE.id)
+        );
+        expect(yieldKeyCardIdentity("garbage")).toBe("");
     });
 });

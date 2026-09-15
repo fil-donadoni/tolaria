@@ -1,5 +1,5 @@
 import type { StackItem } from "~/types/game";
-import { stackAbilityKindOf } from "~/lib/card-utils";
+import { stackAbilityKindOf, type StackAbilityKind } from "~/lib/card-utils";
 import { isFaceDownCard } from "~/lib/face-down";
 import {
     computeAutoPassBlockedCore,
@@ -41,10 +41,15 @@ export type YieldState = Record<string, YieldKey[]>;
  *  no key and therefore no toggle: a **Yield** names a card, and a face-down
  *  spell is exactly the object that has no card to name. */
 function yieldCardIdentity(item: StackItem): string | null {
-    if (item.designationId) return `designation:${item.designationId}`;
+    if (item.designationId)
+        return `${DESIGNATION_IDENTITY}${item.designationId}`;
     if (isFaceDownCard(item)) return null;
-    return item.card.id ? `card:${item.card.id}` : null;
+    return item.card.id ? `${CARD_IDENTITY}${item.card.id}` : null;
 }
+
+const CARD_IDENTITY = "card:";
+const DESIGNATION_IDENTITY = "designation:";
+const KEY_SEPARATOR = "|";
 
 /** The **Yield** key of a stack object, or `null` when the object has no
  *  stable identity to key on (a card-less inline trigger with no designation).
@@ -73,7 +78,11 @@ export function yieldKeyForStackItem(item: StackItem): YieldKey | null {
  *  ("Turn off auto-yield for Noble Hierarch") filters on, so it never has to
  *  re-derive a key from a battlefield permanent whose abilities it cannot see. */
 export function yieldKeyCardIdentity(key: YieldKey): string {
-    return key.split("|")[1] ?? "";
+    const parts = parseYieldKey(key);
+    if (!parts) return "";
+    return parts.source.type === "designation"
+        ? `${DESIGNATION_IDENTITY}${parts.source.id}`
+        : `${CARD_IDENTITY}${parts.source.id}`;
 }
 
 /** The identity a battlefield permanent's abilities key under — the same
@@ -81,7 +90,58 @@ export function yieldKeyCardIdentity(key: YieldKey): string {
  *  permanent's context menu and the stack row agree without either of them
  *  knowing which abilities the other saw. */
 export function yieldCardIdentityForDefinition(cardId: string): string {
-    return `card:${cardId}`;
+    return `${CARD_IDENTITY}${cardId}`;
+}
+
+/** A **Yield** key read back into what it names (issue #3629). */
+export type YieldKeyParts = {
+    /** `spell` for a spell (CR 601), else the ability's flavour. */
+    kind: "spell" | StackAbilityKind;
+    source: { type: "card" | "designation"; id: string };
+    /** The ability's id on its source; `null` for a spell. */
+    abilityId: string | null;
+};
+
+/** The inverse of {@link yieldKeyForStackItem}, and the ONLY place a key is
+ *  taken apart for display — it lives beside the minting so the two formats
+ *  cannot drift. `null` for anything that minting could not have produced.
+ *
+ *  The ability id is read after the LAST separator and the identity is what
+ *  lies between, so a source id that itself contains the separator still
+ *  parses whole. */
+export function parseYieldKey(key: YieldKey): YieldKeyParts | null {
+    const first = key.indexOf(KEY_SEPARATOR);
+    if (first < 0) return null;
+    const kind = key.slice(0, first);
+    const rest = key.slice(first + 1);
+    let identity: string;
+    let abilityId: string | null;
+    if (kind === "spell") {
+        identity = rest;
+        abilityId = null;
+    } else if (
+        kind === "activated" ||
+        kind === "triggered" ||
+        kind === "delayed"
+    ) {
+        const last = rest.lastIndexOf(KEY_SEPARATOR);
+        if (last < 0) return null;
+        identity = rest.slice(0, last);
+        abilityId = rest.slice(last + 1);
+        if (!abilityId) return null;
+    } else {
+        return null;
+    }
+    const source = identity.startsWith(DESIGNATION_IDENTITY)
+        ? {
+              type: "designation" as const,
+              id: identity.slice(DESIGNATION_IDENTITY.length),
+          }
+        : identity.startsWith(CARD_IDENTITY)
+          ? { type: "card" as const, id: identity.slice(CARD_IDENTITY.length) }
+          : null;
+    if (!source?.id) return null;
+    return { kind, source, abilityId };
 }
 
 export function seatYields(state: YieldState, seatId: string): YieldKey[] {
@@ -133,6 +193,20 @@ export function clearSeatCardYields(
     );
     if (next.length === current.length) return state;
     return { ...state, [seatId]: next };
+}
+
+/** Drop exactly ONE key from the seat — a "Manage yields" row (issue #3629).
+ *  Unlike the per-card reset it never forgets **Auto-order** memory, even when
+ *  it removes the seat's last **Yield**: the player removed one ability, not
+ *  the seat's remembered orders. */
+export function removeSeatYield(
+    state: YieldState,
+    seatId: string,
+    key: YieldKey
+): YieldState {
+    const current = seatYields(state, seatId);
+    if (!current.includes(key)) return state;
+    return { ...state, [seatId]: current.filter((k) => k !== key) };
 }
 
 export type YieldAutoPassCtx = AutoPassCoreCtx & {
@@ -303,6 +377,20 @@ export function clearSeatTriggerOrders(
     return { ...state, [seatId]: NO_TRIGGER_ORDER_MEMORY };
 }
 
+/** Forget ONE remembered order (issue #3629), identified by its key multiset —
+ *  the identity {@link confirmTriggerOrder} keeps at most one order per. The
+ *  **Auto-order** toggle keeps its value. */
+export function forgetSeatTriggerOrder(
+    state: TriggerOrderMemoryState,
+    seatId: string,
+    order: readonly YieldKey[]
+): TriggerOrderMemoryState {
+    const current = seatTriggerOrderMemory(state, seatId);
+    const orders = current.orders.filter((o) => !sameKeyMultiset(o, order));
+    if (orders.length === current.orders.length) return state;
+    return { ...state, [seatId]: { ...current, orders } };
+}
+
 /** Everything the board-wide **Yield** store holds: the **Yields** and the
  *  **Auto-order** memory that shares their reset lifecycle. */
 export type YieldPrefsState = {
@@ -339,4 +427,18 @@ export function clearSeatCardYieldPrefs(
             ? clearSeatTriggerOrders(state.triggerOrders, seatId)
             : state.triggerOrders;
     return { yields, triggerOrders };
+}
+
+/** The seat's **Yields** plus its remembered orders — THE count and visibility
+ *  rule of both "Clear all yields (N)" and "Manage yields (N)" (issue #3629),
+ *  so the two controls can never disagree about whether there is anything to
+ *  undo. */
+export function countSeatYieldPrefs(
+    state: YieldPrefsState,
+    seatId: string
+): number {
+    return (
+        countYields(state.yields, seatId) +
+        countRememberedTriggerOrders(state.triggerOrders, seatId)
+    );
 }
