@@ -20,10 +20,13 @@ import { BLADE_SCENARIOS } from "../blade/registry";
 import { runVerdictPromotionStep } from "../blade/verdictPromotion";
 import {
     ATTESTATION_OBJECT_PREFIX,
+    RESOLUTION_OBJECT_PREFIX,
     VERDICT_OBJECT_PREFIX,
     encodeVerdictObject,
     putAttestation,
+    putResolution,
     putVerdict,
+    resolutionObjectName,
     verdictObjectName,
 } from "../../../verdictStore";
 import {
@@ -36,6 +39,7 @@ import {
     parseVerdictLock,
     parseVerdictPack,
     planPromotion,
+    positionKeyOf,
     serializeVerdictLock,
     validateStoreObjects,
     verdictIdOf,
@@ -222,6 +226,33 @@ describe("verdicts:validate — per object, exactly why it is not promotable", (
         expect(out.text).toContain(`${verdictObjectName(id)}  [invalid]`);
         expect(out.text).toMatch(/promotable\s+: 0/);
     });
+
+    it("reads the store's resolutions through the engine step (issue #3582)", async () => {
+        // An unreadable resolution is the discriminating case at this seam:
+        // the fixtures here do not rebuild on the real engine, but whether the
+        // step reads `resolutionObjects` at all shows as the problem it names.
+        const store = createMemoryVerdictStore();
+        const name = resolutionObjectName(
+            positionKeyOf(judgement(1, 1)),
+            `v1-${"0".repeat(64)}`
+        );
+        store.objects.set(name, new TextEncoder().encode("{}"));
+        const b64 = async (prefix: string) =>
+            (await listing(store, prefix)).map(({ name, bytes }) => ({
+                name,
+                base64: Buffer.from(bytes).toString("base64"),
+            }));
+        const out = runVerdictPromotionStep({
+            mode: "validate",
+            lock: null,
+            evalWeightsSource: "",
+            verdictObjects: await b64(VERDICT_OBJECT_PREFIX),
+            attestationObjects: await b64(ATTESTATION_OBJECT_PREFIX),
+            resolutionObjects: await b64(RESOLUTION_OBJECT_PREFIX),
+        });
+        expect(out.text).toMatch(/resolution problems\s+: 1/);
+        expect(out.text).toContain(name);
+    });
 });
 
 describe("verdicts:promote — the lock it writes", () => {
@@ -324,6 +355,50 @@ describe("verdicts:promote — the lock it writes", () => {
         expect(planPromotion(null, validation).lock.verdictIds).toEqual([
             fresh,
         ]);
+    });
+
+    it("promotes a resolved position through its accepted verdict only, and keeps the rejected one with its reason (issue #3582)", async () => {
+        const store = createMemoryVerdictStore();
+        const accepted = await stored(store, judgement(4, 1));
+        const rejected = await stored(store, judgement(4, 2), [
+            ["prod-a:carol", "explicit"],
+        ]);
+        const unresolved = await stored(store, judgement(5, 1));
+        await stored(store, judgement(5, 2), [["prod-a:carol", "explicit"]]);
+        const withResolutions = async () =>
+            validateStoreObjects(
+                await listing(store, VERDICT_OBJECT_PREFIX),
+                await listing(store, ATTESTATION_OBJECT_PREFIX),
+                rebuildsAll,
+                [],
+                await listing(store, RESOLUTION_OBJECT_PREFIX)
+            );
+        // Before anyone resolves it, both answers stay out.
+        expect(
+            planPromotion(null, await withResolutions()).lock.verdictIds
+        ).toEqual([]);
+
+        await putResolution(store, {
+            positionKey: positionKeyOf(judgement(4, 1)),
+            acceptedVerdictId: accepted,
+            rejected: [{ verdictId: rejected, reason: "Shock is lethal" }],
+            author: "prod-a:admin",
+            createdAt: 1,
+        });
+        const validation = await withResolutions();
+        expect(rowOf(validation, accepted).status).toBe("promotable");
+        expect(rowOf(validation, rejected).status).toBe("rejected");
+        expect(rowOf(validation, rejected).reasons[0]).toContain(
+            "Shock is lethal"
+        );
+        expect(rowOf(validation, unresolved).status).toBe("contested");
+        expect(validation.resolutionProblems).toEqual([]);
+        expect(planPromotion(null, validation).lock.verdictIds).toEqual([
+            accepted,
+        ]);
+        expect(formatStoreValidation(validation)).toContain(
+            "rejected             : 1"
+        );
     });
 
     it("refuses a committed lock naming a verdict the listing does not hold", async () => {

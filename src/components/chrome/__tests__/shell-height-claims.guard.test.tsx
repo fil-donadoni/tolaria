@@ -719,6 +719,10 @@ const ROUTE_ROOTS: Record<
         routePath: "/admin/testers",
         files: [{ rel: "components/admin/admin-page-frame.tsx" }],
     },
+    AdminVerdictsRoute: {
+        routePath: "/admin/verdicts",
+        files: [{ rel: "components/admin/admin-page-frame.tsx" }],
+    },
     AdminBugReportsRoute: {
         routePath: "/admin/bug-reports",
         files: [{ rel: "components/admin/admin-page-frame.tsx" }],

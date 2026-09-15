@@ -38,6 +38,7 @@
 
 import {
     decodeAttestationObject,
+    decodeResolutionObject,
     decodeVerdictObject,
     verdictIdOfObjectName,
     verdictObjectName,
@@ -54,7 +55,7 @@ import {
     type VerdictQuarantine,
 } from "./quarantine";
 import { sha256Hex } from "./sha256";
-import type { Verdict, VerdictAttestation } from "./types";
+import type { Verdict, VerdictAttestation, VerdictResolution } from "./types";
 
 /** Where the committed `DEFAULT_EVAL_WEIGHTS` literal lives, relative to the
  *  repo root — the file a promotion rewrites beside the lock. */
@@ -76,6 +77,9 @@ export type VerdictPromotionInput = {
     evalWeightsSource: string;
     verdictObjects: { name: string; base64: string }[];
     attestationObjects: { name: string; base64: string }[];
+    /** `resolutions/…` objects (issue #3582). Optional so a snapshot taken
+     *  before resolutions existed still reads as "none given". */
+    resolutionObjects?: { name: string; base64: string }[];
 };
 
 /** What the engine step hands back. A promotion that is not a no-op carries
@@ -101,6 +105,7 @@ export type VerdictObjectStatus =
     | "unattested"
     | "implicit-only"
     | "contested"
+    | "rejected"
     | "in-registry";
 
 /** One verdict object's classification. `reasons` is empty exactly when the
@@ -121,6 +126,9 @@ export type StoreValidation = {
      *  attestation of an INVALID verdict is not listed — its verdict's row
      *  already says why neither counts. */
     attestationProblems: { name: string; reason: string }[];
+    /** Resolution objects that could not be read (issue #3582). A resolution
+     *  that is not read decides nothing, so its position stays contested. */
+    resolutionProblems: { name: string; reason: string }[];
     /** The promotable verdicts' payloads, sorted by id. */
     promotable: StoredVerdictPayload[];
     /** The classification of every integral verdict — the contested-position
@@ -200,7 +208,8 @@ export function validateStoreObjects(
     verdictObjects: readonly StoreObject[],
     attestationObjects: readonly StoreObject[],
     rebuild: VerdictRebuildCheck,
-    registry: readonly Verdict[] = []
+    registry: readonly Verdict[] = [],
+    resolutionObjects: readonly StoreObject[] = []
 ): StoreValidation {
     const rows: VerdictObjectRow[] = [];
     const readable = new Map<string, VerdictJudgement>();
@@ -247,9 +256,28 @@ export function validateStoreObjects(
         }
     }
 
+    // An admin's resolutions (issue #3582, ADR 0128 §6). A resolution that
+    // does not read is a problem, never a guess: its position simply stays
+    // contested, the direction that keeps a judgement out of the lock.
+    const resolutions: VerdictResolution[] = [];
+    const resolutionProblems: StoreValidation["resolutionProblems"] = [];
+    for (const object of [...resolutionObjects].sort((a, b) =>
+        byString(a.name, b.name)
+    )) {
+        try {
+            resolutions.push(decodeResolutionObject(object.name, object.bytes));
+        } catch (error) {
+            resolutionProblems.push({
+                name: object.name,
+                reason: message(error),
+            });
+        }
+    }
+
     const quarantine = quarantineContestedPositions(
         [...readable.values()],
-        attestations
+        attestations,
+        resolutions
     );
     const row = (
         verdictId: string,
@@ -307,11 +335,23 @@ export function validateStoreObjects(
             );
         }
     }
+    // A rejected verdict is kept, with the resolver's reason: it stays in the
+    // store as evidence and never enters the lock (ADR 0128 §6).
+    for (const position of quarantine.resolved) {
+        for (const { verdict, reason } of position.rejected) {
+            rows.push(
+                row(verdict.verdictId, "rejected", [
+                    `rejected by ${position.applied.resolution.author} at position ${position.positionKey}: ${reason}`,
+                ])
+            );
+        }
+    }
     rows.sort((a, b) => byString(a.name, b.name));
 
     return {
         rows,
         attestationProblems,
+        resolutionProblems,
         promotable: promotable.map((v) => ({
             verdictId: v.verdictId,
             payload: v.judgement,
@@ -402,8 +442,10 @@ export function formatStoreValidation(validation: StoreValidation): string {
         `  unattested           : ${count("unattested")}`,
         `  implicit-only        : ${count("implicit-only")}`,
         `  contested            : ${count("contested")}`,
+        `  rejected             : ${count("rejected")}`,
         `  in-registry          : ${count("in-registry")}`,
         `attestation problems   : ${validation.attestationProblems.length}`,
+        `resolution problems    : ${validation.resolutionProblems.length}`,
     ];
     const blocked = validation.rows.filter((r) => r.status !== "promotable");
     if (blocked.length > 0) out.push("", "not promotable:");
@@ -415,6 +457,12 @@ export function formatStoreValidation(validation: StoreValidation): string {
         out.push("", "attestations that attest no verdict object:");
     }
     for (const p of validation.attestationProblems) {
+        out.push(`  ${p.name}`, `    ${p.reason}`);
+    }
+    if (validation.resolutionProblems.length > 0) {
+        out.push("", "resolutions that could not be read:");
+    }
+    for (const p of validation.resolutionProblems) {
         out.push(`  ${p.name}`, `    ${p.reason}`);
     }
     return out.join("\n");

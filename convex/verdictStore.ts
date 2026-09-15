@@ -32,8 +32,15 @@ import {
     verdictIdOf,
     type VerdictJudgement,
 } from "./gre/ai/verdicts/identity";
+import {
+    resolutionIdOf,
+    resolutionProblems,
+} from "./gre/ai/verdicts/resolution";
 import { utf8Bytes } from "./gre/ai/verdicts/sha256";
-import type { VerdictAttestation } from "./gre/ai/verdicts/types";
+import type {
+    VerdictAttestation,
+    VerdictResolution,
+} from "./gre/ai/verdicts/types";
 
 /** What a `put` did. `"exists"` is success: the name was already stored. */
 export type VerdictStorePutOutcome = "created" | "exists";
@@ -415,4 +422,236 @@ export async function readAttestation(
     const name = attestationObjectName(verdictId, author);
     const bytes = await store.get(name);
     return bytes === null ? null : decodeAttestationObject(name, bytes);
+}
+
+// ── Resolutions (issue #3582, ADR 0128 §6) ───────────────────────────────────
+//
+// One object per decision: `resolutions/<positionKey>/<resolutionId>`, the id
+// being the decision's own hash (`gre/ai/verdicts/resolution.ts`). Grouped
+// under the position key so every resolution of one position is one listing.
+// Immutable like everything else here: a changed mind is a newer object, and
+// which one applies is the quarantine's rule, never the store's.
+
+/** Where resolution objects live in the bucket. */
+export const RESOLUTION_OBJECT_PREFIX = "resolutions/";
+
+const RESOLUTION_CONTENT_TYPE = "application/json";
+
+/** `resolutions/<positionKey>/<resolutionId>`. Throws on a malformed half. */
+export function resolutionObjectName(
+    positionKey: string,
+    resolutionId: string
+): string {
+    if (!VERDICT_HASH_PATTERN.test(positionKey)) {
+        throw new Error(`Not a position key: ${JSON.stringify(positionKey)}`);
+    }
+    if (!VERDICT_HASH_PATTERN.test(resolutionId)) {
+        throw new Error(`Not a resolution id: ${JSON.stringify(resolutionId)}`);
+    }
+    return `${RESOLUTION_OBJECT_PREFIX}${positionKey}/${resolutionId}`;
+}
+
+/** The resolution's fields, field by field, rejected entries sorted by id —
+ *  so one decision has ONE byte encoding whichever form listed it. */
+function resolutionPayload(resolution: VerdictResolution): VerdictResolution {
+    return {
+        positionKey: resolution.positionKey,
+        acceptedVerdictId: resolution.acceptedVerdictId,
+        rejected: [...(resolution.rejected ?? [])]
+            .map(({ verdictId, reason }) => ({ verdictId, reason }))
+            .sort((a, b) =>
+                a.verdictId < b.verdictId
+                    ? -1
+                    : a.verdictId > b.verdictId
+                      ? 1
+                      : 0
+            ),
+        author: resolution.author,
+        ...(resolution.createdAt === undefined
+            ? {}
+            : { createdAt: resolution.createdAt }),
+        ...(resolution.note === undefined ? {} : { note: resolution.note }),
+        ...(resolution.deployment === undefined
+            ? {}
+            : { deployment: resolution.deployment }),
+        ...(resolution.deploymentKind === undefined
+            ? {}
+            : { deploymentKind: resolution.deploymentKind }),
+    };
+}
+
+/** A resolution as the object the store holds. Throws when it is not a
+ *  decision (`resolutionProblems`) or its author is not an author: the
+ *  store never receives a resolution that could not apply. */
+export function encodeResolutionObject(resolution: VerdictResolution): {
+    resolutionId: string;
+    name: string;
+    bytes: Uint8Array;
+} {
+    const payload = resolutionPayload(resolution);
+    const problems = resolutionProblems(payload);
+    if (!VERDICT_AUTHOR_PATTERN.test(payload.author)) {
+        problems.push(`${JSON.stringify(payload.author)} is not an author`);
+    }
+    if (problems.length > 0) {
+        throw new Error(`Not a resolution: ${problems.join("; ")}`);
+    }
+    const resolutionId = resolutionIdOf(payload);
+    return {
+        resolutionId,
+        name: resolutionObjectName(payload.positionKey, resolutionId),
+        bytes: utf8Bytes(canonicalJson(payload)),
+    };
+}
+
+/** The resolution stored under `name`, verified: its decision must hash to
+ *  the id the name carries, under the position key the name carries, it must
+ *  be a decision at all, and its bytes must be exactly its canonical
+ *  encoding. */
+export function decodeResolutionObject(
+    name: string,
+    bytes: Uint8Array
+): VerdictResolution {
+    let resolution: VerdictResolution;
+    let canonical: Uint8Array;
+    let expected: string;
+    try {
+        const raw = JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+        if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+            throw new Error("not a JSON object");
+        }
+        resolution = resolutionPayload(raw as VerdictResolution);
+        canonical = utf8Bytes(canonicalJson(resolution));
+        expected = resolutionObjectName(
+            resolution.positionKey,
+            resolutionIdOf(resolution)
+        );
+    } catch (error) {
+        throw new VerdictStoreIntegrityError(
+            name,
+            `unreadable (${error instanceof Error ? error.message : String(error)})`
+        );
+    }
+    if (expected !== name) {
+        throw new VerdictStoreIntegrityError(
+            name,
+            `decides as ${expected}, which is not what its name promises`
+        );
+    }
+    const mistyped =
+        (resolution.acceptedVerdictId !== null &&
+            typeof resolution.acceptedVerdictId !== "string") ||
+        resolution.rejected.some(
+            (r) =>
+                typeof r.verdictId !== "string" || typeof r.reason !== "string"
+        ) ||
+        (resolution.createdAt !== undefined &&
+            typeof resolution.createdAt !== "number") ||
+        (resolution.note !== undefined && typeof resolution.note !== "string");
+    const problems = mistyped ? [] : resolutionProblems(resolution);
+    if (mistyped || problems.length > 0) {
+        throw new VerdictStoreIntegrityError(
+            name,
+            mistyped ? "a field has the wrong type" : problems.join("; ")
+        );
+    }
+    if (!sameBytes(canonical, bytes)) {
+        throw new VerdictStoreIntegrityError(
+            name,
+            "bytes are not the canonical encoding of the resolution they carry"
+        );
+    }
+    return resolution;
+}
+
+/** Store one resolution. Idempotent: the same decision by the same resolver
+ *  answers `"exists"`. */
+export async function putResolution(
+    store: VerdictStoreWriter,
+    resolution: VerdictResolution
+): Promise<{
+    resolutionId: string;
+    name: string;
+    outcome: VerdictStorePutOutcome;
+}> {
+    const { resolutionId, name, bytes } = encodeResolutionObject(resolution);
+    const outcome = await store.put(name, bytes, RESOLUTION_CONTENT_TYPE);
+    return { resolutionId, name, outcome };
+}
+
+/** Read one resolution back, verified. `null` when the store has none. */
+export async function readResolution(
+    store: VerdictStoreReader,
+    positionKey: string,
+    resolutionId: string
+): Promise<VerdictResolution | null> {
+    const name = resolutionObjectName(positionKey, resolutionId);
+    const bytes = await store.get(name);
+    return bytes === null ? null : decodeResolutionObject(name, bytes);
+}
+
+// ── The whole store, read for review (issue #3582) ───────────────────────────
+
+/** Everything the store holds that a classification reads. */
+export type StoredVerdictCorpus = {
+    verdicts: VerdictJudgement[];
+    attestations: VerdictAttestation[];
+    resolutions: VerdictResolution[];
+};
+
+/** How many GETs a corpus read runs at once. */
+const CORPUS_READ_CONCURRENCY = 16;
+
+async function readAll<T>(
+    store: VerdictStoreReader,
+    names: readonly string[],
+    decode: (name: string, bytes: Uint8Array) => T
+): Promise<T[]> {
+    const out: T[] = [];
+    for (let i = 0; i < names.length; i += CORPUS_READ_CONCURRENCY) {
+        const batch = names.slice(i, i + CORPUS_READ_CONCURRENCY);
+        const read = await Promise.all(
+            batch.map(async (name) => {
+                const bytes = await store.get(name);
+                // Listed a moment ago and gone now: the writer cannot delete,
+                // so this is the bucket misbehaving — loud, like a mismatch.
+                if (bytes === null) {
+                    throw new VerdictStoreIntegrityError(
+                        name,
+                        "listed but not readable"
+                    );
+                }
+                return decode(name, bytes);
+            })
+        );
+        out.push(...read);
+    }
+    return out;
+}
+
+/**
+ * Every verdict, attestation and resolution in the store, each verified
+ * against its name. One GET per object: the review surface's read, where the
+ * corpus must include what no lock names yet — the pack (ADR 0128 §9) holds
+ * only what a promotion already selected, so it cannot serve this.
+ */
+export async function readStoredCorpus(
+    store: VerdictStoreReader
+): Promise<StoredVerdictCorpus> {
+    // A listing is not a snapshot: another deployment's drain may store a
+    // verdict and then its attestation while this reads. So the listings run
+    // one after another, attestations FIRST — every attestation listed has a
+    // verdict that was stored before it and is therefore in the verdict
+    // listing that follows, and a verdict stored in between is at worst
+    // unattested, never an orphan's missing half. Resolutions come last: one
+    // naming a verdict this read missed simply does not match its position.
+    const attestationNames = await store.list(ATTESTATION_OBJECT_PREFIX);
+    const verdictNames = await store.list(VERDICT_OBJECT_PREFIX);
+    const resolutionNames = await store.list(RESOLUTION_OBJECT_PREFIX);
+    const [verdicts, attestations, resolutions] = await Promise.all([
+        readAll(store, verdictNames, decodeVerdictObject),
+        readAll(store, attestationNames, decodeAttestationObject),
+        readAll(store, resolutionNames, decodeResolutionObject),
+    ]);
+    return { verdicts, attestations, resolutions };
 }

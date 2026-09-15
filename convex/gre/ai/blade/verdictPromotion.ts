@@ -69,7 +69,10 @@ export function runVerdictPromotionStep(
         decodeObjects(input.verdictObjects),
         decodeObjects(input.attestationObjects),
         rebuildCheck,
-        verdictsFromRegistry(scenarios).verdicts
+        verdictsFromRegistry(scenarios).verdicts,
+        // An admin's resolutions (issue #3582): a resolved position enters the
+        // lock through its accepted verdict and no other.
+        decodeObjects(input.resolutionObjects ?? [])
     );
     const validationText = formatStoreValidation(validation);
     if (input.mode === "validate") {

@@ -218,16 +218,19 @@ describe("the contested-position metric — per corpus and per author", () => {
                 author: "prod:alice",
                 judgedPositions: 2,
                 contestedPositionKeys: [key],
+                resolvedPositionKeys: [],
             },
             {
                 author: "prod:bob",
                 judgedPositions: 1,
                 contestedPositionKeys: [key],
+                resolvedPositionKeys: [],
             },
             {
                 author: "prod:carol",
                 judgedPositions: 1,
                 contestedPositionKeys: [],
+                resolvedPositionKeys: [],
             },
         ]);
     });
@@ -291,7 +294,11 @@ describe("purity", () => {
         const imports = [...source.matchAll(/from "([^"]+)"/g)].map(
             (m) => m[1]
         );
-        expect(imports.sort()).toEqual(["./identity", "./types"]);
+        expect(imports.sort()).toEqual([
+            "./identity",
+            "./resolution",
+            "./types",
+        ]);
         expect(source).not.toMatch(/\bDate\b|Math\.random|performance\./);
     });
 });

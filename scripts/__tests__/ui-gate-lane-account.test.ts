@@ -64,6 +64,7 @@ describe("the lane account lifecycle (issue #3626)", () => {
             `signUp ${account.email}`,
             `uiGateAccounts:grantLaneRoles {"email":"${account.email}"}`,
             `limitedFixtures:seedUiGateFixtures {"email":"${account.email}","runId":"${account.runId}"}`,
+            `verdictResolutions:seedUiGateContestedPosition {"email":"${account.email}"}`,
         ]);
         expect(lane.labels.open.startsWith(lane.labels.prefix)).toBe(true);
         expect(lane.labels.prefix).toBe(`ui-gate/${account.runId}/`);

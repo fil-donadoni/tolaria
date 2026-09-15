@@ -29,6 +29,12 @@ import {
     type OutboxDrainReport,
     type OutboxPage,
 } from "./verdictsOutbox";
+import {
+    drainResolutionOutbox,
+    type ResolutionDrainPorts,
+    type ResolutionDrainReport,
+    type ResolutionOutboxRow,
+} from "./verdictResolutionsOutbox";
 
 const refs = {
     pendingPage: makeFunctionReference<
@@ -44,23 +50,57 @@ const refs = {
     requireAdmin: makeFunctionReference<"query", Record<string, never>, null>(
         "auth:requireAdminQuery"
     ),
+    pendingResolutions: makeFunctionReference<
+        "query",
+        Record<string, never>,
+        ResolutionOutboxRow[]
+    >("verdictResolutions:pendingResolutions"),
+    markResolutionStored: makeFunctionReference<
+        "mutation",
+        Parameters<ResolutionDrainPorts["markResolutionStored"]>[0],
+        null
+    >("verdictResolutions:markResolutionStored"),
 };
+
+const pendingValidator = v.array(
+    v.object({ rowId: v.string(), reason: v.string() })
+);
 
 const drainReportValidator = v.object({
     stored: v.number(),
     alreadySlim: v.number(),
-    pending: v.array(v.object({ rowId: v.string(), reason: v.string() })),
+    pending: pendingValidator,
     skipped: v.optional(v.string()),
+    // The resolution outbox (issue #3582), drained after the verdicts. A
+    // verdict row left pending does not hold its resolution back; a reader
+    // of the store alone then sees fewer verdicts than the resolution decided
+    // over, so the resolution does not match and the position stays
+    // contested — the safe direction.
+    resolutions: v.optional(
+        v.object({ stored: v.number(), pending: pendingValidator })
+    ),
 });
 
-async function runDrain(ctx: ActionCtx): Promise<OutboxDrainReport> {
-    return await drainOutbox({
-        store: verdictStoreWriterFromDeploymentEnv(),
+async function runDrain(
+    ctx: ActionCtx
+): Promise<OutboxDrainReport & { resolutions: ResolutionDrainReport }> {
+    const store = verdictStoreWriterFromDeploymentEnv();
+    const verdicts = await drainOutbox({
+        store,
         here: verdictDeploymentOf(process.env.CONVEX_CLOUD_URL),
         now: () => Date.now(),
         pendingPage: (cursor) => ctx.runQuery(refs.pendingPage, { cursor }),
         markStored: (args) => ctx.runMutation(refs.markStored, args),
     });
+    const resolutions = await drainResolutionOutbox({
+        store,
+        now: () => Date.now(),
+        pendingResolutions: () => ctx.runQuery(refs.pendingResolutions, {}),
+        markResolutionStored: async (args) => {
+            await ctx.runMutation(refs.markResolutionStored, args);
+        },
+    });
+    return { ...verdicts, resolutions };
 }
 
 /**

@@ -668,6 +668,10 @@ _Avoid_: Import, sync, publish, approval
 
 **Contested Position**:
 A decision about which people who GAVE a judgement disagree: two or more **Verdicts** on the same position with different answers. Every one of them is quarantined — kept out of the **Verdict Lock** until a human looks at the board and resolves it — because averaging them would teach the **Evaluation** a preference no player holds, and fitting both would make the **Weight Fit** report the disagreement as a missing term. Testers who agree are one **Verdict**, counted, never contested. Only judgements a person gave can contest; a move merely chosen in play cannot. Counted per corpus and per tester: a rising count says the question is asked badly, not that testers are careless.
+
+**Verdict Resolution**:
+A human's decision about a **Contested Position**, made by looking at the rebuilt board: which of its **Verdicts** is right — or that none is — and why each other one is not. It removes nothing: the rejected judgement stays in the **Verdict Store**, named beside the resolution with its reason, because a position that keeps producing disagreement is itself a finding. The accepted **Verdict** becomes eligible for the **Verdict Lock**; the others never are. A resolution decides over the answers the position held when it was given, so a new answer arriving later reopens the position rather than riding in under a decision nobody made about it.
+_Avoid_: merge, override, averaging
 _Avoid_: Conflict, disagreement, disputed verdict, quarantine (that word alone is the **Oracle Compiler**'s)
 
 **Decision Class**:

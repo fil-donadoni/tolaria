@@ -24,6 +24,17 @@
 // What canonicalisation already equates (`[2, 1]` and `[1, 2]` are one index
 // set) is one id, so it never reaches that question.
 //
+// A HUMAN'S RESOLUTION IS APPLIED, NEVER INFERRED (issue #3582). A
+// `VerdictResolution` decides over a set of verdict ids, and it applies to a
+// position only while that set is EXACTLY the position's explicit verdicts.
+// Then the accepted verdict is promotable and each rejected one is recorded
+// with its reason — still classified, never dropped. A verdict arriving after
+// the decision changes the set, so the position is contested again and the
+// earlier resolution is carried beside it as stale: a decision about two
+// answers is not a decision about three. Of several resolutions over the same
+// set, the latest (`createdAt`, then id) applies — the store is append-only,
+// so changing one's mind is a newer object, never an edit.
+//
 // ONLY EXPLICIT JUDGEMENTS ARE QUARANTINED (ADR 0128 §11). A verdict counts as
 // explicit when at least one attestation says a person GAVE it. A verdict
 // attested only implicitly — "the move chosen", not "the move that is right" —
@@ -37,7 +48,9 @@
 // testers are careless. The per-author row counts positions the author judged
 // explicitly, so a zero is reported too, and issue #3585's per-tester quality
 // reads it — alias resolution across deployments is that issue's, so authors are
-// compared here as the strings they are.
+// compared here as the strings they are. A resolved position is counted apart
+// from a contested one: it WAS a disagreement, and it no longer holds anything
+// out of the lock.
 //
 // Pure: no store, no clock, no randomness. Output order is a function of the
 // content — ids, keys and authors sorted — never of the input order, so a
@@ -49,7 +62,16 @@ import {
     verdictIdOf,
     type VerdictJudgement,
 } from "./identity";
-import type { VerdictAttestation, VerdictSourceAxis } from "./types";
+import {
+    decidedVerdictIds,
+    resolutionIdOf,
+    resolutionProblems,
+} from "./resolution";
+import type {
+    VerdictAttestation,
+    VerdictResolution,
+    VerdictSourceAxis,
+} from "./types";
 
 /** A distinct judgement with every attestation it carries. */
 export type AttestedVerdict<V extends VerdictJudgement = VerdictJudgement> = {
@@ -65,12 +87,34 @@ export type AttestedVerdict<V extends VerdictJudgement = VerdictJudgement> = {
     attestations: VerdictAttestation[];
 };
 
+/** A resolution with the name the store keeps it under. */
+export type IdentifiedResolution = {
+    resolutionId: string;
+    resolution: VerdictResolution;
+};
+
 /** A position key under which explicit judgements disagree. */
 export type ContestedPosition<V extends VerdictJudgement = VerdictJudgement> = {
     positionKey: string;
     /** Every explicit verdict at the key — at least two, sorted by id. All
      *  of them are quarantined. */
     verdicts: AttestedVerdict<V>[];
+    /** Resolutions given at this key that no longer apply, because the set
+     *  of verdicts they decided over is not the set the key holds now.
+     *  Newest first. */
+    staleResolutions: IdentifiedResolution[];
+};
+
+/** A contested position a human has resolved. */
+export type ResolvedPosition<V extends VerdictJudgement = VerdictJudgement> = {
+    positionKey: string;
+    /** The resolution that applies. */
+    applied: IdentifiedResolution;
+    /** The verdict judged right — also listed in `promotable` — or `null`. */
+    accepted: AttestedVerdict<V> | null;
+    /** Every other verdict at the key, with the reason, sorted by id. Kept:
+     *  a rejected judgement is evidence, not garbage. */
+    rejected: { verdict: AttestedVerdict<V>; reason: string }[];
 };
 
 /** One author's share of the contested-position metric. */
@@ -80,14 +124,18 @@ export type AuthorContestation = {
     judgedPositions: number;
     /** The contested ones among them, sorted. */
     contestedPositionKeys: string[];
+    /** The resolved ones among them, sorted. */
+    resolvedPositionKeys: string[];
 };
 
 export type VerdictQuarantine<V extends VerdictJudgement = VerdictJudgement> = {
-    /** Explicit and uncontested: what a promotion may put in the lock. Sorted
-     *  by id. */
+    /** Explicit and uncontested, or accepted by a resolution: what a
+     *  promotion may put in the lock. Sorted by id. */
     promotable: AttestedVerdict<V>[];
     /** Sorted by position key. */
     contested: ContestedPosition<V>[];
+    /** Sorted by position key. */
+    resolved: ResolvedPosition<V>[];
     /** Attested only implicitly: neither quarantined nor promotable. */
     implicitOnly: AttestedVerdict<V>[];
     /** No attestation at all: never promotable. */
@@ -109,18 +157,63 @@ function isExplicit(verdict: AttestedVerdict<VerdictJudgement>): boolean {
     return verdict.attestations.some((a) => a.sourceAxis === "explicit");
 }
 
+/** Newest first: `createdAt` descending (an undated one is oldest), then id. */
+function newestFirst(a: IdentifiedResolution, b: IdentifiedResolution): number {
+    const at = a.resolution.createdAt ?? -Infinity;
+    const bt = b.resolution.createdAt ?? -Infinity;
+    if (at !== bt) return bt - at;
+    return byString(a.resolutionId, b.resolutionId);
+}
+
+/** Every resolution, identified and grouped by position key. Throws, naming
+ *  it, on one that is not a decision (`resolutionProblems`): a malformed
+ *  resolution silently skipped reads exactly like an unresolved position. */
+function resolutionsByKey(
+    resolutions: readonly VerdictResolution[]
+): Map<string, IdentifiedResolution[]> {
+    const byKey = new Map<string, Map<string, IdentifiedResolution>>();
+    for (const resolution of resolutions) {
+        const resolutionId = resolutionIdOf(resolution);
+        const problems = resolutionProblems(resolution);
+        if (problems.length > 0) {
+            throw new Error(
+                `resolution ${resolutionId} at ${resolution.positionKey}: ${problems.join("; ")}`
+            );
+        }
+        const named =
+            byKey.get(resolution.positionKey) ??
+            new Map<string, IdentifiedResolution>();
+        // One object per name: the same resolution read twice is one.
+        if (!named.has(resolutionId)) {
+            named.set(resolutionId, { resolutionId, resolution });
+        }
+        byKey.set(resolution.positionKey, named);
+    }
+    return new Map(
+        [...byKey].map(([key, named]) => [
+            key,
+            [...named.values()].sort(newestFirst),
+        ])
+    );
+}
+
 /**
- * Classify a set of judgements and their attestations into promotable,
- * contested, implicit-only and unattested. Throws, naming it, on an
- * attestation whose verdict was not supplied — a silently dropped attestation
- * would move an explicit verdict to implicit-only, or a contested position to
- * an agreed one. The outbox stores the verdict object before its attestation
- * (issue #3580), so an orphan is never an upload race: the caller supplies
- * every verdict its attestations name.
+ * Classify a set of judgements, their attestations and the resolutions given
+ * about them into promotable, contested, resolved, implicit-only and
+ * unattested. Throws, naming it, on an attestation whose verdict was not
+ * supplied — a silently dropped attestation would move an explicit verdict to
+ * implicit-only, or a contested position to an agreed one. The outbox stores
+ * the verdict object before its attestation (issue #3580), so an orphan is
+ * never an upload race: the caller supplies every verdict its attestations
+ * name. A resolution naming verdicts the caller did not supply is NOT an
+ * orphan in that sense: it simply does not match the position's set, so the
+ * position stays contested — the direction that keeps a judgement out of the
+ * lock.
  */
 export function quarantineContestedPositions<V extends VerdictJudgement>(
     verdicts: readonly V[],
-    attestations: readonly VerdictAttestation[]
+    attestations: readonly VerdictAttestation[],
+    resolutions: readonly VerdictResolution[] = []
 ): VerdictQuarantine<V> {
     const distinct = new Map<
         string,
@@ -195,19 +288,54 @@ export function quarantineContestedPositions<V extends VerdictJudgement>(
         }
     }
 
+    const resolutionsAt = resolutionsByKey(resolutions);
     const promotable: AttestedVerdict<V>[] = [];
     const contested: ContestedPosition<V>[] = [];
+    const resolved: ResolvedPosition<V>[] = [];
     for (const positionKey of [...explicitByKey.keys()].sort(byString)) {
         const group = explicitByKey.get(positionKey)!;
-        if (group.length >= 2) {
-            contested.push({ positionKey, verdicts: group });
-        } else {
+        if (group.length < 2) {
             promotable.push(group[0]);
+            continue;
         }
+        const heldIds = group.map((v) => v.verdictId).join("\n");
+        const given = resolutionsAt.get(positionKey) ?? [];
+        const applied = given.find(
+            ({ resolution }) =>
+                decidedVerdictIds(resolution).join("\n") === heldIds
+        );
+        if (applied === undefined) {
+            contested.push({
+                positionKey,
+                verdicts: group,
+                staleResolutions: given,
+            });
+            continue;
+        }
+        const reasons = new Map(
+            applied.resolution.rejected.map((r) => [r.verdictId, r.reason])
+        );
+        const accepted =
+            group.find(
+                (v) => v.verdictId === applied.resolution.acceptedVerdictId
+            ) ?? null;
+        if (accepted !== null) promotable.push(accepted);
+        resolved.push({
+            positionKey,
+            applied,
+            accepted,
+            rejected: group
+                .filter((v) => reasons.has(v.verdictId))
+                .map((verdict) => ({
+                    verdict,
+                    reason: reasons.get(verdict.verdictId)!,
+                })),
+        });
     }
     promotable.sort((a, b) => byString(a.verdictId, b.verdictId));
 
     const contestedKeys = new Set(contested.map((c) => c.positionKey));
+    const resolvedKeys = new Set(resolved.map((r) => r.positionKey));
     const judgedByAuthor = new Map<string, Set<string>>();
     for (const group of explicitByKey.values()) {
         for (const verdict of group) {
@@ -221,17 +349,23 @@ export function quarantineContestedPositions<V extends VerdictJudgement>(
         }
     }
     const byAuthor = [...judgedByAuthor.keys()].sort(byString).map((author) => {
-        const keys = judgedByAuthor.get(author)!;
+        const keys = [...judgedByAuthor.get(author)!].sort(byString);
         return {
             author,
-            judgedPositions: keys.size,
-            contestedPositionKeys: [...keys]
-                .filter((key) => contestedKeys.has(key))
-                .sort(byString),
+            judgedPositions: keys.length,
+            contestedPositionKeys: keys.filter((key) => contestedKeys.has(key)),
+            resolvedPositionKeys: keys.filter((key) => resolvedKeys.has(key)),
         };
     });
 
-    return { promotable, contested, implicitOnly, unattested, byAuthor };
+    return {
+        promotable,
+        contested,
+        resolved,
+        implicitOnly,
+        unattested,
+        byAuthor,
+    };
 }
 
 /** The quarantine as the lines a promotion prints. */
@@ -242,11 +376,20 @@ export function formatVerdictQuarantine(
         (n, c) => n + c.verdicts.length,
         0
     );
+    const rejected = quarantine.resolved.reduce(
+        (n, r) => n + r.rejected.length,
+        0
+    );
     const explicitPositions =
-        quarantine.promotable.length + quarantine.contested.length;
+        quarantine.promotable.length -
+        quarantine.resolved.filter((r) => r.accepted !== null).length +
+        quarantine.contested.length +
+        quarantine.resolved.length;
     const out = [
         `contested positions    : ${quarantine.contested.length} of ${explicitPositions} explicitly judged`,
+        `resolved positions     : ${quarantine.resolved.length}`,
         `quarantined verdicts   : ${quarantined}`,
+        `rejected verdicts      : ${rejected}`,
         `promotable verdicts    : ${quarantine.promotable.length}`,
         `implicit-only verdicts : ${quarantine.implicitOnly.length}`,
         `unattested verdicts    : ${quarantine.unattested.length}`,
@@ -261,10 +404,23 @@ export function formatVerdictQuarantine(
             out.push(`    ${verdict.verdictId}  by ${authors}`);
         }
     }
+    for (const position of quarantine.resolved) {
+        out.push(
+            `  resolved ${position.positionKey}  by ${position.applied.resolution.author}`
+        );
+        if (position.accepted !== null) {
+            out.push(`    accepted ${position.accepted.verdictId}`);
+        }
+        for (const { verdict, reason } of position.rejected) {
+            out.push(`    rejected ${verdict.verdictId}  (${reason})`);
+        }
+    }
     if (quarantine.byAuthor.length > 0) out.push("by author:");
     for (const row of quarantine.byAuthor) {
+        const resolvedCount = row.resolvedPositionKeys.length;
         out.push(
-            `  ${row.author}: ${row.contestedPositionKeys.length} contested of ${row.judgedPositions} judged`
+            `  ${row.author}: ${row.contestedPositionKeys.length} contested of ${row.judgedPositions} judged` +
+                (resolvedCount > 0 ? `, ${resolvedCount} resolved` : "")
         );
         for (const key of row.contestedPositionKeys) {
             out.push(`    ${key}`);

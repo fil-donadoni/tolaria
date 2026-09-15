@@ -70,6 +70,11 @@ const answerValidator = v.union(
     })
 );
 
+const deckKnowledgeValidator = v.object({
+    seat: seatValidator,
+    cards: v.array(v.string()),
+});
+
 const deploymentKindValidator = v.union(v.literal("cloud"), v.literal("local"));
 
 /** The row as `list` projects it — everything `verdicts:pull` needs to write a
@@ -184,6 +189,10 @@ export const submit = mutation({
         spec: scenarioSpecValidator,
         setup: v.optional(v.array(v.any())),
         seat: seatValidator,
+        // Decklists the search knew (`Verdict.deckKnowledge`). The quiz never
+        // sends it; a cold judgement of a stored verdict must (issue #3582),
+        // or its position key would differ from the one it is judging.
+        deckKnowledge: v.optional(v.array(deckKnowledgeValidator)),
         candidates: v.array(candidateValidator),
         answer: answerValidator,
         botPickIndex: v.optional(v.number()),
@@ -200,6 +209,9 @@ export const submit = mutation({
             spec: args.spec,
             ...(args.setup === undefined ? {} : { setup: args.setup }),
             seat: args.seat,
+            ...(args.deckKnowledge === undefined
+                ? {}
+                : { deckKnowledge: args.deckKnowledge }),
             candidates: args.candidates,
             answer: args.answer,
         } as VerdictJudgement;
@@ -208,6 +220,9 @@ export const submit = mutation({
             spec: args.spec,
             ...(args.setup === undefined ? {} : { setup: args.setup }),
             seat: args.seat,
+            ...(args.deckKnowledge === undefined
+                ? {}
+                : { deckKnowledge: args.deckKnowledge }),
             candidates: args.candidates,
             answer: args.answer,
             ...(args.botPickIndex === undefined

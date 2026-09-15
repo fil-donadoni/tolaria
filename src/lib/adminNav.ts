@@ -46,6 +46,12 @@ export const ADMIN_NAV: readonly AdminNavEntry[] = [
             "Who may give a Verdict about a Bot decision — the role the evaluation's weight fit is sourced from (ADR 0124).",
     },
     {
+        to: "/admin/verdicts",
+        label: "Verdict Review",
+        description:
+            "Positions testers judged differently, rebuilt on the board and resolved — and any single verdict, judged cold.",
+    },
+    {
         to: "/admin/bug-reports",
         label: "Bug Reports",
         description:
