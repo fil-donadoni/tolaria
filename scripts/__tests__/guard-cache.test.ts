@@ -44,9 +44,9 @@ beforeEach(() => {
     root = join(base, "repo");
     cacheDir = join(base, "cache");
     mkdirSync(join(root, "src"), { recursive: true });
-    mkdirSync(join(root, "docs"), { recursive: true });
+    mkdirSync(join(root, "other"), { recursive: true });
     writeFileSync(join(root, "src", "a.ts"), "export const a = 1;\n");
-    writeFileSync(join(root, "docs", "note.md"), "outside the inputs\n");
+    writeFileSync(join(root, "other", "note.txt"), "outside the inputs\n");
     sh(["init", "-q"]);
     sh(["add", "."]);
     sh([
@@ -84,7 +84,7 @@ describe("guard cache — when it skips (issue #3646)", () => {
 
     it("a change outside the declared inputs stays cached", () => {
         const hash = recordGreen();
-        appendFileSync(join(root, "docs", "note.md"), "edited\n");
+        appendFileSync(join(root, "other", "note.txt"), "edited\n");
         expect(decideHere()).toEqual({ kind: "cached", hash });
     });
 });
