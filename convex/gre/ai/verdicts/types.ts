@@ -70,6 +70,39 @@ export type VerdictAttestation = {
     seq?: number;
 };
 
+/** A human's decision about a Contested Position (issue #3582, ADR 0128 §6):
+ *  which of its verdicts is right, and why each other one is not. The shape
+ *  of the Verdict Store's `resolutions/<positionKey>/<resolutionId>` object.
+ *
+ *  A resolution DECIDES OVER A SET — the accepted verdict plus the rejected
+ *  ones — and applies only while that set is exactly the position's explicit
+ *  verdicts (`quarantine.ts`). A third answer arriving later reopens the
+ *  position rather than riding in under a decision nobody made about it.
+ *
+ *  The rejected judgement is never removed: it stays in the store and is
+ *  named here WITH its reason, because a position that keeps producing
+ *  disagreement is itself a finding. */
+export type VerdictResolution = {
+    /** The position key (`identity.ts`) every decided verdict shares. */
+    positionKey: string;
+    /** The verdict judged right, or `null` when none of them is — every
+     *  decided verdict is then rejected and the position states nothing. */
+    acceptedVerdictId: string | null;
+    /** Every other decided verdict, each with the resolver's reason. */
+    rejected: { verdictId: string; reason: string }[];
+    /** `${deployment}:${userId}` of the resolver — never an email. */
+    author: string;
+    // Provenance, outside the resolution id like an attestation's.
+    /** When the resolution was given (epoch ms). */
+    createdAt?: number;
+    /** The resolver's own note about the position, verbatim. */
+    note?: string;
+    /** The deployment the resolution entered the outbox on. */
+    deployment?: string;
+    /** `local` marks test traffic. */
+    deploymentKind?: "cloud" | "local";
+};
+
 /** One move the Bot's enumerator offered at the decision under judgement. */
 export type VerdictCandidate = {
     /** The structural move key (`search.ts`'s `moveKey`) — how the candidate

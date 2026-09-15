@@ -185,6 +185,33 @@ export function attributionOfRow(
     };
 }
 
+/** The attestation a row stands for — what the drain uploads, and what the
+ *  review surface reads for a row not yet stored (issue #3582), so a local
+ *  backend's pending judgement is attested exactly as its object will be. */
+export function attestationOfRow(
+    row: OutboxRow,
+    verdictId: string,
+    attribution: ReturnType<typeof attributionOfRow>
+): VerdictAttestation {
+    return {
+        verdictId,
+        author: attribution.attestationAuthor,
+        // Every row the outbox holds is a judgement a person GAVE — in play or
+        // through the bulk door. No producer of implicit judgements exists yet
+        // (ADR 0128 §11); the day one does, it names its axis on the row.
+        sourceAxis: "explicit",
+        createdAt: row.createdAt,
+        ...(row.note === undefined ? {} : { note: row.note }),
+        deployment: attribution.deployment,
+        deploymentKind: attribution.deploymentKind,
+        ...(row.botPickIndex === undefined
+            ? {}
+            : { botPickIndex: row.botPickIndex }),
+        ...(row.gameId === undefined ? {} : { gameId: row.gameId }),
+        ...(row.seq === undefined ? {} : { seq: row.seq }),
+    };
+}
+
 /** What storing one row came to. */
 export type OutboxStoreResult =
     | {
@@ -253,23 +280,7 @@ export async function storeOutboxRow(
         );
     }
 
-    const attestation: VerdictAttestation = {
-        verdictId: stamp.verdictHash,
-        author: attribution.attestationAuthor,
-        // Every row the outbox holds is a judgement a person GAVE — in play or
-        // through the bulk door. No producer of implicit judgements exists yet
-        // (ADR 0128 §11); the day one does, it names its axis on the row.
-        sourceAxis: "explicit",
-        createdAt: row.createdAt,
-        ...(row.note === undefined ? {} : { note: row.note }),
-        deployment: attribution.deployment,
-        deploymentKind: attribution.deploymentKind,
-        ...(row.botPickIndex === undefined
-            ? {}
-            : { botPickIndex: row.botPickIndex }),
-        ...(row.gameId === undefined ? {} : { gameId: row.gameId }),
-        ...(row.seq === undefined ? {} : { seq: row.seq }),
-    };
+    const attestation = attestationOfRow(row, stamp.verdictHash, attribution);
 
     let verdictOutcome: VerdictStorePutOutcome;
     let attestationOutcome: VerdictStorePutOutcome;
