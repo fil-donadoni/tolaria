@@ -662,6 +662,10 @@ _Avoid_: Signature, vote, author record, provenance row
 The committed list naming exactly which **Verdicts** a **Weight Fit** was run over — the only part of the training data that lives beside the code. It is what makes a set of weights re-derivable by anyone: fit the verdicts it names and the committed numbers come back, to the bit. A judgement the lock does not name is invisible to the fit however long it has sat in the **Verdict Store**, so widening the lock and moving the weights are one reviewed change, never two.
 _Avoid_: Manifest, index, allowlist, approved list
 
+**Promotion**:
+The one step that widens the **Verdict Lock**: every **Verdict** in the **Verdict Store** that still loads and rebuilds, carries an **Attestation** from someone who gave it, and is not part of a **Contested Position** enters the lock, and the **Weight Fit** is re-run in the same change so the committed weights move with it. Reviewed as its delta — which judgements came in, which pairs the fit cannot satisfy, how far each weight moved, whether the must tier still passes — never row by row, because a review that does not scale is skipped.
+_Avoid_: Import, sync, publish, approval
+
 **Contested Position**:
 A decision about which people who GAVE a judgement disagree: two or more **Verdicts** on the same position with different answers. Every one of them is quarantined — kept out of the **Verdict Lock** until a human looks at the board and resolves it — because averaging them would teach the **Evaluation** a preference no player holds, and fitting both would make the **Weight Fit** report the disagreement as a missing term. Testers who agree are one **Verdict**, counted, never contested. Only judgements a person gave can contest; a move merely chosen in play cannot. Counted per corpus and per tester: a rising count says the question is asked badly, not that testers are careless.
 _Avoid_: Conflict, disagreement, disputed verdict, quarantine (that word alone is the **Oracle Compiler**'s)

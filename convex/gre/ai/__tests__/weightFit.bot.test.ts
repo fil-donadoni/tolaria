@@ -22,7 +22,15 @@
 // pairs, well under a second — so it costs the suite nothing. The locked
 // verdicts come from the machine pack cache, fetched once per lock on a miss
 // (ADR 0128 §10, `scripts/lib/verdict-pack-cache.ts`).
-import { existsSync, readFileSync } from "node:fs";
+import {
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -31,10 +39,12 @@ import {
     putAttestation,
     putVerdict,
     readVerdict,
+    type VerdictStoreReader,
 } from "../../../verdictStore";
 import { createMemoryVerdictStore } from "../../../verdictStoreMemory";
 import {
     loadLockedVerdicts,
+    packVerdicts,
     verdictCacheDir,
 } from "../../../../scripts/lib/verdict-pack-cache";
 import { machineVerdictStoreReader } from "../../../../scripts/lib/verdict-store";
@@ -49,6 +59,8 @@ import {
     fitWeights,
     parseVerdictLock,
     rewriteDefaultEvalWeights,
+    serializeVerdictLock,
+    verdictPackObjectName,
     verdictsFromLock,
     verdictsFromRegistry,
     weightValue,
@@ -60,18 +72,27 @@ import type { EvalTerms } from "../../evaluate";
 
 const REPO = resolve(__dirname, "../../../..");
 
+type CorpusSource = {
+    root: string;
+    cacheDir: string;
+    store: () => VerdictStoreReader;
+};
+
 /** The corpus the guard fits: the blade registry's verdicts, then those the
  *  committed lock names, verified against it. No lock, no locked verdicts. */
-async function committedCorpus(): Promise<RegistryVerdicts> {
+async function committedCorpus(
+    source: CorpusSource = {
+        root: REPO,
+        cacheDir: verdictCacheDir(),
+        store: () => machineVerdictStoreReader(),
+    }
+): Promise<RegistryVerdicts> {
     const registry = verdictsFromRegistry(BLADE_SCENARIOS);
-    const lockFile = join(REPO, VERDICT_LOCK_PATH);
+    const lockFile = join(source.root, VERDICT_LOCK_PATH);
     if (!existsSync(lockFile)) return registry;
     const { verdicts } = await loadLockedVerdicts(
         parseVerdictLock(readFileSync(lockFile, "utf8")),
-        {
-            cacheDir: verdictCacheDir(),
-            store: () => machineVerdictStoreReader(),
-        }
+        { cacheDir: source.cacheDir, store: source.store }
     );
     return {
         verdicts: [...registry.verdicts, ...verdicts],
@@ -318,6 +339,41 @@ describe("the committed weights ARE the fit of the committed verdicts (issue #34
         // byte — so the literal it rewrites is the literal this guard reads.
         const source = readFileSync(join(REPO, EVAL_WEIGHTS_PATH), "utf8");
         expect(rewriteDefaultEvalWeights(source, result)).toBe(source);
+    });
+});
+
+describe("the guard's corpus is the registry, then the lock (issue #3583, ADR 0128 §2)", () => {
+    it("carries every verdict a committed lock names, after the registry's", async () => {
+        const store = createMemoryVerdictStore();
+        const registry = verdictsFromRegistry(BLADE_SCENARIOS);
+        const { verdictId } = await putVerdict(store, registry.verdicts[0]);
+        const { packHash, bytes } = packVerdicts([
+            { verdictId, payload: await readVerdict(store, verdictId) },
+        ]);
+        await store.put(
+            verdictPackObjectName(packHash),
+            bytes,
+            "application/gzip"
+        );
+        const root = mkdtempSync(join(tmpdir(), "weight-fit-guard-"));
+        try {
+            mkdirSync(join(root, "data"));
+            writeFileSync(
+                join(root, VERDICT_LOCK_PATH),
+                serializeVerdictLock({ verdictIds: [verdictId], packHash })
+            );
+            const corpus = await committedCorpus({
+                root,
+                cacheDir: join(root, "cache"),
+                store: () => store,
+            });
+            expect(corpus.verdicts.map((v) => v.id)).toEqual([
+                ...registry.verdicts.map((v) => v.id),
+                verdictId,
+            ]);
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
     });
 });
 
