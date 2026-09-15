@@ -575,6 +575,60 @@ describe("BoardHandCard Cycling affordance (CR 702.29a, #689)", () => {
     });
 });
 
+// Issue #3616 — a hand card acts only when it answers the viewer's current
+// Expected Input (ADR 0047). While another seat holds Priority the server's
+// gate rejects every cast / play ("the game is waiting for priority input from
+// another player"), so the card must not reach the mutation at all: no
+// dispatch, no menu, no action sheet, no staging, no pointer cursor.
+describe("BoardHandCard without Expected Input (issue #3616)", () => {
+    const OPPONENT_PRIORITY = { priorityPlayerId: "opp" };
+
+    it("a click and a touch tap on a castable card dispatch nothing and show no pointer", () => {
+        renderCard(makeCard("bolt", ["cast"]), OPPONENT_PRIORITY);
+        expect(el().className).not.toContain("cursor-pointer");
+        fireEvent.click(el());
+        fireEvent.pointerDown(el(), { pointerType: "touch", button: 0 });
+        fireEvent.pointerUp(el(), { pointerType: "touch", button: 0 });
+        fireEvent.click(el());
+        expect(announceCast).not.toHaveBeenCalled();
+        expect(el().getAttribute("data-tap-staged")).toBeNull();
+    });
+
+    it("a card offering two actions opens neither the menu nor the action sheet", () => {
+        renderCard(makeCard("mdfc", ["cast", "play"]), OPPONENT_PRIORITY);
+        fireEvent.click(el());
+        fireEvent.touchStart(el());
+        fireEvent.click(el());
+        expect(
+            document.querySelector('[data-slot="context-menu-content"]')
+        ).toBeNull();
+        expect(document.querySelector("[data-action-sheet]")).toBeNull();
+        expect(playCard).not.toHaveBeenCalled();
+        expect(announceCast).not.toHaveBeenCalled();
+    });
+
+    it("a cost dialog opened while holding Priority cannot announceCast once Priority has moved", () => {
+        cardDef = { name: "Fireball", manaCost: { X: "X" } };
+        const card = makeCard("fireball", ["cast"]);
+        const { rerender } = renderCard(card);
+        fireEvent.click(el());
+        const confirm = screen.getByTestId("cost-confirm");
+        // The projection moves on under the open dialog (a priority timeout,
+        // the solo seat switching) while the card is still castable on the
+        // stale flags.
+        rerender(tree(card, OPPONENT_PRIORITY));
+        fireEvent.click(confirm);
+        expect(announceCast).not.toHaveBeenCalled();
+    });
+
+    it("still casts on click once the viewer holds Priority (control)", () => {
+        renderCard(makeCard("bolt", ["cast"]));
+        expect(el().className).toContain("cursor-pointer");
+        fireEvent.click(el());
+        expect(announceCast).toHaveBeenCalledTimes(1);
+    });
+});
+
 // ADR 0026 / PRD #338 (slice 3) — the eye icon renders per-card ONLY on the
 // viewer's own hand cards that an opponent legitimately knows (derived
 // `seenByOpponent` flag), never generically on the whole hand.

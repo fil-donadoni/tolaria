@@ -33,6 +33,7 @@ import HandCardActionMenu, {
 import HandCardConfirmPill from "./hand-card-confirm-pill";
 import type { BoardHandCardProps } from "./board-hand-card";
 import { cardRingClass } from "~/lib/card-ring";
+import { expectedInputAdmits } from "~/lib/expected-input";
 
 /** Upward travel (px) of a card STAGED by a touch tap (#1767) — the same
  *  "lifting out of the hand" read as the drag gesture, at a rest offset. */
@@ -94,6 +95,7 @@ export default function GreHandCard({
     onStagedChange,
     allowHorizontalPan = false,
 }: BoardHandCardProps) {
+    const game = useGameContext();
     const {
         gameId,
         playerId,
@@ -110,7 +112,7 @@ export default function GreHandCard({
         cannotActivateAbilitiesThisTurn,
         combat,
         continuousEffects,
-    } = useGameContext();
+    } = game;
     const activateAbility = useMutation(api.game.activateAbility);
     const bufferCtx = usePendingChoiceBuffer();
 
@@ -146,9 +148,23 @@ export default function GreHandCard({
     // server (`activateAbility`) is authoritative. Suppressed during a
     // hand-choice (handled by the early return below, which never reaches this
     // render).
-    const hasPriority = priorityPlayerId === playerId;
+    //
+    // "Holds priority" is the Expected Input gate's answer for a `priority`
+    // input from this seat (ADR 0047, issue #3616) — the same derivation
+    // `announceCast` / `playCard` / `activateAbility` are rejected by — never
+    // a bare `priorityPlayerId` comparison, which reads true during a blocker
+    // declaration or a mid-resolution choice the server is actually parked on.
+    const hasPriority = expectedInputAdmits(game, {
+        playerId,
+        expect: "priority",
+    });
     const noPendingInteraction =
         !pendingCast && !pendingActivation && !pendingTarget;
+    // Issue #3616 — the card's ACTIONS (Cast / Play entries, the click, the
+    // gestures) exist only inside this window. Outside it the card is inert:
+    // no menu, no sheet, no stage, no pointer cursor, however the stale
+    // `legalActions` flags read.
+    const actionWindowOpen = hasPriority && noPendingInteraction;
 
     // The commit gesture (drag-to-cast / swipe on mobile, and the tap-stage
     // confirm) must obey the SAME window the hand abilities above do. Server
@@ -163,12 +179,11 @@ export default function GreHandCard({
     const commitEnabled =
         !isHandChoice &&
         (canPlay || canCast) &&
-        hasPriority &&
-        noPendingInteraction &&
+        actionWindowOpen &&
         !intentInFlight;
 
     const handAbilities =
-        hasPriority && noPendingInteraction && !isHandChoice
+        actionWindowOpen && !isHandChoice
             ? getHandStackAbilities(
                   card,
                   phase,
@@ -259,16 +274,17 @@ export default function GreHandCard({
     // the server has already declared legal is the worse failure, and the
     // mutation re-derives the face set and refuses anything wrong.
     const instance = card as unknown as CardInstanceState;
-    const derivedFaces = canPlay ? landPlayFaces(instance) : [];
+    const playOffered = canPlay && actionWindowOpen;
+    const derivedFaces = playOffered ? landPlayFaces(instance) : [];
     const landFaces: PlayLandFace[] =
-        derivedFaces.length > 0 ? derivedFaces : canPlay ? ["front"] : [];
+        derivedFaces.length > 0 ? derivedFaces : playOffered ? ["front"] : [];
     const isModalCard = isModalDoubleFaced(
         tryGetDefinition(
             (card.card as { id?: string } | undefined)?.id ?? ""
         ) ?? undefined
     );
     const primaryActions: HandCardPrimaryAction[] = [
-        ...(canCast
+        ...(canCast && actionWindowOpen
             ? [
                   {
                       label: "Cast",
