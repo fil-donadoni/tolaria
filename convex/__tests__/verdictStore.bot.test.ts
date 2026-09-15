@@ -124,6 +124,15 @@ describe("putVerdict / readVerdict", () => {
         expect(store.objects.size).toBe(1);
     });
 
+    it("an empty setup is one encoding with an absent one — whoever writes first", () => {
+        const withEmpty = encodeVerdictObject({
+            ...JUDGEMENT,
+            setup: [],
+            deckKnowledge: [],
+        });
+        expect(withEmpty.bytes).toEqual(encodeVerdictObject(JUDGEMENT).bytes);
+    });
+
     it("reading an id the store does not hold is null", async () => {
         expect(
             await readVerdict(createMemoryVerdictStore(), verdictIdOf(OTHER))
@@ -155,6 +164,25 @@ describe("a read whose bytes do not match the requested hash fails loudly", () =
         store.objects.set(name, bytesOf("{not json"));
         await expect(readVerdict(store, verdictId)).rejects.toThrow(
             /unreadable/
+        );
+    });
+
+    it("a field outside the judgement, even though the hash does not see it", async () => {
+        const store = createMemoryVerdictStore();
+        const { name, verdictId } = encodeVerdictObject(JUDGEMENT);
+        const smuggled = { ...JUDGEMENT, author: "evil" };
+        store.objects.set(name, bytesOf(JSON.stringify(smuggled)));
+        await expect(readVerdict(store, verdictId)).rejects.toThrow(
+            /not the canonical encoding/
+        );
+    });
+
+    it("the right judgement in non-canonical bytes (reformatted)", async () => {
+        const store = createMemoryVerdictStore();
+        const { name, verdictId } = encodeVerdictObject(JUDGEMENT);
+        store.objects.set(name, bytesOf(JSON.stringify(JUDGEMENT, null, 2)));
+        await expect(readVerdict(store, verdictId)).rejects.toThrow(
+            /not the canonical encoding/
         );
     });
 

@@ -107,11 +107,14 @@ export function verdictIdOfObjectName(name: string): string | null {
  *  the whole point of the name is that it does not. Candidate descriptions
  *  stay: they are not hashed, but a rebuilt position needs them to be read. */
 function judgementPayload(verdict: VerdictJudgement): VerdictJudgement {
+    // An empty `setup` / `deckKnowledge` is dropped exactly as `identity.ts`
+    // drops it from the hash, so one judgement has ONE byte encoding whichever
+    // deployment writes it first.
     return {
         spec: verdict.spec,
-        ...(verdict.setup !== undefined ? { setup: verdict.setup } : {}),
+        ...(verdict.setup?.length ? { setup: verdict.setup } : {}),
         seat: verdict.seat,
-        ...(verdict.deckKnowledge !== undefined
+        ...(verdict.deckKnowledge?.length
             ? { deckKnowledge: verdict.deckKnowledge }
             : {}),
         candidates: verdict.candidates,
@@ -134,9 +137,16 @@ export function encodeVerdictObject(verdict: VerdictJudgement): {
     };
 }
 
-/** The judgement stored under `name`, verified: the bytes must decode, parse,
- *  and RE-HASH to the id the name carries. Anything else throws a
- *  `VerdictStoreIntegrityError` naming the object. */
+/** The judgement stored under `name`, verified twice: the bytes must RE-HASH
+ *  to the id the name carries, AND they must be exactly the canonical encoding
+ *  of the judgement they parse to — so an added field, a reformatting or a
+ *  corrupted byte fails even where the hash alone would not see it. Anything
+ *  else throws a `VerdictStoreIntegrityError` naming the object.
+ *
+ *  What neither check can vouch for: a candidate's `description`. It is
+ *  outside the hash by design (`identity.ts` — describer wording may change
+ *  without the judgement changing), so an object re-canonicalised with other
+ *  wording still passes. It is display text; nothing the fit reads uses it. */
 export function decodeVerdictObject(
     name: string,
     bytes: Uint8Array
@@ -147,10 +157,15 @@ export function decodeVerdictObject(
     }
     let verdict: VerdictJudgement;
     let actual: string;
+    let canonical: Uint8Array;
     try {
-        const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-        verdict = JSON.parse(text) as VerdictJudgement;
+        // No `fatal` decoding: a malformed byte becomes U+FFFD, and the
+        // canonical-bytes comparison below rejects it without depending on
+        // the option being supported by every runtime this module runs in.
+        const text = new TextDecoder().decode(bytes);
+        verdict = judgementPayload(JSON.parse(text) as VerdictJudgement);
         actual = verdictIdOf(verdict);
+        canonical = utf8Bytes(canonicalJson(verdict));
     } catch (error) {
         throw new VerdictStoreIntegrityError(
             name,
@@ -163,7 +178,19 @@ export function decodeVerdictObject(
             `content hashes to ${actual}, not to the ${expected} its name promises`
         );
     }
+    if (!sameBytes(canonical, bytes)) {
+        throw new VerdictStoreIntegrityError(
+            name,
+            "bytes are not the canonical encoding of the judgement they carry"
+        );
+    }
     return verdict;
+}
+
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+    return true;
 }
 
 /** Store one verdict. Idempotent: the same judgement a second time — from

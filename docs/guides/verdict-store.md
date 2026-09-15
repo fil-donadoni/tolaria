@@ -3,15 +3,16 @@
 How to provision the bucket the Verdict corpus lives in, and how a deployment
 and a development machine each get their credential. The decision record is
 ADR 0128; the code is `convex/verdictStore.ts` (the port and its decisions),
-`convex/verdictStoreGcs.ts` (the transport) and `scripts/lib/verdict-store.ts`
-(the machine reader).
+`convex/verdictStoreGcs.ts` (the read transport),
+`convex/verdictStoreGcsWriter.ts` (the write transport, deployments only) and
+`scripts/lib/verdict-store.ts` (the machine reader).
 
 ## What exists
 
 | Thing                       | Name                                                     | Lives in                                                                                                                                          |
 | --------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [Bucket](#g-bucket)         | `tolaria-verdict-store`                                  | the owner's GCP project, `us-central1`                                                                                                            |
-| [Writer account](#g-writer) | `verdict-store-writer@<project>.iam.gserviceaccount.com` | its [key](#g-key) in the `VERDICT_STORE_WRITE_KEY` env var of each Convex deployment — nowhere else                                               |
+| [Writer account](#g-writer) | `verdict-store-writer@<project>.iam.gserviceaccount.com` | its [key](#g-key) in the `VERDICT_STORE_WRITE_KEY` env var of each CLOUD Convex deployment — never a local backend, nowhere else                  |
 | [Reader account](#g-reader) | `verdict-store-reader@<project>.iam.gserviceaccount.com` | its [key](#g-key) in `~/.config/tolaria/verdict-store-reader.json` on each development machine (`VERDICT_STORE_READ_KEY_FILE` overrides the path) |
 
 The [bucket](#g-bucket) name is a constant (`VERDICT_STORE_BUCKET` in
@@ -37,7 +38,9 @@ table.
   name. A development machine pointed at the writer's [key](#g-key) fails when
   the store is built, not later.
 - `scripts/__tests__/verdict-store-credentials.test.ts` reds if anything under
-  `scripts/` or `src/` names the write path.
+  `scripts/` or `src/` imports or names the write path. That is a tripwire
+  against an accidental reach, not the boundary: the boundary is that no
+  development machine holds the writer's [key](#g-key).
 
 ## Provision (once, by the owner)
 
@@ -81,18 +84,22 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 
 ## Deployment: the write key
 
-Run this for every Convex deployment that takes verdicts: the dev one, and the
-production one with `--prod`. The [key](#g-key) goes into the deployment's
+Run this only for **cloud** Convex deployments: production, and a cloud dev
+deployment if you have one. The [key](#g-key) goes into the deployment's
 environment and the local file is deleted straight away:
 
 ```bash
 gcloud iam service-accounts keys create writer.json --iam-account=$W
-bunx convex env set VERDICT_STORE_WRITE_KEY "$(cat writer.json)"
 bunx convex env set --prod VERDICT_STORE_WRITE_KEY "$(cat writer.json)"
 rm writer.json
 ```
 
-Never put it in `.env.local` or any other file in a checkout.
+**Never a local backend.** A bare `bunx convex env set` targets whatever
+`CONVEX_DEPLOYMENT` in `.env.local` names, and when that is `local:…` the
+backend and its environment live on this machine's disk, which puts the
+writer's [key](#g-key) on a development machine. A local deployment simply has
+no write key, so it cannot upload. Never put the key in `.env.local` or any
+other file in a checkout either.
 
 ## Development machine
 

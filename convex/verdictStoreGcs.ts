@@ -1,59 +1,46 @@
 "use node";
 
-// The Verdict Store over Google Cloud Storage (issue #3576, ADR 0128) — the
-// THIN half of the port. It turns `get` / `put` / `list` into JSON-API calls
-// and decides nothing: names, bytes, verification and which credential is
-// acceptable are all above it (`verdictStore.ts`, `verdictStoreCredentials.ts`),
-// exercised against the in-memory fake. Nothing here is tested, by the
-// convention `scripts/lib/seed-scenario-run.ts` documents, and so nothing here
-// may grow a branch worth testing.
+// The Verdict Store over Google Cloud Storage, READ side (issue #3576, ADR
+// 0128) — the THIN half of the port. It turns `get` / `list` into JSON-API
+// calls and decides nothing: names, bytes, verification and which credential
+// is acceptable are all above it (`verdictStore.ts`,
+// `verdictStoreCredentials.ts`), exercised against the in-memory fake. By the
+// convention `scripts/lib/seed-scenario-run.ts` documents it carries no branch
+// worth a test of its own; `scripts/__tests__/verdict-store-credentials.test.ts`
+// pins only the request shape the credential split depends on (the token's
+// scope).
+//
+// The WRITE side is `verdictStoreGcsWriter.ts`, a separate module nothing under
+// `scripts/` or `src/` imports, so a development machine's import graph does
+// not contain the code that writes at all.
 //
 // `"use node"` because signing a service-account JWT needs `node:crypto`. The
 // module imports no engine code, keeping its separate esbuild graph small
-// (`scripts/__tests__/convex-node-bundle-seam.test.ts`). Scripts on a
-// development machine import it too, for the READER only.
-//
-// No-overwrite is enforced by the bucket, not by a read-then-write race: the
-// upload carries `ifGenerationMatch=0` ("only if no live object has this
-// name"), and GCS answers 412 when one does. The writer's IAM grant has no
-// delete permission either, which an overwrite would need.
+// (`scripts/__tests__/convex-node-bundle-seam.test.ts`).
 
 import { createSign } from "node:crypto";
-import type {
-    VerdictStorePutOutcome,
-    VerdictStoreReader,
-    VerdictStoreWriter,
-} from "./verdictStore";
+import type { VerdictStoreReader } from "./verdictStore";
 import {
     VERDICT_STORE_BUCKET,
     VERDICT_STORE_OAUTH_SCOPE,
-    assertCredentialRole,
-    parseServiceAccountKey,
     type ServiceAccountKey,
     type VerdictStoreAccess,
 } from "./verdictStoreCredentials";
 
-/** The deployment env var holding the writer's JSON key. Set on Convex
- *  deployments ONLY — never in a `.env*` file, never on a machine
- *  (`scripts/__tests__/verdict-store-credentials.test.ts` keeps it out of
- *  `scripts/` and `src/`). */
-export const VERDICT_STORE_WRITE_KEY_ENV = "VERDICT_STORE_WRITE_KEY";
-
 const API = "https://storage.googleapis.com/storage/v1/b";
-const UPLOAD_API = "https://storage.googleapis.com/upload/storage/v1/b";
 
-type TokenSource = () => Promise<string>;
+export type GcsTokenSource = () => Promise<string>;
 
 function base64url(text: string): string {
     return Buffer.from(text, "utf8").toString("base64url");
 }
 
-/** OAuth2 JWT-bearer flow for a service account, cached until a minute
- *  before expiry. */
-function tokenSource(
+/** OAuth2 JWT-bearer flow for a service account, minted with the scope of
+ *  `access` and cached until a minute before expiry. */
+export function gcsTokenSource(
     key: ServiceAccountKey,
     access: VerdictStoreAccess
-): TokenSource {
+): GcsTokenSource {
     let cached: { token: string; expiresAt: number } | null = null;
     return async () => {
         const now = Math.floor(Date.now() / 1000);
@@ -81,7 +68,7 @@ function tokenSource(
                 assertion: `${unsigned}.${signature}`,
             }),
         });
-        if (!response.ok) await fail("token exchange", response);
+        if (!response.ok) await gcsFail("token exchange", response);
         const body = (await response.json()) as {
             access_token: string;
             expires_in: number;
@@ -91,25 +78,29 @@ function tokenSource(
     };
 }
 
-async function fail(what: string, response: Response): Promise<never> {
+export async function gcsFail(
+    what: string,
+    response: Response
+): Promise<never> {
     const text = (await response.text()).slice(0, 500);
     throw new Error(
         `Verdict Store ${what} failed: HTTP ${response.status} ${text}`
     );
 }
 
-function objectUrl(bucket: string, name: string): string {
-    return `${API}/${bucket}/o/${encodeURIComponent(name)}?alt=media`;
-}
-
-function reader(bucket: string, token: TokenSource): VerdictStoreReader {
+/** `get` / `list` against `bucket`, authorised by `token`. */
+export function gcsReader(
+    bucket: string,
+    token: GcsTokenSource
+): VerdictStoreReader {
     return {
         async get(name) {
-            const response = await fetch(objectUrl(bucket, name), {
-                headers: { authorization: `Bearer ${await token()}` },
-            });
+            const response = await fetch(
+                `${API}/${bucket}/o/${encodeURIComponent(name)}?alt=media`,
+                { headers: { authorization: `Bearer ${await token()}` } }
+            );
             if (response.status === 404) return null;
-            if (!response.ok) await fail(`get ${name}`, response);
+            if (!response.ok) await gcsFail(`get ${name}`, response);
             return new Uint8Array(await response.arrayBuffer());
         },
         async list(prefix) {
@@ -124,7 +115,7 @@ function reader(bucket: string, token: TokenSource): VerdictStoreReader {
                 const response = await fetch(`${API}/${bucket}/o?${query}`, {
                     headers: { authorization: `Bearer ${await token()}` },
                 });
-                if (!response.ok) await fail(`list ${prefix}`, response);
+                if (!response.ok) await gcsFail(`list ${prefix}`, response);
                 const page = (await response.json()) as {
                     items?: { name: string }[];
                     nextPageToken?: string;
@@ -143,51 +134,5 @@ export function createGcsVerdictStoreReader(
     key: ServiceAccountKey,
     bucket: string = VERDICT_STORE_BUCKET
 ): VerdictStoreReader {
-    return reader(bucket, tokenSource(key, "read"));
-}
-
-/** The writing store. Construct it only inside a Convex action. */
-export function createGcsVerdictStoreWriter(
-    key: ServiceAccountKey,
-    bucket: string = VERDICT_STORE_BUCKET
-): VerdictStoreWriter {
-    const token = tokenSource(key, "write");
-    return {
-        ...reader(bucket, token),
-        async put(name, bytes, contentType): Promise<VerdictStorePutOutcome> {
-            const query = new URLSearchParams({
-                uploadType: "media",
-                name,
-                ifGenerationMatch: "0",
-            });
-            const response = await fetch(`${UPLOAD_API}/${bucket}/o?${query}`, {
-                method: "POST",
-                headers: {
-                    authorization: `Bearer ${await token()}`,
-                    "content-type": contentType,
-                },
-                // `slice()` narrows the buffer to a plain ArrayBuffer,
-                // which is what `BlobPart` accepts.
-                body: new Blob([bytes.slice()]),
-            });
-            if (response.status === 412) return "exists";
-            if (!response.ok) await fail(`put ${name}`, response);
-            return "created";
-        },
-    };
-}
-
-/** The writer, from THIS deployment's environment. Throws when the key is
- *  absent or is not the writer's. */
-export function verdictStoreWriterFromDeploymentEnv(): VerdictStoreWriter {
-    const text = process.env[VERDICT_STORE_WRITE_KEY_ENV];
-    if (text === undefined || text === "") {
-        throw new Error(
-            `${VERDICT_STORE_WRITE_KEY_ENV} is not set on this deployment ` +
-                "(docs/guides/verdict-store.md)"
-        );
-    }
-    const key = parseServiceAccountKey(text, VERDICT_STORE_WRITE_KEY_ENV);
-    assertCredentialRole(key, "write", VERDICT_STORE_WRITE_KEY_ENV);
-    return createGcsVerdictStoreWriter(key);
+    return gcsReader(bucket, gcsTokenSource(key, "read"));
 }

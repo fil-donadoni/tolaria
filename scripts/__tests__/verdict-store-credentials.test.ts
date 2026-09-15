@@ -16,7 +16,7 @@ import {
     VERDICT_STORE_OAUTH_SCOPE,
     parseServiceAccountKey,
 } from "../../convex/verdictStoreCredentials";
-import { createGcsVerdictStoreWriter } from "../../convex/verdictStoreGcs";
+import { createGcsVerdictStoreWriter } from "../../convex/verdictStoreGcsWriter";
 import {
     VERDICT_STORE_READ_KEY_FILE_ENV,
     machineVerdictStoreReader,
@@ -47,18 +47,24 @@ interface Call {
     init: RequestInit | undefined;
 }
 
-/** A fetch that answers the token exchange, then `status` for everything else. */
-function stubFetch(status: number): Call[] {
+/** A fetch that answers the token exchange, then `status` (a number, or a
+ *  function of the request) for everything else. */
+function stubFetch(
+    status: number | ((url: string, init?: RequestInit) => number)
+): Call[] {
     const calls: Call[] = [];
     vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
         calls.push({ url, init });
         if (url === TOKEN_URI) {
             return Response.json({ access_token: "tok", expires_in: 3600 });
         }
-        return new Response(status === 200 ? "{}" : "", { status });
+        const code = typeof status === "number" ? status : status(url, init);
+        return new Response(code === 200 ? "{}" : "", { status: code });
     });
     return calls;
 }
+
+const isUpload = (init?: RequestInit) => init?.method === "POST";
 
 function jwtClaims(call: Call): Record<string, unknown> {
     const assertion = new URLSearchParams(String(call.init?.body)).get(
@@ -137,6 +143,20 @@ describe("GCS writer: the bucket enforces no-overwrite", () => {
             await writer().put("verdicts/a", new Uint8Array([1]), "x/y")
         ).toBe("exists");
     });
+
+    it("reads an overwrite refused by IAM (403) as 'exists' when the object is there", async () => {
+        stubFetch((_url, init) => (isUpload(init) ? 403 : 200));
+        expect(
+            await writer().put("verdicts/a", new Uint8Array([1]), "x/y")
+        ).toBe("exists");
+    });
+
+    it("keeps a 403 on a name that is NOT there an error", async () => {
+        stubFetch((_url, init) => (isUpload(init) ? 403 : 404));
+        await expect(
+            writer().put("verdicts/a", new Uint8Array([1]), "x/y")
+        ).rejects.toThrow(/HTTP 403/);
+    });
 });
 
 describe("parseServiceAccountKey never echoes the key", () => {
@@ -158,9 +178,12 @@ describe("parseServiceAccountKey never echoes the key", () => {
     });
 });
 
-/** Identifiers only a DEPLOYMENT may name: the write key's env var and the
- *  two ways to build a writer. */
+/** What only a DEPLOYMENT may name: the writer module, the write key's env
+ *  var and the two ways to build a writer. A tripwire against an accidental
+ *  reach for the write path — the boundary itself is that no machine holds
+ *  the writer's key. */
 const WRITE_PATH = [
+    "verdictStoreGcsWriter",
     "VERDICT_STORE_WRITE_KEY",
     "createGcsVerdictStoreWriter",
     "verdictStoreWriterFromDeploymentEnv",
