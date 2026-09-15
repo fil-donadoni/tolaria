@@ -18,6 +18,7 @@ import {
     screen,
     fireEvent,
     waitFor,
+    within,
 } from "@testing-library/react";
 
 const submitVerdict = vi.fn(async () => "verdict-1");
@@ -290,6 +291,98 @@ describe("the verdict quiz, from the decision box (issue #3405)", () => {
         expect(screen.queryByRole("button", { name: "Judge this move" })).toBe(
             null
         );
+    });
+
+    describe("the position being judged (issue #3577, ADR 0128 §12)", () => {
+        // Both hands hold a card whose NAME appears nowhere else on the board,
+        // so "the name is on screen" can only mean "the hand was shown".
+        const HANDS: ScenarioSpec = {
+            cards: [
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "hand" },
+                { name: "Counterspell", owner: "me", zone: "hand" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Llanowar Elves", owner: "opp", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+        };
+
+        async function openHandsQuiz() {
+            pushDecision(
+                HANDS,
+                (moves) => moves.find((m) => m.kind === "pass") ?? moves[0]
+            );
+            render(<AiDecisionTrace />);
+            await openQuiz();
+            return screen.getByTestId("scenario-board");
+        }
+
+        function revealToggle() {
+            return screen.getByRole("checkbox", {
+                name: /Reveal the Bot's hand/,
+            });
+        }
+
+        it("shows the board of the position, both seats", async () => {
+            await openHandsQuiz();
+            expect(
+                within(screen.getByTestId("scenario-board-seat-opp")).getByText(
+                    "Grizzly Bears"
+                )
+            ).toBeTruthy();
+            expect(
+                within(screen.getByTestId("scenario-board-seat-me")).getByText(
+                    "Mountain"
+                )
+            ).toBeTruthy();
+        });
+
+        it("hides the deciding seat's hand until the toggle reveals it", async () => {
+            const board = await openHandsQuiz();
+            const hand = screen.getByTestId("scenario-board-hand-me");
+            expect(hand.getAttribute("data-hand")).toBe("count");
+            expect(hand.textContent).toContain("2 cards");
+            expect(within(board).queryByText("Counterspell")).toBe(null);
+
+            fireEvent.click(revealToggle());
+
+            expect(
+                screen
+                    .getByTestId("scenario-board-hand-me")
+                    .getAttribute("data-hand")
+            ).toBe("cards");
+            expect(within(board).getByText("Counterspell")).toBeTruthy();
+        });
+
+        it("names the reveal's cost beside the toggle", async () => {
+            await openHandsQuiz();
+            const describedBy = revealToggle().getAttribute("aria-describedby");
+            expect(describedBy).toBeTruthy();
+            expect(document.getElementById(describedBy!)?.textContent).toMatch(
+                /turns the match into a debugging session/
+            );
+        });
+
+        it("keeps the opponent's hand a count, reveal or not", async () => {
+            const board = await openHandsQuiz();
+            fireEvent.click(revealToggle());
+            const hand = screen.getByTestId("scenario-board-hand-opp");
+            expect(hand.getAttribute("data-hand")).toBe("count");
+            expect(hand.textContent).toContain("1 card");
+            expect(board.textContent).not.toContain("Llanowar Elves");
+        });
+
+        it("reminds the tester that their own hand is not the Bot's information", async () => {
+            await openHandsQuiz();
+            expect(
+                screen.getByText(
+                    /^Your own hand is information the Bot did not have\./
+                )
+            ).toBeTruthy();
+        });
     });
 
     it("refuses, TITLED and copyable, a decision whose position it cannot hold", async () => {
