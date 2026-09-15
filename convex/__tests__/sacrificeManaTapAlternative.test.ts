@@ -151,6 +151,23 @@ describe("tapUntap at priority — the sacrifice alternative (CR 605.3a, issue #
         expect(after.battlefield[0].isTapped).toBe(false);
     });
 
+    it("an untap naming the sacrifice index still refunds the {G} (CR 106.4)", async () => {
+        // A crafted untap must take the branch the TAP took. Routing it by the
+        // submitted index sent it through the choice branch, whose refund reads
+        // a `chosenMana` the fixed-branch tap never stamped — the land untapped
+        // and the {G} stayed in the pool, repeatably.
+        const { state } = boardWith(HAVENWOOD);
+        const stub = makeMutationCtx("p1", [gameStateSeed(state)]);
+
+        await runTapUntap(stub.ctx);
+        expect(stub.state().players[0].manaPool.G).toBe(1);
+
+        await runTapUntap(stub.ctx, 1);
+        const after = stub.state().players[0];
+        expect(after.manaPool.G ?? 0).toBe(0);
+        expect(after.battlefield[0].isTapped).toBe(false);
+    });
+
     it("a two-colour sacrifice output arrives whole (Invasion shape)", async () => {
         const { state } = boardWith(ANCIENT_SPRING);
         const stub = makeMutationCtx("p1", [gameStateSeed(state)]);

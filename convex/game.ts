@@ -14074,14 +14074,19 @@ export const tapUntap = mutation({
         // trigger) read this so they fire only for the ability that was used.
         let tapAbility: ActivatedAbility | null = ability;
 
-        // Determine mana to add/remove
+        // Determine mana to add/remove. CR 106.4 (issue #3630 review) — the
+        // submitted index routes only a FRESH tap: an untap reverses the
+        // activation the source already made, so its branch must be the one
+        // the card alone decides. Routing an untap by a client-chosen index let
+        // a land tapped on the fixed branch (no `chosenMana`) untap through the
+        // choice branch, refund nothing, and keep its mana — repeatably.
         if (
             manaTapTakesChoiceBranch(
                 card,
                 player.id,
                 manaTapBattlefields(state),
                 ability,
-                args.manaChoiceIndex,
+                wasTapped ? undefined : args.manaChoiceIndex,
                 state.continuousEffects
             )
         ) {
