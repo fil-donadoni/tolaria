@@ -31,12 +31,8 @@
 
 import { verdictsFromRegistry, type RegistryVerdicts } from "./registrySource";
 import type { BladeScenario } from "../blade/types";
-import type {
-    Verdict,
-    VerdictAnswer,
-    VerdictCandidate,
-    VerdictSource,
-} from "./types";
+import { parseVerdictJudgement } from "./judgement";
+import type { Verdict, VerdictSource } from "./types";
 
 /** The directory the corpus lives in, relative to the repo root. */
 export const VERDICT_DIR = "data/verdicts";
@@ -66,98 +62,10 @@ function requireString(
     return value as string;
 }
 
-function parseCandidates(path: string, raw: unknown): VerdictCandidate[] {
-    if (!Array.isArray(raw) || raw.length === 0) {
-        bad(path, `"candidates" must be a non-empty array`);
-    }
-    const seen = new Set<string>();
-    return (raw as unknown[]).map((entry, i) => {
-        const row = entry as Record<string, unknown>;
-        if (
-            typeof row?.key !== "string" ||
-            typeof row?.description !== "string"
-        ) {
-            bad(path, `candidate ${i} needs a string "key" and "description"`);
-        }
-        // Two candidates with the same move key resolve to the SAME move on
-        // the rebuilt position, so the pair built from them has `delta === 0`
-        // and is permanently violated — a constraint nothing can satisfy,
-        // sitting in the corpus looking like a real one. The enumerator cannot
-        // produce a duplicate; a hand-authored file can, and this directory
-        // invites hand-authoring.
-        if (seen.has(row.key as string)) {
-            bad(path, `candidate ${i} repeats the move key of an earlier one`);
-        }
-        seen.add(row.key as string);
-        return {
-            key: row.key as string,
-            description: row.description as string,
-        };
-    });
-}
-
-function parseIndexes(
-    path: string,
-    raw: unknown,
-    key: string,
-    bound: number
-): number[] {
-    if (!Array.isArray(raw) || raw.length === 0) {
-        bad(path, `"answer.${key}" must name at least one candidate`);
-    }
-    return (raw as unknown[]).map((value) => {
-        if (
-            typeof value !== "number" ||
-            !Number.isInteger(value) ||
-            value < 0 ||
-            value >= bound
-        ) {
-            bad(
-                path,
-                `"answer.${key}" holds ${JSON.stringify(value)}, which is outside the ${bound}-candidate list`
-            );
-        }
-        return value as number;
-    });
-}
-
-function parseAnswer(path: string, raw: unknown, bound: number): VerdictAnswer {
-    const answer = raw as Record<string, unknown>;
-    if (answer?.kind === "right") {
-        return {
-            kind: "right",
-            rightIndexes: parseIndexes(
-                path,
-                answer.rightIndexes,
-                "rightIndexes",
-                bound
-            ),
-        };
-    }
-    if (answer?.kind === "forbidden") {
-        return {
-            kind: "forbidden",
-            forbiddenIndexes: parseIndexes(
-                path,
-                answer.forbiddenIndexes,
-                "forbiddenIndexes",
-                bound
-            ),
-        };
-    }
-    bad(path, `"answer.kind" must be "right" or "forbidden"`);
-}
-
 /**
  * One file's contents as a `Verdict`. Throws, naming the file, on anything it
- * cannot read as one.
- *
- * `spec` and `setup` are carried through UNVALIDATED beyond "is an object" /
- * "is an array": the scenario vocabulary and `BladeSetupStep` both grow, and a
- * structural re-check here would be those unions written a third time. They
- * are checked where the check can mean something — `buildVerdictState` replays
- * them through the engine, and a position that no longer builds is reported as
- * a stale verdict by `collectVerdictReport`.
+ * cannot read as one. The judgement itself — position, candidates, answer —
+ * is parsed by `parseVerdictJudgement`, which the Verdict Lock's reader shares.
  */
 export function parseVerdictFile(file: VerdictFile): Verdict {
     let raw: Record<string, unknown>;
@@ -174,29 +82,12 @@ export function parseVerdictFile(file: VerdictFile): Verdict {
     }
 
     const id = requireString(file.path, raw, "id");
-    const seat = raw.seat;
-    if (seat !== "me" && seat !== "opp") {
-        bad(file.path, `"seat" must be "me" or "opp"`);
-    }
     const source = raw.source as VerdictSource;
     if (!SOURCES.includes(source)) {
         bad(file.path, `"source" must be one of ${SOURCES.join(" / ")}`);
     }
-    if (
-        typeof raw.spec !== "object" ||
-        raw.spec === null ||
-        Array.isArray(raw.spec)
-    ) {
-        // An ARRAY passes `typeof x === "object"`, and a bare card list is the
-        // shape a hand-author reaches for first — without this it reaches the
-        // builder and fails there instead of here, by name.
-        bad(file.path, `"spec" must be an object`);
-    }
-    if (raw.setup !== undefined && !Array.isArray(raw.setup)) {
-        bad(file.path, `"setup", when present, must be an array`);
-    }
-    const candidates = parseCandidates(file.path, raw.candidates);
-    const answer = parseAnswer(file.path, raw.answer, candidates.length);
+    const judgement = parseVerdictJudgement(file.path, raw);
+    const candidates = judgement.candidates;
     if (
         raw.botPickIndex !== undefined &&
         (typeof raw.botPickIndex !== "number" ||
@@ -212,13 +103,7 @@ export function parseVerdictFile(file: VerdictFile): Verdict {
 
     return {
         id,
-        spec: raw.spec as Verdict["spec"],
-        ...(raw.setup === undefined
-            ? {}
-            : { setup: raw.setup as Verdict["setup"] }),
-        seat,
-        candidates,
-        answer,
+        ...judgement,
         ...(raw.botPickIndex === undefined
             ? {}
             : { botPickIndex: raw.botPickIndex as number }),
