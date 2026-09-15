@@ -243,6 +243,19 @@ export function applyMulliganBottomChoice(
  *  using the existing phase pipeline (UNTAP is auto-skipped). */
 export function finalizeMulligan(state: GameState): void {
     state.mulligan = undefined;
+    // CR 103.5 (issue #1714) — the opening hand is drawn BEFORE turn 1 begins,
+    // so none of it was drawn "this turn". Every opening hand is dealt through
+    // `drawCard`, which appends to the per-turn tally, and this walks to UPKEEP
+    // via `advancePhase`, never `advanceTurn` (the tally's only other reset).
+    // Without this clear turn 1's first real draw is stamped index 7: a
+    // Leovold-style `drawIndexThisTurn >= 1` prevents it, `nthDrawThisTurn`
+    // never matches. A mulligan redraw appends nothing, so the tally would
+    // also still name the shuffled-away hand. Cleared before `advancePhase`,
+    // so an upkeep draw counts from zero.
+    for (const player of state.players) {
+        player.drawnThisTurn = undefined;
+        player.lastDrawnCardId = undefined;
+    }
     state.phase = "UNTAP" as Phase;
     advancePhase(state);
 }
