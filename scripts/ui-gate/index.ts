@@ -53,6 +53,8 @@
  *   bun run check:ui -- --scope-only                     # print the diff's
  *                                                        # scope, no browser
  *   bun run check:ui -- --all                            # force the full scope
+ *   bun run check:ui -- --scope-only --base=<ref>        # scope of the diff
+ *                                                        # against another ref
  *
  * SCOPE (issue #3627). Every run starts by printing which surfaces the diff
  * against the base branch can reach (`scripts/lib/ui-scope.ts`), or FULL and
@@ -380,6 +382,9 @@ interface Options {
     scopeOnly: boolean;
     /** Force the full scope whatever the diff. */
     all: boolean;
+    /** The ref the diff is taken against; the configured base branch unless
+     *  `--base=` names another (same flag as `check:lane`). */
+    base: string;
 }
 
 function parseArgs(argv: string[]): Options {
@@ -391,6 +396,7 @@ function parseArgs(argv: string[]): Options {
         keepUser: false,
         scopeOnly: false,
         all: false,
+        base: ORIGIN_BASE,
     };
     for (const arg of argv) {
         if (arg === "--headed") opts.headed = true;
@@ -398,7 +404,9 @@ function parseArgs(argv: string[]): Options {
         else if (arg === "--keep-user") opts.keepUser = true;
         else if (arg === "--scope-only") opts.scopeOnly = true;
         else if (arg === "--all") opts.all = true;
-        else if (arg.startsWith("--surface=")) {
+        else if (arg.startsWith("--base=")) {
+            opts.base = arg.slice("--base=".length);
+        } else if (arg.startsWith("--surface=")) {
             opts.surfaces = arg
                 .slice("--surface=".length)
                 .split(",")
@@ -517,8 +525,8 @@ function git(args: string[]): string {
  * Deletions are kept: the scoper places them fail-closed. `-z` for the
  * non-ASCII symbol filenames under `public/` (same reason as `check:lane`).
  */
-function changedSinceBase(): string[] {
-    const mergeBase = git(["merge-base", ORIGIN_BASE, "HEAD"]).trim();
+function changedSinceBase(base: string): string[] {
+    const mergeBase = git(["merge-base", base, "HEAD"]).trim();
     const tracked = git(["diff", "-z", "--name-only", mergeBase]);
     const untracked = git(["ls-files", "-z", "--others", "--exclude-standard"]);
     const paths = `${tracked}\0${untracked}`.split("\0").filter(Boolean);
@@ -532,7 +540,7 @@ function computeRunScope(opts: Options): UiScope {
     // abort a run that would otherwise have walked every surface.
     let changed: string[];
     try {
-        changed = changedSinceBase();
+        changed = changedSinceBase(opts.base);
     } catch (err) {
         return {
             kind: "full",
@@ -553,7 +561,7 @@ async function main(): Promise<number> {
             "--all and --surface= contradict each other: one forces every surface, the other picks a subset"
         );
     }
-    log(renderUiScope(computeRunScope(opts), ORIGIN_BASE));
+    log(renderUiScope(computeRunScope(opts), opts.base));
     if (opts.scopeOnly) return 0;
     const budgets = loadBudgets();
 
