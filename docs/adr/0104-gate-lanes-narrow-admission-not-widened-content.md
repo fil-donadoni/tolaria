@@ -2,7 +2,8 @@
 
 ## Status
 
-accepted — amended 2026-09-09 (see below)
+accepted — amended 2026-09-09 (see below); §2 amended for `check:ui` alone
+by ADR 0131 (2026-09-15) — vitest projects keep §2 whole
 
 ## Amendment (2026-09-09): the downstream total run moved; item 5 superseded
 

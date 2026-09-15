@@ -38,11 +38,21 @@ One command, no browser plugin, no interactive session — the lane a headless
 agent can actually run:
 
 ```
-bun run check:ui                              # every surface, all five viewports
-bun run check:ui -- --surface=lobby           # one surface, same rules
+bun run check:ui                              # the surfaces this diff reaches, all five viewports
+bun run check:ui -- --all                     # every surface, whatever the diff
+bun run check:ui -- --scope-only              # print the scope, no browser
+bun run check:ui -- --surface=lobby           # one surface, same rules (DIAGNOSTIC)
 bun run check:ui -- --record                  # rewrite budgets.json from this run
 bun run check:ui -- --headed                  # watch it walk
 ```
+
+**Scope** (issues #3627, #3628; ADR 0131). A run with no `--surface=`/`--all`
+walks only the surfaces whose route import closure contains a file this
+checkout changed against the base branch (`scripts/lib/ui-scope.ts`). A
+stylesheet, a design token, a shared UI primitive, the shell, the router,
+`index.html`, `public/**`, the build config, the lane itself, or any path the
+scoper cannot place forces the full run. Tests, scripts and markdown reach
+nothing, so a diff made only of them walks zero surfaces and says so.
 
 It owns the whole lifecycle: it checks the Convex deployment answers, starts
 its **own** Vite on `127.0.0.1` and a free port (your `bun run dev` is left
@@ -243,7 +253,7 @@ lane runs alongside the probe (`axeSerious` / `axeCritical` are budgeted).
 ## What goes in the PR
 
 The `check:ui` table IS the receipt — paste it **byte-exact**: the
-`RECEIPT`/`DIAGNOSTIC` banner line, every surface × viewport row, the coverage
+`RECEIPT`/`SCOPED`/`DIAGNOSTIC` banner line, every surface × viewport row, the coverage
 line and the screenshot directory. This is not a style preference — `bun run
 land` re-derives the banner, the coverage line and every row from the pasted
 text and refuses to merge a `skin`-lane PR whose paste does not match
@@ -264,8 +274,20 @@ console errors: none
 screenshots: .claude/telemetry/ui-gate/3f9c0a1b2d4e/
 ```
 
-Paste only a `RECEIPT`-labelled run — a `DIAGNOSTIC` (a `--surface=` subset)
-is for your own fast local iteration, never the PR body. The one region you
+A run the diff scoped prints `SCOPED` instead, naming the base and every surface
+walked:
+
+```
+SCOPED — diff base origin/staging, 1 surface(s) in scope: deck-detail (1 measured, 0 declared unwalked)
+```
+
+`land` re-derives the scope from the PR's own diff with the same function and
+re-renders that banner from it: a `SCOPED` receipt missing a surface the diff
+reaches, listing one it does not, taken against another base, or pasted on a
+diff that forces the full run is refused. Take it on the final diff — a commit
+that widens the scope after the run makes the receipt stale. A full `RECEIPT`
+satisfies any diff. A `DIAGNOSTIC` (a hand-picked `--surface=` subset) is for
+your own fast local iteration, never the PR body. The one region you
 may shorten is the "known debt carried by the budgets" trailer at the bottom
 (pure `budgets.json` prose), and only behind the literal marker
 `verify-receipt.ts` defines — never a verdict row, a ceiling, the coverage

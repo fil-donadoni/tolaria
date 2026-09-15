@@ -389,6 +389,23 @@ what each surface measures TODAY. Where today's number violates a hard floor
 the entry carries a `knownDebt` note naming the defect, printed under every
 run — never a silently loosened floor.
 
+**A run walks only the surfaces its diff reaches — the one diff-derived lane
+content (issue #3628, ADR 0131).** ADR 0104 §2 forbids diff-derived lane
+content, and it stands whole for every vitest project. `check:ui` is exempt
+because a surface's layout is a function of three inputs: its route's import
+closure (scoped exactly by `scripts/lib/import-graph.ts`), the global styling
+inputs (always force FULL) and deployment data (pinned by the per-run lane
+account). The scoper (`scripts/lib/ui-scope.ts`) is fail-closed like
+`classifyPath`: the lane itself, the build config's closure, a stylesheet, a
+design token, `src/components/ui/**`, the shell, the router, `index.html`,
+`public/**`, or any path no closure contains forces FULL; tests, scripts and
+markdown reach nothing. A no-flag run on a narrower scope prints `SCOPED`
+naming the base and the surfaces; `land` re-derives the scope from the PR's
+diff with the same function (`landingDiffScope`) and refuses a mismatch. A full
+`RECEIPT` covers any diff; a `DIAGNOSTIC` covers none. The census failure
+ADR 0104 defends against — a guard that must notice what the diff did not
+touch — has no instance in this lane: every surface measures one route.
+
 ## Hooks, and why they are tracked in git
 
 `.husky/pre-commit` — lint-staged/prettier on staged files. A convenience;

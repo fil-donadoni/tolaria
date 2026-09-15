@@ -20,6 +20,7 @@ import {
     lockedEnv,
     computeSkinReceiptInvalid,
     safeSkinReceiptInvalid,
+    skinReceiptInvalidForDiff,
     isTestOnlySrcDiff,
     type LandFacts,
     type LockedCommandOptions,
@@ -36,6 +37,7 @@ import {
     type SurfaceWalk,
 } from "../ui-gate/budgets.ts";
 import { SURFACE_IDS } from "../ui-gate/surfaces.ts";
+import { landingDiffScope } from "../ui-gate/verify-receipt.ts";
 
 const GATE = resolve(__dirname, "..", "gate.ts");
 
@@ -975,6 +977,118 @@ describe("land.ts — computeSkinReceiptInvalid (issue #2760 review, finding 3)"
     // "engine" and "full", on garbage input that always fails
     // `verifyReceiptText`). Reverted after confirming red; recorded in the
     // PR receipt's `proofOfFailure` list.
+});
+
+describe("land.ts — a skin PR's SCOPED receipt must match the scope of its own diff (issue #3628)", () => {
+    // Real surfaces, real budgets, real import graph of this tree: the scope
+    // is derived from a diff exactly as `land` derives it, never hand-written.
+    const REPO_ROOT = resolve(__dirname, "..", "..");
+    const DETAIL_DIFF = ["src/routes/deck-detail.route.tsx"];
+    const LOBBY_DIFF = ["src/routes/lobby.route.tsx"];
+
+    /** `check:ui`'s output for `surfaces` (null = every surface, a full
+     *  RECEIPT), every budgeted viewport measured at its ceiling. */
+    function receiptBody(surfaces: readonly string[] | null): string {
+        const budgets = loadBudgets();
+        const known = surfaces ?? SURFACE_IDS;
+        const walks: SurfaceWalk[] = [];
+        for (const surface of known) {
+            const budget = budgets.surfaces[surface];
+            if (!budget || budget.status !== "budgeted") continue;
+            walks.push({
+                surface,
+                status: "measured",
+                measurements: Object.entries(budget.viewports ?? {}).map(
+                    ([viewport, ceilings]) => ({
+                        viewport,
+                        metrics: Object.fromEntries(
+                            BUDGET_KEYS.map((k) => [k, ceilings[k]])
+                        ) as Ceilings,
+                    })
+                ),
+            });
+        }
+        const ev = evaluateRun(
+            budgets,
+            known,
+            walks,
+            SURFACE_IDS,
+            surfaces ? { base: ORIGIN_BASE, surfaces } : null
+        );
+        return [
+            "```",
+            receiptKindLine(ev),
+            ...ev.rows.map(formatResultRow),
+            coverageLine(ev),
+            "```",
+        ].join("\n");
+    }
+
+    function scopedSurfaces(diff: string[]): string[] {
+        const scope = landingDiffScope(diff, REPO_ROOT);
+        if (scope.kind !== "scoped") {
+            throw new Error(
+                `expected a scoped diff, got FULL: ${scope.reason}`
+            );
+        }
+        return scope.surfaces;
+    }
+
+    it("accepts the SCOPED receipt of its own diff, and refuses it for a diff reaching other surfaces", () => {
+        const detail = scopedSurfaces(DETAIL_DIFF);
+        const lobby = scopedSurfaces(LOBBY_DIFF);
+        expect(detail.length).toBeGreaterThan(0);
+        expect(detail).not.toEqual(lobby);
+
+        const body = receiptBody(detail);
+        expect(body).toContain(`SCOPED — diff base ${ORIGIN_BASE}`);
+        expect(skinReceiptInvalidForDiff(DETAIL_DIFF, REPO_ROOT, body)).toBe(
+            false
+        );
+        expect(skinReceiptInvalidForDiff(LOBBY_DIFF, REPO_ROOT, body)).toBe(
+            true
+        );
+    });
+
+    it("refuses a SCOPED receipt for a skin diff that also forces the full run", () => {
+        const body = receiptBody(scopedSurfaces(DETAIL_DIFF));
+        expect(
+            skinReceiptInvalidForDiff(
+                ["src/index.css", ...DETAIL_DIFF],
+                REPO_ROOT,
+                body
+            )
+        ).toBe(true);
+    });
+
+    it("demands the full RECEIPT when the scope cannot be derived — never 'no receipt owed'", () => {
+        const throwing = () => {
+            throw new Error("import graph unreadable");
+        };
+        const scopedBody = receiptBody(scopedSurfaces(DETAIL_DIFF));
+        expect(
+            skinReceiptInvalidForDiff(
+                DETAIL_DIFF,
+                REPO_ROOT,
+                scopedBody,
+                throwing
+            )
+        ).toBe(true);
+        expect(
+            skinReceiptInvalidForDiff(
+                DETAIL_DIFF,
+                REPO_ROOT,
+                receiptBody(null),
+                throwing
+            )
+        ).toBe(false);
+    });
+
+    it("accepts a full RECEIPT for a diff the scoper narrows", () => {
+        expect(
+            skinReceiptInvalidForDiff(DETAIL_DIFF, REPO_ROOT, receiptBody(null))
+        ).toBe(false);
+    });
 });
 
 describe("land.ts — safeSkinReceiptInvalid tolerates a diff-classification failure (issue #2760 review, finding 6)", () => {

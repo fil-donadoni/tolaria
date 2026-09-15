@@ -55,9 +55,23 @@
  * structural: if it appears INSIDE the verified region (between the banner
  * and the coverage line), that is treated as an attempt to disguise a
  * dropped row and rejected outright — the one place eliding is never safe.
+ *
+ * SCOPED RECEIPTS (issue #3628, ADR 0131). A `SCOPED` banner claims the run
+ * walked exactly the surfaces its diff can reach. The claim is only as good as
+ * the scope it names, so the verifier never trusts the pasted list: the caller
+ * passes the scope re-derived from the landing diff (`landingDiffScope`, the
+ * same `computeUiScope` `check:ui` ran), and the banner is re-rendered from
+ * THAT scope. A `SCOPED` receipt with no landing diff to check against, or for
+ * a diff that forces the full run, is refused; a full `RECEIPT` satisfies any
+ * diff; a `DIAGNOSTIC` satisfies none.
  */
 
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 import { gh } from "../lib/gh.ts";
+import { ORIGIN_BASE } from "../lib/branches.ts";
+import { createImportGraph } from "../lib/import-graph.ts";
+import { computeUiScope, type UiScope } from "../lib/ui-scope.ts";
 import {
     coverageLine,
     receiptKindLine,
@@ -67,12 +81,36 @@ import {
     BUDGET_KEYS,
     type BudgetFile,
     type BudgetKey,
+    type DiffScope,
     type Evaluation,
     type ResultRow,
     type Verdict,
 } from "./budgets.ts";
-import { SURFACE_IDS } from "./surfaces.ts";
+import { SURFACES, SURFACE_IDS } from "./surfaces.ts";
 import { VIEWPORT_IDS } from "./viewports.ts";
+
+/** The scope a landing diff re-derives, and the ref that diff was taken against. */
+export interface ExpectedScope {
+    base: string;
+    scope: UiScope;
+}
+
+/**
+ * The scope of a landing diff: `computeUiScope` over the real surface table
+ * and the import graph of the tree at `root`. `check:ui` computes its run's
+ * scope through this same function, so the scope a receipt was walked under
+ * and the scope `land` checks it against cannot come from two derivations.
+ */
+export function landingDiffScope(
+    changed: readonly string[],
+    root: string
+): UiScope {
+    return computeUiScope({
+        changed,
+        surfaces: SURFACES,
+        graph: createImportGraph({ root }),
+    });
+}
 
 const VERDICTS: readonly Verdict[] = ["PASS", "FAIL", "UNWALKED"];
 
@@ -167,13 +205,13 @@ export function extractReceiptRegion(
 ): { region: ParsedReceiptRegion | null; problems: string[] } {
     const lines = body.split(/\r?\n/);
     const bannerIdx = lines.findIndex((l) =>
-        /^(RECEIPT|DIAGNOSTIC) —/.test(l.trim())
+        /^(RECEIPT|SCOPED|DIAGNOSTIC) —/.test(l.trim())
     );
     if (bannerIdx === -1) {
         return {
             region: null,
             problems: [
-                "no RECEIPT/DIAGNOSTIC banner line found in the PR body — check:ui was not pasted, or the banner was removed",
+                "no RECEIPT/SCOPED/DIAGNOSTIC banner line found in the PR body — check:ui was not pasted, or the banner was removed",
             ],
         };
     }
@@ -225,7 +263,10 @@ export function extractReceiptRegion(
         rowLines.push(trimmed);
     }
 
-    if (rows.length === 0 && problems.length === 0) {
+    // An empty scope walks nothing, so its SCOPED receipt has no rows; whether
+    // the scope really was empty is `verifyReceiptText`'s check, not this one.
+    const emptyScopedBanner = lines[bannerIdx].trim().startsWith("SCOPED —");
+    if (rows.length === 0 && problems.length === 0 && !emptyScopedBanner) {
         problems.push(
             "no verdict rows found between the banner and the coverage line"
         );
@@ -425,6 +466,58 @@ export function failCeilingProblems(
 }
 
 /**
+ * The diff scope a pasted `SCOPED` banner is re-rendered under, or the reason
+ * it cannot be. Null `diffScope` for any other banner: `receiptKindOf` then
+ * never recomputes `SCOPED`, so a `RECEIPT`/`DIAGNOSTIC` paste is judged
+ * exactly as before. The pasted surface list is never read — the rows and the
+ * expected scope are the two facts; the banner must agree with both.
+ */
+export function scopedBannerProblems(
+    bannerLine: string,
+    rowSurfaceIds: readonly string[],
+    expected: ExpectedScope | null
+): { diffScope: DiffScope | null; problems: string[] } {
+    if (!bannerLine.startsWith("SCOPED —")) {
+        return { diffScope: null, problems: [] };
+    }
+    if (!expected) {
+        return {
+            diffScope: null,
+            problems: [
+                "a SCOPED receipt covers only what its diff reaches, and no landing diff was given to re-derive that scope — verify it through `bun run land`, or paste a full RECEIPT",
+            ],
+        };
+    }
+    if (expected.scope.kind === "full") {
+        return {
+            diffScope: null,
+            problems: [
+                `the landing diff forces the full run (${expected.scope.reason}) — a SCOPED receipt cannot cover it; paste a full RECEIPT`,
+            ],
+        };
+    }
+    const inScope = new Set(expected.scope.surfaces);
+    const walked = new Set(rowSurfaceIds);
+    const problems: string[] = [];
+    const missing = expected.scope.surfaces.filter((id) => !walked.has(id));
+    if (missing.length > 0) {
+        problems.push(
+            `the SCOPED receipt is missing surface(s) the landing diff reaches: ${missing.join(", ")}`
+        );
+    }
+    const outside = rowSurfaceIds.filter((id) => !inScope.has(id));
+    if (outside.length > 0) {
+        problems.push(
+            `the SCOPED receipt covers surface(s) outside the landing diff's scope: ${outside.join(", ")} — re-run check:ui on a clean, committed tree against a freshly fetched base`
+        );
+    }
+    return {
+        diffScope: { base: expected.base, surfaces: expected.scope.surfaces },
+        problems,
+    };
+}
+
+/**
  * The pure verification: given the PR body text, the real surface/viewport
  * vocabularies and the real budget file (all defaulted to the real ones;
  * overridable so tests never depend on the live catalogue), decide whether
@@ -432,12 +525,17 @@ export function failCeilingProblems(
  * it claims, AND that the rows it claims are the complete census
  * `budgets.json` requires (issue #2760 review, finding 1) — the two checks
  * this file existed for before this fix only ever verified the FIRST half.
+ *
+ * `expected` is the scope re-derived from the landing diff (issue #3628). It
+ * only matters to a `SCOPED` paste; a full `RECEIPT` verifies without it, and
+ * a `DIAGNOSTIC` is refused whatever it holds.
  */
 export function verifyReceiptText(
     body: string,
     definedSurfaceIds: readonly string[] = SURFACE_IDS,
     definedViewportIds: readonly string[] = VIEWPORT_IDS,
-    budgets: BudgetFile = loadBudgets()
+    budgets: BudgetFile = loadBudgets(),
+    expected: ExpectedScope | null = null
 ): ReceiptVerification {
     const { region, problems } = extractReceiptRegion(
         body,
@@ -447,9 +545,15 @@ export function verifyReceiptText(
     if (!region) return { ok: false, problems };
 
     const knownSurfaceIds = [...new Set(region.rows.map((r) => r.surface))];
+    const scoped = scopedBannerProblems(
+        region.bannerLine,
+        knownSurfaceIds,
+        expected
+    );
     const { kind: receiptKind, unmeasuredSurfaces } = receiptKindOf(
         knownSurfaceIds,
-        definedSurfaceIds
+        definedSurfaceIds,
+        scoped.diffScope
     );
 
     const ev: Evaluation = {
@@ -465,9 +569,18 @@ export function verifyReceiptText(
         knownDebt: [],
         receiptKind,
         unmeasuredSurfaces,
+        diffScope: scoped.diffScope,
     };
 
-    const mismatches: string[] = [];
+    const mismatches: string[] = [...scoped.problems];
+
+    // A DIAGNOSTIC renders consistently with its own rows, so the byte-diffs
+    // below would pass it: the refusal has to be said out loud.
+    if (receiptKind === "DIAGNOSTIC") {
+        mismatches.push(
+            `the rows recompute to a DIAGNOSTIC (not measured: ${unmeasuredSurfaces.join(", ") || "no defined surfaces"}) — a hand-picked --surface= subset is not a PR receipt; paste a full RECEIPT, or the SCOPED run of the landing diff`
+        );
+    }
 
     const expectedBanner = receiptKindLine(ev);
     if (region.bannerLine !== expectedBanner) {
@@ -513,10 +626,42 @@ async function main(): Promise<number> {
     const pr = Number((arg ?? "").replace(/^#/, ""));
     if (!Number.isInteger(pr) || pr <= 0) usage();
 
-    const raw = gh(["pr", "view", String(pr), "--json", "body"]);
-    const { body } = JSON.parse(raw) as { body: string };
+    const raw = gh(["pr", "view", String(pr), "--json", "body,files"]);
+    const { body, files } = JSON.parse(raw) as {
+        body: string;
+        files: { path: string }[];
+    };
+    // `gh pr view --json files` caps the list at 100 entries: a scope derived
+    // from a truncated list could be narrower than the PR's. `land` never
+    // reads this list — it diffs the landing worktree — so this is a warning.
+    if (files.length >= 100) {
+        console.warn(
+            `verify:ui-receipt — PR #${pr}: GitHub returned ${files.length} changed files, possibly truncated; the scope may be too narrow. \`bun run land\` derives it from the worktree and is authoritative.`
+        );
+    }
 
-    const result = verifyReceiptText(body);
+    // The PR's changed paths come from GitHub; the import graph they are
+    // placed in is THIS checkout's — run it from the PR's worktree. `land`
+    // derives both from the landing worktree itself.
+    const root = path.resolve(
+        path.dirname(fileURLToPath(import.meta.url)),
+        "..",
+        ".."
+    );
+    const expected: ExpectedScope = {
+        base: ORIGIN_BASE,
+        scope: landingDiffScope(
+            files.map((f) => f.path),
+            root
+        ),
+    };
+    const result = verifyReceiptText(
+        body,
+        SURFACE_IDS,
+        VIEWPORT_IDS,
+        loadBudgets(),
+        expected
+    );
     if (result.ok) {
         console.log(
             `verify:ui-receipt — PR #${pr}: check:ui receipt verified clean`
