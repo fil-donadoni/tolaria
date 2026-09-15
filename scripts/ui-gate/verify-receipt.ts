@@ -508,7 +508,7 @@ export function scopedBannerProblems(
     const outside = rowSurfaceIds.filter((id) => !inScope.has(id));
     if (outside.length > 0) {
         problems.push(
-            `the SCOPED receipt covers surface(s) outside the landing diff's scope: ${outside.join(", ")}`
+            `the SCOPED receipt covers surface(s) outside the landing diff's scope: ${outside.join(", ")} — re-run check:ui on a clean, committed tree against a freshly fetched base`
         );
     }
     return {
@@ -631,6 +631,14 @@ async function main(): Promise<number> {
         body: string;
         files: { path: string }[];
     };
+    // `gh pr view --json files` caps the list at 100 entries: a scope derived
+    // from a truncated list could be narrower than the PR's. `land` never
+    // reads this list — it diffs the landing worktree — so this is a warning.
+    if (files.length >= 100) {
+        console.warn(
+            `verify:ui-receipt — PR #${pr}: GitHub returned ${files.length} changed files, possibly truncated; the scope may be too narrow. \`bun run land\` derives it from the worktree and is authoritative.`
+        );
+    }
 
     // The PR's changed paths come from GitHub; the import graph they are
     // placed in is THIS checkout's — run it from the PR's worktree. `land`

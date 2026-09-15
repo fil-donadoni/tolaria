@@ -97,6 +97,7 @@ import {
     verifyReceiptText,
     type ExpectedScope,
 } from "./ui-gate/verify-receipt.ts";
+import type { UiScope } from "./lib/ui-scope.ts";
 import { changedRetiredRows, retirementRefusal } from "./lib/retirement-ack";
 import { REGENERATE_MARKER } from "./lib/generated-artifacts";
 
@@ -129,13 +130,26 @@ export function computeSkinReceiptInvalid(
 export function skinReceiptInvalidForDiff(
     paths: string[],
     root: string,
-    prBody: string
+    prBody: string,
+    scopeOf: (changed: string[], root: string) => UiScope = landingDiffScope
 ): boolean {
     const lane = classifyLane(paths).lane;
     if (lane !== "skin" || isTestOnlySrcDiff(paths)) return false;
+    // A scope that cannot be derived demands the FULL receipt. It must never
+    // reach `safeSkinReceiptInvalid`'s catch, which reads "not a skin diff"
+    // and would demand no receipt at all (issue #3628 review).
+    let scope: UiScope;
+    try {
+        scope = scopeOf(paths, root);
+    } catch (err) {
+        scope = {
+            kind: "full",
+            reason: `scope unavailable: ${(err as Error).message}`,
+        };
+    }
     return computeSkinReceiptInvalid(lane, prBody, {
         base: ORIGIN_BASE,
-        scope: landingDiffScope(paths, root),
+        scope,
     });
 }
 

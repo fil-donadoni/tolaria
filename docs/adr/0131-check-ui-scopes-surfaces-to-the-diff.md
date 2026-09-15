@@ -92,10 +92,16 @@ everything".
   surface's own components keeps the rule alive, so the hole is limited to
   runtime-built class strings. Recorded in `ui-scope.ts`, not closed.
 - **Residual — the graph at landing time.** `land` derives the scope from the
-  PR's diff on the PR's tree before its rebase, the same tree the receipt was
-  walked on. A base-branch change that makes another route import the changed
-  file after the receipt was taken is not seen; a full `RECEIPT` has the same
-  pre-rebase blind spot today.
+  PR's committed diff on the PR's tree before its rebase; `check:ui` also
+  counted uncommitted and untracked files. Where the two differ the surface
+  sets differ and the receipt is refused, so the divergence fails closed. What
+  is not seen is a base-branch change, landed after the receipt was taken, that
+  makes another route import the changed file: that route was never walked. A
+  full `RECEIPT` walked every surface and has no such hole; what both kinds
+  share is staleness — neither is pinned to a commit, so a later commit that
+  keeps the surface set unchanged still verifies.
+- **Fail-closed on a scope that cannot be derived.** If `land` cannot compute
+  the scope, the diff owes a full `RECEIPT` — never "no receipt".
 
 ## What would change the answer
 

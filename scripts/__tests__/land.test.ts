@@ -1061,6 +1061,29 @@ describe("land.ts — a skin PR's SCOPED receipt must match the scope of its own
         ).toBe(true);
     });
 
+    it("demands the full RECEIPT when the scope cannot be derived — never 'no receipt owed'", () => {
+        const throwing = () => {
+            throw new Error("import graph unreadable");
+        };
+        const scopedBody = receiptBody(scopedSurfaces(DETAIL_DIFF));
+        expect(
+            skinReceiptInvalidForDiff(
+                DETAIL_DIFF,
+                REPO_ROOT,
+                scopedBody,
+                throwing
+            )
+        ).toBe(true);
+        expect(
+            skinReceiptInvalidForDiff(
+                DETAIL_DIFF,
+                REPO_ROOT,
+                receiptBody(null),
+                throwing
+            )
+        ).toBe(false);
+    });
+
     it("accepts a full RECEIPT for a diff the scoper narrows", () => {
         expect(
             skinReceiptInvalidForDiff(DETAIL_DIFF, REPO_ROOT, receiptBody(null))
