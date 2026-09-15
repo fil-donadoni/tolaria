@@ -2317,6 +2317,7 @@ export const SURFACES: readonly Surface[] = [
         // it ENDS the solo game it loaded its scenario into: that last row
         // refuses to start a vs-AI game over the lane's own standing solo game.
         id: "game-manage-yields",
+        entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
         label: "Manage yields box — one yield held",
         async walk(page, ctx) {
             await ensureScenarioBoard(page, ctx, ctx.yieldsScenarioLabel);
