@@ -1192,34 +1192,52 @@ export default defineSchema({
     // is (ADR 0044): the shapes grow, and a row written under today's shape
     // must still export after a field is added. The WRITE path is where the
     // shape is checked — `submit`'s own argument validators.
+    //
+    // OUTBOX (issue #3580, ADR 0128 §5). The table is now the Verdict Store's
+    // outbox: a row arrives FAT and stamped, the drain (`verdictsDrain.ts`)
+    // uploads and re-reads it, and `verdicts.markStored` then replaces it with
+    // its hashes and provenance. That is why the judgement fields below are
+    // optional — a slim row has none — and why `storedAt` is the pending flag.
     verdicts: defineTable({
-        // The board, in the `ScenarioSpec` vocabulary.
-        spec: v.any(),
+        // The board, in the `ScenarioSpec` vocabulary. Absent once stored.
+        spec: v.optional(v.any()),
         // `BladeSetupStep[]` walking the built board to the decision. Absent
         // for a decision on a freshly built board.
         setup: v.optional(v.any()),
-        // The seat that owed the decision (`BladeSeat`).
-        seat: v.union(v.literal("me"), v.literal("opp")),
+        // The seat that owed the decision (`BladeSeat`). Absent once stored.
+        seat: v.optional(v.union(v.literal("me"), v.literal("opp"))),
+        // Decklists the search was allowed to know (`Verdict.deckKnowledge`).
+        // Only the bulk door writes it; the in-play quiz does not capture it.
+        deckKnowledge: v.optional(
+            v.array(
+                v.object({
+                    seat: v.union(v.literal("me"), v.literal("opp")),
+                    cards: v.array(v.string()),
+                })
+            )
+        ),
         // The candidates in the order `enumerateMoves` produced them: the
         // structural move key plus the describer's sentence. No `Move` object
         // is ever stored — moves carry instance ids, an artefact of how a
         // state was BUILT, so a stored move rots the first time the builder
         // allocates differently.
-        candidates: v.array(
-            v.object({ key: v.string(), description: v.string() })
+        candidates: v.optional(
+            v.array(v.object({ key: v.string(), description: v.string() }))
         ),
         // The judgement. A discriminated union rather than one optional index,
         // so no reader can take a `forbidden` record for one that names a
-        // right move.
-        answer: v.union(
-            v.object({
-                kind: v.literal("right"),
-                rightIndexes: v.array(v.number()),
-            }),
-            v.object({
-                kind: v.literal("forbidden"),
-                forbiddenIndexes: v.array(v.number()),
-            })
+        // right move. Absent once stored.
+        answer: v.optional(
+            v.union(
+                v.object({
+                    kind: v.literal("right"),
+                    rightIndexes: v.array(v.number()),
+                }),
+                v.object({
+                    kind: v.literal("forbidden"),
+                    forbiddenIndexes: v.array(v.number()),
+                })
+            )
         ),
         // The Bot's OWN pick at the time, by candidate index — the whole point
         // of an in-play verdict is that the Bot already answered and a human
@@ -1232,15 +1250,35 @@ export default defineSchema({
         // of a position, not a child of the match it came from.
         gameId: v.optional(v.string()),
         seq: v.optional(v.number()),
-        // Stamped from `ctx.auth` by `submit`, never from the client.
-        authorId: v.id("users"),
+        // Stamped from `ctx.auth` by `submit`, never from the client. Absent on
+        // a row the bulk door wrote: that judge is not a user of this
+        // deployment, and `attestationAuthor` names them instead.
+        authorId: v.optional(v.id("users")),
         // The author's nickname AT THE TIME, denormalised on purpose: the
         // exported file is read in a diff years later, and resolving a user id
         // to a name then is neither possible nor interesting.
         author: v.string(),
         createdAt: v.number(),
         note: v.optional(v.string()),
-    }).index("by_createdAt", ["createdAt"]),
+        // The verdict id and position key (`gre/ai/verdicts/identity.ts`),
+        // stamped server-side at insert. Optional only because rows written
+        // before the outbox carry neither; the drain derives them for those.
+        verdictHash: v.optional(v.string()),
+        positionKey: v.optional(v.string()),
+        // `${deployment}:${userId}` — the attestation's author (ADR 0128 §4).
+        attestationAuthor: v.optional(v.string()),
+        // The deployment the row entered the outbox on, and whether that is a
+        // local backend — test traffic stays filterable.
+        deployment: v.optional(v.string()),
+        deploymentKind: v.optional(
+            v.union(v.literal("cloud"), v.literal("local"))
+        ),
+        // When the drain confirmed both objects by re-reading them. Absent =
+        // pending: the row still carries the only copy of its judgement.
+        storedAt: v.optional(v.number()),
+    })
+        .index("by_createdAt", ["createdAt"])
+        .index("by_storedAt", ["storedAt"]),
 
     // Per-user Settings (issue #2595, PRD #2405 slice 16/16, ADR 0101). The
     // v3 tokens (density/motion) and the phase-stop store were device-local

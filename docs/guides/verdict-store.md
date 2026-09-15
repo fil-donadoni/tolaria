@@ -103,6 +103,29 @@ writer's [key](#g-key) on a development machine. A local deployment simply has
 no write key, so it cannot upload. Never put the key in `.env.local` or any
 other file in a checkout either.
 
+## How a judgement reaches the bucket
+
+The `verdicts` table is an [outbox](#g-outbox) (issue #3580, ADR 0128 §5):
+
+1. `verdicts:submit` validates the judgement and writes the row FAT, stamped
+   with its verdict id, its position key and the
+   [attestation](#g-attestation) author `${deployment}:${userId}`.
+2. It schedules `verdictsDrain:drain`, which uploads the verdict object and
+   then its [attestation](#g-attestation), reads both back, and only then
+   slims the row to its hashes and provenance (`storedAt` set).
+3. A row whose upload failed or did not read back stays fat with no
+   `storedAt`. The hourly cron runs the drain again; nothing needs doing by
+   hand.
+
+On a deployment without the write [key](#g-key) — every local backend — the
+drain answers `skipped` and the rows stay fat, marked `deploymentKind: local`.
+
+**Bulk upload** (the migration's door): an admin calls
+`verdicts:enqueueBulk` with the judgements and their attestation authors, then
+`verdictsDrain:drainNow`, which drains at once and returns every row stored and
+every row left pending, with the reason. Both run on the deployment holding the
+write [key](#g-key); `drainNow` throws if it holds none.
+
 ## Development machine
 
 Each machine gets its own reader [key](#g-key), stored outside every checkout
@@ -145,6 +168,18 @@ A fit reads the corpus the committed Verdict Lock names from ONE
 one on every deployment.
 
 ## Glossary
+
+### <a id="g-attestation"></a>Attestation
+
+One author's word for one stored verdict, at
+`attestations/<verdictId>/<author>`: who (`${deployment}:${userId}`, never an
+email), when, the note, and the deployment it came from. Two testers agreeing
+are one verdict object with two attestations.
+
+### <a id="g-outbox"></a>Outbox
+
+The `verdicts` table since issue #3580: a row holds a judgement only until the
+drain has stored it in the [bucket](#g-bucket) and read it back.
 
 ### <a id="g-bucket"></a>Bucket
 

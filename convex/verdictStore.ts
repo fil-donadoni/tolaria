@@ -33,6 +33,7 @@ import {
     type VerdictJudgement,
 } from "./gre/ai/verdicts/identity";
 import { utf8Bytes } from "./gre/ai/verdicts/sha256";
+import type { VerdictAttestation } from "./gre/ai/verdicts/types";
 
 /** What a `put` did. `"exists"` is success: the name was already stored. */
 export type VerdictStorePutOutcome = "created" | "exists";
@@ -217,4 +218,201 @@ export async function readVerdict(
     const name = verdictObjectName(verdictId);
     const bytes = await store.get(name);
     return bytes === null ? null : decodeVerdictObject(name, bytes);
+}
+
+// ── Attestations (issue #3580, ADR 0128 §4) ──────────────────────────────────
+//
+// One object per (verdict, author): `attestations/<verdictId>/<author>`. The
+// name is decided by what is attested and by whom, so a second upload of the
+// same author's word — a retried drain, the same tester judging the same
+// position twice — lands on the name that already exists and the port answers
+// `"exists"`. What the FIRST upload said (its time, its note) is what stays:
+// the port never overwrites, and nothing the fit reads is in either field.
+
+/** Where attestation objects live in the bucket. */
+export const ATTESTATION_OBJECT_PREFIX = "attestations/";
+
+/** The deployment half of an author: a Convex deployment's name, or
+ *  `local-<port>` for a local backend (`verdictsOutbox.ts`). */
+export const VERDICT_DEPLOYMENT_NAME_PATTERN = /^[a-z0-9][a-z0-9.-]*$/;
+
+/** `${deployment}:${userId}` (ADR 0128 §4). The shape cannot hold an `@`, a
+ *  space or a `/`, so an email, a nickname with a space, or a path segment is
+ *  refused by the pattern rather than by a reviewer noticing. */
+export const VERDICT_AUTHOR_PATTERN = /^[a-z0-9][a-z0-9.-]*:[A-Za-z0-9_-]+$/;
+
+/** The author identity of `userId` on `deployment`. User ids are
+ *  per-deployment, so the deployment is part of who someone is — the same
+ *  person on two deployments is two authors here, and joining them is issue
+ *  #3585's, never a guess made at write time. */
+export function verdictAuthorOf(deployment: string, userId: string): string {
+    const author = `${deployment}:${userId}`;
+    if (!VERDICT_AUTHOR_PATTERN.test(author)) {
+        throw new Error(`Not a verdict author: ${JSON.stringify(author)}`);
+    }
+    return author;
+}
+
+/** `attestations/<verdictId>/<author>`. Throws on a malformed half, so an
+ *  email can never become part of an object name. */
+export function attestationObjectName(
+    verdictId: string,
+    author: string
+): string {
+    if (!VERDICT_HASH_PATTERN.test(verdictId)) {
+        throw new Error(`Not a verdict id: ${JSON.stringify(verdictId)}`);
+    }
+    if (!VERDICT_AUTHOR_PATTERN.test(author)) {
+        throw new Error(`Not a verdict author: ${JSON.stringify(author)}`);
+    }
+    return `${ATTESTATION_OBJECT_PREFIX}${verdictId}/${author}`;
+}
+
+const ATTESTATION_CONTENT_TYPE = "application/json";
+
+/** The attestation's fields, field by field — never "whatever the caller
+ *  passed", so a stray property cannot ride into the bucket. */
+function attestationPayload(
+    attestation: VerdictAttestation
+): VerdictAttestation {
+    return {
+        verdictId: attestation.verdictId,
+        author: attestation.author,
+        sourceAxis: attestation.sourceAxis,
+        ...(attestation.createdAt === undefined
+            ? {}
+            : { createdAt: attestation.createdAt }),
+        ...(attestation.note === undefined ? {} : { note: attestation.note }),
+        ...(attestation.deployment === undefined
+            ? {}
+            : { deployment: attestation.deployment }),
+        ...(attestation.deploymentKind === undefined
+            ? {}
+            : { deploymentKind: attestation.deploymentKind }),
+        ...(attestation.botPickIndex === undefined
+            ? {}
+            : { botPickIndex: attestation.botPickIndex }),
+        ...(attestation.gameId === undefined
+            ? {}
+            : { gameId: attestation.gameId }),
+        ...(attestation.seq === undefined ? {} : { seq: attestation.seq }),
+    };
+}
+
+/** An attestation as the object the store holds: its name and its bytes. */
+export function encodeAttestationObject(attestation: VerdictAttestation): {
+    name: string;
+    bytes: Uint8Array;
+} {
+    const payload = attestationPayload(attestation);
+    return {
+        name: attestationObjectName(payload.verdictId, payload.author),
+        bytes: utf8Bytes(canonicalJson(payload)),
+    };
+}
+
+/** The attestation stored under `name`, verified: it must name the verdict and
+ *  the author its object name carries, and its bytes must be exactly the
+ *  canonical encoding of what they parse to. */
+export function decodeAttestationObject(
+    name: string,
+    bytes: Uint8Array
+): VerdictAttestation {
+    let attestation: VerdictAttestation;
+    let canonical: Uint8Array;
+    try {
+        const raw = JSON.parse(new TextDecoder().decode(bytes)) as
+            | VerdictAttestation
+            | null
+            | undefined;
+        if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+            throw new Error("not a JSON object");
+        }
+        attestation = attestationPayload(raw);
+        canonical = utf8Bytes(canonicalJson(attestation));
+    } catch (error) {
+        throw new VerdictStoreIntegrityError(
+            name,
+            `unreadable (${error instanceof Error ? error.message : String(error)})`
+        );
+    }
+    let expected: string;
+    try {
+        expected = attestationObjectName(
+            attestation.verdictId,
+            attestation.author
+        );
+    } catch (error) {
+        throw new VerdictStoreIntegrityError(
+            name,
+            error instanceof Error ? error.message : String(error)
+        );
+    }
+    if (expected !== name) {
+        throw new VerdictStoreIntegrityError(
+            name,
+            `attests ${attestation.verdictId} by ${attestation.author}, which is not what its name promises`
+        );
+    }
+    if (
+        attestation.sourceAxis !== "explicit" &&
+        attestation.sourceAxis !== "implicit"
+    ) {
+        throw new VerdictStoreIntegrityError(name, "has no source axis");
+    }
+    // Canonical bytes say nothing about TYPES: `"createdAt":"x"` is canonical.
+    const mistyped = (
+        [
+            ["createdAt", "number"],
+            ["note", "string"],
+            ["deployment", "string"],
+            ["botPickIndex", "number"],
+            ["gameId", "string"],
+            ["seq", "number"],
+        ] as const
+    ).find(
+        ([field, type]) =>
+            attestation[field] !== undefined &&
+            typeof attestation[field] !== type
+    );
+    if (
+        mistyped !== undefined ||
+        (attestation.deploymentKind !== undefined &&
+            attestation.deploymentKind !== "cloud" &&
+            attestation.deploymentKind !== "local")
+    ) {
+        throw new VerdictStoreIntegrityError(
+            name,
+            `field ${mistyped?.[0] ?? "deploymentKind"} has the wrong type`
+        );
+    }
+    if (!sameBytes(canonical, bytes)) {
+        throw new VerdictStoreIntegrityError(
+            name,
+            "bytes are not the canonical encoding of the attestation they carry"
+        );
+    }
+    return attestation;
+}
+
+/** Store one attestation. Idempotent per (verdict, author). */
+export async function putAttestation(
+    store: VerdictStoreWriter,
+    attestation: VerdictAttestation
+): Promise<{ name: string; outcome: VerdictStorePutOutcome }> {
+    const { name, bytes } = encodeAttestationObject(attestation);
+    const outcome = await store.put(name, bytes, ATTESTATION_CONTENT_TYPE);
+    return { name, outcome };
+}
+
+/** Read one author's attestation of one verdict back, verified against its
+ *  name. `null` when the store has none. */
+export async function readAttestation(
+    store: VerdictStoreReader,
+    verdictId: string,
+    author: string
+): Promise<VerdictAttestation | null> {
+    const name = attestationObjectName(verdictId, author);
+    const bytes = await store.get(name);
+    return bytes === null ? null : decodeAttestationObject(name, bytes);
 }

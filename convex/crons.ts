@@ -1,4 +1,4 @@
-import { cronJobs } from "convex/server";
+import { cronJobs, makeFunctionReference } from "convex/server";
 import { internal } from "./_generated/api";
 import { internalMutation } from "./_generated/server";
 import { deleteGameCascade, deleteMatchCascade } from "./matches";
@@ -82,6 +82,18 @@ crons.interval(
     "sweep abandoned limited events",
     { hours: 24 },
     internal.crons.sweepAbandonedLimitedEvents
+);
+
+// The Verdict outbox's retry (issue #3580): every insert schedules a drain, and
+// this picks up whatever an earlier drain left pending. A deployment without
+// the write key answers `skipped` (`verdictsDrain.ts`). Referenced by name so
+// this file's typecheck does not depend on codegen having seen a node module.
+crons.interval(
+    "drain the verdict outbox",
+    { hours: 1 },
+    makeFunctionReference<"action", Record<string, never>>(
+        "verdictsDrain:drain"
+    )
 );
 
 export default crons;
