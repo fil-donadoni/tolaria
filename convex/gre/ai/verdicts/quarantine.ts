@@ -43,18 +43,25 @@
 // content — ids, keys and authors sorted — never of the input order, so a
 // store listing and a pack give one report.
 
-import { positionKeyOf, verdictIdOf, type VerdictJudgement } from "./identity";
+import {
+    canonicalJson,
+    positionKeyOf,
+    verdictIdOf,
+    type VerdictJudgement,
+} from "./identity";
 import type { VerdictAttestation, VerdictSourceAxis } from "./types";
 
 /** A distinct judgement with every attestation it carries. */
 export type AttestedVerdict<V extends VerdictJudgement = VerdictJudgement> = {
     verdictId: string;
     positionKey: string;
-    /** The first-supplied record of this judgement. Records sharing an id
-     *  differ only outside the judgement (provenance, a candidate's
-     *  `description`), which nothing downstream of the lock reads. */
+    /** One record of this judgement. Records sharing an id differ only
+     *  outside what the id covers (provenance, a candidate's `description`);
+     *  when several are supplied the one with the smallest canonical encoding
+     *  is kept, so the choice is the content's, never the input order's. */
     judgement: V;
-    /** One per author, sorted by author. */
+    /** One per author, sorted by author, of BOTH axes — a consumer counting
+     *  explicit agreement filters on `sourceAxis`, as `byAuthor` does. */
     attestations: VerdictAttestation[];
 };
 
@@ -107,18 +114,26 @@ function isExplicit(verdict: AttestedVerdict<VerdictJudgement>): boolean {
  * contested, implicit-only and unattested. Throws, naming it, on an
  * attestation whose verdict was not supplied — a silently dropped attestation
  * would move an explicit verdict to implicit-only, or a contested position to
- * an agreed one.
+ * an agreed one. The outbox stores the verdict object before its attestation
+ * (issue #3580), so an orphan is never an upload race: the caller supplies
+ * every verdict its attestations name.
  */
 export function quarantineContestedPositions<V extends VerdictJudgement>(
     verdicts: readonly V[],
     attestations: readonly VerdictAttestation[]
 ): VerdictQuarantine<V> {
-    const distinct = new Map<string, { judgement: V; positionKey: string }>();
+    const distinct = new Map<
+        string,
+        { judgement: V; encoding: string; positionKey: string }
+    >();
     for (const verdict of verdicts) {
         const verdictId = verdictIdOf(verdict);
-        if (!distinct.has(verdictId)) {
+        const encoding = canonicalJson(verdict);
+        const earlier = distinct.get(verdictId);
+        if (earlier === undefined || encoding < earlier.encoding) {
             distinct.set(verdictId, {
                 judgement: verdict,
+                encoding,
                 positionKey: positionKeyOf(verdict),
             });
         }

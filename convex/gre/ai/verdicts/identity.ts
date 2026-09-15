@@ -14,9 +14,10 @@
 // `origin` (`gameId`, `seq`), `botPickIndex` (what the Bot did, not what the
 // judge said), and `source` — an `authored` verdict and an `in-play` one that
 // say the same thing about the same position are ONE judgement with two
-// attestations (PRD #3574, user story 37). When implicit (telemetry) judgements
-// arrive (ADR 0128 §11) and need to hash apart, they add a field that is ABSENT
-// on every explicit judgement, which leaves every existing name where it is.
+// attestations (PRD #3574, user story 37). The same holds across the explicit /
+// implicit axis (ADR 0128 §11): a judgement given and one inferred from play
+// that say the same thing are one verdict id, and which kind each is lives on
+// its attestation (`VerdictAttestation.sourceAxis`, issue #3579), never here.
 //
 // THE PROJECTION IS EXPLICIT, field by field, never "the verdict minus a
 // deny-list". `v1-` versions the CANONICALISATION, not the payload (ADR 0128

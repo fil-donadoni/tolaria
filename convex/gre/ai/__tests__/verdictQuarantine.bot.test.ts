@@ -1,5 +1,5 @@
-// Contested positions and the quarantine before the Verdict Lock (issue
-// #3579, PRD #3574, ADR 0128 §6 / §11).
+// Contested positions and the quarantine before the Verdict Lock
+// (issue #3579, PRD #3574, ADR 0128 §6 / §11).
 //
 // Every claim is a property of the classification a promotion reads, never
 // the shape of a helper: agreement collapses to one promotable verdict,
@@ -204,12 +204,15 @@ describe("the contested-position metric — per corpus and per author", () => {
             attest(shock, "prod:alice"),
             attest(land, "prod:bob"),
             attest(OTHER_POSITION, "prod:alice"),
+            attest(OTHER_POSITION, "prod:carol"),
             attest(OTHER_POSITION, "prod:dave", "implicit"),
         ]
     );
     const key = positionKeyOf(BASE);
 
     it("names and counts contested positions per author, zeroes included", () => {
+        // carol judged only an agreed position: a row with nothing contested.
+        // dave only attested implicitly: no row at all.
         expect(q.byAuthor).toEqual([
             {
                 author: "prod:alice",
@@ -220,6 +223,11 @@ describe("the contested-position metric — per corpus and per author", () => {
                 author: "prod:bob",
                 judgedPositions: 1,
                 contestedPositionKeys: [key],
+            },
+            {
+                author: "prod:carol",
+                judgedPositions: 1,
+                contestedPositionKeys: [],
             },
         ]);
     });
@@ -251,6 +259,27 @@ describe("purity", () => {
             [...verdicts].reverse(),
             [...attestations, ...attestations].reverse()
         );
+        expect(reversed).toEqual(forward);
+    });
+
+    it("keeps the same record of a repeated judgement whatever the input order", () => {
+        const plain = answering([2]);
+        const reworded = answering([2], {
+            candidates: BASE.candidates.map((c) => ({
+                ...c,
+                description: `${c.description} (reworded)`,
+            })),
+        });
+        const attestations = [attest(plain, "prod:alice")];
+        const forward = quarantineContestedPositions(
+            [plain, reworded],
+            attestations
+        );
+        const reversed = quarantineContestedPositions(
+            [reworded, plain],
+            attestations
+        );
+        expect(forward.promotable).toHaveLength(1);
         expect(reversed).toEqual(forward);
     });
 
