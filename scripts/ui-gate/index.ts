@@ -91,6 +91,7 @@ import { VIEWPORTS } from "./viewports.ts";
 import {
     createLaneLifecycle,
     installSignalTeardown,
+    LaneAccountError,
     localConvexRunner,
     newLaneAccount,
     passwordSignUp,
@@ -835,7 +836,7 @@ async function main(): Promise<number> {
 try {
     process.exit(await main());
 } catch (err) {
-    if (err instanceof FatalError) {
+    if (err instanceof FatalError || err instanceof LaneAccountError) {
         process.stderr.write(`\n✗ check:ui: ${err.message}\n`);
         process.exit(2);
     }

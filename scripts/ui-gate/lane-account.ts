@@ -110,7 +110,14 @@ export function localConvexRunner(
         }
         if (res.status !== 0) {
             const out = `${res.stderr ?? ""}${res.stdout ?? ""}`.trim();
-            throw new LaneAccountError(`${fn} — ${convexRunErrorMessage(out)}`);
+            // The lane runs against whatever code the local backend last
+            // received; a checkout that predates issue #3626 never pushed it.
+            const hint = /could not find (public )?function/i.test(out)
+                ? ` — the local deployment does not carry this function yet; push the base checkout's code (\`bunx convex dev --once\` in ${cwd})`
+                : "";
+            throw new LaneAccountError(
+                `${fn} — ${convexRunErrorMessage(out)}${hint}`
+            );
         }
         const text = (res.stdout ?? "").trim();
         try {

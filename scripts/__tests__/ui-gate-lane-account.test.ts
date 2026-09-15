@@ -108,9 +108,12 @@ describe("the lane account lifecycle (issue #3626)", () => {
         );
         await h.lane.bootstrap();
         signals.emit("SIGINT");
+        // Asserted BEFORE anything else tears down: the handler alone must
+        // have destroyed the account.
+        expect(exits).toEqual([130]);
+        expect(h.destroys()).toBe(1);
         // The `finally` a real run would also reach afterwards.
         h.lane.teardown();
-        expect(exits).toEqual([130]);
         expect(h.destroys()).toBe(1);
     });
 
