@@ -112,7 +112,7 @@ export function landingDiffScope(
     });
 }
 
-const VERDICTS: readonly Verdict[] = ["PASS", "FAIL", "UNWALKED"];
+const VERDICTS: readonly Verdict[] = ["PASS", "FAIL", "INFRA", "UNWALKED"];
 
 /**
  * The marker a receipt may use IN PLACE OF the "known debt carried by the
@@ -579,6 +579,17 @@ export function verifyReceiptText(
     if (receiptKind === "DIAGNOSTIC") {
         mismatches.push(
             `the rows recompute to a DIAGNOSTIC (not measured: ${unmeasuredSurfaces.join(", ") || "no defined surfaces"}) — a hand-picked --surface= subset is not a PR receipt; paste a full RECEIPT, or the SCOPED run of the landing diff`
+        );
+    }
+
+    // An Infra Verdict is unproven, never green (issue #3644): the machine cut
+    // those walks short, so the receipt says nothing about those cells. The row
+    // is a faithful rendering, which is exactly why the byte-diffs below would
+    // pass it — the refusal has to be said out loud, like the DIAGNOSTIC one.
+    const infraRows = region.rows.filter((r) => r.verdict === "INFRA");
+    if (infraRows.length > 0) {
+        mismatches.push(
+            `the receipt carries ${infraRows.length} INFRA cell(s) (${infraRows.map((r) => `${r.surface} @ ${r.viewport ?? "—"}`).join(", ")}) — the machine cut those walks short, so they are unproven: re-run check:ui once the load has dropped`
         );
     }
 

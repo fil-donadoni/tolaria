@@ -13,6 +13,7 @@ import DebugBoardArea from "~/components/debug/debug-board-area";
 import DebugSheet from "~/components/debug/debug-sheet";
 import DebugSheetProvider from "~/components/debug/debug-sheet-provider";
 import LoadingScreen from "~/components/ui/loading-screen";
+import SurfaceReadyMarker from "~/components/ui/surface-ready-marker";
 import WaitingForOpponent from "~/components/board/waiting-for-opponent";
 import OrientationHint from "~/components/ui/orientation-hint";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
@@ -98,13 +99,18 @@ export default function GameRoute() {
     if (!session.gameId || !session.playerId) return null;
     const { gameId, playerId } = session;
 
+    // Every branch that has its game renders `SurfaceReadyMarker` (issue
+    // #3644); only the trailing `LoadingScreen` does not.
     if (game && game.status === "waiting") {
         return (
-            <WaitingForOpponent
-                gameId={gameId}
-                joinCode={game.joinCode}
-                onLeave={handleLeave}
-            />
+            <>
+                <SurfaceReadyMarker />
+                <WaitingForOpponent
+                    gameId={gameId}
+                    joinCode={game.joinCode}
+                    onLeave={handleLeave}
+                />
+            </>
         );
     }
 
@@ -114,6 +120,7 @@ export default function GameRoute() {
         // flips to "playing" (reactive re-query).
         return (
             <div className="flex h-dvh flex-col items-center justify-center text-white">
+                <SurfaceReadyMarker />
                 <PregameDialog matchId={game.matchId} viewerId={playerId} />
             </div>
         );
@@ -130,6 +137,7 @@ export default function GameRoute() {
             if (game.status === "finished") {
                 return (
                     <div className="flex h-dvh flex-col">
+                        <SurfaceReadyMarker />
                         <ManualGameOverDialog
                             players={game.players}
                             winnerId={game.winner}
@@ -142,6 +150,7 @@ export default function GameRoute() {
             }
             return (
                 <div className="flex h-dvh flex-col">
+                    <SurfaceReadyMarker />
                     <ManualBoardContainer
                         key={gameId}
                         gameId={gameId}
@@ -163,6 +172,7 @@ export default function GameRoute() {
             // reach across to them.
             <DebugSheetProvider enabled={showDebugSheet}>
                 <div className="flex h-dvh flex-col">
+                    <SurfaceReadyMarker />
                     {viewportMode === "portrait" && (
                         <OrientationHint
                             surfaceId="game-board"

@@ -19,6 +19,7 @@ import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import LoadingScreen from "~/components/ui/loading-screen";
+import SurfaceReadyMarker from "~/components/ui/surface-ready-marker";
 import LimitedEventList from "./limited-event-list";
 import LimitedStatusFilterBar from "./limited-status-filter-bar";
 import CreateLimitedEventDialog, {
@@ -160,6 +161,7 @@ export default function LimitedEventsPage({
 
     return (
         <div className="mx-auto flex max-w-3xl flex-col gap-6 px-6 py-8">
+            <SurfaceReadyMarker />
             <Panel>
                 <PanelHeader title="Limited Events" />
                 <PanelBody>

@@ -109,10 +109,25 @@ The account functions refuse any address outside the lane
 pattern, and the role grant, the teardown and the sweep refuse a non-local
 deployment.
 
-**What a red means.** Two different things, and the lane never confuses them:
+**What a red means.** Three different things, and the lane never confuses them:
 
 - **FAIL** — a measured number is over its budgeted ceiling. A real
   regression, or a surface whose budget a slice is meant to tighten.
+- **INFRA** — an **Infra Verdict** (issue #3644): the walk was cut short by
+  the machine, not by the tree — a backend function past its execution limit,
+  a server error, a navigation that never answered — recognised by its
+  signature in the console and named on the receipt with that signature and
+  the machine load (`INFRA — function-timeout, load 23.4`). The lane retries
+  the surface, waiting for the load to drop, before it stands; when it stands
+  the surface is unproven, never failed, and never green — `land` refuses the
+  receipt. The signatures are `function-timeout`, `server-error`,
+  `navigation-timeout`, `step-timeout` and `unsettled`
+  (`scripts/ui-gate/infra-verdict.ts`); each cell gets three attempts, and
+  before each retry the lane waits up to 90s for the 1-minute load average to
+  drop under the CPU count (`TOLARIA_UI_GATE_LOAD_THRESHOLD` overrides it),
+  ending and re-dealing its own game first when the surface plays in one. A
+  signature that still fails with the load under that threshold is the walk's
+  own failure, and is reported as UNWALKED.
 - **UNWALKED** — the lane could not measure the surface at all: no budget
   entry for it, the debug-scenario row is absent from this deployment, an
   active game blocks the route, a walk timed out. This also exits non-zero.
@@ -120,6 +135,25 @@ deployment.
   shrug. The one exception is a surface the budget file explicitly declares
   `{"status": "unwalked", "reason": …}` — that is listed in the output and in
   the coverage line, and is the row a later slice deletes.
+
+**Settled Screen** (issue #3644). The state a Walked Surface must reach before
+anything on it is measured: its own ready marker is up (the component says its
+data has arrived), and for a short quiet window nothing animates, nothing is in
+flight to the backend, and no measured box has moved. A screen that never
+settles is an Infra Verdict (`unsettled`), not a reading; a reading taken
+before settling is what a flap is. Concretely (`scripts/ui-gate/settle.ts`):
+the marker is `[data-surface-ready]`, rendered by
+`src/components/ui/surface-ready-marker.tsx` in each walked route's loaded
+branch (`ui-gate-surface-ready.test.ts` reds on a route without it); the quiet
+window is 300ms within a 30s bound; infinite animations (spinners, pulses) do
+not count; and "in flight" is read off the Convex sync socket itself — every
+`Mutation`/`Action` until its response, every query-set change until a
+`Transition` reaches it — because the socket never goes idle, so
+`networkidle` never fires. No fixed sleep is left in
+`scripts/ui-gate/surfaces.ts`. Before walking, the lane proves the predicate in
+its own Chromium against fixture pages (`settle-selfcheck.ts`); a predicate that
+returns early is a fatal error. The receipt prints the machine load at the
+start and end of the run under the coverage line.
 
 **The budget file is the contract.** `scripts/ui-gate/budgets.json` holds one
 ceiling set per surface × viewport (`cardsZero/Occ/Stranded`,

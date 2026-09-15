@@ -34,6 +34,16 @@
  * silent green. The three shapes and their handling are documented on
  * `evaluateRun` in `budgets.ts`.
  *
+ * THE MACHINE IS NOT THE TREE (issue #3644). A walk cut short by the machine —
+ * a backend function past its execution limit, a Convex server error, a
+ * navigation or step timeout, a screen that never settled — is classified by
+ * its signature (`infra-verdict.ts`) and retried after the 1-minute load drops,
+ * recreating the lane's game when the surface plays in one. A cell that still
+ * fails on a busy machine stands as `INFRA — <signature>, load <n>`: unproven,
+ * never green, never a UI failure. Nothing is measured before it is a Settled
+ * Screen (`settle.ts`), and the receipt prints the machine load at the start
+ * and end of the run under the coverage line.
+ *
  * NOT PART OF `check:all`. The full gate is offline by contract and already
  * mutex-held; booting a browser inside it would tax every session that never
  * touches the DOM. This is a standalone command a UI diff runs, and its output
@@ -75,6 +85,7 @@
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { createServer } from "node:net";
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Browser, BrowserContext, Page } from "playwright";
@@ -95,12 +106,14 @@ import {
     type RecordChange,
     type SurfaceWalk,
     type DiffScope,
+    type InfraCell,
 } from "./budgets.ts";
 import { landingDiffScope } from "./verify-receipt.ts";
 import {
     SURFACES,
     SURFACE_IDS,
     Unreachable,
+    recreateLaneGame,
     type Surface,
     type WalkContext,
 } from "./surfaces.ts";
@@ -117,6 +130,15 @@ import {
 } from "./lane-account.ts";
 import { ORIGIN_BASE } from "../lib/branches.ts";
 import { renderUiScope, type UiScope } from "../lib/ui-scope.ts";
+import {
+    classifyWalkFailure,
+    infraDetail,
+    retryStep,
+    standingVerdict,
+    type RetryPolicy,
+} from "./infra-verdict.ts";
+import { NETWORK_INSTRUMENT_SOURCE, waitForSettledScreen } from "./settle.ts";
+import { runSettleSelfCheck } from "./settle-selfcheck.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..");
@@ -128,6 +150,36 @@ const SHOT_ROOT = path.join(REPO_ROOT, ".claude", "telemetry", "ui-gate");
 
 const STRESS_SCENARIO_LABEL = "UI stress — full board, full hand, deep piles";
 const YIELDS_SCENARIO_LABEL = "UI yields — two spells on the stack";
+
+/**
+ * The Infra Verdict's retry policy (issue #3644): three attempts per cell, and
+ * before each retry a wait of up to 90s, sampled every 5s, for the 1-minute
+ * load average to drop under the threshold. The threshold is the CPU count —
+ * at or over it every core has a queue — unless
+ * `TOLARIA_UI_GATE_LOAD_THRESHOLD` says otherwise.
+ */
+const RETRY_POLICY: RetryPolicy = {
+    maxAttempts: 3,
+    loadThreshold:
+        Number(process.env.TOLARIA_UI_GATE_LOAD_THRESHOLD) || os.cpus().length,
+    pollMs: 5_000,
+    maxWaitMs: 90_000,
+};
+
+function loadAverage(): number {
+    return os.loadavg()[0];
+}
+
+/** Printed under the coverage line, outside the region `verify-receipt.ts`
+ *  re-renders: the load is what a reader needs to judge an INFRA cell, and it
+ *  differs between two runs of one tree without meaning anything. */
+function machineLoadLine(start: number, end: number): string {
+    return `machine load: start ${start.toFixed(1)}, end ${end.toFixed(1)} (1-minute average, ${os.cpus().length} cpus, retry threshold ${RETRY_POLICY.loadThreshold})`;
+}
+
+function sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Small utilities
@@ -560,6 +612,7 @@ async function main(): Promise<number> {
             "--all and --surface= contradict each other: one forces every surface, the other picks a subset"
         );
     }
+    const loadAtStart = loadAverage();
     const scope = computeRunScope(opts);
     log(renderUiScope(scope, opts.base));
     if (opts.scopeOnly) return 0;
@@ -593,6 +646,7 @@ async function main(): Promise<number> {
         );
         log(receiptKindLine(ev));
         log(coverageLine(ev));
+        log(machineLoadLine(loadAtStart, loadAverage()));
         if (ev.failures.length > 0) {
             log("\n✗ check:ui FAILED");
             for (const f of ev.failures) log(`  · ${f}`);
@@ -659,6 +713,17 @@ async function main(): Promise<number> {
 
                 browser = await launchBrowser(opts.headed);
 
+                // The settle predicate, proven in THIS Chromium before any
+                // reading depends on it (issue #3644): a predicate that returns
+                // early would turn every measurement back into a flap.
+                try {
+                    log(`ui-gate: ${await runSettleSelfCheck(browser)}`);
+                } catch (err) {
+                    throw new FatalError(
+                        `settle self-check failed — ${(err as Error).message}`
+                    );
+                }
+
                 // Compile the app once before anything is timed. `waitForServer` only
                 // proves the dev server answers for index.html; the first REAL
                 // navigation still pays Vite's cold transform of the whole module
@@ -690,6 +755,8 @@ async function main(): Promise<number> {
 
                 const perSurface = new Map<string, Measurement[]>();
                 const unreachable = new Map<string, string>();
+                /** Cells that stood as an Infra Verdict, per surface (issue #3644). */
+                const infra = new Map<string, InfraCell[]>();
                 const consoleErrors: string[] = [];
                 /** Every walk on which the SHELL RETURN BAND was mounted, and how many
                  *  controls `probe.js` culled for it (issue #3337). Reported after the
@@ -708,14 +775,119 @@ async function main(): Promise<number> {
                         isMobile: viewport.mobile,
                         hasTouch: viewport.mobile,
                     });
+                    // Before any app code: the settle predicate counts the Convex
+                    // requests in flight through this (`settle.ts`).
+                    await context.addInitScript(NETWORK_INSTRUMENT_SOURCE);
                     const page = await context.newPage();
+                    /** The console errors of the CURRENT walk attempt, untruncated —
+                     *  what `classifyWalkFailure` reads a signature from. */
+                    const attemptConsole: string[] = [];
                     page.on("console", (msg) => {
                         if (msg.type() === "error") {
+                            attemptConsole.push(msg.text());
                             consoleErrors.push(
                                 `${viewport.id}: ${msg.text().slice(0, 160)}`
                             );
                         }
                     });
+                    /**
+                     * Walk one surface to a Settled Screen on the CURRENT page,
+                     * retrying an Infra Verdict (issue #3644). True when the
+                     * screen is ready to measure. Otherwise the outcome is
+                     * recorded — UNWALKED for the whole surface, or an INFRA
+                     * cell for this viewport — and the answer is false.
+                     */
+                    const walkToSettled = async (
+                        surface: Surface
+                    ): Promise<boolean> => {
+                        const cell = `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)}`;
+                        for (let attempts = 1; ; attempts++) {
+                            attemptConsole.length = 0;
+                            try {
+                                await surface.walk(page, ctx);
+                                await waitForSettledScreen(page, {
+                                    targets: surface.settleTargets,
+                                });
+                                return true;
+                            } catch (err) {
+                                const message = (err as Error).message;
+                                const reason =
+                                    err instanceof Unreachable
+                                        ? message
+                                        : `walk threw: ${message.split("\n")[0]}`;
+                                const failure = classifyWalkFailure({
+                                    message,
+                                    consoleErrors: attemptConsole,
+                                });
+                                if (failure.kind === "UNWALKED") {
+                                    unreachable.set(surface.id, reason);
+                                    log(`${cell} UNWALKED — ${reason}`);
+                                    return false;
+                                }
+
+                                const failedAt = loadAverage();
+                                const said = infraDetail(
+                                    failure.signature,
+                                    failedAt
+                                );
+                                const samples: number[] = [];
+                                let step = retryStep(
+                                    attempts,
+                                    samples,
+                                    RETRY_POLICY
+                                );
+                                while (step.action === "wait") {
+                                    if (step.ms > 0) await sleep(step.ms);
+                                    samples.push(loadAverage());
+                                    step = retryStep(
+                                        attempts,
+                                        samples,
+                                        RETRY_POLICY
+                                    );
+                                }
+
+                                if (step.action === "give-up") {
+                                    const firstLine = reason.split("\n")[0];
+                                    if (
+                                        standingVerdict(
+                                            failedAt,
+                                            RETRY_POLICY
+                                        ) === "UNWALKED"
+                                    ) {
+                                        const quiet = `${firstLine} (${said}, under the retry threshold: the walk itself failed)`;
+                                        unreachable.set(surface.id, quiet);
+                                        log(`${cell} UNWALKED — ${quiet}`);
+                                        return false;
+                                    }
+                                    const cells = infra.get(surface.id) ?? [];
+                                    cells.push({
+                                        viewport: viewport.id,
+                                        signature: failure.signature,
+                                        load: failedAt,
+                                        reason: firstLine,
+                                    });
+                                    infra.set(surface.id, cells);
+                                    log(
+                                        `${cell} INFRA — ${said} after ${attempts} attempt(s): ${firstLine}`
+                                    );
+                                    return false;
+                                }
+
+                                log(
+                                    `${cell} infra attempt ${attempts}/${RETRY_POLICY.maxAttempts} — ${said}; retrying at load ${(samples.at(-1) ?? failedAt).toFixed(1)}`
+                                );
+                                if (surface.needsGame) {
+                                    await recreateLaneGame(page, ctx).catch(
+                                        (e) =>
+                                            log(
+                                                `${cell} could not recreate the lane's game before the retry — ${(e as Error).message.split("\n")[0]}`
+                                            )
+                                    );
+                                }
+                            }
+                        }
+                    };
+
                     /**
                      * Walk + probe one surface on the CURRENT page.
                      *
@@ -729,20 +901,7 @@ async function main(): Promise<number> {
                         if (budget?.status === "unwalked") return;
                         if (unreachable.has(surface.id)) return;
 
-                        let walked = true;
-                        try {
-                            await surface.walk(page, ctx);
-                        } catch (err) {
-                            walked = false;
-                            const reason =
-                                err instanceof Unreachable
-                                    ? err.message
-                                    : `walk threw: ${(err as Error).message.split("\n")[0]}`;
-                            unreachable.set(surface.id, reason);
-                            log(
-                                `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} UNWALKED — ${reason}`
-                            );
-                        }
+                        const walked = await walkToSettled(surface);
 
                         if (walked) {
                             const probe = await runProbe(page);
@@ -871,11 +1030,12 @@ async function main(): Promise<number> {
                             status: "unreachable",
                             reason,
                         });
-                    } else if (perSurface.has(id)) {
+                    } else if (perSurface.has(id) || infra.has(id)) {
                         walks.push({
                             surface: id,
                             status: "measured",
-                            measurements: perSurface.get(id)!,
+                            measurements: perSurface.get(id) ?? [],
+                            infra: infra.get(id),
                         });
                     }
                 }
@@ -898,6 +1058,7 @@ async function main(): Promise<number> {
                     log(formatResultRow(row));
                 }
                 log(coverageLine(ev));
+                log(machineLoadLine(loadAtStart, loadAverage()));
                 // The shell return band's attribution (issue #3337). `probe.js` culls
                 // it out of every control count because its presence is a function of
                 // the gate ACCOUNT's state — a game or Limited event in flight — and

@@ -24,6 +24,9 @@ never `DIAGNOSTIC`; never reflow a row.
 **A surface it could not reach prints `UNWALKED` and reds the run** — that is a
 coverage failure, not a pass.
 
+**A walk the machine cut short prints `INFRA`, never `FAIL`** (#3644) — retried
+after the load drops; one that stands is unproven and `land` refuses it.
+
 **Measure, never eyeball.** A screenshot of a clipped row reads as "the cards
 are there" — that is how the bug above shipped. A UI PR with no receipt and no
 "cannot reach the DOM" note is not done.

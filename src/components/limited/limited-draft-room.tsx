@@ -11,6 +11,7 @@ import { cn } from "~/lib/utils";
 import { PanelHeader, PanelBody } from "~/components/ui/panel";
 import { Button } from "@/components/ui/button";
 import LoadingScreen from "~/components/ui/loading-screen";
+import SurfaceReadyMarker from "~/components/ui/surface-ready-marker";
 import ErrorState from "~/components/ui/error-state";
 import OrientationHint from "~/components/ui/orientation-hint";
 import LimitedEventPageFrame from "./limited-event-page-frame";
@@ -109,6 +110,7 @@ export default function LimitedDraftRoom({
     if (event === null) {
         return (
             <LimitedEventPageFrame>
+                <SurfaceReadyMarker />
                 <PanelHeader title="Draft" />
                 <PanelBody>
                     <ErrorState
@@ -166,6 +168,7 @@ export default function LimitedDraftRoom({
 
     return (
         <div className="flex flex-1 min-h-0 flex-col bg-surface-base text-text">
+            <SurfaceReadyMarker />
             <LimitedDraftBar
                 eventId={eventId}
                 title={limitedEventName(event)}

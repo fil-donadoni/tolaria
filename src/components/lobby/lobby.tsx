@@ -50,6 +50,7 @@ import { Banner } from "~/components/ui/banner";
 import { Button } from "~/components/ui/button";
 import GameDialog from "~/components/ui/game-dialog";
 import LoadingScreen from "~/components/ui/loading-screen";
+import SurfaceReadyMarker from "~/components/ui/surface-ready-marker";
 import LobbyFooter from "~/components/legal/lobby-footer";
 import ActionButton from "~/components/board/action-button";
 import DashboardLimitedBox from "./dashboard-limited-box";
@@ -615,6 +616,7 @@ function Lobby() {
         // this exact className at nine desktop heights and three viewport
         // regimes; it is the test, not this comment, that holds it.
         <div className="relative min-h-full bg-surface-base text-text">
+            <SurfaceReadyMarker />
             <LobbyBackground />
             <LobbyAmbient
                 featuredCardId={selectedDeck?.featuredCardId ?? null}
