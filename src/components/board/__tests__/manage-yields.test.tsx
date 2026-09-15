@@ -3,6 +3,7 @@
 //
 // Runs the REAL CTA and box against the REAL store (`useYieldPrefsState`), with
 // every key minted by `yieldKeyForStackItem` from the real projection.
+import { useState } from "react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup, fireEvent, act } from "@testing-library/react";
 import { makeInstance, makeState } from "@convex/cards/__tests__/setup";
@@ -66,9 +67,13 @@ const ignobleKey = mint(IGNOBLE.id, true);
 const boltKey = mint(BOLT.id, false);
 
 let store: YieldPrefsStore;
+/** Every `onOpenChange` the Game Menu received — a nested box that closed
+ *  the menu behind it would show up here as `false`. */
+const menuOpenChanges: boolean[] = [];
 
 function Board({ viewer, menu = false }: { viewer: string; menu?: boolean }) {
     store = useYieldPrefsState("g1");
+    const [menuOpen, setMenuOpen] = useState(true);
     return (
         <GameContext value={{ playerId: viewer } as never}>
             <YieldPrefsContext value={store}>
@@ -78,8 +83,11 @@ function Board({ viewer, menu = false }: { viewer: string; menu?: boolean }) {
                 </div>
                 {menu && (
                     <PauseMenuDialog
-                        open
-                        onOpenChange={() => {}}
+                        open={menuOpen}
+                        onOpenChange={(next) => {
+                            menuOpenChanges.push(next);
+                            setMenuOpen(next);
+                        }}
                         gameId={"g1" as never}
                         playerId={viewer}
                         match={null}
@@ -114,7 +122,47 @@ function seed() {
     });
 }
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    menuOpenChanges.length = 0;
+});
+
+describe("Manage yields box opened from the Game Menu (issue #3629)", () => {
+    it("opens over the menu, and dismissing it — Escape or its own backdrop — leaves the menu open", () => {
+        render(<Board viewer="p1" menu />);
+        seed();
+        const menuTitle = () =>
+            Array.from(document.querySelectorAll("h2")).some(
+                (h) => h.textContent === "Game Menu"
+            );
+        const openFromMenu = () =>
+            act(() => {
+                fireEvent.click($('[data-manage-yields="menu"]')!);
+            });
+
+        openFromMenu();
+        expect($("[data-manage-yields-box]")).not.toBeNull();
+        act(() => {
+            fireEvent.keyDown(document.activeElement ?? document.body, {
+                key: "Escape",
+            });
+        });
+        expect($("[data-manage-yields-box]")).toBeNull();
+        expect(menuOpenChanges).not.toContain(false);
+        expect(menuTitle()).toBe(true);
+
+        openFromMenu();
+        const popups = document.querySelectorAll(
+            '[data-slot="dialog-content"]'
+        );
+        act(() => {
+            fireEvent.click(popups[popups.length - 1]);
+        });
+        expect($("[data-manage-yields-box]")).toBeNull();
+        expect(menuOpenChanges).not.toContain(false);
+        expect(menuTitle()).toBe(true);
+    });
+});
 
 describe("Manage yields CTA (issue #3629)", () => {
     it("is absent while the seat holds no yield and no remembered order — in both homes", () => {

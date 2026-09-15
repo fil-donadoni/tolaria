@@ -2313,8 +2313,9 @@ export const SURFACES: readonly Surface[] = [
         // other seat — whose store is empty — and the control is gone before
         // the walk can click it.
         //
-        // Before `game-debug-sheet-ai` for the same reason the other board rows
-        // are: that walk ends the solo game this one loads its scenario into.
+        // Before `game-debug-sheet-ai`, and — like `game-debug-sheet` above —
+        // it ENDS the solo game it loaded its scenario into: that last row
+        // refuses to start a vs-AI game over the lane's own standing solo game.
         id: "game-manage-yields",
         label: "Manage yields box — one yield held",
         async walk(page, ctx) {
@@ -2346,9 +2347,18 @@ export const SURFACES: readonly Surface[] = [
             }
             await settle(page);
         },
-        async cleanup(page) {
+        async cleanup(page, ctx) {
             await page.keyboard.press("Escape");
             await page.waitForTimeout(200);
+            if (!ctx.createdGame) return;
+            const trace: string[] = [];
+            if (await concedeLaneGame(page, ctx, trace)) {
+                ctx.createdGame = false;
+                return;
+            }
+            throw new Error(
+                `could not end the solo game this lane created — \`game-debug-sheet-ai\` will read as unreachable for the rest of this run [${trace.join("; ")}]`
+            );
         },
     },
     {
