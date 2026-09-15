@@ -24,7 +24,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { afterEach, describe, expect, it } from "vitest";
-import type { VerdictJudgement } from "../../convex/gre/ai/verdicts/identity";
+import {
+    positionKeyOf,
+    type VerdictJudgement,
+} from "../../convex/gre/ai/verdicts/identity";
 import {
     VERDICT_LOCK_PATH,
     parseVerdictLock,
@@ -39,7 +42,11 @@ import {
     type VerdictPromotionOutput,
 } from "../../convex/gre/ai/verdicts/promotion";
 import { storeVerdictPack } from "../../convex/verdictPackStore";
-import { putAttestation, putVerdict } from "../../convex/verdictStore";
+import {
+    putAttestation,
+    putResolution,
+    putVerdict,
+} from "../../convex/verdictStore";
 import {
     createMemoryVerdictStore,
     type MemoryVerdictStore,
@@ -47,6 +54,7 @@ import {
 import {
     parseBladeMust,
     runVerdictsPromote,
+    snapshotVerdictStore,
     type VerdictsPromotePorts,
 } from "../lib/verdict-promotion-run";
 
@@ -85,7 +93,9 @@ async function engineStep(
     const validation = validateStoreObjects(
         decode(input.verdictObjects),
         decode(input.attestationObjects),
-        () => null
+        () => null,
+        [],
+        decode(input.resolutionObjects ?? [])
     );
     const plan = planPromotion(
         input.lock === null ? null : parseVerdictLock(input.lock),
@@ -241,6 +251,30 @@ describe("verdicts:promote — writes (issue #3583)", () => {
         await expect(runVerdictsPromote(p)).rejects.toThrow(/has no packs\//);
         expect(read(root, VERDICT_LOCK_PATH)).toBeNull();
         expect(read(root, EVAL_WEIGHTS_PATH)).toBe(WEIGHTS);
+    });
+});
+
+describe("the store snapshot (issue #3582)", () => {
+    it("carries every resolution object beside the verdicts and attestations", async () => {
+        // Without them a promotion never sees an admin's decision, and a
+        // resolved position stays out of the lock forever.
+        const store = createMemoryVerdictStore();
+        const land = (await putVerdict(store, judgement(9))).verdictId;
+        const pass = (
+            await putVerdict(store, {
+                ...judgement(9),
+                answer: { kind: "right", rightIndexes: [0] },
+            })
+        ).verdictId;
+        const { name } = await putResolution(store, {
+            positionKey: positionKeyOf(judgement(9)),
+            acceptedVerdictId: land,
+            rejected: [{ verdictId: pass, reason: "the land drop wins" }],
+            author: "prod-a:admin",
+            createdAt: 1,
+        });
+        const input = await snapshotVerdictStore(store, checkout(), "validate");
+        expect(input.resolutionObjects?.map((o) => o.name)).toEqual([name]);
     });
 });
 
