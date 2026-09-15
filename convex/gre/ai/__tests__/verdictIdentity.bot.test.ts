@@ -204,11 +204,6 @@ describe("verdict id and position key (issue #3575)", () => {
                     candidates: [pass, land, { ...shock, key: '{"kind":"x"}' }],
                 },
             ],
-            ["setup content", { ...BASE, setup: SETUP_OTHER }],
-            [
-                "deckKnowledge content",
-                { ...BASE, deckKnowledge: [{ seat: "opp", cards: ["Bolt"] }] },
-            ],
             ["candidate order", { ...BASE, candidates: [land, pass, shock] }],
             ["candidate removed", { ...BASE, candidates: [pass, land] }],
         ];
@@ -216,6 +211,26 @@ describe("verdict id and position key (issue #3575)", () => {
             const moved = ids(variant);
             expect(moved.id, what).not.toBe(base.id);
             expect(moved.position, what).not.toBe(base.position);
+        }
+
+        // Same shape, different content — compared with EACH OTHER, not with
+        // BASE, which has neither field: against BASE any non-empty value
+        // differs, and a hash of the mere length would pass.
+        const pairs: [string, Verdict, Verdict][] = [
+            [
+                "setup content",
+                { ...BASE, setup: SETUP },
+                { ...BASE, setup: SETUP_OTHER },
+            ],
+            [
+                "deckKnowledge content",
+                { ...BASE, deckKnowledge: [{ seat: "opp", cards: ["Shock"] }] },
+                { ...BASE, deckKnowledge: [{ seat: "opp", cards: ["Bolt"] }] },
+            ],
+        ];
+        for (const [what, a, b] of pairs) {
+            expect(ids(b).id, what).not.toBe(ids(a).id);
+            expect(ids(b).position, what).not.toBe(ids(a).position);
         }
     });
 
