@@ -10,13 +10,14 @@ an agent's context automatically — these are read on demand.
 
 ## The guides
 
-| Guide                                           | Answers                                                                                                                                       |
-| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Land and release](land-and-release.md)         | Ship a change: `wt:new`, `check:lane`, the PR, `land` onto the base branch; then `release` to production — every phase, every refusal         |
-| [Browser verification](browser-verification.md) | Prove a UI change renders: CDP tooling, the viewport matrix, the occlusion probe, the receipt                                                 |
-| [UI runbooks](ui-runbooks.md)                   | Click sequences: solo game from cold, the active-game blocker, deck builder, debug scenarios                                                  |
-| [Bot glossary](bot-glossary.md)                 | The play-Bot's jargon explained for newcomers: search terms (prior, FPU, leaf, rollout), scoring, blade, ladder, rungs                        |
-| [Bot reachability](bot-reachability.md)         | Prove a new card/mechanic is one the Bot can actually PLAY: the three seams, what the existing guards are blind to, what to declare in the PR |
+| Guide                                           | Answers                                                                                                                                          |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [Land and release](land-and-release.md)         | Ship a change: `wt:new`, `check:lane`, the PR, `land` onto the base branch; then `release` to production — every phase, every refusal            |
+| [Browser verification](browser-verification.md) | Prove a UI change renders: CDP tooling, the viewport matrix, the occlusion probe, the receipt                                                    |
+| [UI runbooks](ui-runbooks.md)                   | Click sequences: solo game from cold, the active-game blocker, deck builder, debug scenarios                                                     |
+| [Bot glossary](bot-glossary.md)                 | The play-Bot's jargon explained for newcomers: search terms (prior, FPU, leaf, rollout), scoring, blade, ladder, rungs                           |
+| [Verdict Store](verdict-store.md)               | Provision the private GCS bucket the Verdict corpus lives in: its two service accounts, where each key lands, how to check the bucket is private |
+| [Bot reachability](bot-reachability.md)         | Prove a new card/mechanic is one the Bot can actually PLAY: the three seams, what the existing guards are blind to, what to declare in the PR    |
 
 ## The rest of the map
 
