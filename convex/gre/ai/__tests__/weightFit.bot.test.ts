@@ -8,28 +8,88 @@
 //     a pair moving only the weights it loads, a contradictory couple reported
 //     rather than resolved, the sign constraint and the declared bands held.
 //  2. The REPRODUCIBILITY GUARD (PRD #3397 story 7): re-run the whole pipeline
-//     — the blade registry lowered to verdicts, the Eval Pairs built at the
-//     hand-picked prior, the fit — and demand `DEFAULT_EVAL_WEIGHTS` exactly.
-//     This is the card-index lockfile discipline: a hand-edited weight, or a
-//     new blade entry nobody refitted for, reds here and nowhere else.
+//     — the blade registry lowered to verdicts, followed by the verdicts the
+//     committed Verdict Lock names (ADR 0128 §2, issue #3583), the Eval Pairs
+//     built at the hand-picked prior, the fit — and demand
+//     `DEFAULT_EVAL_WEIGHTS` exactly. This is the card-index lockfile
+//     discipline: a hand-edited weight, a new blade entry nobody refitted
+//     for, or a widened lock whose weights did not move with it, reds here
+//     and nowhere else.
 //
 // It lives in the BOT suite rather than the blade suite because it is a gate:
 // the blade suite's must tier is the search's metric, this is the weights'.
 // The whole pipeline is arithmetic over rebuilt positions — 96 verdicts, 175
-// pairs, well under a second — so it costs the suite nothing.
+// pairs, well under a second — so it costs the suite nothing. The locked
+// verdicts come from the machine pack cache, fetched once per lock on a miss
+// (ADR 0128 §10, `scripts/lib/verdict-pack-cache.ts`).
+import { existsSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import {
+    ATTESTATION_OBJECT_PREFIX,
+    VERDICT_OBJECT_PREFIX,
+    putAttestation,
+    putVerdict,
+    readVerdict,
+} from "../../../verdictStore";
+import { createMemoryVerdictStore } from "../../../verdictStoreMemory";
+import {
+    loadLockedVerdicts,
+    verdictCacheDir,
+} from "../../../../scripts/lib/verdict-pack-cache";
+import { machineVerdictStoreReader } from "../../../../scripts/lib/verdict-store";
+import { runVerdictPromotionStep } from "../blade/verdictPromotion";
 import { BLADE_SCENARIOS } from "../blade/registry";
 import { DEFAULT_EVAL_WEIGHTS, FIT_BASE_EVAL_WEIGHTS } from "../evalWeights";
 import {
+    EVAL_WEIGHTS_PATH,
     FITTABLE_WEIGHT_KEYS,
+    VERDICT_LOCK_PATH,
     collectVerdictReport,
     fitWeights,
+    parseVerdictLock,
+    rewriteDefaultEvalWeights,
+    verdictsFromLock,
     verdictsFromRegistry,
     weightValue,
     type EvalPair,
     type FittableWeightKey,
+    type RegistryVerdicts,
 } from "../verdicts";
 import type { EvalTerms } from "../../evaluate";
+
+const REPO = resolve(__dirname, "../../../..");
+
+/** The corpus the guard fits: the blade registry's verdicts, then those the
+ *  committed lock names, verified against it. No lock, no locked verdicts. */
+async function committedCorpus(): Promise<RegistryVerdicts> {
+    const registry = verdictsFromRegistry(BLADE_SCENARIOS);
+    const lockFile = join(REPO, VERDICT_LOCK_PATH);
+    if (!existsSync(lockFile)) return registry;
+    const { verdicts } = await loadLockedVerdicts(
+        parseVerdictLock(readFileSync(lockFile, "utf8")),
+        {
+            cacheDir: verdictCacheDir(),
+            store: () => machineVerdictStoreReader(),
+        }
+    );
+    return {
+        verdicts: [...registry.verdicts, ...verdicts],
+        gaps: registry.gaps,
+    };
+}
+
+/** The guard's pipeline over a corpus: pairs at the prior, fit from it. */
+function guardFit(corpus: RegistryVerdicts) {
+    const report = collectVerdictReport(corpus.verdicts, {
+        gaps: corpus.gaps,
+        weights: FIT_BASE_EVAL_WEIGHTS,
+    });
+    return {
+        errors: report.errors,
+        result: fitWeights(report.pairs, FIT_BASE_EVAL_WEIGHTS),
+    };
+}
 
 const ZERO_TERMS: Record<keyof EvalTerms, number> = {
     life: 0,
@@ -237,25 +297,93 @@ describe("fitWeights — the contract (issue #3401)", () => {
 });
 
 describe("the committed weights ARE the fit of the committed verdicts (issue #3401)", () => {
-    it("re-running the fit over the blade registry reproduces DEFAULT_EVAL_WEIGHTS", () => {
-        const { verdicts, gaps } = verdictsFromRegistry(BLADE_SCENARIOS);
-        const report = collectVerdictReport(verdicts, {
-            gaps,
-            weights: FIT_BASE_EVAL_WEIGHTS,
-        });
+    it("re-running the fit over the registry and the lock reproduces DEFAULT_EVAL_WEIGHTS", async () => {
+        const { errors, result } = guardFit(await committedCorpus());
         // A verdict the engine can no longer rebuild yields no pairs and would
         // shrink the corpus SILENTLY — the fit would still reproduce whatever
         // the smaller corpus says. The lockfile has to pin the input too.
         expect(
-            report.errors,
+            errors,
             "a committed verdict no longer rebuilds — the corpus shrank"
         ).toEqual([]);
-        const result = fitWeights(report.pairs, FIT_BASE_EVAL_WEIGHTS);
         expect(
             result.weights,
             "DEFAULT_EVAL_WEIGHTS is not the fit of the committed verdicts — " +
                 "run `bun run fit:weights` and paste the block it prints. " +
-                "A new blade `moves` entry is a new verdict and obliges a refit."
+                "A new blade `moves` entry is a new verdict and obliges a refit; " +
+                "a widened Verdict Lock moves the weights in the same change " +
+                "(`bun run verdicts:promote` writes both)."
         ).toEqual(DEFAULT_EVAL_WEIGHTS);
+        // What a promotion writes for this fit IS the committed file, byte for
+        // byte — so the literal it rewrites is the literal this guard reads.
+        const source = readFileSync(join(REPO, EVAL_WEIGHTS_PATH), "utf8");
+        expect(rewriteDefaultEvalWeights(source, result)).toBe(source);
+    });
+});
+
+describe("widening the lock and moving the weights are ONE change (issue #3583, ADR 0128 §7)", () => {
+    it("a promoted lock without its weights reds the guard; the weights it writes are the refit", async () => {
+        const registry = verdictsFromRegistry(BLADE_SCENARIOS);
+        const committed = guardFit(registry).result;
+        // A judgement the committed fit leaves under the margin: stated once
+        // more, through the store, it must pull the vector.
+        const lever = registry.verdicts.find((v) =>
+            committed.violated.some((o) => o.pair.verdictId === v.id)
+        );
+        expect(
+            lever,
+            "the committed fit satisfies every registry pair — this demonstration needs another lever"
+        ).toBeDefined();
+
+        const store = createMemoryVerdictStore();
+        const { verdictId } = await putVerdict(store, lever!);
+        await putAttestation(store, {
+            verdictId,
+            author: "jovial-guineapig-250:tester1",
+            sourceAxis: "explicit",
+        });
+        const snapshot = async (prefix: string) =>
+            Promise.all(
+                (await store.list(prefix)).map(async (name) => ({
+                    name,
+                    base64: Buffer.from((await store.get(name))!).toString(
+                        "base64"
+                    ),
+                }))
+            );
+        const source = readFileSync(join(REPO, EVAL_WEIGHTS_PATH), "utf8");
+        const promoted = runVerdictPromotionStep({
+            mode: "promote",
+            lock: null,
+            evalWeightsSource: source,
+            verdictObjects: await snapshot(VERDICT_OBJECT_PREFIX),
+            attestationObjects: await snapshot(ATTESTATION_OBJECT_PREFIX),
+        });
+        if (promoted.mode !== "promote" || promoted.noop) {
+            throw new Error("expected a promotion that writes");
+        }
+        expect(promoted.lock.verdictIds).toEqual([verdictId]);
+
+        // The checkout holding the promotion's lock but NOT its weights: the
+        // guard's own corpus shape, pipeline and comparison — red.
+        const widened: RegistryVerdicts = {
+            verdicts: [
+                ...registry.verdicts,
+                ...verdictsFromLock(promoted.lock, [
+                    { verdictId, payload: await readVerdict(store, verdictId) },
+                ]),
+            ],
+            gaps: registry.gaps,
+        };
+        const { errors, result } = guardFit(widened);
+        expect(errors).toEqual([]);
+        expect(result.weights).not.toEqual(DEFAULT_EVAL_WEIGHTS);
+
+        // The weights the promotion wrote are exactly that refit, so the same
+        // checkout WITH them holds the literal the guard then demands.
+        expect(promoted.evalWeightsSource).not.toBe(source);
+        expect(promoted.evalWeightsSource).toBe(
+            rewriteDefaultEvalWeights(source, result)
+        );
     });
 });
