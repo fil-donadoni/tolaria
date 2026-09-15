@@ -35,7 +35,7 @@
  * `tsconfig.scripts.json`, which carries no `lib.dom` (the reason `probe.js`
  * is plain JS).
  */
-import type { Page } from "playwright";
+import type { Page, Request } from "playwright";
 import { UNSETTLED_MESSAGE_PREFIX } from "./infra-verdict.ts";
 
 /** The attribute a surface's component renders once its data has arrived. */
@@ -50,6 +50,8 @@ export interface SettleSample {
     animations: number;
     /** Backend requests in flight, plus a connecting socket or loading fonts. */
     inflight: number;
+    /** What `inflight` is made of, for the reason an unsettled screen prints. */
+    why?: string;
     boxes: string;
 }
 
@@ -87,7 +89,9 @@ export function settleBlockers(sample: SettleSample): string[] {
         blockers.push(`${sample.animations} animation(s) running`);
     }
     if (sample.inflight > 0) {
-        blockers.push(`${sample.inflight} backend request(s) in flight`);
+        blockers.push(
+            `${sample.inflight} backend request(s) in flight${sample.why ? ` (${sample.why})` : ""}`
+        );
     }
     return blockers;
 }
@@ -170,6 +174,19 @@ export const NETWORK_INSTRUMENT_SOURCE = `(() => {
                     else if (s.ws.readyState === 1 && s.answered < s.requested) n++;
                 }
                 return n;
+            },
+            detail() {
+                let requests = 0, awaitingTransition = 0, querySets = 0, connecting = 0;
+                for (const s of sockets) {
+                    for (const due of s.pending.values()) {
+                        if (due === null) requests++;
+                        else awaitingTransition++;
+                    }
+                    if (s.ws.readyState === 0) connecting++;
+                    else if (s.ws.readyState === 1 && s.answered < s.requested) querySets++;
+                }
+                return requests + " convex request(s), " + awaitingTransition + " awaiting a transition, " +
+                    querySets + " query set(s), " + connecting + " connecting, " + fetches + " fetch";
             },
         },
     });
@@ -281,6 +298,7 @@ export function sampleSource(targets: readonly string[]): string {
         const net = window.__tolariaNet;
         const fonts = document.fonts && document.fonts.status === "loading" ? 1 : 0;
         const inflight = (net ? net.inflight() : 0) + fonts;
+        const why = (net ? net.detail() : "no instrument") + ", " + fonts + " font load";
         // The URL first: a client-side navigation still resolving is a
         // screen still moving, even before any box has changed.
         const parts = [location.href, Math.round(window.scrollX), Math.round(window.scrollY)];
@@ -295,7 +313,7 @@ export function sampleSource(targets: readonly string[]): string {
                 );
             }
         }
-        return { ready, animations, inflight, boxes: parts.join(",") };
+        return { ready, animations, inflight, why, boxes: parts.join(",") };
     })(${JSON.stringify(targets)})`;
 }
 
@@ -305,28 +323,59 @@ export interface SettleOptions {
 }
 
 /** HTTP requests in flight per page, counted from the Node side. */
-const REQUEST_TRACKERS = new WeakMap<Page, { inflight: number }>();
+const REQUEST_TRACKERS = new WeakMap<Page, () => number>();
+
+/** The resource types a screen waits on. `eventsource`, `websocket`,
+ *  `manifest`, `ping` and `other` are long-lived or fire-and-forget. */
+const SETTLE_RESOURCE_TYPES = new Set([
+    "document",
+    "stylesheet",
+    "image",
+    "media",
+    "font",
+    "script",
+    "fetch",
+    "xhr",
+]);
+
+/**
+ * A request open longer than this no longer holds the screen. Not every
+ * request Playwright reports `request` for reports `requestfinished` or
+ * `requestfailed` — measured on this branch: 14 phantom requests leaked early
+ * in a run and held every later surface unsettled across full navigations.
+ * A bound keeps one such request from making every screen unmeasurable.
+ */
+const REQUEST_STALE_MS = 15_000;
 
 /**
  * Count the page's HTTP requests in flight from the Node side, so the settle
  * wait sees what `window.fetch` cannot: card images, module imports,
  * stylesheets (issue #3644 review — card art still loading is the known
- * `cardsZero` false red). WebSockets never finish and are not requests here.
- * Idempotent per page.
+ * `cardsZero` false red). Main frame only. Idempotent per page.
  */
 export function trackPageRequests(page: Page): void {
     if (REQUEST_TRACKERS.has(page)) return;
-    const tracker = { inflight: 0 };
-    REQUEST_TRACKERS.set(page, tracker);
-    const open = new WeakSet<object>();
-    page.on("request", (request) => {
-        open.add(request);
-        tracker.inflight++;
+    const open = new Map<Request, number>();
+    REQUEST_TRACKERS.set(page, () => {
+        const now = Date.now();
+        let n = 0;
+        for (const [request, startedAt] of open) {
+            if (now - startedAt > REQUEST_STALE_MS) open.delete(request);
+            else n++;
+        }
+        return n;
     });
-    const done = (request: object) => {
-        if (!open.has(request)) return;
+    page.on("request", (request) => {
+        if (!SETTLE_RESOURCE_TYPES.has(request.resourceType())) return;
+        try {
+            if (request.frame() !== page.mainFrame()) return;
+        } catch {
+            return; // a service-worker request has no frame
+        }
+        open.set(request, Date.now());
+    });
+    const done = (request: Request) => {
         open.delete(request);
-        tracker.inflight--;
     };
     page.on("requestfinished", done);
     page.on("requestfailed", done);
@@ -342,14 +391,16 @@ export async function waitForSettledScreen(
 ): Promise<number> {
     const policy = options.policy ?? DEFAULT_SETTLE_POLICY;
     const source = sampleSource(options.targets ?? []);
-    const tracker = REQUEST_TRACKERS.get(page);
+    const httpInflight = REQUEST_TRACKERS.get(page);
     const startedAt = Date.now();
     const samples: SettleSample[] = [];
     for (;;) {
         const raw = (await page.evaluate(source)) as Omit<SettleSample, "at">;
+        const http = httpInflight?.() ?? 0;
         samples.push({
             ...raw,
-            inflight: raw.inflight + (tracker?.inflight ?? 0),
+            inflight: raw.inflight + http,
+            why: `${raw.why ?? "no instrument"}, ${http} http`,
             at: Date.now(),
         });
         // Only the trailing quiet run is ever read; keep the window bounded.
