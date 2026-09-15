@@ -73,7 +73,7 @@ export function useEscapeToCancel(onCancel: () => void): void {
 }
 
 export type AnchoredPickerRowProps = {
-    onSelect: () => void;
+    onSelect: (e: React.MouseEvent<HTMLButtonElement>) => void;
     children: ReactNode;
     className?: string;
     "data-testid"?: string;

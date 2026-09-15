@@ -5,6 +5,7 @@ import { getDefinition } from "@convex/cards";
 import { declaresAsEntersMode } from "@convex/gre/constants";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
+import { expectedInputAdmits } from "~/lib/expected-input";
 import {
     hasPendingGameIntent,
     trackGameIntent,
@@ -179,8 +180,23 @@ export function useHandCardCommit(
     cardInstance: CardInstance,
     opts?: { onCommitted?: () => void }
 ) {
+    const game = useGameContext();
     const { gameId, playerId, debugAllActions, allPlayers, activePlayerId } =
-        useGameContext();
+        game;
+    // Issue #3616 — the ONE gate every commit this hook owns passes through,
+    // whichever surface opened it (click, menu row, action sheet, drag, the
+    // cost dialog and every picker behind it): the viewer holds the Expected
+    // Input a cast or land play declares (`priority`, ADR 0047) with no other
+    // announcement in progress. Re-read on every render, so a dialog opened
+    // inside the window and confirmed after the projection moved on (a
+    // priority timeout, the solo seat switching) finds it shut instead of
+    // dispatching into the server's "waiting for priority input from another
+    // player" rejection. The server gate stays authoritative.
+    const castWindowOpen =
+        expectedInputAdmits(game, { playerId, expect: "priority" }) &&
+        !game.pendingCast &&
+        !game.pendingActivation &&
+        !game.pendingTarget;
     const { reportError } = usePendingChoiceBuffer();
     const playCard = useMutation(api.game.playCard);
     const announceCast = useMutation(api.game.announceCast);
@@ -204,7 +220,7 @@ export function useHandCardCommit(
         // it here — the single dispatch point every gesture funnels through
         // (click, action sheet, tap-stage confirm, drag/swipe), so the guard
         // can't be bypassed by adding another surface.
-        if (hasPendingGameIntent()) return;
+        if (!castWindowOpen || hasPendingGameIntent()) return;
         // Route a server-side rejection to the shared error toast instead of
         // leaving it as an uncaught promise rejection in the console.
         trackGameIntent(
@@ -261,8 +277,8 @@ export function useHandCardCommit(
         setAdditionalCostPickerState(null);
         setCostDialogState(null);
         // Same in-flight drop as `onPlayClick` — a double swipe / double click
-        // never reaches the server twice.
-        if (hasPendingGameIntent()) return;
+        // never reaches the server twice — behind the same window gate.
+        if (!castWindowOpen || hasPendingGameIntent()) return;
         trackGameIntent(
             Promise.resolve(
                 announceCast({
@@ -584,6 +600,8 @@ export function useHandCardCommit(
     }
 
     const onCastClick = (e: React.MouseEvent | React.PointerEvent) => {
+        // Outside the window no dialog or picker may even open.
+        if (!castWindowOpen) return;
         const keepPriority = e.ctrlKey || e.metaKey || undefined;
         const def = getDefinition(cardInstance.card.id);
         // CR 107.3 / 601.2b: X in the mana cost is chosen before announcement.

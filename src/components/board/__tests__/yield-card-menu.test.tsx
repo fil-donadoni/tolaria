@@ -8,7 +8,7 @@
 // Both the menu entry and the stack toggle key through the SAME derivation, so
 // the stack item here comes out of the real projection.
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, cleanup, fireEvent } from "@testing-library/react";
+import { render, cleanup, fireEvent, act } from "@testing-library/react";
 import { makeInstance, makeState } from "@convex/cards/__tests__/setup";
 import { getCardByName } from "@convex/cards";
 import { projectPublicState } from "@convex/gameProjections";
@@ -37,6 +37,9 @@ vi.mock("@convex/_generated/api", () => ({
 vi.mock("~/lib/session", () => ({ clearSession: () => {} }));
 
 import PauseMenuDialog from "../pause-menu-dialog";
+import BoardBattlefieldCard from "../board-battlefield-card";
+import type { CardVisualState, ActivatableAbility } from "../battlefield-card";
+import { resetPreviewSingleton } from "../../cards/card-preview-singleton";
 
 const NOBLE = getCardByName("Noble Hierarch");
 const IGNOBLE = getCardByName("Ignoble Hierarch");
@@ -167,6 +170,180 @@ describe("Per-card Yield reset on a battlefield permanent (issue #3556 comment)"
         expect(entries().map((e) => e.textContent)).toEqual([
             "Turn off auto-yield for Ignoble Hierarch",
         ]);
+    });
+});
+
+// Issue #3616 — the reset lives on the PREVIEW gestures, never on the left
+// click. Rendered through the real battlefield card (its real CardImage →
+// CardPreview → ActivatableAbilityMenu), so the gestures hit the same
+// elements a player's do.
+describe("The Yield reset rides the right click and the long-press, never the left click (issue #3616)", () => {
+    const NEUTRAL_VS: CardVisualState = {
+        interactive: false,
+        enabled: false,
+        dimmed: false,
+        combatOffset: "",
+        ringClass: "",
+        badge: null,
+    };
+    const MANA_ABILITY = {
+        id: "noble-mana",
+        oracleText: "{T}: Add {G}, {W}, or {U}.",
+    } as unknown as ActivatableAbility;
+
+    function Board({ children }: { children: React.ReactNode }) {
+        const noble = projectedTrigger(NOBLE.id, "trig-noble");
+        const ignoble = projectedTrigger(IGNOBLE.id, "trig-ignoble");
+        return (
+            <Harness>
+                <YieldArmer items={[noble, ignoble]} />
+                {children}
+            </Harness>
+        );
+    }
+
+    const permanentEl = (container: HTMLElement, id: string) =>
+        container.querySelector<HTMLElement>(
+            `[data-arrow-anchor-permanent="${id}"]`
+        )!;
+    const tiltRoot = (container: HTMLElement, id: string) =>
+        permanentEl(container, id).querySelector<HTMLElement>(
+            "[data-card-tilt-root]"
+        )!;
+    function rightClick(target: HTMLElement) {
+        fireEvent.pointerDown(target, { button: 2, clientX: 40, clientY: 40 });
+        fireEvent(window, new Event("pointerup"));
+    }
+    const menuRows = () =>
+        Array.from(
+            document.querySelectorAll<HTMLElement>(
+                '[data-slot="dialog-content"] button'
+            )
+        ).map((b) => b.textContent);
+    const anchored = () =>
+        document.querySelector("[data-card-preview-anchored]");
+
+    afterEach(() => {
+        vi.useRealTimers();
+        resetPreviewSingleton();
+    });
+
+    it("a left click lists the permanent's abilities only — never the reset", () => {
+        const { container } = render(
+            <Board>
+                <BoardBattlefieldCard
+                    card={permanent(NOBLE.id, "perm-noble")}
+                    vs={NEUTRAL_VS}
+                    activatableAbilities={[MANA_ABILITY]}
+                    onActivateAbility={() => {}}
+                />
+            </Board>
+        );
+        fireEvent.click(container.querySelector("[data-arm]")!);
+
+        fireEvent.click(permanentEl(container, "perm-noble"));
+        const items = Array.from(
+            document.querySelectorAll('[role="menuitem"]')
+        ).map((i) => i.textContent ?? "");
+        expect(items).toHaveLength(1);
+        expect(items.some((t) => t.includes("auto-yield"))).toBe(false);
+    });
+
+    it("a right click on a card with a Yield opens exactly Preview + the reset; Preview opens the preview, the reset clears only that card", () => {
+        const { container } = render(
+            <Board>
+                <BoardBattlefieldCard
+                    card={permanent(NOBLE.id, "perm-noble")}
+                    vs={NEUTRAL_VS}
+                />
+                <CardMenuProbe card={permanent(IGNOBLE.id, "perm-ignoble")} />
+            </Board>
+        );
+        fireEvent.click(container.querySelector("[data-arm]")!);
+
+        rightClick(tiltRoot(container, "perm-noble"));
+        expect(menuRows()).toEqual([
+            "Preview",
+            "Turn off auto-yield for Noble Hierarch",
+        ]);
+        expect(anchored()).toBeNull();
+
+        fireEvent.click(
+            document.querySelector('[data-testid="card-preview-menu-preview"]')!
+        );
+        expect(menuRows()).toEqual([]);
+        expect(anchored()).not.toBeNull();
+
+        // Close the pin, reopen the menu, take the reset.
+        rightClick(tiltRoot(container, "perm-noble"));
+        expect(anchored()).toBeNull();
+        rightClick(tiltRoot(container, "perm-noble"));
+        fireEvent.click(
+            document.querySelector(
+                '[data-testid="card-preview-menu-yield-off"]'
+            )!
+        );
+        expect(
+            Array.from(
+                container.querySelectorAll("[data-card-menu-entry]")
+            ).map((e) => e.textContent)
+        ).toEqual(["Turn off auto-yield for Ignoble Hierarch"]);
+
+        // No Yield left on this card: the right click is the preview again.
+        rightClick(tiltRoot(container, "perm-noble"));
+        expect(menuRows()).toEqual([]);
+        expect(anchored()).not.toBeNull();
+    });
+
+    it("a right click on a card without a Yield opens the preview directly, no menu", () => {
+        const { container } = render(
+            <Board>
+                <BoardBattlefieldCard
+                    card={permanent(NOBLE.id, "perm-noble")}
+                    vs={NEUTRAL_VS}
+                />
+            </Board>
+        );
+        rightClick(tiltRoot(container, "perm-noble"));
+        expect(menuRows()).toEqual([]);
+        expect(anchored()).not.toBeNull();
+    });
+
+    it("the touch long-press overlay carries the reset only while a Yield exists", () => {
+        vi.useFakeTimers();
+        const { container } = render(
+            <Board>
+                <BoardBattlefieldCard
+                    card={permanent(NOBLE.id, "perm-noble")}
+                    vs={NEUTRAL_VS}
+                />
+            </Board>
+        );
+        const longPress = () => {
+            act(() => {
+                fireEvent.touchStart(tiltRoot(container, "perm-noble"), {
+                    touches: [{ clientX: 10, clientY: 10 }],
+                });
+                vi.advanceTimersByTime(400);
+            });
+        };
+        const resetRow = () =>
+            document.querySelector("[data-card-preview-yield-actions]");
+
+        longPress();
+        expect(document.querySelector(".fixed.inset-0")).not.toBeNull();
+        expect(resetRow()).toBeNull();
+        act(() => {
+            fireEvent.click(document.querySelector(".fixed.inset-0")!);
+        });
+
+        act(() => {
+            fireEvent.click(container.querySelector("[data-arm]")!);
+        });
+        longPress();
+        expect(resetRow()?.textContent).toBe(
+            "Turn off auto-yield for Noble Hierarch"
+        );
     });
 });
 

@@ -79,5 +79,8 @@ export function makeManualBattlefieldInteraction(
         isSelectingOnThisBoard: false,
         overlays: <></>,
         clickActsWithAbilities: true,
+        // No Expected Input in a Manual Game (ADR 0080): the tap is always
+        // the viewer's to make.
+        clicksInert: false,
     });
 }
