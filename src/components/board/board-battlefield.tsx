@@ -183,6 +183,7 @@ export default function BoardBattlefield({
         isSelectingOnThisBoard,
         overlays,
         clickActsWithAbilities,
+        clicksInert,
     } = useInteraction(player);
     // Un-stack identical permanents while a per-instance battlefield SELECTION
     // is active on this board (a `choose-permanents` pick like Frantic Search's
@@ -279,7 +280,13 @@ export default function BoardBattlefield({
             <BoardBattlefieldCard
                 card={card}
                 vs={getVisualState(card)}
-                onClick={(e) => handleClickWithEvent(card, e)}
+                // Issue #3616 — no handler while the viewer owes no input, so
+                // the permanent carries no pointer cursor either.
+                onClick={
+                    clicksInert
+                        ? undefined
+                        : (e) => handleClickWithEvent(card, e)
+                }
                 activatableAbilities={getActivatable(card)}
                 onActivateAbility={(abilityId, keepPriority) =>
                     handleActivateAbility(card.id, abilityId, keepPriority)

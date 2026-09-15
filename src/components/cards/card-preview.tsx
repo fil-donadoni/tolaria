@@ -20,6 +20,12 @@ import CardPreviewBody from "./card-preview-body";
 import CardPreviewDock from "./card-preview-dock";
 import CardPreviewAnchored from "./card-preview-anchored";
 import { previewSurfaceIsolationProps } from "./preview-surface-isolation";
+import CardPreviewYieldMenu from "./card-preview-yield-menu";
+import { useCardYieldMenuItems } from "~/hooks/useCardYieldMenuItems";
+import {
+    AnchoredPickerRow,
+    type AnchorPoint,
+} from "~/components/ui/anchored-picker";
 
 const OVERLAY_WIDTH = 128 * 2;
 /** Desktop hover-intent (phase 2): dwell this long on a card and the dock
@@ -84,6 +90,20 @@ export default function CardPreview({
     const dwellRef = useRef<number | undefined>(undefined);
     const graceRef = useRef<number | undefined>(undefined);
     const containerRef = useRef<HTMLDivElement>(null);
+    // Issue #3616 — the card's **Yield** reset lives HERE, on the preview
+    // gestures, never on the left click (which is for acting). Empty unless
+    // the viewing seat holds a Yield on this card, and then the right click
+    // opens a small menu ("Preview" + the reset) instead of the preview, and
+    // the long-press overlay carries the reset beneath the card.
+    const yieldItems = useCardYieldMenuItems(cardInstance);
+    const [yieldMenuAt, setYieldMenuAt] = useState<AnchorPoint | null>(null);
+    const yieldMenuOpenRef = useRef(false);
+    // Where the right button went down — the menu anchors there.
+    const pressPointRef = useRef<AnchorPoint>({ x: 0, y: 0 });
+    const closeYieldMenu = useCallback(() => {
+        yieldMenuOpenRef.current = false;
+        setYieldMenuAt(null);
+    }, []);
 
     const longPress = useLongPress({});
     // Preview is visible during the peek window and once locked; only `idle`
@@ -168,8 +188,24 @@ export default function CardPreview({
 
     const rightPress = useRightPressPreview({
         onQuickClick: () => {
-            if (anchoredOpenRef.current) closeAll();
-            else openAnchored();
+            if (anchoredOpenRef.current) {
+                closeAll();
+                return;
+            }
+            if (yieldMenuOpenRef.current) {
+                closeYieldMenu();
+                return;
+            }
+            // A card with a Yield for the viewing seat: "Preview" + the reset
+            // (issue #3616). Every other card: the preview, straight away.
+            if (yieldItems.length > 0) {
+                hoverOpenRef.current = false;
+                setShowHoverDock(false);
+                yieldMenuOpenRef.current = true;
+                setYieldMenuAt({ ...pressPointRef.current });
+                return;
+            }
+            openAnchored();
         },
         // Right-HOLD no longer drives the dock (phase 2): hover-intent owns
         // that surface — see the pointerenter/leave binding below.
@@ -203,6 +239,7 @@ export default function CardPreview({
             // Desktop-only, right button only. A touch device sets sawTouchRef
             // and must never trigger the mouse preview.
             if (e.button !== 2 || sawTouchRef.current) return;
+            pressPointRef.current = { x: e.clientX, y: e.clientY };
             onRightPress(e as unknown as React.PointerEvent);
         };
         // Kill the native "Save image…" menu at the same guaranteed-ancestor
@@ -485,10 +522,38 @@ export default function CardPreview({
                                 showCopyBadge={showCopyBadge}
                                 size="md"
                             />
+                            {/* Issue #3616 — the touch home of the card's
+                                Yield reset (a tap never carries it). */}
+                            {yieldItems.length > 0 && (
+                                <div
+                                    data-card-preview-yield-actions
+                                    className="flex flex-col gap-[var(--menu-row-gap)] border-t border-[var(--hairline)] p-2"
+                                >
+                                    {yieldItems.map((item) => (
+                                        <AnchoredPickerRow
+                                            key={item.key}
+                                            onSelect={(e) => {
+                                                item.onSelect(e);
+                                                dismissOverlay();
+                                            }}
+                                        >
+                                            {item.label}
+                                        </AnchoredPickerRow>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>,
                     document.body
                 )}
+            {yieldMenuAt && (
+                <CardPreviewYieldMenu
+                    position={yieldMenuAt}
+                    yieldItems={yieldItems}
+                    onPreview={openAnchored}
+                    onClose={closeYieldMenu}
+                />
+            )}
             {/* Desktop hover-intent dock (board only): opens on dwell, closes
                 on leave. Superseded by the pinned anchored preview. */}
             {showHoverDock && gameCtx && (

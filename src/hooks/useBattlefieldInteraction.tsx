@@ -3,6 +3,7 @@ import type { CardInstance, Player } from "~/types/game";
 import type { ManaCost } from "~/types/cards";
 import type { AbilityMode } from "@convex/cards/types";
 import { useGameContext } from "~/hooks/useGameContext";
+import { viewerOwesInput } from "~/lib/expected-input";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useAttackSequence } from "~/hooks/useAttackSequence";
 import {
@@ -97,6 +98,7 @@ import ErrorToast from "~/components/board/error-toast";
  *  `overlays` node bundling the mana-choice picker + validation toast, which the
  *  caller mounts wherever its layout needs them. */
 export function useBattlefieldInteraction(player: Player) {
+    const game = useGameContext();
     const {
         gameId,
         playerId,
@@ -117,7 +119,7 @@ export function useBattlefieldInteraction(player: Player) {
         engineTurn,
         controlChangedThisTurn,
         continuousEffects,
-    } = useGameContext();
+    } = game;
     // CR 302.6 / 400.7 (issue #1824) — the continuity facts a
     // `controlledSinceTurnStart` target filter is evaluated against. Must be
     // `engineTurn` (the wire `GameState.turn`), never the context's display
@@ -137,6 +139,15 @@ export function useBattlefieldInteraction(player: Player) {
     // OPPONENT's board instance — and vice versa. Every activation affordance
     // is judged against the viewer's own hand/life/mana, never the board's.
     const viewer = allPlayers.find((p) => p.id === playerId) ?? player;
+    // Issue #3616 — a battlefield click answers the viewer's Expected Input
+    // (ADR 0047) or nothing: a declaration, a target, a choice, a payment or
+    // a Priority action. While the game waits on no input from this seat
+    // every permanent ignores the click — no mutation, no picker, no pointer
+    // cursor (`clicksInert`) — whatever a stale projection flag reads. Read
+    // from the engine's own `computeOwedPlayerIds`, so a non-active
+    // combat-damage assigner still counts and the solo seat follows the one
+    // the viewer is acting for.
+    const viewerOwes = viewerOwesInput(game, playerId);
     // Melee (#669) — under `meleeCombat` the attacking (active) player declares
     // blocks; otherwise the defending (non-active) player does.
     const blockDeclarerId = meleeCombat
@@ -469,7 +480,7 @@ export function useBattlefieldInteraction(player: Player) {
     // --- Card-level logic ---
 
     function handleClick(card: CardInstance) {
-        if (!canInteract(card)) return;
+        if (!viewerOwes || !canInteract(card)) return;
 
         // CR 602.1 / 118.8 / 605.3c (issue #2371) — a click while the mana
         // ability's tap-other picker is open commits ONE pick; the whole set
@@ -753,6 +764,7 @@ export function useBattlefieldInteraction(player: Player) {
     }
 
     function handleClickWithEvent(card: CardInstance, e: React.MouseEvent) {
+        if (!viewerOwes) return;
         // During mid-resolution choice or target selection, the click is a
         // pick — skip mana-ability pickers and route straight to handleClick.
         // Same for combat sub-states where the click is a declaration
@@ -1288,5 +1300,6 @@ export function useBattlefieldInteraction(player: Player) {
         handleActivateAbility,
         isSelectingOnThisBoard,
         overlays,
+        clicksInert: !viewerOwes,
     };
 }

@@ -41,7 +41,6 @@ export default function ActivatableAbilityMenu({
     onActivate,
     sheetOpen,
     onSheetClose,
-    extraItems = [],
     children,
 }: {
     abilities: ActivatableAbility[];
@@ -50,29 +49,22 @@ export default function ActivatableAbilityMenu({
      *  owns the touch-tap detection). */
     sheetOpen: boolean;
     onSheetClose: () => void;
-    /** Card-scoped entries that are NOT abilities — issue #3556's "Turn off
-     *  auto-yield for Noble Hierarch". They keep the permanent's menu
-     *  reachable on their own: a permanent whose only menu entry is one of
-     *  these still gets the menu, which is why the empty-list bail below
-     *  counts both lists. */
-    extraItems?: ActionSheetItem[];
     children: React.ReactNode;
 }) {
-    if (abilities.length === 0 && extraItems.length === 0)
-        return <>{children}</>;
+    // Abilities ONLY (issue #3616): a left click is for acting, so the card's
+    // per-card **Yield** reset never rides this menu — it lives on the right
+    // click / long-press preview surface (`card-preview.tsx`).
+    if (abilities.length === 0) return <>{children}</>;
 
-    const sheetItems: ActionSheetItem[] = [
-        ...abilities.map((a) => ({
-            key: a.id,
-            label: formatOracleText(a.oracleText),
-            onSelect: (e: React.MouseEvent | React.TouchEvent) => {
-                const keepPriority =
-                    "ctrlKey" in e ? e.ctrlKey || e.metaKey : false;
-                onActivate(a.id, keepPriority);
-            },
-        })),
-        ...extraItems,
-    ];
+    const sheetItems: ActionSheetItem[] = abilities.map((a) => ({
+        key: a.id,
+        label: formatOracleText(a.oracleText),
+        onSelect: (e: React.MouseEvent | React.TouchEvent) => {
+            const keepPriority =
+                "ctrlKey" in e ? e.ctrlKey || e.metaKey : false;
+            onActivate(a.id, keepPriority);
+        },
+    }));
 
     return (
         <>
@@ -94,15 +86,6 @@ export default function ActivatableAbilityMenu({
                             }
                         >
                             {formatOracleText(a.oracleText)}
-                        </ContextMenuItem>
-                    ))}
-                    {extraItems.map((entry) => (
-                        <ContextMenuItem
-                            key={entry.key}
-                            className="block leading-snug whitespace-normal"
-                            onClick={(e) => entry.onSelect(e)}
-                        >
-                            {entry.label}
                         </ContextMenuItem>
                     ))}
                 </ContextMenuContent>
