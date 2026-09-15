@@ -44,6 +44,7 @@ describe("scenarioBoard (issue #3577)", () => {
             revealed: true,
             size: 2,
             entries: [{ name: "Shock", count: 1, notes: [] }],
+            unseen: 1,
         });
     });
 

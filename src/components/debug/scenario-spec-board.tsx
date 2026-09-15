@@ -102,6 +102,11 @@ export default function ScenarioSpecBoard({
                                 ))}
                             </ul>
                         )}
+                        {seat.hand.revealed && seat.hand.unseen > 0 && (
+                            <span className="ml-3 text-text-disabled">
+                                +{seat.hand.unseen} not named in this position
+                            </span>
+                        )}
                     </div>
                 </section>
             ))}

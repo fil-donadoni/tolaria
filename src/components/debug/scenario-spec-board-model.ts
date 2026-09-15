@@ -40,7 +40,14 @@ export type ScenarioBoardZone = {
 };
 
 export type ScenarioBoardHand =
-    | { revealed: true; size: number; entries: ScenarioBoardEntry[] }
+    | {
+          revealed: true;
+          size: number;
+          entries: ScenarioBoardEntry[];
+          /** Opaque cards (`hiddenHand`) in the size but not in `entries` —
+           *  said out loud, so a short list does not read as a broken one. */
+          unseen: number;
+      }
     | { revealed: false; size: number };
 
 export type ScenarioBoardSeat = {
@@ -97,7 +104,8 @@ function seatBoard(
     const handEntries = mine
         .filter((card) => card.zone === "hand")
         .map(toEntry);
-    const size = sizeOf(handEntries) + (spec.hiddenHand?.[seat] ?? 0);
+    const unseen = spec.hiddenHand?.[seat] ?? 0;
+    const size = sizeOf(handEntries) + unseen;
     const life = spec.life?.[seat];
     return {
         seat,
@@ -105,7 +113,7 @@ function seatBoard(
         // A revealed hand still carries `hiddenHand` in its size: opaque
         // cards the spec could not name are cards all the same.
         hand: revealed
-            ? { revealed: true, size, entries: handEntries }
+            ? { revealed: true, size, entries: handEntries, unseen }
             : { revealed: false, size },
         zones: SCENARIO_BOARD_ZONES.map((zone) => ({
             zone,
