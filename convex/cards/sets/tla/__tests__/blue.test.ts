@@ -23,8 +23,11 @@ import {
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { validateBlockerEligibility } from "../../../../gre/combat";
 import { projectPublicState } from "../../../../gameProjections";
-import { wanShiTongAllKnowing } from "../blue";
+import { getDefinition } from "../../../index";
 
+const wanShiTongAllKnowing = getDefinition(
+    "777fcc21-2856-4181-8ecd-c272f9769e36"
+);
 const GRIZZLY_BEARS_ID = "ce2d603a-3231-4a8c-bf39-1617586ea870";
 const ETB_ID = "wan-shi-tong-all-knowing-etb-tuck";
 const UNEXPECTEDLY_ABSENT_ID = "6dff437b-ef68-48f7-afd3-3b72d3c56187";

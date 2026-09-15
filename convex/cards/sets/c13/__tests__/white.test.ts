@@ -14,8 +14,11 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
-import { unexpectedlyAbsent } from "../white";
+import { getDefinition } from "../../../index";
 
+const unexpectedlyAbsent = getDefinition(
+    "6dff437b-ef68-48f7-afd3-3b72d3c56187"
+);
 const GRIZZLY_BEARS_ID = "ce2d603a-3231-4a8c-bf39-1617586ea870";
 
 function castWithX(x: number): string[] {

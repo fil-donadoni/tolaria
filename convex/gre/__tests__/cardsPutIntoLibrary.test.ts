@@ -14,7 +14,7 @@ import {
     type CardInstanceState,
     type GameState,
 } from "../state";
-import { registerTokenDefinition } from "../../cards";
+import { getDefinition, registerTokenDefinition } from "../../cards";
 import type { GameEvent } from "../../cards/types";
 import {
     makeInstance,
@@ -28,7 +28,10 @@ import {
     recordDeclaration,
 } from "../mulligan";
 import type { Phase } from "../types";
-import { wanShiTongAllKnowing } from "../../cards/sets/tla/blue";
+
+const wanShiTongAllKnowing = getDefinition(
+    "777fcc21-2856-4181-8ecd-c272f9769e36"
+);
 
 const CREATURE_ID = "test-library-entry-creature";
 const SORCERY_ID = "test-library-entry-sorcery";
