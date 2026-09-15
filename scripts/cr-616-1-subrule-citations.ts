@@ -76,7 +76,7 @@ export const EXEMPT = [
  * makes. `(?<![\d.])` keeps "1616.1d" or "3.616.1d" from matching.
  */
 function citedOnCrLine(id: string): RegExp {
-    return new RegExp(`\\bCR\\b.*(?<![\\d.])${id.replace(".", "\\.")}\\b`);
+    return new RegExp(`\\bCR\\b.*(?<![\\d.])${id.replaceAll(".", "\\.")}\\b`);
 }
 
 /** The once-per-event claim (CR 614.5), in the words the corrected sites used
