@@ -6,13 +6,7 @@ import {
     CommandItem,
     CommandList,
 } from "~/components/ui/command";
-
-/** Case-insensitive SUBSTRING match on the option label (issue #3323) — not
- *  cmdk's default fuzzy score, which would let "gb" match "Goblin" and bury
- *  the type the chooser actually typed under subsequence noise. */
-export function subtypeOptionFilter(value: string, search: string): number {
-    return value.toLowerCase().includes(search.trim().toLowerCase()) ? 1 : 0;
-}
+import { subtypeOptionFilter } from "~/lib/subtype-option-list";
 
 /** Searchable single-pick list for an as-enters `{ kind: "subtypes" }` choice
  *  (CR 205.3m's creature types for Conspiracy / Engineered Plague, CR 205.3i's

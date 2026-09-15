@@ -3,17 +3,7 @@ import { Button } from "~/components/ui/button";
 import ManaSymbol from "~/components/cards/mana-symbol";
 import SubtypeOptionCombobox from "~/components/board/subtype-option-combobox";
 import { formatOracleText } from "~/lib/oracle-text";
-
-/** True when the option list IS an as-enters `{ kind: "subtypes" }` choice —
- *  the engine tags every such option with `subtype` (`PendingChoice.options`
- *  doc in `gre/state.ts`) and no other option-pick family sets it. The one
- *  option-pick whose list is two orders of magnitude wider than a mode list,
- *  so it gets the searchable combobox instead of the button grid. */
-export function isSubtypeOptionList(
-    options: NonNullable<PendingChoice["options"]>
-): boolean {
-    return options.length > 0 && options.every((o) => o.subtype !== undefined);
-}
+import { isSubtypeOptionList } from "~/lib/subtype-option-list";
 
 /** Option buttons for an `option-pick` pending choice (CR 614.12 — "as it
  *  enters, choose …"). Each author-supplied option renders one button; the
