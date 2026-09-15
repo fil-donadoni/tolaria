@@ -20,9 +20,9 @@
 //     asserted here rather than only on the predicate, because the whole point
 //     of the fold is that an admin can judge without granting the flag to
 //     themselves first.
-import { describe, it, expect } from "vitest";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { makeMutationCtx, runMutation, type Row } from "./gameMutationHarness";
-import { submit, list } from "../verdicts";
+import { enqueueBulk, submit, list } from "../verdicts";
 import { listUserRoles, setTesterRole } from "../users";
 import type { Id } from "../_generated/dataModel";
 
@@ -51,6 +51,14 @@ const ARGS = {
 };
 
 const ALL_USERS = [PLAIN, TESTER, ADMIN, EX_TESTER];
+
+// `submit` attributes every row to the deployment it runs on (issue #3580).
+beforeEach(() => {
+    vi.stubEnv("CONVEX_CLOUD_URL", "https://jovial-guineapig-250.convex.cloud");
+});
+afterEach(() => {
+    vi.unstubAllEnvs();
+});
 
 describe("verdicts.submit — the tester gate (issue #3402)", () => {
     it("refuses an unauthenticated caller", async () => {
@@ -171,6 +179,101 @@ describe("verdicts.submit — the tester gate (issue #3402)", () => {
     });
 });
 
+describe("verdicts.submit — the outbox stamps (issue #3580)", () => {
+    it("stamps the attestation author as ${deployment}:${userId}, pending", async () => {
+        const { ctx, doc } = makeMutationCtx("u-tester", ALL_USERS);
+        const id = await runMutation<typeof ARGS, string>(submit, ctx, ARGS);
+        const row = doc(id);
+        expect(row.attestationAuthor).toBe("jovial-guineapig-250:u-tester");
+        expect(row.deployment).toBe("jovial-guineapig-250");
+        expect(row.deploymentKind).toBe("cloud");
+        expect(row.verdictHash).toMatch(/^v1-[0-9a-f]{64}$/);
+        expect(row.positionKey).toMatch(/^v1-[0-9a-f]{64}$/);
+        expect(row.positionKey).not.toBe(row.verdictHash);
+        expect("storedAt" in row).toBe(false);
+    });
+
+    it("marks a row submitted on a local backend as local", async () => {
+        vi.stubEnv("CONVEX_CLOUD_URL", "http://127.0.0.1:3210");
+        const { ctx, doc } = makeMutationCtx("u-tester", ALL_USERS);
+        const id = await runMutation<typeof ARGS, string>(submit, ctx, ARGS);
+        expect(doc(id).deploymentKind).toBe("local");
+        expect(doc(id).attestationAuthor).toBe("local-3210:u-tester");
+    });
+
+    it("refuses to record a judgement on a deployment that cannot say where it is", async () => {
+        vi.stubEnv("CONVEX_CLOUD_URL", "");
+        const { ctx } = makeMutationCtx("u-tester", ALL_USERS);
+        await expect(runMutation(submit, ctx, ARGS)).rejects.toThrow(
+            "cannot attribute a verdict"
+        );
+    });
+
+    it("schedules a drain once the row is written", async () => {
+        const { ctx } = makeMutationCtx("u-tester", ALL_USERS);
+        const runAfter = vi.fn(async () => undefined);
+        (ctx as unknown as { scheduler: unknown }).scheduler = { runAfter };
+        await runMutation(submit, ctx, ARGS);
+        expect(runAfter).toHaveBeenCalledTimes(1);
+        expect(runAfter.mock.calls[0]).toHaveLength(3);
+    });
+});
+
+describe("verdicts.enqueueBulk — the migration's door (issue #3580)", () => {
+    const ENTRY = {
+        spec: ARGS.spec,
+        seat: ARGS.seat,
+        candidates: CANDIDATES,
+        answer: ARGS.answer,
+        author: "Tessa",
+        attestationAuthor: "jovial-guineapig-250:u-tester",
+        createdAt: 1_700_000_000_000,
+    };
+
+    it("refuses a caller who is not an admin", async () => {
+        const { ctx } = makeMutationCtx("u-tester", ALL_USERS);
+        await expect(
+            runMutation(enqueueBulk, ctx, { verdicts: [ENTRY] })
+        ).rejects.toThrow("Forbidden: admin only");
+    });
+
+    it("refuses an email as the attestation author", async () => {
+        const { ctx } = makeMutationCtx("u-admin", ALL_USERS);
+        await expect(
+            runMutation(enqueueBulk, ctx, {
+                verdicts: [
+                    { ...ENTRY, attestationAuthor: "tessa@example.com" },
+                ],
+            })
+        ).rejects.toThrow("is not ${deployment}:${userId}");
+    });
+
+    it("runs submit's checks on every entry", async () => {
+        const { ctx } = makeMutationCtx("u-admin", ALL_USERS);
+        await expect(
+            runMutation(enqueueBulk, ctx, {
+                verdicts: [
+                    ENTRY,
+                    { ...ENTRY, answer: { kind: "right", rightIndexes: [7] } },
+                ],
+            })
+        ).rejects.toThrow("outside the 2-candidate list");
+    });
+
+    it("enqueues admitted entries attested to the named author, stamped on this deployment", async () => {
+        const { ctx, doc } = makeMutationCtx("u-admin", ALL_USERS);
+        const [id] = await runMutation<unknown, string[]>(enqueueBulk, ctx, {
+            verdicts: [ENTRY],
+        });
+        const row = doc(id);
+        expect(row.attestationAuthor).toBe("jovial-guineapig-250:u-tester");
+        expect(row.deployment).toBe("jovial-guineapig-250");
+        expect(row.createdAt).toBe(1_700_000_000_000);
+        expect(row.verdictHash).toMatch(/^v1-[0-9a-f]{64}$/);
+        expect("authorId" in row).toBe(false);
+    });
+});
+
 describe("verdicts.list — admin only (issue #3402)", () => {
     it("refuses a tester who is not an admin", async () => {
         // Judging your own decision and reading everybody's judgements are
@@ -192,6 +295,26 @@ describe("verdicts.list — admin only (issue #3402)", () => {
         expect(rows[0].author).toBe("Ada");
         expect(rows[0].seat).toBe("me");
         expect("note" in rows[0]).toBe(false);
+    });
+
+    it("omits a row the outbox has slimmed — it has no judgement left to export", async () => {
+        const slim: Row = {
+            _id: "verdicts-slim",
+            __table: "verdicts",
+            verdictHash: `v1-${"a".repeat(64)}`,
+            positionKey: `v1-${"b".repeat(64)}`,
+            author: "Ada",
+            createdAt: 1,
+            storedAt: 2,
+        };
+        const { ctx } = makeMutationCtx("u-admin", [...ALL_USERS, slim]);
+        await runMutation(submit, ctx, ARGS);
+        const rows = await runMutation<
+            Record<string, never>,
+            { _id: string }[]
+        >(list, ctx, {});
+        expect(rows.map((r) => r._id)).not.toContain("verdicts-slim");
+        expect(rows).toHaveLength(1);
     });
 });
 

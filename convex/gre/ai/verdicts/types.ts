@@ -51,6 +51,23 @@ export type VerdictAttestation = {
     /** `${deployment}:${userId}` — never an email (ADR 0128 §4). */
     author: string;
     sourceAxis: VerdictSourceAxis;
+    // Provenance the outbox writes (issue #3580). Optional on the TYPE because
+    // contradiction detection reads none of it; every attestation the outbox
+    // uploads carries `createdAt`, `deployment` and `deploymentKind`.
+    /** When the judgement was given (epoch ms). */
+    createdAt?: number;
+    /** The judge's own note, verbatim. */
+    note?: string;
+    /** The deployment the judgement entered the outbox on. */
+    deployment?: string;
+    /** `local` marks test traffic, so a reader can filter it out. */
+    deploymentKind?: "cloud" | "local";
+    /** The Bot's own pick at the time, by candidate index — what makes an
+     *  in-play verdict a counter-example rather than a bare preference. */
+    botPickIndex?: number;
+    /** The game and the `seq` the decision was taken at, on `deployment`. */
+    gameId?: string;
+    seq?: number;
 };
 
 /** One move the Bot's enumerator offered at the decision under judgement. */

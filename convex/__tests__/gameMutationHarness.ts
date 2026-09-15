@@ -73,6 +73,14 @@ export function makeMutationCtx(
                 docs.set(id, { ...docs.get(id), ...patch });
                 writes.push({ id });
             },
+            // A WHOLE-document replace: every field the new value does not
+            // name is gone afterwards, which is the property a handler that
+            // slims a row depends on (`verdicts.markStored`).
+            replace: async (id: string, value: Row) => {
+                const table = docs.get(id)?.__table;
+                docs.set(id, { ...value, _id: id, __table: table });
+                writes.push({ id });
+            },
             query: (table: string) => ({
                 // A FULL SCAN — `.query(table).collect()` with no index, which
                 // is what a small admin-facing listing does. Kept beside
