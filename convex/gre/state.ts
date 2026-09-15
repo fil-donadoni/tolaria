@@ -6012,7 +6012,9 @@ export interface StagedEntry {
 }
 
 /** Returns true if a prevention effect matches (source, player) and consumes
- *  it. Called from every damage-dealing path (spell/ability, combat). */
+ *  it. Called from every damage-dealing path (spell/ability, combat), after
+ *  the CR 614 layer — see `applyTargetPrevention` for that CR 616.1 ordering
+ *  choice. */
 export function consumePreventionIfAny(
     state: GameState,
     sourceInstanceId: string,
@@ -6146,7 +6148,16 @@ export function addSourcePreventionShield(
  *  damage is fully absorbed or no shields remain. Returns the residual damage
  *  the caller should actually apply (0 = fully prevented). Mutates the shield
  *  list in place — entries reduced to 0 are spliced out, and the field is
- *  cleared when empty. */
+ *  cleared when empty.
+ *
+ *  CR 616.1 — every damage sink calls this AFTER `runDamageReplacement` has
+ *  applied each CR 614 replacement, so a target-keyed shield only ever sees
+ *  the rewritten target/amount. That order is the engine's hard-coded pick,
+ *  not the affected player's choice, and it is not an equivalence: against a
+ *  damage-doubling replacement, shield-first lets a 3-point shield absorb
+ *  2 damage entirely, while replacement-first leaves 1 of the doubled 4.
+ *  Unmodelled, like `runDamageReplacement`'s source-shield-first order —
+ *  issue #2054 tracks the choice. */
 export function applyTargetPrevention(
     state: GameState,
     targetType: "permanent" | "player",

@@ -157,7 +157,8 @@ export const kirdApe: CardDefinition = {
 
 // Ali from Cairo — declarative damage replacement (CR 614): clamp any damage
 // that would drop its controller's life below 1 so it lands on exactly 1.
-// Fires per damage event (repeatable, CR 616.1d).
+// Applies to EVERY damage event, not once: each is a separate event, and
+// CR 614.5's one opportunity to affect an event is counted per event.
 export const aliFromCairo: CardDefinition = {
     id: "42027613-d261-4ce2-8ba1-7a2480c660f8",
     rarity: "rare",

@@ -17,10 +17,10 @@
 //      `applyTargetPrevention` in state.ts)
 //   3. Original action runs against the (possibly rewritten) payload.
 //
-// CR 616.1d: a given replacement applies at most once per event. The loop
+// CR 614.5: a given replacement applies at most once per event. The loop
 // tracks `(sourceInstanceId|effectId)` keys to honor that, and is bounded by
 // a sanity cap (64 iterations) against pathological cycles. Player choice of
-// replacement order (CR 616.1c) is currently deterministic — APNAP, then
+// replacement order (CR 616.1e) is currently deterministic — APNAP, then
 // battlefield-declaration order. Adequate for the present LEA card set.
 
 import type {
@@ -218,7 +218,7 @@ function buildPermanentView(card: CardInstanceState): PermanentView {
 }
 
 /** CR 614 / 616.1 (ADR 0061) — discovers every draw replacement applicable to
- *  `event`, in the order the AFFECTED player (the drawing player, CR 616.1c)
+ *  `event`, in the order the AFFECTED player (the drawing player, CR 616.1)
  *  would apply them: the drawing player's OWN permanents first, then others,
  *  each in battlefield-declaration order. A draw replacement lives on a card
  *  definition's `drawReplacement` field (NOT the sync `replacementEffects[]`,
@@ -761,7 +761,8 @@ export function applyLoseGameReplacements(
  *  effect, so its "until end of turn" grant lives here instead — mirrors
  *  `applyTransientDestroyShields`. Runs AFTER the continuous loop so a
  *  permanent-bound effect gets first crack; a no-op once `destination` is
- *  already redirected (CR 616.1d — a redirected event isn't re-intercepted). */
+ *  already redirected (CR 616.1f — only effects that would NOW apply are
+ *  considered, and a redirected event is no longer graveyard-bound). */
 function applyTransientGraveyardRedirects(
     state: GameState,
     event: GraveyardBoundReplacementEvent

@@ -178,7 +178,7 @@ describe("CR 616.1 — multiple applicable draw-replacements ordered by the affe
         const event = buildDrawEvent(state, "p1", 1, false);
         const applicable = getApplicableDrawReplacements(state, event);
         expect(applicable).toHaveLength(2);
-        // CR 616.1c — the affected (drawing) player orders them; own first.
+        // CR 616.1 — the affected (drawing) player orders them; own first.
         expect(applicable[0].effect.id).toBe("enduring-renewal-draw");
         expect(applicable[1].effect.id).toBe("zurs-weirding-draw");
     });

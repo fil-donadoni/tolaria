@@ -11515,8 +11515,8 @@ export interface EmblemInstance {
 //
 // Engine iteration (CR 616): when an event fires, the loop scans active
 // replacement effects on every battlefield permanent and applies matching
-// ones one at a time, honoring CR 616.1d ("a replacement effect can only
-// apply once per event"). The loop terminates when no further replacement
+// ones one at a time, honoring CR 614.5 (a replacement effect "gets only one
+// opportunity to affect an event"). The loop terminates when no further replacement
 // matches the (possibly rewritten) event.
 
 export type ReplacementEventKind =
@@ -11763,8 +11763,8 @@ export type ReplacementEvent =
  *    loss (Leovold, "can't draw more than one card each turn").
  *  - `modify-count` — the single draw yields `1 + delta` cards instead of 1
  *    (Quantum Riddler, draw N → N+1). The extra cards are drawn raw and do NOT
- *    re-trigger the replacement (CR 616.1d — a replacement applies once per
- *    event). Built into the seam now (ADR 0061 story 16) though no shipping
+ *    re-trigger the replacement (CR 614.5 — a replacement gets one opportunity
+ *    per event). Built into the seam now (ADR 0061 story 16) though no shipping
  *    card uses it yet. */
 export type DrawReplacementOutcome =
     | { kind: "reveal-type-to-graveyard"; cardType: CardType }
@@ -17882,7 +17882,7 @@ export interface CardDefinition {
      *  "discard", "lose-game"), an `appliesTo` predicate that filters by event
      *  payload, and a `replace` body that mutates / cancels the event before
      *  the original action runs. Multiple replacements compose (CR 616) — the
-     *  engine iterates until no more apply, honoring CR 616.1d (a given
+     *  engine iterates until no more apply, honoring CR 614.5 (a given
      *  replacement applies at most once per event).
      *
      *  Active only while the permanent is on the battlefield; the engine
