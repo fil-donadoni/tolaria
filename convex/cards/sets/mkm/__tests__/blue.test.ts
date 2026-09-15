@@ -299,7 +299,7 @@ describe("Forensic Gadgeteer (activated-ability cost reduction scoped to artifac
     });
 
     it("wire format: the reduction survives projectPublicState", () => {
-        const { state, host } = board(DRAGON_ENGINE_ID, "p1");
+        const { state } = board(DRAGON_ENGINE_ID, "p1");
         const projected = projectPublicState(state as GameState, 1, "p1");
         const slimHost = projected.players[0].battlefield.find(
             (c) => c.id === "host"

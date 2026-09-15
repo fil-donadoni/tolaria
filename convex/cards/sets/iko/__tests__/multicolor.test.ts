@@ -339,7 +339,7 @@ describe("Zirda, the Dawnwaker (Companion, activated-ability cost reduction excl
     });
 
     it("wire format: the reduction survives projectPublicState", () => {
-        const { state, engine } = boardWithZirda("p1");
+        const { state } = boardWithZirda("p1");
         const projected = projectPublicState(state as GameState, 1, "p1");
         const slimEngine = projected.players[0].battlefield.find(
             (c) => c.id === "engine"
