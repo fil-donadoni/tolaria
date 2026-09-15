@@ -3,7 +3,7 @@
 //
 // Runs the REAL CTA and box against the REAL store (`useYieldPrefsState`), with
 // every key minted by `yieldKeyForStackItem` from the real projection.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup, fireEvent, act } from "@testing-library/react";
 import { makeInstance, makeState } from "@convex/cards/__tests__/setup";
@@ -72,11 +72,16 @@ let store: YieldPrefsStore;
 const menuOpenChanges: boolean[] = [];
 
 function Board({ viewer, menu = false }: { viewer: string; menu?: boolean }) {
-    store = useYieldPrefsState("g1");
+    const prefs = useYieldPrefsState("g1");
+    // Published from an effect, not assigned during render: `act` flushes it
+    // before any assertion reads `store`.
+    useEffect(() => {
+        store = prefs;
+    }, [prefs]);
     const [menuOpen, setMenuOpen] = useState(true);
     return (
         <GameContext value={{ playerId: viewer } as never}>
-            <YieldPrefsContext value={store}>
+            <YieldPrefsContext value={prefs}>
                 <div data-home="panel">
                     <ClearYieldsButton />
                     <ManageYieldsButton />
