@@ -86,10 +86,13 @@ describe("the scanner itself flags a bad citation and passes the shapes it must 
         }
     });
 
+    // Each legitimate fixture ALSO carries a claim word ("once", "order"), so
+    // it passes only because the line names the subrule's real subject — a
+    // claim-free fixture would pass with the exemption deleted.
     it("passes a genuine CR 616.1d citation about a card entering with its back face up", () => {
         expect(
             scanLine(
-                "// CR 616.1d — an effect making the card enter with its back face up must be chosen first."
+                "// CR 616.1d — once a replacement would make the card enter with its back face up, it must be chosen first."
             )
         ).toHaveLength(0);
     });
@@ -97,7 +100,7 @@ describe("the scanner itself flags a bad citation and passes the shapes it must 
     it("passes a genuine CR 616.1c citation about entering as a copy", () => {
         expect(
             scanLine(
-                "// CR 616.1c — the copy effect is applied before the enters-tapped replacement."
+                "// CR 616.1c — the copy-as-it-enters replacement comes first in the order."
             )
         ).toHaveLength(0);
     });
