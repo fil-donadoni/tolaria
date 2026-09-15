@@ -518,18 +518,31 @@ describe("buildVerdictQuiz — a judgement the fit can still read (issue #3405)"
                 isTester: true,
             },
         ]);
-        const id = await runMutation<Record<string, unknown>, string>(
-            submit,
-            ctx,
-            {
-                spec: quiz.spec,
-                seat: "me",
-                candidates: quiz.candidates,
-                answer: { kind: "right", rightIndexes: [quiz.botPickIndex] },
-                botPickIndex: quiz.botPickIndex,
-            }
-        );
-        expect(doc(id).candidates).toEqual(quiz.candidates);
+        // Convex sets `CONVEX_CLOUD_URL` for every function; `submit` attributes
+        // the verdict to that deployment and refuses to guess (issue #3580).
+        const previousUrl = process.env.CONVEX_CLOUD_URL;
+        process.env.CONVEX_CLOUD_URL =
+            "https://jovial-guineapig-250.convex.cloud";
+        try {
+            const id = await runMutation<Record<string, unknown>, string>(
+                submit,
+                ctx,
+                {
+                    spec: quiz.spec,
+                    seat: "me",
+                    candidates: quiz.candidates,
+                    answer: {
+                        kind: "right",
+                        rightIndexes: [quiz.botPickIndex],
+                    },
+                    botPickIndex: quiz.botPickIndex,
+                }
+            );
+            expect(doc(id).candidates).toEqual(quiz.candidates);
+        } finally {
+            if (previousUrl === undefined) delete process.env.CONVEX_CLOUD_URL;
+            else process.env.CONVEX_CLOUD_URL = previousUrl;
+        }
     });
 
     it("names a candidate list the mutation's own bounds accept", () => {
