@@ -117,8 +117,8 @@ describe("DeckListItem legality (issue #512)", () => {
 });
 
 // axe `nested-interactive`, serious, 52 nodes on the lobby at every one of the
-// five viewports — the single violation that held `scripts/ui-gate/budgets.json`
-// above its own `axeSerious 0` floor for this surface. The row was
+// five viewports — the single violation that held this surface's `axeSerious`
+// count above the zero floor (`scripts/ui-gate/floors.ts`). The row was
 // `<div role="button" tabIndex={0}>` wrapped around a real `<button>`: an
 // interactive role may not contain focusable descendants, because assistive
 // tech flattens it to one control and the buttons inside become unreachable.

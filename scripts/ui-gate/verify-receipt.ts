@@ -1,69 +1,37 @@
 #!/usr/bin/env bun
 /**
- * `bun run verify:ui-receipt <PR#>` — mechanically verify a pasted
- * `check:ui` receipt in a PR body (issue #2760).
+ * `bun run verify:ui-receipt <PR#>` — mechanically verify a pasted `check:ui`
+ * receipt in a PR body (issue #2760), and the one decision `land` makes about
+ * it (ADR 0132 §6, issue #3648).
  *
- * WHY THIS EXISTS. `check:ui` labels its own output `RECEIPT` for a full walk
- * and `DIAGNOSTIC` for a `--surface=` subset, naming exactly what it skipped
- * — that makes the PRODUCER honest. The TRANSPORT (copying that output into
- * a PR body) was not: the label is plain text in a fenced block, and nothing
- * recomputed it. Two bypasses were observed in one batch: a full-lane header
- * pasted above rows covering two surfaces, and a subset run with the
- * disqualifying banner line deleted. Both were caught only by a reviewer
- * re-running the lane by hand and eyeballing a diff.
+ * WHAT IS VERIFIED: THE VERDICT BLOCK, AND NOTHING ELSE. A receipt has two
+ * blocks (`receipt.ts`). The verdict block — banner, one line per surface ×
+ * viewport, coverage line — is a function of the tree and the scope, so it is
+ * RE-DERIVED here: the only verdict block that lands is the all-`PASS` one, and
+ * that block is fully determined by the scope. This file builds it by running
+ * the REAL evaluator (`evaluateRun`) over a clean walk of every in-scope cell
+ * and rendering it through the REAL renderer (`verdictBlockLines`), then diffs
+ * the paste against it line by line. Nothing about the renderer is
+ * re-implemented, and nothing the paste claims about the scope is trusted.
  *
- * WHAT "RE-RENDER THROUGH THE EVALUATOR" ACTUALLY MEANS HERE. `evaluateRun`
- * consumes `SurfaceWalk[]` — raw browser measurements. A pasted receipt does
- * NOT contain measurements; it contains already-rendered `ResultRow` lines.
- * The measurements are not recoverable from the text, so this file does not
- * try to reconstruct `SurfaceWalk[]` and call `evaluateRun` — that would
- * either be impossible (metrics genuinely lost) or would fabricate inputs
- * until the output matched, which verifies nothing.
+ * The diagnostic block (after the coverage line) is never read: its shape
+ * readings, load and wall time differ between two runs of one tree, and a
+ * receipt that differs from a re-run only there verifies identically.
  *
- * Instead: parse the pasted rows back into `ResultRow[]`
- * (`parseResultRowLine`), assemble an `Evaluation`-shaped value from them
- * (`measuredSurfaces`/`declaredUnwalked` derived from the rows themselves,
- * `knownSurfaces` from the real `SURFACE_IDS`, `receiptKind` from the REAL
- * `receiptKindOf`), then call the REAL `receiptKindLine()` / `coverageLine()`
- * / `formatResultRow()` on that value and diff the result against what was
- * pasted, byte for byte. This is genuinely "through the same renderer" — the
- * derived lines are RECOMPUTED from the claimed rows, never re-implemented —
- * and it catches both observed bypasses: a full-lane banner over rows
- * spanning too few surfaces (the recomputed banner comes back `DIAGNOSTIC`,
- * because `receiptKindOf` sees the gap against the real `SURFACE_IDS`), and
- * a subset run with its banner deleted (the recomputed banner is simply
- * absent from the paste, which is its own failure).
+ * REFUSED, each said out loud:
+ *   - any line that is not `PASS` — `FAIL` (a broken Floor), `INFRA` (the
+ *     machine cut the walk short, issue #3644), `UNWALKED` (never measured);
+ *   - a cell the scope owes and the paste lacks, or a cell outside the scope;
+ *   - a banner or coverage line that differs from the re-derived one, a row
+ *     reflowed or reordered (never reflow a row, #2783/#2786);
+ *   - a `DIAGNOSTIC` (a hand-picked `--surface=` subset, issue #2742);
+ *   - a `SCOPED` receipt with no landing diff to re-derive its scope from, or
+ *     for a diff that forces the full run (issue #3628, ADR 0131). A full
+ *     `RECEIPT` satisfies any diff.
  *
- * THE ROW FORMAT IS FIXED-WIDTH VIA `padEnd`, WHICH IS LOSSY TO SPLIT ON
- * COLUMN OFFSETS: a surface id at or past 20 chars, or a `detail` containing
- * extra whitespace, breaks a positional parse. `parseResultRowLine` instead
- * matches against the real, FINITE surface/viewport vocabularies
- * (`SURFACE_IDS` / `VIEWPORT_IDS`), longest-id-first so one id can never
- * swallow another as a prefix. `formatResultRow` (`budgets.ts`) is the one
- * place the format string exists — this file never re-implements it.
- *
- * THE ELISION MARKER. One legitimate case must survive: a receipt may elide
- * the "known debt carried by the budgets" trailer `check:ui` prints — pure
- * `budgets.json` prose, duplicated verbatim, that can blow up a PR body's
- * size — behind `KNOWN_DEBT_ELISION_MARKER`. `check:ui`'s own print order is
- * banner → rows → coverage line → console errors → known-debt trailer →
- * screenshots/wall-time → pass/fail summary, so the known-debt trailer sits
- * OUTSIDE the region this file verifies (banner..rows..coverage). Eliding it
- * — marked or not — cannot touch a verdict row, a ceiling (embedded in a
- * row's own `detail`), the coverage line or the banner, because none of
- * those lines live in the trailer. The marker's job is narrower and
- * structural: if it appears INSIDE the verified region (between the banner
- * and the coverage line), that is treated as an attempt to disguise a
- * dropped row and rejected outright — the one place eliding is never safe.
- *
- * SCOPED RECEIPTS (issue #3628, ADR 0131). A `SCOPED` banner claims the run
- * walked exactly the surfaces its diff can reach. The claim is only as good as
- * the scope it names, so the verifier never trusts the pasted list: the caller
- * passes the scope re-derived from the landing diff (`landingDiffScope`, the
- * same `computeUiScope` `check:ui` ran), and the banner is re-rendered from
- * THAT scope. A `SCOPED` receipt with no landing diff to check against, or for
- * a diff that forces the full run, is refused; a full `RECEIPT` satisfies any
- * diff; a `DIAGNOSTIC` satisfies none.
+ * THE ROW FORMAT IS FIXED-WIDTH VIA `padEnd`, which is lossy to split on column
+ * offsets. `parseResultRowLine` matches the real, finite surface/viewport
+ * vocabularies instead, longest-id-first so one id never swallows another.
  */
 
 import * as path from "node:path";
@@ -72,20 +40,17 @@ import { gh } from "../lib/gh.ts";
 import { ORIGIN_BASE } from "../lib/branches.ts";
 import { createImportGraph } from "../lib/import-graph.ts";
 import { computeUiScope, type UiScope } from "../lib/ui-scope.ts";
+import { UNWALKED_SURFACES, type UnwalkedSurface } from "./floors.ts";
 import {
-    coverageLine,
-    receiptKindLine,
-    receiptKindOf,
+    evaluateRun,
     formatResultRow,
-    loadBudgets,
-    BUDGET_KEYS,
-    type BudgetFile,
-    type BudgetKey,
+    verdictBlockLines,
+    zeroReadings,
     type DiffScope,
-    type Evaluation,
     type ResultRow,
+    type SurfaceWalk,
     type Verdict,
-} from "./budgets.ts";
+} from "./receipt.ts";
 import { SURFACES, SURFACE_IDS } from "./surfaces.ts";
 import { VIEWPORT_IDS } from "./viewports.ts";
 
@@ -112,28 +77,31 @@ export function landingDiffScope(
     });
 }
 
-const VERDICTS: readonly Verdict[] = ["PASS", "FAIL", "INFRA", "UNWALKED"];
+/** What a receipt is re-derived against. Overridable so tests never depend
+ *  on the live surface table. */
+export interface ReceiptVocabulary {
+    surfaceIds: readonly string[];
+    viewportIds: readonly string[];
+    unwalked: readonly UnwalkedSurface[];
+}
 
-/**
- * The marker a receipt may use IN PLACE OF the "known debt carried by the
- * budgets" trailer — see the module comment for why that section, and only
- * that section, is safe to elide. Anywhere else in the receipt this literal
- * string is rejected (see `extractReceiptRegion`).
- */
-export const KNOWN_DEBT_ELISION_MARKER =
-    "[check:ui receipt: known-debt trailer elided — verbatim in scripts/ui-gate/budgets.json]";
+export const LANE_VOCABULARY: ReceiptVocabulary = {
+    surfaceIds: SURFACE_IDS,
+    viewportIds: VIEWPORT_IDS,
+    unwalked: UNWALKED_SURFACES,
+};
+
+const VERDICTS: readonly Verdict[] = ["PASS", "FAIL", "INFRA", "UNWALKED"];
 
 export interface ReceiptVerification {
     ok: boolean;
-    /** One entry per parse failure or divergence. Empty iff `ok`. */
+    /** One entry per parse failure, refused line or divergence. Empty iff `ok`. */
     problems: string[];
 }
 
 /**
  * Parse ONE printed row back into a `ResultRow`, matching against the real,
- * finite vocabularies rather than splitting on `padEnd`'s column offsets
- * (see the module comment). Longest-first within each vocabulary so one
- * surface/viewport id can never be swallowed as a prefix of another.
+ * finite vocabularies rather than splitting on `padEnd`'s column offsets.
  */
 export function parseResultRowLine(
     line: string,
@@ -184,7 +152,7 @@ export function parseResultRowLine(
     return null;
 }
 
-interface ParsedReceiptRegion {
+export interface VerdictBlock {
     bannerLine: string;
     rows: ResultRow[];
     rowLines: string[];
@@ -192,46 +160,34 @@ interface ParsedReceiptRegion {
 }
 
 /**
- * Locate and parse the banner → rows → coverage-line region inside a PR
- * body. Deliberately silent about anything OUTSIDE this region (trailer
- * content: known debt, console errors, screenshots, wall time, the final
- * summary) — that is exactly the region issue #2760 allows a receipt to
- * elide.
+ * Locate and parse the verdict block inside a PR body: the banner, the rows,
+ * and the first `coverage: ` line after it. Everything after the coverage line
+ * is the diagnostic block and is never read.
  */
-export function extractReceiptRegion(
+export function extractVerdictBlock(
     body: string,
-    knownSurfaceIds: readonly string[],
-    knownViewportIds: readonly string[]
-): { region: ParsedReceiptRegion | null; problems: string[] } {
-    const lines = body.split(/\r?\n/);
+    vocab: ReceiptVocabulary
+): { block: VerdictBlock | null; problems: string[] } {
+    const lines = body.split(/\r?\n/).map((l) => l.trim());
     const bannerIdx = lines.findIndex((l) =>
-        /^(RECEIPT|SCOPED|DIAGNOSTIC) —/.test(l.trim())
+        /^(RECEIPT|SCOPED|DIAGNOSTIC) —/.test(l)
     );
     if (bannerIdx === -1) {
         return {
-            region: null,
+            block: null,
             problems: [
                 "no RECEIPT/SCOPED/DIAGNOSTIC banner line found in the PR body — check:ui was not pasted, or the banner was removed",
             ],
         };
     }
-
-    let coverageIdx = -1;
-    for (let i = bannerIdx + 1; i < lines.length; i++) {
-        if (
-            /^coverage: \d+\/\d+ surfaces measured, \d+ declared unwalked$/.test(
-                lines[i].trim()
-            )
-        ) {
-            coverageIdx = i;
-            break;
-        }
-    }
+    const coverageIdx = lines.findIndex(
+        (l, i) => i > bannerIdx && l.startsWith("coverage: ")
+    );
     if (coverageIdx === -1) {
         return {
-            region: null,
+            block: null,
             problems: [
-                "no `coverage: …` line found after the banner — the row table was pasted without the line check:ui prints below it",
+                "no `coverage: …` line found after the banner — the verdict block was pasted without the line that closes it",
             ],
         };
     }
@@ -240,249 +196,83 @@ export function extractReceiptRegion(
     const rows: ResultRow[] = [];
     const rowLines: string[] = [];
     for (let i = bannerIdx + 1; i < coverageIdx; i++) {
-        const trimmed = lines[i].trim();
-        if (trimmed === "") continue;
-        if (trimmed === KNOWN_DEBT_ELISION_MARKER) {
-            problems.push(
-                `line ${i + 1}: the known-debt elision marker cannot appear inside the verdict-row region — it may only replace the trailer AFTER the coverage line`
-            );
-            continue;
-        }
+        if (lines[i] === "") continue;
         const row = parseResultRowLine(
-            trimmed,
-            knownSurfaceIds,
-            knownViewportIds
+            lines[i],
+            vocab.surfaceIds,
+            vocab.viewportIds
         );
         if (!row) {
             problems.push(
-                `line ${i + 1}: could not parse as a verdict row: ${JSON.stringify(trimmed)}`
+                `line ${i + 1}: could not parse as a verdict line: ${JSON.stringify(lines[i])}`
             );
             continue;
         }
         rows.push(row);
-        rowLines.push(trimmed);
-    }
-
-    // An empty scope walks nothing, so its SCOPED receipt has no rows; whether
-    // the scope really was empty is `verifyReceiptText`'s check, not this one.
-    const emptyScopedBanner = lines[bannerIdx].trim().startsWith("SCOPED —");
-    if (rows.length === 0 && problems.length === 0 && !emptyScopedBanner) {
-        problems.push(
-            "no verdict rows found between the banner and the coverage line"
-        );
+        rowLines.push(lines[i]);
     }
 
     return {
-        region:
+        block:
             problems.length === 0
                 ? {
-                      bannerLine: lines[bannerIdx].trim(),
+                      bannerLine: lines[bannerIdx],
                       rows,
                       rowLines,
-                      coverageLine: lines[coverageIdx].trim(),
+                      coverageLine: lines[coverageIdx],
                   }
                 : null,
         problems,
     };
 }
 
-/**
- * A surface counts as measured iff EVERY viewport `budgets.json` budgets for
- * it appears among its rows, all as PASS — this is `evaluateRun`'s real
- * `surfaceComplete` (issue #2760 review, finding 2), not the "every row for
- * this surface happens to be PASS" the prior version checked.
- *
- * Those two are NOT equivalent, and the gap is `budgets.ts:406-419`:
- * `evaluateRun` can push an extra "measured but no budget for this viewport"
- * UNWALKED row for a surface WITHOUT ever clearing `surfaceComplete` — that
- * row is about a viewport `budgets.json` does not cover, which is simply not
- * part of what "this surface is complete" means. The prior predicate treated
- * that row as disqualifying, so an honest, byte-perfect, unmodified paste of
- * exactly that shape was rejected (banner AND coverage mismatch) even though
- * it is the correct, unmodified output of the real evaluator — reachable the
- * moment a viewport is added to `viewports.ts` ahead of a `budgets.json`
- * update, or a surface ships before its first `--record` run.
- *
- * Grouping rows by surface and requiring every BUDGETED viewport present (no
- * more, no fewer) as PASS also gives the row-census check
- * (`rowCensusProblems`) a second, independent line of defense: a paste that
- * drops a budgeted viewport's row now undercounts here too, so the banner
- * and coverage lines a forger recomputed from the SAME (already-fixed) logic
- * would themselves go inconsistent unless the forger also hand-edits this
- * count — which `rowCensusProblems` catches regardless of what the banner or
- * coverage line claims.
- */
-export function countMeasuredSurfaces(
-    rows: readonly ResultRow[],
-    budgets: BudgetFile
-): number {
-    const bySurface = new Map<string, ResultRow[]>();
-    for (const row of rows) {
-        const list = bySurface.get(row.surface) ?? [];
-        list.push(row);
-        bySurface.set(row.surface, list);
-    }
-    let count = 0;
-    for (const [surface, forSurface] of bySurface) {
-        const budget = budgets.surfaces[surface];
-        if (!budget || budget.status !== "budgeted") {
-            // No budget to check completeness against (undeclared, or
-            // declared unwalked) — falls back to the old all-PASS predicate,
-            // which is harmless here since neither shape is ever "complete".
-            if (forSurface.every((r) => r.verdict === "PASS")) count++;
-            continue;
-        }
-        const budgetedViewports = new Set(Object.keys(budget.viewports ?? {}));
-        if (budgetedViewports.size === 0) continue;
-
-        const budgetedRows = forSurface.filter(
-            (r) => r.viewport !== null && budgetedViewports.has(r.viewport)
-        );
-        const presentViewports = new Set(budgetedRows.map((r) => r.viewport));
-        const complete =
-            presentViewports.size === budgetedViewports.size &&
-            budgetedRows.every((r) => r.verdict === "PASS");
-        if (complete) count++;
-    }
-    return count;
+function cellName(row: ResultRow): string {
+    return `${row.surface} @ ${row.viewport ?? "—"}`;
 }
 
-/**
- * The row-census check (issue #2760 review, finding 1 — the HIGH one).
- * Nothing previously anchored a pasted receipt's rows to `budgets.json`, so
- * only the SURFACE axis was ever checked (via `receiptKindOf`'s
- * RECEIPT/DIAGNOSTIC label, which compares surface ids only): a paste could
- * delete every viewport row for a surface but ONE and keep the surface
- * itself represented, and nothing caught the missing viewport axis — not
- * even a genuine FAIL row's disappearance, since a forger who also
- * hand-edits the banner/coverage counts to match the shrunken row set makes
- * those byte-diffs agree with each other by construction (they are both
- * derived FROM the same rows). This check does not care what the banner or
- * coverage line say: it walks `budgets.json` directly and requires a row for
- * every (surface, budgeted-viewport) pair among the surfaces the paste
- * actually claims to cover.
- *
- * Scoped to surfaces present in the paste's own rows — a surface missing
- * ENTIRELY is already the `receiptKindOf`/banner check's job (it shows up as
- * a DIAGNOSTIC banner disagreeing with a RECEIPT paste); this only closes
- * the gap one level down, a surface PARTIALLY present.
- */
-export function rowCensusProblems(
-    rows: readonly ResultRow[],
-    budgets: BudgetFile
-): string[] {
+/** One refusal per non-`PASS` verdict present, naming every such cell. */
+export function nonPassProblems(rows: readonly ResultRow[]): string[] {
+    const said: Record<Exclude<Verdict, "PASS">, string> = {
+        FAIL: "a broken Floor is a defect in the tree: fix it and re-run check:ui",
+        INFRA: "the machine cut those walks short, so they are unproven: re-run check:ui once the load has dropped",
+        UNWALKED:
+            "the lane never measured them, so they are unproven: make the surface reachable, or declare it in UNWALKED_SURFACES with its issue",
+    };
     const problems: string[] = [];
-    const bySurface = new Map<string, ResultRow[]>();
-    for (const row of rows) {
-        const list = bySurface.get(row.surface) ?? [];
-        list.push(row);
-        bySurface.set(row.surface, list);
-    }
-
-    for (const [surface, surfaceRows] of bySurface) {
-        const budget = budgets.surfaces[surface];
-        if (!budget) continue; // undeclared entirely — a different failure shape, not this check's job
-
-        const seenViewports = new Set(surfaceRows.map((r) => r.viewport));
-
-        if (budget.status === "unwalked") {
-            if (!seenViewports.has(null)) {
-                problems.push(
-                    `row census: "${surface}" is declared unwalked in budgets.json, but the paste carries no whole-surface row for it`
-                );
-            }
-            continue;
-        }
-
-        const budgetedViewports = Object.keys(budget.viewports ?? {});
-        if (budgetedViewports.length === 0) {
-            if (!seenViewports.has(null)) {
-                problems.push(
-                    `row census: "${surface}" is budgeted with no viewport ceilings, so the paste should carry a single whole-surface row for it`
-                );
-            }
-            continue;
-        }
-
-        const missing = budgetedViewports.filter(
-            (vp) => !seenViewports.has(vp)
+    for (const verdict of ["FAIL", "INFRA", "UNWALKED"] as const) {
+        const hit = rows.filter((r) => r.verdict === verdict);
+        if (hit.length === 0) continue;
+        problems.push(
+            `the receipt carries ${hit.length} ${verdict} line(s) (${hit.map((r) => `${cellName(r)}: ${r.detail}`).join("; ")}) — ${said[verdict]}`
         );
-        if (missing.length > 0) {
-            problems.push(
-                `row census: "${surface}" is missing a verdict row for budgeted viewport(s) ${missing.join(", ")} — budgets.json requires ${budgetedViewports.length} row(s) for this surface, the paste has ${surfaceRows.length}`
-            );
-        }
-    }
-
-    return problems;
-}
-
-/** Matches one `<key> <actual> > <ceiling>` token inside a FAIL row's
- *  "over budget: …" suffix (see `evaluateRun`'s `over.push` in `budgets.ts`). */
-const OVER_BUDGET_TOKEN = /([A-Za-z]+) (-?\d+(?:\.\d+)?) > (-?\d+(?:\.\d+)?)/g;
-
-/**
- * Cross-checks the CEILING half of a FAIL row's "over budget: key val >
- * ceiling" text against the real ceiling in `budgets.json` (issue #2760
- * review, finding 1's closing sentence — "FAIL-row ceilings in detail text
- * are likewise never compared to budgets.json"). The per-row byte-diff in
- * `verifyReceiptText` only proves a row round-trips through
- * `parseResultRowLine`/`formatResultRow` unchanged; it says nothing about
- * whether the NUMBERS inside `detail` are honest, because `detail` is opaque
- * free text to that check. This walks the finite `BUDGET_KEYS` vocabulary
- * over the "over budget:" suffix and compares each claimed ceiling to the
- * real one.
- */
-export function failCeilingProblems(
-    rows: readonly ResultRow[],
-    budgets: BudgetFile
-): string[] {
-    const problems: string[] = [];
-    const keySet = new Set<string>(BUDGET_KEYS);
-    for (const row of rows) {
-        if (row.verdict !== "FAIL" || row.viewport === null) continue;
-        const budget = budgets.surfaces[row.surface];
-        const ceilings =
-            budget?.status === "budgeted"
-                ? budget.viewports?.[row.viewport]
-                : undefined;
-        if (!ceilings) continue; // no ceiling to check against — the census check above already flags this shape
-
-        const overIdx = row.detail.indexOf("over budget:");
-        if (overIdx === -1) continue; // shape mismatch is the row byte-diff's job, not this one's
-        const overText = row.detail.slice(overIdx);
-        for (const m of overText.matchAll(OVER_BUDGET_TOKEN)) {
-            const [, key, , claimedCeiling] = m;
-            if (!keySet.has(key)) continue;
-            const real = ceilings[key as BudgetKey];
-            if (real !== undefined && String(real) !== claimedCeiling) {
-                problems.push(
-                    `row census: "${row.surface}" @ ${row.viewport} claims a ${key} ceiling of ${claimedCeiling}, but budgets.json says ${real}`
-                );
-            }
-        }
     }
     return problems;
 }
 
 /**
- * The diff scope a pasted `SCOPED` banner is re-rendered under, or the reason
- * it cannot be. Null `diffScope` for any other banner: `receiptKindOf` then
- * never recomputes `SCOPED`, so a `RECEIPT`/`DIAGNOSTIC` paste is judged
- * exactly as before. The pasted surface list is never read — the rows and the
- * expected scope are the two facts; the banner must agree with both.
+ * The surfaces a pasted banner claims to cover, re-derived — never read off
+ * the banner. `RECEIPT` covers every defined surface; `SCOPED` covers exactly
+ * the landing diff's scope; `DIAGNOSTIC` covers nothing a PR can land on.
  */
-export function scopedBannerProblems(
+export function landableScope(
     bannerLine: string,
-    rowSurfaceIds: readonly string[],
+    vocab: ReceiptVocabulary,
     expected: ExpectedScope | null
-): { diffScope: DiffScope | null; problems: string[] } {
-    if (!bannerLine.startsWith("SCOPED —")) {
-        return { diffScope: null, problems: [] };
+):
+    | { surfaces: readonly string[]; diffScope: DiffScope | null }
+    | { problems: string[] } {
+    if (bannerLine.startsWith("RECEIPT —")) {
+        return { surfaces: vocab.surfaceIds, diffScope: null };
+    }
+    if (bannerLine.startsWith("DIAGNOSTIC —")) {
+        return {
+            problems: [
+                "a DIAGNOSTIC (a hand-picked --surface= subset) is not a PR receipt — paste a full RECEIPT, or the SCOPED run of the landing diff",
+            ],
+        };
     }
     if (!expected) {
         return {
-            diffScope: null,
             problems: [
                 "a SCOPED receipt covers only what its diff reaches, and no landing diff was given to re-derive that scope — verify it through `bun run land`, or paste a full RECEIPT",
             ],
@@ -490,142 +280,142 @@ export function scopedBannerProblems(
     }
     if (expected.scope.kind === "full") {
         return {
-            diffScope: null,
             problems: [
                 `the landing diff forces the full run (${expected.scope.reason}) — a SCOPED receipt cannot cover it; paste a full RECEIPT`,
             ],
         };
     }
-    const inScope = new Set(expected.scope.surfaces);
-    const walked = new Set(rowSurfaceIds);
-    const problems: string[] = [];
-    const missing = expected.scope.surfaces.filter((id) => !walked.has(id));
-    if (missing.length > 0) {
-        problems.push(
-            `the SCOPED receipt is missing surface(s) the landing diff reaches: ${missing.join(", ")}`
-        );
-    }
-    const outside = rowSurfaceIds.filter((id) => !inScope.has(id));
-    if (outside.length > 0) {
-        problems.push(
-            `the SCOPED receipt covers surface(s) outside the landing diff's scope: ${outside.join(", ")} — re-run check:ui on a clean, committed tree against a freshly fetched base`
-        );
-    }
     return {
+        surfaces: expected.scope.surfaces,
         diffScope: { base: expected.base, surfaces: expected.scope.surfaces },
-        problems,
     };
 }
 
 /**
- * The pure verification: given the PR body text, the real surface/viewport
- * vocabularies and the real budget file (all defaulted to the real ones;
- * overridable so tests never depend on the live catalogue), decide whether
- * the pasted receipt matches what the real renderer would print for the rows
- * it claims, AND that the rows it claims are the complete census
- * `budgets.json` requires (issue #2760 review, finding 1) — the two checks
- * this file existed for before this fix only ever verified the FIRST half.
- *
- * `expected` is the scope re-derived from the landing diff (issue #3628). It
- * only matters to a `SCOPED` paste; a full `RECEIPT` verifies without it, and
- * a `DIAGNOSTIC` is refused whatever it holds.
+ * The one verdict block that lands for `surfaces`: every walked cell `PASS`.
+ * Built through the real evaluator and renderer over a clean walk, so it is
+ * what `check:ui` prints for a green run of that scope, by construction.
+ */
+export function landableVerdictBlock(
+    surfaces: readonly string[],
+    vocab: ReceiptVocabulary,
+    diffScope: DiffScope | null
+): string[] {
+    const walks: SurfaceWalk[] = surfaces.map((surface) => ({
+        surface,
+        status: "measured",
+        measurements: vocab.viewportIds.map((viewport) => ({
+            viewport,
+            readings: zeroReadings(),
+        })),
+    }));
+    return verdictBlockLines(
+        evaluateRun({
+            knownSurfaceIds: surfaces,
+            walks,
+            definedSurfaceIds: vocab.surfaceIds,
+            viewportIds: vocab.viewportIds,
+            unwalked: vocab.unwalked,
+            diffScope,
+        })
+    );
+}
+
+/**
+ * The pure verification. `expected` is the scope re-derived from the landing
+ * diff (issue #3628); only a `SCOPED` paste needs it.
  */
 export function verifyReceiptText(
     body: string,
-    definedSurfaceIds: readonly string[] = SURFACE_IDS,
-    definedViewportIds: readonly string[] = VIEWPORT_IDS,
-    budgets: BudgetFile = loadBudgets(),
-    expected: ExpectedScope | null = null
+    expected: ExpectedScope | null = null,
+    vocab: ReceiptVocabulary = LANE_VOCABULARY
 ): ReceiptVerification {
-    const { region, problems } = extractReceiptRegion(
-        body,
-        definedSurfaceIds,
-        definedViewportIds
+    const { block, problems } = extractVerdictBlock(body, vocab);
+    if (!block) return { ok: false, problems };
+
+    const refused = nonPassProblems(block.rows);
+    const scope = landableScope(block.bannerLine, vocab, expected);
+    if ("problems" in scope) {
+        const all = [...scope.problems, ...refused];
+        return { ok: false, problems: all };
+    }
+
+    const [expectedBanner, ...rest] = landableVerdictBlock(
+        scope.surfaces,
+        vocab,
+        scope.diffScope
     );
-    if (!region) return { ok: false, problems };
+    const expectedCoverage = rest.pop()!;
+    const expectedRows = rest;
+    const mismatches: string[] = [...refused];
 
-    const knownSurfaceIds = [...new Set(region.rows.map((r) => r.surface))];
-    const scoped = scopedBannerProblems(
-        region.bannerLine,
-        knownSurfaceIds,
-        expected
-    );
-    const { kind: receiptKind, unmeasuredSurfaces } = receiptKindOf(
-        knownSurfaceIds,
-        definedSurfaceIds,
-        scoped.diffScope
-    );
-
-    const ev: Evaluation = {
-        rows: region.rows,
-        failures: [],
-        measuredSurfaces: countMeasuredSurfaces(region.rows, budgets),
-        declaredUnwalked: region.rows.filter(
-            (r) =>
-                r.verdict === "UNWALKED" &&
-                r.detail.startsWith("declared unwalked:")
-        ).length,
-        knownSurfaces: knownSurfaceIds.length,
-        knownDebt: [],
-        receiptKind,
-        unmeasuredSurfaces,
-        diffScope: scoped.diffScope,
-    };
-
-    const mismatches: string[] = [...scoped.problems];
-
-    // A DIAGNOSTIC renders consistently with its own rows, so the byte-diffs
-    // below would pass it: the refusal has to be said out loud.
-    if (receiptKind === "DIAGNOSTIC") {
+    if (block.bannerLine !== expectedBanner) {
         mismatches.push(
-            `the rows recompute to a DIAGNOSTIC (not measured: ${unmeasuredSurfaces.join(", ") || "no defined surfaces"}) — a hand-picked --surface= subset is not a PR receipt; paste a full RECEIPT, or the SCOPED run of the landing diff`
+            `banner mismatch:\n  pasted:      ${block.bannerLine}\n  re-derived:  ${expectedBanner}`
         );
     }
 
-    // An Infra Verdict is unproven, never green (issue #3644): the machine cut
-    // those walks short, so the receipt says nothing about those cells. The row
-    // is a faithful rendering, which is exactly why the byte-diffs below would
-    // pass it — the refusal has to be said out loud, like the DIAGNOSTIC one.
-    const infraRows = region.rows.filter((r) => r.verdict === "INFRA");
-    if (infraRows.length > 0) {
+    const key = (r: ResultRow) => `${r.surface}\0${r.viewport ?? ""}`;
+    const expectedByCell = new Map<string, string>();
+    for (const line of expectedRows) {
+        const row = parseResultRowLine(
+            line,
+            vocab.surfaceIds,
+            vocab.viewportIds
+        )!;
+        expectedByCell.set(key(row), line);
+    }
+    const pastedCells = new Set(block.rows.map(key));
+
+    const missing = expectedRows
+        .map(
+            (line) =>
+                parseResultRowLine(line, vocab.surfaceIds, vocab.viewportIds)!
+        )
+        .filter((row) => !pastedCells.has(key(row)));
+    if (missing.length > 0) {
         mismatches.push(
-            `the receipt carries ${infraRows.length} INFRA cell(s) (${infraRows.map((r) => `${r.surface} @ ${r.viewport ?? "—"}`).join(", ")}) — the machine cut those walks short, so they are unproven: re-run check:ui once the load has dropped`
+            `the receipt is missing ${missing.length} cell(s) its scope owes: ${missing.map(cellName).join(", ")}`
+        );
+    }
+    const outside = block.rows.filter((row) => !expectedByCell.has(key(row)));
+    if (outside.length > 0) {
+        mismatches.push(
+            `the receipt carries ${outside.length} line(s) outside its scope: ${outside.map(cellName).join(", ")}`
         );
     }
 
-    const expectedBanner = receiptKindLine(ev);
-    if (region.bannerLine !== expectedBanner) {
-        mismatches.push(
-            `banner mismatch:\n  pasted:     ${region.bannerLine}\n  recomputed: ${expectedBanner}`
-        );
-    }
-
-    const expectedCoverage = coverageLine(ev);
-    if (region.coverageLine !== expectedCoverage) {
-        mismatches.push(
-            `coverage line mismatch:\n  pasted:     ${region.coverageLine}\n  recomputed: ${expectedCoverage}`
-        );
-    }
-
-    region.rows.forEach((row, i) => {
-        const expected = formatResultRow(row);
-        if (region.rowLines[i] !== expected) {
+    // Byte-diff only the PASS lines of owed cells: a non-PASS line was refused
+    // above, and reporting it a second time as a mismatch says nothing new.
+    block.rows.forEach((row, i) => {
+        const owed = expectedByCell.get(key(row));
+        if (owed === undefined || row.verdict !== "PASS") return;
+        if (block.rowLines[i] !== owed) {
             mismatches.push(
-                `row ${i + 1} does not match the real renderer:\n  pasted:     ${region.rowLines[i]}\n  recomputed: ${expected}`
+                `line for ${cellName(row)} does not match the renderer:\n  pasted:      ${block.rowLines[i]}\n  re-derived:  ${owed}`
             );
         }
     });
+    if (
+        mismatches.length === 0 &&
+        block.rowLines.join("\n") !== expectedRows.join("\n")
+    ) {
+        mismatches.push(
+            "the verdict lines are not in the order check:ui prints them (surface table, then viewport matrix)"
+        );
+    }
 
-    // The row-census + FAIL-ceiling checks (finding 1) — independent of the
-    // banner/coverage/per-row checks above: they compare the pasted rows
-    // directly against `budgets.json`, so a forger who recomputes a
-    // self-consistent banner/coverage FROM a trimmed row set cannot satisfy
-    // them by construction.
-    mismatches.push(...rowCensusProblems(region.rows, budgets));
-    mismatches.push(...failCeilingProblems(region.rows, budgets));
+    if (block.coverageLine !== expectedCoverage) {
+        mismatches.push(
+            `coverage line mismatch:\n  pasted:      ${block.coverageLine}\n  re-derived:  ${expectedCoverage}`
+        );
+    }
 
     return { ok: mismatches.length === 0, problems: mismatches };
 }
+
+/** Re-exported for callers that render a row in a message. */
+export { formatResultRow };
 
 function usage(): never {
     console.error("usage: bun run verify:ui-receipt <PR#>");
@@ -666,13 +456,7 @@ async function main(): Promise<number> {
             root
         ),
     };
-    const result = verifyReceiptText(
-        body,
-        SURFACE_IDS,
-        VIEWPORT_IDS,
-        loadBudgets(),
-        expected
-    );
+    const result = verifyReceiptText(body, expected);
     if (result.ok) {
         console.log(
             `verify:ui-receipt — PR #${pr}: check:ui receipt verified clean`

@@ -1,8 +1,9 @@
 /**
  * The surfaces `bun run check:ui` walks, and the click sequences that reach
- * them (issue #2580). One entry here == one row in `budgets.json`; the two
- * lists are cross-checked by `evaluateRun`, so adding a surface without a
- * budget reds the lane instead of quietly measuring nothing.
+ * them (issue #2580). Every entry is walked and held to the Floors at every
+ * viewport (`floors.ts`, ADR 0132) unless `UNWALKED_SURFACES` declares it with
+ * an issue; a walk that reaches nothing reds the lane instead of quietly
+ * measuring nothing.
  *
  * The walks are the executable copy of `docs/guides/ui-runbooks.md`. When one
  * of them drifts, update BOTH — the runbook is what a human follows when the
@@ -536,7 +537,7 @@ async function reachDraftPoolStop(page: Page, ctx: WalkContext): Promise<void> {
         // Reaching the stop is NOT reaching the pool. `pool.length === 0`
         // makes `LimitedDraftPool` return an `EmptyState` with no
         // `[data-slot=draft-pool]` at all, and neither `probe.js` (no
-        // card-count floor) nor `budgets.ts` (no minimum-n rule) can
+        // card-count floor) nor `floors.ts` (no minimum-n rule) can
         // tell an empty pane from a healthy one: a Pick #1 seat would
         // score `zero0 occ0 stranded0 starved0` and pass GREEN, making
         // the one measurement that discharges the pool pane's layout
@@ -595,7 +596,7 @@ async function reachDraftPoolStop(page: Page, ctx: WalkContext): Promise<void> {
     //
     // `moved` is what makes the difference reportable rather than assumed: 0
     // means every scroller already fit, so this row IS `draft-pick`'s DOM at
-    // that viewport and the `knownDebt` note has to say so.
+    // that viewport and its readings mean what they say.
     const stop = (await page.evaluate(`(() => {
         const roots = [document.querySelector("${DRAFT_STACKED_POOL}")];
         const pool = document.querySelector("${DRAFT_POOL}");
@@ -906,10 +907,10 @@ async function ensureBoard(page: Page, ctx: WalkContext): Promise<void> {
 /** The board with the FIXED stress position loaded (`stress-scenario.json`).
  *
  *  Two surfaces need it and both need it for the same reason `game-board`
- *  itself is declared unwalked in `budgets.json`: a dealt solo game lands on a
- *  position nobody chose, and two runs of the same tree gave different card
- *  counts. A ceiling over a position that flaps is worse than no ceiling. This
- *  is the one board a budget row can mean something about. */
+ *  itself is declared unwalked (`UNWALKED_SURFACES`, issue #3695): a dealt solo
+ *  game lands on a position nobody chose, and two runs of the same tree gave
+ *  different card counts. This is the one board a measurement can mean
+ *  something about. */
 async function ensureStressBoard(page: Page, ctx: WalkContext): Promise<void> {
     await ensureScenarioBoard(page, ctx, ctx.stressScenarioLabel);
 }
@@ -1255,8 +1256,8 @@ async function createVsAiGame(page: Page, ctx: WalkContext): Promise<void> {
  * `ensureBoard`'s own comment says viewports 2-5 reach a board through the
  * `Resume` branch, on the game viewport 1 dealt — so conceding it here to free
  * the vs-AI lobby gate would silently re-deal the subject `game-board` and
- * `game-stress` are budgeted against, from the tail of every viewport pass.
- * Those three rows are `unwalked` today and the collision is therefore
+ * `game-stress` are measured against, from the tail of every viewport pass.
+ * Those three surfaces are in `UNWALKED_SURFACES` today and the collision is therefore
  * unreachable; it is reported rather than resolved so that re-enabling them
  * reds this row instead of quietly moving theirs.
  */
@@ -2524,7 +2525,7 @@ export const SURFACES: readonly Surface[] = [
             // toss — measured across two runs of the same tree it moved the
             // desktop reading from `ctrls n13 small12` to `ctrls n21 small19`.
             // That is the same "a ceiling that flaps is worse than no ceiling"
-            // finding that withdrew `game-board` (`budgets.json`), and the fix
+            // finding that withdrew `game-board` (`UNWALKED_SURFACES`), and the fix
             // here is the same in spirit as `game-stress`'s fixed position: the
             // surface measures the sheet's SHAPE at five viewports, and the
             // content it happens to be holding is not part of that. Section

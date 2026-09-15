@@ -6,8 +6,8 @@
 // (`convex/limitedEvents.ts`) returns every open event on the deployment to
 // everyone. So the row count on `/limited`, and which SEAT the Draft Room
 // walks measured, were both functions of a month of hand-made events rather
-// than of the code under test: `budgets.json` ceilings rotted with no `src/`
-// change (the same eight FAILs were recorded twice, days apart, with
+// than of the code under test: the old `check:ui` budget ceilings rotted with
+// no `src/` change (the same eight FAILs were recorded twice, days apart, with
 // byte-identical numbers — `docs/findings/2671-limited-list-budgets-drifted.md`).
 //
 // The fix is a fixture the lane CONTROLS: two events addressed by `label`,
@@ -139,8 +139,8 @@ function fixturePoolCard(name: string): LimitedPoolCard {
     if (!def) {
         throw new Error(
             `ui-gate fixture card "${name}" no longer resolves in the card catalogue — ` +
-                `pick a replacement in convex/limitedFixtures.ts and re-record the ` +
-                `limited-*/draft-* rows of scripts/ui-gate/budgets.json`
+                `pick a replacement in convex/limitedFixtures.ts and re-run check:ui ` +
+                `over the limited-*/draft-* surfaces`
         );
     }
     const meta = resolveCardMeta(def.id);

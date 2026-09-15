@@ -1046,7 +1046,8 @@ export default function DeckBuilder({
                         and desktop. They used to be a permanent second header
                         row at every viewport a phone-shaped media query did not
                         match, which is precisely the band the deck pane needed
-                        back (`scripts/ui-gate/budgets.json` §deck-builder). */}
+                        back (verified by check:ui's `deck-builder` surface
+                        walk, `scripts/ui-gate/surfaces.ts`). */}
                     <DeckFiltersButton
                         activeCount={filterTags.length}
                         // `null` while the search is IDLE. With no filter

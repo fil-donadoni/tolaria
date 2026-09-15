@@ -438,8 +438,9 @@ describe("identity v4 — card corner (ADR 0103 §7)", () => {
     it("clears the ui-gate probe's square-card floor at every card size", () => {
         // The one contract about this token that no single file can hold.
         // `scripts/ui-gate/probe.js` counts a card as SQUARE (`cardsSquare`, a
-        // hard floor of 0 on every surface in `budgets.json`) when its computed
-        // corner falls under MIN_RADIUS_FRACTION of the card's width. A
+        // hard Floor held at 0 on every walked surface —
+        // `scripts/ui-gate/floors.ts`) when its computed corner falls under
+        // MIN_RADIUS_FRACTION of the card's width. A
         // `--card-radius` under that floor would red `bun run check:ui` on
         // every surface at once — a live-browser lane, minutes away and outside
         // `check:all`, for a value visible here in milliseconds.

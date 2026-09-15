@@ -26,20 +26,64 @@ import {
     type LockedCommandOptions,
 } from "../land";
 import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "../lib/branches";
+import { UNWALKED_SURFACES, type Readings } from "../ui-gate/floors.ts";
 import {
+    DIAGNOSTIC_SEPARATOR,
+    diagnosticLines,
     evaluateRun,
-    formatResultRow,
-    coverageLine,
-    receiptKindLine,
-    loadBudgets,
-    BUDGET_KEYS,
-    type Ceilings,
+    verdictBlockLines,
+    zeroReadings,
     type SurfaceWalk,
-} from "../ui-gate/budgets.ts";
+} from "../ui-gate/receipt.ts";
 import { SURFACE_IDS } from "../ui-gate/surfaces.ts";
+import { VIEWPORT_IDS } from "../ui-gate/viewports.ts";
 import { landingDiffScope } from "../ui-gate/verify-receipt.ts";
 
 const GATE = resolve(__dirname, "..", "gate.ts");
+
+/**
+ * What `check:ui` prints for `surfaces` (null = every surface, a full RECEIPT;
+ * otherwise the SCOPED run of that scope) over the REAL surface table, viewport
+ * matrix and declared-unwalked list, rendered by the real evaluator exactly as
+ * the lane renders it — verdict block, separator, diagnostic block. `at` sets
+ * one cell's readings; `facts` stands in for the run's own diagnostic lines.
+ */
+function laneReceipt(
+    surfaces: readonly string[] | null,
+    opts: {
+        at?: (surface: string, viewport: string) => Readings | undefined;
+        facts?: string[];
+    } = {}
+): string {
+    const known = surfaces ?? SURFACE_IDS;
+    const unwalked = new Set(UNWALKED_SURFACES.map((u) => u.surface));
+    const walks: SurfaceWalk[] = known
+        .filter((surface) => !unwalked.has(surface))
+        .map((surface) => ({
+            surface,
+            status: "measured",
+            measurements: VIEWPORT_IDS.map((viewport) => ({
+                viewport,
+                readings: opts.at?.(surface, viewport) ?? zeroReadings(),
+            })),
+        }));
+    const ev = evaluateRun({
+        knownSurfaceIds: known,
+        walks,
+        definedSurfaceIds: SURFACE_IDS,
+        viewportIds: VIEWPORT_IDS,
+        unwalked: UNWALKED_SURFACES,
+        diffScope: surfaces ? { base: ORIGIN_BASE, surfaces } : null,
+    });
+    return [
+        "```",
+        ...verdictBlockLines(ev),
+        DIAGNOSTIC_SEPARATOR,
+        ...diagnosticLines(ev),
+        ...(opts.facts ?? []),
+        "```",
+    ].join("\n");
+}
 
 /**
  * `bun run land <PR#>` (issue #2517) — one `gate.ts heavy` invocation
@@ -932,43 +976,44 @@ describe("land.ts — computeSkinReceiptInvalid (issue #2760 review, finding 3)"
     });
 
     it("is false for a skin lane whose receipt actually verifies clean", () => {
-        // Build a REAL full walk against the real budgets.json/SURFACE_IDS
-        // — every budgeted viewport measured exactly at its ceiling (never
-        // over budget) — and render it through the real functions, exactly
-        // as `check:ui` would. This must verify clean under
-        // `verifyReceiptText`'s defaults, which `computeSkinReceiptInvalid`
-        // calls with no overrides.
-        const budgets = loadBudgets();
-        const walks: SurfaceWalk[] = [];
-        for (const surface of SURFACE_IDS) {
-            const budget = budgets.surfaces[surface];
-            if (!budget || budget.status !== "budgeted") continue;
-            const vpBudgets = budget.viewports ?? {};
-            walks.push({
-                surface,
-                status: "measured",
-                measurements: Object.entries(vpBudgets).map(
-                    ([viewport, ceilings]) => ({
-                        viewport,
-                        metrics: Object.fromEntries(
-                            BUDGET_KEYS.map((k) => [k, ceilings[k]])
-                        ) as Ceilings,
-                    })
-                ),
-            });
-        }
-        const ev = evaluateRun(budgets, SURFACE_IDS, walks, SURFACE_IDS);
-        const body = [
-            "Closes #2760",
-            "",
-            "```",
-            receiptKindLine(ev),
-            ...ev.rows.map(formatResultRow),
-            coverageLine(ev),
-            "```",
-        ].join("\n");
+        // A REAL full walk over the real surface table and viewport matrix,
+        // every Floor at zero, rendered through the real functions exactly as
+        // `check:ui` would — under `verifyReceiptText`'s defaults, which
+        // `computeSkinReceiptInvalid` uses.
+        expect(
+            computeSkinReceiptInvalid(
+                "skin",
+                `Closes #2760\n\n${laneReceipt(null)}`
+            )
+        ).toBe(false);
+    });
 
-        expect(computeSkinReceiptInvalid("skin", body)).toBe(false);
+    it("refuses a skin PR whose receipt carries a FAIL line (ADR 0132 §6)", () => {
+        const [first] = SURFACE_IDS.filter(
+            (id) => !UNWALKED_SURFACES.some((u) => u.surface === id)
+        );
+        const body = laneReceipt(null, {
+            at: (surface, viewport) =>
+                surface === first && viewport === VIEWPORT_IDS[1]
+                    ? { ...zeroReadings(), cardsZero: 1 }
+                    : undefined,
+        });
+        expect(body).toMatch(/^FAIL {5}/m);
+        expect(computeSkinReceiptInvalid("skin", body)).toBe(true);
+    });
+
+    it("accepts a receipt whose diagnostic block differs from a re-run — land never reads it", () => {
+        const run1 = laneReceipt(null, {
+            at: () => ({ ...zeroReadings(), cardsOcc: 1, small: 24 }),
+            facts: ["machine load: start 3.1, end 4.0", "wall time: 212s"],
+        });
+        const run2 = laneReceipt(null, {
+            at: () => ({ ...zeroReadings(), cardsOcc: 5, starved: 2 }),
+            facts: ["machine load: start 19.7, end 22.3", "wall time: 388s"],
+        });
+        expect(run1).not.toBe(run2);
+        expect(computeSkinReceiptInvalid("skin", run1)).toBe(false);
+        expect(computeSkinReceiptInvalid("skin", run2)).toBe(false);
     });
 
     // Proof-of-failure (not a permanent test): deleted the
@@ -980,49 +1025,14 @@ describe("land.ts — computeSkinReceiptInvalid (issue #2760 review, finding 3)"
 });
 
 describe("land.ts — a skin PR's SCOPED receipt must match the scope of its own diff (issue #3628)", () => {
-    // Real surfaces, real budgets, real import graph of this tree: the scope
+    // Real surfaces, real viewport matrix, real import graph of this tree: the scope
     // is derived from a diff exactly as `land` derives it, never hand-written.
     const REPO_ROOT = resolve(__dirname, "..", "..");
     const DETAIL_DIFF = ["src/routes/deck-detail.route.tsx"];
     const LOBBY_DIFF = ["src/routes/lobby.route.tsx"];
 
-    /** `check:ui`'s output for `surfaces` (null = every surface, a full
-     *  RECEIPT), every budgeted viewport measured at its ceiling. */
-    function receiptBody(surfaces: readonly string[] | null): string {
-        const budgets = loadBudgets();
-        const known = surfaces ?? SURFACE_IDS;
-        const walks: SurfaceWalk[] = [];
-        for (const surface of known) {
-            const budget = budgets.surfaces[surface];
-            if (!budget || budget.status !== "budgeted") continue;
-            walks.push({
-                surface,
-                status: "measured",
-                measurements: Object.entries(budget.viewports ?? {}).map(
-                    ([viewport, ceilings]) => ({
-                        viewport,
-                        metrics: Object.fromEntries(
-                            BUDGET_KEYS.map((k) => [k, ceilings[k]])
-                        ) as Ceilings,
-                    })
-                ),
-            });
-        }
-        const ev = evaluateRun(
-            budgets,
-            known,
-            walks,
-            SURFACE_IDS,
-            surfaces ? { base: ORIGIN_BASE, surfaces } : null
-        );
-        return [
-            "```",
-            receiptKindLine(ev),
-            ...ev.rows.map(formatResultRow),
-            coverageLine(ev),
-            "```",
-        ].join("\n");
-    }
+    const receiptBody = (surfaces: readonly string[] | null) =>
+        laneReceipt(surfaces);
 
     function scopedSurfaces(diff: string[]): string[] {
         const scope = landingDiffScope(diff, REPO_ROOT);

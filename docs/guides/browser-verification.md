@@ -42,7 +42,6 @@ bun run check:ui                              # the surfaces this diff reaches, 
 bun run check:ui -- --all                     # every surface, whatever the diff
 bun run check:ui -- --scope-only              # print the scope, no browser
 bun run check:ui -- --surface=lobby           # one surface, same rules (DIAGNOSTIC)
-bun run check:ui -- --record                  # rewrite budgets.json from this run
 bun run check:ui -- --headed                  # watch it walk
 ```
 
@@ -58,8 +57,8 @@ It owns the whole lifecycle: it checks the Convex deployment answers, starts
 its **own** Vite on `127.0.0.1` and a free port (your `bun run dev` is left
 alone), registers the run's own throwaway account and signs in as it, walks
 each surface in `scripts/ui-gate/surfaces.ts` at each of the five viewports,
-injects `scripts/ui-gate/probe.js` and `axe-core`, and compares the result
-against `scripts/ui-gate/budgets.json`. Screenshots land in
+injects `scripts/ui-gate/probe.js` and `axe-core`, and holds every Floor at
+zero (`scripts/ui-gate/floors.ts`). Screenshots land in
 `.claude/telemetry/ui-gate/<runId>/` (gitignored; run directories older than a
 day are pruned).
 
@@ -111,13 +110,15 @@ deployment.
 
 **What a red means.** Three different things, and the lane never confuses them:
 
-- **FAIL** — a measured number is over its budgeted ceiling. A real
-  regression, or a surface whose budget a slice is meant to tighten.
+- **FAIL** — a Floor reads above zero: a defect in the tree, named on the line
+  with its reading (`broken floor: axeSerious 1`). There is no ceiling to
+  raise; fix it, or declare the surface unwalked with an issue.
 - **INFRA** — an **Infra Verdict** (issue #3644): the walk was cut short by
   the machine, not by the tree — a backend function past its execution limit,
   a server error, a navigation that never answered — recognised by its
-  signature in the console and named on the receipt with that signature and
-  the machine load (`INFRA — function-timeout, load 23.4`). The lane retries
+  signature in the console and named on its verdict line by that signature
+  (`INFRA … function-timeout`), with the machine load and the reason in the
+  diagnostic block (`function-timeout, load 23.4 — …`). The lane retries
   the surface, waiting for the load to drop, before it stands; when it stands
   the surface is unproven, never failed, and never green — `land` refuses the
   receipt. The signatures are `function-timeout`, `server-error`,
@@ -128,13 +129,13 @@ deployment.
   ending and re-dealing its own game first when the surface plays in one. A
   signature that still fails with the load under that threshold is the walk's
   own failure, and is reported as UNWALKED.
-- **UNWALKED** — the lane could not measure the surface at all: no budget
-  entry for it, the debug-scenario row is absent from this deployment, an
-  active game blocks the route, a walk timed out. This also exits non-zero.
-  Coverage is the thing being asserted; "we could not look" is a red, not a
-  shrug. The one exception is a surface the budget file explicitly declares
-  `{"status": "unwalked", "reason": …}` — that is listed in the output and in
-  the coverage line, and is the row a later slice deletes.
+- **UNWALKED** — the lane could not measure the surface at all: the
+  debug-scenario row is absent from this deployment, an active game blocks the
+  route, a walk timed out. This also exits non-zero. Coverage is the thing
+  being asserted; "we could not look" is a red, not a shrug. The one exception
+  is a surface declared in `UNWALKED_SURFACES` (`scripts/ui-gate/floors.ts`),
+  in code, with its reason and an open issue — it gets no line, is named with
+  its issue on the coverage line, and is the entry that issue deletes.
 
 **Settled Screen** (issue #3644). The state a Walked Surface must reach before
 anything on it is measured: its own ready marker is up (the component says its
@@ -152,26 +153,44 @@ not count; and "in flight" is read off the Convex sync socket itself — every
 `networkidle` never fires. No fixed sleep is left in
 `scripts/ui-gate/surfaces.ts`. Before walking, the lane proves the predicate in
 its own Chromium against fixture pages (`settle-selfcheck.ts`); a predicate that
-returns early is a fatal error. The receipt prints the machine load at the
-start and end of the run under the coverage line.
+returns early is a fatal error. The diagnostic block prints the machine load at
+the start and end of the run.
 
-**The budget file is the contract.** `scripts/ui-gate/budgets.json` holds one
-ceiling set per surface × viewport (`cardsZero/Occ/Stranded`,
-`ctrlsZero/Occ/Stranded`, `starved`, `small`, `axeSerious`, `axeCritical`).
-The floors the lane is FOR are zero occluded card tiles, zero stranded
-controls and no axe serious/critical; where a surface violates one today the
-entry carries a `knownDebt` note naming what is broken, printed under every
-run, so the number reads as debt rather than as a decision. A slice that
-fixes a surface lowers its ceilings in the same PR.
+**Floors, not ceilings** (ADR 0132, issue #3648). The lane gates nine counts,
+all at zero, on every walked surface and viewport, with no per-surface
+exception — constants in `scripts/ui-gate/floors.ts`, so there is nothing to
+record and no budget file:
 
-`small` (issue #2658) is the one ceiling that is deliberately **pointer-blind**:
-the probe counts every visible interactive control under 44px on its smaller
-dimension at EVERY viewport, but `--control-h` is 32px under `pointer: fine`
-by design (`src/index.css:942,946-948` — the comment cites WCAG 2.5.8, a
-touch-target rule). So a nonzero `small` on the desktop viewport (`1440x900x2`)
-usually just reflects that intentional 32px control height, while the same
-nonzero count on a `…x3,mobile,touch…` row is real sub-target debt — the
-`knownDebt` note on each budgeted row says which one it is.
+- `cardsZero`, `cardsStranded`, `ctrlsZero`, `ctrlsStranded` — a collapsed or
+  unreachable card tile or control (see [Reading the output](#reading-the-output));
+- `cardsSquare` — a card showing page background in its corner (issue #2724);
+- `cardsSoft` — a printed card face sharper in the slot than its resolved
+  rendition (issue #3553); a face whose rendition the probe does not know
+  (`cardsSoftUnknown`) counts too, because a face it cannot measure is one it
+  cannot prove sharp;
+- `axeSerious`, `axeCritical` — axe-core violations at those impacts;
+- `hOverflow` — the page scrolls sideways.
+
+Four **Shape Readings** — `cardsOcc`, `ctrlsOcc`, `small`, `starved` —
+describe the screen as designed (a fanned hand overlaps, a sheet covers the
+board under `lg`, a scroll port is shorter than its list), so their value moves
+with the position on the screen. They are printed in the diagnostic block of
+every receipt and compared against nothing.
+
+`small` (issue #2658) is also deliberately **pointer-blind**: the probe counts
+every visible interactive control under 44px on its smaller dimension at EVERY
+viewport, but `--control-h` is 32px under `pointer: fine` by design
+(`src/index.css:942,946-948` — the comment cites WCAG 2.5.8, a touch-target
+rule). A nonzero `small` on the desktop viewport (`1440x900x2`) usually just
+reflects that intentional 32px control height, while the same count on a
+`…x3,mobile,touch…` viewport is a real sub-target control.
+
+**The one axe exemption is an attribute, not a number** (issue #2593).
+`/admin/design-system` documents what a failing token looks like, so its
+specimens carry `data-axe-exempt="<why>"` on the smallest element containing
+them. The lane excludes those subtrees from axe and prints `exempt<n>` on the
+surface's progress line of every run; `axe-exemption-scope.test.ts` fails when
+the attribute appears outside `src/routes/design-system/`.
 
 **What it is not.** It is not part of `check:all`: the full gate is offline by
 contract and mutex-held, and booting a browser inside it would tax every
@@ -267,8 +286,8 @@ so the gate and the hand check can never disagree about what "measured" means.
   list; a 66px container holding 101px card tiles is broken, because scrolling
   cannot recover height the tile needs all at once.
 - **`small`** — a visible, in-band `button,a[href],input,select,[role=button],
-[role=tab],[role=option]` whose smaller dimension is under 44px. Budgeted
-  but **pointer-blind** (see above): read a desktop-viewport count against the
+[role=tab],[role=option]` whose smaller dimension is under 44px. A Shape
+  Reading, and **pointer-blind** (see above): read a desktop-viewport count against the
   32px `pointer: fine` control height before calling it debt, and treat every
   touch-viewport count as real.
 
@@ -282,30 +301,46 @@ not actually occupy.
 
 What the probe still does not see: whether the layout is _good_. For that,
 look at the screenshot. Colour and contrast are now covered by axe, which the
-lane runs alongside the probe (`axeSerious` / `axeCritical` are budgeted).
+lane runs alongside the probe (`axeSerious` / `axeCritical` are Floors).
 
 ## What goes in the PR
 
-The `check:ui` table IS the receipt — paste it **byte-exact**: the
-`RECEIPT`/`SCOPED`/`DIAGNOSTIC` banner line, every surface × viewport row, the coverage
-line and the screenshot directory. This is not a style preference — `bun run
-land` re-derives the banner, the coverage line and every row from the pasted
-text and refuses to merge a `skin`-lane PR whose paste does not match
-(`scripts/ui-gate/verify-receipt.ts`, issue #2760; check it yourself first
-with `bun run verify:ui-receipt <PR#>`). A row whose padding was reflowed to
-single spaces, a hand-summarized row, or a missing banner/coverage line all
-fail the same way a deleted row does:
+The `check:ui` receipt — paste it **byte-exact**, from the banner to the end.
+It has two blocks (ADR 0132 §6):
+
+- the **verdict block** — the `RECEIPT`/`SCOPED`/`DIAGNOSTIC` banner, one line
+  per surface × viewport saying `PASS|FAIL|INFRA|UNWALKED` (with any broken
+  Floor and its reading), and the coverage line. It is a function of the tree
+  and the scope, so two runs of one tree print it byte-identical;
+- then a fixed separator and the **diagnostic block** — every cell's Shape
+  Readings, the infra signatures with their load and reason, the machine load,
+  console errors, screenshots and wall time.
+
+This is not a style preference — `bun run land` re-derives the verdict block
+from the PR's own diff (the all-`PASS` block of that scope, rendered by the
+real evaluator) and refuses to merge a `skin`-lane PR whose paste differs from
+it or carries any line that is not `PASS`
+(`scripts/ui-gate/verify-receipt.ts`, issues #2760 and #3648; check it yourself
+first with `bun run verify:ui-receipt <PR#>`). A line whose padding was
+reflowed to single spaces, a missing cell, a reordered line or a missing
+banner/coverage line all fail. It never reads the diagnostic block, so a
+receipt whose readings or wall time differ from a re-run lands the same:
 
 ```
-RECEIPT — full lane run, 8 surface(s) in scope (5 measured, 3 declared unwalked)
-PASS     lobby           1440x900x2   cards n39 zero0 occ1 stranded0 | ctrls … | starved2 | small24 | axe s1/c0
-PASS     lobby           390x844x3    …
-PASS     lobby           844x390x3    …
-PASS     lobby           820x1180x2   …
-PASS     lobby           1180x820x2   …
-coverage: 5/8 surfaces measured, 3 declared unwalked
+RECEIPT — full lane run, 23 surface(s) in scope (20 measured, 3 declared unwalked)
+PASS     auth-sign-in         1440x900x2   every floor at zero
+PASS     auth-sign-in         390x844x3    every floor at zero
+…
+PASS     admin-verdicts       1180x820x2   every floor at zero
+coverage: 20/23 surfaces measured, 3 declared unwalked: game-board (issue #3695), game-card-preview (issue #3506), game-stress (issue #3506)
+─── diagnostic — shape readings, load, infra, wall time; never read by land ───
+shape    auth-sign-in         1440x900x2   cardsOcc 0 ctrlsOcc 0 small 2 starved 0
+…
+machine load: start 3.2, end 4.1 (1-minute average, 12 cpus, retry threshold 12)
+shell return band: absent on every walk — no controls excluded
 console errors: none
 screenshots: .claude/telemetry/ui-gate/3f9c0a1b2d4e/
+wall time: 412s
 ```
 
 A run the diff scoped prints `SCOPED` instead, naming the base and every surface
@@ -321,11 +356,7 @@ reaches, listing one it does not, taken against another base, or pasted on a
 diff that forces the full run is refused. Take it on the final diff — a commit
 that widens the scope after the run makes the receipt stale. A full `RECEIPT`
 satisfies any diff. A `DIAGNOSTIC` (a hand-picked `--surface=` subset) is for
-your own fast local iteration, never the PR body. The one region you
-may shorten is the "known debt carried by the budgets" trailer at the bottom
-(pure `budgets.json` prose), and only behind the literal marker
-`verify-receipt.ts` defines — never a verdict row, a ceiling, the coverage
-line or the banner itself.
+your own fast local iteration, never the PR body.
 
 For a surface the lane does not walk, the hand-driven equivalent — same five
 viewports, same probe:

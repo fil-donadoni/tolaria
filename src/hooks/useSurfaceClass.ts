@@ -34,8 +34,8 @@ export type SurfaceClass = "phone" | "roomy-coarse" | "roomy-fine";
  * `"desktop"` bucket is deliberately everything that is neither phone shape.
  * **Tablet portrait 820×1180 is 820px wide, so it lands in `"desktop"`**, which
  * is exactly why the deckbuilder's `compact-chrome` fold never engaged there
- * and the card-pile strip stayed starved (`scripts/ui-gate/budgets.json`,
- * `deck-builder @ 820x1180x2`).
+ * and the card-pile strip stayed starved — `check:ui`'s `starved` Shape
+ * Reading (`scripts/ui-gate/floors.ts`) at `deck-builder @ 820x1180x2`.
  *
  * That bucket is right for LAYOUT (a roomy touch screen really does get the
  * two-pane split) and wrong for OVERLAY SHAPE (it has no hover, and its

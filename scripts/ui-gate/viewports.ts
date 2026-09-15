@@ -5,11 +5,11 @@
  * clipping, and `.claude/rules/chrome-debug.md` named only three until this
  * lane existed. The ids are the SAME strings the manual chrome-devtools-mcp
  * `emulate` call uses, so a probe line from the gate and a probe line a human
- * pasted into a PR are directly comparable — and so `budgets.json` keys read
+ * pasted into a PR are directly comparable — and so a receipt's viewport column reads
  * the same as the guide.
  */
 export interface Viewport {
-    /** Budget-file key and output label — matches the `emulate` string. */
+    /** Receipt column and output label — matches the `emulate` string. */
     readonly id: string;
     readonly label: string;
     readonly width: number;

@@ -21,7 +21,7 @@ resident indexes are `.claude/rules/frontend-components.md` and
 ## After changes
 
 - Run `bun run check:all` — format + lint + type-check must pass
-- **Run `bun run check:ui`** — headless Chrome at five viewports (desktop, phone portrait/landscape, tablet portrait/landscape), probe + axe against `scripts/ui-gate/budgets.json`. Paste its output in the PR. The `dom` project runs on happy-dom, which has no layout: it cannot see a collapsed or occluded element. `.claude/rules/chrome-debug.md`
+- **Run `bun run check:ui`** — headless Chrome at five viewports (desktop, phone portrait/landscape, tablet portrait/landscape), probe + axe, Floors at zero. Paste its output in the PR. The `dom` project runs on happy-dom, which has no layout: it cannot see a collapsed or occluded element. `.claude/rules/chrome-debug.md`
 
 ## Browser verification
 
@@ -39,16 +39,15 @@ say so in one line and move on.
 
 **Run `bun run check:ui` first** (#2580). It owns its own Vite + headless
 Chrome, signs in, walks the runbook surfaces at all five viewports, probes and
-runs axe, and fails on `scripts/ui-gate/budgets.json`. Its output IS the
-receipt — paste it. A surface it could not reach prints `UNWALKED` and reds
+runs axe, and fails on any broken Floor (`scripts/ui-gate/floors.ts`, ADR
+0132). Its output IS the receipt — paste it. A surface it could not reach prints `UNWALKED` and reds
 the run; that is a coverage failure, not a pass. Drive CDP by hand only for
 what the lane does not cover, or to diagnose what it flagged.
 
-**Paste it byte-exact, banner + coverage line included** (#2760) —
-`bun run land` re-derives them and refuses a `skin`-lane PR that doesn't match
-(`bun run verify:ui-receipt <PR#>` checks by hand). Only a `RECEIPT` run,
-never `DIAGNOSTIC`; never reflow a row. Only the "known debt" trailer may be
-elided, behind its marker.
+**Paste it byte-exact** (#2760): `bun run land` re-derives the verdict block
+and refuses a mismatch or a non-`PASS` line; the diagnostic block is never read
+(`bun run verify:ui-receipt <PR#>` by hand). `RECEIPT` or `SCOPED`, never
+`DIAGNOSTIC`; never reflow a line.
 
 **Five viewports per surface touched** (ADR 0101), via `emulate`: desktop
 `1440x900x2`, phone `390x844x3,mobile,touch` and

@@ -13,7 +13,7 @@
  * entry closure contains forces `full`. "Unknown" means "run everything".
  *
  * A path is placed, in this order:
- *   - the `check:ui` lane itself (`scripts/ui-gate/**`: walks, probe, budgets)
+ *   - the `check:ui` lane itself (`scripts/ui-gate/**`: walks, probe, floors)
  *     → `full`: it changes what every surface's measurement means;
  *   - in the BUILD configuration's closure (`vite.config.ts` and what it
  *     imports, e.g. `scripts/lib/build-define.ts`) → `full`: it shapes the
@@ -43,7 +43,7 @@ export const SHELL_ENTRY = "src/main.tsx";
 export const ROUTER_MODULE = "src/router.tsx";
 /** The build configuration; its closure shapes every route's bundle. */
 export const BUILD_CONFIG = "vite.config.ts";
-/** The lane's own walks, probe and budgets. */
+/** The lane's own walks, probe and floors. */
 const UI_GATE_DIR = "scripts/ui-gate/";
 
 /** A surface as the scoper sees it: an id and its declared route entry modules. */
@@ -115,7 +115,7 @@ export function computeUiScope({
         if (path.startsWith(UI_GATE_DIR)) {
             return {
                 kind: "full",
-                reason: `${path} is the check:ui lane itself (walks, probe, budgets)`,
+                reason: `${path} is the check:ui lane itself (walks, probe, floors)`,
             };
         }
         if (build.has(path)) {

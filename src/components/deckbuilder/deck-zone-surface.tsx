@@ -715,8 +715,9 @@ export default function DeckZoneSurface({
                 the tightest place this surface now renders, the Draft Room's
                 phone-portrait pool stop, where TWO of these share ~70% of a
                 390x844 screen (issue #2588): `cards zero0 occ0 stranded0`,
-                `starved0`, tiles at full height — the `draft-pool-stop` row
-                in `scripts/ui-gate/budgets.json` is that measurement. */}
+                `starved0`, tiles at full height — the `draft-pool-stop`
+                surface's `check:ui` receipt (`scripts/ui-gate/floors.ts`) is
+                that measurement. */}
             <div
                 className={cn(
                     "flex overflow-auto md:snap-none",

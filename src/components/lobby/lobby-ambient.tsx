@@ -14,8 +14,9 @@ import { getArtCropImageUrl, resolveCardImageId } from "~/lib/images";
  *
  * `data-ambient-art` + `aria-hidden`: decoration on both counts. It is also
  * what keeps the ui-gate card probe from scoring a full-bleed backdrop as an
- * occluded card (`scripts/ui-gate/probe.js`, `isDecorativeArt`) — the exact
- * artifact `budgets.json` carries a `cardsOcc 1` ceiling for today.
+ * occluded card (`scripts/ui-gate/probe.js`, `isDecorativeArt`) — exactly
+ * what `check:ui` measures as the `cardsOcc` Shape Reading
+ * (`scripts/ui-gate/floors.ts`), printed but never gated.
  */
 export default function LobbyAmbient({
     featuredCardId,

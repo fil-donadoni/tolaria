@@ -25,9 +25,6 @@ const ATTRIBUTE = "data-axe-exempt";
 const ALLOWED_PREFIXES = [
     "src/routes/design-system/",
     "scripts/ui-gate/index.ts",
-    // The budget file's own prose explains the mechanism to whoever reads a
-    // run; it declares no exemption.
-    "scripts/ui-gate/budgets.json",
     "scripts/__tests__/axe-exemption-scope.test.ts",
 ];
 
