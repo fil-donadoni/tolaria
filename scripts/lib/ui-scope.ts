@@ -13,6 +13,11 @@
  * entry closure contains forces `full`. "Unknown" means "run everything".
  *
  * A path is placed, in this order:
+ *   - the `check:ui` lane itself (`scripts/ui-gate/**`: walks, probe, budgets)
+ *     → `full`: it changes what every surface's measurement means;
+ *   - in the BUILD configuration's closure (`vite.config.ts` and what it
+ *     imports, e.g. `scripts/lib/build-define.ts`) → `full`: it shapes the
+ *     bundle every route is served from;
  *   - NON-DOM (tests, scripts, markdown) → contributes nothing;
  *   - GLOBAL (`globalReason`) → `full`;
  *   - in the app SHELL's closure (`src/main.tsx`, not descending into route
@@ -21,6 +26,14 @@
  *   - otherwise → `full`.
  *
  * An empty `scoped` result is valid: a test-only diff owes no browser time.
+ *
+ * ACCEPTED HOLE — Tailwind's class scan. `src/index.css` declares no `@source`,
+ * so Tailwind v4 builds its utilities from class names found in every
+ * non-ignored file. Deleting the LAST literal occurrence of a class from a
+ * file outside a surface's closure (a test, another route) can drop a rule a
+ * surface only ever assembles at runtime. A class written literally in the
+ * surface's own components is in its closure and keeps the rule alive, so the
+ * hole is limited to runtime-built class strings; it is recorded, not closed.
  */
 import type { ImportGraph } from "./import-graph";
 
@@ -28,6 +41,10 @@ import type { ImportGraph } from "./import-graph";
 export const SHELL_ENTRY = "src/main.tsx";
 /** The module that mounts every route. A surface entry must be one of its imports. */
 export const ROUTER_MODULE = "src/router.tsx";
+/** The build configuration; its closure shapes every route's bundle. */
+export const BUILD_CONFIG = "vite.config.ts";
+/** The lane's own walks, probe and budgets. */
+const UI_GATE_DIR = "scripts/ui-gate/";
 
 /** A surface as the scoper sees it: an id and its declared route entry modules. */
 export interface ScopeSurface {
@@ -84,6 +101,7 @@ export function computeUiScope({
     graph,
 }: ComputeUiScopeInput): UiScope {
     const shell = graph.closureOf(SHELL_ENTRY, { prune: isRouteModulePath });
+    const build = graph.closureOf(BUILD_CONFIG);
     const closures = surfaces.map((surface) => {
         const files = new Set<string>();
         for (const entry of surface.entries) {
@@ -94,6 +112,18 @@ export function computeUiScope({
 
     const selected = new Set<string>();
     for (const path of [...changed].sort()) {
+        if (path.startsWith(UI_GATE_DIR)) {
+            return {
+                kind: "full",
+                reason: `${path} is the check:ui lane itself (walks, probe, budgets)`,
+            };
+        }
+        if (build.has(path)) {
+            return {
+                kind: "full",
+                reason: `${path} is in the build configuration's closure (${BUILD_CONFIG})`,
+            };
+        }
         if (isNonDomPath(path)) continue;
         const global = globalReason(path);
         if (global) return { kind: "full", reason: `${path} is ${global}` };

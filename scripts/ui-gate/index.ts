@@ -527,8 +527,20 @@ function changedSinceBase(): string[] {
 
 function computeRunScope(opts: Options): UiScope {
     if (opts.all) return { kind: "full", reason: "--all" };
+    // The scope is information in this slice, never a reason to walk nothing:
+    // an unfetched base ref or a shallow clone degrades to FULL, it does not
+    // abort a run that would otherwise have walked every surface.
+    let changed: string[];
+    try {
+        changed = changedSinceBase();
+    } catch (err) {
+        return {
+            kind: "full",
+            reason: `scope unavailable: ${(err as Error).message}`,
+        };
+    }
     return computeUiScope({
-        changed: changedSinceBase(),
+        changed,
         surfaces: SURFACES,
         graph: createImportGraph({ root: REPO_ROOT }),
     });

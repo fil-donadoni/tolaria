@@ -18,6 +18,8 @@ afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
 
 const FILES: Record<string, string> = {
     "index.html": `<div id="root"></div>`,
+    "vite.config.ts": `import { buildDefine } from "./scripts/lib/build-define";\n`,
+    "scripts/lib/build-define.ts": `export const buildDefine = () => ({});\n`,
     "public/img/logo.svg": `<svg/>`,
     "src/index.css": `:root{}`,
     "src/lib/design-tokens.ts": `export const TOKENS = {};\n`,
@@ -88,7 +90,7 @@ describe("computeUiScope — scoped", () => {
             scopeOf(
                 "src/components/__tests__/card.test.tsx",
                 "src/lib/ai/brain.bot.test.ts",
-                "scripts/ui-gate/index.ts",
+                "scripts/check-lane.ts",
                 "docs/guides/ui-runbooks.md"
             )
         ).toEqual({ kind: "scoped", surfaces: [] });
@@ -110,6 +112,10 @@ describe("computeUiScope — full (fail-closed)", () => {
         ["src/router.tsx", "the router"],
         ["index.html", "the HTML document"],
         ["public/img/logo.svg", "a public asset"],
+        ["scripts/ui-gate/surfaces.ts", "the check:ui lane itself"],
+        ["scripts/ui-gate/budgets.json", "the check:ui lane itself"],
+        ["vite.config.ts", "the build configuration's closure"],
+        ["scripts/lib/build-define.ts", "the build configuration's closure"],
     ])("%s selects full (%s)", (changed, reason) => {
         const scope = scopeOf("src/components/deck-shelf.tsx", changed);
         expect(scope.kind).toBe("full");
@@ -126,7 +132,6 @@ describe("computeUiScope — full (fail-closed)", () => {
         for (const unplaced of [
             "src/components/dead-code.tsx",
             "convex/game.ts",
-            "vite.config.ts",
             "src/components/deleted-since-base.tsx",
         ]) {
             const scope = scopeOf(unplaced);

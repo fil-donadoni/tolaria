@@ -65,13 +65,17 @@ export interface WalkContext {
 export interface Surface {
     id: string;
     /**
-     * The route module(s) whose screen this surface measures, repo-relative
-     * (issue #3627). `check:ui` selects the surface when a changed file is in
-     * the import closure of any of them (`scripts/lib/ui-scope.ts`).
+     * The route module(s) this surface's walk renders, repo-relative (issue
+     * #3627). `check:ui` selects the surface when a changed file is in the
+     * import closure of any of them (`scripts/lib/ui-scope.ts`).
      *
-     * The entry is the ROUTE's module even when the walk measures an overlay
-     * opened from it, and a nested route lists its layout route too (the admin
-     * pages render inside `admin-layout.route.tsx`). Each must be a
+     * EVERY route the walk passes through, not only the one it measures: the
+     * game surfaces start their match from the lobby and the draft surfaces
+     * open their event from `/limited`, so a change that breaks that path
+     * breaks the surface too, and must select it. The entry is the ROUTE's
+     * module even when the walk measures an overlay opened from it, and a
+     * nested route lists its layout route (the admin pages render inside
+     * `admin-layout.route.tsx`). Each must be a
      * `src/routes/**\/*.route.tsx` module that `src/router.tsx` imports —
      * `ui-gate-surface-entries.test.ts` reds otherwise, so a renamed route
      * cannot silently drop a surface out of every scope.
@@ -1757,7 +1761,10 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "limited-antechamber",
-        entries: ["src/routes/limited-event-detail.route.tsx"],
+        entries: [
+            "src/routes/limited-events.route.tsx",
+            "src/routes/limited-event-detail.route.tsx",
+        ],
         // Issue #2590: the event detail page — now a compact avatar row +
         // actions, with the Table Ring wired in as a dialog rather than
         // rendered inline. Lands specifically on the "event" case
@@ -1791,7 +1798,12 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "limited-build",
-        entries: ["src/routes/limited-deck-builder.route.tsx"],
+        entries: [
+            "src/routes/limited-events.route.tsx",
+            "src/routes/limited-event-detail.route.tsx",
+            "src/routes/limited-draft-room.route.tsx",
+            "src/routes/limited-deck-builder.route.tsx",
+        ],
         // Issue #2822 lifted this out of `unwalked`. It used to need "an
         // event whose seat offers Build Deck", which no event on the
         // deployment had; the mid-draft fixture supplies one — the builder
@@ -1823,7 +1835,11 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "draft-pick",
-        entries: ["src/routes/limited-draft-room.route.tsx"],
+        entries: [
+            "src/routes/limited-events.route.tsx",
+            "src/routes/limited-event-detail.route.tsx",
+            "src/routes/limited-draft-room.route.tsx",
+        ],
         label: "Draft Room (/limited/<id>/draft)",
         async walk(page, ctx) {
             await reachDraftRoom(page, ctx);
@@ -1835,7 +1851,11 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "draft-pool-stop",
-        entries: ["src/routes/limited-draft-room.route.tsx"],
+        entries: [
+            "src/routes/limited-events.route.tsx",
+            "src/routes/limited-event-detail.route.tsx",
+            "src/routes/limited-draft-room.route.tsx",
+        ],
         label: "Draft Room, pool stop (/limited/<id>/draft, swiped)",
         async walk(page, ctx) {
             await reachDraftPoolStop(page, ctx);
@@ -1843,7 +1863,11 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "draft-pool-peek",
-        entries: ["src/routes/limited-draft-room.route.tsx"],
+        entries: [
+            "src/routes/limited-events.route.tsx",
+            "src/routes/limited-event-detail.route.tsx",
+            "src/routes/limited-draft-room.route.tsx",
+        ],
         label: "Draft Room, Pool Peek Panel open (/limited/<id>/draft, pool tile selected)",
         async walk(page, ctx) {
             // Review finding (PR #2797 round 1, MEDIUM, issue #2667): no walk
@@ -1928,7 +1952,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "game-board",
-        entries: ["src/routes/game.route.tsx"],
+        entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
         label: "Game board (/game)",
         async walk(page, ctx) {
             await ensureBoard(page, ctx);
@@ -1950,7 +1974,7 @@ export const SURFACES: readonly Surface[] = [
         // tree) at every viewport, which is what makes one budget row per
         // viewport comparable.
         id: "game-card-preview",
-        entries: ["src/routes/game.route.tsx"],
+        entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
         label: "Card Preview overlay — Engine view (anchored pin)",
         async walk(page, ctx) {
             // The FIXED stress position, not a dealt solo game — same reason
@@ -2029,7 +2053,7 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "game-stress",
-        entries: ["src/routes/game.route.tsx"],
+        entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
         label: "Game board — UI stress scenario",
         async walk(page, ctx) {
             await ensureStressBoard(page, ctx);
@@ -2048,7 +2072,7 @@ export const SURFACES: readonly Surface[] = [
         // names the numbers, which reads as the regression it is rather than
         // as a fixture nobody built.
         id: "game-debug-sheet",
-        entries: ["src/routes/game.route.tsx"],
+        entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
         label: "Debug sheet — scenario list + save form",
         async walk(page, ctx) {
             await ensureStressBoard(page, ctx);
@@ -2275,7 +2299,7 @@ export const SURFACES: readonly Surface[] = [
         // the board rows means the solo game they need is still standing while
         // they need it.
         id: "game-debug-sheet-ai",
-        entries: ["src/routes/game.route.tsx"],
+        entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
         label: "Debug sheet — AI trace open (vs-AI game)",
         async walk(page, ctx) {
             await ensureVsAiBoard(page, ctx);
