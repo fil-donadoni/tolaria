@@ -32,7 +32,7 @@ export const stifle: CardDefinition = {
 // turn. You may choose new targets for the copies.)" (CR 702.40 Storm, ADR
 // 0052 + PRD #1041 — the storm TRACER card, the target-player retarget
 // path.) `staticAbilities: ["storm"]` drives the whole copy mechanism —
-// `collectCastTriggers` / `resolveStormTrigger` (convex/gre/state.ts), an
+// `collectCastTriggers` / `resolveCastCopyTrigger` (convex/gre/state.ts), an
 // engine-synthesized cast trigger, not a per-card `resolve()`. The card's OWN
 // effect is a plain DSL `mill` Op (CR 701.17) on the announced target
 // player — the exact shape Thought Scour already exercises (dka/blue.ts),

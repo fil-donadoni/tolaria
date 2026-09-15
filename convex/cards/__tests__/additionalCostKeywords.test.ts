@@ -105,6 +105,11 @@ describe("AdditionalCostKeyword ↔ Mechanics Registry (CR 702.33a, ADR 0085)", 
     it("pins each member's kicked-ness (CR 702.33d)", () => {
         expect(ADDITIONAL_COST_KEYWORDS.kicker.countsAsKicked).toBe(true);
         expect(ADDITIONAL_COST_KEYWORDS.offspring.countsAsKicked).toBe(false);
+        // CR 702.56a (issue #2100) — replicate buys COPIES, never a kick, and
+        // its twin trigger is the synthesized cast-copy one.
+        expect(ADDITIONAL_COST_KEYWORDS.replicate.countsAsKicked).toBe(false);
+        expect(ADDITIONAL_COST_KEYWORDS.replicate.allowsMulti).toBe(true);
+        expect(ADDITIONAL_COST_KEYWORDS.replicate.castCopyTrigger).toBe(true);
         // CR 702.157a (issue #3220) — squad is the first member to set BOTH
         // repeatability flags, and it is still not a kicker cost.
         expect(ADDITIONAL_COST_KEYWORDS.squad.countsAsKicked).toBe(false);
@@ -120,6 +125,18 @@ describe("AdditionalCostKeyword ↔ Mechanics Registry (CR 702.33a, ADR 0085)", 
     // charge twice, and a row that gains the flag without the label makes
     // `additionalCostPrintedLabel` return undefined for the only form the
     // entry can legally take.
+    // ADR 0052 / CR 702.56a — a synthesized cast-copy twin is still a twin:
+    // a row claiming the engine builds its trigger while denying the keyword
+    // has one would let the catalogue guard below skip a card for a trigger
+    // `collectCastTriggers` is then free to never build.
+    it.each(unionMembers)(
+        "%s: castCopyTrigger implies requiresTrigger",
+        (keyword) => {
+            const row = ADDITIONAL_COST_KEYWORDS[keyword];
+            if (row.castCopyTrigger) expect(row.requiresTrigger).toBe(true);
+        }
+    );
+
     it.each(unionMembers)(
         "%s's printed labels agree with allowsMulti (CR 702.33c)",
         (keyword) => {
@@ -178,10 +195,15 @@ describe("shipped kickers[] entries obey their keyword's table row (ADR 0085)", 
     // Until then the row above ("no shipped card reaches a PENDING keyword")
     // is what actually keeps a half-mechanic out of the catalogue, and this row
     // is the coarse floor beneath it.
+    // A `castCopyTrigger` keyword's twin is synthesized by the ENGINE from the
+    // cost entry itself (`collectCastTriggers`, CR 702.56a), so no card
+    // authors it; `replicate.test.ts` is what proves the engine puts it on
+    // the stack.
     it("a keyword that demands a twin trigger ships at least one (CR 702.175a)", () => {
         const offenders = shippedEntries.filter(
             (e) =>
                 ADDITIONAL_COST_KEYWORDS[e.keyword].requiresTrigger &&
+                !ADDITIONAL_COST_KEYWORDS[e.keyword].castCopyTrigger &&
                 (e.card.triggeredAbilities?.length ?? 0) === 0
         );
         expect(

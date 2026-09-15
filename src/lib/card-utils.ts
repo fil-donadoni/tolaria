@@ -1501,7 +1501,7 @@ export function wantsSpellTarget(
  *  so routing a kind through the shared checker over-filters if the checker
  *  reads a field the projection drops. Audited dimension by dimension: the ONLY
  *  thing `slimCard` (`convex/gameProjections.ts`) strips from a stack item is
- *  the fat `card` definition (→ `{ id }`), plus `knownTo`/`stormSnapshot` which
+ *  the fat `card` definition (→ `{ id }`), plus `knownTo`/`castCopySnapshot` which
  *  no filter reads. Every other field the fourteen spell dimensions touch
  *  (`types`, `power`, `toughness`, `castById`, `targets`, `chosenX`,
  *  `kickerPayments`, `abilityId`, `triggeredAbilityId`, `delayedTriggerId`,
@@ -2776,13 +2776,22 @@ export function getAbilityOracleText(
     return null;
 }
 
-/** Storm's cast trigger (CR 702.40, ADR 0052) is engine-synthesized — no card
- *  declares it in `triggeredAbilities` (it is not a per-card DSL/`resolve()`
- *  ability, see `collectCastTriggers` / `resolveStormTrigger` in
- *  `convex/gre/state.ts`) — so its label can't come from a card-def lookup.
- *  Matches the Mechanics Registry row id (`storm`, `mechanicsRegistry.ts`). */
-const STORM_TRIGGER_ORACLE_TEXT =
-    "Storm (When you cast this spell, copy it for each spell cast before it this turn. You may choose new targets for the copies.)";
+/** The cast-copy triggers (ADR 0052) — Storm's (CR 702.40) and Replicate's
+ *  (CR 702.56) — are engine-synthesized: no card declares them in
+ *  `triggeredAbilities` (they are not per-card DSL/`resolve()` abilities, see
+ *  `collectCastTriggers` / `resolveCastCopyTrigger` in `convex/gre/state.ts`),
+ *  so their labels can't come from a card-def lookup. Keyed by the trigger
+ *  id, which matches the Mechanics Registry row id (`mechanicsRegistry.ts`). */
+const CAST_COPY_TRIGGER_ORACLE_TEXT: ReadonlyMap<string, string> = new Map([
+    [
+        "storm",
+        "Storm (When you cast this spell, copy it for each spell cast before it this turn. You may choose new targets for the copies.)",
+    ],
+    [
+        "replicate",
+        "Replicate (When you cast this spell, copy it for each time you paid its replicate cost. You may choose new targets for the copies.)",
+    ],
+]);
 
 /** Returns the oracle text for a triggered ability by id, or null. Checks
  *  the card's own definition first, then any granted-triggered entries on the
@@ -2796,7 +2805,8 @@ export function getTriggeredAbilityOracleText(
         abilityId: string;
     }>
 ): string | null {
-    if (triggeredAbilityId === "storm") return STORM_TRIGGER_ORACLE_TEXT;
+    const castCopyText = CAST_COPY_TRIGGER_ORACLE_TEXT.get(triggeredAbilityId);
+    if (castCopyText) return castCopyText;
     // `tryGetDefinition` (not throwing): an emblem-sourced trigger's
     // `card.id` is an emblem KEY, absent from the card registry (CR 114 —
     // emblems live in `EMBLEM_REGISTRY`, resolved just below), so a hard

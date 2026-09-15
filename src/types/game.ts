@@ -599,12 +599,13 @@ export interface StackItem extends CardInstance {
      *  (`target-arrow-geometry.ts`). Undefined for spells and for triggers with
      *  no permanent source. */
     triggerSourceId?: string;
-    /** Storm (CR 702.40, ADR 0052) — present only on the synthesized storm
-     *  cast-trigger stack item (`triggeredAbilityId === "storm"`): copies
-     *  still to be created as this trigger resolves. Useful for a "N copies
-     *  left" hint; the engine-internal `stormSnapshot` field is intentionally
+    /** Cast-Copy (ADR 0052) — present only on a synthesized cast-copy
+     *  trigger stack item (`triggeredAbilityId` `"storm"`, CR 702.40, or
+     *  `"replicate"`, CR 702.56): copies still to be created as this trigger
+     *  resolves. Useful for a "N copies
+     *  left" hint; the engine-internal `castCopySnapshot` field is intentionally
      *  NOT sent over the wire (see `slimCard`, gameProjections.ts). */
-    stormCopiesRemaining?: number;
+    castCopiesRemaining?: number;
     /** If set, this stack item is a delayed triggered ability (CR 603.7a)
      *  queued by an earlier spell/ability's resolution (e.g. Mishra's
      *  Bauble's "draw a card at the beginning of the next turn's upkeep").

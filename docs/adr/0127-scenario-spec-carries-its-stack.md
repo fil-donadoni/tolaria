@@ -92,7 +92,7 @@ journal established is not contradicted; it is sidestepped.
 7. **Fail closed, per item and per field.** `StackItem` is `CardInstanceState`
    plus ~45 announcement fields. An allowlist names what the spec carries or the
    rebuild re-derives; anything else PRESENT is reported naming the item and the
-   field (`isCopy`, `kickerPayments`, `chosenModeId`, `stormSnapshot`,
+   field (`isCopy`, `kickerPayments`, `chosenModeId`, `castCopySnapshot`,
    `sourceLki`, …), and the WHOLE stack is then withheld. A partially described
    stack is not a smaller loss than none: it rebuilds a position that looks
    complete, and its candidate list can match the live one move for move while

@@ -415,16 +415,17 @@ function slimCard<
     // ADR 0026 — the raw per-viewer knowledge set must NEVER cross the wire;
     // identity is gated upstream and the eye flag is derived separately.
     delete (slimmed as { knownTo?: string[] }).knownTo;
-    // Storm (CR 702.40, ADR 0052) — `stormSnapshot` is a resolution-time
+    // Cast-Copy (CR 702.40 Storm / CR 702.56 Replicate, ADR 0052) —
+    // `castCopySnapshot` is a resolution-time
     // engine artifact (a full nested StackItem with its OWN fat `card`
     // field) the client has no use for; ship the trigger item itself (and
-    // `stormCopiesRemaining`, useful for a "N copies left" hint) but drop
+    // `castCopiesRemaining`, useful for a "N copies left" hint) but drop
     // the snapshot rather than doubling the payload with a duplicate,
     // un-slimmed card.
-    delete (slimmed as { stormSnapshot?: unknown }).stormSnapshot;
+    delete (slimmed as { castCopySnapshot?: unknown }).castCopySnapshot;
     // CR 608.2h / 113.7a (issue #2042) — `sourceLki`, the departure-time
     // snapshot of a trigger's source permanent, is the same shape hazard as
-    // `stormSnapshot` directly above and gets the same treatment: it is a
+    // `castCopySnapshot` directly above and gets the same treatment: it is a
     // resolution-time engine artifact (a full nested `CardInstanceState` with
     // its OWN fat `card` field and its own `knownTo`) that no client renders,
     // so it is stripped rather than shipped. Everything it holds WAS public

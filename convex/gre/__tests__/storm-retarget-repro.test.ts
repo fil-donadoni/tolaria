@@ -41,7 +41,7 @@ function passToResolveTrigger(state: GameState): void {
 const STORM_TRIGGER_ID = "storm";
 const triggerOnStack = (state: GameState) =>
     state.stack.some(
-        (s) => s.triggeredAbilityId === STORM_TRIGGER_ID && s.stormSnapshot
+        (s) => s.triggeredAbilityId === STORM_TRIGGER_ID && s.castCopySnapshot
     );
 
 function setup(): GameState {

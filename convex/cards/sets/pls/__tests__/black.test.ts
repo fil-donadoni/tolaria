@@ -736,7 +736,7 @@ describe("Sinister Strength (CR 303.4 aura, layer 7c pt-buff + layer 5 color-gra
         // `excludeColors`/`colorFilter`, so this is a mandatory wire
         // assertion, not just the P/T half). `grantedColors` is a plain field
         // on the host's `CardInstanceState`, untouched by `slimCard` (which
-        // only reshapes `card`/`knownTo`/`stormSnapshot`), so it survives the
+        // only reshapes `card`/`knownTo`/`castCopySnapshot`), so it survives the
         // projection unchanged.
         const projected = projectPublicState(state, 1, "p1");
         const slimHost = projected.players[0].battlefield.find(

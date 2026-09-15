@@ -2568,6 +2568,27 @@ describe("getTriggeredAbilityOracleText — cascade (CR 702.85a, issue #3216)", 
     });
 });
 
+// getTriggeredAbilityOracleText — the engine-synthesized CAST-COPY triggers
+// (ADR 0052): no card declares them, so the stack row's text is a lookup
+// keyed by trigger id.
+// ---------------------------------------------------------------------------
+
+describe("getTriggeredAbilityOracleText — cast-copy triggers (ADR 0052)", () => {
+    const LOSE_FOCUS_ID = "985bdb0c-ce6c-4506-8163-76f3b2fdf5fb";
+
+    it("labels Replicate's trigger (CR 702.56a, issue #2100)", () => {
+        expect(getTriggeredAbilityOracleText(LOSE_FOCUS_ID, "replicate")).toBe(
+            "Replicate (When you cast this spell, copy it for each time you paid its replicate cost. You may choose new targets for the copies.)"
+        );
+    });
+
+    it("still labels Storm's trigger (CR 702.40a)", () => {
+        expect(getTriggeredAbilityOracleText(LOSE_FOCUS_ID, "storm")).toBe(
+            "Storm (When you cast this spell, copy it for each spell cast before it this turn. You may choose new targets for the copies.)"
+        );
+    });
+});
+
 // getDelayedTriggerOracleText (delayed triggered ability, CR 603.7a, #935)
 // ---------------------------------------------------------------------------
 

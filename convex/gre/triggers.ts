@@ -961,7 +961,7 @@ function isPlainTrigger(item: StackItem): boolean {
         !item.madnessTrigger &&
         !item.delayedTriggerId &&
         !item.delayedEffects &&
-        !item.stormSnapshot &&
+        !item.castCopySnapshot &&
         !!item.triggeredAbilityId
     );
 }

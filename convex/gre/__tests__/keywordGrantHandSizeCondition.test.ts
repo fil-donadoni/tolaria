@@ -279,7 +279,7 @@ describe("hand-size-gated keyword-grant (CR 611.2c, issue #1379) — SBA-sweep p
     });
 
     // Wire format (`gameProjections.ts`) — `staticAbilities` survives
-    // `slimCard`'s spread unchanged (only `card`/`knownTo`/`stormSnapshot` are
+    // `slimCard`'s spread unchanged (only `card`/`knownTo`/`castCopySnapshot` are
     // stripped), so the live-resynced menace keyword reads identically
     // server-side and after `projectPublicState`. No client reducer keys off
     // "menace" specifically (combat legality is enforced server-side in

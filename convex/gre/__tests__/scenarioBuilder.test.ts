@@ -2348,7 +2348,7 @@ describe("buildStateFromScenario — what has already been cast (issue #3449)", 
 
         const trigger = state.stack[state.stack.length - 1];
         expect(trigger.triggeredAbilityId).toBe("storm");
-        expect(trigger.stormCopiesRemaining).toBe(3);
+        expect(trigger.castCopiesRemaining).toBe(3);
 
         // Drain: the trigger creates three copies, then each copy and the
         // original resolve one at a time (CR 608.3) — 4 damage in total.

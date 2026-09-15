@@ -1659,7 +1659,7 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
     // trigger's resolution is a stable save point). Without it the reloaded
     // item falls back to the live same-id permanent and the CR 603.4
     // intervening-if re-check reads the wrong object again. Recurses through
-    // `compactCard`, exactly like `stormSnapshot` recurses through
+    // `compactCard`, exactly like `castCopySnapshot` recurses through
     // `compactStackItem`, so it never ships a fat card def.
     if (item.sourceLki) {
         const lki = compactCard(
@@ -1708,16 +1708,17 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
     // step; without it the reloaded item resolves as a no-op card-def lookup and
     // the permanent is never exiled.
     if (item.warpTrigger) base.warpTrigger = item.warpTrigger;
-    // Storm (CR 702.40, ADR 0052) — the cast-trigger's detached snapshot and
+    // Cast-Copy (CR 702.40 Storm / CR 702.56 Replicate, ADR 0052) — the
+    // cast-copy trigger's detached snapshot and
     // remaining-copies counter must survive a save/load while the trigger
     // sits on the stack awaiting priority (or a per-copy retarget answer).
     // The snapshot is itself a full StackItem, so it recurses through this
     // same compactor rather than duplicating its field list.
-    if (item.stormSnapshot) {
-        base.stormSnapshot = compactStackItem(item.stormSnapshot, ctx);
+    if (item.castCopySnapshot) {
+        base.castCopySnapshot = compactStackItem(item.castCopySnapshot, ctx);
     }
-    if (item.stormCopiesRemaining !== undefined) {
-        base.stormCopiesRemaining = item.stormCopiesRemaining;
+    if (item.castCopiesRemaining !== undefined) {
+        base.castCopiesRemaining = item.castCopiesRemaining;
     }
     if (item.delayedTriggerId) base.delayedTriggerId = item.delayedTriggerId;
     if (item.delayedPayload) base.delayedPayload = item.delayedPayload;
@@ -1891,17 +1892,23 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
     if (compact.warpTrigger) {
         item.warpTrigger = compact.warpTrigger as string;
     }
-    // Storm (CR 702.40, ADR 0052) — rehydrate the cast-trigger's detached
+    // Cast-Copy (ADR 0052) — rehydrate the cast-trigger's detached
     // snapshot (recursing through this same expander) and remaining-copies
     // counter.
-    if (compact.stormSnapshot) {
-        item.stormSnapshot = expandStackItem(
-            compact.stormSnapshot as CompactCard,
+    // Read-back of the pre-#2100 compact keys (`stormSnapshot` /
+    // `stormCopiesRemaining`): a game saved with a storm trigger on the stack
+    // before the rename would otherwise lose its copies on load.
+    const castCopySnapshot = compact.castCopySnapshot ?? compact.stormSnapshot;
+    if (castCopySnapshot) {
+        item.castCopySnapshot = expandStackItem(
+            castCopySnapshot as CompactCard,
             ctx
         );
     }
-    if (compact.stormCopiesRemaining !== undefined) {
-        item.stormCopiesRemaining = compact.stormCopiesRemaining as number;
+    const castCopiesRemaining =
+        compact.castCopiesRemaining ?? compact.stormCopiesRemaining;
+    if (castCopiesRemaining !== undefined) {
+        item.castCopiesRemaining = castCopiesRemaining as number;
     }
     if (compact.delayedTriggerId) {
         item.delayedTriggerId = compact.delayedTriggerId as string;

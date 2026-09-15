@@ -311,7 +311,7 @@ export function applyRaisedTargetFinalization(
     const cardInstanceId = pt.cardInstanceId;
     state.pendingTarget = undefined;
 
-    // Copy-retarget branch (CR 707.10b — Fork's "you may choose new targets
+    // Copy-retarget branch (CR 707.10c — Fork's "you may choose new targets
     // for the copy"). The targets are written onto the spell COPY already on
     // the stack; nothing is cast and no cost is paid. After the choice, the
     // resolving spell (Fork) has finished, so a fresh priority round begins

@@ -679,7 +679,7 @@ describe("departure-time LKI for intervening-if (CR 603.4 / 608.2h / 400.7, issu
         expect(reloaded.players[0].hand).toHaveLength(1);
     });
 
-    it("never crosses the wire (projectPublicState strips it, like stormSnapshot)", () => {
+    it("never crosses the wire (projectPublicState strips it, like castCopySnapshot)", () => {
         const { state, source } = setupDepartureState({
             abilityId: BLINK_X_ABILITY,
             source: { chosenXOnCast: 6 },

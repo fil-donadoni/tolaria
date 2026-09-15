@@ -7,7 +7,7 @@ import { GOBLIN_TOKEN } from "../../sharedTokens";
 // turn. You may choose new targets for the copies.)" (CR 702.40 Storm, ADR
 // 0052 + PRD #1041 — the any-target retarget path.)
 // `staticAbilities: ["storm"]` drives the copy mechanism
-// (`collectCastTriggers` / `resolveStormTrigger`, convex/gre/state.ts). The
+// (`collectCastTriggers` / `resolveCastCopyTrigger`, convex/gre/state.ts). The
 // card's own effect is a plain DSL `dealDamage` Op on an announced "any"
 // target — the exact shape Triskelion's ability already exercises
 // (atq/colorless.ts), reused verbatim (per-Op test regime: no new Op).
@@ -31,7 +31,7 @@ export const grapeshot: CardDefinition = {
 // copy-retarget prompt — the printed reminder text omits "You may choose new
 // targets for the copies" for exactly this reason.) `staticAbilities:
 // ["storm"]` drives the copy mechanism (`collectCastTriggers` /
-// `resolveStormTrigger`). The card's own effect is a plain DSL `createToken`
+// `resolveCastCopyTrigger`). The card's own effect is a plain DSL `createToken`
 // Op with `count: 2` — the exact shape Lingering Souls already exercises
 // (dka/white.ts), reused verbatim (per-Op test regime: no new Op).
 export const emptyTheWarrens: CardDefinition = {

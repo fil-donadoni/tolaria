@@ -69,6 +69,14 @@ export type KickerPayments = Record<string, number>;
  *    ("When this permanent enters, if its offspring cost was paid, create a
  *    token that's a copy of it, except it's 1/1"); CR 702.33a gives kicker
  *    none. Read by the catalogue guard that refuses to let one half ship alone.
+ *  - `castCopyTrigger` — is that twin the engine's synthesized CAST-COPY
+ *    trigger (ADR 0052) rather than one the card authors in
+ *    `triggeredAbilities`? CR 702.56a gives replicate exactly that: "copy it
+ *    for each time its replicate cost was paid". Load-bearing, not a guard
+ *    exemption: `collectCastTriggers` (`gre/state.ts`) reads THIS flag to put
+ *    one cast-copy trigger per paid entry on the stack, and the catalogue
+ *    guard therefore demands no card-authored trigger for it. Implies
+ *    `requiresTrigger`, asserted in `additionalCostKeywords.test.ts`.
  *  - `allowsMulti` — may an entry with this keyword set {@link KickerCost.multi}
  *    (CR 702.33c "any number of times")? Kicker may — that IS Multikicker,
  *    which CR 702.33c defines as a kicker cost rather than a separate identity.
@@ -90,6 +98,7 @@ export const ADDITIONAL_COST_KEYWORDS: Record<
     {
         countsAsKicked: boolean;
         requiresTrigger: boolean;
+        castCopyTrigger: boolean;
         allowsMulti: boolean;
         printedLabel: { single?: string; repeated?: string };
     }
@@ -101,6 +110,7 @@ export const ADDITIONAL_COST_KEYWORDS: Record<
     kicker: {
         countsAsKicked: true,
         requiresTrigger: false,
+        castCopyTrigger: false,
         allowsMulti: true,
         printedLabel: { single: "Kicker", repeated: "Multikicker" },
     },
@@ -110,6 +120,7 @@ export const ADDITIONAL_COST_KEYWORDS: Record<
     offspring: {
         countsAsKicked: false,
         requiresTrigger: true,
+        castCopyTrigger: false,
         allowsMulti: false,
         printedLabel: { single: "Offspring" },
     },
@@ -129,6 +140,7 @@ export const ADDITIONAL_COST_KEYWORDS: Record<
     squad: {
         countsAsKicked: false,
         requiresTrigger: true,
+        castCopyTrigger: false,
         allowsMulti: true,
         // CR 702.157a — "any number of times" is part of the keyword's own
         // definition, so a squad entry only ever exists in the REPEATED form
@@ -136,6 +148,22 @@ export const ADDITIONAL_COST_KEYWORDS: Record<
         // `multi`-less squad entry is a mis-declared card with no printed
         // form at all, which is exactly what an absent `single` says.
         printedLabel: { repeated: "Squad" },
+    },
+    // CR 702.56a/b (issue #2100) — repeatable like Multikicker, never
+    // "kicked": the payment count buys COPIES, not a bigger effect, so a
+    // merely-replicated spell must not answer to "counter target spell if it
+    // was kicked". Its twin is the synthesized cast-copy trigger ("copy it for
+    // each time its replicate cost was paid"), the same mechanism Storm uses
+    // with a different count provider (ADR 0052). CR 702.56b (each instance
+    // paid and triggered separately) is again the per-id record's own shape.
+    replicate: {
+        countsAsKicked: false,
+        requiresTrigger: true,
+        castCopyTrigger: true,
+        allowsMulti: true,
+        // CR 702.56a — "any number of times" is in the keyword's definition,
+        // exactly as for squad: only the repeated form exists.
+        printedLabel: { repeated: "Replicate" },
     },
 };
 
