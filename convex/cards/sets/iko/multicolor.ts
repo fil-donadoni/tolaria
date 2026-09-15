@@ -172,44 +172,93 @@ export const lurrus: CardDefinition = {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Zirda, the Dawnwaker — the THIRD Vintage Cube companion (with `lutri` and
-// `lurrus` above), deliberately NOT shipped. ADR 0064 scoped the Companion
-// slice to "framework + Lutri + Lurrus; Zirda is a stop-and-issue stub":
+// `lurrus` above). #1339 shipped the seam this card needed: on triage the
+// activated-ability cost-modifier machinery (`StaticCostModifier.costReduction`
+// / `minTotalMana`, threaded through `getCostModifiers` into
+// `applyCostModifiers`) turned out to be ALREADY wired to the real activation
+// path (`convex/game.ts`), exercised by Power Artifact (atq/blue.ts) — the
+// stub's comment claiming the seam didn't exist had gone stale. The one
+// genuine gap #1339 closed: `appliesToAbility` only ever received the ability's
+// SOURCE permanent, never the ability itself, so nothing could express "...
+// that aren't mana abilities" — added as its optional fourth argument.
 //
-//   "Abilities you activate that aren't mana abilities cost {2} less to
-//    activate. This effect can't reduce the mana in that cost to less than
-//    one mana."
+// "Abilities you activate that aren't mana abilities cost {2} less to
+// activate. This effect can't reduce the mana in that cost to less than one
+// mana." (CR 601.2f cost reduction, 118.7 floor, CR 605.1a mana ability —
+// `useStack: false`.) Scoped to the CONTROLLER's own abilities
+// (`source.controllerId === effectSource.controllerId`, the same "you
+// control" shape Stone Calendar's spell-side reduction uses,
+// drk/colorless.ts) rather than to a single attached host (Power Artifact's
+// Aura scopes via `attachedTo`) — Zirda has no host, it reduces every
+// non-mana ability its controller activates, board-wide.
 //
-// is a genuine new COST-SYSTEM capability on a seam the engine does not have.
-// The ability-activation path reads `ability.cost.mana` raw; ADR 0063's cost
-// modifier seam covers CAST costs only, and this clause additionally carries
-// an unusual ">= one mana" floor (CR 601.2f / 118.7 — the reduction may not
-// take the remaining mana cost below a single mana symbol, generic or
-// coloured). Shipping Zirda with that clause silently inert is exactly the
-// Guard-A anti-pattern (`.claude/rules/gre-development.md` — a card that
-// declares a mechanic it does not have ships functional-looking and dead),
-// so the card stays commented until the capability lands. Its companion
-// condition would be `everyPermanent((def) => hasActivatedAbility(def))` —
-// the `everyPermanent` combinator (gre/companion.ts) already exists and was
-// factored out for exactly this second consumer.
+// Its companion condition is `permanentHasActivatedAbility`
+// (`gre/companion.ts`, built on the shared `everyPermanent` combinator) — the
+// SAME predicate module `selectCompanion` reads at game init to auto-declare
+// it into the slot when the controller's maindeck qualifies.
 //
-// Stop-and-issue per gre-development.md; tracked-by: #1339.
-// export const zirda: CardDefinition = {
-//     id: "1bd8e61c-2ee8-4243-a848-7008810db8a0",
-//     rarity: "rare",
-//     name: "Zirda, the Dawnwaker",
-//     oracleText:
-//         "Companion — Each permanent card in your starting deck has an activated ability. (If this card is your chosen companion, you may put it into your hand from outside the game for {3} as a sorcery.)\nAbilities you activate that aren't mana abilities cost {2} less to activate. This effect can't reduce the mana in that cost to less than one mana.\n{1}, {T}: Target creature can't block this turn.",
-//     // DIVERGENCE (tracked-by: #1339): printed cost is {1}{R/W}{R/W} — two
-//     // HYBRID R/W pips. #782 (the land-based-hybrid-payment gap narrowed on
-//     // `lutri`/`lurrus` above) is now closed, so this would use `manaCost.hybrid`
-//     // like they do if shipped — but Zirda stays commented for the SEPARATE,
-//     // still-open #1339 (the cost-reduction-ability gap above). Declared here
-//     // as {1}{R}{W} pending that.
-//     manaCost: { generic: 1, R: 1, W: 1 },
-//     types: ["Creature"],
-//     supertypes: ["Legendary"],
-//     subtypes: ["Elemental", "Fox"],
-//     power: 3,
-//     toughness: 3,
-//     staticAbilities: ["companion"],
-// };
+// Printed cost is {1}{R/W}{R/W} — TWO HYBRID R/W pips, declared via
+// `manaCost.hybrid` (issue #1338) exactly like `lutri`/`lurrus` above, in
+// place of the stub's earlier `{ generic: 1, R: 1, W: 1 }` placeholder.
+//
+// "{1}, {T}: Target creature can't block this turn." reuses the already
+// exercised `restrictCombat` Op (`restriction: "cant-block"`, ADR 0053) on an
+// announced target — the same shape Stun (tmp/red.ts) exercises — so no new
+// Op and no hand-written test beyond the catalogue's static sweep + smoke
+// test (per-Op regime, `.claude/rules/gre-development.md`).
+//
+// compiler-gap: "Companion — Each permanent card in your starting deck has an activated ability." (#2693)
+// compiler-gap: "Abilities you activate that aren't mana abilities cost {2} less to activate. This effect can't reduce the mana in that cost to less than one mana." (#2693)
+// compiler-gap: "{1}, {T}: Target creature can't block this turn." (#2693)
+export const zirda: CardDefinition = {
+    // Kept as a literal (not imported from `gre/companion.ts`'s `ZIRDA_ID`) —
+    // same anti-cycle rationale as `lutri`/`lurrus` above (multicolor.ts →
+    // gre/companion.ts → cards/index.ts → multicolor.ts).
+    id: "1bd8e61c-2ee8-4243-a848-7008810db8a0",
+    rarity: "rare",
+    name: "Zirda, the Dawnwaker",
+    oracleText:
+        "Companion — Each permanent card in your starting deck has an activated ability. (If this card is your chosen companion, you may put it into your hand from outside the game for {3} as a sorcery.)\nAbilities you activate that aren't mana abilities cost {2} less to activate. This effect can't reduce the mana in that cost to less than one mana.\n{1}, {T}: Target creature can't block this turn.",
+    manaCost: {
+        generic: 1,
+        hybrid: [
+            ["R", "W"],
+            ["R", "W"],
+        ],
+    },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Elemental", "Fox"],
+    power: 3,
+    toughness: 3,
+    // CR 702.139a — Companion is a Mechanics Registry keyword row with
+    // `status: "implemented"` (Guard A).
+    staticAbilities: ["companion"],
+    staticEffects: [
+        {
+            kind: "cost-modifier",
+            appliesToAbility: (source, _ctx, effectSource, ability) =>
+                !!effectSource &&
+                source.controllerId === effectSource.controllerId &&
+                ability?.useStack !== false,
+            costReduction: { X: 2 },
+            minTotalMana: 1,
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "zirda-cant-block",
+            oracleText: "{1}, {T}: Target creature can't block this turn.",
+            cost: { mana: { X: 1 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [
+                {
+                    op: "restrictCombat",
+                    restriction: "cant-block",
+                    target: { target: 0 },
+                },
+            ],
+        },
+    ],
+};

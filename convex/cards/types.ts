@@ -8656,10 +8656,18 @@ export interface StaticCostModifier {
         ctx: StaticEffectContext,
         effectSource?: PermanentView
     ) => boolean;
+    /** The optional fourth argument is the `ActivatedAbility` template being
+     *  reduced — present whenever the collector was called for an ability
+     *  (never for a spell) — so a predicate can key off the ability itself,
+     *  not just its source permanent: Zirda, the Dawnwaker's "abilities you
+     *  activate that AREN'T mana abilities" reads `ability.useStack` (mana
+     *  abilities are `useStack: false`, CR 605.1a) to exclude them, something
+     *  no source-level property carries. */
     appliesToAbility?: (
         source: PermanentView,
         ctx: StaticEffectContext,
-        effectSource?: PermanentView
+        effectSource?: PermanentView,
+        ability?: ActivatedAbility
     ) => boolean;
     /** Mana added to the base cost (CR 601.2f). Defaults to nothing. */
     costIncrease?: ManaCost;

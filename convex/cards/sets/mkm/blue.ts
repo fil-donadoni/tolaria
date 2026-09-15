@@ -5,30 +5,64 @@
 import type { CardDefinition } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
+import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
+import { investigateOp } from "../../abilities/tokens/clueToken";
 
 // Forensic Gadgeteer — {2}{U} Creature — Vedalken Artificer Detective, 2/3.
 // "Whenever you cast an artifact spell, investigate. Activated abilities of
 // artifacts you control cost {1} less to activate. This effect can't reduce
-// the mana in that cost to less than one mana."
+// the mana in that cost to less than one mana." (CR 603.2 SPELL_CAST trigger,
+// CR 701.21 Investigate, CR 601.2f cost reduction, CR 118.7 floor.)
 //
 // TRIAGED 2026-08-25 (#1841 audit) — the marker used to read "needs a new
-// engine capability" with no gap named. Half of it is already free: the
-// `investigate` keyword action is `status: "implemented"` in the Mechanics
-// Registry (the Clue token's activated ability rides
-// EffectTokenSpec.activatedAbilities, issue #1191). The one real blocker is
-// the second clause: activated-ability cost reduction, with a floor of one
-// mana — which #1339 owns for Zirda, the Dawnwaker.
-// tracked-by: #1339
-// export const forensicGadgeteer: CardDefinition = {
-//     id: "97d08a15-e61c-4421-a541-c68a4f87cb74",
-//     name: "Forensic Gadgeteer",
-//     rarity: "rare",
-//     manaCost: { X: 2, U: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Vedalken", "Artificer", "Detective"],
-//     power: 2,
-//     toughness: 3,
-// };
+// engine capability" with no gap named. The first clause is free: `investigate`
+// is `status: "implemented"` in the Mechanics Registry (the Clue token's
+// activated ability rides `EffectTokenSpec.activatedAbilities`, issue #1191) —
+// same `investigateOp()` + `spellCastTrigger` shape as Thraben Inspector
+// (soi/white.ts) and Urza's Chalice (atq/colorless.ts), filtered to artifact
+// spells and scoped to the controller (`scope: "self"`). The second clause
+// shipped with #1339's activated-ability cost-reduction seam: scoped to
+// "artifacts you control" via the `cost-modifier` static effect's
+// `appliesToAbility`, matching both the source's own type line and its
+// controller against the effect's carrier (Forensic Gadgeteer itself) — the
+// same "you control" shape Stone Calendar (drk/colorless.ts) uses on the
+// spell side, generalized to a type filter instead of a single host
+// (Power Artifact's Aura `attachedTo` scope, atq/blue.ts).
+//
+// compiler-gap: "Whenever you cast an artifact spell, investigate." (#2693)
+// compiler-gap: "Activated abilities of artifacts you control cost {1} less to activate. This effect can't reduce the mana in that cost to less than one mana." (#2693)
+export const forensicGadgeteer: CardDefinition = {
+    id: "97d08a15-e61c-4421-a541-c68a4f87cb74",
+    name: "Forensic Gadgeteer",
+    rarity: "rare",
+    oracleText:
+        "Whenever you cast an artifact spell, investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")\nActivated abilities of artifacts you control cost {1} less to activate. This effect can't reduce the mana in that cost to less than one mana.",
+    manaCost: { X: 2, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Vedalken", "Artificer", "Detective"],
+    power: 2,
+    toughness: 3,
+    triggeredAbilities: [
+        spellCastTrigger({
+            id: "forensic-gadgeteer-investigate",
+            oracleText: "Whenever you cast an artifact spell, investigate.",
+            scope: "self",
+            filter: { types: "Artifact" },
+            effects: [investigateOp()],
+        }),
+    ],
+    staticEffects: [
+        {
+            kind: "cost-modifier",
+            appliesToAbility: (source, _ctx, effectSource) =>
+                !!effectSource &&
+                source.types.includes("Artifact") &&
+                source.controllerId === effectSource.controllerId,
+            costReduction: { X: 1 },
+            minTotalMana: 1,
+        },
+    ],
+};
 
 // Proft's Eidetic Memory — {1}{U} Legendary Enchantment. "When Proft's
 // Eidetic Memory enters, draw a card.\nYou have no maximum hand size.\nAt the
