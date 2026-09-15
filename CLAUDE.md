@@ -355,17 +355,17 @@ vs defer together.
 fetch. Third-party mirrors are removed; an ad-hoc `curl` of a remembered
 rules URL is the habit this replaced.
 
-**Never cite a rule number you have not printed.** `bun run cr:lint` runs in
-`check:guards` and reds on an id that resolves to nothing, plus a second scan
-that reds when a `CR 701.N`/`702.N` line names a different keyword than the
-section title (Wizards renumbers the 701 block alphabetically every few
-revisions, so keyword citations rot silently).
+**Never cite a rule number you have not printed.** `bun run cr:lint` (in
+`check:guards`) reds on an id that resolves to nothing and on a
+`CR 701.N`/`702.N` line naming a keyword other than its section title (the
+701 block renumbers every few revisions).
 
-**Keep the citation, its `CR ` prefix and its keyword word on ONE line** —
-that single habit covers every blind spot the scanner has. What it cannot
-catch at all is a **resolvable but wrong** id outside 701/702: the scan only
-asks whether an id exists, so the correction must come from `bun run cr <id>`
-printing text that matches the claim.
+**Every `CR` line you add or edit owes a ledger entry** (ADR 0133): `cr:lint`
+reds on one missing from `data/cr/citations-ledger.json`, prints the rule
+under the line and names the fix — read it, then
+`bun run cr:ledger confirm <file>:<line>`, ONE line per call. A wrong id is
+fixed on its line, then confirmed. Keep the citation, its `CR ` prefix and
+its keyword on ONE line.
 
 `bun run cr:check` says whether a newer document exists, `bun run cr:sync`
 takes it; `cr:check` is deliberately outside `check:all` — the gate is offline

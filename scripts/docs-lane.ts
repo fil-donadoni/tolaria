@@ -66,6 +66,12 @@ export const DOC_GATE_TESTS = [
     "scripts/__tests__/adr-index.test.ts",
     "scripts/__tests__/agents-md-drift.test.ts",
     "scripts/__tests__/bot-globs.test.ts",
+    // The CR citation ledger (ADR 0133) is accountable for every `CR` line
+    // in prose too — an ADR or guide that adds a citation owes an entry — so
+    // the lane that merges a doc edit runs its whole-tree assertion
+    // (`bun run cr:lint`, already in `check:docs:inner`, runs the same scan;
+    // the test is what keeps the gate honest if that wiring changes).
+    "scripts/__tests__/cr-citation-ledger.test.ts",
     // Scans the SKILLS for two destructive data-regeneration recipes. A skill
     // step is prose the docs lane will happily carry on its own, and the
     // recipes got into the skills by being copied from a guard hint in the

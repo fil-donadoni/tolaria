@@ -23,13 +23,22 @@
  * `check`/`sync` are the only commands that touch the network. Everything else
  * is offline, which is what keeps this usable inside the gate and inside agents
  * with no WebFetch permission.
+ *
+ * What a rule lookup prints is also what the citation ledger hashes
+ * (`bun run cr:ledger`, ADR 0133) — a `confirmed` entry is evidence only if the
+ * hashed text is the text the confirming reader saw.
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
+import {
+    CR_PATH,
+    loadRules,
+    selectRules,
+    splitDocument,
+} from "./lib/cr-rules.ts";
 
 const ROOT = join(import.meta.dir, "..");
-const CR_PATH = join(ROOT, "data/cr/comprehensive-rules.txt");
 const VERSION_PATH = join(ROOT, "data/cr/VERSION.json");
 const INDEX_URL = "https://magic.wizards.com/en/rules";
 
@@ -43,97 +52,11 @@ type Version = {
     vendoredAt: string;
 };
 
-type Rule = { id: string; text: string };
-
+// The parser and slicer (`splitDocument`, `parseRules`, `selectRules`) live in
+// `lib/cr-rules.ts` since ADR 0133: the citation ledger hashes exactly what
+// `cmdRule` prints, so both read the document through one module.
 function readVersion(): Version {
     return JSON.parse(readFileSync(VERSION_PATH, "utf8")) as Version;
-}
-
-/**
- * Line splitting for the official document.
- *
- * Two normalisations, both load-bearing:
- *
- *   - `\r` — the file is CRLF.
- *   - **U+2028 LINE SEPARATOR** — WotC's exporter emits it for a paragraph
- *     break INSIDE a rule (509.1b's evasion-ability paragraph, 205.4c's). JS
- *     does not treat it as a line terminator and `.` does not match it, so a
- *     rule whose body contains one used to fail the `^id … $` match entirely
- *     and get swallowed as a continuation of the PREVIOUS rule — `cr 509.1b`
- *     answered "no such rule" about a rule that plainly exists, which is the
- *     exact failure this tool exists to prevent.
- *
- * The document also opens with a table of contents repeating every section
- * header verbatim ("605. Mana Abilities" appears twice), so the body starts at
- * the LAST occurrence of "1. Game Concepts" and the glossary at the last
- * "Glossary".
- */
-function splitDocument(raw: string): { body: string[]; glossary: string[] } {
-    const lines = raw
-        .replace(/\r/g, "")
-        .replace(/[\u2028\u2029]/g, "\n")
-        .split("\n");
-    const bodyStart = lines.lastIndexOf("1. Game Concepts");
-    const glossaryStart = lines.lastIndexOf("Glossary");
-    const creditsStart = lines.lastIndexOf("Credits");
-    if (bodyStart < 0 || glossaryStart < 0) {
-        throw new Error(
-            "CR text does not have the expected structure — re-run `bun run cr sync`"
-        );
-    }
-    return {
-        body: lines.slice(bodyStart, glossaryStart),
-        glossary: lines.slice(
-            glossaryStart + 1,
-            creditsStart > glossaryStart ? creditsStart : lines.length
-        ),
-    };
-}
-
-/**
- * A rule starts a line: "605. Mana Abilities", "605.1. Some activated…",
- * "605.1a An activated ability…". Everything after it (examples, continuation
- * lines) belongs to that rule until the next rule id.
- */
-const RULE_START = /^(\d{3}(?:\.\d+[a-z]{0,2})?)\.?\s+(.*)$/;
-
-function parseRules(body: string[]): Rule[] {
-    const rules: Rule[] = [];
-    for (const line of body) {
-        const m = line.match(RULE_START);
-        if (m) {
-            rules.push({ id: m[1], text: `${m[1]}${line.slice(m[1].length)}` });
-            continue;
-        }
-        if (!rules.length) continue;
-        if (!line.trim()) continue;
-        rules[rules.length - 1].text += `\n${line}`;
-    }
-    return rules;
-}
-
-function loadRules(): Rule[] {
-    return parseRules(splitDocument(readFileSync(CR_PATH, "utf8")).body);
-}
-
-/** `605` matches 605, 605.1, 605.1a; `605.1` matches 605.1 and 605.1a. */
-function selectRules(rules: Rule[], query: string): Rule[] {
-    const exact = rules.filter((r) => r.id === query);
-    const descendants = rules.filter(
-        (r) =>
-            r.id !== query &&
-            r.id.startsWith(query) &&
-            isDescendant(query, r.id)
-    );
-    return [...exact, ...descendants];
-}
-
-function isDescendant(parent: string, child: string): boolean {
-    const rest = child.slice(parent.length);
-    // "605" → ".1" / ".1a";  "605.1" → "a";  never "605" → "6" (a different rule)
-    return parent.includes(".")
-        ? /^[a-z]{1,2}$/.test(rest)
-        : /^\.\d+[a-z]{0,2}$/.test(rest);
 }
 
 function firstLine(text: string): string {

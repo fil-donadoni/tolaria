@@ -59,7 +59,20 @@ import {
     formatSubruleHit,
     scanSubruleMiscitations,
 } from "./cr-616-1-subrule-citations.ts";
-import { enterGuardCache } from "./lib/guard-cache.ts";
+import { enterGuardCache, type GuardInputs } from "./lib/guard-cache.ts";
+import { baseArtifact, gitRunner } from "./lib/base-artifact.ts";
+import { ORIGIN_BASE } from "./lib/branches.ts";
+import {
+    baselineKeys,
+    formatReport,
+    LEDGER_PATH,
+    ledgerReport,
+    parseLedger,
+    reportIsClean,
+    type Citation,
+    type LedgerReport,
+} from "./lib/cr-ledger.ts";
+import { loadRules } from "./lib/cr-rules.ts";
 
 // `import.meta.dir` is Bun-only; the regression guard imports this module under
 // vitest/node, where it is undefined.
@@ -96,6 +109,12 @@ export interface ScanResult {
     bad: Map<string, Hit[]>;
     /** Total citations seen (resolvable or not). */
     total: number;
+    /**
+     * Every citation seen, resolvable or not, with the raw line — the single
+     * tokenizer the citation ledger (`lib/cr-ledger.ts`, ADR 0133) is
+     * accountable for, so the two scans cannot disagree on what a citation is.
+     */
+    citations: Citation[];
 }
 
 /** Every tracked file a CR citation could live in. */
@@ -130,12 +149,14 @@ export function scanCitations(
     ids: Set<string>
 ): ScanResult {
     const bad = new Map<string, Hit[]>();
+    const citations: Citation[] = [];
     let total = 0;
     for (const { file, text } of sources) {
         if (!text.includes("CR ")) continue;
         text.split("\n").forEach((line, i) => {
             const record = (id: string) => {
                 total++;
+                citations.push({ file, line: i + 1, id, text: line });
                 if (ids.has(id)) return;
                 const hits = bad.get(id) ?? [];
                 hits.push({ file, line: i + 1 });
@@ -158,7 +179,7 @@ export function scanCitations(
             }
         });
     }
-    return { bad, total };
+    return { bad, total, citations };
 }
 
 /** Every tracked source, read once — shared by both scans. */
@@ -259,6 +280,74 @@ function subruleScan(showFiles: boolean): number {
     );
 }
 
+/**
+ * The base branch's `baseline` set, for the only-shrinks check — or `null`
+ * when the base ledger cannot be read. `broken` is thrown, never skipped: a
+ * guard that cannot read its baseline is a guard that is not there
+ * (`lib/base-artifact.ts`).
+ */
+export function baseBaselineKeys(root = ROOT): Set<string> | null {
+    const base = baseArtifact(gitRunner(root), LEDGER_PATH);
+    if (base.kind === "broken") {
+        throw new Error(
+            `the base-branch ledger could not be read — ${base.detail}\n` +
+                `    This is NOT a skip: a guard that cannot read its baseline is a guard that is not there.`
+        );
+    }
+    if (base.kind === "unavailable") return null;
+    try {
+        return baselineKeys(parseLedger(base.text));
+    } catch (err) {
+        throw new Error(
+            `the base-branch ledger at ${base.at} does not parse: ${(err as Error).message}`
+        );
+    }
+}
+
+/**
+ * The citation ledger check (`lib/cr-ledger.ts`, ADR 0133) over the tracked
+ * tree: every citation the existence scan saw, against the committed ledger,
+ * the vendored rules, and the base branch's baseline set. Shared by the CLI
+ * and the regression test so both red on the same report.
+ */
+export function ledgerReportForRepo(
+    citations: Citation[],
+    root = ROOT
+): LedgerReport {
+    return ledgerReport({
+        citations,
+        ledger: parseLedger(readFileSync(join(root, LEDGER_PATH), "utf8")),
+        rules: loadRules(join(root, "data/cr/comprehensive-rules.txt")),
+        baseBaselineKeys: baseBaselineKeys(root),
+    });
+}
+
+function ledgerScan(citations: Citation[], showFiles: boolean): number {
+    let report: LedgerReport;
+    try {
+        report = ledgerReportForRepo(citations);
+    } catch (err) {
+        // A ledger that cannot be read — ours or the base branch's — is the
+        // guard's own failure, reported as a red line rather than a stack.
+        console.log(`\n✗ CR citation ledger: ${(err as Error).message}`);
+        return 1;
+    }
+    const tier = report.baselineChecked
+        ? "baseline compared with the base branch"
+        : "no base-branch ledger to compare the baseline with";
+    console.log(
+        `\n${report.recorded} CR citations recorded in ${LEDGER_PATH} (${tier})`
+    );
+    if (reportIsClean(report)) {
+        console.log(
+            "every citation has a ledger entry that still matches its rule"
+        );
+        return 0;
+    }
+    console.log(formatReport(report, showFiles));
+    return 1;
+}
+
 /** The report shape every targeted "resolvable but wrong" scan shares. */
 function reportTargetedScan<H>(
     hits: H[],
@@ -284,7 +373,7 @@ function reportTargetedScan<H>(
 function main(): number {
     const showFiles = process.argv.includes("--files");
     const ruleCount = knownRuleIds().size;
-    const { bad, total, fileCount } = scanRepo();
+    const { bad, total, fileCount, citations } = scanRepo();
 
     console.log(
         `scanned ${fileCount} files, ${total} CR citations, ${ruleCount} rules in the vendored CR`
@@ -294,7 +383,10 @@ function main(): number {
         const keywordResult = keywordScan(showFiles);
         const lifePaymentResult = lifePaymentScan(showFiles);
         const subruleResult = subruleScan(showFiles);
-        return keywordResult || lifePaymentResult || subruleResult;
+        const ledgerResult = ledgerScan(citations, showFiles);
+        return (
+            keywordResult || lifePaymentResult || subruleResult || ledgerResult
+        );
     }
     console.log(`\n${bad.size} unresolvable rule ids:\n`);
     for (const [id, hits] of [...bad.entries()].sort(
@@ -312,32 +404,43 @@ function main(): number {
     keywordScan(showFiles);
     lifePaymentScan(showFiles);
     subruleScan(showFiles);
+    ledgerScan(citations, showFiles);
     return 1;
 }
 
 /**
  * What the scan reads (issue #3646): every tracked `SCANNED` file, the vendored
- * CR, and — covered by the same `.ts` glob — this script and the scans it
- * imports. Untracked files are declared too; they are not scanned, so they
- * only ever cost a cache miss.
+ * CR and the citation ledger beside it, and — covered by the same `.ts` glob —
+ * this script and the scans it imports. Untracked files are declared too; they
+ * are not scanned, so they only ever cost a cache miss. The ledger's
+ * only-shrinks tier also reads the merge-base commit, which no file in the
+ * tree records — hence the key.
  */
-export const CR_LINT_INPUTS = {
-    guard: "cr:lint",
-    globs: [
-        "**/*.ts",
-        "**/*.tsx",
-        "**/*.mts",
-        "**/*.mjs",
-        "**/*.js",
-        "**/*.md",
-        "data/cr/**",
-    ],
-} as const;
+export function crLintInputs(): GuardInputs {
+    const mergeBase = gitRunner(ROOT)(["merge-base", "HEAD", ORIGIN_BASE]);
+    return {
+        guard: "cr:lint",
+        globs: [
+            "**/*.ts",
+            "**/*.tsx",
+            "**/*.mts",
+            "**/*.mjs",
+            "**/*.js",
+            "**/*.md",
+            "data/cr/**",
+        ],
+        keys: [
+            mergeBase.ok
+                ? `merge-base:${mergeBase.out.trim()}`
+                : `no-merge-base:${mergeBase.error}`,
+        ],
+    };
+}
 
 // CLI only. The regression guard (`scripts/__tests__/cr-citations.test.ts`)
 // imports the exported scan functions; without this gate the import would tear
 // the test runner down with `process.exit`.
 if (import.meta.main) {
-    enterGuardCache(CR_LINT_INPUTS, ROOT);
+    enterGuardCache(crLintInputs(), ROOT);
     process.exit(main());
 }
