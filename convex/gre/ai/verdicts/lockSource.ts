@@ -147,6 +147,20 @@ export function parseVerdictLock(contents: string): VerdictLock {
     return { verdictIds: [...lock.verdictIds], packHash: lock.packHash };
 }
 
+/** The lock file's contents for `lock` — what `parseVerdictLock` reads back,
+ *  in the shape prettier leaves alone. `verdictIds` comes last and one id per
+ *  line, so a promotion that appends shows in `git diff` as exactly the ids it
+ *  appended: the delta ADR 0128 §7 has a reviewer read. Throws on a lock no
+ *  fit may run over, so no command can commit one. */
+export function serializeVerdictLock(lock: VerdictLock): string {
+    checkVerdictLock(lock);
+    return `${JSON.stringify(
+        { packHash: lock.packHash, verdictIds: lock.verdictIds },
+        null,
+        4
+    )}\n`;
+}
+
 /** A deep copy that throws on mutation — what an upcaster is handed. */
 function frozenCopy(value: unknown): unknown {
     if (Array.isArray(value)) return Object.freeze(value.map(frozenCopy));

@@ -160,6 +160,39 @@ A fit reads the corpus the committed Verdict Lock names from ONE
   file. Deleting the directory only costs the next run one download.
 - `bun run worktree:init` never warms it.
 
+## Promote the corpus
+
+The [bucket](#g-bucket) holds everything ever submitted; the committed
+`data/verdicts.lock.json` names what a fit runs over. Two commands move one
+into the other (issue #3583, ADR 0128 §7).
+
+`bun run verdicts:validate` is read-only and needs only the reader
+[key](#g-key). It lists every verdict object that is not promotable and
+exactly why: not what its name promises, unloadable, a position that no
+longer rebuilds, no [attestation](#g-attestation), attested only implicitly,
+or contested.
+
+`bun run verdicts:promote` is a [promotion](#g-promotion). It needs the reader
+[key](#g-key) and a deploy key (`CONVEX_DEPLOY_KEY`) for the deployment
+holding the writer's [key](#g-key):
+
+1. Every promotable verdict enters the lock: the verdicts already locked keep
+   their order, new ones are appended.
+2. `verdictsPack:writePack` builds and stores the [pack](#g-pack) on the
+   deployment. This machine checks the hash it reports and reads the
+   [pack](#g-pack) back before believing it.
+3. The lock and `DEFAULT_EVAL_WEIGHTS` are written together. The guard
+   (`weightFit.bot.test.ts`) is red on a checkout holding one without the
+   other, so commit both in one PR.
+4. The blade `must` tier runs on the new weights.
+
+It prints the report the PR carries: new Eval Pairs, the pairs the fit could
+not satisfy, how far each weight moved, and the blade `must` result.
+Re-running with nothing new is a no-op and rewrites nothing.
+
+`verdictsPack:writePack` ships with a release: a [promotion](#g-promotion)
+never pushes code to the deployment.
+
 ## Rotate or revoke
 
 `gcloud iam service-accounts keys list --iam-account=<account>` lists the
@@ -203,6 +236,13 @@ One object holding every verdict a Verdict Lock names, one JSON line each,
 gzipped and named by the sha256 of its uncompressed text. The read form of
 the corpus: one fetch instead of one per verdict. Never trusted for being in
 the [bucket](#g-bucket) — it is verified against the lock on every read.
+
+### <a id="g-promotion"></a>Promotion
+
+One run of `bun run verdicts:promote`: the verdicts in the
+[bucket](#g-bucket) that load, rebuild, are attested and are not contested
+enter the Verdict Lock, their [pack](#g-pack) is stored, and the committed
+weights are refitted — one change, reviewed as its delta.
 
 ### <a id="g-reader"></a>Reader account
 

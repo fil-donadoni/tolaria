@@ -17,3 +17,5 @@ export * from "./coverage";
 export * from "./fit";
 export * from "./identity";
 export * from "./quarantine";
+export * from "./promotion";
+export * from "./weightsLiteral";

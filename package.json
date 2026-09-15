@@ -93,6 +93,8 @@
         "wt:new": "bun scripts/wt-new.ts",
         "verdicts:pull": "bun scripts/verdicts-pull.ts",
         "verdicts:sync": "bun scripts/verdicts-sync.ts",
+        "verdicts:validate": "bun scripts/verdicts-validate.ts",
+        "verdicts:promote": "bun scripts/verdicts-promote.ts",
         "scenario:ls": "bun scripts/scenario-admin.ts ls",
         "scenario:rm": "bun scripts/scenario-admin.ts rm"
     },
