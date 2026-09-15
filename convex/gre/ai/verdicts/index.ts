@@ -14,3 +14,4 @@ export * from "./report";
 export * from "./coverage";
 export * from "./fit";
 export * from "./identity";
+export * from "./quarantine";
