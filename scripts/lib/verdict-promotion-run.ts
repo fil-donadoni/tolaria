@@ -52,6 +52,7 @@ import {
 } from "../../convex/gre/ai/verdicts/promotion";
 import {
     ATTESTATION_OBJECT_PREFIX,
+    RESOLUTION_OBJECT_PREFIX,
     VERDICT_OBJECT_PREFIX,
     type VerdictStoreReader,
 } from "../../convex/verdictStore";
@@ -87,7 +88,7 @@ async function readPrefix(
 }
 
 /** The engine step's input: the checkout's lock and weights, and every verdict
- *  object and attestation the store lists. */
+ *  object, attestation and resolution the store lists. */
 export async function snapshotVerdictStore(
     reader: VerdictStoreReader,
     root: string,
@@ -100,6 +101,9 @@ export async function snapshotVerdictStore(
         evalWeightsSource: readFileSync(join(root, EVAL_WEIGHTS_PATH), "utf8"),
         verdictObjects: await readPrefix(reader, VERDICT_OBJECT_PREFIX),
         attestationObjects: await readPrefix(reader, ATTESTATION_OBJECT_PREFIX),
+        // An admin's resolutions (issue #3582): without them a resolved
+        // position would stay out of the lock forever.
+        resolutionObjects: await readPrefix(reader, RESOLUTION_OBJECT_PREFIX),
     };
 }
 
