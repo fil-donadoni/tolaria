@@ -469,6 +469,33 @@ describe("board battlefield activated-ability parity with the classic board (#27
         expect(activateAbility).not.toHaveBeenCalled();
     });
 
+    it("issue #3616: while another seat holds Priority and the viewer owes no input, the viewer's own permanents are inert — no dispatch, no menu, no sheet, no pointer", () => {
+        const me = makePlayer("me", [
+            permanent("tim1", "stack-def"),
+            permanent("mono1", "dual-def"),
+        ]);
+        const opp = makePlayer("opp", []);
+        const { container } = renderSpatial(me, [me, opp], {
+            activePlayerId: "opp",
+            priorityPlayerId: "opp",
+        });
+        for (const id of ["tim1", "mono1"]) {
+            const trigger = container.querySelector<HTMLElement>(
+                `[data-arrow-anchor-permanent="${id}"]`
+            )!;
+            expect(trigger.className).not.toContain("cursor-pointer");
+            fireEvent.click(trigger);
+            fireEvent.touchStart(trigger);
+            fireEvent.click(trigger);
+        }
+        expect(within(document.body).queryAllByRole("menuitem")).toHaveLength(
+            0
+        );
+        expect(document.querySelector("[data-action-sheet]")).toBeNull();
+        expect(tapUntap).not.toHaveBeenCalled();
+        expect(activateAbility).not.toHaveBeenCalled();
+    });
+
     it("(f) a touch tap on a single-ability permanent fires it immediately on both boards", () => {
         const me = makePlayer("me", [permanent("tim1", "stack-def")]);
 
