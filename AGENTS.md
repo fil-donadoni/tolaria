@@ -178,8 +178,8 @@ spawns leaking to the inherited tier over 30 days):
 
 **Mandatory for any diff that can change what a user sees**, at five viewports
 with a measured receipt (happy-dom has no layout): **`bun run check:ui`**, its
-output pasted byte-exact, `bun run land` enforcing it. Engine/Convex/script
-work owes nothing here. Rule: `.claude/rules/chrome-debug.md` (resident);
+output pasted byte-exact, `bun run land` enforcing it — `SCOPED` to the diff's
+surfaces (ADR 0131). Engine/Convex/script work owes nothing here. Rule: `.claude/rules/chrome-debug.md` (resident);
 procedure and click sequences: `docs/guides/browser-verification.md`,
 `docs/guides/ui-runbooks.md`.
 
@@ -459,8 +459,9 @@ say so in one line and move on.
 signs in, walks the runbook surfaces at all five viewports (ADR 0101), probes
 and runs axe. **Its output IS the receipt — paste it byte-exact, banner +
 coverage line included** (#2760); `bun run land` re-derives them and refuses a
-`skin`-lane PR that does not match. Only a `RECEIPT` run, never `DIAGNOSTIC`;
-never reflow a row.
+`skin`-lane PR that does not match. A no-flag run walks the diff's surfaces and
+prints `SCOPED` (ADR 0131), re-derived by `land`; `RECEIPT` covers any diff;
+never `DIAGNOSTIC`; never reflow a row.
 
 **A surface it could not reach prints `UNWALKED` and reds the run** — that is a
 coverage failure, not a pass.
