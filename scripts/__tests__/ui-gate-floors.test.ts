@@ -231,10 +231,13 @@ describe("evaluateRun — coverage is asserted, never assumed", () => {
                 surface: "lobby",
                 viewport: null,
                 verdict: "UNWALKED",
-                detail: "unreachable: no tile",
+                detail: "unreachable",
             },
         ]);
         expect(ev.failures).toEqual(["lobby: could not be reached — no tile"]);
+        expect(diagnosticLines(ev)).toContain(
+            "unwalked lobby                —            no tile"
+        );
     });
 
     it("fails a surface the run never attempted", () => {

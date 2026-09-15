@@ -13,7 +13,7 @@
  * entry closure contains forces `full`. "Unknown" means "run everything".
  *
  * A path is placed, in this order:
- *   - the `check:ui` lane itself (`scripts/ui-gate/**`: walks, probe, budgets)
+ *   - the `check:ui` lane itself (`scripts/ui-gate/**`: walks, probe, floors)
  *     → `full`: it changes what every surface's measurement means;
  *   - in the BUILD configuration's closure (`vite.config.ts` and what it
  *     imports, e.g. `scripts/lib/build-define.ts`) → `full`: it shapes the

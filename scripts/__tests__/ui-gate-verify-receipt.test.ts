@@ -240,7 +240,7 @@ describe("verify-receipt — any line that is not PASS refuses", () => {
         const result = verify(text);
         expect(result.ok).toBe(false);
         expect(result.problems[0]).toMatch(
-            /^the receipt carries 1 UNWALKED line\(s\) \(lobby-vs-ai @ —: unreachable: no tile\)/
+            /^the receipt carries 1 UNWALKED line\(s\) \(lobby-vs-ai @ —: unreachable\)/
         );
     });
 

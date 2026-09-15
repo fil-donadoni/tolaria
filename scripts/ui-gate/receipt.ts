@@ -176,6 +176,8 @@ export interface Evaluation {
     shapes: ShapeRow[];
     /** Diagnostic block: every INFRA cell with its load and reason. */
     infra: InfraRow[];
+    /** Diagnostic block: why each unreachable surface could not be reached. */
+    unreachable: { surface: string; reason: string }[];
 }
 
 export interface EvaluateInput {
@@ -207,6 +209,7 @@ export function evaluateRun(input: EvaluateInput): Evaluation {
     const failures: string[] = [];
     const shapes: ShapeRow[] = [];
     const infra: InfraRow[] = [];
+    const unreachable: { surface: string; reason: string }[] = [];
     const declaredUnwalked: UnwalkedSurface[] = [];
     const bySurface = new Map(walks.map((w) => [w.surface, w]));
     const unwalkedById = new Map(unwalked.map((u) => [u.surface, u]));
@@ -236,8 +239,11 @@ export function evaluateRun(input: EvaluateInput): Evaluation {
                 surface,
                 viewport: null,
                 verdict: "UNWALKED",
-                detail: `unreachable: ${walk.reason}`,
+                // The reason quotes the load and the raw error, which differ
+                // between two runs of one tree: it goes to the diagnostic block.
+                detail: "unreachable",
             });
+            unreachable.push({ surface, reason: walk.reason });
             failures.push(`${surface}: could not be reached — ${walk.reason}`);
             continue;
         }
@@ -330,6 +336,7 @@ export function evaluateRun(input: EvaluateInput): Evaluation {
         diffScope,
         shapes,
         infra,
+        unreachable,
     };
 }
 
@@ -402,6 +409,11 @@ export function diagnosticLines(ev: Evaluation): string[] {
             `shape    ${s.surface.padEnd(20)} ${s.viewport.padEnd(12)} ` +
             SHAPE_READINGS.map((k) => `${k} ${s.readings[k]}`).join(" ")
     );
+    for (const u of ev.unreachable) {
+        lines.push(
+            `unwalked ${u.surface.padEnd(20)} ${"—".padEnd(12)} ${u.reason}`
+        );
+    }
     for (const i of ev.infra) {
         lines.push(
             `infra    ${i.surface.padEnd(20)} ${i.viewport.padEnd(12)} ${i.detail}`

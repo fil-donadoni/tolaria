@@ -327,12 +327,12 @@ banner/coverage line all fail. It never reads the diagnostic block, so a
 receipt whose readings or wall time differ from a re-run lands the same:
 
 ```
-RECEIPT — full lane run, 20 surface(s) in scope (17 measured, 3 declared unwalked)
+RECEIPT — full lane run, 23 surface(s) in scope (20 measured, 3 declared unwalked)
 PASS     auth-sign-in         1440x900x2   every floor at zero
 PASS     auth-sign-in         390x844x3    every floor at zero
 …
 PASS     admin-verdicts       1180x820x2   every floor at zero
-coverage: 17/20 surfaces measured, 3 declared unwalked: game-board (issue #3695), game-card-preview (issue #3506), game-stress (issue #3506)
+coverage: 20/23 surfaces measured, 3 declared unwalked: game-board (issue #3695), game-card-preview (issue #3506), game-stress (issue #3506)
 ─── diagnostic — shape readings, load, infra, wall time; never read by land ───
 shape    auth-sign-in         1440x900x2   cardsOcc 0 ctrlsOcc 0 small 2 starved 0
 …
