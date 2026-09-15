@@ -49,8 +49,12 @@ export default function ManaPileView({
         // cannot reach the piles past the fold (axe
         // `scrollable-region-focusable`, WCAG 2.1.1) — the piles hold no
         // focusable child to inherit one from. Measured on `deck-detail` at
-        // 390x844x3 (issue #3645). `role="region"` + a name, the shape
-        // `board-hand-portrait.tsx` and `board-piles.tsx` use for this rule.
+        // 390x844x3 (issue #3645). `role="region"` + a name, as
+        // `board-hand-portrait.tsx` and `board-piles.tsx` do — but NOT gated
+        // on overflow the way they are: they gate on a deterministic card
+        // count or layout mode, while whether these piles overflow depends
+        // on viewport width and deck size, and a named region tab stop on a
+        // list that happens to fit costs one harmless Tab.
         <div
             tabIndex={0}
             role="region"
