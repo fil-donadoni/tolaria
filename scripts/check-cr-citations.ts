@@ -55,6 +55,10 @@ import {
     formatLifePaymentHit,
     scanLifePaymentMiscitations,
 } from "./cr-118-4-life-payment.ts";
+import {
+    formatSubruleHit,
+    scanSubruleMiscitations,
+} from "./cr-616-1-subrule-citations.ts";
 import { enterGuardCache } from "./lib/guard-cache.ts";
 
 // `import.meta.dir` is Bun-only; the regression guard imports this module under
@@ -221,26 +225,59 @@ function keywordScan(showFiles: boolean): number {
  * claim about paying life, which is CR 119.4's rule instead.
  */
 function lifePaymentScan(showFiles: boolean): number {
-    const hits = scanLifePaymentMiscitations(readSources());
+    return reportTargetedScan(
+        scanLifePaymentMiscitations(readSources()),
+        formatLifePaymentHit,
+        showFiles,
+        {
+            clean: "no CR 118.4 citation is attached to a claim about paying life",
+            dirty: "citation(s) of CR 118.4 describe paying life (that's CR 119.4)",
+            advice:
+                `Print \`bun run cr 119.4\` before editing. If the cost also names an` +
+                `\n{X} placeholder (CR 107.3), cite both: "CR 118.4 / 119.4".`,
+        }
+    );
+}
+
+/**
+ * The CR 616.1c/616.1d scan (`cr-616-1-subrule-citations.ts`, issue #3014) —
+ * the priority-tier letters of the replacement-ordering procedure cited for
+ * the once-per-event rule (CR 614.5) or the choose-the-order rule (CR 616.1e).
+ */
+function subruleScan(showFiles: boolean): number {
+    return reportTargetedScan(
+        scanSubruleMiscitations(readSources()),
+        formatSubruleHit,
+        showFiles,
+        {
+            clean: "no CR 616.1c/616.1d citation is attached to a claim that subrule does not make",
+            dirty: "citation(s) of CR 616.1c/616.1d state a claim the subrule does not make",
+            advice:
+                `Print \`bun run cr 614.5\` and \`bun run cr 616.1\` before editing. A line that is` +
+                `\nreally about a copy (616.1c) or a back-face-up entry (616.1d) should say so.`,
+        }
+    );
+}
+
+/** The report shape every targeted "resolvable but wrong" scan shares. */
+function reportTargetedScan<H>(
+    hits: H[],
+    format: (hit: H) => string,
+    showFiles: boolean,
+    text: { clean: string; dirty: string; advice: string }
+): number {
     if (!hits.length) {
-        console.log(
-            "\nno CR 118.4 citation is attached to a claim about paying life"
-        );
+        console.log(`\n${text.clean}`);
         return 0;
     }
-    console.log(
-        `\n${hits.length} citation(s) of CR 118.4 describe paying life (that's CR 119.4):\n`
-    );
+    console.log(`\n${hits.length} ${text.dirty}:\n`);
     for (const hit of showFiles ? hits : hits.slice(0, 25)) {
-        console.log(formatLifePaymentHit(hit));
+        console.log(format(hit));
     }
     if (!showFiles && hits.length > 25) {
         console.log(`  … ${hits.length - 25} more (re-run with --files)`);
     }
-    console.log(
-        `\nPrint \`bun run cr 119.4\` before editing. If the cost also names an` +
-            `\n{X} placeholder (CR 107.3), cite both: "CR 118.4 / 119.4".`
-    );
+    console.log(`\n${text.advice}`);
     return 1;
 }
 
@@ -256,7 +293,8 @@ function main(): number {
         console.log("all citations resolve");
         const keywordResult = keywordScan(showFiles);
         const lifePaymentResult = lifePaymentScan(showFiles);
-        return keywordResult || lifePaymentResult;
+        const subruleResult = subruleScan(showFiles);
+        return keywordResult || lifePaymentResult || subruleResult;
     }
     console.log(`\n${bad.size} unresolvable rule ids:\n`);
     for (const [id, hits] of [...bad.entries()].sort(
@@ -273,12 +311,13 @@ function main(): number {
     );
     keywordScan(showFiles);
     lifePaymentScan(showFiles);
+    subruleScan(showFiles);
     return 1;
 }
 
 /**
  * What the scan reads (issue #3646): every tracked `SCANNED` file, the vendored
- * CR, and — covered by the same `.ts` glob — this script and the two scans it
+ * CR, and — covered by the same `.ts` glob — this script and the scans it
  * imports. Untracked files are declared too; they are not scanned, so they
  * only ever cost a cache miss.
  */

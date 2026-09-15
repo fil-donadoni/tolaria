@@ -45,8 +45,17 @@
  *
  * Usage: run through `bun run cr:lint` (this module has no CLI of its own).
  * Suppress a deliberate counter-example with a trailing `cr-cite-ok` comment
- * (same escape hatch as `cr-keyword-citations.ts`).
+ * (same escape hatch as `cr-keyword-citations.ts`). The file walk, line scan
+ * and suppression are the skeleton shared with `cr-616-1-subrule-citations.ts`
+ * (`lib/cr-misattribution.ts`); what stays here is the predicate.
  */
+import {
+    scanMisattributions,
+    type MisattributionHit,
+    type MisattributionRule,
+} from "./lib/cr-misattribution.ts";
+
+export { SUPPRESS } from "./lib/cr-misattribution.ts";
 
 /**
  * Files that quote a wrong CR 118.4 citation ON PURPOSE — this guard's own
@@ -59,9 +68,6 @@ export const EXEMPT = [
     "scripts/check-cr-citations.ts",
     "scripts/__tests__/cr-118-4-life-payment.test.ts",
 ];
-
-/** Inline escape hatch for a deliberate counter-example on one line. */
-export const SUPPRESS = "cr-cite-ok";
 
 /**
  * A literal `CR 118.4` citation — the exact shape this guard's issue (#2559)
@@ -86,7 +92,16 @@ const LIFE_CLAIM = /\blife\b/i;
  *  shapes alike, without matching an ordinary word merely containing an x. */
 const X_COST = /\bX\b/;
 
-export type LifePaymentHit = { file: string; line: number; text: string };
+const RULES: readonly MisattributionRule[] = [
+    {
+        needle: "118.4",
+        cites: PREFIXED_118_4,
+        claim: LIFE_CLAIM,
+        legitimate: X_COST,
+    },
+];
+
+export type LifePaymentHit = MisattributionHit<MisattributionRule>;
 
 /**
  * Flags every line citing `CR 118.4` that also describes paying life, unless
@@ -96,19 +111,7 @@ export type LifePaymentHit = { file: string; line: number; text: string };
 export function scanLifePaymentMiscitations(
     sources: Iterable<{ file: string; text: string }>
 ): LifePaymentHit[] {
-    const hits: LifePaymentHit[] = [];
-    for (const { file, text } of sources) {
-        if (EXEMPT.some((p) => file.startsWith(p))) continue;
-        if (!text.includes("118.4")) continue;
-        text.split("\n").forEach((line, i) => {
-            if (line.includes(SUPPRESS)) return;
-            if (!PREFIXED_118_4.test(line)) return;
-            if (!LIFE_CLAIM.test(line)) return;
-            if (X_COST.test(line)) return;
-            hits.push({ file, line: i + 1, text: line.trim() });
-        });
-    }
-    return hits;
+    return scanMisattributions(sources, RULES, EXEMPT);
 }
 
 /** One reportable line, formatted for the CLI and the test failure message. */
