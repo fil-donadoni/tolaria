@@ -287,9 +287,10 @@ never fail. On drift, run `bun run format` and re-run.
 ## The guard cache — a pure guard does not re-prove an unchanged input set (issue #3646)
 
 Four drift guards are pure functions of files in the tree: `check:index`,
-`check:stubs`, `check:oracle` and `cr:lint`. Each runs inside every
-`check:pr` / `check:lane`, and each was re-proving a tree it had already proved
-an hour earlier. So each one now **declares its inputs** as globs
+`check:stubs`, `check:oracle` and `cr:lint`. All four run inside every `check:pr`
+(`check:oracle` is not in any lane plan; `cr:lint` is in both, `check:index` /
+`check:stubs` in `engine`), and each was re-proving a tree it had already
+proved an hour earlier. So each one now **declares its inputs** as globs
 (`GuardInputs`, `scripts/lib/guard-cache.ts`) and, before doing any work,
 hashes them and prints one line:
 
