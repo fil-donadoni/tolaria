@@ -654,6 +654,10 @@ _Avoid_: Label, rating, feedback, thumbs up
 Where every **Verdict** lands and is read back from — one shared place for judgements given anywhere: in play against production, in a quiz, or written by hand. Each is named by its own CONTENT, so the same judgement recorded twice is one entry, and an altered one is a different entry that no **Verdict Lock** names. It holds everything ever submitted, validated or not: being in the store is not being trusted.
 _Avoid_: Bucket, upload folder, database, dataset
 
+**Attestation**:
+One person's word for one **Verdict** in the **Verdict Store**: who gave it, when, their note, and where it was given. Kept apart from the **Verdict** itself, so the same judgement given by two people — or by one person on two deployments — is one **Verdict** with two attestations: agreement is counted, never fitted twice. A **Verdict** nobody attests never enters the **Verdict Lock**. The person is named by deployment and account, never by email or nickname.
+_Avoid_: Signature, vote, author record, provenance row
+
 **Verdict Lock**:
 The committed list naming exactly which **Verdicts** a **Weight Fit** was run over — the only part of the training data that lives beside the code. It is what makes a set of weights re-derivable by anyone: fit the verdicts it names and the committed numbers come back, to the bit. A judgement the lock does not name is invisible to the fit however long it has sat in the **Verdict Store**, so widening the lock and moving the weights are one reviewed change, never two.
 _Avoid_: Manifest, index, allowlist, approved list
