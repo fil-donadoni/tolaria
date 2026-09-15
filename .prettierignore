@@ -72,6 +72,14 @@ data/oracle-retirements.json
 # reproduce what is on disk and the file name would stop matching its content.
 data/catalogue/
 
+# The CR citation ledger (issue #3674, ADR 0133). Written by `bun run cr:ledger`
+# with a deterministic serializer that puts ONE CITATION PER LINE (~30k of
+# them), so a confirmation is a single changed line in review and two branches
+# confirming different citations merge without a conflict. Prettier would
+# explode each entry across five lines and the command's own output would then
+# never reproduce the committed bytes — same rationale as the ledgers above.
+data/cr/citations-ledger.json
+
 # The Verdict corpus (issue #3402, ADR 0124 §1) — one file per judged position,
 # written by `bun run verdicts:pull` with a deterministic serializer
 # (`scripts/lib/verdicts-file.ts`: fixed key order, 4-space indent, trailing

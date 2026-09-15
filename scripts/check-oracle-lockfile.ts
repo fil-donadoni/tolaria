@@ -68,7 +68,6 @@
  * keeps the gate surface from growing per artifact.
  */
 
-import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { buildLockfile, poolOracleIds } from "./oracle-compile";
@@ -91,6 +90,11 @@ import {
     type Lockfile,
 } from "./lib/oracle-lockfile";
 import { ORIGIN_BASE } from "./lib/branches";
+import {
+    baseArtifact,
+    gitRunner,
+    type GitRunner,
+} from "./lib/base-artifact";
 import { enterGuardCache, type GuardInputs } from "./lib/guard-cache";
 import {
     emptyRegressionLedger,
@@ -473,39 +477,14 @@ function readRegressionLedger(): RegressionLedger {
     }
 }
 
-/** One git invocation's outcome, so a failure is a value rather than a throw. */
-export type GitResult =
-    | { readonly ok: true; readonly out: string }
-    | {
-          readonly ok: false;
-          readonly error: string;
-          /**
-           * The git BINARY could not be spawned at all (ENOENT), as opposed to
-           * git running and answering "no".
-           *
-           * The difference decides skip vs red on the very first probe: a
-           * tarball export with no `.git` is a legitimate skip, while git
-           * missing from `PATH` is broken tooling on a tree that IS a
-           * repository — and collapsing the two is how the guard came to
-           * print green with no git at all (review of issue #2696, finding 1).
-           */
-          readonly missing?: boolean;
-      };
-
-/** Runs `git <args>` in the repo root. Injected so the decision below is testable. */
-export type GitRunner = (args: readonly string[]) => GitResult;
+export type { GitResult, GitRunner } from "./lib/base-artifact";
 
 /**
- * What the base branch can tell us, as three OUTCOMES rather than a nullable.
- *
- * The distinction is the whole point. "There is no other commit to compare
- * against" is a legitimate skip — a tarball export, a clone that never fetched.
- * "The comparison broke" is a RED: git missing from `PATH`, a `git show` that
- * failed for a reason we did not anticipate, a baseline lockfile that does not
- * parse (exactly the schema-rewrite moment when a real regression is most
- * likely). Collapsing the two into `null` made every one of those print the
- * green skip line and exit 0 — the guard silently not guarding, which is the
- * failure mode this guard exists to prevent (review of issue #2696, finding 1).
+ * What the base branch can tell us, as three OUTCOMES rather than a nullable
+ * — the three answers `baseArtifact` (`lib/base-artifact.ts`) gives, with the
+ * parse added: a lockfile at the merge-base that does not parse is `broken`
+ * (exactly the schema-rewrite moment when a real regression is most likely),
+ * never a skip (review of issue #2696, finding 1).
  */
 export type BaselineOutcome =
     | { readonly kind: "lockfile"; readonly lock: Lockfile }
@@ -516,95 +495,23 @@ const BASELINE_LOCKFILE_REL = "data/oracle-compiled.json";
 
 /**
  * The lockfile as the BASE BRANCH has it — the only honest baseline for "did
- * this change shrink the pool".
- *
- * Read through git rather than kept as a committed second copy of the same
- * rows: a checked-in baseline would have to be regenerated alongside the
- * lockfile, and a baseline you refresh in the same commit as the thing it
- * guards guards nothing.
- *
- * PURE given its runner, so every branch has a fixture. The wrapper that
- * actually shells out is `runGit` below; this function only decides.
+ * this change shrink the pool". PURE given its runner, so every branch has a
+ * fixture (`oracle-baseline-outcome.test.ts`).
  */
 export function baselineOutcome(git: GitRunner): BaselineOutcome {
-    const repo = git(["rev-parse", "--is-inside-work-tree"]);
-    if (!repo.ok && repo.missing === true)
-        return {
-            kind: "broken",
-            detail: `git is not on PATH (${repo.error}) — this tree is a git repository, so the baseline is readable and something is wrong with the environment, not with the repo`,
-        };
-    if (!repo.ok)
-        return {
-            kind: "unavailable",
-            why: `not a git work tree here (${repo.error})`,
-        };
-    const ref = git([
-        "rev-parse",
-        "--verify",
-        "--quiet",
-        `${ORIGIN_BASE}^{commit}`,
-    ]);
-    if (!ref.ok)
-        return {
-            kind: "unavailable",
-            why: `${ORIGIN_BASE} is not a ref in this clone — fetch the base branch to enable it`,
-        };
-    const mergeBase = git(["merge-base", "HEAD", ORIGIN_BASE]);
-    if (!mergeBase.ok)
-        return {
-            kind: "broken",
-            detail: `git merge-base HEAD ${ORIGIN_BASE} failed: ${mergeBase.error}`,
-        };
-    const at = `${mergeBase.out.trim()}:${BASELINE_LOCKFILE_REL}`;
-    // `cat-file -e` separates "the merge-base predates the lockfile" (a
-    // legitimate skip) from "git show blew up" (a red). Without it both arrive
-    // as the same non-zero exit from `show`.
-    if (!git(["cat-file", "-e", at]).ok)
-        return {
-            kind: "unavailable",
-            why: `${BASELINE_LOCKFILE_REL} does not exist at the merge-base with ${ORIGIN_BASE}`,
-        };
-    const show = git(["show", at]);
-    if (!show.ok)
-        return {
-            kind: "broken",
-            detail: `git show ${at} failed: ${show.error}`,
-        };
+    const base = baseArtifact(git, BASELINE_LOCKFILE_REL);
+    if (base.kind !== "text") return base;
     try {
-        return { kind: "lockfile", lock: parseLockfile(show.out) };
+        return { kind: "lockfile", lock: parseLockfile(base.text) };
     } catch (err) {
         return {
             kind: "broken",
-            detail: `the lockfile at ${at} does not parse: ${(err as Error).message}`,
+            detail: `the lockfile at ${base.at} does not parse: ${(err as Error).message}`,
         };
     }
 }
 
-/**
- * The real runner. `maxBuffer` is generous on purpose: the lockfile is ~10 MB
- * of text today and grows with the corpus, and a buffer overrun would surface
- * as `broken` — a red on a healthy tree — rather than as a wrong answer.
- */
-const runGit: GitRunner = (args) => {
-    try {
-        return {
-            ok: true,
-            out: execFileSync("git", [...args], {
-                cwd: ROOT,
-                encoding: "utf8",
-                stdio: ["ignore", "pipe", "pipe"],
-                maxBuffer: 512 * 1024 * 1024,
-            }),
-        };
-    } catch (err) {
-        const e = err as { stderr?: string; message?: string; code?: string };
-        return {
-            ok: false,
-            error: (e.stderr || e.message || "unknown error").trim(),
-            ...(e.code === "ENOENT" ? { missing: true } : {}),
-        };
-    }
-};
+const runGit: GitRunner = gitRunner(ROOT);
 
 /**
  * Offline, and the one tier that asks a question about CHANGE rather than

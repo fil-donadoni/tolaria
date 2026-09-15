@@ -27,6 +27,7 @@
         "check:ui": "bun scripts/ui-gate/index.ts",
         "cr": "bun scripts/cr.ts",
         "cr:check": "bun scripts/cr.ts check",
+        "cr:ledger": "bun scripts/cr-ledger.ts",
         "cr:lint": "bun scripts/check-cr-citations.ts",
         "cr:sync": "bun scripts/cr.ts sync",
         "dev": "bun run catalogue:ensure && vite",
