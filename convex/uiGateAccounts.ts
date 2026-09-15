@@ -19,13 +19,15 @@
 //   5. every bootstrap first runs `sweepStaleLaneAccounts`, which collects the
 //      accounts of runs killed with no chance to clean up.
 //
-// SAFETY. All five are INTERNAL, reachable only with deploy access
-// (`bunx convex run`), never from a client. On top of that each one refuses an
-// address outside the lane pattern (`lib/uiGateLaneAccount.ts`), so no shared
-// or real account can be promoted or destroyed by a typo, and the grant, the
-// teardown and the sweep all refuse a deployment that is not local
-// (`CONVEX_CLOUD_URL`), so the lane's bootstrap can never mint an admin — or
-// delete anything — on a real deployment.
+// SAFETY. Every function here is INTERNAL, reachable only with deploy access
+// (`bunx convex run`), never from a client — but internal functions deploy to
+// EVERY deployment, so each one also guards itself: the address (or the user
+// id it resolves to) must match the lane pattern (`lib/uiGateLaneAccount.ts`),
+// and every function that writes, or that pages another table, refuses a
+// deployment that is not local (`CONVEX_CLOUD_URL`). No shared or real
+// account can be promoted, paged or destroyed through this module, by a typo
+// or by calling a helper directly, and the lane's bootstrap can never mint an
+// admin on a real deployment.
 //
 // SHAPE OF THE TEARDOWN. `games` and `matches` have no per-player index (a
 // seat handle is an array element, and solo seats are `${userId}-p1/p2`), so
@@ -66,6 +68,10 @@ const DELETE_BATCH_SIZE = 16;
 /** Lane accounts inspected per sweep. Only runs killed without teardown ever
  *  reach it, plus the handful live right now. */
 const SWEEP_SCAN_LIMIT = 200;
+/** Scan passes over the id-less tables before the indexed delete. The first
+ *  pass finds everything a quiet account owns; later ones exist only for rows
+ *  written while the teardown was running. */
+const MAX_SCAN_PASSES = 3;
 
 function assertLaneEmail(email: string, action: string): void {
     if (!isLaneAccountEmail(email)) {
@@ -92,6 +98,21 @@ async function laneUserByEmail(
         .query("users")
         .withIndex("email", (q) => q.eq("email", email))
         .unique();
+}
+
+/** The user-id twin of `assertLaneEmail`, for the page/delete helpers the
+ *  action hands a resolved id to. The user row still exists whenever they run
+ *  (it is deleted last), so a missing row is refused too. */
+async function assertLaneUserId(
+    ctx: QueryCtx,
+    userId: Id<"users">
+): Promise<void> {
+    const user = await ctx.db.get(userId);
+    if (!user || !isLaneAccountEmail(user.email)) {
+        throw new Error(
+            `refusing to touch rows owned by ${userId}: not a check:ui lane account`
+        );
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -177,6 +198,8 @@ export const ownedRowsPage = internalQuery({
         isDone: v.boolean(),
     }),
     handler: async (ctx, args) => {
+        assertLocalDeployment("page a lane account's rows");
+        await assertLaneUserId(ctx, args.userId);
         const result = await ctx.db
             .query(args.table)
             .paginate({ numItems: SCAN_PAGE_SIZE, cursor: args.cursor });
@@ -199,6 +222,8 @@ export const deleteOwnedRows = internalMutation({
     },
     returns: v.number(),
     handler: async (ctx, args) => {
+        assertLocalDeployment("delete a lane account's rows");
+        await assertLaneUserId(ctx, args.userId);
         let deleted = 0;
         for (const raw of args.ids) {
             const id = ctx.db.normalizeId(args.table, raw);
@@ -216,6 +241,12 @@ export const deleteOwnedRows = internalMutation({
             } else if (args.table === "games") {
                 await deleteGameCascade(ctx, id as Id<"games">);
             } else {
+                const attachmentId =
+                    args.table === "bugReports"
+                        ? (doc as Doc<"bugReports">).attachmentId
+                        : undefined;
+                // The blob is not a row: deleting the report alone strands it.
+                if (attachmentId) await ctx.storage.delete(attachmentId);
                 await ctx.db.delete(id);
             }
             deleted++;
@@ -304,6 +335,17 @@ async function deleteIndexedAccountRows(
         bump("authSessions");
     }
 
+    // Failed sign-in counters are keyed by the address, not by an id.
+    if (user.email) {
+        for (const limit of await ctx.db
+            .query("authRateLimits")
+            .withIndex("identifier", (q) => q.eq("identifier", user.email!))
+            .collect()) {
+            await ctx.db.delete(limit._id);
+            bump("authRateLimits");
+        }
+    }
+
     await ctx.db.delete(user._id);
     bump("users");
     return counts;
@@ -375,27 +417,38 @@ async function destroyLaneAccountVia(
     if (!userId) return { destroyed: false, counts: {} };
 
     const counts: Record<string, number> = {};
-    for (const table of SCAN_TABLES) {
-        const owned: string[] = [];
-        let cursor: string | null = null;
-        for (;;) {
-            const page: OwnedRowsPage = await ctx.runQuery(refs.ownedRowsPage, {
-                table,
-                userId,
-                cursor,
-            });
-            owned.push(...page.ids);
-            if (page.isDone) break;
-            cursor = page.continueCursor;
+    // Repeated until a pass deletes nothing: a page still open when the run
+    // was signalled can write a game or a deck autosave after its table was
+    // scanned, and that row must not outlive the user it points at. Bounded,
+    // because a client that keeps writing forever is not something a teardown
+    // can out-wait — the sweep is the backstop.
+    for (let pass = 0; pass < MAX_SCAN_PASSES; pass++) {
+        let deletedThisPass = 0;
+        for (const table of SCAN_TABLES) {
+            const owned: string[] = [];
+            let cursor: string | null = null;
+            for (;;) {
+                const page: OwnedRowsPage = await ctx.runQuery(
+                    refs.ownedRowsPage,
+                    { table, userId, cursor }
+                );
+                owned.push(...page.ids);
+                if (page.isDone) break;
+                cursor = page.continueCursor;
+            }
+            for (let i = 0; i < owned.length; i += DELETE_BATCH_SIZE) {
+                const deleted = await ctx.runMutation(refs.deleteOwnedRows, {
+                    table,
+                    userId,
+                    ids: owned.slice(i, i + DELETE_BATCH_SIZE),
+                });
+                if (deleted > 0) {
+                    counts[table] = (counts[table] ?? 0) + deleted;
+                    deletedThisPass += deleted;
+                }
+            }
         }
-        for (let i = 0; i < owned.length; i += DELETE_BATCH_SIZE) {
-            const deleted = await ctx.runMutation(refs.deleteOwnedRows, {
-                table,
-                userId,
-                ids: owned.slice(i, i + DELETE_BATCH_SIZE),
-            });
-            if (deleted > 0) counts[table] = (counts[table] ?? 0) + deleted;
-        }
+        if (deletedThisPass === 0) break;
     }
 
     const indexed = await ctx.runMutation(refs.deleteLaneAccountRows, {

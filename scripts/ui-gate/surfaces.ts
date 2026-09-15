@@ -248,6 +248,27 @@ function fixtureRow(label: string): string {
     return `[data-limited-event-label="${label}"]`;
 }
 
+/**
+ * Has at least one row matching `selector` rendered? WAITS for it rather than
+ * counting once: under load the Limited list query answers seconds after the
+ * navigation, and an immediate `count()` read a seeded fixture as absent —
+ * measured on issue #3626's concurrent receipt at load ~60, where a run
+ * reported its own freshly seeded fixture "not on this deployment".
+ */
+async function fixtureRowsRendered(
+    page: Page,
+    selector: string
+): Promise<boolean> {
+    return await page
+        .locator(selector)
+        .first()
+        .waitFor({ state: "attached", timeout: NAV_TIMEOUT })
+        .then(
+            () => true,
+            () => false
+        );
+}
+
 /** A pack tile in the Draft Room. Two traps in one selector:
  *  - the card NAME is only in the aria-label (`limited-draft-pack-card.tsx`),
  *    never in the text content, so `:has-text('Draft pick')` matches nothing;
@@ -634,8 +655,12 @@ async function reachFixtureList(page: Page, ctx: WalkContext): Promise<number> {
     if (!(await visible(page, "main, [role=main]", 10_000))) {
         throw new Unreachable("/limited rendered no main region");
     }
+    const rendered = await fixtureRowsRendered(
+        page,
+        "[data-limited-event-label]"
+    );
     const rows = await page.locator("[data-limited-event-label]").count();
-    if (rows === 0) {
+    if (!rendered) {
         throw new Unreachable(
             `no seeded Limited fixture on this deployment — ${FIXTURE_SEED_HINT}`
         );
@@ -664,7 +689,7 @@ async function openFixtureEvent(
 ): Promise<"event" | "draft" | null> {
     await goto(page, ctx, `/limited?label=${label}`);
     const row = page.locator(fixtureRow(label));
-    if ((await row.count()) === 0) {
+    if (!(await fixtureRowsRendered(page, fixtureRow(label)))) {
         throw new Unreachable(
             `the seeded Limited fixture "${label}" is not on this deployment — ${FIXTURE_SEED_HINT}`
         );
@@ -1681,7 +1706,7 @@ export const SURFACES: readonly Surface[] = [
                 );
             }
             if (
-                (await page.locator("[data-limited-event-label]").count()) === 0
+                !(await fixtureRowsRendered(page, "[data-limited-event-label]"))
             ) {
                 throw new Unreachable(
                     `/limited/events redirected, but no seeded fixture row is on the list — either the redirect dropped ?label= or the fixture is missing. ${FIXTURE_SEED_HINT}`

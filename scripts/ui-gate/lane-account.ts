@@ -252,6 +252,10 @@ export function installSignalTeardown(
         ["SIGINT", () => (teardown(), exit(130))],
         ["SIGTERM", () => (teardown(), exit(143))],
     ];
+    // `once`, deliberately: a SECOND Ctrl+C during the synchronous teardown
+    // falls through to the default action and kills the process at once. That
+    // is the escape hatch for a teardown stuck on a dead deployment, and the
+    // account it strands is collected by the next run's sweep.
     for (const [signal, handler] of handlers) source.once(signal, handler);
     return () => {
         for (const [signal, handler] of handlers) {

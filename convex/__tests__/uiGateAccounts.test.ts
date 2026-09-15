@@ -22,7 +22,17 @@ function handlerOf(fn: unknown): Handler {
     return (fn as { _handler: Handler })._handler;
 }
 
+/** Blob ids the handlers asked storage to delete, reset per test. */
+let storageDeleted: string[] = [];
+
 function actionCtxFor(db: ReturnType<typeof makeInMemoryDb>) {
+    Object.assign(db.ctx, {
+        storage: {
+            delete: async (id: string) => {
+                storageDeleted.push(id);
+            },
+        },
+    });
     const dispatch = async (ref: unknown, args: unknown) => {
         const [module, name] = getFunctionName(ref as never).split(":");
         if (module !== "uiGateAccounts") {
@@ -39,6 +49,17 @@ const LANE_RUN_ID = "a1b2c3d4e5f6";
 const LANE_EMAIL = laneAccountEmail(LANE_RUN_ID);
 const LANE = "userlane";
 const OTHER = "userother";
+
+/** More rows than one scan page (`SCAN_PAGE_SIZE`, 200), owned by the real
+ *  account and seeded BEFORE the lane's, so the teardown only finds the lane's
+ *  games and matches by following the cursor to a later page. */
+function fillerRows(prefix: string, count: number): InMemoryRow[] {
+    return Array.from({ length: count }, (_, i) => ({
+        _id: `${prefix}${i}`,
+        players: [{ id: OTHER, name: "P1", bgColor: "", deck: {} }],
+        status: "finished",
+    }));
+}
 
 /** A lane account owning one of everything the teardown must remove, beside a
  *  real account owning the same shapes — which must all survive. */
@@ -70,6 +91,7 @@ function seededDeployment(): Record<string, InMemoryRow[]> {
         // A FINISHED solo match and an IN-PROGRESS vs-AI match for the lane,
         // one match for the real account.
         matches: [
+            ...fillerRows("fillermatch", 250),
             { _id: "matchlanedone", players: solo(LANE), status: "finished" },
             {
                 _id: "matchlanelive",
@@ -82,6 +104,7 @@ function seededDeployment(): Record<string, InMemoryRow[]> {
             { _id: "matchother", players: solo(OTHER), status: "playing" },
         ],
         games: [
+            ...fillerRows("fillergame", 250),
             {
                 _id: "gamelanedone",
                 matchId: "matchlanedone",
@@ -145,6 +168,19 @@ function seededDeployment(): Record<string, InMemoryRow[]> {
             { _id: "verdictother", authorId: OTHER },
         ],
         userSettings: [{ _id: "settingslane", userId: LANE }],
+        bugReports: [
+            { _id: "reportlane", userId: LANE, attachmentId: "bloblane" },
+            { _id: "reportother", userId: OTHER, attachmentId: "blobother" },
+        ],
+        debugScenarios: [
+            { _id: "scenariolane", userId: LANE, label: "mine" },
+            { _id: "scenarioshared", label: "UI stress" },
+        ],
+        limitedCubePools: [{ _id: "cubepoollane", eventId: "eventlane" }],
+        authRateLimits: [
+            { _id: "ratelane", identifier: LANE_EMAIL },
+            { _id: "rateother", identifier: "test@example.com" },
+        ],
         authAccounts: [
             { _id: "acclane", userId: LANE, provider: "password" },
             { _id: "accother", userId: OTHER, provider: "password" },
@@ -165,6 +201,7 @@ function seededDeployment(): Record<string, InMemoryRow[]> {
  *  surviving row that mentions any of them is an orphan the teardown left. */
 const LANE_OWNED_IDS = [
     LANE,
+    LANE_EMAIL,
     "decklane",
     "matchlanedone",
     "matchlanelive",
@@ -194,6 +231,7 @@ function countRows(tables: Record<string, InMemoryRow[]>): number {
 }
 
 beforeEach(() => {
+    storageDeleted = [];
     vi.stubEnv("CONVEX_CLOUD_URL", LOCAL_URL);
 });
 afterEach(() => {
@@ -253,8 +291,19 @@ describe("destroyLaneAccount (issue #3626)", () => {
         expect(rowsReferencingLane(db.tables)).toEqual([]);
         // The real account's rows, one per table seeded for it, all survive.
         expect(db.tables.users.map((r) => r._id)).toEqual([OTHER]);
-        expect(db.tables.games.map((r) => r._id)).toEqual(["gameother"]);
-        expect(db.tables.matches.map((r) => r._id)).toEqual(["matchother"]);
+        const unfilled = (rows: InMemoryRow[]) =>
+            rows.map((r) => r._id).filter((id) => !id.startsWith("filler"));
+        expect(unfilled(db.tables.games)).toEqual(["gameother"]);
+        expect(db.tables.games).toHaveLength(251);
+        expect(unfilled(db.tables.matches)).toEqual(["matchother"]);
+        expect(db.tables.debugScenarios.map((r) => r._id)).toEqual([
+            "scenarioshared",
+        ]);
+        expect(db.tables.authRateLimits.map((r) => r._id)).toEqual([
+            "rateother",
+        ]);
+        // The lane report's blob goes with it; the real account's stays.
+        expect(storageDeleted).toEqual(["bloblane"]);
         expect(db.tables.verdicts.map((r) => r._id)).toEqual(["verdictother"]);
         expect(db.tables.authRefreshTokens.map((r) => r._id)).toEqual([
             "tokother",
@@ -299,6 +348,43 @@ describe("destroyLaneAccount (issue #3626)", () => {
         );
         expect(deleted).toBe(0);
         expect(countRows(db.tables)).toBe(countRows(initial));
+    });
+});
+
+describe("the teardown's page and delete helpers (issue #3626)", () => {
+    // Internal functions deploy everywhere, so each must refuse on its own —
+    // not only when reached through `destroyLaneAccount`.
+    it("refuse a user id that is not a lane account", async () => {
+        const initial = seededDeployment();
+        const db = makeInMemoryDb(initial);
+        actionCtxFor(db);
+        await expect(
+            handlerOf(uiGateAccounts.deleteOwnedRows)(db.ctx, {
+                table: "games",
+                userId: OTHER,
+                ids: ["gameother"],
+            })
+        ).rejects.toThrow(/not a check:ui lane account/);
+        await expect(
+            handlerOf(uiGateAccounts.ownedRowsPage)(db.ctx, {
+                table: "games",
+                userId: OTHER,
+                cursor: null,
+            })
+        ).rejects.toThrow(/not a check:ui lane account/);
+        expect(countRows(db.tables)).toBe(countRows(initial));
+    });
+
+    it("refuse a deployment that is not local", async () => {
+        vi.stubEnv("CONVEX_CLOUD_URL", "https://happy-otter-123.convex.cloud");
+        const db = makeInMemoryDb(seededDeployment());
+        await expect(
+            handlerOf(uiGateAccounts.deleteOwnedRows)(db.ctx, {
+                table: "games",
+                userId: LANE,
+                ids: ["gamelanelive"],
+            })
+        ).rejects.toThrow(/only on a local deployment/);
     });
 });
 
