@@ -242,7 +242,15 @@ export default function PendingChoicePrompt({
     // drag strip (order-only mode) to order their simultaneous triggers on the
     // stack. The non-chooser falls through to the generic "Waiting for X" banner.
     if (choice.kind === "trigger-order" && isChooser) {
-        return <TriggerOrderPrompt choice={choice} gameId={gameId} />;
+        // Keyed by the choice: two ordering decisions back to back must not
+        // share one instance's drag order and Auto-order toggle (issue #3617).
+        return (
+            <TriggerOrderPrompt
+                key={`${choice.stackItemId}:${choice.step}:${choice.choiceId}`}
+                choice={choice}
+                gameId={gameId}
+            />
+        );
     }
 
     // Brainstorm's putBack pick (`choose-hand-card` + `putOnTop`) — the chooser

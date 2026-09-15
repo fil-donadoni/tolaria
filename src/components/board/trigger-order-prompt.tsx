@@ -113,22 +113,43 @@ export default function TriggerOrderPrompt({
         [seat.autoOrder, candidateIds, batchById]
     );
     const [autoOrder, setAutoOrder] = useState(seat.autoOrder.enabled);
+    // Follow the store whenever the seat's memory changes under an open
+    // picker: a "Clear all yields" pressed while it is minimized must uncheck
+    // the box, or confirming would re-record the memory just forgotten.
+    // Reset DURING render, the same pattern `useYieldPrefsState` uses.
+    const [seenMemory, setSeenMemory] = useState(seat.autoOrder);
+    if (seenMemory !== seat.autoOrder) {
+        setSeenMemory(seat.autoOrder);
+        setAutoOrder(seat.autoOrder.enabled);
+    }
     // The choice this client already answered by hand. Confirming with the
-    // toggle on records the order BEFORE the choice leaves the state, so the
-    // still-mounted picker would otherwise match its own fresh memory and
+    // toggle on records the order while the choice is still in the state, so
+    // the still-mounted picker would otherwise match its own fresh memory and
     // submit a second time.
     const [confirmedKey, setConfirmedKey] = useState<string | null>(null);
+    // The choice this client decided to auto-order, LATCHED with the order it
+    // submits: once decided, a reset landing while the submit is in flight
+    // must not reopen a picker whose Done would submit the same choice again.
+    const [autoOrdered, setAutoOrdered] = useState<{
+        key: string;
+        order: string[];
+    } | null>(null);
+    if (
+        rememberedOrder !== null &&
+        confirmedKey !== choiceKey &&
+        autoOrdered?.key !== choiceKey
+    ) {
+        setAutoOrdered({ key: choiceKey, order: rememberedOrder });
+    }
     // A remembered order the server refused falls back to the picker rather
     // than leaving the seat stuck on an invisible choice.
     const [autoFailedKey, setAutoFailedKey] = useState<string | null>(null);
     const autoSubmittedKey = useRef<string | null>(null);
     const autoOrdering =
-        rememberedOrder !== null &&
-        confirmedKey !== choiceKey &&
-        autoFailedKey !== choiceKey;
+        autoOrdered?.key === choiceKey && autoFailedKey !== choiceKey;
 
     useEffect(() => {
-        if (!autoOrdering || !rememberedOrder) return;
+        if (!autoOrdering || !autoOrdered) return;
         if (autoSubmittedKey.current === choiceKey) return;
         autoSubmittedKey.current = choiceKey;
         // Rightmost = topmost, so reverse the left→right order — the same
@@ -139,11 +160,11 @@ export default function TriggerOrderPrompt({
             stackItemId: choice.stackItemId,
             step: choice.step,
             choiceId: choice.choiceId,
-            cardInstanceIds: [...rememberedOrder].reverse(),
+            cardInstanceIds: [...autoOrdered.order].reverse(),
         }).catch(() => setAutoFailedKey(choiceKey));
     }, [
         autoOrdering,
-        rememberedOrder,
+        autoOrdered,
         choiceKey,
         submitResolutionChoice,
         gameId,
@@ -313,10 +334,6 @@ export default function TriggerOrderPrompt({
         if (submitting) return;
         setSubmitting(true);
         setConfirmedKey(choiceKey);
-        seat.confirmTriggerOrder(
-            autoOrder,
-            autoOrder ? triggerOrderKeys(order, batchById) : null
-        );
         try {
             // Rightmost = topmost, so reverse the left→right `order` array.
             await submitResolutionChoice({
@@ -327,6 +344,11 @@ export default function TriggerOrderPrompt({
                 choiceId: choice.choiceId,
                 cardInstanceIds: [...order].reverse(),
             });
+            // Only an order the server accepted is worth remembering.
+            seat.confirmTriggerOrder(
+                autoOrder,
+                autoOrder ? triggerOrderKeys(order, batchById) : null
+            );
         } finally {
             setSubmitting(false);
         }

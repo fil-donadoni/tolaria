@@ -36,10 +36,12 @@ vi.mock("@convex/_generated/api", () => ({
 
 const submitCalls: { stackItemId: string; cardInstanceIds: string[] }[] = [];
 let rejectSubmits = false;
+let holdSubmits = false;
 vi.mock("convex/react", () => ({
     useMutation:
         () => (args: { stackItemId: string; cardInstanceIds: string[] }) => {
             submitCalls.push(args);
+            if (holdSubmits) return new Promise(() => {});
             return rejectSubmits
                 ? Promise.reject(new Error("refused"))
                 : Promise.resolve(null);
@@ -220,6 +222,7 @@ afterEach(() => {
     cleanup();
     submitCalls.length = 0;
     rejectSubmits = false;
+    holdSubmits = false;
 });
 
 describe("Auto-order — remember and skip (issue #3617 §1-§3)", () => {
@@ -405,5 +408,66 @@ describe("Auto-order — reset with the seat's yields (issue #3617 §6-§7)", ()
         await flush();
         expect(picker()).not.toBeNull();
         expect(submitCalls).toHaveLength(1);
+    });
+});
+
+describe("Auto-order — resets landing under an open decision (issue #3617 review)", () => {
+    it("unchecks an open picker's toggle when Clear all yields lands, so confirming does not re-record", async () => {
+        const { rerender } = render(
+            <Board current={occurrence([noble("n1"), ignoble("i1")])} />
+        );
+        await confirm({ autoOrder: true });
+
+        // A different set: the picker opens with the toggle carried on.
+        rerender(<Board current={occurrence([noble("n2a"), noble("n2b")])} />);
+        await flush();
+        expect(toggle().getAttribute("aria-checked")).toBe("true");
+
+        // Minimized, the board is reachable: the seat clears its yields.
+        fireEvent.click(clearButton()!);
+        expect(toggle().getAttribute("aria-checked")).toBe("false");
+        await confirm({ autoOrder: false });
+
+        rerender(<Board current={occurrence([noble("n3a"), noble("n3b")])} />);
+        await flush();
+        expect(picker()).not.toBeNull();
+        expect(submitCalls).toHaveLength(2);
+    });
+
+    it("remembers a manual order only once the server has accepted it", async () => {
+        const first = occurrence([noble("n1"), ignoble("i1")]);
+        const { rerender } = render(<Board current={first} />);
+        holdSubmits = true;
+        fireEvent.click(toggle());
+        await act(async () => {
+            fireEvent.click(doneButton());
+            await Promise.resolve();
+        });
+        // Still unanswered by the server: nothing is remembered yet, so the
+        // reset control has nothing to count.
+        expect(clearButton()).toBeNull();
+        holdSubmits = false;
+
+        rerender(<Board current={occurrence([noble("n2"), ignoble("i2")])} />);
+        await flush();
+        expect(picker()).not.toBeNull();
+        expect(submitCalls).toHaveLength(1);
+    });
+
+    it("does not reopen the picker when a reset lands while the remembered order is in flight", async () => {
+        const { rerender } = render(
+            <Board current={occurrence([noble("n1"), ignoble("i1")])} />
+        );
+        await confirm({ autoOrder: true });
+
+        holdSubmits = true;
+        rerender(<Board current={occurrence([noble("n2"), ignoble("i2")])} />);
+        await flush();
+        expect(submitCalls).toHaveLength(2);
+
+        fireEvent.click(clearButton()!);
+        await flush();
+        expect(picker()).toBeNull();
+        expect(submitCalls).toHaveLength(2);
     });
 });
