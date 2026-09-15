@@ -2846,6 +2846,9 @@ export const OP_EXECUTORS: {
             sourceId: ctx.sourceInstanceId,
             returnTapped: op.returnTapped ?? false,
             includeAttachments: op.includeAttachments ?? false,
+            // CR 122.2 (issue #3590) — counters travel back only when the
+            // card notes them.
+            noteCounters: op.noteCounters ?? false,
             // CR 610.3b — this Op IS the "until THIS leaves the battlefield"
             // family, so the source's departure is the specified event. If it
             // already happened (the O-Ring was destroyed in response to its own

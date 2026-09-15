@@ -1036,7 +1036,7 @@ function applyProbeChoice(
 /** `GameState` keys that a cast/activation moves for BOOKKEEPING reasons alone:
  *  priority/pass wiring, RNG cursors, event queues, id allocators, and the storm
  *  tallies. Everything NOT listed here is compared — the fail-closed default. */
-const IGNORED_STATE_KEYS = [
+export const IGNORED_STATE_KEYS = [
     "priorityPlayerId",
     "passCount",
     "rngSeed",
@@ -1061,7 +1061,7 @@ const IGNORED_STATE_KEYS = [
 ] as const;
 
 /** Per-card allocator/bookkeeping cursors, stripped on EVERY instance. */
-const IGNORED_INSTANCE_KEYS = [
+export const IGNORED_INSTANCE_KEYS = [
     "worldSeq",
     "staticSeq",
     // PRD #2064 S3 — the layer-6 base, captured LAZILY the first time
@@ -1098,7 +1098,7 @@ const IGNORED_INSTANCE_KEYS = [
  *  }]`) "provably" a no-op and pruned the bot's whole ramp package. Comparing
  *  it is both cheaper and stricter than scanning a script for `addMana`: any
  *  future Op that touches the pool is caught by the fail-closed default. */
-const IGNORED_MOVER_PLAYER_KEYS = [
+export const IGNORED_MOVER_PLAYER_KEYS = [
     "spellsCastThisTurn",
     // Lifetime sibling of spellsCastThisTurn (issue #790) — same "moves on
     // every cast" shape, so it belongs on the same ignore list for the same

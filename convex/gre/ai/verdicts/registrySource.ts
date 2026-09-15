@@ -84,6 +84,15 @@ export function verdictFromScenario(
     if (scenario.expect.predicate) {
         return gap("predicate", scenario.expect.describe);
     }
+    // Issue #3590 — the right move here is decided by where the seat has
+    // already been, not by the position: a fit over the feature vector can
+    // only mislearn from it.
+    if (scenario.revisit) {
+        return gap(
+            "history",
+            "the entry's answer depends on the decision history its `revisit` loop builds, which no evaluation term can see"
+        );
+    }
 
     let state: GameState;
     try {

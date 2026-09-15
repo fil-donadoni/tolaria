@@ -48,6 +48,7 @@ import {
     resolveBladeLoadState,
 } from "../gre/ai/blade/runner";
 import { computeOwedPlayerIds } from "../gre/expectedInput";
+import { applyBladeSetup } from "../gre/ai/blade/setup";
 
 /** The live game's BOT seat, in `arbitraryCurrentGameBaseState()` below.
  *  `${userId}-p2` is the bot seat by construction in every solo/vs-AI game
@@ -255,7 +256,15 @@ function canonicalizeIdentity(state: GameState): GameState {
 describe("debugLoadBladeScenario — loaded position matches the harness's built state (issue #1432)", () => {
     for (const scenario of BLADE_SCENARIOS) {
         it(`"${scenario.label}" — same label through the mutation body, different base state, same resulting position`, () => {
-            const harnessState = buildBladeState(scenario);
+            // Issue #3590 — an entry's `revisit` loop is part of the position
+            // it measures, so the loader walks it after `setup` too.
+            const built = buildBladeState(scenario);
+            const harnessState = scenario.revisit
+                ? applyBladeSetup(built, {
+                      label: scenario.label,
+                      setup: scenario.revisit,
+                  })
+                : built;
             const loaderState = runMutationBody(
                 arbitraryCurrentGameBaseState(),
                 scenario.label

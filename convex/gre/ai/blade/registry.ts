@@ -7451,6 +7451,130 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Issue #3593. The guard on the interchangeability collapse: two copies of one card are ONE candidate, a different card is not, and the collapsed-away copies must not take the distinguishable drop with them. The two Forests precede the Island so the representative of an over-eager merge would be a Forest.",
     },
+    {
+        // OPTIONAL LOOP, shape 1 of 2 (issue #3590): an activated ability whose
+        // resolution returns what it spent. Under Opalescence a Parallax Wave is
+        // a creature, so it can exile ITSELF: its leaves trigger hands back
+        // everything it held and Fading re-enters it with five fresh counters.
+        // The Bot here has already been round once — exiled the Psychatog,
+        // refilled by exiling the Wave (which returned the Psychatog), exiled
+        // the Psychatog again — and stands in the very position it stood in a
+        // lap ago. Refilling again only restarts the lap; CR 104.4b makes an
+        // optional loop no draw and CR 732.5 obliges nobody to end it, so the
+        // Bot must. The Tier 1 smoke's `parallax-replenish vs psychatog` spent
+        // 1400 plies of one turn in exactly this cycle.
+        //
+        // Discriminating: without the decision history the Bot re-exiles the
+        // Wave on seed 0xb1ade (and on half of eight seeds).
+        label: "optional loop: does not refill Parallax Wave again from a position it already occupied",
+        spec: {
+            cards: [
+                { name: "Opalescence", owner: "me", zone: "battlefield" },
+                {
+                    name: "Parallax Wave",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: { fade: 5 },
+                },
+                {
+                    name: "Plains",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 4,
+                },
+                { name: "Psychatog", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            libraryCount: 20,
+        },
+        // Lap one: the built Wave and Psychatog become new objects on it, so
+        // the position a lap later is the first one that can repeat.
+        setup: [
+            { kind: "activate", card: "Parallax Wave", target: "Psychatog" },
+            { kind: "pass" },
+            {
+                kind: "activate",
+                card: "Parallax Wave",
+                target: "Parallax Wave",
+            },
+            { kind: "pass" },
+            { kind: "pass" },
+            { kind: "pass" },
+            { kind: "activate", card: "Parallax Wave", target: "Psychatog" },
+            { kind: "pass" },
+        ],
+        revisit: [
+            {
+                kind: "activate",
+                card: "Parallax Wave",
+                target: "Parallax Wave",
+            },
+            { kind: "pass" },
+            { kind: "pass" },
+            { kind: "pass" },
+            { kind: "activate", card: "Parallax Wave", target: "Psychatog" },
+            { kind: "pass" },
+        ],
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "activate-ability",
+                    card: "Parallax Wave",
+                    target: "Parallax Wave",
+                },
+            ],
+        },
+        note: "Issue #3590 — the position-repetition memory (`gre/ai/repetition.ts`) through the real search. Paired with the Aluren entry below, a structurally different loop (a free cast plus a mandatory self-bounce), so the fix is proven not to be card-shaped. Also relies on CR 122.2's `noteCounters` fix: before it the returning Wave kept its leftover counters plus five, so no lap ever repeated.",
+    },
+    {
+        // OPTIONAL LOOP, shape 2 of 2 (issue #3590): a SPELL and a trigger, no
+        // activated ability at all. Aluren makes Cavern Harpy free, and its
+        // mandatory enters trigger must return a blue or black creature — the
+        // Harpy is the only one, so the cast ends exactly where it began, with
+        // one more spell on the storm count and nothing else. The Bot has been
+        // round once already.
+        //
+        // Discriminating: without the decision history the Bot recasts the
+        // Harpy on seed 2 (two of eight seeds).
+        label: "optional loop: does not recast a self-bouncing creature under Aluren from a position it already occupied",
+        spec: {
+            cards: [
+                { name: "Aluren", owner: "me", zone: "battlefield" },
+                { name: "Cavern Harpy", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        // Lap one: the cast reveals the Harpy and stamps who cast it, so lap
+        // two is the first that returns to an occupied position.
+        setup: [
+            { kind: "cast", card: "Cavern Harpy" },
+            { kind: "resolve-top" },
+            { kind: "resolve-top" },
+            { kind: "choose", cards: ["Cavern Harpy"] },
+        ],
+        revisit: [
+            { kind: "cast", card: "Cavern Harpy" },
+            { kind: "resolve-top" },
+            { kind: "resolve-top" },
+            { kind: "choose", cards: ["Cavern Harpy"] },
+        ],
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Cavern Harpy" }],
+        },
+        note: "Issue #3590 — second, structurally different optional loop for the position-repetition memory: cast + enters trigger + choice, where the Parallax Wave entry is an activated ability + leaves trigger. Nothing in `repetition.ts` or the root deny-set names either card.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the

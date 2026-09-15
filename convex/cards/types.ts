@@ -4405,6 +4405,10 @@ export interface SpellContext {
         opts: {
             sourceId: string;
             returnTapped: boolean;
+            /** CR 122.2 — carry the host's counters back on return ("note the
+             *  number and kind of counters", Tawnos's Coffin). Default `false`:
+             *  a zone change makes a new object with no counters. */
+            noteCounters?: boolean;
             /** CR 701.13 — whether the host's attachments travel into exile WITH
              *  it and return re-attached. Default `true` (Tawnos's Coffin:
              *  Auras/Equipment are exiled and come back attached). Set `false`
@@ -13939,13 +13943,18 @@ export type EffectOp =
      *  Auras/Equipment to travel WITH it into exile and return re-attached (CR
      *  701.13 — Tawnos's Coffin / Safe Haven); default FALSE — the host-only
      *  O-Ring behaviour where the host's Auras die to the orphan-aura SBA (CR
-     *  704.5n) and its Equipment detaches and stays on the battlefield. No-op
-     *  if the target has left the battlefield (CR 608.2b). */
+     *  704.5n) and its Equipment detaches and stays on the battlefield.
+     *  `noteCounters` (issue #3590) returns the host WITH the counters it had
+     *  when exiled — only for an effect that says "note the number and kind of
+     *  counters" (Tawnos's Coffin); default FALSE, because CR 122.2 makes the
+     *  returning card a new object with none. No-op if the target has left the
+     *  battlefield (CR 608.2b). */
     | {
           op: "exileWithAttachments";
           target: EffectObjectSelector;
           returnTapped?: boolean;
           includeAttachments?: boolean;
+          noteCounters?: boolean;
       }
     /** CR 603.7a / ADR 0028 — return every exile-and-return bundle keyed to
      *  `$source` (armed by an earlier `exileWithAttachments` Op): the host

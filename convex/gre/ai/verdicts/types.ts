@@ -120,8 +120,12 @@ export type VerdictGap = {
      *  position (one legal line, which every decider takes) and the entry
      *  whose forbidden move is not even enumerable. A real outcome, not a
      *  failure, and the reason the verdict count is `moves` entries MINUS
-     *  these. */
+     *  these. `history`: the entry declares a `revisit` loop (issue #3590) —
+     *  its answer depends on the seat's decision history, which is not in the
+     *  position, so both candidates carry ONE feature vector by construction
+     *  and no weight could ever be fitted to it. */
     reason:
+        | "history"
         | "predicate"
         | "build"
         | "no-match"

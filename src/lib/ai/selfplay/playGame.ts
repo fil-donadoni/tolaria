@@ -53,6 +53,10 @@ import {
 } from "@convex/gre/expectedInput";
 import { nonZoneChoiceCandidateIds } from "@convex/gre/ai/nonZoneChoiceCandidates";
 import { manaValue } from "@convex/gre/constants";
+import {
+    recordRepetition,
+    type RepetitionHistory,
+} from "@convex/gre/ai/repetition";
 import { effectivePermanentView } from "@convex/gre/permanentView";
 import { getCardColorIdentity, getColorsFromCost } from "@convex/cards/colors";
 import { tryGetDefinition } from "@convex/cards";
@@ -420,6 +424,10 @@ export function runHeadlessGame(
 
     let plies = 0;
     let reason: GameEndReason = "max-plies";
+    // Issue #3590 — each seat's own decision history, the memory a live Bot
+    // carries between consults, so an optional loop through identical
+    // no-progress repeats is denied its next lap (`@convex/gre/ai/repetition`).
+    const histories = new Map<string, RepetitionHistory>();
     // issue #2284 — set alongside every guard reason so a headless stall names
     // the Expected Input kind that was not handled.
     let unhandledExpectedInput: ExpectedInputKind | undefined;
@@ -439,12 +447,23 @@ export function runHeadlessGame(
             // crashing card can't wipe an N-game match's measurement.
             let move;
             try {
-                move = searchFn(state, pid, budgetFor(pid), nextSeed());
+                move = searchFn(
+                    state,
+                    pid,
+                    budgetFor(pid),
+                    nextSeed(),
+                    undefined,
+                    histories.get(pid)
+                );
             } catch {
                 reason = "search-error";
                 break;
             }
             if (move) {
+                histories.set(
+                    pid,
+                    recordRepetition(histories.get(pid), state, pid, move)
+                );
                 // Mulligan keep/mull is a NO-OP in `applyMoveInSearch` (the
                 // search resolves it only at its own root, never mid-rollout);
                 // drive it through the real mulligan engine, as the live

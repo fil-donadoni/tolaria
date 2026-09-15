@@ -33,6 +33,11 @@
  */
 
 import {
+    positionFingerprint,
+    recordRepetition,
+    type RepetitionHistory,
+} from "../repetition";
+import {
     getCardByName,
     tokenDefinitionId,
     tryGetCardByName,
@@ -484,6 +489,7 @@ function applyTargetedActivate(
     }
 
     const before = state.stack.length;
+    moveObserver?.(permanent.controllerId, candidates[0], state);
     applyMoveInSearch(state, permanent.controllerId, candidates[0]);
     if (state.stack.length <= before) {
         throw new BladeSetupError(
@@ -749,6 +755,7 @@ function applyCast(
     }
 
     const before = state.stack.length;
+    moveObserver?.(casterId, candidates[0], state);
     applyMoveInSearch(state, casterId, candidates[0]);
     if (state.stack.length <= before) {
         throw new BladeSetupError(
@@ -827,14 +834,16 @@ function applyChoose(
         }
         ids.push(card.id);
     }
+    const answer: Move = {
+        kind: "resolution-choice",
+        stackItemId: head.stackItemId,
+        step: head.step,
+        choiceId: head.choiceId,
+        cardInstanceIds: ids,
+    };
+    moveObserver?.(head.playerId, answer, state);
     try {
-        applyMoveInSearch(state, head.playerId, {
-            kind: "resolution-choice",
-            stackItemId: head.stackItemId,
-            step: head.step,
-            choiceId: head.choiceId,
-            cardInstanceIds: ids,
-        });
+        applyMoveInSearch(state, head.playerId, answer);
     } catch (error) {
         // The resolver THROWS on a rejected answer — surface it with the
         // entry's label rather than as a bare engine error (PR review).
@@ -862,6 +871,77 @@ function applyChoose(
  * degrades to a hand-built approximation (ADR 0070 §4).
  */
 export function applyBladeSetup(
+    state: GameState,
+    scenario: Pick<BladeScenario, "label" | "setup">,
+    onMove?: BladeMoveObserver
+): GameState {
+    const previousObserver = moveObserver;
+    moveObserver = onMove;
+    try {
+        return applyBladeSetupSteps(state, scenario);
+    } finally {
+        moveObserver = previousObserver;
+    }
+}
+
+/** Told about every `Move` a setup step applies through the search's own
+ *  applier (`cast`, targeted `activate`, `choose`), BEFORE it is applied — the
+ *  state it receives is the position the move was made from. Issue #3590:
+ *  how a `revisit` walk learns what the bot's seat chose where. */
+export type BladeMoveObserver = (
+    playerId: string,
+    move: Move,
+    before: GameState
+) => void;
+
+/** The observer of the `applyBladeSetup` call in progress. Module-scoped
+ *  rather than threaded through a dozen step handlers: setup is synchronous,
+ *  and `applyBladeSetup` restores the previous value in a `finally`. */
+let moveObserver: BladeMoveObserver | undefined;
+
+/** Walk an entry's `revisit` loop from `state` (issue #3590) and return the
+ *  bot seat's decision history along it. Throws when the walk records no
+ *  decision by that seat, or does not end where it started. */
+export function applyBladeRevisit(
+    state: GameState,
+    scenario: Pick<BladeScenario, "label" | "revisit">,
+    botId: string
+): RepetitionHistory {
+    const steps = scenario.revisit ?? [];
+    if (steps.length === 0) {
+        throw new Error(
+            `Blade scenario "${scenario.label}": \`revisit\` is empty.`
+        );
+    }
+    const start = positionFingerprint(state);
+    let history: RepetitionHistory | undefined;
+    applyBladeSetup(
+        state,
+        { label: scenario.label, setup: steps },
+        (playerId, move, before) => {
+            if (playerId === botId) {
+                history = recordRepetition(history, before, playerId, move);
+            }
+        }
+    );
+    if (!history) {
+        throw new BladeSetupError(
+            scenario.label,
+            steps[0],
+            "the revisit walk made no decision for the bot's seat — there is no loop to remember."
+        );
+    }
+    if (positionFingerprint(state) !== start) {
+        throw new BladeSetupError(
+            scenario.label,
+            steps[steps.length - 1],
+            "the revisit walk did not return to the position it started from — it is not a loop (move lap one into `setup`)."
+        );
+    }
+    return history;
+}
+
+function applyBladeSetupSteps(
     state: GameState,
     scenario: Pick<BladeScenario, "label" | "setup">
 ): GameState {

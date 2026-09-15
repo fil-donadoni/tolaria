@@ -33,6 +33,7 @@ import type { Move, SearchBudget, DecisionTrace } from "@convex/gre";
 import { DEFAULT_BUDGET } from "@convex/gre";
 import type { DeckKnowledgeBySeat } from "./state-adapter";
 import { handleBrainRequest } from "./brain-request";
+import type { RepetitionHistory } from "@convex/gre/ai/repetition";
 import type {
     BrainOutcome,
     BrainRequest,
@@ -59,6 +60,9 @@ export type BrainResult = {
     via: "worker" | "inline";
     /** The failure text, for the error outcomes only. */
     message?: string;
+    /** The seat's decision history with this move recorded (issue #3590) —
+     *  hand it back as the next consult's `repetition`. */
+    repetition?: RepetitionHistory;
 };
 
 type Pending = (result: BrainResult) => void;
@@ -374,7 +378,8 @@ export function consultBrain(
     state: PublicGameState,
     botId: string,
     budget: SearchBudget = DEFAULT_BUDGET,
-    deckKnowledge?: DeckKnowledgeBySeat
+    deckKnowledge?: DeckKnowledgeBySeat,
+    repetition?: RepetitionHistory
 ): Promise<BrainResult> {
     const w = getWorker();
     if (!w) {
@@ -392,12 +397,20 @@ export function consultBrain(
                 botId,
                 budget: exhausted ? clampToFallback(budget) : budget,
                 deckKnowledge,
+                repetition,
             })
         );
     }
 
     const id = nextId++;
-    const request: BrainRequest = { id, state, botId, budget, deckKnowledge };
+    const request: BrainRequest = {
+        id,
+        state,
+        botId,
+        budget,
+        deckKnowledge,
+        repetition,
+    };
     return new Promise<BrainResult>((resolve) => {
         // A consult ALWAYS settles (issue #2284) — see
         // `BRAIN_CONSULT_TIMEOUT_MS`. A reply that arrives afterwards finds no
@@ -443,6 +456,7 @@ function fromResponse(
         trace: res.trace,
         outcome: res.move ? "move" : "no-move",
         via,
+        ...(res.repetition ? { repetition: res.repetition } : {}),
     };
 }
 

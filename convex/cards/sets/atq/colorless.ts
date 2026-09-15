@@ -2305,6 +2305,8 @@ export const tawnossCoffin: CardDefinition = {
                     target: { target: 0 },
                     returnTapped: true,
                     includeAttachments: true,
+                    // "Note the number and kind of counters" (CR 122.2).
+                    noteCounters: true,
                 },
             ],
         },
