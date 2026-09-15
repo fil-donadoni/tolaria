@@ -388,6 +388,26 @@ export function constructArtifactsYouControlToken(
     };
 }
 
+/** Spirit token (CR 111 / 707.2, issue #3242). "1/1 colorless Spirit creature
+ *  token with 'This token can't block or be blocked by non-Spirit
+ *  creatures.'" — created two at a time by Wan Shi Tong, All-Knowing
+ *  (`sets/tla/blue.ts`). The restriction is CR 509.1b block legality on BOTH
+ *  sides, carried as two `TokenStaticEffectKey`s (`cards/tokenStaticEffects.ts`)
+ *  so the spec stays JSON-pure for the `createToken` Op. Art: the card's own
+ *  printing's token (Scryfall `all_parts` → ttla Spirit). */
+export const SPIRIT_SPIRITS_ONLY_COMBAT_TOKEN: EffectTokenSpec = {
+    name: "Spirit",
+    types: ["Creature"],
+    subtypes: ["Spirit"],
+    power: 1,
+    toughness: 1,
+    staticEffectKeys: [
+        "cant-block-non-spirit-self",
+        "cant-be-blocked-by-non-spirit-self",
+    ],
+    imagePrintId: "f59eba51-458a-40e0-b754-999f91d5d839",
+};
+
 /** Golem token (CR 111 / 707.2, issue #2367). "3/3 colorless Golem artifact
  *  creature token" — the vanilla Mirrodin-block staple. Created by Sandstorm
  *  Salvager's ETB (`sets/big/green.ts`) and by Legion Extruder's activated

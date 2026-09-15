@@ -55,6 +55,7 @@ import {
     tapPermanent,
     untapPermanent,
     tickDuration,
+    withCardsPutIntoLibraryBatch,
 } from "./state";
 import { tryGetDefinition } from "../cards";
 import { payDeclaredExertCosts } from "./exert";
@@ -2491,18 +2492,22 @@ export function finalizeCleanupDiscard(
         return;
     }
     const player = getPlayer(state, state.pendingCleanupDiscard.playerId);
-    for (const cardInstanceId of selectedIds) {
-        // Defense-in-depth: a discard replacement (Library of Leng) earlier
-        // in the loop could in principle have routed an id away from hand
-        // before the loop reaches it. `findIndex === -1` makes the second
-        // pick a silent no-op rather than a throw — matches the SpellContext
-        // `discardCard` contract used by Disrupting Scepter / discardAtRandom.
-        const idx = player.hand.findIndex((c) => c.id === cardInstanceId);
-        if (idx === -1) continue;
-        // CR 614 discard replacement (Library of Leng) runs inside
-        // discardToGraveyard; a real discard emits CARD_DISCARDED (CR 701.9).
-        discardToGraveyard(state, player.id, cardInstanceId);
-    }
+    // issue #3242 (CR 603.2c) — the cleanup discard is one event: several cards
+    // a discard replacement sends to the library are ONE library-entry event.
+    withCardsPutIntoLibraryBatch(state, () => {
+        for (const cardInstanceId of selectedIds) {
+            // Defense-in-depth: a discard replacement (Library of Leng) earlier
+            // in the loop could in principle have routed an id away from hand
+            // before the loop reaches it. `findIndex === -1` makes the second
+            // pick a silent no-op rather than a throw — matches the SpellContext
+            // `discardCard` contract used by Disrupting Scepter / discardAtRandom.
+            const idx = player.hand.findIndex((c) => c.id === cardInstanceId);
+            if (idx === -1) continue;
+            // CR 614 discard replacement (Library of Leng) runs inside
+            // discardToGraveyard; a real discard emits CARD_DISCARDED (CR 701.9).
+            discardToGraveyard(state, player.id, cardInstanceId);
+        }
+    });
     // ADR 0026 (revised): the cleanup discard (CR 514.1) does NOT clear a
     // non-owner knower's knowledge of the remaining hand. Discarded cards go to
     // the public graveyard and knowledge is per-instance, so every card left in

@@ -7257,7 +7257,10 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
             // under the wrong key.
             top.resolutionStep = i;
             const ctx = buildSpellContext(state, top);
-            cardDef.resolveSteps[i](ctx);
+            // issue #3242 (CR 603.2c) — a closure step is one instruction for
+            // the library-entry event, as an Effect Script Op is.
+            const resolveStep = cardDef.resolveSteps[i];
+            withCardsPutIntoLibraryBatch(state, () => resolveStep(ctx));
             if (resolutionSuspendedOnChoice(state, "checkpointed")) {
                 return null; // suspended — wait for selectResolutionChoice
             }
@@ -7347,7 +7350,10 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                     return null;
                 }
             } else {
-                trigger.resolve!(ctx, payload);
+                const resolveTrigger = trigger.resolve!;
+                withCardsPutIntoLibraryBatch(state, () =>
+                    resolveTrigger(ctx, payload)
+                );
                 if (resolutionSuspendedOnChoice(state, "completed")) {
                     return null;
                 }
@@ -7380,7 +7386,11 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                     return null;
             } else if (ability.resolve) {
                 const ctx = buildSpellContext(state, top);
-                ability.resolve(ctx, top.triggerEvent);
+                const resolveAbility = ability.resolve;
+                const triggerEvent = top.triggerEvent;
+                withCardsPutIntoLibraryBatch(state, () =>
+                    resolveAbility(ctx, triggerEvent)
+                );
                 if (resolutionSuspendedOnChoice(state, "completed"))
                     return null;
             }
@@ -7499,7 +7509,8 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                 for (let i = start; i < ability.resolveSteps.length; i++) {
                     top.resolutionStep = i;
                     const ctx = buildSpellContext(state, top);
-                    ability.resolveSteps[i](ctx);
+                    const resolveStep = ability.resolveSteps[i];
+                    withCardsPutIntoLibraryBatch(state, () => resolveStep(ctx));
                     if (resolutionSuspendedOnChoice(state, "checkpointed")) {
                         return null; // suspended — wait for the choice submit
                     }
@@ -7530,7 +7541,10 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                             return null;
                     } else if (mode.resolve) {
                         const ctx = buildSpellContext(state, top);
-                        mode.resolve(ctx);
+                        const resolveMode = mode.resolve;
+                        withCardsPutIntoLibraryBatch(state, () =>
+                            resolveMode(ctx)
+                        );
                         if (resolutionSuspendedOnChoice(state, "completed"))
                             return null;
                     }
@@ -7548,7 +7562,11 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                         return null;
                 } else if (ability.resolve) {
                     const ctx = buildSpellContext(state, top);
-                    ability.resolve(ctx, top.triggerEvent);
+                    const resolveAbility = ability.resolve;
+                    const triggerEvent = top.triggerEvent;
+                    withCardsPutIntoLibraryBatch(state, () =>
+                        resolveAbility(ctx, triggerEvent)
+                    );
                     if (resolutionSuspendedOnChoice(state, "completed"))
                         return null;
                 }
@@ -7585,7 +7603,8 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
             for (let i = start; i < ability.resolveSteps.length; i++) {
                 top.resolutionStep = i;
                 const ctx = buildSpellContext(state, top);
-                ability.resolveSteps[i](ctx);
+                const resolveStep = ability.resolveSteps[i];
+                withCardsPutIntoLibraryBatch(state, () => resolveStep(ctx));
                 if (resolutionSuspendedOnChoice(state, "checkpointed")) {
                     return null; // suspended — wait for selectResolutionChoice
                 }
@@ -7616,7 +7635,8 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                         return null;
                 } else if (body.resolve) {
                     const ctx = buildSpellContext(state, top);
-                    body.resolve(ctx);
+                    const resolveBody = body.resolve;
+                    withCardsPutIntoLibraryBatch(state, () => resolveBody(ctx));
                     if (resolutionSuspendedOnChoice(state, "completed"))
                         return null;
                 }
@@ -7647,7 +7667,8 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                         return null;
                 } else if (mode.resolve) {
                     const ctx = buildSpellContext(state, top);
-                    mode.resolve(ctx);
+                    const resolveMode = mode.resolve;
+                    withCardsPutIntoLibraryBatch(state, () => resolveMode(ctx));
                     if (resolutionSuspendedOnChoice(state, "completed"))
                         return null;
                 }
@@ -8158,6 +8179,9 @@ function sendStackItemToGraveyard(state: GameState, item: StackItem): void {
     resetStackTransientState(item);
     (owner[destination] as CardInstanceState[]).push(item);
     if (destination === "library") {
+        // issue #3242 — a CR 614 redirect put the spell card into a library.
+        if (!isCopy)
+            emitCardsPutIntoLibrary(state, [libraryEntry(item, "stack")]);
         shuffleAfterGraveyardBoundLibraryRedirect(state, owner);
     } else if (destination !== "graveyard") {
         applyGraveyardRedirectCounters(item, tagCounters);
@@ -8597,6 +8621,8 @@ function finalizeSpellResolution(
             item.zone = "library";
             resetStackTransientState(item);
             owner.library.push(item);
+            // issue #3242 — the spell shuffled itself into a library.
+            emitCardsPutIntoLibrary(state, [libraryEntry(item, "stack")]);
             // ADR 0026 — a shuffle is an unwitnessed reordering; reuse the
             // exact primitive `shuffleLibrary` calls so this redirect behaves
             // identically to a normal post-search shuffle.
@@ -11237,6 +11263,11 @@ export function removePermanentTo(
     // this orientation holding here AND at `moveCard` — the two together are
     // the whole guarantee.
     (owner[toZone] as CardInstanceState[]).push(creature);
+    // issue #3242 — a tuck, or a CR 614 redirect to the library (Blightsteel
+    // Colossus), puts this card into a library from the battlefield.
+    if (toZone === "library") {
+        emitCardsPutIntoLibrary(state, [libraryEntry(creature, "battlefield")]);
+    }
     // CR 113.6c — the battlefield-departure twin of the `moveCard` call: a
     // static ability that functions only OUTSIDE the battlefield switches on
     // the moment the permanent lands in a hidden/public non-battlefield zone.
@@ -12187,6 +12218,79 @@ export function emitCardsExiled(
         ...(state.pendingEvents ?? []),
         { type: "CARDS_EXILED", cards },
     ];
+}
+
+/** One card of a `CARDS_PUT_INTO_LIBRARY` batch (issue #3242). */
+type LibraryEntry = Extract<
+    GameEvent,
+    { type: "CARDS_PUT_INTO_LIBRARY" }
+>["cards"][number];
+
+/** The open library-entry batch of a state, while one resolving instruction
+ *  runs inside `withCardsPutIntoLibraryBatch`. A WeakMap rather than a
+ *  `GameState` field: the batch lives for one synchronous call and must never
+ *  be persisted, projected or replayed. */
+const openLibraryEntryBatches = new WeakMap<GameState, LibraryEntry[]>();
+
+/** The batch entry for `card`, which just moved into a library from
+ *  `fromZone`. `fromZone` is the zone it LEFT — a library-internal reorder
+ *  never reaches here. */
+function libraryEntry(
+    card: CardInstanceState,
+    fromZone: LibraryEntry["fromZone"]
+): LibraryEntry {
+    return {
+        cardInstanceId: card.id,
+        cardId: (card.card as { id?: string }).id,
+        fromZone,
+        ownerId: card.ownerId,
+    };
+}
+
+/** Emits ONE `CARDS_PUT_INTO_LIBRARY` event for cards that just changed zone
+ *  into a library (issue #3242, CR 603.2c — one event per occurrence). Inside
+ *  an open `withCardsPutIntoLibraryBatch` the entries join that batch instead,
+ *  so a multi-card instruction still emits once. No-op for an empty batch.
+ *
+ *  The single emitter for every route into a library: a battlefield departure
+ *  (`removePermanentTo`), the general mover (`moveCardWithGraveyardReplacement`
+ *  — graveyard/hand/exile, and a CR 614 graveyard-bound redirect to the
+ *  library), a spell leaving the stack, a discard redirect, a hand card put on
+ *  top, a whole graveyard put on the bottom. Setup code (the opening deal, a
+ *  mulligan put-back, a scenario build) moves raw arrays and never calls it. */
+export function emitCardsPutIntoLibrary(
+    state: GameState,
+    cards: ReadonlyArray<LibraryEntry>
+): void {
+    if (cards.length === 0) return;
+    const open = openLibraryEntryBatches.get(state);
+    if (open) {
+        open.push(...cards);
+        return;
+    }
+    state.pendingEvents = [
+        ...(state.pendingEvents ?? []),
+        { type: "CARDS_PUT_INTO_LIBRARY", cards: [...cards] },
+    ];
+}
+
+/** Runs `run` as ONE resolving instruction for the library-entry event (issue
+ *  #3242, CR 603.2c): every `emitCardsPutIntoLibrary` inside it is folded into a
+ *  single event emitted when `run` returns. Nested calls join the outermost
+ *  batch — a `forEach` body is part of the one instruction that loops it. */
+export function withCardsPutIntoLibraryBatch<T>(
+    state: GameState,
+    run: () => T
+): T {
+    if (openLibraryEntryBatches.has(state)) return run();
+    const batch: LibraryEntry[] = [];
+    openLibraryEntryBatches.set(state, batch);
+    try {
+        return run();
+    } finally {
+        openLibraryEntryBatches.delete(state);
+        emitCardsPutIntoLibrary(state, batch);
+    }
 }
 
 /** Emits ONE LIBRARY_SEARCHED event when a `search-library` PendingChoice
@@ -16883,7 +16987,7 @@ export function buildSpellContext(
         // and where; a shuffle clears it.
         putIntoLibraryFromBattlefield(
             target: TargetSelection,
-            positionFromTop: number
+            positionFromTop: number | "bottom"
         ): void {
             if (target.type === "player")
                 throw new Error("Cannot put a player into a library");
@@ -16897,8 +17001,17 @@ export function buildSpellContext(
             // reposition.
             if (idx === -1) return;
             const [card] = owner.library.splice(idx, 1);
-            owner.library.splice(Math.max(0, positionFromTop - 1), 0, card);
+            // issue #3242 — "on the bottom" is the library's own length, read
+            // after the card was lifted out.
+            const insertAt =
+                positionFromTop === "bottom"
+                    ? owner.library.length
+                    : Math.max(0, positionFromTop - 1);
+            owner.library.splice(insertAt, 0, card);
             grantKnowledgeToAll(state, moved.ownerId, [card.id]);
+        },
+        withCardsPutIntoLibraryBatch<T>(run: () => T): T {
+            return withCardsPutIntoLibraryBatch(state, run);
         },
         // CR 400.7 reanimation: locate `cardInstanceId` in `playerId`'s
         // graveyard or exile, splice it out, and put it onto `playerId`'s
@@ -17525,23 +17638,26 @@ export function buildSpellContext(
                 fromZone: Exclude<MovableZone, "exile">;
                 ownerId: string;
             }[] = [];
-            for (const id of ids) {
-                const moved = moveCardWithGraveyardReplacement(
-                    state,
-                    player,
-                    id,
-                    from,
-                    to
-                );
-                if (moved.zone === "exile") {
-                    exiledEntries.push({
-                        cardInstanceId: moved.id,
-                        cardId: (moved.card as { id?: string }).id,
-                        fromZone: from as Exclude<MovableZone, "exile">,
-                        ownerId: playerId,
-                    });
+            // issue #3242 — the same dump is ONE library-entry occurrence.
+            withCardsPutIntoLibraryBatch(state, () => {
+                for (const id of ids) {
+                    const moved = moveCardWithGraveyardReplacement(
+                        state,
+                        player,
+                        id,
+                        from,
+                        to
+                    );
+                    if (moved.zone === "exile") {
+                        exiledEntries.push({
+                            cardInstanceId: moved.id,
+                            cardId: (moved.card as { id?: string }).id,
+                            fromZone: from as Exclude<MovableZone, "exile">,
+                            ownerId: playerId,
+                        });
+                    }
                 }
-            }
+            });
             emitCardsExiled(state, exiledEntries);
         },
         moveCardsById(
@@ -17570,30 +17686,33 @@ export function buildSpellContext(
                 fromZone: Exclude<MovableZone, "exile">;
                 ownerId: string;
             }[] = [];
-            for (const cardInstanceId of cardInstanceIds) {
-                const exists = (player[fromField] as CardInstanceState[]).some(
-                    (c) => c.id === cardInstanceId
-                );
-                if (!exists) continue;
-                const moved = moveCardWithGraveyardReplacement(
-                    state,
-                    player,
-                    cardInstanceId,
-                    from,
-                    to
-                );
-                movedIds.push(moved.id);
-                // A direct `to: "exile"` request, or a graveyard-bound
-                // replacement that redirected this move to exile.
-                if (moved.zone === "exile") {
-                    exiledEntries.push({
-                        cardInstanceId: moved.id,
-                        cardId: (moved.card as { id?: string }).id,
-                        fromZone: from as Exclude<MovableZone, "exile">,
-                        ownerId: playerId,
-                    });
+            // issue #3242 — and ONE library-entry occurrence, by the same rule.
+            withCardsPutIntoLibraryBatch(state, () => {
+                for (const cardInstanceId of cardInstanceIds) {
+                    const exists = (
+                        player[fromField] as CardInstanceState[]
+                    ).some((c) => c.id === cardInstanceId);
+                    if (!exists) continue;
+                    const moved = moveCardWithGraveyardReplacement(
+                        state,
+                        player,
+                        cardInstanceId,
+                        from,
+                        to
+                    );
+                    movedIds.push(moved.id);
+                    // A direct `to: "exile"` request, or a graveyard-bound
+                    // replacement that redirected this move to exile.
+                    if (moved.zone === "exile") {
+                        exiledEntries.push({
+                            cardInstanceId: moved.id,
+                            cardId: (moved.card as { id?: string }).id,
+                            fromZone: from as Exclude<MovableZone, "exile">,
+                            ownerId: playerId,
+                        });
+                    }
                 }
-            }
+            });
             emitCardsExiled(state, exiledEntries);
             return movedIds;
         },
@@ -17710,6 +17829,11 @@ export function buildSpellContext(
             seededShuffle(state, moved);
             clearKnowledge(moved, null);
             player.library.push(...moved);
+            // issue #3242 — the whole graveyard is ONE library-entry event.
+            emitCardsPutIntoLibrary(
+                state,
+                moved.map((c) => libraryEntry(c, "graveyard"))
+            );
         },
         // CR 702.85a (issue #3216) — cascade's tail: "put all cards exiled
         // this way that weren't cast on the bottom of your library in a random
@@ -17738,9 +17862,12 @@ export function buildSpellContext(
             const moving = cardInstanceIds.filter((id) => present.has(id));
             if (moving.length === 0) return;
             seededShuffle(state, moving);
-            for (const id of moving) {
-                ctx.moveCardById(playerId, id, from, "library");
-            }
+            // issue #3242 — one instruction, one library-entry event.
+            withCardsPutIntoLibraryBatch(state, () => {
+                for (const id of moving) {
+                    ctx.moveCardById(playerId, id, from, "library");
+                }
+            });
             const movedSet = new Set(moving);
             clearKnowledge(
                 player.library.filter((c) => movedSet.has(c.id)),
@@ -17867,6 +17994,10 @@ export function buildSpellContext(
                     item.zone = "library";
                     resetStackTransientState(item);
                     owner.library.unshift(item);
+                    // issue #3242 — a countered spell put into a library.
+                    emitCardsPutIntoLibrary(state, [
+                        libraryEntry(item, "stack"),
+                    ]);
                     // CR 400.2 / 405.1 (issue #1696) — the countered spell was
                     // a PUBLIC object on the stack, so every player knows which
                     // card this is; putting it at a known position in a hidden
@@ -17949,6 +18080,8 @@ export function buildSpellContext(
                 item.zone = "library";
                 if (destination === "library-top") owner.library.unshift(item);
                 else owner.library.push(item);
+                // issue #3242 — a spell moved from the stack into a library.
+                emitCardsPutIntoLibrary(state, [libraryEntry(item, "stack")]);
             }
             // The spell was a public object on the stack (CR 405.1), so its
             // identity is known to everyone. Moving it into a hidden zone does
@@ -20721,6 +20854,7 @@ export function buildSpellContext(
             cardInstanceId: string
         ): boolean {
             return putHandCardOnTopOfLibrary(
+                state,
                 getPlayer(state, playerId),
                 cardInstanceId
             );
@@ -23141,6 +23275,7 @@ export function commitDrawPlan(
  *  hand. Shared by the SpellContext primitive (Sylvan Library) and the discard
  *  replacement (Library of Leng). */
 export function putHandCardOnTopOfLibrary(
+    state: GameState,
     player: PlayerState,
     cardInstanceId: string
 ): boolean {
@@ -23157,6 +23292,8 @@ export function putHandCardOnTopOfLibrary(
     const known = card.knownTo ?? [];
     if (!known.includes(player.id)) card.knownTo = [...known, player.id];
     player.library.unshift(card);
+    // issue #3242 — hand → library is a card put into a library.
+    emitCardsPutIntoLibrary(state, [libraryEntry(card, "hand")]);
     return true;
 }
 
@@ -23423,6 +23560,29 @@ export function moveCard(
  *  here rather than inventing a new one. Memory Jar (`ulg/colorless.ts`) is
  *  the shipped card that exercises this: it exiles every hand face down,
  *  then returns them via `moveCardById`. */
+/** issue #3242 — the general mover's library-entry emission. A card moved
+ *  library → library (a mill redirected back by Blightsteel Colossus) never
+ *  left its library, so it is not "put into a library" (the official Wan Shi
+ *  Tong ruling). */
+function emitLibraryEntryFromMover(
+    state: GameState,
+    moved: CardInstanceState,
+    from: Exclude<Zone, "stack">
+): void {
+    if (from === "library") return;
+    // A battlefield departure must go through `removePermanentTo` (LTB
+    // handling, and its own emission) — reaching here from the battlefield is
+    // a caller bug, not a card to report.
+    if (from === "battlefield") {
+        throw new Error(
+            "moveCardWithGraveyardReplacement: battlefield → library must use removePermanentTo"
+        );
+    }
+    emitCardsPutIntoLibrary(state, [
+        libraryEntry(moved, from as LibraryEntry["fromZone"]),
+    ]);
+}
+
 function moveCardWithGraveyardReplacement(
     state: GameState,
     player: PlayerState,
@@ -23439,6 +23599,7 @@ function moveCardWithGraveyardReplacement(
                 grantKnowledgeToAll(state, player.id, [moved.id]);
             }
         }
+        if (to === "library") emitLibraryEntryFromMover(state, moved, from);
         return moved;
     }
     const sourceCard = (
@@ -23459,7 +23620,9 @@ function moveCardWithGraveyardReplacement(
         // (issue #2106) — a self-referential graveyard-bound replacement
         // (Blightsteel Colossus) redirected this move to the owner's
         // library instead: it was never put into a graveyard, so no event,
-        // and the oracle text says "shuffle", not "put on top".
+        // and the oracle text says "shuffle", not "put on top". It WAS put
+        // into a library, though (issue #3242).
+        emitLibraryEntryFromMover(state, moved, from);
         shuffleAfterGraveyardBoundLibraryRedirect(state, player);
         return moved;
     }
@@ -23884,7 +24047,9 @@ export function discardToGraveyard(
         // (Blightsteel Colossus) redirected this discard to the owner's
         // library instead. CARD_DISCARDED still fires below (the card WAS
         // discarded — only its landing zone changed, CR 614.1a), but the
-        // oracle text ends the redirect with a shuffle.
+        // oracle text ends the redirect with a shuffle. The card was put into
+        // a library from the hand (issue #3242).
+        emitCardsPutIntoLibrary(state, [libraryEntry(moved, "hand")]);
         shuffleAfterGraveyardBoundLibraryRedirect(state, player);
     } else if (destination !== "graveyard") {
         applyGraveyardRedirectCounters(moved, tagCounters);

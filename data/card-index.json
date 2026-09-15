@@ -37128,6 +37128,14 @@
         "firstPrintSet": "ulg"
     },
     {
+        "name": "Unexpectedly Absent",
+        "scryfallId": "6dff437b-ef68-48f7-afd3-3b72d3c56187",
+        "oracleId": "e8d78a83-c932-4b55-8f75-7094c672c3a9",
+        "firstSet": "c13",
+        "firstPrintId": "6dff437b-ef68-48f7-afd3-3b72d3c56187",
+        "firstPrintSet": "c13"
+    },
+    {
         "name": "Unfriendly Fire",
         "scryfallId": "7a61b274-0499-4cb6-a2e4-f5e18ad7fd2d",
         "oracleId": "ebb5b792-3906-4cb5-b8f9-063f94c9d135",
@@ -38784,6 +38792,14 @@
         "firstSet": "inv",
         "firstPrintId": "45ce5126-e7b1-41ab-9e56-1e12927c4d27",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Wan Shi Tong, All-Knowing",
+        "scryfallId": "777fcc21-2856-4181-8ecd-c272f9769e36",
+        "oracleId": "6927bd2e-cb05-487a-af86-89ede6e8dabd",
+        "firstSet": "tle",
+        "firstPrintId": "777fcc21-2856-4181-8ecd-c272f9769e36",
+        "firstPrintSet": "tle"
     },
     {
         "name": "Wandering Ones",

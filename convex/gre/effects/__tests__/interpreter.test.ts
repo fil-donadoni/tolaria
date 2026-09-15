@@ -4761,6 +4761,163 @@ describe("Effect Script Op: moveZone (CR 400.7, issue #839)", () => {
         ]);
     });
 
+    // issue #3242 — the position as a COMPUTED value: "just beneath the top X
+    // cards" keeps X cards above the permanent (Unexpectedly Absent). X = 0 is
+    // the top; a library shorter than X puts it on the bottom (both rulings).
+    it.each([
+        [0, ["bearBT", "libA", "libB", "libC"]],
+        [2, ["libA", "libB", "bearBT", "libC"]],
+        [7, ["libA", "libB", "libC", "bearBT"]],
+    ])(
+        "puts the permanent just beneath the top X cards (X = %i)",
+        (x, expected) => {
+            const id = registerScript(`test-op-movezone-beneath-top-${x}`, [
+                {
+                    op: "moveZone",
+                    target: { target: 0 },
+                    to: "library",
+                    position: { beneathTop: { X: true } },
+                },
+            ]);
+            const bear = makeInstance(BEAR_ID, {
+                controllerId: "p2",
+                ownerId: "p2",
+                id: "bearBT",
+            });
+            const library = ["libA", "libB", "libC"].map((lid) =>
+                makeInstance(BEAR_ID, {
+                    controllerId: "p2",
+                    ownerId: "p2",
+                    id: lid,
+                    zone: "library",
+                })
+            );
+            const state = makeState({
+                players: [
+                    makePlayer("p1"),
+                    makePlayer("p2", { battlefield: [bear], library }),
+                ],
+            });
+            const item = pushSpell(state, id, "p1", [
+                { type: "permanent", id: "bearBT" },
+            ]);
+            item.chosenX = x;
+            resolveTopOfStack(state);
+            expect(state.players[1].library.map((c) => c.id)).toEqual(expected);
+        }
+    );
+
+    // issue #3242 — "on the bottom of its owner's library".
+    it('puts the permanent on the bottom with position: "bottom"', () => {
+        const id = registerScript("test-op-movezone-lib-bottom", [
+            {
+                op: "moveZone",
+                target: { target: 0 },
+                to: "library",
+                position: "bottom",
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bearBM",
+        });
+        const library = ["libA", "libB"].map((lid) =>
+            makeInstance(BEAR_ID, {
+                controllerId: "p2",
+                ownerId: "p2",
+                id: lid,
+                zone: "library",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear], library }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearBM" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].library.map((c) => c.id)).toEqual([
+            "libA",
+            "libB",
+            "bearBM",
+        ]);
+    });
+
+    // issue #3242 — CR 108.3 `{ ownerOf }`: a choice that belongs to the
+    // target's OWNER reaches the owner even when someone else controls it.
+    it("routes an optionChoice to the target permanent's OWNER, not its controller ({ ownerOf })", () => {
+        const id = registerScript("test-player-ref-owner-of", [
+            {
+                op: "optionChoice",
+                player: { ownerOf: { target: 0 } },
+                prompt: "Pick one.",
+                modes: [
+                    {
+                        label: "Gain 1",
+                        effects: [
+                            { op: "gainLife", player: "controller", amount: 1 },
+                        ],
+                    },
+                    {
+                        label: "Gain 2",
+                        effects: [
+                            { op: "gainLife", player: "controller", amount: 2 },
+                        ],
+                    },
+                ],
+            },
+        ]);
+        const stolen = makeInstance(BEAR_ID, {
+            controllerId: "p1",
+            ownerId: "p2",
+            id: "bearOW",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [stolen] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearOW" }]);
+        expect(resolveTopOfStack(state)).toBeNull();
+        expect(state.pendingChoices![0].playerId).toBe("p2");
+        submitOptionPick(state, "1");
+        expect(state.players[0].life).toBe(22);
+    });
+
+    // issue #3242 — CR 608.2b: `{ ownerOf }` names a permanent; a player slot
+    // has no owner, so the choice is skipped rather than guessed.
+    it("skips an { ownerOf } whose slot holds a player (CR 608.2b)", () => {
+        const id = registerScript("test-player-ref-owner-of-player", [
+            {
+                op: "optionChoice",
+                player: { ownerOf: { target: 0 } },
+                prompt: "Pick one.",
+                modes: [
+                    {
+                        label: "Gain 1",
+                        effects: [
+                            { op: "gainLife", player: "controller", amount: 1 },
+                        ],
+                    },
+                    {
+                        label: "Gain 2",
+                        effects: [
+                            { op: "gainLife", player: "controller", amount: 2 },
+                        ],
+                    },
+                ],
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.players[0].life).toBe(20);
+    });
+
     // issue #1726 wire format — the inserted card is knowledge-stamped for
     // every player, and the projection's contiguous-run model exposes it to
     // the OPPONENT viewer when it is contiguous with an end (here: a

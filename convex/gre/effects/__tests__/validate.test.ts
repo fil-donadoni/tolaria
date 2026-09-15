@@ -4078,6 +4078,108 @@ describe("validateEffectScript — moveZone target → library position (issue #
         expect(errors).toEqual([]);
     });
 
+    // issue #3242 — the position widened to `EffectLibraryPosition`.
+    it.each([
+        ["bottom", "bottom"],
+        ["a beneathTop X", { beneathTop: { X: true } }],
+        ["a beneathTop literal 0", { beneathTop: 0 }],
+        ["a computed value", { X: true }],
+    ])("accepts %s as the library position (issue #3242)", (_, position) => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { target: 0 },
+                        to: "library",
+                        position,
+                    } as EffectOp,
+                ],
+            })
+        );
+        expect(errors).toEqual([]);
+    });
+
+    it.each([
+        ["a negative beneathTop", { beneathTop: -1 }],
+        ["an unknown position word", "middle"],
+        ["a zero literal", 0],
+    ])("rejects %s as the library position (issue #3242)", (_, position) => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { target: 0 },
+                        to: "library",
+                        position,
+                    } as unknown as EffectOp,
+                ],
+            })
+        );
+        expect(errors).not.toEqual([]);
+    });
+
+    // issue #3242 — CR 108.3 `{ ownerOf: { target: n } }` player ref.
+    it("accepts { ownerOf } on a target slot and rejects it on anything else (issue #3242)", () => {
+        const script = (ownerOf: unknown) =>
+            validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "optionChoice",
+                            player: { ownerOf },
+                            prompt: "Pick one.",
+                            modes: [
+                                {
+                                    label: "Gain 1",
+                                    effects: [
+                                        {
+                                            op: "gainLife",
+                                            player: "controller",
+                                            amount: 1,
+                                        },
+                                    ],
+                                },
+                            ],
+                        } as unknown as EffectOp,
+                    ],
+                })
+            );
+        expect(script({ target: 0 })).toEqual([]);
+        expect(script("controller")).not.toEqual([]);
+    });
+
+    // issue #3242 — a token spec's `staticEffectKeys` must name a factory.
+    it("accepts a token's known staticEffectKeys and rejects an unknown key (issue #3242)", () => {
+        const script = (staticEffectKeys: string[]) =>
+            validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "createToken",
+                            token: {
+                                name: "Spirit",
+                                types: ["Creature"],
+                                subtypes: ["Spirit"],
+                                power: 1,
+                                toughness: 1,
+                                staticEffectKeys,
+                            },
+                            controller: "controller",
+                        } as unknown as EffectOp,
+                    ],
+                })
+            );
+        expect(
+            script([
+                "cant-block-non-spirit-self",
+                "cant-be-blocked-by-non-spirit-self",
+            ])
+        ).toEqual([]);
+        expect(script(["cant-be-blocked-by-anything"])).not.toEqual([]);
+    });
+
     it('rejects "position" with a non-library destination', () => {
         const errors = validateEffectScript(
             host({

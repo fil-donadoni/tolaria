@@ -310,6 +310,7 @@ function buildApplyCtx(
         },
         moveHandCardToLibraryTop: (playerId, cardInstanceId) =>
             putHandCardOnTopOfLibrary(
+                state,
                 getPlayer(state, playerId),
                 cardInstanceId
             ),

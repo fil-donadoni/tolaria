@@ -11,6 +11,7 @@ import {
     revertControlChange,
     unapplyAuraControlChange,
     stopApplyingStaticEffects,
+    withCardsPutIntoLibraryBatch,
 } from "./state";
 import { syncLayers2to5 } from "./layers2to5";
 import { isAura, isCreature, isPlaneswalker } from "./constants";
@@ -799,7 +800,13 @@ export function checkWorldRuleSBA(state: GameState): boolean {
     // Defer the moves past the read above (removePermanentTo mutates the
     // battlefield arrays). This is a zone change, not a destroy, so
     // indestructible / regeneration do not apply.
-    for (const card of doomed) removePermanentTo(state, card.id, "graveyard");
+    // issue #3242 (CR 603.2c) — one simultaneous SBA event: any of them a CR
+    // 614 redirect into a library is still ONE library-entry event.
+    withCardsPutIntoLibraryBatch(state, () => {
+        for (const card of doomed) {
+            removePermanentTo(state, card.id, "graveyard");
+        }
+    });
     return true;
 }
 

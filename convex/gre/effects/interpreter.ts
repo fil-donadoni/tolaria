@@ -75,6 +75,7 @@ import type {
     EffectCaptureSource,
     EffectCardFilter,
     EffectComparisonOp,
+    EffectLibraryPosition,
     EffectMode,
     EffectCountSpec,
     EffectDifferenceTallyOperand,
@@ -1489,8 +1490,37 @@ function resolvePlayerRef(
         const target = ctx.targets[ref.controllerOf.target];
         return target ? ctx.findController(target) : undefined;
     }
+    // `{ ownerOf: { target: n } }` (issue #3242) — CR 108.3 "its owner". Read
+    // off the battlefield, so a player slot or a departed permanent skips.
+    if ("ownerOf" in ref) {
+        const target = ctx.targets[ref.ownerOf.target];
+        return target && target.type === "permanent"
+            ? ctx.getOwnerId(target.id)
+            : undefined;
+    }
     const target = ctx.targets[ref.target];
     return target && target.type === "player" ? target.id : undefined;
+}
+
+/** Resolves a `moveZone` library position (issue #3242, `EffectLibraryPosition`)
+ *  to the 1-based slot `putIntoLibraryFromBattlefield` takes, or `"bottom"`.
+ *  Omitted is the top. `{ beneathTop: N }` keeps N cards above the card, so it
+ *  is slot N + 1 — X = 0 is the top (the official Unexpectedly Absent ruling).
+ *  A value below the top clamps to it; a slot past the end clamps to the
+ *  bottom in the primitive. Undefined when the value cannot resolve (CR
+ *  608.2b), which skips the move. */
+function resolveLibraryPosition(
+    ctx: SpellContext,
+    position: EffectLibraryPosition | undefined
+): number | "bottom" | undefined {
+    if (position === undefined) return 1;
+    if (position === "bottom") return "bottom";
+    if (typeof position === "object" && "beneathTop" in position) {
+        const above = resolveValue(ctx, position.beneathTop);
+        return above === undefined ? undefined : Math.max(0, above) + 1;
+    }
+    const slot = resolveValue(ctx, position);
+    return slot === undefined ? undefined : Math.max(1, slot);
 }
 
 /** The controller-relative complement of an ARBITRARY resolved player ref
@@ -3195,11 +3225,13 @@ export const OP_EXECUTORS: {
                 // battlefield: the same primitive, position 1, so a
                 // battlefield source never needs the repositioning pass the
                 // graveyard/exile branch below performs.
-                if (op.bind) bindSnapshot(ctx, op.bind, target);
-                ctx.putIntoLibraryFromBattlefield(
-                    target,
-                    ("position" in op ? op.position : undefined) ?? 1
+                const position = resolveLibraryPosition(
+                    ctx,
+                    "position" in op ? op.position : undefined
                 );
+                if (position === undefined) return; // CR 608.2b — unresolvable
+                if (op.bind) bindSnapshot(ctx, op.bind, target);
+                ctx.putIntoLibraryFromBattlefield(target, position);
             }
             return;
         }
@@ -6133,13 +6165,18 @@ function runOpList(
         // checkpoint must survive so the resumed resolution re-enters at THIS
         // Op instead of replaying the script from position 0 (CR 608.3).
         const parkedBefore = ctx.stagedAsEntersCount();
-        const outcome = (
-            OP_EXECUTORS[op.op] as (
-                c: SpellContext,
-                o: EffectOp,
-                cur: Cursor
-            ) => OpOutcome
-        )(ctx, op, cursor);
+        // issue #3242 (CR 603.2c) — one Op is one instruction, so every card it
+        // puts into a library is ONE `CARDS_PUT_INTO_LIBRARY` event. A
+        // structural Op's nested body joins the same batch.
+        const outcome = ctx.withCardsPutIntoLibraryBatch(() =>
+            (
+                OP_EXECUTORS[op.op] as (
+                    c: SpellContext,
+                    o: EffectOp,
+                    cur: Cursor
+                ) => OpOutcome
+            )(ctx, op, cursor)
+        );
         if (outcome === "suspend") return "suspend";
         if (ctx.stagedAsEntersCount() > parkedBefore) return "suspend";
     }
