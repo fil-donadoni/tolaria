@@ -61,12 +61,15 @@ import type { ActivatedAbility, ManaCost } from "../types";
  *     the card's own CR 614.1c replacement gives it, so the ability is
  *     affordable and stays asserted.
  *   - abilities whose cost is not `{T}`-based, since the fixture taps nothing.
- *   - a SACRIFICE-cost mana ability on a card that also has a non-destructive
- *     one. `getManaTapOptionsDetailed` offers sacrifice options only as a last
- *     resort ("prefer non-destructive options; fall back … only when there is
- *     no other way to tap this source"), so a sac-land's second ability is
- *     absent from the list by design — Havenwood Battleground's `{T}, Sac:
- *     Add {G}{G}` is correctly hidden behind its plain `{T}: Add {G}`.
+ *
+ * NOT skipped any more: a SACRIFICE-cost mana ability on a card that also has a
+ * non-destructive one (CR 605.3a, issue #3630). This sweep used to skip it as
+ * "correctly hidden" behind the plain `{T}` ability — which was the bug: the
+ * option list was the only index space any tap mutation could name, so
+ * Havenwood Battleground's `{T}, Sacrifice this land: Add {G}{G}` was
+ * unactivatable by any route. The manual list now offers it behind the
+ * non-destructive options; the automatic planner still never sees it (asserted
+ * below).
  */
 
 /** Every descriptor that makes a `useStack: false` ability RECOGNISABLE as a
@@ -192,17 +195,6 @@ function sweep(): Sweep {
                 });
                 continue;
             }
-            if (
-                ability.cost?.sacrifice &&
-                abilities.some((other) => !other.cost?.sacrifice)
-            ) {
-                result.skips.push({
-                    card: def.name,
-                    abilityId: ability.id,
-                    reason: "sacrifice-cost mana ability shadowed by a non-destructive one — the engine offers sacrifice options only as a last resort",
-                });
-                continue;
-            }
             if (ability.canActivate) {
                 const offered = options.some(
                     (o) =>
@@ -299,6 +291,89 @@ describe("mana abilities, catalogue-wide (CR 605.1a)", () => {
     it("every fixed-output {T} mana ability is offered by the engine, producing what it declares", () => {
         expect(RESULT.failures, RESULT.failures.join("\n\n")).toEqual([]);
     }, 120_000);
+
+    it("a sacrifice-cost mana ability beside a non-destructive one is the player's to choose, never the planner's (CR 605.3a, issue #3630)", () => {
+        const failures: string[] = [];
+        let reached = 0;
+        for (const def of getAllCards()) {
+            // Every descriptor, not just a fixed output: Archaeological Dig's
+            // sacrifice ability is a `manaChoices` "one mana of any color".
+            const abilities = (def.activatedAbilities ?? []).filter(
+                (a) =>
+                    a.useStack === false && a.cost?.tap && declaresManaOutput(a)
+            );
+            if (!abilities.some((a) => !a.cost?.sacrifice)) continue;
+            const destructive = abilities.filter(
+                (a) => a.cost?.sacrifice && !a.manaAmount
+            );
+            if (destructive.length === 0) continue;
+            const instance = makeInstance(def.id, {
+                id: `sacrifice-${def.id}`,
+                controllerId: "p1",
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { battlefield: [instance] }),
+                    makePlayer("p2"),
+                ],
+            });
+            const battlefields = state.players.map((p) => ({
+                playerId: p.id,
+                battlefield: p.battlefield,
+            }));
+            const manual = getManaTapOptionsDetailed(
+                instance,
+                "p1",
+                battlefields
+            );
+            const planner = getManaTapOptionsDetailed(
+                instance,
+                "p1",
+                battlefields,
+                { requireTap: true }
+            );
+            if (
+                JSON.stringify(manual.slice(0, planner.length)) !==
+                JSON.stringify(planner)
+            ) {
+                failures.push(
+                    `${def.name}: the manual list does not start with the planner's ` +
+                        `options, so a planner-built manaChoiceIndex names a different ` +
+                        `ability. Manual: ${JSON.stringify(manual)}. Planner: ${JSON.stringify(planner)}.`
+                );
+            }
+            for (const ability of destructive) {
+                reached++;
+                const offered = manual.find(
+                    (o) =>
+                        o.source.kind === "activated" &&
+                        o.source.abilityId === ability.id
+                );
+                if (offered?.sacrificesSource !== true) {
+                    failures.push(
+                        `${def.name} / ${ability.id}: not offered to the player as a ` +
+                            `sacrifice option, so no tap mutation can activate it. ` +
+                            `Offered: ${JSON.stringify(manual)}.`
+                    );
+                }
+                if (
+                    planner.some(
+                        (o) =>
+                            o.source.kind === "activated" &&
+                            o.source.abilityId === ability.id
+                    )
+                ) {
+                    failures.push(
+                        `${def.name} / ${ability.id}: offered to the automatic planner, ` +
+                            `which would sacrifice the source to pay a cost.`
+                    );
+                }
+            }
+        }
+        expect(failures, failures.join("\n\n")).toEqual([]);
+        // The 11 FEM + Invasion sacrifice lands at the time of writing.
+        expect(reached).toBeGreaterThanOrEqual(11);
+    });
 
     it("the sweep is not vacuous — it reached a substantial slice of the catalogue", () => {
         // Without this, a filter that accidentally matches nothing turns the

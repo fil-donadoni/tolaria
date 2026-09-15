@@ -11,6 +11,9 @@ type ManaChoicePickerProps = {
      *  pointer event (e.g. from the ability menu) — `AnchoredPicker` then
      *  centres it on screen instead of pinning to the top-left corner. */
     position?: { x: number; y: number };
+    /** Index-aligned with `choices`: whether picking that row sacrifices the
+     *  source (CR 605.3a, issue #3630). Omitted when no row does. */
+    sacrificeFlags?: readonly boolean[];
     onSelect: (index: number) => void;
     onCancel: () => void;
 };
@@ -42,6 +45,7 @@ function optionLabel(pips: Color[]): string {
 export default function ManaChoicePicker({
     choices,
     position,
+    sacrificeFlags,
     onSelect,
     onCancel,
 }: ManaChoicePickerProps) {
@@ -79,6 +83,11 @@ export default function ManaChoicePicker({
                         <span className="text-display text-sm text-text">
                             {label}
                         </span>
+                        {sacrificeFlags?.[i] && (
+                            <span className="text-xs text-text/70">
+                                Sacrifice
+                            </span>
+                        )}
                     </AnchoredPickerRow>
                 );
             })}

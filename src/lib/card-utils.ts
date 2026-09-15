@@ -69,6 +69,7 @@ import {
     getFixedSacrificeManaAbility,
     getFixedMultiColorTapManaAbility,
     getManaTapOptions,
+    getManaTapOptionsDetailed,
     hybridCostKey,
     isSpellStackItem,
     normalizedHybridPips,
@@ -613,6 +614,25 @@ export function getManaChoices(
         return options.length > 0 ? options : null;
     }
     return null;
+}
+
+/** CR 605.3a (issue #3630) — per {@link getManaChoices} entry, whether picking
+ *  it sacrifices the source. Read off the SAME unified option list in the SAME
+ *  order, so index `i` here describes index `i` there: the picker labels a
+ *  sacrifice land's "{T}, Sacrifice this land: Add {G}{G}" instead of offering
+ *  it as a bare second amount. */
+export function getManaChoiceSacrificeFlags(
+    card: CardInstance,
+    players?: ReadonlyArray<{ id: string; battlefield: CardInstance[] }>
+): boolean[] {
+    return getManaTapOptionsDetailed(
+        card as unknown as CardInstanceState,
+        card.controllerId,
+        players?.map((p) => ({
+            playerId: p.id,
+            battlefield: p.battlefield as unknown as CardInstanceState[],
+        }))
+    ).map((o) => o.sacrificesSource === true);
 }
 
 /** Returns the mana CHOICES for a NON-tap mana ability (Vivi Ornitier's
