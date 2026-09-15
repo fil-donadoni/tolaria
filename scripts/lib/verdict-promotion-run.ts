@@ -36,6 +36,7 @@ import {
     existsSync,
     mkdtempSync,
     readFileSync,
+    renameSync,
     rmSync,
     writeFileSync,
 } from "node:fs";
@@ -162,11 +163,18 @@ export async function runVerdictsPromote(
         store: () => ports.reader,
     });
 
-    writeFileSync(join(ports.root, VERDICT_LOCK_PATH), output.lockText);
-    writeFileSync(
-        join(ports.root, EVAL_WEIGHTS_PATH),
-        output.evalWeightsSource
-    );
+    // Both files are staged in full before either lands, so a process dying
+    // mid-write cannot leave a checkout holding the lock without its weights.
+    const writes: [string, string][] = [
+        [join(ports.root, EVAL_WEIGHTS_PATH), output.evalWeightsSource],
+        [join(ports.root, VERDICT_LOCK_PATH), output.lockText],
+    ];
+    for (const [path, text] of writes) {
+        writeFileSync(`${path}.${process.pid}.partial`, text);
+    }
+    for (const [path] of writes) {
+        renameSync(`${path}.${process.pid}.partial`, path);
+    }
 
     const blade = await ports.runBladeMust();
     return {

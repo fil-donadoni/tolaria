@@ -16,6 +16,7 @@
 // The guard half — a lock without its weights is red — is in
 // `weightFit.bot.test.ts`, beside the guard.
 import { describe, expect, it } from "vitest";
+import { BLADE_SCENARIOS } from "../blade/registry";
 import { runVerdictPromotionStep } from "../blade/verdictPromotion";
 import {
     ATTESTATION_OBJECT_PREFIX,
@@ -39,7 +40,9 @@ import {
     validateStoreObjects,
     verdictIdOf,
     verdictsFromLock,
+    verdictsFromRegistry,
     type StoreObject,
+    type Verdict,
     type VerdictJudgement,
     type VerdictRebuildCheck,
     type VerdictSourceAxis,
@@ -178,6 +181,28 @@ describe("verdicts:validate — per object, exactly why it is not promotable", (
         }
     });
 
+    it("judges the store against the real blade registry", async () => {
+        // The engine step, not a hand-passed list: a blade entry's own
+        // judgement, submitted again, is already in the corpus.
+        const [entry] = verdictsFromRegistry(BLADE_SCENARIOS).verdicts;
+        const store = createMemoryVerdictStore();
+        const id = await stored(store, entry);
+        const b64 = async (prefix: string) =>
+            (await listing(store, prefix)).map(({ name, bytes }) => ({
+                name,
+                base64: Buffer.from(bytes).toString("base64"),
+            }));
+        const out = runVerdictPromotionStep({
+            mode: "validate",
+            lock: null,
+            evalWeightsSource: "",
+            verdictObjects: await b64(VERDICT_OBJECT_PREFIX),
+            attestationObjects: await b64(ATTESTATION_OBJECT_PREFIX),
+        });
+        expect(out.text).toContain(`${verdictObjectName(id)}  [in-registry]`);
+        expect(out.text).toContain(entry.id);
+    });
+
     it("asks the real engine whether a position rebuilds", async () => {
         const store = createMemoryVerdictStore();
         // The candidates name moves an empty board never offers.
@@ -266,6 +291,38 @@ describe("verdicts:promote — the lock it writes", () => {
         expect(plan.lock.verdictIds).toEqual([]);
         expect(plan.dropped).toEqual([
             { verdictId: locked, why: expect.stringContaining(rival) },
+        ]);
+    });
+
+    it("never promotes what the blade registry already judges — the same answer, or another", async () => {
+        // The registry is the corpus's permanent other half: every fit reads
+        // it beside the lock, and no promotion can quarantine it.
+        const asRegistry = (j: VerdictJudgement, label: string): Verdict => ({
+            ...j,
+            id: `registry:${label}`,
+            author: "blade-registry",
+            createdAt: "2026-09-05T00:00:00.000Z",
+            source: "registry",
+        });
+        const store = createMemoryVerdictStore();
+        const same = await stored(store, judgement(1, 1));
+        const rival = await stored(store, judgement(2, 2));
+        const fresh = await stored(store, judgement(3, 1));
+        const validation = validateStoreObjects(
+            await listing(store, VERDICT_OBJECT_PREFIX),
+            await listing(store, ATTESTATION_OBJECT_PREFIX),
+            rebuildsAll,
+            [
+                asRegistry(judgement(1, 1), "one"),
+                asRegistry(judgement(2, 1), "two"),
+            ]
+        );
+        expect(rowOf(validation, same).status).toBe("in-registry");
+        expect(rowOf(validation, same).reasons[0]).toContain("registry:one");
+        expect(rowOf(validation, rival).status).toBe("contested");
+        expect(rowOf(validation, rival).reasons[0]).toContain("registry:two");
+        expect(planPromotion(null, validation).lock.verdictIds).toEqual([
+            fresh,
         ]);
     });
 

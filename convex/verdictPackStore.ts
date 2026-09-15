@@ -33,6 +33,9 @@ import {
 
 const VERDICT_PACK_CONTENT_TYPE = "application/gzip";
 
+/** Verdict objects read at once while building a pack. */
+const READ_CONCURRENCY = 16;
+
 export type VerdictPackCodec = {
     gzip(text: string): Uint8Array;
     gunzip(bytes: Uint8Array): string;
@@ -60,7 +63,6 @@ export async function storeVerdictPack(
     codec: VerdictPackCodec
 ): Promise<StoredVerdictPack> {
     const seen = new Set<string>();
-    const entries: StoredVerdictPayload[] = [];
     for (const verdictId of verdictIds) {
         if (seen.has(verdictId)) {
             throw new Error(
@@ -68,13 +70,25 @@ export async function storeVerdictPack(
             );
         }
         seen.add(verdictId);
-        const judgement = await readVerdict(store, verdictId);
-        if (judgement === null) {
-            throw new Error(
-                `the Verdict Store has no ${verdictObjectName(verdictId)}, so no pack can carry it`
-            );
-        }
-        entries.push({ verdictId, payload: judgement });
+    }
+    // Read in bounded parallel batches: one GET at a time is thousands of
+    // round trips inside one action's time limit, an unbounded fan-out a
+    // self-inflicted rate limit. Order is the ids', whatever order they land.
+    const entries: StoredVerdictPayload[] = [];
+    for (let i = 0; i < verdictIds.length; i += READ_CONCURRENCY) {
+        const batch = verdictIds.slice(i, i + READ_CONCURRENCY);
+        const judgements = await Promise.all(
+            batch.map((verdictId) => readVerdict(store, verdictId))
+        );
+        batch.forEach((verdictId, j) => {
+            const judgement = judgements[j];
+            if (judgement === null) {
+                throw new Error(
+                    `the Verdict Store has no ${verdictObjectName(verdictId)}, so no pack can carry it`
+                );
+            }
+            entries.push({ verdictId, payload: judgement });
+        });
     }
 
     const text = encodeVerdictPack(entries);

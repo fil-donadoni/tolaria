@@ -42,7 +42,7 @@ import {
     verdictIdOfObjectName,
     verdictObjectName,
 } from "../../../verdictStore";
-import type { VerdictJudgement } from "./identity";
+import { positionKeyOf, verdictIdOf, type VerdictJudgement } from "./identity";
 import {
     verdictsFromLock,
     type StoredVerdictPayload,
@@ -100,7 +100,8 @@ export type VerdictObjectStatus =
     | "invalid"
     | "unattested"
     | "implicit-only"
-    | "contested";
+    | "contested"
+    | "in-registry";
 
 /** One verdict object's classification. `reasons` is empty exactly when the
  *  object is promotable. */
@@ -186,11 +187,20 @@ function readVerdictObject(
  * Classify every verdict object in a store listing, with the attestations
  * listed beside them. Never throws on an object: whatever is wrong with one is
  * its row's reason.
+ *
+ * `registry` is the corpus's other, permanent half — the blade registry's
+ * verdicts, which every fit reads beside the lock and no promotion can
+ * quarantine (they are code). A store verdict is judged against them too: the
+ * same judgement is already fitted, so locking it would state its constraint
+ * twice (ADR 0128 §4); a different answer at a registry position is a
+ * contested position, and fitting it would carry that disagreement into the
+ * weights as an unsatisfiable pair (ADR 0128 §6). Neither is promotable.
  */
 export function validateStoreObjects(
     verdictObjects: readonly StoreObject[],
     attestationObjects: readonly StoreObject[],
-    rebuild: VerdictRebuildCheck
+    rebuild: VerdictRebuildCheck,
+    registry: readonly Verdict[] = []
 ): StoreValidation {
     const rows: VerdictObjectRow[] = [];
     const readable = new Map<string, VerdictJudgement>();
@@ -251,8 +261,33 @@ export function validateStoreObjects(
         status,
         reasons,
     });
+    const registryById = new Map<string, string>();
+    const registryByKey = new Map<string, string[]>();
+    for (const entry of registry) {
+        registryById.set(verdictIdOf(entry), entry.id);
+        const key = positionKeyOf(entry);
+        registryByKey.set(key, [...(registryByKey.get(key) ?? []), entry.id]);
+    }
+    const promotable: typeof quarantine.promotable = [];
     for (const v of quarantine.promotable) {
-        rows.push(row(v.verdictId, "promotable", []));
+        const same = registryById.get(v.verdictId);
+        const rivals = registryByKey.get(v.positionKey);
+        if (same !== undefined) {
+            rows.push(
+                row(v.verdictId, "in-registry", [
+                    `already in the corpus as ${same} — one judgement is fitted once, never twice (ADR 0128 §4)`,
+                ])
+            );
+        } else if (rivals !== undefined) {
+            rows.push(
+                row(v.verdictId, "contested", [
+                    `contested — position ${v.positionKey} is judged differently by ${rivals.join(", ")}; the blade registry is code, so resolve it there (ADR 0128 §6)`,
+                ])
+            );
+        } else {
+            promotable.push(v);
+            rows.push(row(v.verdictId, "promotable", []));
+        }
     }
     for (const v of quarantine.unattested) {
         rows.push(row(v.verdictId, "unattested", [UNATTESTED_REASON]));
@@ -277,7 +312,7 @@ export function validateStoreObjects(
     return {
         rows,
         attestationProblems,
-        promotable: quarantine.promotable.map((v) => ({
+        promotable: promotable.map((v) => ({
             verdictId: v.verdictId,
             payload: v.judgement,
         })),
@@ -367,6 +402,7 @@ export function formatStoreValidation(validation: StoreValidation): string {
         `  unattested           : ${count("unattested")}`,
         `  implicit-only        : ${count("implicit-only")}`,
         `  contested            : ${count("contested")}`,
+        `  in-registry          : ${count("in-registry")}`,
         `attestation problems   : ${validation.attestationProblems.length}`,
     ];
     const blocked = validation.rows.filter((r) => r.status !== "promotable");

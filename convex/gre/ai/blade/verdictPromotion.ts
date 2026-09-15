@@ -31,6 +31,7 @@ import {
     rewriteDefaultEvalWeights,
     serializeVerdictLock,
     validateStoreObjects,
+    verdictsFromRegistry,
     weightValue,
     type StoreObject,
     type Verdict,
@@ -67,7 +68,8 @@ export function runVerdictPromotionStep(
     const validation = validateStoreObjects(
         decodeObjects(input.verdictObjects),
         decodeObjects(input.attestationObjects),
-        rebuildCheck
+        rebuildCheck,
+        verdictsFromRegistry(scenarios).verdicts
     );
     const validationText = formatStoreValidation(validation);
     if (input.mode === "validate") {

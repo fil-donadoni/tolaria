@@ -381,18 +381,24 @@ describe("widening the lock and moving the weights are ONE change (issue #3583, 
     it("a promoted lock without its weights reds the guard; the weights it writes are the refit", async () => {
         const registry = verdictsFromRegistry(BLADE_SCENARIOS);
         const committed = guardFit(registry).result;
-        // A judgement the committed fit leaves under the margin: stated once
-        // more, through the store, it must pull the vector.
-        const lever = registry.verdicts.find((v) =>
+        // A NEW explicit judgement — a position no blade entry judges (a
+        // registry one a turn later), carrying the answer its original
+        // gets. A re-stated registry judgement would be refused as already in
+        // the corpus, and would move the weights only by double counting.
+        const original = registry.verdicts.find((v) =>
             committed.violated.some((o) => o.pair.verdictId === v.id)
         );
         expect(
-            lever,
-            "the committed fit satisfies every registry pair — this demonstration needs another lever"
+            original,
+            "the committed fit satisfies every registry pair — this demonstration needs another position"
         ).toBeDefined();
+        const lever = {
+            ...original!,
+            spec: { ...original!.spec, turn: (original!.spec.turn ?? 1) + 1 },
+        };
 
         const store = createMemoryVerdictStore();
-        const { verdictId } = await putVerdict(store, lever!);
+        const { verdictId } = await putVerdict(store, lever);
         await putAttestation(store, {
             verdictId,
             author: "jovial-guineapig-250:tester1",
