@@ -8,14 +8,15 @@ import { useSeatYields } from "~/hooks/useYieldPreferences";
  *
  *  Mounted twice on purpose: in the **Stack** panel header, and in the in-game
  *  Game Menu so it stays reachable while the panel is collapsed. `variant`
- *  is the only difference between the two. */
+ *  is the only difference between the two. `ManageYieldsButton` sits beside
+ *  it in both homes and reads the same `resetCount` (issue #3629). */
 export default function ClearYieldsButton({
     variant = "panel",
 }: {
     variant?: "panel" | "menu";
 }) {
     const seat = useSeatYields();
-    const count = seat.count + seat.rememberedOrderCount;
+    const count = seat.resetCount;
     if (count === 0) return null;
 
     return (

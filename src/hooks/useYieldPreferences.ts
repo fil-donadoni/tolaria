@@ -11,8 +11,11 @@ import {
     clearSeatYieldPrefs,
     confirmTriggerOrder,
     countRememberedTriggerOrders,
+    countSeatYieldPrefs,
     countYields,
+    forgetSeatTriggerOrder,
     hasYield,
+    removeSeatYield,
     seatTriggerOrderMemory,
     seatYields,
     toggleYield,
@@ -42,6 +45,10 @@ export type YieldPrefsStore = {
         enabled: boolean,
         order: RememberedTriggerOrder | null
     ) => void;
+    /** Drop ONE key from the seat — `removeSeatYield` (issue #3629). */
+    removeYield: (seatId: string, key: YieldKey) => void;
+    /** Forget ONE remembered order — `forgetSeatTriggerOrder` (issue #3629). */
+    forgetTriggerOrder: (seatId: string, order: readonly YieldKey[]) => void;
 };
 
 export const YieldPrefsContext = createContext<YieldPrefsStore | null>(null);
@@ -101,6 +108,27 @@ export function useYieldPrefsState(gameId: string): YieldPrefsStore {
         },
         []
     );
+    const removeYield = useCallback((seatId: string, key: YieldKey) => {
+        setPrefs((prev) => {
+            const yields = removeSeatYield(prev.yields, seatId, key);
+            return yields === prev.yields ? prev : { ...prev, yields };
+        });
+    }, []);
+    const forgetTriggerOrder = useCallback(
+        (seatId: string, order: readonly YieldKey[]) => {
+            setPrefs((prev) => {
+                const triggerOrders = forgetSeatTriggerOrder(
+                    prev.triggerOrders,
+                    seatId,
+                    order
+                );
+                return triggerOrders === prev.triggerOrders
+                    ? prev
+                    : { ...prev, triggerOrders };
+            });
+        },
+        []
+    );
 
     return useMemo(
         () => ({
@@ -110,8 +138,18 @@ export function useYieldPrefsState(gameId: string): YieldPrefsStore {
             clearSeat,
             clearSeatCard,
             confirmTriggerOrder: confirmOrder,
+            removeYield,
+            forgetTriggerOrder,
         }),
-        [prefs, toggle, clearSeat, clearSeatCard, confirmOrder]
+        [
+            prefs,
+            toggle,
+            clearSeat,
+            clearSeatCard,
+            confirmOrder,
+            removeYield,
+            forgetTriggerOrder,
+        ]
     );
 }
 
@@ -133,8 +171,17 @@ export function useYieldPrefsStore(): YieldPrefsStore {
  *  yields must not apply while the viewer is seat B" is then a property of the
  *  hook, not of each caller remembering to pass the right id. */
 export type SeatYields = {
-    /** How many yields the viewing seat holds — the reset controls' count. */
+    /** How many yields the viewing seat holds. */
     count: number;
+    /** Yields plus remembered orders — `countSeatYieldPrefs`, the ONE count
+     *  and visibility rule of "Clear all yields" and "Manage yields". */
+    resetCount: number;
+    /** The viewing seat's **Yield** keys, in the order they were added. */
+    keys: readonly YieldKey[];
+    /** Drop ONE **Yield**; other yields, orders and the toggle stay. */
+    removeYield: (key: YieldKey) => void;
+    /** Forget ONE remembered order; yields and the toggle stay. */
+    forgetTriggerOrder: (order: readonly YieldKey[]) => void;
     isYielded: (key: YieldKey) => boolean;
     toggle: (key: YieldKey) => void;
     clearAll: () => void;
@@ -175,6 +222,14 @@ export function useSeatYields(): SeatYields {
     return useMemo(
         () => ({
             count: countYields(state, playerId),
+            resetCount: countSeatYieldPrefs(
+                { yields: state, triggerOrders },
+                playerId
+            ),
+            keys: seatYields(state, playerId),
+            removeYield: (key: YieldKey) => store?.removeYield(playerId, key),
+            forgetTriggerOrder: (order: readonly YieldKey[]) =>
+                store?.forgetTriggerOrder(playerId, order),
             isYielded: (key: YieldKey) => hasYield(state, playerId, key),
             toggle: (key: YieldKey) => store?.toggle(playerId, key),
             clearAll: () => store?.clearSeat(playerId),

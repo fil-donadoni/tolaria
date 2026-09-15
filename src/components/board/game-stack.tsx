@@ -16,6 +16,7 @@ import {
 import DragHandle from "./drag-handle";
 import StackRow from "./stack-row";
 import ClearYieldsButton from "./clear-yields-button";
+import ManageYieldsButton from "./manage-yields-button";
 
 /** Portrait's clearance-bound bottom edge — the SAME literal Tailwind class
  *  the viewer battlefield band itself uses for this edge
@@ -331,9 +332,12 @@ export default function GameStack({
                     {/* Issue #3556 §5 — the panel-header half of the **Yield**
                         reset. Renders itself away while the viewing seat holds
                         none; the Game Menu carries the same control so it
-                        stays reachable with the panel collapsed. */}
-                    <div className="px-2 pt-2 empty:hidden">
+                        stays reachable with the panel collapsed. "Manage
+                        yields" (issue #3629) rides beside it, on the same
+                        count. */}
+                    <div className="flex gap-2 px-2 pt-2 empty:hidden">
                         <ClearYieldsButton />
+                        <ManageYieldsButton />
                     </div>
                     <div
                         className={`flex ${

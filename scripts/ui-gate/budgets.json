@@ -1565,6 +1565,87 @@
                     "knownDebt": "`small` on this TOUCH row is REAL sub-44px tap-target debt, not the desktop `--control-h` artifact: the native `<input type=\"checkbox\">` of the three closed-vocabulary pickers (Archetypes, Provides, Requires) in the expanded row, the `Only unreviewed` checkbox, and the `size=\"xs\"` row buttons. The checkbox families predate this surface — the Capability pickers shipped with issue #1614 and this slice (issue #3597) added a third group of the same shape — so the fix is the app-wide tap-target pass (issue #2659), which owns raising these; this entry only RECORDS the reading as a ceiling so it cannot deepen. The reviewer's pass is a desk task, which is why the debt is recorded rather than blocking. `starved 1` is the SHELL's own page scroller, not this editor's list: `src/components/chrome/app-shell.tsx:123` is the `flex flex-1 min-h-0 flex-col overflow-y-auto` `<main>` every route renders inside, and the Vintage Cube scope's content column measures ~37,400px tall against a window-height port (461 profiled rows). MEASURED, not inferred: removing `overflow-auto` from the editor's own list left the reading at 1, and a temporary lane patch printing `probe.starved[]` named the shell's class string. This is not the deck-builder pathology the key was added for (a 24-66px window around a 101px card tile) — the port here is the full window and every row is reachable by scrolling. The `lobby` row records 2 starved containers for the same structural reason. Lowering it means paginating or virtualising the census list, which is a separate design call."
                 }
             }
+        },
+        "game-manage-yields": {
+            "label": "Manage yields box — one yield held",
+            "status": "budgeted",
+            "viewports": {
+                "1440x900x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "cardsSquare": 0,
+                    "cardsSoft": 0,
+                    "cardsSoftUnknown": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 13,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "small": 12,
+                    "axeSerious": 0,
+                    "axeCritical": 0
+                },
+                "390x844x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "cardsSquare": 0,
+                    "cardsSoft": 0,
+                    "cardsSoftUnknown": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 20,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "small": 5,
+                    "axeSerious": 0,
+                    "axeCritical": 0
+                },
+                "844x390x3": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "cardsSquare": 0,
+                    "cardsSoft": 0,
+                    "cardsSoftUnknown": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 13,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "small": 4,
+                    "axeSerious": 0,
+                    "axeCritical": 0
+                },
+                "820x1180x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "cardsSquare": 0,
+                    "cardsSoft": 0,
+                    "cardsSoftUnknown": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 13,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "small": 7,
+                    "axeSerious": 0,
+                    "axeCritical": 0
+                },
+                "1180x820x2": {
+                    "cardsZero": 0,
+                    "cardsOcc": 0,
+                    "cardsStranded": 0,
+                    "cardsSquare": 0,
+                    "cardsSoft": 0,
+                    "cardsSoftUnknown": 0,
+                    "ctrlsZero": 0,
+                    "ctrlsOcc": 13,
+                    "ctrlsStranded": 0,
+                    "starved": 0,
+                    "small": 7,
+                    "axeSerious": 0,
+                    "axeCritical": 0
+                }
+            }
         }
     }
 }
