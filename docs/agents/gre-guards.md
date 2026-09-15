@@ -191,4 +191,17 @@ unnoticed. **793 sites stood wrong when it was added**, plus ~200 more (bare
 ids on keyword-less lines) found by hand in the same pass. It sees only lines
 that name a keyword.
 
+**The targeted scans** close blind spot 3 for one recurring shape at a time,
+outside 701/702: one id (or a small set), one claim vocabulary, one printed
+rule that plainly contradicts it. `scripts/cr-118-4-life-payment.ts` (issue
+#2559) reds on the {X}-cost rule cited for a life payment;
+`scripts/cr-616-1-subrule-citations.ts` (issue #3014) reds on the copy and
+back-face priority tiers of the replacement-ordering procedure cited for the
+once-per-event rule or the choose-the-order rule. Each fires on the claim
+words, never on the id alone, and passes a line that names what the id is
+really about. They share one skeleton (`scripts/lib/cr-misattribution.ts`:
+file walk, needle prefilter, line scan, `cr-cite-ok`), so the next shape is a
+rule row, an `EXEMPT` list, a CLI report and a regression test. A general
+claim-vs-text checker is out of scope — the gate is offline and deterministic.
+
 Wizards republishes roughly per set at <https://magic.wizards.com/en/rules>.
