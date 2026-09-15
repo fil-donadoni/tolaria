@@ -34,7 +34,10 @@ export default function SubtypeOptionCombobox({
     return (
         <Command
             filter={subtypeOptionFilter}
-            className="mt-1 h-auto w-64 max-w-full rounded-sm! border border-border-subtle/40 bg-surface"
+            // `shrink-0`: the prompt Panel is a max-h flex column, and on a
+            // short viewport (844x390) a shrinkable Command collapsed its list
+            // to a 38px window — the Panel scrolls instead.
+            className="mt-1 h-auto w-64 max-w-full shrink-0 rounded-sm! border border-border-subtle/40 bg-surface"
         >
             <CommandInput
                 autoFocus
@@ -52,7 +55,9 @@ export default function SubtypeOptionCombobox({
                         value={opt.label}
                         disabled={disabled}
                         onSelect={() => onPick(opt.id)}
-                        className="text-xs tracking-wide"
+                        // Same row height as a `Button size="sm"` — the token
+                        // grows under `pointer: coarse` for touch targets.
+                        className="min-h-[var(--control-h-sm)] text-xs tracking-wide"
                     >
                         {opt.label}
                     </CommandItem>
