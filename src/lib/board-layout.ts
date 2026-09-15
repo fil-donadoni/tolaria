@@ -602,9 +602,10 @@ export function fanLayout(opts: FanOptions): Placement[] {
     // Adaptive per-zone card size (ADR 0103, issue #2725). The hand SHRINKS to
     // fit rather than fanning ever tighter: before this, `step` was clamped only
     // by `fitStep`, so a big hand in a narrow band stacked its cards past their
-    // own centres — the measured reason the `game-board` ui-gate surface could
-    // not be budgeted (`cardsOcc` 4 then 5 on two runs of the same tree, "hand-
-    // fan overlap scales with the hand", `scripts/ui-gate/budgets.json`).
+    // own centres — the measured reason the `game-board` surface is listed in
+    // `UNWALKED_SURFACES` (`scripts/ui-gate/floors.ts`, issue #3695):
+    // `cardsOcc` 4 then 5 on two runs of the same tree, "hand-fan overlap
+    // scales with the hand".
     const scale = zoneFitScale({
         zoneWidth: width,
         footprints: Array.from({ length: count }, () => cardWidth),

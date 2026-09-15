@@ -609,10 +609,11 @@ describe("CardsPile — the count badge's containing block is a full tile box (i
     //
     // **What this test does NOT prove.** happy-dom has no layout engine —
     // `getBoundingClientRect()` is all zeroes — and both board surfaces are
-    // `unwalked` in `scripts/ui-gate/budgets.json`, so neither this project
-    // nor `check:ui` can re-measure those pixels. What it DOES prove is the
-    // class contract that produced them: the first ancestor establishing a
-    // containing block for the badge is sized to a whole `PILE_TILE_BOX`.
+    // declared in `UNWALKED_SURFACES` (`scripts/ui-gate/floors.ts`), so
+    // neither this project nor `check:ui` can re-measure those pixels. What
+    // it DOES prove is the class contract that produced them: the first
+    // ancestor establishing a containing block for the badge is sized to a
+    // whole `PILE_TILE_BOX`.
     // That is exactly the property that was false, and it is falsifiable
     // (drop `relative` or `PILE_TILE_BOX` from the wrapper and it goes red).
     const POSITIONED = /(^|\s)(relative|absolute|fixed|sticky)($|\s)/;

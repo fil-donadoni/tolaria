@@ -306,10 +306,11 @@ describe("landscape-compact nameplate never clips the life total (round-3 review
     // overflowed its 48px box by 86px at 844x390: hand-driven CDP reported the
     // poison badge at visibleFrac 0.553 and BOTH the energy and experience
     // badges at visibleFrac 0 — rendered, hit-testing to nothing, invisible.
-    // Nothing in the repo could see it: `scripts/ui-gate/budgets.json` lists
-    // `game-board` as `unwalked`, and happy-dom (this very file) has no layout
-    // engine. So this test pins the CLASS CONTRACT the fix rests on, which is
-    // the part happy-dom CAN see; the pixel proof lives in the PR body.
+    // Nothing in the repo could see it: `game-board` is declared in
+    // `UNWALKED_SURFACES` (`scripts/ui-gate/floors.ts`), and happy-dom (this
+    // very file) has no layout engine. So this test pins the CLASS CONTRACT
+    // the fix rests on, which is the part happy-dom CAN see; the pixel proof
+    // lives in the PR body.
     //
     // The two variants must differ here and the assertion says so in both
     // directions: landscape's box is width-capped

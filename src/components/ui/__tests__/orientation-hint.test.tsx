@@ -54,9 +54,10 @@ describe("OrientationHint — once per surface per session (issue #2594)", () =>
         // cursor-pointer rounded px-1`, inheriting the band's `text-xs`,
         // measured ~19x16 — under the target. `check:ui` cannot catch this:
         // both surfaces this component targets ("game board", "draft pick
-        // screen") are `status: "unwalked"` in `scripts/ui-gate/budgets.json`,
-        // so this class assertion is the only guard. Mirrors the identical
-        // fix already recorded at `error-toast.tsx`'s dismiss button.
+        // screen") are declared in `UNWALKED_SURFACES`
+        // (`scripts/ui-gate/floors.ts`), so this class assertion is the only
+        // guard. Mirrors the identical fix already recorded at
+        // `error-toast.tsx`'s dismiss button.
         render(<OrientationHint surfaceId="game-board" message="Rotate me" />);
         const dismissButton = screen.getByRole("button", {
             name: "Dismiss orientation hint",

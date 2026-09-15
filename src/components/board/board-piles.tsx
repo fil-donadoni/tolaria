@@ -77,9 +77,10 @@ export default function BoardPiles({
                     // not scroll, so it takes no tab stop it would not use.
                     // `role="region"` + a name, not a bare `tabIndex`: the same
                     // shape the deck builder's source pane already uses for
-                    // this rule (`budgets.json`, `deck-builder`), and it is
-                    // what keeps the new tab stop from landing a keyboard user
-                    // on an unlabelled block (PR #3501 review).
+                    // this rule (the `axeSerious` floor,
+                    // `scripts/ui-gate/floors.ts`, walked at `deck-builder`),
+                    // and it is what keeps the new tab stop from landing a
+                    // keyboard user on an unlabelled block (PR #3501 review).
                     {...(compact
                         ? {
                               tabIndex: 0,

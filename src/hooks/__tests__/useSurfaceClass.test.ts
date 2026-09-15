@@ -8,7 +8,8 @@
 // 767px portrait bound, and 1180px tall, above the 500px landscape-compact
 // bound — so a tablet in portrait has always read as a desktop. That is the
 // documented cause of the deckbuilder's starved card-pile strip at that exact
-// viewport (`scripts/ui-gate/budgets.json`, `deck-builder @ 820x1180x2`).
+// viewport (`check:ui`'s `starved` Shape Reading,
+// `scripts/ui-gate/floors.ts`, `deck-builder @ 820x1180x2`).
 //
 // The load-bearing test in this file is therefore the CONTRAST one: at 820×1180
 // the two hooks must disagree. If they ever agree again, the new hook has been

@@ -850,9 +850,10 @@ describe("CardPreview — Arena click model (#332)", () => {
 // fully green, so the compact-vs-full wiring — the issue's own "lateral zoom
 // carries an 'Alt: engine view' affordance" — had zero coverage, and neither
 // the mobile long-press overlay nor the anchored pin had a through-the-surface
-// assertion that it renders the FULL slot. `scripts/ui-gate/budgets.json` has
-// no dedicated walk for any of them either, so these dom assertions are the
-// only net. They render a REAL card id so the badge comes off the real
+// assertion that it renders the FULL slot. `check:ui`'s surface walks
+// (`scripts/ui-gate/surfaces.ts`) have no dedicated walk for any of them
+// either, so these dom assertions are the only net. They render a REAL card
+// id so the badge comes off the real
 // `CardDefinition` through `buildPreviewBody`, not off a hand-built body.
 describe("CardPreview — Engine View slot per surface (issue #2728)", () => {
     const BOLT_ID = getCardByName("Lightning Bolt").id;

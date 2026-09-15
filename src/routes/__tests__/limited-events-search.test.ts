@@ -8,9 +8,10 @@ import { router } from "~/router";
 // (PR #2651) found broken: TanStack's default `parseSearch` JSON-parses
 // every query-string value, so the literal, bookmarkable URL `?mine=1` (the
 // one named in the issue AC, the PR title, `limited-your-events.route.tsx`'s
-// doc comment, `docs/guides/ui-runbooks.md` and the `budgets.json` label)
-// arrives at `validateSearch` as the NUMBER `1`, not the string `"1"` — the
-// old `search.mine === "1"` branch was unreachable dead code, and every test
+// doc comment, `docs/guides/ui-runbooks.md` and the redirect surface's label
+// in `scripts/ui-gate/surfaces.ts`) arrives at `validateSearch` as the
+// NUMBER `1`, not the string `"1"` — the old `search.mine === "1"` branch
+// was unreachable dead code, and every test
 // in `limited-events-page.test.tsx` passed `mine` as a prop, bypassing this
 // translation entirely and staying green over the bug.
 //

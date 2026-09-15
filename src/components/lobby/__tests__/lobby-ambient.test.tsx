@@ -30,8 +30,8 @@ describe("LobbyAmbient (issue #2726)", () => {
         // `scripts/ui-gate/probe.js` excludes an image inside anything
         // `aria-hidden` or `[data-ambient-art]`. A full-bleed backdrop that
         // failed either check would score as an occluded CARD behind the
-        // panels — the exact artifact `budgets.json` holds a `cardsOcc`
-        // ceiling for.
+        // panels — exactly what `check:ui` measures as the `cardsOcc` Shape
+        // Reading (`scripts/ui-gate/floors.ts`), printed but never gated.
         const { container } = render(<LobbyAmbient featuredCardId="print-a" />);
         const root = container.querySelector("[data-lobby-ambient]")!;
         expect(root.getAttribute("aria-hidden")).toBe("true");

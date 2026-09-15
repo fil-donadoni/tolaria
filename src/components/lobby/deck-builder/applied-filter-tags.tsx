@@ -14,8 +14,9 @@ export interface AppliedFilterTagsProps {
  * on screen that still says WHAT is being filtered — so it renders at every
  * viewport, never folded and never behind a disclosure. It renders NOTHING when
  * no filter is active, which is what hands the deck pane back the whole band's
- * height on tablet and desktop (`scripts/ui-gate/budgets.json` §deck-builder:
- * "the height has to come from the header leaving the band").
+ * height on tablet and desktop — the constraint `check:ui`'s `deck-builder`
+ * surface walk verifies ("the height has to come from the header leaving the
+ * band").
  *
  * The chips are a VIEW of the URL-backed filter set (`useFilterSearchParams`),
  * not a second copy of it: `describeActiveFilters` derives them and each chip's

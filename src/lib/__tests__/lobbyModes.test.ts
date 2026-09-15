@@ -66,7 +66,8 @@ describe("lobbyModeTiles (issue #2726)", () => {
     it("every tile carries LOCAL art, never a CDN URL", () => {
         // Deterministic and offline: the ui-gate walks this surface at five
         // viewports, and a remote draw is what makes a probe count wobble
-        // run to run (`budgets.json`'s `cardsOcc 1` ceiling).
+        // run to run (`cardsOcc` is a Shape Reading `check:ui` measures and
+        // prints, never gates — `scripts/ui-gate/floors.ts`).
         for (const mode of ["arena", "cockatrice"] as const)
             for (const tile of lobbyModeTiles({ mode, ...inputs }))
                 expect(tile.art, tile.key).toMatch(/^\/img\//);

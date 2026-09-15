@@ -19,10 +19,12 @@ import { cn } from "~/lib/utils";
  * landscape phone is exactly where §6's sneak-peek column lives — two `fixed`
  * surfaces fighting for one edge (`limited-draft-pool.tsx` § "no touch
  * move-to path" records the same collision). In portrait the bottom sheet was
- * the MEASURED source of the `cardsOcc 3` budget debt at 390x844, deleted from
- * `scripts/ui-gate/budgets.json` by this change. What §4 actually asks for —
- * the 44px CTA row as the primary move path on touch — is preserved: the row
- * is the same `EditingSurfaceAction[]`, just hosted by the strip.
+ * the MEASURED source of a `cardsOcc` reading of 3 at 390x844 — `cardsOcc` is
+ * a Shape Reading `check:ui` only measures and prints
+ * (`scripts/ui-gate/floors.ts`), and this change is what brought it down.
+ * What §4 actually asks for — the 44px CTA row as the primary move path on
+ * touch — is preserved: the row is the same `EditingSurfaceAction[]`, just
+ * hosted by the strip.
  *
  * The action SET is not re-derived: it is the same `EditingSurfaceAction[]`
  * the Peek Panel and the Inspect Overlay are handed, built once in
