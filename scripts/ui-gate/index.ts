@@ -125,6 +125,7 @@ const AXE_PATH = path.join(REPO_ROOT, "node_modules", "axe-core", "axe.min.js");
 const SHOT_ROOT = path.join(REPO_ROOT, ".claude", "telemetry", "ui-gate");
 
 const STRESS_SCENARIO_LABEL = "UI stress — full board, full hand, deep piles";
+const YIELDS_SCENARIO_LABEL = "UI yields — two spells on the stack";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Small utilities
@@ -655,6 +656,7 @@ async function main(): Promise<number> {
                 const ctx: WalkContext = {
                     baseUrl,
                     stressScenarioLabel: STRESS_SCENARIO_LABEL,
+                    yieldsScenarioLabel: YIELDS_SCENARIO_LABEL,
                     fixtureLabels: lane.labels,
                     createdGame: false,
                     log: () => {},

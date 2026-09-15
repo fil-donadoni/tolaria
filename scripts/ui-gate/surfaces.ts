@@ -42,6 +42,9 @@ export interface WalkContext {
      *  seeded at bootstrap for the run's own account, so a concurrent run's
      *  seeding can never drop them and its rows never reach this run's list. */
     fixtureLabels: FixtureLabels;
+    /** The debug-scenario label the `game-manage-yields` surface loads
+     *  (`yields-scenario.json`, issue #3629). */
+    yieldsScenarioLabel: string;
     /** Set once the lane has created the active game itself. */
     createdGame: boolean;
     /** Issue #2671 review H2. The `deck-builder` walk's fixture import trips
@@ -884,6 +887,16 @@ async function ensureBoard(page: Page, ctx: WalkContext): Promise<void> {
  *  counts. A ceiling over a position that flaps is worse than no ceiling. This
  *  is the one board a budget row can mean something about. */
 async function ensureStressBoard(page: Page, ctx: WalkContext): Promise<void> {
+    await ensureScenarioBoard(page, ctx, ctx.stressScenarioLabel);
+}
+
+/** The board with the debug scenario `label` loaded into the game the lane
+ *  created — `ensureStressBoard`'s mechanism, for any fixed position. */
+async function ensureScenarioBoard(
+    page: Page,
+    ctx: WalkContext,
+    label: string
+): Promise<void> {
     await ensureBoard(page, ctx);
     if (!ctx.createdGame) {
         throw new Unreachable(
@@ -907,15 +920,15 @@ async function ensureStressBoard(page: Page, ctx: WalkContext): Promise<void> {
             "the Scenarios list did not open (listDebugScenarios is admin-gated — is this account an admin?)"
         );
     }
-    await search.fill(ctx.stressScenarioLabel);
-    const rowSelector = `button:has-text(${JSON.stringify(ctx.stressScenarioLabel)})`;
+    await search.fill(label);
+    const rowSelector = `button:has-text(${JSON.stringify(label)})`;
     const row = page.locator(rowSelector);
     // Waits for the filtered row rather than sleeping 600ms and counting once:
     // under load the list query answers later than that, and the lane reported
     // a seeded scenario "absent" (issue #3626's runs, load 12-96).
     if (!(await fixtureRowsRendered(page, rowSelector))) {
         throw new Unreachable(
-            `debug scenario "${ctx.stressScenarioLabel}" is absent from this deployment — seed it with debugScenarios:seedScenarioDirect (see the PR receipt's scenario field)`
+            `debug scenario "${label}" is absent from this deployment — seed it with debugScenarios:seedScenarioDirect (see the PR receipt's scenario field)`
         );
     }
     await row.first().click({ timeout: STEP_TIMEOUT });
@@ -967,6 +980,12 @@ const DEBUG_SHEET_TOGGLE = "[data-debug-sheet-toggle]";
 const DEBUG_SHEET_TOGGLE_CLOSED =
     '[data-debug-sheet-toggle][aria-expanded="false"]';
 const DEBUG_SHEET = "[data-debug-sheet]";
+/** A stack row's per-ability **Yield** toggle (`stack-yield-toggle.tsx`), the
+ *  stack panel's "Manage yields" control and one row of the box it opens
+ *  (issue #3629). */
+const STACK_YIELD_TOGGLE = "[data-stack-yield-toggle]";
+const MANAGE_YIELDS_CTA = '[data-manage-yields="panel"]';
+const MANAGE_YIELDS_ROW = "[data-manage-yields-row]";
 /** The AI trace box's OPEN body (`ai-decision-trace-box.tsx`, issue #3492).
  *  It carries the max-height this surface exists to measure, and it is
  *  mounted only for a vs-AI game — which makes its absence the one reliable
@@ -2280,6 +2299,56 @@ export const SURFACES: readonly Surface[] = [
             throw new Error(
                 `could not end the solo game this lane created — \`game-debug-sheet-ai\` will read as unreachable for the rest of this run [${trace.join("; ")}]`
             );
+        },
+    },
+    {
+        // Issue #3629 — the "Manage yields" box, open over the board. Its own
+        // row because it is a different SCREEN (a dialog with its own scroll
+        // body and one remove control per entry), and one that only exists
+        // while the viewing seat HOLDS a **Yield**.
+        //
+        // The yield goes on the BOTTOM of a two-object stack, never the top: a
+        // yield on the top object makes the seat holding priority pass at once
+        // (`shouldAutoPassYield`), which in solo mode hands the view to the
+        // other seat — whose store is empty — and the control is gone before
+        // the walk can click it.
+        //
+        // Before `game-debug-sheet-ai` for the same reason the other board rows
+        // are: that walk ends the solo game this one loads its scenario into.
+        id: "game-manage-yields",
+        label: "Manage yields box — one yield held",
+        async walk(page, ctx) {
+            await ensureScenarioBoard(page, ctx, ctx.yieldsScenarioLabel);
+            const toggles = page.locator(STACK_YIELD_TOGGLE);
+            if (!(await visible(page, STACK_YIELD_TOGGLE, STEP_TIMEOUT))) {
+                throw new Unreachable(
+                    "the yields scenario loaded but no stack row offered a yield toggle — is the stack panel collapsed at this viewport?"
+                );
+            }
+            const count = await toggles.count();
+            if (count < 2) {
+                throw new Unreachable(
+                    `the stack panel shows ${count} yield toggle(s) — the walk needs two objects so it can yield the BOTTOM one without auto-passing`
+                );
+            }
+            await toggles.last().click({ timeout: STEP_TIMEOUT });
+            if (
+                !(await clickIfVisible(page, MANAGE_YIELDS_CTA, STEP_TIMEOUT))
+            ) {
+                throw new Unreachable(
+                    'holding a yield rendered no visible "Manage yields" control in the stack panel header'
+                );
+            }
+            if (!(await visible(page, MANAGE_YIELDS_ROW, STEP_TIMEOUT))) {
+                throw new Unreachable(
+                    "the Manage yields box opened without a row for the yield just held"
+                );
+            }
+            await settle(page);
+        },
+        async cleanup(page) {
+            await page.keyboard.press("Escape");
+            await page.waitForTimeout(200);
         },
     },
     {
