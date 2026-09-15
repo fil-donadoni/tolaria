@@ -50,6 +50,16 @@
  *   bun run check:ui -- --keep-user                      # leave the run's
  *                                                        # account in place and
  *                                                        # print its credentials
+ *   bun run check:ui -- --scope-only                     # print the diff's
+ *                                                        # scope, no browser
+ *   bun run check:ui -- --all                            # force the full scope
+ *   bun run check:ui -- --scope-only --base=<ref>        # scope of the diff
+ *                                                        # against another ref
+ *
+ * SCOPE (issue #3627). Every run starts by printing which surfaces the diff
+ * against the base branch can reach (`scripts/lib/ui-scope.ts`), or FULL and
+ * why. The walk itself does not narrow yet: a scoped receipt is PRD #3625's
+ * next slice, so today the scope is information, not a filter.
  *
  * Env:
  *   VITE_CONVEX_URL   the deployment to talk to (environment, else the
@@ -98,6 +108,13 @@ import {
     runScreenshotDir,
     withLaneAccount,
 } from "./lane-account.ts";
+import { ORIGIN_BASE } from "../lib/branches.ts";
+import { createImportGraph } from "../lib/import-graph.ts";
+import {
+    computeUiScope,
+    renderUiScope,
+    type UiScope,
+} from "../lib/ui-scope.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..");
@@ -361,6 +378,13 @@ interface Options {
     accept: Set<string>;
     /** Skip the lane account's teardown and print its credentials. */
     keepUser: boolean;
+    /** Print the diff's scope and exit, before any browser or deployment. */
+    scopeOnly: boolean;
+    /** Force the full scope whatever the diff. */
+    all: boolean;
+    /** The ref the diff is taken against; the configured base branch unless
+     *  `--base=` names another (same flag as `check:lane`). */
+    base: string;
 }
 
 function parseArgs(argv: string[]): Options {
@@ -370,12 +394,19 @@ function parseArgs(argv: string[]): Options {
         record: false,
         accept: new Set(),
         keepUser: false,
+        scopeOnly: false,
+        all: false,
+        base: ORIGIN_BASE,
     };
     for (const arg of argv) {
         if (arg === "--headed") opts.headed = true;
         else if (arg === "--record") opts.record = true;
         else if (arg === "--keep-user") opts.keepUser = true;
-        else if (arg.startsWith("--surface=")) {
+        else if (arg === "--scope-only") opts.scopeOnly = true;
+        else if (arg === "--all") opts.all = true;
+        else if (arg.startsWith("--base=")) {
+            opts.base = arg.slice("--base=".length);
+        } else if (arg.startsWith("--surface=")) {
             opts.surfaces = arg
                 .slice("--surface=".length)
                 .split(",")
@@ -478,8 +509,60 @@ function recordBudgets(
     );
 }
 
+function git(args: string[]): string {
+    const r = spawnSync("git", args, { cwd: REPO_ROOT, encoding: "utf8" });
+    if (r.status !== 0) {
+        throw new FatalError(
+            `git ${args.join(" ")} failed: ${(r.stderr || "").trim()}`
+        );
+    }
+    return r.stdout;
+}
+
+/**
+ * Every path this checkout differs in from the base branch: committed since
+ * the merge-base, uncommitted, and untracked — the tree Vite actually serves.
+ * Deletions are kept: the scoper places them fail-closed. `-z` for the
+ * non-ASCII symbol filenames under `public/` (same reason as `check:lane`).
+ */
+function changedSinceBase(base: string): string[] {
+    const mergeBase = git(["merge-base", base, "HEAD"]).trim();
+    const tracked = git(["diff", "-z", "--name-only", mergeBase]);
+    const untracked = git(["ls-files", "-z", "--others", "--exclude-standard"]);
+    const paths = `${tracked}\0${untracked}`.split("\0").filter(Boolean);
+    return [...new Set(paths)];
+}
+
+function computeRunScope(opts: Options): UiScope {
+    if (opts.all) return { kind: "full", reason: "--all" };
+    // The scope is information in this slice, never a reason to walk nothing:
+    // an unfetched base ref or a shallow clone degrades to FULL, it does not
+    // abort a run that would otherwise have walked every surface.
+    let changed: string[];
+    try {
+        changed = changedSinceBase(opts.base);
+    } catch (err) {
+        return {
+            kind: "full",
+            reason: `scope unavailable: ${(err as Error).message}`,
+        };
+    }
+    return computeUiScope({
+        changed,
+        surfaces: SURFACES,
+        graph: createImportGraph({ root: REPO_ROOT }),
+    });
+}
+
 async function main(): Promise<number> {
     const opts = parseArgs(process.argv.slice(2));
+    if (opts.all && opts.surfaces) {
+        throw new FatalError(
+            "--all and --surface= contradict each other: one forces every surface, the other picks a subset"
+        );
+    }
+    log(renderUiScope(computeRunScope(opts), opts.base));
+    if (opts.scopeOnly) return 0;
     const budgets = loadBudgets();
 
     const selected = opts.surfaces
