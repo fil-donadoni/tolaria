@@ -4,6 +4,7 @@ import { api } from "@convex/_generated/api";
 import type { VerdictReview } from "@convex/verdictReview";
 import { Button } from "@/components/ui/button";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
+import SurfaceReadyMarker from "@/components/ui/surface-ready-marker";
 import VerdictPositionDetail from "./verdict-position-detail";
 import VerdictPositionRow from "./verdict-position-row";
 
@@ -64,6 +65,10 @@ export default function VerdictReviewPanel() {
 
     return (
         <Panel>
+            {/* Up once the snapshot (or its error) has arrived, down again
+                while a reload is out — an action, so no query tells
+                `check:ui`'s settle wait it is in flight (issue #3644). */}
+            {!loading && <SurfaceReadyMarker />}
             <PanelHeader
                 title="Positions"
                 subtitle={
