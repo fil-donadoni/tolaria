@@ -7,7 +7,6 @@ import { hasMetalcraft } from "../../types";
 import { makeDualLand } from "../../abilities";
 import { attacksTrigger } from "../../abilities/triggers/attacksTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
-import { tokenPrintIdFor } from "../../tokenPrintLookup";
 
 // The SOM "fast land" cycle — see `makeDualLand`'s `fastLand` flag in
 // `convex/cards/abilities/index.ts` for the shared conditional-tapped shape.
@@ -102,13 +101,12 @@ export const moxOpal: CardDefinition = {
     ],
 };
 
-const MYR_BATTLESPHERE_ID = "b0ae94ed-7314-470b-baba-f2f58bbc894a";
-
 // Myr Battlesphere (SOM) — {7} 4/7 Artifact Creature — Myr Construct. Vintage
 // Cube (issue #3244).
 //
-// ETB: four 1/1 colorless Myr artifact creature tokens (CR 111.1), art from the
-// card's own `all_parts` token print.
+// ETB: four 1/1 colorless Myr artifact creature tokens (CR 111.1); their art is
+// the card's own `all_parts` token print, resolved from the token-prints
+// lockfile at creation.
 //
 // Attack trigger (CR 508.1m): "you may tap X untapped Myr you control. If you
 // do, …" is a cost paid as the trigger RESOLVES (CR 118.12), with X chosen by
@@ -128,7 +126,7 @@ const MYR_BATTLESPHERE_ID = "b0ae94ed-7314-470b-baba-f2f58bbc894a";
 // compiler-gap: "When this creature enters, create four 1/1 colorless Myr artifact creature tokens." (#2693)
 // compiler-gap: "Whenever this creature attacks, you may tap X untapped Myr you control. If you do, this creature gets +X/+0 until end of turn and deals X damage to the player or planeswalker it's attacking." (#2693)
 export const myrBattlesphere: CardDefinition = {
-    id: MYR_BATTLESPHERE_ID, // SOM 180
+    id: "b0ae94ed-7314-470b-baba-f2f58bbc894a", // SOM 180
     name: "Myr Battlesphere",
     rarity: "rare",
     oracleText:
@@ -153,10 +151,6 @@ export const myrBattlesphere: CardDefinition = {
                         subtypes: ["Myr"],
                         power: 1,
                         toughness: 1,
-                        imagePrintId: tokenPrintIdFor(
-                            MYR_BATTLESPHERE_ID,
-                            "Myr"
-                        ),
                     },
                     controller: "controller",
                     count: 4,
