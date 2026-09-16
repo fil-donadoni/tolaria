@@ -1121,11 +1121,47 @@ export const prisonBarricade: CardDefinition = {
 
 // Global Ruin — {4}{W} Sorcery. "Each player chooses from the lands they
 // control a land of each basic land type, then sacrifices the rest."
-// tracked-by: #3712 (NOT a `keep-permanents` exposure, as this marker once
-// claimed: the `chooseCategorized` Op already does the per-basic-type pick on
-// the battlefield with the COVER rule a dual land needs — Planar Overlay,
-// `pls/blue.ts`. Missing: a battlefield `sweep` that SACRIFICES the unpicked
-// lands, and admitting the Op as a CR 101.4 `forEach { simultaneous }` body).
+// (issue #3712) The Planar Overlay pick (`pls/blue.ts`): `chooseCategorized`
+// on the battlefield over the five basic land types, whose COVER rule lets a
+// dual land answer both its types. The picks stay; the `sacrifice` sweep
+// (CR 701.21a) takes every other LAND — so a nonbasic with no basic land type
+// is necessarily sacrificed. "Each player chooses …, then sacrifices" is
+// CR 101.4: `simultaneous: true` makes every player's pick, in APNAP order,
+// before any land is sacrificed.
+// compiler-gap: "Each player chooses from the lands they control a land of each basic land type, then sacrifices the rest." (#2693)
+export const globalRuin: CardDefinition = {
+    id: "336474b4-2cf5-44c0-b72c-f75f1a7ed928",
+    name: "Global Ruin",
+    rarity: "rare",
+    oracleText:
+        "Each player chooses from the lands they control a land of each basic land type, then sacrifices the rest.",
+    manaCost: { X: 4, W: 1 },
+    types: ["Sorcery"],
+    effects: [
+        {
+            op: "forEach",
+            select: { set: "players" },
+            simultaneous: true,
+            effects: [
+                {
+                    op: "chooseCategorized",
+                    player: { ref: "$each" },
+                    zone: "battlefield",
+                    categories: [
+                        { label: "Plains", filter: { subtype: "Plains" } },
+                        { label: "Island", filter: { subtype: "Island" } },
+                        { label: "Swamp", filter: { subtype: "Swamp" } },
+                        { label: "Mountain", filter: { subtype: "Mountain" } },
+                        { label: "Forest", filter: { subtype: "Forest" } },
+                    ],
+                    onPicked: "keep",
+                    sweep: { filter: { type: "Land" }, action: "sacrifice" },
+                    prompt: "Choose a land of each basic land type to keep; the rest are sacrificed.",
+                },
+            ],
+        },
+    ],
+};
 
 // Glimmering Angel — {3}{W} Creature — Angel, 2/2. "Flying. {U}: This
 // creature gains shroud until end of turn." Unblocked by PR #2040 (issue

@@ -4380,126 +4380,10 @@ export const OP_EXECUTORS: {
             destination
         );
     },
-    // CR 601.2b / 701.9 (issue #1945) — per-category choice from an
-    // ALREADY-VISIBLE set (the chooser's own hand or battlefield), reusing
-    // `revealAndCategorize`'s bipartite-matching core but decoupled from its
-    // library-look framing: no reveal/peek here, and the picked/unpicked
-    // halves get OPPOSITE actions per card (`onPicked`/`sweep`) rather than
-    // the fixed kept→hand/rest→bottom polarity. See the Op's own doc comment
-    // (`cards/types.ts`) and the mechanicsRegistry note for the full design.
-    //
-    // It also runs the OTHER of `categorizedPick.ts`'s two legality rules —
-    // the COVER rule, not `revealAndCategorize`'s injective one. Each
-    // category NOMINATES a member and one member may answer several
-    // categories at once (Gatherer, Planar Overlay: "a dual land could be
-    // chosen as two of your land types"; a WU gold card may be the card
-    // chosen for both white and blue). So `count.min` is the size of the
-    // SMALLEST covering set, never the maximum matching — pinning it to the
-    // matching would force a Plains+Tundra player to return TWO lands where
-    // the rules let them nominate the Tundra twice and return one.
+    // CR 608.2d / 701.9 / 701.21a — per-category choice from an already-
+    // visible set; the full design note sits on `execChooseCategorized`.
     chooseCategorized(ctx, op) {
-        const playerId = resolvePlayerRef(ctx, op.player);
-        if (playerId === undefined) return; // CR 608.2b — chooser gone, skip
-        const categories = op.categories.map((category) => ({
-            label: category.label,
-            cardIds:
-                op.zone === "hand"
-                    ? ctx
-                          .getHandCards(playerId)
-                          .filter((c) =>
-                              matchesCardFilter(ctx, c, category.filter)
-                          )
-                          .map((c) => c.id)
-                    : battlefieldIdsFor(ctx, playerId, category.filter),
-        }));
-        const eligible = categorizedEligibleIds(categories);
-        const keep = maxCategorizedPicks(categories);
-        const applyOnPicked = (picks: readonly string[]) => {
-            if (op.onPicked !== "returnToHand") return; // "keep" — no move
-            for (const id of picks) {
-                ctx.returnToHand({ type: "permanent", id });
-            }
-        };
-        const applySweep = (picked: ReadonlySet<string>) => {
-            if (!op.sweep) return;
-            const sweepFilter = op.sweep.filter;
-            const rest = ctx
-                .getHandCards(playerId)
-                .filter((c) => !picked.has(c.id))
-                .filter(
-                    (c) =>
-                        sweepFilter === undefined ||
-                        matchesCardFilter(ctx, c, sweepFilter)
-                );
-            for (const c of rest) ctx.discardCard(playerId, c.id);
-        };
-        // CR 608.2b — nothing is legally pickable in ANY category (no card of
-        // that colour, no land of that basic type at all): a mandatory choice
-        // with zero real options auto-resolves straight to the sweep instead
-        // of prompting a picker with nothing clickable (the Arena zero-branch
-        // default, mirroring `revealAndCategorize`'s own `keep === 0` skip).
-        if (keep === 0) {
-            applySweep(new Set());
-            return;
-        }
-        // issue #1945 — a FORCED-but-nonzero answer: every category names at
-        // most one candidate, so each non-empty category's nomination is
-        // already determined (a lone dual land answers both its types) and
-        // there is nothing for the player to decide. Auto-apply it rather
-        // than raising a picker whose only possible answer is already known
-        // (project convention: never prompt for a non-decision) — a genuine
-        // ADDITION over `revealAndCategorize`, which has no such case.
-        if (op.optional !== true) {
-            const forced = forcedCategorizedCover(categories);
-            if (forced !== undefined) {
-                applyOnPicked(forced);
-                applySweep(new Set(forced));
-                return;
-            }
-        }
-        const picks = ctx.requestChoice({
-            playerId,
-            // Fixed choiceId, unique per Op position (the pipeline keys on
-            // `step:choiceId` and `step` IS this Op's checkpointed position —
-            // a `forEach { set: "players" }` wrapper gives each iteration its
-            // own position, so the SAME literal id never collides across
-            // players, mirroring `revealAndCategorize`'s own fixed id).
-            choiceId: "choose-categorized",
-            kind: "choose-categorized",
-            zone: op.zone,
-            candidateIds: eligible,
-            categories,
-            // Mandatory by default ("chooses", not "may choose"). The FLOOR
-            // is the smallest covering set, not the maximum matching: a
-            // member answering several categories at once (a dual land, a
-            // gold card) legitimately shrinks the answer, and demanding the
-            // matching would force a larger pick than the rules allow (CR
-            // 608.2b). The CEILING stays the maximum matching — the largest
-            // answer in which every nominated member earns a category of its
-            // own. `optional: true` keeps the injective per-category "may"
-            // (min 0, any saturated subset) — see `categoryRule` below.
-            count: {
-                min: op.optional === true ? 0 : minCategorizedCover(categories),
-                max: keep,
-            },
-            // Which of `categorizedPick.ts`'s two legality rules validates
-            // the submission. Only the MANDATORY offer is a cover ("chooses
-            // one card of each colour" — every category must be answered);
-            // an `optional: true` offer is a per-category "you may", which is
-            // exactly `revealAndCategorize`'s injective rule and stays on the
-            // shared default.
-            categoryRule: op.optional === true ? undefined : "cover",
-            // Policy hint for the bot only (the server ignores it): whether
-            // being picked is the good half or the bad half for the chooser.
-            pickPolarity:
-                op.onPicked === "returnToHand"
-                    ? "picked-removed"
-                    : "picked-kept",
-            prompt: op.prompt ?? "Choose one card of each category.",
-        });
-        if (picks === undefined) return "suspend"; // enqueued — wait
-        applyOnPicked(picks);
-        applySweep(new Set(picks));
+        return execChooseCategorized(ctx, op, categorizedPhaseOf(op));
     },
     // CR 401.4 (issue #1046) — put N hand cards on top of the library, in the
     // player's chosen order. A thin declarative skin over the single
@@ -6102,6 +5986,184 @@ export const OP_EXECUTORS: {
     },
 };
 
+// CR 601.2b / 701.9 (issue #1945) — per-category choice from an
+// ALREADY-VISIBLE set (the chooser's own hand or battlefield), reusing
+// `revealAndCategorize`'s bipartite-matching core but decoupled from its
+// library-look framing: no reveal/peek here, and the picked/unpicked
+// halves get OPPOSITE actions per card (`onPicked`/`sweep`) rather than
+// the fixed kept→hand/rest→bottom polarity. See the Op's own doc comment
+// (`cards/types.ts`) and the mechanicsRegistry note for the full design.
+//
+// It also runs the OTHER of `categorizedPick.ts`'s two legality rules —
+// the COVER rule, not `revealAndCategorize`'s injective one. Each
+// category NOMINATES a member and one member may answer several
+// categories at once (Gatherer, Planar Overlay: "a dual land could be
+// chosen as two of your land types"; a WU gold card may be the card
+// chosen for both white and blue). So `count.min` is the size of the
+// SMALLEST covering set, never the maximum matching — pinning it to the
+// matching would force a Plains+Tundra player to return TWO lands where
+// the rules let them nominate the Tundra twice and return one.
+function execChooseCategorized(
+    ctx: SpellContext,
+    op: Extract<EffectOp, { op: "chooseCategorized" }>,
+    phase: CategorizedPhase
+): OpOutcome {
+    const playerId = resolvePlayerRef(ctx, op.player);
+    if (playerId === undefined) return; // CR 608.2b — chooser gone, skip
+    const categories = op.categories.map((category) => ({
+        label: category.label,
+        cardIds:
+            op.zone === "hand"
+                ? ctx
+                      .getHandCards(playerId)
+                      .filter((c) => matchesCardFilter(ctx, c, category.filter))
+                      .map((c) => c.id)
+                : battlefieldIdsFor(ctx, playerId, category.filter),
+    }));
+    const eligible = categorizedEligibleIds(categories);
+    const keep = maxCategorizedPicks(categories);
+    const applyOnPicked = (picks: readonly string[]) => {
+        if (op.onPicked !== "returnToHand") return; // "keep" — no move
+        for (const id of picks) {
+            ctx.returnToHand({ type: "permanent", id });
+        }
+    };
+    const applySweep = (picked: ReadonlySet<string>) => {
+        if (!op.sweep) return;
+        const sweepFilter = op.sweep.filter;
+        if (op.sweep.action === "sacrifice") {
+            // CR 701.21a (issue #3712) — "then sacrifices the rest": every
+            // non-picked permanent the chooser CONTROLS that the sweep filter
+            // admits, through the ordinary sacrifice primitive (never a raw
+            // zone move — sacrifice is not destruction, and its own
+            // bookkeeping stays in one place).
+            const rest = battlefieldIdsFor(ctx, playerId, sweepFilter).filter(
+                (id) => !picked.has(id)
+            );
+            for (const id of rest) ctx.sacrifice(id);
+            return;
+        }
+        const rest = ctx
+            .getHandCards(playerId)
+            .filter((c) => !picked.has(c.id))
+            .filter(
+                (c) =>
+                    sweepFilter === undefined ||
+                    matchesCardFilter(ctx, c, sweepFilter)
+            );
+        for (const c of rest) ctx.discardCard(playerId, c.id);
+    };
+    // CR 101.4 (issue #3712) — under `forEach { set: "players", simultaneous }`
+    // the Op runs twice per player: the "choose" pass freezes the answer under
+    // an iteration-scoped binding and applies nothing; the "apply" pass reads
+    // it back and acts, after EVERY player has chosen. Outside that construct
+    // ("both") the pick is applied the moment it is made.
+    if (phase === "apply") {
+        const frozen = ctx.recallChoice(CATEGORIZED_PICKS_BINDING);
+        if (frozen === undefined) return; // pass 1 never answered — skip
+        applyOnPicked(frozen);
+        applySweep(new Set(frozen));
+        return;
+    }
+    const commit = (picks: readonly string[]): undefined => {
+        if (phase === "choose") {
+            ctx.noteChoice(CATEGORIZED_PICKS_BINDING, [...picks]);
+            return undefined;
+        }
+        applyOnPicked(picks);
+        applySweep(new Set(picks));
+        return undefined;
+    };
+    // CR 608.2b — nothing is legally pickable in ANY category (no card of
+    // that colour, no land of that basic type at all): a mandatory choice
+    // with zero real options auto-resolves straight to the sweep instead
+    // of prompting a picker with nothing clickable (the Arena zero-branch
+    // default, mirroring `revealAndCategorize`'s own `keep === 0` skip).
+    if (keep === 0) return commit([]);
+    // issue #1945 — a FORCED-but-nonzero answer: every category names at
+    // most one candidate, so each non-empty category's nomination is
+    // already determined (a lone dual land answers both its types) and
+    // there is nothing for the player to decide. Auto-apply it rather
+    // than raising a picker whose only possible answer is already known
+    // (project convention: never prompt for a non-decision) — a genuine
+    // ADDITION over `revealAndCategorize`, which has no such case.
+    if (op.optional !== true) {
+        const forced = forcedCategorizedCover(categories);
+        if (forced !== undefined) return commit(forced);
+    }
+    const picks = ctx.requestChoice({
+        playerId,
+        // Fixed choiceId, unique per Op position (the pipeline keys on
+        // `step:choiceId` and `step` IS this Op's checkpointed position —
+        // a `forEach { set: "players" }` wrapper gives each iteration its
+        // own position, so the SAME literal id never collides across
+        // players, mirroring `revealAndCategorize`'s own fixed id).
+        choiceId: "choose-categorized",
+        kind: "choose-categorized",
+        zone: op.zone,
+        candidateIds: eligible,
+        categories,
+        // Mandatory by default ("chooses", not "may choose"). The FLOOR
+        // is the smallest covering set, not the maximum matching: a
+        // member answering several categories at once (a dual land, a
+        // gold card) legitimately shrinks the answer, and demanding the
+        // matching would force a larger pick than the rules allow (CR
+        // 608.2b). The CEILING stays the maximum matching — the largest
+        // answer in which every nominated member earns a category of its
+        // own. `optional: true` keeps the injective per-category "may"
+        // (min 0, any saturated subset) — see `categoryRule` below.
+        count: {
+            min: op.optional === true ? 0 : minCategorizedCover(categories),
+            max: keep,
+        },
+        // Which of `categorizedPick.ts`'s two legality rules validates
+        // the submission. Only the MANDATORY offer is a cover ("chooses
+        // one card of each colour" — every category must be answered);
+        // an `optional: true` offer is a per-category "you may", which is
+        // exactly `revealAndCategorize`'s injective rule and stays on the
+        // shared default.
+        categoryRule: op.optional === true ? undefined : "cover",
+        // Policy hint for the bot only (the server ignores it): whether
+        // being picked is the good half or the bad half for the chooser.
+        pickPolarity:
+            op.onPicked === "returnToHand" ? "picked-removed" : "picked-kept",
+        prompt: op.prompt ?? "Choose one card of each category.",
+    });
+    if (picks === undefined) return "suspend"; // enqueued — wait
+    return commit(picks);
+}
+
+/** Which half of a `chooseCategorized` Op one execution performs (CR 101.4,
+ *  issue #3712). `"both"` is every ordinary run; `"choose"` / `"apply"` are
+ *  the two passes `execForEach` splits the Op into under `forEach { set:
+ *  "players", simultaneous: true }`, so every player's pick precedes every
+ *  player's sweep. */
+type CategorizedPhase = "both" | "choose" | "apply";
+
+/** Internal, non-authorable marker `execForEach` stamps on a CLONE of the Op
+ *  to select its pass — a symbol key, so it is invisible to the validator's
+ *  strict key check, to serialization and to the card definition itself. */
+const CATEGORIZED_PHASE: unique symbol = Symbol("categorizedPhase");
+
+function categorizedPhaseOf(op: object): CategorizedPhase {
+    return (
+        (op as { [CATEGORIZED_PHASE]?: CategorizedPhase })[CATEGORIZED_PHASE] ??
+        "both"
+    );
+}
+
+function withCategorizedPhase<T extends object>(
+    op: T,
+    phase: CategorizedPhase
+): T {
+    return { ...op, [CATEGORIZED_PHASE]: phase };
+}
+
+/** The binding the "choose" pass freezes its answer under. `$`-prefixed so
+ *  the forEach body context scopes it per iteration; the `:` is illegal in an
+ *  authored binding name, so it can never collide with one. */
+const CATEGORIZED_PICKS_BINDING = "$chooseCategorized:picks";
+
 /** Runs an Op list top to bottom (CR 608.2c) against a shared pre-order
  *  `cursor`, stopping at the first Op that suspends (propagating "suspend" so
  *  the caller — a branch's `if`, or the top-level `runEffectScript` — halts
@@ -6449,8 +6511,18 @@ function execForEach(
     // pass 2 holds no suspending Op and cannot interleave a prompt back into
     // the applied half.
     if (op.select.set === "players" && op.simultaneous) {
-        const choiceOps = op.effects.slice(0, 1);
-        const applyOps = op.effects.slice(1);
+        // The validator admits two bodies: `[choice, sacrifice|discard]`
+        // (the halves are already two Ops) and a lone `chooseCategorized`
+        // with a sweep (issue #3712), which is BOTH halves in one Op — run it
+        // once per pass, in its "choose" then its "apply" phase.
+        const categorized =
+            op.effects.length === 1 && op.effects[0].op === "chooseCategorized";
+        const choiceOps = categorized
+            ? [withCategorizedPhase(op.effects[0], "choose")]
+            : op.effects.slice(0, 1);
+        const applyOps = categorized
+            ? [withCategorizedPhase(op.effects[0], "apply")]
+            : op.effects.slice(1);
         // Pass 1 — every player's decision, APNAP order (CR 101.4), nothing
         // applied yet.
         for (let k = 0; k < members.length; k++) {

@@ -876,7 +876,10 @@ function analyseOp(op: EffectOp, req: Requirements): void {
         case "chooseCategorized":
             // Same shape (issue #1945): the Op suspends on a live
             // choose-categorized pick from the chooser's hand/battlefield,
-            // which a canned scenario cannot submit. Explicit skip; execution
+            // which a canned scenario cannot submit (a forced pick may
+            // auto-resolve, but the discard/sacrifice sweep — issue #3712 —
+            // and the CR 101.4 simultaneous split still need a live board the
+            // canned scenario does not model). Explicit skip; execution
             // coverage is the Op's own interpreter tests plus the
             // categorizedPick matching unit tests.
             req.skip ??= `Op "chooseCategorized" suspends for a choose-categorized pick — covered by the Op's interpreter tests`;
@@ -2563,7 +2566,7 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // `chooseCategorized` (CR 601.2b / 701.9, issue #1945) — never reached:
     // `analyseOp` skips every script carrying it (it suspends on a live
     // choose-categorized pick). Kept for the 1:1 coverage guard; the
-    // per-category keep / sweep / bounce is covered by the Op's own
+    // per-category keep / discard-or-sacrifice sweep / bounce is covered by the Op's own
     // interpreter tests and `categorizedPick`'s matching unit tests.
     chooseCategorized() {
         return null;

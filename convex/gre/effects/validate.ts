@@ -1926,11 +1926,12 @@ function isChooseCategorizedOnPicked(value: unknown): boolean {
 }
 
 /** The `sweep` clause of a `chooseCategorized` Op (issue #1945) — every
- *  non-picked HAND member (optionally narrowed by `filter`, deliberately a
+ *  non-picked zone member (optionally narrowed by `filter`, deliberately a
  *  SEPARATE, possibly broader filter than the categorization domain) is
- *  discarded (CR 701.9). Exactly `{ action: "discard" }` or `{ action:
- *  "discard", filter }` — kept strict like `isPickCategoryList` (ADR 0045,
- *  the grammar stays frozen). */
+ *  discarded (CR 701.9, a hand) or sacrificed (CR 701.21a, a battlefield —
+ *  issue #3712). Exactly `{ action }` or `{ action, filter }` — kept strict
+ *  like `isPickCategoryList` (ADR 0045, the grammar stays frozen). Which
+ *  action pairs with which zone is the Op schema's `check`. */
 function isChooseCategorizedSweep(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
@@ -1941,7 +1942,7 @@ function isChooseCategorizedSweep(value: unknown): boolean {
         (keys.length === 2 && keys[0] === "action" && keys[1] === "filter");
     if (!shapeOk) return false;
     const v = value as { action: unknown; filter?: unknown };
-    if (v.action !== "discard") return false;
+    if (v.action !== "discard" && v.action !== "sacrifice") return false;
     return v.filter === undefined || isCardFilter(v.filter);
 }
 
@@ -2987,6 +2988,7 @@ function isSimultaneousReanimationBody(effects: unknown): boolean {
  *  per-player CHOICE out of hand or graveyard. Deferring the moves alone
  *  would fix the choice half and still fire N separate entry events. */
 function isSimultaneousPlayerChoiceBody(effects: unknown): boolean {
+    if (isSimultaneousCategorizedSweepBody(effects)) return true;
     if (!Array.isArray(effects) || effects.length !== 2) return false;
     const choice = effects[0] as Record<string, unknown>;
     const apply = effects[1] as Record<string, unknown>;
@@ -3001,6 +3003,24 @@ function isSimultaneousPlayerChoiceBody(effects: unknown): boolean {
               : undefined
     ) as Record<string, unknown> | undefined;
     return !!picksRef && picksRef.ref === bind;
+}
+
+/** The SECOND `simultaneous: true` PLAYERS body shape (CR 101.4, issue
+ *  #3712): exactly `[{ op: "chooseCategorized", …, sweep }]` — one Op that
+ *  is both the decision and the action ("each player chooses … a land of each
+ *  basic land type, then sacrifices the rest", Global Ruin). The interpreter
+ *  splits that ONE Op into its two halves: pass 1 runs every player's
+ *  categorized pick, pass 2 every player's `onPicked` + sweep. Admissible for
+ *  the same two reasons as the pair above: the applying half (`sacrifice`,
+ *  `discard`, `returnToHand`) is terminal and cannot suspend, and each player
+ *  acts only on their OWN hand/battlefield, so no player's action can
+ *  invalidate another's. Without a `sweep` there is nothing to defer beyond
+ *  `onPicked`, but requiring it keeps the shape to the Oracle pattern it was
+ *  admitted for (fail-closed). */
+function isSimultaneousCategorizedSweepBody(effects: unknown): boolean {
+    if (!Array.isArray(effects) || effects.length !== 1) return false;
+    const op = effects[0] as Record<string, unknown>;
+    return op.op === "chooseCategorized" && op.sweep !== undefined;
 }
 
 /** Shape check for `divideIntoPiles`'s `objects` selector (ADR 0053, pile
@@ -4608,9 +4628,10 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // is the same non-empty `{ label, filter }` list `revealAndCategorize`
     // uses; `onPicked`/`sweep` decide what happens to the picked/unpicked
     // halves, since (unlike that Op) there is no fixed kept→hand/rest→bottom
-    // polarity here. `check` enforces the two combinations the two shipped
-    // cards actually need: `sweep` (a real CR 701.9 discard) only makes sense
-    // when the domain IS the hand, and `onPicked: "returnToHand"` (CR 400.7)
+    // polarity here. `check` enforces the zone/verb pairings: a `discard`
+    // sweep (CR 701.9) only makes sense when the domain IS the hand, a
+    // `sacrifice` sweep (CR 701.21a) only when it IS the battlefield, and
+    // `onPicked: "returnToHand"` (CR 400.7)
     // only makes sense when the domain IS the battlefield (a hand card is
     // already in hand — "returning" it would be a no-op the grammar should
     // never even express).
@@ -4628,8 +4649,19 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         },
         check: (entry) => {
             const errors: string[] = [];
-            if (entry.sweep !== undefined && entry.zone !== "hand") {
-                errors.push('"sweep" requires zone: "hand"');
+            // The sweep action is fixed by the zone: a hand card is
+            // discarded (CR 701.9), a permanent is sacrificed (CR 701.21a,
+            // issue #3712). Crossing them is a verb the zone cannot take.
+            const sweepAction = (
+                entry.sweep as { action?: unknown } | undefined
+            )?.action;
+            if (sweepAction === "discard" && entry.zone !== "hand") {
+                errors.push('sweep action "discard" requires zone: "hand"');
+            }
+            if (sweepAction === "sacrifice" && entry.zone !== "battlefield") {
+                errors.push(
+                    'sweep action "sacrifice" requires zone: "battlefield"'
+                );
             }
             if (
                 entry.onPicked === "returnToHand" &&
@@ -5146,7 +5178,8 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             //     reanimating `moveZone`, handed WHOLE to the batch primitive.
             //   players   (issue #1872, CR 101.4) — `[choice, sacrifice |
             //     discard]`, re-sequenced by the interpreter into
-            //     every-choice-then-every-action.
+            //     every-choice-then-every-action; or (issue #3712) a lone
+            //     `chooseCategorized` with a `sweep`, split the same way.
             if (entry.simultaneous === true) {
                 const select = entry.select as { set?: unknown } | undefined;
                 const set = select?.set;
@@ -5159,7 +5192,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                 } else if (set === "players") {
                     if (!isSimultaneousPlayerChoiceBody(entry.effects)) {
                         errors.push(
-                            'field "simultaneous" over { set: "players" } requires "effects" to be exactly [{ op: "choice", …, bind: "$b" }, { op: "sacrifice" | "discard", …: { ref: "$b" } }] — the one CR 101.4 choices-then-actions shape the interpreter re-sequences'
+                            'field "simultaneous" over { set: "players" } requires "effects" to be exactly [{ op: "choice", …, bind: "$b" }, { op: "sacrifice" | "discard", …: { ref: "$b" } }] or [{ op: "chooseCategorized", …, sweep }] — the CR 101.4 choices-then-actions shapes the interpreter re-sequences'
                         );
                     }
                 } else {
