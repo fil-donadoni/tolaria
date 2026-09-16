@@ -1,0 +1,83 @@
+{
+    "label": "UI combat — blocks owed on a confirmed attack",
+    "prompt": "ui-gate `game-combat` surface (scripts/ui-gate/surfaces.ts, issue #3708, ADR 0132 §4). The BLOCK WINDOW: the opponent has declared and confirmed three attackers (CR 508.1) and the human seat owes the block declaration (CR 509.1), holding three untapped creatures and a trick in hand. This is the one declared position whose `activePlayer` is \"opp\" — deliberately, and it is what puts the HUMAN seat's own combat controls on screen: the block is a turn-based action owed to the DEFENDING player (CR 509.1a), so an attack by \"me\" would render the opponent's half of combat and measure nothing the viewer can act on. `priority` stays on the human seat, and `computeSoloViewerId` steers to the defender during this window regardless, so nothing the probe measures depends on the coin toss. Seed with: bunx convex run debugScenarios:seedScenarioDirect \"$(cat scripts/ui-gate/combat-scenario.json)\". Deployment-local by design (ADR 0044) — the lane seeds it at bootstrap.",
+    "spec": {
+        "phase": "DECLARE_BLOCKERS",
+        "turn": 5,
+        "activePlayer": "opp",
+        "priority": "me",
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Llanowar Elves",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Scryb Sprites",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Giant Growth",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Lightning Bolt",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Mountain",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Swamp",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Savannah Lions",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Hill Giant",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Gray Ogre",
+                "owner": "opp",
+                "zone": "battlefield"
+            }
+        ],
+        "combat": {
+            "attackers": ["Savannah Lions", "Hill Giant", "Gray Ogre"],
+            "confirmed": true,
+            "attackedThisTurn": {
+                "opp": ["Savannah Lions", "Hill Giant", "Gray Ogre"]
+            }
+        }
+    }
+}
