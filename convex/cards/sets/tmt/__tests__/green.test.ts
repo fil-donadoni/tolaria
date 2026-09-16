@@ -128,7 +128,7 @@ describe("Michelangelo, Weirdness to 11 — counter rider (CR 122.1 / 614, issue
     });
 });
 
-describe("Michelangelo, Weirdness to 11 — Mutagen token (CR 111 / 707.2, issue #3230)", () => {
+describe("Michelangelo, Weirdness to 11 — Mutagen token (CR 111.3, issue #3230)", () => {
     it("his ETB creates one Mutagen, and the token's ability survives projectPublicState", () => {
         const state = makeState({
             players: [

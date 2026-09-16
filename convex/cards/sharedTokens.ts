@@ -607,7 +607,7 @@ export const FOOD_TOKEN: EffectTokenSpec = {
     ],
 };
 
-/** Mutagen token (CR 111 / 707.2, issue #3230). "Token Artifact — Mutagen"
+/** Mutagen token (CR 111.3, issue #3230). "Token Artifact — Mutagen"
  *  with "{1}, {T}, Sacrifice this token: Put a +1/+1 counter on target
  *  creature. Activate only as a sorcery."
  *

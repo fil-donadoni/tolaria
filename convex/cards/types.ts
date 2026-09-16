@@ -11781,7 +11781,7 @@ export interface DrawReplacementEvent {
 }
 
 /** Token-creation event: one or more tokens about to be created under a
- *  player's control (CR 111.1 / 707.2). The Doubling Season / Parallel Lives /
+ *  player's control (CR 111.1). The Doubling Season / Parallel Lives /
  *  Elspeth, Storm Slayer family intercepts this and rewrites `count`.
  *
  *  Fired at the ONE chokepoint every token creation funnels through —
@@ -11812,7 +11812,7 @@ export interface TokenCreatedReplacementEvent {
      *  opponent's effect creates under YOUR control is doubled by YOUR
      *  Doubling Season. */
     controllerId: string;
-    /** CR 707.2 — the token's name, as its spec declares it ("Soldier",
+    /** CR 111.4 — the token's name, which the creating effect sets ("Soldier",
      *  "Treasure"). Read by a name-scoped doubler (Anointed Procession's
      *  family has none, but "create twice as many Treasure tokens" does). */
     tokenName: string;

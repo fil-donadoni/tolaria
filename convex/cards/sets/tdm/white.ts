@@ -52,7 +52,8 @@ import type { CardDefinition } from "../../types";
 // controller's control is doubled, and Elspeth's controller creating a token
 // under an opponent's control is not. There is no other filter: "one or more
 // tokens" covers creature tokens, Treasures and copy tokens alike (CR 707.5 —
-// a token copy is still a token being created).
+// a token created "as a copy" becomes that copy AS it enters, so the creation
+// is the same event either way).
 //
 // HER OWN +1 IS DOUBLED. Nothing special makes that work and nothing may be
 // added to make it work: the +1's `createToken` Op reaches the same chokepoint
@@ -66,11 +67,13 @@ import type { CardDefinition } from "../../types";
 // after the counters landed and could differ (a creature that died to an SBA
 // mid-resolution, a token that stopped being a creature). `duration: { phase:
 // "untap", player: "controller" }` is "until your next turn", the mapping
-// Azure Beastbinder and Orcish Farmer already use (CR 502.1 — the grant ends as
-// the controller's next untap step begins).
+// Azure Beastbinder and Orcish Farmer already use (CR 502 — the grant ends as
+// the controller's next untap step begins; loyalty abilities are sorcery-speed,
+// so this turn's untap step is always already past).
 //
 // THE -3 IS `mvFilter: { min: 3 }` + `controller: "opponent"` (CR 202.3 — mana
-// value 3 or greater, with X counting 0 on the battlefield).
+// value is the total amount of mana in the object's mana cost, colour
+// disregarded).
 
 // compiler-gap: "If one or more tokens would be created under your control, twice that many of those tokens are created instead." (#2693)
 // compiler-gap: "+1: Create a 1/1 white Soldier creature token." (#2693)
