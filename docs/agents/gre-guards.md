@@ -175,13 +175,17 @@ first correction pass.
 or a rule id — is joined with the continuation that completes it, for every
 scan under `cr:lint`. A citation **wrapped across two comment lines** was a
 blind spot until then: ~379 prefix/id wraps were invisible to both passes and
-~394 id/keyword wraps to the keyword scan, and the first joined run surfaced
-23 keyword citations naming a different keyword than the one they cited
-(`701.5a` for counter, `701.13` for reveal, `701.19` for search, `701.20a` for
-tap, `702.15b` for landwalk, …). The join fires ONLY on a line ending on the
-citation, so the objection that kept the scans single-line — a prose number
-on the line after any `CR ` mention — never applies. Hits are reported at the
-physical line the id is on, and the ledger keys on that line.
+~394 id/keyword wraps to the keyword scan. The first joined run made ~750
+citations visible and surfaced 23 keyword-title hits: 18 wrong ids (`701.5a`
+for counter, `701.13` for reveal, `701.19` for search, `701.20a` for tap,
+`702.15b` for landwalk, …) and 5 correct ids whose keyword the joined line
+did not name; printing the rules for those lines also caught co-citations the
+scans cannot see (`202.3` for name-a-card, `117.3a` for unless-pays). The
+join fires ONLY on a line ending on the citation, so the objection that kept
+the scans single-line — a prose number on the line after any `CR ` mention —
+never applies. Hits are reported at the physical line the id is on, and the
+ledger keys on that line (so for a wrapped citation the "editing reopens it"
+guarantee covers the id's line only — `scripts/lib/cr-ledger.ts` header).
 
 **Its one remaining blind spot**: an id on a line mentioning `CR ` **nowhere**
 (and not continuing a citation-ending line): 1,795 today, 597 of them in

@@ -247,8 +247,20 @@ describe("a citation wrapped across two comment lines is read whole (issue #2514
         // "… (CR 611.2a). 100.5 is …" on one line would resolve 100.5; the
         // wrap is not treated as wider than the line it replaces.
         const { total } = scan(
-            `// see CR ${"611.2a"}.\n// 100.5 is the value`.replace("CR", "CR")
+            `${idThen("611.2a", "100.5 is the value").replace(",\n", ".\n")}`
         );
         expect(total).toBe(1);
+    });
+
+    it("joins an id followed by a possessive or a dash — the sentence is still open", () => {
+        const { total, citations } = scan(
+            `${idThen("611.2a", "100.5 is the value").replace(",\n", "'s\n")}`
+        );
+        expect(total).toBe(2);
+        expect(citations.map((c) => c.line)).toEqual([1, 2]);
+        const dash = scan(
+            `${idThen("611.2a", "100.5 is the value").replace(",\n", " —\n")}`
+        );
+        expect(dash.total).toBe(2);
     });
 });

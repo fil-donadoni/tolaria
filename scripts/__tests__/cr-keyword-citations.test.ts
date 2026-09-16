@@ -179,5 +179,11 @@ describe("a keyword citation wrapped across two comment lines is compared whole 
             scan(idThenKeyword("701.19", "a genuine library search cr-cite-ok"))
                 .hits
         ).toEqual([]);
+        // …and on the first line, suppressing a hit whose id is on the second.
+        expect(
+            scan(
+                `// deliberately wrong, cr-cite-ok — CR\n// ${"701.19"} — a genuine library search`
+            ).hits
+        ).toEqual([]);
     });
 });

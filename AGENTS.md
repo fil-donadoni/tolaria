@@ -361,8 +361,8 @@ rules URL is the habit this replaced.
 reds on one missing from `data/cr/citations-ledger.json`, prints the rule
 under the line and names the fix — read it, then
 `bun run cr:ledger confirm <file>:<line>`, ONE line per call. A wrong id is
-fixed on its line, then confirmed. Keep the citation, its `CR ` prefix and
-its keyword on ONE line.
+fixed on its line, then confirmed. A wrapped citation is read whole (#2514);
+`<line>` is the id's line.
 
 `bun run cr:check` says whether a newer document exists, `bun run cr:sync`
 takes it; `cr:check` is deliberately outside `check:all` — the gate is offline
@@ -500,8 +500,8 @@ When modifying files in `convex/gre/` or `convex/cards/`.
 
 CR-compliance is the default — never ask whether to follow it. **Print the
 rule, never recall it** (ADR 0098): `bun run cr <id>`, vendored, offline. Every
-mechanic cites its CR section in a comment, on ONE line that says `CR `. Flag
-any deviation explicitly.
+mechanic cites its CR section in a comment that says `CR ` (a wrap is read
+whole, #2514). Flag any deviation explicitly.
 
 ### DSL-first authoring (ADR 0045)
 

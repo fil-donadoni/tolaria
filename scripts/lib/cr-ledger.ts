@@ -20,7 +20,12 @@
  *                 line carrying the id, not the joined text the scans read.
  *                 Never a file or a line number: moving the comment keeps its
  *                 entry, EDITING it reopens the citation — on purpose, because
- *                 the claim is what was checked;
+ *                 the claim is what was checked. For a wrapped citation that
+ *                 guarantee covers the id's line only: rewriting the OTHER
+ *                 half of the sentence changes no key (keying on the joined
+ *                 text would re-key every wrapped entry, which `wideningOf`
+ *                 refuses), so a confirmation of a wrapped line is a reader's
+ *                 word for both halves;
  *   - `sites`   — how many places in the tree make this exact citation. A
  *                 line copied to one more file is one more site: it enters
  *                 the tree as unrecorded until confirmed, so an existing entry

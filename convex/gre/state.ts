@@ -12647,7 +12647,7 @@ export function setClassLevelOnCard(
  *  skip its normal damage-marking path in that case (the -1/-1 counters
  *  already fold into effective toughness via the layer-7d system, and a
  *  0-toughness creature dies via the existing `getEffectiveToughness <= 0`
- *  SBA, CR 704.5f — no lethal-damage-marked check applies here). CR 702.90c —
+ *  SBA, CR 704.5f — no lethal-damage-marked check applies here). CR 702.90c infect —
  *  the damage is still "damage" for every OTHER purpose (deathtouch,
  *  lifelink, damage-triggered abilities): those callers are unaffected by
  *  this diversion and keep reading `amount`/`reduced` as before. Meaningless

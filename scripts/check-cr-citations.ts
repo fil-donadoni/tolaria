@@ -42,7 +42,7 @@
  * #2429 tree, zero false positives): an ordinary number on the line after a
  * `CR ` mention is joined to nothing. Before the join, ~379 prefix/id wraps
  * were invisible to both passes and ~394 id/keyword wraps were invisible to the
- * keyword-title scan.
+ * keyword-title scan; the first joined run made ~750 citations visible.
  *
  * REMAINING BLIND SPOT: a bare id on a line that mentions `CR ` nowhere and
  * does not continue a citation-ending line. ~1,795 such tokens exist, most of
@@ -57,7 +57,7 @@
  * tokenizer files' diff against the merge-base (`repoWidening`), so a widening
  * can never double as a regeneration.
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { execFileSync, execSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -92,7 +92,7 @@ import {
     type Widening,
 } from "./lib/cr-ledger.ts";
 import { loadRules } from "./lib/cr-rules.ts";
-import { citationLines, lineAt } from "./lib/cr-lines.ts";
+import { citationLines, lineAt, MAY_CITE } from "./lib/cr-lines.ts";
 
 // `import.meta.dir` is Bun-only; the regression guard imports this module under
 // vitest/node, where it is undefined.
@@ -171,12 +171,6 @@ const PREFIXED_CITATION = /\bCR\s?(\d{3})(\.\d+[a-z]{0,2})?/g;
  * three-digit number is just a number.
  */
 const BARE_ID = /\b\d{3}\.\d+[a-z]{0,2}\b/g;
-
-/**
- * A file that can hold a citation at all: `CR ` somewhere, or a bare `CR`
- * ending a line (the wrapped prefix, issue #2514). Shared by every scan.
- */
-export const MAY_CITE = /\bCR\s/;
 
 /**
  * The scan itself, over `(file, text)` pairs — pure, so the regression test can
@@ -438,7 +432,7 @@ export function repoWidening(base: BaseLedger, root = ROOT): RepoWidening {
     const changed = TOKENIZER_PATHS.some((path) => {
         const at = `${base.mergeBase}:${path}`;
         const inTree = git(["cat-file", "-e", at]);
-        if (!inTree.ok) return true;
+        if (!inTree.ok || !existsSync(join(root, path))) return true;
         const shown = git(["show", at]);
         if (!shown.ok)
             throw new Error(

@@ -40,9 +40,12 @@
  * fixed the standing 793 had to grep those by hand). A comment whose keyword
  * wrapped onto the line after its id is NOT a limit any more: the scan reads
  * logical lines (`lib/cr-lines.ts`, issue #2514), which join a line ending
- * mid-citation with its continuation — ~80 wrapped keyword citations were
- * invisible before that, 16 of them citing a different keyword than the one
- * they named.
+ * mid-citation with its continuation — the first joined run surfaced 23 hits,
+ * 18 of them citing a different keyword's section than the one they named.
+ * The join cuts both ways, and the PRECISION trade is recorded: an anchor
+ * found on the continuation also vouches for the id before it, so in a list
+ * whose items each end on an id a wrong one can be anchored by a neighbour's
+ * keyword (one such masked hit measured in the tree when this shipped).
  *
  * Usage: run through `bun run cr:lint` (this module has no CLI of its own).
  * Suppress a deliberate counter-example with a trailing `cr-cite-ok` comment.
@@ -50,7 +53,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { citationLines, lineAt } from "./lib/cr-lines.ts";
+import { citationLines, lineAt, MAY_CITE } from "./lib/cr-lines.ts";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CR_PATH = join(ROOT, "data/cr/comprehensive-rules.txt");
@@ -410,7 +413,7 @@ export function scanKeywordCitations(
     let scanned = 0;
     for (const { file, text } of sources) {
         if (EXEMPT.some((p) => file.startsWith(p))) continue;
-        if (!/\bCR\s/.test(text)) continue;
+        if (!MAY_CITE.test(text)) continue;
         for (const logical of citationLines(text)) {
             const line = logical.text;
             if (line.includes(SUPPRESS)) continue;

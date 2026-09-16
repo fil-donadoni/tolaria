@@ -8,8 +8,15 @@
  * existence scan sees it — ~379 sites when this was measured), or the id ends
  * a line and the keyword it names starts the next (the id resolves, but the
  * keyword-title scan compares it against a line that names nothing — ~394
- * sites, ~76 of them 701/702 citations, and 16 of those cited a different
- * keyword than the one they named).
+ * sites). The first joined run surfaced 23 keyword-title hits: 18 wrong ids
+ * (`701.5a` for counter, `701.13` for reveal, `701.19` for search, …) and 5
+ * correct ids whose keyword the joined line did not name.
+ *
+ * The join borrows in both directions: a keyword on the continuation anchors
+ * the id before it, so a list whose items each end on an id ("shroud (CR
+ * 702.18),") becomes one logical line, and a wrong id in it can be anchored
+ * by a neighbour's keyword — measured at one masked hit in the tree when this
+ * shipped, against ~750 citations made visible.
  *
  * This module is the ONE place both shapes are joined, so every scan sees a
  * wrapped citation exactly as a reader does. The join is deliberately narrow:
@@ -37,6 +44,12 @@
  * citation, and the ledger's widening check is measured against it.
  */
 
+/**
+ * A file that can hold a citation at all: `CR ` somewhere, or a bare `CR`
+ * ending a line (the wrapped prefix). The one prefilter every scan uses.
+ */
+export const MAY_CITE = /\bCR\s/;
+
 export type LogicalPart = {
     /** 1-based physical line number. */
     line: number;
@@ -57,15 +70,18 @@ export type LogicalLine = {
 /** A line whose last token is a bare `CR`: the prefix, its id on the next line. */
 const ENDS_WITH_PREFIX = /\bCR$/;
 /**
- * A line whose last token is a prefixed citation, allowing the bracket and the
- * clause break that commonly follow an id mid-sentence ("(… 701.23a),"). A
- * sentence-ending period is NOT allowed: the claim is over, and the next
- * sentence is a different claim.
+ * What may follow an id at the end of a line and still leave the sentence
+ * open: a closing bracket, then a possessive ("701.23b's"), a dash, or a
+ * clause break ("(… 701.23a),"). A sentence-ending period is NOT allowed: the
+ * claim is over, and the next sentence is a different claim.
  */
-const ENDS_WITH_PREFIXED_ID =
-    /\bCR\s?\d{3}(?:\.\d+[a-z]{0,2})?[)\]]?(?:\s*[,;:/])?$/;
+const OPEN_TAIL = "[)\\]]?(?:['’]s|\\s*[—–-]|\\s*[,;:/])?$";
+/** A line whose last token is a prefixed citation. */
+const ENDS_WITH_PREFIXED_ID = new RegExp(
+    `\\bCR\\s?\\d{3}(?:\\.\\d+[a-z]{0,2})?${OPEN_TAIL}`
+);
 /** A bare id ending the line — a citation only if the line mentions `CR `. */
-const ENDS_WITH_BARE_ID = /\b\d{3}\.\d+[a-z]{0,2}[)\]]?(?:\s*[,;:/])?$/;
+const ENDS_WITH_BARE_ID = new RegExp(`\\b\\d{3}\\.\\d+[a-z]{0,2}${OPEN_TAIL}`);
 /** What a continuation must start with after a bare `CR`. */
 const STARTS_WITH_ID = /^\d{3}(?:\.\d+[a-z]{0,2})?\b/;
 /** The comment marker a continuation line carries, stripped before joining. */
@@ -73,9 +89,13 @@ const CONTINUATION_MARKER = /^\s*(?:\*(?!\/)|\/\/+|>)?\s*/;
 
 type Marker = "block" | "line" | "quote" | "none";
 
-/** The comment the line ENDS in — what a continuation has to match. */
+/**
+ * The comment the line ENDS in — what a continuation has to match. A `*` is a
+ * block-comment marker only when followed by whitespace: markdown's `**bold**`
+ * opener is prose.
+ */
 function endingMarker(line: string): Marker {
-    if (/^\s*(?:\/\*|\*(?!\/))/.test(line)) return "block";
+    if (/^\s*(?:\/\*|\*(?![/*]))/.test(line)) return "block";
     if (line.includes("//")) return "line";
     if (/^\s*>/.test(line)) return "quote";
     return "none";
@@ -83,7 +103,7 @@ function endingMarker(line: string): Marker {
 
 /** The comment the line STARTS with. A block-comment closer is none. */
 function startingMarker(line: string): Marker {
-    if (/^\s*\*(?!\/)/.test(line)) return "block";
+    if (/^\s*\*(?![/*])/.test(line)) return "block";
     if (/^\s*\/\//.test(line)) return "line";
     if (/^\s*>/.test(line)) return "quote";
     return "none";

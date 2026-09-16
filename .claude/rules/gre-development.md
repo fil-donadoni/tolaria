@@ -13,9 +13,8 @@ engine file; what moved is the derivation, the tables and the worked examples.
 
 CR-compliance is the default — never ask whether to follow it. **Print the
 rule, never recall it** (ADR 0098): `bun run cr <id>`, vendored, offline. Every
-mechanic cites its CR section in a comment that says `CR ` (a citation wrapped
-across two comment lines is read whole — issue #2514). Flag any deviation
-explicitly.
+mechanic cites its CR section in a comment that says `CR ` (a wrap is read
+whole, #2514). Flag any deviation explicitly.
 
 ## DSL-first authoring (ADR 0045)
 
