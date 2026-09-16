@@ -250,4 +250,44 @@ over a fixture document. **41,276 baseline entries** were recorded on
 2026-09-15, after issue #3013 corrected the ten 616.1c/d sites; burning them
 down is issue #3675.
 
+**The audit (`bun run cr:audit`, issue #3675)** is how that baseline burns
+down, and it is the one CR tool that is NEVER a gate: it calls the model, and
+the gate is offline by contract (ADR 0098). Three resumable stages, each
+writing an artifact the next reads (`.cr-audit/` in the primary checkout,
+gitignored, so the paid-for cache outlives any worktree):
+
+- `collect [--path <prefix>]… [--issues]` — the citations through
+  `scanCitations` itself (the audit never tokenizes, so it, the ledger and
+  `cr:lint` agree on the set), deduplicated by the ledger key, each with its
+  claim: the comment block around it in code, the paragraph or table row in
+  markdown and in OPEN issues (bodies and comments; closed issues are never
+  read, reported or written).
+- `assess [--budget <ids>]` — one request per cited id carrying the rule's
+  own text, its parent, its siblings and its direct subrules; the model answers
+  `correct` / `wrong` (+ proposed id + a quoted reason) / `unclear`. A proposal
+  that resolves to no rule is discarded to `unclear`. Cached under the ledger
+  key plus the printed rule's hash: a re-run pays nothing for an unchanged
+  citation, and a `cr:sync` reopens exactly the citations of rules it rewrote.
+  The key is `CONVEX_ANTHROPIC_API_KEY`, passed explicitly — a bare
+  `ANTHROPIC_API_KEY` in the local env would shadow every `claude` child's login.
+- `report` / `apply [--confirm-issues <n,…>]` — `report.md` lists every
+  `wrong` and `unclear` beside the cited and proposed rule texts, grouped by
+  directory and by issue; `review.json` has one entry per assessed citation
+  with `decision: null`. `apply` acts ONLY on entries a reviewer set to `fix`
+  (optionally with their own `newId`), `correct` or `skip`: it refuses a line
+  that changed since review, rewrites the id, and promotes the line through
+  `cr:ledger confirm` — the ledger's one writer — only when every citation on
+  that line was reviewed. An open-issue edit is printed as a diff and written
+  only for the issue numbers passed to `--confirm-issues`.
+
+**Why review comes before apply.** The model's `correct` confirms nothing, and
+its `wrong` is a lead, not a fix. The first real batch
+(`convex/cards/abilities/tokens/`, 51 citations: 35 correct, 15 wrong, 1
+unclear) had all 15 `wrong` verdicts right about the cited id, but three of
+its proposals were themselves wrong or imprecise: it proposed CR 111.2 (token
+ownership) while quoting the text of 111.3, 307.5 where the activation
+restriction is 602.5d, and the section 111.10 where the subrule letter was
+available. Printing both rules side by side is what caught all three. Tree
+fixes land one directory batch per PR through the normal gate.
+
 Wizards republishes roughly per set at <https://magic.wizards.com/en/rules>.

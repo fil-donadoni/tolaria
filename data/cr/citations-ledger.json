@@ -2731,6 +2731,7 @@
         {"id":"111.2","line":"// permanent under `controllerId`, owner = controller (CR 111.2 — token","sites":1,"status":"baseline"},
         {"id":"111.2","line":"// the other seat (CR 111.2 — the token's controller is who the effect says).","sites":1,"status":"baseline"},
         {"id":"111.2","line":"describe(\"Esika's Chariot — ETB Cats (CR 111.1 / 111.2, issue #3229)\", () => {","sites":1,"status":"baseline"},
+        {"id":"111.2","line":"its proposals were themselves wrong or imprecise: it proposed CR 111.2 (token","sites":1,"status":"confirmed","ruleHash":"24d15b79d6538808"},
         {"id":"111.3","line":"// CR 111.3 (review of #2426) — the genuine COLD-decode path: a `token:`","sites":1,"status":"confirmed","ruleHash":"2eb6b7dcbf24cfd8"},
         {"id":"111.3","line":"// CR 508.1m / 111.3 (issue #2399) — the SAME cold-decode path for the","sites":1,"status":"confirmed","ruleHash":"2eb6b7dcbf24cfd8"},
         {"id":"111.3","line":"// Token-carried triggered abilities (CR 111.3, issue #2364) — GRE +","sites":1,"status":"confirmed","ruleHash":"2eb6b7dcbf24cfd8"},
