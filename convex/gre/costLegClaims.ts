@@ -241,7 +241,6 @@ export const COST_LEG_CLAIMS = {
         why: "CR 602.1a / 601.2h — always payable for a battlefield source, so `enumerateAbilityMoves` gates nothing and the search-side application bounces the permanent through the same `removePermanentTo` funnel the mutation uses. Unlike `exileThis` there is no second source zone, so this row covers the WHOLE Bot path rather than half of it; the `!src` graveyard/hand branch above is unreachable for this leg by construction.",
         autoPayable: false,
     },
-
     xFromTargetSpellMv: {
         paidBy: {
             file: "convex/gre/moves.ts",
@@ -250,8 +249,6 @@ export const COST_LEG_CLAIMS = {
         why: "CR 107.3 — X is derived from the targeted spell's mana value via `deriveXFromTargetSpellMv` (`gre/activation.ts`), the ONE site computing the `multiplier * spellMv` arithmetic; the mutation's `finalizeTargetSelection` and the enumerator both call it. Because the price depends on the CHOSEN spell target, `enumerateAbilityMoves` computes it per target tuple (through `resolveAbilityManaCost`) rather than once per ability, so a cheaper spell target can be affordable while a pricier one in the same tuple set is not (issue #3117).",
         autoPayable: false,
     },
-
-    // ── Declared holes: writing the claim is what found them ─────────────
     cyclingCost: {
         paidBy: {
             file: "convex/gre/applyMove.ts",
