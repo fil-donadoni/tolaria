@@ -78,6 +78,23 @@ DRY_RUN=0
 MAX_CONSECUTIVE_ERRORS=3
 ERROR_BACKOFF_SECS=60
 ERROR_BACKOFF_MAX_SECS=900
+# The SAME treatment for a pass that dies holding claims (issue #3698). It
+# used to stop the run outright on the first occurrence — deliberately, as
+# "urgent evidence" (#2626) — and the cost of that choice is measured: across
+# 23 recorded runs the drain never exceeded 8 passes and its median is 3,
+# because the single commonest death (a pre-PR gate promoted past the Bash
+# tool's 600s cap, killed with the turn) lands exactly here. One dead pass is
+# evidence; it is not a reason to abandon a queue of 200 issues. So it is now
+# a CONSECUTIVE streak like the crash streak, with its own counter: any pass
+# that does not die holding claims resets it, and a run whose every pass dies
+# still terminates — after this many, with reason `claims-held`. The default
+# matches MAX_CONSECUTIVE_ERRORS for the same reason that one is 3: it is the
+# smallest number that tells a transient death apart from a broken
+# environment. The orphan-claim sweep at the top of each pass (see
+# `reap_orphan_claims`) is what makes retrying useful rather than merely
+# patient — it reclaims what the dead pass was holding before the next pass
+# selects.
+MAX_CONSECUTIVE_CLAIMS_HELD=3
 PID_FILE=".claude/telemetry/loop-drain.pid"
 SINGLE_INSTANCE=0
 # Grace period before the FIRST pass. The handoff (scripts/loop-handoff.sh)
@@ -123,6 +140,10 @@ while [ $# -gt 0 ]; do
             ;;
         --max-consecutive-errors)
             MAX_CONSECUTIVE_ERRORS="$2"
+            shift 2
+            ;;
+        --max-consecutive-claims-held)
+            MAX_CONSECUTIVE_CLAIMS_HELD="$2"
             shift 2
             ;;
         --error-backoff-secs)
@@ -189,6 +210,7 @@ if ! is_uint "$MAX_PASSES"; then
 fi
 
 for _pair in "max-consecutive-errors:$MAX_CONSECUTIVE_ERRORS" \
+    "max-consecutive-claims-held:$MAX_CONSECUTIVE_CLAIMS_HELD" \
     "error-backoff-secs:$ERROR_BACKOFF_SECS" \
     "error-backoff-max-secs:$ERROR_BACKOFF_MAX_SECS" \
     "start-delay:$START_DELAY"; do
@@ -555,6 +577,7 @@ fi
 pass=0
 no_progress_streak=0
 error_streak=0
+claims_held_streak=0
 stop_reason=""
 pct="n/a"
 first_queue_count=""
@@ -830,11 +853,31 @@ while :; do
             fi
         fi
         if [ "$claims_held_now" -eq 1 ]; then
-            # A fault, not a quiet stop — reported immediately, no streak
-            # (a died pass is urgent evidence, unlike "ran twice and found
-            # nothing").
-            reason_field="claims-held"
-            stop_now=1
+            # A fault, and still reported on the pass that produced it — but
+            # no longer a stop on the FIRST occurrence (issue #3698). It is a
+            # CONSECUTIVE streak, bounded by MAX_CONSECUTIVE_CLAIMS_HELD and
+            # reset below by any pass that does not die this way, exactly like
+            # the crash streak above. `claims-held-retry` is the per-pass
+            # reason while the streak is still under its bound (mirroring
+            # `claude-retry`); `claims-held` remains the reason the RUN stops
+            # on, so the morning's summary still says "died holding claims"
+            # rather than "nothing to do".
+            #
+            # No backoff. A crash retries after a doubling sleep because the
+            # thing that failed may be a rate-limited API or a wedged
+            # machine; a pass that died holding claims failed for a reason
+            # the next pass actively repairs — `reap_orphan_claims` runs
+            # before it and hands back what the dead pass was holding —
+            # so sleeping would only defer the repair.
+            claims_held_streak=$((claims_held_streak + 1))
+            if [ "$MAX_CONSECUTIVE_CLAIMS_HELD" -eq 0 ] ||
+                [ "$claims_held_streak" -ge "$MAX_CONSECUTIVE_CLAIMS_HELD" ]; then
+                reason_field="claims-held"
+                stop_now=1
+            else
+                reason_field="claims-held-retry"
+                echo "loop-drain: pass $pass died holding claims (consecutive ${claims_held_streak}/${MAX_CONSECUTIVE_CLAIMS_HELD}) — the next pass reaps the orphaned claim and continues." >&2
+            fi
         else
             no_progress_streak=$((no_progress_streak + 1))
             if [ "$no_progress_streak" -ge 2 ]; then
@@ -849,6 +892,15 @@ while :; do
     # Any pass that did not crash clears the crash streak — bounded
     # CONSECUTIVELY, not cumulatively (see the comment above).
     [ "$claude_errored" -eq 1 ] || error_streak=0
+
+    # Same discipline for the claims-held streak, keyed on the reason this
+    # pass actually recorded rather than on a second evaluation of the
+    # predicate: a pass that landed, crashed, or merely found nothing clears
+    # it, so only CONSECUTIVE deaths accumulate towards the stop.
+    case "$reason_field" in
+        claims-held | claims-held-retry) ;;
+        *) claims_held_streak=0 ;;
+    esac
 
     # 7. one line per pass: epoch pass claude_exit pct queue_before queue_after reason
     echo "$epoch $pass $claude_exit $pct $queue_before $queue_after $reason_field" >>"$LOG_FILE"

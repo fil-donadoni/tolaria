@@ -79,6 +79,12 @@ export const DOC_GATE_TESTS = [
     // that re-runs this.
     "scripts/__tests__/destructive-data-recipes.test.ts",
     "scripts/__tests__/findings.test.ts",
+    // The ONE gate-running rule, held in two files at once (issue #3698):
+    // `.claude/hooks/deny-guard.sh` § 3b and the `/next-issue` skill. Both
+    // copies are prose the docs lane will carry on its own, and the whole
+    // point of the guard is that they cannot drift — so the lane that merges
+    // an edit to either has to be the lane that re-runs it.
+    "scripts/__tests__/gate-rule-parity.test.ts",
     "scripts/__tests__/project-skills.test.ts",
     "scripts/__tests__/resident-context-budget.test.ts",
 ];

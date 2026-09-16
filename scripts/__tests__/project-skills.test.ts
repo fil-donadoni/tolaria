@@ -99,7 +99,11 @@ describe("next-issue consumes the planner (issue #2184, re-homed by ADR 0110)", 
     });
 
     it("lands through `land` and creates worktrees through `wt:new` — never by hand", () => {
-        expect(body()).toMatch(/bun run land <PR#>/);
+        // `gate:run land` since issue #3698 — `land` is a gate, and a gate
+        // that can outrun the Bash tool's 600s cap is driven so that no
+        // single call can be promoted out from under the pass. The `land`
+        // part is what this guard is about and is still pinned.
+        expect(body()).toMatch(/bun run gate:run land <PR#>/);
         expect(body()).toMatch(/wt:new/);
         expect(body()).not.toMatch(/git worktree add/);
         expect(body()).not.toMatch(/health:main/);

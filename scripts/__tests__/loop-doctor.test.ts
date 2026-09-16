@@ -9,6 +9,8 @@ import {
     defaultProcessProbe,
     releaseRecord,
     DEFAULT_MIN_AGE_HOURS,
+    CLAIM_VERDICT_STATES,
+    countUnpushedCommits,
     type ClaimFacts,
     type ClaimedIssue,
     type ClaimOwner,
@@ -30,6 +32,7 @@ const base: ClaimFacts = {
     hasOpenPr: false,
     ageHours: 48,
     ownerAlive: null,
+    unpushedCommits: null,
 };
 
 describe("loop-doctor — classifyClaim", () => {
@@ -144,6 +147,140 @@ describe("loop-doctor — classifyClaim", () => {
  * a future edit to loop-doctor's CLI does not silently drift from what
  * loop-status.ts assumes it does.
  */
+describe("loop-doctor — recoverable: a dead owner that left commits (#3698)", () => {
+    const dead = {
+        ...base,
+        hasLocalBranch: true,
+        ownerAlive: false as boolean | null,
+        ageHours: 0.5,
+    };
+
+    it("is its own verdict state, distinct from live and from orphan", () => {
+        // The state exists because the two readings it sits between both lose
+        // the work: `live` hides a dead pass's commits behind the 24-hour
+        // local-branch rope, and `orphan` drops the label while the commits
+        // stay in a worktree nothing points at any more.
+        expect(CLAIM_VERDICT_STATES).toContain("recoverable");
+        const v = classifyClaim({ ...dead, unpushedCommits: 3 });
+        expect(v.state).toBe("recoverable");
+        expect(v.reason).toMatch(/3 unpushed commits/);
+        expect(v.reason).toMatch(/NOT released/);
+    });
+
+    it("fires however YOUNG the claim is — the rope exists for passes that might still be alive", () => {
+        // 0.5h in `dead` above is inside every age threshold the classifier
+        // has. That is the point: the age rules are a proxy for "is anyone
+        // still working on this", and a positive death reading answers the
+        // question the proxy was standing in for.
+        expect(classifyClaim({ ...dead, unpushedCommits: 1 }).state).toBe(
+            "recoverable"
+        );
+        expect(classifyClaim({ ...dead, unpushedCommits: 1 }).reason).toMatch(
+            /1 unpushed commit\b/
+        );
+    });
+
+    it("needs a POSITIVE death reading — unknown liveness changes no verdict", () => {
+        // The mirror of the `ownerAlive === true` rule above, and the same
+        // asymmetry: this subsystem's failure mode is declaring a healthy
+        // concurrent pass dead, so `null` keeps the verdicts it had before.
+        const unknown = classifyClaim({
+            ...dead,
+            ownerAlive: null,
+            unpushedCommits: 3,
+        });
+        expect(unknown.state).toBe("live");
+        expect(unknown.reason).toMatch(/could still be implementing/);
+    });
+
+    it("is not claimed for a branch with nothing on it", () => {
+        // `wt:new` creates the branch before the pass writes a line, so an
+        // empty branch is the ordinary shape of a pass that died early —
+        // there is no WIP to surface, and the existing rules apply.
+        expect(
+            classifyClaim({ ...dead, ageHours: 30, unpushedCommits: 0 }).state
+        ).toBe("orphan");
+        expect(
+            classifyClaim({ ...dead, ageHours: 30, unpushedCommits: null })
+                .state
+        ).toBe("orphan");
+    });
+
+    it("a PUSHED branch is still live — its commits are not unpushed at all", () => {
+        expect(
+            classifyClaim({
+                ...dead,
+                hasLocalBranch: false,
+                hasRemoteBranch: true,
+                unpushedCommits: 5,
+            }).state
+        ).toBe("live");
+    });
+});
+
+describe("loop-doctor — countUnpushedCommits (#3698)", () => {
+    const runner = (out: string) => () => out;
+
+    it("counts the commits the claim's local branch carries beyond the base", () => {
+        expect(
+            countUnpushedCommits(
+                3698,
+                ["main", "fix/issue-3698"],
+                "origin/staging",
+                runner("2\n")
+            )
+        ).toBe(2);
+    });
+
+    it("returns null — 'unknown', which changes no verdict — on every failure shape", () => {
+        // A repo where this cannot be read must behave exactly as it did
+        // before the state existed, which is what `null` buys.
+        expect(
+            countUnpushedCommits(3698, ["main"], "origin/staging", runner("2"))
+        ).toBe(null);
+        expect(
+            countUnpushedCommits(
+                3698,
+                ["fix/issue-3698"],
+                "origin/staging",
+                runner("not a number")
+            )
+        ).toBe(null);
+        expect(
+            countUnpushedCommits(
+                3698,
+                ["fix/issue-3698"],
+                "origin/staging",
+                () => {
+                    throw new Error("fatal: bad revision");
+                }
+            )
+        ).toBe(null);
+    });
+
+    it("matches the branch by its issue SUFFIX, never by a prefix of the number", () => {
+        // `issue-369` must not answer for `issue-3698`, and the `feat/`
+        // vs `fix/` prefix must not matter — the same suffix rule
+        // `buildClaimFacts` already uses to decide a branch belongs to a claim.
+        expect(
+            countUnpushedCommits(
+                369,
+                ["fix/issue-3698"],
+                "origin/staging",
+                runner("4")
+            )
+        ).toBe(null);
+        expect(
+            countUnpushedCommits(
+                3698,
+                ["feat/issue-3698"],
+                "origin/staging",
+                runner("4")
+            )
+        ).toBe(4);
+    });
+});
+
 describe("loop-doctor — buildClaimFacts", () => {
     const issue: ClaimedIssue = {
         number: 2519,

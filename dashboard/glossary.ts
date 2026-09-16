@@ -254,6 +254,10 @@ export const GLOSSARY = {
         label: "orphan",
         tip: "The claim is stale with nothing to show for it — no worktree, no branch, no PR — so the issue is held out of the queue by a run that is gone.",
     },
+    "claim.recoverable": {
+        label: "recoverable",
+        tip: "The process that took this claim is provably gone, but its local branch holds commits that exist nowhere else. Not released — releasing the label alone would send the next pass at the same issue while that work sits in a worktree nobody points at.",
+    },
     "claim.suspect": {
         label: "suspect",
         tip: "Something does not line up — artefacts exist but the claim is old, or they disagree with each other. Worth a look before unclaiming, not safe to reap automatically.",
@@ -563,7 +567,7 @@ export const GLOSSARY = {
     },
     "pass.reason": {
         label: "reason",
-        tip: "The driver's own reason code for how the pass ended — a dash when it simply finished, otherwise no-progress, claims-held, rate-limit, claude-error or claude-retry.",
+        tip: "The driver's own reason code for how the pass ended — a dash when it simply finished, otherwise no-progress, claims-held, claims-held-retry, rate-limit, claude-error or claude-retry.",
     },
 
     // Queue stat boxes

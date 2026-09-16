@@ -26,6 +26,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
+import { ORIGIN_BASE } from "./lib/branches";
 
 export type ClaimFacts = {
     issue: number;
@@ -76,6 +77,21 @@ export type ClaimFacts = {
      * comes from the claim journal, recorded at claim time.
      */
     ownerAlive: boolean | null;
+    /**
+     * Commits on the claim's local-only branch that exist nowhere else —
+     * `git rev-list --count <base>..<branch>` (issue #3698).
+     *
+     *   - a positive number — the dead pass got as far as COMMITTING. That
+     *     work exists only in its worktree, and the 24-hour local-branch rope
+     *     below is 24 hours of nobody knowing it is there.
+     *   - `0` — a branch with nothing on it. `wt:new` creates one before the
+     *     pass writes a line, so this is the ordinary shape of a claim that
+     *     died early, and there is nothing to recover.
+     *   - `null` — unknown (the count could not be read). Like `ownerAlive`,
+     *     unknown changes no verdict: it falls through to the age rules that
+     *     were there before.
+     */
+    unpushedCommits: number | null;
 };
 
 /** Branch names split by where they live — see `fetchBranchNames`. */
@@ -88,7 +104,12 @@ export type BranchNames = {
  *  union, so a drift guard can ITERATE it — the dashboard glossary's
  *  completeness test (#2629) reds when a state added here has no human label.
  *  A type union alone is invisible at runtime and cannot be checked. */
-export const CLAIM_VERDICT_STATES = ["live", "orphan", "suspect"] as const;
+export const CLAIM_VERDICT_STATES = [
+    "live",
+    "orphan",
+    "recoverable",
+    "suspect",
+] as const;
 
 export type ClaimVerdictState = (typeof CLAIM_VERDICT_STATES)[number];
 
@@ -130,6 +151,29 @@ export function classifyClaim(
     // POSITIVE liveness reading may hold a claim. See `ClaimFacts.ownerAlive`.
     if (facts.ownerAlive === true)
         return { state: "live", reason: "owning process still alive" };
+
+    // A dead owner whose branch holds COMMITTED work is its own state
+    // (issue #3698), and the distinction is not cosmetic: `live` hides it for
+    // 24 hours and `orphan` releases the label while the commits stay in a
+    // worktree nothing points at any more. Either reading loses the work.
+    // `recoverable` says the one thing an operator can act on — the pass is
+    // gone, its commits are not, here is the branch.
+    //
+    // Deliberately requires a POSITIVE death reading (`=== false`), the mirror
+    // of the `=== true` above: `null` means "we could not tell", and a claim
+    // we cannot prove dead keeps the verdicts it had before. The failure mode
+    // of this subsystem is still declaring a healthy concurrent pass dead.
+    if (
+        facts.ownerAlive === false &&
+        facts.hasLocalBranch &&
+        (facts.unpushedCommits ?? 0) > 0
+    ) {
+        const n = facts.unpushedCommits ?? 0;
+        return {
+            state: "recoverable",
+            reason: `owning process is gone and its local branch holds ${n} unpushed commit${n === 1 ? "" : "s"} — resume the branch or salvage the WIP; the label is NOT released`,
+        };
+    }
 
     // A local-only branch gets a MUCH longer rope than no branch at all, and
     // the two thresholds are not interchangeable. A claim with no branch is
@@ -509,7 +553,14 @@ export function buildClaimFacts(
      * `classifyClaim` stays pure. Defaults to `null` ("unknown"), so every
      * existing caller keeps exactly the verdicts it had before #2627.
      */
-    ownerAlive: boolean | null = null
+    ownerAlive: boolean | null = null,
+    /**
+     * Commits on this claim's local-only branch, gathered by the caller for
+     * the same reason `ownerAlive` is — counting them is I/O. Defaults to
+     * `null` ("unknown"), so every existing caller keeps exactly the verdicts
+     * it had before issue #3698.
+     */
+    unpushedCommits: number | null = null
 ): ClaimFacts {
     const suffix = new RegExp(`(^|/)issue-${issue.number}$`);
     const matches = (names: string[]): boolean =>
@@ -527,7 +578,42 @@ export function buildClaimFacts(
         ageHours:
             (now - new Date(issue.updatedAt).getTime()) / (1000 * 60 * 60),
         ownerAlive,
+        unpushedCommits,
     };
+}
+
+/**
+ * How many commits the local-only branch for `issue` carries that exist
+ * nowhere else (issue #3698).
+ *
+ * `null` on every failure shape — no such branch, no such base ref, a `git`
+ * that could not run, output that is not a number. `classifyClaim` treats
+ * `null` as "unknown" and changes no verdict on it, so a repo where this
+ * cannot be read behaves exactly as it did before.
+ *
+ * The base ref is passed in rather than read here: `scripts/lib/branches.ts`
+ * is the only module allowed to resolve the configured base branch (ADR 0116),
+ * and a literal `origin/main` anywhere else reds `branches.test.ts`.
+ */
+export function countUnpushedCommits(
+    issue: number,
+    localBranches: string[],
+    baseRef: string,
+    runner: ShRunner = sh
+): number | null {
+    const suffix = new RegExp(`(^|/)issue-${issue}$`);
+    const branch = localBranches
+        .map((b) => b.replace(/^refs\/heads\//, "").trim())
+        .find((b) => b.length > 0 && suffix.test(b));
+    if (!branch) return null;
+    let out: string;
+    try {
+        out = runner("git", ["rev-list", "--count", `${baseRef}..${branch}`]);
+    } catch {
+        return null;
+    }
+    const n = Number(out.trim());
+    return Number.isInteger(n) && n >= 0 ? n : null;
 }
 
 if (import.meta.main) {
@@ -559,6 +645,7 @@ if (import.meta.main) {
 
     const now = Date.now();
     const orphans: { issue: number; verdict: ClaimVerdict }[] = [];
+    const recoverable: { issue: number; verdict: ClaimVerdict }[] = [];
     for (const issue of issues) {
         const owner = owners.get(issue.number);
         const facts = buildClaimFacts(
@@ -566,21 +653,43 @@ if (import.meta.main) {
             prBranches,
             branches,
             now,
-            isOwnerAlive(owner)
+            isOwnerAlive(owner),
+            countUnpushedCommits(issue.number, branches.local, ORIGIN_BASE)
         );
         const v = classifyClaim(facts);
         const mark =
-            v.state === "orphan" ? "×" : v.state === "suspect" ? "?" : "·";
+            v.state === "orphan"
+                ? "×"
+                : v.state === "recoverable"
+                  ? "!"
+                  : v.state === "suspect"
+                    ? "?"
+                    : "·";
         console.log(
             `  ${mark} #${issue.number} ${issue.title.slice(0, 52).padEnd(52)} ${v.reason}`
         );
         if (v.state === "orphan")
             orphans.push({ issue: issue.number, verdict: v });
+        if (v.state === "recoverable")
+            recoverable.push({ issue: issue.number, verdict: v });
     }
 
     console.log(
         `\n${issues.length} claimed, ${orphans.length} orphaned (nothing is going to release them).`
     );
+    // Reported LOUDLY and released by nothing (issue #3698). Releasing the
+    // label alone would send the next pass at the same issue from scratch
+    // while the dead pass's commits sit in a worktree it will then collide
+    // with; the recoverable state exists to put that work in front of a human
+    // instead of expiring it silently after 24 hours.
+    if (recoverable.length > 0) {
+        console.log(
+            `\n${recoverable.length} RECOVERABLE — a dead pass left committed work behind. Not released; resume the branch or salvage it:`
+        );
+        for (const { issue: n, verdict } of recoverable) {
+            console.log(`  ! #${n} (branch *issue-${n}) — ${verdict.reason}`);
+        }
+    }
     if (orphans.length === 0) process.exit(0);
     if (!release) {
         console.log(

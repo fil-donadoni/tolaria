@@ -78,6 +78,7 @@ export type PassOutcome = "landed" | "ran-nothing" | "died";
  * | `"-"`            | `total_open`/green-sha moved — real work landed           | landed      |
  * | `"no-progress"`  | ran twice with NEITHER moving — genuinely nothing to do   | ran-nothing |
  * | `"claims-held"`  | forcibly terminated mid-batch, still holding claims (D14) | died        |
+ * | `"claims-held-retry"` | the same death, still inside its consecutive bound   | died        |
  * | `"rate-limit"`   | `claude` hit a rate/usage limit, driver stopped itself    | died        |
  * | `"claude-error"` | `claude` exited non-zero, no rate-limit match, streak out | died        |
  * | `"claude-retry"` | `claude` exited non-zero, being retried (not yet fatal)   | died        |
