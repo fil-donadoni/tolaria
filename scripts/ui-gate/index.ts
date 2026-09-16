@@ -72,9 +72,11 @@
  *
  * SPEED IS SIZED TO THE MACHINE (issue #3653). The five viewports are walked
  * `viewportParallelism(load, ncpu)` at a time — five contexts on an idle box,
- * one on a flat-out one — each in its own browser context signed in as its own
- * lane account, because the one-game-per-account lobby gate would otherwise
- * serialise them. The count changes the WALL TIME and nothing else: cells are
+ * one on a flat-out one — each in its own browser context, each parallel LANE
+ * signed in as its own lane account (a lane walks its viewports one after
+ * another, so the account is the LANE's), because the one-game-per-account
+ * lobby gate would otherwise serialise the contexts. The count changes the
+ * WALL TIME and nothing else: cells are
  * collected and printed in the fixed Viewport Matrix order (`parallel.ts`), so
  * the verdict block `land` re-derives is byte-identical whatever N was.
  *
@@ -768,6 +770,22 @@ async function main(): Promise<number> {
                         surface: string;
                         readings: Readings;
                     }[] = [];
+                    /**
+                     * Surfaces THIS viewport could not reach. It used to be
+                     * one map for the whole run, which let a surface that
+                     * failed at the first viewport skip the other four — and
+                     * that is exactly what cannot survive parallelism: which
+                     * viewport fails FIRST is a function of the machine, so the
+                     * reason printed on the surface's UNWALKED row would differ
+                     * between an N=1 and an N=5 run of one tree, and `land`
+                     * byte-compares that row.
+                     *
+                     * The price, paid only on the failure path, is that a
+                     * broadly broken surface now spends its INFRA retry budget
+                     * once per viewport instead of once per run (issue #3653
+                     * review). A red run gets slower; a green one does not, and
+                     * the verdict is identical either way.
+                     */
                     const unreachable = new Map<string, string>();
                     /** Cells that stood as an Infra Verdict (issue #3644). */
                     const infra: { surface: string; cell: InfraCell }[] = [];
@@ -954,8 +972,6 @@ async function main(): Promise<number> {
                      * probed, screenshotted or held to the Floors.
                      */
                     const measure = async (surface: Surface): Promise<void> => {
-                        if (unreachable.has(surface.id)) return;
-
                         let walked = await walkToSettled(surface);
 
                         // The page can still navigate between the settle and

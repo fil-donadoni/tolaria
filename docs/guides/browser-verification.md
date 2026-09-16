@@ -63,6 +63,15 @@ a time, because five Chromium contexts on a busy box turn a UI question into an
 `INFRA` verdict (issue #3644). The count, the load it was sized from and the
 number of lane accounts print in the diagnostic block.
 
+Each viewport now reaches its own verdict on every surface, where a surface
+that failed at the first viewport used to be skipped at the other four. That is
+the price of the guarantee below: which viewport fails first is a property of
+the machine, so a shared "already gave up" signal would put a different reason
+on the surface's `UNWALKED` row depending on how many contexts ran at once — the
+one line `land` byte-compares. A broken surface therefore spends its retry
+budget once per viewport rather than once per run: a RED run is slower, a green
+one is not, and the verdict is the same.
+
 `--parallel=N` (1..5) overrides the sizing — that is how you reproduce a
 receipt on a machine whose load differs from the one that produced it. **It
 cannot change the verdict**: every viewport reports its cells, and they are
