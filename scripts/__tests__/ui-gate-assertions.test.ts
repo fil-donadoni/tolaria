@@ -137,11 +137,13 @@ describe("check:ui surface table — Named Assertions", () => {
                 "contrast role=button name=Flashback",
             ],
             "game-debug-sheet": [
-                "reachable [data-debug-sheet-toggle]",
+                "visible [data-debug-sheet-toggle]",
+                "visible [data-debug-sheet]",
                 "reachable role=textbox name=search scenarios",
                 "reachable role=button name=UI stress — full board, full hand, deep piles",
             ],
             "game-debug-sheet-ai": [
+                "visible [data-debug-sheet]",
                 "visible [data-ai-trace-body]",
                 "reachable role=button name=Judge this move",
             ],

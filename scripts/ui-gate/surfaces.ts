@@ -2706,10 +2706,19 @@ export const SURFACES: readonly Surface[] = [
         // form's pinned head. `reachable` scrolls each into the sheet's port,
         // so the list promise holds after the walk scrolled the form down.
         asserts: [
+            // VISIBLE, not reachable: the open sheet (`z-sheet`) paints over
+            // its own edge tab (`z-dev-overlay`) by design — Escape is the
+            // documented close (`closeDebugSheet`). What this promises is that
+            // the tab stays mounted, and that the sheet it opened is up.
             {
                 label: "debug sheet toggle",
                 locator: { selector: "[data-debug-sheet-toggle]" },
-                check: "reachable",
+                check: "visible",
+            },
+            {
+                label: "debug sheet open",
+                locator: { selector: "[data-debug-sheet]" },
+                check: "visible",
             },
             {
                 label: "scenario search",
@@ -3049,10 +3058,19 @@ export const SURFACES: readonly Surface[] = [
         // judging is the gesture the trace box is there to invite (issue
         // #3405).
         asserts: [
+            // VISIBLE, not reachable: the open sheet (`z-sheet`) paints over
+            // its own edge tab (`z-dev-overlay`) by design — Escape is the
+            // documented close (`closeDebugSheet`). What this promises is that
+            // the tab stays mounted, and that the sheet it opened is up.
             {
                 label: "debug sheet toggle",
                 locator: { selector: "[data-debug-sheet-toggle]" },
-                check: "reachable",
+                check: "visible",
+            },
+            {
+                label: "debug sheet open",
+                locator: { selector: "[data-debug-sheet]" },
+                check: "visible",
             },
             {
                 label: "AI trace body",

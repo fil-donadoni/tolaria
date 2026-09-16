@@ -4,6 +4,7 @@ import { useGameContext } from "~/hooks/useGameContext";
 import { useControllerActionsSource } from "~/hooks/controllerActionsContext";
 import { phaseGroupLabel, phaseLabel } from "~/lib/phase-labels";
 import { V4_EYEBROW, V4_PLATE } from "~/lib/board-chrome-v4";
+import { selectCommandSlots } from "~/lib/controller-action-slots";
 import ActionButton from "./action-button";
 import ControllerCueBadge from "./controller-cue-badge";
 import ControllerPhasePanel from "./controller-phase-panel";
@@ -31,6 +32,19 @@ export default function ControllerPod({
     // controller layout `controller.tsx` mounted this render.
     const useControllerState = useControllerActionsSource();
     const { cue, actions, attackAllConfirm } = useControllerState();
+    // The pod lists its actions rather than arranging them into slots, but it
+    // marks the SAME one the strip and the command row put in their centre
+    // slot, so `check:ui`'s one `data-controller-primary` promise addresses
+    // every controller layout (issue #3651).
+    const slots = selectCommandSlots(actions);
+    const primaryMark = (
+        action: (typeof actions)[number]
+    ): "action" | "status" | undefined =>
+        action === slots.primary
+            ? "action"
+            : !slots.primary && action === slots.statusPill
+              ? "status"
+              : undefined;
     const [expanded, setExpanded] = useState(false);
 
     const isMyTurn = activePlayerId === playerId;
@@ -104,6 +118,7 @@ export default function ControllerPod({
                             <button
                                 key={action.key}
                                 type="button"
+                                data-controller-primary={primaryMark(action)}
                                 onClick={action.onClick}
                                 disabled={action.disabled}
                                 className="rounded-sm border border-border-strong bg-surface-elevated px-3 py-2 text-center text-xs text-text-muted shadow-md transition-colors hover:text-text disabled:cursor-default disabled:opacity-70"
@@ -118,6 +133,7 @@ export default function ControllerPod({
                                 tone={action.tone}
                                 disabled={action.disabled}
                                 shortcut={action.shortcut}
+                                controllerPrimary={primaryMark(action)}
                             />
                         )
                     )}
