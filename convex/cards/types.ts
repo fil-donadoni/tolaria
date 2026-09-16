@@ -15638,17 +15638,34 @@ export type EffectOp =
            *  `returnToHand` (Planar Overlay's bounce) — only meaningful for
            *  `zone: "battlefield"`. */
           onPicked: "keep" | "returnToHand";
-          /** The sweep clause (`zone: "hand"` only): every HAND card NOT
-           *  picked, further narrowed by `filter` here — deliberately a
-           *  SEPARATE, possibly BROADER filter than the categorization
-           *  domain (Noxious Vapors' `excludeType: "Land"` sweeps every
-           *  nonland card, including one that matched no colour category at
-           *  all). Omit `filter` to sweep every non-picked zone member; omit
-           *  `sweep` entirely for "leave everything else untouched" (Planar
-           *  Overlay). `action: "discard"` is the only shape today (CR
-           *  701.9) — grows when a future card needs a different rest
-           *  action. */
-          sweep?: { filter?: EffectCardFilter; action: "discard" };
+          /** The sweep clause: every zone member NOT picked, further
+           *  narrowed by `filter` here — deliberately a SEPARATE, possibly
+           *  BROADER filter than the categorization domain (Noxious Vapors'
+           *  `excludeType: "Land"` sweeps every nonland card, including one
+           *  that matched no colour category at all). Omit `filter` to sweep
+           *  every non-picked zone member; omit `sweep` entirely for "leave
+           *  everything else untouched" (Planar Overlay). The action is fixed
+           *  by the zone (validator-enforced):
+           *
+           *  - `"discard"` ↔ `zone: "hand"` (CR 701.9) — Noxious Vapors.
+           *  - `"sacrifice"` ↔ `zone: "battlefield"` (CR 701.21a, issue
+           *    #3712) — every non-picked permanent the chooser CONTROLS that
+           *    matches `filter` goes through the ordinary `sacrifice`
+           *    primitive, never a raw zone move. Global Ruin ("chooses … a
+           *    land of each basic land type, then sacrifices the rest":
+           *    `filter: { type: "Land" }`, so a nonbasic with no basic type is
+           *    necessarily swept) and Ajani, Nacatl Avenger's −4 (`filter:
+           *    { excludeType: "Land" }` — lands are neither chosen nor
+           *    sacrificed; an artifact creature may answer both artifact and
+           *    creature through the COVER rule).
+           *
+           *  "Each player chooses …, then sacrifices" is CR 101.4: wrap the
+           *  Op in `forEach { set: "players", simultaneous: true }` so every
+           *  player's pick is made (APNAP) before ANY sweep applies. */
+          sweep?: {
+              filter?: EffectCardFilter;
+              action: "discard" | "sacrifice";
+          };
           /** Optional prompt header on the pick. */
           prompt?: string;
       }
