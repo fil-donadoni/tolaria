@@ -44,7 +44,7 @@ table's `autoPayable` field rather than hand-maintained beside it.
 is a completeness property over the TYPE: it proves a human adjudicated every
 leg. It proves **nothing about board-state reachability** — that
 `enumerateMoves` yields a legal, payable Move for that leg on a real position.
-One of the twenty-one rows is a `hole` for exactly that reason, found by a
+One row is a `hole` for exactly that reason, found by a
 human reading the claim rather than by any check: `exertThis` is paid on the
 search-side application but the enumerator gates nothing, because the only
 shipped carrier doesn't use the half of the Bot path that pays it (issue
