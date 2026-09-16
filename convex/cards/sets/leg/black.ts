@@ -65,9 +65,8 @@ import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 //     blocked: `CardInstanceState.activationsThisTurn` is a per-ability tally
 //     and `canActivate` reads it against any threshold (Phyrexian Battleflies,
 //     inv/black.ts; Soul Kiss, ice/black.ts). Deferred to its tranche only for
-//     authoring — owned by #2124. The declarative numeric cap is a separate,
-//     bot-reachability concern (#2127): `moves.ts` skips every `canActivate`
-//     ability, so all three cards are invisible to the move enumerator.
+//     authoring — owned by #2124. (The Bot evaluates `canActivate` closures
+//     since issue #3441, so the cap no longer hides them from the enumerator.)
 //   • Quagmire — "creatures with swampwalk can be blocked as though they didn't
 //     have swampwalk" — buildable with the `landwalk-negation` static (Great
 //     Wall / Undertow, #484), `subtypes: ["Swamp"]`. Deferred to its tranche.

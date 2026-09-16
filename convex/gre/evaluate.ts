@@ -33,6 +33,7 @@ import {
     isCombatDamageUnpreventable,
 } from "./combatDamagePrevention";
 import { classLevelActivationViolation } from "../cards/abilities/classLevels";
+import { activationPreconditionViolation } from "./activationPrecondition";
 import { lethalDamageThreshold } from "./lethalDamage";
 import {
     getEffectivePower,
@@ -592,9 +593,11 @@ function activationsInFlight(
  *
  *    * `activateFromHand` / `activateFromGraveyard` (CR 113.6) — the ability
  *      functions from another zone, so it is not an option this permanent offers.
- *    * `canActivate` / `getTargetRequirement` — a runtime predicate this leaf
- *      heuristic does not evaluate, exactly as the move enumerator refuses to
- *      (`moves.ts`).
+ *    * `getTargetRequirement` — a dynamic target this leaf heuristic does not
+ *      evaluate, exactly as the move enumerator refuses to (`moves.ts`).
+ *    * `canActivate` (CR 602.5b) — evaluated through
+ *      `activationPreconditionViolation`, the predicate the enumerator and the
+ *      mutation share: an option only while the closure holds.
  *    * `activatableByOpponentsOnly` (CR 602.1) — an ability only the OPPONENT
  *      may activate is not this player's option to hold.
  *
@@ -635,7 +638,13 @@ function hasFlexibleActivation(
     for (const { ability } of abilities) {
         if (!isDeferrableStackAbility(ability)) continue;
         if (ability.activateFromHand || ability.activateFromGraveyard) continue;
-        if (ability.canActivate || ability.getTargetRequirement) continue;
+        if (ability.getTargetRequirement) continue;
+        // CR 602.5b (issue #3441) — the printed restriction, through the SAME
+        // predicate `enumerateAbilityMoves` and the mutation read: a closure
+        // that currently fails is not an option held, one that holds is.
+        if (activationPreconditionViolation(state, perm, ability) !== null) {
+            continue;
+        }
         // CR 602.1 — "Only your opponents may activate this ability" (Clergy of
         // the Holy Nimbus). It is not an option THIS player holds at all, and
         // `enumerateMoves` offers them none; without this gate the term credited

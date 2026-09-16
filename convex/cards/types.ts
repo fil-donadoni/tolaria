@@ -1914,10 +1914,9 @@ export interface ActivatedAbility {
      *  first clause; the second clause is `oncePerTurn`). A DECLARATIVE,
      *  JSON-serialisable activation-timing precondition — deliberately NOT a
      *  `canActivate` closure, even though the predicate is one line: a closure
-     *  is opaque to every consumer that is not the server. `enumerateAbilityMoves`
-     *  (`gre/moves.ts`) and `hasFlexibleActivation` (`gre/evaluate.ts`) both
-     *  `continue` on ANY ability carrying `canActivate`, so a closure-gated
-     *  Boast would be permanently invisible to the bot; and the client
+     *  is opaque to every consumer that cannot call it. The Bot evaluates a
+     *  `canActivate` closure since issue #3441 (`activationPreconditionViolation`),
+     *  but the client
      *  affordability sweep (`activation-affordability.catalogue.test.ts`)
      *  auto-SKIPS `canActivate` abilities, so the gate could never be swept.
      *
@@ -1942,11 +1941,9 @@ export interface ActivatedAbility {
      *  a rule rather than a convention: at level 1 only the level-2 bar is
      *  legal, so there is no way to skip a level.
      *
-     *  DECLARATIVE for the same reason `requiresAttackedThisTurn` is: both
-     *  `enumerateAbilityMoves` (`gre/moves.ts`) and `hasFlexibleActivation`
-     *  (`gre/evaluate.ts`) skip ANY ability carrying a `canActivate` closure,
-     *  so a closure-gated level bar would be a move the Bot never enumerates —
-     *  it could never level a Class up at all. Enforced server-side by
+     *  DECLARATIVE for the same reason `requiresAttackedThisTurn` is: a
+     *  closure is opaque to every consumer that cannot call it (the client
+     *  affordability sweep auto-skips `canActivate`). Enforced server-side by
      *  `assertActivationTimingLegal` (`convex/gre/activation.ts`), mirrored as a UI hint
      *  by `isActivationTimingAllowed` (`src/lib/card-utils.ts`). Built by
      *  `expandClassLevelBars` (`cards/abilities/classLevels.ts`); a card never

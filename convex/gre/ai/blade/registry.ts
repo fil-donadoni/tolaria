@@ -3562,8 +3562,8 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // `enumerateMoves`/`applyMoveInSearch` seam the `activate` step's
         // `target` field uses. (Giver of Runes was tried first and dropped:
         // its `getTargetRequirement` closure hits a documented, pre-existing
-        // gap in `moves.ts`'s ability enumerator — "conditional abilities
-        // need a runtime predicate we don't replicate" — so the Bot can
+        // gap in `moves.ts`'s ability enumerator — a dynamic target
+        // requirement is skipped outright — so the Bot can
         // never activate it at all, unrelated to colour choice. Out of
         // scope for #2306; see the PR description / findings note.)
         setup: [
@@ -4976,10 +4976,8 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // whether the bot attacks, casts or passes is a preference, and this
         // entry has no opinion on it.
         //
-        // What it guards: `requiresAttackedThisTurn` is a DECLARATIVE field
-        // precisely so `enumerateAbilityMoves` (`gre/moves.ts`) can read it —
-        // a `canActivate` closure is skipped wholesale by that enumerator, so
-        // a closure-gated Boast would be invisible rather than gated. Drop the
+        // What it guards: `enumerateAbilityMoves` (`gre/moves.ts`) reads the
+        // DECLARATIVE `requiresAttackedThisTurn` field as its Boast gate. Drop the
         // enumerator's gate and the move is offered a turn early: the bot eats
         // its own Grizzly Bears for a boast the server would refuse, which in
         // live play is a frozen action, not a bad one.

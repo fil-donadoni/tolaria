@@ -26,6 +26,7 @@
 
 import { getDefinition, tryGetDefinition } from "../cards";
 import { classLevelActivationViolation } from "../cards/abilities/classLevels";
+import { activationPreconditionViolation } from "./activationPrecondition";
 import type {
     AbilityMode,
     ActivatedAbility,
@@ -2457,12 +2458,12 @@ export function activateAbilityOnState(
         ) {
             throw new Error("Not enough life");
         }
-        if (
-            ability.canActivate !== undefined &&
-            !ability.canActivate(card, state)
-        ) {
-            throw new Error("Ability cannot be activated right now");
-        }
+        const precondition = activationPreconditionViolation(
+            state,
+            card,
+            ability
+        );
+        if (precondition !== null) throw new Error(precondition);
         // CR 107.3 / 601.2b — chosenX must accompany abilities with X in
         // their mana cost. Stashed on pendingTarget; finalizeTargetSelection
         // forwards it to pendingActivation / the stack item.
@@ -2736,12 +2737,8 @@ export function activateAbilityOnState(
     // CR 602.5 — activated abilities may declare a custom precondition
     // (e.g. Clockwork Beast: "Activate only if it has fewer than seven
     // +1/+0 counters on it.") read against current source state.
-    if (
-        ability.canActivate !== undefined &&
-        !ability.canActivate(card, state)
-    ) {
-        throw new Error("Ability cannot be activated right now");
-    }
+    const precondition = activationPreconditionViolation(state, card, ability);
+    if (precondition !== null) throw new Error(precondition);
     // CR 107.3 / 601.2b — chosenX is required for abilities whose mana
     // cost has X. Validate up-front; pass to normalizeManaCost so the
     // generic portion includes X * (the chosen value).

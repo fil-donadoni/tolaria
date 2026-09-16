@@ -765,11 +765,9 @@ export const mourning: CardDefinition = {
 // style boolean field (that caps at exactly 1) — `canActivate` reads the
 // generic per-source `activationsThisTurn` tally the engine already tracks
 // for EVERY activated ability (game.ts `recordActivation`), the same
-// extension point Clockwork Beast-style conditional abilities use. Per the
-// bot-move-enumerator's own documented limitation (moves.ts: "Conditional
-// abilities need a runtime predicate we don't replicate"), a `canActivate`
-// gate is skipped by the bot — consistent with every other conditional
-// ability in the catalogue, not a new gap.
+// extension point Clockwork Beast-style conditional abilities use. The Bot's
+// enumerator evaluates the closure through the same predicate the server reads
+// (`activationPreconditionViolation`, issue #3441).
 export const phyrexianBattleflies: CardDefinition = {
     id: "da27c489-c541-4b0d-a844-71aa65e55ceb", // INV 114
     rarity: "common",
