@@ -23,6 +23,7 @@ import {
 import { createMemoryVerdictStore } from "../verdictStoreMemory";
 import { drain, drainNow } from "../verdictsDrain";
 import {
+    directOutboxStore,
     drainOutbox,
     verdictDeploymentOf,
     verdictStampOf,
@@ -117,8 +118,7 @@ describe("drainOutbox keeps going past a row it cannot slim (issue #3580)", () =
     it("reports the refused row pending and still slims the next", async () => {
         const marked: string[] = [];
         const report = await drainOutbox({
-            store: createMemoryVerdictStore(),
-            here: HERE,
+            storeRow: directOutboxStore(createMemoryVerdictStore(), HERE),
             now: () => 2,
             pendingPage: async () => ({
                 rows: [fatRow("r-bad"), fatRow("r-good")],

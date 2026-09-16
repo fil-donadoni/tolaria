@@ -26,7 +26,11 @@ table.
 **Why `us-central1`:** the Cloud Storage free tier covers only `us-east1`,
 `us-west1` and `us-central1`, and the store is small.
 
-## Two credentials, never one
+## Two credentials, never one — and a forward token
+
+(ADR 0128 was amended by issue #3745: a third credential, the
+[forward token](#g-forward-token), is described in
+[Local backend: the forward token](#local-backend-the-forward-token).)
 
 - The [writer account](#g-writer) holds `roles/storage.objectCreator` and
   `roles/storage.objectViewer` on the [bucket](#g-bucket). It can create and
@@ -118,7 +122,12 @@ The `verdicts` table is an [outbox](#g-outbox) (issue #3580, ADR 0128 §5):
    hand.
 
 On a deployment without the write [key](#g-key) — every local backend — the
-drain answers `skipped` and the rows stay fat, marked `deploymentKind: local`.
+drain FORWARDS instead when it holds a [forward token](#g-forward-token)
+(issue #3745): each fat row goes to the writer deployment, which checks it
+again, uploads it, reads it back and answers. The row slims only after that
+answer, and the [attestation](#g-attestation) keeps its local origin
+(`local-<port>:<userId>`, `deploymentKind: local`). A deployment with neither
+credential answers `skipped`, and its rows stay fat.
 
 **Bulk upload** (the migration's door): an admin calls
 `verdicts:enqueueBulk` with the judgements and their attestation authors, then
@@ -156,6 +165,68 @@ at the same position reopens it, and changing your mind is a newer
 The same page opens any single verdict by id to judge it cold. That judgement
 goes through `verdicts:submit` like a quiz answer: agreeing attests the
 verdict, disagreeing contests the position.
+
+## Local backend: the forward token
+
+A local backend never holds the write [key](#g-key). With a
+[forward token](#g-forward-token), its drain sends each judgement and each
+[resolution](#g-resolution) to the deployment that does, so the local and the
+production judgements end up in the same [bucket](#g-bucket) with no manual
+step (issue #3745, ADR 0128 § Amendment).
+
+**What the token can do.** It can ask the writer to store a judgement or a
+resolution authored `<its deployment>:<userId>`, from that deployment. The
+writer runs `verdicts:submit`'s checks again, and it refuses any other author
+and any other deployment. The token cannot name an object, cannot overwrite
+one, and is not the write [key](#g-key).
+
+**Mint one** for a local backend, on the machine that runs it. Its
+deployment name is `local-<port>`, for example `local-3210`:
+
+```bash
+T="$(openssl rand -hex 32)"
+printf %s "$T" | shasum -a 256   # the sha256 the writer keeps
+```
+
+**Register it on the writer.** `VERDICT_STORE_FORWARD_TOKENS` is a JSON array
+of every accepted token. Setting it replaces the whole list, so read the
+current value first and add your entry to it:
+
+```bash
+bunx convex env get --prod VERDICT_STORE_FORWARD_TOKENS
+bunx convex env set --prod VERDICT_STORE_FORWARD_TOKENS \
+  '[{"deployment":"local-3210","sha256":"<the sha256 above>","resolutions":true}]'
+```
+
+`"resolutions": true` lets the token forward the [resolutions](#g-resolution)
+recorded on that backend as well. Only the writer's owner decides that, and
+it gives a resolver's power: leave it out for a backend whose admins should
+not decide contested positions for everyone. Every local backend on the
+default port is named `local-3210`, so tokens for different machines on that
+port share one identity.
+
+**Set it on the local backend**, in the backend's environment and never in a
+file in a checkout. Run this from the checkout whose `.env.local` names the
+`local:…` deployment, so the bare `env set` targets the local backend:
+
+```bash
+bunx convex env set VERDICT_STORE_FORWARD_TOKEN "$T"
+bunx convex env set VERDICT_STORE_FORWARD_URL https://<writer>.convex.site
+unset T
+```
+
+The next drain forwards every fat row, including rows written before the
+outbox. The hourly cron runs one anyway. A refused row stays fat, and the
+drain report gives the reason: `forward refused (401)` means the token,
+`(403)` an author or deployment outside it, or a resolution from a token
+without `"resolutions": true`, and `(422)` a judgement `submit` would refuse or
+a date past the writer's clock. A writer outage, or one that takes longer than 30 s,
+leaves the rows fat for the next hour's retry.
+
+**Revoke it** on the writer: remove its entry from
+`VERDICT_STORE_FORWARD_TOKENS` and set the list again. From then on the route
+answers 401 to that token. On the local backend,
+`bunx convex env remove VERDICT_STORE_FORWARD_TOKEN` stops the forwarding.
 
 ## Development machine
 
@@ -263,7 +334,9 @@ under the smallest of their authors.
 `gcloud iam service-accounts keys list --iam-account=<account>` lists the
 [keys](#g-key); `gcloud iam service-accounts keys delete <key-id>
 --iam-account=<account>` revokes one. After revoking a writer key, set a new
-one on every deployment.
+one on every deployment. A [forward token](#g-forward-token) is revoked on
+the writer, by removing its entry from `VERDICT_STORE_FORWARD_TOKENS`
+([Local backend: the forward token](#local-backend-the-forward-token)).
 
 ## Glossary
 
@@ -289,6 +362,13 @@ drain has stored it in the [bucket](#g-bucket) and read it back.
 
 The one Google Cloud Storage bucket that holds every Verdict object,
 attestation and pack (ADR 0128 §1). Private, shared by every deployment.
+
+### <a id="g-forward-token"></a>Forward token
+
+The third credential (issue #3745). It is a random secret bound to one
+deployment name on the writer deployment, which keeps only its sha256. It
+lets a deployment without the write [key](#g-key) have its own judgements and
+resolutions stored, and nothing else.
 
 ### <a id="g-key"></a>Key
 

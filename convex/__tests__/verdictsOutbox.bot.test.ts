@@ -32,6 +32,7 @@ import {
 import { createMemoryVerdictStore } from "../verdictStoreMemory";
 import { markStored, submit } from "../verdicts";
 import {
+    directOutboxStore,
     drainOutbox,
     storeOutboxRow,
     verdictDeploymentOf,
@@ -118,8 +119,7 @@ function harnessPorts(
     store: VerdictStoreWriter
 ): OutboxDrainPorts {
     return {
-        store,
-        here: HERE,
+        storeRow: directOutboxStore(store, HERE),
         now: () => 1_800_000_000_000,
         pendingPage: async () => ({
             rows:

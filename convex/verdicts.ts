@@ -342,6 +342,30 @@ export const enqueueBulk = mutation({
     },
 });
 
+/**
+ * The checks `submit` runs on a judgement, for one FORWARDED from a deployment
+ * without the write key (issue #3745) — run on the writer, before it uploads
+ * anything. The arguments are `submit`'s own validators, so a forwarded
+ * judgement is refused by exactly what would refuse it here. Identity is the
+ * forward token's business (`verdictForward.ts`), not this query's.
+ */
+export const forwardAdmissible = internalQuery({
+    args: {
+        spec: scenarioSpecValidator,
+        setup: v.optional(v.array(v.any())),
+        seat: seatValidator,
+        deckKnowledge: v.optional(v.array(deckKnowledgeValidator)),
+        candidates: v.array(candidateValidator),
+        answer: answerValidator,
+        botPickIndex: v.optional(v.number()),
+    },
+    returns: v.null(),
+    handler: async (_ctx, args) => {
+        assertAdmissible(args);
+        return null;
+    },
+});
+
 /** Rows per `pendingPage`. A fat row averages ~6 KB (ADR 0128 § Context), so
  *  a page stays far inside a query's read limits. */
 const OUTBOX_PAGE_SIZE = 25;

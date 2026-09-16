@@ -232,18 +232,27 @@ function messageOf(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
 
-/**
- * Upload one row's verdict object and attestation, then confirm both by
- * re-reading. Never throws: every failure is a `pending` result naming why,
- * because one bad row must not stop a drain from storing the rest.
- */
-export async function storeOutboxRow(
-    store: VerdictStoreWriter,
+/** A fat row made ready to store: its judgement, both hashes, who attests it
+ *  and the attestation itself — or why it cannot be stored. Shared by the
+ *  direct upload and the forward (`verdictForward.ts`), so a row forwarded to
+ *  the writer passes exactly the checks a row uploaded here does. */
+export type PreparedOutboxRow =
+    | {
+          status: "ready";
+          judgement: VerdictJudgement;
+          stamp: { verdictHash: string; positionKey: string };
+          attribution: ReturnType<typeof attributionOfRow>;
+          attestation: VerdictAttestation;
+      }
+    | { status: "already-slim"; rowId: string }
+    | { status: "pending"; rowId: string; reason: string };
+
+export function prepareOutboxRow(
     row: OutboxRow,
     here: VerdictDeployment
-): Promise<OutboxStoreResult> {
+): PreparedOutboxRow {
     const rowId = row._id;
-    const pending = (reason: string): OutboxStoreResult => ({
+    const pending = (reason: string): PreparedOutboxRow => ({
         status: "pending",
         rowId,
         reason,
@@ -279,8 +288,34 @@ export async function storeOutboxRow(
             `stamped position key ${row.positionKey}, but the judgement now keys to ${stamp.positionKey}`
         );
     }
+    return {
+        status: "ready",
+        judgement,
+        stamp,
+        attribution,
+        attestation: attestationOfRow(row, stamp.verdictHash, attribution),
+    };
+}
 
-    const attestation = attestationOfRow(row, stamp.verdictHash, attribution);
+/**
+ * Upload one row's verdict object and attestation, then confirm both by
+ * re-reading. Never throws: every failure is a `pending` result naming why,
+ * because one bad row must not stop a drain from storing the rest.
+ */
+export async function storeOutboxRow(
+    store: VerdictStoreWriter,
+    row: OutboxRow,
+    here: VerdictDeployment
+): Promise<OutboxStoreResult> {
+    const rowId = row._id;
+    const pending = (reason: string): OutboxStoreResult => ({
+        status: "pending",
+        rowId,
+        reason,
+    });
+    const prepared = prepareOutboxRow(row, here);
+    if (prepared.status !== "ready") return prepared;
+    const { judgement, stamp, attribution, attestation } = prepared;
 
     let verdictOutcome: VerdictStorePutOutcome;
     let attestationOutcome: VerdictStorePutOutcome;
@@ -340,11 +375,24 @@ export type OutboxPage = {
     isDone: boolean;
 };
 
+/** How a drain stores one row: uploaded here with the write key
+ *  (`directOutboxStore`), or forwarded to the deployment holding it
+ *  (`verdictForward.ts`, issue #3745). Either way it never throws. */
+export type OutboxRowStore = (row: OutboxRow) => Promise<OutboxStoreResult>;
+
+/** The direct way: this deployment holds the write key. */
+export function directOutboxStore(
+    store: VerdictStoreWriter,
+    here: VerdictDeployment
+): OutboxRowStore {
+    return (row) => storeOutboxRow(store, row, here);
+}
+
 /** Everything a drain needs, injected — the node action binds these to the
- *  GCS writer and the two internal functions; a test binds them to fakes. */
+ *  GCS writer (or the forward) and the two internal functions; a test binds
+ *  them to fakes. */
 export interface OutboxDrainPorts {
-    store: VerdictStoreWriter;
-    here: VerdictDeployment;
+    storeRow: OutboxRowStore;
     now: () => number;
     pendingPage: (cursor: string | null) => Promise<OutboxPage>;
     markStored: (args: {
@@ -378,7 +426,7 @@ export async function drainOutbox(
     for (;;) {
         const page: OutboxPage = await ports.pendingPage(cursor);
         for (const row of page.rows) {
-            const result = await storeOutboxRow(ports.store, row, ports.here);
+            const result = await ports.storeRow(row);
             if (result.status === "pending") {
                 report.pending.push({
                     rowId: result.rowId,

@@ -27,6 +27,7 @@ import {
 } from "../verdictStore";
 import { createMemoryVerdictStore } from "../verdictStoreMemory";
 import {
+    directResolutionStore,
     drainResolutionOutbox,
     storeResolutionRow,
     type ResolutionOutboxRow,
@@ -163,7 +164,7 @@ describe("the resolution outbox drain", () => {
         const store = createMemoryVerdictStore();
         const marked: unknown[] = [];
         const report = await drainResolutionOutbox({
-            store,
+            storeRow: directResolutionStore(store),
             now: () => 42,
             pendingResolutions: async () => [ROW],
             markResolutionStored: async (args) => {
@@ -182,7 +183,7 @@ describe("the resolution outbox drain", () => {
     it("leaves a row pending when the upload never landed", async () => {
         const marked: unknown[] = [];
         const report = await drainResolutionOutbox({
-            store: forgetfulStore(),
+            storeRow: directResolutionStore(forgetfulStore()),
             now: () => 42,
             pendingResolutions: async () => [ROW],
             markResolutionStored: async (args) => {

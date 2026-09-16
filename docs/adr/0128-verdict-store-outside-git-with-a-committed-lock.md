@@ -134,7 +134,9 @@ derived from it. Training data that grows without bound is the second case.
 - The repository stops growing with the corpus. It grows with the LOCK —
   ~70 bytes per verdict, append-only, ~700 KB at 10,000.
 - Two credentials, never one: write lives only in deployment env vars, read
-  only on development machines. The bucket is private — verdict objects are
+  only on development machines. (Amended by issue #3745: a third, the forward
+  token, lets a deployment without the write key reach the store through the
+  one that holds it — see § Amendment.) The bucket is private — verdict objects are
   anonymous, but attestations name users.
 - A surface is owed that rebuilds a position from its spec and shows the
   deciding hand and the candidates. It serves three purposes — resolving
@@ -146,3 +148,81 @@ derived from it. Training data that grows without bound is the second case.
   how a missing term in the evaluation announces itself (ADR 0124 §3).
 - What is NOT decided here: gameplay telemetry as a Verdict source (§11 only
   reserves its shape), and the promotion command's own workflow.
+
+## Amendment (issue #3745, 2026-09-16): a third credential, the forward token
+
+"Two credentials, never one" left a local backend with no way out. Judgements
+are given on local backends (the owner) and on production (other testers);
+both are equivalent sources. A local backend never holds the write key, so its
+drain answered `skipped` and its rows stayed fat forever, and the only door out
+was `verdicts:pull`, which issue #3584 retires. The owner wants the two sources
+to converge in the store with no command to remember.
+
+**Decision.** There are three credentials now. The third is a **forward
+token**:
+
+- **It is bound to ONE deployment name.** The deployment holding the write key
+  keeps a list of accepted tokens, `VERDICT_STORE_FORWARD_TOKENS`: each entry
+  is a deployment name and the sha256 of its token. It never keeps the token
+  itself.
+- **It can do one thing.** It can ask that deployment, over its
+  `POST /verdicts/forward` route, to store a judgement or a resolution whose
+  author is `<that deployment>:<userId>`, and whose `deployment` and
+  `deploymentKind` both name that deployment.
+- **It cannot** name an object (every name is derived from the content, and
+  nothing is overwritten), attest as anyone on another deployment, or skip
+  validation. The writer re-runs `verdicts.submit`'s checks on a judgement
+  (`verdicts:forwardAdmissible`, with `submit`'s own validators) and `record`'s
+  checks on a resolution.
+- **Resolutions are opt-in per token.** `verdictResolutions.record` is
+  admin-only on the deployment that runs it, and the writer cannot see that
+  deployment's admins. So a token forwards resolutions only if its entry says
+  `"resolutions": true`. Such a token carries a resolver's power for its
+  deployment's authors.
+- **No forwarded date may run ahead of the writer's clock** (5 minutes of
+  skew). The newest resolution applies (§6), so a resolution dated in the
+  future would decide its position until that date. `record` stamps
+  `Date.now()`, and a forward is held to the same bound.
+- **It is revoked on the writer** by removing its entry. Nothing on the local
+  side needs to change.
+
+The writer uploads through the same `storeOutboxRow` / `storeResolutionRow`
+its own drain uses, reads both back, and only then answers with the id.
+**Origin is preserved, never rewritten to the writer.** The attestation keeps
+the originating deployment, `deploymentKind: local`, `gameId`, `seq`,
+`createdAt`, `botPickIndex` and the note.
+
+A local drain holding `VERDICT_STORE_FORWARD_TOKEN` and
+`VERDICT_STORE_FORWARD_URL` (and no write key) forwards every fat row. That
+includes legacy unstamped rows, which are attributed `local-<port>:<authorId>`
+exactly as a direct drain attributes them. It forwards the resolution outbox
+the same way. A row slims only when the writer confirms the read-back of the
+very verdict, position and author the row promised. A refusal or an outage
+leaves the row fat, with the reason in the drain report, and the hourly cron
+retries it. A re-send is harmless: object names are content-addressed and
+uploads use `ifGenerationMatch=0`.
+
+**Legacy rows** must pass today's `submit` validators when they forward. A fat
+row whose spec no current validator accepts is refused with its reason, and it
+stays fat. That is the same bar the migration's `enqueueBulk` sets.
+
+**The binding is to a NAME.** Every local backend on the default port is
+`local-3210`, so two machines holding tokens for `local-3210` are one
+deployment to the writer, and user ids on them share one namespace. This is
+already true of the attestations: `${deployment}:${userId}` never told two
+`local-3210` backends apart. Joining or separating authors stays with the
+aliases (issue #3585).
+
+**Why not the write key.** The write key can create any object under any name
+in the bucket. A leaked forward token can do much less: it can add judgements
+that pass validation, attributed to its own deployment, where they are
+filterable as `local` and never enter the lock without a promotion. Its reach
+stays inside what a tester on that deployment could already do. It also never
+puts a cloud credential on a development machine. Rejected alternatives are a
+machine script holding the production deploy key (it only works while that
+machine is on, and it puts the production key on it) and a write key on a
+local backend (§ Consequences still forbids it).
+
+**Consequence.** The drain picks its way by credential. The write key uploads
+directly. Otherwise a forward token with the writer's URL forwards. With
+neither it still answers `skipped`, naming what is missing.
