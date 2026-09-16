@@ -875,7 +875,9 @@ async function ensureBoard(page: Page, ctx: WalkContext): Promise<void> {
         //    actually take the selection — and the step is skipped outright
         //    when a tile already carries the selection. That is the SECOND
         //    `ensureBoard` call inside one viewport (`game-board` then
-        //    `game-stress`, both below), which shares the context and so the
+        //    `game-debug-sheet`, both below — `game-stress` names the same
+        //    pairing but is still declared unwalked, issue #3506), which
+        //    shares the context and so the
         //    `tolaria:selectedDeckId` the first call wrote. It is NOT how a
         //    later VIEWPORT starts: `index.ts`'s `browser.newContext({viewport,
         //    …})` passes no `storageState`, so every viewport begins with empty
