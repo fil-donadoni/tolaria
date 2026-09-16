@@ -77,7 +77,8 @@ function shippedPlaneswalkers(): CardDefinition[] {
 
 /** A board rich enough that the walkers' target requirements have something to
  *  point at: creatures and an artifact on both sides, several lands, a land
- *  card in each graveyard (Wrenn and Six's `+1`), cards in hand. */
+ *  card in each graveyard (Wrenn and Six's `+1`), cards in hand, and a large
+ *  opponent creature as well as a small one. */
 function boardWith(walker: string, loyalty?: number): ScenarioSpec {
     return {
         cards: [
@@ -95,6 +96,20 @@ function boardWith(walker: string, loyalty?: number): ScenarioSpec {
             },
             {
                 name: "Savannah Lions",
+                owner: "opp",
+                zone: "battlefield",
+                summoningSick: false,
+            },
+            // A BIG opponent creature as well as a small one: a requirement
+            // with a mana-value floor (Elspeth, Storm Slayer's "-3: Destroy
+            // target creature an opponent controls with mana value 3 or
+            // greater", CR 202.3) has nothing to point at on a board of
+            // one-drops, and this sweep measures the ENUMERATION gate, not
+            // target legality (which correctly suppresses an ability with no
+            // legal target — CR 601.2c, which CR 602.2b applies verbatim to
+            // activating an ability).
+            {
+                name: "Serra Angel",
                 owner: "opp",
                 zone: "battlefield",
                 summoningSick: false,
@@ -172,8 +187,8 @@ describe("loyalty abilities reach the bot's move enumerator (CR 606.2)", () => {
         expect(missing).toEqual([
             "Sorin, Lord of Innistrad :: sorin-lord-of-innistrad-minus6",
         ]);
-        expect(totalCount).toBe(48);
-        expect(offeredCount).toBe(47);
+        expect(totalCount).toBe(51);
+        expect(offeredCount).toBe(50);
     });
 
     it("never offers a loyalty move the server's own gate would reject", () => {

@@ -45,6 +45,12 @@
             "name": "Human"
         }
     ],
+    "18477047-218d-4b2a-a086-37431b6a3025": [
+        {
+            "scryfallId": "6559c423-449c-4e8e-8384-3ce78183e317",
+            "name": "Mutagen"
+        }
+    ],
     "187b6719-e5ed-4615-a00b-3313ceca055b": [
         {
             "scryfallId": "93116d98-2dad-4b80-a3af-9e36e34da6d4",
@@ -317,6 +323,12 @@
         {
             "scryfallId": "f3dd4d92-6471-4f4b-9c70-cbd2196e8c7b",
             "name": "Horse"
+        }
+    ],
+    "73a065e3-b530-4e62-ab3c-4f6f908184ec": [
+        {
+            "scryfallId": "6455d903-6996-448f-9148-9068febecb00",
+            "name": "Soldier"
         }
     ],
     "78cef262-c753-4658-b3ec-fec8db47f944": [

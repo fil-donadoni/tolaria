@@ -11569,7 +11569,9 @@ export type ReplacementEventKind =
     | "destroy"
     | "graveyard-bound"
     | "enters-battlefield"
-    | "draw";
+    | "draw"
+    | "token-created"
+    | "counter-placed";
 
 /** Damage event subject to CR 614 redirection / prevention. */
 export interface DamageReplacementEvent {
@@ -11778,6 +11780,117 @@ export interface DrawReplacementEvent {
     requestedCount: number;
 }
 
+/** Token-creation event: one or more tokens about to be created under a
+ *  player's control (CR 111.1). The Doubling Season / Parallel Lives /
+ *  Elspeth, Storm Slayer family intercepts this and rewrites `count`.
+ *
+ *  Fired at the ONE chokepoint every token creation funnels through —
+ *  `createTokenPermanents` (`gre/state.ts`), which serves the DSL `createToken`
+ *  Op, the imperative `SpellContext.createToken`, `createTokenCopy` and the
+ *  draw-replacement `redirect-to-token` outcome alike. Deliberately NOT the
+ *  `"enters-battlefield"` event: a permanent merely ENTERING is not a token
+ *  being CREATED (CR 111.1), so a reanimated creature and a blinked permanent
+ *  never see this, while a token that is created and then redirected to exile
+ *  by Containment Priest still does (it WAS created).
+ *
+ *  CR 616.1g — the creation event CONTAINS the entry event, and the containing
+ *  event's replacement must be chosen first. That ordering falls out of the
+ *  siting: this event fires before `createTokenPermanents`'s per-token loop,
+ *  whose body runs the `"enters-battlefield"` chokepoint. Do not move it into
+ *  the loop.
+ *
+ *  Never cancels. "Zero tokens are created" is expressible as a `count` rewrite
+ *  (`{ kind: "modified" }` with `count: 0`), so this event has no
+ *  `{ kind: "consumed" }` shape to interpret — mirroring
+ *  `GraveyardBoundReplacementEvent` / `EntersBattlefieldReplacementEvent`
+ *  rather than `DestroyReplacementEvent`. */
+export interface TokenCreatedReplacementEvent {
+    kind: "token-created";
+    /** CR 111.2 — the player under whose control the tokens would be created.
+     *  Elspeth, Storm Slayer's "under your control" scopes on this, and it is
+     *  the CONTROLLER, not the creating effect's controller: a token an
+     *  opponent's effect creates under YOUR control is doubled by YOUR
+     *  Doubling Season. */
+    controllerId: string;
+    /** CR 111.4 — the token's name, which the creating effect sets ("Soldier",
+     *  "Treasure"). Read by a name-scoped doubler (Anointed Procession's
+     *  family has none, but "create twice as many Treasure tokens" does). */
+    tokenName: string;
+    /** Card types of the token about to be created (CR 300). Snapshotted onto
+     *  the event because the token does not exist yet and has nothing to be
+     *  looked up FROM — the same reason
+     *  `EntersBattlefieldReplacementEvent.types` is carried. */
+    types: ReadonlyArray<CardType>;
+    /** Subtypes of the token (CR 205.3) — "creature tokens", "Treasure
+     *  tokens". */
+    subtypes: ReadonlyArray<string>;
+    /** True when the token is being created AS A COPY of another object
+     *  (CR 707.5, `createTokenCopy`). Carried so a filter that reads
+     *  `types`/`subtypes` can tell that those are the PLACEHOLDER's, not the
+     *  copied body's: a token copy's real characteristics are stamped after
+     *  this event, inside the creation loop. No shipped filter reads it;
+     *  Elspeth's clause has no filter at all ("one or more tokens"). */
+    isCopy: boolean;
+    /** Mutable: how many tokens are created. The replacement rewrites this
+     *  ("twice that many of those tokens are created instead"). Always `>= 1`
+     *  when the event fires — "if one or more tokens WOULD be created" never
+     *  fires on a zero-count creation. */
+    count: number;
+}
+
+/** Counter-placement event: one or more counters about to be put on an object
+ *  (CR 122.1). The Hardened Scales / Corpsejack Menace / Michelangelo,
+ *  Weirdness to 11 family intercepts this and rewrites `count`.
+ *
+ *  Fired at the TWO seams that put counters on a permanent through the
+ *  general counter path, both routed through the single
+ *  `applyCounterPlacedReplacements` helper (`gre/replacements.ts`) so neither
+ *  can drift: `addCounterToCard` (`gre/state.ts` — the shared low-level mutator
+ *  behind the DSL `counters` Op, `SpellContext.addCounter` and the
+ *  infect/wither damage form) and `applyEntersWithCounters` (`gre/state.ts` —
+ *  the CR 614.1c "enters with N counters" declaration, which writes
+ *  `card.counters` directly and therefore cannot route through the mutator). A
+ *  creature entering with +1/+1 counters IS having counters put on it, so the
+ *  family applies there too — two replacement effects on one event, ordered by
+ *  CR 616.1.
+ *
+ *  NOT ROUTED, stated so the next family member does not assume otherwise:
+ *  LOYALTY is written straight onto `card.counters` by `payLoyaltyCost`
+ *  (`gre/loyalty.ts`, a +N loyalty cost) and by the planeswalker entry sites
+ *  that stamp starting loyalty (`gre/state.ts`). Neither shipped consumer can
+ *  observe that — both scope to +1/+1 counters on creatures — but a
+ *  loyalty-counting doubler must route those sites here first, and a
+ *  debug/preset board's `placement` deliberately skips this event too.
+ *
+ *  Never cancels, for the same reason the token event does not: "no counters
+ *  are put on it" is `count: 0`. */
+export interface CounterPlacedReplacementEvent {
+    kind: "counter-placed";
+    /** Instance id of the object the counters would be put on. */
+    cardInstanceId: string;
+    /** CR 110.2 — the object's controller, for a "a creature you control"
+     *  scope. For a permanent entering the battlefield this is already its
+     *  prospective controller. */
+    controllerId: string;
+    /** Card types of the object (CR 300) — Michelangelo's "on a creature you
+     *  control". Snapshotted onto the event rather than looked up through
+     *  `ReplacementStateView.battlefield`, because the entry seam fires this
+     *  for a permanent that has not finished entering and is not on a
+     *  battlefield array to be found in. */
+    types: ReadonlyArray<CardType>;
+    /** Subtypes of the object (CR 205.3). */
+    subtypes: ReadonlyArray<string>;
+    /** CR 122.1 — which counter is being placed: `"+1/+1"`, `"-1/-1"`,
+     *  `"lore"`, `"loyalty"`, a keyword counter's own name. A family member
+     *  scopes on it; a generic "counters" doubler (Doubling Season's second
+     *  clause) does not. */
+    counterType: string;
+    /** Mutable: how many counters are put on. "That many plus one" is
+     *  `count + 1`, "twice that many" is `count * 2` — an arbitrary transform,
+     *  never a multiplier flag. Always `>= 1` when the event fires. */
+    count: number;
+}
+
 export type ReplacementEvent =
     | DamageReplacementEvent
     | LifeChangeReplacementEvent
@@ -11787,7 +11900,9 @@ export type ReplacementEvent =
     | DestroyReplacementEvent
     | GraveyardBoundReplacementEvent
     | EntersBattlefieldReplacementEvent
-    | DrawReplacementEvent;
+    | DrawReplacementEvent
+    | TokenCreatedReplacementEvent
+    | CounterPlacedReplacementEvent;
 
 /** Outcome of a matched draw replacement (ADR 0061), applied at the resumable
  *  draw seam. Distinct from the sync `ReplacementResult` because a draw

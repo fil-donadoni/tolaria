@@ -741,6 +741,37 @@ describe("buildStateFromScenario — tokens (CR 111 / 707.2)", () => {
         }
     });
 
+    it("PLACES tokens: a count-replacement source earlier in the spec does not double them, across a capture/rebuild round trip (issue #3230)", () => {
+        // CR 614 — Elspeth, Storm Slayer's "twice that many of those tokens are
+        // created instead" is a replacement on token CREATION. A staged board
+        // creates nothing: it places a snapshot. Before the `placement` opt the
+        // builder's `createTokenPermanents` call ran the replacement, so the
+        // Wasp below came out as two, and every `specFromState` → rebuild
+        // doubled it again.
+        const spec: ScenarioSpec = {
+            cards: [
+                {
+                    name: "Elspeth, Storm Slayer",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: { loyalty: 5 },
+                },
+                { name: "Wasp", owner: "me", token: true, count: 1 },
+            ],
+        };
+        const wasps = (state: ReturnType<typeof buildStateFromScenario>) =>
+            state.players[0].battlefield.filter((c) => c.isToken);
+
+        const first = buildStateFromScenario(makeState(), spec);
+        expect(wasps(first)).toHaveLength(1);
+
+        const captured = specFromState(first, {
+            mySeatId: first.players[0].id,
+        });
+        const second = buildStateFromScenario(makeState(), captured.spec);
+        expect(wasps(second)).toHaveLength(1);
+    });
+
     it("stages an already-set-up board: a token is NOT summoning sick unless asked (CR 302.6)", () => {
         const base = makeState();
         const spec: ScenarioSpec = {

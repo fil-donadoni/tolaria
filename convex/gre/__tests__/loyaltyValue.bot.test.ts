@@ -36,6 +36,8 @@ import type { ScenarioSpec } from "../../debugScenarioSpec";
 const EXPECTED_CEILING: Record<string, number> = {
     // start 4, spends 3/7 → max(4,7)+1
     "Chandra, Torch of Defiance": 8,
+    // start 5, spends 1/0/3 — the starting count is the larger bound
+    "Elspeth, Storm Slayer": 6,
     // start 3, spends 2/6
     "Dack Fayden": 7,
     // start 3, spends 1/4

@@ -62,8 +62,17 @@ interface Budget {
 const BUDGETS: Budget[] = [
     // measured 440,553 B (issue #3053)
     { prefix: "card-catalogue-", gzipBudgetBytes: 490_000 },
-    // measured 610,101 B (issue #3053)
-    { prefix: "brain.worker-", gzipBudgetBytes: 675_000 },
+    // measured 610,101 B (issue #3053); RE-ANCHORED to 675,412 B at issue #3230,
+    // which is ORDINARY CODE/CATALOGUE GROWTH and not the accident this row
+    // guards. Measured on both sides of that diff with this same `vite build`:
+    // `origin/staging` 674,181 B (599 B under the old 675,000 ceiling — the
+    // base tip was already at 99.9% of it) and the branch 675,412 B, the two
+    // new card definitions plus two replacement event types accounting for the
+    // ~1.2 KB between them. Headroom is deliberately ~2% rather than the ~10%
+    // the card-catalogue row carries: pool RE-ENTRY is +99 KB gzip, so it reds
+    // this row from any of these numbers, and a tight margin is what makes the
+    // next re-anchor a decision somebody takes on purpose.
+    { prefix: "brain.worker-", gzipBudgetBytes: 689_000 },
 ];
 
 function findChunk(prefix: string): string | null {

@@ -236,8 +236,19 @@ function placeScenarioTokens(
     }
     // CR 111.7 — a token in any zone other than the battlefield ceases to
     // exist, so a token entry is battlefield-only regardless of `zone`.
+    // `placement` (issue #3230 review) — a staged board PLACES tokens that
+    // already exist; it must not run the CR 614 count replacements a real
+    // creation runs, or an Elspeth, Storm Slayer earlier in the spec doubles
+    // this entry and every save → reload round trip doubles it again.
     const ids = new Set(
-        createTokenPermanents(state, spec, player.id, entry.count ?? 1)
+        createTokenPermanents(
+            state,
+            spec,
+            player.id,
+            entry.count ?? 1,
+            undefined,
+            { placement: true }
+        )
     );
     const created = player.battlefield.filter((c) => ids.has(c.id));
     for (const token of created) {
