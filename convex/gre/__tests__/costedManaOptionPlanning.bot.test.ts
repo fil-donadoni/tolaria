@@ -206,7 +206,7 @@ describe("castTapPlans offers the costed option as a SECOND candidate (CR 601.2g
     });
 });
 
-describe("the search PAYS the whole cost of the option it planned (CR 701.43a, issue #3359)", () => {
+describe("the tap plan's whole cost is paid in-tree — the Exert leg (CR 701.43a, issue #3359)", () => {
     /** The enumerated cast whose tap plan takes Arena's costed option, and its
      *  free-option twin — read off `enumerateMoves` rather than hand-built, so
      *  what is applied below is a Move the search really receives. */
