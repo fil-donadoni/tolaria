@@ -35,6 +35,21 @@ const GATE_RUN = path.join(REPO_ROOT, "scripts", "gate-run.sh");
 let tmp: string;
 let runDir: string;
 
+/**
+ * The outer environment with every `TOLARIA_GATE_RUN_*` knob removed. This
+ * file runs INSIDE gates, and gates are driven through `gate-run.sh`: a knob set
+ * on the outer call (`TOLARIA_GATE_RUN_KEY=land-N` for a landing) would
+ * otherwise reach every spawn here and silently change what a test measures —
+ * which is how the keyless-default test went red inside `land` (PR #3707).
+ * Every spawn builds on this, never on `process.env` directly.
+ */
+const hermeticEnv = (): NodeJS.ProcessEnv =>
+    Object.fromEntries(
+        Object.entries(process.env).filter(
+            ([k]) => !k.startsWith("TOLARIA_GATE_RUN_")
+        )
+    );
+
 const fixtureScript = (name: string, body: string): void => {
     fs.writeFileSync(path.join(tmp, `${name}.sh`), `#!/bin/sh\n${body}\n`, {
         mode: 0o755,
@@ -72,7 +87,7 @@ const run = (opts: RunOpts) =>
         cwd: tmp,
         encoding: "utf8",
         env: {
-            ...process.env,
+            ...hermeticEnv(),
             TOLARIA_GATE_RUN_DIR: runDir,
             TOLARIA_GATE_RUN_POLL_SECS: "1",
             ...(opts.env ?? {}),
@@ -217,7 +232,7 @@ describe("gate-run — the run outlives the call that started it (#3698 AC1)", (
             detached: true,
             stdio: "ignore",
             env: {
-                ...process.env,
+                ...hermeticEnv(),
                 TOLARIA_GATE_RUN_DIR: runDir,
                 TOLARIA_GATE_RUN_POLL_SECS: "1",
                 TOLARIA_GATE_RUN_WAIT_SECS: "60",
@@ -318,12 +333,12 @@ describe("gate-run — a run can be named instead of keyed on its cwd (#3706)", 
         const first = spawnSync("sh", [GATE_RUN, "slow"], {
             cwd: tmp,
             encoding: "utf8",
-            env: { ...process.env, ...env },
+            env: { ...hermeticEnv(), ...env },
         });
         const second = spawnSync("sh", [GATE_RUN, "slow"], {
             cwd: other,
             encoding: "utf8",
-            env: { ...process.env, ...env },
+            env: { ...hermeticEnv(), ...env },
         });
 
         expect(first.status, `${first.stdout}${first.stderr}`).toBe(75);
@@ -380,7 +395,7 @@ describe("gate-run — a run can be named instead of keyed on its cwd (#3706)", 
         );
 
         const env = {
-            ...process.env,
+            ...hermeticEnv(),
             TOLARIA_GATE_RUN_DIR: runDir,
             TOLARIA_GATE_RUN_POLL_SECS: "1",
             TOLARIA_GATE_RUN_KEY: "land-3707",
@@ -406,6 +421,26 @@ describe("gate-run — a run can be named instead of keyed on its cwd (#3706)", 
         fs.rmSync(other, { recursive: true, force: true });
     });
 
+    it("does not hand the run's key down to the gate it runs", () => {
+        // A gate is a process tree, and some of its descendants drive
+        // `gate-run.sh` themselves. A key left in the environment collapses
+        // every one of their runs onto the parent's — observed: the keyless
+        // test below went red inside `land`'s own gate (PR #3707).
+        fixtureScript("fast", 'echo "KEY=[$TOLARIA_GATE_RUN_KEY]"\nexit 0');
+        const r = spawnSync("sh", [GATE_RUN, "fast"], {
+            cwd: tmp,
+            encoding: "utf8",
+            env: {
+                ...hermeticEnv(),
+                TOLARIA_GATE_RUN_DIR: runDir,
+                TOLARIA_GATE_RUN_POLL_SECS: "1",
+                TOLARIA_GATE_RUN_KEY: "land-3707",
+            },
+        });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        expect(r.stdout).toContain("KEY=[]");
+    });
+
     it("still separates two worktrees that gate the same script with no key", () => {
         // A regression guard on the DEFAULT, not a test of the key: it passes
         // with the feature removed, and it is here so that adding the key can
@@ -428,12 +463,12 @@ describe("gate-run — a run can be named instead of keyed on its cwd (#3706)", 
         spawnSync("sh", [GATE_RUN, "slow"], {
             cwd: tmp,
             encoding: "utf8",
-            env: { ...process.env, ...env },
+            env: { ...hermeticEnv(), ...env },
         });
         const second = spawnSync("sh", [GATE_RUN, "slow"], {
             cwd: other,
             encoding: "utf8",
-            env: { ...process.env, ...env },
+            env: { ...hermeticEnv(), ...env },
         });
         expect(second.stderr).toMatch(/started/);
         expect(second.stderr).not.toMatch(/re-attached/);

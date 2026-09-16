@@ -234,6 +234,14 @@ if [ "$attached" -eq 0 ] && [ "$finished" -eq 0 ]; then
         # gate's own exit code — the same "the verdict was thrown away"
         # failure this whole script exists to remove.
         set +e
+        # The run's NAME is this call's business, not the gate's. Left in the
+        # environment, it reaches every descendant of the gate — and a gate
+        # that itself drives `gate-run.sh` (the suite does, in its tests) would
+        # then collapse every one of its own runs onto the parent's key. That
+        # is not hypothetical: `TOLARIA_GATE_RUN_KEY=land-N bun run gate:run
+        # land N` turned the keyless-default test red inside `land`'s own gate
+        # (PR #3707).
+        unset TOLARIA_GATE_RUN_KEY
         bun run "$@" >"$LOG" 2>&1
         echo $? >"$RC"
     ) </dev/null >/dev/null 2>&1 &
