@@ -25,8 +25,9 @@ import {
 import { castTapPlans, enumerateMoves, planManaPayment } from "../moves";
 import type { Move } from "../moves";
 import { applyMoveForSearch } from "../applyMove";
+import { applyMoveInSearch } from "../search";
 import { arenaOfGlory } from "../../cards/sets/mh3/colorless";
-import { mountain } from "../../cards/sets/lea";
+import { mountain, forest } from "../../cards/sets/lea";
 import { getCardByName } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
 import type { CardInstanceState, GameState } from "../state";
@@ -263,5 +264,103 @@ describe("the tap plan's whole cost is paid in-tree — the Exert leg (CR 701.43
         // an untap step.
         expect(arenaOn(next).skipNextUntap).toBeUndefined();
         expect(arenaOn(next).isTapped).toBe(true);
+    });
+
+    it("search.ts's own copy of applyTapPlan pays it too — it is the one every rollout runs", () => {
+        // `applyTapPlan` is duplicated in `applyMove.ts`, `search.ts` and
+        // `ai/dominance.ts` by this codebase's own isolation rule, so a fix
+        // applied to one copy and tested through that copy proves nothing about
+        // the ISMCTS path, which is the surface this issue is about.
+        const state = board(1, SKI_PATROL);
+        const costed = enumerateMoves(state, "p1")
+            .filter(
+                (m: Move): m is Extract<Move, { kind: "cast-spell" }> =>
+                    m.kind === "cast-spell" && m.cardInstanceId === "spell"
+            )
+            .find((m) =>
+                m.tapPlan.some(
+                    (tap) => tap.manaChoiceIndex === EXERT_OPTION_INDEX
+                )
+            );
+        expect(costed).toBeDefined();
+
+        // This applier mutates in place and returns void, unlike its twin.
+        applyMoveInSearch(state, "p1", costed!);
+
+        expect(arenaOn(state).skipNextUntap).toBe(true);
+        expect(mountainOn(state).isTapped).toBe(true);
+    });
+});
+
+describe("a CAST-scoped substitution never funds the option's ACTIVATION leg (CR 609.4b, PR #3748 review)", () => {
+    /** Arena of Glory + a Forest, with a one-shot "spend mana as any colour"
+     *  grant scoped to the SPELL (North Star, Robber of the Rich's exiled
+     *  card). The Forest is red for the cast's own cost and for nothing else. */
+    function grantedBoard(granted: boolean): GameState {
+        const arena = makeInstance(arenaOfGlory.id, {
+            id: "arena",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const green = makeInstance(forest.id, {
+            id: "forest-0",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const spell = makeInstance(SKI_PATROL.id, {
+            id: "spell",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [arena, green],
+                    hand: [spell],
+                }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            phase: "PRECOMBAT_MAIN",
+        });
+        if (granted) state.spellManaSubstitutionGrants = { p1: ["any-color"] };
+        return state;
+    }
+
+    it("does not fund Arena's {R} leg off a Forest the SPELL's permission made red", () => {
+        const state = grantedBoard(true);
+
+        const plans = castTapPlans(
+            state,
+            state.players[0],
+            { X: 1, R: 1 },
+            castOf(SKI_PATROL)
+        );
+
+        // `applyManaAbilityManaCost` (convex/game.ts) pays a mana ability's own
+        // cost under `getAbilityManaSubstitutions`, which carries no
+        // cast-scoped one-shot grant — so a plan funding the {R} leg off the
+        // Forest throws "Not enough mana to activate this ability" and rolls
+        // the WHOLE mutation back. The planner must never emit it, and the
+        // human auto-tap solver already reaches the same verdict
+        // (`convex/__tests__/costedManaTapOption.test.ts`).
+        expect(
+            plans.some((plan) =>
+                plan.some(
+                    (tap) =>
+                        tap.cardInstanceId === "arena" &&
+                        tap.manaChoiceIndex === EXERT_OPTION_INDEX
+                )
+            )
+        ).toBe(false);
+        // Not vacuous, and the proof is the FAILURE mode rather than a twin
+        // board: funding the leg off `s.options` (the substitution-widened map)
+        // instead of `s.native` makes this exact position return TWO plans, the
+        // second funding Arena's {R} off the Forest. The board is chosen so the
+        // leg has no other funder — the Forest is the only other source, and it
+        // is red for the SPELL alone — which is what makes the count decisive.
+        expect(plans).toHaveLength(1);
     });
 });

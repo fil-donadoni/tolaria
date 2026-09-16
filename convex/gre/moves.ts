@@ -1450,6 +1450,16 @@ export function planManaPayment(
         return {
             cardInstanceId: s.cardInstanceId,
             options,
+            /** CR 609.4b (PR #3748 review, finding 1) — the UN-widened map: the
+             *  colours this source really produces, before the substitution
+             *  widening above. A substitution widens what a source may pay
+             *  toward THIS CAST's cost; it says nothing about what it may pay
+             *  toward a mana ABILITY's own activation cost, which the server
+             *  settles with `getAbilityManaSubstitutions` instead. Funding a
+             *  costed option's leg off a widened colour therefore emits a plan
+             *  `applyManaAbilityManaCost` throws on — see
+             *  `fundManaLegFromPlain`. */
+            native: s.options,
             ...(s.finite ? { finite: true } : {}),
             // Issue #3359 — the costed flag travels with the working copy for
             // the same reason the finite one does: the `spend` selection key
@@ -1599,6 +1609,17 @@ export function planManaPayment(
      *  planner does not model. `false` when the plain pool cannot cover the
      *  leg, and the caller then falls back to another source. */
     const fundManaLegFromPlain = (leg: Record<string, number>): boolean => {
+        // FAIL CLOSED on a pip shape this loop does not fund (PR #3748 review).
+        // `normalizeManaCost` can emit a key that is neither a colour nor `X` —
+        // a guild-hybrid "R/W" — and funding every other pip while silently
+        // ignoring that one emits a plan whose leg nothing pays. Unreachable
+        // today only because `manaTapOptionRiderIsSought` (constants.ts)
+        // happens to refuse a `cost.mana` whose values are not all numbers, and
+        // a fail-closed property must not live in another module.
+        for (const key of Object.keys(leg)) {
+            if (key === "X") continue;
+            if (!(MANA_COLORS as readonly string[]).includes(key)) return false;
+        }
         for (const c of MANA_COLORS) {
             let need = leg[c] ?? 0;
             while (need > 0) {
@@ -1612,7 +1633,18 @@ export function planManaPayment(
                 let bestSize = Infinity;
                 for (let i = 0; i < remaining.length; i++) {
                     const s = remaining[i];
-                    if (!s.options.has(c)) continue;
+                    // CR 609.4b (PR #3748 review, finding 1) — NATIVE colours
+                    // only. `s.options` was widened by this CAST's
+                    // substitutions, and the server pays a mana ability's own
+                    // cost under `getAbilityManaSubstitutions`, which does not
+                    // carry a cast-scoped permission (North Star's one-shot,
+                    // Robber of the Rich's exiled card). Funding {R} off a
+                    // Forest that is red only for the spell therefore emits a
+                    // plan `applyManaAbilityManaCost` rejects, rolling the whole
+                    // mutation back. Under-admitting here is always safe; the
+                    // human path reaches the same verdict through
+                    // `costSubstitutions` (`gre/autoTap.ts`).
+                    if (!s.native.has(c)) continue;
                     if (!isPlainTapSource(s, c)) continue;
                     if (!s.cardInstanceId) {
                         // Pool mana — free, always preferred.
@@ -2057,9 +2089,25 @@ export function castTapPlans(
     // Gated by the same cheap printed-definition prefilter the finite branch
     // uses, so an ordinary board pays one cached lookup per untapped permanent
     // and never a second planning pass.
-    const boardHasCostedOption = player.battlefield.some(
-        (perm) => !perm.isTapped && mayHaveCostedManaTapOption(perm)
-    );
+    // Gated on a CONTEXT that could admit something, not merely on a board that
+    // carries such a card (PR #3748 review). Admission needs a non-bestowed
+    // creature cast whose spell does not already have haste, so without one the
+    // second pass is guaranteed to reproduce the greedy plan and be dropped as
+    // a duplicate. Chromatic Star and Mana Cylix pass the board prefilter on
+    // their `{T}` + `cost.mana` shape, so this is what keeps a board carrying
+    // one off a second full planning pass per cast candidate on the hot
+    // `enumerateCastMoves` path.
+    const costedCastDef = cast?.cardDef;
+    const contextCouldAdmit =
+        !!costedCastDef &&
+        !cast?.bestowed &&
+        costedCastDef.types.includes("Creature") &&
+        !costedCastDef.staticAbilities?.includes("haste");
+    const boardHasCostedOption =
+        contextCouldAdmit &&
+        player.battlefield.some(
+            (perm) => !perm.isTapped && mayHaveCostedManaTapOption(perm)
+        );
     if (boardHasCostedOption) {
         const costedPlan = planManaPayment(
             state,
