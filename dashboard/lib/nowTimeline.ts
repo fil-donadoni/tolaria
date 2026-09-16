@@ -1,6 +1,6 @@
 import type { Tone } from "./tones";
 import { LIGHT_GLYPHS } from "./nowLights";
-import type { NowPayload } from "./nowPayload";
+import type { ClaimVerdictState, NowPayload } from "./nowPayload";
 
 /**
  * The Now view's 24-hour timeline (PRD #3148 S2), ported from
@@ -78,6 +78,7 @@ export type PassOutcome = "landed" | "ran-nothing" | "died";
  * | `"-"`            | `total_open`/green-sha moved — real work landed           | landed      |
  * | `"no-progress"`  | ran twice with NEITHER moving — genuinely nothing to do   | ran-nothing |
  * | `"claims-held"`  | forcibly terminated mid-batch, still holding claims (D14) | died        |
+ * | `"claims-held-retry"` | the same death, still inside its consecutive bound   | died        |
  * | `"rate-limit"`   | `claude` hit a rate/usage limit, driver stopped itself    | died        |
  * | `"claude-error"` | `claude` exited non-zero, no rate-limit match, streak out | died        |
  * | `"claude-retry"` | `claude` exited non-zero, being retried (not yet fatal)   | died        |
@@ -122,14 +123,22 @@ const PASS_GLYPH: Record<PassOutcome, string> = {
 };
 
 /** Tone + non-colour mark per claim verdict state — the SAME mapping the
- *  claims table renders, not a second one for this view. */
-const CLAIM_TONE: Record<string, Tone> = {
+ *  claims table renders, not a second one for this view.
+ *
+ *  Keyed by `ClaimVerdictState`, not by `string`: a `Record<string, …>` let
+ *  `recoverable` be added engine-side with no compile error at all, and the
+ *  `?? "good"` fallback then rendered a dead pass's abandoned WIP as a healthy
+ *  claim — the exact opposite of the state's purpose (issue #3698). With the
+ *  key type pinned, the next state added here reds `tsc` instead. */
+const CLAIM_TONE: Record<ClaimVerdictState, Tone> = {
     orphan: "bad",
+    recoverable: "bad",
     suspect: "warn",
     live: "good",
 };
-const CLAIM_MARK: Record<string, string> = {
+const CLAIM_MARK: Record<ClaimVerdictState, string> = {
     orphan: "×",
+    recoverable: "!",
     suspect: "?",
     live: "·",
 };

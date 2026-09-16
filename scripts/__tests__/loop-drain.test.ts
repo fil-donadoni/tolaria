@@ -895,11 +895,15 @@ describe("progress is measured on the total open count, not the claim-adjusted u
         // streak forever, so a batch that claims-and-abandons could burn
         // through the whole queue without landing a single PR. That bug is
         // what `count_total_open` (deliberately distinct from
-        // `count_unclaimed`) already guards against. This test now asserts
-        // the CURRENT, more specific diagnosis (#2626): claiming without
-        // landing is a `claims-held` FAULT, reported immediately — not a
-        // generic `no-progress` streak that takes two passes to notice.
-        stubGhTwoCounters(5, 5);
+        // `count_unclaimed`) already guards against. This test asserts the
+        // more specific diagnosis (#2626): claiming without landing is a
+        // `claims-held` FAULT, never a generic `no-progress` streak.
+        //
+        // What changed in #3698 is only WHEN the run stops on it: the fault
+        // is still recorded on the pass that produced it (`claims-held-retry`
+        // here), but it takes MAX_CONSECUTIVE_CLAIMS_HELD of them in a row to
+        // end the run — see the `--max-consecutive-claims-held` block below.
+        stubGhTwoCounters(9, 9);
         writeStub(
             "claude",
             [
@@ -914,8 +918,15 @@ describe("progress is measured on the total open count, not the claim-adjusted u
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
         expect(r.stdout).toMatch(/reason=claims-held/);
         expect(r.stdout).not.toMatch(/reason=no-progress/);
-        // Immediate — a fault, not a 2-pass streak like ordinary no-progress.
-        expect(passLogCount()).toBe(1);
+        // The default bound, exhausted: three consecutive deaths, and the
+        // run's own reason is still `claims-held` — "died holding claims",
+        // never "nothing to do".
+        expect(passLogCount()).toBe(3);
+        expect(logLines().map((l) => l.split(" ").pop())).toEqual([
+            "claims-held-retry",
+            "claims-held-retry",
+            "claims-held",
+        ]);
     });
 
     it("DOES treat a real landing (total open count drops) as progress", () => {
@@ -992,7 +1003,12 @@ describe("claims-held (#2626)", () => {
                 `exit 0`,
             ].join("\n")
         );
-        const r = run({ args: ["--claude-args", "x"] });
+        // Bound of 1 — this test is about WHICH window the claim counts are
+        // bracketed to, not about the streak (#3698), and a bound of 1 keeps
+        // it to the two passes it was written around.
+        const r = run({
+            args: ["--claude-args", "x", "--max-consecutive-claims-held", "1"],
+        });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
         expect(r.stdout).toMatch(/reason=claims-held/);
         expect(passLogCount()).toBe(2);
@@ -1028,6 +1044,167 @@ describe("claims-held (#2626)", () => {
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
         expect(r.stdout).toMatch(/reason=no-progress/);
         expect(r.stdout).not.toMatch(/reason=claims-held/);
+    });
+});
+
+describe("dying with claims held is a bounded STREAK, not an instant stop (#3698)", () => {
+    /** `claude` stub that dies the #3698 way on every pass: it claims one
+     *  issue (the unclaimed count drops) and lands nothing (the total open
+     *  count and green-sha never move), then exits 0 — which is what a pass
+     *  killed with its own turn looks like from the outside. */
+    const stubClaudeClaimsAndDies = (): void => {
+        writeStub(
+            "claude",
+            [
+                `n=$(cat "${queueFile}" 2>/dev/null || echo 0)`,
+                `if [ "$n" -gt 0 ]; then n=$((n-1)); fi`,
+                `echo "$n" > "${queueFile}"`,
+                `echo "claimed one issue, then died holding it"`,
+                `exit 0`,
+            ].join("\n")
+        );
+    };
+
+    it("starts the NEXT pass after the first pass dies holding a claim", () => {
+        // The regression this closes. Before #3698 the first claims-held pass
+        // stopped the whole run — deliberately, as urgent evidence — and the
+        // commonest cause of it (a pre-PR gate promoted past the Bash tool's
+        // 600s cap and killed with the turn) made that an instant stop on a
+        // routine event: across 23 recorded runs the drain never exceeded 8
+        // passes, median 3. One dead pass is evidence; it is not a reason to
+        // abandon a queue of 200 issues.
+        stubGhTwoCounters(9, 9);
+        stubClaudeClaimsAndDies();
+        const r = run({ args: ["--claude-args", "x"] });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
+        expect(passLogCount()).toBeGreaterThan(1);
+        expect(logLines()[0].split(" ").pop()).toBe("claims-held-retry");
+        expect(r.stderr).toMatch(/died holding claims \(consecutive 1\/3\)/);
+    });
+
+    it("stops after N consecutive such passes, with the reason that says they DIED", () => {
+        // A run whose every pass dies still terminates — and the stop reason
+        // must still tell "died holding claims" apart from "nothing to do",
+        // which is why the per-pass retry reason is a DIFFERENT string from
+        // the run's stop reason.
+        stubGhTwoCounters(9, 9);
+        stubClaudeClaimsAndDies();
+        const r = run({
+            args: ["--claude-args", "x", "--max-consecutive-claims-held", "2"],
+        });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
+        expect(r.stdout).toMatch(/reason=claims-held/);
+        expect(r.stdout).not.toMatch(/reason=no-progress/);
+        expect(passLogCount()).toBe(2);
+        expect(logLines().map((l) => l.split(" ").pop())).toEqual([
+            "claims-held-retry",
+            "claims-held",
+        ]);
+    });
+
+    it("counts CONSECUTIVE deaths only — a pass that lands clears the streak", () => {
+        // Same discipline as the crash streak: a flaky environment that
+        // alternates death and progress must not accumulate its way to a
+        // stop. With a bound of 2 and every other pass landing, the run never
+        // reaches two in a row and ends on its pass ceiling instead.
+        stubGhTwoCounters(9, 9);
+        writeStub(
+            "claude",
+            [
+                `STATE="${path.join(tmp, "call-count")}"`,
+                `c=$(cat "$STATE" 2>/dev/null || echo 0)`,
+                `c=$((c+1))`,
+                `echo "$c" > "$STATE"`,
+                `n=$(cat "${queueFile}" 2>/dev/null || echo 0)`,
+                `if [ "$n" -gt 0 ]; then n=$((n-1)); fi`,
+                `echo "$n" > "${queueFile}"`,
+                // Odd passes claim and die; even passes land (total drops,
+                // green-sha moves).
+                `if [ $((c % 2)) -eq 0 ]; then`,
+                `  t=$(cat "${totalFile}" 2>/dev/null || echo 0)`,
+                `  if [ "$t" -gt 0 ]; then t=$((t-1)); fi`,
+                `  echo "$t" > "${totalFile}"`,
+                `  echo "sha-$t" > "${greenShaFile}"`,
+                `  echo "landed a PR"`,
+                `else`,
+                `  echo "claimed one issue, then died holding it"`,
+                `fi`,
+                `exit 0`,
+            ].join("\n")
+        );
+        const r = run({
+            args: [
+                "--claude-args",
+                "x",
+                "--max-consecutive-claims-held",
+                "2",
+                "--max-passes",
+                "4",
+            ],
+        });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        expect(r.stdout).toMatch(/reason=max-passes/);
+        expect(logLines().map((l) => l.split(" ").pop())).toEqual([
+            "claims-held-retry",
+            "-",
+            "claims-held-retry",
+            "-",
+        ]);
+    });
+
+    it("still terminates when passes ALTERNATE crash and death-holding-claims", () => {
+        // The shape a naive mirror of the crash streak creates: if any
+        // non-death cleared the claims streak and any non-crash cleared the
+        // error streak, crash / death / crash / death resets both every pass
+        // and reaches neither bound — and MAX_PASSES defaults to unlimited, so
+        // that run never ends. Only PROGRESS forgives a death.
+        stubGhTwoCounters(9, 9);
+        writeStub(
+            "claude",
+            [
+                `STATE="${path.join(tmp, "call-count")}"`,
+                `c=$(cat "$STATE" 2>/dev/null || echo 0)`,
+                `c=$((c+1))`,
+                `echo "$c" > "$STATE"`,
+                `if [ $((c % 2)) -eq 1 ]; then`,
+                `  echo "boom"`,
+                `  exit 1`,
+                `fi`,
+                `n=$(cat "${queueFile}" 2>/dev/null || echo 0)`,
+                `if [ "$n" -gt 0 ]; then n=$((n-1)); fi`,
+                `echo "$n" > "${queueFile}"`,
+                `echo "claimed one issue, then died holding it"`,
+                `exit 0`,
+            ].join("\n")
+        );
+        const r = run({
+            args: [
+                "--claude-args",
+                "x",
+                "--max-consecutive-claims-held",
+                "2",
+                "--error-backoff-secs",
+                "1",
+                "--max-passes",
+                "12",
+            ],
+        });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
+        // It stops on the CLAIMS bound, not on the pass ceiling — reaching
+        // `max-passes` here would mean neither streak ever bit.
+        expect(r.stdout).toMatch(/reason=claims-held/);
+        expect(r.stdout).not.toMatch(/reason=max-passes/);
+    });
+
+    it("rejects a non-numeric --max-consecutive-claims-held at startup", () => {
+        // Same reason every other numeric guard here is validated: `[ "abc"
+        // -ge 3 ]` does not error, it returns false — turning a typo into a
+        // streak that never ends rather than a visible failure.
+        const r = run({
+            args: ["--claude-args", "x", "--max-consecutive-claims-held", "x"],
+        });
+        expect(r.status).toBe(2);
+        expect(r.stderr).toMatch(/max-consecutive-claims-held/);
     });
 });
 

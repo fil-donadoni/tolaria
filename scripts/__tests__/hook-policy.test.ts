@@ -411,6 +411,29 @@ describe("deny-guard — a gate may not be piped into a pager", () => {
         }
     });
 
+    it("denies the GATE DRIVER's own direct form, which carries no `bun run` (#3698)", () => {
+        // `scripts/gate-run.sh` advertises `sh scripts/gate-run.sh check:lane`
+        // as a supported invocation. That segment contains neither
+        // `scripts/gate.ts` nor a `bun run` token, so the predicate that
+        // decides "this reaches the gate runner" saw nothing — and piping or
+        // backgrounding the very script that exists to make the gate rule
+        // followable slipped through the rule itself.
+        for (const cmd of [
+            "sh scripts/gate-run.sh check:lane | tail -5",
+            "sh scripts/gate-run.sh land 3701 2>&1 | head -20",
+        ]) {
+            const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
+            expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
+        }
+        const bg = runHook(
+            DENY_GUARD,
+            bashBg("sh scripts/gate-run.sh check:lane", issueWorktree, true)
+        );
+        expect(denied(bg), "expected DENY for backgrounded gate-run.sh").toBe(
+            true
+        );
+    });
+
     it("explains that the exit code becomes the pager's", () => {
         const r = runHook(
             DENY_GUARD,
