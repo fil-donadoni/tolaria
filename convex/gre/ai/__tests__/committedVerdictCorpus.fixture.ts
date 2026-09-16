@@ -9,8 +9,20 @@
 // fit the guard never saw; that directory is gone, and this is what replaced
 // it.
 //
-// A helper, not a test: no `*.test.ts` / `*.spec.ts` suffix, so no suite
-// collects it, and it lives under `__tests__/` so the Convex bundler skips it.
+// THE SECOND DOT IN `.fixture.ts` IS LOAD-BEARING. This module reads the
+// machine pack cache, so `node:fs` and the store reader's `node:crypto` reach
+// it, and a Convex module may not import either. What keeps it out of the
+// bundle is the basename: entry-point discovery skips any name with more than
+// one dot (`node_modules/convex/dist/cjs/bundler/index.js`, mirrored in
+// `scripts/lib/convex-bundle-size.ts`) — that, not the `__tests__` directory,
+// is also why the `*.test.ts` / `*.spec.ts` files beside it are skipped. A
+// single-dot name here is pushed as a Convex module and reds
+// `check:convex-bundle`.
+//
+// It does not belong in `scripts/` either: it imports the blade registry, and
+// a `scripts/` entry that does drags the blade graph into the scripts
+// type-check program — the hazard `gre/ai/blade/verdictPromotion.ts` documents
+// and `scripts/lib/verdict-promotion-run.ts` shells out to a spec to avoid.
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {

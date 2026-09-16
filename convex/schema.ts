@@ -1255,8 +1255,8 @@ export default defineSchema({
         // deployment, and `attestationAuthor` names them instead.
         authorId: v.optional(v.id("users")),
         // The author's nickname AT THE TIME, denormalised on purpose: the
-        // exported file is read in a diff years later, and resolving a user id
-        // to a name then is neither possible nor interesting.
+        // attestation in the Verdict Store is read years later, and resolving
+        // a user id to a name then is neither possible nor interesting.
         author: v.string(),
         createdAt: v.number(),
         note: v.optional(v.string()),
@@ -1276,9 +1276,7 @@ export default defineSchema({
         // When the drain confirmed both objects by re-reading them. Absent =
         // pending: the row still carries the only copy of its judgement.
         storedAt: v.optional(v.number()),
-    })
-        .index("by_createdAt", ["createdAt"])
-        .index("by_storedAt", ["storedAt"]),
+    }).index("by_storedAt", ["storedAt"]),
 
     // The resolution outbox (issue #3582, ADR 0128 §6). An admin's decision
     // about a Contested Position — which verdict is right, and the reason each

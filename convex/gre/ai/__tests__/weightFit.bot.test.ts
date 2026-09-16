@@ -42,7 +42,7 @@ import {
 import { createMemoryVerdictStore } from "../../../verdictStoreMemory";
 import { packVerdicts } from "../../../../scripts/lib/verdict-pack-cache";
 import { runVerdictPromotionStep } from "../blade/verdictPromotion";
-import { committedVerdictCorpus } from "./committedVerdictCorpus";
+import { committedVerdictCorpus } from "./committedVerdictCorpus.fixture";
 import { BLADE_SCENARIOS } from "../blade/registry";
 import { DEFAULT_EVAL_WEIGHTS, FIT_BASE_EVAL_WEIGHTS } from "../evalWeights";
 import {

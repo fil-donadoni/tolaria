@@ -23,7 +23,7 @@
 // lives next to the runner.
 import { describe, expect, it } from "vitest";
 import { BLADE_SCENARIOS } from "../registry";
-import { committedVerdictCorpus } from "../../__tests__/committedVerdictCorpus";
+import { committedVerdictCorpus } from "../../__tests__/committedVerdictCorpus.fixture";
 import {
     collectVerdictReport,
     formatVerdictReport,

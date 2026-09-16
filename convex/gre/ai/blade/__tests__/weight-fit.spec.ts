@@ -23,7 +23,7 @@
 // `lib.dom`, which reds an unrelated script in the `scripts` project.
 import { describe, expect, it } from "vitest";
 import { BLADE_SCENARIOS } from "../registry";
-import { committedVerdictCorpus } from "../../__tests__/committedVerdictCorpus";
+import { committedVerdictCorpus } from "../../__tests__/committedVerdictCorpus.fixture";
 import { DEFAULT_EVAL_WEIGHTS, FIT_BASE_EVAL_WEIGHTS } from "../../evalWeights";
 import {
     FITTABLE_WEIGHT_KEYS,

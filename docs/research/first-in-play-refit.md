@@ -33,6 +33,11 @@ BLADE_FIT_FILES=1 BLADE_FIT_OUT=<path>.json bun run fit:weights
 (issue #3534); the bare `bun run fit:weights` is the registry alone, and it is
 still the provenance of the committed vector.
 
+> As of issue #3584 that command no longer reproduces anything:
+> `data/verdicts/**`, `BLADE_FIT_FILES` and `verdicts:pull` are retired, the
+> corpus lives in the Verdict Store, and a fit reads the registry plus the
+> committed Verdict Lock. The numbers below stay as the record of the run.
+
 ## The measurement
 
 Three vectors, one corpus, scored on the ordering a human reads rather than on
