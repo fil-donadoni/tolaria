@@ -1,10 +1,16 @@
 import { describe, it, expect } from "vitest";
+import { execFileSync } from "node:child_process";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
     ledgerReportForRepo,
+    SCANNED,
     scanCitations,
     scanRepo,
+    sourcesAt,
 } from "../check-cr-citations.ts";
 import {
+    baselineKeys,
     confirmLine,
     emptyLedger,
     entryKey,
@@ -13,9 +19,12 @@ import {
     ledgerReport,
     normalizeLine,
     parseLedger,
+    planWidening,
     pruneStale,
     reportIsClean,
     serializeLedger,
+    wideningOf,
+    widenLedger,
     type Citation,
     type Ledger,
 } from "../lib/cr-ledger.ts";
@@ -82,9 +91,16 @@ function report(
     citations: Citation[],
     ledger: Ledger,
     rules: Rule[] = rulesV1,
-    baseBaselineKeys: Set<string> | null = new Set()
+    baseBaselineKeys: Set<string> | null = new Set(),
+    widened: Set<string> | null = null
 ) {
-    return ledgerReport({ citations, ledger, rules, baseBaselineKeys });
+    return ledgerReport({
+        citations,
+        ledger,
+        rules,
+        baseBaselineKeys,
+        widened,
+    });
 }
 
 /** Confirms the one line of `citations` against `rules`, tree = that line. */
@@ -217,6 +233,228 @@ describe("the baseline only shrinks", () => {
         const r = report(citations, grown, rulesV1, null);
         expect(r.grown).toHaveLength(0);
         expect(r.baselineChecked).toBe(false);
+    });
+});
+
+describe("a tokenizer widening may add baseline entries — and nothing else may (issue #3697)", () => {
+    // The merge-base tree makes two citations. The tokenizer the merge-base
+    // ledger was kept with saw only SEEN (so the ledger records only it);
+    // the widened tokenizer sees both. The fixture stands in for the
+    // tokenizer change by giving the base ledger the narrower view.
+    const SEEN = cite(ONCE, "once per event");
+    const UNCOVERED = cite(BACK_FACE, "a back face entering");
+    const beforeTree = [{ file: FILE, text: `${SEEN}\n${UNCOVERED}` }];
+    const before = citationsOf(beforeTree);
+    const base = initialLedger(citationsOf([{ file: FILE, text: SEEN }]));
+    const baseKeys = baselineKeys(base);
+    const widening = wideningOf(before, base);
+    const widened = new Set(widening.keys());
+    const seenKey = entryKey(ONCE, normalizeLine(SEEN));
+    const uncoveredKey = entryKey(BACK_FACE, normalizeLine(UNCOVERED));
+
+    it("uncovers exactly what the merge-base ledger lacks — never a citation the pre-widening tokenizer already saw", () => {
+        expect([...widening.keys()]).toEqual([uncoveredKey]);
+        expect(widening.get(uncoveredKey)?.sites).toEqual([
+            { file: FILE, line: 2 },
+        ]);
+    });
+
+    it("a widening that adds only tokenizer-visible citations is green; the same entry with no widening in the diff is still grown", () => {
+        const { ledger, added } = widenLedger(base, widening, before);
+        expect(added).toEqual([
+            {
+                id: BACK_FACE,
+                line: normalizeLine(UNCOVERED),
+                sites: 1,
+                status: "baseline",
+            },
+        ]);
+        const licensed = report(before, ledger, rulesV1, baseKeys, widened);
+        expect(reportIsClean(licensed)).toBe(true);
+        expect(licensed.widened).toBe(1);
+        expect(licensed.grown).toHaveLength(0);
+
+        const unlicensed = report(before, ledger, rulesV1, baseKeys, null);
+        expect(unlicensed.grown.map((e) => entryKey(e.id, e.line))).toEqual([
+            uncoveredKey,
+        ]);
+        expect(unlicensed.widened).toBe(0);
+        expect(formatReport(unlicensed, false)).toContain(
+            "bun run cr:ledger widen"
+        );
+    });
+
+    it("an entry whose line also changed in the diff reds — the widening never produced it, and never records it", () => {
+        const edited = cite(BACK_FACE, "a back face entering face up");
+        const after = citationsOf([{ file: FILE, text: `${SEEN}\n${edited}` }]);
+        const editedKey = entryKey(BACK_FACE, normalizeLine(edited));
+        const regenerated: Ledger = {
+            ...base,
+            entries: [
+                ...base.entries,
+                {
+                    id: BACK_FACE,
+                    line: normalizeLine(edited),
+                    sites: 1,
+                    status: "baseline",
+                },
+            ],
+        };
+        const r = report(after, regenerated, rulesV1, baseKeys, widened);
+        expect(r.grown.map((e) => entryKey(e.id, e.line))).toEqual([editedKey]);
+        expect(r.widened).toBe(0);
+
+        const { added, gone } = widenLedger(base, widening, after);
+        expect(added).toHaveLength(0);
+        expect(gone).toBe(1);
+    });
+
+    it("re-baselining an already-recorded citation reds — a `confirmed` entry turned back is grown, not widened", () => {
+        const confirmedBase = confirmLine(
+            base,
+            citationsOf([{ file: FILE, text: SEEN }]),
+            rulesV1,
+            before
+        ).ledger;
+        expect(wideningOf(before, confirmedBase).has(seenKey)).toBe(false);
+        const turnedBack: Ledger = {
+            ...confirmedBase,
+            entries: confirmedBase.entries.map((e) =>
+                e.id === ONCE
+                    ? {
+                          id: e.id,
+                          line: e.line,
+                          sites: e.sites,
+                          status: "baseline",
+                      }
+                    : e
+            ),
+        };
+        const r = report(
+            citationsOf([{ file: FILE, text: SEEN }]),
+            turnedBack,
+            rulesV1,
+            baselineKeys(confirmedBase),
+            new Set(wideningOf(before, confirmedBase).keys())
+        );
+        expect(r.grown.map((e) => entryKey(e.id, e.line))).toEqual([seenKey]);
+    });
+
+    it("confirmed entries survive a widening untouched — one the branch already confirmed is skipped, not re-entered", () => {
+        const branch = confirmLine(
+            base,
+            citationsOf([{ file: FILE, text: UNCOVERED }]),
+            rulesV1,
+            before
+        ).ledger;
+        const confirmedEntry = branch.entries.find((e) => e.id === BACK_FACE);
+        expect(confirmedEntry?.status).toBe("confirmed");
+        const { ledger, added, alreadyRecorded } = widenLedger(
+            branch,
+            widening,
+            before
+        );
+        expect(added).toHaveLength(0);
+        expect(alreadyRecorded).toBe(1);
+        expect(ledger.entries).toEqual(branch.entries);
+        expect(ledger.entries.find((e) => e.id === BACK_FACE)).toEqual(
+            confirmedEntry
+        );
+    });
+
+    it("a site the branch added stays unchecked: the entry takes the smaller count and the extra site reds as new-sites", () => {
+        const after = citationsOf([
+            ...beforeTree,
+            { file: TWIN, text: UNCOVERED },
+        ]);
+        const { ledger, added } = widenLedger(base, widening, after);
+        expect(added[0].sites).toBe(1);
+        const r = report(after, ledger, rulesV1, baseKeys, widened);
+        expect(r.grown).toHaveLength(0);
+        expect(r.unrecorded).toHaveLength(1);
+        expect(r.unrecorded[0]).toMatchObject({
+            reason: "new-sites",
+            recordedSites: 1,
+        });
+    });
+
+    describe("the command's decision", () => {
+        const plan = (over: Partial<Parameters<typeof planWidening>[0]>) =>
+            planWidening({
+                tokenizerChanged: true,
+                widening,
+                ledger: base,
+                afterCitations: before,
+                ids,
+                ...over,
+            });
+
+        it("refuses when the tokenizer is unchanged against the merge-base", () => {
+            const p = plan({ tokenizerChanged: false });
+            expect(p.kind).toBe("refused");
+            if (p.kind === "refused") expect(p.why).toMatch(/unchanged/);
+        });
+
+        it("refuses when the changed tokenizer uncovers nothing", () => {
+            const p = plan({ widening: new Map() });
+            expect(p.kind).toBe("refused");
+            if (p.kind === "refused")
+                expect(p.why).toMatch(/nothing was widened/);
+        });
+
+        it("enters what it uncovered as baseline, and leaves an unresolvable id to the existence scan", () => {
+            const bogus = cite("999.9z", "no such rule");
+            const wider = wideningOf(
+                citationsOf([
+                    { file: FILE, text: `${SEEN}\n${UNCOVERED}\n${bogus}` },
+                ]),
+                base
+            );
+            const p = plan({
+                widening: wider,
+                afterCitations: citationsOf([
+                    { file: FILE, text: `${SEEN}\n${UNCOVERED}\n${bogus}` },
+                ]),
+            });
+            expect(p.kind).toBe("ok");
+            if (p.kind !== "ok") return;
+            expect(p.added.map((e) => e.status)).toEqual(["baseline"]);
+            expect(p.added[0].id).toBe(BACK_FACE);
+            expect(p.unresolvable.map((c) => c.id)).toEqual(["999.9z"]);
+            expect(p.ledger.entries.some((e) => e.id === "999.9z")).toBe(false);
+        });
+    });
+});
+
+describe("the merge-base tree is read out of the object store, byte-exact", () => {
+    const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
+    const git = (args: string[]) =>
+        execFileSync("git", args, {
+            cwd: ROOT,
+            encoding: "utf8",
+            maxBuffer: 64 << 20,
+        });
+
+    it("lists every SCANNED file HEAD tracks, and every sampled file matches `git show`", () => {
+        const sources = sourcesAt(ROOT, "HEAD");
+        const expected = git(["ls-tree", "-r", "--name-only", "HEAD"])
+            .split("\n")
+            .filter((f) => SCANNED.test(f));
+        expect(sources.map((s) => s.file)).toEqual(expected);
+        // This file carries multi-byte characters (the em dashes above), so
+        // a slice by string length instead of byte size would misalign every
+        // file after it.
+        const self = "scripts/__tests__/cr-citation-ledger.test.ts";
+        const probes = [
+            self,
+            ...expected.filter((_, i) => i % 400 === 0),
+            expected[expected.length - 1],
+        ];
+        for (const file of probes) {
+            const source = sources.find((s) => s.file === file);
+            expect(source, file).toBeDefined();
+            expect(source!.text, file).toBe(git(["show", `HEAD:${file}`]));
+        }
     });
 });
 

@@ -41,9 +41,16 @@
  * is not free — it would resolve ordinary prose numbers on the line AFTER any CR
  * mention, where the single-line rule stays exact (24,656 tokens scanned over
  * the #2429 tree, zero false positives). Keep citations on one line.
+ *
+ * WIDENING THE SCAN is a recorded operation (issue #3697): every citation a
+ * wider tokenizer newly sees needs a ledger entry (ADR 0133), and
+ * `bun run cr:ledger widen` enters as `baseline` exactly the ones the change
+ * uncovered on the merge-base tree — the gate re-derives that set from this
+ * file's diff against the merge-base (`repoWidening`), so a widening can
+ * never double as a regeneration.
  */
 import { readFileSync } from "node:fs";
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -69,8 +76,11 @@ import {
     ledgerReport,
     parseLedger,
     reportIsClean,
+    wideningOf,
     type Citation,
+    type Ledger,
     type LedgerReport,
+    type Widening,
 } from "./lib/cr-ledger.ts";
 import { loadRules } from "./lib/cr-rules.ts";
 
@@ -81,6 +91,14 @@ const CR_PATH = join(ROOT, "data/cr/comprehensive-rules.txt");
 
 /** Text surfaces where a CR citation is meaningful. */
 export const SCANNED = /\.(ts|tsx|mts|mjs|js|md)$/;
+
+/**
+ * The file that defines what counts as a citation — `scanCitations` and the
+ * two regexes below, plus `SCANNED`. A diff that leaves it byte-identical to
+ * the merge-base's carries no tokenizer change, so a `baseline` entry it adds
+ * cannot be a widening's (issue #3697).
+ */
+export const TOKENIZER_PATH = "scripts/check-cr-citations.ts";
 
 export function knownRuleIds(): Set<string> {
     // U+2028 is a paragraph break INSIDE a rule in WotC's export; JS does not
@@ -198,6 +216,53 @@ export function readSources(root = ROOT): { file: string; text: string }[] {
     return sources;
 }
 
+/**
+ * Every `SCANNED` source as a COMMIT has it, read out of the object store in
+ * one `cat-file --batch` — the merge-base tree a tokenizer widening is
+ * measured on (issue #3697). Byte-exact: sizes come from the batch headers,
+ * so a multi-byte file is sliced where git says it ends, not where a string
+ * length would.
+ */
+export function sourcesAt(
+    root: string,
+    ref: string
+): { file: string; text: string }[] {
+    const files = execFileSync(
+        "git",
+        ["ls-tree", "-r", "--name-only", "-z", ref],
+        { cwd: root, encoding: "utf8", maxBuffer: 64 << 20 }
+    )
+        .split("\0")
+        .filter((f) => SCANNED.test(f));
+    const batch = execFileSync("git", ["cat-file", "--batch"], {
+        cwd: root,
+        input: files.map((f) => `${ref}:${f}\n`).join(""),
+        maxBuffer: 512 << 20,
+    });
+    const sources: { file: string; text: string }[] = [];
+    let pos = 0;
+    for (const file of files) {
+        const nl = batch.indexOf(0x0a, pos);
+        if (nl === -1)
+            throw new Error(
+                `git cat-file --batch ended early at ${ref}:${file}`
+            );
+        const header = batch.toString("utf8", pos, nl);
+        pos = nl + 1;
+        // `<object> missing` — a path ls-tree listed that the batch could not
+        // read; nothing follows the header.
+        if (header.endsWith(" missing")) continue;
+        const size = Number(header.split(" ")[2]);
+        if (!Number.isInteger(size))
+            throw new Error(
+                `git cat-file --batch: unreadable header for ${ref}:${file}: ${header}`
+            );
+        sources.push({ file, text: batch.toString("utf8", pos, pos + size) });
+        pos += size + 1;
+    }
+    return sources;
+}
+
 /** Reads every tracked source and scans it. Used by the CLI and the guard. */
 export function scanRepo(root = ROOT): ScanResult & { fileCount: number } {
     const sources = readSources(root);
@@ -280,13 +345,16 @@ function subruleScan(showFiles: boolean): number {
     );
 }
 
+/** The base branch's ledger and the commit it was read at. */
+export type BaseLedger = { ledger: Ledger; mergeBase: string };
+
 /**
- * The base branch's `baseline` set, for the only-shrinks check — or `null`
- * when the base ledger cannot be read. `broken` is thrown, never skipped: a
- * guard that cannot read its baseline is a guard that is not there
+ * The base branch's ledger, for the only-shrinks check and the widening — or
+ * `null` when it cannot be read. `broken` is thrown, never skipped: a guard
+ * that cannot read its baseline is a guard that is not there
  * (`lib/base-artifact.ts`).
  */
-export function baseBaselineKeys(root = ROOT): Set<string> | null {
+export function baseLedger(root = ROOT): BaseLedger | null {
     const base = baseArtifact(gitRunner(root), LEDGER_PATH);
     if (base.kind === "broken") {
         throw new Error(
@@ -296,7 +364,10 @@ export function baseBaselineKeys(root = ROOT): Set<string> | null {
     }
     if (base.kind === "unavailable") return null;
     try {
-        return baselineKeys(parseLedger(base.text));
+        return {
+            ledger: parseLedger(base.text),
+            mergeBase: base.at.slice(0, base.at.indexOf(":")),
+        };
     } catch (err) {
         throw new Error(
             `the base-branch ledger at ${base.at} does not parse: ${(err as Error).message}`
@@ -304,22 +375,70 @@ export function baseBaselineKeys(root = ROOT): Set<string> | null {
     }
 }
 
+/** The base branch's `baseline` set, or `null` when there is no base ledger. */
+export function baseBaselineKeys(root = ROOT): Set<string> | null {
+    const base = baseLedger(root);
+    return base === null ? null : baselineKeys(base.ledger);
+}
+
+export type RepoWidening = {
+    /** Whether `TOKENIZER_PATH` differs from the merge-base's copy. */
+    tokenizerChanged: boolean;
+    /** Empty when the tokenizer is unchanged — the merge-base tree is not read. */
+    widening: Widening;
+};
+
+/**
+ * The tokenizer widening this checkout carries against the base branch
+ * (issue #3697): none unless `TOKENIZER_PATH` differs from its merge-base
+ * copy; otherwise the current tokenizer's walk of the MERGE-BASE tree minus
+ * what the merge-base ledger records (`wideningOf`). Offline — the tree comes
+ * out of the object store.
+ */
+export function repoWidening(base: BaseLedger, root = ROOT): RepoWidening {
+    const at = `${base.mergeBase}:${TOKENIZER_PATH}`;
+    const shown = gitRunner(root)(["show", at]);
+    if (!shown.ok)
+        throw new Error(
+            `the merge-base tokenizer could not be read — git show ${at} failed: ${shown.error}`
+        );
+    const current = readFileSync(join(root, TOKENIZER_PATH), "utf8");
+    if (shown.out === current)
+        return { tokenizerChanged: false, widening: new Map() };
+    const before = scanCitations(
+        sourcesAt(root, base.mergeBase),
+        knownRuleIds()
+    ).citations;
+    return {
+        tokenizerChanged: true,
+        widening: wideningOf(before, base.ledger),
+    };
+}
+
 /**
  * The citation ledger check (`lib/cr-ledger.ts`, ADR 0133) over the tracked
  * tree: every citation the existence scan saw, against the committed ledger,
- * the vendored rules, and the base branch's baseline set. Shared by the CLI
- * and the regression test so both red on the same report.
+ * the vendored rules, the base branch's baseline set and — only when a
+ * `baseline` entry the base lacks makes it matter, because it reads the whole
+ * merge-base tree — the tokenizer widening the diff carries. Shared by the
+ * CLI and the regression test so both red on the same report.
  */
 export function ledgerReportForRepo(
     citations: Citation[],
     root = ROOT
 ): LedgerReport {
-    return ledgerReport({
+    const base = baseLedger(root);
+    const input = {
         citations,
         ledger: parseLedger(readFileSync(join(root, LEDGER_PATH), "utf8")),
         rules: loadRules(join(root, "data/cr/comprehensive-rules.txt")),
-        baseBaselineKeys: baseBaselineKeys(root),
-    });
+        baseBaselineKeys: base === null ? null : baselineKeys(base.ledger),
+    };
+    const report = ledgerReport({ ...input, widened: null });
+    if (!report.grown.length || base === null) return report;
+    const { tokenizerChanged, widening } = repoWidening(base, root);
+    if (!tokenizerChanged) return report;
+    return ledgerReport({ ...input, widened: new Set(widening.keys()) });
 }
 
 function ledgerScan(citations: Citation[], showFiles: boolean): number {
@@ -333,7 +452,10 @@ function ledgerScan(citations: Citation[], showFiles: boolean): number {
         return 1;
     }
     const tier = report.baselineChecked
-        ? "baseline compared with the base branch"
+        ? "baseline compared with the base branch" +
+          (report.widened
+              ? `; ${report.widened} baseline entr${report.widened === 1 ? "y" : "ies"} licensed by this diff's tokenizer widening`
+              : "")
         : "no base-branch ledger to compare the baseline with";
     console.log(
         `\n${report.recorded} CR citations recorded in ${LEDGER_PATH} (${tier})`

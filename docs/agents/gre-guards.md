@@ -217,7 +217,13 @@ and `baseline` (predates the ledger, never checked). The fourth scan under
 new site of a recorded line — copying a comment is not free), a confirmed
 entry whose rule text changed (a `cr:sync` reopens every confirmed citation
 of a rule it rewrites), a `baseline` entry the merge-base's ledger does not
-have (the set only shrinks — the recording command never writes it), and a
+have (the set shrinks by default — `confirm` never writes it — and grows only
+through a recorded tokenizer widening whose cause is in the same diff, issue
+#3697: `bun run cr:ledger widen` enters as `baseline` exactly the citations
+the changed tokenizer makes of the merge-base tree that the merge-base ledger
+lacks, and the gate re-derives that set from git's copies of the tokenizer and
+the tree; an edited line, an already-recorded citation and a `confirmed` entry
+turned back are never in it), and a
 stale entry. The report prints the rule under the line and names the one
 command that records a check, `bun run cr:ledger confirm <file>:<line>` — one
 line per call, no bulk form. `cr-cite-ok` does NOT exempt a line from the
