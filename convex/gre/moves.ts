@@ -40,6 +40,7 @@ import {
     resolveTargetRequirementCount,
     unrestrictedFloatingMana,
 } from "./state";
+import { deriveXFromTargetSpellMv, resolveAbilityManaCost } from "./activation";
 import { classLevelActivationViolation } from "../cards/abilities/classLevels";
 import { handCardMatchesFilter } from "./alternativeCost";
 import { mayExertAsAttacks } from "./exert";
@@ -3448,14 +3449,23 @@ function enumerateAbilityMoves(
             if (!canPayTapOtherCost(ability.cost.tapOtherFilter, available))
                 continue;
         }
+        // CR 107.3 (issue #3117) — `xFromTargetSpellMv` (Reflecting Mirror)
+        // prices X from the CHOSEN spell target, so unlike every other leg
+        // below it cannot be resolved once for the whole ability: it is
+        // computed PER TARGET TUPLE, once `targets` is known, right below the
+        // `enumerateTargetGroupTuples` loop — through the same
+        // `deriveXFromTargetSpellMv` + `resolveAbilityManaCost` the mutation
+        // commits with.
+        const hasDerivedX = ability.cost.xFromTargetSpellMv !== undefined;
         // Mana cost: must be payable. The {T} part of the cost is not paid by
         // the tap plan — which is exactly why the source must be BARRED from
         // it (issue #3081): the server re-checks the source UNTAPPED when it
         // commits the activation (CR 302.1), so a plan that spent it for mana
         // gets the whole activation dropped at commit.
-        const manaCost: Record<string, number> = ability.cost.mana
-            ? normalizeManaCost(ability.cost.mana)
-            : {};
+        const manaCost: Record<string, number> =
+            ability.cost.mana && !hasDerivedX
+                ? normalizeManaCost(ability.cost.mana)
+                : {};
         // FEM Merseine (CR 601.2f / 202.3) — "Pay enchanted creature's mana
         // cost": fold the attached host's printed cost into the affordability
         // check so the Brain only offers the activation when it can pay.
@@ -3492,22 +3502,27 @@ function enumerateAbilityMoves(
         // through `getCostModifiers` — an omission, not a design: a bot that
         // believes an ability is unaffordable never activates it, so a
         // reduction the server honours was invisible to the search.
-        applyCostModifiers(
-            manaCost,
-            getCostModifiers(state, perm, "ability", ability, player.id)
-        );
-        const tapPlan = planManaPayment(
-            state,
-            player,
-            manaCost,
-            undefined,
-            perm,
-            // CR 602.1 (issue #3081) — the ONLY caller that bars a source, and
-            // only when the cost really taps it. An ability with no `{T}` may
-            // still be funded by its own source, as before.
-            ability.cost.tap ? perm.id : undefined
-        );
-        if (tapPlan === null) continue;
+        if (!hasDerivedX) {
+            applyCostModifiers(
+                manaCost,
+                getCostModifiers(state, perm, "ability", ability, player.id)
+            );
+        }
+        const tapPlan = hasDerivedX
+            ? null
+            : planManaPayment(
+                  state,
+                  player,
+                  manaCost,
+                  undefined,
+                  perm,
+                  // CR 602.1 (issue #3081) — the ONLY caller that bars a
+                  // source, and only when the cost really taps it. An ability
+                  // with no `{T}` may still be funded by its own source, as
+                  // before.
+                  ability.cost.tap ? perm.id : undefined
+              );
+        if (!hasDerivedX && tapPlan === null) continue;
 
         // Modal activated abilities (CR 700.2 / 602.2b, issue #1341): one
         // variant per mode, each with its OWN target requirement — the same
@@ -3593,6 +3608,45 @@ function enumerateAbilityMoves(
                 abilityGroups,
                 undefined
             )) {
+                // CR 107.3 (issue #3117) — the derived-X price is PER TARGET,
+                // not per ability: a cheaper spell target can be affordable
+                // while a pricier one in the same tuple set is not.
+                let tupleTapPlan = tapPlan;
+                if (hasDerivedX) {
+                    const derivedX = deriveXFromTargetSpellMv(
+                        state,
+                        ability,
+                        targets
+                    );
+                    const tupleManaCost = resolveAbilityManaCost(
+                        state,
+                        perm,
+                        ability,
+                        { chosenX: derivedX }
+                    );
+                    const costForTuple: Record<string, number> = {
+                        ...(tupleManaCost ?? {}),
+                    };
+                    applyCostModifiers(
+                        costForTuple,
+                        getCostModifiers(
+                            state,
+                            perm,
+                            "ability",
+                            ability,
+                            player.id
+                        )
+                    );
+                    tupleTapPlan = planManaPayment(
+                        state,
+                        player,
+                        costForTuple,
+                        undefined,
+                        perm,
+                        ability.cost.tap ? perm.id : undefined
+                    );
+                }
+                if (tupleTapPlan === null) continue;
                 for (const costPicks of pickVariants) {
                     moves.push({
                         kind: "activate-ability",
@@ -3605,7 +3659,7 @@ function enumerateAbilityMoves(
                             lastGroupSize,
                             undefined
                         ),
-                        tapPlan,
+                        tapPlan: tupleTapPlan,
                         ...(costPicks ? { costPicks } : {}),
                     });
                     if (moves.length >= MAX_COMBINATIONS) return moves;

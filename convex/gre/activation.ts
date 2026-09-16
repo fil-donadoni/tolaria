@@ -35,6 +35,7 @@ import type {
     ManaCost,
     PermanentFilter,
     TargetRequirement,
+    TargetSelection,
 } from "../cards/types";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import type { GrantedAbilityOrigin } from "./activatedAbilities";
@@ -518,6 +519,37 @@ export function locateCastSource(
         return { card: retraceCast, zone: "graveyard", viaRetrace: true };
     }
     return { zone: "hand" };
+}
+
+/** CR 107.3 — shared derivation for `cost.xFromTargetSpellMv` (Reflecting
+ *  Mirror: "X is twice the mana value of that spell"). X is not a player
+ *  choice, so it can only be computed once the spell target is known — from
+ *  the SAME targets both the mutation's commit (`finalizeTargetSelection`,
+ *  `game.ts`) and the Bot's enumerator (`enumerateAbilityMoves`, `moves.ts`)
+ *  already have in hand. One call site each, so there is no second copy of
+ *  the `multiplier * spellMv` arithmetic to drift (issue #3117).
+ *
+ *  Returns `undefined` when the ability carries no such leg. Throws when it
+ *  does but the given targets carry no spell still on the stack — both
+ *  callers only reach this with targets that were legal a moment earlier on
+ *  the SAME state, so this is a bug signal, not a reachable game state. */
+export function deriveXFromTargetSpellMv(
+    state: GameState,
+    ability: { cost: ActivatedAbility["cost"] },
+    targets: readonly TargetSelection[]
+): number | undefined {
+    if (!ability.cost.xFromTargetSpellMv) return undefined;
+    const spellTarget = targets.find((t) => t.type === "spell");
+    const spell = spellTarget
+        ? state.stack.find((s) => s.id === spellTarget.id)
+        : undefined;
+    if (!spell) {
+        throw new Error("Target spell is no longer on the stack");
+    }
+    const spellCardId = (spell.card as { id?: string }).id;
+    const spellDef = spellCardId ? tryGetDefinition(spellCardId) : undefined;
+    const spellMv = manaValue(spellDef?.manaCost) + (spell.chosenX ?? 0);
+    return ability.cost.xFromTargetSpellMv.multiplier * spellMv;
 }
 
 /** Resolves an activated ability's mana cost, folding in the FEM Merseine
