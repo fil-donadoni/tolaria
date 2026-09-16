@@ -70,7 +70,9 @@ export const VERDICT_PROMOTION_OUT_ENV = "VERDICT_PROMOTION_OUT";
  *  and a snapshot of the store. Bytes travel as base64, so an object that is
  *  not UTF-8 reaches the integrity check as the bytes the store held. */
 export type VerdictPromotionInput = {
-    mode: "validate" | "promote";
+    /** `testers` is `bun run verdicts:testers` (issue #3585): read-only, like
+     *  `validate`, plus the fit report over the committed lock. */
+    mode: "validate" | "promote" | "testers";
     /** The committed lock file's contents, `null` when there is none. */
     lock: string | null;
     /** The contents of `EVAL_WEIGHTS_PATH`. */
@@ -80,12 +82,15 @@ export type VerdictPromotionInput = {
     /** `resolutions/…` objects (issue #3582). Optional so a snapshot taken
      *  before resolutions existed still reads as "none given". */
     resolutionObjects?: { name: string; base64: string }[];
+    /** `aliases/…` objects (issue #3585) — read for `testers` only. */
+    aliasObjects?: { name: string; base64: string }[];
 };
 
 /** What the engine step hands back. A promotion that is not a no-op carries
  *  BOTH files to write — the lock and the weights are one change. */
 export type VerdictPromotionOutput =
     | { mode: "validate"; text: string }
+    | { mode: "testers"; text: string }
     | { mode: "promote"; noop: true; text: string }
     | {
           mode: "promote";

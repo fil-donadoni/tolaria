@@ -20,3 +20,4 @@ export * from "./quarantine";
 export * from "./promotion";
 export * from "./weightsLiteral";
 export * from "./resolution";
+export * from "./testerQuality";

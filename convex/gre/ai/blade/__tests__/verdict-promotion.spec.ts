@@ -1,4 +1,4 @@
-// `bun run verdicts:validate` / `bun run verdicts:promote` — the engine step
+// `bun run verdicts:validate` / `verdicts:promote` / `verdicts:testers` — the engine step
 // (issue #3583). Not a test: a runner the promotion script spawns, gated on
 // the two paths it is handed, for the reason `verdictPromotion.ts` gives (the
 // engine reaches `lib.dom`, which a `scripts/` entry cannot import). Its

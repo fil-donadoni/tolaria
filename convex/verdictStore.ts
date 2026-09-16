@@ -39,6 +39,7 @@ import {
 import { utf8Bytes } from "./gre/ai/verdicts/sha256";
 import type {
     VerdictAttestation,
+    VerdictAuthorAlias,
     VerdictResolution,
 } from "./gre/ai/verdicts/types";
 
@@ -588,6 +589,101 @@ export async function readResolution(
     const name = resolutionObjectName(positionKey, resolutionId);
     const bytes = await store.get(name);
     return bytes === null ? null : decodeResolutionObject(name, bytes);
+}
+
+// ── Author aliases (issue #3585, ADR 0128 §4) ────────────────────────────────
+//
+// One object per pair of authors who are one person:
+// `aliases/<author>/<author>`, the two sorted, so the fact has one name
+// whichever way round it was recorded. In the bucket, never in git: the
+// repository is public, and a mapping of accounts to one human is exactly
+// what the bucket is private for. Immutable like everything else — an alias
+// is never retracted, because joining two of one's own accounts is not a
+// judgement that goes stale.
+
+/** Where alias objects live in the bucket. */
+export const ALIAS_OBJECT_PREFIX = "aliases/";
+
+const ALIAS_CONTENT_TYPE = "application/json";
+
+/** The alias with its authors sorted. Throws when either is not an author or
+ *  both are the same one — an alias joining nothing is not a fact. */
+function aliasPayload(alias: VerdictAuthorAlias): VerdictAuthorAlias {
+    const pair = alias.authors;
+    if (!Array.isArray(pair) || pair.length !== 2) {
+        throw new Error("an alias joins exactly two authors");
+    }
+    for (const author of pair) {
+        if (
+            typeof author !== "string" ||
+            !VERDICT_AUTHOR_PATTERN.test(author)
+        ) {
+            throw new Error(`Not a verdict author: ${JSON.stringify(author)}`);
+        }
+    }
+    if (pair[0] === pair[1]) {
+        throw new Error(`an alias joins two authors, not ${pair[0]} to itself`);
+    }
+    const [a, b] = [...pair].sort();
+    return { authors: [a, b] };
+}
+
+/** An alias as the object the store holds. */
+export function encodeAliasObject(alias: VerdictAuthorAlias): {
+    name: string;
+    bytes: Uint8Array;
+} {
+    const payload = aliasPayload(alias);
+    return {
+        name: `${ALIAS_OBJECT_PREFIX}${payload.authors[0]}/${payload.authors[1]}`,
+        bytes: utf8Bytes(canonicalJson(payload)),
+    };
+}
+
+/** The alias stored under `name`, verified: two distinct authors, the name
+ *  its sorted pair promises, and exactly its canonical bytes. */
+export function decodeAliasObject(
+    name: string,
+    bytes: Uint8Array
+): VerdictAuthorAlias {
+    let alias: VerdictAuthorAlias;
+    let encoded: { name: string; bytes: Uint8Array };
+    try {
+        const raw = JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+        if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+            throw new Error("not a JSON object");
+        }
+        alias = aliasPayload(raw as VerdictAuthorAlias);
+        encoded = encodeAliasObject(alias);
+    } catch (error) {
+        throw new VerdictStoreIntegrityError(
+            name,
+            `unreadable (${error instanceof Error ? error.message : String(error)})`
+        );
+    }
+    if (encoded.name !== name) {
+        throw new VerdictStoreIntegrityError(
+            name,
+            `joins what ${encoded.name} names, which is not what its name promises`
+        );
+    }
+    if (!sameBytes(encoded.bytes, bytes)) {
+        throw new VerdictStoreIntegrityError(
+            name,
+            "bytes are not the canonical encoding of the alias they carry"
+        );
+    }
+    return alias;
+}
+
+/** Store one alias. Idempotent, whichever order the authors come in. */
+export async function putAlias(
+    store: VerdictStoreWriter,
+    alias: VerdictAuthorAlias
+): Promise<{ name: string; outcome: VerdictStorePutOutcome }> {
+    const { name, bytes } = encodeAliasObject(alias);
+    const outcome = await store.put(name, bytes, ALIAS_CONTENT_TYPE);
+    return { name, outcome };
 }
 
 // ── The whole store, read for review (issue #3582) ───────────────────────────

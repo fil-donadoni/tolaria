@@ -98,6 +98,7 @@
         "verdicts:sync": "bun scripts/verdicts-sync.ts",
         "verdicts:validate": "bun scripts/verdicts-validate.ts",
         "verdicts:promote": "bun scripts/verdicts-promote.ts",
+        "verdicts:testers": "bun scripts/verdicts-testers.ts",
         "scenario:ls": "bun scripts/scenario-admin.ts ls",
         "scenario:rm": "bun scripts/scenario-admin.ts rm"
     },
