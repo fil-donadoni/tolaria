@@ -1,0 +1,95 @@
+{
+    "label": "UI board — ordinary mid-game position",
+    "prompt": "ui-gate `game-board` surface (scripts/ui-gate/surfaces.ts, issue #3695, ADR 0132 §4). The TYPICAL board — the screen a player looks at for most of a game: three lands and one or two creatures a side, a four-card hand, shallow graveyards, nothing in exile. Deliberately NOT `stress-scenario.json`, which `game-stress` already measures: that one is the 55-card extreme, and reusing it here would print two identical rows and leave the ordinary board unmeasured. `activePlayer`/`priority` both on \"me\" (ADR 0132 §4): nothing the probe measures may depend on the coin toss or on the other seat. Seed with: bunx convex run debugScenarios:seedScenarioDirect \"$(cat scripts/ui-gate/board-scenario.json)\". Deployment-local by design (ADR 0044) — the lane seeds it at bootstrap.",
+    "spec": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 4,
+        "activePlayer": "me",
+        "priority": "me",
+        "libraryCount": 25,
+        "cards": [
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Llanowar Elves",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Swamp",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Mountain",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Savannah Lions",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Lightning Bolt",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Giant Growth",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Counterspell",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Brainstorm",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Dark Ritual",
+                "owner": "opp",
+                "zone": "hand"
+            },
+            {
+                "name": "Healing Salve",
+                "owner": "opp",
+                "zone": "hand"
+            },
+            {
+                "name": "Lightning Bolt",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Dark Ritual",
+                "owner": "opp",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Disenchant",
+                "owner": "opp",
+                "zone": "graveyard"
+            }
+        ]
+    }
+}

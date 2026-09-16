@@ -53,6 +53,12 @@ export interface WalkContext {
     /** The debug-scenario label the `game-debug-sheet-ai` surface loads
      *  (`ai-trace-scenario.json`, issue #3652). */
     aiTraceScenarioLabel: string;
+    /** The debug-scenario label the `game-board` surface loads
+     *  (`board-scenario.json`, issue #3695) — the ORDINARY mid-game board, as
+     *  opposed to `stressScenarioLabel`'s 55-card extreme. Two rows, two
+     *  positions: the screen a player sees most of a game, and the worst one
+     *  the layout has to survive. */
+    boardScenarioLabel: string;
     /** Set once the lane has created the active game itself. */
     createdGame: boolean;
     /** Issue #2671 review H2. The `deck-builder` walk's fixture import trips
@@ -938,11 +944,12 @@ async function ensureBoard(page: Page, ctx: WalkContext): Promise<void> {
 
 /** The board with the FIXED stress position loaded (`stress-scenario.json`).
  *
- *  Two surfaces need it and both need it for the same reason `game-board`
- *  itself is declared unwalked (`UNWALKED_SURFACES`, issue #3695): a dealt solo
- *  game lands on a position nobody chose, and two runs of the same tree gave
- *  different card counts. This is the one board a measurement can mean
- *  something about. */
+ *  Two surfaces need it, for the same reason every board row now loads a
+ *  DECLARED position (ADR 0132 §4): a dealt solo game lands on a position
+ *  nobody chose, and two runs of the same tree gave different card counts —
+ *  which is what `game-board` was declared unwalked for until issue #3695 gave
+ *  it `board-scenario.json`. A measurement means something only over a board
+ *  somebody wrote down. */
 async function ensureStressBoard(page: Page, ctx: WalkContext): Promise<void> {
     await ensureScenarioBoard(page, ctx, ctx.stressScenarioLabel);
 }
@@ -1301,8 +1308,9 @@ async function createVsAiGame(page: Page, ctx: WalkContext): Promise<void> {
  * `Resume` branch, on the game viewport 1 dealt — so conceding it here to free
  * the vs-AI lobby gate would silently re-deal the subject `game-board` and
  * `game-stress` are measured against, from the tail of every viewport pass.
- * Those three surfaces are in `UNWALKED_SURFACES` today and the collision is therefore
- * unreachable; it is reported rather than resolved so that re-enabling them
+ * `game-board` walks again since issue #3695, so the collision is reachable
+ * whenever this row runs after it in the same viewport pass; the branch below
+ * reports it rather than resolving it, so re-enabling the remaining board rows
  * reds this row instead of quietly moving theirs.
  */
 async function ensureVsAiBoard(page: Page, ctx: WalkContext): Promise<void> {
@@ -2293,12 +2301,19 @@ export const SURFACES: readonly Surface[] = [
         },
     },
     {
+        // The ORDINARY board — the screen a player looks at for most of a game
+        // (issue #3695). It loads its own declared position rather than the
+        // stress one on purpose: `game-stress` already measures the 55-card
+        // extreme, so sharing that payload would print two identical rows and
+        // leave the typical board — three lands, a creature or two, a
+        // four-card hand — unmeasured. The two rows are complementary.
         id: "game-board",
         needsGame: true,
+        settleTargets: [HAND_CARD],
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
-        label: "Game board (/game)",
+        label: "Game board — ordinary mid-game position",
         async walk(page, ctx) {
-            await ensureBoard(page, ctx);
+            await ensureScenarioBoard(page, ctx, ctx.boardScenarioLabel);
         },
     },
     {

@@ -226,11 +226,6 @@ export interface UnwalkedSurface {
  */
 export const UNWALKED_SURFACES: readonly UnwalkedSurface[] = [
     {
-        surface: "game-board",
-        reason: "the walk deals a solo game, so it measures a position nobody chose — two runs of one unchanged tree read different card counts; it needs a declared position (ADR 0132 §4)",
-        issue: 3695,
-    },
-    {
         surface: "game-card-preview",
         reason: "the Card Preview is measured over the fixed stress position, which the lane has not yet re-proven it reaches (see game-stress)",
         issue: 3506,

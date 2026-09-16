@@ -99,7 +99,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
  *  debug scenario is DEPLOYMENT-LOCAL by design (ADR 0044) and a lane that
  *  cannot reach a surface reports a coverage hole. Seeding them at bootstrap —
  *  beside the Limited fixtures, issue #3652 — is what makes a fresh deployment
- *  walkable without anyone re-deriving three positions by hand.
+ *  walkable without anyone re-deriving these positions by hand.
  *
  *  UNLIKE the fixtures, these are NOT run-scoped: `seedScenarioDirect` upserts
  *  by label and the payload is a constant, so two concurrent runs write the
@@ -109,6 +109,7 @@ const SCENARIO_FILES = [
     "stress-scenario.json",
     "yields-scenario.json",
     "ai-trace-scenario.json",
+    "board-scenario.json",
 ] as const;
 
 export interface ScenarioSeed {
