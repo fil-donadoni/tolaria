@@ -3105,10 +3105,14 @@ export const SURFACES: readonly Surface[] = [
                     "passing resolved the spell but no modal picker opened — a `choose-hand-card` choice over ANOTHER seat's hand is what mounts `HandCardPick`; an own-hand pick would toggle in the hand fan instead and this row would be measuring the board again"
                 );
             }
+            // EXACTLY seven, not "at least five". The position is declared and
+            // deterministic, so a grid that renders six is a regression in the
+            // very thing this row measures — and a floor of five would let it
+            // through while the message below still claimed seven.
             const candidates = await page.locator(CHOICE_PICKER_CARD).count();
-            if (candidates < 5) {
+            if (candidates !== 7) {
                 throw new Unreachable(
-                    `the picker opened with ${candidates} candidate(s) — this row exists to measure a list that has to scroll at phone width, and the position declares seven`
+                    `the picker opened with ${candidates} candidate(s) — the position declares seven (five of them eligible under the spell's own filter), and this row exists to measure that list scrolling at phone width`
                 );
             }
             await settle(page, [CHOICE_PICKER]);
@@ -3119,13 +3123,16 @@ export const SURFACES: readonly Surface[] = [
         // own position. Loading a scenario clears mid-flight decisions
         // (`buildStateFromScenario`, issue #3515) — but only once it can be
         // reached, which is exactly what this undoes.
-        // Picking a tile CLOSES the dialog (`GridCard`'s own `onClose()` runs
-        // beside the pick), so the confirm plate is only there to be clicked
-        // when the buffer did not submit on its own. Either way the board comes
-        // back uncovered, which is all the next row needs: its
-        // `ensureScenarioBoard` has to reach the debug sheet's edge toggle, and
-        // loading any position clears a mid-flight decision anyway
-        // (`buildStateFromScenario`, issue #3515).
+        // BOTH clicks are required, and the second is the one that matters.
+        // Picking a tile only toggles the shared buffer: `GridCard` does call
+        // `onClose()` beside the pick, but `CardsPile`'s `setIsOpen`
+        // short-circuits while `forceOpen` is set, so the dialog stays up and
+        // nothing submits on its own — `usePendingChoiceBuffer.submit()` has
+        // exactly one caller, `LibrarySearchConfirm`'s Done plate. The picker
+        // closes when the server resolves the choice and `HandCardPick` goes
+        // inactive, which is what the next row needs: its
+        // `ensureScenarioBoard` has to reach the debug sheet's edge toggle,
+        // and a `forceOpen` modal paints over it.
         async cleanup(page) {
             try {
                 await page

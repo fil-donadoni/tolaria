@@ -5,14 +5,19 @@
 // the surface it serves exists to measure — a crowded board, deep piles, a
 // full hand. This file holds every payload to the property §4 actually is:
 // the position is DECLARED, and the decision it poses is posed to the HUMAN
-// seat. Both halves are checked, and the second is checked through the ENGINE
-// rather than through a spec field, because a spec field is only a proxy for
-// it — and issue #3708 is where the proxy broke: `game-combat` has to declare
-// `activePlayer: "opp"`, since a block is a turn-based action owed to the
-// DEFENDING player (CR 509.1a) and a combat the human seat attacks in would
-// put the opponent's half of combat on screen. Asserting `"me"` on that field
-// would have refused the one position that needs the other value while still
-// proving nothing about the five that do not.
+// seat. Issue #3708 is where a blanket `activePlayer === "me"` stopped being
+// able to say that: `game-combat` has to declare `activePlayer: "opp"`, since a
+// block is a turn-based action owed to the DEFENDING player (CR 509.1a) and a
+// combat the human seat attacks in would put the opponent's half of combat on
+// screen.
+//
+// So the check is in two parts, and BOTH are needed. The engine is asked who
+// the rebuilt position owes its input to — that is the property itself. But
+// that answer alone is vacuous for `activePlayer` outside a block window:
+// `computeExpectedInput` falls through to `{kind: "priority", playerId:
+// priorityPlayerId}`, so a payload that quietly took `activePlayer: "opp"`
+// would still name seat one and pass. The turn holder is therefore asserted
+// too, and excused for exactly the position whose decision is the defender's.
 //
 // So: `activePlayer` and `priority` must both be WRITTEN DOWN (neither may be
 // inherited — priority defaults to the active player and the active player to
@@ -123,6 +128,17 @@ describe("check:ui declared positions (ADR 0132 §4)", () => {
             const expected = computeExpectedInput(state);
             expect(expected).toBeDefined();
             expect(expected?.playerId).toBe(state.players[0].id);
+            // And the TURN is the human seat's, unless the position owes a
+            // turn-based action only the defending player can answer (CR
+            // 509.1a) — the one shape that needs the other seat active for the
+            // human seat to be the one being asked. Without this line the
+            // assertion above never reads `activePlayer` at all for the five
+            // positions outside a block window (see this file's head), and a
+            // payload could take the opponent's turn without any guard
+            // noticing.
+            if (expected?.kind !== "blockers") {
+                expect(state.activePlayerId).toBe(state.players[0].id);
+            }
         }
     );
 
