@@ -174,6 +174,15 @@ token**:
   validation. The writer re-runs `verdicts.submit`'s checks on a judgement
   (`verdicts:forwardAdmissible`, with `submit`'s own validators) and `record`'s
   checks on a resolution.
+- **Resolutions are opt-in per token.** `verdictResolutions.record` is
+  admin-only on the deployment that runs it, and the writer cannot see that
+  deployment's admins. So a token forwards resolutions only if its entry says
+  `"resolutions": true`. Such a token carries a resolver's power for its
+  deployment's authors.
+- **No forwarded date may run ahead of the writer's clock** (5 minutes of
+  skew). The newest resolution applies (§6), so a resolution dated in the
+  future would decide its position until that date. `record` stamps
+  `Date.now()`, and a forward is held to the same bound.
 - **It is revoked on the writer** by removing its entry. Nothing on the local
   side needs to change.
 
@@ -192,6 +201,17 @@ very verdict, position and author the row promised. A refusal or an outage
 leaves the row fat, with the reason in the drain report, and the hourly cron
 retries it. A re-send is harmless: object names are content-addressed and
 uploads use `ifGenerationMatch=0`.
+
+**Legacy rows** must pass today's `submit` validators when they forward. A fat
+row whose spec no current validator accepts is refused with its reason, and it
+stays fat. That is the same bar the migration's `enqueueBulk` sets.
+
+**The binding is to a NAME.** Every local backend on the default port is
+`local-3210`, so two machines holding tokens for `local-3210` are one
+deployment to the writer, and user ids on them share one namespace. This is
+already true of the attestations: `${deployment}:${userId}` never told two
+`local-3210` backends apart. Joining or separating authors stays with the
+aliases (issue #3585).
 
 **Why not the write key.** The write key can create any object under any name
 in the bucket. A leaked forward token can do much less: it can add judgements

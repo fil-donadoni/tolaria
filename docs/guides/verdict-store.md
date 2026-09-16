@@ -195,8 +195,15 @@ current value first and add your entry to it:
 ```bash
 bunx convex env get --prod VERDICT_STORE_FORWARD_TOKENS
 bunx convex env set --prod VERDICT_STORE_FORWARD_TOKENS \
-  '[{"deployment":"local-3210","sha256":"<the sha256 above>"}]'
+  '[{"deployment":"local-3210","sha256":"<the sha256 above>","resolutions":true}]'
 ```
+
+`"resolutions": true` lets the token forward the [resolutions](#g-resolution)
+recorded on that backend as well. Only the writer's owner decides that, and
+it gives a resolver's power: leave it out for a backend whose admins should
+not decide contested positions for everyone. Every local backend on the
+default port is named `local-3210`, so tokens for different machines on that
+port share one identity.
 
 **Set it on the local backend**, in the backend's environment and never in a
 file in a checkout. Run this from the checkout whose `.env.local` names the
@@ -212,7 +219,9 @@ The next drain forwards every fat row, including rows written before the
 outbox. The hourly cron runs one anyway. A refused row stays fat, and the
 drain report gives the reason: `forward refused (401)` means the token,
 `(403)` an author or deployment outside it, `(422)` a judgement `submit` would
-refuse. A writer outage leaves the rows fat for the next hour's retry.
+refuse, a date past the writer's clock, or a resolution from a token without
+`"resolutions": true`. A writer outage, or one that takes longer than 30 s,
+leaves the rows fat for the next hour's retry.
 
 **Revoke it** on the writer: remove its entry from
 `VERDICT_STORE_FORWARD_TOKENS` and set the list again. From then on the route
