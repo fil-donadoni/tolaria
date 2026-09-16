@@ -35,11 +35,15 @@ import {
     zeroReadings,
     type SurfaceWalk,
 } from "../ui-gate/receipt.ts";
-import { SURFACE_IDS } from "../ui-gate/surfaces.ts";
+import { SURFACES, SURFACE_IDS } from "../ui-gate/surfaces.ts";
+import { assertLabelsBySurface } from "../ui-gate/assertions.ts";
 import { VIEWPORT_IDS } from "../ui-gate/viewports.ts";
 import { landingDiffScope } from "../ui-gate/verify-receipt.ts";
 
 const GATE = resolve(__dirname, "..", "gate.ts");
+
+/** The Named Assertions the real surface table declares (issue #3649). */
+const PROMISED = assertLabelsBySurface(SURFACES);
 
 /**
  * What `check:ui` prints for `surfaces` (null = every surface, a full RECEIPT;
@@ -47,6 +51,12 @@ const GATE = resolve(__dirname, "..", "gate.ts");
  * matrix and declared-unwalked list, rendered by the real evaluator exactly as
  * the lane renders it — verdict block, separator, diagnostic block. `at` sets
  * one cell's readings; `facts` stands in for the run's own diagnostic lines.
+ *
+ * Every Named Assertion the real table declares is reported kept (issue
+ * #3649): these receipts stand for GREEN runs, and a green run keeps its
+ * promises. A cell that simply omitted them would be a receipt `land` refuses
+ * for missing the lines its scope owes — which is the point of that check, not
+ * a property of the lane being modelled here.
  */
 function laneReceipt(
     surfaces: readonly string[] | null,
@@ -65,6 +75,11 @@ function laneReceipt(
             measurements: VIEWPORT_IDS.map((viewport) => ({
                 viewport,
                 readings: opts.at?.(surface, viewport) ?? zeroReadings(),
+                asserts: (PROMISED[surface] ?? []).map((label) => ({
+                    label,
+                    ok: true,
+                    detail: "",
+                })),
             })),
         }));
     const ev = evaluateRun({
@@ -74,6 +89,7 @@ function laneReceipt(
         viewportIds: VIEWPORT_IDS,
         unwalked: UNWALKED_SURFACES,
         diffScope: surfaces ? { base: ORIGIN_BASE, surfaces } : null,
+        assertsBySurface: PROMISED,
     });
     return [
         "```",
