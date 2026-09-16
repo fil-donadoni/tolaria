@@ -102,6 +102,7 @@
         {"id":"101.4","line":"// enqueue, CR 101.4). Checked BEFORE the priority-holder gate: while a","sites":1,"status":"baseline"},
         {"id":"101.4","line":"// every clause runs once per side, in APNAP order (CR 101.4), each acting on","sites":1,"status":"baseline"},
         {"id":"101.4","line":"// graveyard onto the battlefield.\" (CR 400.7 reanimation, CR 101.4 APNAP","sites":1,"status":"baseline"},
+        {"id":"101.4","line":"// lands, and admitting the Op as a CR 101.4 `forEach { simultaneous }` body).","sites":1,"status":"confirmed","ruleHash":"4edac0771bb61980"},
         {"id":"101.4","line":"// player). `apNapOrder()[0]` is the active player (CR 101.4); fall back to","sites":1,"status":"baseline"},
         {"id":"101.4","line":"// players (issue #1872, CR 101.4) — `[choice, sacrifice |","sites":1,"status":"baseline"},
         {"id":"101.4","line":"// precedence (CR 608.2 / 101.4, `computeExpectedInput`), so the two","sites":1,"status":"baseline"},
