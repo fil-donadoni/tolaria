@@ -42,6 +42,7 @@ import {
 } from "./state";
 import { deriveXFromTargetSpellMv, resolveAbilityManaCost } from "./activation";
 import { classLevelActivationViolation } from "../cards/abilities/classLevels";
+import { activationPreconditionViolation } from "./activationPrecondition";
 import { handCardMatchesFilter } from "./alternativeCost";
 import { mayExertAsAttacks } from "./exert";
 import {
@@ -3668,10 +3669,30 @@ function enumerateAbilityMoves(
         // Only abilities that use the stack are macro-moves here; mana abilities
         // are funded on demand by the cast planner, never activated standalone.
         if (!ability.useStack) continue;
-        // Conditional abilities need a runtime predicate we don't replicate;
-        // leave them to a later slice rather than enumerate possibly-illegal
-        // moves. (Documented limitation — server would reject anyway.)
-        if (ability.canActivate || ability.getTargetRequirement) continue;
+        // A dynamic target requirement needs a target selection the move
+        // shape does not carry.
+        if (ability.getTargetRequirement) continue;
+        // CR 602.5 (issue #3441) — the ability's own printed restriction
+        // (`canActivate`), evaluated through the SAME predicate the mutation's
+        // legality gate reads, against the source exactly as the server
+        // resolves it (a battlefield permanent, or the graveyard/hand card of
+        // a zone-restricted ability). This used to skip every closure-gated
+        // ability outright, so the bot never activated Barbarian Ring's
+        // threshold ability even when the server would have accepted it.
+        if (activationPreconditionViolation(state, perm, ability) !== null) {
+            continue;
+        }
+        // CR 107.3a — a player-CHOSEN X in the activation cost. The
+        // `activate-ability` move carries no `chosenX` for it, and both server
+        // paths throw "This ability requires a chosen X value" without one, so
+        // offering the move hands the bot an activation the mutation rejects.
+        // A DERIVED X (`xFromTargetSpellMv`) is priced per target below.
+        if (
+            typeof ability.cost.mana?.X === "string" &&
+            ability.cost.xFromTargetSpellMv === undefined
+        ) {
+            continue;
+        }
         // CR 606 (issue #2491) — a loyalty ability (planeswalker) carries a
         // signed `cost.loyalty` and three restrictions: the per-permanent
         // once-per-turn lock (CR 606.3), the controller's own main phase with
@@ -3694,10 +3715,9 @@ function enumerateAbilityMoves(
             continue;
         }
         // CR 702.142a (Boast, issue #2375) — "Activate only if this creature
-        // attacked this turn". A DECLARATIVE field precisely so this
-        // enumerator can read it: the `canActivate` skip a few lines above
-        // means a closure-gated Boast would never be enumerated at all, so the
-        // bot could never boast. Mirrors the server's own
+        // attacked this turn". A DECLARATIVE field, so every consumer (not
+        // only this enumerator, which since issue #3441 also evaluates a
+        // `canActivate` closure) can read it. Mirrors the server's own
         // `assertActivationTimingLegal`; `hasAttackedThisTurn` is absent (not
         // `false`) when the creature did not attack, so the comparison is
         // against `true`.
@@ -3708,9 +3728,7 @@ function enumerateAbilityMoves(
             continue;
         }
         // CR 716.2a (issue #3234) — the class level gates, DECLARATIVE for
-        // exactly the reason the Boast one above is: the `canActivate` skip
-        // further up means a closure-gated class level bar would never be
-        // enumerated, so the bot could never level a Class up. Shared predicate
+        // exactly the reason the Boast one above is. Shared predicate
         // with the server's `assertActivationTimingLegal`, so this enumerator
         // can never offer a level-up the mutation would reject.
         if (classLevelActivationViolation(perm, ability) !== null) continue;
@@ -4374,10 +4392,11 @@ function findCard(state: GameState, id: string): CardInstanceState | undefined {
  *  window (CR 605.3a) is not a search decision node. Affordability mirrors the
  *  mutation's gates: a life cost is payable only with `life >= cost` (CR
  *  119.4), a tap/sacrifice cost is rejected (no source permanent), and a
- *  phase restriction (CR 602.5) is honoured. Conditional (`canActivate`) and
- *  targeted (`getTargetRequirement` / `targetRequirement`) templates are
- *  skipped, matching `enumerateAbilityMoves`' documented limitation — the
- *  server would reject them and the search cannot answer a target anyway. */
+ *  phase restriction (CR 602.5) is honoured. Conditional (`canActivate`)
+ *  templates are skipped: the closure reads a SOURCE, and a player-scoped
+ *  grant has none to hand it. Targeted (`getTargetRequirement` /
+ *  `targetRequirement`) templates are skipped because the search cannot answer
+ *  a target here. */
 function enumerateGrantedAbilityMoves(
     state: GameState,
     player: PlayerState
@@ -4390,9 +4409,9 @@ function enumerateGrantedAbilityMoves(
             grant.sourceCardId
         )?.activatedAbilities?.find((a) => a.id === grant.abilityId);
         if (!template) continue;
-        // Conditional abilities need a runtime predicate the search does not
-        // replicate; targeted abilities would need a target selection the move
-        // shape does not carry (mirrors `enumerateAbilityMoves`).
+        // A `canActivate` closure reads a source permanent, which a
+        // player-scoped grant does not have; targeted abilities would need a
+        // target selection the move shape does not carry.
         if (template.canActivate || template.getTargetRequirement) continue;
         if (template.targetRequirement) continue;
         // Player-scoped grants have no source permanent, so tap/sacrifice

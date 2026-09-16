@@ -3562,8 +3562,8 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // `enumerateMoves`/`applyMoveInSearch` seam the `activate` step's
         // `target` field uses. (Giver of Runes was tried first and dropped:
         // its `getTargetRequirement` closure hits a documented, pre-existing
-        // gap in `moves.ts`'s ability enumerator — "conditional abilities
-        // need a runtime predicate we don't replicate" — so the Bot can
+        // gap in `moves.ts`'s ability enumerator — a dynamic target
+        // requirement is skipped outright — so the Bot can
         // never activate it at all, unrelated to colour choice. Out of
         // scope for #2306; see the PR description / findings note.)
         setup: [
@@ -4976,10 +4976,8 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // whether the bot attacks, casts or passes is a preference, and this
         // entry has no opinion on it.
         //
-        // What it guards: `requiresAttackedThisTurn` is a DECLARATIVE field
-        // precisely so `enumerateAbilityMoves` (`gre/moves.ts`) can read it —
-        // a `canActivate` closure is skipped wholesale by that enumerator, so
-        // a closure-gated Boast would be invisible rather than gated. Drop the
+        // What it guards: `enumerateAbilityMoves` (`gre/moves.ts`) reads the
+        // DECLARATIVE `requiresAttackedThisTurn` field as its Boast gate. Drop the
         // enumerator's gate and the move is offered a turn early: the bot eats
         // its own Grizzly Bears for a boast the server would refuse, which in
         // live play is a frozen action, not a bad one.
@@ -5101,6 +5099,84 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             ],
         },
         note: "Half 2 of the Boast pair (issue #2375). The positive direction of the CR 702.142a gate: a boast must be reachable and preferred once the creature has attacked. Measured: reds when the enumerator gate is made to always fire, while half 1 stays green.",
+    },
+    {
+        // ACTIVATION RESTRICTION CLOSURE, HALF 1 — THE GATE (CR 602.5, issue
+        // #3441). The negative half of a discriminating pair: Barbarian Ring's
+        // threshold ability ("Activate only if seven or more cards are in your
+        // graveyard") with SIX cards there. Forced by the rules: the ability is
+        // not activatable, so the one forbidden move is that activation, even
+        // with the opponent at 2 life where it would be lethal.
+        //
+        // What it guards: `enumerateAbilityMoves` (`gre/moves.ts`) evaluates
+        // the `canActivate` closure through `activationPreconditionViolation`,
+        // the predicate the mutation reads. Drop that evaluation and the move is
+        // offered with the restriction failing — a move the server refuses.
+        label: "activation restriction: does not sacrifice Barbarian Ring below threshold",
+        spec: {
+            cards: [
+                { name: "Barbarian Ring", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "graveyard",
+                    count: 6,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            life: { opp: 2 },
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 300 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "activate-ability", card: "Barbarian Ring" }],
+        },
+        note: "Half 1 of the activation-restriction pair (issue #3441). Guards that the enumerator evaluates the `canActivate` closure rather than offering the ability unconditionally.",
+    },
+    {
+        // ACTIVATION RESTRICTION CLOSURE, HALF 2 — THE PAYOFF (CR 602.5, issue
+        // #3441). Same board with a SEVENTH graveyard card: the threshold
+        // ability is legal and deals the opponent's last 2 life — the only
+        // winning play, no judgement involved. Before issue #3441 the
+        // enumerator skipped every ability carrying a `canActivate` closure,
+        // so this move did not exist in the Bot's move set at all. Half 1 and
+        // half 2 red on OPPOSITE breaks of the same enumerator line.
+        label: "activation restriction: sacrifices Barbarian Ring at threshold for lethal",
+        spec: {
+            cards: [
+                { name: "Barbarian Ring", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "graveyard",
+                    count: 7,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            life: { opp: 2 },
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 800 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Barbarian Ring",
+                    target: "opp",
+                },
+            ],
+        },
+        note: "Half 2 of the activation-restriction pair (issue #3441). The positive direction: a `canActivate` ability whose restriction holds is reachable and taken.",
     },
 
     // ── Cast from the graveyard (issue #2971) ────────────────────────────

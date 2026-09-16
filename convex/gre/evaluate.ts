@@ -33,6 +33,7 @@ import {
     isCombatDamageUnpreventable,
 } from "./combatDamagePrevention";
 import { classLevelActivationViolation } from "../cards/abilities/classLevels";
+import { activationPreconditionViolation } from "./activationPrecondition";
 import { lethalDamageThreshold } from "./lethalDamage";
 import {
     getEffectivePower,
@@ -587,14 +588,13 @@ function activationsInFlight(
  *  through the one door closing issue #1920 does not shut.
  *
  *  Every remaining check is FAIL CLOSED — an option this function cannot prove
- *  is live scores no flexibility. The first four are properties of the ability
+ *  is live scores no flexibility. The first three are properties of the ability
  *  itself, so they apply announced or not:
  *
  *    * `activateFromHand` / `activateFromGraveyard` (CR 113.6) — the ability
  *      functions from another zone, so it is not an option this permanent offers.
- *    * `canActivate` / `getTargetRequirement` — a runtime predicate this leaf
- *      heuristic does not evaluate, exactly as the move enumerator refuses to
- *      (`moves.ts`).
+ *    * `getTargetRequirement` — a dynamic target this leaf heuristic does not
+ *      evaluate, exactly as the move enumerator refuses to (`moves.ts`).
  *    * `activatableByOpponentsOnly` (CR 602.1) — an ability only the OPPONENT
  *      may activate is not this player's option to hold.
  *
@@ -603,6 +603,9 @@ function activationsInFlight(
  *  in-flight clause exists to credit (its `oncePerTurn` tally is already
  *  incremented, its `{T}` source already tapped):
  *
+ *    * a `canActivate` closure that fails (CR 602.5), evaluated through
+ *      `activationPreconditionViolation` — the predicate the enumerator and
+ *      the mutation share (issue #3441).
  *    * `oncePerTurn` already used (CR 602.5) and an already-animated
  *      `animatesSelf` manland (CR 611.1) — spent options, not held ones.
  *    * `controllerTurnOnly` off-turn — not activatable in the very window the
@@ -635,7 +638,7 @@ function hasFlexibleActivation(
     for (const { ability } of abilities) {
         if (!isDeferrableStackAbility(ability)) continue;
         if (ability.activateFromHand || ability.activateFromGraveyard) continue;
-        if (ability.canActivate || ability.getTargetRequirement) continue;
+        if (ability.getTargetRequirement) continue;
         // CR 602.1 — "Only your opponents may activate this ability" (Clergy of
         // the Holy Nimbus). It is not an option THIS player holds at all, and
         // `enumerateMoves` offers them none; without this gate the term credited
@@ -645,6 +648,15 @@ function hasFlexibleActivation(
         if (ability.activatableByOpponentsOnly) continue;
         if (!isFreeToHoldCost(ability.cost)) continue;
         if (inFlight.has(ability.id)) return true;
+        // CR 602.5 (issue #3441) — the printed restriction, through the SAME
+        // predicate `enumerateAbilityMoves` and the mutation read: a closure
+        // that currently fails is not an option held, one that holds is.
+        // AVAILABILITY, so after the in-flight credit: a per-turn cap closure
+        // (Phyrexian Battleflies' "no more than twice") already counts the
+        // announced activation, exactly as `oncePerTurn` does.
+        if (activationPreconditionViolation(state, perm, ability) !== null) {
+            continue;
+        }
         if (
             ability.oncePerTurn &&
             (perm.activationsThisTurn?.[ability.id] ?? 0) > 0

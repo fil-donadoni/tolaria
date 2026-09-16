@@ -542,6 +542,7 @@ export {
     tryAutoCommitPendingActivation,
     tryAutoCommitPendingCast,
 } from "./gre/activation";
+import { activationPreconditionViolation } from "./gre/activationPrecondition";
 import {
     activateAbilityOnState,
     assertActivationTimingLegal,
@@ -2868,9 +2869,8 @@ export function beginNonStackFilterCostActivation(
     // CR 602.5 / 602.5b — the same timing and precondition gates every other
     // activation entry point runs before cost lock.
     assertActivationTimingLegal(state, card, ability);
-    if (ability.canActivate && !ability.canActivate(card, state)) {
-        throw new Error("Ability cannot be activated right now");
-    }
+    const precondition = activationPreconditionViolation(state, card, ability);
+    if (precondition !== null) throw new Error(precondition);
     // CR 302.1 — a {T} leg needs an untapped, non-summoning-sick source.
     if (ability.cost.tap) {
         if (card.isTapped) throw new Error("Card is already tapped");
@@ -5637,12 +5637,12 @@ export function finalizeTargetSelection(
                 throw new Error("Not enough counters to pay activation cost");
             }
         }
-        if (
-            ability.canActivate !== undefined &&
-            !ability.canActivate(card, state)
-        ) {
-            throw new Error("Ability cannot be activated right now");
-        }
+        const precondition = activationPreconditionViolation(
+            state,
+            card,
+            ability
+        );
+        if (precondition !== null) throw new Error(precondition);
         // CR 602.1 / 118.5 — "sacrifice a permanent matching <filter>": illegal
         // if no matching permanent is on the activating player's battlefield.
         if (ability.cost.sacrificeFilter) {
