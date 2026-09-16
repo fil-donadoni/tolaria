@@ -19,11 +19,11 @@ import {
 /**
  * The whole corpus the lock decides: the blade registry's derived verdicts
  * first, then the locked verdicts in lock order, with the registry's gaps
- * carried through — the same shape, and the same reason for the order, as
- * `verdictCorpus` over files.
+ * carried through. Registry first, so a report reads the derived verdicts as
+ * one contiguous block in registry order.
  *
- * `payloads` has NO DEFAULT, for the reason `verdictCorpus`'s `files` has
- * none: a caller that forgot to fetch would otherwise get a registry-only
+ * `payloads` has NO DEFAULT: a caller that forgot to fetch would otherwise
+ * get a registry-only
  * corpus that looks like nobody judged anything. Here it would throw anyway
  * for any non-empty lock; an empty lock with `[]` is a real, empty corpus.
  */

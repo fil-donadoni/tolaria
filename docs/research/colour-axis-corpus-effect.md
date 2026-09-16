@@ -104,6 +104,11 @@ caring about, which is the vacuous heuristic issue #2306 exists to kill.
 provenance of the committed vector and must stay reproducible from git, while
 `data/verdicts/**` is a pulled artefact (`bun run verdicts:pull`).
 
+> As of issue #3584 that knob is gone with the directory it read:
+> `BLADE_FIT_FILES` and `verdicts:pull` are retired, the corpus lives in the
+> Verdict Store, and a fit reads the registry plus the committed Verdict Lock.
+> The numbers below stay as the record of the run.
+
 140 entries, 157 verdicts, 373 pairs, margin 100, λ 0.05, trust 0.5:
 
 - loss 3.0806 → 2.9593

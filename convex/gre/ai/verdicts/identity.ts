@@ -54,8 +54,7 @@
 // and the cost of not sorting it is at most a missed deduplication.
 //
 // Pure and dependency-free (the digest is `sha256.ts`, beside this file), so
-// the Convex bundle, the browser engine and the scripts compute the same name —
-// the constraint `fileSource.ts` documents for this directory.
+// the Convex bundle, the browser engine and the scripts compute the same name.
 
 import { sha256Hex } from "./sha256";
 import type { Verdict, VerdictAnswer } from "./types";

@@ -15,7 +15,6 @@ import {
     canonicalJson,
     evalPairsOf,
     lockedVerdictCorpus,
-    parseVerdictFile,
     parseVerdictLock,
     verdictIdOf,
     verdictsFromLock,
@@ -31,6 +30,58 @@ import {
     type VerdictSchema,
 } from "../verdicts";
 import { BLADE_SCENARIOS } from "../blade/registry";
+
+/** A real position with a real candidate list from the Bot's own enumerator
+ *  — the hand-authored verdict `data/verdicts/` carried until issue #3584. */
+const LETHAL_BOLT: VerdictJudgement = {
+    spec: {
+        cards: [
+            {
+                name: "Mountain",
+                owner: "me",
+                zone: "battlefield",
+            },
+            {
+                name: "Lightning Bolt",
+                owner: "me",
+                zone: "hand",
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "opp",
+                zone: "battlefield",
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        life: {
+            me: 20,
+            opp: 3,
+        },
+    },
+    seat: "me",
+    candidates: [
+        {
+            key: '{"kind":"pass"}',
+            description: "pass",
+        },
+        {
+            key: '{"kind":"cast-spell","cardInstanceId":"122","targets":[{"type":"permanent","id":"123"}],"confirmTargets":false,"tapPlan":[{"cardInstanceId":"121"}]}',
+            description: "cast Lightning Bolt → Grizzly Bears",
+        },
+        {
+            key: '{"kind":"cast-spell","cardInstanceId":"122","targets":[{"type":"player","id":"p1"}],"confirmTargets":false,"tapPlan":[{"cardInstanceId":"121"}]}',
+            description: "cast Lightning Bolt → Blade P1",
+        },
+        {
+            key: '{"kind":"cast-spell","cardInstanceId":"122","targets":[{"type":"player","id":"p2"}],"confirmTargets":false,"tapPlan":[{"cardInstanceId":"121"}]}',
+            description: "cast Lightning Bolt → Blade P2",
+        },
+    ],
+    answer: {
+        kind: "right",
+        rightIndexes: [3],
+    },
+};
 
 const JUDGEMENT: VerdictJudgement = {
     spec: { cards: [], phase: "PRECOMBAT_MAIN" },
@@ -407,27 +458,11 @@ describe("one lock, one corpus (issue #3578)", () => {
     });
 
     it("a locked verdict reaches the pair builder", () => {
-        // The authored lethal-Bolt position, stored the way the Verdict Store
-        // holds it: its judgement only, canonical, named by its hash.
-        const file = parseVerdictFile({
-            path: "data/verdicts/authored-lethal-bolt-to-the-face.json",
-            contents: readFileSync(
-                join(
-                    process.cwd(),
-                    "data/verdicts/authored-lethal-bolt-to-the-face.json"
-                ),
-                "utf8"
-            ),
-        });
-        const { spec, setup, seat, deckKnowledge, candidates, answer } = file;
-        const bolt = stored({
-            spec,
-            setup,
-            seat,
-            deckKnowledge,
-            candidates,
-            answer,
-        });
+        // The lethal-Bolt position (CR 104.3b: the opponent is at 3 and the
+        // Bolt deals 3), stored the way the Verdict Store holds it: its
+        // judgement only, canonical, named by its hash. Inlined since issue
+        // #3584 retired `data/verdicts/`, where it was the authored example.
+        const bolt = stored(LETHAL_BOLT);
 
         const verdict = lockedVerdictCorpus(
             lockOf([bolt.verdictId]),
@@ -436,8 +471,7 @@ describe("one lock, one corpus (issue #3578)", () => {
         ).verdicts[0];
         const out = evalPairsOf(verdict);
         expect(out.error).toBeUndefined();
-        // Four candidates, one of them right: three constraints — the same
-        // pairs the file arm yields for the same position.
+        // Four candidates, one of them right: three constraints.
         expect(out.pairs).toHaveLength(3);
         expect(out.pairs.every((p) => p.rightIndex === 3)).toBe(true);
     });

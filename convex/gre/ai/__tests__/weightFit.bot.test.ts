@@ -23,7 +23,6 @@
 // verdicts come from the machine pack cache, fetched once per lock on a miss
 // (ADR 0128 §10, `scripts/lib/verdict-pack-cache.ts`).
 import {
-    existsSync,
     mkdirSync,
     mkdtempSync,
     readFileSync,
@@ -39,16 +38,11 @@ import {
     putAttestation,
     putVerdict,
     readVerdict,
-    type VerdictStoreReader,
 } from "../../../verdictStore";
 import { createMemoryVerdictStore } from "../../../verdictStoreMemory";
-import {
-    loadLockedVerdicts,
-    packVerdicts,
-    verdictCacheDir,
-} from "../../../../scripts/lib/verdict-pack-cache";
-import { machineVerdictStoreReader } from "../../../../scripts/lib/verdict-store";
+import { packVerdicts } from "../../../../scripts/lib/verdict-pack-cache";
 import { runVerdictPromotionStep } from "../blade/verdictPromotion";
+import { committedVerdictCorpus } from "./committedVerdictCorpus.fixture";
 import { BLADE_SCENARIOS } from "../blade/registry";
 import { DEFAULT_EVAL_WEIGHTS, FIT_BASE_EVAL_WEIGHTS } from "../evalWeights";
 import {
@@ -57,7 +51,6 @@ import {
     VERDICT_LOCK_PATH,
     collectVerdictReport,
     fitWeights,
-    parseVerdictLock,
     rewriteDefaultEvalWeights,
     serializeVerdictLock,
     verdictPackObjectName,
@@ -71,34 +64,6 @@ import {
 import type { EvalTerms } from "../../evaluate";
 
 const REPO = resolve(__dirname, "../../../..");
-
-type CorpusSource = {
-    root: string;
-    cacheDir: string;
-    store: () => VerdictStoreReader;
-};
-
-/** The corpus the guard fits: the blade registry's verdicts, then those the
- *  committed lock names, verified against it. No lock, no locked verdicts. */
-async function committedCorpus(
-    source: CorpusSource = {
-        root: REPO,
-        cacheDir: verdictCacheDir(),
-        store: () => machineVerdictStoreReader(),
-    }
-): Promise<RegistryVerdicts> {
-    const registry = verdictsFromRegistry(BLADE_SCENARIOS);
-    const lockFile = join(source.root, VERDICT_LOCK_PATH);
-    if (!existsSync(lockFile)) return registry;
-    const { verdicts } = await loadLockedVerdicts(
-        parseVerdictLock(readFileSync(lockFile, "utf8")),
-        { cacheDir: source.cacheDir, store: source.store }
-    );
-    return {
-        verdicts: [...registry.verdicts, ...verdicts],
-        gaps: registry.gaps,
-    };
-}
 
 /** The guard's pipeline over a corpus: pairs at the prior, fit from it. */
 function guardFit(corpus: RegistryVerdicts) {
@@ -319,7 +284,7 @@ describe("fitWeights — the contract (issue #3401)", () => {
 
 describe("the committed weights ARE the fit of the committed verdicts (issue #3401)", () => {
     it("re-running the fit over the registry and the lock reproduces DEFAULT_EVAL_WEIGHTS", async () => {
-        const { errors, result } = guardFit(await committedCorpus());
+        const { errors, result } = guardFit(await committedVerdictCorpus());
         // A verdict the engine can no longer rebuild yields no pairs and would
         // shrink the corpus SILENTLY — the fit would still reproduce whatever
         // the smaller corpus says. The lockfile has to pin the input too.
@@ -362,7 +327,7 @@ describe("the guard's corpus is the registry, then the lock (issue #3583, ADR 01
                 join(root, VERDICT_LOCK_PATH),
                 serializeVerdictLock({ verdictIds: [verdictId], packHash })
             );
-            const corpus = await committedCorpus({
+            const corpus = await committedVerdictCorpus(BLADE_SCENARIOS, {
                 root,
                 cacheDir: join(root, "cache"),
                 store: () => store,

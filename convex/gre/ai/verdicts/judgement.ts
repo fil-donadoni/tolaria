@@ -1,14 +1,11 @@
 // The JUDGEMENT half of a stored Verdict, parsed (issue #3578, PRD #3574).
 //
-// Two readers turn untrusted JSON into a Verdict: the directory arm of
-// `fileSource.ts` (issue #3402), and the Verdict Lock's reader in
-// `lockSource.ts` (ADR 0128 §2). They differ in PROVENANCE — a file carries
-// its author and date, a Verdict Store object does not, because those live in
-// its attestations (ADR 0128 §4) — and agree on everything that IS the
-// judgement: `spec`, `setup`, `seat`, `deckKnowledge`, `candidates`,
-// `answer`. That shared part is parsed here, once, so the two readers can
-// never disagree about what a well-formed judgement is — and so the file
-// arm's removal (issue #3584) removes nothing the lock still needs.
+// The Verdict Lock's reader in `lockSource.ts` (ADR 0128 §2) turns untrusted
+// JSON into a Verdict. A Verdict Store object carries no author or date —
+// those live in its attestations (ADR 0128 §4) — only what IS the judgement:
+// `spec`, `setup`, `seat`, `deckKnowledge`, `candidates`, `answer`. That part
+// is parsed here. It was shared with the `data/verdicts/**` file reader until
+// issue #3584 retired the git corpus, which is why it has a module of its own.
 //
 // `spec` and `setup` are carried through UNVALIDATED beyond "is an object" /
 // "is an array": the scenario vocabulary and `BladeSetupStep` both grow, and a

@@ -22,7 +22,7 @@
 //     themselves first.
 import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { makeMutationCtx, runMutation, type Row } from "./gameMutationHarness";
-import { enqueueBulk, submit, list } from "../verdicts";
+import { enqueueBulk, submit } from "../verdicts";
 import { listUserRoles, setTesterRole } from "../users";
 import type { Id } from "../_generated/dataModel";
 
@@ -300,50 +300,6 @@ describe("verdicts.enqueueBulk — the migration's door (issue #3580)", () => {
         (ctx as unknown as { scheduler: unknown }).scheduler = { runAfter };
         await runMutation(enqueueBulk, ctx, { verdicts: [ENTRY] });
         expect(runAfter).not.toHaveBeenCalled();
-    });
-});
-
-describe("verdicts.list — admin only (issue #3402)", () => {
-    it("refuses a tester who is not an admin", async () => {
-        // Judging your own decision and reading everybody's judgements are
-        // different trusts; the export is an admin operation.
-        const { ctx } = makeMutationCtx("u-tester", ALL_USERS);
-        await expect(runMutation(list, ctx, {})).rejects.toThrow(
-            "Forbidden: admin only"
-        );
-    });
-
-    it("returns the stored rows to an admin, projected for the export", async () => {
-        const { ctx } = makeMutationCtx("u-admin", ALL_USERS);
-        await runMutation(submit, ctx, ARGS);
-        const rows = await runMutation<
-            Record<string, never>,
-            { author: string; seat: string; note?: string }[]
-        >(list, ctx, {});
-        expect(rows).toHaveLength(1);
-        expect(rows[0].author).toBe("Ada");
-        expect(rows[0].seat).toBe("me");
-        expect("note" in rows[0]).toBe(false);
-    });
-
-    it("omits a row the outbox has slimmed — it has no judgement left to export", async () => {
-        const slim: Row = {
-            _id: "verdicts-slim",
-            __table: "verdicts",
-            verdictHash: `v1-${"a".repeat(64)}`,
-            positionKey: `v1-${"b".repeat(64)}`,
-            author: "Ada",
-            createdAt: 1,
-            storedAt: 2,
-        };
-        const { ctx } = makeMutationCtx("u-admin", [...ALL_USERS, slim]);
-        await runMutation(submit, ctx, ARGS);
-        const rows = await runMutation<
-            Record<string, never>,
-            { _id: string }[]
-        >(list, ctx, {});
-        expect(rows.map((r) => r._id)).not.toContain("verdicts-slim");
-        expect(rows).toHaveLength(1);
     });
 });
 
