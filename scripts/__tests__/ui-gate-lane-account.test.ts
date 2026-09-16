@@ -12,7 +12,6 @@ import {
     convexRunArgv,
     createLaneLifecycle,
     installSignalTeardown,
-    laneScenarioSeeds,
     newLaneAccount,
     runScreenshotDir,
     SCREENSHOT_RETENTION_MS,
@@ -60,7 +59,6 @@ describe("the lane account lifecycle (issue #3626)", () => {
     it("sweeps, signs up, grants, then seeds its run-scoped fixtures — in that order", async () => {
         const { lane, account, calls } = harness();
         await lane.bootstrap();
-        const seeds = laneScenarioSeeds();
         expect(calls.slice(0, 5)).toEqual([
             "uiGateAccounts:sweepStaleLaneAccounts {}",
             `signUp ${account.email}`,
@@ -70,17 +68,44 @@ describe("the lane account lifecycle (issue #3626)", () => {
         ]);
         // Then the declared positions (issue #3652) — the payloads, not the
         // account, so they are the tail of the bootstrap and not part of the
-        // run-scoped block above.
-        expect(calls.slice(5)).toHaveLength(seeds.length);
+        // run-scoped block above. WHICH positions is the next test's job.
+        expect(calls.slice(5).length).toBeGreaterThan(0);
+        expect(
+            calls
+                .slice(5)
+                .every((c) =>
+                    c.startsWith("debugScenarios:seedScenarioDirect ")
+                )
+        ).toBe(true);
         expect(lane.labels.open.startsWith(lane.labels.prefix)).toBe(true);
         expect(lane.labels.prefix).toBe(`ui-gate/${account.runId}/`);
     });
 
-    it("seeds every declared position the game surfaces load (issue #3652)", async () => {
-        // A payload added to `SCENARIO_FILES` and never seeded reaches the run
-        // as `debug scenario "…" is absent from this deployment` — an UNWALKED
-        // surface on a machine that has not hand-seeded it, which is a coverage
-        // hole rather than a failure anyone can attribute.
+    it("seeds every scenario label the walks will search for (issue #3652)", async () => {
+        // THE ORACLE IS THE RUNNER, not `laneScenarioSeeds()`. Comparing the
+        // bootstrap's calls against the very list that produced them is a test
+        // that cannot fail — proved: dropping a payload from `SCENARIO_FILES`
+        // left the first draft of this assertion green.
+        //
+        // What is independent is the label each WALK types into the Scenarios
+        // search box (`ensureScenarioBoard`), declared as a
+        // `*_SCENARIO_LABEL` constant in `scripts/ui-gate/index.ts` and handed
+        // to the walks on `WalkContext`. A position that stops being seeded
+        // reds here while its surface still goes looking for the row — which
+        // is the failure this guards: `debug scenario "…" is absent from this
+        // deployment`, an UNWALKED surface and a coverage hole.
+        //
+        // Read as TEXT, like `ui-gate-stress-scenario.test.ts` does: the
+        // runner owns a live browser and a Vite server at module scope.
+        const runner = fs.readFileSync(
+            path.join(__dirname, "../ui-gate/index.ts"),
+            "utf8"
+        );
+        const wanted = [
+            ...runner.matchAll(/const \w*SCENARIO_LABEL\s*=\s*("[^"]*")/g),
+        ].map((m) => JSON.parse(m[1]) as string);
+        expect(wanted.length).toBeGreaterThan(0);
+
         const { lane, calls } = harness();
         await lane.bootstrap();
         const seeded = calls
@@ -93,8 +118,7 @@ describe("the lane account lifecycle (issue #3626)", () => {
                         ) as { label: string }
                     ).label
             );
-        expect(seeded).toEqual(laneScenarioSeeds().map((s) => s.label));
-        expect(lane.labels.prefix).toContain("ui-gate/");
+        expect([...seeded].sort()).toEqual([...wanted].sort());
     });
 
     it("tears down on the happy path", async () => {
