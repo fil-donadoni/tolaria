@@ -337,7 +337,7 @@ describe("a local resolution forwards the same way (issue #3745)", () => {
         acceptedVerdictId: resolution.acceptedVerdictId,
         rejected: resolution.rejected,
         resolverAuthor: resolution.author,
-        createdAt: resolution.createdAt,
+        createdAt: resolution.createdAt as number,
         note: resolution.note,
         deployment: resolution.deployment as string,
         deploymentKind: "local",
