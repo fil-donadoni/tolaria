@@ -286,6 +286,50 @@ describe("token-created replacement (CR 111.1 / 614, issue #3230)", () => {
     });
 });
 
+describe("placement is not creation (issue #3230 review)", () => {
+    it("`placement` skips BOTH count replacements: the token count and its entry counters are exactly the spec's", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        permanent(TOKEN_DOUBLER_ID, "doubler1", "p1"),
+                        permanent(COUNTER_ADDER_ID, "adder1", "p1"),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const incubated: TokenSpec = {
+            ...SOLDIER,
+            entersWith: { counters: [{ type: "+1/+1", count: 2 }] },
+        };
+        const ids = createTokenPermanents(
+            state,
+            incubated,
+            "p1",
+            1,
+            undefined,
+            {
+                placement: true,
+            }
+        );
+        expect(ids).toHaveLength(1);
+        const token = state.players[0].battlefield.find(
+            (c) => c.id === ids[0]
+        )!;
+        expect(token.counters).toEqual({ "+1/+1": 2 });
+
+        // Control: the same call as a real CREATION runs both.
+        const created = createTokenPermanents(state, incubated, "p1", 1);
+        expect(created).toHaveLength(2);
+        for (const id of created) {
+            expect(
+                state.players[0].battlefield.find((c) => c.id === id)!.counters
+            ).toEqual({ "+1/+1": 3 });
+        }
+    });
+});
+
 describe("counter-placed replacement (CR 122.1 / 614, issue #3230)", () => {
     it("adds one to every +1/+1 placement on a creature its controller controls", () => {
         const bear = permanent(BEAR_ID, "bear", "p1");

@@ -7820,6 +7820,14 @@ export function applyEntersWithCounters(
          *  board too, and coupling the two made the `fromCreatingEffect`
          *  carve-out silently unenforceable. */
         deferEvents?: boolean;
+        /** A debug/preset board PLACING a permanent that already exists, not an
+         *  event putting counters on it (issue #3230 review) — skips the
+         *  CR 614 `"counter-placed"` replacements. A staged board is a
+         *  snapshot of a game in progress: its counters are what the spec
+         *  says, and re-running a Michelangelo-style "+1" at every load would
+         *  compound on each save → reload round trip (`specFromState`). Set
+         *  only by `createTokenPermanents`'s own `placement` opt. */
+        placement?: boolean;
     }
 ): Record<string, number> {
     const delta = resolveEntersWithCounters(def, cast);
@@ -7851,7 +7859,7 @@ export function applyEntersWithCounters(
     // trigger and a "whenever counters are put on" trigger both see the real
     // number. `state` is absent only on the pure-fixture probe path (see the
     // parameter's own doc) — with no board there is no replacement to find.
-    if (state) {
+    if (state && !opts?.placement) {
         for (const type of types) {
             delta[type] = applyCounterPlacedReplacements(state, {
                 kind: "counter-placed",
@@ -19219,6 +19227,14 @@ export function buildSpellContext(
                 { copyOf: { source: copySource, copyOpts: opts } }
             );
             if (tokenId === undefined) return undefined;
+            // Issue #3230 — a CR 614 `"token-created"` replacement (Elspeth,
+            // Storm Slayer) can make this ONE requested copy into several. Every
+            // copy is fully created and entered by the call above; only the
+            // FIRST id is returned and reverse-linked below, because the return
+            // type and `linkedTokenId` both hold one. So a creator whose
+            // leave-linkage names "the token" (Dance of Many) tracks the first
+            // copy of a doubled pair only — recorded in
+            // docs/findings/3230-doubled-token-copy-links-only-the-first.md.
             // CR 603.10 — bind the creator to its token (both directions) so the
             // creator's leave-linkage triggers can identify the exact token by
             // id after it has left the battlefield. The token already records
@@ -22855,7 +22871,19 @@ export function createTokenPermanents(
      *  announcement and re-emit it after copying. With the copy applied before
      *  entry there is no placeholder to announce — `finishTokenEntry` emits the
      *  real thing, in the one place every other token announces from. */
-    opts?: { copyOf?: { source: CopySource; copyOpts?: CopyOptions } }
+    opts?: {
+        copyOf?: { source: CopySource; copyOpts?: CopyOptions };
+        /** A debug/preset board PLACING tokens that already exist (issue #3230
+         *  review, `scenarioBuilder.placeScenarioTokens`) rather than an effect
+         *  CREATING them. Skips both CR 614 count replacements — the
+         *  `"token-created"` one here and the `"counter-placed"` one at the
+         *  entry-counter seam — because a staged board is a snapshot whose
+         *  token count and counters are exactly what the spec says. Without it
+         *  an Elspeth, Storm Slayer listed before a token entry doubles that
+         *  entry, and `specFromState` → reload doubles it again on every round
+         *  trip. Every real creation leaves it unset. */
+        placement?: boolean;
+    }
 ): string[] {
     const owner = getPlayer(state, controllerId);
     // CR 111.1 / 614 (issue #3230) — the token-CREATION replacement chokepoint
@@ -22872,7 +22900,7 @@ export function createTokenPermanents(
     // creation at all, so the event does not fire and the loop below is a no-op
     // exactly as before.
     let effectiveCount = count;
-    if (effectiveCount > 0) {
+    if (effectiveCount > 0 && !opts?.placement) {
         effectiveCount = applyTokenCreatedReplacements(state, {
             kind: "token-created",
             controllerId,
@@ -23060,14 +23088,18 @@ export function createTokenPermanents(
                   tryGetDefinition(presentedDefId(token)) ?? undefined,
                   { manaSpentToCast: {} },
                   state,
-                  { deferEvents: true }
+                  { deferEvents: true, placement: opts?.placement }
               )
             : applyEntersWithCounters(
                   token,
                   { entersWith: spec.entersWith },
                   { manaSpentToCast: {} },
                   state,
-                  { fromCreatingEffect: true, deferEvents: true }
+                  {
+                      fromCreatingEffect: true,
+                      deferEvents: true,
+                      placement: opts?.placement,
+                  }
               );
         // CR 614 (issue #1148) — enters-the-battlefield replacement chokepoint.
         const enterDestination = enterBattlefieldDestinationFor(

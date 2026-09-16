@@ -11842,17 +11842,25 @@ export interface TokenCreatedReplacementEvent {
  *  (CR 122.1). The Hardened Scales / Corpsejack Menace / Michelangelo,
  *  Weirdness to 11 family intercepts this and rewrites `count`.
  *
- *  Fired at the TWO seams that put counters on a permanent, both routed
- *  through the single `applyCounterPlacedReplacements` helper
- *  (`gre/replacements.ts`) so neither can drift: `addCounterToCard`
- *  (`gre/state.ts` — the shared low-level mutator behind the DSL `counters`
- *  Op, `SpellContext.addCounter`, the infect/wither damage form and every
- *  keyword action that places counters) and `applyEntersWithCounters`
- *  (`gre/state.ts` — the CR 614.1c "enters with N counters" declaration, which
- *  writes `card.counters` directly and therefore cannot route through the
- *  mutator). A creature entering with +1/+1 counters IS having counters put on
- *  it, so the family applies there too — two replacement effects on one event,
- *  ordered by CR 616.1.
+ *  Fired at the TWO seams that put counters on a permanent through the
+ *  general counter path, both routed through the single
+ *  `applyCounterPlacedReplacements` helper (`gre/replacements.ts`) so neither
+ *  can drift: `addCounterToCard` (`gre/state.ts` — the shared low-level mutator
+ *  behind the DSL `counters` Op, `SpellContext.addCounter` and the
+ *  infect/wither damage form) and `applyEntersWithCounters` (`gre/state.ts` —
+ *  the CR 614.1c "enters with N counters" declaration, which writes
+ *  `card.counters` directly and therefore cannot route through the mutator). A
+ *  creature entering with +1/+1 counters IS having counters put on it, so the
+ *  family applies there too — two replacement effects on one event, ordered by
+ *  CR 616.1.
+ *
+ *  NOT ROUTED, stated so the next family member does not assume otherwise:
+ *  LOYALTY is written straight onto `card.counters` by `payLoyaltyCost`
+ *  (`gre/loyalty.ts`, a +N loyalty cost) and by the planeswalker entry sites
+ *  that stamp starting loyalty (`gre/state.ts`). Neither shipped consumer can
+ *  observe that — both scope to +1/+1 counters on creatures — but a
+ *  loyalty-counting doubler must route those sites here first, and a
+ *  debug/preset board's `placement` deliberately skips this event too.
  *
  *  Never cancels, for the same reason the token event does not: "no counters
  *  are put on it" is `count: 0`. */
