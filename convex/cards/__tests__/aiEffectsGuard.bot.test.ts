@@ -312,19 +312,27 @@ describe("aiEffects shadow-script guard — ability-level resolve() (issue #1519
 // effect. #1436 already rules that a card the classifier reports
 // FREE-migratable must be MIGRATED, not shadowed.
 //
-// TWO rows are NOT #1436's and are filed against issue #3383 instead, because
-// nothing in the resolve()-residue backfill will ever reach them: Rainbow
-// Vale, whose delayed trigger is armed DECLARATIVELY by
-// `armsDelayedTriggerOnTap` (ADR 0040) from a mana ability with no `resolve()`
-// at all, and Planeswalker's Mischief, whose scheduling ability already
-// carries a really-walked `aiEffects`.
+// TWO rows are NOT #1436's, because nothing in the resolve()-residue backfill
+// will ever reach them: Rainbow Vale, whose delayed trigger is armed
+// DECLARATIVELY by `armsDelayedTriggerOnTap` (ADR 0040) from a mana ability
+// with no `resolve()` at all, and Planeswalker's Mischief, whose scheduling
+// ability already carries a really-walked `aiEffects`.
 //
-// Issue #3383 is the standing gap this list cannot close by itself: the value
-// model walks `delayedTriggers[]` NOT AT ALL, so a real `effects[]` on a
-// template is worth zero too (7 templates already carry one — Mishra's
-// Bauble's whole point is its delayed `draw`, and the bot prices the card as
-// if the draw did not exist). Until that reader exists, migrating a row here
-// to `effects[]` is an engine improvement and a bot no-op.
+// Issue #3383 CLOSED the gap this list could not close by itself: the value
+// model now walks `delayedTriggers[]` (`gre/ai/cardScriptValue.ts`,
+// `delayedTriggerTemplateOpValue`), so migrating a row here to `effects[]` is
+// no longer a bot no-op — a capture-free body on a card carrying no
+// `aiEffects` shadow is valued, un-discounted, through the same `OP_VALUERS`
+// an ability script walks. Which is exactly why the two rows above STAY, and
+// for the reader's own exclusion reasons rather than for a missing reader:
+//   * Rainbow Vale's template is `resolve()`-only, and its body hands the land
+//     to the OPPONENT — a drawback the reader would have to sign correctly
+//     before it could be valued at all;
+//   * Planeswalker's Mischief carries the `aiEffects` shadow that already
+//     prices its whole scheduling resolution, so valuing its template on top
+//     would double-count.
+// Both exclusions are predicates in `cardScriptValue.ts`, pinned card by card
+// over the catalogue in `gre/ai/__tests__/delayedTriggerTemplateValue.bot.test.ts`.
 //
 // The guard's job is forward-looking: a NEW delayed trigger may not ship on a
 // card the value model cannot see, and a row that stops matching reality
@@ -361,9 +369,9 @@ describe("aiEffects shadow-script guard — delayedTriggers[] residue (issue #14
             // field to gain (deleted as dead data, issue #2020), so `tsc`
             // rejects the shape before a test could. What DOES retire a row is
             // the assertion below (owning card gained an `aiValue`) or
-            // `isResolveOnlyAbility` (template gained a real `effects[]` —
-            // worth doing for the engine, though it buys the BOT nothing until
-            // issue #3383).
+            // `isResolveOnlyAbility` (template gained a real `effects[]`,
+            // which since issue #3383 buys the bot something too — the value
+            // model reads a capture-free template body).
             expect(
                 isResolveOnlyAbility(trigger!),
                 `${describeOffender(row)} gained effects[] — stale row, prune with ${REGENERATE}`

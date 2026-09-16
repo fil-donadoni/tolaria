@@ -353,9 +353,11 @@ export const planeswalkersMischief: CardDefinition = {
             // cast, so the opportunity the SCHEDULING ability's own
             // really-walked `aiEffects` prices (via `gre/ai/candidateValue.ts`)
             // is already gone, and handing the card back only restores the
-            // status quo. The standing gap — the value model walking
-            // `delayedTriggers[]` at all, template `effects[]` included — is
-            // issue #3383.
+            // status quo. The value model DOES walk `delayedTriggers[]` since
+            // issue #3383 — but only a template with a real `effects[]` on a
+            // card carrying no `aiEffects` shadow, and this card is neither:
+            // the shadow above already prices the whole scheduling
+            // resolution, so valuing the template too would double-count.
         },
     ],
 };

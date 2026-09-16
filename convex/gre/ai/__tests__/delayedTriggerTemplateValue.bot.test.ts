@@ -17,7 +17,12 @@
 import { describe, it, expect } from "vitest";
 import { getAllCards } from "../../../cards/index";
 import type { CardDefinition, EffectOp } from "../../../cards/types";
-import { dslAbilityScriptOpValue } from "../cardScriptValue";
+import {
+    carriesSpellOrAbilityScript,
+    dslAbilityScriptOpValue,
+} from "../cardScriptValue";
+import { noncreatureCardWorth } from "../candidateValue";
+import { cardValueById } from "../../cardValue";
 import { contextFreeGrounding } from "../grounding";
 import { valueEffectScript } from "../opValuers";
 
@@ -214,5 +219,47 @@ describe("delayed-trigger TEMPLATE valuation (CR 603.7a, issue #3383)", () => {
                 ).toEqual(abilitiesOnly);
             }
         }
+    });
+});
+
+describe("where the template's value LANDS (issue #3383)", () => {
+    /** A hand instance of `def`, as the wire projection leaves it: the fat
+     *  `card` blob stripped to its registry id, which is what every value
+     *  reader is required to re-derive the definition from. */
+    function handInstance(def: CardDefinition) {
+        return {
+            id: `instance-${def.id}`,
+            card: { id: def.id },
+            types: def.types,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+            staticAbilities: [],
+        } as unknown as Parameters<typeof noncreatureCardWorth>[0];
+    }
+
+    it("the candidate pool keeps its no-script floor UNDER a template-only card and adds the template on top", () => {
+        const bauble = cardNamed("Mishra's Bauble");
+        // The premise of the floor branch: the reader has read the template and
+        // NOTHING else on the card (its ability is a `resolve()`).
+        expect(carriesSpellOrAbilityScript(bauble)).toBe(false);
+        const blank = cardNamed("Tormod's Crypt");
+        expect(carriesSpellOrAbilityScript(blank)).toBe(false);
+        // A blank {0} artifact sits at the flat no-script prior; the Bauble
+        // must sit STRICTLY above it, never below — dropping the floor for a
+        // partially-read card priced it at 6.4 against the blank's 30.
+        const blankWorth = noncreatureCardWorth(handInstance(blank));
+        const baubleWorth = noncreatureCardWorth(handInstance(bauble));
+        expect(baubleWorth).toBeGreaterThan(blankWorth);
+    });
+
+    it("the leaf evaluator's latent worth rises for a template-only noncreature, by the discounted template value", () => {
+        const bauble = cardNamed("Mishra's Bauble");
+        const blank = cardNamed("Tormod's Crypt");
+        // Same type, same mana value ({0} artifacts) — so the ONLY difference
+        // the latent core can see is the delayed draw.
+        expect(cardValueById(bauble.id)).toBeGreaterThan(
+            cardValueById(blank.id)
+        );
     });
 });
