@@ -106,7 +106,8 @@ function boardWith(walker: string, loyalty?: number): ScenarioSpec {
             // greater", CR 202.3) has nothing to point at on a board of
             // one-drops, and this sweep measures the ENUMERATION gate, not
             // target legality (which correctly suppresses an ability with no
-            // legal target, CR 601.2c).
+            // legal target — CR 601.2c, which CR 602.2b applies verbatim to
+            // activating an ability).
             {
                 name: "Serra Angel",
                 owner: "opp",
