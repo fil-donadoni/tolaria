@@ -124,10 +124,12 @@ import {
     finiteManaCounterLeg,
     finiteManaUsesRemaining,
     manaGateBattlefields,
+    manaTapOptionSpendsUnplannedResource,
     manaTapSpendsFiniteUse,
     mayHaveNonTapManaAbility,
     mayRemoveCountersForMana,
     pureGenericManaSubCost,
+    type ManaTapPlanContext,
 } from "./constants";
 import {
     getRequiredAttackerIds,
@@ -668,6 +670,23 @@ type PlanOption =
           generic: number;
           produces?: ManaCost;
       }
+    /** The permanent taps ITSELF through an ability whose cost carries more
+     *  than the tap — Arena of Glory's "{R}, {T}, Exert this land: Add {R}{R}"
+     *  (issue #3359). Emitted as a PLAIN `ManaTap` carrying the option's
+     *  `manaChoiceIndex`, because that is exactly how the server executes it:
+     *  `tapSourceIntoPayment` resolves the index against the same unified
+     *  option list and pays the whole cost (`applyManaAbilityManaCost` +
+     *  `applyManaAbilityExertCost`). `leg` is the option's OWN normalized mana
+     *  cost, funded from OTHER plain sources whose taps this planner orders
+     *  first; the remaining legs are the ones the tap itself executes. Reached
+     *  only for an option `manaTapOptionSpendsUnplannedResource` admits for
+     *  THIS plan, so a resource is never spent for nothing. */
+    | {
+          via: "costed-tap";
+          manaChoiceIndex?: number;
+          leg: Record<string, number>;
+          produces?: ManaCost;
+      }
     /** ANOTHER permanent's `tapOtherFilter` mana ability (Urza, Lord High
      *  Artificer) taps THIS one as its cost. The mana belongs to the
      *  permanent that gets tapped — see `manaConverters.ts` for why that is
@@ -744,6 +763,42 @@ const TAP_YIELD_CREDITABLE_COST_LEGS: ReadonlySet<string> = new Set([
     "sacrifice",
     "removeCounter",
 ]);
+
+/** Cost legs a `{T}` mana activation may carry and still be PLANNABLE as a
+ *  COSTED option (issue #3359). A superset of
+ *  {@link TAP_YIELD_CREDITABLE_COST_LEGS}, which asks a different question:
+ *  that set is what the emitted tap pays ON ITS OWN, this one is what the tap
+ *  pays once THIS PLANNER has done its part. Exactly two legs are added, and
+ *  each is added because something now pays it:
+ *
+ *   - `mana` — funded by `fundManaLegFromPlain` below, whose taps are pushed
+ *     BEFORE this entry so the pool already covers the activation when
+ *     `tapSourceIntoPayment` charges it (`applyManaAbilityManaCost`).
+ *   - `exertThis` — paid by all three `applyTapPlan` copies through
+ *     `manaTapExertsSource` / `payExertActivationCost`, the same authority the
+ *     mutation's `applyManaAbilityExertCost` uses.
+ *
+ *  DENY-BY-DEFAULT over the cost's own keys, like its sibling: a leg added to
+ *  `ActivatedAbility["cost"]` later is excluded until someone reviews it here,
+ *  and an excluded leg simply falls back to the one-mana plain-tap realisation
+ *  — never a plan the server refuses. Plannable is NOT sufficient on its own:
+ *  the option must ALSO be one `manaTapOptionSpendsUnplannedResource` admits
+ *  for this plan, which is what keeps the legs from being spent for nothing. */
+const COSTED_TAP_PLANNABLE_COST_LEGS: ReadonlySet<string> = new Set([
+    ...TAP_YIELD_CREDITABLE_COST_LEGS,
+    "mana",
+    "exertThis",
+]);
+
+/** True when every leg of this `{T}` mana activation's cost is one the planner
+ *  can pay — see {@link COSTED_TAP_PLANNABLE_COST_LEGS}. */
+function tapActivationCostIsPlannable(ability: ActivatedAbility): boolean {
+    for (const [leg, value] of Object.entries(ability.cost)) {
+        if (value === undefined || value === false) continue;
+        if (!COSTED_TAP_PLANNABLE_COST_LEGS.has(leg)) return false;
+    }
+    return true;
+}
 
 /** True when the whole cost of a `{T}` mana activation is paid by the tap the
  *  plan already emits, so the activation's ENTIRE yield is really available.
@@ -826,7 +881,11 @@ function isPlainTapSource(
  *  option on a board with no such ability ranks 0, so ordinary boards keep
  *  byte-identical source selection. */
 function planOptionRank(source: PlanSource, color: Color): number {
-    return source.options.get(color)?.via === "mana-cost" ? 1 : 0;
+    // Issue #3359 — a `costed-tap` realisation burns another source to fund its
+    // own mana leg exactly as `mana-cost` does, so it ranks with it: a
+    // self-sufficient source covers the pip first whenever one is available.
+    const via = source.options.get(color)?.via;
+    return via === "mana-cost" || via === "costed-tap" ? 1 : 0;
 }
 
 /** Greedy tap plan covering a normalized mana cost (CR 601.2f). Returns the
@@ -865,6 +924,14 @@ export function planManaPayment(
         cardInstanceId: string;
         cardDef: CardDefinition | null | undefined;
         chosenX?: number;
+        /** CR 702.103b (issue #3359) — this cast is a BESTOW cast, so the spell
+         *  is an Aura and not a creature spell. It is the one fact about the
+         *  cast that `cardDef` cannot answer, and the plan context below needs
+         *  it: `manaRiderStackStamps` drops `dynamicHasteFromMana` for a
+         *  bestowed cast, so a planner without this flag would pay an exert and
+         *  a mana leg for a rider the stack item then discards — the same gate
+         *  `autoTapForPayment` (`convex/game.ts`) applies on the human path. */
+        bestowed?: boolean;
     },
     /** CR 602.1 / 609.4b (issue #2944) — the permanent whose ACTIVATED ability
      *  this plan pays for, when there is one. Mutually exclusive with `cast` by
@@ -934,6 +1001,51 @@ export function planManaPayment(
     const boardBattlefields = manaGateBattlefields(state);
     /** Issue #3530 — the `spend` half of the policy, read once. */
     const preferFinite = finiteSourcePolicy === "spend";
+
+    /** CR 106.6 / 601.2g (issue #3359) — what this mana is about to be spent
+     *  on, in the SAME shape `autoTapForPayment` (`convex/game.ts`) builds for
+     *  the HUMAN auto-tap solver. Both automatic planners then ask ONE
+     *  authority (`manaTapOptionSpendsUnplannedResource`) whether a costed mana
+     *  option may be taken, so the Bot and the human-facing solver can no
+     *  longer disagree about which options an automatic planner is allowed to
+     *  spend a resource on.
+     *
+     *  Built LAZILY and at most once per call: only the costed-option branch
+     *  below asks for it, and no option on an ordinary board — every land,
+     *  every `{T}` rock — ever reaches that branch. With no `cast` there is no
+     *  context at all, which is the byte-identical pre-issue answer for an
+     *  activation, a morph and every other payment. */
+    let planContextMemo: { value: ManaTapPlanContext | undefined } | undefined;
+    const planContext = (): ManaTapPlanContext | undefined => {
+        if (!planContextMemo) {
+            planContextMemo = {
+                value: cast
+                    ? {
+                          payingForCreatureSpell:
+                              !cast.bestowed &&
+                              (cast.cardDef?.types.includes("Creature") ??
+                                  false),
+                          spellAlreadyHasHaste:
+                              cast.cardDef?.staticAbilities?.includes(
+                                  "haste"
+                              ) ?? false,
+                          // CR 609.4b — the ABILITY payment's own substitution
+                          // set, never this cast's: a cast-scoped permission
+                          // (North Star, Robber of the Rich) never reaches a
+                          // mana ability's activation cost, so validating the
+                          // option's leg with it would admit a plan
+                          // `applyManaAbilityManaCost` then refuses.
+                          abilityManaSubstitutions: getAbilityManaSubstitutions(
+                              state,
+                              player.id,
+                              undefined
+                          ),
+                      }
+                    : undefined,
+            };
+        }
+        return planContextMemo.value;
+    };
 
     const sources: PlanSource[] = [];
     /** Upper bound on the mana this board can produce — one activation per
@@ -1112,6 +1224,11 @@ export function planManaPayment(
                     // that finds nothing falls back to one mana.
                     const produces = explicitYield(opt.mana);
                     let creditable: ManaCost | undefined;
+                    /** Issue #3359 — the option's OWN normalized mana leg, set
+                     *  only for a COSTED option this plan is allowed to take.
+                     *  `{}` is a real value (an exert-only cost has no mana
+                     *  leg); `undefined` means "not a costed realisation". */
+                    let costedLeg: Record<string, number> | undefined;
                     if (produces) {
                         const resolved =
                             src.kind === "basic"
@@ -1129,8 +1246,51 @@ export function planManaPayment(
                                 : !!resolved &&
                                   tapActivationExecutesWholeCost(resolved);
                         if (whole) creditable = produces;
+                        // CR 601.2g / 106.6 (issue #3359) — the option whose
+                        // cost the tap does NOT execute on its own: Arena of
+                        // Glory's "{R}, {T}, Exert this land: Add {R}{R}". It
+                        // used to fall straight through to the one-mana
+                        // fallback, so the Bot could not reach the second half
+                        // of the card at all. It is reachable now under TWO
+                        // conditions, and both are needed:
+                        //
+                        //   * every leg is one this planner pays
+                        //     (`tapActivationCostIsPlannable`) — deny-by-
+                        //     default, so an unfunded leg still falls back to
+                        //     one mana rather than becoming a plan the server
+                        //     rejects (the issue #3027 review finding);
+                        //   * the SHARED admission authority says this plan may
+                        //     spend those legs — i.e. the plan is reaching for
+                        //     what they buy. Same call, same context shape the
+                        //     human auto-tap solver makes, so a resource is
+                        //     never spent for nothing and the two planners
+                        //     cannot drift.
+                        else if (
+                            resolved &&
+                            tapActivationCostIsPlannable(resolved) &&
+                            !manaTapOptionSpendsUnplannedResource(
+                                perm,
+                                src,
+                                planContext()
+                            )
+                        ) {
+                            costedLeg = resolved.cost.mana
+                                ? normalizeManaCost(resolved.cost.mana)
+                                : {};
+                        }
                     }
-                    realisation = plainTapOption(manaChoiceIndex, creditable);
+                    realisation =
+                        costedLeg === undefined
+                            ? plainTapOption(manaChoiceIndex, creditable)
+                            : {
+                                  via: "costed-tap",
+                                  manaChoiceIndex,
+                                  leg: costedLeg,
+                                  // GROSS yield: the leg is funded separately
+                                  // below, which nets to exactly what the
+                                  // payment really produces.
+                                  ...(produces ? { produces } : {}),
+                              };
                 } else {
                     const generic = pureGenericManaSubCost(
                         ability.cost.mana ?? {}
@@ -1157,10 +1317,29 @@ export function planManaPayment(
                 }
                 let stored = false;
                 for (const c of MANA_COLORS) {
-                    if ((opt.mana[c] ?? 0) > 0 && !options.has(c)) {
-                        options.set(c, realisation);
-                        stored = true;
+                    if ((opt.mana[c] ?? 0) <= 0) continue;
+                    const held = options.get(c);
+                    // FIRST option wins — except that an admitted COSTED option
+                    // replaces the free one it shares a colour with (issue
+                    // #3359). Without the exception Arena of Glory's "{T}: Add
+                    // {R}" always won the colour and the {R}{R} option was
+                    // unreachable however the plan was built. The replacement is
+                    // safe precisely because admission already asked whether
+                    // this plan is reaching for what the costed legs buy —
+                    // `solveSmartAutoTap` prefers it over the free option on the
+                    // human path for the same reason. Never both: ONE physical
+                    // permanent, ONE activation.
+                    if (
+                        held &&
+                        !(
+                            realisation.via === "costed-tap" &&
+                            held.via !== "costed-tap"
+                        )
+                    ) {
+                        continue;
                     }
+                    options.set(c, realisation);
+                    stored = true;
                 }
                 if (stored) {
                     const y = optionYieldTotal(realisation);
@@ -1366,6 +1545,54 @@ export function planManaPayment(
         return true;
     };
 
+    /** Fund a COSTED option's own normalized mana leg (issue #3359) strictly
+     *  from PLAIN sources, pushing their taps BEFORE the caller's own entry so
+     *  the pool already covers the activation when `tapSourceIntoPayment`
+     *  charges it — the exact ordering `runTapPlan` (`src/lib/ai/executor.ts`)
+     *  preserves and `applyManaAbilityManaCost` depends on.
+     *
+     *  The coloured twin of `fundGenericFromPlain`, which funds the generic
+     *  remainder here rather than being duplicated. `isPlainTapSource` keeps
+     *  the funding one level deep: a costed option may never be funded by
+     *  another ability activation, whose ordering against it this greedy
+     *  planner does not model. `false` when the plain pool cannot cover the
+     *  leg, and the caller then falls back to another source. */
+    const fundManaLegFromPlain = (leg: Record<string, number>): boolean => {
+        for (const c of MANA_COLORS) {
+            let need = leg[c] ?? 0;
+            while (need > 0) {
+                // Mana this plan already produced pays the leg before any
+                // further permanent is committed to it (issue #3027).
+                if (spendFloating(c)) {
+                    need--;
+                    continue;
+                }
+                let idx = -1;
+                let bestSize = Infinity;
+                for (let i = 0; i < remaining.length; i++) {
+                    const s = remaining[i];
+                    if (!s.options.has(c)) continue;
+                    if (!isPlainTapSource(s, c)) continue;
+                    if (!s.cardInstanceId) {
+                        // Pool mana — free, always preferred.
+                        idx = i;
+                        break;
+                    }
+                    if (s.options.size < bestSize) {
+                        bestSize = s.options.size;
+                        idx = i;
+                    }
+                }
+                if (idx === -1) return false;
+                if (!consume(idx, c)) return false;
+                if (!spendFloating(c)) return false;
+                need--;
+            }
+        }
+        const generic = leg.X ?? 0;
+        return generic === 0 || fundGenericFromPlain(generic);
+    };
+
     const consume = (idx: number, color: Color): boolean => {
         const src = remaining[idx];
         const cardInstanceId = src.cardInstanceId;
@@ -1393,6 +1620,23 @@ export function planManaPayment(
                 abilityId: opt.abilityId,
                 tapOtherIds: [cardInstanceId],
             });
+            creditYield(opt, color);
+            return true;
+        }
+        if (opt.via === "costed-tap") {
+            // CR 601.2f (issue #3359) — the option's own mana leg is funded
+            // FIRST, so its taps precede this entry in the plan. The emitted
+            // entry is a PLAIN tap carrying the choice index: the server
+            // executes it through `tapSourceIntoPayment`, which resolves the
+            // index against the same option list and pays the whole cost. The
+            // gross yield is credited only after the leg was funded, so the
+            // ability can never fund itself.
+            if (!fundManaLegFromPlain(opt.leg)) return false;
+            taps.push(
+                opt.manaChoiceIndex === undefined
+                    ? { cardInstanceId }
+                    : { cardInstanceId, manaChoiceIndex: opt.manaChoiceIndex }
+            );
             creditYield(opt, color);
             return true;
         }
@@ -1455,8 +1699,12 @@ export function planManaPayment(
             // a plain tap and a converter credit as their last act and return
             // true, so a board with no such ability — every ordinary one —
             // allocates no snapshot at all.
+            // Issue #3359 — a `costed-tap` realisation can fail after touching
+            // the floating pool for exactly the same reason (`fundManaLegFromPlain`
+            // spends from it, then runs out), so it snapshots too.
+            const canFailVia = src.options.get(candidate.color)?.via;
             const canFail =
-                src.options.get(candidate.color)?.via === "mana-cost";
+                canFailVia === "mana-cost" || canFailVia === "costed-tap";
             const floatingSnapshot = canFail ? { ...floating } : undefined;
             const floatingTotalSnapshot = floatingTotal;
             if (consume(candidate.idx, candidate.color)) return true;
@@ -1705,6 +1953,9 @@ export function castTapPlans(
         cardInstanceId: string;
         cardDef: CardDefinition | null | undefined;
         chosenX?: number;
+        /** CR 702.103b (issue #3359) — forwarded verbatim to
+         *  `planManaPayment`, where it gates the costed-option plan context. */
+        bestowed?: boolean;
     }
 ): ManaTap[][] {
     const greedy = planManaPayment(state, player, cost, cast);
@@ -2849,6 +3100,10 @@ function enumerateCastMovesFromZone(
         const bestowTapPlans = castTapPlans(state, player, bestowCost, {
             cardInstanceId: card.id,
             cardDef: def,
+            // CR 702.103b (issue #3359) — a bestowed cast is an Aura spell, so
+            // a creature-only mana rider never fires on it and its cost legs
+            // must not be spent reaching for one.
+            bestowed: true,
         });
         if (bestowTapPlans.length > 0) {
             // Plan loop outside the target loop (PR #3566 review finding 5).
