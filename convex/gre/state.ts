@@ -18604,6 +18604,34 @@ export function buildSpellContext(
                     ?.length ?? 0
             );
         },
+        // CR 506.2 / 508.1b (issue #3244) — the player or planeswalker an
+        // attacking creature is attacking, for the `dealDamage` Op's
+        // `{ attackTargetOf }` recipient. Read the way the combat damage step
+        // reads it (`phases.ts`): the `combat.attackTargets` entry names a
+        // planeswalker, its absence the defending player. A creature removed
+        // from combat has left `attackerIds` (CR 506.4); a planeswalker removed
+        // from combat (left the battlefield, changed controller, stopped being
+        // a planeswalker — CR 506.4) is no longer a planeswalker on the
+        // defending player's battlefield, and the creature is then attacking
+        // nothing — never the player instead.
+        getAttackTarget(attackerId: string): TargetSelection | undefined {
+            const combat = state.combat;
+            if (!combat || !combat.attackerIds.includes(attackerId)) {
+                return undefined;
+            }
+            const defender = state.players.find(
+                (p) => p.id !== state.activePlayerId
+            );
+            if (!defender) return undefined;
+            const pwId = combat.attackTargets?.[attackerId];
+            if (pwId === undefined) {
+                return { type: "player", id: defender.id };
+            }
+            const pw = defender.battlefield.find((c) => c.id === pwId);
+            return pw && isPlaneswalker(pw)
+                ? { type: "permanent", id: pwId }
+                : undefined;
+        },
         // CR 702.131b (issue #1460) — true iff `playerId` holds the city's
         // blessing (Ascend). Powers the `hasCityBlessing` Effect Script
         // predicate ("if you have the city's blessing", Ocelot Pride #1461)

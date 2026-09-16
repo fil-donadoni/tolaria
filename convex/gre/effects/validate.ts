@@ -258,7 +258,7 @@ function isCardFilter(
     value: unknown,
     opts?: {
         allowHasAbility?: boolean;
-        allowIsAttacking?: boolean;
+        allowLiveState?: boolean;
         allowControlledSinceTurnStart?: boolean;
         allowExcludeSource?: boolean;
         rejectManaCostEquals?: boolean;
@@ -268,7 +268,7 @@ function isCardFilter(
         return false;
     }
     const allowHasAbility = opts?.allowHasAbility ?? false;
-    const allowIsAttacking = opts?.allowIsAttacking ?? false;
+    const allowLiveState = opts?.allowLiveState ?? false;
     const allowControlledSinceTurnStart =
         opts?.allowControlledSinceTurnStart ?? false;
     const allowExcludeSource = opts?.allowExcludeSource ?? false;
@@ -407,7 +407,7 @@ function isCardFilter(
                 v.every((clause) =>
                     isCardFilter(clause, {
                         allowHasAbility,
-                        allowIsAttacking,
+                        allowLiveState,
                         allowControlledSinceTurnStart,
                         allowExcludeSource,
                         rejectManaCostEquals,
@@ -438,10 +438,19 @@ function isCardFilter(
         // CR 508.1 (issue #1097 — Tangle's "each attacking creature").
         // Same battlefield-only honesty rule as `hasAbility` right above: a
         // hidden-zone/snapshot card shape carries no combat role at all, so
-        // `allowIsAttacking` is threaded in ONLY from the same
+        // `allowLiveState` is threaded in ONLY from the same
         // battlefield-guaranteed selector sites `hasAbility` already uses.
         if (k === "isAttacking") {
-            if (!allowIsAttacking) return false;
+            if (!allowLiveState) return false;
+            return typeof v === "boolean";
+        }
+        // CR 110.5 / 701.26a (issue #3244 — Myr Battlesphere's "untapped Myr
+        // you control"). The tapped STATUS is live battlefield state exactly
+        // like `isAttacking`, so it rides the SAME `allowLiveState` gate: a
+        // hidden-zone/snapshot card has no status, and `matchesCardFilter`
+        // would silently ignore the field (fail OPEN).
+        if (k === "tapped") {
+            if (!allowLiveState) return false;
             return typeof v === "boolean";
         }
         // "…that they controlled since the beginning of the turn" (Keldon
@@ -484,27 +493,28 @@ function filterUsesHasAbility(value: unknown): boolean {
     );
 }
 
-/** Whether an `EffectCardFilter` uses `isAttacking`, directly or nested
- *  inside an `any` clause (issue #1097) — the `isAttacking` sibling of
- *  `filterUsesHasAbility` right above, same rationale and same single call
- *  site (the `choice` Op's cross-field `check`). */
-function filterUsesIsAttacking(value: unknown): boolean {
+/** Whether an `EffectCardFilter` uses LIVE battlefield state — `isAttacking`
+ *  (issue #1097) or `tapped` (issue #3244) — directly or nested inside an
+ *  `any` clause: the sibling of `filterUsesHasAbility` right above, same
+ *  rationale and same single call site (the `choice` Op's cross-field
+ *  `check`). */
+function filterUsesLiveState(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
     }
     const f = value as Record<string, unknown>;
-    if (typeof f.isAttacking === "boolean") {
+    if (typeof f.isAttacking === "boolean" || typeof f.tapped === "boolean") {
         return true;
     }
     return (
         Array.isArray(f.any) &&
-        f.any.some((clause) => filterUsesIsAttacking(clause))
+        f.any.some((clause) => filterUsesLiveState(clause))
     );
 }
 
 /** Whether an `EffectCardFilter` uses `controlledSinceTurnStart`, directly or
  *  nested inside an `any` clause — the third sibling of
- *  `filterUsesHasAbility`/`filterUsesIsAttacking`, same rationale (a card in a
+ *  `filterUsesHasAbility`/`filterUsesLiveState`, same rationale (a card in a
  *  hidden zone has no controller at all, CR 108.4) and same single call site
  *  (the `choice` Op's cross-field `check`). */
 function filterUsesControlledSinceTurnStart(value: unknown): boolean {
@@ -523,7 +533,7 @@ function filterUsesControlledSinceTurnStart(value: unknown): boolean {
 
 /** Whether an `EffectCardFilter` uses `excludeSource`, directly or nested
  *  inside an `any` clause (issue #2373) — the fourth sibling of
- *  `filterUsesHasAbility`/`filterUsesIsAttacking`/
+ *  `filterUsesHasAbility`/`filterUsesLiveState`/
  *  `filterUsesControlledSinceTurnStart`, same rationale (a hidden-zone card
  *  has no source-identity to compare against) and same single call site (the
  *  `choice` Op's cross-field `check`). */
@@ -543,7 +553,7 @@ function filterUsesExcludeSource(value: unknown): boolean {
 
 /** Whether an `EffectCardFilter` uses `manaCostEquals`, directly or nested
  *  inside an `any` clause (issue #1898 finding 3) — the INVERTED sibling of
- *  `filterUsesHasAbility`/`filterUsesIsAttacking`: those two gate a field IN
+ *  `filterUsesHasAbility`/`filterUsesLiveState`: those two gate a field IN
  *  for `zone: "battlefield"`, this one gates `manaCostEquals` OUT there,
  *  because `toPermanentFilter` has no mapping for it (would fail OPEN,
  *  matching every permanent) — the `choice` Op's cross-field `check` is the
@@ -1143,7 +1153,7 @@ function isCountValue(value: unknown): boolean {
         "filter" in s &&
         !isCardFilter(s.filter, {
             allowHasAbility: s.zone === "battlefield",
-            allowIsAttacking: s.zone === "battlefield",
+            allowLiveState: s.zone === "battlefield",
             allowControlledSinceTurnStart: s.zone === "battlefield",
             rejectManaCostEquals: s.zone === "battlefield",
             // issue #2713 — "for each OTHER attacking Goblin" (Goblin
@@ -1433,6 +1443,23 @@ function isSumValue(value: unknown): boolean {
     return isBarePicksRef(s.of) && isPlayerRef(s.player);
 }
 
+/** `{ setSize: { of } }` — SHAPE of the bound-set cardinality (CR 107.3 /
+ *  118.12, issue #3244). `of` is REQUIRED and is a BARE PICKS ref, the same
+ *  `isBarePicksRef` shape `sum`'s `of` accepts, and it is family-checked as a
+ *  PICKS position by the ordered ref pass (the `keyHint === "setSize"` case in
+ *  `collectRefUses`) for `sum`'s reason: the bare key `of` means an OBJECT
+ *  everywhere else in the value grammar. */
+function isSetSizeValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== "setSize") return false;
+    const spec = (value as { setSize: unknown }).setSize;
+    if (typeof spec !== "object" || spec === null) return false;
+    const s = spec as Record<string, unknown>;
+    if (!Object.keys(s).every((k) => k === "of")) return false;
+    return isBarePicksRef(s.of);
+}
+
 /** A member of the closed player-counter vocabulary (CR 122.1). */
 function isPlayerCounterKind(value: unknown): boolean {
     return (
@@ -1583,7 +1610,8 @@ function isEffectValue(value: unknown): boolean {
         isDifferenceValue(value) ||
         isScaledValue(value) ||
         isDivideValue(value) ||
-        isSumValue(value)
+        isSumValue(value) ||
+        isSetSizeValue(value)
     );
 }
 
@@ -2100,7 +2128,9 @@ function isNegatedValue(value: unknown): boolean {
  *  `counters` count (all non-negative by nature; Howl from Beyond's +X/+0,
  *  issue #852; a "+1/+1 per fuse counter" pump, issue #1015) — or a
  *  `negate`-wrapped value member for the negative of one of those
- *  non-negative-by-nature reads (issue #926 — Toxic Deluge's "-X/-X"). */
+ *  non-negative-by-nature reads (issue #926 — Toxic Deluge's "-X/-X"), or the
+ *  `setSize` of a bound set (issue #3244 — Myr Battlesphere's "+X/+0" where X
+ *  is how many Myr were tapped). */
 function isSignedEffectValue(value: unknown): boolean {
     if (typeof value === "number") return Number.isInteger(value);
     return (
@@ -2109,6 +2139,7 @@ function isSignedEffectValue(value: unknown): boolean {
         isXValue(value) ||
         isCountersValue(value) ||
         isDomainValue(value) ||
+        isSetSizeValue(value) ||
         isNegatedValue(value)
     );
 }
@@ -2765,7 +2796,7 @@ function isPredicate(value: unknown): boolean {
             (obj.controlledBy === undefined || isPlayerRef(obj.controlledBy)) &&
             isCardFilter(obj.filter, {
                 allowHasAbility: true,
-                allowIsAttacking: true,
+                allowLiveState: true,
                 allowControlledSinceTurnStart: true,
                 rejectManaCostEquals: true,
             })
@@ -2860,11 +2891,18 @@ function isCoinFlipBranch(value: unknown): boolean {
 }
 
 /** dealDamage's `to`: an announced target, the current forEach member
- *  (`{ ref: "$each" }`, issue #807), OR `{ player: <EffectPlayerRef> }`. */
+ *  (`{ ref: "$each" }`, issue #807), `{ player: <EffectPlayerRef> }`, OR
+ *  `{ attackTargetOf: <EffectObjectSelector> }` (issue #3244 — the player or
+ *  planeswalker that creature is attacking). */
 function isDamageRecipient(value: unknown): boolean {
     if (isObjectSelector(value)) return true;
     if (typeof value !== "object" || value === null) return false;
     const keys = Object.keys(value);
+    if (keys.length === 1 && keys[0] === "attackTargetOf") {
+        return isObjectSelector(
+            (value as { attackTargetOf: unknown }).attackTargetOf
+        );
+    }
     return (
         keys.length === 1 &&
         keys[0] === "player" &&
@@ -2938,7 +2976,7 @@ function isForEachSelector(value: unknown): boolean {
         "filter" in s &&
         !isCardFilter(s.filter, {
             allowHasAbility: true,
-            allowIsAttacking: true,
+            allowLiveState: true,
             allowControlledSinceTurnStart: true,
             rejectManaCostEquals: true,
         })
@@ -3044,7 +3082,7 @@ function isPileObjectSelector(value: unknown): boolean {
             "filter" in s &&
             !isCardFilter(s.filter, {
                 allowHasAbility: true,
-                allowIsAttacking: true,
+                allowLiveState: true,
                 allowControlledSinceTurnStart: true,
                 rejectManaCostEquals: true,
             })
@@ -4417,7 +4455,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             filter: (v) =>
                 isCardFilter(v, {
                     allowHasAbility: true,
-                    allowIsAttacking: true,
+                    allowLiveState: true,
                     allowControlledSinceTurnStart: true,
                     rejectManaCostEquals: true,
                 }),
@@ -4833,7 +4871,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             filter: (v) =>
                 isCardFilter(v, {
                     allowHasAbility: true,
-                    allowIsAttacking: true,
+                    allowLiveState: true,
                     allowControlledSinceTurnStart: true,
                     allowExcludeSource: true,
                 }),
@@ -4946,10 +4984,10 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             // graveyard/exile card has no combat role at all.
             if (
                 entry.zone !== "battlefield" &&
-                filterUsesIsAttacking(entry.filter)
+                filterUsesLiveState(entry.filter)
             ) {
                 errors.push(
-                    '"filter.isAttacking" is valid only with zone: "battlefield" — a hand/library/graveyard/exile card carries no combat-role data to match against'
+                    '"filter.isAttacking" / "filter.tapped" are valid only with zone: "battlefield" — a hand/library/graveyard/exile card carries no combat role or tapped status to match against'
                 );
             }
             // `controlledSinceTurnStart` — the `hasAbility`/`isAttacking` rule
@@ -5531,6 +5569,10 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                           : keyHint === "target" ||
                               keyHint === "to" ||
                               keyHint === "of" ||
+                              // `dealDamage.to`'s `{ attackTargetOf }` (issue
+                              // #3244) — names the ATTACKING CREATURE, an
+                              // `EffectObjectSelector` exactly like `target`.
+                              keyHint === "attackTargetOf" ||
                               // `choice`'s `candidates[]` (Barrin's Spite) — the
                               // already-known battlefield objects the pick is
                               // narrowed to, each an `EffectObjectSelector`
@@ -5667,6 +5709,12 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
     // fallback keys off the CHILD key name, so `of` would be mis-tagged
     // "object" and a legitimate picks binding rejected as a family mismatch.
     // `read` / `zone` are bare string literals with no ref grammar.
+    // setSize — { setSize: { of } } (issue #3244): `of` is a PICKS position,
+    // routed here for `sum`'s reason right below.
+    if (keyHint === "setSize" && keys.length === 1 && keys[0] === "of") {
+        collectRefUses(obj.of, "cards", out);
+        return;
+    }
     if (
         keyHint === "sum" &&
         keys.includes("of") &&

@@ -212,7 +212,9 @@ export function contextFreeGrounding(
         // (issue #3243) belongs here rather than in a branch of its own: its
         // magnitude is the total of a characteristic over a set NOTHING has
         // bound yet at a pre-cast node, so there is strictly less to resolve
-        // than for `counters`, which already takes this floor.
+        // than for `counters`, which already takes this floor. `setSize`
+        // (issue #3244) is the same case one read smaller: the COUNT of such a
+        // set, so it takes the same floor for the same reason.
         if ("escaped" in v || "abilityResolutionCount" in v)
             return { amount: 1, scaling: false };
         return { amount: CF_ASSUMED_REF, scaling: true };

@@ -4869,6 +4869,15 @@ export interface SpellContext {
      *  you later discarded. Used by the `{ cardsDrawnThisTurn: { of } }`
      *  EffectValue grammar member (Proft's Eidetic Memory). */
     getCardsDrawnThisTurn: (playerId: string) => number;
+    /** CR 506.2 / 508.1b (issue #3244) — what the attacking creature
+     *  `attackerId` is attacking RIGHT NOW: the planeswalker its
+     *  `combat.attackTargets` entry names, else the defending player.
+     *  `undefined` when there is no combat, the creature is not (or no longer)
+     *  an attacking creature, or the planeswalker it attacked has been removed
+     *  from combat (CR 506.4 — left the battlefield, changed controller or
+     *  stopped being a planeswalker), since it is then attacking nothing. Read
+     *  by the `dealDamage` Op's `{ attackTargetOf }` recipient. */
+    getAttackTarget: (attackerId: string) => TargetSelection | undefined;
     /** CR 702.131b (Ascend, issue #1460) — true iff `playerId` holds the
      *  city's blessing designation. Reads the monotonic
      *  `GameState.cityBlessingIds` set (once granted, never revoked). Powers
@@ -12123,6 +12132,33 @@ export type EffectTargetRef = { target: number };
  *  as it can). */
 export type EffectObjectSelector = EffectTargetRef | EffectRef;
 
+/** CR 506.2 / 508.1b (issue #3244) — "the player or planeswalker THIS
+ *  CREATURE IS ATTACKING": the recipient an attacking creature's own ability
+ *  names without targeting it (Myr Battlesphere's "deals X damage to the
+ *  player or planeswalker it's attacking"). `attackTargetOf` names the
+ *  attacking creature (`{ ref: "$source" }` for "it"); the recipient is read
+ *  LIVE at resolution through `SpellContext.getAttackTarget` — the
+ *  planeswalker `combat.attackTargets` records for it, else the defending
+ *  player.
+ *
+ *  Untargeted by construction (CR 115.10 — no "target" in the text), so
+ *  hexproof, shroud and protection's targeting clause never apply. Resolves to
+ *  NOTHING, and the consuming Op skips (CR 608.2b), when the creature is no
+ *  longer an attacking creature (it left combat — CR 506.4) or the
+ *  planeswalker it attacked was removed from combat (left the battlefield,
+ *  changed controller, stopped being a planeswalker — CR 506.4): the creature
+ *  is then attacking nothing, and there is no player to fall back to.
+ *
+ *  Deliberately NOT a member of `EffectObjectSelector` — the
+ *  `EffectZonePositionSelector` precedent: its referent may be a PLAYER, so
+ *  widening the shared selector would make it validate, and then silently
+ *  no-op, at every permanent-only Op (destroy / pump / counters …). It is
+ *  accepted only by `dealDamage.to`, the one recipient union that already
+ *  spans players and permanents. */
+export type EffectAttackTargetSelector = {
+    attackTargetOf: EffectObjectSelector;
+};
+
 /** CR 404.3 (issue #1967) — a DETERMINISTIC POSITIONAL pick out of an ORDERED
  *  zone, with no player choice at all: "the TOP creature card of your
  *  graveyard" (Shallow Grave, `mir/black.ts`; Corpse Dance, `tmp/black.ts`).
@@ -12529,6 +12565,19 @@ export interface EffectCardFilter {
      *  attacking-OR-blocking forEach sweep yet (`any` already covers that
      *  disjunction if one ever does). */
     isAttacking?: boolean;
+    /** CR 110.5 / 701.26a (issue #3244) — the permanent's tapped STATUS:
+     *  `false` keeps only untapped permanents ("tap X UNTAPPED Myr you
+     *  control" — Myr Battlesphere; CR 701.26a: only an untapped permanent can
+     *  be tapped), `true` only tapped ones. Propagated 1:1 by
+     *  `toPermanentFilter` onto `PermanentFilter.tapped`, which the candidate
+     *  scan, the submit-time legality re-check, the client highlight and the
+     *  Bot's candidate pool all already read off the effective permanent view
+     *  (Magnetic Mountain's `resolve()` choice is the shipped reader). Live
+     *  battlefield state exactly like `isAttacking`, and gated by the SAME
+     *  validator rule: a card in a hidden zone has no status at all, so the
+     *  field is rejected anywhere a battlefield read is not structurally
+     *  guaranteed rather than validating and then matching every card. */
+    tapped?: boolean;
     /** Reflexive self-EXCLUDE (issue #2373, Gut, True Soul Zealot —
      *  "sacrifice ANOTHER creature or an artifact"): a battlefield permanent
      *  matches only if it is NOT the resolving ability's own source
@@ -12947,7 +12996,30 @@ export type EffectValue =
     | EffectDifferenceValue
     | EffectScaledValue
     | EffectDivideValue
-    | EffectSumValue;
+    | EffectSumValue
+    | EffectSetSizeValue;
+
+/** setSize — HOW MANY objects a preceding Op bound into a picks-family set
+ *  (CR 107.3 / 118.12, issue #3244): "you may tap X untapped Myr you control.
+ *  If you do, this creature gets +X/+0 … and deals X damage" (Myr
+ *  Battlesphere), where X is not announced anywhere — it IS the size of the
+ *  set the player just chose to pay with. The CARDINALITY sibling of `sum`
+ *  (which totals a characteristic over the same kind of set) and, like it, NOT
+ *  an Op and NOT a structural construct: it only READS a binding.
+ *
+ *  `of` is a bare PICKS ref (`{ ref: "$tapped" }`) naming a `choice` Op's
+ *  `bind` or `mill`'s `bindAll` — both store the identical `string[]` of
+ *  instance ids. Unlike `sum` it names no zone: counting the ids needs no
+ *  lookup, and the count is the number CHOSEN, which is what an Oracle "X"
+ *  paid through a resolution-time cost (CR 118.12) means — an object that
+ *  later leaves its zone was still chosen.
+ *
+ *  An UNCAPTURED binding is **0**, exactly as `sum`'s is: a choice skipped for
+ *  want of candidates chose nothing, and "tap X Myr" with no Myr is X = 0 — a
+ *  legal choice whose +0/+0 and 0 damage are both no-ops. */
+export type EffectSetSizeValue = {
+    setSize: { of: EffectRef };
+};
 
 /** lifeGainedThisTurn — the total life a PLAYER has gained so far this turn
  *  (CR 119.3, issue #1457), a thin JSON-pure skin over
@@ -13442,7 +13514,10 @@ export type EffectOp =
     | {
           op: "dealDamage";
           amount: EffectValue;
-          to: EffectObjectSelector | { player: EffectPlayerRef };
+          to:
+              | EffectObjectSelector
+              | { player: EffectPlayerRef }
+              | EffectAttackTargetSelector;
           /** CR 120.1 — the source of the damage. By default (omitted) the
            *  damage is sourced from the resolving spell/ability (the stack
            *  item), which is correct for the vast majority of "deal N damage"
