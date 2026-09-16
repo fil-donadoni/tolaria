@@ -224,6 +224,40 @@ Re-running with nothing new is a no-op and rewrites nothing.
 `verdictsPack:writePack` ships with a release: a [promotion](#g-promotion)
 never pushes code to the deployment.
 
+## Per-tester quality
+
+`bun run verdicts:testers` prints four numbers per person (issue #3585, ADR
+0128). It is read-only and needs only the reader [key](#g-key):
+
+- **given**: the positions the person judged.
+- **contradicted**: the positions where someone else gave a different answer,
+  resolved or not.
+- **quarantined**: the positions the person judged that are contested now.
+- **unsatisfied**: the positions where a verdict the person gave is in the
+  Verdict Lock and the committed weights leave one of its pairs unsatisfied.
+
+Under each number it lists the positions behind it, with the verdict ids to
+open at `/admin/verdicts`. The unsatisfied count is a list of positions worth
+looking at. It does not score the judge: a pair the fit cannot satisfy is as
+often a term the evaluation lacks as a wrong judgement. With no lock
+committed it prints "not measured".
+
+Nothing is counted and stored. Each run reads the [bucket](#g-bucket) and the
+committed lock, then re-derives the fit report the way the reproducibility
+guard does.
+
+One person with accounts on several deployments is several authors until an
+[alias](#g-alias) joins them. Record one on the deployment holding the writer
+[key](#g-key):
+
+```bash
+npx convex run verdictAuthorAliases:record \
+  '{"authors":["<deployment>:<userId>","<deployment>:<userId>"]}'
+```
+
+Aliases chain: joining A to B and B to C makes one person. The person is shown
+under the smallest of their authors.
+
 ## Rotate or revoke
 
 `gcloud iam service-accounts keys list --iam-account=<account>` lists the
@@ -232,6 +266,12 @@ never pushes code to the deployment.
 one on every deployment.
 
 ## Glossary
+
+### <a id="g-alias"></a>Alias
+
+Two authors who are one person, at `aliases/<author>/<author>` (the two
+sorted). Kept in the [bucket](#g-bucket) and never in git, because the
+repository is public. An alias is never retracted.
 
 ### <a id="g-attestation"></a>Attestation
 

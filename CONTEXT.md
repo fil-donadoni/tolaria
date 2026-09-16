@@ -674,6 +674,13 @@ A human's decision about a **Contested Position**, made by looking at the rebuil
 _Avoid_: merge, override, averaging
 _Avoid_: Conflict, disagreement, disputed verdict, quarantine (that word alone is the **Oracle Compiler**'s)
 
+**Tester Quality**:
+Four counts for each person who gives **Verdicts**: the positions they judged, the ones where someone else answered differently, the ones held in quarantine as a **Contested Position** right now, and the ones where their judgement is in the **Verdict Lock** and the **Weight Fit** cannot satisfy it. Each count lists its positions. The last count points at positions to look at and never grades the judge, because a judgement the fit cannot satisfy is as often a term the **Evaluation** lacks. Every count is re-derived from the **Verdict Store**, the lock and the fit on each read, and nothing is stored. One person's accounts on several deployments count together once an **Author Alias** joins them.
+_Avoid_: tester score, judge accuracy
+
+**Author Alias**:
+The fact that two **Attestation** authors are the same person, so one person's judgements from dev and production count together. It is stored in the **Verdict Store** and never in the public repository.
+
 **Decision Class**:
 What KIND of decision a **Verdict** holds, in the words a player would use: a land drop, a cast, an activation, declaring attackers, declaring blockers, a targeting choice, a resolution choice, a mulligan. Derived from the engine's own move vocabulary rather than named separately, so a decision the engine gains cannot quietly go uncounted. The unit coverage is measured in: a corpus with three blocking judgements says nothing about blocking, however large it is overall.
 _Avoid_: Move type, action kind, category
