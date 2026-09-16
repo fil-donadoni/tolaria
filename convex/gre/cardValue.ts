@@ -22,6 +22,7 @@ import { tryGetDefinition } from "../cards";
 import { manaValue } from "./constants";
 import {
     dslAbilityScriptValue,
+    dslLatentDelayedTemplateValue,
     dslRealizedAbilityScriptValue,
     dslSpellScriptValue,
 } from "./ai";
@@ -132,6 +133,23 @@ export function latentValue(chars: {
     /** DSL activated/triggered ability-script value (a creature's
      *  `effects[]`/`aiEffects` abilities); undefined/0 when it has none. */
     dslAbilityValue?: number;
+    /** CR 603.7a (issue #3383) — the (latent-discounted) value of the card's
+     *  own `delayedTriggers[]` TEMPLATES, for the NON-CREATURE branch only.
+     *
+     *  Its own field rather than a fold into `dslAbilityValue` because the two
+     *  branches consume the pieces differently: a creature ADDS its ability
+     *  value to its body (the templates ride in there already — the ability
+     *  reader merges them), while a non-creature's branch reads its SPELL
+     *  script and ignores ability value entirely. Without this field Mishra's
+     *  Bauble's delayed `draw` would be valued everywhere except the one place
+     *  the leaf evaluator reads, which is the whole of the issue it closes.
+     *
+     *  ADDITIVE, never a replacement for the `base + MV` fallback: a template
+     *  is one READ clause of a card whose scheduling resolution is typically a
+     *  `resolve()` the reader cannot see, so the fallback still stands for the
+     *  rest (`candidateValue.ts`'s no-script floor takes the same shape for the
+     *  same reason). */
+    dslDelayedTemplateValue?: number;
     /** Issue #3398 — true when `dslSpellValue` was MEASURED against a real
      *  board (a targeted, board-affecting Op priced by its best legal victim)
      *  rather than assumed from a representative one. Lifts the `base + MV`
@@ -170,15 +188,26 @@ export function latentValue(chars: {
     const fallback = chars.dslSpellValueMeasured
         ? 0
         : NONCREATURE_BASE + chars.manaValue * W_NC_MV;
+    // CR 603.7a (issue #3383) — the card's delayed-trigger templates. Added
+    // INSIDE the `MAX_LATENT_SCRIPT_VALUE` clamp below, never after it: the cap
+    // exists so no single hand card can pin the reward band (see its own doc),
+    // and a sentinel-amount template body would walk straight through a cap
+    // applied to the spell half alone. The creature branch above already
+    // carries the same templates inside `dslAbilityValue`, so this is the
+    // non-creature branch's only reading.
+    const delayed = chars.dslDelayedTemplateValue ?? 0;
     if (chars.dslSpellValue !== undefined) {
         // Clamp BEFORE the floor comparison (issue #1508) — an ordinary
         // script's value is always well under the cap, so this is a no-op for
         // every real card except the rare "if always assumes then" / literal
         // sentinel-amount outliers the cap exists to bound.
-        const bounded = Math.min(chars.dslSpellValue, MAX_LATENT_SCRIPT_VALUE);
+        const bounded = Math.min(
+            chars.dslSpellValue + delayed,
+            MAX_LATENT_SCRIPT_VALUE
+        );
         return Math.max(fallback, bounded);
     }
-    return fallback;
+    return Math.min(fallback + delayed, MAX_LATENT_SCRIPT_VALUE);
 }
 
 /** Derive the two DSL-script value pieces from a `CardDefinition` (context-free
@@ -202,12 +231,23 @@ export function dslLatentPieces(
 ): {
     dslSpellValue?: number;
     dslAbilityValue?: number;
+    dslDelayedTemplateValue?: number;
     dslSpellValueMeasured?: boolean;
 } {
     const dslSpellValue = dslSpellScriptValue(def, board, latent);
     return {
         dslSpellValue,
         dslAbilityValue: dslAbilityScriptValue(
+            def,
+            contextFreeGrounding(latent)
+        ),
+        // CR 603.7a (issue #3383) — the non-creature branch's own reading of
+        // the card's delayed-trigger templates, discounted exactly as an
+        // ability script is (they are a future, conditional payoff in the same
+        // sense). The creature branch never reads this field: its
+        // `dslAbilityValue` already carries the same templates, merged by the
+        // ability reader.
+        dslDelayedTemplateValue: dslLatentDelayedTemplateValue(
             def,
             contextFreeGrounding(latent)
         ),
@@ -233,6 +273,7 @@ export function dslLatentPiecesById(
 ): {
     dslSpellValue?: number;
     dslAbilityValue?: number;
+    dslDelayedTemplateValue?: number;
     dslSpellValueMeasured?: boolean;
 } {
     const def = tryGetDefinition(cardId);

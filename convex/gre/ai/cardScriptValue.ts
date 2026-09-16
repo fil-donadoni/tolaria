@@ -55,6 +55,107 @@ function effectiveScript(site: {
  *  is discounted before being added to the body (never doubled with it). */
 const ABILITY_SCRIPT_DISCOUNT = 0.5;
 
+/** True when any part of `value` reads a BINDING (`{ ref: "$x" }`) at all — a
+ *  deliberate OVER-APPROXIMATION of "this body's subject is a scheduling-time
+ *  capture" (`delayedTriggerTemplateOpValue` below), erring in the direction
+ *  that is safe: a template the reader is unsure of contributes nothing, which
+ *  is exactly what it contributed before the reader existed. So it also fires
+ *  on `{ ref: "$source" }` and on a body that binds its own variable and reads
+ *  it back — neither is a payload capture, and neither ships on a template
+ *  today. It zeroes the WHOLE template rather than the offending Op, same
+ *  reason.
+ *
+ *  It is NOT too narrow, which is the half that would matter: every payload
+ *  key is bound as `$name` by `runDelayedTriggerBody`
+ *  (`gre/effects/interpreter.ts`) and every read of a binding in the
+ *  interpreter goes through `{ ref }` — a capture has no bare-string channel
+ *  into the body.
+ *
+ *  Walks plain data only: an Effect Script is JSON by construction
+ *  (`validateEffectScript`'s purity rule), so there is nothing else to descend
+ *  into. */
+function readsBinding(value: unknown): boolean {
+    if (Array.isArray(value)) return value.some(readsBinding);
+    if (value !== null && typeof value === "object") {
+        if (typeof (value as { ref?: unknown }).ref === "string") return true;
+        return Object.values(value).some(readsBinding);
+    }
+    return false;
+}
+
+/** True when the card carries an `aiEffects` valuation-only shadow script
+ *  ANYWHERE (card site or any ability site, issue #1431). A shadow is the
+ *  author's stand-in for a whole `resolve()` RESOLUTION — scheduling included
+ *  — so a template valued on top of it would count the delayed half twice. */
+function carriesShadowScript(def: CardDefinition): boolean {
+    const sites: { aiEffects?: EffectOp[] }[] = [
+        def,
+        ...(def.activatedAbilities ?? []),
+        ...(def.triggeredAbilities ?? []),
+    ];
+    return sites.some((s) => (s.aiEffects?.length ?? 0) > 0);
+}
+
+/** CR 603.7a (issue #3383) — the `{ points, tags }` of the card's own
+ *  `delayedTriggers[]` TEMPLATES, the array no valuer read at all until this
+ *  reader: a real `effects[]` on a template was worth exactly zero, so
+ *  Mishra's Bauble — whose whole point is its delayed `draw` — priced as if
+ *  the draw did not exist.
+ *
+ *  Valued through the SAME `valueEffectScript` / `OP_VALUERS` path an ability
+ *  script uses, and — deliberately — with NO discount for the wait, so a body
+ *  scheduled from a named template and the identical body scheduled INLINE by
+ *  the `delayedTrigger` Op (ADR 0048, whose valuer recurses straight into
+ *  `op.effects`) price identically. The two paths disagreeing would make the
+ *  bot's opinion of a card depend on its authoring form.
+ *
+ *  Three exclusions, every one fail-CLOSED (an excluded template contributes
+ *  nothing, exactly as today) and every one a PREDICATE over the shape rather
+ *  than a per-card list (ADR 0102):
+ *
+ *  1. **No `effects[]`** — a `resolve()`-only template has no script to walk,
+ *     the same convention `effectiveScript` applies everywhere else.
+ *  2. **The body reads a BINDING** (`{ ref: "$targetId" }`) — the subject is
+ *     a scheduling-time capture the context-free reader cannot place, and
+ *     guessing is actively wrong-signed: Stone Giant's
+ *     `destroy { ref: "$targetId" }` destroys the CONTROLLER'S OWN creature
+ *     (the one it just gave flying) and prices as +110 of opponent removal;
+ *     Krovikan Elementalist's `sacrifice` charges its optional ability's cost
+ *     while the benefit that ability pays for is a `resolve()` the reader
+ *     cannot see. Dragon Whelp rides the same exclusion and is the
+ *     CONDITIONAL-arm case besides (its template is scheduled only at the
+ *     fourth activation).
+ *  3. **The card carries an `aiEffects` shadow anywhere** — see
+ *     `carriesShadowScript`.
+ *
+ *  What survives is the shape the reader can honestly price: a body with no
+ *  captured subject, on a card whose resolution arms it unconditionally — the
+ *  next-upkeep cantrip rider (Mishra's Bauble, Clairvoyance, Portent, Barbed
+ *  Sextant). WHICH ability arms a template is not statically discoverable
+ *  (scheduling happens inside a `resolve()`), so a conditionally-armed
+ *  capture-free template would be over-counted; none exists in the catalogue,
+ *  and `delayedTriggerTemplateValue.bot.test.ts` pins the whole classification
+ *  so a new template reds until it is reviewed. */
+export function delayedTriggerTemplateOpValue(
+    def: CardDefinition,
+    ctx: GroundingContext = contextFreeGrounding()
+): OpValue | undefined {
+    // Almost no card carries a template at all, and this runs per hand card
+    // per ISMCTS leaf — answer those before `carriesShadowScript` allocates its
+    // site list (PR review finding 6).
+    if (!def.delayedTriggers?.length) return undefined;
+    if (carriesShadowScript(def)) return undefined;
+    let acc: OpValue | undefined;
+    for (const template of def.delayedTriggers) {
+        const script = template.effects;
+        if (!script || script.length === 0) continue;
+        if (readsBinding(script)) continue;
+        const value = valueEffectScript(script, ctx);
+        acc = acc ? mergeOpValue(acc, value) : value;
+    }
+    return acc;
+}
+
 /** Weight on the script value of a triggered ability whose gate is
  *  `{ undecidable: true }` — a CR 603.4 check-time condition the reader cannot
  *  reconstruct (it reads the firing event or the wider board).
@@ -214,6 +315,56 @@ function mergeOpValue(a: OpValue, b: OpValue): OpValue {
     return { points: a.points + b.points, tags: [...tags] };
 }
 
+/** The LATENT (in-hand) value of a card's delayed-trigger templates — the
+ *  template reader's points under the same `ABILITY_SCRIPT_DISCOUNT` an
+ *  ability script pays, since a template is the same kind of future,
+ *  conditional payoff. 0 when the card has no valued template.
+ *
+ *  Exposed for the NON-CREATURE branch of `latentValue` (`cardValue.ts`),
+ *  which reads a card's SPELL script and never its ability value — so without
+ *  this the template would be priced everywhere except the leaf evaluator.
+ *  A creature's branch must NOT read it: `dslAbilityScriptValue` already
+ *  carries the same templates, merged. */
+export function dslLatentDelayedTemplateValue(
+    def: CardDefinition,
+    ctx: GroundingContext = contextFreeGrounding()
+): number {
+    const templates = delayedTriggerTemplateOpValue(def, ctx);
+    return (templates?.points ?? 0) * ABILITY_SCRIPT_DISCOUNT;
+}
+
+/** True when the card carries a script the value model can read at a SPELL or
+ *  ABILITY site — a real `effects[]`, an `aiEffects` shadow or a `modes[]`
+ *  arm, at the card site or on any activated/triggered ability.
+ *
+ *  The question it answers is not "is this card worth something" but "has the
+ *  reader SEEN the card's own resolution" (issue #3383). A card whose only
+ *  readable script is a delayed-trigger TEMPLATE — Mishra's Bauble, whose
+ *  activated ability is a `resolve()` — answers FALSE: the ability that
+ *  schedules the template is still opaque, so the template is one KNOWN part
+ *  of an otherwise unread card, never the whole of it. `candidateValue.ts`
+ *  reads this to keep its no-script floor standing under such a card and add
+ *  the template ON TOP, instead of letting a partial reading replace a
+ *  fallback that stands for the rest. */
+export function carriesSpellOrAbilityScript(def: CardDefinition): boolean {
+    const sites: {
+        effects?: EffectOp[];
+        aiEffects?: EffectOp[];
+        modes?: AbilityMode[];
+    }[] = [
+        { effects: def.effects, aiEffects: def.aiEffects, modes: def.modes },
+        ...(def.activatedAbilities ?? []),
+        ...(def.triggeredAbilities ?? []),
+    ];
+    return sites.some(
+        (site) =>
+            effectiveScript(site) !== undefined ||
+            (site.modes ?? []).some(
+                (mode) => effectiveScript(mode) !== undefined
+            )
+    );
+}
+
 /** The merged, RAW (un-discounted) `{ points, tags }` of a card's activated +
  *  triggered ability scripts under `ctx` (context-free by default): each
  *  ability's real `effects[]` script if present, else its `aiEffects` shadow
@@ -295,6 +446,14 @@ export function dslAbilityScriptOpValue(
                 : { points: raw.points * weight, tags: raw.tags };
         acc = acc ? mergeOpValue(acc, v) : v;
     }
+    // CR 603.7a (issue #3383) — the card's own delayed-trigger TEMPLATES, on
+    // top of its abilities: a delayed body is part of what the card does, and
+    // the scheduling site is an ability (or the card's resolution) either way.
+    // Un-gated and un-discounted, matching the inline `delayedTrigger` Op's
+    // own valuer; the latent (in-hand) reader below discounts the merged total
+    // exactly as it discounts an ability script.
+    const templates = delayedTriggerTemplateOpValue(def, ctx);
+    if (templates) acc = acc ? mergeOpValue(acc, templates) : templates;
     return acc;
 }
 

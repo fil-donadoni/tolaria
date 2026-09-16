@@ -7207,19 +7207,36 @@ export interface DelayedTriggerDef {
     // NO `aiEffects` here, deliberately — unlike `CardDefinition` /
     // `ActivatedAbility` / `TriggeredAbility`, which all carry one. The field
     // existed on this shape from PR #2010's review (MINOR 7) until it was
-    // removed as dead data: **no valuer reads a delayed trigger.** The value
-    // model's ability walk is `activatedAbilities` + `triggeredAbilities`
-    // only (`gre/ai/cardScriptValue.ts`, `gre/ai/graveyardReach.ts`); the
-    // `delayedTrigger` Op values its own INLINE body (ADR 0048), never a
-    // named template from this array; and the one AI reader of the array,
-    // `gre/ai/searchDestination.ts`, documents that it ignores `aiEffects` by
-    // contract. So a shadow script written here would move the bot by exactly
-    // zero, and one shipped (a `gainLife amount: 0` on Planeswalker's
-    // Mischief) whose own comment admitted it was "not a real valuation".
-    // Absence of the field is now what stops the next one — `tsc` rather than
-    // a test comment. That the array is unvalued AT ALL — a real `effects[]`
-    // on a template is equally invisible — is the standing gap, issue #3383;
-    // when it closes, THAT is when this field could earn its place back.
+    // removed as dead data: at the time NO valuer read a delayed trigger at
+    // all, so a shadow script written here moved the bot by exactly zero — and
+    // one shipped anyway (a `gainLife amount: 0` on Planeswalker's Mischief)
+    // whose own comment admitted it was "not a real valuation".
+    //
+    // Since issue #3383 the value model DOES read this array: the ability walk
+    // in `gre/ai/cardScriptValue.ts` merges each template's REAL `effects[]`
+    // through the same `OP_VALUERS` an ability script goes through
+    // (`delayedTriggerTemplateOpValue`), un-discounted, so a body prices the
+    // same as the identical one scheduled INLINE by the `delayedTrigger` Op
+    // (ADR 0048). The two other AI readers are unchanged and neither is
+    // valuation: `gre/ai/searchDestination.ts` asks what the engine will
+    // really do with a set of picks, and `gre/ai/graveyardReach.ts` still
+    // walks spell + abilities only.
+    //
+    // The field STAYS ABSENT regardless, and `tsc` rather than a test comment
+    // is what keeps it so: what the reader walks is the `effects[]` the ENGINE
+    // runs, and a shadow beside it would be visible to the value model alone —
+    // the placebo the removal was for. Three shapes are worth zero to the
+    // reader, and a missing field is none of them:
+    //   * a `resolve()`-only template (no script to walk — Rainbow Vale's,
+    //     whose body hands the land to the OPPONENT, a drawback whose sign the
+    //     reader would have to get right before valuing it at all);
+    //   * a body reading a scheduling-time binding (`{ ref: "$targetId" }`);
+    //   * a template on a card whose `aiEffects` shadow already prices the
+    //     whole scheduling resolution (Planeswalker's Mischief) — valuing the
+    //     template on top would double-count.
+    // All three are predicates in `cardScriptValue.ts`, pinned card by card
+    // over the catalogue in
+    // `gre/ai/__tests__/delayedTriggerTemplateValue.bot.test.ts`.
 }
 
 // --- Continuous static effects (CR 611, 613) ---

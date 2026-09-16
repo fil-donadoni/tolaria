@@ -7575,6 +7575,72 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Issue #3590 — second, structurally different optional loop for the position-repetition memory: cast + enters trigger + choice, where the Parallax Wave entry is an activated ability + leaves trigger. Nothing in `repetition.ts` or the root deny-set names either card.",
     },
+    {
+        // CR 603.7a (issue #3383) — the value model's reader for a card's own
+        // `delayedTriggers[]` templates. Mishra's Bauble and Tormod's Crypt are
+        // both {0} artifacts the reader could see nothing in: the Bauble's
+        // activated ability is a `resolve()` and its whole payoff — "draw a
+        // card at the beginning of the next turn's upkeep" — lives in a
+        // delayed-trigger TEMPLATE the value model did not walk at all. Both
+        // therefore priced at the same `base + MV` floor and the tutor's pick
+        // fell to candidate ordering.
+        //
+        // The land drop is already spent and six lands are in play, so the
+        // synthetic deck's basics are neither castable development nor a
+        // meaningful find (the fetch curve saturates at five) — the decision is
+        // exactly "which of the two artifacts is worth more".
+        //
+        // Discriminating: with the template reader disabled the bot fetches a
+        // Plains on all five seeds; the Bauble's draw is worth zero to it.
+        label: "delayed trigger: tutors the card whose whole value is a delayed draw",
+        spec: {
+            cards: [
+                ...Array.from({ length: 6 }, () => ({
+                    name: "Swamp",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                })),
+                { name: "Demonic Tutor", owner: "me", zone: "hand" },
+                { name: "Mishra's Bauble", owner: "me", zone: "library" },
+                { name: "Tormod's Crypt", owner: "me", zone: "library" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 6,
+            // Issue #3446 — the land drop is GONE, so fetching a basic buys no
+            // development this turn and the artifacts are compared on worth.
+            landsPlayed: { me: 1 },
+        },
+        setup: [
+            { kind: "cast", card: "Demonic Tutor" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        // A PREDICATE rather than `moves`, for the reason the depletion-land
+        // entry above gives and one of its own: a registry `moves`/`forbidden`
+        // entry is a new VERDICT and obliges a refit (`weightFit.bot.test.ts`),
+        // and the refit this one obliges is a measured REGRESSION —
+        // `bun run fit:weights` prints DO NOT PASTE, because the fitted vector
+        // orders FEWER verdicts than the committed one on the same corpus. A
+        // predicate yields no verdict at all (`pasteInstruction`,
+        // `verdicts/report.ts`), so the entry still BLOCKS at `must`; what it
+        // does not do is vote on the weights. Same assertion either way: the
+        // chosen move is the search-library submission naming the Bauble.
+        expect: {
+            predicate: (move, state) =>
+                move !== null &&
+                move.kind === "resolution-choice" &&
+                move.cardInstanceIds?.length === 1 &&
+                instanceIdsForName(state, "Mishra's Bauble").has(
+                    move.cardInstanceIds[0]
+                ),
+            describe:
+                "fetches Mishra's Bauble, not the blank {0} artifact or a basic",
+        },
+        note: "Issue #3383 — the bot's value model never walked `cardDef.delayedTriggers[]`, so a real `effects[]` on a template was worth exactly zero and Mishra's Bauble priced as if its delayed draw did not exist. The root decision is the live search-library choice (CR 701.23), reached by really casting and resolving Demonic Tutor. Proof-of-failure: making `delayedTriggerTemplateOpValue` (`gre/ai/cardScriptValue.ts`) return `undefined` reds this at every seed (the bot fetches a Plains).",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the
