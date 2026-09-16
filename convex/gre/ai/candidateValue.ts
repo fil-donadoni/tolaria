@@ -132,25 +132,32 @@ export function scriptOpValueOf(
  *  whose only readable script is a delayed-trigger TEMPLATE
  *  (`carriesSpellOrAbilityScript` false — Mishra's Bauble, whose activated
  *  ability is a `resolve()` the reader cannot walk). #1513's rule is about a
- *  card the reader has READ: there the script IS the card's worth, so clamping
- *  it up would flatten the ordering. Here the reader has read one delayed
- *  clause of a card it otherwise cannot see at all, so the floor still stands
- *  for the unread rest and the template is ADDITIVE on top of it. Dropping the
- *  floor instead would have made the whole issue's fix backwards: Mishra's
- *  Bauble would have gone from the 30-point do-nothing prior to 6.4 — priced
- *  BELOW a blank artifact for the crime of having a readable delayed draw. */
+ *  card the reader has READ WHOLE: there the script IS the card's worth, so
+ *  clamping it up would flatten the ordering. Here the reader has read one
+ *  delayed clause of a card it otherwise cannot see at all, so the floor still
+ *  stands — it is the coverage fallback for the unread rest, and a partial
+ *  reading must not push the card BELOW a card nothing is known about.
+ *  Mishra's Bauble without this branch priced at 6.4 against a blank
+ *  artifact's 30, which made the whole issue's fix backwards.
+ *
+ *  A CLAMP, not a sum (PR review): adding the two would rank a card the reader
+ *  has read one clause of ABOVE cards it has read entirely — Mishra's Bauble
+ *  at 36.4 over Counterspell's 31.1 — and this ranking is also
+ *  `choiceCandidates.ts`'s top-K ADMISSION gate, so a fully-read card could be
+ *  dropped from a search-library answer set by a partially-read one. The
+ *  template's real lift over a blank card lands in the LEAF valuation instead
+ *  (`cardValue.ts`, `dslDelayedTemplateValue`), which is scored against the
+ *  whole board rather than used to truncate a candidate list. */
 export function noncreatureCardWorth(
     card: CardInstanceState,
     ctx?: GroundingContext
 ): number {
     const scripted = scriptOpValueOf(card, ctx);
     if (!scripted) return NONCREATURE_FLOOR;
+    const worth = scripted.points * NONCREATURE_SCRIPT_SCALE;
     const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
     const templateOnly = !!def && !carriesSpellOrAbilityScript(def);
-    return (
-        (templateOnly ? NONCREATURE_FLOOR : 0) +
-        scripted.points * NONCREATURE_SCRIPT_SCALE
-    );
+    return templateOnly ? Math.max(NONCREATURE_FLOOR, worth) : worth;
 }
 
 /** Latent worth of a prospective card (hand/library — not yet in play):

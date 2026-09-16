@@ -34,7 +34,7 @@ function cardNamed(name: string): CardDefinition {
     return def;
 }
 
-/** The next-upkeep cantrip rider (CR 603.7d) — the shipped INCLUDED shape:
+/** The next-upkeep cantrip rider (CR 603.7a) — the shipped INCLUDED shape:
  *  a body with no scheduling-time capture, armed unconditionally by the
  *  card's own resolution (Clairvoyance, Portent, Mishra's Bauble) or by its
  *  tap-mana rider (Barbed Sextant, `armsDelayedTriggerOnTap`, ADR 0040). */
@@ -201,13 +201,18 @@ describe("delayed-trigger TEMPLATE valuation (CR 603.7a, issue #3383)", () => {
             const bodyValue = valueEffectScript(body, ctx);
             const withTemplate = dslAbilityScriptOpValue(card, ctx);
             if (INCLUDED[card.name] !== undefined) {
-                // The template's points are IN the card's ability-script value
-                // (a card may carry other scripted abilities too, so this is a
-                // lower bound, never an equality for the whole catalogue).
+                // The card's value WITH the template, minus the same card with
+                // the array emptied, IS the body's own value. A `>= body` lower
+                // bound would stay green on a card whose other abilities
+                // already cover the number (PR review finding 8).
+                const abilitiesOnly = dslAbilityScriptOpValue(
+                    { ...card, delayedTriggers: [] } as CardDefinition,
+                    ctx
+                );
                 expect(
-                    withTemplate?.points ?? 0,
+                    (withTemplate?.points ?? 0) - (abilitiesOnly?.points ?? 0),
                     `${card.name} is classified included (${INCLUDED[card.name]}) but its template's ${bodyValue.points} points are missing`
-                ).toBeGreaterThanOrEqual(bodyValue.points);
+                ).toBeCloseTo(bodyValue.points);
             } else {
                 const abilitiesOnly = dslAbilityScriptOpValue(
                     { ...card, delayedTriggers: [] } as CardDefinition,
@@ -238,19 +243,27 @@ describe("where the template's value LANDS (issue #3383)", () => {
         } as unknown as Parameters<typeof noncreatureCardWorth>[0];
     }
 
-    it("the candidate pool keeps its no-script floor UNDER a template-only card and adds the template on top", () => {
+    it("the candidate pool keeps its no-script floor UNDER a template-only card, and never lifts it above a fully-read one", () => {
         const bauble = cardNamed("Mishra's Bauble");
         // The premise of the floor branch: the reader has read the template and
         // NOTHING else on the card (its ability is a `resolve()`).
         expect(carriesSpellOrAbilityScript(bauble)).toBe(false);
         const blank = cardNamed("Tormod's Crypt");
         expect(carriesSpellOrAbilityScript(blank)).toBe(false);
-        // A blank {0} artifact sits at the flat no-script prior; the Bauble
-        // must sit STRICTLY above it, never below — dropping the floor for a
-        // partially-read card priced it at 6.4 against the blank's 30.
+        // A partially-read card must not fall BELOW a card nothing is known
+        // about — without the floor branch the Bauble priced at 6.4 against the
+        // blank's 30, which is the issue's fix running backwards.
         const blankWorth = noncreatureCardWorth(handInstance(blank));
-        const baubleWorth = noncreatureCardWorth(handInstance(bauble));
-        expect(baubleWorth).toBeGreaterThan(blankWorth);
+        expect(noncreatureCardWorth(handInstance(bauble))).toBe(blankWorth);
+        // …and it must not rise ABOVE a card the reader HAS read whole: this
+        // ranking is also the top-K admission gate (`choiceCandidates.ts`), so
+        // a partial reading that outranked a real script could drop that script
+        // out of a search-library answer set entirely (PR review finding 2).
+        const fullyRead = cardNamed("Counterspell");
+        expect(carriesSpellOrAbilityScript(fullyRead)).toBe(true);
+        expect(noncreatureCardWorth(handInstance(fullyRead))).toBeGreaterThan(
+            noncreatureCardWorth(handInstance(bauble))
+        );
     });
 
     it("the leaf evaluator's latent worth rises for a template-only noncreature, by the discounted template value", () => {

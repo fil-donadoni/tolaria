@@ -1103,9 +1103,12 @@ const delayedTrigger: Valuer<"delayedTrigger"> = (op, ctx, scope) =>
 // CR 603.12 — a reflexive trigger's whole value IS its body: the Op itself
 // only queues a stack object. Same recursion as `delayedTrigger`, and with no
 // discount for the wait — as that Op has none either (issue #3383 corrected
-// this comment, which claimed a discount its sibling above has never applied;
-// the template reader in `cardScriptValue.ts` matches both, so one body prices
-// the same however it was scheduled). Same
+// this comment, which claimed a discount its sibling above has never applied).
+// The delayed-trigger TEMPLATE reader (`cardScriptValue.ts`) applies none
+// either, so a CAPTURE-FREE body prices the same however it was scheduled; a
+// body that READS a binding is valued here (the `capture` aliases make its
+// sign right) and skipped there (the template path cannot place the captured
+// subject, so it fails closed at zero). Same
 // `capture`-alias threading as `delayedTrigger` (issue #1964) — a reflexive
 // self-bounce would hit the identical mis-scoring otherwise.
 const reflexiveTrigger: Valuer<"reflexiveTrigger"> = (op, ctx, scope) =>

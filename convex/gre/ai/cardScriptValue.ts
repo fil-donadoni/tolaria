@@ -55,12 +55,25 @@ function effectiveScript(site: {
  *  is discounted before being added to the body (never doubled with it). */
 const ABILITY_SCRIPT_DISCOUNT = 0.5;
 
-/** True when any part of `value` reads a BINDING (`{ ref: "$x" }`) — the
- *  discriminator for a delayed-trigger template body whose subject is
- *  scheduling-time data rather than anything the reader can place
- *  (`delayedTriggerTemplateOpValue` below). Walks plain data only: an Effect
- *  Script is JSON by construction (`validateEffectScript`'s purity rule), so
- *  there is nothing else to descend into. */
+/** True when any part of `value` reads a BINDING (`{ ref: "$x" }`) at all — a
+ *  deliberate OVER-APPROXIMATION of "this body's subject is a scheduling-time
+ *  capture" (`delayedTriggerTemplateOpValue` below), erring in the direction
+ *  that is safe: a template the reader is unsure of contributes nothing, which
+ *  is exactly what it contributed before the reader existed. So it also fires
+ *  on `{ ref: "$source" }` and on a body that binds its own variable and reads
+ *  it back — neither is a payload capture, and neither ships on a template
+ *  today. It zeroes the WHOLE template rather than the offending Op, same
+ *  reason.
+ *
+ *  It is NOT too narrow, which is the half that would matter: every payload
+ *  key is bound as `$name` by `runDelayedTriggerBody`
+ *  (`gre/effects/interpreter.ts`) and every read of a binding in the
+ *  interpreter goes through `{ ref }` — a capture has no bare-string channel
+ *  into the body.
+ *
+ *  Walks plain data only: an Effect Script is JSON by construction
+ *  (`validateEffectScript`'s purity rule), so there is nothing else to descend
+ *  into. */
 function readsBinding(value: unknown): boolean {
     if (Array.isArray(value)) return value.some(readsBinding);
     if (value !== null && typeof value === "object") {
@@ -127,9 +140,13 @@ export function delayedTriggerTemplateOpValue(
     def: CardDefinition,
     ctx: GroundingContext = contextFreeGrounding()
 ): OpValue | undefined {
+    // Almost no card carries a template at all, and this runs per hand card
+    // per ISMCTS leaf — answer those before `carriesShadowScript` allocates its
+    // site list (PR review finding 6).
+    if (!def.delayedTriggers?.length) return undefined;
     if (carriesShadowScript(def)) return undefined;
     let acc: OpValue | undefined;
-    for (const template of def.delayedTriggers ?? []) {
+    for (const template of def.delayedTriggers) {
         const script = template.effects;
         if (!script || script.length === 0) continue;
         if (readsBinding(script)) continue;

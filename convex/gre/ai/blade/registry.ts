@@ -7618,8 +7618,26 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         budget: { iterations: 200 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
+        // A PREDICATE rather than `moves`, for the reason the depletion-land
+        // entry above gives and one of its own: a registry `moves`/`forbidden`
+        // entry is a new VERDICT and obliges a refit (`weightFit.bot.test.ts`),
+        // and the refit this one obliges is a measured REGRESSION —
+        // `bun run fit:weights` prints DO NOT PASTE, because the fitted vector
+        // orders FEWER verdicts than the committed one on the same corpus. A
+        // predicate yields no verdict at all (`pasteInstruction`,
+        // `verdicts/report.ts`), so the entry still BLOCKS at `must`; what it
+        // does not do is vote on the weights. Same assertion either way: the
+        // chosen move is the search-library submission naming the Bauble.
         expect: {
-            moves: [{ kind: "resolution-choice", card: "Mishra's Bauble" }],
+            predicate: (move, state) =>
+                move !== null &&
+                move.kind === "resolution-choice" &&
+                move.cardInstanceIds?.length === 1 &&
+                instanceIdsForName(state, "Mishra's Bauble").has(
+                    move.cardInstanceIds[0]
+                ),
+            describe:
+                "fetches Mishra's Bauble, not the blank {0} artifact or a basic",
         },
         note: "Issue #3383 — the bot's value model never walked `cardDef.delayedTriggers[]`, so a real `effects[]` on a template was worth exactly zero and Mishra's Bauble priced as if its delayed draw did not exist. The root decision is the live search-library choice (CR 701.23), reached by really casting and resolving Demonic Tutor. Proof-of-failure: making `delayedTriggerTemplateOpValue` (`gre/ai/cardScriptValue.ts`) return `undefined` reds this at every seed (the bot fetches a Plains).",
     },

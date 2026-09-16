@@ -188,20 +188,26 @@ export function latentValue(chars: {
     const fallback = chars.dslSpellValueMeasured
         ? 0
         : NONCREATURE_BASE + chars.manaValue * W_NC_MV;
-    // CR 603.7a (issue #3383) — the card's delayed-trigger templates, added to
-    // whichever of the two the precedence below settles on. See the field's
-    // doc: the creature branch above already carries them inside
-    // `dslAbilityValue`, so this is the non-creature branch's only reading.
+    // CR 603.7a (issue #3383) — the card's delayed-trigger templates. Added
+    // INSIDE the `MAX_LATENT_SCRIPT_VALUE` clamp below, never after it: the cap
+    // exists so no single hand card can pin the reward band (see its own doc),
+    // and a sentinel-amount template body would walk straight through a cap
+    // applied to the spell half alone. The creature branch above already
+    // carries the same templates inside `dslAbilityValue`, so this is the
+    // non-creature branch's only reading.
     const delayed = chars.dslDelayedTemplateValue ?? 0;
     if (chars.dslSpellValue !== undefined) {
         // Clamp BEFORE the floor comparison (issue #1508) — an ordinary
         // script's value is always well under the cap, so this is a no-op for
         // every real card except the rare "if always assumes then" / literal
         // sentinel-amount outliers the cap exists to bound.
-        const bounded = Math.min(chars.dslSpellValue, MAX_LATENT_SCRIPT_VALUE);
-        return Math.max(fallback, bounded) + delayed;
+        const bounded = Math.min(
+            chars.dslSpellValue + delayed,
+            MAX_LATENT_SCRIPT_VALUE
+        );
+        return Math.max(fallback, bounded);
     }
-    return fallback + delayed;
+    return Math.min(fallback + delayed, MAX_LATENT_SCRIPT_VALUE);
 }
 
 /** Derive the two DSL-script value pieces from a `CardDefinition` (context-free
