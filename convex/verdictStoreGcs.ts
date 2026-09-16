@@ -23,6 +23,9 @@ import type { VerdictStoreReader } from "./verdictStore";
 import {
     VERDICT_STORE_BUCKET,
     VERDICT_STORE_OAUTH_SCOPE,
+    VERDICT_STORE_READ_KEY_ENV,
+    assertCredentialRole,
+    parseServiceAccountKey,
     type ServiceAccountKey,
     type VerdictStoreAccess,
 } from "./verdictStoreCredentials";
@@ -135,4 +138,18 @@ export function createGcsVerdictStoreReader(
     bucket: string = VERDICT_STORE_BUCKET
 ): VerdictStoreReader {
     return gcsReader(bucket, gcsTokenSource(key, "read"));
+}
+
+/** The reader, from THIS deployment's environment (issue #3746), or `null`
+ *  when the deployment holds no reader key. A key that is present but is not
+ *  the reader's throws — the writer's key is refused by its service-account
+ *  name, exactly as the machine reader refuses it. */
+export function verdictStoreReaderFromDeploymentEnv(
+    env: Record<string, string | undefined> = process.env
+): VerdictStoreReader | null {
+    const text = env[VERDICT_STORE_READ_KEY_ENV];
+    if (text === undefined || text === "") return null;
+    const key = parseServiceAccountKey(text, VERDICT_STORE_READ_KEY_ENV);
+    assertCredentialRole(key, "read", VERDICT_STORE_READ_KEY_ENV);
+    return createGcsVerdictStoreReader(key);
 }

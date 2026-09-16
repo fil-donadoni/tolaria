@@ -3,10 +3,12 @@
 // The Verdict review surface's doors (issue #3582, PRD #3574, ADR 0128 §6).
 //
 // Actions, because the surface reads the Verdict Store, and the store is
-// reached only with this deployment's write credential in a `"use node"`
-// module (`verdictsDrain.ts` holds the same key; the writer can read). A
-// deployment without the key — every local backend — reads its own outbox
-// only, and says so (`storeRead: false`).
+// reached only with a credential in a `"use node"` module. A deployment
+// holding the write key reads with it (the writer can read). One without it —
+// a local backend — reads with the READER key when its environment holds one
+// (issue #3746), so it reviews the same corpus production does: the whole
+// bucket plus its own rows not yet forwarded. With neither it reads its own
+// outbox only, and says so (`storeRead: false`).
 //
 // Admin-gated through the internal functions they call first
 // (`verdictResolutions.reviewOutbox` asserts it with the caller's identity).
@@ -22,7 +24,8 @@
 import { makeFunctionReference } from "convex/server";
 import { v } from "convex/values";
 import { action, type ActionCtx } from "./_generated/server";
-import { readStoredCorpus } from "./verdictStore";
+import { readStoredCorpus, type VerdictStoreReader } from "./verdictStore";
+import { verdictStoreReaderFromDeploymentEnv } from "./verdictStoreGcs";
 import {
     VERDICT_STORE_WRITE_KEY_ENV,
     verdictStoreWriterFromDeploymentEnv,
@@ -62,6 +65,19 @@ const refs = {
     >("verdictResolutions:record"),
 };
 
+/** The store the review reads, by the credential this deployment holds: the
+ *  write key, else the reader key, else none. `env` decides which; the
+ *  writer's constructor reads its key from the deployment's own environment,
+ *  as the drain's does. */
+export function reviewStoreFromEnv(
+    env: Record<string, string | undefined>
+): VerdictStoreReader | null {
+    if (env[VERDICT_STORE_WRITE_KEY_ENV]) {
+        return verdictStoreWriterFromDeploymentEnv();
+    }
+    return verdictStoreReaderFromDeploymentEnv(env);
+}
+
 async function loadReview(ctx: ActionCtx): Promise<{
     sources: ReviewSources;
     nicknameOf: NicknameOf;
@@ -72,10 +88,9 @@ async function loadReview(ctx: ActionCtx): Promise<{
     // would be in neither.
     const outbox = await ctx.runQuery(refs.reviewOutbox, {});
     const here = verdictDeploymentOf(process.env.CONVEX_CLOUD_URL);
-    const storeRead = Boolean(process.env[VERDICT_STORE_WRITE_KEY_ENV]);
-    const stored = storeRead
-        ? await readStoredCorpus(verdictStoreWriterFromDeploymentEnv())
-        : null;
+    const store = reviewStoreFromEnv(process.env);
+    const storeRead = store !== null;
+    const stored = store === null ? null : await readStoredCorpus(store);
     const sources = reviewSourcesOf({
         stored,
         verdictRows: outbox.verdictRows,

@@ -42,6 +42,13 @@ export const VERDICT_STORE_SERVICE_ACCOUNT: Readonly<
     write: "verdict-store-writer",
 };
 
+/** The deployment env var holding the READER's JSON key (issue #3746). A
+ *  deployment without the write key — a local backend — reads the whole store
+ *  with it, for review. Reading is what development machines already hold
+ *  (ADR 0128), so the reader key in a local backend's environment stays inside
+ *  the rule; the writer's key there still does not. */
+export const VERDICT_STORE_READ_KEY_ENV = "VERDICT_STORE_READ_KEY";
+
 /** The fields of a Google service-account JSON key the transport uses. */
 export interface ServiceAccountKey {
     clientEmail: string;
