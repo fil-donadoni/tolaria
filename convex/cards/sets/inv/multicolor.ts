@@ -1736,14 +1736,10 @@ export const tsaboTavoc: CardDefinition = {
 // Void — {3}{B}{R} Sorcery. "Choose a number. Destroy all artifacts and
 // creatures with mana value equal to that number. Then target player
 // reveals their hand and discards all nonland cards with mana value equal
-// to the number." tracked-by: #1421 (the `chooseNumber` primitive) AND #2150
-// (the hand-zone sweep) — the only card in the tranche still blocked on
-// capabilities that genuinely do not exist, re-verified @ 5ef6930c. The
-// battlefield sweep half alone would be buildable per FIXED number via Powder
-// Keg's `forEach` + `manaValue` `if`-check idiom, but there is no general
-// numeric player choice to drive it (the one precedent, Shapeshifter's
-// `resolveSteps` picker in `atq/colorless.ts`, is a bespoke fixed-range
-// `requestOptionChoice`, unreachable from a declarative script). The
+// to the number." tracked-by: #2150 (the hand-zone sweep) — the one
+// capability still missing. The numeric nomination is no longer a blocker:
+// the `chooseNumber` Op shipped (issue #1421, PR #3572) with a numeric bind
+// the battlefield sweep can read (`manaValueEquals: { ref }`). The
 // hand-discard half needs a filtered, UNCHOSEN bulk discard: `forEach`'s
 // selector union has no "hand" member and `discard` only ever consumes a
 // `choice` Op's player-picked cards. Note the moveZone hand→graveyard sweep
@@ -1761,10 +1757,9 @@ export const tsaboTavoc: CardDefinition = {
 // cross-colour activated-ability cost (the Hooded Kavu/Bloodstone
 // Cameo/Urborg Volcano shape already established by the BR tranche,
 // issue #1077). Serpentine Kavu is ALREADY shipped by the mono green free
-// tranche (issue #1073, `inv/green.ts`); Verduran Emissary is a DEFERRED
-// stub there (tracked-by #1086) — neither is re-declared here (never
-// duplicate a `CardDefinition`, and never activate a tracked stub as a side
-// effect).
+// tranche (issue #1073, `inv/green.ts`), and so is Verduran Emissary
+// (issue #1328) — neither is re-declared here (never duplicate a
+// `CardDefinition`).
 
 // Artifact Mutation — {R}{G} Instant. "Destroy target artifact. It can't be
 // regenerated. Create X 1/1 green Saproling creature tokens, where X is

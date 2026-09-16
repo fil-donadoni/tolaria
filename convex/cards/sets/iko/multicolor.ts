@@ -19,7 +19,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // `manaCost.hybrid` (issue #1338) and payable with mana off either colour of
 // land (issues #1738/#1739, PRD #1736, landed #1755) — see Figure of Destiny
 // (eve/multicolor.ts) for the reference shape. This closes the divergence
-// this card previously shipped under (tracked-by #782), the same gap that
+// this card previously shipped under (issue #782, closed), the same gap that
 // stubbed Deathrite Shaman (rtr/multicolor.ts).
 export const lutri: CardDefinition = {
     // Kept as a literal (not imported from `gre/companion.ts`'s `LUTRI_ID`):
@@ -117,7 +117,7 @@ export const lutri: CardDefinition = {
 // `manaCost.hybrid` (issue #1338) and payable with mana off either colour of
 // land (issues #1738/#1739, PRD #1736, landed #1755) — see Figure of Destiny
 // (eve/multicolor.ts) for the reference shape. This closes the divergence
-// this card previously shipped under (tracked-by #782), the same gap that
+// this card previously shipped under (issue #782, closed), the same gap that
 // stubbed Deathrite Shaman (rtr/multicolor.ts) and previously narrowed Lutri
 // (`lutri` above, same file).
 //

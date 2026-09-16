@@ -521,7 +521,7 @@ export const stormSeeker: CardDefinition = {
     // `{ count: { zone: "hand", controller: { target: 0 } } }` expresses this
     // exactly. The closure stays only because migrating it is free-tranche
     // work with its own batch, not part of the issue that shipped the member.
-    // tracked-by: #1435
+    // tracked-by: #3729
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (target?.type !== "player") return;

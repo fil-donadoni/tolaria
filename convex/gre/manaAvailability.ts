@@ -40,7 +40,7 @@
 //     at the gate and nothing here. Both are inherited unchanged from the
 //     `manaValue` proxy this reader replaces — it read the same printed cost
 //     and knew nothing of either — so neither is a regression, and neither is
-//     fixed here. tracked-by: #3531
+//     fixed here. tracked-by: #3727
 //
 // PURE. No async, no state mutation.
 
