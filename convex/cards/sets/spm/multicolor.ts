@@ -9,36 +9,17 @@ import type { CardDefinition, PermanentView } from "../../types";
 // Carnage enters, return target creature card with mana value 3 or less from
 // your graveyard to the battlefield. It gains 'This creature attacks each
 // combat if able' and 'When this creature deals combat damage to a player,
-// sacrifice it.' Mayhem {B}{R}." Blocked, HALF-narrowed: `grantAbility`
+// sacrifice it.' Mayhem {B}{R}." Blocked only on Mayhem: `grantAbility`
 // widened (issue #1665 — `grantedTriggeredId` + `triggeredGrantTemplates[]`)
 // to grant non-keyword TRIGGERED abilities, proven by Guardian Scalelord
 // (`moc/white.ts`), so "when this creature deals combat damage to a player,
-// sacrifice it" is now expressible. What remains: (i) keyword **Mayhem**
-// (CR 702.187) is still `status: "planned"` (`convex/cards/mechanicsRegistry.ts`)
-// → tracked-by #1971, and (ii) "attacks each combat if able" is NOT
-// grantable per-instance — `hasAttackRequirement` (`convex/gre/combat.ts`)
-// reads `attack-requirement` only from the card's own compile-time
-// `def.staticEffects`; the only per-instance flag, `mustAttackThisTurn`
-// (`convex/gre/state.ts`), is transient and cleared at cleanup — the wrong
-// duration for a permanent grant → tracked-by #1972.
-//
-// PATTERN for (ii), landed for the Aura twin in #2471 (CR 303.4 enchant
-// restriction, `convex/gre/state.ts`): a normalized restriction interface in
-// `cards/types.ts`; an optional `CardInstanceState` field granted by a new
-// OPTIONAL FIELD on an existing Op rather than a new Op; ONE exported resolver
-// that every legality site calls, with the per-consumer copies DELETED, not a
-// second reader added; a hand-written `compactCard` / `expandCard` branch plus
-// a round-trip assertion (`PERSISTED_OPTIONAL_KEYS` guards only top-level
-// `GameState` keys, so it will not catch a missing instance field).
-//
-// The part that is easy to get wrong, and did get wrong on the first pass:
-// ONE predicate is necessary but NOT sufficient. Two sites calling the same
-// function still disagree if they call it at moments where the DATA differs.
-// Decide the grant's scope, then clear it at every boundary of that scope —
-// including before any legality question asked during an entry sequence, not
-// only in the entry-side reset that runs after the answer has been used.
+// sacrifice it" is now expressible, and (issue #1972) so is "attacks each
+// combat if able": `grantAbility`'s `attackRequirement` payload grants it
+// per-instance, indefinitely, read by the single predicate
+// `hasAttackRequirement` (`convex/gre/combat.ts`). What remains: keyword
+// **Mayhem** (CR 702.187) is still `status: "planned"`
+// (`convex/cards/mechanicsRegistry.ts`).
 // tracked-by: #1971
-// tracked-by: #1972
 // export const carnageCrimsonChaos: CardDefinition = {
 //     id: "930befba-6068-493e-baa2-e9371cd99e93",
 //     name: "Carnage, Crimson Chaos",

@@ -70,15 +70,11 @@ vi.mock("@convex/_generated/api", () => {
     return { api: { game } };
 });
 
-// Card registry. A plain creature has no attack requirement; the "must attack"
-// creature carries an `attack-requirement` static effect; the multi-color
+// Card registry. The "must attack" creature is a plain definition: the
+// requirement reaches the client as the projected `mustAttack` flag (issue
+// #1972), never as a definition the client re-derives it from; the multi-color
 // source returns a Birds-of-Paradise-style `manaChoices` ability.
 const PLAIN_DEF = { id: "plain-def", name: "Grizzly Bears", staticEffects: [] };
-const MUST_ATTACK_DEF = {
-    id: "must-attack-def",
-    name: "Juggernaut",
-    staticEffects: [{ kind: "attack-requirement" }],
-};
 const CHOICE_DEF = {
     id: "choice-def",
     name: "Birds of Paradise",
@@ -94,7 +90,6 @@ const CHOICE_DEF = {
 };
 const REGISTRY: Record<string, unknown> = {
     "plain-def": PLAIN_DEF,
-    "must-attack-def": MUST_ATTACK_DEF,
     "choice-def": CHOICE_DEF,
 };
 import {
@@ -252,9 +247,13 @@ describe("board combat declaration parity with the classic board (#281)", () => 
     });
 
     it("(a') the must-attack guard blocks deselection identically on both boards (no dispatch)", () => {
-        // An already-selected attacker with an attack-requirement, untapped and
-        // not summoning sick, cannot be deselected (CR 508.1d).
-        const jugg = creature("jugg1", "must-attack-def");
+        // An already-selected attacker the server projects as required to
+        // attack cannot be deselected (CR 508.1d). The definition carries NO
+        // requirement: a granted one (issue #1972) is invisible to it.
+        const jugg = {
+            ...creature("jugg1", "plain-def"),
+            mustAttack: true,
+        } as CardInstance;
         const me = makePlayer("me", [jugg]);
         const ctx: Partial<React.ContextType<typeof GameContext>> = {
             phase: "DECLARE_ATTACKERS",

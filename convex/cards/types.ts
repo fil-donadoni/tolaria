@@ -5312,6 +5312,18 @@ export interface SpellContext {
         sourceCardId: string,
         abilityId: string
     ) => void;
+    /** Grants "This creature attacks each combat if able" to a single target
+     *  permanent (CR 508.1d / 613.1f, issue #1972), recorded on
+     *  `CardInstanceState.grantedAttackRequirements` and read by the one
+     *  attack-requirement predicate (`hasAttackRequirement`, `gre/combat.ts`)
+     *  alongside a printed `attack-requirement`. Omitted `duration` is
+     *  INDEFINITE (CR 611.2a) — kept until the permanent leaves the
+     *  battlefield; otherwise it expires at that phase boundary. No-op if the
+     *  target has left the battlefield (CR 608.2b). */
+    grantAttackRequirement: (
+        target: TargetSelection,
+        duration?: DurationSpec
+    ) => void;
     /** Marks a permanent so that if it would leave the battlefield, it is
      *  exiled instead of going to any other zone (CR 614.1c — a replacement
      *  applied to every battlefield-departure path: dies, sacrifice, bounce,
@@ -14707,6 +14719,15 @@ export type EffectOp =
           ability?: string;
           grantedActivatedId?: string;
           grantedTriggeredId?: string;
+          /** CR 508.1d / 613.1f (issue #1972) — the fourth payload: grant "This
+           *  creature attacks each combat if able" (Carnage, Crimson Chaos's
+           *  reanimated creature). Routes to `SpellContext
+           *  .grantAttackRequirement`, which records it per-instance; the
+           *  single predicate `hasAttackRequirement` (`gre/combat.ts`) reads it
+           *  alongside a printed `attack-requirement`, so declaration legality,
+           *  the Bot's enumeration and the client affordance all see it.
+           *  Omitted `duration` = indefinite, exactly like the other legs. */
+          attackRequirement?: true;
       }
     /** CR 613.1d (layer 4, issue #1194) — adds `subtype` to a target permanent
      *  INDEFINITELY, in addition to its other types (Guide of Souls: "It

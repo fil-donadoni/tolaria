@@ -321,6 +321,16 @@ export type Duration = {
     playerId?: string;
 };
 
+/** One granted attack requirement (CR 508.1d) — see
+ *  `CardInstanceState.grantedAttackRequirements`. */
+export type GrantedAttackRequirement = {
+    /** Absent = indefinite (CR 611.2a). */
+    duration?: Duration;
+    /** Layer timestamp of the grant (CR 613.7), allocated at resolution like
+     *  every other ability grant from a resolving ability. */
+    seq: number;
+};
+
 /** Converts a card-facing DurationSpec into the stored shape by resolving
  *  the symbolic `player` field against the effect's controller. */
 export function resolveDuration(
@@ -1119,6 +1129,23 @@ export type CardInstanceState = {
      *  Set by Nettling Imp's activated ability. Checked by combat enforcement
      *  in `mustAttack()`. Transient — cleared at CLEANUP (CR 514.2). */
     mustAttackThisTurn?: boolean;
+    /** CR 508.1d / 613.1f (issue #1972) — "This creature attacks each combat
+     *  if able" GRANTED to this permanent by a resolving ability (the
+     *  `grantAbility` Op's `attackRequirement` payload), as opposed to printed
+     *  in its definition's `staticEffects`. One entry per grant:
+     *  - no `duration` — INDEFINITE (CR 611.2a: no stated duration lasts
+     *    until the object ceases to exist); kept across turns, cleared only
+     *    when the permanent leaves the battlefield (CR 400.7);
+     *  - `duration` — spliced out by the phase-boundary purge
+     *    (`tickAllDurations`, `gre/phases.ts`) when it expires.
+     *
+     *  Read ONLY by `hasAttackRequirement` (`gre/combat.ts`). An entry is an
+     *  object rather than a boolean so a later widening (a requirement pinned
+     *  to a specific defender, issue #3247) adds a field here instead of a
+     *  second store. Battlefield-scoped: cleared by `removePermanentTo` and
+     *  `resetBattlefieldTransientState`. Persisted by `compactCard` /
+     *  `expandCard` — nothing re-derives it. */
+    grantedAttackRequirements?: GrantedAttackRequirement[];
     /** CR 613.1e layer 5 — the colour grants applying (Kormus Bell's "black
      *  creatures"). DERIVED OUTPUT, written only by `layers2to5DerivedFields`
      *  (`gre/layers2to5.ts`) and never read back as input.
@@ -11165,6 +11192,11 @@ export function removePermanentTo(
     // departure, not only the hand/library one that runs
     // `resetBattlefieldTransientState` below.
     clearGrantedEnchantRestriction(creature);
+    // CR 400.7 / 508.1d (issue #1972) — same site, same reasoning: a granted
+    // "attacks each combat if able" belongs to the object that was on the
+    // battlefield, so it goes on EVERY departure, not only the ones that run
+    // `resetBattlefieldTransientState`.
+    delete creature.grantedAttackRequirements;
     // CR 702.103f / 400.7 — a bestowed Aura leaving the battlefield ceases to
     // be bestowed, and (unlike the granted restriction cleared immediately
     // above) bestow also rewrote the object's TYPE LINE in place, so the
@@ -13493,6 +13525,9 @@ export function resetBattlefieldTransientState(
     delete card.staticSeq;
     delete card.grantedActivatedAbilities;
     delete card.grantedTriggeredAbilities;
+    // CR 400.7 / 508.1d (issue #1972) — the entry-side half; the departure
+    // side is `removePermanentTo`.
+    delete card.grantedAttackRequirements;
     delete card.abilitiesSuppressedBy;
     delete card.abilityLossHolds;
     delete card.chosenMana;
@@ -19334,6 +19369,35 @@ export function buildSpellContext(
                 ...(found.card.grantedTriggeredAbilities ?? []),
                 // CR 613.7 timestamp — see `grantActivatedAbility`.
                 { sourceCardId, abilityId, seq: allocStaticTimestamp(state) },
+            ];
+        },
+        // CR 508.1d / 613.1f (issue #1972) — grants "This creature attacks
+        // each combat if able". Omitted `duration` = indefinite (CR 611.2a);
+        // otherwise the phase-boundary purge splices the entry out. Every
+        // grant owns its own entry, so an expiring until-end-of-turn grant
+        // never takes an indefinite one with it.
+        grantAttackRequirement(
+            target: TargetSelection,
+            duration?: DurationSpec
+        ): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            found.card.grantedAttackRequirements = [
+                ...(found.card.grantedAttackRequirements ?? []),
+                {
+                    ...(duration
+                        ? {
+                              duration: resolveDuration(
+                                  duration,
+                                  item.castById,
+                                  state
+                              ),
+                          }
+                        : {}),
+                    // CR 613.7 timestamp — see `grantActivatedAbility`.
+                    seq: allocStaticTimestamp(state),
+                },
             ];
         },
         // CR 614.1c — persistent leave-the-battlefield → exile replacement on a

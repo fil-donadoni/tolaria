@@ -1365,10 +1365,19 @@ const addPlayerCounter: Valuer<"addPlayerCounter"> = (op, ctx) => {
     };
 };
 
-const grantAbility: Valuer<"grantAbility"> = (op, ctx) => ({
-    points: priced(ctx, "evasion"),
-    tags: isAnnouncedTarget(op.target) ? ["evasion", "targeted"] : ["evasion"],
-});
+const grantAbility: Valuer<"grantAbility"> = (op, ctx) =>
+    // CR 508.1d (issue #1972) — "attacks each combat if able" is a constraint,
+    // not evasion: it adds no feature a creature scores on, and its cost (a
+    // forced attack into a bad board) is a combat outcome the search reaches
+    // by playing the declaration out. Its sign is `opBeneficence`'s.
+    op.attackRequirement
+        ? { points: 0, tags: isAnnouncedTarget(op.target) ? ["targeted"] : [] }
+        : {
+              points: priced(ctx, "evasion"),
+              tags: isAnnouncedTarget(op.target)
+                  ? ["evasion", "targeted"]
+                  : ["evasion"],
+          };
 
 // Backfilled Op (issue #1515). Unlike `grantCastFromExile`/
 // `grantCastFromGraveyard` (which only grant a LATER impulse window), this Op
@@ -2137,7 +2146,6 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // this Op is looking at a gift.
     setLevel: "beneficial",
     preventDamage: "beneficial",
-    grantAbility: "beneficial",
     becomeMonarch: "beneficial",
     grantCastFromExile: "beneficial",
     grantCastFromGraveyard: "beneficial",
@@ -2486,6 +2494,7 @@ export const PARAMETRIZED_BENEFICENCE_OPS: ReadonlySet<string> = new Set([
     "tapUntap",
     "scryReorder",
     "choice",
+    "grantAbility",
 ]);
 
 /** Sign of one Op for its recipient (issue #1888). Reads the Op's own shape for
@@ -2528,6 +2537,14 @@ export function opBeneficence(
                 : "harmful";
         case "tapUntap":
             return op.action === "untap" ? "beneficial" : "harmful";
+        case "grantAbility":
+            // CR 508.1d (issue #1972) — every grant hands the recipient an
+            // ability it wants (a keyword, an activated or triggered ability)
+            // EXCEPT "attacks each combat if able", which takes a choice away:
+            // the controller can no longer hold that creature back. Pointed at
+            // an opponent's creature it is an attack on them (the forced
+            // attack into blockers), so it signs harmful.
+            return op.attackRequirement ? "harmful" : "beneficial";
         case "choice":
             // CR 601.2b (issue #3006, found in review) — most `choice` kinds
             // bind a FREE pick and carry no sign: the chooser picks what they

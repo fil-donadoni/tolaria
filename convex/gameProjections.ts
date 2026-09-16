@@ -29,6 +29,7 @@ import {
 import { PLACEHOLDER_CARD_ID } from "./gre/constants";
 import { canSummonCompanion } from "./gre/companion";
 import { canTurnFaceUp } from "./gre/morph";
+import { isRequiredAttacker } from "./gre/combat";
 import { isFaceDownExile } from "./gre/faceDown";
 import { exileCastPermission } from "./gre/castCost";
 import {
@@ -351,6 +352,13 @@ export type SlimPhasedOutBundle = Omit<PhasedOutBundle, "cards"> & {
  *  the CR 708.2 vanilla 2/2, never the real card, even for the controller. */
 export type SlimBattlefieldCard = SlimCardInstance & {
     canTurnFaceUp?: boolean;
+    /** CR 508.1d (issue #1972) — during the declare-attackers step, this
+     *  creature is required to attack and able to, so it cannot be left out of
+     *  the declaration. Server-derived through `isRequiredAttacker`, the call
+     *  the `toggleAttacker` deselect refusal makes, so the client never
+     *  re-derives the requirement (printed, granted or this-turn) itself.
+     *  Absent (never `false`) outside that step or when nothing forces it. */
+    mustAttack?: true;
     knownCardId?: string;
     /** CR 613.4c (ADR 0082, PRD #2064 S6) — the until-boundary P/T
      *  modifications applying to this permanent, DERIVED from
@@ -589,16 +597,29 @@ function projectBattlefieldCard(
         state !== undefined &&
         card.faceDown === true &&
         canTurnFaceUp(state, getPlayer(state, card.controllerId), card);
-    const decorate = (slim: SlimBattlefieldCard): SlimBattlefieldCard =>
-        turnUp && viewerId === card.controllerId
-            ? { ...slim, canTurnFaceUp: true }
+    // CR 508.1d (issue #1972) — the must-attack affordance. Public, like the
+    // attack declaration it constrains; asked only while attackers are being
+    // declared, for the active player's permanents.
+    const requiredAttacker =
+        state !== undefined &&
+        state.phase === "DECLARE_ATTACKERS" &&
+        state.combat?.confirmed !== true &&
+        card.controllerId === state.activePlayerId &&
+        isRequiredAttacker(card, state);
+    const decorate = (slim: SlimBattlefieldCard): SlimBattlefieldCard => {
+        const out: SlimBattlefieldCard = requiredAttacker
+            ? { ...slim, mustAttack: true }
             : slim;
+        return turnUp && viewerId === card.controllerId
+            ? { ...out, canTurnFaceUp: true }
+            : out;
+    };
     // The derivation is applied to the INSTANCE and `slimCard` runs last, so
     // its privacy strip can never be undone by a patch field (see
     // `applyWireCharacteristics`).
     const slim = (): SlimBattlefieldCard =>
         slimCard(applyWireCharacteristics(card, characteristics));
-    if (!card.faceDown) return slim();
+    if (!card.faceDown) return decorate(slim());
     // slimCard returns a fresh object, so deleting the marker below never
     // mutates live state. `card.card.id` is ALREADY the sentinel in raw state
     // (turnFaceDown swaps it there, not per-viewer) — it needs no

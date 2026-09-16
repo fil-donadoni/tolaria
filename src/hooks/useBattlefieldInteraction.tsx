@@ -595,19 +595,11 @@ export function useBattlefieldInteraction(player: Player) {
         }
         if (isSelectingAttackers && isCreature(card)) {
             // CR 508.1d: can't deselect a creature required to attack.
-            // Pre-check client-side for instant feedback (the server also
-            // rejects this via toggleAttacker).
+            // Pre-checked for instant feedback off the projected `mustAttack`
+            // flag — the server's own answer (`isRequiredAttacker`, the call
+            // toggleAttacker's refusal makes), never a local re-derivation.
             const alreadySelected = selectedAttackerIds.includes(card.id);
-            const reqDef = getDefinition(card.card.id);
-            const hasAttackReq = !!reqDef.staticEffects?.some(
-                (e) => e.kind === "attack-requirement"
-            );
-            const mustAttackClient =
-                alreadySelected &&
-                hasAttackReq &&
-                !card.isTapped &&
-                !card.isSummoningSick;
-            if (mustAttackClient) {
+            if (alreadySelected && card.mustAttack) {
                 const name = getDefinition(displayCardId(card)).name;
                 const msg = `${name} must attack this combat if able`;
                 setValidationError({ title: msg, detail: msg });

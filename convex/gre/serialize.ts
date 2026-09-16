@@ -248,6 +248,7 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "faceDownBy",
     "faceDownOf",
     "grantedActivatedAbilities",
+    "grantedAttackRequirements",
     "grantedColors",
     "grantedEnchantRestriction",
     "grantedFlashback",
@@ -417,6 +418,11 @@ function compactCard(
     }
     if (card.grantedTriggeredAbilities?.length) {
         out.grantedTriggeredAbilities = card.grantedTriggeredAbilities;
+    }
+    // CR 508.1d (issue #1972) — a granted attack requirement has no definition
+    // to re-derive it from; dropping it would free the creature after a save.
+    if (card.grantedAttackRequirements?.length) {
+        out.grantedAttackRequirements = card.grantedAttackRequirements;
     }
     // PRD #2064 S3 — the layer-6 base and the resolving-ability ability-loss
     // LEDGER. Both are genuine state, not derivable from the definition: the
@@ -924,6 +930,10 @@ function expandCard(
     if (compact.grantedTriggeredAbilities) {
         result.grantedTriggeredAbilities =
             compact.grantedTriggeredAbilities as CardInstanceState["grantedTriggeredAbilities"];
+    }
+    if (compact.grantedAttackRequirements) {
+        result.grantedAttackRequirements =
+            compact.grantedAttackRequirements as CardInstanceState["grantedAttackRequirements"];
     }
     if (compact.baseStaticAbilities) {
         result.baseStaticAbilities = compact.baseStaticAbilities as string[];
