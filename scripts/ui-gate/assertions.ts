@@ -130,6 +130,24 @@ export const ASSERTION_DEBT: readonly AssertionDebt[] = [
  *  it. Removed in a `finally`, so a failed run never leaves it on the page. */
 export const ASSERT_MARK_ATTRIBUTE = "data-ui-gate-assert";
 
+/**
+ * What the mark/unmark closures below need of their element.
+ *
+ * `tsconfig.scripts.json` carries no `lib.dom`, and the sibling walks pass
+ * their page functions as SOURCE TEXT for exactly that reason (`topmostAt` in
+ * `surfaces.ts`). That trick cannot be used here: Playwright evaluates a
+ * STRING as an EXPRESSION, so `"(el) => el.setAttribute(…)"` evaluates to a
+ * function and is never called with the element — measured on this branch, and
+ * it fails silently as `No elements found for include in page Context` from
+ * axe one step later, which reads like a contrast defect and is not one. A
+ * real closure is passed instead, with its parameter narrowed here rather than
+ * leaning on a global `HTMLElement`.
+ */
+interface MarkableElement {
+    setAttribute(name: string, value: string): void;
+    removeAttribute(name: string): void;
+}
+
 /** How long one assertion waits for its element. Short on purpose: the screen
  *  is already settled when assertions run, so this is not a load wait. */
 const ASSERT_TIMEOUT_MS = 5_000;
@@ -327,9 +345,9 @@ async function checkContrast(
 ): Promise<string | null> {
     await env.ensureAxe();
     try {
-        await element.evaluate(
-            `(el) => el.setAttribute(${JSON.stringify(ASSERT_MARK_ATTRIBUTE)}, "1")`
-        );
+        await element.evaluate((el, attr) => {
+            (el as unknown as MarkableElement).setAttribute(attr, "1");
+        }, ASSERT_MARK_ATTRIBUTE);
     } catch (err) {
         return `the subtree could not be marked for axe: ${firstLine(err)}`;
     }
@@ -361,9 +379,9 @@ async function checkContrast(
         return `axe could not read the subtree: ${firstLine(err)}`;
     } finally {
         await element
-            .evaluate(
-                `(el) => el.removeAttribute(${JSON.stringify(ASSERT_MARK_ATTRIBUTE)})`
-            )
+            .evaluate((el, attr) => {
+                (el as unknown as MarkableElement).removeAttribute(attr);
+            }, ASSERT_MARK_ATTRIBUTE)
             .catch(() => {});
     }
 }
