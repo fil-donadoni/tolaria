@@ -53,7 +53,7 @@ import {
     TOKENIZER_PATH,
 } from "./check-cr-citations.ts";
 import {
-    baselineKeys,
+    baselineSites,
     confirmLine,
     formatOpen,
     initialLedger,
@@ -97,7 +97,7 @@ function cmdList(): number {
         citations,
         ledger: readLedger(),
         rules: loadRules(),
-        baseBaselineKeys: base === null ? null : baselineKeys(base.ledger),
+        baseBaseline: base === null ? null : baselineSites(base.ledger),
         // The listing is for confirming; `cr:lint` is where a widening is
         // weighed, so a grown entry is listed as grown here.
         widened: null,
@@ -140,11 +140,12 @@ function cmdWiden(): number {
         );
         return 1;
     }
-    const { tokenizerChanged, widening } = repoWidening(base, ROOT);
+    const { tokenizerChanged, widening, lost } = repoWidening(base, ROOT);
     const tree = treeCitationList();
     const plan = planWidening({
         tokenizerChanged,
         widening,
+        lost,
         ledger: readLedger(),
         afterCitations: tree,
         ids: knownRuleIds(),

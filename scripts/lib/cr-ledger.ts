@@ -289,28 +289,32 @@ function compare(a: string, b: string): number {
     return a < b ? -1 : a > b ? 1 : 0;
 }
 
-export function baselineKeys(ledger: Ledger): Set<string> {
-    return new Set(
+/** The `baseline` entries of a ledger, key → recorded site count. */
+export function baselineSites(ledger: Ledger): Map<string, number> {
+    return new Map(
         ledger.entries
             .filter((e) => e.status === "baseline")
-            .map((e) => entryKey(e.id, e.line))
+            .map((e) => [entryKey(e.id, e.line), e.sites] as const)
     );
 }
 
 /**
- * The gate's verdict. `baseBaselineKeys` is the base branch's baseline set,
- * or `null` when no base ledger could be read (the caller decides whether
- * that is a skip or a red — see `base-artifact.ts`). `widened` is the key set
- * of the tokenizer widening the diff carries (`wideningOf`), or `null` when
- * the diff changes no tokenizer: a `baseline` entry the base lacks is `grown`
- * unless the widening uncovered it.
+ * The gate's verdict. `baseBaseline` is the base branch's baseline set with
+ * each entry's site count, or `null` when no base ledger could be read (the
+ * caller decides whether that is a skip or a red — see `base-artifact.ts`).
+ * `widened` is the tokenizer widening the diff carries (`wideningOf`), or
+ * `null` when the diff carries none. A `baseline` entry is `grown` unless the
+ * base has it with at least as many sites, or the widening uncovered it with
+ * at least as many sites — the count is part of the licence both ways, since
+ * a raised count is one more unchecked site under a recorded key (the hole
+ * `sites` exists to close, review of PR #3694, finding 2).
  */
 export function ledgerReport(input: {
     citations: Iterable<Citation>;
     ledger: Ledger;
     rules: Rule[];
-    baseBaselineKeys: Set<string> | null;
-    widened: Set<string> | null;
+    baseBaseline: Map<string, number> | null;
+    widened: Widening | null;
 }): LedgerReport {
     const tree = treeCitations(input.citations);
     const byKey = new Map(
@@ -322,7 +326,7 @@ export function ledgerReport(input: {
         grown: [],
         stale: [],
         recorded: 0,
-        baselineChecked: input.baseBaselineKeys !== null,
+        baselineChecked: input.baseBaseline !== null,
         widened: 0,
     };
     const printedCache = new Map<string, string | null>();
@@ -366,12 +370,13 @@ export function ledgerReport(input: {
     for (const [key, entry] of byKey) {
         const cit = tree.get(key);
         if (!cit || cit.sites.length < entry.sites) report.stale.push(entry);
-        else if (
-            entry.status === "baseline" &&
-            input.baseBaselineKeys !== null &&
-            !input.baseBaselineKeys.has(key)
-        ) {
-            if (input.widened?.has(key)) report.widened++;
+        else if (entry.status === "baseline" && input.baseBaseline !== null) {
+            const baseSites = input.baseBaseline.get(key);
+            if (baseSites !== undefined && entry.sites <= baseSites) continue;
+            const uncovered =
+                baseSites === undefined ? input.widened?.get(key) : undefined;
+            if (uncovered && entry.sites <= uncovered.sites.length)
+                report.widened++;
             else report.grown.push(entry);
         }
     }
@@ -413,18 +418,33 @@ export function initialLedger(citations: Iterable<Citation>): Ledger {
  * not record — under ANY status — is one the old tokenizer could not see,
  * because the tree is the same tree its ledger was kept green against. Keyed
  * like the ledger; the site count is the merge-base tree's.
+ *
+ * `lost` is the converse, and it is what keeps "widen" from meaning
+ * "regenerate": a merge-base entry the current tokenizer no longer makes of
+ * the merge-base tree (or makes at fewer sites) says the change did not
+ * WIDEN what a citation is — it narrowed or RE-KEYED it (a `normalizeLine`
+ * or `EXEMPT` change re-keys the whole tree, so `uncovered` would be every
+ * citation there). A widening is a superset of what it replaces; anything
+ * else has no licence, and the command refuses it (review of this PR,
+ * finding 1).
  */
 export function wideningOf(
     beforeCitations: Iterable<Citation>,
     baseLedger: Ledger
-): Widening {
-    const recorded = new Set(
-        baseLedger.entries.map((e) => entryKey(e.id, e.line))
-    );
-    const out: Widening = new Map();
-    for (const [key, cit] of treeCitations(beforeCitations))
-        if (!recorded.has(key)) out.set(key, cit);
-    return out;
+): { uncovered: Widening; lost: LedgerEntry[] } {
+    const before = treeCitations(beforeCitations);
+    const recorded = new Set<string>();
+    const lost: LedgerEntry[] = [];
+    for (const e of baseLedger.entries) {
+        const key = entryKey(e.id, e.line);
+        recorded.add(key);
+        const now = before.get(key);
+        if (!now || now.sites.length < e.sites) lost.push(e);
+    }
+    const uncovered: Widening = new Map();
+    for (const [key, cit] of before)
+        if (!recorded.has(key)) uncovered.set(key, cit);
+    return { uncovered, lost };
 }
 
 /**
@@ -494,14 +514,16 @@ export type WideningPlan =
 /**
  * The `widen` command's decision, pure so its refusals have fixtures. It
  * refuses when the diff carries no tokenizer change (a widening with no cause
- * in the same diff is a regeneration under another name) and when the changed
- * tokenizer uncovers nothing on the merge-base tree (nothing to license).
- * `wideningOf` has already excluded everything the pre-widening tokenizer
- * saw — that refusal is structural, not a branch here.
+ * in the same diff is a regeneration under another name), when the change is
+ * not a superset of what it replaces (`lost` — a re-keying, see `wideningOf`),
+ * and when the changed tokenizer uncovers nothing on the merge-base tree
+ * (nothing to license). `wideningOf` has already excluded everything the
+ * pre-widening tokenizer saw — that refusal is structural, not a branch here.
  */
 export function planWidening(input: {
     tokenizerChanged: boolean;
     widening: Widening;
+    lost: LedgerEntry[];
     ledger: Ledger;
     afterCitations: Iterable<Citation>;
     ids: Set<string>;
@@ -510,6 +532,16 @@ export function planWidening(input: {
         return {
             kind: "refused",
             why: "the tokenizer is unchanged against the merge-base — a widening records what a tokenizer CHANGE uncovered, and this diff carries none. Confirm open citations one line at a time instead.",
+        };
+    if (input.lost.length)
+        return {
+            kind: "refused",
+            why:
+                `the changed tokenizer no longer makes ${input.lost.length} citation(s) the merge-base ledger records, on the merge-base tree — this change narrows or re-keys what a citation is, it does not widen it, and a widening is the only growth the ledger licenses. First of them:\n` +
+                input.lost
+                    .slice(0, 5)
+                    .map((e) => `  CR ${e.id}  ${e.line.slice(0, 120)}`)
+                    .join("\n"),
         };
     if (!input.widening.size)
         return {
@@ -683,7 +715,7 @@ export function formatReport(report: LedgerReport, showFiles: boolean): string {
     }
     if (report.grown.length) {
         out.push(
-            `\n${report.grown.length} \`baseline\` entr${report.grown.length === 1 ? "y" : "ies"} the base branch's ledger does not have — the baseline only shrinks (nothing enters unchecked; a tokenizer widening licenses only what it uncovered on the merge-base tree):\n`
+            `\n${report.grown.length} \`baseline\` entr${report.grown.length === 1 ? "y" : "ies"} the base branch's ledger does not have, or records more sites than the base's entry — the baseline only shrinks (nothing enters unchecked; a tokenizer widening licenses only what it uncovered on the merge-base tree, at the sites it had there):\n`
         );
         out.push(
             cap(report.grown)

@@ -1,16 +1,20 @@
 import { describe, it, expect } from "vitest";
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+    baseLedger,
     ledgerReportForRepo,
+    licensedWidening,
+    repoWidening,
     SCANNED,
     scanCitations,
     scanRepo,
     sourcesAt,
 } from "../check-cr-citations.ts";
 import {
-    baselineKeys,
+    baselineSites,
     confirmLine,
     emptyLedger,
     entryKey,
@@ -27,6 +31,7 @@ import {
     widenLedger,
     type Citation,
     type Ledger,
+    type Widening,
 } from "../lib/cr-ledger.ts";
 import { printedRule, ruleHash, rulesOf, type Rule } from "../lib/cr-rules.ts";
 
@@ -91,14 +96,14 @@ function report(
     citations: Citation[],
     ledger: Ledger,
     rules: Rule[] = rulesV1,
-    baseBaselineKeys: Set<string> | null = new Set(),
-    widened: Set<string> | null = null
+    baseBaseline: Map<string, number> | null = new Map(),
+    widened: Widening | null = null
 ) {
     return ledgerReport({
         citations,
         ledger,
         rules,
-        baseBaselineKeys,
+        baseBaseline,
         widened,
     });
 }
@@ -205,7 +210,9 @@ describe("a confirmed entry reopens when its rule's text changes", () => {
         const baseline = initialLedger(citations);
         const key = entryKey(ONCE, normalizeLine(line));
         expect(
-            reportIsClean(report(citations, baseline, rulesV2, new Set([key])))
+            reportIsClean(
+                report(citations, baseline, rulesV2, new Map([[key, 1]]))
+            )
         ).toBe(true);
     });
 });
@@ -217,7 +224,7 @@ describe("the baseline only shrinks", () => {
     const grown = initialLedger(citations);
 
     it("reds on a baseline entry the base branch's ledger does not have", () => {
-        const r = report(citations, grown, rulesV1, new Set());
+        const r = report(citations, grown, rulesV1, new Map());
         expect(r.grown).toHaveLength(1);
         expect(r.grown[0]).toMatchObject({ id: SECTION, status: "baseline" });
         expect(formatReport(r, false)).toContain("the baseline only shrinks");
@@ -225,7 +232,27 @@ describe("the baseline only shrinks", () => {
 
     it("passes the same entry when the base branch has it", () => {
         expect(
-            reportIsClean(report(citations, grown, rulesV1, new Set([key])))
+            reportIsClean(
+                report(citations, grown, rulesV1, new Map([[key, 1]]))
+            )
+        ).toBe(true);
+    });
+
+    it("reds on a baseline entry recording more sites than the base branch's — a raised count is one more unchecked site", () => {
+        const two = citationsOf([
+            { file: FILE, text: line },
+            { file: TWIN, text: line },
+        ]);
+        const raised: Ledger = {
+            ...grown,
+            entries: grown.entries.map((e) => ({ ...e, sites: 2 })),
+        };
+        const r = report(two, raised, rulesV1, new Map([[key, 1]]));
+        expect(r.unrecorded).toHaveLength(0);
+        expect(r.grown.map((e) => e.sites)).toEqual([2]);
+        expect(formatReport(r, false)).toContain("more sites than the base");
+        expect(
+            reportIsClean(report(two, raised, rulesV1, new Map([[key, 2]])))
         ).toBe(true);
     });
 
@@ -246,17 +273,55 @@ describe("a tokenizer widening may add baseline entries — and nothing else may
     const beforeTree = [{ file: FILE, text: `${SEEN}\n${UNCOVERED}` }];
     const before = citationsOf(beforeTree);
     const base = initialLedger(citationsOf([{ file: FILE, text: SEEN }]));
-    const baseKeys = baselineKeys(base);
-    const widening = wideningOf(before, base);
-    const widened = new Set(widening.keys());
+    const baseKeys = baselineSites(base);
+    const { uncovered: widening, lost } = wideningOf(before, base);
+    const widened = widening;
     const seenKey = entryKey(ONCE, normalizeLine(SEEN));
     const uncoveredKey = entryKey(BACK_FACE, normalizeLine(UNCOVERED));
 
-    it("uncovers exactly what the merge-base ledger lacks — never a citation the pre-widening tokenizer already saw", () => {
+    it("uncovers exactly what the merge-base ledger lacks — never a citation the pre-widening tokenizer already saw — and loses nothing", () => {
         expect([...widening.keys()]).toEqual([uncoveredKey]);
         expect(widening.get(uncoveredKey)?.sites).toEqual([
             { file: FILE, line: 2 },
         ]);
+        expect(lost).toEqual([]);
+    });
+
+    it("a change that re-keys or narrows what a citation is loses merge-base entries, and is refused — widen is never regenerate", () => {
+        // The merge-base ledger records SEEN once; a tokenizer that keys
+        // lines differently makes SEEN nowhere on the same tree (every
+        // citation there looks new instead).
+        const rekeyed = citationsOf([
+            { file: FILE, text: `${cite(ONCE, "once per event, rekeyed")}` },
+        ]);
+        const w = wideningOf(rekeyed, base);
+        expect(w.lost.map((e) => entryKey(e.id, e.line))).toEqual([seenKey]);
+        expect(w.uncovered.size).toBe(1);
+        const p = planWidening({
+            tokenizerChanged: true,
+            widening: w.uncovered,
+            lost: w.lost,
+            ledger: base,
+            afterCitations: rekeyed,
+            ids,
+        });
+        expect(p.kind).toBe("refused");
+        if (p.kind === "refused") expect(p.why).toMatch(/narrows or re-keys/);
+        expect(
+            licensedWidening({
+                tokenizerChanged: true,
+                widening: w.uncovered,
+                lost: w.lost,
+            })
+        ).toBeNull();
+        // Fewer sites of a recorded line is a loss too.
+        const twice = initialLedger(
+            citationsOf([
+                { file: FILE, text: SEEN },
+                { file: TWIN, text: SEEN },
+            ])
+        );
+        expect(wideningOf(before, twice).lost).toHaveLength(1);
     });
 
     it("a widening that adds only tokenizer-visible citations is green; the same entry with no widening in the diff is still grown", () => {
@@ -316,7 +381,9 @@ describe("a tokenizer widening may add baseline entries — and nothing else may
             rulesV1,
             before
         ).ledger;
-        expect(wideningOf(before, confirmedBase).has(seenKey)).toBe(false);
+        const w = wideningOf(before, confirmedBase);
+        expect(w.uncovered.has(seenKey)).toBe(false);
+        expect(w.lost).toEqual([]);
         const turnedBack: Ledger = {
             ...confirmedBase,
             entries: confirmedBase.entries.map((e) =>
@@ -334,8 +401,8 @@ describe("a tokenizer widening may add baseline entries — and nothing else may
             citationsOf([{ file: FILE, text: SEEN }]),
             turnedBack,
             rulesV1,
-            baselineKeys(confirmedBase),
-            new Set(wideningOf(before, confirmedBase).keys())
+            baselineSites(confirmedBase),
+            w.uncovered
         );
         expect(r.grown.map((e) => entryKey(e.id, e.line))).toEqual([seenKey]);
     });
@@ -347,7 +414,9 @@ describe("a tokenizer widening may add baseline entries — and nothing else may
             rulesV1,
             before
         ).ledger;
-        const confirmedEntry = branch.entries.find((e) => e.id === BACK_FACE);
+        const confirmedEntry = structuredClone(
+            branch.entries.find((e) => e.id === BACK_FACE)
+        );
         expect(confirmedEntry?.status).toBe("confirmed");
         const { ledger, added, alreadyRecorded } = widenLedger(
             branch,
@@ -376,6 +445,20 @@ describe("a tokenizer widening may add baseline entries — and nothing else may
             reason: "new-sites",
             recordedSites: 1,
         });
+        // A hand-raised count under the widened key is not licensed either:
+        // the widening had one site there, so two is one unchecked site.
+        const raised: Ledger = {
+            ...ledger,
+            entries: ledger.entries.map((e) =>
+                e.id === BACK_FACE ? { ...e, sites: 2 } : e
+            ),
+        };
+        const hand = report(after, raised, rulesV1, baseKeys, widened);
+        expect(hand.unrecorded).toHaveLength(0);
+        expect(hand.grown.map((e) => entryKey(e.id, e.line))).toEqual([
+            uncoveredKey,
+        ]);
+        expect(hand.widened).toBe(0);
     });
 
     describe("the command's decision", () => {
@@ -383,6 +466,7 @@ describe("a tokenizer widening may add baseline entries — and nothing else may
             planWidening({
                 tokenizerChanged: true,
                 widening,
+                lost: [],
                 ledger: base,
                 afterCitations: before,
                 ids,
@@ -409,7 +493,7 @@ describe("a tokenizer widening may add baseline entries — and nothing else may
                     { file: FILE, text: `${SEEN}\n${UNCOVERED}\n${bogus}` },
                 ]),
                 base
-            );
+            ).uncovered;
             const p = plan({
                 widening: wider,
                 afterCitations: citationsOf([
@@ -437,8 +521,9 @@ describe("the merge-base tree is read out of the object store, byte-exact", () =
 
     it("lists every SCANNED file HEAD tracks, and every sampled file matches `git show`", () => {
         const sources = sourcesAt(ROOT, "HEAD");
-        const expected = git(["ls-tree", "-r", "--name-only", "HEAD"])
-            .split("\n")
+        // `-z` on both sides: without it git quotes a non-ASCII path.
+        const expected = git(["ls-tree", "-r", "--name-only", "-z", "HEAD"])
+            .split("\0")
             .filter((f) => SCANNED.test(f));
         expect(sources.map((s) => s.file)).toEqual(expected);
         // This file carries multi-byte characters (the em dashes above), so
@@ -455,6 +540,31 @@ describe("the merge-base tree is read out of the object store, byte-exact", () =
             expect(source, file).toBeDefined();
             expect(source!.text, file).toBe(git(["show", `HEAD:${file}`]));
         }
+    });
+
+    it("the tokenizer at HEAD, on the merge-base tree, sees exactly what the merge-base ledger records — a tokenizer change without its `widen` cannot land", () => {
+        // Whole-tree invariant beside the one above: if this checkout changed
+        // the tokenizer, every citation it newly makes of the merge-base tree
+        // must already be in the ledger (a `widen` was run), and nothing the
+        // merge-base recorded may have been lost (it is a widening, not a
+        // re-keying). An unchanged tokenizer skips the merge-base read.
+        const base = baseLedger(ROOT);
+        if (base === null) return; // no base ledger in this clone — the gate says so
+        const w = repoWidening(base, ROOT);
+        expect(
+            w.lost.map((e) => `CR ${e.id}  ${e.line}`),
+            "merge-base citations the current tokenizer no longer makes"
+        ).toEqual([]);
+        const ledger = parseLedger(
+            readFileSync(join(ROOT, "data/cr/citations-ledger.json"), "utf8")
+        );
+        const recorded = new Set(
+            ledger.entries.map((e) => entryKey(e.id, e.line))
+        );
+        expect(
+            [...w.widening.keys()].filter((k) => !recorded.has(k)),
+            "citations the widened tokenizer uncovered that `bun run cr:ledger widen` has not recorded"
+        ).toEqual([]);
     });
 });
 
@@ -505,7 +615,7 @@ describe("an entry counts its sites — a copy of a recorded line is a new, unch
         const baseline = initialLedger(one);
         expect(baseline.entries[0].sites).toBe(1);
         const key = entryKey(SECTION, normalizeLine(line));
-        const r = report(two, baseline, rulesV1, new Set([key]));
+        const r = report(two, baseline, rulesV1, new Map([[key, 1]]));
         expect(r.unrecorded).toHaveLength(1);
         expect(r.unrecorded[0]).toMatchObject({
             reason: "new-sites",

@@ -70,7 +70,7 @@ import { enterGuardCache, type GuardInputs } from "./lib/guard-cache.ts";
 import { baseArtifact, gitRunner } from "./lib/base-artifact.ts";
 import { ORIGIN_BASE } from "./lib/branches.ts";
 import {
-    baselineKeys,
+    baselineSites,
     formatReport,
     LEDGER_PATH,
     ledgerReport,
@@ -79,6 +79,7 @@ import {
     wideningOf,
     type Citation,
     type Ledger,
+    type LedgerEntry,
     type LedgerReport,
     type Widening,
 } from "./lib/cr-ledger.ts";
@@ -234,6 +235,15 @@ export function sourcesAt(
     )
         .split("\0")
         .filter((f) => SCANNED.test(f));
+    // The request list is newline-delimited, and git permits a newline in a
+    // path: one would split into two requests and desync every header after
+    // it — silently, since the sizes still parse. None exists; refuse rather
+    // than attribute the wrong text to the wrong file.
+    const broken = files.find((f) => f.includes("\n"));
+    if (broken !== undefined)
+        throw new Error(
+            `git cat-file --batch: a tracked path contains a newline (${JSON.stringify(broken)}) — the batch request cannot carry it`
+        );
     const batch = execFileSync("git", ["cat-file", "--batch"], {
         cwd: root,
         input: files.map((f) => `${ref}:${f}\n`).join(""),
@@ -375,10 +385,10 @@ export function baseLedger(root = ROOT): BaseLedger | null {
     }
 }
 
-/** The base branch's `baseline` set, or `null` when there is no base ledger. */
-export function baseBaselineKeys(root = ROOT): Set<string> | null {
+/** The base branch's `baseline` set with site counts, or `null` without a base ledger. */
+export function baseBaselineSites(root = ROOT): Map<string, number> | null {
     const base = baseLedger(root);
-    return base === null ? null : baselineKeys(base.ledger);
+    return base === null ? null : baselineSites(base.ledger);
 }
 
 export type RepoWidening = {
@@ -386,6 +396,9 @@ export type RepoWidening = {
     tokenizerChanged: boolean;
     /** Empty when the tokenizer is unchanged — the merge-base tree is not read. */
     widening: Widening;
+    /** Merge-base entries the current tokenizer no longer makes there: a
+     *  re-keying, not a widening, so nothing is licensed (`wideningOf`). */
+    lost: LedgerEntry[];
 };
 
 /**
@@ -404,15 +417,18 @@ export function repoWidening(base: BaseLedger, root = ROOT): RepoWidening {
         );
     const current = readFileSync(join(root, TOKENIZER_PATH), "utf8");
     if (shown.out === current)
-        return { tokenizerChanged: false, widening: new Map() };
+        return { tokenizerChanged: false, widening: new Map(), lost: [] };
     const before = scanCitations(
         sourcesAt(root, base.mergeBase),
         knownRuleIds()
     ).citations;
-    return {
-        tokenizerChanged: true,
-        widening: wideningOf(before, base.ledger),
-    };
+    const { uncovered, lost } = wideningOf(before, base.ledger);
+    return { tokenizerChanged: true, widening: uncovered, lost };
+}
+
+/** The widening the gate licenses: the diff's, only if it is a real one. */
+export function licensedWidening(w: RepoWidening): Widening | null {
+    return w.tokenizerChanged && !w.lost.length ? w.widening : null;
 }
 
 /**
@@ -432,13 +448,12 @@ export function ledgerReportForRepo(
         citations,
         ledger: parseLedger(readFileSync(join(root, LEDGER_PATH), "utf8")),
         rules: loadRules(join(root, "data/cr/comprehensive-rules.txt")),
-        baseBaselineKeys: base === null ? null : baselineKeys(base.ledger),
+        baseBaseline: base === null ? null : baselineSites(base.ledger),
     };
     const report = ledgerReport({ ...input, widened: null });
     if (!report.grown.length || base === null) return report;
-    const { tokenizerChanged, widening } = repoWidening(base, root);
-    if (!tokenizerChanged) return report;
-    return ledgerReport({ ...input, widened: new Set(widening.keys()) });
+    const widened = licensedWidening(repoWidening(base, root));
+    return widened === null ? report : ledgerReport({ ...input, widened });
 }
 
 function ledgerScan(citations: Citation[], showFiles: boolean): number {
