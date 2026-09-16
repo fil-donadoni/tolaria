@@ -1060,7 +1060,9 @@ async function clickTransient(
  *  players carry one, and nothing in the DOM names the viewer's — so the walk
  *  tries each and keeps the pile whose dialog offers the CTA. */
 const GRAVEYARD_TRIGGERS = [
-    '[data-controller-bottom-bar] [data-testid^="chip-graveyard-"]',
+    // ONE chip selector: a narrower copy scoped to the viewer's bottom bar
+    // matched a subset of this one, so a failed attempt re-clicked the same
+    // chip under a second name (PR review).
     '[data-testid^="chip-graveyard-"]',
     '[data-zone-drop="graveyard"]',
 ] as const;
