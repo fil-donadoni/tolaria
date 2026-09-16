@@ -21,6 +21,7 @@ import {
 import {
     resolveTopOfStack,
     applyControlChange,
+    removePermanentTo,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -293,6 +294,32 @@ describe("dealDamage to { attackTargetOf } (CR 506.2 / 508.1b / 506.4)", () => {
         expect(getEffectivePower(state, perm(state, "host"))).toBe(5);
         expect(state.players[1].life).toBe(20);
         expect(perm(state, "pw").counters?.loyalty).toBe(5);
+    });
+
+    it("a creature that LEFT THE BATTLEFIELD still deals the damage to what it was attacking (CR 608.2h)", () => {
+        const state = attackingState({ host: "pw" });
+        const host = perm(state, "host");
+        const item: StackItem = {
+            ...host,
+            zone: "stack",
+            castById: "p1",
+            triggeredAbilityId: "test-3244-host-attack",
+            triggerSourceId: "host",
+            triggerEvent: {
+                type: "ATTACKERS_DECLARED",
+                attackingPlayerId: "p1",
+                attackerIds: ["host", "s1"],
+            } as StackItem["triggerEvent"],
+            targets: [],
+        };
+        state.stack.push(item);
+        // Destroyed in response, before the trigger resolves.
+        removePermanentTo(state, "host", "graveyard");
+        resolveTopOfStack(state);
+        pick(state, ["s1", "s2"]);
+        expect(perm(state, "s1").isTapped).toBe(true);
+        expect(perm(state, "pw").counters?.loyalty).toBe(3);
+        expect(state.players[1].life).toBe(20);
     });
 
     it("a planeswalker that changed controller was removed from combat: no damage, no fallback to the player (CR 506.4)", () => {

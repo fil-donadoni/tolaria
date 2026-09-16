@@ -120,7 +120,10 @@ export const moxOpal: CardDefinition = {
 // picks set (`setSize`), which prices both the +X/+0 and the damage. The
 // damage goes to what this creature is attacking (`attackTargetOf: $source`):
 // the planeswalker it attacked, else the defending player — untargeted, and
-// dealt to nothing once it or its planeswalker has left combat (CR 506.4).
+// dealt to nothing once it or its planeswalker was removed from combat
+// (CR 506.4). A Battlesphere that has left the battlefield before the trigger
+// resolves still lets you tap Myr and still deals the X damage, but gets no
+// +X/+0 (CR 608.2h; the card's own ruling).
 // X = 0 makes the pump +0/+0 and the damage a no-op, so the "if you do" gate
 // needs no separate branch.
 // compiler-gap: "When this creature enters, create four 1/1 colorless Myr artifact creature tokens." (#2693)

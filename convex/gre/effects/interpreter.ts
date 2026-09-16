@@ -2326,6 +2326,26 @@ function snapshotIdOf(
     return readBinding(ctx, ref)?.[SNAP_ID];
 }
 
+/** The instance id an `attackTargetOf` selector names, with NO zone check
+ *  (issue #3244): `$source` is the resolving ability's own source, a bound ref
+ *  its snapshot id, an announced slot its selected object. What that creature
+ *  is attacking is combat state keyed by that id, and a creature that has left
+ *  the battlefield keeps its entry — it deals its damage as it last existed
+ *  (CR 608.2h). */
+function attackerIdOf(
+    ctx: SpellContext,
+    selector: EffectObjectSelector
+): string | undefined {
+    if (isSourceSelfRef(selector)) return ctx.sourceInstanceId;
+    if ("target" in selector) {
+        const slot = ctx.targets[selector.target];
+        return slot?.type === "permanent" ? slot.id : undefined;
+    }
+    const live = resolveObjectRef(ctx, selector);
+    if (live?.type === "permanent") return live.id;
+    return snapshotIdOf(ctx, selector);
+}
+
 /** True for the `{ ref: "$source" }` selector — the ONE selector that denotes
  *  the resolving ability's own object, and therefore the one whose failure to
  *  resolve is answered by the default stack-item damage path (CR 113.7a). */
@@ -2356,12 +2376,15 @@ export const OP_EXECUTORS: {
         if (amount === undefined || amount <= 0) return; // 0 damage is a no-op
         if ("attackTargetOf" in op.to) {
             // CR 506.2 / 508.1b (issue #3244) — the player or planeswalker the
-            // named attacking creature is attacking, read LIVE and never
-            // targeted (CR 115.10). Nothing to deal to when the creature left
-            // combat or its planeswalker was removed from combat (CR 506.4).
-            const attacker = resolveObjectRef(ctx, op.to.attackTargetOf);
-            if (!attacker || attacker.type !== "permanent") return;
-            const recipient = ctx.getAttackTarget(attacker.id);
+            // named attacking creature is attacking, never targeted (CR
+            // 115.10). The creature's id is read WITHOUT a battlefield check:
+            // one that has left the battlefield still deals the damage to what
+            // it was attacking, as it last existed (CR 608.2h — the Myr
+            // Battlesphere ruling). Nothing to deal to when it was removed
+            // from combat while it stayed, or its planeswalker was (CR 506.4).
+            const attackerId = attackerIdOf(ctx, op.to.attackTargetOf);
+            if (attackerId === undefined) return;
+            const recipient = ctx.getAttackTarget(attackerId);
             if (!recipient) return;
             if (op.source) {
                 dealDamageSourcedFrom(

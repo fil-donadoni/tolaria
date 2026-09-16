@@ -4871,9 +4871,11 @@ export interface SpellContext {
     getCardsDrawnThisTurn: (playerId: string) => number;
     /** CR 506.2 / 508.1b (issue #3244) — what the attacking creature
      *  `attackerId` is attacking RIGHT NOW: the planeswalker its
-     *  `combat.attackTargets` entry names, else the defending player.
-     *  `undefined` when there is no combat, the creature is not (or no longer)
-     *  an attacking creature, or the planeswalker it attacked has been removed
+     *  `combat.attackTargets` entry names, else the defending player. A
+     *  last-known read of the combat record: a creature that has left the
+     *  battlefield keeps its entry (CR 608.2h). `undefined` when there is no
+     *  combat, the creature never attacked or was removed from combat while it
+     *  stayed, or the planeswalker it attacked has been removed
      *  from combat (CR 506.4 — left the battlefield, changed controller or
      *  stopped being a planeswalker), since it is then attacking nothing. Read
      *  by the `dealDamage` Op's `{ attackTargetOf }` recipient. */
@@ -12142,9 +12144,11 @@ export type EffectObjectSelector = EffectTargetRef | EffectRef;
  *  player.
  *
  *  Untargeted by construction (CR 115.10 — no "target" in the text), so
- *  hexproof, shroud and protection's targeting clause never apply. Resolves to
- *  NOTHING, and the consuming Op does nothing, when the creature is no
- *  longer an attacking creature (it left combat — CR 506.4) or the
+ *  hexproof, shroud and protection's targeting clause never apply. A creature
+ *  that has LEFT THE BATTLEFIELD still names what it was attacking — it deals
+ *  the damage as it last existed (CR 608.2h). Resolves to NOTHING, and the
+ *  consuming Op does nothing, when the creature was removed from combat while
+ *  it stayed (a control change, an explicit removal — CR 506.4) or the
  *  planeswalker it attacked was removed from combat (left the battlefield,
  *  changed controller, stopped being a planeswalker — CR 506.4): the creature
  *  is then attacking nothing, and there is no player to fall back to.

@@ -18608,12 +18608,16 @@ export function buildSpellContext(
         // attacking creature is attacking, for the `dealDamage` Op's
         // `{ attackTargetOf }` recipient. Read the way the combat damage step
         // reads it (`phases.ts`): the `combat.attackTargets` entry names a
-        // planeswalker, its absence the defending player. A creature removed
-        // from combat has left `attackerIds` (CR 506.4); a planeswalker removed
-        // from combat (left the battlefield, changed controller, stopped being
-        // a planeswalker — CR 506.4) is no longer a planeswalker on the
-        // defending player's battlefield, and the creature is then attacking
-        // nothing — never the player instead.
+        // planeswalker, its absence the defending player. This is a
+        // LAST-KNOWN read of the combat record: a control change or an
+        // explicit removal from combat drops the id from `attackerIds`
+        // (CR 506.4), but a zone change does not prune it, so a creature that
+        // has LEFT the battlefield still reads what it was attacking — which
+        // is exactly what CR 608.2h wants of "it deals X damage". A
+        // planeswalker removed from combat (left the battlefield, changed
+        // controller, stopped being a planeswalker — CR 506.4) is no longer a
+        // planeswalker on the defending player's battlefield, and the creature
+        // is then attacking nothing — never the player instead.
         getAttackTarget(attackerId: string): TargetSelection | undefined {
             const combat = state.combat;
             if (!combat || !combat.attackerIds.includes(attackerId)) {
