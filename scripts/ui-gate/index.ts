@@ -183,6 +183,7 @@ const STRESS_SCENARIO_LABEL = "UI stress — full board, full hand, deep piles";
 const YIELDS_SCENARIO_LABEL = "UI yields — two spells on the stack";
 const AI_TRACE_SCENARIO_LABEL =
     "UI AI trace — quiet board, priority on the human seat";
+const BOARD_SCENARIO_LABEL = "UI board — ordinary mid-game position";
 
 /**
  * The Infra Verdict's retry policy (issue #3644): three attempts per cell, and
@@ -780,6 +781,7 @@ async function main(): Promise<number> {
                         stressScenarioLabel: STRESS_SCENARIO_LABEL,
                         yieldsScenarioLabel: YIELDS_SCENARIO_LABEL,
                         aiTraceScenarioLabel: AI_TRACE_SCENARIO_LABEL,
+                        boardScenarioLabel: BOARD_SCENARIO_LABEL,
                         fixtureLabels: member.labels,
                         createdGame: false,
                         log: () => {},

@@ -44,13 +44,14 @@ const specOf = (seed: ScenarioSeed) => seed.spec as Spec;
 
 describe("check:ui declared positions (ADR 0132 §4)", () => {
     it("seeds one payload per game surface that loads a position", () => {
-        // Three today. The count is asserted so that ADDING a payload without
+        // Four today. The count is asserted so that ADDING a payload without
         // a surface, or a surface without a payload, is a decision somebody
         // makes on purpose rather than a diff nobody reads.
         expect(seeds.map((s) => s.label)).toEqual([
             "UI stress — full board, full hand, deep piles",
             "UI yields — two spells on the stack",
             "UI AI trace — quiet board, priority on the human seat",
+            "UI board — ordinary mid-game position",
         ]);
     });
 
