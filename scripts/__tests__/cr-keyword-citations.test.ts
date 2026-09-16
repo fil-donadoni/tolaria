@@ -127,3 +127,63 @@ describe("the scanner flags a renumbered citation and passes a correct one", () 
         expect(scan(suppressed).hits).toEqual([]);
     });
 });
+
+describe("a keyword citation wrapped across two comment lines is compared whole (issue #2514)", () => {
+    const index = keywordIndex();
+    const scan = (text: string) =>
+        scanKeywordCitations([{ file: "fake.ts", text }], index);
+    /** Shape B: the id ends the line, the keyword it names starts the next. */
+    const idThenKeyword = (id: string, prose: string) =>
+        `// see CR ${id}\n// ${prose}`;
+    /** Shape A: the prefix ends the line; id and keyword start the next. */
+    const prefixThenId = (id: string, prose: string) =>
+        `// see CR\n// ${id} — ${prose}`;
+
+    it("flags a pre-renumbering citation whose keyword starts the next line", () => {
+        const { hits } = scan(
+            idThenKeyword("701.19", "a genuine library search")
+        );
+        expect(hits).toHaveLength(1);
+        expect(hits[0].offending).toEqual(["701.19"]);
+        expect(hits[0].line).toBe(1);
+    });
+
+    it("flags a wrapped prefix, and reports the line the id is on", () => {
+        const { hits } = scan(
+            prefixThenId("701.19", "a genuine library search")
+        );
+        expect(hits).toHaveLength(1);
+        expect(hits[0].line).toBe(2);
+        expect(formatHit(hits[0], index)).toContain("fake.ts:2");
+    });
+
+    it("passes the same wraps under the right id", () => {
+        expect(
+            scan(idThenKeyword("701.23", "a genuine library search")).hits
+        ).toEqual([]);
+        expect(
+            scan(prefixThenId("701.23", "a genuine library search")).hits
+        ).toEqual([]);
+    });
+
+    it("treats only a line ending mid-citation as wrapped — the next line's keyword is not this line's", () => {
+        const { hits, scanned } = scan(
+            `// see CR ${"701.19"} for that\n// a genuine library search`
+        );
+        expect(scanned).toBe(1);
+        expect(hits).toEqual([]);
+    });
+
+    it("honours the suppression marker on either physical line", () => {
+        expect(
+            scan(idThenKeyword("701.19", "a genuine library search cr-cite-ok"))
+                .hits
+        ).toEqual([]);
+        // …and on the first line, suppressing a hit whose id is on the second.
+        expect(
+            scan(
+                `// deliberately wrong, cr-cite-ok — CR\n// ${"701.19"} — a genuine library search`
+            ).hits
+        ).toEqual([]);
+    });
+});

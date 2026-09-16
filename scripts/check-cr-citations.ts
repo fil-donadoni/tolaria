@@ -33,23 +33,31 @@
  * only by a hand-rolled id-agnostic re-sweep; that is now the guard's job, not
  * the auditor's.
  *
- * REMAINING BLIND SPOT: a citation WRAPPED ACROSS TWO LINES — the `CR ` prefix
- * on one comment line and the id on the next — is still invisible, because both
- * passes are anchored to a single line. One such site existed
- * (`src/lib/ai/__tests__/flashback-exile-color.bot.test.ts`) and was rewritten
- * onto one line in #2429. Extending the bare pass to a window of adjacent lines
- * is not free — it would resolve ordinary prose numbers on the line AFTER any CR
- * mention, where the single-line rule stays exact (24,656 tokens scanned over
- * the #2429 tree, zero false positives). Keep citations on one line.
+ * A "line" is a LOGICAL line (`lib/cr-lines.ts`, issue #2514): a comment line
+ * that ends mid-citation — its last token a bare `CR`, or a rule id — is joined
+ * with the continuation that completes it, so a citation wrapped across two
+ * comment lines is seen exactly as a reader sees it, and reported at the
+ * physical line the id is on. The window stays one physical line everywhere
+ * else, which is what keeps the single-line precision (24,656 tokens over the
+ * #2429 tree, zero false positives): an ordinary number on the line after a
+ * `CR ` mention is joined to nothing. Before the join, ~379 prefix/id wraps
+ * were invisible to both passes and ~394 id/keyword wraps were invisible to the
+ * keyword-title scan; the first joined run made ~750 citations visible.
+ *
+ * REMAINING BLIND SPOT: a bare id on a line that mentions `CR ` nowhere and
+ * does not continue a citation-ending line. ~1,795 such tokens exist, most of
+ * them in the mechanics registry and most not citations at all; resolving them
+ * was measured and rejected (ADR 0098 — it reds the gate on benchmark timings
+ * and eval margins). That boundary is deliberate.
  *
  * WIDENING THE SCAN is a recorded operation (issue #3697): every citation a
  * wider tokenizer newly sees needs a ledger entry (ADR 0133), and
  * `bun run cr:ledger widen` enters as `baseline` exactly the ones the change
- * uncovered on the merge-base tree — the gate re-derives that set from this
- * file's diff against the merge-base (`repoWidening`), so a widening can
- * never double as a regeneration.
+ * uncovered on the merge-base tree — the gate re-derives that set from the
+ * tokenizer files' diff against the merge-base (`repoWidening`), so a widening
+ * can never double as a regeneration.
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { execFileSync, execSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -84,6 +92,7 @@ import {
     type Widening,
 } from "./lib/cr-ledger.ts";
 import { loadRules } from "./lib/cr-rules.ts";
+import { citationLines, lineAt, MAY_CITE } from "./lib/cr-lines.ts";
 
 // `import.meta.dir` is Bun-only; the regression guard imports this module under
 // vitest/node, where it is undefined.
@@ -94,12 +103,16 @@ const CR_PATH = join(ROOT, "data/cr/comprehensive-rules.txt");
 export const SCANNED = /\.(ts|tsx|mts|mjs|js|md)$/;
 
 /**
- * The file that defines what counts as a citation — `scanCitations` and the
- * two regexes below, plus `SCANNED`. A diff that leaves it byte-identical to
- * the merge-base's carries no tokenizer change, so a `baseline` entry it adds
- * cannot be a widening's (issue #3697).
+ * The files that define what counts as a citation — `scanCitations` and the
+ * two regexes below, plus `SCANNED`, and the logical-line join every scan
+ * reads through (`lib/cr-lines.ts`). A diff that leaves both byte-identical
+ * to the merge-base's carries no tokenizer change, so a `baseline` entry it
+ * adds cannot be a widening's (issue #3697).
  */
-export const TOKENIZER_PATH = "scripts/check-cr-citations.ts";
+export const TOKENIZER_PATHS = [
+    "scripts/check-cr-citations.ts",
+    "scripts/lib/cr-lines.ts",
+] as const;
 
 export function knownRuleIds(): Set<string> {
     // U+2028 is a paragraph break INSIDE a rule in WotC's export; JS does not
@@ -161,7 +174,9 @@ const BARE_ID = /\b\d{3}\.\d+[a-z]{0,2}\b/g;
 
 /**
  * The scan itself, over `(file, text)` pairs — pure, so the regression test can
- * drive it with synthetic content instead of the working tree.
+ * drive it with synthetic content instead of the working tree. Each citation is
+ * recorded at the PHYSICAL line its id sits on, with that line's raw text —
+ * the ledger's key — even when the scan saw it through a join.
  */
 export function scanCitations(
     sources: Iterable<{ file: string; text: string }>,
@@ -171,14 +186,16 @@ export function scanCitations(
     const citations: Citation[] = [];
     let total = 0;
     for (const { file, text } of sources) {
-        if (!text.includes("CR ")) continue;
-        text.split("\n").forEach((line, i) => {
-            const record = (id: string) => {
+        if (!MAY_CITE.test(text)) continue;
+        for (const logical of citationLines(text)) {
+            const line = logical.text;
+            const record = (id: string, offset: number) => {
+                const at = lineAt(logical, offset);
                 total++;
-                citations.push({ file, line: i + 1, id, text: line });
+                citations.push({ file, line: at.line, id, text: at.raw });
                 if (ids.has(id)) return;
                 const hits = bad.get(id) ?? [];
-                hits.push({ file, line: i + 1 });
+                hits.push({ file, line: at.line });
                 bad.set(id, hits);
             };
             // Pass 1: prefixed ids. Remember where each id's digits START so
@@ -186,17 +203,18 @@ export function scanCitations(
             const counted = new Set<number>();
             for (const m of line.matchAll(PREFIXED_CITATION)) {
                 const id = m[1] + (m[2] ?? "");
-                counted.add(m.index + m[0].length - id.length);
-                record(id);
+                const start = m.index + m[0].length - id.length;
+                counted.add(start);
+                record(id, start);
             }
             // Pass 2: bare ids sharing a line with a CR mention — the
             // slash-list shape ("CR 707.10b / 114.5 / 603.3d").
-            if (!line.includes("CR ")) return;
+            if (!line.includes("CR ")) continue;
             for (const m of line.matchAll(BARE_ID)) {
                 if (counted.has(m.index)) continue;
-                record(m[0]);
+                record(m[0], m.index);
             }
-        });
+        }
     }
     return { bad, total, citations };
 }
@@ -392,7 +410,7 @@ export function baseBaselineSites(root = ROOT): Map<string, number> | null {
 }
 
 export type RepoWidening = {
-    /** Whether `TOKENIZER_PATH` differs from the merge-base's copy. */
+    /** Whether any of `TOKENIZER_PATHS` differs from the merge-base's copy. */
     tokenizerChanged: boolean;
     /** Empty when the tokenizer is unchanged — the merge-base tree is not read. */
     widening: Widening;
@@ -403,20 +421,26 @@ export type RepoWidening = {
 
 /**
  * The tokenizer widening this checkout carries against the base branch
- * (issue #3697): none unless `TOKENIZER_PATH` differs from its merge-base
- * copy; otherwise the current tokenizer's walk of the MERGE-BASE tree minus
- * what the merge-base ledger records (`wideningOf`). Offline — the tree comes
- * out of the object store.
+ * (issue #3697): none unless one of `TOKENIZER_PATHS` differs from its
+ * merge-base copy; otherwise the current tokenizer's walk of the MERGE-BASE
+ * tree minus what the merge-base ledger records (`wideningOf`). Offline — the
+ * tree comes out of the object store. A tokenizer file the merge-base does not
+ * have yet (added by this diff) is a change.
  */
 export function repoWidening(base: BaseLedger, root = ROOT): RepoWidening {
-    const at = `${base.mergeBase}:${TOKENIZER_PATH}`;
-    const shown = gitRunner(root)(["show", at]);
-    if (!shown.ok)
-        throw new Error(
-            `the merge-base tokenizer could not be read — git show ${at} failed: ${shown.error}`
-        );
-    const current = readFileSync(join(root, TOKENIZER_PATH), "utf8");
-    if (shown.out === current)
+    const git = gitRunner(root);
+    const changed = TOKENIZER_PATHS.some((path) => {
+        const at = `${base.mergeBase}:${path}`;
+        const inTree = git(["cat-file", "-e", at]);
+        if (!inTree.ok || !existsSync(join(root, path))) return true;
+        const shown = git(["show", at]);
+        if (!shown.ok)
+            throw new Error(
+                `the merge-base tokenizer could not be read — git show ${at} failed: ${shown.error}`
+            );
+        return shown.out !== readFileSync(join(root, path), "utf8");
+    });
+    if (!changed)
         return { tokenizerChanged: false, widening: new Map(), lost: [] };
     const before = scanCitations(
         sourcesAt(root, base.mergeBase),

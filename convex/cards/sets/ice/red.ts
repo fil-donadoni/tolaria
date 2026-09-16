@@ -723,7 +723,7 @@ export const conquer: CardDefinition = {
     staticEffects: [{ kind: "control-change", applies: AURA_AFFECTS_HOST }],
 };
 // Curse of Marit Lage — ETB taps every Island (CR 603.6b enters trigger, CR
-// 701.20a tap) and a static untap-lock on Islands (CR 611). The mirror of
+// 701.26a tap) and a static untap-lock on Islands (CR 611). The mirror of
 // Wrath of Marit Lage (Blue tranche), swapping red creatures → Islands.
 export const curseOfMaritLage: CardDefinition = {
     id: "69b381c1-aa71-4d40-a320-70f58a440d51",

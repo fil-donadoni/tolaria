@@ -212,7 +212,7 @@ export const coalitionVictory: CardDefinition = {
 // ─────────────────────────────────────────────────────────────────────────
 
 // Absorb — {W}{U}{U} Instant. "Counter target spell. You gain 3 life." (CR
-// 701.5a counter, CR 119.3 life gain.) A plain two-Op sequence: `counter`
+// 701.6a counter, CR 119.3 life gain.) A plain two-Op sequence: `counter`
 // removes the targeted spell from the stack, then `gainLife` on the
 // resolving controller. MTGJSON INV.json: casting cost {W}{U}{U}.
 export const absorb: CardDefinition = {
@@ -715,7 +715,7 @@ export const sleepersRobe: CardDefinition = {
 };
 
 // Slinking Serpent — {2}{U}{B} Creature — Serpent, 2/3. "Forestwalk." (CR
-// 702.15b landwalk.) Pure data — a vanilla body with one printed keyword.
+// 702.14b landwalk.) Pure data — a vanilla body with one printed keyword.
 export const slinkingSerpent: CardDefinition = {
     id: "070a7004-5a28-4ccb-8640-ad6b07b51ece",
     rarity: "uncommon",

@@ -582,7 +582,7 @@ export const strafe: CardDefinition = {
 // 4/4. "Vigilance\n{1}{R}, {T}: Tahngarth deals damage equal to its power to
 // target creature. That creature deals damage equal to its power to
 // Tahngarth." (CR 702.20b vigilance; the mutual-damage "fight" shape (CR
-// 701.12-style) — Karplusan Yeti (`ice/red.ts`) ships the identical body
+// 701.14-style) — Karplusan Yeti (`ice/red.ts`) ships the identical body
 // behind a bare tap instead of {1}{R} + tap, but predates the DSL-first rule
 // and carries no tracking ref, so it is NOT valid `resolve()` precedent on
 // its own.)

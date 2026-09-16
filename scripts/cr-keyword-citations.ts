@@ -35,12 +35,17 @@
  * PRECISION over recall, deliberately. Terms that collide with ordinary
  * engineering English (`activate`, `cast`, `play`, `convert`, `reach`, …) are
  * excluded from EVIDENCE entirely — see AMBIGUOUS — while still anchoring their
- * own citations and remaining perfectly citable. Two limits follow, both
- * accepted: a citation on a line that names no keyword is invisible (the
- * sweep that fixed the standing 793 had to grep those by hand), and so is a
- * comment whose keyword wrapped onto the neighbouring line — keep the citation
- * and its keyword on ONE line, the same rule the existence sweep already asks
- * for.
+ * own citations and remaining perfectly citable. One limit follows, accepted:
+ * a citation on a line that names no keyword is invisible (the sweep that
+ * fixed the standing 793 had to grep those by hand). A comment whose keyword
+ * wrapped onto the line after its id is NOT a limit any more: the scan reads
+ * logical lines (`lib/cr-lines.ts`, issue #2514), which join a line ending
+ * mid-citation with its continuation — the first joined run surfaced 23 hits,
+ * 18 of them citing a different keyword's section than the one they named.
+ * The join cuts both ways, and the PRECISION trade is recorded: an anchor
+ * found on the continuation also vouches for the id before it, so in a list
+ * whose items each end on an id a wrong one can be anchored by a neighbour's
+ * keyword (one such masked hit measured in the tree when this shipped).
  *
  * Usage: run through `bun run cr:lint` (this module has no CLI of its own).
  * Suppress a deliberate counter-example with a trailing `cr-cite-ok` comment.
@@ -48,6 +53,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { citationLines, lineAt, MAY_CITE } from "./lib/cr-lines.ts";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CR_PATH = join(ROOT, "data/cr/comprehensive-rules.txt");
@@ -61,6 +67,7 @@ export const EXEMPT = [
     "docs/findings/",
     "scripts/cr-keyword-citations.ts",
     "scripts/check-cr-citations.ts",
+    "scripts/lib/cr-lines.ts",
     "scripts/__tests__/cr-keyword-citations.test.ts",
     "docs/adr/0098-",
 ];
@@ -392,7 +399,10 @@ export type KeywordHit = {
  * regeneration anchors on the second id, and a line-level rule would wave the
  * first one through forever.
  *
- * Pure over `(file, text)` pairs so the guard can drive it with fixtures.
+ * Pure over `(file, text)` pairs so the guard can drive it with fixtures. A
+ * "line" is a logical line (`lib/cr-lines.ts`): a citation whose id ends one
+ * comment line and whose keyword starts the next is compared as one, and the
+ * hit is reported at the physical line of the first offending id.
  */
 export function scanKeywordCitations(
     sources: Iterable<{ file: string; text: string }>,
@@ -403,22 +413,29 @@ export function scanKeywordCitations(
     let scanned = 0;
     for (const { file, text } of sources) {
         if (EXEMPT.some((p) => file.startsWith(p))) continue;
-        if (!text.includes("CR ")) continue;
-        text.split("\n").forEach((line, i) => {
-            if (line.includes(SUPPRESS)) return;
-            const cited = new Set<string>();
-            for (const m of line.matchAll(KEYWORD_CITATION)) cited.add(m[1]);
-            if (cited.size && line.includes("CR ")) {
-                for (const m of line.matchAll(BARE_KEYWORD_ID)) cited.add(m[1]);
+        if (!MAY_CITE.test(text)) continue;
+        for (const logical of citationLines(text)) {
+            const line = logical.text;
+            if (line.includes(SUPPRESS)) continue;
+            /** Cited section → offset of its first id in the line. */
+            const cited = new Map<string, number>();
+            for (const m of line.matchAll(KEYWORD_CITATION)) {
+                if (!cited.has(m[1]))
+                    cited.set(m[1], m.index + m[0].indexOf(m[1]));
             }
-            if (!cited.size) return;
+            if (cited.size && line.includes("CR ")) {
+                for (const m of line.matchAll(BARE_KEYWORD_ID)) {
+                    if (!cited.has(m[1])) cited.set(m[1], m.index);
+                }
+            }
+            if (!cited.size) continue;
             scanned++;
             const named = new Set<string>();
             for (const [id, patterns] of evidence) {
                 if (patterns.some((re) => re.test(line))) named.add(id);
             }
-            if (!named.size) return;
-            const offending = [...cited].filter((id) => {
+            if (!named.size) continue;
+            const offending = [...cited.keys()].filter((id) => {
                 // Anchored: the line names the keyword this id defines. Checked
                 // against the ANCHOR set, so "Escape—{R}{R}, exile five cards
                 // (CR 702.138)" passes on the word "Escape" it names.
@@ -433,16 +450,17 @@ export function scanKeywordCitations(
                 }
                 return true;
             });
-            if (!offending.length) return;
+            if (!offending.length) continue;
+            const first = Math.min(...offending.map((id) => cited.get(id)!));
             hits.push({
                 file,
-                line: i + 1,
-                text: line.trim(),
-                cited: [...cited],
+                line: lineAt(logical, first).line,
+                text: line.replace(/\s+/g, " ").trim(),
+                cited: [...cited.keys()],
                 offending,
                 named: [...named],
             });
-        });
+        }
     }
     return { hits, scanned };
 }

@@ -1784,7 +1784,7 @@ function isTapUntapAction(value: unknown): boolean {
 
 /** The JSON-pure `destination` discriminator of a `counter` Op (issue #683,
  *  `CounterDestination`) — where a COUNTERED SPELL ends up instead of CR
- *  701.5a's default owner's graveyard. */
+ *  701.6a's default owner's graveyard. */
 function isCounterDestination(value: unknown): boolean {
     return (
         value === "graveyard" ||
@@ -1817,7 +1817,7 @@ function isLibraryLookAction(value: unknown): boolean {
 /** The `destination` of a `scryReorder` Op (issue #885) — where the un-kept
  *  looked-at cards go (the `LibraryDestination` the `orderTop` primitive
  *  accepts): `"library-bottom"` (Scry, CR 701.22), `"graveyard"` (Surveil, CR
- *  701.44) or `"none"` (order-only, Ponder — every card stays on top). */
+ *  701.25) or `"none"` (order-only, Ponder — every card stays on top). */
 function isLibraryDestination(value: unknown): boolean {
     return (
         value === "library-bottom" || value === "graveyard" || value === "none"

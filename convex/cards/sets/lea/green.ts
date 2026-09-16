@@ -612,7 +612,7 @@ export const ironrootTreefolk: CardDefinition = {
 
 // Kudzu — "Enchant land. When enchanted land becomes tapped, destroy it. That
 // land's controller may attach this Aura to a land of their choice." (CR
-// 701.20a becomes-tapped trigger, 701.3d attach, 704.5n orphan-aura SBA.)
+// 701.26a becomes-tapped trigger, 701.3a attach, 704.5m orphan-aura SBA.)
 //
 // Resolution ordering note: the host is destroyed first, then the controller
 // is asked (CR 117.3a "may") and chooses a new land (CR 608.2 mid-resolution
@@ -699,7 +699,7 @@ export const leyDruid: CardDefinition = {
 };
 
 // Lifeforce — "{G}, Sacrifice Lifeforce: Counter target black spell." (CR
-// 701.5a counter, 202.2 color filter on stack target). Mirror of Deathgrip.
+// 701.6a counter, 202.2 color filter on stack target). Mirror of Deathgrip.
 export const lifeforce: CardDefinition = {
     id: "e292577e-6232-44fa-a9c2-cc09949c6ed3",
     rarity: "uncommon",

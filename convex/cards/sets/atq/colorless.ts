@@ -389,7 +389,7 @@ export const jalumTome: CardDefinition = {
 };
 
 // Candelabra of Tawnos — {1} Artifact. "{X}, {T}: Untap X target lands." (CR
-// 107.3 X chosen at activation, CR 601.2c X-bound target count, CR 701.20b
+// 107.3 X chosen at activation, CR 601.2c X-bound target count, CR 701.26b
 // untap.) `count: "X"` resolves the number of land targets against the chosen
 // value of X at activation; a 0-X activation skips target selection and
 // untaps nothing.

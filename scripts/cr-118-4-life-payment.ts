@@ -30,11 +30,11 @@
  *
  * REMAINING BLIND SPOTS (measured, not fixed here — narrowing scope, not a
  * defeat of the guard's purpose):
- * 1. A citation WRAPPED ACROSS TWO COMMENT LINES — `CR` on one line, `118.4`
- *    on the next — is invisible, the same blind spot `check-cr-citations.ts`
- *    documents for the existence scan: both the `PREFIXED_118_4` match and the
- *    `LIFE_CLAIM` match are anchored to a single line. Keep a citation and the
- *    life claim it supports on one line.
+ * 1. A life claim that continues past a line which does not end on the
+ *    citation itself is invisible: the scan reads logical lines
+ *    (`lib/cr-lines.ts`, issue #2514), which join a comment line ending
+ *    mid-citation — `CR` alone, or `CR 118.4` — with its continuation, and
+ *    nothing else.
  * 2. `X_COST` matches ANY standalone `X` token on the line, not specifically
  *    an `{X}` cost — so a line like "// CR 118.4 — pay 2 life (see the X
  *    column of the table)." passes clean: the stray `X` suppresses the hit

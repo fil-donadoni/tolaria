@@ -1385,7 +1385,7 @@ export function applyPendingChoiceSubmit(
     // `search-library` is overloaded: Expressive Iteration (stx/multicolor.ts)
     // and Diabolic Vision (ice/multicolor.ts) reuse the SAME PendingChoice
     // `kind` for a "look at the top N, pick one" prompt, which is NOT a CR
-    // 701.19a search (that requires looking at the WHOLE zone) — gating on
+    // 701.23a search (that requires looking at the WHOLE zone) — gating on
     // `kind` alone fires a false `LIBRARY_SEARCHED` for both. `isSearch` is
     // the explicit, fail-closed discriminator set only at genuine raise sites
     // (see `PendingChoice.isSearch`); a choice persisted before this field

@@ -6,10 +6,10 @@ import type { CardDefinition } from "../../types";
 
 // Mystical Tutor — {U} Instant. "Search your library for an instant or
 // sorcery card, reveal it, then shuffle and put that card on top." (CR
-// 701.19 search / 701.20 reveal + shuffle / 401.4 top-of-library, issue
+// 701.23 search / 701.20 reveal + shuffle / 401.4 top-of-library, issue
 // #1125 — unblocked by the `moveZone` `to: "library-top"` destination.)
 // `filter.type: ["Instant", "Sorcery"]` is the type restriction (CR 205.4a
-// OR-of-array, ADR 0045); `count: { min: 0, max: 1 }` is CR 701.19b's
+// OR-of-array, ADR 0045); `count: { min: 0, max: 1 }` is CR 701.23b's
 // fail-to-find allowance. The `reveal` Op stamps the found card known to
 // every player BEFORE the shuffle clears library knowledge (issue #945 —
 // the reveal survives because it targets the picked id directly, not "the

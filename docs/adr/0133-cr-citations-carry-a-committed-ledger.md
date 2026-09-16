@@ -46,7 +46,9 @@ model reading every citation against its rule inside `check:all` is out.
 
 3. **`cr:lint` reds, offline, on four things**: a citation in the tree with
    **no entry** (a new comment, an edited line — editing the claim reopens
-   its citation on purpose — or a new site of a recorded line); a `confirmed`
+   its citation on purpose; for a citation wrapped across two comment lines
+   the key is the id's physical line, so only that half reopens — issue
+   #2514 — or a new site of a recorded line); a `confirmed`
    entry whose **rule text no longer hashes** to what was confirmed (a
    `cr:sync` that rewrites a rule reopens every citation of it, which is how
    the next renumbering outside 701/702 gets caught); a **`baseline` entry the
