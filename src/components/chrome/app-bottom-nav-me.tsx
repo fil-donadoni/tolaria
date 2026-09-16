@@ -30,7 +30,12 @@ export default function AppBottomNavMe() {
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger className="flex min-h-[var(--control-h-coarse)] flex-1 flex-col items-center justify-center gap-0.5 rounded-sm text-text-muted transition-colors hover:text-parchment data-[state=open]:text-accent-strong">
+            {/* The profile entry point's seam on a portrait phone; its twin
+                is in `app-header-profile.tsx` for every other viewport. */}
+            <PopoverTrigger
+                data-profile-entry
+                className="flex min-h-[var(--control-h-coarse)] flex-1 flex-col items-center justify-center gap-0.5 rounded-sm text-text-muted transition-colors hover:text-parchment data-[state=open]:text-accent-strong"
+            >
                 <UserRound className="h-5 w-5" aria-hidden="true" />
                 <span className="text-[0.625rem] tracking-[0.14em] uppercase">
                     Me

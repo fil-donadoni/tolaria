@@ -1,0 +1,430 @@
+/**
+ * NAMED ASSERTIONS — the positive half of the invariant gate (ADR 0132 §3,
+ * issue #3649, PRD #3643).
+ *
+ * The Floors say what must never be true of a screen (`floors.ts`): no card
+ * collapsed to zero, no control stranded, no serious axe violation. They are
+ * blind to the other half of the question — whether the screen still OFFERS
+ * what it exists to offer. The lobby walk asserted a `<main>` element and
+ * nothing else, so a lobby that lost every Mode Tile, its primary action and
+ * its deck shelves would have measured a clean `PASS`
+ * (`docs/findings/2726-lobby-surface-asserts-only-main.md`).
+ *
+ * So every surface DECLARES what it promises about itself, by name:
+ *
+ *   { label: "mode tile: Solo game", locator: { selector: '[data-mode-tile="solo"]' }, check: "reachable" }
+ *
+ * and each promise is evaluated at EVERY viewport, on the Settled Screen, and
+ * printed as its own line of the Verdict Block (`assert <surface> <viewport>
+ * PASS|FAIL <label>`), which `land` re-derives. A label is therefore part of
+ * the receipt's fixed text: renaming one changes what a PR must paste.
+ *
+ * THE THREE CHECKS.
+ *
+ *   - `reachable` — Playwright's own actionability check WITHOUT the click
+ *     (`click({ trial: true })`: visible, stable, enabled, and the element
+ *     that answers a pointer at its own centre), plus the element's centre
+ *     landing inside the viewport once Playwright has scrolled to it. The
+ *     scroll is deliberate and is the same distinction `probe.js` draws
+ *     between `stranded` and `reachable`: a control below the fold of a
+ *     scrolling page is reachable by a gesture and is not a defect, while one
+ *     that cannot be brought into the viewport at all is.
+ *   - `visible` — rendered and visible, nothing about gestures. For a control
+ *     whose whole point is that it is DISABLED in the state the walk measures
+ *     (the Loadout's primary plate on a lobby with no deck selected).
+ *   - `contrast` — axe-core's `color-contrast` rule over that element's
+ *     subtree only. The surface-wide axe run is already a Floor; this is the
+ *     one that says WHICH subtree had to pass, so a CTA that goes
+ *     low-contrast is named by the assertion that covered it rather than
+ *     drowned in a page count.
+ *
+ * LOCATORS ARE ROLE+NAME OR `data-*`, and the offline guard below refuses
+ * anything else. A locator like `main, [role=main]` or `.btn-primary` is a
+ * promise about markup, which is exactly the promise that keeps passing while
+ * the screen loses its content; a role+name locator is a promise about what a
+ * USER can find, and a `data-*` attribute is a seam the app declares on
+ * purpose (`data-mode-tile`, `data-lobby-primary`, `data-deck-select`) for the
+ * controls whose visible text is a deck name or a selected tile's title.
+ */
+import type { Locator, Page } from "playwright";
+
+/** The checks a surface may declare. */
+export const ASSERTION_CHECKS = ["reachable", "visible", "contrast"] as const;
+
+export type AssertionCheck = (typeof ASSERTION_CHECKS)[number];
+
+/**
+ * How an assertion addresses its element. Role+name is what a user (and a
+ * screen reader) can find; a `data-*` selector is a declared walk seam.
+ */
+export type AssertionLocator =
+    | { role: string; name: string }
+    | { selector: string };
+
+/** One promise a surface makes about itself, checked at every viewport. */
+export interface NamedAssertion {
+    /**
+     * The name this promise is printed and re-derived by. Stable text in the
+     * Verdict Block: keep it short, say what the element IS, and change it
+     * only when the promise itself changes.
+     */
+    label: string;
+    locator: AssertionLocator;
+    check: AssertionCheck;
+}
+
+/** One assertion's outcome at one viewport. `detail` is empty on a pass and
+ *  is printed in the DIAGNOSTIC block, never on the verdict line — a
+ *  Playwright message differs between two runs of one tree. */
+export interface AssertResult {
+    label: string;
+    ok: boolean;
+    detail: string;
+}
+
+/** A surface the guard reads: its id and whatever it declares. */
+export interface AssertingSurface {
+    id: string;
+    asserts?: readonly NamedAssertion[];
+}
+
+/** A surface that does not declare its assertions yet, and the slice that
+ *  gives it some. Same idiom as `UNWALKED_SURFACES` (`floors.ts`): the hole is
+ *  a reviewable line with an issue on it, never a silent absence. */
+export interface AssertionDebt {
+    surface: string;
+    issue: number;
+}
+
+/**
+ * The surfaces still carrying no assertion, each with the slice that closes
+ * it. Issue #3649 ships the shape and the auth + lobby promises; issue #3650
+ * takes the deck, Limited and draft surfaces; issue #3651 the game, debug and
+ * admin ones. An entry is DELETED by the slice that declares that surface's
+ * assertions — the guard reds on a debt row for a surface that has them, so
+ * this list can only shrink.
+ */
+export const ASSERTION_DEBT: readonly AssertionDebt[] = [
+    { surface: "deck-builder", issue: 3650 },
+    { surface: "deck-detail", issue: 3650 },
+    { surface: "limited-list", issue: 3650 },
+    { surface: "limited-your-events", issue: 3650 },
+    { surface: "limited-antechamber", issue: 3650 },
+    { surface: "limited-build", issue: 3650 },
+    { surface: "draft-pick", issue: 3650 },
+    { surface: "draft-pool-stop", issue: 3650 },
+    { surface: "draft-pool-peek", issue: 3650 },
+    { surface: "design-system", issue: 3651 },
+    { surface: "design-system-dialog", issue: 3651 },
+    { surface: "admin-card-profiles", issue: 3651 },
+    { surface: "admin-verdicts", issue: 3651 },
+    { surface: "game-board", issue: 3651 },
+    { surface: "game-card-preview", issue: 3651 },
+    { surface: "game-stress", issue: 3651 },
+    { surface: "game-debug-sheet", issue: 3651 },
+    { surface: "game-manage-yields", issue: 3651 },
+    { surface: "game-debug-sheet-ai", issue: 3651 },
+];
+
+/** The attribute a `contrast` assertion marks its subtree with while axe reads
+ *  it. Removed in a `finally`, so a failed run never leaves it on the page. */
+export const ASSERT_MARK_ATTRIBUTE = "data-ui-gate-assert";
+
+/** How long one assertion waits for its element. Short on purpose: the screen
+ *  is already settled when assertions run, so this is not a load wait. */
+const ASSERT_TIMEOUT_MS = 5_000;
+
+/** The locator as a reader should see it in a failure line. */
+export function describeLocator(locator: AssertionLocator): string {
+    return "selector" in locator
+        ? locator.selector
+        : `role=${locator.role} name=${JSON.stringify(locator.name)}`;
+}
+
+/**
+ * A `data-*` compound: `[data-foo]`, `[data-foo="bar"]`, and anything hung off
+ * one (`[data-deck-select]:not([disabled])`). What it refuses is a compound
+ * that leads with a tag, class or id — `main`, `.panel`, `#root` — because
+ * that is a claim about markup rather than about a named thing.
+ */
+function dataCompound(part: string): boolean {
+    return /^\[data-[a-z][a-z0-9-]*(?:[~^$*|]?=(?:"[^"]*"|'[^']*'|[^\]]+))?\]/.test(
+        part
+    );
+}
+
+/**
+ * Why this locator is not a legal one, or `null`. The offline guard's whole
+ * rule, pure and unit-testable: role+name, or a `data-*` selector naming ONE
+ * element.
+ */
+export function locatorProblem(locator: AssertionLocator): string | null {
+    if ("selector" in locator) {
+        const selector = locator.selector.trim();
+        if (selector === "") return "the selector is empty";
+        if (selector.includes(","))
+            return `\`${selector}\` names alternatives — an assertion addresses ONE element, so a comma is a promise about neither`;
+        const parts = selector.split(/\s*>\s*|\s+/).filter(Boolean);
+        const bare = parts.find((part) => !dataCompound(part));
+        if (bare !== undefined)
+            return `\`${selector}\` is a bare CSS locator at \`${bare}\` — an assertion addresses a role+name or a \`data-*\` seam, never markup`;
+        return null;
+    }
+    if (locator.role.trim() === "") return "the role is empty";
+    if (!/^[a-z]+$/.test(locator.role))
+        return `\`${locator.role}\` is not an ARIA role`;
+    if (locator.name.trim() === "")
+        return `role=${locator.role} carries no accessible name — a nameless role is not a named assertion`;
+    return null;
+}
+
+/**
+ * THE OFFLINE GUARD (ADR 0132 §3). Every problem with the surface table's
+ * assertions, in one pure function: a surface that declares none and is not in
+ * the debt list, a debt row that has gone stale, an illegal locator, a
+ * duplicate or unprintable label.
+ *
+ * Offline in the sense that matters here: no browser, no deployment, no
+ * network — it is a vitest guard (`ui-gate-assertions.test.ts`) beside its
+ * siblings `ui-gate-surface-entries.test.ts` and `ui-gate-floors.test.ts`, so
+ * it runs in `check:guards` / `check:pr` / `bun run test` on every diff.
+ */
+export function assertionTableProblems(
+    surfaces: readonly AssertingSurface[],
+    debt: readonly AssertionDebt[] = ASSERTION_DEBT
+): string[] {
+    const problems: string[] = [];
+    const owed = new Map(debt.map((d) => [d.surface, d]));
+    const ids = new Set(surfaces.map((s) => s.id));
+
+    for (const entry of debt) {
+        if (!ids.has(entry.surface)) {
+            problems.push(
+                `ASSERTION_DEBT names \`${entry.surface}\`, which is not a surface — delete the row or fix the id`
+            );
+        }
+        if (!Number.isInteger(entry.issue) || entry.issue <= 0) {
+            problems.push(
+                `ASSERTION_DEBT's \`${entry.surface}\` row carries no open issue — a coverage hole is tracked or it is closed`
+            );
+        }
+    }
+
+    for (const surface of surfaces) {
+        const asserts = surface.asserts ?? [];
+        const debtRow = owed.get(surface.id);
+        if (asserts.length === 0) {
+            if (!debtRow) {
+                problems.push(
+                    `${surface.id} declares no assertion — every surface promises at least one named thing about itself (ADR 0132 §3), or carries an ASSERTION_DEBT row with the issue that gives it one`
+                );
+            }
+            continue;
+        }
+        if (debtRow) {
+            problems.push(
+                `${surface.id} declares ${asserts.length} assertion(s) and still has an ASSERTION_DEBT row (issue #${debtRow.issue}) — delete the row`
+            );
+        }
+        const seen = new Set<string>();
+        for (const assertion of asserts) {
+            const label = assertion.label;
+            if (label.trim() === "" || label !== label.trim()) {
+                problems.push(
+                    `${surface.id}: ${JSON.stringify(label)} is not a printable label — it is the receipt's own text, and \`land\` compares it trimmed`
+                );
+            }
+            if (/[\r\n]/.test(label)) {
+                problems.push(
+                    `${surface.id}: ${JSON.stringify(label)} spans lines — one assertion is one line of the verdict block`
+                );
+            }
+            if (seen.has(label)) {
+                problems.push(
+                    `${surface.id}: two assertions are labelled ${JSON.stringify(label)} — a label is how a failing promise is named`
+                );
+            }
+            seen.add(label);
+            const bad = locatorProblem(assertion.locator);
+            if (bad) problems.push(`${surface.id} (${label}): ${bad}`);
+            if (!ASSERTION_CHECKS.includes(assertion.check)) {
+                problems.push(
+                    `${surface.id} (${label}): \`${assertion.check}\` is not a check — one of ${ASSERTION_CHECKS.join(", ")}`
+                );
+            }
+        }
+    }
+
+    return problems;
+}
+
+/**
+ * The labels each surface promises, in declaration order — the vocabulary the
+ * receipt is rendered from and the one `verify-receipt.ts` re-derives against.
+ */
+export function assertLabelsBySurface(
+    surfaces: readonly AssertingSurface[]
+): Record<string, readonly string[]> {
+    return Object.fromEntries(
+        surfaces.map((s) => [s.id, (s.asserts ?? []).map((a) => a.label)])
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The browser half
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** What one viewport's evaluation needs from the lane. */
+export interface AssertionEnvironment {
+    /** The context's viewport, in CSS pixels: what "in the viewport" means. */
+    viewport: { width: number; height: number };
+    /** Injects `axe-core` into the page. Called only by a `contrast` check, so
+     *  a surface with none never pays for the injection. */
+    ensureAxe: () => Promise<void>;
+    timeoutMs?: number;
+}
+
+function resolveLocator(page: Page, locator: AssertionLocator): Locator {
+    if ("selector" in locator) return page.locator(locator.selector);
+    return page.getByRole(locator.role as Parameters<Page["getByRole"]>[0], {
+        name: locator.name,
+        exact: true,
+    });
+}
+
+function firstLine(err: unknown): string {
+    return (err as Error).message.split("\n")[0];
+}
+
+/** Playwright's actionability check, the scroll it performs, and the one thing
+ *  it does not check: that the element ended up inside the viewport. */
+async function checkReachable(
+    element: Locator,
+    env: AssertionEnvironment,
+    timeout: number
+): Promise<string | null> {
+    try {
+        await element.click({ trial: true, timeout });
+    } catch (err) {
+        return `not actionable: ${firstLine(err)}`;
+    }
+    const box = await element.boundingBox();
+    if (!box) return "it has no layout box after the scroll";
+    const x = Math.round(box.x + box.width / 2);
+    const y = Math.round(box.y + box.height / 2);
+    const { width, height } = env.viewport;
+    if (x < 0 || y < 0 || x > width || y > height) {
+        return `its centre is at (${x}, ${y}), outside the ${width}x${height} viewport even after scrolling to it — no gesture reaches it`;
+    }
+    return null;
+}
+
+/** axe-core's `color-contrast` rule, over this element's subtree only. */
+async function checkContrast(
+    page: Page,
+    element: Locator,
+    env: AssertionEnvironment
+): Promise<string | null> {
+    await env.ensureAxe();
+    try {
+        await element.evaluate(
+            `(el) => el.setAttribute(${JSON.stringify(ASSERT_MARK_ATTRIBUTE)}, "1")`
+        );
+    } catch (err) {
+        return `the subtree could not be marked for axe: ${firstLine(err)}`;
+    }
+    try {
+        const selector = `[${ASSERT_MARK_ATTRIBUTE}]`;
+        const violations = (await page.evaluate(
+            `(async () => {
+                const r = await window.axe.run(
+                    { include: [[${JSON.stringify(selector)}]] },
+                    {
+                        runOnly: { type: "rule", values: ["color-contrast"] },
+                        resultTypes: ["violations"],
+                    }
+                );
+                return r.violations.flatMap((v) =>
+                    v.nodes.map((n) => ({
+                        impact: n.impact || v.impact || "unknown",
+                        html: String(n.html || "").slice(0, 120),
+                    }))
+                );
+            })()`
+        )) as { impact: string; html: string }[];
+        if (violations.length === 0) return null;
+        return `${violations.length} colour-contrast violation(s): ${violations
+            .slice(0, 3)
+            .map((v) => `${v.impact} ${v.html}`)
+            .join("; ")}`;
+    } catch (err) {
+        return `axe could not read the subtree: ${firstLine(err)}`;
+    } finally {
+        await element
+            .evaluate(
+                `(el) => el.removeAttribute(${JSON.stringify(ASSERT_MARK_ATTRIBUTE)})`
+            )
+            .catch(() => {});
+    }
+}
+
+/**
+ * Evaluate one surface's assertions on the CURRENT, settled page.
+ *
+ * Runs AFTER the probe, axe and the screenshot for this cell (`index.ts`'s
+ * `measure()`): a `reachable` check scrolls the element into view, and the
+ * measurement must be taken on the screen as it was found, not on the screen
+ * the assertions left behind.
+ *
+ * Total by construction — every assertion produces a result, and an assertion
+ * that throws for any reason is a FAIL carrying the reason. A missing element
+ * is the failure this whole mechanism exists to catch, so it can never be an
+ * exception that skips the rest of the list.
+ */
+export async function evaluateAssertions(
+    page: Page,
+    asserts: readonly NamedAssertion[],
+    env: AssertionEnvironment
+): Promise<AssertResult[]> {
+    const timeout = env.timeoutMs ?? ASSERT_TIMEOUT_MS;
+    const results: AssertResult[] = [];
+    for (const assertion of asserts) {
+        const where = describeLocator(assertion.locator);
+        const fail = (detail: string): void => {
+            results.push({
+                label: assertion.label,
+                ok: false,
+                detail: `${assertion.check} \`${where}\` — ${detail}`,
+            });
+        };
+        try {
+            const all = resolveLocator(page, assertion.locator);
+            const element = all.first();
+            try {
+                await element.waitFor({ state: "visible", timeout });
+            } catch (err) {
+                const n = await all.count().catch(() => -1);
+                fail(
+                    n === 0
+                        ? "no element matches it"
+                        : `${n === -1 ? "an" : n} element(s) match, none visible within ${Math.round(timeout / 1000)}s: ${firstLine(err)}`
+                );
+                continue;
+            }
+            const problem =
+                assertion.check === "visible"
+                    ? null
+                    : assertion.check === "reachable"
+                      ? await checkReachable(element, env, timeout)
+                      : await checkContrast(page, element, env);
+            if (problem) {
+                fail(problem);
+                continue;
+            }
+            results.push({ label: assertion.label, ok: true, detail: "" });
+        } catch (err) {
+            fail(`the check threw: ${firstLine(err)}`);
+        }
+    }
+    return results;
+}

@@ -29,6 +29,7 @@ import type { FixtureLabels } from "./lane-account.ts";
 // The one wait before a measurement (issue #3644): no fixed sleep remains in
 // this module, and `ui-gate-settle.test.ts` reds if a sleep comes back.
 import { waitForSettledScreen } from "./settle.ts";
+import type { NamedAssertion } from "./assertions.ts";
 
 /** Thrown by a walk that could not reach its screen. Reason is user-facing. */
 export class Unreachable extends Error {
@@ -129,6 +130,26 @@ export interface Surface {
      * (`settle.ts`). The elements the surface exists to measure.
      */
     settleTargets?: readonly string[];
+    /**
+     * What this surface PROMISES about itself (ADR 0132 §3, issue #3649):
+     * named controls and regions, each checked at every viewport once the
+     * screen has settled, each printed as its own line of the Verdict Block.
+     *
+     * The Floors say what must never be true of the screen; these say what
+     * must still be TRUE of it. A surface whose walk asserts only that a
+     * `<main>` rendered measures whatever the route happened to paint — the
+     * lobby could have lost every Mode Tile, its primary action and both deck
+     * shelves and still walked green
+     * (`docs/findings/2726-lobby-surface-asserts-only-main.md`). The entry
+     * points the surface's runbook names (`docs/guides/ui-runbooks.md`) are
+     * its minimum.
+     *
+     * Locators are role+name or a `data-*` seam, never bare CSS, and every
+     * surface declares at least one — both refused offline by
+     * `scripts/__tests__/ui-gate-assertions.test.ts`. A surface with none
+     * carries an `ASSERTION_DEBT` row naming the slice that gives it some.
+     */
+    asserts?: readonly NamedAssertion[];
     walk(page: Page, ctx: WalkContext): Promise<void>;
     /**
      * Runs AFTER the probe/axe/screenshot for this surface+viewport pass, on
@@ -1371,6 +1392,43 @@ export const SURFACES: readonly Surface[] = [
         entries: ["src/routes/lobby.route.tsx"],
         label: "Sign in (signed out, /)",
         preAuth: true,
+        // The screen every user meets first: the two fields, the submit, and
+        // the two ways out of it. Addressed by role+name wherever the control
+        // HAS a name a user could read — `input[type=password]` maps to no
+        // ARIA role, which is why the password field carries a declared seam
+        // instead (`data-auth-password`, `src/components/auth/auth-form.tsx`).
+        asserts: [
+            {
+                label: "email field",
+                locator: { role: "textbox", name: "Email" },
+                check: "reachable",
+            },
+            {
+                label: "password field",
+                locator: { selector: "[data-auth-password]" },
+                check: "reachable",
+            },
+            {
+                label: "Sign In submit",
+                locator: { role: "button", name: "Sign In" },
+                check: "reachable",
+            },
+            {
+                label: "Sign In submit contrast",
+                locator: { role: "button", name: "Sign In" },
+                check: "contrast",
+            },
+            {
+                label: "sign-up entry",
+                locator: { role: "button", name: "No account? Sign up" },
+                check: "reachable",
+            },
+            {
+                label: "password-reset entry",
+                locator: { role: "button", name: "Forgot password?" },
+                check: "reachable",
+            },
+        ],
         async walk(page, ctx) {
             await goto(page, ctx, "/");
             if (!(await visible(page, "input[type=email]", 15_000))) {
@@ -1385,6 +1443,25 @@ export const SURFACES: readonly Surface[] = [
         entries: ["src/routes/lobby.route.tsx"],
         label: "Password reset, step 1 (signed out, / → Forgot password?)",
         preAuth: true,
+        // Step 1 is the whole walked screen (step 2 needs a real OTP — see the
+        // walk below): the address field, the submit, and the way back.
+        asserts: [
+            {
+                label: "email field",
+                locator: { role: "textbox", name: "Email" },
+                check: "reachable",
+            },
+            {
+                label: "Send Code submit",
+                locator: { role: "button", name: "Send Code" },
+                check: "reachable",
+            },
+            {
+                label: "back to sign in",
+                locator: { role: "button", name: "Back to sign in" },
+                check: "reachable",
+            },
+        ],
         async walk(page, ctx) {
             await goto(page, ctx, "/");
             if (!(await visible(page, "input[type=email]", 15_000))) {
@@ -1421,6 +1498,80 @@ export const SURFACES: readonly Surface[] = [
         id: "lobby",
         entries: ["src/routes/lobby.route.tsx"],
         label: "Lobby (/)",
+        /**
+         * EVERY ENTRY POINT THE LOBBY RUNBOOK NAMES (`docs/guides/ui-runbooks.md`
+         * § Start a solo game from cold, § Lobby, deck builder and the Limited
+         * list). This is the coverage hole of
+         * `docs/findings/2726-lobby-surface-asserts-only-main.md`: the walk
+         * below asserts a main region, so a lobby that had lost all four Mode
+         * Tiles, the Loadout's plate, both deck shelves, the Limited footer
+         * and the profile menu would still have measured green.
+         *
+         * `reachable`, not `visible`, for the controls, because the lobby is a
+         * scrolling page and what matters is that a gesture gets there: the
+         * check scrolls the element into view first and then requires its
+         * centre inside the viewport, so a control below the fold passes and
+         * one pinned under fixed chrome does not.
+         */
+        asserts: [
+            {
+                label: "mode tile: Play vs Bot",
+                locator: { selector: '[data-mode-tile="bot"]' },
+                check: "reachable",
+            },
+            {
+                label: "mode tile: Solo game",
+                locator: { selector: '[data-mode-tile="solo"]' },
+                check: "reachable",
+            },
+            {
+                label: "mode tile: Open a table",
+                locator: { selector: '[data-mode-tile="table"]' },
+                check: "reachable",
+            },
+            {
+                label: "mode tile: Limited",
+                locator: { selector: '[data-mode-tile="limited"]' },
+                check: "reachable",
+            },
+            // VISIBLE, not reachable, and that is the promise: the Loadout's
+            // single plate is `disabled` until a deck is the active one
+            // (`src/lib/lobbyGate.ts`), and this walk selects nothing — so
+            // requiring actionability here would assert the opposite of the
+            // designed state.
+            {
+                label: "Loadout primary action",
+                locator: { selector: "[data-lobby-primary]" },
+                check: "visible",
+            },
+            {
+                label: "Loadout primary action contrast",
+                locator: { selector: "[data-lobby-primary]" },
+                check: "contrast",
+            },
+            {
+                label: "deck shelf: first selectable tile",
+                locator: {
+                    selector:
+                        "[data-deck-tile] [data-deck-select]:not([disabled])",
+                },
+                check: "reachable",
+            },
+            {
+                label: "Limited re-entry",
+                locator: { role: "button", name: "Browse / Create Events" },
+                check: "reachable",
+            },
+            // One element at any viewport, never two: the profile lives in the
+            // header band above a portrait phone and in the bottom nav's `Me`
+            // popover on one (`app-shell.tsx` renders exactly one of the two
+            // bands), and both carry the seam.
+            {
+                label: "profile menu entry",
+                locator: { selector: "[data-profile-entry]" },
+                check: "reachable",
+            },
+        ],
         async walk(page, ctx) {
             await goto(page, ctx, "/");
             if (!(await visible(page, "main, [role=main]", 10_000))) {
@@ -1432,6 +1583,25 @@ export const SURFACES: readonly Surface[] = [
         id: "lobby-vs-ai",
         entries: ["src/routes/lobby.route.tsx"],
         label: "vs-AI setup dialog (/ \u2192 Play vs Bot \u2192 primary)",
+        // The dialog's own controls — the selector that makes it the RIGHT
+        // dialog, and the two plates that leave it.
+        asserts: [
+            {
+                label: "AI Difficulty selector",
+                locator: { role: "radiogroup", name: "AI Difficulty" },
+                check: "visible",
+            },
+            {
+                label: "dialog primary: Play vs AI",
+                locator: { role: "button", name: "Play vs AI" },
+                check: "reachable",
+            },
+            {
+                label: "dialog Cancel",
+                locator: { role: "button", name: "Cancel" },
+                check: "reachable",
+            },
+        ],
         async walk(page, ctx) {
             // The difficulty selector lives BEHIND this dialog, so the `lobby`
             // row above — which only asserts a main region on `/` — has never

@@ -153,6 +153,14 @@ export function AuthForm() {
                                 <span className="text-label">Password</span>
                                 <input
                                     type="password"
+                                    // `input[type=password]` maps to NO ARIA
+                                    // role, so `getByRole` cannot reach it and
+                                    // the ui-gate's Named Assertion for this
+                                    // field would have to be a bare CSS
+                                    // locator (`scripts/ui-gate/assertions.ts`
+                                    // refuses those). The seam is the handle,
+                                    // like `data-lobby-primary` on the lobby.
+                                    data-auth-password
                                     autoComplete={
                                         flow === "signIn"
                                             ? "current-password"
