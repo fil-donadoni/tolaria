@@ -60,10 +60,19 @@ export interface FixtureLabels {
     draft: string;
 }
 
+/** The 12-hex id a run — and each of its accounts — is named by.
+ *  `runScreenshotDir` prunes on exactly this shape, and the server side
+ *  recognises a lane address by it. */
+export function newRunId(
+    random: (bytes: number) => Buffer = randomBytes
+): string {
+    return random(6).toString("hex");
+}
+
 export function newLaneAccount(
     random: (bytes: number) => Buffer = randomBytes
 ): LaneAccount {
-    const runId = random(6).toString("hex");
+    const runId = newRunId(random);
     return {
         runId,
         email: laneAccountEmail(runId),
@@ -192,30 +201,57 @@ export function passwordSignUp(convexUrl: string): SignUp {
     };
 }
 
-export interface LaneLifecycleDeps {
-    account: LaneAccount;
+export interface LaneFleetDeps {
+    /** One account per parallel lane (issue #3653). The one-game-per-account
+     *  lobby gate is per ACCOUNT, so two contexts that must walk a game surface
+     *  at the same time cannot share one. */
+    accounts: readonly LaneAccount[];
     run: ConvexRunner;
     signUp: SignUp;
     keepUser: boolean;
     log: (message: string) => void;
 }
 
-export interface LaneLifecycle {
+/** One account of the fleet, with the fixture labels seeded for it. */
+export interface LaneMember {
     readonly account: LaneAccount;
     readonly labels: FixtureLabels;
+}
+
+export interface LaneFleet {
+    readonly members: readonly LaneMember[];
     bootstrap(): Promise<void>;
-    /** Synchronous and idempotent — safe from a `finally` AND a signal. */
+    /** Synchronous and idempotent — safe from a `finally` AND a signal.
+     *  Destroys EVERY member, and a member whose destroy throws never stops
+     *  the next one: the sweep is the backstop for whatever is left. */
     teardown(): void;
 }
 
-export function createLaneLifecycle(deps: LaneLifecycleDeps): LaneLifecycle {
-    const { account, run, log } = deps;
-    let registering = false;
+/**
+ * The run's accounts, bootstrapped and destroyed together.
+ *
+ * WHAT IS PER ACCOUNT and what is per RUN is the whole shape of this function:
+ * the sweep and the declared positions are properties of the DEPLOYMENT (the
+ * positions upsert by label, ADR 0132 §4), so they happen once however many
+ * accounts the run owns; the sign-up, the roles, the Limited fixtures and the
+ * contested verdict position are rows OWNED by an account, so they happen once
+ * per member and are removed with it.
+ */
+export function createLaneFleet(deps: LaneFleetDeps): LaneFleet {
+    const { run, log } = deps;
+    if (deps.accounts.length === 0) {
+        throw new LaneAccountError("a lane fleet needs at least one account");
+    }
+    const members: LaneMember[] = deps.accounts.map((account) => ({
+        account,
+        labels: fixtureLabelsFor(account.runId),
+    }));
+    /** Addresses whose sign-up was ATTEMPTED — the set teardown works from. */
+    const registering = new Set<string>();
     let tornDown = false;
 
     return {
-        account,
-        labels: fixtureLabelsFor(account.runId),
+        members,
 
         async bootstrap() {
             const sweep = run("uiGateAccounts:sweepStaleLaneAccounts", {}) as {
@@ -225,21 +261,23 @@ export function createLaneLifecycle(deps: LaneLifecycleDeps): LaneLifecycle {
             if (swept > 0) {
                 log(`ui-gate: swept ${swept} stale lane account(s)`);
             }
-            // Armed BEFORE the sign-up call: a sign-up whose response was lost
-            // may still have created the account, and teardown of an address
-            // that does not exist is a no-op.
-            registering = true;
-            await deps.signUp(account);
-            run("uiGateAccounts:grantLaneRoles", { email: account.email });
-            run("limitedFixtures:seedUiGateFixtures", {
-                email: account.email,
-                runId: account.runId,
-            });
-            // The contested position `admin-verdicts` opens (issue #3582):
-            // outbox rows owned by this account, removed with it.
-            run("verdictResolutions:seedUiGateContestedPosition", {
-                email: account.email,
-            });
+            for (const { account } of members) {
+                // Armed BEFORE the sign-up call: a sign-up whose response was
+                // lost may still have created the account, and teardown of an
+                // address that does not exist is a no-op.
+                registering.add(account.email);
+                await deps.signUp(account);
+                run("uiGateAccounts:grantLaneRoles", { email: account.email });
+                run("limitedFixtures:seedUiGateFixtures", {
+                    email: account.email,
+                    runId: account.runId,
+                });
+                // The contested position `admin-verdicts` opens (issue #3582):
+                // outbox rows owned by this account, removed with it.
+                run("verdictResolutions:seedUiGateContestedPosition", {
+                    email: account.email,
+                });
+            }
             // The game surfaces' declared positions (issue #3652). Upsert by
             // label, so this is idempotent and concurrent-run safe; it is the
             // step that makes "debug scenario absent from this deployment"
@@ -255,49 +293,54 @@ export function createLaneLifecycle(deps: LaneLifecycleDeps): LaneLifecycle {
                 });
             }
             log(`ui-gate: seeded ${scenarios.length} debug scenario(s)`);
-            log(
-                `ui-gate: run ${account.runId} — lane account ${account.email}`
-            );
+            for (const { account } of members) {
+                log(
+                    `ui-gate: run ${account.runId} — lane account ${account.email}`
+                );
+            }
         },
 
         teardown() {
-            if (!registering || tornDown) return;
+            if (registering.size === 0 || tornDown) return;
             tornDown = true;
-            if (deps.keepUser) {
-                log(
-                    `ui-gate: --keep-user — the lane account is left in place ` +
-                        `(the next run's sweep collects it after two hours):\n` +
-                        `  email:    ${account.email}\n` +
-                        `  password: ${account.password}`
-                );
-                return;
-            }
-            try {
-                run("uiGateAccounts:destroyLaneAccount", {
-                    email: account.email,
-                });
-                log(`ui-gate: lane account ${account.email} destroyed`);
-            } catch (err) {
-                log(
-                    `ui-gate: TEARDOWN FAILED for ${account.email} — ${(err as Error).message}. ` +
-                        `The next run's sweep collects it after two hours.`
-                );
+            for (const { account } of members) {
+                if (!registering.has(account.email)) continue;
+                if (deps.keepUser) {
+                    log(
+                        `ui-gate: --keep-user — the lane account is left in place ` +
+                            `(the next run's sweep collects it after two hours):\n` +
+                            `  email:    ${account.email}\n` +
+                            `  password: ${account.password}`
+                    );
+                    continue;
+                }
+                try {
+                    run("uiGateAccounts:destroyLaneAccount", {
+                        email: account.email,
+                    });
+                    log(`ui-gate: lane account ${account.email} destroyed`);
+                } catch (err) {
+                    log(
+                        `ui-gate: TEARDOWN FAILED for ${account.email} — ${(err as Error).message}. ` +
+                            `The next run's sweep collects it after two hours.`
+                    );
+                }
             }
         },
     };
 }
 
-/** Run `body` with the lane account in place, and tear it down however `body`
- *  ends — returned, threw, or bootstrap itself failed part-way. */
-export async function withLaneAccount<T>(
-    lane: LaneLifecycle,
+/** Run `body` with the run's accounts in place, and tear them down however
+ *  `body` ends — returned, threw, or bootstrap itself failed part-way. */
+export async function withLaneFleet<T>(
+    fleet: LaneFleet,
     body: () => Promise<T>
 ): Promise<T> {
     try {
-        await lane.bootstrap();
+        await fleet.bootstrap();
         return await body();
     } finally {
-        lane.teardown();
+        fleet.teardown();
     }
 }
 

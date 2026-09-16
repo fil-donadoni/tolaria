@@ -90,8 +90,10 @@ PASS|FAIL|INFRA|UNWALKED`, broken floors, assertions by label) is
   4 holds.
 - **Fewer viewports on scoped runs.** Rejected: it reopens the three-viewport
   rule ADR 0101 retired. Speed comes from the scope (ADR 0131), from replacing
-  fixed sleeps with the settle predicate, and later from viewport parallelism
-  sized to the machine's load, with one lane account per browser context.
+  fixed sleeps with the settle predicate, and — since issue #3653 — from
+  viewport parallelism sized to the machine's load, with one lane account per
+  parallel lane. The matrix is walked WHOLE at every N; the count changes the
+  wall time and nothing in the verdict block.
 
 ## Consequences
 

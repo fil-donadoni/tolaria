@@ -43,6 +43,7 @@ bun run check:ui -- --all                     # every surface, whatever the diff
 bun run check:ui -- --scope-only              # print the scope, no browser
 bun run check:ui -- --surface=lobby           # one surface, same rules (DIAGNOSTIC)
 bun run check:ui -- --headed                  # watch it walk
+bun run check:ui -- --parallel=1              # N viewports at once, 1..5
 ```
 
 **Scope** (issues #3627, #3628; ADR 0131). A run with no `--surface=`/`--all`
@@ -52,6 +53,33 @@ stylesheet, a design token, a shared UI primitive, the shell, the router,
 `index.html`, `public/**`, the build config, the lane itself, or any path the
 scoper cannot place forces the full run. Tests, scripts and markdown reach
 nothing, so a diff made only of them walks zero surfaces and says so.
+
+**Speed is sized to the machine** (issue #3653). The five viewports are
+independent, so the lane walks several at once — one context per free core,
+holding one core back for its own Vite and the local backend, clamped to 1..5
+and read ONCE from the 1-minute load average at the start of the run. An idle
+machine walks all five together; a machine at its core count walks them one at
+a time, because five Chromium contexts on a busy box turn a UI question into an
+`INFRA` verdict (issue #3644). The count, the load it was sized from and the
+number of lane accounts print in the diagnostic block.
+
+Each viewport now reaches its own verdict on every surface, where a surface
+that failed at the first viewport used to be skipped at the other four. That is
+the price of the guarantee below: which viewport fails first is a property of
+the machine, so a shared "already gave up" signal would put a different reason
+on the surface's `UNWALKED` row depending on how many contexts ran at once — the
+one line `land` byte-compares. A broken surface therefore spends its retry
+budget once per viewport rather than once per run: a RED run is slower, a green
+one is not, and the verdict is the same.
+
+`--parallel=N` (1..5) overrides the sizing — that is how you reproduce a
+receipt on a machine whose load differs from the one that produced it. **It
+cannot change the verdict**: every viewport reports its cells, and they are
+folded back into the fixed Viewport Matrix order before anything is printed or
+evaluated (`scripts/ui-gate/parallel.ts`), so an `N=1` and an `N=5` run of one
+tree print the same verdict block byte for byte. What changes is the wall time,
+the load line, and the order the work happened in — all diagnostic, none of it
+read by `land`.
 
 It owns the whole lifecycle: it checks the Convex deployment answers, starts
 its **own** Vite on `127.0.0.1` and a free port (your `bun run dev` is left
@@ -68,19 +96,24 @@ whose functions include `convex/uiGateAccounts.ts`, and the Chromium binary
 (`bunx playwright install chromium`; a missing one fails with that exact line).
 No credentials: the lane never signs in as the shared dev account.
 
-**The run's account** (issue #3626). Every run owns one:
+**The run's accounts** (issue #3626; one per parallel lane since issue #3653 —
+the lobby's one-game-per-account gate is what would otherwise serialise the
+contexts). Every run owns them and nothing else does:
 
 1. It sweeps lane accounts older than two hours — runs killed with no chance
-   to clean up.
-2. It registers `ui-gate+<runId>@ui-gate.invalid` with a random password,
-   through the same `auth:signIn` sign-up flow the auth form uses.
-3. It grants that account admin and tester, seeds its Limited fixtures under
-   `ui-gate/<runId>/…` labels, and seeds the game surfaces' declared positions
-   (`scripts/ui-gate/*-scenario.json`, ADR 0132 §4) — those by LABEL, upserted,
-   so they are shared with every other run rather than owned by this account.
-4. When the run ends — pass, fail, Ctrl+C or SIGTERM — it destroys the account
-   and every row it owns: auth rows, decks, matches and games with their state
-   rows, Limited events, verdicts.
+   to clean up. Once per run, whatever the parallelism.
+2. It registers one `ui-gate+<runId>@ui-gate.invalid` per lane, each with a
+   random password, through the same `auth:signIn` sign-up flow the auth form
+   uses.
+3. It grants each account admin and tester and seeds its Limited fixtures under
+   its own `ui-gate/<runId>/…` labels, and seeds the game surfaces' declared
+   positions (`scripts/ui-gate/*-scenario.json`, ADR 0132 §4) — those by LABEL,
+   upserted, owned by no account, so they are shared with every other run and
+   seeded once per run.
+4. When the run ends — pass, fail, Ctrl+C or SIGTERM — it destroys every one of
+   those accounts and every row they own: auth rows, decks, matches and games
+   with their state rows, Limited events, verdicts. One account whose destroy
+   fails never stops the next; the sweep is the backstop.
 
 So two sessions can run the lane at the same time and never see each other's
 games, decks or fixtures, and a game left open on your own dev account has no

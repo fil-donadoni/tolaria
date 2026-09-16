@@ -65,8 +65,20 @@
  *   bun run check:ui -- --scope-only                     # print the diff's
  *                                                        # scope, no browser
  *   bun run check:ui -- --all                            # force the full scope
+ *   bun run check:ui -- --parallel=1                     # override the count
+ *                                                        # the machine sized
  *   bun run check:ui -- --scope-only --base=<ref>        # scope of the diff
  *                                                        # against another ref
+ *
+ * SPEED IS SIZED TO THE MACHINE (issue #3653). The five viewports are walked
+ * `viewportParallelism(load, ncpu)` at a time — five contexts on an idle box,
+ * one on a flat-out one — each in its own browser context, each parallel LANE
+ * signed in as its own lane account (a lane walks its viewports one after
+ * another, so the account is the LANE's), because the one-game-per-account
+ * lobby gate would otherwise serialise the contexts. The count changes the
+ * WALL TIME and nothing else: cells are
+ * collected and printed in the fixed Viewport Matrix order (`parallel.ts`), so
+ * the verdict block `land` re-derives is byte-identical whatever N was.
  *
  * SCOPE (issues #3627, #3628; ADR 0131). Every run starts by printing which
  * surfaces the diff against the base branch can reach
@@ -96,6 +108,7 @@ import {
     UNWALKED_SURFACES,
     type AxeCount,
     type ProbeResult,
+    type Readings,
     type SquareExample,
     type SoftExample,
 } from "./floors.ts";
@@ -105,10 +118,9 @@ import {
     evaluateRun,
     verdictBlockLines,
     type Evaluation,
-    type Measurement,
-    type SurfaceWalk,
     type DiffScope,
     type InfraCell,
+    type SurfaceWalk,
 } from "./receipt.ts";
 import { landingDiffScope } from "./verify-receipt.ts";
 import {
@@ -119,17 +131,26 @@ import {
     type Surface,
     type WalkContext,
 } from "./surfaces.ts";
-import { VIEWPORTS, VIEWPORT_IDS } from "./viewports.ts";
+import { VIEWPORTS, VIEWPORT_IDS, type Viewport } from "./viewports.ts";
 import {
-    createLaneLifecycle,
+    createLaneFleet,
     installSignalTeardown,
     LaneAccountError,
     localConvexRunner,
     newLaneAccount,
+    newRunId,
     passwordSignUp,
     runScreenshotDir,
-    withLaneAccount,
+    withLaneFleet,
+    type LaneMember,
 } from "./lane-account.ts";
+import {
+    collectRun,
+    parseParallelOverride,
+    runPool,
+    viewportParallelism,
+    type ViewportResult,
+} from "./parallel.ts";
 import { ORIGIN_BASE } from "../lib/branches.ts";
 import { renderUiScope, type UiScope } from "../lib/ui-scope.ts";
 import {
@@ -479,6 +500,9 @@ interface Options {
     scopeOnly: boolean;
     /** Force the full scope whatever the diff. */
     all: boolean;
+    /** `--parallel=N`: walk N viewports at once instead of the count the
+     *  machine's load and core count size (issue #3653). */
+    parallel: number | null;
     /** The ref the diff is taken against; the configured base branch unless
      *  `--base=` names another (same flag as `check:lane`). */
     base: string;
@@ -491,6 +515,7 @@ function parseArgs(argv: string[]): Options {
         keepUser: false,
         scopeOnly: false,
         all: false,
+        parallel: null,
         base: ORIGIN_BASE,
     };
     for (const arg of argv) {
@@ -502,6 +527,14 @@ function parseArgs(argv: string[]): Options {
         else if (arg === "--all") opts.all = true;
         else if (arg.startsWith("--base=")) {
             opts.base = arg.slice("--base=".length);
+        } else if (arg.startsWith("--parallel=")) {
+            try {
+                opts.parallel = parseParallelOverride(
+                    arg.slice("--parallel=".length)
+                );
+            } catch (err) {
+                throw new FatalError((err as Error).message);
+            }
         } else if (arg.startsWith("--surface=")) {
             opts.surfaces = arg
                 .slice("--surface=".length)
@@ -620,17 +653,33 @@ async function main(): Promise<number> {
     const port = await freePort();
     const baseUrl = `http://127.0.0.1:${port}`;
 
-    // The run's own account (issue #3626). Teardown runs from `withLaneAccount`'s
-    // `finally` on every normal exit and from the signal handler on SIGINT /
-    // SIGTERM, which never reach a `finally`.
-    const lane = createLaneLifecycle({
-        account: newLaneAccount(),
+    // How many viewports at once (issue #3653), read ONCE from the load at the
+    // start of the run: a count that drifted mid-run would make this line — and
+    // the account fleet sized from it — a lie about what actually happened.
+    const ncpu = os.cpus().length;
+    const parallel = opts.parallel ?? viewportParallelism(loadAtStart, ncpu);
+    const parallelLine =
+        `viewport parallelism: ${parallel} of ${VIEWPORTS.length} at a time, ` +
+        `${parallel} lane account(s) — ` +
+        (opts.parallel === null
+            ? `sized from load ${loadAtStart.toFixed(1)} on ${ncpu} cpus`
+            : `--parallel=${opts.parallel}`);
+    log(`ui-gate: ${parallelLine}`);
+
+    // The run's own accounts (issue #3626, one per lane since issue #3653).
+    // Teardown runs from `withLaneFleet`'s `finally` on every normal exit and
+    // from the signal handler on SIGINT / SIGTERM, which never reach a
+    // `finally`.
+    const fleet = createLaneFleet({
+        accounts: Array.from({ length: parallel }, () => newLaneAccount()),
         run: localConvexRunner(),
         signUp: passwordSignUp(convexUrl),
         keepUser: opts.keepUser,
         log,
     });
-    const shotDir = runScreenshotDir(SHOT_ROOT, lane.account.runId);
+    // The RUN's id, not an account's: the screenshots outlive every account the
+    // run owned, and there are `parallel` of those.
+    const shotDir = runScreenshotDir(SHOT_ROOT, newRunId());
 
     // Not `let vite: ChildProcess | null = null`: it is assigned inside the
     // `withLaneAccount` callback, and an annotated `null` initialiser narrows
@@ -641,20 +690,24 @@ async function main(): Promise<number> {
     const uninstallSignals = installSignalTeardown(
         process,
         () => {
-            lane.teardown();
+            fleet.teardown();
             vite?.kill("SIGTERM");
         },
         (code) => process.exit(code)
     );
 
     try {
-        return await withLaneAccount(lane, async () => {
+        return await withLaneFleet(fleet, async () => {
             try {
                 log(`ui-gate: starting vite on ${baseUrl}`);
                 vite = await startViteServer(port);
                 await waitForServer(baseUrl, 90_000);
 
-                browser = await launchBrowser(opts.headed);
+                // Const-bound for the viewport walks: the outer `browser` is a
+                // `let` the `finally` closes, and a closure that read it would
+                // see `Browser | null`.
+                const openBrowser = await launchBrowser(opts.headed);
+                browser = openBrowser;
 
                 // The settle predicate, proven in THIS Chromium before any
                 // reading depends on it (issue #3644): a predicate that returns
@@ -687,37 +740,72 @@ async function main(): Promise<number> {
                     await warm.close();
                 }
 
-                const ctx: WalkContext = {
-                    baseUrl,
-                    stressScenarioLabel: STRESS_SCENARIO_LABEL,
-                    yieldsScenarioLabel: YIELDS_SCENARIO_LABEL,
-                    aiTraceScenarioLabel: AI_TRACE_SCENARIO_LABEL,
-                    fixtureLabels: lane.labels,
-                    createdGame: false,
-                    log: () => {},
-                };
+                /**
+                 * One viewport, in its own browser context, signed in as its
+                 * LANE's own account (issue #3653).
+                 *
+                 * Everything it finds is returned rather than written into
+                 * shared state as it goes: `collectRun` is the only place the
+                 * viewports meet, and it meets them in the fixed matrix order.
+                 * That is what makes the verdict block independent of how many
+                 * of these ran at once — and it is why the cell lines are
+                 * buffered here instead of logged, which under parallelism
+                 * would interleave five viewports into one unreadable column.
+                 */
+                const walkViewport = async (
+                    viewport: Viewport,
+                    member: LaneMember
+                ): Promise<ViewportResult> => {
+                    const ctx: WalkContext = {
+                        baseUrl,
+                        stressScenarioLabel: STRESS_SCENARIO_LABEL,
+                        yieldsScenarioLabel: YIELDS_SCENARIO_LABEL,
+                        aiTraceScenarioLabel: AI_TRACE_SCENARIO_LABEL,
+                        fixtureLabels: member.labels,
+                        createdGame: false,
+                        log: () => {},
+                    };
+                    const lines: string[] = [];
+                    const measurements: {
+                        surface: string;
+                        readings: Readings;
+                    }[] = [];
+                    /**
+                     * Surfaces THIS viewport could not reach. It used to be
+                     * one map for the whole run, which let a surface that
+                     * failed at the first viewport skip the other four — and
+                     * that is exactly what cannot survive parallelism: which
+                     * viewport fails FIRST is a function of the machine, so the
+                     * reason printed on the surface's UNWALKED row would differ
+                     * between an N=1 and an N=5 run of one tree, and `land`
+                     * byte-compares that row.
+                     *
+                     * The price, paid only on the failure path, is that a
+                     * broadly broken surface now spends its INFRA retry budget
+                     * once per viewport instead of once per run (issue #3653
+                     * review). A red run gets slower; a green one does not, and
+                     * the verdict is identical either way.
+                     */
+                    const unreachable = new Map<string, string>();
+                    /** Cells that stood as an Infra Verdict (issue #3644). */
+                    const infra: { surface: string; cell: InfraCell }[] = [];
+                    const consoleErrors: string[] = [];
+                    /** Every walk on which the SHELL RETURN BAND was mounted, and how many
+                     *  controls `probe.js` culled for it (issue #3337). Reported in the
+                     *  diagnostic block, which `land` never reads, so a new line here can
+                     *  never invalidate a pasted receipt. */
+                    const bandWalks: { where: string; excluded: number }[] = [];
 
-                const perSurface = new Map<string, Measurement[]>();
-                const unreachable = new Map<string, string>();
-                /** Cells that stood as an Infra Verdict, per surface (issue #3644). */
-                const infra = new Map<string, InfraCell[]>();
-                const consoleErrors: string[] = [];
-                /** Every walk on which the SHELL RETURN BAND was mounted, and how many
-                 *  controls `probe.js` culled for it (issue #3337). Reported in the
-                 *  diagnostic block, which `land` never reads, so a new line here can
-                 *  never invalidate a pasted receipt. */
-                const bandWalks: { where: string; excluded: number }[] = [];
-
-                for (const viewport of VIEWPORTS) {
-                    const context: BrowserContext = await browser.newContext({
-                        viewport: {
-                            width: viewport.width,
-                            height: viewport.height,
-                        },
-                        deviceScaleFactor: viewport.dpr,
-                        isMobile: viewport.mobile,
-                        hasTouch: viewport.mobile,
-                    });
+                    const context: BrowserContext =
+                        await openBrowser.newContext({
+                            viewport: {
+                                width: viewport.width,
+                                height: viewport.height,
+                            },
+                            deviceScaleFactor: viewport.dpr,
+                            isMobile: viewport.mobile,
+                            hasTouch: viewport.mobile,
+                        });
                     // Before any app code: the settle predicate counts the Convex
                     // requests in flight through this (`settle.ts`).
                     await context.addInitScript(NETWORK_INSTRUMENT_SOURCE);
@@ -792,7 +880,7 @@ async function main(): Promise<number> {
                                 });
                                 if (failure.kind === "UNWALKED") {
                                     unreachable.set(surface.id, reason);
-                                    log(`${cell} UNWALKED — ${reason}`);
+                                    lines.push(`${cell} UNWALKED — ${reason}`);
                                     return false;
                                 }
 
@@ -827,24 +915,27 @@ async function main(): Promise<number> {
                                     ) {
                                         const quiet = `${firstLine} (${said}, under the retry threshold: the walk itself failed)`;
                                         unreachable.set(surface.id, quiet);
-                                        log(`${cell} UNWALKED — ${quiet}`);
+                                        lines.push(
+                                            `${cell} UNWALKED — ${quiet}`
+                                        );
                                         return false;
                                     }
-                                    const cells = infra.get(surface.id) ?? [];
-                                    cells.push({
-                                        viewport: viewport.id,
-                                        signature: failure.signature,
-                                        load: failedAt,
-                                        reason: firstLine,
+                                    infra.push({
+                                        surface: surface.id,
+                                        cell: {
+                                            viewport: viewport.id,
+                                            signature: failure.signature,
+                                            load: failedAt,
+                                            reason: firstLine,
+                                        },
                                     });
-                                    infra.set(surface.id, cells);
-                                    log(
+                                    lines.push(
                                         `${cell} INFRA — ${said} after ${attempts} attempt(s): ${firstLine}`
                                     );
                                     return false;
                                 }
 
-                                log(
+                                lines.push(
                                     `${cell} infra attempt ${attempts}/${RETRY_POLICY.maxAttempts} — ${said}; retrying at load ${(samples.at(-1) ?? failedAt).toFixed(1)}`
                                 );
                                 // Undo what the failed attempt created (the
@@ -855,7 +946,7 @@ async function main(): Promise<number> {
                                     try {
                                         await surface.cleanup(page, ctx);
                                     } catch (e) {
-                                        log(
+                                        lines.push(
                                             `${cell} CLEANUP FAILED before the retry — ${(e as Error).message.split("\n")[0]}`
                                         );
                                     }
@@ -863,7 +954,7 @@ async function main(): Promise<number> {
                                 if (surface.needsGame) {
                                     await recreateLaneGame(page, ctx).catch(
                                         (e) =>
-                                            log(
+                                            lines.push(
                                                 `${cell} could not recreate the lane's game before the retry — ${(e as Error).message.split("\n")[0]}`
                                             )
                                     );
@@ -881,8 +972,6 @@ async function main(): Promise<number> {
                      * probed, screenshotted or held to the Floors.
                      */
                     const measure = async (surface: Surface): Promise<void> => {
-                        if (unreachable.has(surface.id)) return;
-
                         let walked = await walkToSettled(surface);
 
                         // The page can still navigate between the settle and
@@ -915,7 +1004,7 @@ async function main(): Promise<number> {
                                         ? `the page navigated during the measurement ${tries} time(s) in a row: ${first}`
                                         : `the measurement threw: ${first}`;
                                     unreachable.set(surface.id, reason);
-                                    log(
+                                    lines.push(
                                         `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} UNWALKED — ${reason}`
                                     );
                                     walked = false;
@@ -982,16 +1071,14 @@ async function main(): Promise<number> {
                                 `axe s${axe.serious}/c${axe.critical}${axe.ids.length ? ` (${axe.ids.join(",")})` : ""}` +
                                 `${axe.exempt ? ` exempt${axe.exempt}` : ""} | ` +
                                 `small${probe.smallN} tiny${probe.tinyText} hOverflow${probe.hOverflow}`;
-                            log(
+                            lines.push(
                                 `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} ${detail}`
                             );
 
-                            const list = perSurface.get(surface.id) ?? [];
-                            list.push({
-                                viewport: viewport.id,
+                            measurements.push({
+                                surface: surface.id,
                                 readings,
                             });
-                            perSurface.set(surface.id, list);
                         }
 
                         // Issue #2671 review round 2 MUST-FIX: this used to sit inside
@@ -1011,7 +1098,7 @@ async function main(): Promise<number> {
                             try {
                                 await surface.cleanup(page, ctx);
                             } catch (err) {
-                                log(
+                                lines.push(
                                     `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} CLEANUP FAILED — ${(err as Error).message.split("\n")[0]}`
                                 );
                             }
@@ -1028,10 +1115,10 @@ async function main(): Promise<number> {
                     await ensureSignedIn(
                         page,
                         baseUrl,
-                        lane.account.email,
-                        lane.account.password
+                        member.account.email,
+                        member.account.password
                     );
-                    log(
+                    lines.push(
                         `ui-gate: ${viewport.id} (${viewport.label}) — signed in`
                     );
 
@@ -1040,41 +1127,63 @@ async function main(): Promise<number> {
                     }
 
                     await context.close();
-                }
+                    return {
+                        viewport: viewport.id,
+                        lines,
+                        measured: measurements,
+                        unreachable: [...unreachable].map(
+                            ([surface, reason]) => ({ surface, reason })
+                        ),
+                        infra,
+                        consoleErrors,
+                        bandWalks,
+                    };
+                };
 
-                const walks: SurfaceWalk[] = [];
-                for (const id of knownIds) {
-                    const reason = unreachable.get(id);
-                    if (reason) {
-                        walks.push({
-                            surface: id,
-                            status: "unreachable",
-                            reason,
-                        });
-                    } else if (perSurface.has(id) || infra.has(id)) {
-                        walks.push({
-                            surface: id,
-                            status: "measured",
-                            measurements: perSurface.get(id) ?? [],
-                            infra: infra.get(id),
-                        });
+                // One account per LANE, one context per viewport. The account
+                // is keyed off the lane and not the viewport because the gate
+                // it exists to dodge — one game per account — is held for as
+                // long as a walk is playing, and a lane is the only thing that
+                // is provably not walking two viewports at once.
+                const results = await runPool(
+                    VIEWPORTS,
+                    parallel,
+                    async (viewport, _index, lane) => {
+                        const walked = await walkViewport(
+                            viewport,
+                            fleet.members[lane]
+                        );
+                        // The only live progress a parallel run can honestly
+                        // give: its cells are printed in matrix order below.
+                        log(
+                            `ui-gate: ${viewport.id} (${viewport.label}) — walked`
+                        );
+                        return walked;
                     }
-                }
+                );
+                const collected = collectRun({
+                    knownSurfaceIds: knownIds,
+                    viewportIds: VIEWPORT_IDS,
+                    results,
+                });
+                for (const line of collected.lines) log(line);
 
                 // The shell return band's attribution (issue #3337). `probe.js` culls
                 // it out of every control count because its presence is a function of
                 // the gate ACCOUNT's state — a game or Limited event in flight — and
                 // not of the tree; the point of the line is that the exclusion is
                 // never silent, so it prints on both branches.
+                const { bandWalks, consoleErrors } = collected;
                 const excluded = bandWalks.reduce((n, w) => n + w.excluded, 0);
                 const bandLine =
                     bandWalks.length === 0
                         ? "shell return band: absent on every walk — no controls excluded"
                         : `shell return band: MOUNTED on ${bandWalks.length} walk(s) — ${excluded} control(s) excluded from those counts (the run's lane account has a game or event in flight; issue #3337)`;
                 return printReceipt(
-                    evaluate(knownIds, walks, diffScope),
+                    evaluate(knownIds, collected.walks, diffScope),
                     [
                         machineLoadLine(loadAtStart, loadAverage()),
+                        parallelLine,
                         bandLine,
                         `console errors: ${consoleErrors.length === 0 ? "none" : consoleErrors.length}`,
                         ...consoleErrors
