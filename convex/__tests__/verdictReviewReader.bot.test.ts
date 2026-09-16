@@ -133,7 +133,7 @@ function stubGcs(store: MemoryVerdictStore) {
 
 function reviewCtx(rows: OutboxRow[]) {
     return {
-        runQuery: async (ref: never, _args: unknown) => {
+        runQuery: async (ref: never) => {
             const name = getFunctionName(ref);
             if (name === "verdictResolutions:reviewOutbox") {
                 return { verdictRows: rows, resolutionRows: [] };
