@@ -94,10 +94,11 @@ were wrong when it landed, plus roughly 200 bare ids on keyword-less lines found
 by hand in the same pass. `scripts/__tests__/cr-keyword-citations.test.ts` is
 its regression guard, same belt-and-braces as the existence scan.
 
-Its blind spots, both accepted: a citation on a line that names no keyword at
-all, and one whose keyword wrapped onto the neighbouring line — keep the
-citation and its keyword on ONE line. Outside 701/702 the original caveat still
-holds; there is no section title to check a `602.5b` against.
+Its blind spots, both accepted at the time: a citation on a line that names no
+keyword at all, and one whose keyword wrapped onto the neighbouring line. The
+second was closed by issue #2514 (every scan now reads logical lines — see
+below); the first stands. Outside 701/702 the original caveat still holds;
+there is no section title to check a `602.5b` against.
 
 It is also **line-based**: it scans a line for prefixed ids, then — if that line
 mentions `CR ` at all — for every bare `NNN.N[a-z]` token on it, which covers
@@ -107,9 +108,13 @@ occurrences by hand, and two of the unresolvable ids among them (in
 `gre/sba.ts`'s SBA roll-call and across nine copy-a-spell sites) were invisible
 to the prefix-only scan and surfaced only via an ad-hoc id-agnostic re-sweep.
 Both passes are anchored to a single line, and `CR ` on that line is the only
-thing separating a rule id from an ordinary number — so two shapes stay out of
-reach. One is a citation **wrapped across two comment lines**, prefix on one and
-id on the next; hence the rule **keep a citation on one line.** The other is an
+thing separating a rule id from an ordinary number — so two shapes stayed out of
+reach. One was a citation **wrapped across two comment lines**, prefix on one
+and id on the next; the rule **keep a citation on one line** stood in for a fix
+until issue #2514 made the line a LOGICAL one (`scripts/lib/cr-lines.ts`): a
+comment line ending mid-citation is joined with its continuation, for every
+scan, and only then — so the prose-number objection below never applies to the
+join. The other is an
 id on a line mentioning `CR ` nowhere — **1,795** at the time of writing (the
 scan sees 27,491 citations with the condition, 29,286 without), `mechanicsRegistry.ts`
 alone accounting for 597 of them. Dropping the condition to reach them was

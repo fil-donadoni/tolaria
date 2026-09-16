@@ -27,6 +27,7 @@ import {
     pruneStale,
     reportIsClean,
     serializeLedger,
+    treeCitations,
     wideningOf,
     widenLedger,
     type Citation,
@@ -561,8 +562,14 @@ describe("the merge-base tree is read out of the object store, byte-exact", () =
         const recorded = new Set(
             ledger.entries.map((e) => entryKey(e.id, e.line))
         );
+        // A key the branch's own tree no longer makes — it corrected that
+        // line — is not entered by `widen` (it would be stale on arrival);
+        // the corrected line is a new citation the gate reds until confirmed.
+        const now = treeCitations(scanRepo(ROOT).citations);
         expect(
-            [...w.widening.keys()].filter((k) => !recorded.has(k)),
+            [...w.widening.keys()].filter(
+                (k) => !recorded.has(k) && now.has(k)
+            ),
             "citations the widened tokenizer uncovered that `bun run cr:ledger widen` has not recorded"
         ).toEqual([]);
     });

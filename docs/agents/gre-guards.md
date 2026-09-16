@@ -170,15 +170,25 @@ line that mentions `CR `, which is why a bare id in a slash-list is covered:
 two of the 44 ids, at 10 sites, hid in exactly that shape and survived the
 first correction pass.
 
-**Its two remaining blind spots**, both of which the one-line habit avoids:
+**What it reads is a logical line** (`scripts/lib/cr-lines.ts`, issue
+#2514): a comment line that ends mid-citation — its last token a bare `CR`,
+or a rule id — is joined with the continuation that completes it, for every
+scan under `cr:lint`. A citation **wrapped across two comment lines** was a
+blind spot until then: ~379 prefix/id wraps were invisible to both passes and
+~394 id/keyword wraps to the keyword scan, and the first joined run surfaced
+23 keyword citations naming a different keyword than the one they cited
+(`701.5a` for counter, `701.13` for reveal, `701.19` for search, `701.20a` for
+tap, `702.15b` for landwalk, …). The join fires ONLY on a line ending on the
+citation, so the objection that kept the scans single-line — a prose number
+on the line after any `CR ` mention — never applies. Hits are reported at the
+physical line the id is on, and the ledger keys on that line.
 
-1. A citation **wrapped across two comment lines** — the prefix is split from
-   its id.
-2. An id on a line mentioning `CR ` **nowhere**: 1,795 today, 597 of them in
-   `mechanicsRegistry.ts` alone. Deliberate boundary — reaching them reds the
-   gate on 16 ids that are mostly not citations at all.
+**Its one remaining blind spot**: an id on a line mentioning `CR ` **nowhere**
+(and not continuing a citation-ending line): 1,795 today, 597 of them in
+`mechanicsRegistry.ts` alone. Deliberate boundary — reaching them reds the
+gate on 16 ids that are mostly not citations at all.
 
-A third — a **resolvable but wrong** id, since the scan only asks whether an
+A second — a **resolvable but wrong** id, since the scan only asks whether an
 id exists — stood as a standing hole until the citation ledger (below,
 ADR 0133) bounded it.
 
