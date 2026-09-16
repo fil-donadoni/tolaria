@@ -3133,9 +3133,18 @@ export const SURFACES: readonly Surface[] = [
                 check: "visible",
             },
             {
+                // VISIBLE, not reachable, and the difference is the app being
+                // right rather than the lane being lenient: the plate is
+                // `disabled` until the buffer holds `min` cards
+                // (`LibrarySearchConfirm`'s `canSubmit`), and at assertion time
+                // nothing is picked yet — so `reachable`, which trial-clicks,
+                // promises something this screen cannot offer and failed at all
+                // five viewports with `not actionable`. Same shape as the
+                // lobby's `Loadout primary action`, visible for the same
+                // reason (it is disabled with no deck).
                 label: "choice confirm plate",
                 locator: { role: "button", name: "Done (0/1)" },
-                check: "reachable",
+                check: "visible",
             },
         ],
         async walk(page, ctx) {
