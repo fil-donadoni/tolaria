@@ -5,6 +5,8 @@
 import type { CardDefinition } from "../../types";
 import { hasMetalcraft } from "../../types";
 import { makeDualLand } from "../../abilities";
+import { attacksTrigger } from "../../abilities/triggers/attacksTrigger";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // The SOM "fast land" cycle — see `makeDualLand`'s `fastLand` flag in
 // `convex/cards/abilities/index.ts` for the shared conditional-tapped shape.
@@ -96,5 +98,108 @@ export const moxOpal: CardDefinition = {
             effect: (ctx) => ctx.addMana({ W: 1 }),
             manaChoices: MOX_OPAL_COLORS.map((c) => ({ [c]: 1 })),
         },
+    ],
+};
+
+// Myr Battlesphere (SOM) — {7} 4/7 Artifact Creature — Myr Construct. Vintage
+// Cube (issue #3244).
+//
+// ETB: four 1/1 colorless Myr artifact creature tokens (CR 111.1); their art is
+// the card's own `all_parts` token print, resolved from the token-prints
+// lockfile at creation.
+//
+// Attack trigger (CR 508.1m): "you may tap X untapped Myr you control. If you
+// do, …" is a cost paid as the trigger RESOLVES (CR 118.12), with X chosen by
+// how many Myr the player picks — so it is a `choice` of ANY number of
+// untapped Myr (`count: { min: 0, max: MAX_SAFE_INTEGER }`, clamped to what
+// exists; X = 0 is a legal pick) followed by tapping each pick (Cloud of
+// Faeries' `choice` → `forEach tapUntap` shape). "Untapped" is the
+// `filter.tapped: false` status read (CR 701.26a — only an untapped permanent
+// can be tapped); any Myr qualifies, attacking or not, and tapping an attacking
+// one does not remove it from combat (CR 506.4). X is then the SIZE of that
+// picks set (`setSize`), which prices both the +X/+0 and the damage. The
+// damage goes to what this creature is attacking (`attackTargetOf: $source`):
+// the planeswalker it attacked, else the defending player — untargeted, and
+// dealt to nothing once it or its planeswalker was removed from combat
+// (CR 506.4). A Battlesphere that has left the battlefield before the trigger
+// resolves still lets you tap Myr and still deals the X damage, but gets no
+// +X/+0 (CR 608.2h; the card's own ruling).
+// X = 0 makes the pump +0/+0 and the damage a no-op, so the "if you do" gate
+// needs no separate branch.
+// compiler-gap: "When this creature enters, create four 1/1 colorless Myr artifact creature tokens." (#2693)
+// compiler-gap: "Whenever this creature attacks, you may tap X untapped Myr you control. If you do, this creature gets +X/+0 until end of turn and deals X damage to the player or planeswalker it's attacking." (#2693)
+export const myrBattlesphere: CardDefinition = {
+    id: "b0ae94ed-7314-470b-baba-f2f58bbc894a", // SOM 180
+    name: "Myr Battlesphere",
+    rarity: "rare",
+    oracleText:
+        "When this creature enters, create four 1/1 colorless Myr artifact creature tokens.\nWhenever this creature attacks, you may tap X untapped Myr you control. If you do, this creature gets +X/+0 until end of turn and deals X damage to the player or planeswalker it's attacking.",
+    manaCost: { X: 7 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Myr", "Construct"],
+    power: 4,
+    toughness: 7,
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "myr-battlesphere-etb-myr",
+            oracleText:
+                "When this creature enters, create four 1/1 colorless Myr artifact creature tokens.",
+            scope: "self",
+            effects: [
+                {
+                    op: "createToken",
+                    token: {
+                        name: "Myr",
+                        types: ["Artifact", "Creature"],
+                        subtypes: ["Myr"],
+                        power: 1,
+                        toughness: 1,
+                    },
+                    controller: "controller",
+                    count: 4,
+                },
+            ],
+        }),
+        attacksTrigger({
+            id: "myr-battlesphere-attack-tap-myr",
+            oracleText:
+                "Whenever this creature attacks, you may tap X untapped Myr you control. If you do, this creature gets +X/+0 until end of turn and deals X damage to the player or planeswalker it's attacking.",
+            scope: "self",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "choose-permanents",
+                    player: "controller",
+                    zone: "battlefield",
+                    filter: { subtype: "Myr", tapped: false },
+                    count: { min: 0, max: Number.MAX_SAFE_INTEGER },
+                    prompt: "Tap any number of untapped Myr you control (Myr Battlesphere).",
+                    bind: "$tapped",
+                },
+                {
+                    op: "forEach",
+                    select: { set: "bound", ref: "$tapped" },
+                    effects: [
+                        {
+                            op: "tapUntap",
+                            action: "tap",
+                            target: { ref: "$each" },
+                        },
+                    ],
+                },
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: { setSize: { of: { ref: "$tapped" } } },
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+                {
+                    op: "dealDamage",
+                    amount: { setSize: { of: { ref: "$tapped" } } },
+                    to: { attackTargetOf: { ref: "$source" } },
+                },
+            ],
+        }),
     ],
 };

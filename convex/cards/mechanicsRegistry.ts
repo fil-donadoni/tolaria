@@ -3759,7 +3759,17 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  SIBLING of `EffectDifferenceOperand` (the `EffectScaledOperand` precedent,
  *  #2366) rather than a widening in place — `divide` keeps the narrow type,
  *  and `X` stays excluded from both. The grammar is still depth-1: this member
- *  is a leaf read with no nested value slot. */
+ *  is a leaf read with no nested value slot.
+ *  `setSize` (issue #3244, `{ setSize: { of } }`) IS a new value-grammar member
+ *  — the cardinality sibling of `sum` (#3243) — with the same non-Op,
+ *  non-ADR-0045-reopening status: HOW MANY ids a picks binding holds, the X of
+ *  a resolution-time "you may tap X untapped <things>" cost (CR 118.12, Myr
+ *  Battlesphere). Uncaptured reads 0. The same slice added two non-value
+ *  shapes, neither an Op: the `dealDamage.to` recipient
+ *  `{ attackTargetOf }` (CR 506.2 — "the player or planeswalker it's
+ *  attacking", untargeted, over `SpellContext.getAttackTarget`) and the
+ *  battlefield-only `EffectCardFilter.tapped` status field (CR 110.5), gated in
+ *  the validator exactly like `isAttacking`. */
 export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // --- Architecture-setting foundations (implemented before the skins) ---
     // delayedTrigger SHIPPED (issue #838, ADR 0048) and moveZone SHIPPED

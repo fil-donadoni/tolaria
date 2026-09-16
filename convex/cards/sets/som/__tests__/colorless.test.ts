@@ -3,10 +3,21 @@
 import { describe, it, expect } from "vitest";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { applyPlayLand } from "../../../../gre/playLand";
-import { getPlayer } from "../../../../gre/state";
+import {
+    createTokenPermanents,
+    getPlayer,
+    resolveTopOfStack,
+    type GameState,
+} from "../../../../gre/state";
+import {
+    collectTriggers,
+    placeTriggersOnStack,
+} from "../../../../gre/triggers";
+import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { getEffectivePower } from "../../../../gre/layers";
 import { tapSourceIntoPayment } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
-import type { TriggerStateView } from "../../../types";
+import type { GameEvent, TriggerStateView } from "../../../types";
 import { getDefinition } from "../../../index";
 
 const copperlineGorge = getDefinition("28f1d784-f286-418d-a712-bc07ad10d4a2");
@@ -158,5 +169,127 @@ describe("Mox Opal (SOM #179, issue #1530, Metalcraft)", () => {
         expect(
             ability.canActivate!(slimMox, projected as TriggerStateView)
         ).toBe(false);
+    });
+});
+
+// Myr Battlesphere (issue #3244) — the card end to end, through the real
+// trigger collector, the choice submit and the wire projection. The grammar it
+// rides (`setSize`, `attackTargetOf`, `filter.tapped`) has its own permanent
+// tests in `gre/effects/__tests__/attackTargetSetSize.test.ts`.
+describe("Myr Battlesphere (CR 111.1 / 508.1m / 118.12 / 506.2)", () => {
+    const battlesphere = getDefinition("b0ae94ed-7314-470b-baba-f2f58bbc894a");
+
+    function myrTokensOf(state: GameState, playerId: string) {
+        return getPlayer(state, playerId).battlefield.filter(
+            (c) => c.isToken && c.subtypes.includes("Myr")
+        );
+    }
+
+    it("ETB creates four 1/1 colorless Myr artifact creature tokens with printed art", () => {
+        const sphere = makeInstance(battlesphere.id, { id: "sphere" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [sphere] }),
+                makePlayer("p2"),
+            ],
+        });
+        const triggers = collectTriggers(state, [
+            {
+                type: "PERMANENT_ENTERED",
+                instanceId: "sphere",
+                controllerId: "p1",
+            } as GameEvent,
+        ]);
+        expect(triggers).toHaveLength(1);
+        placeTriggersOnStack(state, triggers);
+        resolveTopOfStack(state);
+        const myr = myrTokensOf(state, "p1");
+        expect(myr).toHaveLength(4);
+        for (const token of myr) {
+            expect(token.types).toEqual(["Artifact", "Creature"]);
+            expect([token.power, token.toughness]).toEqual([1, 1]);
+            expect(
+                getDefinition(token.card.id as string).imagePrintId
+            ).toBeDefined();
+        }
+    });
+
+    it("attacking a planeswalker: tap X Myr, +X/+0 visible on the wire, X loyalty removed", () => {
+        const sphere = makeInstance(battlesphere.id, {
+            id: "sphere",
+            isTapped: true,
+            isAttacking: true,
+        });
+        const walker = getDefinition("07a3d9e8-8597-498b-869c-cff79e0df516"); // Karn, Scion of Urza
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS" as GameState["phase"],
+            players: [
+                makePlayer("p1", { battlefield: [sphere] }),
+                makePlayer("p2"),
+            ],
+        });
+        createTokenPermanents(
+            state,
+            {
+                name: "Myr",
+                types: ["Artifact", "Creature"],
+                subtypes: ["Myr"],
+                power: 1,
+                toughness: 1,
+            },
+            "p1",
+            3
+        );
+        state.players[1].battlefield.push(
+            makeInstance(walker.id, {
+                id: "karn",
+                controllerId: "p2",
+                ownerId: "p2",
+                counters: { loyalty: 5 },
+            })
+        );
+        state.combat = {
+            attackerIds: ["sphere"],
+            attackTargets: { sphere: "karn" },
+            confirmed: true,
+            blockersConfirmed: false,
+            blockerAssignments: {},
+        };
+        const triggers = collectTriggers(state, [
+            {
+                type: "ATTACKERS_DECLARED",
+                attackingPlayerId: "p1",
+                attackerIds: ["sphere"],
+            } as GameEvent,
+        ]);
+        expect(triggers).toHaveLength(1);
+        placeTriggersOnStack(state, triggers);
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        const myrIds = myrTokensOf(state, "p1").map((c) => c.id);
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: myrIds.slice(0, 2),
+        });
+        expect(myrTokensOf(state, "p1").filter((c) => c.isTapped)).toHaveLength(
+            2
+        );
+        const live = getPlayer(state, "p1").battlefield.find(
+            (c) => c.id === "sphere"
+        )!;
+        expect(getEffectivePower(state, live)).toBe(6);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "sphere"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(6);
+        const karn = getPlayer(state, "p2").battlefield.find(
+            (c) => c.id === "karn"
+        )!;
+        expect(karn.counters?.loyalty).toBe(3);
+        expect(getPlayer(state, "p2").life).toBe(20);
     });
 });

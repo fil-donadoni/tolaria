@@ -796,6 +796,15 @@ function resolveValue(
         }
         return total;
     }
+    // setSize (CR 107.3 / 118.12, issue #3244) — HOW MANY ids a picks-family
+    // binding holds: the X of "you may tap X untapped Myr you control", which
+    // is the number the player chose to pay with. Read through the SAME
+    // `resolvePicks` every picks consumer uses. An UNCAPTURED binding (the
+    // choice had no candidates and was skipped) is 0, exactly as `sum`'s is —
+    // choosing nothing is X = 0, never an unresolvable value.
+    if ("setSize" in value) {
+        return resolvePicks(ctx, value.setSize.of)?.length ?? 0;
+    }
     // sacrificed (CR 601.2f / 608.2h, issue #2375) — a characteristic of the
     // permanent SACRIFICED TO PAY this spell/ability's additional cost, read
     // as LAST KNOWN INFORMATION off the stack item's
@@ -1056,6 +1065,11 @@ function toPermanentFilter(
         // every `getBattlefieldIds` candidate, so no new engine read, only
         // this DSL filter surface.
         isAttacking: filter.isAttacking,
+        // CR 110.5 / 701.26a (issue #3244) — "untapped Myr you control",
+        // propagated 1:1 onto `PermanentFilter.tapped`, which the choice
+        // candidate scan, the submit re-check and the client all already read
+        // (Magnetic Mountain). Battlefield-only, exactly like `isAttacking`.
+        tapped: filter.tapped,
         // CR 201.2 — a FIXED literal name, or the resolved value of a dynamic
         // `{ ref }` name (see the resolution block at the top of this
         // function; an unresolvable one never reaches here).
@@ -2312,6 +2326,26 @@ function snapshotIdOf(
     return readBinding(ctx, ref)?.[SNAP_ID];
 }
 
+/** The instance id an `attackTargetOf` selector names, with NO zone check
+ *  (issue #3244): `$source` is the resolving ability's own source, a bound ref
+ *  its snapshot id, an announced slot its selected object. What that creature
+ *  is attacking is combat state keyed by that id, and a creature that has left
+ *  the battlefield keeps its entry — it deals its damage as it last existed
+ *  (CR 608.2h). */
+function attackerIdOf(
+    ctx: SpellContext,
+    selector: EffectObjectSelector
+): string | undefined {
+    if (isSourceSelfRef(selector)) return ctx.sourceInstanceId;
+    if ("target" in selector) {
+        const slot = ctx.targets[selector.target];
+        return slot?.type === "permanent" ? slot.id : undefined;
+    }
+    const live = resolveObjectRef(ctx, selector);
+    if (live?.type === "permanent") return live.id;
+    return snapshotIdOf(ctx, selector);
+}
+
 /** True for the `{ ref: "$source" }` selector — the ONE selector that denotes
  *  the resolving ability's own object, and therefore the one whose failure to
  *  resolve is answered by the default stack-item damage path (CR 113.7a). */
@@ -2340,6 +2374,35 @@ export const OP_EXECUTORS: {
     dealDamage(ctx, op) {
         const amount = resolveValue(ctx, op.amount);
         if (amount === undefined || amount <= 0) return; // 0 damage is a no-op
+        if ("attackTargetOf" in op.to) {
+            // CR 506.2 / 508.1b (issue #3244) — the player or planeswalker the
+            // named attacking creature is attacking, never targeted (CR
+            // 115.10). The creature's id is read WITHOUT a battlefield check:
+            // one that has left the battlefield still deals the damage to what
+            // it was attacking, as it last existed (CR 608.2h — the Myr
+            // Battlesphere ruling). Nothing to deal to when it was removed
+            // from combat while it stayed, or its planeswalker was (CR 506.4).
+            const attackerId = attackerIdOf(ctx, op.to.attackTargetOf);
+            if (attackerId === undefined) return;
+            const recipient = ctx.getAttackTarget(attackerId);
+            if (!recipient) return;
+            if (op.source) {
+                dealDamageSourcedFrom(
+                    ctx,
+                    { ...op, source: op.source },
+                    recipient,
+                    amount
+                );
+                return;
+            }
+            ctx.dealDamage(
+                recipient,
+                amount,
+                op.unpreventable,
+                op.unredirectable
+            );
+            return;
+        }
         if ("player" in op.to) {
             const playerId = resolvePlayerRef(ctx, op.to.player);
             if (playerId === undefined) return;

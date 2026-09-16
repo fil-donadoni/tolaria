@@ -402,6 +402,14 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         req.skip ??= `amount sums the ${value.sum.read} of a bound card set — the canned generator never runs the Op that binds it`;
         return;
     }
+    // setSize (CR 107.3 / 118.12, issue #3244): the SIZE of a set a preceding
+    // Op bound — `sum`'s reason exactly: the canned generator never runs the
+    // binding Op, so the value would resolve to its empty-set 0.
+    if ("setSize" in value) {
+        req.skip ??=
+            "amount counts a bound set — the canned generator never runs the Op that binds it";
+        return;
+    }
     req.countSets.push(value.count);
     // A count set's own controller may itself be a ref — unmodelable.
     const c = value.count.controller;
@@ -508,6 +516,12 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 analysePlayer(op.to.player, req, false);
             } else if ("target" in op.to) {
                 recordSlot(req, op.to.target, "permanent");
+            } else if ("attackTargetOf" in op.to) {
+                // CR 506.2 (issue #3244) — the recipient is whatever the
+                // creature is attacking, and the canned generator declares no
+                // combat.
+                req.skip ??=
+                    "recipient is the player or planeswalker a creature is attacking — the canned generator declares no combat";
             } else {
                 // `{ ref: "$each" }` — only reachable inside a forEach body,
                 // and forEach scripts are skipped wholesale below.
