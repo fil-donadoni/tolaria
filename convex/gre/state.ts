@@ -14478,11 +14478,12 @@ function enqueueAsEntersChoice(state: GameState, entry: StagedEntry): void {
             break;
         }
         case "pay": {
-            // ADR 0100 D6 / #1980 — the shipped `entersTappedUnlessPay` park
-            // (ADR 0051) still owns this leg; unifying the two parks is that
-            // issue's price and is deliberately out of scope for slice 1.
+            // ADR 0100 D6 — the shipped `entersTappedUnlessPay` park (ADR 0051)
+            // owns every CR 614.12 pay-to-enter card (shock lands); no card
+            // declares an as-enters `pay` entry, so this leg is unreachable.
+            // Unifying the two parks is out of scope until a card needs it.
             throw new Error(
-                "as-enters 'pay' is not wired yet (tracked-by: #1980)"
+                "as-enters 'pay' is not wired (entersTappedUnlessPay owns pay-to-enter)"
             );
         }
         default:
@@ -14852,7 +14853,7 @@ function applyAsEntersAnswer(
         }
         case "pay":
             throw new Error(
-                "as-enters 'pay' is not wired yet (tracked-by: #1980)"
+                "as-enters 'pay' is not wired (entersTappedUnlessPay owns pay-to-enter)"
             );
         default:
             return assertNeverAsEnters(choice);

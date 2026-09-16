@@ -339,7 +339,7 @@ const IS_NONCREATURE_ARTIFACT: (
 // noncreature artifact on the battlefield — including ones that enter after
 // the Song resolves, via `applyExistingGrantsTo`.)
 //
-// DIVERGENCE (tracked-by: #2064) (flagged, no engine change): "becomes an
+// DIVERGENCE (tracked-by: #3726) (flagged, no engine change): "becomes an
 // artifact creature" only needs to ADD Creature — the affected permanents are
 // already artifacts, so no Artifact type-add is required. The leave-the-battlefield "continues until end
 // of turn" linger clause is NOT modeled: when the Song leaves play the engine
@@ -350,7 +350,7 @@ const IS_NONCREATURE_ARTIFACT: (
 // missing piece is a "this continuous effect survives its own source until end
 // of turn" DURATION — a lifetime that can only exist once continuous effects
 // are materialised with their own timestamp and duration rather than recomputed
-// from the live battlefield sources (tracked-by: #2064, ADR 0082).
+// from the live battlefield sources (tracked-by: #3726, ADR 0082).
 export const titaniasSong: CardDefinition = {
     id: "583a53af-2e2a-4f3f-8eab-bd874c6ed80a",
     rarity: "uncommon",

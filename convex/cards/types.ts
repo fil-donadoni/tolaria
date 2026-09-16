@@ -14344,7 +14344,7 @@ export type EffectOp =
            *  pool), and closing it means threading the two flags through
            *  `putFromHandOntoBattlefield` into the entry funnel — the same
            *  as-enters gap `tapped` has carried on this Op since issue #1469.
-           *  tracked-by: #2390. The defender comes from the
+           *  tracked-by: #3728. The defender comes from the
            *  permanent's own `enterAttackingTarget` stamp (CR 702.49c),
            *  consumed by that primitive; with no stamp it attacks the defending
            *  player. Outside combat it is a clean no-op. */

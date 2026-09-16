@@ -595,7 +595,7 @@ export const ivoryTower: CardDefinition = {
         // zone: "hand", controller: "controller" } }, minus: 4 } }`, and the
         // clamp-at-0 is `gainLife`'s own non-positive guard (CR 107.1b), not a
         // separate construct. The closure stays only because migrating it is
-        // free-tranche work with its own batch. tracked-by: #1435
+        // free-tranche work with its own batch. tracked-by: #3729
         phaseTrigger({
             id: "ivory-tower-life",
             oracleText:
@@ -1222,7 +1222,7 @@ export const rakalite: CardDefinition = {
 // artifact in addition to its other types." (CR 122.1 +1/+1 counter; CR 205
 // type-add.)
 //
-// DIVERGENCE (tracked-by: #2064; supersedes the closed #277): the "becomes an
+// DIVERGENCE (tracked-by: #3725; supersedes the closed #277 and #2064): the "becomes an
 // artifact in addition to its other types" clause is not modelled. The only
 // type-add today is the source-bound continuous `StaticTypeAdd` (auras, which
 // reverts when the source leaves), and that is wrong here: this artifact
@@ -1305,7 +1305,7 @@ export const mishrasWarMachine: CardDefinition = {
             // supplies exactly that: an `if` whose `predicate` is
             // `{ left: { count: { zone: "hand", controller: "controller" } },
             // op: "ge", right: 1 }`. The closure stays only because migrating
-            // it is free-tranche work with its own batch. tracked-by: #1435
+            // it is free-tranche work with its own batch. tracked-by: #3729
             resolve: (ctx, _event, playerId) => {
                 const self: TargetSelection = {
                     type: "permanent",
@@ -1852,7 +1852,7 @@ export const theRack: CardDefinition = {
         // `condition` already narrows the firing to the chosen player. Note
         // the SIBLING trigger on this card is still genuinely blocked (see
         // its own marker) — migrating this one alone is free-tranche work
-        // with its own batch. tracked-by: #1435
+        // with its own batch. tracked-by: #3729
         phaseTrigger({
             id: "the-rack-upkeep-damage",
             oracleText:
