@@ -264,7 +264,7 @@ three checks:
 receipt's own text, so keep it short and change it only when the promise
 changes. The locator is **role+name or a `data-*` seam** — never bare CSS: the
 lobby's old `main, [role=main]` is exactly the assertion that keeps passing
-while the screen loses its content (`docs/findings/2726-lobby-surface-asserts-only-main.md`).
+while the screen loses its content (`docs/findings/2726-ui-gate-lobby-walk-asserts-almost-nothing.md`).
 A control with no readable name (an `input[type=password]` maps to no ARIA
 role, a deck tile's visible text is a deck name) earns a declared attribute in
 `src/`, beside `data-lobby-primary` and `data-deck-select`. The guard

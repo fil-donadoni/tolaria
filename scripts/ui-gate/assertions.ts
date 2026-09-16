@@ -8,7 +8,7 @@
  * what it exists to offer. The lobby walk asserted a `<main>` element and
  * nothing else, so a lobby that lost every Mode Tile, its primary action and
  * its deck shelves would have measured a clean `PASS`
- * (`docs/findings/2726-lobby-surface-asserts-only-main.md`).
+ * (`docs/findings/2726-ui-gate-lobby-walk-asserts-almost-nothing.md`).
  *
  * So every surface DECLARES what it promises about itself, by name:
  *
@@ -103,6 +103,12 @@ export interface AssertionDebt {
  * admin ones. An entry is DELETED by the slice that declares that surface's
  * assertions — the guard reds on a debt row for a surface that has them, so
  * this list can only shrink.
+ *
+ * DRAINING A ROW MEANS THE SURFACE'S ENTRY POINTS, not one promise that cannot
+ * fail. This guard enforces addressing style and presence; what holds the
+ * lobby honest is the per-surface entry-point list in
+ * `ui-gate-assertions.test.ts`, checked against the surface's runbook. Each of
+ * #3650 and #3651 owes the equivalent list for the surfaces it takes.
  */
 export const ASSERTION_DEBT: readonly AssertionDebt[] = [
     { surface: "deck-builder", issue: 3650 },
@@ -311,7 +317,12 @@ function resolveLocator(page: Page, locator: AssertionLocator): Locator {
 }
 
 function firstLine(err: unknown): string {
-    return (err as Error).message.split("\n")[0];
+    // Never `(err as Error).message`: a non-`Error` rejection would throw a
+    // TypeError inside the catch that called this, and `evaluateAssertions`
+    // promises to be total — one odd rejection would take the whole viewport
+    // walk down instead of failing one promise.
+    const message = err instanceof Error ? err.message : String(err);
+    return message.split("\n")[0];
 }
 
 /** Playwright's actionability check, the scroll it performs, and the one thing
@@ -331,13 +342,28 @@ async function checkReachable(
     const x = Math.round(box.x + box.width / 2);
     const y = Math.round(box.y + box.height / 2);
     const { width, height } = env.viewport;
-    if (x < 0 || y < 0 || x > width || y > height) {
+    // `>=`: a centre exactly on the right or bottom edge is the first pixel
+    // OUTSIDE the viewport, not the last one inside it.
+    if (x < 0 || y < 0 || x >= width || y >= height) {
         return `its centre is at (${x}, ${y}), outside the ${width}x${height} viewport even after scrolling to it — no gesture reaches it`;
     }
     return null;
 }
 
-/** axe-core's `color-contrast` rule, over this element's subtree only. */
+/**
+ * axe-core's `color-contrast` rule, over this element's subtree only.
+ *
+ * FAIL-CLOSED ON INAPPLICABILITY. "No violations" is not "the rule passed":
+ * axe's `color-contrast-matches` skips a DISABLED control and everything under
+ * it, and matches nothing in a subtree with no text at all — so a promise
+ * pointed at either reads green whatever the colours, which is the vacuous
+ * assertion this whole mechanism exists to replace. A subtree the rule could
+ * not judge at all is therefore a FAIL that says so.
+ *
+ * An `incomplete` node counts as judged: axe returns one where it cannot read
+ * the background (art behind the text), and that is a "come and look", not a
+ * proven violation — reading it as a red would put a flap back into the lane.
+ */
 async function checkContrast(
     page: Page,
     element: Locator,
@@ -353,28 +379,42 @@ async function checkContrast(
     }
     try {
         const selector = `[${ASSERT_MARK_ATTRIBUTE}]`;
-        const violations = (await page.evaluate(
+        // No `resultTypes`: it truncates the node lists of everything that is
+        // not a violation, and the passing and incomplete nodes are exactly
+        // what says the rule APPLIED here.
+        const result = (await page.evaluate(
             `(async () => {
                 const r = await window.axe.run(
                     { include: [[${JSON.stringify(selector)}]] },
-                    {
-                        runOnly: { type: "rule", values: ["color-contrast"] },
-                        resultTypes: ["violations"],
-                    }
+                    { runOnly: { type: "rule", values: ["color-contrast"] } }
                 );
-                return r.violations.flatMap((v) =>
-                    v.nodes.map((n) => ({
-                        impact: n.impact || v.impact || "unknown",
-                        html: String(n.html || "").slice(0, 120),
-                    }))
-                );
+                const nodes = (rs) => rs.reduce((n, v) => n + v.nodes.length, 0);
+                return {
+                    passes: nodes(r.passes),
+                    incomplete: nodes(r.incomplete),
+                    violations: r.violations.flatMap((v) =>
+                        v.nodes.map((n) => ({
+                            impact: n.impact || v.impact || "unknown",
+                            html: String(n.html || "").slice(0, 120),
+                        }))
+                    ),
+                };
             })()`
-        )) as { impact: string; html: string }[];
-        if (violations.length === 0) return null;
-        return `${violations.length} colour-contrast violation(s): ${violations
-            .slice(0, 3)
-            .map((v) => `${v.impact} ${v.html}`)
-            .join("; ")}`;
+        )) as {
+            passes: number;
+            incomplete: number;
+            violations: { impact: string; html: string }[];
+        };
+        if (result.violations.length > 0) {
+            return `${result.violations.length} colour-contrast violation(s): ${result.violations
+                .slice(0, 3)
+                .map((v) => `${v.impact} ${v.html}`)
+                .join("; ")}`;
+        }
+        if (result.passes === 0 && result.incomplete === 0) {
+            return "axe found nothing to contrast in this subtree — the rule did not apply (a disabled control, or no text), so this promise could never have failed: point it at an element the rule can judge";
+        }
+        return null;
     } catch (err) {
         return `axe could not read the subtree: ${firstLine(err)}`;
     } finally {

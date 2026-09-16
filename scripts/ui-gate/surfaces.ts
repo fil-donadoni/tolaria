@@ -140,7 +140,7 @@ export interface Surface {
      * `<main>` rendered measures whatever the route happened to paint — the
      * lobby could have lost every Mode Tile, its primary action and both deck
      * shelves and still walked green
-     * (`docs/findings/2726-lobby-surface-asserts-only-main.md`). The entry
+     * (`docs/findings/2726-ui-gate-lobby-walk-asserts-almost-nothing.md`). The entry
      * points the surface's runbook names (`docs/guides/ui-runbooks.md`) are
      * its minimum.
      *
@@ -1502,7 +1502,7 @@ export const SURFACES: readonly Surface[] = [
          * EVERY ENTRY POINT THE LOBBY RUNBOOK NAMES (`docs/guides/ui-runbooks.md`
          * § Start a solo game from cold, § Lobby, deck builder and the Limited
          * list). This is the coverage hole of
-         * `docs/findings/2726-lobby-surface-asserts-only-main.md`: the walk
+         * `docs/findings/2726-ui-gate-lobby-walk-asserts-almost-nothing.md`: the walk
          * below asserts a main region, so a lobby that had lost all four Mode
          * Tiles, the Loadout's plate, both deck shelves, the Limited footer
          * and the profile menu would still have measured green.
@@ -1514,6 +1514,12 @@ export const SURFACES: readonly Surface[] = [
          * one pinned under fixed chrome does not.
          */
         asserts: [
+            // The four tiles are the ARENA set (`src/lib/lobbyModes.ts`): a
+            // Cockatrice lobby offers `Solo table` instead of `Play vs Bot` /
+            // `Solo game`. The lane never writes `tolaria:playMode`, so every
+            // context opens on the `arena` default — a walk that starts
+            // touching the game-mode selector owes this list the other set,
+            // and four reds here would be that, not a product regression.
             {
                 label: "mode tile: Play vs Bot",
                 locator: { selector: '[data-mode-tile="bot"]' },
@@ -1544,9 +1550,13 @@ export const SURFACES: readonly Surface[] = [
                 locator: { selector: "[data-lobby-primary]" },
                 check: "visible",
             },
+            // The contrast promise points at an ENABLED control with text:
+            // axe's `color-contrast` rule skips a disabled one and everything
+            // under it, so the same check on the plate above — disabled in the
+            // state this walk measures — is a promise that could never fail.
             {
-                label: "Loadout primary action contrast",
-                locator: { selector: "[data-lobby-primary]" },
+                label: "Limited re-entry contrast",
+                locator: { role: "button", name: "Browse / Create Events" },
                 check: "contrast",
             },
             {

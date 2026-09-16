@@ -461,6 +461,13 @@ async function runProbe(page: Page): Promise<ProbeResult> {
 /** `axe-core` in the page. Shared with the Named Assertions' `contrast` check
  *  (`assertions.ts`), which runs the same library over one subtree. */
 async function injectAxe(page: Page): Promise<void> {
+    // Once per document: `runAxe` has already injected it for this cell, and
+    // ~600KB of script tag per contrast promise per viewport is pure waste.
+    // A navigation drops `window.axe`, which is exactly when it is re-added.
+    const present = await page
+        .evaluate("typeof window.axe !== 'undefined'")
+        .catch(() => false);
+    if (present === true) return;
     await page.addScriptTag({ path: AXE_PATH });
 }
 

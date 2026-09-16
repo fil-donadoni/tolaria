@@ -91,17 +91,17 @@ gate reds when one of them goes missing rather than measuring whatever the
 lobby happened to paint. The `lobby` surface promises them by these labels, and
 each prints its own line on every receipt at every viewport:
 
-| Label                               | What it addresses                                                                    |
-| ----------------------------------- | ------------------------------------------------------------------------------------ |
-| `mode tile: Play vs Bot`            | `[data-mode-tile="bot"]`, reachable                                                  |
-| `mode tile: Solo game`              | `[data-mode-tile="solo"]`, reachable                                                 |
-| `mode tile: Open a table`           | `[data-mode-tile="table"]`, reachable                                                |
-| `mode tile: Limited`                | `[data-mode-tile="limited"]`, reachable                                              |
-| `Loadout primary action`            | `[data-lobby-primary]` — VISIBLE: it is disabled with no deck                        |
-| `Loadout primary action contrast`   | the same plate's subtree, axe `color-contrast`                                       |
-| `deck shelf: first selectable tile` | `[data-deck-tile] [data-deck-select]:not([disabled])`                                |
-| `Limited re-entry`                  | the footer's `Browse / Create Events`                                                |
-| `profile menu entry`                | `[data-profile-entry]` — header above a portrait phone, the bottom nav's `Me` on one |
+| Label                               | What it addresses                                                                                           |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `mode tile: Play vs Bot`            | `[data-mode-tile="bot"]`, reachable                                                                         |
+| `mode tile: Solo game`              | `[data-mode-tile="solo"]`, reachable                                                                        |
+| `mode tile: Open a table`           | `[data-mode-tile="table"]`, reachable                                                                       |
+| `mode tile: Limited`                | `[data-mode-tile="limited"]`, reachable                                                                     |
+| `Loadout primary action`            | `[data-lobby-primary]` — VISIBLE: it is disabled with no deck                                               |
+| `Limited re-entry contrast`         | the footer button's subtree, axe `color-contrast` — an ENABLED control, since the rule skips a disabled one |
+| `deck shelf: first selectable tile` | `[data-deck-tile] [data-deck-select]:not([disabled])`                                                       |
+| `Limited re-entry`                  | the footer's `Browse / Create Events`                                                                       |
+| `profile menu entry`                | `[data-profile-entry]` — header above a portrait phone, the bottom nav's `Me` on one                        |
 
 Change a step here and change that list in the same PR, the same way the walk
 itself is changed. The vs-AI dialog's own promises (`AI Difficulty selector`,

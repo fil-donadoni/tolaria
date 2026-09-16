@@ -67,7 +67,7 @@ describe("check:ui surface table — Named Assertions", () => {
     });
 
     /**
-     * The coverage hole of `docs/findings/2726-lobby-surface-asserts-only-main.md`,
+     * The coverage hole of `docs/findings/2726-ui-gate-lobby-walk-asserts-almost-nothing.md`,
      * closed and kept closed: the lobby walk asserts a `<main>` region, so
      * every entry point its runbook names has to be a declared promise or the
      * surface can lose it and still measure green.

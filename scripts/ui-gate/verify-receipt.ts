@@ -87,6 +87,9 @@ export interface ReceiptVocabulary {
     viewportIds: readonly string[];
     unwalked: readonly UnwalkedSurface[];
     /** The Named Assertion labels each surface promises, in declaration order
+     *  — REQUIRED, and read without a fallback: a vocabulary that forgot it
+     *  would expect no assertion line at all, and a paste with every one of
+     *  them deleted would verify clean.
      *  (ADR 0132 §3, issue #3649). Re-derived from the surface table, never
      *  read off the paste: a receipt that dropped an assertion line is a
      *  receipt missing a cell the scope owes. */
@@ -401,13 +404,11 @@ export function landableVerdictBlock(
             readings: zeroReadings(),
             // Every promise kept — the only outcome that lands, rendered
             // through the same evaluator `check:ui` prints from.
-            asserts: ((vocab.assertsBySurface ?? {})[surface] ?? []).map(
-                (label) => ({
-                    label,
-                    ok: true,
-                    detail: "",
-                })
-            ),
+            asserts: (vocab.assertsBySurface[surface] ?? []).map((label) => ({
+                label,
+                ok: true,
+                detail: "",
+            })),
         })),
     }));
     return verdictBlockLines(
@@ -418,7 +419,7 @@ export function landableVerdictBlock(
             viewportIds: vocab.viewportIds,
             unwalked: vocab.unwalked,
             diffScope,
-            assertsBySurface: vocab.assertsBySurface ?? {},
+            assertsBySurface: vocab.assertsBySurface,
         })
     );
 }
