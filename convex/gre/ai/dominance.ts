@@ -130,7 +130,16 @@ import {
 } from "../state";
 import { checkStateBasedActions } from "../sba";
 import { cloneGameState } from "../clone";
-import { isCreature, PERMANENT_TYPES } from "../constants";
+import {
+    isCreature,
+    manaGateBattlefields,
+    manaTapExertsSource,
+    mayExertForMana,
+    PERMANENT_TYPES,
+} from "../constants";
+// CR 701.43a — the single exert authority (issue #3359); see this module's own
+// `applyTapPlan` for why the probe pays the leg too.
+import { payExertActivationCost } from "../exert";
 import { tryGetDefinition } from "../../cards";
 import { spellHasDelve } from "../payWith";
 // CR 307.1 / 117.1a / 601.3a (issue #2473) — the shared cast-timing snapshot
@@ -744,6 +753,7 @@ function applyTapPlan(
     tapPlan: {
         cardInstanceId: string;
         abilityId?: string;
+        manaChoiceIndex?: number;
         tapOtherIds?: string[];
     }[]
 ): void {
@@ -758,7 +768,26 @@ function applyTapPlan(
             continue;
         }
         const src = player.battlefield.find((c) => c.id === tap.cardInstanceId);
-        if (src) src.isTapped = true;
+        if (!src) continue;
+        // CR 701.43a / 602.1a (issue #3359) — the probe pays the EXERT leg for
+        // the same reason it must model the tap correctly: `isNoOpDelta`
+        // compares board state to decide whether a move is pruned as dominated
+        // by `pass`, so a payment whose cost the probe leaves unpaid can mask a
+        // real cost/benefit delta. Per OPTION, through the same
+        // `manaChoiceIndex` authority both other copies use, behind the same
+        // cheap printed-definition prefilter.
+        if (
+            mayExertForMana(src) &&
+            manaTapExertsSource(
+                src,
+                player.id,
+                manaGateBattlefields(state),
+                tap.manaChoiceIndex
+            )
+        ) {
+            payExertActivationCost(state, src);
+        }
+        src.isTapped = true;
     }
 }
 

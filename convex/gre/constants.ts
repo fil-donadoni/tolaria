@@ -1631,6 +1631,99 @@ export function manaTapCounterCost(
     return null;
 }
 
+/** Cheap prefilter, the `mayBeSacrificedForMana` idiom: could paying this
+ *  permanent for mana EXERT it (Arena of Glory's "{R}, {T}, Exert this land:
+ *  Add {R}{R}")? Reads the PRINTED definition plus any granted abilities, so an
+ *  ordinary board — every basic land, every Mox, every `{T}` rock — answers
+ *  false with one cached lookup and a short array scan, and the caller skips
+ *  the real resolution entirely.
+ *
+ *  Used by the search's coarse mana model (`applyTapPlan`, in `applyMove.ts`,
+ *  `search.ts` and `ai/dominance.ts`), which otherwise leaves an exerted source
+ *  untapping in every simulated future although the payment spent its next
+ *  untap step — the Bot getting the costed half of the card for free
+ *  (issue #3359). */
+export function mayExertForMana(card: CardInstanceState): boolean {
+    // Same conservative shape as `mayBeSacrificedForMana`: a card carrying any
+    // granted ability falls through to the real resolution.
+    if (card.grantedActivatedAbilities?.length) return true;
+    const cardId = (card.card as { id?: string }).id;
+    if (!cardId) return false;
+    const printed = tryGetDefinition(cardId)?.activatedAbilities;
+    if (!printed) return false;
+    for (const ability of printed) {
+        if (!ability.useStack && ability.cost.exertThis) return true;
+    }
+    return false;
+}
+
+/** Cheap prefilter, the `mayHaveNonTapManaAbility` idiom: could this permanent
+ *  offer a COSTED mana-tap option — one whose ability taps the source AND
+ *  charges mana of its own and/or exerts it (Arena of Glory's "{R}, {T}, Exert
+ *  this land: Add {R}{R}")? Reads the PRINTED definition plus any granted
+ *  abilities, so an ordinary board — every basic land, every Mox, every `{T}`
+ *  rock — answers false with one cached lookup and a short array scan, and a
+ *  `false` is never hiding one (ability suppression only REMOVES abilities).
+ *
+ *  Exists purely for cost, like its siblings: `castTapPlans` (`gre/moves.ts`)
+ *  asks it before spending a second `planManaPayment` call on the costed-option
+ *  candidate (issue #3359), exactly as it asks `finiteManaUsesRemaining` before
+ *  the finite one. It runs on `enumerateCastMoves`, i.e. every ISMCTS rollout,
+ *  so a board with no such card must pay nothing for the feature. */
+export function mayHaveCostedManaTapOption(card: CardInstanceState): boolean {
+    // Same conservative shape as `mayBeSacrificedForMana`: a card carrying any
+    // granted ability falls through to the real resolution.
+    if (card.grantedActivatedAbilities?.length) return true;
+    const cardId = (card.card as { id?: string }).id;
+    if (!cardId) return false;
+    const printed = tryGetDefinition(cardId)?.activatedAbilities;
+    if (!printed) return false;
+    for (const ability of printed) {
+        if (ability.useStack || !ability.cost.tap) continue;
+        if (ability.cost.exertThis || ability.cost.mana) return true;
+    }
+    return false;
+}
+
+/** CR 701.43a / 602.1a (issue #3359) — does this tap plan entry's mana
+ *  activation EXERT its source? The exert twin of `manaTapSacrificesSource`,
+ *  resolving the SAME unified option list the tap mutations read, so "this plan
+ *  exerts" means exactly what `tapSourceIntoPayment` (`convex/game.ts`) does
+ *  with it: `applyManaAbilityExertCost` pays the leg of the ability the
+ *  `manaChoiceIndex` NAMES, never of the source's first mana ability. A card
+ *  mixing a free option with an exerting one (Arena of Glory) therefore answers
+ *  per option, which is the whole reason this takes an index at all.
+ *
+ *  Guarded by `mayExertForMana` at every call site — this function itself does
+ *  the full scan and must not run on an ordinary board. */
+export function manaTapExertsSource(
+    card: CardInstanceState,
+    controllerId: string | undefined,
+    battlefields:
+        | ReadonlyArray<{
+              playerId: string;
+              battlefield: readonly CardInstanceState[];
+          }>
+        | undefined,
+    manaChoiceIndex: number | undefined
+): boolean {
+    const detailed = getManaTapOptionsDetailed(
+        card,
+        controllerId,
+        battlefields,
+        { requireTap: true }
+    );
+    // A plan with no index taps a single-option source (`manaTapNeedsChoice`),
+    // so index 0 is the option it names.
+    const opt = detailed[manaChoiceIndex ?? 0];
+    if (!opt || opt.source.kind !== "activated") return false;
+    const abilityId = opt.source.abilityId;
+    return getEffectiveActivatedAbilities(card).some(
+        ({ ability }) =>
+            ability.id === abilityId && ability.cost.exertThis === true
+    );
+}
+
 /** CR 605.1a / 118.3 / 122.1 (issue #3530) — the FIXED counter-removal leg that
  *  makes a mana ability FINITE: the ability pays by removing counters from its
  *  own source, so the counters on the source are the only fuel it has and every

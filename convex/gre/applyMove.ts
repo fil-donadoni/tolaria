@@ -102,7 +102,9 @@ import { loyaltyActivationViolation, payLoyaltyCost } from "./loyalty";
 import {
     isPlaneswalker,
     manaGateBattlefields,
+    manaTapExertsSource,
     manaTapSacrificesSource,
+    mayExertForMana,
     mayRemoveCountersForMana,
     manaTapCounterCost,
     manaValue,
@@ -1083,6 +1085,27 @@ function applyTapPlan(
             if (leg && canPayRemoveCounterCost(src, leg)) {
                 payRemoveCounterCost(state, src, leg);
             }
+        }
+        // CR 701.43a / 602.1a (issue #3359) — and the EXERT leg, modelled for
+        // exactly the reason the sacrifice and the counters above are: the
+        // payment spends the source's NEXT UNTAP STEP, so a model that only
+        // taps it has the land untapping next simulated turn and taps again
+        // forever — the Bot reaching for the costed half of Arena of Glory at
+        // no price at all. `tapSourceIntoPayment` (`convex/game.ts`) pays it
+        // through `applyManaAbilityExertCost` for the ability the
+        // `manaChoiceIndex` names, and `manaTapExertsSource` resolves that same
+        // option list. Behind the same cheap printed-definition prefilter, so
+        // an ordinary board pays one cached lookup per tap.
+        if (
+            mayExertForMana(src) &&
+            manaTapExertsSource(
+                src,
+                player.id,
+                manaGateBattlefields(state),
+                tap.manaChoiceIndex
+            )
+        ) {
+            payExertActivationCost(state, src);
         }
         src.isTapped = true;
     }

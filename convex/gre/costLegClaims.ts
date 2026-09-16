@@ -229,9 +229,8 @@ export const COST_LEG_CLAIMS = {
             file: "convex/gre/applyMove.ts",
             symbol: "applyActivationCostsForSearch",
         },
-        why: "CR 701.43a/b / 602.1a — always payable, so `enumerateAbilityMoves` gates nothing: CR 701.43b lets a permanent be exerted while untapped and lets it be exerted again before its next untap step, which leaves no board state that could refuse the leg. For an `activate-ability` move the search-side application stamps the same `skipNextUntap` the mutation does, through the same `payExertActivationCost` authority (`gre/exert.ts`), so the Bot prices the missed untap instead of getting the ability for free. That covers only HALF the Bot path, and the half the only shipped carrier does not use — see the hole.",
+        why: "CR 701.43a/b / 602.1a — always payable, so `enumerateAbilityMoves` gates nothing: CR 701.43b lets a permanent be exerted while untapped and lets it be exerted again before its next untap step, which leaves no board state that could refuse the leg. BOTH Bot surfaces pay it through the one `payExertActivationCost` authority (`gre/exert.ts`), so the Bot prices the missed untap instead of getting the ability for free: an `activate-ability` move here, and — since issue #3359 — a MANA ability's tap plan in all three `applyTapPlan` copies (`applyMove.ts`, `search.ts`, `ai/dominance.ts`), which resolve the exerting option per `manaChoiceIndex` through `manaTapExertsSource` exactly as `tapSourceIntoPayment` does. The mana ability is the shape the only shipped carrier (Arena of Glory) uses.",
         autoPayable: false,
-        hole: "#3359",
     },
     returnThisToHand: {
         paidBy: {
