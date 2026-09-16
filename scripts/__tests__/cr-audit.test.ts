@@ -230,6 +230,10 @@ describe("cr:audit — assess", () => {
         expect(near).toContain("701.70");
         expect(near).not.toContain("701.66");
         expect(ruleContext(actions, "701.2").siblings[0].id).toBe("701.1");
+        // Every "701.1x"–"701.70" sorts before "701.9" as a string.
+        const nine = ruleContext(actions, "701.9").siblings.map((r) => r.id);
+        expect(nine).toContain("701.8");
+        expect(nine).toContain("701.10");
     });
 
     it("discards a proposal that resolves to no rule", async () => {
