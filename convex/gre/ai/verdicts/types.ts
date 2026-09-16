@@ -103,6 +103,16 @@ export type VerdictResolution = {
     deploymentKind?: "cloud" | "local";
 };
 
+/** Two authors who are one person (issue #3585, ADR 0128 §4). User ids are
+ *  per-deployment, so the same human judging on dev and on production is two
+ *  `${deployment}:${userId}` authors until an alias joins them. Symmetric and
+ *  unordered — `authors` is sorted — so one fact has one encoding; chains
+ *  join transitively (`testerQuality.ts`). The shape of the Verdict Store's
+ *  `aliases/<author>/<author>` object. */
+export type VerdictAuthorAlias = {
+    authors: [string, string];
+};
+
 /** One move the Bot's enumerator offered at the decision under judgement. */
 export type VerdictCandidate = {
     /** The structural move key (`search.ts`'s `moveKey`) — how the candidate

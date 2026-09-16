@@ -16,13 +16,16 @@
 // The guard half — a lock without its weights is red — is in
 // `weightFit.bot.test.ts`, beside the guard.
 import { describe, expect, it } from "vitest";
+import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
 import { BLADE_SCENARIOS } from "../blade/registry";
 import { runVerdictPromotionStep } from "../blade/verdictPromotion";
 import {
+    ALIAS_OBJECT_PREFIX,
     ATTESTATION_OBJECT_PREFIX,
     RESOLUTION_OBJECT_PREFIX,
     VERDICT_OBJECT_PREFIX,
     encodeVerdictObject,
+    putAlias,
     putAttestation,
     putResolution,
     putVerdict,
@@ -35,6 +38,7 @@ import {
 } from "../../../verdictStoreMemory";
 import {
     encodeVerdictPack,
+    evalPairsOf,
     formatStoreValidation,
     parseVerdictLock,
     parseVerdictPack,
@@ -409,5 +413,131 @@ describe("verdicts:promote — the lock it writes", () => {
                 validateStoreObjects([], [], rebuildsAll)
             )
         ).toThrow(/listing is incomplete/);
+    });
+});
+
+describe("verdicts:testers — the engine step (issue #3585)", () => {
+    /** A registry verdict the committed weights satisfy with room to spare,
+     *  as a stored judgement — and the same position judged the other way,
+     *  which those weights therefore cannot satisfy. Real positions: the fit
+     *  report is re-derived on the real engine, never stubbed. */
+    function satisfiedAndFlipped(): [VerdictJudgement, VerdictJudgement] {
+        const pick = verdictsFromRegistry().verdicts.find((v) => {
+            if (
+                v.answer.kind !== "right" ||
+                v.answer.rightIndexes.length !== 1 ||
+                v.candidates.length !== 2
+            ) {
+                return false;
+            }
+            const out = evalPairsOf(v, DEFAULT_EVAL_WEIGHTS);
+            return (
+                out.error === undefined &&
+                out.pairs.length > 0 &&
+                out.pairs.every((p) => p.delta > 1)
+            );
+        });
+        if (pick === undefined) {
+            throw new Error("no satisfied two-candidate registry verdict");
+        }
+        const judgementOf = (right: number): VerdictJudgement => ({
+            spec: pick.spec,
+            ...(pick.setup?.length ? { setup: pick.setup } : {}),
+            seat: pick.seat,
+            ...(pick.deckKnowledge?.length
+                ? { deckKnowledge: pick.deckKnowledge }
+                : {}),
+            candidates: pick.candidates,
+            answer: { kind: "right", rightIndexes: [right] },
+        });
+        const right =
+            pick.answer.kind === "right" ? pick.answer.rightIndexes[0] : 0;
+        return [judgementOf(right), judgementOf(1 - right)];
+    }
+
+    const b64 = async (store: MemoryVerdictStore, prefix: string) =>
+        (await listing(store, prefix)).map(({ name, bytes }) => ({
+            name,
+            base64: Buffer.from(bytes).toString("base64"),
+        }));
+
+    it("joins aliased accounts and reads unsatisfied off the fit report over the lock", async () => {
+        const [held, flipped] = satisfiedAndFlipped();
+        const store = createMemoryVerdictStore();
+        const heldId = await stored(store, held, [
+            ["dev-a:owner1", "explicit"],
+            ["prod-b:owner2", "explicit"],
+        ]);
+        const flippedId = await stored(store, flipped, [
+            ["prod-b:bob", "explicit"],
+        ]);
+        await putAlias(store, { authors: ["prod-b:owner2", "dev-a:owner1"] });
+        const lock = serializeVerdictLock({
+            verdictIds: [heldId, flippedId],
+            packHash: "b".repeat(64),
+        });
+
+        const out = runVerdictPromotionStep(
+            {
+                mode: "testers",
+                lock,
+                evalWeightsSource: "",
+                verdictObjects: await b64(store, VERDICT_OBJECT_PREFIX),
+                attestationObjects: await b64(store, ATTESTATION_OBJECT_PREFIX),
+                aliasObjects: await b64(store, ALIAS_OBJECT_PREFIX),
+            },
+            []
+        );
+        expect(out.mode).toBe("testers");
+        const block = (person: string) =>
+            out.text.split("\n\n").find((b) => b.startsWith(person)) ?? "";
+
+        expect(out.text).toMatch(/testers\s+: 2/);
+        const owner = block("dev-a:owner1");
+        expect(owner).toContain("(also prod-b:owner2)");
+        expect(owner).toMatch(/given\s+: 1/);
+        expect(owner).toMatch(/contradicted : 1/);
+        expect(owner).toMatch(/unsatisfied {2}: 0/);
+        const bob = block("prod-b:bob");
+        expect(bob).toMatch(/unsatisfied {2}: 1 — positions worth a look/);
+        expect(bob).toContain(`${positionKeyOf(flipped)}  ${flippedId}`);
+    });
+
+    it("counts a store verdict the blade registry judges differently as contradicted and quarantined", async () => {
+        const [, flipped] = satisfiedAndFlipped();
+        const store = createMemoryVerdictStore();
+        await stored(store, flipped, [["prod-b:bob", "explicit"]]);
+        const out = runVerdictPromotionStep({
+            mode: "testers",
+            lock: null,
+            evalWeightsSource: "",
+            verdictObjects: await b64(store, VERDICT_OBJECT_PREFIX),
+            attestationObjects: await b64(store, ATTESTATION_OBJECT_PREFIX),
+        });
+        expect(out.text).toMatch(/contradicted : 1/);
+        expect(out.text).toMatch(/quarantined {2}: 1/);
+        expect(out.text).toContain("attestation problems: 0");
+    });
+
+    it("says unsatisfied is not measured when no lock is committed, and lists an alias that does not read", async () => {
+        const store = createMemoryVerdictStore();
+        await stored(store, satisfiedAndFlipped()[0]);
+        const bad = `${ALIAS_OBJECT_PREFIX}dev-a:x/prod-b:y`;
+        store.objects.set(bad, new TextEncoder().encode("{}"));
+        const out = runVerdictPromotionStep(
+            {
+                mode: "testers",
+                lock: null,
+                evalWeightsSource: "",
+                verdictObjects: await b64(store, VERDICT_OBJECT_PREFIX),
+                attestationObjects: await b64(store, ATTESTATION_OBJECT_PREFIX),
+                aliasObjects: await b64(store, ALIAS_OBJECT_PREFIX),
+            },
+            []
+        );
+        expect(out.text).toContain("no lock committed");
+        expect(out.text).toContain("unsatisfied  : not measured");
+        expect(out.text).toMatch(/alias problems: 1/);
+        expect(out.text).toContain(bad);
     });
 });

@@ -1,4 +1,4 @@
-// `bun run verdicts:validate` and `bun run verdicts:promote` — the store I/O,
+// `bun run verdicts:validate`, `verdicts:promote` and `verdicts:testers` — the store I/O,
 // the writes, and the order they happen in (issue #3583, PRD #3574, ADR 0128
 // §7).
 //
@@ -51,6 +51,7 @@ import {
     type VerdictPromotionOutput,
 } from "../../convex/gre/ai/verdicts/promotion";
 import {
+    ALIAS_OBJECT_PREFIX,
     ATTESTATION_OBJECT_PREFIX,
     RESOLUTION_OBJECT_PREFIX,
     VERDICT_OBJECT_PREFIX,
@@ -104,6 +105,11 @@ export async function snapshotVerdictStore(
         // An admin's resolutions (issue #3582): without them a resolved
         // position would stay out of the lock forever.
         resolutionObjects: await readPrefix(reader, RESOLUTION_OBJECT_PREFIX),
+        // Author aliases (issue #3585) join one person's accounts — only the
+        // per-tester report reads them, so only it pays the listing.
+        ...(mode === "testers"
+            ? { aliasObjects: await readPrefix(reader, ALIAS_OBJECT_PREFIX) }
+            : {}),
     };
 }
 
@@ -131,6 +137,22 @@ export async function runVerdictsValidate(
     const output = await ports.engineStep(
         await snapshotVerdictStore(ports.reader, ports.root, "validate")
     );
+    return output.text;
+}
+
+/** `bun run verdicts:testers` (issue #3585): per-tester quality, derived on
+ *  each run from the store, the committed lock and the fit report over it. */
+export async function runVerdictsTesters(
+    ports: VerdictsValidatePorts
+): Promise<string> {
+    const output = await ports.engineStep(
+        await snapshotVerdictStore(ports.reader, ports.root, "testers")
+    );
+    if (output.mode !== "testers") {
+        throw new Error(
+            `the engine step answered "${output.mode}", not a per-tester report`
+        );
+    }
     return output.text;
 }
 

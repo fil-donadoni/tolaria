@@ -43,6 +43,7 @@ import {
 } from "../../convex/gre/ai/verdicts/promotion";
 import { storeVerdictPack } from "../../convex/verdictPackStore";
 import {
+    putAlias,
     putAttestation,
     putResolution,
     putVerdict,
@@ -54,6 +55,7 @@ import {
 import {
     parseBladeMust,
     runVerdictsPromote,
+    runVerdictsTesters,
     snapshotVerdictStore,
     type VerdictsPromotePorts,
 } from "../lib/verdict-promotion-run";
@@ -275,6 +277,46 @@ describe("the store snapshot (issue #3582)", () => {
         });
         const input = await snapshotVerdictStore(store, checkout(), "validate");
         expect(input.resolutionObjects?.map((o) => o.name)).toEqual([name]);
+    });
+});
+
+describe("verdicts:testers — the snapshot it hands the engine (issue #3585)", () => {
+    it("carries the author aliases, and only for the per-tester report", async () => {
+        const store = createMemoryVerdictStore();
+        await attested(store, 4);
+        const { name } = await putAlias(store, {
+            authors: ["prod-a:alice", "dev-b:alice2"],
+        });
+        const root = checkout();
+        writeFileSync(join(root, VERDICT_LOCK_PATH), "{}");
+        let seen: VerdictPromotionInput | null = null;
+        const text = await runVerdictsTesters({
+            root,
+            reader: store,
+            engineStep: async (input) => {
+                seen = input;
+                return { mode: "testers", text: "per tester" };
+            },
+        });
+        expect(text).toBe("per tester");
+        const input = seen as VerdictPromotionInput | null;
+        expect(input?.mode).toBe("testers");
+        expect(input?.aliasObjects?.map((o) => o.name)).toEqual([name]);
+        // The committed lock travels verbatim: the fit report is over IT.
+        expect(input?.lock).toBe("{}");
+        const validate = await snapshotVerdictStore(store, root, "validate");
+        expect(validate.aliasObjects).toBeUndefined();
+    });
+
+    it("refuses an engine step that answered something other than the report", async () => {
+        const store = createMemoryVerdictStore();
+        await expect(
+            runVerdictsTesters({
+                root: checkout(),
+                reader: store,
+                engineStep: async () => ({ mode: "validate", text: "x" }),
+            })
+        ).rejects.toThrow(/not a per-tester report/);
     });
 });
 

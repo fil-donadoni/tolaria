@@ -28,16 +28,25 @@ import {
     lockedVerdictCorpus,
     parseVerdictLock,
     planPromotion,
+    formatTesterQuality,
     rewriteDefaultEvalWeights,
     serializeVerdictLock,
+    testerQualityOf,
     validateStoreObjects,
     verdictsFromRegistry,
     weightValue,
     type StoreObject,
+    type StoreValidation,
+    type TesterFitReport,
     type Verdict,
+    type VerdictAuthorAlias,
     type VerdictPromotionInput,
     type VerdictPromotionOutput,
 } from "../verdicts";
+import {
+    decodeAliasObject,
+    verdictIdOfObjectName,
+} from "../../../verdictStore";
 import { BLADE_SCENARIOS } from "./registry";
 import type { BladeScenario } from "./types";
 
@@ -77,6 +86,12 @@ export function runVerdictPromotionStep(
     const validationText = formatStoreValidation(validation);
     if (input.mode === "validate") {
         return { mode: "validate", text: validationText };
+    }
+    if (input.mode === "testers") {
+        return {
+            mode: "testers",
+            text: testersText(input, validation, scenarios),
+        };
     }
 
     const current = input.lock === null ? null : parseVerdictLock(input.lock);
@@ -143,4 +158,118 @@ export function runVerdictPromotionStep(
             result
         ),
     };
+}
+
+/**
+ * The fit report over the committed lock: which locked verdicts have a pair
+ * the committed weights leave unsatisfied. Re-derived with the guard's own
+ * corpus (`lockedVerdictCorpus`) at the committed `DEFAULT_EVAL_WEIGHTS` —
+ * the weights that guard proves ARE the fit over this lock — so the count is
+ * never a tally kept beside the lock that could drift from it. The locked
+ * payloads come from the snapshot's verdict objects and are re-hashed against
+ * their ids by the lock reader. `null` when no lock is committed.
+ */
+function fitReportOverLock(
+    input: VerdictPromotionInput,
+    scenarios: readonly BladeScenario[]
+): TesterFitReport | null {
+    if (input.lock === null) return null;
+    const lock = parseVerdictLock(input.lock);
+    const locked = new Set(lock.verdictIds);
+    const payloads = decodeObjects(input.verdictObjects).flatMap(
+        ({ name, bytes }) => {
+            const verdictId = verdictIdOfObjectName(name);
+            if (verdictId === null || !locked.has(verdictId)) return [];
+            try {
+                return [
+                    {
+                        verdictId,
+                        payload: JSON.parse(new TextDecoder().decode(bytes)),
+                    },
+                ];
+            } catch (error) {
+                throw new Error(
+                    `${name}: the lock names it, but it is not JSON (${error instanceof Error ? error.message : String(error)})`
+                );
+            }
+        }
+    );
+    const corpus = lockedVerdictCorpus(lock, payloads, scenarios);
+    const report = collectVerdictReport(corpus.verdicts, {
+        gaps: corpus.gaps,
+        weights: DEFAULT_EVAL_WEIGHTS,
+    });
+    if (report.errors.length > 0) {
+        throw new Error(
+            `the locked corpus does not rebuild, so there is no fit report to read:\n${report.errors
+                .map((e) => `  ${e.verdictId}: ${e.error}`)
+                .join("\n")}`
+        );
+    }
+    return {
+        lock,
+        unsatisfiedVerdictIds: [
+            ...new Set(
+                report.violated
+                    .map((pair) => pair.verdictId)
+                    // The blade registry's verdicts are code, attested by no one.
+                    .filter((id) => locked.has(id))
+            ),
+        ],
+    };
+}
+
+/** What `bun run verdicts:testers` prints (issue #3585). An alias that does
+ *  not read joins nothing — two authors stay two people, the direction that
+ *  never merges strangers — and is listed. */
+function testersText(
+    input: VerdictPromotionInput,
+    validation: StoreValidation,
+    scenarios: readonly BladeScenario[]
+): string {
+    const aliases: VerdictAuthorAlias[] = [];
+    const problems: string[] = [];
+    for (const { name, bytes } of decodeObjects(input.aliasObjects ?? [])) {
+        try {
+            aliases.push(decodeAliasObject(name, bytes));
+        } catch (error) {
+            problems.push(
+                `  ${name}\n    ${error instanceof Error ? error.message : String(error)}`
+            );
+        }
+    }
+    // A store verdict the blade registry judges differently is held out of the
+    // lock as `contested` while the store-only quarantine calls it promotable.
+    const keyOf = new Map(
+        validation.quarantine.promotable.map((v) => [
+            v.verdictId,
+            v.positionKey,
+        ])
+    );
+    const registryContested = new Set(
+        validation.rows
+            .filter((r) => r.status === "contested" && r.verdictId !== null)
+            .map((r) => keyOf.get(r.verdictId!))
+            .filter((key): key is string => key !== undefined)
+    );
+    const report = testerQualityOf(
+        validation.quarantine,
+        aliases,
+        fitReportOverLock(input, scenarios),
+        registryContested
+    );
+    // An attestation or resolution that does not read changes who gave what,
+    // so its count is printed beside the numbers it moved.
+    const unread = [
+        `attestation problems: ${validation.attestationProblems.length}`,
+        `resolution problems: ${validation.resolutionProblems.length}`,
+    ];
+    return [
+        formatTesterQuality(report),
+        "",
+        ...unread,
+        ...(problems.length > 0
+            ? ["", `alias problems: ${problems.length}`, ...problems]
+            : []),
+    ].join("\n");
 }
