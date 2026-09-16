@@ -121,6 +121,13 @@ export default function AppHeaderProfile() {
                         type="button"
                         variant="link"
                         size="xs"
+                        // The profile entry point's stable seam, carried here
+                        // AND on the bottom nav's `Me` trigger
+                        // (`app-bottom-nav-me.tsx`): the shell renders exactly
+                        // one of the two bands per viewport, so one locator
+                        // names the profile affordance at every viewport the
+                        // ui-gate walks (`scripts/ui-gate/surfaces.ts`, lobby).
+                        data-profile-entry
                         onClick={startEdit}
                         className="text-left text-sm short-viewport:text-xs font-semibold text-parchment"
                         title="Edit nickname"

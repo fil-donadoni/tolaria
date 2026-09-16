@@ -124,6 +124,11 @@ import {
 } from "./receipt.ts";
 import { landingDiffScope } from "./verify-receipt.ts";
 import {
+    assertLabelsBySurface,
+    evaluateAssertions,
+    type AssertResult,
+} from "./assertions.ts";
+import {
     SURFACES,
     SURFACE_IDS,
     Unreachable,
@@ -219,6 +224,7 @@ function evaluate(
         viewportIds: VIEWPORT_IDS,
         unwalked: UNWALKED_SURFACES,
         diffScope,
+        assertsBySurface: assertLabelsBySurface(SURFACES),
     });
 }
 
@@ -452,8 +458,21 @@ async function runProbe(page: Page): Promise<ProbeResult> {
     return (await page.evaluate("window.__tolariaProbe()")) as ProbeResult;
 }
 
-async function runAxe(page: Page): Promise<AxeCount> {
+/** `axe-core` in the page. Shared with the Named Assertions' `contrast` check
+ *  (`assertions.ts`), which runs the same library over one subtree. */
+async function injectAxe(page: Page): Promise<void> {
+    // Once per document: `runAxe` has already injected it for this cell, and
+    // ~600KB of script tag per contrast promise per viewport is pure waste.
+    // A navigation drops `window.axe`, which is exactly when it is re-added.
+    const present = await page
+        .evaluate("typeof window.axe !== 'undefined'")
+        .catch(() => false);
+    if (present === true) return;
     await page.addScriptTag({ path: AXE_PATH });
+}
+
+async function runAxe(page: Page): Promise<AxeCount> {
+    await injectAxe(page);
     const result = (await page.evaluate(
         `(async () => {
             const exempt = document.querySelectorAll(${JSON.stringify(AXE_EXEMPT_SELECTOR)}).length;
@@ -769,6 +788,7 @@ async function main(): Promise<number> {
                     const measurements: {
                         surface: string;
                         readings: Readings;
+                        asserts?: readonly AssertResult[];
                     }[] = [];
                     /**
                      * Surfaces THIS viewport could not reach. It used to be
@@ -1075,9 +1095,31 @@ async function main(): Promise<number> {
                                 `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} ${detail}`
                             );
 
+                            // AFTER the probe, axe and the screenshot, never
+                            // before: a `reachable` check scrolls its element
+                            // into view, and the measurement above has to be
+                            // taken on the screen as the walk found it.
+                            const asserts = await evaluateAssertions(
+                                page,
+                                surface.asserts ?? [],
+                                {
+                                    viewport: {
+                                        width: viewport.width,
+                                        height: viewport.height,
+                                    },
+                                    ensureAxe: () => injectAxe(page),
+                                }
+                            );
+                            for (const a of asserts.filter((r) => !r.ok)) {
+                                lines.push(
+                                    `  ${surface.id.padEnd(20)} ${viewport.id.padEnd(12)} ASSERT FAIL ${a.label} — ${a.detail}`
+                                );
+                            }
+
                             measurements.push({
                                 surface: surface.id,
                                 readings,
+                                asserts,
                             });
                         }
 

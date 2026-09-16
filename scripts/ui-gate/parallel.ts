@@ -104,7 +104,14 @@ export interface ViewportResult {
     viewport: string;
     /** The cell lines this viewport logged, in the order it walked them. */
     lines: readonly string[];
-    measured: readonly { surface: string; readings: Measurement["readings"] }[];
+    measured: readonly {
+        surface: string;
+        readings: Measurement["readings"];
+        /** This cell's Named Assertions (ADR 0132 §3, issue #3649). Folded
+         *  into the `Measurement` below, so an N=1 and an N=5 run report the
+         *  same assertion lines in the same order. */
+        asserts?: Measurement["asserts"];
+    }[];
     /** Surfaces this viewport could not reach, with the reason. */
     unreachable: readonly { surface: string; reason: string }[];
     infra: readonly { surface: string; cell: InfraCell }[];
@@ -158,7 +165,11 @@ export function collectRun(input: {
         }
         for (const m of result.measured) {
             const list = measured.get(m.surface) ?? [];
-            list.push({ viewport: result.viewport, readings: m.readings });
+            list.push({
+                viewport: result.viewport,
+                readings: m.readings,
+                asserts: m.asserts,
+            });
             measured.set(m.surface, list);
         }
         for (const cell of result.infra) {

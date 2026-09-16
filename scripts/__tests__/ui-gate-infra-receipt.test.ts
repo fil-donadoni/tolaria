@@ -26,6 +26,9 @@ const VOCAB: ReceiptVocabulary = {
     surfaceIds: SURFACES,
     viewportIds: VIEWPORTS,
     unwalked: [],
+    // This file is about the INFRA line; the surface promises nothing, so the
+    // receipt owes no assertion line (issue #3649).
+    assertsBySurface: { lobby: [] },
 };
 
 const INFRA_WALK: SurfaceWalk = {

@@ -220,6 +220,60 @@ rule). A nonzero `small` on the desktop viewport (`1440x900x2`) usually just
 reflects that intentional 32px control height, while the same count on a
 `…x3,mobile,touch…` viewport is a real sub-target control.
 
+**Named assertions carry the positive half** (ADR 0132 §3, issue #3649). The
+Floors say what must never be true of a screen; they cannot say that the screen
+still OFFERS anything. So every surface declares what it promises about itself,
+by name, in `scripts/ui-gate/surfaces.ts`:
+
+```ts
+asserts: [
+    {
+        label: "mode tile: Solo game",
+        locator: { selector: '[data-mode-tile="solo"]' },
+        check: "reachable",
+    },
+    {
+        label: "Loadout primary action",
+        locator: { selector: "[data-lobby-primary]" },
+        check: "visible",
+    },
+    { label: "Limited re-entry", locator: { role: "button", name: "Browse / Create Events" }, check: "reachable" },
+],
+```
+
+Each promise is checked at EVERY viewport, on the Settled Screen, after the
+probe and axe have measured it, and prints its own line in the verdict block
+(`assert <surface> <viewport> PASS|FAIL <label>`), which `land` re-derives. The
+three checks:
+
+- **`reachable`** — Playwright's own actionability check without the click
+  (`click({ trial: true })`: visible, stable, enabled, the element that answers
+  a pointer at its own centre), and then the element's centre inside the
+  viewport once Playwright has scrolled to it. The scroll is deliberate and is
+  the same line the probe draws between `stranded` and `reachable`: a control
+  below the fold of a scrolling page is reachable by a gesture; one that cannot
+  be brought into the viewport at all is not.
+- **`visible`** — rendered and visible, nothing about gestures. For a control
+  whose measured state is deliberately disabled (the Loadout's plate on a lobby
+  with no deck selected).
+- **`contrast`** — axe's `color-contrast` rule over that element's subtree, so
+  a CTA that goes low-contrast is named by the promise that covered it instead
+  of being one more page-wide count.
+
+**Adding one.** Put it on the surface in `surfaces.ts`; the label is the
+receipt's own text, so keep it short and change it only when the promise
+changes. The locator is **role+name or a `data-*` seam** — never bare CSS: the
+lobby's old `main, [role=main]` is exactly the assertion that keeps passing
+while the screen loses its content (`docs/findings/2726-ui-gate-lobby-walk-asserts-almost-nothing.md`).
+A control with no readable name (an `input[type=password]` maps to no ARIA
+role, a deck tile's visible text is a deck name) earns a declared attribute in
+`src/`, beside `data-lobby-primary` and `data-deck-select`. The guard
+(`scripts/__tests__/ui-gate-assertions.test.ts`, offline, in `check:pr`)
+refuses a bare locator, a duplicate label and a surface that declares nothing —
+a surface with no promises yet carries an `ASSERTION_DEBT` row with the issue
+that gives it some (`scripts/ui-gate/assertions.ts`). The entry points a
+surface's runbook names are its minimum.
+
 **The one axe exemption is an attribute, not a number** (issue #2593).
 `/admin/design-system` documents what a failing token looks like, so its
 specimens carry `data-axe-exempt="<why>"` on the smallest element containing
@@ -345,8 +399,9 @@ It has two blocks (ADR 0132 §6):
 
 - the **verdict block** — the `RECEIPT`/`SCOPED`/`DIAGNOSTIC` banner, one line
   per surface × viewport saying `PASS|FAIL|INFRA|UNWALKED` (with any broken
-  Floor and its reading), and the coverage line. It is a function of the tree
-  and the scope, so two runs of one tree print it byte-identical;
+  Floor and its reading), then one `assert` line per Named Assertion per
+  viewport, and the coverage line. It is a function of the tree and the scope,
+  so two runs of one tree print it byte-identical;
 - then a fixed separator and the **diagnostic block** — every cell's Shape
   Readings, the infra signatures with their load and reason, the machine load,
   console errors, screenshots and wall time.
@@ -367,6 +422,10 @@ PASS     auth-sign-in         1440x900x2   every floor at zero
 PASS     auth-sign-in         390x844x3    every floor at zero
 …
 PASS     admin-verdicts       1180x820x2   every floor at zero
+assert   auth-sign-in         1440x900x2   PASS email field
+assert   auth-sign-in         1440x900x2   PASS Sign In submit
+…
+assert   lobby                1180x820x2   PASS profile menu entry
 coverage: 20/23 surfaces measured, 3 declared unwalked: game-board (issue #3695), game-card-preview (issue #3506), game-stress (issue #3506)
 ─── diagnostic — shape readings, load, infra, wall time; never read by land ───
 shape    auth-sign-in         1440x900x2   cardsOcc 0 ctrlsOcc 0 small 2 starved 0

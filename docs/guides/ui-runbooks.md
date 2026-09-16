@@ -86,6 +86,28 @@ DB rows now (#770/#1455) and the old slugs (`mono-red-burn`, `le-deck`, …) no
 longer resolve — a stale id is silently cleared by the lobby and you land back
 on "No deck selected", having spent a navigation to learn it.
 
+**These entry points are Named Assertions** (ADR 0132 §3, issue #3649), so the
+gate reds when one of them goes missing rather than measuring whatever the
+lobby happened to paint. The `lobby` surface promises them by these labels, and
+each prints its own line on every receipt at every viewport:
+
+| Label                               | What it addresses                                                                                           |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `mode tile: Play vs Bot`            | `[data-mode-tile="bot"]`, reachable                                                                         |
+| `mode tile: Solo game`              | `[data-mode-tile="solo"]`, reachable                                                                        |
+| `mode tile: Open a table`           | `[data-mode-tile="table"]`, reachable                                                                       |
+| `mode tile: Limited`                | `[data-mode-tile="limited"]`, reachable                                                                     |
+| `Loadout primary action`            | `[data-lobby-primary]` — VISIBLE: it is disabled with no deck                                               |
+| `Limited re-entry contrast`         | the footer button's subtree, axe `color-contrast` — an ENABLED control, since the rule skips a disabled one |
+| `deck shelf: first selectable tile` | `[data-deck-tile] [data-deck-select]:not([disabled])`                                                       |
+| `Limited re-entry`                  | the footer's `Browse / Create Events`                                                                       |
+| `profile menu entry`                | `[data-profile-entry]` — header above a portrait phone, the bottom nav's `Me` on one                        |
+
+Change a step here and change that list in the same PR, the same way the walk
+itself is changed. The vs-AI dialog's own promises (`AI Difficulty selector`,
+`dialog primary: Play vs AI`, `dialog Cancel`) belong to the `lobby-vs-ai`
+surface.
+
 The executable copy of this sequence is `ensureBoard` in
 `scripts/ui-gate/surfaces.ts`. It addresses steps 3-5 by ATTRIBUTE —
 `[data-deck-tile] [data-deck-select]`, `[data-mode-tile="solo"]`,
@@ -244,6 +266,13 @@ sign-in Panel, not on the lobby.
    `Password` labels are the handles.
 3. Click the submit button (`Sign In`). The email field detaching is the
    signal that the gate opened; the lobby renders behind it.
+
+The `auth-sign-in` surface promises all three, plus the two ways out of the
+screen, as Named Assertions: `email field`, `password field` (the input carries
+`data-auth-password` — a password input maps to no ARIA role, so role+name
+cannot reach it), `Sign In submit`, `Sign In submit contrast`, `sign-up entry`
+and `password-reset entry`. `auth-forgot-password` promises `email field`,
+`Send Code submit` and `back to sign in`.
 
 Credentials are **not** in the repo. A human uses whatever dev account they
 created. `bun run check:ui` reads none: each run registers its own

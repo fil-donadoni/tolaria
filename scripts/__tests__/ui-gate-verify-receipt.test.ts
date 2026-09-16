@@ -36,10 +36,19 @@ const VIEWPORTS = ["1440x900x2", "390x844x3", "844x390x3"];
 const UNWALKED: UnwalkedSurface[] = [
     { surface: "game-board", reason: "no fixed position", issue: 3695 },
 ];
+/** Two surfaces promise something, two promise nothing — the shape the real
+ *  table has while `ASSERTION_DEBT` is still being drained (issue #3649). */
+const ASSERTS: Record<string, readonly string[]> = {
+    "deck-builder": [],
+    lobby: ["mode tile: Solo game", "Loadout primary action"],
+    "lobby-vs-ai": ["dialog primary: Play vs AI"],
+    "game-board": [],
+};
 const VOCAB: ReceiptVocabulary = {
     surfaceIds: ["deck-builder", "lobby", "lobby-vs-ai", "game-board"],
     viewportIds: VIEWPORTS,
     unwalked: UNWALKED,
+    assertsBySurface: ASSERTS,
 };
 const BASE = "origin/base";
 
@@ -52,6 +61,8 @@ function run(
         diffScope?: DiffScope | null;
         at?: (surface: string, viewport: string) => Cell | undefined;
         unreachable?: string[];
+        /** Break ONE promise: the labels this cell reports as failed. */
+        assertFails?: (surface: string, viewport: string) => string[];
     } = {}
 ): Evaluation {
     const walks: SurfaceWalk[] = surfaces
@@ -72,10 +83,22 @@ function run(
                 status: "measured",
                 measurements: cells
                     .filter(([, c]) => typeof c !== "string")
-                    .map(([viewport, c]) => ({
-                        viewport,
-                        readings: c as Readings,
-                    })),
+                    .map(([viewport, c]) => {
+                        const broken = new Set(
+                            opts.assertFails?.(surface, viewport) ?? []
+                        );
+                        return {
+                            viewport,
+                            readings: c as Readings,
+                            asserts: (ASSERTS[surface] ?? []).map((label) => ({
+                                label,
+                                ok: !broken.has(label),
+                                detail: broken.has(label)
+                                    ? 'reachable `[data-mode-tile="solo"]` — no element matches it'
+                                    : "",
+                            })),
+                        };
+                    }),
                 infra: cells
                     .filter(([, c]) => c === "infra")
                     .map(([viewport]) => ({
@@ -93,6 +116,7 @@ function run(
         viewportIds: VIEWPORTS,
         unwalked: UNWALKED,
         diffScope: opts.diffScope ?? null,
+        assertsBySurface: ASSERTS,
     });
 }
 
@@ -355,7 +379,7 @@ describe("verify-receipt — the verdict block must be the one its scope re-deri
         const lines = verdictBlockLines(run(ALL));
         [lines[1], lines[2]] = [lines[2], lines[1]];
         expect(verify(lines.join("\n")).problems).toEqual([
-            "the verdict lines are not in the order check:ui prints them (surface table, then viewport matrix)",
+            "the verdict lines are not in the order check:ui prints them (surface table, then viewport matrix, then the assertions)",
         ]);
     });
 });
@@ -481,5 +505,92 @@ describe("verify-receipt — parseResultRowLine / extractVerdictBlock", () => {
         expect(block?.coverageLine).toBe(
             "coverage: 3/4 surfaces measured, 1 declared unwalked: game-board (issue #3695)"
         );
+    });
+});
+
+/**
+ * NAMED ASSERTIONS ARE PART OF THE VERDICT BLOCK (ADR 0132 §3, issue #3649).
+ * `land` re-derives them from the surface table exactly as it re-derives the
+ * cells: a promise that failed, a promise nobody pasted and a promise the
+ * table never made are all refusals, and none of them can be edited away in a
+ * PR body.
+ */
+describe("verify-receipt — the assertion lines", () => {
+    it("carries one PASS line per promise per viewport, and verifies", () => {
+        const text = body(run(ALL));
+        for (const viewport of VIEWPORTS) {
+            expect(text).toContain(
+                `assert   lobby                ${viewport.padEnd(12)} PASS mode tile: Solo game`
+            );
+        }
+        expect(verify(text)).toEqual({ ok: true, problems: [] });
+    });
+
+    it("refuses a receipt whose own run broke a promise", () => {
+        const text = body(
+            run(ALL, {
+                assertFails: (surface, viewport) =>
+                    surface === "lobby" && viewport === VIEWPORTS[1]
+                        ? ["mode tile: Solo game"]
+                        : [],
+            })
+        );
+        const { ok, problems } = verify(text);
+        expect(ok).toBe(false);
+        expect(problems.join("\n")).toContain("FAIL assertion line(s)");
+        expect(problems.join("\n")).toContain('"mode tile: Solo game"');
+    });
+
+    it("refuses a paste with a FAIL assertion line edited to PASS-by-deletion", () => {
+        const text = body(run(ALL))
+            .split("\n")
+            .filter(
+                (line) =>
+                    line !==
+                    `assert   lobby                ${VIEWPORTS[0].padEnd(12)} PASS mode tile: Solo game`
+            )
+            .join("\n");
+        const { ok, problems } = verify(text);
+        expect(ok).toBe(false);
+        expect(problems.join("\n")).toContain("missing 1 assertion line(s)");
+        expect(problems.join("\n")).toContain(
+            "an assertion nobody ran is not one that passed"
+        );
+    });
+
+    it("refuses an assertion line the surface table never declared", () => {
+        const text = body(run(ALL)).replace(
+            "mode tile: Solo game",
+            "mode tile: Invented"
+        );
+        const { ok, problems } = verify(text);
+        expect(ok).toBe(false);
+        expect(problems.join("\n")).toContain(
+            "assertion line(s) the surface table does not declare"
+        );
+    });
+
+    it("refuses an assertion line whose padding was reflowed", () => {
+        const text = body(run(ALL)).replace(
+            `assert   lobby                ${VIEWPORTS[0].padEnd(12)} PASS mode tile: Solo game`,
+            `assert lobby ${VIEWPORTS[0]} PASS mode tile: Solo game`
+        );
+        const { ok, problems } = verify(text);
+        expect(ok).toBe(false);
+        expect(problems.join("\n")).toMatch(
+            /does not match the renderer|could not parse/
+        );
+    });
+
+    it("owes the assertions of every surface a SCOPED receipt covers, and no others", () => {
+        const surfaces = ["lobby"];
+        const text = body(
+            run(surfaces, { diffScope: { base: BASE, surfaces } })
+        );
+        expect(text).not.toContain("dialog primary: Play vs AI");
+        expect(verify(text, scoped(surfaces))).toEqual({
+            ok: true,
+            problems: [],
+        });
     });
 });

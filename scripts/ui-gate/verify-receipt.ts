@@ -43,14 +43,17 @@ import { computeUiScope, type UiScope } from "../lib/ui-scope.ts";
 import { UNWALKED_SURFACES, type UnwalkedSurface } from "./floors.ts";
 import {
     evaluateRun,
+    formatAssertRow,
     formatResultRow,
     verdictBlockLines,
     zeroReadings,
+    type AssertRow,
     type DiffScope,
     type ResultRow,
     type SurfaceWalk,
     type Verdict,
 } from "./receipt.ts";
+import { assertLabelsBySurface } from "./assertions.ts";
 import { SURFACES, SURFACE_IDS } from "./surfaces.ts";
 import { VIEWPORT_IDS } from "./viewports.ts";
 
@@ -83,12 +86,21 @@ export interface ReceiptVocabulary {
     surfaceIds: readonly string[];
     viewportIds: readonly string[];
     unwalked: readonly UnwalkedSurface[];
+    /** The Named Assertion labels each surface promises, in declaration order
+     *  — REQUIRED, and read without a fallback: a vocabulary that forgot it
+     *  would expect no assertion line at all, and a paste with every one of
+     *  them deleted would verify clean.
+     *  (ADR 0132 §3, issue #3649). Re-derived from the surface table, never
+     *  read off the paste: a receipt that dropped an assertion line is a
+     *  receipt missing a cell the scope owes. */
+    assertsBySurface: Record<string, readonly string[]>;
 }
 
 export const LANE_VOCABULARY: ReceiptVocabulary = {
     surfaceIds: SURFACE_IDS,
     viewportIds: VIEWPORT_IDS,
     unwalked: UNWALKED_SURFACES,
+    assertsBySurface: assertLabelsBySurface(SURFACES),
 };
 
 const VERDICTS: readonly Verdict[] = ["PASS", "FAIL", "INFRA", "UNWALKED"];
@@ -156,7 +168,53 @@ export interface VerdictBlock {
     bannerLine: string;
     rows: ResultRow[];
     rowLines: string[];
+    /** The Named Assertion lines, parsed (issue #3649). */
+    assertRows: AssertRow[];
+    assertLines: string[];
+    /** Every line between banner and coverage line, in the pasted order —
+     *  what the ordering check compares, so a paste that shuffled the two
+     *  kinds together is refused even when each kind is individually right. */
+    middleLines: string[];
     coverageLine: string;
+}
+
+/**
+ * Parse ONE printed assertion line back into an `AssertRow`. Same discipline
+ * as `parseResultRowLine`: the finite vocabularies, longest-id-first, never
+ * `padEnd`'s column offsets. The label is the rest of the line, so a label
+ * containing spaces round-trips.
+ */
+export function parseAssertRowLine(
+    line: string,
+    knownSurfaceIds: readonly string[],
+    knownViewportIds: readonly string[]
+): AssertRow | null {
+    if (!line.startsWith("assert ")) return null;
+    const afterPrefix = line.slice("assert".length).replace(/^ +/, "");
+    const surfaces = [...knownSurfaceIds].sort((a, b) => b.length - a.length);
+    const viewports = [...knownViewportIds].sort((a, b) => b.length - a.length);
+
+    for (const surface of surfaces) {
+        if (!afterPrefix.startsWith(surface)) continue;
+        const afterSurface = afterPrefix.slice(surface.length);
+        if (!afterSurface.startsWith(" ")) continue;
+        const afterSurfaceTrimmed = afterSurface.replace(/^ +/, "");
+        for (const viewport of viewports) {
+            if (!afterSurfaceTrimmed.startsWith(viewport)) continue;
+            const afterViewport = afterSurfaceTrimmed
+                .slice(viewport.length)
+                .replace(/^ +/, "");
+            for (const verdict of ["PASS", "FAIL"] as const) {
+                if (!afterViewport.startsWith(`${verdict} `)) continue;
+                const label = afterViewport
+                    .slice(verdict.length)
+                    .replace(/^ +/, "");
+                if (label === "") return null;
+                return { surface, viewport, label, verdict };
+            }
+        }
+    }
+    return null;
 }
 
 /**
@@ -195,6 +253,9 @@ export function extractVerdictBlock(
     const problems: string[] = [];
     const rows: ResultRow[] = [];
     const rowLines: string[] = [];
+    const assertRows: AssertRow[] = [];
+    const assertLines: string[] = [];
+    const middleLines: string[] = [];
     for (let i = bannerIdx + 1; i < coverageIdx; i++) {
         if (lines[i] === "") continue;
         const row = parseResultRowLine(
@@ -202,14 +263,26 @@ export function extractVerdictBlock(
             vocab.surfaceIds,
             vocab.viewportIds
         );
-        if (!row) {
+        if (row) {
+            rows.push(row);
+            rowLines.push(lines[i]);
+            middleLines.push(lines[i]);
+            continue;
+        }
+        const assertRow = parseAssertRowLine(
+            lines[i],
+            vocab.surfaceIds,
+            vocab.viewportIds
+        );
+        if (!assertRow) {
             problems.push(
                 `line ${i + 1}: could not parse as a verdict line: ${JSON.stringify(lines[i])}`
             );
             continue;
         }
-        rows.push(row);
-        rowLines.push(lines[i]);
+        assertRows.push(assertRow);
+        assertLines.push(lines[i]);
+        middleLines.push(lines[i]);
     }
 
     return {
@@ -219,6 +292,9 @@ export function extractVerdictBlock(
                       bannerLine: lines[bannerIdx],
                       rows,
                       rowLines,
+                      assertRows,
+                      assertLines,
+                      middleLines,
                       coverageLine: lines[coverageIdx],
                   }
                 : null,
@@ -228,6 +304,25 @@ export function extractVerdictBlock(
 
 function cellName(row: ResultRow): string {
     return `${row.surface} @ ${row.viewport ?? "—"}`;
+}
+
+function assertName(row: AssertRow): string {
+    return `${row.surface} @ ${row.viewport} — ${JSON.stringify(row.label)}`;
+}
+
+/** One refusal naming every FAILED Named Assertion (issue #3649). A surface
+ *  that stopped offering what it promises is a defect in the tree, exactly as
+ *  a broken Floor is. */
+export function failedAssertProblems(rows: readonly AssertRow[]): string[] {
+    const failed = rows.filter((r) => r.verdict === "FAIL");
+    if (failed.length === 0) return [];
+    return [
+        `the receipt carries ${failed.length} FAIL assertion line(s) (${failed
+            .map(assertName)
+            .join(
+                "; "
+            )}) — a surface stopped keeping a promise it declares: fix it and re-run check:ui`,
+    ];
 }
 
 /** One refusal per non-`PASS` verdict present, naming every such cell. */
@@ -307,6 +402,13 @@ export function landableVerdictBlock(
         measurements: vocab.viewportIds.map((viewport) => ({
             viewport,
             readings: zeroReadings(),
+            // Every promise kept — the only outcome that lands, rendered
+            // through the same evaluator `check:ui` prints from.
+            asserts: (vocab.assertsBySurface[surface] ?? []).map((label) => ({
+                label,
+                ok: true,
+                detail: "",
+            })),
         })),
     }));
     return verdictBlockLines(
@@ -317,6 +419,7 @@ export function landableVerdictBlock(
             viewportIds: vocab.viewportIds,
             unwalked: vocab.unwalked,
             diffScope,
+            assertsBySurface: vocab.assertsBySurface,
         })
     );
 }
@@ -333,7 +436,10 @@ export function verifyReceiptText(
     const { block, problems } = extractVerdictBlock(body, vocab);
     if (!block) return { ok: false, problems };
 
-    const refused = nonPassProblems(block.rows);
+    const refused = [
+        ...nonPassProblems(block.rows),
+        ...failedAssertProblems(block.assertRows),
+    ];
     const scope = landableScope(block.bannerLine, vocab, expected);
     if ("problems" in scope) {
         const all = [...scope.problems, ...refused];
@@ -346,7 +452,17 @@ export function verifyReceiptText(
         scope.diffScope
     );
     const expectedCoverage = rest.pop()!;
-    const expectedRows = rest;
+    const expectedMiddle = rest;
+    const expectedRows = expectedMiddle.filter(
+        (line) =>
+            parseResultRowLine(line, vocab.surfaceIds, vocab.viewportIds) !==
+            null
+    );
+    const expectedAssertLines = expectedMiddle.filter(
+        (line) =>
+            parseAssertRowLine(line, vocab.surfaceIds, vocab.viewportIds) !==
+            null
+    );
     const mismatches: string[] = [...refused];
 
     if (block.bannerLine !== expectedBanner) {
@@ -396,12 +512,57 @@ export function verifyReceiptText(
             );
         }
     });
+
+    // The Named Assertions, on the same terms (issue #3649): every promise the
+    // scope's surfaces make owes a line, nothing may claim a promise the
+    // surface table does not declare, and each line is byte-compared.
+    const assertKey = (r: AssertRow) =>
+        `${r.surface}\0${r.viewport}\0${r.label}`;
+    const expectedByAssert = new Map<string, string>();
+    for (const line of expectedAssertLines) {
+        const row = parseAssertRowLine(
+            line,
+            vocab.surfaceIds,
+            vocab.viewportIds
+        )!;
+        expectedByAssert.set(assertKey(row), line);
+    }
+    const pastedAsserts = new Set(block.assertRows.map(assertKey));
+    const missingAsserts = expectedAssertLines
+        .map(
+            (line) =>
+                parseAssertRowLine(line, vocab.surfaceIds, vocab.viewportIds)!
+        )
+        .filter((row) => !pastedAsserts.has(assertKey(row)));
+    if (missingAsserts.length > 0) {
+        mismatches.push(
+            `the receipt is missing ${missingAsserts.length} assertion line(s) its scope owes: ${missingAsserts.map(assertName).join(", ")} — an assertion nobody ran is not one that passed`
+        );
+    }
+    const outsideAsserts = block.assertRows.filter(
+        (row) => !expectedByAssert.has(assertKey(row))
+    );
+    if (outsideAsserts.length > 0) {
+        mismatches.push(
+            `the receipt carries ${outsideAsserts.length} assertion line(s) the surface table does not declare: ${outsideAsserts.map(assertName).join(", ")}`
+        );
+    }
+    block.assertRows.forEach((row, i) => {
+        const owed = expectedByAssert.get(assertKey(row));
+        if (owed === undefined || row.verdict !== "PASS") return;
+        if (block.assertLines[i] !== owed) {
+            mismatches.push(
+                `assertion line for ${assertName(row)} does not match the renderer:\n  pasted:      ${block.assertLines[i]}\n  re-derived:  ${owed}`
+            );
+        }
+    });
+
     if (
         mismatches.length === 0 &&
-        block.rowLines.join("\n") !== expectedRows.join("\n")
+        block.middleLines.join("\n") !== expectedMiddle.join("\n")
     ) {
         mismatches.push(
-            "the verdict lines are not in the order check:ui prints them (surface table, then viewport matrix)"
+            "the verdict lines are not in the order check:ui prints them (surface table, then viewport matrix, then the assertions)"
         );
     }
 
@@ -415,7 +576,7 @@ export function verifyReceiptText(
 }
 
 /** Re-exported for callers that render a row in a message. */
-export { formatResultRow };
+export { formatAssertRow, formatResultRow };
 
 function usage(): never {
     console.error("usage: bun run verify:ui-receipt <PR#>");

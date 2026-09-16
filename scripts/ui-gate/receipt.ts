@@ -36,11 +36,18 @@ import {
     type UnwalkedSurface,
 } from "./floors.ts";
 import { infraDetail, type InfraSignature } from "./infra-verdict.ts";
+import type { AssertResult } from "./assertions.ts";
 
 /** One surface × viewport measurement handed back by the browser half. */
 export interface Measurement {
     viewport: string;
     readings: Readings;
+    /** This cell's Named Assertions, in the surface's declaration order (ADR
+     *  0132 §3, issue #3649). Absent for a surface that declares none; a
+     *  surface that declares some and reports none has every one of them
+     *  counted as unevaluated, which is a FAIL — an assertion nobody ran is
+     *  not an assertion that passed. */
+    asserts?: readonly AssertResult[];
 }
 
 /** A cell (surface × viewport) the machine cut short, standing after the
@@ -142,6 +149,27 @@ export interface ResultRow {
     detail: string;
 }
 
+/**
+ * One Named Assertion's verdict at one cell (ADR 0132 §3). It carries the
+ * label and nothing else: WHY an assertion failed is a Playwright message that
+ * differs between two runs of one tree, so it goes to the diagnostic block,
+ * exactly as an INFRA cell's load and reason do.
+ */
+export interface AssertRow {
+    surface: string;
+    viewport: string;
+    label: string;
+    verdict: "PASS" | "FAIL";
+}
+
+/** A failed assertion as the diagnostic block prints it. */
+export interface AssertFailure {
+    surface: string;
+    viewport: string;
+    label: string;
+    detail: string;
+}
+
 /** A measured cell's Shape Readings, for the diagnostic block. */
 export interface ShapeRow {
     surface: string;
@@ -159,6 +187,11 @@ export interface InfraRow {
 export interface Evaluation {
     /** The verdict block's rows, in surface-table × viewport order. */
     rows: ResultRow[];
+    /** The verdict block's assertion lines, in surface × viewport × declaration
+     *  order, printed after the cell rows. */
+    assertRows: AssertRow[];
+    /** Diagnostic block: why each failed assertion failed. */
+    assertFailures: AssertFailure[];
     /** One line per reason the run is red. Empty ⇒ exit 0. */
     failures: string[];
     /** Surfaces with a `PASS` at every viewport. */
@@ -192,6 +225,11 @@ export interface EvaluateInput {
     viewportIds: readonly string[];
     unwalked: readonly UnwalkedSurface[];
     diffScope?: DiffScope | null;
+    /** The labels each surface PROMISES, in declaration order
+     *  (`assertLabelsBySurface`, issue #3649). The expectation, not the
+     *  outcome: a label listed here and missing from a cell's results is a
+     *  FAIL, so a walk that silently stopped evaluating cannot read as green. */
+    assertsBySurface?: Record<string, readonly string[]>;
 }
 
 /** The detail of a `PASS` row — constant, so the verdict block is too. */
@@ -205,7 +243,10 @@ export function evaluateRun(input: EvaluateInput): Evaluation {
     const { knownSurfaceIds, walks, definedSurfaceIds, viewportIds, unwalked } =
         input;
     const diffScope = input.diffScope ?? null;
+    const assertsBySurface = input.assertsBySurface ?? {};
     const rows: ResultRow[] = [];
+    const assertRows: AssertRow[] = [];
+    const assertFailures: AssertFailure[] = [];
     const failures: string[] = [];
     const shapes: ShapeRow[] = [];
     const infra: InfraRow[] = [];
@@ -314,6 +355,38 @@ export function evaluateRun(input: EvaluateInput): Evaluation {
                     detail: PASS_DETAIL,
                 });
             }
+
+            // The Named Assertions of this cell (ADR 0132 §3). Independent of
+            // the Floors: a screen can hold every Floor and still have lost
+            // the control the surface exists to offer — that is the half this
+            // list covers. Driven by the PROMISED labels, never by the results
+            // reported, so a walk that evaluated nothing fails loudly instead
+            // of printing no lines.
+            const promised = assertsBySurface[surface] ?? [];
+            const reported = new Map(
+                (m.asserts ?? []).map((a) => [a.label, a] as const)
+            );
+            for (const label of promised) {
+                const result = reported.get(label);
+                if (result?.ok === true) {
+                    assertRows.push({
+                        surface,
+                        viewport,
+                        label,
+                        verdict: "PASS",
+                    });
+                    continue;
+                }
+                surfaceComplete = false;
+                assertRows.push({ surface, viewport, label, verdict: "FAIL" });
+                const detail =
+                    result?.detail ||
+                    "the lane reported no result for this assertion";
+                assertFailures.push({ surface, viewport, label, detail });
+                failures.push(
+                    `${surface} @ ${viewport}: assertion ${JSON.stringify(label)} — ${detail}`
+                );
+            }
         }
 
         if (surfaceComplete) measuredSurfaces++;
@@ -327,6 +400,8 @@ export function evaluateRun(input: EvaluateInput): Evaluation {
 
     return {
         rows,
+        assertRows,
+        assertFailures,
         failures,
         measuredSurfaces,
         declaredUnwalked,
@@ -348,6 +423,19 @@ export function evaluateRun(input: EvaluateInput): Evaluation {
  */
 export function formatResultRow(row: ResultRow): string {
     return `${row.verdict.padEnd(8)} ${row.surface.padEnd(20)} ${(row.viewport ?? "—").padEnd(12)} ${row.detail}`;
+}
+
+/** The `assert` line prefix, padded to the verdict column's width so the two
+ *  line kinds align and neither parses as the other. */
+export const ASSERT_PREFIX = "assert";
+
+/**
+ * The exact text of one assertion line — the one place the format exists, for
+ * the same reason `formatResultRow` is (issue #2760): `index.ts` prints it and
+ * `verify-receipt.ts` re-derives it, and a second copy is how they drift.
+ */
+export function formatAssertRow(row: AssertRow): string {
+    return `${ASSERT_PREFIX.padEnd(8)} ${row.surface.padEnd(20)} ${row.viewport.padEnd(12)} ${row.verdict.padEnd(4)} ${row.label}`;
 }
 
 /** The coverage line closing the verdict block — the honest denominator, and
@@ -387,11 +475,15 @@ export function receiptKindLine(ev: Evaluation): string {
     );
 }
 
-/** The verdict block, line by line: banner, rows, coverage line. */
+/** The verdict block, line by line: banner, cell rows, assertion lines,
+ *  coverage line. The assertions come after the cells rather than beside them
+ *  so one reading of the block answers "did every cell hold the Floors?" and
+ *  the next answers "did every surface keep its promises?". */
 export function verdictBlockLines(ev: Evaluation): string[] {
     return [
         receiptKindLine(ev),
         ...ev.rows.map(formatResultRow),
+        ...ev.assertRows.map(formatAssertRow),
         coverageLine(ev),
     ];
 }
@@ -417,6 +509,11 @@ export function diagnosticLines(ev: Evaluation): string[] {
     for (const i of ev.infra) {
         lines.push(
             `infra    ${i.surface.padEnd(20)} ${i.viewport.padEnd(12)} ${i.detail}`
+        );
+    }
+    for (const a of ev.assertFailures) {
+        lines.push(
+            `assert   ${a.surface.padEnd(20)} ${a.viewport.padEnd(12)} ${a.label} — ${a.detail}`
         );
     }
     return lines;
