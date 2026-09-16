@@ -1137,7 +1137,12 @@ const PASS_PRIORITY_CTA =
  *  `GameDialog`, issue #3708). The column is the dialog's own scroll port; the
  *  tiles are the candidates, each carrying its instance id. */
 const CHOICE_PICKER = '[data-slot="game-dialog-column"]';
-const CHOICE_PICKER_CARD = `${CHOICE_PICKER} [data-flight-id]`;
+/** Every grid tile wraps its face in `CardTilt3D` (`cards-pile.tsx`), eligible
+ *  and dimmed alike, so this counts CANDIDATES — not just the pickable ones.
+ *  `data-flight-id` is the COLLAPSED pile's tile seam and is absent from the
+ *  grid, which is how the first cut of this row read zero candidates against a
+ *  picker that was showing seven. */
+const CHOICE_PICKER_CARD = `${CHOICE_PICKER} [data-card-tilt-root]`;
 /** `LibrarySearchConfirm`'s plate reads `Done (0/1)` while nothing is picked,
  *  so the label is not a constant — anchored on its stable head. */
 const CHOICE_PICKER_CONFIRM = `${CHOICE_PICKER} button:has-text("Done")`;
@@ -3016,7 +3021,12 @@ export const SURFACES: readonly Surface[] = [
         // board.
         id: "game-combat",
         needsGame: true,
-        settleTargets: [BLOCK_DECLARATION_CTA],
+        // PLAIN CSS, always: a settle target is handed to `querySelectorAll`
+        // inside the page (`settle.ts`'s `sampleSource`), which knows nothing
+        // of Playwright's `:has-text()` — a pseudo-class here does not narrow
+        // the sample, it throws `SyntaxError` from `evaluate` and reports the
+        // surface UNWALKED. The text locators below are for LOCATORS only.
+        settleTargets: [BOARD_AREA],
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
         label: "Combat — block declaration owed",
         async walk(page, ctx) {
@@ -3026,7 +3036,38 @@ export const SURFACES: readonly Surface[] = [
                     `the combat position loaded but no block-declaration control rendered — the position declares three confirmed attackers with the block owed to the human seat (CR 509.1), so either the viewing seat is not the defender or the command slot is off-screen at this viewport (${await topmostAt(page, "[data-controller-command-row], [data-controller-pod], [data-controller-landscape-strip]")})`
                 );
             }
-            await settle(page, [BLOCK_DECLARATION_CTA]);
+            // PARK THE POINTER before measuring. The walk arrives here having
+            // clicked through the debug sheet, and Playwright leaves the mouse
+            // wherever the last click put it — resting over a battlefield card
+            // that is enough to raise a `CardPreview` panel, whose art paints
+            // with square corners and broke the `cardsSquare` Floor at
+            // 820x1180x2 (measured: one square corner, the preview's own art,
+            // on a board whose cards are all rounded). A stray overlay is not
+            // what this row measures, and `game-card-preview` owns that panel
+            // deliberately.
+            //
+            // NO `Escape` HERE, and the omission is the whole point: on a board
+            // with nothing open, Escape OPENS the Game Menu (a `z-modal` scrim
+            // over the whole viewport). Measured — the run that pressed it
+            // reported five green viewports for a screen that was the Game Menu
+            // over a blurred board: cards `n0`, seven controls occluded, the
+            // cleanup click refused by the scrim, and both rows after this one
+            // UNWALKED. Escape is for a surface that HAS a dialog open
+            // (`game-card-preview`, `game-manage-yields` below); here it would
+            // manufacture one.
+            await page.mouse.move(0, 0);
+            await settle(page, [BOARD_AREA]);
+        },
+        // END the block window. The walk measures it; leaving it open hands the
+        // next row a board mid-turn-based-action, and `ensureBoard`'s resume
+        // branch could not raise a board affordance against one (measured: the
+        // two rows after this one both read UNWALKED, at every viewport).
+        // `No Blockers` is the legal empty declaration (CR 509.1a), so this
+        // ends the window without inventing a block the position did not
+        // declare.
+        async cleanup(page) {
+            await clickIfVisible(page, BLOCK_DECLARATION_CTA, STEP_TIMEOUT);
+            await settle(page);
         },
     },
     {
@@ -3078,17 +3119,29 @@ export const SURFACES: readonly Surface[] = [
         // own position. Loading a scenario clears mid-flight decisions
         // (`buildStateFromScenario`, issue #3515) — but only once it can be
         // reached, which is exactly what this undoes.
+        // Picking a tile CLOSES the dialog (`GridCard`'s own `onClose()` runs
+        // beside the pick), so the confirm plate is only there to be clicked
+        // when the buffer did not submit on its own. Either way the board comes
+        // back uncovered, which is all the next row needs: its
+        // `ensureScenarioBoard` has to reach the debug sheet's edge toggle, and
+        // loading any position clears a mid-flight decision anyway
+        // (`buildStateFromScenario`, issue #3515).
         async cleanup(page) {
             try {
-                await page.locator(CHOICE_PICKER_CARD).first().click({
-                    timeout: STEP_TIMEOUT,
-                });
-                await clickIfVisible(page, CHOICE_PICKER_CONFIRM);
+                await page
+                    .locator(CHOICE_PICKER_CARD)
+                    .first()
+                    .click({ timeout: STEP_TIMEOUT });
+                if (await visible(page, CHOICE_PICKER_CONFIRM, 2000)) {
+                    await page
+                        .locator(CHOICE_PICKER_CONFIRM)
+                        .first()
+                        .click({ timeout: STEP_TIMEOUT });
+                }
             } catch {
-                // Cleanup is hygiene (`index.ts`'s `measure()` swallows a
-                // failure here) — but a picker left standing is what the NEXT
-                // row reports, so the attempt is worth making loudly enough to
-                // show up in that row's own Unreachable reason.
+                // Cleanup is hygiene — `index.ts`'s `measure()` swallows a
+                // failure here, and the next row reports a picker left standing
+                // in its own Unreachable reason.
             }
             await settle(page);
         },
