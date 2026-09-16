@@ -155,6 +155,8 @@ const SHOT_ROOT = path.join(REPO_ROOT, ".claude", "telemetry", "ui-gate");
 
 const STRESS_SCENARIO_LABEL = "UI stress — full board, full hand, deep piles";
 const YIELDS_SCENARIO_LABEL = "UI yields — two spells on the stack";
+const AI_TRACE_SCENARIO_LABEL =
+    "UI AI trace — quiet board, priority on the human seat";
 
 /**
  * The Infra Verdict's retry policy (issue #3644): three attempts per cell, and
@@ -689,6 +691,7 @@ async function main(): Promise<number> {
                     baseUrl,
                     stressScenarioLabel: STRESS_SCENARIO_LABEL,
                     yieldsScenarioLabel: YIELDS_SCENARIO_LABEL,
+                    aiTraceScenarioLabel: AI_TRACE_SCENARIO_LABEL,
                     fixtureLabels: lane.labels,
                     createdGame: false,
                     log: () => {},

@@ -1,0 +1,53 @@
+{
+    "label": "UI AI trace — quiet board, priority on the human seat",
+    "prompt": "ui-gate `game-debug-sheet-ai` surface (scripts/ui-gate/surfaces.ts, issue #3652, ADR 0132 §4). A declared position for the ONE vs-AI surface: `activePlayer`/`priority` both on \"me\", so the Bot (the `-p2` seat, ADR 0001) never holds priority while the probe measures and the board cannot move under it. Seed with: bunx convex run debugScenarios:seedScenarioDirect \"$(cat scripts/ui-gate/ai-trace-scenario.json)\". Deployment-local by design (ADR 0044) — the lane seeds it at bootstrap.",
+    "spec": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 4,
+        "activePlayer": "me",
+        "priority": "me",
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Island",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Forest",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 2
+            },
+            {
+                "name": "Swamp",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 3
+            },
+            {
+                "name": "Savannah Lions",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "hand",
+                "count": 2
+            },
+            {
+                "name": "Brainstorm",
+                "owner": "me",
+                "zone": "hand"
+            }
+        ]
+    }
+}

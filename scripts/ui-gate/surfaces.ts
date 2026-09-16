@@ -49,6 +49,9 @@ export interface WalkContext {
     /** The debug-scenario label the `game-manage-yields` surface loads
      *  (`yields-scenario.json`, issue #3629). */
     yieldsScenarioLabel: string;
+    /** The debug-scenario label the `game-debug-sheet-ai` surface loads
+     *  (`ai-trace-scenario.json`, issue #3652). */
+    aiTraceScenarioLabel: string;
     /** Set once the lane has created the active game itself. */
     createdGame: boolean;
     /** Issue #2671 review H2. The `deck-builder` walk's fixture import trips
@@ -60,11 +63,19 @@ export interface WalkContext {
      *  nothing to clean up. */
     lastCreatedDeckName?: string;
     /** Set once the lane has created the VS-AI game itself (issue #3492).
-     *  Deliberately NOT `createdGame`: that flag is `ensureStressBoard`'s
-     *  licence to load a debug scenario into the active match, and a vs-AI
-     *  match is the one board it must never do that to — the bot is driving
-     *  the other seat, so the position the probe measures would keep moving
-     *  under it. Two flags, two permissions. */
+     *
+     *  Deliberately NOT `createdGame`: each flag is the licence to load a
+     *  declared position into ONE kind of match the lane owns, and the two
+     *  kinds are conceded by different walks at different points in the run.
+     *  Two flags, two permissions.
+     *
+     *  It used to say a vs-AI board must never take a scenario at all, because
+     *  the bot drives the other seat and the position would keep moving under
+     *  the probe. What changed is WHICH position (ADR 0132 §4, issue #3652):
+     *  `ai-trace-scenario.json` declares `activePlayer`/`priority` on the
+     *  human seat, so `useVsAiDriver` is never owed an input and the bot has
+     *  nothing to move — the declared position is what makes the vs-AI board
+     *  measurable, not what makes it unstable. */
     createdVsAiGame?: boolean;
     log(message: string): void;
 }
@@ -915,7 +926,7 @@ async function ensureStressBoard(page: Page, ctx: WalkContext): Promise<void> {
     await ensureScenarioBoard(page, ctx, ctx.stressScenarioLabel);
 }
 
-/** The board with the debug scenario `label` loaded into the game the lane
+/** The board with the debug scenario `label` loaded into the SOLO game the lane
  *  created — `ensureStressBoard`'s mechanism, for any fixed position. */
 async function ensureScenarioBoard(
     page: Page,
@@ -928,6 +939,18 @@ async function ensureScenarioBoard(
             "an active game the lane did not create is in progress; loading a scenario would clobber it. Finish or concede it, then re-run"
         );
     }
+    await loadScenarioOnBoard(page, label);
+}
+
+/** Load the debug scenario `label` into the game currently on screen.
+ *
+ *  Split from `ensureScenarioBoard` (issue #3652) because the vs-AI surface
+ *  reaches its board a different way (`ensureVsAiBoard` — a different lobby
+ *  affordance, a different pregame) and owns a different licence flag, but
+ *  loads its declared position through exactly these clicks. One copy, so the
+ *  two can never drift on the sheet's own selectors. The CALLER checks that
+ *  the lane created the game it is about to overwrite. */
+async function loadScenarioOnBoard(page: Page, label: string): Promise<void> {
     // The debug surface is a SHEET behind a slim « / » edge tab since issue
     // #3403 — `button:has-text('Debug')` addressed the retired seven-button
     // rail and had silently stopped matching anything.
@@ -1949,6 +1972,23 @@ export const SURFACES: readonly Surface[] = [
         },
     },
     {
+        // WHY NO DECLARED POSITION (ADR 0132 §4, issue #3652). Every GAME
+        // surface loads a `ScenarioSpec` so that nothing on screen depends on
+        // a deal. The three draft surfaces cannot, and the reason is what a
+        // spec IS: a description of a game — zones, phase, turn holder,
+        // priority, a stack (`convex/debugScenarioSpec.ts`). A Limited event
+        // has none of those; its subject is a pack, a pool and a seat in a
+        // `limitedEvents` row, and no loader exists — or should — to push a
+        // GameState into one.
+        //
+        // What plays the declared position's part here is the run's own seeded
+        // FIXTURE (`limitedFixtures:seedUiGateFixtures`, issues #2822/#3626):
+        // a 15-card pack and a 24-card pool pinned BY NAME, under this run's
+        // labels, so the subject is as fixed as a board surface's and no other
+        // session's events can reach it. The one thing a fixture cannot pin is
+        // a pack mid-ANIMATION, and that is the settle predicate's job (issue
+        // #3644): the probe measures only once no measured box has moved for a
+        // quiet window.
         id: "draft-pick",
         settleTargets: [DRAFT_PICK_TILE],
         entries: [
@@ -1966,6 +2006,8 @@ export const SURFACES: readonly Surface[] = [
         },
     },
     {
+        // Fixture, not a declared position — see `draft-pick` above for why a
+        // `ScenarioSpec` cannot describe a draft (ADR 0132 §4, issue #3652).
         id: "draft-pool-stop",
         settleTargets: [DRAFT_SNAP_SCROLLER, DRAFT_POOL],
         entries: [
@@ -1979,6 +2021,8 @@ export const SURFACES: readonly Surface[] = [
         },
     },
     {
+        // Fixture, not a declared position — see `draft-pick` above for why a
+        // `ScenarioSpec` cannot describe a draft (ADR 0132 §4, issue #3652).
         id: "draft-pool-peek",
         settleTargets: [DRAFT_PEEK_PANEL],
         entries: [
@@ -2492,6 +2536,21 @@ export const SURFACES: readonly Surface[] = [
         label: "Debug sheet — AI trace open (vs-AI game)",
         async walk(page, ctx) {
             await ensureVsAiBoard(page, ctx);
+            // THE DECLARED POSITION (ADR 0132 §4, issue #3652). The board this
+            // surface measures through is a vs-AI game, so until now everything
+            // on it — the dealt hand, the turn, which seat the viewer follows —
+            // was decided by the coin toss, and the bot kept playing underneath
+            // while the probe worked. `ai-trace-scenario.json` parks BOTH
+            // `activePlayer` and `priority` on the human seat, so
+            // `useVsAiDriver` is never owed an input (`decideBotAction` returns
+            // `none`) and the position cannot move while the five viewports are
+            // measured.
+            if (!ctx.createdVsAiGame) {
+                throw new Unreachable(
+                    "an active vs-AI game the lane did not create is in progress; loading this surface's declared position would clobber it. Finish or concede it, then re-run"
+                );
+            }
+            await loadScenarioOnBoard(page, ctx.aiTraceScenarioLabel);
             if (!(await visible(page, DEBUG_SHEET_TOGGLE, STEP_TIMEOUT))) {
                 throw new Unreachable(
                     "no debug-sheet edge toggle on the board — the route mounts it for a tester or in dev (`canUseDebugSheet`), and this lane runs its own vite dev server, so its absence means the board never finished rendering"
@@ -2519,30 +2578,39 @@ export const SURFACES: readonly Surface[] = [
                         : "the debug sheet opened without an AI trace box — the box is `vsAi`-gated (`debug-sheet.tsx`), so this walk reached a game that is not vs-AI"
                 );
             }
-            // CLEAR THE RING BEFORE PROBING, and keep clearing until it stays
-            // cleared. The ring is a live log of a live bot, so its ROW COUNT
-            // is a function of how long the walk took and of who won the coin
-            // toss — measured across two runs of the same tree it moved the
-            // desktop reading from `ctrls n13 small12` to `ctrls n21 small19`.
-            // That is the same "a ceiling that flaps is worse than no ceiling"
-            // finding that withdrew `game-board` (`UNWALKED_SURFACES`), and the fix
-            // here is the same in spirit as `game-stress`'s fixed position: the
-            // surface measures the sheet's SHAPE at five viewports, and the
-            // content it happens to be holding is not part of that. Section
-            // ORDER is asserted offline, where it is a DOM fact and not a race
-            // (`ai-decision-trace-box.bot.test.tsx`).
-            for (let pass = 0; pass < 4; pass++) {
-                const clears = page.locator(
-                    `${DEBUG_SHEET} button:text-is("Clear")`
+            // SEED THE RING, rather than empty it (issue #3652). The walk used
+            // to press every `Clear` in the sheet, because the ring is a live
+            // log of a live bot: its ROW COUNT was a function of how long the
+            // walk took and of who won the coin toss, and across two runs of
+            // one unchanged tree it moved the desktop reading from
+            // `ctrls n13 small12` to `ctrls n21 small19`. An EMPTY ring is
+            // reproducible, but it measures the box in the one state a tester
+            // never opens it in — "No bot decision yet." over two empty logs.
+            //
+            // The declared position above closes the other half: with priority
+            // on the human seat the bot writes nothing here, so whatever the
+            // seam puts in the ring is what the probe measures, every run.
+            // `window.__tolariaAiTrace.seed()` clears and pushes a CONSTANT
+            // trace through `pushAiTrace` — the same function `useVsAiDriver`
+            // calls (`src/lib/ai/dev-trace-seam.ts`), so the rows are the rows
+            // a real decision renders. Idempotent, because a retried Infra
+            // Verdict re-walks this surface.
+            //
+            // The page function is passed as SOURCE TEXT, like `topmostAt`
+            // above: this file compiles under `tsconfig.scripts.json`, which
+            // carries no `lib.dom`.
+            const seeded = (await page.evaluate(
+                `(() => {
+                    const seam = window.__tolariaAiTrace;
+                    return seam ? seam.seed() : -1;
+                })()`
+            )) as number;
+            if (seeded < 1) {
+                throw new Unreachable(
+                    seeded === -1
+                        ? "the AI trace seam (`window.__tolariaAiTrace`) is not installed — it is gated on `import.meta.env.DEV` and installed by the trace box itself (`src/lib/ai/dev-trace-seam.ts`), so its absence means the lane is measuring a production build or the box never mounted"
+                        : `the AI trace seam seeded ${seeded} decision(s) — the ring this surface measures is empty`
                 );
-                if ((await clears.count()) === 0) break;
-                // Front of the list every time: clearing one section unmounts
-                // its own button, so a stale index would address a gone node.
-                await clears
-                    .first()
-                    .click({ timeout: STEP_TIMEOUT })
-                    .catch(() => {});
-                await settle(page);
             }
             await settle(page);
         },

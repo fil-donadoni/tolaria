@@ -12,6 +12,7 @@ import {
     convexRunArgv,
     createLaneLifecycle,
     installSignalTeardown,
+    laneScenarioSeeds,
     newLaneAccount,
     runScreenshotDir,
     SCREENSHOT_RETENTION_MS,
@@ -59,15 +60,41 @@ describe("the lane account lifecycle (issue #3626)", () => {
     it("sweeps, signs up, grants, then seeds its run-scoped fixtures — in that order", async () => {
         const { lane, account, calls } = harness();
         await lane.bootstrap();
-        expect(calls).toEqual([
+        const seeds = laneScenarioSeeds();
+        expect(calls.slice(0, 5)).toEqual([
             "uiGateAccounts:sweepStaleLaneAccounts {}",
             `signUp ${account.email}`,
             `uiGateAccounts:grantLaneRoles {"email":"${account.email}"}`,
             `limitedFixtures:seedUiGateFixtures {"email":"${account.email}","runId":"${account.runId}"}`,
             `verdictResolutions:seedUiGateContestedPosition {"email":"${account.email}"}`,
         ]);
+        // Then the declared positions (issue #3652) — the payloads, not the
+        // account, so they are the tail of the bootstrap and not part of the
+        // run-scoped block above.
+        expect(calls.slice(5)).toHaveLength(seeds.length);
         expect(lane.labels.open.startsWith(lane.labels.prefix)).toBe(true);
         expect(lane.labels.prefix).toBe(`ui-gate/${account.runId}/`);
+    });
+
+    it("seeds every declared position the game surfaces load (issue #3652)", async () => {
+        // A payload added to `SCENARIO_FILES` and never seeded reaches the run
+        // as `debug scenario "…" is absent from this deployment` — an UNWALKED
+        // surface on a machine that has not hand-seeded it, which is a coverage
+        // hole rather than a failure anyone can attribute.
+        const { lane, calls } = harness();
+        await lane.bootstrap();
+        const seeded = calls
+            .filter((c) => c.startsWith("debugScenarios:seedScenarioDirect "))
+            .map(
+                (c) =>
+                    (
+                        JSON.parse(
+                            c.slice("debugScenarios:seedScenarioDirect ".length)
+                        ) as { label: string }
+                    ).label
+            );
+        expect(seeded).toEqual(laneScenarioSeeds().map((s) => s.label));
+        expect(lane.labels.prefix).toContain("ui-gate/");
     });
 
     it("tears down on the happy path", async () => {

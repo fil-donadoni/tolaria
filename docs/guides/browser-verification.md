@@ -74,8 +74,10 @@ No credentials: the lane never signs in as the shared dev account.
    to clean up.
 2. It registers `ui-gate+<runId>@ui-gate.invalid` with a random password,
    through the same `auth:signIn` sign-up flow the auth form uses.
-3. It grants that account admin and tester, and seeds its Limited fixtures
-   under `ui-gate/<runId>/…` labels.
+3. It grants that account admin and tester, seeds its Limited fixtures under
+   `ui-gate/<runId>/…` labels, and seeds the game surfaces' declared positions
+   (`scripts/ui-gate/*-scenario.json`, ADR 0132 §4) — those by LABEL, upserted,
+   so they are shared with every other run rather than owned by this account.
 4. When the run ends — pass, fail, Ctrl+C or SIGTERM — it destroys the account
    and every row it owns: auth rows, decks, matches and games with their state
    rows, Limited events, verdicts.

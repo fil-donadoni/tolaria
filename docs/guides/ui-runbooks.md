@@ -154,12 +154,23 @@ To add a scenario, use the panel's own save form (label + spec) — a DB insert,
 never a code edit. Headless agents do not insert: they emit `{ label, spec }`
 in the PR body and `land` seeds it post-merge.
 
-**The one scenario the `check:ui` lane itself needs** is
-`UI stress — full board, full hand, deep piles`, which the `game-stress` and
-`game-debug-sheet` surfaces search for by that exact label. Its payload ships in the repo — not
-as a second source of truth for scenarios, but because a lane that cannot
-reach a surface reports a coverage hole, and re-deriving the position by hand
-on every deployment is how that hole stays open:
+**The scenarios the `check:ui` lane itself needs** are its game surfaces'
+DECLARED POSITIONS (ADR 0132 §4) — three payloads that ship in the repo, not as
+a second source of truth for scenarios, but because a lane that cannot reach a
+surface reports a coverage hole, and re-deriving a position by hand on every
+deployment is how that hole stays open:
+
+| Payload                                  | Label                                                   | Surfaces                                               |
+| ---------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------ |
+| `scripts/ui-gate/stress-scenario.json`   | `UI stress — full board, full hand, deep piles`         | `game-stress`, `game-debug-sheet`, `game-card-preview` |
+| `scripts/ui-gate/yields-scenario.json`   | `UI yields — two spells on the stack`                   | `game-manage-yields`                                   |
+| `scripts/ui-gate/ai-trace-scenario.json` | `UI AI trace — quiet board, priority on the human seat` | `game-debug-sheet-ai`                                  |
+
+**The lane seeds all three itself, at bootstrap** (issue #3652), beside the
+Limited fixtures — so a fresh deployment needs no hand-seeding. Unlike the
+fixtures they are not run-scoped: `seedScenarioDirect` upserts by label and the
+payload is a constant, so two concurrent runs write the same bytes to the same
+row. By hand, for a deployment the lane has never run against:
 
 ```bash
 bunx convex run debugScenarios:seedScenarioDirect \
@@ -168,7 +179,11 @@ bunx convex run debugScenarios:seedScenarioDirect \
 
 Upsert-by-label, so re-running it is safe; the row itself stays
 deployment-local (ADR 0044). `scripts/__tests__/ui-gate-stress-scenario.test.ts`
-holds the label and the card names to the catalogue.
+holds the stress label and its card names to the catalogue;
+`ui-gate-game-scenarios.test.ts` holds all three to §4 — each declares
+`activePlayer` and `priority` on the **human** seat, which is what keeps the
+coin toss, the dealt hand and (in the vs-AI game) the Bot out of what the probe
+measures.
 
 ## Open the debug sheet's AI trace, in a vs-AI game (2026-09-12)
 
@@ -195,13 +210,23 @@ the lane that ENDS a match — its own, never one it found.
    chevron above the controller bar) or press <kbd>`</kbd>. The sheet's open
 flag persists per device in `tolaria:debugSheetOpen`, so check
 `aria-expanded` before clicking rather than toggling blind.
-6. The `AI trace` box sits at the top of the sheet. Its open body is
+6. **Load the declared position** (ADR 0132 §4, issue #3652) — the sheet's
+   `Scenarios` list, then
+   `UI AI trace — quiet board, priority on the human seat`. It parks both the
+   turn and priority on your own seat, so the Bot is owed no input and stops
+   playing underneath you. Without it every reading below is a function of the
+   coin toss and of how long you took.
+7. The `AI trace` box sits at the top of the sheet. Its open body is
    `[data-ai-trace-body]`; sections run ring → escalation log → outcome log.
-7. **Measuring?** Press each `Clear` inside the sheet first. The ring is a live
-   log of a live bot, and its row count is a function of how long you took —
-   two runs of the same tree measured `ctrls n13 small12` then `ctrls n21
-small19` at 1440x900x2.
-8. **Afterwards, end the game you created** — `Concede Match` on the lobby
+8. **Measuring?** Seed the ring instead of clearing it:
+   `window.__tolariaAiTrace.seed()` in the console pushes three fixed decisions
+   through the same `pushAiTrace` the vs-AI driver calls
+   (`src/lib/ai/dev-trace-seam.ts`, dev builds only). It clears first, so it is
+   safe to re-run. A LIVE ring cannot be measured twice — its row count is a
+   function of how long you took, and two runs of one unchanged tree measured
+   `ctrls n13 small12` then `ctrls n21 small19` at 1440x900x2; an empty one
+   measures the box in the state no tester ever opens it in.
+9. **Afterwards, end the game you created** — `Concede Match` on the lobby
    banner, then the confirm dialog's own `Concede Match`. An active game left
    behind gates the vs-AI dialog shut for that account's next walk. The lane
    ends its own for the same reason, within the run: its later surfaces need
