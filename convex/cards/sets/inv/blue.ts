@@ -33,9 +33,10 @@
 //     Shoreline Raider   -> #2765  the CR 702.16a SUBTYPE protection quality
 //                                  (NOT CR 702.16k, a player quality that
 //                                  already ships)
-//     Breaking Wave      -> #2146 (cast rider) + #1332 (tapped-state filter)
+//     Breaking Wave      -> #3714  `EffectCardFilter.tapped` (its cast
+//                                  rider shipped with #2146)
 //
-//   ONE-OFF PRIMITIVE GAPS, on the INV assorted-gaps slice #1332:
+//   SINGLE-CONSUMER GAPS, catalogue lines on #1332 (censused, not scheduled):
 //     Barrin's Unmaking, Essence Leak, Mana Maze, Psychic Battle,
 //     Temporal Distortion
 //
@@ -823,7 +824,7 @@ export const blindSeer: CardDefinition = {
 // partial-mechanic failure the divergence rules forbid; deliberately NOT
 // widened here either, since a new filter field is a catalogue-wide input to
 // every `isCardFilter` consumer and belongs to its own slice.
-// tracked-by: #1332
+// tracked-by: #3714
 // export const breakingWave: CardDefinition = {
 //     id: "1b39cd77-97aa-4099-8405-366f82079758",
 //     name: "Breaking Wave",
